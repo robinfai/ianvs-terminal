@@ -3,19 +3,152 @@ use ianvs_core::model::{
     TerminalProfileLaunch, TerminalProfileTerminal, TerminalShellIntegration,
 };
 use ianvs_core::session;
+use par_term_emu_core_rust::cell::Cell;
 use par_term_emu_core_rust::color::{Color, NamedColor};
-use par_term_emu_core_rust::terminal::Terminal as ParserTerminal;
+use par_term_emu_core_rust::graphics::kitty::KittyParser;
+use par_term_emu_core_rust::graphics::{
+    next_graphic_id, AnimationControl, AnimationFrame, AnimationState, GraphicProtocol,
+    GraphicsStore, ImageDimension, ImageSizeUnit, TerminalGraphic,
+};
+use par_term_emu_core_rust::mouse::{MouseEncoding, MouseEvent, MouseMode};
+use par_term_emu_core_rust::screenshot::{ScreenshotConfig, SixelRenderMode};
+use par_term_emu_core_rust::terminal::{
+    sanitize_bracketed_paste_content, Terminal as ParserTerminal,
+};
+use par_term_emu_core_rust::{str_width, WidthConfig};
 use std::collections::BTreeMap;
 use std::ffi::CStr;
 use std::fs;
 use std::path::Path;
 use std::ptr;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tempfile::tempdir;
 
 const SESSION_WAIT_ATTEMPTS: usize = 200;
 const RED_PIXEL_PNG_BASE64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==";
+const RED_GREEN_2X1_PNG_BASE64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAYAAAD0In+KAAAADklEQVR4nGP4z8DwHwQBEPgD/U6VwW8AAAAASUVORK5CYII=";
+const TRANSPARENT_RED_2X1_PNG_BASE64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAYAAAD0In+KAAAAD0lEQVR4nGNgAIL/DAwNAASFAYC4df53AAAAAElFTkSuQmCC";
+const RED_GREEN_1X1_GIF_BASE64: &str = "R0lGODlhAQABAIEAAP8AAAAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQIAgAAACwAAAAAAQABAAAIBAABBAQAIfkECAMAAAAsAAAAAAEAAQCBAP8AAAAAAAAAAAAACAQAAQQEADs=";
+const RED_RGBA_BASE64: &str = "/wAA/w==";
+const GREEN_RGBA_BASE64: &str = "AP8A/w==";
+
+fn red_pixel_png_bytes() -> &'static [u8] {
+    &[
+        137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6,
+        0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 13, 73, 68, 65, 84, 120, 156, 99, 248, 207, 192, 240,
+        31, 0, 5, 0, 1, 255, 137, 153, 61, 29, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
+    ]
+}
+
+fn force_kitty_animation_frame_elapsed(terminal: &mut ParserTerminal, image_id: u32) {
+    terminal
+        .graphics_store_mut()
+        .get_animation_mut(image_id)
+        .expect("expected Kitty animation")
+        .frame_start_time = Some(Instant::now() - Duration::from_millis(2));
+}
+
+fn base64_standard_no_pad_encode(data: &[u8]) -> String {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut output = String::with_capacity((data.len() + 2) / 3 * 4);
+    for chunk in data.chunks(3) {
+        let b0 = chunk[0];
+        let b1 = *chunk.get(1).unwrap_or(&0);
+        let b2 = *chunk.get(2).unwrap_or(&0);
+        output.push(ALPHABET[(b0 >> 2) as usize] as char);
+        output.push(ALPHABET[(((b0 & 0x03) << 4) | (b1 >> 4)) as usize] as char);
+        if chunk.len() > 1 {
+            output.push(ALPHABET[(((b1 & 0x0f) << 2) | (b2 >> 6)) as usize] as char);
+        }
+        if chunk.len() > 2 {
+            output.push(ALPHABET[(b2 & 0x3f) as usize] as char);
+        }
+    }
+    output
+}
+
+fn kitty_path_payload(path: &Path) -> String {
+    base64_standard_no_pad_encode(path.to_string_lossy().as_bytes())
+}
+
+#[cfg(unix)]
+fn create_kitty_shared_memory_payload(data: &[u8]) -> (String, String) {
+    use std::ffi::CString;
+    use std::ptr;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let name = format!(
+        "/ivs{:x}{:x}",
+        std::process::id() & 0xffff,
+        (nanos & 0xffff_ffff) as u128,
+    );
+    let c_name = CString::new(name.as_bytes()).unwrap();
+    let fd = unsafe {
+        libc::shm_open(
+            c_name.as_ptr(),
+            libc::O_CREAT | libc::O_EXCL | libc::O_RDWR,
+            0o600,
+        )
+    };
+    assert!(
+        fd >= 0,
+        "failed to create shared memory object {name}: {}",
+        std::io::Error::last_os_error()
+    );
+    if unsafe { libc::ftruncate(fd, data.len() as libc::off_t) } != 0 {
+        let error = std::io::Error::last_os_error();
+        let _ = unsafe { libc::close(fd) };
+        let _ = unsafe { libc::shm_unlink(c_name.as_ptr()) };
+        panic!("failed to resize shared memory object {name}: {error}");
+    }
+
+    let ptr = unsafe {
+        libc::mmap(
+            ptr::null_mut(),
+            data.len(),
+            libc::PROT_READ | libc::PROT_WRITE,
+            libc::MAP_SHARED,
+            fd,
+            0,
+        )
+    };
+    if ptr == libc::MAP_FAILED {
+        let error = std::io::Error::last_os_error();
+        let _ = unsafe { libc::close(fd) };
+        let _ = unsafe { libc::shm_unlink(c_name.as_ptr()) };
+        panic!("failed to map shared memory object {name}: {error}");
+    }
+    unsafe {
+        ptr::copy_nonoverlapping(data.as_ptr(), ptr.cast::<u8>(), data.len());
+        let _ = libc::munmap(ptr, data.len());
+        let _ = libc::close(fd);
+    }
+
+    let payload = base64_standard_no_pad_encode(name.as_bytes());
+    (name, payload)
+}
+
+#[cfg(unix)]
+fn kitty_shared_memory_exists(name: &str) -> bool {
+    let c_name = std::ffi::CString::new(name.as_bytes()).unwrap();
+    let fd = unsafe { libc::shm_open(c_name.as_ptr(), libc::O_RDONLY, 0) };
+    if fd < 0 {
+        return false;
+    }
+    let _ = unsafe { libc::close(fd) };
+    true
+}
+
+#[cfg(unix)]
+fn unlink_kitty_shared_memory(name: &str) {
+    let c_name = std::ffi::CString::new(name.as_bytes()).unwrap();
+    let _ = unsafe { libc::shm_unlink(c_name.as_ptr()) };
+}
 
 fn local_profile(
     id: &str,
@@ -457,6 +590,21 @@ fn osc133_shell_command_profile() -> TerminalProfile {
     )
 }
 
+fn osc133_alt_screen_shell_command_profile() -> TerminalProfile {
+    local_profile(
+        "osc133-alt-screen-shell-command",
+        "OSC133 Alt Screen Shell Command",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import sys,time; sys.stdout.buffer.write(b"\x1b[?1049h\x1b]133;A\x07\x1b]133;B\x07\x1b]133;C;vim-ish\x07alt-screen\x1b]133;D;0\x07\x1b[?1049l"); sys.stdout.flush(); time.sleep(0.2)'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
 fn osc1337_remote_host_user_var_profile() -> TerminalProfile {
     local_profile(
         "osc1337-remote-user-var",
@@ -481,6 +629,20 @@ fn osc_notification_progress_badge_profile() -> TerminalProfile {
             "-lc".to_string(),
             r#"python3 -c 'import sys; sys.stdout.buffer.write(b"\x1b]9;Build finished\x07\x1b]777;notify;Deploy;Done\x07\x1b]9;4;1;55\x07\x1b]934;set;build;percent=80;label=Compiling\x07\x1b]1337;SetBadgeFormat=QnVpbGQ=\x07")'"#
                 .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn osc9_indeterminate_progress_profile() -> TerminalProfile {
+    local_profile(
+        "osc9-indeterminate-progress",
+        "OSC9 Indeterminate Progress",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import sys; sys.stdout.buffer.write(b"\x1b]9;4;3\x07")'"#.to_string(),
         ],
         BTreeMap::new(),
         TerminalEmulation::Xterm256,
@@ -568,6 +730,133 @@ fn alternate_screen_profile() -> TerminalProfile {
     )
 }
 
+fn alternate_screen_1047_profile() -> TerminalProfile {
+    local_profile(
+        "alternate-screen-1047",
+        "Alternate Screen 1047",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            "printf '\\033[?1047hALT1047'".to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn alternate_screen_interaction_modes_profile() -> TerminalProfile {
+    local_profile(
+        "alternate-screen-interaction-modes",
+        "Alternate Screen Interaction Modes",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 - <<'PY'
+import sys
+import time
+
+sys.stdout.write("\x1b[?1049h")
+sys.stdout.write("\x1b[?1004h\x1b[?1007h\x1b[?1002h\x1b[?1006h\x1b[=1u")
+sys.stdout.write("ALTINTERACTION")
+sys.stdout.flush()
+time.sleep(0.15)
+sys.stdout.write("\x1b[?1049lPRIMARYDONE")
+sys.stdout.flush()
+time.sleep(0.1)
+PY"#
+            .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn primary_interaction_modes_across_alternate_screen_profile() -> TerminalProfile {
+    local_profile(
+        "primary-interaction-modes-across-alternate-screen",
+        "Primary Interaction Modes Across Alternate Screen",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 - <<'PY'
+import sys
+import time
+
+def out(value, delay=0.16):
+    sys.stdout.write(value)
+    sys.stdout.flush()
+    time.sleep(delay)
+
+out("\x1b[?1004h\x1b[?1007h\x1b[?1002h\x1b[?1006h\x1b[=1u\x1b[?2004hPRIMARYMODES")
+out("\x1b[?1049hALTEMPTY")
+out("\x1b[?1004h\x1b[?1007h\x1b[?1003h\x1b[?1016h\x1b[=8uALTMODES")
+out("\x1b[?1049lPRIMARYRESTORED", 0.22)
+PY"#
+            .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn kitty_keyboard_profile() -> TerminalProfile {
+    local_profile(
+        "kitty-keyboard",
+        "Kitty Keyboard",
+        "/bin/sh",
+        vec!["-lc".to_string(), "printf '\\033[=1uK'".to_string()],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn focus_tracking_profile() -> TerminalProfile {
+    local_profile(
+        "focus-tracking",
+        "Focus Tracking",
+        "/bin/sh",
+        vec!["-lc".to_string(), "printf '\\033[?1004hFOCUS'".to_string()],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn bracketed_paste_mode_profile() -> TerminalProfile {
+    local_profile(
+        "bracketed-paste-mode",
+        "Bracketed Paste Mode",
+        "/bin/sh",
+        vec!["-lc".to_string(), "printf '\\033[?2004hPASTE'".to_string()],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn mouse_sgr_pixels_profile() -> TerminalProfile {
+    local_profile(
+        "mouse-sgr-pixels",
+        "Mouse SGR Pixels",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            "printf '\\033[?1000h\\033[?1016hMOUSEPIX'".to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn mouse_x10_profile() -> TerminalProfile {
+    local_profile(
+        "mouse-x10",
+        "Mouse X10",
+        "/bin/sh",
+        vec!["-lc".to_string(), "printf '\\033[?9hMOUSEX10'".to_string()],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
 fn alternate_scroll_profile() -> TerminalProfile {
     local_profile(
         "alternate-scroll",
@@ -612,6 +901,286 @@ fn synchronized_output_profile() -> TerminalProfile {
             "-lc".to_string(),
             r#"python3 -c 'import sys,time; time.sleep(0.2); sys.stdout.write("\x1b[?2026h"); sys.stdout.flush(); time.sleep(0.2); sys.stdout.write("\rSYNC-MID"); sys.stdout.flush(); time.sleep(0.8); sys.stdout.write("\rSYNC-FINAL\x1b[?2026l\n"); sys.stdout.flush()'"#
                 .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn stuck_synchronized_output_profile() -> TerminalProfile {
+    local_profile(
+        "stuck-synchronized-output",
+        "Stuck Synchronized Output",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import sys,time; sys.stdout.write("\x1b[?2026hSYNC-STUCK"); sys.stdout.flush(); time.sleep(1.5)'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn synchronized_output_host_events_profile() -> TerminalProfile {
+    local_profile(
+        "synchronized-output-host-events",
+        "Synchronized Output Host Events",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 - <<'PY'
+import sys
+import time
+
+sys.stdout.write("\x1b[?2026h")
+sys.stdout.flush()
+time.sleep(0.1)
+sys.stdout.write("\x1b]52;c;5aSN5Yi25YaF5a658J+Mnw==\x07")
+sys.stdout.write("\x1b[8;31;101t")
+sys.stdout.flush()
+time.sleep(2.0)
+sys.stdout.write("\rSYNC-HOST-DONE\x1b[?2026l\n")
+sys.stdout.flush()
+time.sleep(0.1)
+PY"#
+            .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn synchronized_inline_progress_profile() -> TerminalProfile {
+    local_profile(
+        "synchronized-inline-progress",
+        "Synchronized Inline Progress",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 - <<'PY'
+import sys
+import time
+
+sys.stdout.write("READY\n")
+sys.stdout.flush()
+time.sleep(0.25)
+sys.stdout.write("\x1b[?2026h")
+sys.stdout.write("Deploy 10%")
+sys.stdout.flush()
+time.sleep(0.30)
+sys.stdout.write("\r\x1b[KDeploy 40%")
+sys.stdout.flush()
+time.sleep(0.30)
+sys.stdout.write("\r\x1b[KDeploy done\n\x1b[?2026l")
+sys.stdout.flush()
+time.sleep(0.1)
+PY"#
+            .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn inline_progress_spinner_profile() -> TerminalProfile {
+    local_profile(
+        "inline-progress-spinner",
+        "Inline Progress Spinner",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 - <<'PY'
+import sys
+import time
+
+sys.stdout.write("READY\n")
+sys.stdout.flush()
+time.sleep(0.6)
+sys.stdout.write("Downloading 10%")
+sys.stdout.write("\r\x1b[KDownloading 20%")
+sys.stdout.write("\r\x1b[KDone\n")
+sys.stdout.flush()
+time.sleep(0.1)
+PY"#
+            .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn inline_progress_cr_only_spinner_profile() -> TerminalProfile {
+    local_profile(
+        "inline-progress-cr-only-spinner",
+        "Inline Progress CR Only Spinner",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 - <<'PY'
+import sys
+import time
+
+sys.stdout.write("READY\n")
+sys.stdout.flush()
+time.sleep(0.6)
+sys.stdout.write("Working -")
+sys.stdout.write("\rWorking \\")
+sys.stdout.write("\rWorking |")
+sys.stdout.write("\rWorking done\n")
+sys.stdout.flush()
+time.sleep(0.1)
+PY"#
+            .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn inline_progress_short_overwrite_profile() -> TerminalProfile {
+    local_profile(
+        "inline-progress-short-overwrite",
+        "Inline Progress Short Overwrite",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 - <<'PY'
+import sys
+import time
+
+sys.stdout.write("READY\n")
+sys.stdout.flush()
+time.sleep(0.35)
+sys.stdout.write("Downloading 100%")
+sys.stdout.flush()
+time.sleep(0.35)
+sys.stdout.write("\r")
+sys.stdout.flush()
+time.sleep(0.1)
+sys.stdout.write("\x1b[KOK\n")
+sys.stdout.flush()
+time.sleep(0.1)
+PY"#
+            .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn inline_progress_wide_overwrite_profile() -> TerminalProfile {
+    local_profile(
+        "inline-progress-wide-overwrite",
+        "Inline Progress Wide Overwrite",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 - <<'PY'
+import sys
+import time
+
+sys.stdout.write("READY\n")
+sys.stdout.flush()
+time.sleep(0.35)
+sys.stdout.write("\u23f3 Downloading 100%")
+sys.stdout.flush()
+time.sleep(0.35)
+sys.stdout.write("\r")
+sys.stdout.flush()
+time.sleep(0.1)
+sys.stdout.write("\x1b[KOK\n")
+sys.stdout.flush()
+time.sleep(0.1)
+PY"#
+            .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn inline_progress_wide_cr_only_overwrite_profile() -> TerminalProfile {
+    local_profile(
+        "inline-progress-wide-cr-only-overwrite",
+        "Inline Progress Wide CR Only Overwrite",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 - <<'PY'
+import sys
+import time
+
+sys.stdout.write("READY\n")
+sys.stdout.flush()
+time.sleep(0.35)
+sys.stdout.write("\U0001f9d1\u200d\U0001f4bb Building")
+sys.stdout.flush()
+time.sleep(0.35)
+sys.stdout.write("\rOK Building\n")
+sys.stdout.flush()
+time.sleep(0.1)
+PY"#
+            .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn inline_progress_split_clear_repaint_profile() -> TerminalProfile {
+    local_profile(
+        "inline-progress-split-clear-repaint",
+        "Inline Progress Split Clear Repaint",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 - <<'PY'
+import sys
+import time
+
+sys.stdout.write("READY\n")
+sys.stdout.flush()
+time.sleep(0.35)
+sys.stdout.write("Downloading 100%")
+sys.stdout.flush()
+time.sleep(0.35)
+sys.stdout.write("\r\x1b[K")
+sys.stdout.flush()
+time.sleep(0.12)
+sys.stdout.write("OK\n")
+sys.stdout.flush()
+time.sleep(0.1)
+PY"#
+            .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn inline_progress_clear_without_repaint_profile() -> TerminalProfile {
+    local_profile(
+        "inline-progress-clear-without-repaint",
+        "Inline Progress Clear Without Repaint",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 - <<'PY'
+import sys
+import time
+
+sys.stdout.write("READY\n")
+sys.stdout.flush()
+time.sleep(0.35)
+sys.stdout.write("Transient status")
+sys.stdout.flush()
+time.sleep(0.35)
+sys.stdout.write("\r\x1b[K")
+sys.stdout.flush()
+time.sleep(0.35)
+PY"#
+            .to_string(),
         ],
         BTreeMap::new(),
         TerminalEmulation::Xterm256,
@@ -725,6 +1294,92 @@ fn vt220_clipboard_paste_request_profile() -> TerminalProfile {
         "VT220 Clipboard Paste",
         "/bin/sh",
         vec!["-lc".to_string(), "printf '\\033]52;c;?\\a'".to_string()],
+        BTreeMap::new(),
+        TerminalEmulation::Vt220,
+    )
+}
+
+fn nerd_font_icons_profile() -> TerminalProfile {
+    local_profile(
+        "nerd-font-icons",
+        "Nerd Font Icons",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 - <<'PY'
+import sys
+import time
+
+sys.stdout.write("NF:\ue0b0\U000f08c7Z")
+sys.stdout.flush()
+time.sleep(0.1)
+PY"#
+            .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn complex_grapheme_style_profile() -> TerminalProfile {
+    local_profile(
+        "complex-grapheme-style",
+        "Complex Grapheme Style",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 - <<'PY'
+import sys
+import time
+
+sys.stdout.write(
+    "A"
+    "\x1b[38;2;255;0;0m\u2708\ufe0f\x1b[0m"
+    "B"
+    "\x1b[38;2;0;255;0m\U0001f468\u200d\U0001f4bb\x1b[0m"
+    "C"
+    "\x1b[38;2;0;0;255m1\ufe0f\u20e3\x1b[0m"
+    "D"
+)
+sys.stdout.flush()
+time.sleep(0.1)
+PY"#
+            .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn wide_grapheme_right_edge_profile() -> TerminalProfile {
+    local_profile(
+        "wide-grapheme-right-edge",
+        "Wide Grapheme Right Edge",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 - <<'PY'
+import sys
+import time
+
+time.sleep(0.15)
+sys.stdout.write("A\U0001f1fa\U0001f1f8B")
+sys.stdout.flush()
+time.sleep(0.1)
+PY"#
+            .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn vt220_bracketed_paste_mode_profile() -> TerminalProfile {
+    local_profile(
+        "vt220-bracketed-paste-mode",
+        "VT220 Bracketed Paste Mode",
+        "/bin/sh",
+        vec!["-lc".to_string(), "printf '\\033[?2004hPASTE'".to_string()],
         BTreeMap::new(),
         TerminalEmulation::Vt220,
     )
@@ -997,6 +1652,14 @@ fn frame_row_at_index<'a>(frame: &'a serde_json::Value, index: u64) -> &'a serde
         .expect("expected matching frame row index")
 }
 
+fn frame_has_blank_viewport_row(frame: &str, row_index: usize) -> bool {
+    let parsed: serde_json::Value = serde_json::from_str(frame).unwrap();
+    parsed["rows"].as_array().into_iter().flatten().any(|row| {
+        row["index"].as_u64() == Some(row_index as u64)
+            && row["text"].as_str().unwrap_or_default().trim().is_empty()
+    })
+}
+
 #[test]
 fn ping_returns_expected_value() {
     assert_eq!(session::ping(), 42);
@@ -1150,6 +1813,3937 @@ fn session_frame_diff_exports_graphic_placements_and_asset_bytes() {
         -1,
         "null destination should be rejected"
     );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_exports_iterm_inline_image_alpha_pixels() {
+    let profile = local_profile(
+        "iterm-alpha-graphics",
+        "iTerm Alpha Graphics",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys\nsys.stdout.write('\\x1b]1337;File=inline=1;doNotMoveCursor=1;width=2px;height=1px;preserveAspectRatio=0:{}\\x1b\\\\')\nsys.stdout.flush()\nPY",
+                TRANSPARENT_RED_2X1_PNG_BASE64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let frame = wait_for_frame_where(session_id, |frame| frame.contains("\"protocol\":\"iterm\""));
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let graphics = parsed["graphics"]
+        .as_array()
+        .expect("expected graphics placements in frame");
+    assert_eq!(
+        graphics.len(),
+        1,
+        "expected one alpha iTerm2 placement: {frame}"
+    );
+    let placement = &graphics[0];
+    assert_eq!(placement["protocol"].as_str(), Some("iterm"));
+    assert_eq!(placement["width_px"].as_u64(), Some(2));
+    assert_eq!(placement["height_px"].as_u64(), Some(1));
+    let asset_id = placement["asset_id"]
+        .as_u64()
+        .expect("expected iTerm2 asset id");
+    let asset_version = placement["asset_version"]
+        .as_u64()
+        .expect("expected iTerm2 asset version");
+
+    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let meta_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
+            session_id,
+            asset_id,
+            asset_version,
+            &mut meta,
+        )
+    };
+    assert_eq!(meta_status, 0);
+    assert_eq!(meta.width, 2);
+    assert_eq!(meta.height, 1);
+    assert_eq!(meta.rgba_len, 2 * 4);
+    assert_eq!(meta.version, asset_version);
+
+    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let copy_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+            session_id,
+            asset_id,
+            asset_version,
+            rgba.as_mut_ptr(),
+            rgba.len(),
+        )
+    };
+    assert_eq!(copy_status, rgba.len() as isize);
+    assert_eq!(
+        rgba,
+        [0, 0, 0, 0, 255, 0, 0, 128],
+        "iTerm2 inline image alpha should survive asset RGBA export"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_exports_imgcat_style_iterm_wrapped_unpadded_payload() {
+    let unpadded_payload = RED_PIXEL_PNG_BASE64.trim_end_matches('=');
+    let wrapped_payload = unpadded_payload
+        .as_bytes()
+        .chunks(17)
+        .map(|chunk| std::str::from_utf8(chunk).unwrap())
+        .collect::<Vec<_>>()
+        .join("\n\t");
+    let profile = local_profile(
+        "iterm-imgcat-wrapped-unpadded-graphics",
+        "iTerm imgcat Wrapped Unpadded Graphics",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys\npayload = '''{}'''\nsys.stdout.write('\\x1b]1337;File=name=cGl4ZWwucG5n;size={};inline=1;width=auto;height=auto;preserveAspectRatio=1:' + payload + '\\x1b\\\\')\nsys.stdout.flush()\nPY",
+                wrapped_payload,
+                red_pixel_png_bytes().len()
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let frame = wait_for_frame_where(session_id, |frame| frame.contains("\"protocol\":\"iterm\""));
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let graphics = parsed["graphics"]
+        .as_array()
+        .expect("expected graphics placements in frame");
+    assert_eq!(
+        graphics.len(),
+        1,
+        "expected one imgcat-style iTerm2 placement: {frame}"
+    );
+    let placement = &graphics[0];
+    assert_eq!(placement["protocol"].as_str(), Some("iterm"));
+    assert_eq!(placement["row"].as_u64(), Some(0));
+    assert_eq!(placement["col"].as_u64(), Some(0));
+    assert_eq!(placement["width_px"].as_u64(), Some(1));
+    assert_eq!(placement["height_px"].as_u64(), Some(1));
+    assert_eq!(placement["width_cells"].as_u64(), Some(1));
+    assert_eq!(placement["height_cells"].as_u64(), Some(1));
+    assert_eq!(placement["preserve_aspect_ratio"].as_bool(), Some(true));
+    let asset_id = placement["asset_id"]
+        .as_u64()
+        .expect("expected iTerm2 asset id");
+    let asset_version = placement["asset_version"]
+        .as_u64()
+        .expect("expected iTerm2 asset version");
+
+    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let meta_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
+            session_id,
+            asset_id,
+            asset_version,
+            &mut meta,
+        )
+    };
+    assert_eq!(meta_status, 0);
+    assert_eq!(meta.width, 1);
+    assert_eq!(meta.height, 1);
+    assert_eq!(meta.rgba_len, 4);
+    assert_eq!(meta.version, asset_version);
+
+    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let copy_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+            session_id,
+            asset_id,
+            asset_version,
+            rgba.as_mut_ptr(),
+            rgba.len(),
+        )
+    };
+    assert_eq!(copy_status, rgba.len() as isize);
+    assert_eq!(
+        rgba,
+        [255, 0, 0, 255],
+        "imgcat-style iTerm2 image should decode to the expected red pixel"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_exports_screen_wrapped_iterm_inline_image() {
+    let profile = local_profile(
+        "iterm-screen-wrapped-graphics",
+        "iTerm Screen Wrapped Graphics",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys\nsys.stdout.write('\\x1b[3;4H')\nsys.stdout.write('\\x1bP\\x1b]1337;File=inline=1;doNotMoveCursor=1;width=2;height=2;preserveAspectRatio=0:{}\\x07\\x1b\\\\')\nsys.stdout.flush()\nPY",
+                RED_PIXEL_PNG_BASE64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let frame = wait_for_frame_where(session_id, |frame| frame.contains("\"protocol\":\"iterm\""));
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let graphics = parsed["graphics"]
+        .as_array()
+        .expect("expected graphics placements in frame");
+    assert_eq!(
+        graphics.len(),
+        1,
+        "expected one screen-wrapped iTerm2 placement: {frame}"
+    );
+    let placement = &graphics[0];
+    assert_eq!(placement["protocol"].as_str(), Some("iterm"));
+    assert_eq!(placement["row"].as_u64(), Some(2));
+    assert_eq!(placement["col"].as_u64(), Some(3));
+    assert_eq!(placement["width_px"].as_u64(), Some(2));
+    assert_eq!(placement["height_px"].as_u64(), Some(4));
+    assert_eq!(placement["width_cells"].as_u64(), Some(2));
+    assert_eq!(placement["height_cells"].as_u64(), Some(2));
+    assert_eq!(placement["preserve_aspect_ratio"].as_bool(), Some(false));
+    let asset_id = placement["asset_id"]
+        .as_u64()
+        .expect("expected screen-wrapped iTerm2 asset id");
+    let asset_version = placement["asset_version"]
+        .as_u64()
+        .expect("expected screen-wrapped iTerm2 asset version");
+
+    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let meta_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
+            session_id,
+            asset_id,
+            asset_version,
+            &mut meta,
+        )
+    };
+    assert_eq!(meta_status, 0);
+    assert_eq!(meta.width, 1);
+    assert_eq!(meta.height, 1);
+    assert_eq!(meta.rgba_len, 4);
+    assert_eq!(meta.version, asset_version);
+
+    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let copy_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+            session_id,
+            asset_id,
+            asset_version,
+            rgba.as_mut_ptr(),
+            rgba.len(),
+        )
+    };
+    assert_eq!(copy_status, rgba.len() as isize);
+    assert_eq!(
+        rgba,
+        [255, 0, 0, 255],
+        "screen-wrapped iTerm2 image should decode to the expected red pixel"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_exports_tmux_wrapped_iterm_inline_image() {
+    let profile = local_profile(
+        "iterm-tmux-wrapped-graphics",
+        "iTerm Tmux Wrapped Graphics",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                r#"python3 - <<'PY'
+import sys
+
+inner = '\x1b]1337;File=inline=1;doNotMoveCursor=1;width=2;height=2;preserveAspectRatio=0:{payload}\x1b\\'
+wrapped = '\x1bPtmux;' + inner.replace('\x1b', '\x1b\x1b') + '\x1b\\'
+sys.stdout.write('\x1b[4;5H')
+sys.stdout.write(wrapped)
+sys.stdout.flush()
+PY"#,
+                payload = RED_PIXEL_PNG_BASE64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let frame = wait_for_frame_where(session_id, |frame| frame.contains("\"protocol\":\"iterm\""));
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let graphics = parsed["graphics"]
+        .as_array()
+        .expect("expected graphics placements in frame");
+    assert_eq!(
+        graphics.len(),
+        1,
+        "expected one tmux-wrapped iTerm2 placement: {frame}"
+    );
+    let placement = &graphics[0];
+    assert_eq!(placement["protocol"].as_str(), Some("iterm"));
+    assert_eq!(placement["row"].as_u64(), Some(3));
+    assert_eq!(placement["col"].as_u64(), Some(4));
+    assert_eq!(placement["width_px"].as_u64(), Some(2));
+    assert_eq!(placement["height_px"].as_u64(), Some(4));
+    assert_eq!(placement["width_cells"].as_u64(), Some(2));
+    assert_eq!(placement["height_cells"].as_u64(), Some(2));
+    assert_eq!(placement["preserve_aspect_ratio"].as_bool(), Some(false));
+    let asset_id = placement["asset_id"]
+        .as_u64()
+        .expect("expected tmux-wrapped iTerm2 asset id");
+    let asset_version = placement["asset_version"]
+        .as_u64()
+        .expect("expected tmux-wrapped iTerm2 asset version");
+
+    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let meta_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
+            session_id,
+            asset_id,
+            asset_version,
+            &mut meta,
+        )
+    };
+    assert_eq!(meta_status, 0);
+    assert_eq!(meta.width, 1);
+    assert_eq!(meta.height, 1);
+    assert_eq!(meta.rgba_len, 4);
+    assert_eq!(meta.version, asset_version);
+
+    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let copy_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+            session_id,
+            asset_id,
+            asset_version,
+            rgba.as_mut_ptr(),
+            rgba.len(),
+        )
+    };
+    assert_eq!(copy_status, rgba.len() as isize);
+    assert_eq!(
+        rgba,
+        [255, 0, 0, 255],
+        "tmux-wrapped iTerm2 image should decode to the expected red pixel"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_exports_iterm_multipart_inline_after_file_end() {
+    let (first_chunk, remaining) = RED_PIXEL_PNG_BASE64.split_at(5);
+    let (second_chunk, third_chunk) = remaining.split_at(23);
+    let chunks_json = serde_json::to_string(&[first_chunk, second_chunk, third_chunk]).unwrap();
+    let profile = local_profile(
+        "iterm-multipart-inline-frame-diff",
+        "iTerm Multipart Inline Frame Diff",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                r#"python3 - <<'PY'
+import sys, time
+
+chunks = {chunks_json}
+
+def out(value, delay=0.0):
+    sys.stdout.write(value)
+    sys.stdout.flush()
+    if delay:
+        time.sleep(delay)
+
+out('\x1b[2;3H')
+out('\x1b]1337;MultipartFile=inline=1;size={decoded_size};name=cGl4ZWwucG5n;width=2;height=2;preserveAspectRatio=0;doNotMoveCursor=1\x1b\\')
+out('\x1b]1337;FilePart=' + chunks[0] + '\x1b\\')
+out('\x1b[10;1Hmultipart pending\n', 0.35)
+out('\x1b[2;3H')
+for chunk in chunks[1:]:
+    out('\x1b]1337;FilePart=' + chunk + '\x1b\\')
+out('\x1b]1337;FileEnd\x1b\\', 0.15)
+PY"#,
+                chunks_json = chunks_json,
+                decoded_size = red_pixel_png_bytes().len(),
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let pending_frame =
+        wait_for_frame_where(session_id, |frame| frame.contains("multipart pending"));
+    let pending_parsed: serde_json::Value = serde_json::from_str(&pending_frame).unwrap();
+    let pending_graphics = pending_parsed["graphics"]
+        .as_array()
+        .expect("expected graphics array in pending multipart frame");
+    assert!(
+        !pending_graphics
+            .iter()
+            .any(|graphic| graphic["protocol"].as_str() == Some("iterm")),
+        "multipart iTerm2 image must not be exported before FileEnd: {pending_frame}"
+    );
+
+    let frame = wait_for_frame_where(session_id, |frame| frame.contains("\"protocol\":\"iterm\""));
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let graphics = parsed["graphics"]
+        .as_array()
+        .expect("expected graphics placements in frame");
+    assert_eq!(
+        graphics.len(),
+        1,
+        "expected one multipart iTerm2 placement after FileEnd: {frame}"
+    );
+    let placement = &graphics[0];
+    assert_eq!(placement["protocol"].as_str(), Some("iterm"));
+    assert_eq!(placement["row"].as_u64(), Some(1));
+    assert_eq!(placement["col"].as_u64(), Some(2));
+    assert_eq!(placement["width_px"].as_u64(), Some(2));
+    assert_eq!(placement["height_px"].as_u64(), Some(4));
+    assert_eq!(placement["width_cells"].as_u64(), Some(2));
+    assert_eq!(placement["height_cells"].as_u64(), Some(2));
+    assert_eq!(placement["preserve_aspect_ratio"].as_bool(), Some(false));
+    let asset_id = placement["asset_id"]
+        .as_u64()
+        .expect("expected multipart iTerm2 asset id");
+    let asset_version = placement["asset_version"]
+        .as_u64()
+        .expect("expected multipart iTerm2 asset version");
+
+    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let meta_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
+            session_id,
+            asset_id,
+            asset_version,
+            &mut meta,
+        )
+    };
+    assert_eq!(meta_status, 0);
+    assert_eq!(meta.width, 1);
+    assert_eq!(meta.height, 1);
+    assert_eq!(meta.rgba_len, 4);
+    assert_eq!(meta.version, asset_version);
+
+    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let copy_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+            session_id,
+            asset_id,
+            asset_version,
+            rgba.as_mut_ptr(),
+            rgba.len(),
+        )
+    };
+    assert_eq!(copy_status, rgba.len() as isize);
+    assert_eq!(
+        rgba,
+        [255, 0, 0, 255],
+        "multipart iTerm2 image should decode to the expected red pixel"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_recomputes_percent_graphic_placements_after_resize() {
+    let profile = local_profile(
+        "iterm-percent-resize-graphics",
+        "iTerm Percent Resize Graphics",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b]1337;File=inline=1;width=50%;height=50%;preserveAspectRatio=0;doNotMoveCursor=1:{}\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.25)\nPY",
+                RED_PIXEL_PNG_BASE64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let initial_frame = wait_for_frame_where(session_id, |frame| frame.contains("\"graphics\":[{"));
+    let initial: serde_json::Value = serde_json::from_str(&initial_frame).unwrap();
+    let initial_graphics = initial["graphics"]
+        .as_array()
+        .expect("expected initial graphic placements");
+    assert_eq!(
+        initial_graphics.len(),
+        1,
+        "expected one initial percent-sized graphic: {initial_frame}"
+    );
+    let initial_graphic = &initial_graphics[0];
+    let initial_cols = initial["viewport_cols"]
+        .as_u64()
+        .expect("expected initial viewport cols");
+    let initial_rows = initial["viewport_rows"]
+        .as_u64()
+        .expect("expected initial viewport rows");
+    assert_eq!(initial_graphic["protocol"].as_str(), Some("iterm"));
+    assert_eq!(
+        initial_graphic["width_cells"].as_u64(),
+        Some(initial_cols / 2)
+    );
+    assert_eq!(
+        initial_graphic["height_cells"].as_u64(),
+        Some(initial_rows / 2)
+    );
+
+    session::resize_session(session_id, 40, 12, 0, 0).unwrap();
+
+    let resized_frame = wait_for_frame_where(session_id, |frame| {
+        frame.contains("\"viewport_cols\":40") && frame.contains("\"graphics\":[{")
+    });
+    let resized: serde_json::Value = serde_json::from_str(&resized_frame).unwrap();
+    let resized_graphics = resized["graphics"]
+        .as_array()
+        .expect("expected resized graphic placements");
+    assert_eq!(
+        resized_graphics.len(),
+        1,
+        "expected one resized percent-sized graphic: {resized_frame}"
+    );
+    let placement = &resized_graphics[0];
+    assert_eq!(placement["protocol"].as_str(), Some("iterm"));
+    assert_eq!(placement["width_cells"].as_u64(), Some(20));
+    assert_eq!(placement["height_cells"].as_u64(), Some(6));
+    assert_eq!(placement["width_px"].as_u64(), Some(20));
+    assert_eq!(placement["height_px"].as_u64(), Some(12));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_recomputes_percent_iterm_scrollback_placements_after_resize() {
+    let profile = local_profile_with_scrollback(
+        "iterm-percent-scrollback-resize-graphics",
+        "iTerm Percent Scrollback Resize Graphics",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys\nsys.stdout.write('\\x1b[1;1H\\x1b]1337;File=inline=1;width=50%;height=50%;preserveAspectRatio=0;doNotMoveCursor=1:{}\\x1b\\\\')\nsys.stdout.write('\\x1b[32;1H')\nfor i in range(80):\n    sys.stdout.write(f'line-{{i:02d}}\\n')\nsys.stdout.flush()\nPY",
+                RED_PIXEL_PNG_BASE64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+        128,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let _ = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["scrollback_max_offset"].as_u64().unwrap_or(0) > 0
+            && logical_rows_from_frame(frame)
+                .iter()
+                .any(|row| row.contains("line-79"))
+    });
+
+    session::scroll_to_session(session_id, usize::MAX).unwrap();
+    let initial_frame = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["graphics"].as_array().is_some_and(|graphics| {
+            graphics
+                .iter()
+                .any(|graphic| graphic["protocol"].as_str() == Some("iterm"))
+        })
+    });
+    let initial: serde_json::Value = serde_json::from_str(&initial_frame).unwrap();
+    assert_eq!(
+        initial["scrollback_offset"].as_u64(),
+        initial["scrollback_max_offset"].as_u64(),
+        "scroll-to-top frame should expose retained percent-sized iTerm2 scrollback placement before resize: {initial_frame}"
+    );
+    let initial_placement = initial["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["protocol"].as_str() == Some("iterm"))
+        })
+        .expect("expected iTerm2 scrollback placement before resize");
+    let initial_cols = initial["viewport_cols"]
+        .as_u64()
+        .expect("expected initial viewport cols");
+    let initial_rows = initial["viewport_rows"]
+        .as_u64()
+        .expect("expected initial viewport rows");
+    assert_eq!(
+        initial_placement["width_cells"].as_u64(),
+        Some(initial_cols / 2)
+    );
+    assert_eq!(
+        initial_placement["height_cells"].as_u64(),
+        Some(initial_rows / 2)
+    );
+    assert_eq!(
+        initial_placement["width_px"].as_u64(),
+        Some(initial_cols / 2)
+    );
+    assert_eq!(initial_placement["height_px"].as_u64(), Some(initial_rows));
+
+    session::resize_session(session_id, 40, 12, 0, 0).unwrap();
+    session::scroll_to_session(session_id, usize::MAX).unwrap();
+
+    let resized_frame = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["viewport_cols"].as_u64() == Some(40)
+            && parsed["graphics"].as_array().is_some_and(|graphics| {
+                graphics
+                    .iter()
+                    .any(|graphic| graphic["protocol"].as_str() == Some("iterm"))
+            })
+    });
+    let resized: serde_json::Value = serde_json::from_str(&resized_frame).unwrap();
+    assert_eq!(
+        resized["scrollback_offset"].as_u64(),
+        resized["scrollback_max_offset"].as_u64(),
+        "scroll-to-top frame should expose retained percent-sized iTerm2 scrollback placement after resize: {resized_frame}"
+    );
+    let resized_placement = resized["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["protocol"].as_str() == Some("iterm"))
+        })
+        .expect("expected iTerm2 scrollback placement after resize");
+    assert_eq!(resized_placement["width_cells"].as_u64(), Some(20));
+    assert_eq!(resized_placement["height_cells"].as_u64(), Some(6));
+    assert_eq!(resized_placement["width_px"].as_u64(), Some(20));
+    assert_eq!(resized_placement["height_px"].as_u64(), Some(12));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_recomputes_sixel_and_kitty_placements_after_cell_resize() {
+    fn placement_with_protocol<'a>(
+        parsed: &'a serde_json::Value,
+        protocol: &str,
+    ) -> &'a serde_json::Value {
+        parsed["graphics"]
+            .as_array()
+            .expect("expected graphics placements")
+            .iter()
+            .find(|graphic| graphic["protocol"].as_str() == Some(protocol))
+            .unwrap_or_else(|| panic!("expected {protocol} placement: {parsed}"))
+    }
+
+    let raw_pixels = [255u8, 0, 0, 255].repeat(12);
+    let raw_rgba_base64 = base64_standard_no_pad_encode(&raw_pixels);
+    let profile = local_profile(
+        "graphics-cell-resize",
+        "Graphics Cell Resize",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b[1;1H\\x1bPq#2~\\x1b\\\\')\nsys.stdout.write('\\x1b[8;1H\\x1b_Ga=T,f=32,s=2,v=6,i=62010,q=1;{}\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.25)\nPY",
+                raw_rgba_base64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let initial_frame = wait_for_frame_where(session_id, |frame| {
+        frame.contains("\"protocol\":\"sixel\"") && frame.contains("\"asset_id\":62010")
+    });
+    let initial: serde_json::Value = serde_json::from_str(&initial_frame).unwrap();
+    for protocol in ["sixel", "kitty"] {
+        let placement = placement_with_protocol(&initial, protocol);
+        assert_eq!(
+            placement["width_cells"].as_u64(),
+            Some(2),
+            "initial {protocol} placement should span two 1px-wide cells: {initial_frame}"
+        );
+        assert_eq!(
+            placement["height_cells"].as_u64(),
+            Some(3),
+            "initial {protocol} placement should span three 2px-tall cells: {initial_frame}"
+        );
+        assert_eq!(placement["width_px"].as_u64(), Some(2));
+        assert_eq!(placement["height_px"].as_u64(), Some(6));
+    }
+
+    session::resize_session_with_cell_size(session_id, 90, 20, 180, 60, 2, 3).unwrap();
+
+    let resized_frame = wait_for_frame_where(session_id, |frame| {
+        frame.contains("\"viewport_cols\":90")
+            && frame.contains("\"protocol\":\"sixel\"")
+            && frame.contains("\"asset_id\":62010")
+    });
+    let resized: serde_json::Value = serde_json::from_str(&resized_frame).unwrap();
+    for protocol in ["sixel", "kitty"] {
+        let placement = placement_with_protocol(&resized, protocol);
+        assert_eq!(
+            placement["width_cells"].as_u64(),
+            Some(1),
+            "resized {protocol} placement should recompute against 2px-wide cells: {resized_frame}"
+        );
+        assert_eq!(
+            placement["height_cells"].as_u64(),
+            Some(2),
+            "resized {protocol} placement should recompute against 3px-tall cells: {resized_frame}"
+        );
+        assert_eq!(placement["width_px"].as_u64(), Some(2));
+        assert_eq!(placement["height_px"].as_u64(), Some(6));
+    }
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_preserves_primary_graphics_across_alt_screen_resize() {
+    fn placement_with<'a>(
+        parsed: &'a serde_json::Value,
+        predicate: impl Fn(&serde_json::Value) -> bool,
+    ) -> &'a serde_json::Value {
+        parsed["graphics"]
+            .as_array()
+            .expect("expected graphics placements")
+            .iter()
+            .find(|graphic| predicate(graphic))
+            .unwrap_or_else(|| panic!("expected matching graphic placement: {parsed}"))
+    }
+
+    let raw_pixels = [255u8, 0, 0, 255].repeat(12);
+    let raw_rgba_base64 = base64_standard_no_pad_encode(&raw_pixels);
+    let script = format!(
+        r#"
+import sys, time
+
+def out(value, delay=0.12):
+    sys.stdout.write(value)
+    sys.stdout.flush()
+    time.sleep(delay)
+
+out('\x1b[1;1H\x1b]1337;File=inline=1;width=2px;height=6px;preserveAspectRatio=0;doNotMoveCursor=1:{png}\x1b\\')
+out('\x1b[5;1H\x1bPq#2~\x1b\\')
+out('\x1b[9;1H\x1b_Ga=T,f=32,s=2,v=6,i=62012,q=1;{raw}\x1b\\')
+out('\x1b[?1049hALT READY\n', 0.85)
+out('\x1b[?1049lprimary restored\n', 0.25)
+"#,
+        png = RED_PIXEL_PNG_BASE64,
+        raw = raw_rgba_base64,
+    );
+    let profile = local_profile(
+        "primary-graphics-alt-screen-resize",
+        "Primary Graphics Alternate Screen Resize",
+        "/usr/bin/env",
+        vec!["python3".to_string(), "-c".to_string(), script],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let initial_frame = wait_for_frame_where(session_id, |frame| {
+        frame.contains("\"protocol\":\"iterm\"")
+            && frame.contains("\"protocol\":\"sixel\"")
+            && frame.contains("\"asset_id\":62012")
+    });
+    let initial: serde_json::Value = serde_json::from_str(&initial_frame).unwrap();
+    for (label, placement) in [
+        (
+            "iTerm2",
+            placement_with(&initial, |graphic| {
+                graphic["protocol"].as_str() == Some("iterm")
+            }),
+        ),
+        (
+            "Sixel",
+            placement_with(&initial, |graphic| {
+                graphic["protocol"].as_str() == Some("sixel")
+            }),
+        ),
+        (
+            "Kitty",
+            placement_with(&initial, |graphic| {
+                graphic["asset_id"].as_u64() == Some(62012)
+            }),
+        ),
+    ] {
+        assert_eq!(
+            placement["width_cells"].as_u64(),
+            Some(2),
+            "initial {label} placement should use the original 1px-wide cell size: {initial_frame}"
+        );
+        assert_eq!(
+            placement["height_cells"].as_u64(),
+            Some(3),
+            "initial {label} placement should use the original 2px-tall cell size: {initial_frame}"
+        );
+    }
+
+    let alternate_frame = wait_for_frame_where(session_id, |frame| {
+        frame.contains("ALT READY")
+            && serde_json::from_str::<serde_json::Value>(frame)
+                .is_ok_and(|parsed| parsed["modes"]["alternate_screen"].as_bool() == Some(true))
+    });
+    let alternate: serde_json::Value = serde_json::from_str(&alternate_frame).unwrap();
+    assert!(
+        alternate["graphics"].as_array().is_none_or(|graphics| {
+            graphics.iter().all(|graphic| {
+                graphic["protocol"].as_str() != Some("iterm")
+                    && graphic["protocol"].as_str() != Some("sixel")
+                    && graphic["asset_id"].as_u64() != Some(62012)
+            })
+        }),
+        "primary-screen graphics must not leak into alternate-screen frames before resize: {alternate_frame}"
+    );
+
+    session::resize_session_with_cell_size(session_id, 90, 20, 180, 60, 2, 3).unwrap();
+
+    let resized_alternate_frame = wait_for_frame_where(session_id, |frame| {
+        serde_json::from_str::<serde_json::Value>(frame).is_ok_and(|parsed| {
+            parsed["viewport_cols"].as_u64() == Some(90)
+                && parsed["viewport_rows"].as_u64() == Some(20)
+                && parsed["modes"]["alternate_screen"].as_bool() == Some(true)
+        })
+    });
+    let resized_alternate: serde_json::Value =
+        serde_json::from_str(&resized_alternate_frame).unwrap();
+    assert!(
+        resized_alternate["graphics"]
+            .as_array()
+            .is_none_or(|graphics| {
+                graphics.iter().all(|graphic| {
+                    graphic["protocol"].as_str() != Some("iterm")
+                        && graphic["protocol"].as_str() != Some("sixel")
+                        && graphic["asset_id"].as_u64() != Some(62012)
+                })
+            }),
+        "primary-screen graphics must stay hidden while resizing alternate screen: {resized_alternate_frame}"
+    );
+
+    let restored_frame = wait_for_frame_where(session_id, |frame| {
+        frame.contains("primary restored")
+            && frame.contains("\"viewport_cols\":90")
+            && frame.contains("\"protocol\":\"iterm\"")
+            && frame.contains("\"protocol\":\"sixel\"")
+            && frame.contains("\"asset_id\":62012")
+    });
+    let restored: serde_json::Value = serde_json::from_str(&restored_frame).unwrap();
+    assert_eq!(
+        restored["modes"]["alternate_screen"].as_bool(),
+        Some(false),
+        "restored frame should be back on the primary screen: {restored_frame}"
+    );
+
+    let restored_placements = [
+        (
+            "iTerm2",
+            placement_with(&restored, |graphic| {
+                graphic["protocol"].as_str() == Some("iterm")
+            }),
+            0,
+        ),
+        (
+            "Sixel",
+            placement_with(&restored, |graphic| {
+                graphic["protocol"].as_str() == Some("sixel")
+            }),
+            4,
+        ),
+        (
+            "Kitty",
+            placement_with(&restored, |graphic| {
+                graphic["asset_id"].as_u64() == Some(62012)
+            }),
+            8,
+        ),
+    ];
+    for (label, placement, expected_row) in restored_placements {
+        assert_eq!(
+            placement["row"].as_u64(),
+            Some(expected_row),
+            "restored {label} placement should keep its primary-screen anchor row: {restored_frame}"
+        );
+        assert_eq!(placement["col"].as_u64(), Some(0));
+        assert_eq!(placement["width_px"].as_u64(), Some(2));
+        assert_eq!(placement["height_px"].as_u64(), Some(6));
+        assert_eq!(
+            placement["width_cells"].as_u64(),
+            Some(1),
+            "restored {label} placement should be recomputed against resized 2px-wide cells: {restored_frame}"
+        );
+        assert_eq!(
+            placement["height_cells"].as_u64(),
+            Some(2),
+            "restored {label} placement should be recomputed against resized 3px-tall cells: {restored_frame}"
+        );
+    }
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_recomputes_sixel_and_kitty_scrollback_placements_after_cell_resize() {
+    fn placement_with_protocol<'a>(
+        parsed: &'a serde_json::Value,
+        protocol: &str,
+    ) -> &'a serde_json::Value {
+        parsed["graphics"]
+            .as_array()
+            .expect("expected graphics placements")
+            .iter()
+            .find(|graphic| graphic["protocol"].as_str() == Some(protocol))
+            .unwrap_or_else(|| panic!("expected {protocol} scrollback placement: {parsed}"))
+    }
+
+    let raw_pixels = [255u8, 0, 0, 255].repeat(12);
+    let raw_rgba_base64 = base64_standard_no_pad_encode(&raw_pixels);
+    let profile = local_profile_with_scrollback(
+        "graphics-scrollback-cell-resize",
+        "Graphics Scrollback Cell Resize",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys\nsys.stdout.write('\\x1b[1;1H\\x1bPq#2~\\x1b\\\\')\nsys.stdout.write('\\x1b[8;1H\\x1b_Ga=T,f=32,s=2,v=6,i=62011,q=1;{}\\x1b\\\\')\nsys.stdout.write('\\x1b[32;1H')\nfor i in range(80):\n    sys.stdout.write(f'line-{{i:02d}}\\n')\nsys.stdout.flush()\nPY",
+                raw_rgba_base64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+        128,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let _ = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["scrollback_max_offset"].as_u64().unwrap_or(0) > 0
+            && logical_rows_from_frame(frame)
+                .iter()
+                .any(|row| row.contains("line-79"))
+    });
+
+    session::scroll_to_session(session_id, usize::MAX).unwrap();
+    let initial_frame = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["graphics"].as_array().is_some_and(|graphics| {
+            let has_sixel = graphics
+                .iter()
+                .any(|graphic| graphic["protocol"].as_str() == Some("sixel"));
+            let has_kitty = graphics
+                .iter()
+                .any(|graphic| graphic["asset_id"].as_u64() == Some(62011));
+            has_sixel && has_kitty
+        })
+    });
+    let initial: serde_json::Value = serde_json::from_str(&initial_frame).unwrap();
+    assert_eq!(
+        initial["scrollback_offset"].as_u64(),
+        initial["scrollback_max_offset"].as_u64(),
+        "scroll-to-top frame should expose retained Sixel and Kitty scrollback placements before resize: {initial_frame}"
+    );
+    for protocol in ["sixel", "kitty"] {
+        let placement = placement_with_protocol(&initial, protocol);
+        assert_eq!(
+            placement["width_cells"].as_u64(),
+            Some(2),
+            "initial {protocol} scrollback placement should span two 1px-wide cells: {initial_frame}"
+        );
+        assert_eq!(
+            placement["height_cells"].as_u64(),
+            Some(3),
+            "initial {protocol} scrollback placement should span three 2px-tall cells: {initial_frame}"
+        );
+        assert_eq!(placement["width_px"].as_u64(), Some(2));
+        assert_eq!(placement["height_px"].as_u64(), Some(6));
+    }
+
+    session::resize_session_with_cell_size(session_id, 90, 20, 180, 60, 2, 3).unwrap();
+    session::scroll_to_session(session_id, usize::MAX).unwrap();
+
+    let resized_frame = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["viewport_cols"].as_u64() == Some(90)
+            && parsed["graphics"].as_array().is_some_and(|graphics| {
+                let has_sixel = graphics
+                    .iter()
+                    .any(|graphic| graphic["protocol"].as_str() == Some("sixel"));
+                let has_kitty = graphics
+                    .iter()
+                    .any(|graphic| graphic["asset_id"].as_u64() == Some(62011));
+                has_sixel && has_kitty
+            })
+    });
+    let resized: serde_json::Value = serde_json::from_str(&resized_frame).unwrap();
+    assert_eq!(
+        resized["scrollback_offset"].as_u64(),
+        resized["scrollback_max_offset"].as_u64(),
+        "scroll-to-top frame should keep Sixel and Kitty scrollback placements visible after resize: {resized_frame}"
+    );
+    for protocol in ["sixel", "kitty"] {
+        let placement = placement_with_protocol(&resized, protocol);
+        assert_eq!(
+            placement["width_cells"].as_u64(),
+            Some(1),
+            "resized {protocol} scrollback placement should recompute against 2px-wide cells: {resized_frame}"
+        );
+        assert_eq!(
+            placement["height_cells"].as_u64(),
+            Some(2),
+            "resized {protocol} scrollback placement should recompute against 3px-tall cells: {resized_frame}"
+        );
+        assert_eq!(placement["width_px"].as_u64(), Some(2));
+        assert_eq!(placement["height_px"].as_u64(), Some(6));
+    }
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_exports_iterm_scrollback_placements_when_scrolled_back() {
+    let profile = local_profile_with_scrollback(
+        "iterm-scrollback-graphics",
+        "iTerm Scrollback Graphics",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys\nsys.stdout.write('\\x1b[1;1H\\x1b]1337;File=inline=1;doNotMoveCursor=1;width=1;height=1:{}\\x1b\\\\')\nsys.stdout.write('\\x1b[32;1H')\nfor i in range(80):\n    sys.stdout.write(f'line-{{i:02d}}\\n')\nsys.stdout.flush()\nPY",
+                RED_PIXEL_PNG_BASE64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+        128,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let bottom_frame = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["scrollback_max_offset"].as_u64().unwrap_or(0) > 0
+            && logical_rows_from_frame(frame)
+                .iter()
+                .any(|row| row.contains("line-79"))
+    });
+    let bottom: serde_json::Value = serde_json::from_str(&bottom_frame).unwrap();
+    assert!(
+        bottom["graphics"].as_array().is_none_or(|graphics| {
+            !graphics
+                .iter()
+                .any(|graphic| graphic["protocol"].as_str() == Some("iterm"))
+        }),
+        "iTerm2 scrollback placement should not be emitted while the viewport is at the bottom: {bottom_frame}"
+    );
+
+    session::scroll_to_session(session_id, usize::MAX).unwrap();
+    let top_frame = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["graphics"].as_array().is_some_and(|graphics| {
+            graphics
+                .iter()
+                .any(|graphic| graphic["protocol"].as_str() == Some("iterm"))
+        })
+    });
+    let top: serde_json::Value = serde_json::from_str(&top_frame).unwrap();
+    assert_eq!(
+        top["scrollback_offset"].as_u64(),
+        top["scrollback_max_offset"].as_u64(),
+        "scroll-to-top frame should be anchored at the oldest scrollback rows: {top_frame}"
+    );
+    let placement = top["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["protocol"].as_str() == Some("iterm"))
+        })
+        .expect("expected iTerm2 scrollback placement");
+    assert_eq!(placement["row"].as_u64(), Some(0));
+    assert_eq!(placement["col"].as_u64(), Some(0));
+    assert_eq!(placement["width_px"].as_u64(), Some(1));
+    assert_eq!(placement["height_px"].as_u64(), Some(2));
+    assert_eq!(placement["width_cells"].as_u64(), Some(1));
+    assert_eq!(placement["height_cells"].as_u64(), Some(1));
+    assert_eq!(placement["visible_height_px"].as_u64(), Some(2));
+    assert_eq!(placement["source_y_offset_px"].as_u64(), Some(0));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_clear_scrollback_removes_iterm_scrollback_placements_from_frame_diff() {
+    let profile = local_profile_with_scrollback(
+        "iterm-scrollback-clear-frame-diff",
+        "iTerm Scrollback Clear Frame Diff",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys\nsys.stdout.write('\\x1b[1;1H\\x1b]1337;File=inline=1;doNotMoveCursor=1;width=1;height=1:{}\\x1b\\\\')\nsys.stdout.write('\\x1b[32;1H')\nfor i in range(80):\n    sys.stdout.write(f'line-{{i:02d}}\\n')\nsys.stdout.flush()\nPY",
+                RED_PIXEL_PNG_BASE64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+        128,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let _ = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["scrollback_max_offset"].as_u64().unwrap_or(0) > 0
+            && logical_rows_from_frame(frame)
+                .iter()
+                .any(|row| row.contains("line-79"))
+    });
+
+    session::scroll_to_session(session_id, usize::MAX).unwrap();
+    let _ = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["graphics"].as_array().is_some_and(|graphics| {
+            graphics
+                .iter()
+                .any(|graphic| graphic["protocol"].as_str() == Some("iterm"))
+        })
+    });
+
+    let clear_response = session::clear_scrollback_session(session_id).unwrap();
+    let clear_result: serde_json::Value = serde_json::from_str(&clear_response).unwrap();
+    assert_eq!(clear_result["cleared"].as_bool(), Some(true));
+
+    let cleared_frame = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["scrollback_offset"].as_u64() == Some(0)
+            && parsed["scrollback_max_offset"].as_u64() == Some(0)
+    });
+    let cleared: serde_json::Value = serde_json::from_str(&cleared_frame).unwrap();
+    assert!(
+        cleared["graphics"].as_array().is_none_or(|graphics| {
+            !graphics
+                .iter()
+                .any(|graphic| graphic["protocol"].as_str() == Some("iterm"))
+        }),
+        "clear scrollback frame must not retain old iTerm2 scrollback placements: {cleared_frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_scopes_iterm_graphics_to_alternate_screen() {
+    let profile = local_profile(
+        "iterm-alt-screen-frame-diff",
+        "iTerm Alternate Screen Frame Diff",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys, time\n\ndef out(value, delay=0.16):\n    sys.stdout.write(value)\n    sys.stdout.flush()\n    time.sleep(delay)\n\nout('\\x1b[2;1H\\x1b]1337;File=inline=1;doNotMoveCursor=1;width=1;height=1:{}\\x1b\\\\')\nout('\\x1b[?1049h')\nout('\\x1b[6;1H\\x1b]1337;File=inline=1;doNotMoveCursor=1;width=1;height=1:{}\\x1b\\\\')\nout('\\x1b[?1049lprimary restored\\n', 0.22)\nPY",
+                RED_PIXEL_PNG_BASE64, RED_PIXEL_PNG_BASE64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let iterm_rows = |frame: &str| -> Vec<u64> {
+        let parsed: serde_json::Value = serde_json::from_str(frame).unwrap();
+        parsed["graphics"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|graphic| graphic["protocol"].as_str() == Some("iterm"))
+            .filter_map(|graphic| graphic["row"].as_u64())
+            .collect()
+    };
+
+    let primary = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["graphics"].as_array().is_some_and(|graphics| {
+            graphics.iter().any(|graphic| {
+                graphic["protocol"].as_str() == Some("iterm") && graphic["row"].as_u64() == Some(1)
+            })
+        })
+    });
+    let primary_rows = iterm_rows(&primary);
+    assert!(
+        primary_rows.contains(&1),
+        "primary iTerm2 graphic should be visible before entering alternate screen: {primary}"
+    );
+    assert!(
+        !primary_rows.contains(&5),
+        "alternate iTerm2 graphic must not leak into the primary screen frame: {primary}"
+    );
+
+    let alternate = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["graphics"].as_array().is_some_and(|graphics| {
+            graphics.iter().any(|graphic| {
+                graphic["protocol"].as_str() == Some("iterm") && graphic["row"].as_u64() == Some(5)
+            })
+        })
+    });
+    let alternate_rows = iterm_rows(&alternate);
+    assert!(
+        alternate_rows.contains(&5),
+        "alternate iTerm2 graphic should be visible while alternate screen is active: {alternate}"
+    );
+    assert!(
+        !alternate_rows.contains(&1),
+        "primary iTerm2 graphic must not leak into alternate screen frames: {alternate}"
+    );
+
+    let restored = wait_for_frame_where(session_id, |frame| {
+        if !frame.contains("primary restored") {
+            return false;
+        }
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["graphics"].as_array().is_some_and(|graphics| {
+            graphics.iter().any(|graphic| {
+                graphic["protocol"].as_str() == Some("iterm") && graphic["row"].as_u64() == Some(1)
+            })
+        })
+    });
+    let restored_rows = iterm_rows(&restored);
+    assert!(
+        restored_rows.contains(&1),
+        "primary iTerm2 graphic should be restored after leaving alternate screen: {restored}"
+    );
+    assert!(
+        !restored_rows.contains(&5),
+        "alternate iTerm2 graphic should be cleared after leaving alternate screen: {restored}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_exports_sixel_placements_and_asset_bytes() {
+    let profile = local_profile(
+        "sixel-graphics",
+        "Sixel Graphics",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            "python3 - <<'PY'\nimport sys\nsys.stdout.write('\\x1bPq#2~\\x1b\\\\')\nsys.stdout.flush()\nPY"
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let frame = wait_for_frame_where(session_id, |frame| frame.contains("\"protocol\":\"sixel\""));
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let graphics = parsed["graphics"]
+        .as_array()
+        .expect("expected graphics placements in frame");
+    assert_eq!(graphics.len(), 1, "expected one Sixel placement: {frame}");
+    let placement = &graphics[0];
+    assert_eq!(placement["protocol"].as_str(), Some("sixel"));
+    assert_eq!(placement["row"].as_u64(), Some(0));
+    assert_eq!(placement["col"].as_u64(), Some(0));
+    assert_eq!(placement["width_px"].as_u64(), Some(2));
+    assert_eq!(placement["height_px"].as_u64(), Some(6));
+    assert_eq!(placement["width_cells"].as_u64(), Some(2));
+    assert_eq!(placement["height_cells"].as_u64(), Some(3));
+    assert_eq!(placement["preserve_aspect_ratio"].as_bool(), Some(false));
+    let asset_id = placement["asset_id"]
+        .as_u64()
+        .expect("expected Sixel asset id");
+    let asset_version = placement["asset_version"]
+        .as_u64()
+        .expect("expected Sixel asset version");
+
+    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let meta_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
+            session_id,
+            asset_id,
+            asset_version,
+            &mut meta,
+        )
+    };
+    assert_eq!(meta_status, 0);
+    assert_eq!(meta.width, 1);
+    assert_eq!(meta.height, 6);
+    assert_eq!(meta.rgba_len, 24);
+    assert_eq!(meta.version, asset_version);
+
+    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let copy_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+            session_id,
+            asset_id,
+            asset_version,
+            rgba.as_mut_ptr(),
+            rgba.len(),
+        )
+    };
+    assert_eq!(copy_status, rgba.len() as isize);
+    assert_eq!(&rgba[0..4], &[204, 51, 51, 255]);
+    assert!(
+        rgba.chunks_exact(4).all(|pixel| pixel[3] == 255),
+        "Sixel '~' should emit six opaque pixels: {rgba:?}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_exports_transparent_sixel_asset_alpha() {
+    let profile = local_profile(
+        "sixel-transparent-graphics",
+        "Sixel Transparent Graphics",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            "python3 - <<'PY'\nimport sys\nsys.stdout.write('\\x1bP0;1q\"1;1;3;2@\\x1b\\\\')\nsys.stdout.flush()\nPY"
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let frame = wait_for_frame_where(session_id, |frame| frame.contains("\"protocol\":\"sixel\""));
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let graphics = parsed["graphics"]
+        .as_array()
+        .expect("expected graphics placements in frame");
+    assert_eq!(
+        graphics.len(),
+        1,
+        "expected one transparent Sixel placement: {frame}"
+    );
+    let placement = &graphics[0];
+    assert_eq!(placement["protocol"].as_str(), Some("sixel"));
+    assert_eq!(placement["width_px"].as_u64(), Some(3));
+    assert_eq!(placement["height_px"].as_u64(), Some(2));
+    let asset_id = placement["asset_id"]
+        .as_u64()
+        .expect("expected Sixel asset id");
+    let asset_version = placement["asset_version"]
+        .as_u64()
+        .expect("expected Sixel asset version");
+
+    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let meta_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
+            session_id,
+            asset_id,
+            asset_version,
+            &mut meta,
+        )
+    };
+    assert_eq!(meta_status, 0);
+    assert_eq!(meta.width, 3);
+    assert_eq!(meta.height, 2);
+    assert_eq!(meta.rgba_len, 3 * 2 * 4);
+    assert_eq!(meta.version, asset_version);
+
+    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let copy_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+            session_id,
+            asset_id,
+            asset_version,
+            rgba.as_mut_ptr(),
+            rgba.len(),
+        )
+    };
+    assert_eq!(copy_status, rgba.len() as isize);
+
+    let pixel_at = |x: usize, y: usize| {
+        let start = (y * meta.width as usize + x) * 4;
+        &rgba[start..start + 4]
+    };
+    assert_eq!(pixel_at(0, 0), &[0, 0, 0, 255]);
+    assert_eq!(
+        pixel_at(1, 0),
+        &[0, 0, 0, 0],
+        "transparent Sixel background should keep same-row unpainted asset pixels clear"
+    );
+    assert_eq!(
+        pixel_at(2, 1),
+        &[0, 0, 0, 0],
+        "transparent Sixel background should keep lower-row unpainted asset pixels clear"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+fn assert_wrapped_sixel_red_asset(
+    session_id: u64,
+    placement: &serde_json::Value,
+    expected_row: u64,
+    expected_col: u64,
+    label: &str,
+) {
+    assert_eq!(placement["protocol"].as_str(), Some("sixel"));
+    assert_eq!(placement["row"].as_u64(), Some(expected_row));
+    assert_eq!(placement["col"].as_u64(), Some(expected_col));
+    assert_eq!(placement["width_px"].as_u64(), Some(2));
+    assert_eq!(placement["height_px"].as_u64(), Some(6));
+    assert_eq!(placement["width_cells"].as_u64(), Some(2));
+    assert_eq!(placement["height_cells"].as_u64(), Some(3));
+    assert_eq!(placement["preserve_aspect_ratio"].as_bool(), Some(false));
+    let asset_id = placement["asset_id"]
+        .as_u64()
+        .unwrap_or_else(|| panic!("expected {label} Sixel asset id"));
+    let asset_version = placement["asset_version"]
+        .as_u64()
+        .unwrap_or_else(|| panic!("expected {label} Sixel asset version"));
+
+    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let meta_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
+            session_id,
+            asset_id,
+            asset_version,
+            &mut meta,
+        )
+    };
+    assert_eq!(meta_status, 0);
+    assert_eq!(meta.width, 1);
+    assert_eq!(meta.height, 6);
+    assert_eq!(meta.rgba_len, 24);
+    assert_eq!(meta.version, asset_version);
+
+    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let copy_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+            session_id,
+            asset_id,
+            asset_version,
+            rgba.as_mut_ptr(),
+            rgba.len(),
+        )
+    };
+    assert_eq!(copy_status, rgba.len() as isize);
+    assert_eq!(
+        &rgba[0..4],
+        &[255, 0, 0, 255],
+        "{label} Sixel payload should decode the first pixel as red"
+    );
+    assert!(
+        rgba.chunks_exact(4).all(|pixel| pixel[3] == 255),
+        "{label} wrapped Sixel should retain opaque background pixels: {rgba:?}"
+    );
+}
+
+#[test]
+fn session_frame_diff_exports_screen_wrapped_sixel_graphics() {
+    let profile = local_profile(
+        "sixel-screen-wrapped-graphics",
+        "Sixel Screen Wrapped Graphics",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 - <<'PY'
+import sys
+sys.stdout.write('\x1b[3;4H')
+sys.stdout.write('\x1bP\x1bPq#1;2;100;0;0@\x1b\\\x1b\\')
+sys.stdout.flush()
+PY"#
+            .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let frame = wait_for_frame_where(session_id, |frame| frame.contains("\"protocol\":\"sixel\""));
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let graphics = parsed["graphics"]
+        .as_array()
+        .expect("expected graphics placements in frame");
+    assert_eq!(
+        graphics.len(),
+        1,
+        "expected one screen-wrapped Sixel placement: {frame}"
+    );
+    assert_wrapped_sixel_red_asset(session_id, &graphics[0], 2, 3, "screen-wrapped");
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_exports_tmux_wrapped_sixel_graphics() {
+    let profile = local_profile(
+        "sixel-tmux-wrapped-graphics",
+        "Sixel Tmux Wrapped Graphics",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 - <<'PY'
+import sys
+
+inner = '\x1bPq#1;2;100;0;0@\x1b\\'
+wrapped = '\x1bPtmux;' + inner.replace('\x1b', '\x1b\x1b') + '\x1b\\'
+sys.stdout.write('\x1b[4;5H')
+sys.stdout.write(wrapped)
+sys.stdout.flush()
+PY"#
+            .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let frame = wait_for_frame_where(session_id, |frame| frame.contains("\"protocol\":\"sixel\""));
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let graphics = parsed["graphics"]
+        .as_array()
+        .expect("expected graphics placements in frame");
+    assert_eq!(
+        graphics.len(),
+        1,
+        "expected one tmux-wrapped Sixel placement: {frame}"
+    );
+    assert_wrapped_sixel_red_asset(session_id, &graphics[0], 3, 4, "tmux-wrapped");
+
+    session::close_session(session_id).unwrap();
+}
+
+fn assert_wrapped_kitty_red_asset(
+    session_id: u64,
+    placement: &serde_json::Value,
+    expected_asset_id: u64,
+    expected_row: u64,
+    expected_col: u64,
+    label: &str,
+) {
+    assert_eq!(placement["protocol"].as_str(), Some("kitty"));
+    assert_eq!(placement["asset_id"].as_u64(), Some(expected_asset_id));
+    assert_eq!(placement["row"].as_u64(), Some(expected_row));
+    assert_eq!(placement["col"].as_u64(), Some(expected_col));
+    assert_eq!(placement["width_px"].as_u64(), Some(1));
+    assert_eq!(placement["height_px"].as_u64(), Some(1));
+    assert_eq!(placement["width_cells"].as_u64(), Some(1));
+    assert_eq!(placement["height_cells"].as_u64(), Some(1));
+    let asset_version = placement["asset_version"]
+        .as_u64()
+        .unwrap_or_else(|| panic!("expected {label} Kitty asset version"));
+
+    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let meta_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
+            session_id,
+            expected_asset_id,
+            asset_version,
+            &mut meta,
+        )
+    };
+    assert_eq!(meta_status, 0);
+    assert_eq!(meta.width, 1);
+    assert_eq!(meta.height, 1);
+    assert_eq!(meta.rgba_len, 4);
+    assert_eq!(meta.version, asset_version);
+
+    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let copy_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+            session_id,
+            expected_asset_id,
+            asset_version,
+            rgba.as_mut_ptr(),
+            rgba.len(),
+        )
+    };
+    assert_eq!(copy_status, rgba.len() as isize);
+    assert_eq!(
+        rgba,
+        [255, 0, 0, 255],
+        "{label} Kitty payload should decode to the expected red pixel"
+    );
+}
+
+#[test]
+fn session_frame_diff_exports_screen_wrapped_kitty_graphics() {
+    let profile = local_profile(
+        "kitty-screen-wrapped-graphics",
+        "Kitty Screen Wrapped Graphics",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                r#"python3 - <<'PY'
+import sys
+sys.stdout.write('\x1b[5;6H')
+sys.stdout.write('\x1bP\x1b_Ga=T,f=32,s=1,v=1,i=62031,q=1;{payload}\x1b\\\x1b\\')
+sys.stdout.flush()
+PY"#,
+                payload = RED_RGBA_BASE64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let frame = wait_for_frame_where(session_id, |frame| frame.contains("\"asset_id\":62031"));
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let placement = parsed["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["asset_id"].as_u64() == Some(62031))
+        })
+        .expect("expected screen-wrapped Kitty placement");
+    assert_wrapped_kitty_red_asset(session_id, placement, 62031, 4, 5, "screen-wrapped");
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_exports_tmux_wrapped_kitty_graphics() {
+    let profile = local_profile(
+        "kitty-tmux-wrapped-graphics",
+        "Kitty Tmux Wrapped Graphics",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                r#"python3 - <<'PY'
+import sys
+
+inner = '\x1b_Ga=T,f=32,s=1,v=1,i=62032,q=1;{payload}\x1b\\'
+wrapped = '\x1bPtmux;' + inner.replace('\x1b', '\x1b\x1b') + '\x1b\\'
+sys.stdout.write('\x1b[6;7H')
+sys.stdout.write(wrapped)
+sys.stdout.flush()
+PY"#,
+                payload = RED_RGBA_BASE64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let frame = wait_for_frame_where(session_id, |frame| frame.contains("\"asset_id\":62032"));
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let placement = parsed["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["asset_id"].as_u64() == Some(62032))
+        })
+        .expect("expected tmux-wrapped Kitty placement");
+    assert_wrapped_kitty_red_asset(session_id, placement, 62032, 5, 6, "tmux-wrapped");
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_exports_sixel_repeat_palette_pixels() {
+    let profile = local_profile(
+        "sixel-repeat-palette-graphics",
+        "Sixel Repeat Palette Graphics",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            "python3 - <<'PY'\nimport sys\nsys.stdout.write('\\x1bPq#10;2;0;100;0!3~-#11;2;0;0;100!2~\\x1b\\\\')\nsys.stdout.flush()\nPY"
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let frame = wait_for_frame_where(session_id, |frame| frame.contains("\"protocol\":\"sixel\""));
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let graphics = parsed["graphics"]
+        .as_array()
+        .expect("expected graphics placements in frame");
+    assert_eq!(graphics.len(), 1, "expected one Sixel placement: {frame}");
+    let placement = &graphics[0];
+    assert_eq!(placement["protocol"].as_str(), Some("sixel"));
+    assert_eq!(
+        placement["width_px"].as_u64(),
+        Some(6),
+        "default Sixel pixel aspect should double the repeated 3px asset width: {frame}"
+    );
+    assert_eq!(placement["height_px"].as_u64(), Some(12));
+    assert_eq!(placement["width_cells"].as_u64(), Some(6));
+    assert_eq!(placement["height_cells"].as_u64(), Some(6));
+    assert_eq!(placement["preserve_aspect_ratio"].as_bool(), Some(false));
+    let asset_id = placement["asset_id"]
+        .as_u64()
+        .expect("expected Sixel asset id");
+    let asset_version = placement["asset_version"]
+        .as_u64()
+        .expect("expected Sixel asset version");
+
+    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let meta_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
+            session_id,
+            asset_id,
+            asset_version,
+            &mut meta,
+        )
+    };
+    assert_eq!(meta_status, 0);
+    assert_eq!(meta.width, 3);
+    assert_eq!(meta.height, 12);
+    assert_eq!(meta.rgba_len, 3 * 12 * 4);
+    assert_eq!(meta.version, asset_version);
+
+    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let copy_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+            session_id,
+            asset_id,
+            asset_version,
+            rgba.as_mut_ptr(),
+            rgba.len(),
+        )
+    };
+    assert_eq!(copy_status, rgba.len() as isize);
+
+    let pixel_at = |x: usize, y: usize| {
+        let start = (y * meta.width as usize + x) * 4;
+        &rgba[start..start + 4]
+    };
+    for y in 0..6 {
+        for x in 0..3 {
+            assert_eq!(
+                pixel_at(x, y),
+                &[0, 255, 0, 255],
+                "repeat-introduced first Sixel band should be green at ({x},{y})"
+            );
+        }
+    }
+    for y in 6..12 {
+        for x in 0..2 {
+            assert_eq!(
+                pixel_at(x, y),
+                &[0, 0, 255, 255],
+                "second Sixel band should use the later blue palette color at ({x},{y})"
+            );
+        }
+        assert_eq!(
+            pixel_at(2, y),
+            &[0, 0, 0, 255],
+            "opaque Sixel background should fill the unpainted trailing column at y={y}"
+        );
+    }
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_waits_for_incomplete_sixel_dcs_to_finish() {
+    let profile = local_profile(
+        "sixel-incomplete-dcs-frame-boundary",
+        "Sixel Incomplete DCS Frame Boundary",
+        "/usr/bin/env",
+        vec![
+            "python3".to_string(),
+            "-c".to_string(),
+            r#"
+import sys, termios, time
+
+try:
+    attrs = termios.tcgetattr(sys.stdin.fileno())
+    attrs[3] = attrs[3] & ~termios.ECHO
+    termios.tcsetattr(sys.stdin.fileno(), termios.TCSANOW, attrs)
+except Exception:
+    pass
+
+def out(value, delay=0.08):
+    sys.stdout.write(value)
+    sys.stdout.flush()
+    time.sleep(delay)
+
+def wait():
+    if sys.stdin.readline() == '':
+        sys.exit(2)
+
+out('\x1b[2;1H\x1bPq#2~\x1b\\')
+wait()
+out('\x1b[10;1H\x1bPq#10;2;0;100;0!3~', 0.02)
+wait()
+out('\x1b\\', 0.20)
+"#
+            .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let first = wait_for_frame_where(session_id, |frame| {
+        frame.contains("\"protocol\":\"sixel\"") && frame.contains("\"row\":1")
+    });
+    let first_parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
+    let first_graphics = first_parsed["graphics"]
+        .as_array()
+        .expect("expected first Sixel placement");
+    assert!(
+        first_graphics.iter().any(|graphic| {
+            graphic["protocol"].as_str() == Some("sixel")
+                && graphic["row"].as_u64() == Some(1)
+                && graphic["col"].as_u64() == Some(0)
+        }),
+        "expected initial complete Sixel placement: {first}"
+    );
+
+    session::write_session(session_id, b"\n").unwrap();
+
+    for _ in 0..8 {
+        if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
+            let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+            let graphics = parsed["graphics"]
+                .as_array()
+                .expect("expected graphics placements field");
+            assert!(
+                !graphics.iter().any(|graphic| {
+                    graphic["protocol"].as_str() == Some("sixel")
+                        && graphic["row"].as_u64() == Some(9)
+                }),
+                "incomplete Sixel DCS must not export a placement before ST: {frame}"
+            );
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+
+    session::write_session(session_id, b"\n").unwrap();
+
+    let final_frame = wait_for_frame_where(session_id, |frame| {
+        frame.contains("\"protocol\":\"sixel\"") && frame.contains("\"row\":9")
+    });
+    let final_parsed: serde_json::Value = serde_json::from_str(&final_frame).unwrap();
+    let final_graphics = final_parsed["graphics"]
+        .as_array()
+        .expect("expected final graphics placements");
+    let placement = final_graphics
+        .iter()
+        .find(|graphic| {
+            graphic["protocol"].as_str() == Some("sixel") && graphic["row"].as_u64() == Some(9)
+        })
+        .unwrap_or_else(|| panic!("expected completed Sixel placement after ST: {final_frame}"));
+    assert_eq!(placement["col"].as_u64(), Some(0));
+    assert_eq!(placement["width_px"].as_u64(), Some(6));
+    assert_eq!(placement["height_px"].as_u64(), Some(6));
+    assert_eq!(placement["width_cells"].as_u64(), Some(6));
+    assert_eq!(placement["height_cells"].as_u64(), Some(3));
+    assert_eq!(placement["preserve_aspect_ratio"].as_bool(), Some(false));
+    let asset_id = placement["asset_id"]
+        .as_u64()
+        .expect("expected Sixel asset id");
+    let asset_version = placement["asset_version"]
+        .as_u64()
+        .expect("expected Sixel asset version");
+
+    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let meta_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
+            session_id,
+            asset_id,
+            asset_version,
+            &mut meta,
+        )
+    };
+    assert_eq!(meta_status, 0);
+    assert_eq!(meta.width, 3);
+    assert_eq!(meta.height, 6);
+    assert_eq!(meta.rgba_len, 3 * 6 * 4);
+    assert_eq!(meta.version, asset_version);
+
+    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let copy_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+            session_id,
+            asset_id,
+            asset_version,
+            rgba.as_mut_ptr(),
+            rgba.len(),
+        )
+    };
+    assert_eq!(copy_status, rgba.len() as isize);
+    for pixel in rgba.chunks_exact(4) {
+        assert_eq!(
+            pixel,
+            &[0, 255, 0, 255],
+            "completed Sixel DCS should decode the green repeat payload: {rgba:?}"
+        );
+    }
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_clears_iterm_and_sixel_graphics_on_ed2() {
+    let script = format!(
+        "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b[2;2H\\x1b]1337;File=inline=1;doNotMoveCursor=1;width=1;height=1:{}\\x1b\\\\')\nsys.stdout.write('\\x1b[6;2H\\x1bPq#2~\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.25)\nsys.stdout.write('\\x1b[2J\\x1b[Hafter clear\\n')\nsys.stdout.flush()\ntime.sleep(0.20)\nPY",
+        RED_PIXEL_PNG_BASE64
+    );
+    let profile = local_profile(
+        "iterm-sixel-ed2-clear-frame-diff",
+        "iTerm2 Sixel ED2 Clear Frame Diff",
+        "/bin/sh",
+        vec!["-lc".to_string(), script],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let initial_frame = wait_for_frame_where(session_id, |frame| {
+        frame.contains("\"protocol\":\"iterm\"") && frame.contains("\"protocol\":\"sixel\"")
+    });
+    let initial: serde_json::Value = serde_json::from_str(&initial_frame).unwrap();
+    for protocol in ["iterm", "sixel"] {
+        assert!(
+            initial["graphics"].as_array().is_some_and(|graphics| {
+                graphics
+                    .iter()
+                    .any(|graphic| graphic["protocol"].as_str() == Some(protocol))
+            }),
+            "expected {protocol} placement before ED2 clear: {initial_frame}"
+        );
+    }
+
+    let cleared_frame = wait_for_frame_where(session_id, |frame| frame.contains("after clear"));
+    let cleared: serde_json::Value = serde_json::from_str(&cleared_frame).unwrap();
+    assert!(
+        cleared["graphics"].as_array().is_none_or(|graphics| {
+            !graphics.iter().any(|graphic| {
+                matches!(graphic["protocol"].as_str(), Some("iterm") | Some("sixel"))
+            })
+        }),
+        "ED2 clear frame must not retain old iTerm2 or Sixel placements: {cleared_frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_applies_sixel_raster_pixel_aspect_ratio() {
+    let profile = local_profile(
+        "sixel-aspect-graphics",
+        "Sixel Aspect Graphics",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            "python3 - <<'PY'\nimport sys\nsys.stdout.write('\\x1bPq\"2;1;2;6~~\\x1b\\\\')\nsys.stdout.flush()\nPY"
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let frame = wait_for_frame_where(session_id, |frame| frame.contains("\"protocol\":\"sixel\""));
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let graphics = parsed["graphics"]
+        .as_array()
+        .expect("expected graphics placements in frame");
+    assert_eq!(graphics.len(), 1, "expected one Sixel placement: {frame}");
+    let placement = &graphics[0];
+    assert_eq!(placement["protocol"].as_str(), Some("sixel"));
+    assert_eq!(
+        placement["width_px"].as_u64(),
+        Some(4),
+        "Sixel raster Pan/Pad=2/1 should double the display width without changing asset pixels: {frame}"
+    );
+    assert_eq!(placement["height_px"].as_u64(), Some(6));
+    assert_eq!(placement["width_cells"].as_u64(), Some(4));
+    assert_eq!(placement["height_cells"].as_u64(), Some(3));
+    assert_eq!(placement["preserve_aspect_ratio"].as_bool(), Some(false));
+
+    let asset_id = placement["asset_id"]
+        .as_u64()
+        .expect("expected Sixel asset id");
+    let asset_version = placement["asset_version"]
+        .as_u64()
+        .expect("expected Sixel asset version");
+    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let meta_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
+            session_id,
+            asset_id,
+            asset_version,
+            &mut meta,
+        )
+    };
+    assert_eq!(meta_status, 0);
+    assert_eq!(meta.width, 2);
+    assert_eq!(meta.height, 6);
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_exports_sixel_scrollback_placements_when_scrolled_back() {
+    let profile = local_profile_with_scrollback(
+        "sixel-scrollback-graphics",
+        "Sixel Scrollback Graphics",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            "python3 - <<'PY'\nimport sys\nsys.stdout.write('\\x1bPq#2~\\x1b\\\\')\nfor i in range(80):\n    sys.stdout.write(f'line-{i:02d}\\n')\nsys.stdout.flush()\nPY"
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+        128,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let bottom_frame = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["scrollback_max_offset"].as_u64().unwrap_or(0) > 0
+            && logical_rows_from_frame(frame)
+                .iter()
+                .any(|row| row.contains("line-79"))
+    });
+    let bottom: serde_json::Value = serde_json::from_str(&bottom_frame).unwrap();
+    assert!(
+        bottom["graphics"].as_array().is_none_or(|graphics| {
+            !graphics
+                .iter()
+                .any(|graphic| graphic["protocol"].as_str() == Some("sixel"))
+        }),
+        "Sixel scrollback placement should not be emitted while the viewport is at the bottom: {bottom_frame}"
+    );
+
+    session::scroll_to_session(session_id, usize::MAX).unwrap();
+    let top_frame = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["graphics"].as_array().is_some_and(|graphics| {
+            graphics
+                .iter()
+                .any(|graphic| graphic["protocol"].as_str() == Some("sixel"))
+        })
+    });
+    let top: serde_json::Value = serde_json::from_str(&top_frame).unwrap();
+    assert_eq!(
+        top["scrollback_offset"].as_u64(),
+        top["scrollback_max_offset"].as_u64(),
+        "scroll-to-top frame should be anchored at the oldest scrollback rows: {top_frame}"
+    );
+    let placement = top["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["protocol"].as_str() == Some("sixel"))
+        })
+        .expect("expected Sixel scrollback placement");
+    assert_eq!(
+        placement["row"].as_u64(),
+        Some(2),
+        "the 3-cell-tall Sixel should reappear at the retained scrollback row where its bottom edge entered history: {top_frame}"
+    );
+    assert_eq!(placement["col"].as_u64(), Some(0));
+    assert_eq!(placement["width_px"].as_u64(), Some(2));
+    assert_eq!(placement["height_px"].as_u64(), Some(6));
+    assert_eq!(placement["visible_height_px"].as_u64(), Some(6));
+    assert_eq!(placement["source_y_offset_px"].as_u64(), Some(0));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_clear_scrollback_removes_sixel_scrollback_placements_from_frame_diff() {
+    let profile = local_profile_with_scrollback(
+        "sixel-scrollback-clear-frame-diff",
+        "Sixel Scrollback Clear Frame Diff",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            "python3 - <<'PY'\nimport sys\nsys.stdout.write('\\x1bPq#2~\\x1b\\\\')\nfor i in range(80):\n    sys.stdout.write(f'line-{i:02d}\\n')\nsys.stdout.flush()\nPY"
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+        128,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let _ = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["scrollback_max_offset"].as_u64().unwrap_or(0) > 0
+            && logical_rows_from_frame(frame)
+                .iter()
+                .any(|row| row.contains("line-79"))
+    });
+
+    session::scroll_to_session(session_id, usize::MAX).unwrap();
+    let _ = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["graphics"].as_array().is_some_and(|graphics| {
+            graphics
+                .iter()
+                .any(|graphic| graphic["protocol"].as_str() == Some("sixel"))
+        })
+    });
+
+    let clear_response = session::clear_scrollback_session(session_id).unwrap();
+    let clear_result: serde_json::Value = serde_json::from_str(&clear_response).unwrap();
+    assert_eq!(clear_result["cleared"].as_bool(), Some(true));
+
+    let cleared_frame = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["scrollback_offset"].as_u64() == Some(0)
+            && parsed["scrollback_max_offset"].as_u64() == Some(0)
+    });
+    let cleared: serde_json::Value = serde_json::from_str(&cleared_frame).unwrap();
+    assert!(
+        cleared["graphics"].as_array().is_none_or(|graphics| {
+            !graphics
+                .iter()
+                .any(|graphic| graphic["protocol"].as_str() == Some("sixel"))
+        }),
+        "clear scrollback frame must not retain old Sixel scrollback placements: {cleared_frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_csi3j_clears_iterm_and_sixel_scrollback_placements() {
+    let script = format!(
+        "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b[1;1H\\x1b]1337;File=inline=1;doNotMoveCursor=1;width=1;height=1:{}\\x1b\\\\')\nsys.stdout.write('\\x1b[5;1H\\x1bPq#2~\\x1b\\\\')\nsys.stdout.write('\\x1b[32;1H')\nfor i in range(80):\n    sys.stdout.write(f'line-{{i:02d}}\\n')\nsys.stdout.flush()\ntime.sleep(0.90)\nsys.stdout.write('\\x1b[3J\\x1b[Hafter 3j\\n')\nsys.stdout.flush()\ntime.sleep(0.20)\nPY",
+        RED_PIXEL_PNG_BASE64
+    );
+    let profile = local_profile_with_scrollback(
+        "iterm-sixel-csi3j-scrollback-clear-frame-diff",
+        "iTerm2 Sixel CSI 3J Scrollback Clear Frame Diff",
+        "/bin/sh",
+        vec!["-lc".to_string(), script],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+        128,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let _ = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["scrollback_max_offset"].as_u64().unwrap_or(0) > 0
+            && logical_rows_from_frame(frame)
+                .iter()
+                .any(|row| row.contains("line-79"))
+    });
+
+    session::scroll_to_session(session_id, usize::MAX).unwrap();
+    let top_frame = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["graphics"].as_array().is_some_and(|graphics| {
+            let has_iterm = graphics
+                .iter()
+                .any(|graphic| graphic["protocol"].as_str() == Some("iterm"));
+            let has_sixel = graphics
+                .iter()
+                .any(|graphic| graphic["protocol"].as_str() == Some("sixel"));
+            has_iterm && has_sixel
+        })
+    });
+    let top: serde_json::Value = serde_json::from_str(&top_frame).unwrap();
+    assert_eq!(
+        top["scrollback_offset"].as_u64(),
+        top["scrollback_max_offset"].as_u64(),
+        "scroll-to-top frame should expose retained iTerm2 and Sixel scrollback placements before CSI 3J: {top_frame}"
+    );
+
+    let cleared_frame = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        logical_rows_from_frame(frame)
+            .iter()
+            .any(|row| row.contains("after 3j"))
+            && parsed["scrollback_max_offset"].as_u64() == Some(0)
+    });
+    let cleared: serde_json::Value = serde_json::from_str(&cleared_frame).unwrap();
+    assert_eq!(
+        cleared["scrollback_offset"].as_u64(),
+        Some(0),
+        "CSI 3J should clamp an existing scrollback viewport back to the live screen: {cleared_frame}"
+    );
+    assert!(
+        cleared["graphics"].as_array().is_none_or(|graphics| {
+            !graphics.iter().any(|graphic| {
+                matches!(graphic["protocol"].as_str(), Some("iterm") | Some("sixel"))
+            })
+        }),
+        "CSI 3J clear frame must not retain old iTerm2 or Sixel scrollback placements: {cleared_frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_scopes_sixel_graphics_to_alternate_screen() {
+    let profile = local_profile(
+        "sixel-alt-screen-frame-diff",
+        "Sixel Alternate Screen Frame Diff",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            "python3 - <<'PY'\nimport sys, time\n\ndef out(value, delay=0.16):\n    sys.stdout.write(value)\n    sys.stdout.flush()\n    time.sleep(delay)\n\nout('\\x1b[2;1H\\x1bPq#2~\\x1b\\\\')\nout('\\x1b[?1049h')\nout('\\x1b[6;1H\\x1bPq#2~\\x1b\\\\')\nout('\\x1b[?1049lprimary restored\\n', 0.22)\nPY"
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let sixel_rows = |frame: &str| -> Vec<u64> {
+        let parsed: serde_json::Value = serde_json::from_str(frame).unwrap();
+        parsed["graphics"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|graphic| graphic["protocol"].as_str() == Some("sixel"))
+            .filter_map(|graphic| graphic["row"].as_u64())
+            .collect()
+    };
+
+    let primary = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["graphics"].as_array().is_some_and(|graphics| {
+            graphics.iter().any(|graphic| {
+                graphic["protocol"].as_str() == Some("sixel") && graphic["row"].as_u64() == Some(1)
+            })
+        })
+    });
+    let primary_rows = sixel_rows(&primary);
+    assert!(
+        primary_rows.contains(&1),
+        "primary Sixel graphic should be visible before entering alternate screen: {primary}"
+    );
+    assert!(
+        !primary_rows.contains(&5),
+        "alternate Sixel graphic must not leak into the primary screen frame: {primary}"
+    );
+
+    let alternate = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["graphics"].as_array().is_some_and(|graphics| {
+            graphics.iter().any(|graphic| {
+                graphic["protocol"].as_str() == Some("sixel") && graphic["row"].as_u64() == Some(5)
+            })
+        })
+    });
+    let alternate_rows = sixel_rows(&alternate);
+    assert!(
+        alternate_rows.contains(&5),
+        "alternate Sixel graphic should be visible while alternate screen is active: {alternate}"
+    );
+    assert!(
+        !alternate_rows.contains(&1),
+        "primary Sixel graphic must not leak into alternate screen frames: {alternate}"
+    );
+
+    let restored = wait_for_frame_where(session_id, |frame| {
+        if !frame.contains("primary restored") {
+            return false;
+        }
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["graphics"].as_array().is_some_and(|graphics| {
+            graphics.iter().any(|graphic| {
+                graphic["protocol"].as_str() == Some("sixel") && graphic["row"].as_u64() == Some(1)
+            })
+        })
+    });
+    let restored_rows = sixel_rows(&restored);
+    assert!(
+        restored_rows.contains(&1),
+        "primary Sixel graphic should be restored after leaving alternate screen: {restored}"
+    );
+    assert!(
+        !restored_rows.contains(&5),
+        "alternate Sixel graphic should be cleared after leaving alternate screen: {restored}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_exports_kitty_scrollback_placements_when_scrolled_back() {
+    let profile = local_profile_with_scrollback(
+        "kitty-scrollback-graphics",
+        "Kitty Scrollback Graphics",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys\nsys.stdout.write('\\x1b[1;1H\\x1b_Ga=T,f=32,s=1,v=1,i=812,p=4,c=1,r=1,C=1,q=1;{}\\x1b\\\\')\nsys.stdout.write('\\x1b[32;1H')\nfor i in range(80):\n    sys.stdout.write(f'line-{{i:02d}}\\n')\nsys.stdout.flush()\nPY",
+                RED_RGBA_BASE64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+        128,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let bottom_frame = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["scrollback_max_offset"].as_u64().unwrap_or(0) > 0
+            && logical_rows_from_frame(frame)
+                .iter()
+                .any(|row| row.contains("line-79"))
+    });
+    let bottom: serde_json::Value = serde_json::from_str(&bottom_frame).unwrap();
+    assert!(
+        bottom["graphics"].as_array().is_none_or(|graphics| {
+            !graphics
+                .iter()
+                .any(|graphic| graphic["asset_id"].as_u64() == Some(812))
+        }),
+        "Kitty scrollback placement should not be emitted while the viewport is at the bottom: {bottom_frame}"
+    );
+
+    session::scroll_to_session(session_id, usize::MAX).unwrap();
+    let top_frame = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["graphics"].as_array().is_some_and(|graphics| {
+            graphics
+                .iter()
+                .any(|graphic| graphic["asset_id"].as_u64() == Some(812))
+        })
+    });
+    let top: serde_json::Value = serde_json::from_str(&top_frame).unwrap();
+    assert_eq!(
+        top["scrollback_offset"].as_u64(),
+        top["scrollback_max_offset"].as_u64(),
+        "scroll-to-top frame should be anchored at the oldest scrollback rows: {top_frame}"
+    );
+    let placement = top["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["asset_id"].as_u64() == Some(812))
+        })
+        .expect("expected Kitty scrollback placement");
+    assert_eq!(placement["protocol"].as_str(), Some("kitty"));
+    assert_eq!(placement["row"].as_u64(), Some(0));
+    assert_eq!(placement["col"].as_u64(), Some(0));
+    assert_eq!(placement["width_px"].as_u64(), Some(1));
+    assert_eq!(placement["height_px"].as_u64(), Some(2));
+    assert_eq!(placement["width_cells"].as_u64(), Some(1));
+    assert_eq!(placement["height_cells"].as_u64(), Some(1));
+    assert_eq!(placement["visible_height_px"].as_u64(), Some(2));
+    assert_eq!(placement["source_y_offset_px"].as_u64(), Some(0));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_updates_kitty_animation_scrollback_asset_after_current_frame_change() {
+    let profile = local_profile_with_scrollback(
+        "kitty-animation-scrollback-frame-diff",
+        "Kitty Animation Scrollback Frame Diff",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b[1;1H\\x1b_Ga=f,f=32,s=1,v=1,i=61004,r=1,z=1,q=1;{}\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.90)\nsys.stdout.write('\\x1b[32;1H')\nfor i in range(80):\n    sys.stdout.write('line-%02d\\n' % i)\nsys.stdout.flush()\ntime.sleep(0.45)\nsys.stdout.write('\\x1b_Ga=f,f=32,s=1,v=1,i=61004,r=2,z=1,q=1;{}\\x1b\\\\')\nsys.stdout.write('\\x1b_Ga=a,i=61004,c=2,q=1;\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.30)\nPY",
+                RED_RGBA_BASE64, GREEN_RGBA_BASE64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+        128,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let first = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["graphics"].as_array().is_some_and(|graphics| {
+            graphics
+                .iter()
+                .any(|graphic| graphic["asset_id"].as_u64() == Some(61004))
+        })
+    });
+    let first_parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
+    let first_graphic = first_parsed["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["asset_id"].as_u64() == Some(61004))
+        })
+        .expect("expected first Kitty animation placement");
+    let first_render_id = first_graphic["render_id"].as_u64();
+    let first_placement_id = first_graphic["placement_id"].as_u64();
+    let first_version = first_graphic["asset_version"]
+        .as_u64()
+        .expect("expected first Kitty animation asset version");
+
+    let mut first_meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let first_meta_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
+            session_id,
+            61004,
+            first_version,
+            &mut first_meta,
+        )
+    };
+    assert_eq!(first_meta_status, 0);
+    assert_eq!(first_meta.rgba_len, 4);
+    let mut first_rgba = vec![0_u8; first_meta.rgba_len as usize];
+    let first_copy_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+            session_id,
+            61004,
+            first_version,
+            first_rgba.as_mut_ptr(),
+            first_rgba.len(),
+        )
+    };
+    assert_eq!(first_copy_status, first_rgba.len() as isize);
+    assert_eq!(first_rgba, [255, 0, 0, 255]);
+
+    let bottom_frame = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["scrollback_max_offset"].as_u64().unwrap_or(0) > 0
+            && logical_rows_from_frame(frame)
+                .iter()
+                .any(|row| row.contains("line-79"))
+    });
+    let bottom: serde_json::Value = serde_json::from_str(&bottom_frame).unwrap();
+    assert!(
+        bottom["graphics"].as_array().is_none_or(|graphics| {
+            !graphics
+                .iter()
+                .any(|graphic| graphic["asset_id"].as_u64() == Some(61004))
+        }),
+        "Kitty animation scrollback placement should not be emitted while the viewport is at the bottom: {bottom_frame}"
+    );
+
+    session::scroll_to_session(session_id, usize::MAX).unwrap();
+    let updated = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["scrollback_offset"].as_u64() == parsed["scrollback_max_offset"].as_u64()
+            && parsed["graphics"]
+                .as_array()
+                .and_then(|graphics| {
+                    graphics
+                        .iter()
+                        .find(|graphic| graphic["asset_id"].as_u64() == Some(61004))
+                })
+                .and_then(|graphic| graphic["asset_version"].as_u64())
+                .is_some_and(|version| version != first_version)
+    });
+    let updated_parsed: serde_json::Value = serde_json::from_str(&updated).unwrap();
+    let updated_graphic = updated_parsed["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["asset_id"].as_u64() == Some(61004))
+        })
+        .expect("expected updated Kitty animation scrollback placement");
+    assert_eq!(updated_graphic["render_id"].as_u64(), first_render_id);
+    assert_eq!(updated_graphic["placement_id"].as_u64(), first_placement_id);
+    assert_eq!(updated_graphic["width_px"].as_u64(), Some(1));
+    assert_eq!(updated_graphic["height_px"].as_u64(), Some(1));
+    let updated_version = updated_graphic["asset_version"]
+        .as_u64()
+        .expect("expected current-frame control to update the scrollback asset version");
+
+    let mut updated_meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let updated_meta_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
+            session_id,
+            61004,
+            updated_version,
+            &mut updated_meta,
+        )
+    };
+    assert_eq!(updated_meta_status, 0);
+    assert_eq!(updated_meta.rgba_len, 4);
+    let mut updated_rgba = vec![0_u8; updated_meta.rgba_len as usize];
+    let updated_copy_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+            session_id,
+            61004,
+            updated_version,
+            updated_rgba.as_mut_ptr(),
+            updated_rgba.len(),
+        )
+    };
+    assert_eq!(updated_copy_status, updated_rgba.len() as isize);
+    assert_eq!(updated_rgba, [0, 255, 0, 255]);
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_clear_scrollback_removes_kitty_scrollback_placements_from_frame_diff() {
+    let profile = local_profile_with_scrollback(
+        "kitty-scrollback-clear-frame-diff",
+        "Kitty Scrollback Clear Frame Diff",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys\nsys.stdout.write('\\x1b[1;1H\\x1b_Ga=T,f=32,s=1,v=1,i=61003,p=4,c=1,r=1,C=1,q=1;{}\\x1b\\\\')\nsys.stdout.write('\\x1b[32;1H')\nfor i in range(80):\n    sys.stdout.write(f'line-{{i:02d}}\\n')\nsys.stdout.flush()\nPY",
+                RED_RGBA_BASE64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+        128,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let _ = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["scrollback_max_offset"].as_u64().unwrap_or(0) > 0
+            && logical_rows_from_frame(frame)
+                .iter()
+                .any(|row| row.contains("line-79"))
+    });
+
+    session::scroll_to_session(session_id, usize::MAX).unwrap();
+    let _ = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["graphics"].as_array().is_some_and(|graphics| {
+            graphics
+                .iter()
+                .any(|graphic| graphic["asset_id"].as_u64() == Some(61003))
+        })
+    });
+
+    let clear_response = session::clear_scrollback_session(session_id).unwrap();
+    let clear_result: serde_json::Value = serde_json::from_str(&clear_response).unwrap();
+    assert_eq!(clear_result["cleared"].as_bool(), Some(true));
+
+    let cleared_frame = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["scrollback_offset"].as_u64() == Some(0)
+            && parsed["scrollback_max_offset"].as_u64() == Some(0)
+    });
+    let cleared: serde_json::Value = serde_json::from_str(&cleared_frame).unwrap();
+    assert!(
+        cleared["graphics"].as_array().is_none_or(|graphics| {
+            !graphics
+                .iter()
+                .any(|graphic| graphic["asset_id"].as_u64() == Some(61003))
+        }),
+        "clear scrollback frame must not retain old Kitty scrollback placements: {cleared_frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_clear_scrollback_preserves_active_graphics_placements() {
+    let script = format!(
+        "python3 - <<'PY'\nimport sys\nfor i in range(80):\n    sys.stdout.write(f'line-{{i:02d}}\\n')\nsys.stdout.write('\\x1b[2;2H\\x1b]1337;File=inline=1;doNotMoveCursor=1;width=1;height=1:{}\\x1b\\\\')\nsys.stdout.write('\\x1b[5;2H\\x1bPq#2~\\x1b\\\\')\nsys.stdout.write('\\x1b[9;2H\\x1b_Ga=T,f=32,s=1,v=1,i=62020,p=1,c=1,r=1,C=1,q=1;{}\\x1b\\\\')\nsys.stdout.write('\\x1b[20;1Hactive graphics ready\\n')\nsys.stdout.flush()\nPY",
+        RED_PIXEL_PNG_BASE64, RED_RGBA_BASE64
+    );
+    let profile = local_profile_with_scrollback(
+        "active-graphics-clear-scrollback-frame-diff",
+        "Active Graphics Clear Scrollback Frame Diff",
+        "/bin/sh",
+        vec!["-lc".to_string(), script],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+        128,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let initial_frame = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["scrollback_max_offset"].as_u64().unwrap_or(0) > 0
+            && logical_rows_from_frame(frame)
+                .iter()
+                .any(|row| row.contains("active graphics ready"))
+    });
+    let initial: serde_json::Value = serde_json::from_str(&initial_frame).unwrap();
+    let initial_graphics = initial["graphics"]
+        .as_array()
+        .expect("initial frame should include active graphics placements");
+    assert!(
+        initial_graphics
+            .iter()
+            .any(|graphic| graphic["protocol"].as_str() == Some("iterm")),
+        "expected initial active iTerm2 placement: {initial_frame}"
+    );
+    assert!(
+        initial_graphics
+            .iter()
+            .any(|graphic| graphic["protocol"].as_str() == Some("sixel")),
+        "expected initial active Sixel placement: {initial_frame}"
+    );
+    assert!(
+        initial_graphics
+            .iter()
+            .any(|graphic| graphic["asset_id"].as_u64() == Some(62020)),
+        "expected initial active Kitty placement: {initial_frame}"
+    );
+
+    let clear_response = session::clear_scrollback_session(session_id).unwrap();
+    let clear_result: serde_json::Value = serde_json::from_str(&clear_response).unwrap();
+    assert_eq!(clear_result["cleared"].as_bool(), Some(true));
+
+    let cleared_frame = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["scrollback_offset"].as_u64() == Some(0)
+            && parsed["scrollback_max_offset"].as_u64() == Some(0)
+    });
+    let cleared: serde_json::Value = serde_json::from_str(&cleared_frame).unwrap();
+    let graphics = cleared["graphics"]
+        .as_array()
+        .expect("clear scrollback frame should keep active graphics placements");
+    assert!(
+        graphics
+            .iter()
+            .any(|graphic| graphic["protocol"].as_str() == Some("iterm")),
+        "clear scrollback must preserve active iTerm2 placements: {cleared_frame}"
+    );
+    assert!(
+        graphics
+            .iter()
+            .any(|graphic| graphic["protocol"].as_str() == Some("sixel")),
+        "clear scrollback must preserve active Sixel placements: {cleared_frame}"
+    );
+    assert!(
+        graphics
+            .iter()
+            .any(|graphic| graphic["asset_id"].as_u64() == Some(62020)),
+        "clear scrollback must preserve active Kitty placements: {cleared_frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_csi3j_clears_kitty_scrollback_placements() {
+    let profile = local_profile_with_scrollback(
+        "kitty-csi3j-scrollback-clear-frame-diff",
+        "Kitty CSI 3J Scrollback Clear Frame Diff",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b[1;1H\\x1b_Ga=T,f=32,s=1,v=1,i=61005,p=4,c=1,r=1,C=1,q=1;{}\\x1b\\\\')\nsys.stdout.write('\\x1b[32;1H')\nfor i in range(80):\n    sys.stdout.write(f'line-{{i:02d}}\\n')\nsys.stdout.flush()\ntime.sleep(0.90)\nsys.stdout.write('\\x1b[3J\\x1b[Hafter kitty 3j\\n')\nsys.stdout.flush()\ntime.sleep(0.20)\nPY",
+                RED_RGBA_BASE64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+        128,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let _ = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["scrollback_max_offset"].as_u64().unwrap_or(0) > 0
+            && logical_rows_from_frame(frame)
+                .iter()
+                .any(|row| row.contains("line-79"))
+    });
+
+    session::scroll_to_session(session_id, usize::MAX).unwrap();
+    let top_frame = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["graphics"].as_array().is_some_and(|graphics| {
+            graphics
+                .iter()
+                .any(|graphic| graphic["asset_id"].as_u64() == Some(61005))
+        })
+    });
+    let top: serde_json::Value = serde_json::from_str(&top_frame).unwrap();
+    assert_eq!(
+        top["scrollback_offset"].as_u64(),
+        top["scrollback_max_offset"].as_u64(),
+        "scroll-to-top frame should expose retained Kitty scrollback placement before CSI 3J: {top_frame}"
+    );
+
+    let cleared_frame = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        logical_rows_from_frame(frame)
+            .iter()
+            .any(|row| row.contains("after kitty 3j"))
+            && parsed["scrollback_max_offset"].as_u64() == Some(0)
+    });
+    let cleared: serde_json::Value = serde_json::from_str(&cleared_frame).unwrap();
+    assert_eq!(
+        cleared["scrollback_offset"].as_u64(),
+        Some(0),
+        "CSI 3J should clamp a Kitty scrollback viewport back to the live screen: {cleared_frame}"
+    );
+    assert!(
+        cleared["graphics"].as_array().is_none_or(|graphics| {
+            !graphics
+                .iter()
+                .any(|graphic| graphic["asset_id"].as_u64() == Some(61005))
+        }),
+        "CSI 3J clear frame must not retain old Kitty scrollback placements: {cleared_frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_scopes_kitty_graphics_to_alternate_screen() {
+    let script = format!(
+        r#"
+import sys, time
+
+def out(value, delay=0.16):
+    sys.stdout.write(value)
+    sys.stdout.flush()
+    time.sleep(delay)
+
+out('\x1b[2;1H\x1b_Ga=T,f=32,s=1,v=1,i=750,C=1,q=1;{red}\x1b\\')
+out('\x1b[?1049h')
+out('\x1b[4;1H\x1b_Ga=T,f=32,s=1,v=1,i=751,C=1,q=1;{green}\x1b\\')
+out('\x1b[?1049lprimary restored\n', 0.22)
+"#,
+        red = RED_RGBA_BASE64,
+        green = GREEN_RGBA_BASE64,
+    );
+    let profile = local_profile(
+        "kitty-alt-screen-frame-diff",
+        "Kitty Alternate Screen Frame Diff",
+        "/usr/bin/env",
+        vec!["python3".to_string(), "-c".to_string(), script],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let first = wait_for_frame_where(session_id, |frame| {
+        frame.contains("\"graphics\":[{") && frame.contains("\"asset_id\":750")
+    });
+    let first_parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
+    let first_graphics = first_parsed["graphics"]
+        .as_array()
+        .expect("expected primary graphics placement");
+    assert!(
+        first_graphics
+            .iter()
+            .any(|graphic| graphic["asset_id"].as_u64() == Some(750)),
+        "primary Kitty graphic should be visible before entering alternate screen: {first}"
+    );
+    assert!(
+        !first_graphics
+            .iter()
+            .any(|graphic| graphic["asset_id"].as_u64() == Some(751)),
+        "alternate Kitty graphic must not leak into the primary screen frame: {first}"
+    );
+
+    let alternate = wait_for_frame_where(session_id, |frame| {
+        frame.contains("\"graphics\":[{") && frame.contains("\"asset_id\":751")
+    });
+    let alternate_parsed: serde_json::Value = serde_json::from_str(&alternate).unwrap();
+    let alternate_graphics = alternate_parsed["graphics"]
+        .as_array()
+        .expect("expected alternate graphics placement");
+    assert!(
+        alternate_graphics
+            .iter()
+            .any(|graphic| graphic["asset_id"].as_u64() == Some(751)),
+        "alternate Kitty graphic should be visible while alternate screen is active: {alternate}"
+    );
+    assert!(
+        !alternate_graphics
+            .iter()
+            .any(|graphic| graphic["asset_id"].as_u64() == Some(750)),
+        "primary Kitty graphic must not leak into alternate screen frames: {alternate}"
+    );
+
+    let restored = wait_for_frame_where(session_id, |frame| {
+        frame.contains("primary restored")
+            && frame.contains("\"graphics\":[{")
+            && frame.contains("\"asset_id\":750")
+    });
+    let restored_parsed: serde_json::Value = serde_json::from_str(&restored).unwrap();
+    let restored_graphics = restored_parsed["graphics"]
+        .as_array()
+        .expect("expected restored primary graphics placement");
+    assert!(
+        restored_graphics
+            .iter()
+            .any(|graphic| graphic["asset_id"].as_u64() == Some(750)),
+        "primary Kitty graphic should be restored after leaving alternate screen: {restored}"
+    );
+    assert!(
+        !restored_graphics
+            .iter()
+            .any(|graphic| graphic["asset_id"].as_u64() == Some(751)),
+        "alternate Kitty graphic should be cleared after leaving alternate screen: {restored}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn session_frame_diff_exports_kitty_shared_memory_placement_and_asset_bytes() {
+    let mut shared_data = b"skip".to_vec();
+    shared_data.extend_from_slice(red_pixel_png_bytes());
+    let (shared_memory_name, shared_memory_payload) =
+        create_kitty_shared_memory_payload(&shared_data);
+    let profile = local_profile(
+        "kitty-shared-memory-frame-diff",
+        "Kitty Shared Memory Frame Diff",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys, time\nsys.stdout.buffer.write(b\"\\x1b_Ga=T,t=s,f=100,i=815,O=4,S={},q=1;{}\\x1b\\\\\")\nsys.stdout.flush()\ntime.sleep(0.2)\nPY",
+                red_pixel_png_bytes().len(),
+                shared_memory_payload,
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let frame = wait_for_frame_where(session_id, |frame| frame.contains("\"asset_id\":815"));
+    let still_exists = kitty_shared_memory_exists(&shared_memory_name);
+    if still_exists {
+        unlink_kitty_shared_memory(&shared_memory_name);
+    }
+    assert!(
+        !still_exists,
+        "session-level Kitty shared memory transfer must unlink the object after reading"
+    );
+
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let placement = parsed["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["asset_id"].as_u64() == Some(815))
+        })
+        .expect("expected Kitty shared memory placement");
+    assert_eq!(placement["protocol"].as_str(), Some("kitty"));
+    assert_eq!(placement["row"].as_u64(), Some(0));
+    assert_eq!(placement["col"].as_u64(), Some(0));
+    assert_eq!(placement["width_px"].as_u64(), Some(1));
+    assert_eq!(placement["height_px"].as_u64(), Some(1));
+    assert_eq!(placement["width_cells"].as_u64(), Some(1));
+    assert_eq!(placement["height_cells"].as_u64(), Some(1));
+
+    let asset_version = placement["asset_version"]
+        .as_u64()
+        .expect("expected graphic asset version");
+    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let meta_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_meta(session_id, 815, asset_version, &mut meta)
+    };
+    assert_eq!(meta_status, 0);
+    assert_eq!(meta.width, 1);
+    assert_eq!(meta.height, 1);
+    assert_eq!(meta.rgba_len, 4);
+
+    let mut rgba = vec![0u8; meta.rgba_len];
+    let copy_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+            session_id,
+            815,
+            asset_version,
+            rgba.as_mut_ptr(),
+            rgba.len(),
+        )
+    };
+    assert_eq!(copy_status, rgba.len() as isize);
+    assert_eq!(rgba, vec![255, 0, 0, 255]);
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_exports_kitty_virtual_placeholder_placements() {
+    let profile = local_profile(
+        "kitty-virtual-placeholder-graphics",
+        "Kitty Virtual Placeholder Graphics",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys\nplaceholder = chr(0x10eeee) + '\\u0305\\u0305'\nsys.stdout.write('\\x1b[1;1H')\nsys.stdout.write('\\x1b_Ga=T,U=1,f=32,s=1,v=1,i=812,p=4,c=1,r=1,C=1,q=1;{}\\x1b\\\\')\nsys.stdout.write('\\x1b[3;5H')\nsys.stdout.write('\\x1b[38;2;0;3;44m\\x1b[58;2;0;0;4m' + placeholder + '\\x1b[0m')\nsys.stdout.flush()\nPY",
+                RED_RGBA_BASE64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let frame = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["graphics"].as_array().is_some_and(|graphics| {
+            graphics
+                .iter()
+                .any(|graphic| graphic["asset_id"].as_u64() == Some(812))
+        })
+    });
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let placement = parsed["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["asset_id"].as_u64() == Some(812))
+        })
+        .expect("expected Kitty virtual placeholder placement");
+    assert_eq!(placement["protocol"].as_str(), Some("kitty"));
+    assert_eq!(placement["row"].as_u64(), Some(2));
+    assert_eq!(placement["col"].as_u64(), Some(4));
+    assert_eq!(placement["width_cells"].as_u64(), Some(1));
+    assert_eq!(placement["height_cells"].as_u64(), Some(1));
+    assert_eq!(placement["source_x_offset_px"].as_u64(), Some(0));
+    assert_eq!(placement["source_y_offset_px"].as_u64(), Some(0));
+
+    let asset_version = placement["asset_version"]
+        .as_u64()
+        .expect("expected graphic asset version");
+    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let meta_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_meta(session_id, 812, asset_version, &mut meta)
+    };
+    assert_eq!(meta_status, 0);
+    assert_eq!(meta.width, 1);
+    assert_eq!(meta.height, 1);
+    assert_eq!(meta.rgba_len, 4);
+
+    let mut rgba = vec![0u8; meta.rgba_len];
+    let copy_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+            session_id,
+            812,
+            asset_version,
+            rgba.as_mut_ptr(),
+            rgba.len(),
+        )
+    };
+    assert_eq!(copy_status, rgba.len() as isize);
+    assert_eq!(rgba, vec![255, 0, 0, 255]);
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_exports_kitty_source_rect_offsets_and_z_index() {
+    let rgba = [
+        255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 0, 255, 255, 0, 255, 255, 0, 255,
+        255, 255, 255, 255, 255, 255, 32, 64, 96, 255, 96, 64, 32, 255, 16, 32, 48, 255, 48, 32,
+        16, 255, 192, 128, 64, 255, 64, 128, 192, 255, 8, 16, 24, 255, 24, 16, 8, 255, 128, 128,
+        128, 255,
+    ];
+    let rgba_payload = base64_standard_no_pad_encode(&rgba);
+    let profile = local_profile(
+        "kitty-source-rect-placement-frame-diff",
+        "Kitty Source Rect Placement Frame Diff",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b[4;6H')\nsys.stdout.write('\\x1b_Ga=T,f=32,s=4,v=4,i=813,p=9,c=4,r=3,x=1,y=1,w=2,h=2,X=1,Y=2,z=-7,C=1,q=1;{}\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.2)\nPY",
+                rgba_payload,
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let frame = wait_for_frame_where(session_id, |frame| {
+        frame.contains("\"asset_id\":813") && frame.contains("\"z_index\":-7")
+    });
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let placement = parsed["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["asset_id"].as_u64() == Some(813))
+        })
+        .expect("expected Kitty source-rect placement");
+    assert_eq!(placement["protocol"].as_str(), Some("kitty"));
+    assert_eq!(placement["row"].as_u64(), Some(3));
+    assert_eq!(placement["col"].as_u64(), Some(5));
+    assert_eq!(placement["width_px"].as_u64(), Some(8));
+    assert_eq!(placement["height_px"].as_u64(), Some(12));
+    assert_eq!(placement["width_cells"].as_u64(), Some(5));
+    assert_eq!(placement["height_cells"].as_u64(), Some(4));
+    assert_eq!(placement["source_x_offset_px"].as_u64(), Some(2));
+    assert_eq!(placement["source_y_offset_px"].as_u64(), Some(3));
+    assert_eq!(placement["visible_width_px"].as_u64(), Some(4));
+    assert_eq!(placement["visible_height_px"].as_u64(), Some(6));
+    assert_eq!(placement["x_offset_px"].as_u64(), Some(1));
+    assert_eq!(placement["y_offset_px"].as_u64(), Some(2));
+    assert_eq!(placement["z_index"].as_i64(), Some(-7));
+    assert_eq!(placement["preserve_aspect_ratio"].as_bool(), Some(true));
+
+    let asset_version = placement["asset_version"]
+        .as_u64()
+        .expect("expected graphic asset version");
+    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let meta_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_meta(session_id, 813, asset_version, &mut meta)
+    };
+    assert_eq!(meta_status, 0);
+    assert_eq!(meta.width, 4);
+    assert_eq!(meta.height, 4);
+    assert_eq!(meta.rgba_len, rgba.len());
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_ticks_kitty_animation_without_new_output() {
+    let profile = local_profile(
+        "kitty-animation-frame-diff",
+        "Kitty Animation Frame Diff",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b_Ga=f,f=32,s=1,v=1,i=61000,r=1,z=1,q=1;{}\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.15)\nsys.stdout.write('\\x1b_Ga=f,f=32,s=1,v=1,i=61000,r=2,z=1,q=1;{}\\x1b\\\\')\nsys.stdout.write('\\x1b_Ga=a,i=61000,s=3,q=1;\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.25)\nPY",
+                RED_RGBA_BASE64, GREEN_RGBA_BASE64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let first = wait_for_frame_where(session_id, |frame| frame.contains("\"asset_id\":61000"));
+    let first_parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
+    let first_graphic = first_parsed["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["asset_id"].as_u64() == Some(61000))
+        })
+        .expect("expected first animated Kitty placement");
+    let first_version = first_graphic["asset_version"]
+        .as_u64()
+        .expect("expected first asset version");
+
+    let updated = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["graphics"]
+            .as_array()
+            .and_then(|graphics| {
+                graphics
+                    .iter()
+                    .find(|graphic| graphic["asset_id"].as_u64() == Some(61000))
+            })
+            .and_then(|graphic| graphic["asset_version"].as_u64())
+            .is_some_and(|version| version != first_version)
+    });
+    let updated_parsed: serde_json::Value = serde_json::from_str(&updated).unwrap();
+    let updated_graphic = updated_parsed["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["asset_id"].as_u64() == Some(61000))
+        })
+        .expect("expected updated animated Kitty placement");
+    let updated_version = updated_graphic["asset_version"]
+        .as_u64()
+        .expect("expected updated asset version");
+
+    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let meta_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
+            session_id,
+            61000,
+            updated_version,
+            &mut meta,
+        )
+    };
+    assert_eq!(meta_status, 0);
+    assert_eq!(meta.rgba_len, 4);
+
+    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let copy_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+            session_id,
+            61000,
+            updated_version,
+            rgba.as_mut_ptr(),
+            rgba.len(),
+        )
+    };
+    assert_eq!(copy_status, rgba.len() as isize);
+    assert_eq!(rgba, [0, 255, 0, 255]);
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_ticks_iterm_gif_animation_without_new_output() {
+    let profile = local_profile(
+        "iterm-gif-animation-frame-diff",
+        "iTerm GIF Animation Frame Diff",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b]1337;File=inline=1;doNotMoveCursor=1:{}\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.25)\nPY",
+                RED_GREEN_1X1_GIF_BASE64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let first = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["graphics"].as_array().is_some_and(|graphics| {
+            graphics
+                .iter()
+                .any(|graphic| graphic["protocol"] == "iterm")
+        })
+    });
+    let first_parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
+    let first_graphic = first_parsed["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["protocol"] == "iterm")
+        })
+        .expect("expected first animated iTerm GIF placement");
+    let asset_id = first_graphic["asset_id"]
+        .as_u64()
+        .expect("expected animated iTerm GIF asset id");
+    let first_version = first_graphic["asset_version"]
+        .as_u64()
+        .expect("expected first animated iTerm GIF asset version");
+    let mut first_meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let first_meta_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
+            session_id,
+            asset_id,
+            first_version,
+            &mut first_meta,
+        )
+    };
+    assert_eq!(first_meta_status, 0);
+    assert_eq!(first_meta.rgba_len, 4);
+    let mut first_rgba = vec![0_u8; first_meta.rgba_len as usize];
+    let first_copy_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+            session_id,
+            asset_id,
+            first_version,
+            first_rgba.as_mut_ptr(),
+            first_rgba.len(),
+        )
+    };
+    assert_eq!(first_copy_status, first_rgba.len() as isize);
+
+    let updated = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["graphics"]
+            .as_array()
+            .and_then(|graphics| {
+                graphics
+                    .iter()
+                    .find(|graphic| graphic["asset_id"].as_u64() == Some(asset_id))
+            })
+            .and_then(|graphic| graphic["asset_version"].as_u64())
+            .is_some_and(|version| version != first_version)
+    });
+    let updated_parsed: serde_json::Value = serde_json::from_str(&updated).unwrap();
+    let updated_graphic = updated_parsed["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["asset_id"].as_u64() == Some(asset_id))
+        })
+        .expect("expected updated animated iTerm GIF placement");
+    let updated_version = updated_graphic["asset_version"]
+        .as_u64()
+        .expect("expected updated animated iTerm GIF asset version");
+
+    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let meta_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
+            session_id,
+            asset_id,
+            updated_version,
+            &mut meta,
+        )
+    };
+    assert_eq!(meta_status, 0);
+    assert_eq!(meta.rgba_len, 4);
+
+    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let copy_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+            session_id,
+            asset_id,
+            updated_version,
+            rgba.as_mut_ptr(),
+            rgba.len(),
+        )
+    };
+    assert_eq!(copy_status, rgba.len() as isize);
+    assert_ne!(rgba, first_rgba);
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_updates_iterm_gif_scrollback_asset_after_animation_tick() {
+    let profile = local_profile_with_scrollback(
+        "iterm-gif-animation-scrollback-frame-diff",
+        "iTerm GIF Animation Scrollback Frame Diff",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b[1;1H\\x1b]1337;File=inline=1;doNotMoveCursor=1:{}\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.45)\nsys.stdout.write('\\x1b[32;1H')\nfor i in range(80):\n    sys.stdout.write(f'line-{{i:02d}}\\n')\nsys.stdout.flush()\ntime.sleep(0.45)\nPY",
+                RED_GREEN_1X1_GIF_BASE64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+        128,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let first = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["graphics"].as_array().is_some_and(|graphics| {
+            graphics
+                .iter()
+                .any(|graphic| graphic["protocol"].as_str() == Some("iterm"))
+        })
+    });
+    let first_parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
+    let first_graphic = first_parsed["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["protocol"].as_str() == Some("iterm"))
+        })
+        .expect("expected first animated iTerm GIF placement");
+    let asset_id = first_graphic["asset_id"]
+        .as_u64()
+        .expect("expected animated iTerm GIF asset id");
+    let first_render_id = first_graphic["render_id"].as_u64();
+    let first_placement_id = first_graphic["placement_id"].as_u64();
+    let first_version = first_graphic["asset_version"]
+        .as_u64()
+        .expect("expected first animated iTerm GIF asset version");
+    let mut first_meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let first_meta_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
+            session_id,
+            asset_id,
+            first_version,
+            &mut first_meta,
+        )
+    };
+    assert_eq!(first_meta_status, 0);
+    assert_eq!(first_meta.rgba_len, 4);
+    let mut first_rgba = vec![0_u8; first_meta.rgba_len as usize];
+    let first_copy_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+            session_id,
+            asset_id,
+            first_version,
+            first_rgba.as_mut_ptr(),
+            first_rgba.len(),
+        )
+    };
+    assert_eq!(first_copy_status, first_rgba.len() as isize);
+
+    let bottom_frame = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["scrollback_max_offset"].as_u64().unwrap_or(0) > 0
+            && logical_rows_from_frame(frame)
+                .iter()
+                .any(|row| row.contains("line-79"))
+    });
+    let bottom: serde_json::Value = serde_json::from_str(&bottom_frame).unwrap();
+    assert!(
+        bottom["graphics"].as_array().is_none_or(|graphics| {
+            !graphics
+                .iter()
+                .any(|graphic| graphic["asset_id"].as_u64() == Some(asset_id))
+        }),
+        "iTerm GIF scrollback placement should not be emitted while viewport is at the bottom: {bottom_frame}"
+    );
+
+    session::scroll_to_session(session_id, usize::MAX).unwrap();
+    let updated = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["scrollback_offset"].as_u64() == parsed["scrollback_max_offset"].as_u64()
+            && parsed["graphics"]
+                .as_array()
+                .and_then(|graphics| {
+                    graphics
+                        .iter()
+                        .find(|graphic| graphic["asset_id"].as_u64() == Some(asset_id))
+                })
+                .and_then(|graphic| graphic["asset_version"].as_u64())
+                .is_some_and(|version| version != first_version)
+    });
+    let updated_parsed: serde_json::Value = serde_json::from_str(&updated).unwrap();
+    let updated_graphic = updated_parsed["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["asset_id"].as_u64() == Some(asset_id))
+        })
+        .expect("expected updated animated iTerm GIF scrollback placement");
+    assert_eq!(updated_graphic["protocol"].as_str(), Some("iterm"));
+    assert_eq!(updated_graphic["render_id"].as_u64(), first_render_id);
+    assert_eq!(updated_graphic["placement_id"].as_u64(), first_placement_id);
+    assert_eq!(updated_graphic["row"].as_u64(), Some(0));
+    assert_eq!(updated_graphic["col"].as_u64(), Some(0));
+    let updated_version = updated_graphic["asset_version"]
+        .as_u64()
+        .expect("expected updated animated iTerm GIF asset version");
+
+    let mut updated_meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let updated_meta_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
+            session_id,
+            asset_id,
+            updated_version,
+            &mut updated_meta,
+        )
+    };
+    assert_eq!(updated_meta_status, 0);
+    assert_eq!(updated_meta.rgba_len, 4);
+
+    let mut updated_rgba = vec![0_u8; updated_meta.rgba_len as usize];
+    let updated_copy_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+            session_id,
+            asset_id,
+            updated_version,
+            updated_rgba.as_mut_ptr(),
+            updated_rgba.len(),
+        )
+    };
+    assert_eq!(updated_copy_status, updated_rgba.len() as isize);
+    assert_ne!(
+        updated_rgba, first_rgba,
+        "iTerm GIF scrollback asset should publish the current animation frame"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_applies_kitty_animation_current_frame_control() {
+    const GREEN_2X1_RGBA_BASE64: &str = "AP8A/wD/AP8=";
+
+    let profile = local_profile(
+        "kitty-animation-current-frame-diff",
+        "Kitty Animation Current Frame Diff",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b_Ga=f,f=32,s=1,v=1,i=61001,r=1,z=1000,q=1;{}\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.15)\nsys.stdout.write('\\x1b_Ga=f,f=32,s=2,v=1,i=61001,r=2,z=1000,q=1;{}\\x1b\\\\')\nsys.stdout.write('\\x1b_Ga=a,i=61001,c=2,q=1;\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.15)\nPY",
+                RED_RGBA_BASE64, GREEN_2X1_RGBA_BASE64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let first = wait_for_frame_where(session_id, |frame| frame.contains("\"asset_id\":61001"));
+    let first_parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
+    let first_graphic = first_parsed["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["asset_id"].as_u64() == Some(61001))
+        })
+        .expect("expected first Kitty animation placement");
+    let first_render_id = first_graphic["render_id"].as_u64();
+    let first_placement_id = first_graphic["placement_id"].as_u64();
+    assert_eq!(first_graphic["width_px"].as_u64(), Some(1));
+    assert_eq!(first_graphic["height_px"].as_u64(), Some(1));
+    let first_version = first_graphic["asset_version"]
+        .as_u64()
+        .expect("expected first Kitty animation asset version");
+
+    let updated = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["graphics"]
+            .as_array()
+            .and_then(|graphics| {
+                graphics
+                    .iter()
+                    .find(|graphic| graphic["asset_id"].as_u64() == Some(61001))
+            })
+            .and_then(|graphic| graphic["asset_version"].as_u64())
+            .is_some_and(|version| version != first_version)
+    });
+    let updated_parsed: serde_json::Value = serde_json::from_str(&updated).unwrap();
+    let updated_graphic = updated_parsed["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["asset_id"].as_u64() == Some(61001))
+        })
+        .expect("expected updated Kitty animation placement");
+    assert_eq!(updated_graphic["render_id"].as_u64(), first_render_id);
+    assert_eq!(updated_graphic["placement_id"].as_u64(), first_placement_id);
+    assert_eq!(updated_graphic["width_px"].as_u64(), Some(2));
+    assert_eq!(updated_graphic["height_px"].as_u64(), Some(1));
+    let updated_version = updated_graphic["asset_version"]
+        .as_u64()
+        .expect("expected current-frame control to publish a new asset version");
+
+    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let meta_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
+            session_id,
+            61001,
+            updated_version,
+            &mut meta,
+        )
+    };
+    assert_eq!(meta_status, 0);
+    assert_eq!(meta.width, 2);
+    assert_eq!(meta.height, 1);
+    assert_eq!(meta.rgba_len, 8);
+
+    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let copy_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+            session_id,
+            61001,
+            updated_version,
+            rgba.as_mut_ptr(),
+            rgba.len(),
+        )
+    };
+    assert_eq!(copy_status, rgba.len() as isize);
+    assert_eq!(rgba, [0, 255, 0, 255, 0, 255, 0, 255]);
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_applies_kitty_animation_compose_control() {
+    const SOURCE_2X2_RGBA_BASE64: &str = "/wAA/wD/AP8AAP////8A/w==";
+    const BLACK_2X2_RGBA_BASE64: &str = "AAAA/wAAAP8AAAD/AAAA/w==";
+    const IMAGE_ID: u64 = 61007;
+
+    let profile = local_profile(
+        "kitty-animation-compose-frame-diff",
+        "Kitty Animation Compose Frame Diff",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b_Ga=f,f=32,s=2,v=2,i={image_id},r=1,z=1000,q=1;{source}\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.15)\nsys.stdout.write('\\x1b_Ga=f,f=32,s=2,v=2,i={image_id},r=2,z=1000,q=1;{black}\\x1b\\\\')\nsys.stdout.write('\\x1b_Ga=a,i={image_id},c=2,q=1;\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.15)\nsys.stdout.write('\\x1b_Ga=c,i={image_id},r=1,c=2,x=1,y=0,w=1,h=1,X=0,Y=1,C=1,q=1;\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.15)\nPY",
+                image_id = IMAGE_ID,
+                source = SOURCE_2X2_RGBA_BASE64,
+                black = BLACK_2X2_RGBA_BASE64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let first = wait_for_frame_where(session_id, |frame| {
+        frame.contains(&format!("\"asset_id\":{IMAGE_ID}"))
+    });
+    let first_parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
+    let first_graphic = first_parsed["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["asset_id"].as_u64() == Some(IMAGE_ID))
+        })
+        .expect("expected first Kitty animation placement");
+    let first_render_id = first_graphic["render_id"].as_u64();
+    let first_placement_id = first_graphic["placement_id"].as_u64();
+    assert_eq!(first_graphic["width_px"].as_u64(), Some(2));
+    assert_eq!(first_graphic["height_px"].as_u64(), Some(2));
+    let first_version = first_graphic["asset_version"]
+        .as_u64()
+        .expect("expected first Kitty animation asset version");
+
+    let black_frame = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["graphics"]
+            .as_array()
+            .and_then(|graphics| {
+                graphics
+                    .iter()
+                    .find(|graphic| graphic["asset_id"].as_u64() == Some(IMAGE_ID))
+            })
+            .and_then(|graphic| graphic["asset_version"].as_u64())
+            .is_some_and(|version| version != first_version)
+    });
+    let black_parsed: serde_json::Value = serde_json::from_str(&black_frame).unwrap();
+    let black_graphic = black_parsed["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["asset_id"].as_u64() == Some(IMAGE_ID))
+        })
+        .expect("expected selected destination Kitty animation placement");
+    assert_eq!(black_graphic["render_id"].as_u64(), first_render_id);
+    assert_eq!(black_graphic["placement_id"].as_u64(), first_placement_id);
+    assert_eq!(black_graphic["width_px"].as_u64(), Some(2));
+    assert_eq!(black_graphic["height_px"].as_u64(), Some(2));
+    let black_version = black_graphic["asset_version"]
+        .as_u64()
+        .expect("expected destination frame asset version");
+
+    let composed_frame = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["graphics"]
+            .as_array()
+            .and_then(|graphics| {
+                graphics
+                    .iter()
+                    .find(|graphic| graphic["asset_id"].as_u64() == Some(IMAGE_ID))
+            })
+            .and_then(|graphic| graphic["asset_version"].as_u64())
+            .is_some_and(|version| version != black_version)
+    });
+    let composed_parsed: serde_json::Value = serde_json::from_str(&composed_frame).unwrap();
+    let composed_graphic = composed_parsed["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["asset_id"].as_u64() == Some(IMAGE_ID))
+        })
+        .expect("expected composed Kitty animation placement");
+    assert_eq!(composed_graphic["render_id"].as_u64(), first_render_id);
+    assert_eq!(
+        composed_graphic["placement_id"].as_u64(),
+        first_placement_id
+    );
+    assert_eq!(composed_graphic["width_px"].as_u64(), Some(2));
+    assert_eq!(composed_graphic["height_px"].as_u64(), Some(2));
+    let composed_version = composed_graphic["asset_version"]
+        .as_u64()
+        .expect("expected compose command to publish a new asset version");
+
+    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let meta_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
+            session_id,
+            IMAGE_ID,
+            composed_version,
+            &mut meta,
+        )
+    };
+    assert_eq!(meta_status, 0);
+    assert_eq!(meta.width, 2);
+    assert_eq!(meta.height, 2);
+    assert_eq!(meta.rgba_len, 16);
+
+    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let copy_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+            session_id,
+            IMAGE_ID,
+            composed_version,
+            rgba.as_mut_ptr(),
+            rgba.len(),
+        )
+    };
+    assert_eq!(copy_status, rgba.len() as isize);
+    assert_eq!(
+        rgba,
+        vec![
+            0, 0, 0, 255, 0, 0, 0, 255, // first row remains black
+            0, 255, 0, 255, // composed green source pixel
+            0, 0, 0, 255,
+        ]
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_applies_kitty_animation_stop_control() {
+    let profile = local_profile(
+        "kitty-animation-stop-frame-diff",
+        "Kitty Animation Stop Frame Diff",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b_Ga=f,f=32,s=1,v=1,i=61006,r=1,z=1000,q=1;{}\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.15)\nsys.stdout.write('\\x1b_Ga=f,f=32,s=1,v=1,i=61006,r=2,z=1000,q=1;{}\\x1b\\\\')\nsys.stdout.write('\\x1b_Ga=a,i=61006,c=2,q=1;\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.15)\nsys.stdout.write('\\x1b_Ga=a,i=61006,s=1,q=1;\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.15)\nPY",
+                RED_RGBA_BASE64, GREEN_RGBA_BASE64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let first = wait_for_frame_where(session_id, |frame| frame.contains("\"asset_id\":61006"));
+    let first_parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
+    let first_graphic = first_parsed["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["asset_id"].as_u64() == Some(61006))
+        })
+        .expect("expected first Kitty animation placement");
+    let first_render_id = first_graphic["render_id"].as_u64();
+    let first_placement_id = first_graphic["placement_id"].as_u64();
+    assert_eq!(first_graphic["width_px"].as_u64(), Some(1));
+    assert_eq!(first_graphic["height_px"].as_u64(), Some(1));
+    let first_version = first_graphic["asset_version"]
+        .as_u64()
+        .expect("expected first Kitty animation asset version");
+
+    let updated = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["graphics"]
+            .as_array()
+            .and_then(|graphics| {
+                graphics
+                    .iter()
+                    .find(|graphic| graphic["asset_id"].as_u64() == Some(61006))
+            })
+            .and_then(|graphic| graphic["asset_version"].as_u64())
+            .is_some_and(|version| version != first_version)
+    });
+    let updated_parsed: serde_json::Value = serde_json::from_str(&updated).unwrap();
+    let updated_graphic = updated_parsed["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["asset_id"].as_u64() == Some(61006))
+        })
+        .expect("expected updated Kitty animation placement");
+    assert_eq!(updated_graphic["render_id"].as_u64(), first_render_id);
+    assert_eq!(updated_graphic["placement_id"].as_u64(), first_placement_id);
+    let updated_version = updated_graphic["asset_version"]
+        .as_u64()
+        .expect("expected current-frame control to publish a new asset version");
+
+    let stopped = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["graphics"]
+            .as_array()
+            .and_then(|graphics| {
+                graphics
+                    .iter()
+                    .find(|graphic| graphic["asset_id"].as_u64() == Some(61006))
+            })
+            .and_then(|graphic| graphic["asset_version"].as_u64())
+            .is_some_and(|version| version == first_version && version != updated_version)
+    });
+    let stopped_parsed: serde_json::Value = serde_json::from_str(&stopped).unwrap();
+    let stopped_graphic = stopped_parsed["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["asset_id"].as_u64() == Some(61006))
+        })
+        .expect("expected stopped Kitty animation placement");
+    assert_eq!(stopped_graphic["render_id"].as_u64(), first_render_id);
+    assert_eq!(stopped_graphic["placement_id"].as_u64(), first_placement_id);
+    assert_eq!(stopped_graphic["width_px"].as_u64(), Some(1));
+    assert_eq!(stopped_graphic["height_px"].as_u64(), Some(1));
+
+    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let meta_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
+            session_id,
+            61006,
+            first_version,
+            &mut meta,
+        )
+    };
+    assert_eq!(meta_status, 0);
+    assert_eq!(meta.width, 1);
+    assert_eq!(meta.height, 1);
+    assert_eq!(meta.rgba_len, 4);
+
+    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let copy_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+            session_id,
+            61006,
+            first_version,
+            rgba.as_mut_ptr(),
+            rgba.len(),
+        )
+    };
+    assert_eq!(copy_status, rgba.len() as isize);
+    assert_eq!(rgba, [255, 0, 0, 255]);
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_applies_kitty_animation_frame_delete() {
+    let profile = local_profile(
+        "kitty-animation-frame-delete-diff",
+        "Kitty Animation Frame Delete Diff",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b_Ga=f,f=32,s=1,v=1,i=61002,r=1,z=1000,q=1;{}\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.15)\nsys.stdout.write('\\x1b_Ga=f,f=32,s=1,v=1,i=61002,r=2,z=1000,q=1;{}\\x1b\\\\')\nsys.stdout.write('\\x1b_Ga=a,i=61002,c=2,q=1;\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.15)\nsys.stdout.write('\\x1b_Ga=d,d=f,i=61002,r=2,q=1;\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.15)\nPY",
+                RED_RGBA_BASE64, GREEN_RGBA_BASE64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let first = wait_for_frame_where(session_id, |frame| frame.contains("\"asset_id\":61002"));
+    let first_parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
+    let first_graphic = first_parsed["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["asset_id"].as_u64() == Some(61002))
+        })
+        .expect("expected first Kitty animation placement");
+    let first_render_id = first_graphic["render_id"].as_u64();
+    let first_placement_id = first_graphic["placement_id"].as_u64();
+    assert_eq!(first_graphic["width_px"].as_u64(), Some(1));
+    assert_eq!(first_graphic["height_px"].as_u64(), Some(1));
+    let first_version = first_graphic["asset_version"]
+        .as_u64()
+        .expect("expected first Kitty animation asset version");
+
+    let updated = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["graphics"]
+            .as_array()
+            .and_then(|graphics| {
+                graphics
+                    .iter()
+                    .find(|graphic| graphic["asset_id"].as_u64() == Some(61002))
+            })
+            .and_then(|graphic| graphic["asset_version"].as_u64())
+            .is_some_and(|version| version != first_version)
+    });
+    let updated_parsed: serde_json::Value = serde_json::from_str(&updated).unwrap();
+    let updated_graphic = updated_parsed["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["asset_id"].as_u64() == Some(61002))
+        })
+        .expect("expected updated Kitty animation placement");
+    assert_eq!(updated_graphic["render_id"].as_u64(), first_render_id);
+    assert_eq!(updated_graphic["placement_id"].as_u64(), first_placement_id);
+    assert_eq!(updated_graphic["width_px"].as_u64(), Some(1));
+    assert_eq!(updated_graphic["height_px"].as_u64(), Some(1));
+    let updated_version = updated_graphic["asset_version"]
+        .as_u64()
+        .expect("expected current-frame control to publish a new asset version");
+
+    let deleted = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["graphics"]
+            .as_array()
+            .and_then(|graphics| {
+                graphics
+                    .iter()
+                    .find(|graphic| graphic["asset_id"].as_u64() == Some(61002))
+            })
+            .and_then(|graphic| graphic["asset_version"].as_u64())
+            .is_some_and(|version| version != updated_version)
+    });
+    let deleted_parsed: serde_json::Value = serde_json::from_str(&deleted).unwrap();
+    let deleted_graphic = deleted_parsed["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["asset_id"].as_u64() == Some(61002))
+        })
+        .expect("expected fallback Kitty animation placement after frame delete");
+    assert_eq!(deleted_graphic["render_id"].as_u64(), first_render_id);
+    assert_eq!(deleted_graphic["placement_id"].as_u64(), first_placement_id);
+    assert_eq!(deleted_graphic["width_px"].as_u64(), Some(1));
+    assert_eq!(deleted_graphic["height_px"].as_u64(), Some(1));
+    let deleted_version = deleted_graphic["asset_version"]
+        .as_u64()
+        .expect("expected frame delete to publish a fallback asset version");
+    assert_eq!(deleted_version, first_version);
+
+    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let meta_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
+            session_id,
+            61002,
+            deleted_version,
+            &mut meta,
+        )
+    };
+    assert_eq!(meta_status, 0);
+    assert_eq!(meta.width, 1);
+    assert_eq!(meta.height, 1);
+    assert_eq!(meta.rgba_len, 4);
+
+    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let copy_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+            session_id,
+            61002,
+            deleted_version,
+            rgba.as_mut_ptr(),
+            rgba.len(),
+        )
+    };
+    assert_eq!(copy_status, rgba.len() as isize);
+    assert_eq!(rgba, [255, 0, 0, 255]);
 
     session::close_session(session_id).unwrap();
 }
@@ -1377,6 +5971,251 @@ fn session_frame_diff_defers_single_clear_screen_graphics_gap() {
         graphics[0]["col"].as_u64(),
         Some(29),
         "replacement should still be allowed to move after clear-screen redraw: {replacement}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_clears_kitty_clear_screen_when_no_replacement_arrives() {
+    let profile = local_profile(
+        "kitty-clear-screen-no-replacement",
+        "Kitty Clear Screen No Replacement",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b[10;10H\\x1b_Ga=T,f=32,s=1,v=1,i=62060,q=1;{red}\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.25)\nsys.stdout.write('\\x1b[2J\\x1b[3J\\x1b[Hafter clear\\n')\nsys.stdout.flush()\ntime.sleep(0.25)\nsys.stdout.write('settled no replacement\\n')\nsys.stdout.flush()\ntime.sleep(0.20)\nPY",
+                red = RED_RGBA_BASE64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+    let first = wait_for_frame_where(session_id, |frame| {
+        frame.contains("\"graphics\":[{") && frame.contains("\"asset_id\":62060")
+    });
+    let first_parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
+    let first_render_id = first_parsed["graphics"][0]["render_id"]
+        .as_u64()
+        .expect("expected first render id");
+
+    let clear_frame = wait_for_frame_where(session_id, |frame| frame.contains("after clear"));
+    let clear_parsed: serde_json::Value = serde_json::from_str(&clear_frame).unwrap();
+    let clear_graphics = clear_parsed["graphics"]
+        .as_array()
+        .expect("expected graphics field in clear-screen frame");
+    assert!(
+        clear_graphics.iter().any(|graphic| {
+            graphic["asset_id"].as_u64() == Some(62060)
+                && graphic["render_id"].as_u64() == Some(first_render_id)
+        }),
+        "clear-screen frame should retain the previous Kitty overlay for a redraw window: {clear_frame}"
+    );
+
+    let settled_frame =
+        wait_for_frame_where(session_id, |frame| frame.contains("settled no replacement"));
+    let settled_parsed: serde_json::Value = serde_json::from_str(&settled_frame).unwrap();
+    assert!(
+        settled_parsed["graphics"]
+            .as_array()
+            .is_none_or(|graphics| {
+                !graphics
+                    .iter()
+                    .any(|graphic| graphic["asset_id"].as_u64() == Some(62060))
+            }),
+        "ordinary output after a clear-screen with no Kitty replacement must stop exporting the stale placement: {settled_frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_synchronized_output_coalesces_clear_screen_graphics_replacement() {
+    let profile = local_profile(
+        "sync-kitty-clear-screen-replacement",
+        "Synchronized Kitty Clear Screen Replacement",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b[10;10H\\x1b_Ga=T,f=32,s=1,v=1,i=62006,q=1;{red}\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.25)\nsys.stdout.write('\\x1b[?2026h')\nsys.stdout.write('\\x1b[2J\\x1b[Hsync replace pending\\n')\nsys.stdout.flush()\ntime.sleep(0.35)\nsys.stdout.write('\\x1b[20;30H\\x1b_Ga=T,f=32,s=1,v=1,i=62006,q=1;{green}\\x1b\\\\')\nsys.stdout.write('\\x1b[?2026l')\nsys.stdout.flush()\ntime.sleep(0.20)\nPY",
+                red = RED_RGBA_BASE64,
+                green = GREEN_RGBA_BASE64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+    let first = wait_for_frame_where(session_id, |frame| {
+        frame.contains("\"graphics\":[{") && frame.contains("\"asset_id\":62006")
+    });
+    let first_parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
+    let first_render_id = first_parsed["graphics"][0]["render_id"]
+        .as_u64()
+        .expect("expected first render id");
+    let first_version = first_parsed["graphics"][0]["asset_version"]
+        .as_u64()
+        .expect("expected first asset version");
+
+    thread::sleep(Duration::from_millis(450));
+    for _ in 0..6 {
+        if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
+            let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+            assert_eq!(
+                parsed["modes"]["synchronized_output"].as_bool(),
+                Some(false),
+                "synchronized output should not publish intermediate graphics frames: {frame}"
+            );
+            let graphics = parsed["graphics"]
+                .as_array()
+                .expect("expected graphics field after synchronized output flush");
+            assert!(
+                !graphics.is_empty(),
+                "synchronized clear-screen replacement must not publish an empty graphics frame: {frame}"
+            );
+            assert!(
+                frame.contains("sync replace pending"),
+                "synchronized output should flush the final redrawn text with the replacement: {frame}"
+            );
+            assert_eq!(
+                graphics[0]["render_id"].as_u64(),
+                Some(first_render_id),
+                "synchronized replacement should preserve render identity across clear: {frame}"
+            );
+            assert_ne!(
+                graphics[0]["asset_version"].as_u64(),
+                Some(first_version),
+                "synchronized replacement should publish the replacement asset version: {frame}"
+            );
+            assert_eq!(graphics[0]["row"].as_u64(), Some(19));
+            assert_eq!(graphics[0]["col"].as_u64(), Some(29));
+            session::close_session(session_id).unwrap();
+            return;
+        }
+        thread::sleep(Duration::from_millis(75));
+    }
+
+    let frame = wait_for_frame_where(session_id, |frame| {
+        frame.contains("sync replace pending")
+            && frame.contains("\"graphics\":[{")
+            && !frame.contains(&format!("\"asset_version\":{first_version}"))
+    });
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let graphics = parsed["graphics"]
+        .as_array()
+        .expect("expected graphics field after synchronized output flush");
+    assert_eq!(
+        parsed["modes"]["synchronized_output"].as_bool(),
+        Some(false),
+        "synchronized output should be disabled after final flush: {frame}"
+    );
+    assert_eq!(
+        graphics[0]["render_id"].as_u64(),
+        Some(first_render_id),
+        "synchronized replacement should preserve render identity across clear: {frame}"
+    );
+    assert_eq!(graphics[0]["row"].as_u64(), Some(19));
+    assert_eq!(graphics[0]["col"].as_u64(), Some(29));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_synchronized_output_coalesces_iterm_and_sixel_redraw() {
+    let profile = local_profile(
+        "sync-iterm-sixel-redraw",
+        "Synchronized iTerm Sixel Redraw",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b[2;2H\\x1b]1337;File=inline=1;doNotMoveCursor=1;width=1;height=1:{png}\\x1b\\\\')\nsys.stdout.write('\\x1b[6;2H\\x1bPq#2~\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.25)\nsys.stdout.write('\\x1b[?2026h')\nsys.stdout.write('\\x1b[2J\\x1b[Hsync raster redraw\\n')\nsys.stdout.flush()\ntime.sleep(0.35)\nsys.stdout.write('\\x1b[10;5H\\x1b]1337;File=inline=1;doNotMoveCursor=1;width=1;height=1:{png}\\x1b\\\\')\nsys.stdout.write('\\x1b[15;5H\\x1bPq#2~\\x1b\\\\')\nsys.stdout.write('\\x1b[?2026l')\nsys.stdout.flush()\ntime.sleep(0.20)\nPY",
+                png = RED_PIXEL_PNG_BASE64,
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let graphic_rows_for_protocol = |frame: &str, protocol: &str| -> Vec<(u64, u64)> {
+        let parsed: serde_json::Value = serde_json::from_str(frame).unwrap();
+        parsed["graphics"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|graphic| graphic["protocol"].as_str() == Some(protocol))
+            .filter_map(|graphic| Some((graphic["row"].as_u64()?, graphic["col"].as_u64()?)))
+            .collect()
+    };
+
+    let initial = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["graphics"].as_array().is_some_and(|graphics| {
+            let has_iterm = graphics
+                .iter()
+                .any(|graphic| graphic["protocol"].as_str() == Some("iterm"));
+            let has_sixel = graphics
+                .iter()
+                .any(|graphic| graphic["protocol"].as_str() == Some("sixel"));
+            has_iterm && has_sixel
+        })
+    });
+    assert_eq!(
+        graphic_rows_for_protocol(&initial, "iterm"),
+        vec![(1, 1)],
+        "initial iTerm graphic should be visible before synchronized redraw: {initial}"
+    );
+    assert_eq!(
+        graphic_rows_for_protocol(&initial, "sixel"),
+        vec![(5, 1)],
+        "initial Sixel graphic should be visible before synchronized redraw: {initial}"
+    );
+
+    thread::sleep(Duration::from_millis(450));
+    for _ in 0..6 {
+        if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
+            let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+            assert_eq!(
+                parsed["modes"]["synchronized_output"].as_bool(),
+                Some(false),
+                "synchronized output must not publish an intermediate iTerm/Sixel redraw frame: {frame}"
+            );
+            assert!(
+                frame.contains("sync raster redraw"),
+                "synchronized output should flush final text with the replacement graphics: {frame}"
+            );
+            assert_eq!(
+                graphic_rows_for_protocol(&frame, "iterm"),
+                vec![(9, 4)],
+                "final synchronized iTerm graphic should use the replacement anchor: {frame}"
+            );
+            assert_eq!(
+                graphic_rows_for_protocol(&frame, "sixel"),
+                vec![(14, 4)],
+                "final synchronized Sixel graphic should use the replacement anchor: {frame}"
+            );
+            session::close_session(session_id).unwrap();
+            return;
+        }
+        thread::sleep(Duration::from_millis(75));
+    }
+
+    let final_frame = wait_for_frame_where(session_id, |frame| {
+        frame.contains("sync raster redraw")
+            && graphic_rows_for_protocol(frame, "iterm") == vec![(9, 4)]
+            && graphic_rows_for_protocol(frame, "sixel") == vec![(14, 4)]
+    });
+    let final_parsed: serde_json::Value = serde_json::from_str(&final_frame).unwrap();
+    assert_eq!(
+        final_parsed["modes"]["synchronized_output"].as_bool(),
+        Some(false),
+        "synchronized output should be disabled after final iTerm/Sixel redraw: {final_frame}"
     );
 
     session::close_session(session_id).unwrap();
@@ -1728,6 +6567,123 @@ PY"#,
 }
 
 #[test]
+fn session_frame_diff_accepts_chunked_kitty_raw_pixel_transfer() {
+    let raw_pixels = (0..64)
+        .flat_map(|index| {
+            if index % 2 == 0 {
+                [255, 0, 0, 255]
+            } else {
+                [0, 255, 0, 255]
+            }
+        })
+        .collect::<Vec<_>>();
+    let raw_pixels_base64 = base64_standard_no_pad_encode(&raw_pixels);
+    let chunks = raw_pixels_base64
+        .as_bytes()
+        .chunks(32)
+        .map(|chunk| std::str::from_utf8(chunk).unwrap())
+        .collect::<Vec<_>>();
+    assert!(
+        chunks.len() > 4,
+        "test setup must exercise a multi-chunk raw pixel transfer"
+    );
+    let mut chunk_commands = String::new();
+    for (index, chunk) in chunks.iter().enumerate() {
+        let header = if index == 0 {
+            "a=T,f=32,s=8,v=8,c=4,r=4,i=49376,q=1,m=1;"
+        } else if index == chunks.len() - 1 {
+            "m=0;"
+        } else {
+            "m=1;"
+        };
+        chunk_commands.push_str(&format!("out('\\x1b_G{header}{chunk}\\x1b\\\\')\n"));
+        chunk_commands.push_str("time.sleep(0.05)\n");
+    }
+    let profile = local_profile(
+        "kitty-raw-pixel-chunked-transfer",
+        "Kitty Raw Pixel Chunked Transfer",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                r#"python3 - <<'PY'
+import sys, time
+
+def out(value):
+    sys.stdout.write(value)
+    sys.stdout.flush()
+
+{chunk_commands}
+time.sleep(0.15)
+PY"#,
+                chunk_commands = chunk_commands,
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    thread::sleep(Duration::from_millis(280));
+    for _ in 0..3 {
+        if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
+            assert!(
+                !frame.contains("\"asset_id\":49376"),
+                "raw-pixel Kitty transfer must not publish before the final chunk: {frame}"
+            );
+        }
+    }
+
+    let final_frame = wait_for_frame_where(session_id, |frame| {
+        frame.contains("\"graphics\":[{") && frame.contains("\"asset_id\":49376")
+    });
+    let parsed: serde_json::Value = serde_json::from_str(&final_frame).unwrap();
+    let graphic = parsed["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["asset_id"].as_u64() == Some(49376))
+        })
+        .expect("expected chunked raw-pixel Kitty placement");
+    assert_eq!(graphic["protocol"].as_str(), Some("kitty"));
+    assert_eq!(graphic["width_cells"].as_u64(), Some(4));
+    assert_eq!(graphic["height_cells"].as_u64(), Some(4));
+    let asset_version = graphic["asset_version"]
+        .as_u64()
+        .expect("expected chunked raw-pixel asset version");
+
+    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let meta_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
+            session_id,
+            49376,
+            asset_version,
+            &mut meta,
+        )
+    };
+    assert_eq!(meta_status, 0);
+    assert_eq!(meta.width, 8);
+    assert_eq!(meta.height, 8);
+    assert_eq!(meta.rgba_len, raw_pixels.len());
+
+    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let copy_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+            session_id,
+            49376,
+            asset_version,
+            rgba.as_mut_ptr(),
+            rgba.len(),
+        )
+    };
+    assert_eq!(copy_status, rgba.len() as isize);
+    assert_eq!(rgba, raw_pixels);
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn parser_terminal_handles_kitty_direct_graphics_and_query() {
     let mut terminal = ParserTerminal::new(80, 24);
     const RED_RGBA_BASE64: &str = "/wAA/w==";
@@ -1749,6 +6705,28 @@ fn parser_terminal_handles_kitty_direct_graphics_and_query() {
         String::from_utf8(terminal.drain_responses()).unwrap(),
         "\x1b_Gi=7;OK\x1b\\"
     );
+
+    let mut source_rect_terminal = ParserTerminal::new(80, 24);
+    const TWO_BY_TWO_RGBA_BASE64: &str = "/wAA/wD/AP8AAP////8A/w==";
+    let source_rect_display = format!(
+        "\x1b_Ga=T,f=32,s=2,v=2,x=1,y=0,w=1,h=2,X=3,Y=4,c=4,r=2,i=11,p=6;{TWO_BY_TWO_RGBA_BASE64}\x1b\\"
+    );
+    source_rect_terminal.process(source_rect_display.as_bytes());
+
+    assert_eq!(source_rect_terminal.graphics_count(), 1);
+    let graphic = &source_rect_terminal.all_graphics()[0];
+    assert_eq!(graphic.width, 2);
+    assert_eq!(graphic.height, 2);
+    assert_eq!(graphic.kitty_image_id, Some(11));
+    assert_eq!(graphic.kitty_placement_id, Some(6));
+    assert_eq!(graphic.placement.columns, Some(4));
+    assert_eq!(graphic.placement.rows, Some(2));
+    assert_eq!(graphic.placement.source_x_offset, 1);
+    assert_eq!(graphic.placement.source_y_offset, 0);
+    assert_eq!(graphic.placement.source_width, Some(1));
+    assert_eq!(graphic.placement.source_height, Some(2));
+    assert_eq!(graphic.placement.x_offset, 3);
+    assert_eq!(graphic.placement.y_offset, 4);
 
     let mut query_terminal = ParserTerminal::new(80, 24);
     let query = format!("\x1b_Ga=q,f=32,s=1,v=1,i=9;{RED_RGBA_BASE64}\x1b\\");
@@ -1781,6 +6759,607 @@ fn parser_terminal_handles_kitty_direct_graphics_and_query() {
 }
 
 #[test]
+fn parser_terminal_kitty_direct_graphics_accepts_c1_apc_and_st_controls() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let mut sequence = Vec::new();
+    sequence.push(0x9f);
+    sequence.extend_from_slice(b"Ga=T,f=32,s=1,v=1,i=17,q=1;/wAA/w==");
+    sequence.push(0x9c);
+
+    terminal.process(&sequence);
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "kitty");
+    assert_eq!(graphic.width, 1);
+    assert_eq!(graphic.height, 1);
+    assert_eq!(graphic.kitty_image_id, Some(17));
+    assert_eq!(graphic.pixels.as_ref(), &[255, 0, 0, 255]);
+    assert!(terminal.drain_responses().is_empty());
+}
+
+#[test]
+fn parser_terminal_kitty_uppercase_delete_all_releases_unplaced_image_data() {
+    let mut terminal = ParserTerminal::new(8, 4);
+    let transmit = format!("\x1b_Ga=t,f=32,s=1,v=1,i=810,q=1;{RED_RGBA_BASE64}\x1b\\");
+
+    terminal.process(transmit.as_bytes());
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "transmit-only Kitty image should retain data without adding a placement"
+    );
+
+    terminal.process(b"\x1b_Ga=d,d=A,q=1;\x1b\\");
+    terminal.process(b"\x1b_Ga=p,i=810,p=1,q=1;\x1b\\");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "uppercase d=A should release unplaced image data so later Put cannot display it"
+    );
+}
+
+#[test]
+fn parser_terminal_kitty_uppercase_placement_delete_keeps_referenced_image_data() {
+    let mut terminal = ParserTerminal::new(8, 4);
+    let transmit = format!("\x1b_Ga=t,f=32,s=1,v=1,i=811,q=1;{RED_RGBA_BASE64}\x1b\\");
+
+    terminal.process(transmit.as_bytes());
+    terminal.process(b"\x1b[1;1H\x1b_Ga=p,i=811,p=1,C=1,q=1;\x1b\\");
+    terminal.process(b"\x1b[1;4H\x1b_Ga=p,i=811,p=2,C=1,q=1;\x1b\\");
+
+    assert_eq!(terminal.graphics_count(), 2);
+
+    terminal.process(b"\x1b_Ga=d,d=I,i=811,p=1,q=1;\x1b\\");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].kitty_image_id, Some(811));
+    assert_eq!(terminal.all_graphics()[0].kitty_placement_id, Some(2));
+
+    terminal.process(b"\x1b[3;1H\x1b_Ga=p,i=811,p=3,C=1,q=1;\x1b\\");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        2,
+        "uppercase placement delete must keep shared image data while another placement references it"
+    );
+    assert!(terminal
+        .all_graphics()
+        .iter()
+        .any(|graphic| graphic.kitty_placement_id == Some(3)));
+}
+
+#[test]
+fn parser_terminal_kitty_file_medium_reads_png_from_path() {
+    let temp = tempdir().unwrap();
+    let path = temp.path().join("kitty-file-image.png");
+    fs::write(&path, red_pixel_png_bytes()).unwrap();
+
+    let mut terminal = ParserTerminal::new(80, 24);
+    let path_payload = kitty_path_payload(&path);
+    let sequence = format!("\x1b_Ga=T,t=f,f=100,i=810,q=1;{path_payload}\x1b\\");
+    terminal.process(sequence.as_bytes());
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "kitty");
+    assert_eq!(graphic.width, 1);
+    assert_eq!(graphic.height, 1);
+    assert_eq!(graphic.kitty_image_id, Some(810));
+    assert_eq!(graphic.pixels.as_ref(), &[255, 0, 0, 255]);
+    assert!(path.exists(), "t=f must not delete the source file");
+}
+
+#[test]
+fn parser_terminal_kitty_file_medium_respects_offset_and_size() {
+    let temp = tempdir().unwrap();
+    let path = temp.path().join("kitty-file-range.bin");
+    let mut bytes = b"junk".to_vec();
+    bytes.extend_from_slice(red_pixel_png_bytes());
+    bytes.extend_from_slice(b"tail");
+    fs::write(&path, bytes).unwrap();
+
+    let mut terminal = ParserTerminal::new(80, 24);
+    let path_payload = kitty_path_payload(&path);
+    let sequence = format!(
+        "\x1b_Ga=T,t=f,f=100,O=4,S={},i=811,q=1;{path_payload}\x1b\\",
+        red_pixel_png_bytes().len()
+    );
+    terminal.process(sequence.as_bytes());
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "kitty");
+    assert_eq!(graphic.kitty_image_id, Some(811));
+    assert_eq!(graphic.pixels.as_ref(), &[255, 0, 0, 255]);
+    assert!(
+        path.exists(),
+        "t=f range reads must not delete the source file"
+    );
+}
+
+#[test]
+fn parser_terminal_kitty_file_medium_decompresses_file_contents_after_path_read() {
+    let temp = tempdir().unwrap();
+    let compressed_path = temp.path().join("compressed-rgba.bin");
+    let compressed_rgba = [120, 156, 251, 207, 192, 240, 31, 0, 4, 255, 1, 255];
+    fs::write(&compressed_path, compressed_rgba).unwrap();
+
+    let mut terminal = ParserTerminal::new(80, 24);
+    let path_payload = kitty_path_payload(&compressed_path);
+    let sequence = format!("\x1b_Ga=T,t=f,o=z,f=32,s=1,v=1,i=812,q=1;{path_payload}\x1b\\");
+    terminal.process(sequence.as_bytes());
+
+    assert!(
+        terminal.drain_responses().is_empty(),
+        "q=1 compressed file transfer should not emit an OK response"
+    );
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "kitty");
+    assert_eq!(graphic.kitty_image_id, Some(812));
+    assert_eq!(graphic.width, 1);
+    assert_eq!(graphic.height, 1);
+    assert_eq!(
+        graphic.pixels.as_ref(),
+        &[255, 0, 0, 255],
+        "Kitty o=z file transfers must decompress the file contents after resolving the path"
+    );
+}
+
+#[test]
+fn parser_terminal_kitty_temp_file_medium_deletes_only_safe_temp_paths() {
+    let temp = tempdir().unwrap();
+    let safe_path = temp.path().join("tty-graphics-protocol-image.png");
+    fs::write(&safe_path, red_pixel_png_bytes()).unwrap();
+
+    let mut terminal = ParserTerminal::new(80, 24);
+    let safe_payload = kitty_path_payload(&safe_path);
+    let safe_sequence = format!("\x1b_Ga=T,t=t,f=100,i=812,q=1;{safe_payload}\x1b\\");
+    terminal.process(safe_sequence.as_bytes());
+
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].kitty_image_id, Some(812));
+    assert!(
+        !safe_path.exists(),
+        "safe t=t files should be deleted after reading"
+    );
+
+    let unmarked_path = temp.path().join("plain-image.png");
+    fs::write(&unmarked_path, red_pixel_png_bytes()).unwrap();
+
+    let unmarked_payload = kitty_path_payload(&unmarked_path);
+    let unmarked_sequence = format!("\x1b_Ga=T,t=t,f=100,i=813,q=1;{unmarked_payload}\x1b\\");
+    terminal.process(unmarked_sequence.as_bytes());
+
+    assert_eq!(terminal.graphics_count(), 2);
+    assert_eq!(terminal.all_graphics()[1].kitty_image_id, Some(813));
+    assert!(
+        unmarked_path.exists(),
+        "t=t must not delete temp files missing the Kitty marker"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn parser_terminal_kitty_shared_memory_medium_renders_png_range_and_unlinks() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let mut shared_data = b"skip".to_vec();
+    shared_data.extend_from_slice(red_pixel_png_bytes());
+    let (shared_memory_name, shared_memory_payload) =
+        create_kitty_shared_memory_payload(&shared_data);
+
+    let sequence = format!(
+        "\x1b_Ga=T,t=s,f=100,i=814,O=4,S={},q=1;{}\x1b\\",
+        red_pixel_png_bytes().len(),
+        shared_memory_payload,
+    );
+    terminal.process(sequence.as_bytes());
+
+    let still_exists = kitty_shared_memory_exists(&shared_memory_name);
+    if still_exists {
+        unlink_kitty_shared_memory(&shared_memory_name);
+    }
+    assert!(
+        !still_exists,
+        "POSIX shared memory transfer must unlink the object after reading"
+    );
+    assert!(
+        terminal.drain_responses().is_empty(),
+        "q=1 shared memory transfer should not emit an OK response"
+    );
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "kitty");
+    assert_eq!(graphic.kitty_image_id, Some(814));
+    assert_eq!(graphic.width, 1);
+    assert_eq!(graphic.height, 1);
+    assert_eq!(
+        graphic.pixels.as_ref(),
+        &[255, 0, 0, 255],
+        "Kitty shared memory should decode the PNG range selected by O/S"
+    );
+}
+
+#[test]
+fn parser_terminal_parses_kitty_cursor_movement_parameter() {
+    let mut default = KittyParser::new();
+    default.parse_chunk("a=T,f=32,c=2,r=2;").unwrap();
+    assert!(default.should_move_cursor_after_display());
+
+    let mut suppressed = KittyParser::new();
+    suppressed.parse_chunk("a=T,f=32,c=2,r=2,C=1;").unwrap();
+    assert!(!suppressed.should_move_cursor_after_display());
+
+    let mut relative = KittyParser::new();
+    relative.parse_chunk("a=p,i=1,P=1,C=0;").unwrap();
+    assert!(!relative.should_move_cursor_after_display());
+
+    let mut virtual_placement = KittyParser::new();
+    virtual_placement.parse_chunk("a=T,U=1,C=0;").unwrap();
+    assert!(!virtual_placement.should_move_cursor_after_display());
+}
+
+#[test]
+fn parser_terminal_moves_cursor_after_kitty_display_unless_suppressed() {
+    let mut default_terminal = ParserTerminal::new(10, 6);
+    let default_display = format!("\x1b_Ga=T,f=32,s=1,v=1,c=2,r=2,q=1;{RED_RGBA_BASE64}\x1b\\");
+    default_terminal.process(default_display.as_bytes());
+    default_terminal.process(b"X");
+    assert_eq!(default_terminal.active_grid().row_text(0).trim_end(), "");
+    assert_eq!(default_terminal.active_grid().row_text(1).trim_end(), "");
+    assert_eq!(default_terminal.active_grid().row_text(2).trim_end(), "  X");
+
+    let mut suppressed_terminal = ParserTerminal::new(10, 6);
+    let suppressed_display =
+        format!("\x1b_Ga=T,f=32,s=1,v=1,c=2,r=2,C=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+    suppressed_terminal.process(suppressed_display.as_bytes());
+    suppressed_terminal.process(b"X");
+    assert_eq!(
+        suppressed_terminal.active_grid().row_text(0).trim_end(),
+        "X"
+    );
+    assert_eq!(suppressed_terminal.active_grid().row_text(2).trim_end(), "");
+}
+
+#[test]
+fn parser_terminal_kitty_display_respects_scroll_region_bottom() {
+    let mut terminal = ParserTerminal::new(8, 6);
+    let image = format!(
+        "\x1b[1;1Htop\x1b[2;1Hone\x1b[3;1Htwo\x1b[4;1Hthree\x1b[5;1Hbottom\
+         \x1b[2;4r\x1b[4;1H\x1b_Ga=T,f=32,s=1,v=1,c=2,r=3,q=1;{RED_RGBA_BASE64}\x1b\\"
+    );
+
+    terminal.process(image.as_bytes());
+
+    assert_eq!(
+        terminal.cursor().row,
+        3,
+        "Kitty display cursor advancement should stay pinned to the scroll region bottom"
+    );
+    assert_eq!(
+        terminal.cursor().col,
+        2,
+        "Kitty display cursor advancement should preserve the right-edge column movement"
+    );
+    assert_eq!(
+        terminal.active_grid().row_text(4).trim_end(),
+        "bottom",
+        "Kitty display advancement inside a partial scroll region must not move rows below the region"
+    );
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "kitty");
+    assert_eq!(graphic.display_cell_span, Some((2, 3)));
+    assert_eq!(
+        graphic.position,
+        (0, 1),
+        "partially clipped Kitty display images should stay anchored at the scroll region top"
+    );
+    assert_eq!(
+        graphic.scroll_offset_rows, 1,
+        "Kitty images clipped by partial scroll regions should track hidden top rows"
+    );
+}
+
+#[test]
+fn parser_terminal_chunked_kitty_display_moves_cursor_from_captured_position() {
+    let mut terminal = ParserTerminal::new(10, 6);
+    terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,c=2,r=2,m=1,q=1;/wAA\x1b\\");
+    terminal.process(b"\x1b[5;1Htext");
+    terminal.process(b"\x1b_Gm=0;/w==\x1b\\");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "kitty");
+    assert_eq!(graphic.position, (0, 0));
+    assert_eq!(
+        terminal.cursor().row,
+        2,
+        "chunked Kitty display cursor movement must use the first chunk's captured placement row"
+    );
+    assert_eq!(
+        terminal.cursor().col,
+        2,
+        "chunked Kitty display cursor movement must use the captured placement column plus display width"
+    );
+    assert_eq!(terminal.active_grid().row_text(4).trim_end(), "text");
+}
+
+#[test]
+fn parser_terminal_advances_kitty_animation_frames() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    let frame_one = format!("\x1b_Ga=f,f=32,s=1,v=1,i=77,r=1,z=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(frame_one.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].kitty_image_id, Some(77));
+    assert_eq!(
+        terminal.all_graphics()[0].pixels.as_ref(),
+        &[255, 0, 0, 255]
+    );
+    let first_asset_version = terminal.all_graphics()[0].asset_version;
+
+    let frame_two = format!("\x1b_Ga=f,f=32,s=1,v=1,i=77,r=2,z=1,q=1;{GREEN_RGBA_BASE64}\x1b\\");
+    terminal.process(frame_two.as_bytes());
+    terminal.process(b"\x1b_Ga=a,i=77,s=3,q=1;\x1b\\");
+    thread::sleep(Duration::from_millis(5));
+
+    let changed = terminal.update_animations();
+
+    assert_eq!(changed, vec![77]);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.pixels.as_ref(), &[0, 255, 0, 255]);
+    assert_ne!(graphic.asset_version, first_asset_version);
+}
+
+#[test]
+fn parser_terminal_kitty_loading_mode_waits_for_late_frames() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    const BLUE_RGBA_BASE64: &str = "AAD//w==";
+
+    let frame_one = format!("\x1b_Ga=f,f=32,s=1,v=1,i=91,r=1,z=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(frame_one.as_bytes());
+    let frame_two = format!("\x1b_Ga=f,f=32,s=1,v=1,i=91,r=2,z=1,q=1;{GREEN_RGBA_BASE64}\x1b\\");
+    terminal.process(frame_two.as_bytes());
+    terminal.process(b"\x1b_Ga=a,i=91,s=2,q=1;\x1b\\");
+    thread::sleep(Duration::from_millis(5));
+
+    assert_eq!(terminal.update_animations(), vec![91]);
+    assert_eq!(
+        terminal.all_graphics()[0].pixels.as_ref(),
+        &[0, 255, 0, 255]
+    );
+
+    thread::sleep(Duration::from_millis(5));
+    assert!(
+        terminal.update_animations().is_empty(),
+        "loading mode must wait at the last available frame instead of looping"
+    );
+    assert_eq!(
+        terminal.all_graphics()[0].pixels.as_ref(),
+        &[0, 255, 0, 255]
+    );
+    assert!(
+        terminal
+            .graphics_store()
+            .get_animation(91)
+            .expect("animation should exist")
+            .loading_mode
+    );
+
+    let frame_three = format!("\x1b_Ga=f,f=32,s=1,v=1,i=91,r=3,z=1,q=1;{BLUE_RGBA_BASE64}\x1b\\");
+    terminal.process(frame_three.as_bytes());
+    thread::sleep(Duration::from_millis(5));
+
+    assert_eq!(terminal.update_animations(), vec![91]);
+    assert_eq!(
+        terminal.all_graphics()[0].pixels.as_ref(),
+        &[0, 0, 255, 255]
+    );
+
+    terminal.process(b"\x1b_Ga=a,i=91,s=3,q=1;\x1b\\");
+    thread::sleep(Duration::from_millis(5));
+
+    assert_eq!(terminal.update_animations(), vec![91]);
+    assert_eq!(
+        terminal.all_graphics()[0].pixels.as_ref(),
+        &[255, 0, 0, 255]
+    );
+    assert!(
+        !terminal
+            .graphics_store()
+            .get_animation(91)
+            .expect("animation should exist")
+            .loading_mode
+    );
+}
+
+#[test]
+fn parser_terminal_honors_kitty_animation_num_plays_loop_count() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    let frame_one = format!("\x1b_Ga=f,f=32,s=1,v=1,i=92,r=1,z=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(frame_one.as_bytes());
+    let frame_two = format!("\x1b_Ga=f,f=32,s=1,v=1,i=92,r=2,z=1,q=1;{GREEN_RGBA_BASE64}\x1b\\");
+    terminal.process(frame_two.as_bytes());
+    terminal.process(b"\x1b_Ga=a,i=92,v=2,s=3,q=1;\x1b\\");
+
+    let animation = terminal
+        .graphics_store()
+        .get_animation(92)
+        .expect("animation should exist");
+    assert_eq!(
+        animation.loop_count, 1,
+        "Kitty v=2 should allow one additional loop"
+    );
+    assert_eq!(animation.state, AnimationState::Playing);
+    assert_eq!(
+        terminal.all_graphics()[0].pixels.as_ref(),
+        &[255, 0, 0, 255]
+    );
+
+    force_kitty_animation_frame_elapsed(&mut terminal, 92);
+    assert_eq!(terminal.update_animations(), vec![92]);
+    assert_eq!(
+        terminal.all_graphics()[0].pixels.as_ref(),
+        &[0, 255, 0, 255]
+    );
+
+    force_kitty_animation_frame_elapsed(&mut terminal, 92);
+    assert_eq!(terminal.update_animations(), vec![92]);
+    assert_eq!(
+        terminal.all_graphics()[0].pixels.as_ref(),
+        &[255, 0, 0, 255]
+    );
+
+    force_kitty_animation_frame_elapsed(&mut terminal, 92);
+    assert_eq!(terminal.update_animations(), vec![92]);
+    assert_eq!(
+        terminal.all_graphics()[0].pixels.as_ref(),
+        &[0, 255, 0, 255]
+    );
+
+    force_kitty_animation_frame_elapsed(&mut terminal, 92);
+    assert_eq!(terminal.update_animations(), vec![92]);
+    let stopped = terminal
+        .graphics_store()
+        .get_animation(92)
+        .expect("animation should remain after loop completion");
+    assert_eq!(stopped.state, AnimationState::Stopped);
+    assert_eq!(stopped.current_frame, 1);
+    assert_eq!(
+        terminal.all_graphics()[0].pixels.as_ref(),
+        &[255, 0, 0, 255],
+        "loop completion should sync the reset frame to visible placements"
+    );
+}
+
+#[test]
+fn parser_terminal_deletes_kitty_animation_frames() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    let frame_one = format!("\x1b_Ga=f,f=32,s=1,v=1,i=78,r=1,z=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(frame_one.as_bytes());
+    let frame_two = format!("\x1b_Ga=f,f=32,s=1,v=1,i=78,r=2,z=1,q=1;{GREEN_RGBA_BASE64}\x1b\\");
+    terminal.process(frame_two.as_bytes());
+    terminal.process(b"\x1b_Ga=a,i=78,c=2,q=1;\x1b\\");
+
+    assert_eq!(
+        terminal.all_graphics()[0].pixels.as_ref(),
+        &[0, 255, 0, 255]
+    );
+
+    terminal.process(b"\x1b_Ga=d,d=f,i=78,r=2,q=1;\x1b\\");
+
+    let animation = terminal
+        .graphics_store()
+        .get_animation(78)
+        .expect("animation should remain after deleting one frame");
+    assert_eq!(animation.current_frame, 1);
+    assert!(animation.get_frame(2).is_none());
+    assert_eq!(
+        terminal.all_graphics()[0].pixels.as_ref(),
+        &[255, 0, 0, 255]
+    );
+
+    terminal.process(b"\x1b_Ga=d,d=F,i=78,q=1;\x1b\\");
+
+    assert_eq!(terminal.graphics_count(), 0);
+    assert!(terminal.graphics_store().get_animation(78).is_none());
+}
+
+#[test]
+fn parser_terminal_reports_invalid_kitty_animation_control_frame() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    let frame_one = format!("\x1b_Ga=f,f=32,s=1,v=1,i=79,r=1,z=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(frame_one.as_bytes());
+    let frame_two = format!("\x1b_Ga=f,f=32,s=1,v=1,i=79,r=2,z=1,q=1;{GREEN_RGBA_BASE64}\x1b\\");
+    terminal.process(frame_two.as_bytes());
+    terminal.process(b"\x1b_Ga=a,i=79,c=2,q=1;\x1b\\");
+    assert!(terminal.drain_responses().is_empty());
+    assert_eq!(
+        terminal.all_graphics()[0].pixels.as_ref(),
+        &[0, 255, 0, 255]
+    );
+
+    terminal.process(b"\x1b_Ga=a,i=79,c=99,q=1;\x1b\\");
+
+    let response = String::from_utf8(terminal.drain_responses()).unwrap();
+    assert_eq!(
+        response,
+        "\x1b_Gi=79;EINVAL: Kitty protocol error: Animation frame 99 not found\x1b\\"
+    );
+    let animation = terminal
+        .graphics_store()
+        .get_animation(79)
+        .expect("animation should remain after rejected control");
+    assert_eq!(animation.current_frame, 2);
+    assert_eq!(
+        terminal.all_graphics()[0].pixels.as_ref(),
+        &[0, 255, 0, 255]
+    );
+}
+
+#[test]
+fn parser_terminal_composes_kitty_animation_frame_rectangles() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    const SOURCE_RGBA_BASE64: &str = "/wAA/wD/AP8AAP////8A/w==";
+    const BLACK_RGBA_BASE64: &str = "AAAA/wAAAP8AAAD/AAAA/w==";
+
+    let frame_one = format!("\x1b_Ga=f,f=32,s=2,v=2,i=88,r=1,q=1;{SOURCE_RGBA_BASE64}\x1b\\");
+    terminal.process(frame_one.as_bytes());
+    let frame_two = format!("\x1b_Ga=f,f=32,s=2,v=2,i=88,r=2,q=1;{BLACK_RGBA_BASE64}\x1b\\");
+    terminal.process(frame_two.as_bytes());
+    terminal.process(b"\x1b_Ga=a,i=88,c=2,q=1;\x1b\\");
+
+    assert_eq!(
+        terminal.all_graphics()[0].pixels.as_ref().as_slice(),
+        &[0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255,]
+    );
+
+    terminal.process(b"\x1b_Ga=c,i=88,r=1,c=2,x=1,y=0,w=1,h=1,X=0,Y=1,C=1,q=1;\x1b\\");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.kitty_image_id, Some(88));
+    assert_eq!(
+        graphic.pixels.as_ref().as_slice(),
+        &[
+            0, 0, 0, 255, 0, 0, 0, 255, // first row remains black
+            0, 255, 0, 255, // composed green source pixel
+            0, 0, 0, 255,
+        ]
+    );
+}
+
+#[test]
+fn parser_terminal_loads_kitty_animation_frame_over_base_frame() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    const BLACK_RGBA_BASE64: &str = "AAAA/wAAAP8AAAD/AAAA/w==";
+
+    let frame_one = format!("\x1b_Ga=f,f=32,s=2,v=2,i=89,r=1,q=1;{BLACK_RGBA_BASE64}\x1b\\");
+    terminal.process(frame_one.as_bytes());
+    let frame_two =
+        format!("\x1b_Ga=f,f=32,s=1,v=1,i=89,r=2,c=1,x=1,X=1,q=1;{GREEN_RGBA_BASE64}\x1b\\");
+    terminal.process(frame_two.as_bytes());
+    terminal.process(b"\x1b_Ga=a,i=89,c=2,q=1;\x1b\\");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.kitty_image_id, Some(89));
+    assert_eq!(
+        graphic.pixels.as_ref().as_slice(),
+        &[
+            0, 0, 0, 255, 0, 255, 0, 255, // frame data composed over the base frame
+            0, 0, 0, 255, 0, 0, 0, 255,
+        ]
+    );
+}
+
+#[test]
 fn parser_terminal_handles_tmux_wrapped_kitty_graphics() {
     let mut terminal = ParserTerminal::new(80, 24);
     const RED_RGBA_BASE64: &str = "/wAA/w==";
@@ -1808,6 +7387,78 @@ fn parser_terminal_handles_tmux_wrapped_kitty_graphics() {
 }
 
 #[test]
+fn parser_terminal_handles_tmux_wrapped_sixel_graphics() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    let inner = "\x1bPq#1;2;100;0;0@\x1b\\";
+    let mut wrapped = b"\x1bPtmux;".to_vec();
+    for byte in inner.as_bytes() {
+        if *byte == b'\x1b' {
+            wrapped.push(b'\x1b');
+        }
+        wrapped.push(*byte);
+    }
+    wrapped.extend_from_slice(b"\x1b\\");
+
+    terminal.process(&wrapped);
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "sixel");
+    assert_eq!(&graphic.pixels[0..4], &[255, 0, 0, 255]);
+}
+
+#[test]
+fn parser_terminal_buffers_split_tmux_wrapped_sixel_graphics() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    let inner = "\x1bPq#1;2;100;0;0@\x1b\\";
+    let mut wrapped = b"\x1bPtmux;".to_vec();
+    for byte in inner.as_bytes() {
+        if *byte == b'\x1b' {
+            wrapped.push(b'\x1b');
+        }
+        wrapped.push(*byte);
+    }
+    wrapped.extend_from_slice(b"\x1b\\");
+    let (head, tail) = wrapped.split_at(wrapped.len() - 2);
+
+    terminal.process(head);
+
+    assert_eq!(terminal.graphics_count(), 0);
+
+    terminal.process(tail);
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "sixel");
+    assert_eq!(&graphic.pixels[0..4], &[255, 0, 0, 255]);
+}
+
+#[test]
+fn parser_terminal_handles_tmux_wrapped_iterm_graphics() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    let inner = format!("\x1b]1337;File=inline=1:{}\x1b\\", RED_PIXEL_PNG_BASE64);
+    let mut wrapped = b"\x1bPtmux;".to_vec();
+    for byte in inner.as_bytes() {
+        if *byte == b'\x1b' {
+            wrapped.push(b'\x1b');
+        }
+        wrapped.push(*byte);
+    }
+    wrapped.extend_from_slice(b"\x1b\\");
+
+    terminal.process(&wrapped);
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "iterm");
+    assert_eq!(graphic.width, 1);
+    assert_eq!(graphic.height, 1);
+}
+
+#[test]
 fn parser_terminal_replaces_and_deletes_kitty_placements() {
     let mut terminal = ParserTerminal::new(80, 24);
     const RED_RGBA_BASE64: &str = "/wAA/w==";
@@ -1832,12 +7483,10 @@ fn parser_terminal_replaces_and_deletes_kitty_placements() {
     terminal.settle_graphics_transactions();
     terminal.settle_graphics_transactions();
     assert_eq!(terminal.graphics_count(), 2);
-    assert!(
-        terminal
-            .all_graphics()
-            .iter()
-            .all(|graphic| graphic.kitty_placement_id != Some(1))
-    );
+    assert!(terminal
+        .all_graphics()
+        .iter()
+        .all(|graphic| graphic.kitty_placement_id != Some(1)));
 
     terminal.process(b"\x1b_Ga=d,d=i,i=40,q=1;\x1b\\");
     terminal.settle_graphics_transactions();
@@ -1848,6 +7497,423 @@ fn parser_terminal_replaces_and_deletes_kitty_placements() {
     terminal.settle_graphics_transactions();
     terminal.settle_graphics_transactions();
     assert_eq!(terminal.graphics_count(), 0);
+}
+
+#[test]
+fn parser_terminal_kitty_image_number_delete_targets_newest_image() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(
+        format!("\x1b[1;1H\x1b_Ga=T,f=32,s=1,v=1,I=13,p=1,C=1,q=1;{RED_RGBA_BASE64}\x1b\\")
+            .as_bytes(),
+    );
+    terminal.process(
+        format!("\x1b[1;4H\x1b_Ga=T,f=32,s=1,v=1,I=13,p=2,C=1,q=1;{GREEN_RGBA_BASE64}\x1b\\")
+            .as_bytes(),
+    );
+
+    assert_eq!(terminal.graphics_count(), 2);
+    let first_id = terminal
+        .all_graphics()
+        .iter()
+        .find(|graphic| graphic.kitty_placement_id == Some(1))
+        .and_then(|graphic| graphic.kitty_image_id)
+        .expect("expected first image-number id");
+    let second_id = terminal
+        .all_graphics()
+        .iter()
+        .find(|graphic| graphic.kitty_placement_id == Some(2))
+        .and_then(|graphic| graphic.kitty_image_id)
+        .expect("expected second image-number id");
+    assert_ne!(
+        first_id, second_id,
+        "I= image numbers must allocate a new id for each new image"
+    );
+
+    terminal.process(b"\x1b_Ga=d,d=n,I=13,p=2,q=1;\x1b\\");
+    terminal.settle_graphics_transactions();
+    terminal.settle_graphics_transactions();
+
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].kitty_image_id, Some(first_id));
+
+    terminal.process(b"\x1b_Ga=d,d=N,I=13,q=1;\x1b\\");
+    terminal.settle_graphics_transactions();
+    terminal.settle_graphics_transactions();
+    terminal.process(b"\x1b[2;1H\x1b_Ga=p,I=13,p=3,C=1,q=1;\x1b\\");
+
+    assert!(
+        terminal.all_graphics().iter().any(|graphic| {
+            graphic.kitty_image_id == Some(first_id) && graphic.kitty_placement_id == Some(3)
+        }),
+        "after releasing the newest image number target, I=13 should resolve to the previous live image id"
+    );
+    assert!(
+        terminal
+            .all_graphics()
+            .iter()
+            .all(|graphic| graphic.kitty_image_id != Some(second_id)),
+        "uppercase N delete should release the latest image-number id"
+    );
+}
+
+#[test]
+fn parser_terminal_kitty_image_number_response_reports_allocated_id() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(
+        format!("\x1b[1;1H\x1b_Ga=T,f=32,s=1,v=1,I=21,p=1,C=1;{RED_RGBA_BASE64}\x1b\\").as_bytes(),
+    );
+    let first_id = terminal
+        .all_graphics()
+        .first()
+        .and_then(|graphic| graphic.kitty_image_id)
+        .expect("expected terminal-allocated image id");
+    assert_eq!(
+        String::from_utf8(terminal.drain_responses()).unwrap(),
+        format!("\x1b_Gi={first_id},I=21;OK\x1b\\")
+    );
+
+    terminal.process(format!("\x1b_Ga=t,f=32,s=1,v=1,I=22;{GREEN_RGBA_BASE64}\x1b\\").as_bytes());
+    let transmit_response = String::from_utf8(terminal.drain_responses()).unwrap();
+    assert!(
+        transmit_response.starts_with("\x1b_Gi=")
+            && transmit_response.ends_with(",I=22;OK\x1b\\"),
+        "terminal-allocated transmit-only response should include the allocated image id and image number: {transmit_response:?}"
+    );
+    let transmit_id = transmit_response
+        .strip_prefix("\x1b_Gi=")
+        .and_then(|rest| rest.strip_suffix(",I=22;OK\x1b\\"))
+        .and_then(|value| value.parse::<u32>().ok())
+        .expect("expected numeric allocated transmit-only image id");
+    terminal.process(b"\x1b[2;1H\x1b_Ga=p,I=22,p=1,C=1,q=1;\x1b\\");
+    assert!(
+        terminal.all_graphics().iter().any(|graphic| {
+            graphic.kitty_image_id == Some(transmit_id) && graphic.kitty_placement_id == Some(1)
+        }),
+        "I=22 should remain reusable by image number after transmit-only allocation"
+    );
+
+    terminal.process(
+        format!("\x1b[3;1H\x1b_Ga=T,f=32,s=1,v=1,I=23,p=1,C=1;{RED_RGBA_BASE64}\x1b\\").as_bytes(),
+    );
+    let create_response = String::from_utf8(terminal.drain_responses()).unwrap();
+    let delete_target_id = create_response
+        .strip_prefix("\x1b_Gi=")
+        .and_then(|rest| rest.strip_suffix(",I=23;OK\x1b\\"))
+        .and_then(|value| value.parse::<u32>().ok())
+        .expect("expected image number delete target id");
+    terminal.process(b"\x1b_Ga=d,d=N,I=23;\x1b\\");
+    terminal.settle_graphics_transactions();
+    terminal.settle_graphics_transactions();
+    assert_eq!(
+        String::from_utf8(terminal.drain_responses()).unwrap(),
+        format!("\x1b_Gi={delete_target_id},I=23;OK\x1b\\"),
+        "uppercase image-number delete should report the resolved target id even after releasing it"
+    );
+}
+
+#[test]
+fn parser_terminal_kitty_delete_image_id_range_removes_scrollback_and_releases_data() {
+    let mut terminal = ParserTerminal::with_scrollback(8, 4, 20);
+
+    terminal.process(
+        format!(
+            "\x1b[1;1H\x1b_Ga=T,f=32,s=1,v=1,i=700,p=1,c=1,r=1,C=1,q=1;{RED_RGBA_BASE64}\x1b\\"
+        )
+        .as_bytes(),
+    );
+    terminal.process(
+        format!(
+            "\x1b[2;1H\x1b_Ga=T,f=32,s=1,v=1,i=701,p=1,c=1,r=1,C=1,q=1;{GREEN_RGBA_BASE64}\x1b\\"
+        )
+        .as_bytes(),
+    );
+    terminal.process(b"\x1b[4;1H\n\n");
+    terminal.process(
+        format!(
+            "\x1b[3;1H\x1b_Ga=T,f=32,s=1,v=1,i=704,p=1,c=1,r=1,C=1,q=1;{RED_RGBA_BASE64}\x1b\\"
+        )
+        .as_bytes(),
+    );
+    terminal
+        .process(format!("\x1b_Ga=t,f=32,s=1,v=1,i=703,q=1;{GREEN_RGBA_BASE64}\x1b\\").as_bytes());
+
+    assert!(
+        terminal
+            .all_graphics()
+            .iter()
+            .any(|graphic| graphic.kitty_image_id == Some(704)),
+        "range setup should leave the out-of-range image visible"
+    );
+    assert!(
+        terminal
+            .all_scrollback_graphics()
+            .iter()
+            .any(|graphic| graphic.kitty_image_id == Some(701)),
+        "range setup should retain one in-range placement in scrollback"
+    );
+
+    terminal.process(b"\x1b_Ga=d,d=R,x=700,y=703,q=1;\x1b\\");
+    terminal.settle_graphics_transactions();
+    terminal.settle_graphics_transactions();
+
+    assert!(
+        terminal
+            .all_graphics()
+            .iter()
+            .all(|graphic| !matches!(graphic.kitty_image_id, Some(700 | 701 | 703))),
+        "Kitty d=R range should remove in-range active placements"
+    );
+    assert!(
+        terminal
+            .all_scrollback_graphics()
+            .iter()
+            .all(|graphic| !matches!(graphic.kitty_image_id, Some(700 | 701 | 703))),
+        "Kitty d=R range should remove in-range scrollback placements"
+    );
+    assert!(
+        terminal
+            .all_graphics()
+            .iter()
+            .any(|graphic| graphic.kitty_image_id == Some(704)),
+        "Kitty d=R range should not remove out-of-range placements"
+    );
+
+    terminal.process(b"\x1b[1;1H\x1b_Ga=p,i=700,p=2,C=1,q=1;\x1b\\");
+    terminal.process(b"\x1b[2;1H\x1b_Ga=p,i=701,p=2,C=1,q=1;\x1b\\");
+    terminal.process(b"\x1b[2;3H\x1b_Ga=p,i=703,p=2,C=1,q=1;\x1b\\");
+    terminal.process(b"\x1b[3;3H\x1b_Ga=p,i=704,p=2,C=1,q=1;\x1b\\");
+
+    assert!(
+        terminal
+            .all_graphics()
+            .iter()
+            .all(|graphic| !matches!(graphic.kitty_image_id, Some(700 | 701 | 703))),
+        "uppercase d=R should release in-range image data after deletion"
+    );
+    assert!(
+        terminal.all_graphics().iter().any(|graphic| {
+            graphic.kitty_image_id == Some(704) && graphic.kitty_placement_id == Some(2)
+        }),
+        "out-of-range image data should remain reusable"
+    );
+}
+
+#[test]
+fn parser_terminal_kitty_delete_by_id_removes_scrollback_placement_and_releases_data() {
+    let mut terminal = ParserTerminal::with_scrollback(8, 4, 20);
+    let kitty = format!(
+        "\x1b[1;1H\x1b_Ga=T,f=32,s=1,v=1,i=762,p=1,c=1,r=1,C=1,q=1;{RED_RGBA_BASE64}\x1b\\"
+    );
+
+    terminal.process(kitty.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].kitty_image_id, Some(762));
+    assert_eq!(terminal.all_graphics()[0].kitty_placement_id, Some(1));
+
+    terminal.process(b"\x1b[4;1H\n\n\n\n");
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "Kitty placement should leave the active viewport after scrolling off"
+    );
+    assert_eq!(
+        terminal.scrollback_graphics_count(),
+        1,
+        "Kitty placement should be retained in graphics scrollback before deletion"
+    );
+    assert_eq!(
+        terminal.all_scrollback_graphics()[0].kitty_image_id,
+        Some(762)
+    );
+
+    terminal.process(b"\x1b_Ga=d,d=I,i=762,p=1,q=1;\x1b\\");
+
+    assert_eq!(
+        terminal.scrollback_graphics_count(),
+        0,
+        "Kitty delete by image/placement id should remove matching scrollback placements"
+    );
+
+    terminal.process(b"\x1b[1;1H\x1b_Ga=p,i=762,p=2,C=1,q=1;\x1b\\");
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "uppercase Kitty delete should release image data once the scrollback placement is removed"
+    );
+}
+
+#[test]
+fn parser_terminal_kitty_delete_all_removes_scrollback_placements_and_releases_data() {
+    let mut terminal = ParserTerminal::with_scrollback(8, 4, 20);
+    let kitty = format!(
+        "\x1b[1;1H\x1b_Ga=T,f=32,s=1,v=1,i=763,p=1,c=1,r=1,C=1,q=1;{RED_RGBA_BASE64}\x1b\\"
+    );
+
+    terminal.process(kitty.as_bytes());
+    terminal.process(b"\x1b[4;1H\n\n\n\n");
+
+    assert_eq!(terminal.graphics_count(), 0);
+    assert_eq!(
+        terminal.scrollback_graphics_count(),
+        1,
+        "Kitty placement should be retained in graphics scrollback before delete-all"
+    );
+
+    terminal.process(b"\x1b_Ga=d,d=A,q=1;\x1b\\");
+
+    assert_eq!(
+        terminal.scrollback_graphics_count(),
+        0,
+        "Kitty delete-all should remove matching scrollback placements"
+    );
+
+    terminal.process(b"\x1b[1;1H\x1b_Ga=p,i=763,p=2,C=1,q=1;\x1b\\");
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "uppercase Kitty delete-all should release image data once scrollback placements are removed"
+    );
+}
+
+#[test]
+fn parser_terminal_kitty_relative_placement_tracks_parent_replacement_and_delete() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    let parent =
+        format!("\x1b[5;6H\x1b_Ga=T,f=32,s=1,v=1,i=70,p=4,C=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(parent.as_bytes());
+    let child = format!(
+        "\x1b_Ga=T,f=32,s=1,v=1,i=71,p=8,P=70,Q=4,H=3,V=2,C=1,q=1;{GREEN_RGBA_BASE64}\x1b\\"
+    );
+    terminal.process(child.as_bytes());
+    terminal.process(b"\x1b_Ga=p,i=72,p=9,U=1,P=70,Q=4,H=2,V=1,C=1,q=1;\x1b\\");
+
+    assert_eq!(terminal.graphics_count(), 2);
+    let child = terminal
+        .all_graphics()
+        .iter()
+        .find(|graphic| graphic.kitty_image_id == Some(71))
+        .expect("expected relative child placement");
+    assert_eq!(
+        child.position,
+        (8, 6),
+        "relative Kitty placement should use parent row/col plus H/V cell offsets"
+    );
+    let virtual_child = terminal
+        .graphics_store()
+        .get_virtual_placement(72, 9)
+        .expect("expected relative virtual child placement");
+    assert_eq!(
+        virtual_child.position,
+        (7, 5),
+        "relative Kitty virtual placement should use parent row/col plus H/V cell offsets"
+    );
+
+    let moved_parent =
+        format!("\x1b[10;2H\x1b_Ga=T,f=32,s=1,v=1,i=70,p=4,C=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(moved_parent.as_bytes());
+
+    assert_eq!(terminal.graphics_count(), 2);
+    let child = terminal
+        .all_graphics()
+        .iter()
+        .find(|graphic| graphic.kitty_image_id == Some(71))
+        .expect("expected relative child after parent replacement");
+    assert_eq!(
+        child.position,
+        (4, 11),
+        "relative Kitty child should follow parent placement replacements"
+    );
+    let virtual_child = terminal
+        .graphics_store()
+        .get_virtual_placement(72, 9)
+        .expect("expected relative virtual child after parent replacement");
+    assert_eq!(
+        virtual_child.position,
+        (3, 10),
+        "relative Kitty virtual child should follow parent placement replacements"
+    );
+
+    terminal.process(b"\x1b_Ga=d,d=i,i=70,p=4,q=1;\x1b\\");
+    terminal.settle_graphics_transactions();
+    terminal.settle_graphics_transactions();
+
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "deleting a Kitty parent placement should recursively delete relative children"
+    );
+    assert!(
+        terminal
+            .graphics_store()
+            .get_virtual_placement(72, 9)
+            .is_none(),
+        "deleting a Kitty parent placement should recursively delete relative virtual children"
+    );
+}
+
+#[test]
+fn parser_terminal_kitty_delete_aborts_incomplete_chunked_transfer() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    let visible = format!("\x1b_Ga=T,f=32,s=1,v=1,i=91,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(visible.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+
+    terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,i=92,m=1,q=1;/wAA\x1b\\");
+    assert!(terminal.kitty_graphics_transfer_in_progress());
+
+    terminal.process(b"\x1b_Gd=i,i=91,a=d,q=1;\x1b\\");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "Kitty delete commands must abort any incomplete chunked transfer and still apply"
+    );
+    assert!(
+        !terminal.kitty_graphics_transfer_in_progress(),
+        "delete must clear the incomplete Kitty transfer state"
+    );
+
+    terminal.process(b"\x1b_Gm=0;/w==\x1b\\");
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "a stray final chunk from the aborted transfer must not create a graphic"
+    );
+}
+
+#[test]
+fn parser_terminal_kitty_bel_terminator_delete_aborts_incomplete_chunked_transfer() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    let visible = format!("\x1b_Ga=T,f=32,s=1,v=1,i=93,q=1;{RED_RGBA_BASE64}\x07");
+    terminal.process(visible.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+
+    terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,i=94,m=1,q=1;/wAA\x07");
+    assert!(terminal.kitty_graphics_transfer_in_progress());
+
+    terminal.process(b"\x1b_Gd=i,i=93,a=d,q=1;\x07");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "BEL-terminated Kitty delete commands must abort any incomplete chunked transfer and still apply"
+    );
+    assert!(
+        !terminal.kitty_graphics_transfer_in_progress(),
+        "BEL-terminated delete must clear the incomplete Kitty transfer state"
+    );
+
+    terminal.process(b"\x1b_Gm=0;/w==\x07");
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "the final BEL-terminated chunk of the aborted transfer must not create a graphic"
+    );
 }
 
 #[test]
@@ -1884,6 +7950,92 @@ fn parser_terminal_kitty_delete_by_z_index_clears_pending_clear_hold() {
 
     assert_eq!(terminal.graphics_count(), 0);
     assert_eq!(terminal.pending_cleared_kitty_graphics_count(), 0);
+}
+
+#[test]
+fn parser_terminal_kitty_cell_delete_reuses_render_id_for_immediate_replacement() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    let first =
+        format!("\x1b[1;1H\x1b_Ga=T,f=32,s=1,v=1,i=510,p=9,z=7,C=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(first.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+    let first_graphic_id = terminal.all_graphics()[0].id;
+
+    terminal.process(b"\x1b_Ga=d,d=q,x=1,y=1,z=7,q=2;\x1b\\");
+    assert_eq!(terminal.graphics_count(), 0);
+    assert_eq!(
+        terminal.deferred_kitty_delete_count(),
+        1,
+        "cell+z deletes should retain a tombstone for an immediate replacement"
+    );
+
+    let replacement =
+        format!("\x1b[1;1H\x1b_Ga=T,f=32,s=1,v=1,i=511,p=9,z=7,C=1,q=1;{GREEN_RGBA_BASE64}\x1b\\");
+    terminal.process(replacement.as_bytes());
+
+    assert_eq!(terminal.deferred_kitty_delete_count(), 0);
+    assert_eq!(terminal.graphics_count(), 1);
+    let replacement = &terminal.all_graphics()[0];
+    assert_eq!(replacement.id, first_graphic_id);
+    assert_eq!(replacement.kitty_image_id, Some(511));
+    assert_eq!(replacement.kitty_placement_id, Some(9));
+    assert_eq!(replacement.position, (0, 0));
+    assert_eq!(replacement.placement.z_index, 7);
+}
+
+#[test]
+fn parser_terminal_kitty_delete_at_cursor_hits_display_span() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    let graphic = format!(
+        "\x1b[3;4H\x1b_Ga=T,f=32,s=1,v=1,i=520,p=1,c=3,r=2,C=1,q=1;{RED_RGBA_BASE64}\x1b\\"
+    );
+    terminal.process(graphic.as_bytes());
+
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].position, (3, 2));
+
+    terminal.process(b"\x1b[4;5H\x1b_Ga=d,d=c,q=1;\x1b\\");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "Kitty d=c should delete placements that intersect the cursor cell, not only placements that start at the cursor"
+    );
+}
+
+#[test]
+fn parser_terminal_kitty_delete_by_column_and_row_hits_display_span() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    let first = format!(
+        "\x1b[3;4H\x1b_Ga=T,f=32,s=1,v=1,i=521,p=1,c=3,r=2,C=1,q=1;{RED_RGBA_BASE64}\x1b\\"
+    );
+    let second = format!(
+        "\x1b[8;10H\x1b_Ga=T,f=32,s=1,v=1,i=522,p=1,c=2,r=2,C=1,q=1;{GREEN_RGBA_BASE64}\x1b\\"
+    );
+    terminal.process(first.as_bytes());
+    terminal.process(second.as_bytes());
+
+    assert_eq!(terminal.graphics_count(), 2);
+
+    terminal.process(b"\x1b_Ga=d,d=x,x=5,q=1;\x1b\\");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(
+        terminal.all_graphics()[0].kitty_image_id,
+        Some(522),
+        "Kitty d=x should delete only placements intersecting the requested column"
+    );
+
+    terminal.process(b"\x1b_Ga=d,d=y,y=9,q=1;\x1b\\");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "Kitty d=y should delete placements intersecting the requested row"
+    );
 }
 
 #[test]
@@ -1956,13 +8108,13 @@ fn parser_terminal_keeps_kitty_replacement_visible_when_text_interleaves() {
     let mut terminal = ParserTerminal::new(80, 24);
     const RED_RGBA_BASE64: &str = "/wAA/w==";
 
-    let first = format!("\x1b_Ga=T,f=32,s=1,v=1,i=49374,q=1;{RED_RGBA_BASE64}\x1b\\");
+    let first = format!("\x1b_Ga=T,f=32,s=1,v=1,i=49374,C=1,q=1;{RED_RGBA_BASE64}\x1b\\");
     terminal.process(first.as_bytes());
     assert_eq!(terminal.graphics_count(), 1);
     let first_graphic_id = terminal.all_graphics()[0].id;
 
     terminal.process(b"\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\");
-    terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,i=49375,q=2,m=1;AP8A\x1b\\");
+    terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,i=49375,C=1,q=2,m=1;AP8A\x1b\\");
     assert!(terminal.kitty_graphics_transfer_in_progress());
     assert_eq!(terminal.deferred_kitty_delete_count(), 1);
     assert_eq!(terminal.graphics_count(), 0);
@@ -2065,9 +8217,9 @@ fn parser_terminal_commits_unrelated_delete_during_kitty_replacement_transfer() 
     let mut terminal = ParserTerminal::new(80, 24);
     const RED_RGBA_BASE64: &str = "/wAA/w==";
 
-    let unrelated = format!("\x1b_Ga=T,f=32,s=1,v=1,i=100,p=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+    let unrelated = format!("\x1b_Ga=T,f=32,s=1,v=1,i=100,p=1,C=1,q=1;{RED_RGBA_BASE64}\x1b\\");
     terminal.process(unrelated.as_bytes());
-    let old = format!("\x1b_Ga=T,f=32,s=1,v=1,i=200,p=2,q=1;{RED_RGBA_BASE64}\x1b\\");
+    let old = format!("\x1b_Ga=T,f=32,s=1,v=1,i=200,p=2,C=1,q=1;{RED_RGBA_BASE64}\x1b\\");
     terminal.process(old.as_bytes());
     assert_eq!(terminal.graphics_count(), 2);
     let old_replacement_graphic_id = terminal
@@ -2079,7 +8231,7 @@ fn parser_terminal_commits_unrelated_delete_during_kitty_replacement_transfer() 
 
     terminal.process(b"\x1b_Ga=d,d=I,i=100,q=2;\x1b\\");
     terminal.process(b"\x1b_Ga=d,d=I,i=200,q=2;\x1b\\");
-    terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,i=201,p=2,q=2,m=1;AP8A\x1b\\");
+    terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,i=201,p=2,C=1,q=2,m=1;AP8A\x1b\\");
     assert!(terminal.kitty_graphics_transfer_in_progress());
     assert_eq!(terminal.deferred_kitty_delete_count(), 2);
     assert_eq!(terminal.graphics_count(), 0);
@@ -2315,6 +8467,3607 @@ fn parser_terminal_reuses_pet_render_id_across_clear_quiet_delete_and_moved_redr
 }
 
 #[test]
+fn parser_terminal_scopes_kitty_clear_screen_to_alternate_screen() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let primary = format!("\x1b[1;1H\x1b_Ga=T,f=32,s=1,v=1,i=10,p=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(primary.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+    let primary_graphic_id = terminal.all_graphics()[0].id;
+    assert!(!terminal.all_graphics()[0].alternate_screen);
+
+    terminal.use_alt_screen();
+    let alternate =
+        format!("\x1b[2;1H\x1b_Ga=T,f=32,s=1,v=1,i=20,p=1,q=1;{GREEN_RGBA_BASE64}\x1b\\");
+    terminal.process(alternate.as_bytes());
+    assert_eq!(terminal.graphics_count(), 2);
+    assert!(terminal
+        .all_graphics()
+        .iter()
+        .any(|graphic| graphic.alternate_screen));
+
+    terminal.process(b"\x1b[2J");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].id, primary_graphic_id);
+    assert!(!terminal.all_graphics()[0].alternate_screen);
+    assert_eq!(terminal.pending_cleared_kitty_graphics_count(), 1);
+    assert!(terminal.pending_cleared_kitty_graphics()[0].alternate_screen);
+
+    terminal.use_primary_screen();
+
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].id, primary_graphic_id);
+    assert_eq!(terminal.pending_cleared_kitty_graphics_count(), 0);
+}
+
+#[test]
+fn parser_terminal_keeps_primary_kitty_redraw_identity_after_alt_screen_teardown() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let primary = format!("\x1b[1;1H\x1b_Ga=T,f=32,s=1,v=1,i=10,p=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(primary.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+    let primary_graphic_id = terminal.all_graphics()[0].id;
+
+    terminal.process(b"\x1b[2J");
+    assert_eq!(terminal.graphics_count(), 0);
+    assert_eq!(terminal.pending_cleared_kitty_graphics_count(), 1);
+    assert!(!terminal.pending_cleared_kitty_graphics()[0].alternate_screen);
+
+    terminal.use_alt_screen();
+    let alternate =
+        format!("\x1b[2;1H\x1b_Ga=T,f=32,s=1,v=1,i=20,p=1,q=1;{GREEN_RGBA_BASE64}\x1b\\");
+    terminal.process(alternate.as_bytes());
+    terminal.process(b"\x1b[2J");
+    assert_eq!(terminal.graphics_count(), 0);
+    assert_eq!(terminal.pending_cleared_kitty_graphics_count(), 2);
+
+    terminal.use_primary_screen();
+    assert_eq!(terminal.pending_cleared_kitty_graphics_count(), 1);
+    assert!(!terminal.pending_cleared_kitty_graphics()[0].alternate_screen);
+
+    terminal.process(primary.as_bytes());
+
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(
+        terminal.all_graphics()[0].id,
+        primary_graphic_id,
+        "primary Kitty redraw should keep render identity after alt screen teardown"
+    );
+    assert_eq!(terminal.pending_cleared_kitty_graphics_count(), 0);
+}
+
+#[test]
+fn parser_terminal_scopes_iterm_graphics_to_alternate_screen() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let primary = format!(
+        "\x1b[1;1H\x1b]1337;File=inline=1;doNotMoveCursor=1:{}\x1b\\",
+        RED_PIXEL_PNG_BASE64
+    );
+    terminal.process(primary.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+    let primary_graphic_id = terminal.all_graphics()[0].id;
+    assert_eq!(terminal.all_graphics()[0].protocol.as_str(), "iterm");
+    assert!(!terminal.all_graphics()[0].alternate_screen);
+
+    terminal.use_alt_screen();
+    let alternate = format!(
+        "\x1b[2;1H\x1b]1337;File=inline=1;doNotMoveCursor=1:{}\x1b\\",
+        RED_PIXEL_PNG_BASE64
+    );
+    terminal.process(alternate.as_bytes());
+    assert_eq!(terminal.graphics_count(), 2);
+    assert!(
+        terminal
+            .all_graphics()
+            .iter()
+            .any(|graphic| graphic.protocol.as_str() == "iterm" && graphic.alternate_screen),
+        "iTerm2 graphics emitted in the alternate screen must be scoped there"
+    );
+
+    terminal.process(b"\x1b[2J");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].id, primary_graphic_id);
+    assert_eq!(terminal.all_graphics()[0].protocol.as_str(), "iterm");
+    assert!(!terminal.all_graphics()[0].alternate_screen);
+    assert_eq!(
+        terminal.pending_cleared_kitty_graphics_count(),
+        0,
+        "non-Kitty iTerm graphics should not use Kitty clear-screen hold state"
+    );
+
+    terminal.use_primary_screen();
+
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].id, primary_graphic_id);
+    assert!(!terminal.all_graphics()[0].alternate_screen);
+}
+
+#[test]
+fn parser_terminal_scopes_multipart_iterm_graphics_to_alternate_screen() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let primary = format!(
+        "\x1b[1;1H\x1b]1337;File=inline=1;doNotMoveCursor=1:{}\x1b\\",
+        RED_PIXEL_PNG_BASE64
+    );
+    terminal.process(primary.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+    let primary_graphic_id = terminal.all_graphics()[0].id;
+
+    terminal.use_alt_screen();
+    let start = "\x1b[2;1H\x1b]1337;MultipartFile=inline=1;name=cGl4ZWwucG5n\x1b\\";
+    let part = format!("\x1b]1337;FilePart={RED_PIXEL_PNG_BASE64}\x1b\\");
+    terminal.process(start.as_bytes());
+    terminal.process(part.as_bytes());
+    assert_eq!(
+        terminal.graphics_count(),
+        1,
+        "multipart iTerm2 images without size wait for FileEnd before display"
+    );
+
+    terminal.process(b"\x1b]1337;FileEnd\x1b\\");
+    assert_eq!(terminal.graphics_count(), 2);
+    assert!(
+        terminal
+            .all_graphics()
+            .iter()
+            .any(|graphic| graphic.protocol.as_str() == "iterm" && graphic.alternate_screen),
+        "multipart iTerm2 graphics emitted in the alternate screen must be scoped there"
+    );
+
+    terminal.process(b"\x1b[2J");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].id, primary_graphic_id);
+    assert_eq!(terminal.all_graphics()[0].protocol.as_str(), "iterm");
+    assert!(!terminal.all_graphics()[0].alternate_screen);
+
+    terminal.use_primary_screen();
+
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].id, primary_graphic_id);
+    assert!(!terminal.all_graphics()[0].alternate_screen);
+}
+
+#[test]
+fn parser_terminal_iterm_multipart_with_size_waits_for_file_end() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let start = "\x1b]1337;MultipartFile=inline=1;size=70;name=cGl4ZWwucG5n\x1b\\";
+    let part = format!("\x1b]1337;FilePart={RED_PIXEL_PNG_BASE64}\x1b\\");
+
+    terminal.process(start.as_bytes());
+    terminal.process(part.as_bytes());
+
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "size= reaching the decoded byte count must not finalize before FileEnd"
+    );
+
+    terminal.process(b"\x1b]1337;FileEnd\x1b\\");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "iterm");
+    assert_eq!(graphic.width, 1);
+    assert_eq!(graphic.height, 1);
+}
+
+#[test]
+fn parser_terminal_iterm_multipart_inline_accepts_unaligned_file_parts() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let start = "\x1b]1337;MultipartFile=inline=1;size=70;name=cGl4ZWwucG5n\x1b\\";
+    let (first, rest) = RED_PIXEL_PNG_BASE64.split_at(5);
+    let (second, third) = rest.split_at(7);
+
+    terminal.process(start.as_bytes());
+    for chunk in [first, second, third] {
+        let part = format!("\x1b]1337;FilePart={chunk}\x1b\\");
+        terminal.process(part.as_bytes());
+    }
+
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "unaligned multipart iTerm2 images must wait for FileEnd"
+    );
+
+    terminal.process(b"\x1b]1337;FileEnd\x1b\\");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "iterm");
+    assert_eq!(graphic.width, 1);
+    assert_eq!(graphic.height, 1);
+}
+
+#[test]
+fn parser_terminal_iterm_multipart_inline_rejects_short_declared_size() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let start = "\x1b]1337;MultipartFile=inline=1;size=71;name=cGl4ZWwucG5n\x1b\\";
+    let part = format!("\x1b]1337;FilePart={RED_PIXEL_PNG_BASE64}\x1b\\");
+
+    terminal.process(start.as_bytes());
+    terminal.process(part.as_bytes());
+    terminal.process(b"\x1b]1337;FileEnd\x1b\\");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "inline multipart images with a short declared size must not render at FileEnd"
+    );
+}
+
+#[test]
+fn parser_terminal_iterm_multipart_inline_rejects_data_after_base64_padding() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"\x1b]1337;MultipartFile=inline=1;name=cGl4ZWwucG5n\x1b\\");
+    terminal.process(b"\x1b]1337;FilePart=aGVsbG8=\x1b\\");
+    terminal.process(b"\x1b]1337;FilePart=AAAA\x1b\\");
+    terminal.process(b"\x1b]1337;FileEnd\x1b\\");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "inline multipart iTerm2 base64 must reject data after padding instead of rendering partial bytes"
+    );
+    assert!(
+        terminal.poll_events().iter().all(|event| !matches!(
+            event,
+            par_term_emu_core_rust::terminal::TerminalEvent::GraphicsAdded(_)
+        )),
+        "rejected inline multipart iTerm2 payload must not emit GraphicsAdded"
+    );
+}
+
+#[test]
+fn parser_terminal_iterm_single_file_aborts_pending_multipart_inline() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let start = "\x1b]1337;MultipartFile=inline=1;name=cGl4ZWwucG5n\x1b\\";
+    let part = format!("\x1b]1337;FilePart={RED_PIXEL_PNG_BASE64}\x1b\\");
+    let replacement = format!("\x1b]1337;File=inline=1:{RED_GREEN_2X1_PNG_BASE64}\x1b\\");
+
+    terminal.process(start.as_bytes());
+    terminal.process(part.as_bytes());
+    assert_eq!(terminal.graphics_count(), 0);
+
+    terminal.process(replacement.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].protocol.as_str(), "iterm");
+    assert_eq!(terminal.all_graphics()[0].width, 2);
+
+    terminal.process(b"\x1b]1337;FileEnd\x1b\\");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        1,
+        "a stale FileEnd from an aborted iTerm2 multipart image must not render the old image"
+    );
+    assert_eq!(terminal.all_graphics()[0].width, 2);
+}
+
+#[test]
+fn parser_terminal_iterm_new_multipart_fails_pending_download() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"\x1b]1337;MultipartFile=inline=0;size=5;name=Zmlyc3QudHh0\x1b\\");
+    let started_events = terminal.poll_events();
+    let first_transfer_id = started_events
+        .iter()
+        .find_map(|event| match event {
+            par_term_emu_core_rust::terminal::TerminalEvent::FileTransferStarted {
+                id,
+                filename,
+                ..
+            } => {
+                assert_eq!(filename.as_deref(), Some("first.txt"));
+                Some(*id)
+            }
+            _ => None,
+        })
+        .expect("first MultipartFile should start a download transfer");
+
+    terminal.process(b"\x1b]1337;MultipartFile=inline=0;size=5;name=c2Vjb25kLnR4dA==\x1b\\");
+    let interrupted_events = terminal.poll_events();
+
+    assert!(interrupted_events.iter().any(|event| matches!(
+        event,
+        par_term_emu_core_rust::terminal::TerminalEvent::FileTransferFailed {
+            id,
+            reason,
+        } if *id == first_transfer_id && reason.contains("interrupted by new MultipartFile")
+    )));
+    assert!(interrupted_events.iter().any(|event| matches!(
+        event,
+        par_term_emu_core_rust::terminal::TerminalEvent::FileTransferStarted {
+            id,
+            filename,
+            ..
+        } if *id != first_transfer_id && filename.as_deref() == Some("second.txt")
+    )));
+}
+
+#[test]
+fn parser_terminal_iterm_multipart_download_with_size_waits_for_file_end() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"\x1b]1337;MultipartFile=inline=0;size=5;name=YXJ0aWZhY3QudHh0\x1b\\");
+    let started_events = terminal.poll_events();
+    let transfer_id = started_events
+        .iter()
+        .find_map(|event| match event {
+            par_term_emu_core_rust::terminal::TerminalEvent::FileTransferStarted {
+                id,
+                direction,
+                filename,
+                total_bytes,
+            } => {
+                assert!(matches!(
+                    direction,
+                    par_term_emu_core_rust::terminal::TransferDirection::Download
+                ));
+                assert_eq!(filename.as_deref(), Some("artifact.txt"));
+                assert_eq!(*total_bytes, Some(5));
+                Some(*id)
+            }
+            _ => None,
+        })
+        .expect("MultipartFile should start a download transfer");
+
+    terminal.process(b"\x1b]1337;FilePart=aGVsbG8=\x1b\\");
+    let part_events = terminal.poll_events();
+    assert!(part_events.iter().any(|event| matches!(
+        event,
+        par_term_emu_core_rust::terminal::TerminalEvent::FileTransferProgress {
+            id,
+            bytes_transferred: 5,
+            total_bytes: Some(5),
+        } if *id == transfer_id
+    )));
+    assert!(
+        part_events.iter().all(|event| !matches!(
+            event,
+            par_term_emu_core_rust::terminal::TerminalEvent::FileTransferCompleted { .. }
+                | par_term_emu_core_rust::terminal::TerminalEvent::FileTransferFailed { .. }
+        )),
+        "download multipart transfers must wait for FileEnd even when size is reached"
+    );
+
+    terminal.process(b"\x1b]1337;FileEnd\x1b\\");
+    let completed_events = terminal.poll_events();
+    assert!(completed_events.iter().any(|event| matches!(
+        event,
+        par_term_emu_core_rust::terminal::TerminalEvent::FileTransferCompleted {
+            id,
+            filename,
+            size: 5,
+        } if *id == transfer_id && filename.as_deref() == Some("artifact.txt")
+    )));
+}
+
+#[test]
+fn parser_terminal_iterm_multipart_download_accepts_unaligned_file_parts() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"\x1b]1337;MultipartFile=inline=0;size=5;name=YXJ0aWZhY3QudHh0\x1b\\");
+    let started_events = terminal.poll_events();
+    let transfer_id = started_events
+        .iter()
+        .find_map(|event| match event {
+            par_term_emu_core_rust::terminal::TerminalEvent::FileTransferStarted { id, .. } => {
+                Some(*id)
+            }
+            _ => None,
+        })
+        .expect("MultipartFile should start a download transfer");
+
+    terminal.process(b"\x1b]1337;FilePart=aGV\x1b\\");
+    let first_events = terminal.poll_events();
+    assert!(
+        first_events.iter().all(|event| !matches!(
+            event,
+            par_term_emu_core_rust::terminal::TerminalEvent::FileTransferProgress { .. }
+                | par_term_emu_core_rust::terminal::TerminalEvent::FileTransferCompleted { .. }
+                | par_term_emu_core_rust::terminal::TerminalEvent::FileTransferFailed { .. }
+        )),
+        "partial base64 quantum should not emit transfer progress"
+    );
+
+    terminal.process(b"\x1b]1337;FilePart=sb\x1b\\");
+    let second_events = terminal.poll_events();
+    assert!(second_events.iter().any(|event| matches!(
+        event,
+        par_term_emu_core_rust::terminal::TerminalEvent::FileTransferProgress {
+            id,
+            bytes_transferred: 3,
+            total_bytes: Some(5),
+        } if *id == transfer_id
+    )));
+
+    terminal.process(b"\x1b]1337;FilePart=G8=\x1b\\");
+    let third_events = terminal.poll_events();
+    assert!(third_events.iter().any(|event| matches!(
+        event,
+        par_term_emu_core_rust::terminal::TerminalEvent::FileTransferProgress {
+            id,
+            bytes_transferred: 5,
+            total_bytes: Some(5),
+        } if *id == transfer_id
+    )));
+    assert!(
+        third_events.iter().all(|event| !matches!(
+            event,
+            par_term_emu_core_rust::terminal::TerminalEvent::FileTransferCompleted { .. }
+                | par_term_emu_core_rust::terminal::TerminalEvent::FileTransferFailed { .. }
+        )),
+        "unaligned download transfer must still wait for FileEnd"
+    );
+
+    terminal.process(b"\x1b]1337;FileEnd\x1b\\");
+    let completed_events = terminal.poll_events();
+    assert!(completed_events.iter().any(|event| matches!(
+        event,
+        par_term_emu_core_rust::terminal::TerminalEvent::FileTransferCompleted {
+            id,
+            filename,
+            size: 5,
+        } if *id == transfer_id && filename.as_deref() == Some("artifact.txt")
+    )));
+}
+
+#[test]
+fn parser_terminal_iterm_multipart_download_rejects_short_declared_size_on_file_end() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"\x1b]1337;MultipartFile=inline=0;size=10;name=YXJ0aWZhY3QudHh0\x1b\\");
+    let started_events = terminal.poll_events();
+    let transfer_id = started_events
+        .iter()
+        .find_map(|event| match event {
+            par_term_emu_core_rust::terminal::TerminalEvent::FileTransferStarted { id, .. } => {
+                Some(*id)
+            }
+            _ => None,
+        })
+        .expect("MultipartFile should start a download transfer");
+
+    terminal.process(b"\x1b]1337;FilePart=aGVsbG8=\x1b\\");
+    let part_events = terminal.poll_events();
+    assert!(part_events.iter().any(|event| matches!(
+        event,
+        par_term_emu_core_rust::terminal::TerminalEvent::FileTransferProgress {
+            id,
+            bytes_transferred: 5,
+            total_bytes: Some(10),
+        } if *id == transfer_id
+    )));
+
+    terminal.process(b"\x1b]1337;FileEnd\x1b\\");
+    let completed_events = terminal.poll_events();
+    assert!(completed_events.iter().any(|event| matches!(
+        event,
+        par_term_emu_core_rust::terminal::TerminalEvent::FileTransferFailed {
+            id,
+            reason,
+        } if *id == transfer_id && reason.contains("received 5 bytes, expected 10")
+    )));
+    assert!(
+        completed_events.iter().all(|event| !matches!(
+            event,
+            par_term_emu_core_rust::terminal::TerminalEvent::FileTransferCompleted { .. }
+        )),
+        "short iTerm2 download transfers must fail instead of completing"
+    );
+}
+
+#[test]
+fn parser_terminal_iterm_multipart_download_rejects_oversized_part() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"\x1b]1337;MultipartFile=inline=0;size=4;name=YXJ0aWZhY3QudHh0\x1b\\");
+    let started_events = terminal.poll_events();
+    let transfer_id = started_events
+        .iter()
+        .find_map(|event| match event {
+            par_term_emu_core_rust::terminal::TerminalEvent::FileTransferStarted { id, .. } => {
+                Some(*id)
+            }
+            _ => None,
+        })
+        .expect("MultipartFile should start a download transfer");
+
+    terminal.process(b"\x1b]1337;FilePart=aGVsbG8=\x1b\\");
+    let failed_events = terminal.poll_events();
+    assert!(failed_events.iter().any(|event| matches!(
+        event,
+        par_term_emu_core_rust::terminal::TerminalEvent::FileTransferFailed {
+            id,
+            reason,
+        } if *id == transfer_id && reason.contains("received 5 bytes, expected 4")
+    )));
+    assert!(
+        failed_events.iter().all(|event| !matches!(
+            event,
+            par_term_emu_core_rust::terminal::TerminalEvent::FileTransferProgress { .. }
+                | par_term_emu_core_rust::terminal::TerminalEvent::FileTransferCompleted { .. }
+        )),
+        "oversized iTerm2 download chunks must fail before progress/completion"
+    );
+}
+
+#[test]
+fn parser_terminal_iterm_multipart_download_rejects_data_after_base64_padding() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"\x1b]1337;MultipartFile=inline=0;size=5;name=YXJ0aWZhY3QudHh0\x1b\\");
+    let started_events = terminal.poll_events();
+    let transfer_id = started_events
+        .iter()
+        .find_map(|event| match event {
+            par_term_emu_core_rust::terminal::TerminalEvent::FileTransferStarted { id, .. } => {
+                Some(*id)
+            }
+            _ => None,
+        })
+        .expect("MultipartFile should start a download transfer");
+
+    terminal.process(b"\x1b]1337;FilePart=aGVsbG8=\x1b\\");
+    let first_part_events = terminal.poll_events();
+    assert!(first_part_events.iter().any(|event| matches!(
+        event,
+        par_term_emu_core_rust::terminal::TerminalEvent::FileTransferProgress {
+            id,
+            bytes_transferred: 5,
+            total_bytes: Some(5),
+        } if *id == transfer_id
+    )));
+
+    terminal.process(b"\x1b]1337;FilePart=AAAA\x1b\\");
+    let failed_events = terminal.poll_events();
+    assert!(failed_events.iter().any(|event| matches!(
+        event,
+        par_term_emu_core_rust::terminal::TerminalEvent::FileTransferFailed {
+            id,
+            reason,
+        } if *id == transfer_id && reason.contains("continued after padding")
+    )));
+    assert!(
+        failed_events.iter().all(|event| !matches!(
+            event,
+            par_term_emu_core_rust::terminal::TerminalEvent::FileTransferCompleted { .. }
+        )),
+        "download multipart iTerm2 base64 must fail, not complete, when data follows padding"
+    );
+
+    terminal.process(b"\x1b]1337;FileEnd\x1b\\");
+    assert!(
+        terminal.poll_events().iter().all(|event| !matches!(
+            event,
+            par_term_emu_core_rust::terminal::TerminalEvent::FileTransferCompleted { .. }
+        )),
+        "FileEnd after a padding error must not complete the failed transfer"
+    );
+}
+
+#[test]
+fn parser_terminal_iterm_single_download_rejects_size_mismatch() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"\x1b]1337;File=inline=0;size=10;name=YXJ0aWZhY3QudHh0:aGVsbG8=\x1b\\");
+    let events = terminal.poll_events();
+    let transfer_id = events
+        .iter()
+        .find_map(|event| match event {
+            par_term_emu_core_rust::terminal::TerminalEvent::FileTransferStarted {
+                id,
+                total_bytes,
+                ..
+            } => {
+                assert_eq!(*total_bytes, Some(10));
+                Some(*id)
+            }
+            _ => None,
+        })
+        .expect("single File transfer should emit a started event");
+
+    assert!(events.iter().any(|event| matches!(
+        event,
+        par_term_emu_core_rust::terminal::TerminalEvent::FileTransferFailed {
+            id,
+            reason,
+        } if *id == transfer_id && reason.contains("received 5 bytes, expected 10")
+    )));
+    assert!(
+        events.iter().all(|event| !matches!(
+            event,
+            par_term_emu_core_rust::terminal::TerminalEvent::FileTransferCompleted { .. }
+        )),
+        "single iTerm2 downloads with a mismatched size must fail"
+    );
+}
+
+#[test]
+fn parser_terminal_iterm_download_without_name_uses_default_filename() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"\x1b]1337;File=inline=0:aGVsbG8=\x1b\\");
+    let events = terminal.poll_events();
+    let transfer_id = events
+        .iter()
+        .find_map(|event| match event {
+            par_term_emu_core_rust::terminal::TerminalEvent::FileTransferStarted {
+                id,
+                filename,
+                ..
+            } => {
+                assert_eq!(filename.as_deref(), Some("Unnamed file"));
+                Some(*id)
+            }
+            _ => None,
+        })
+        .expect("single File transfer should emit a started event");
+
+    assert!(events.iter().any(|event| matches!(
+        event,
+        par_term_emu_core_rust::terminal::TerminalEvent::FileTransferCompleted {
+            id,
+            filename,
+            size: 5,
+        } if *id == transfer_id && filename.as_deref() == Some("Unnamed file")
+    )));
+}
+
+#[test]
+fn parser_terminal_sixel_color_definition_selects_painted_color() {
+    let mut terminal = ParserTerminal::new(12, 6);
+
+    terminal.process(b"\x1bPq#1;2;100;0;0@\x1b\\");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "sixel");
+    assert_eq!(
+        &graphic.pixels.as_ref()[0..4],
+        &[255, 0, 0, 255],
+        "Sixel color definition should select the defined color for following pixels"
+    );
+}
+
+#[test]
+fn parser_terminal_sixel_hls_color_definition_selects_painted_color() {
+    let mut terminal = ParserTerminal::new(12, 6);
+
+    terminal.process(b"\x1bPq#1;1;240;50;100@\x1b\\");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "sixel");
+    assert_eq!(
+        &graphic.pixels.as_ref()[0..4],
+        &[0, 0, 255, 255],
+        "Sixel HLS color definitions should select the defined color for following pixels"
+    );
+}
+
+#[test]
+fn parser_terminal_sixel_accepts_c1_dcs_and_st_controls() {
+    for sequence in [
+        b"\x1bPq#1;2;100;0;0@\x9c".as_slice(),
+        b"\x90q#1;2;100;0;0@\x9c".as_slice(),
+    ] {
+        let mut terminal = ParserTerminal::new(12, 6);
+
+        terminal.process(sequence);
+
+        assert_eq!(
+            terminal.graphics_count(),
+            1,
+            "C1 DCS/ST Sixel sequence should create one graphic: {sequence:?}"
+        );
+        let graphic = &terminal.all_graphics()[0];
+        assert_eq!(graphic.protocol.as_str(), "sixel");
+        assert_eq!(
+            &graphic.pixels.as_ref()[0..4],
+            &[255, 0, 0, 255],
+            "C1 control-terminated Sixel should preserve painted pixels"
+        );
+    }
+}
+
+#[test]
+fn parser_terminal_sixel_transparent_raster_preserves_unpainted_alpha() {
+    let mut terminal = ParserTerminal::new(12, 6);
+
+    terminal.process(b"\x1bP0;1q\"1;1;3;2@\x1b\\");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "sixel");
+    assert_eq!(graphic.width, 3);
+    assert_eq!(graphic.height, 2);
+    assert_eq!(&graphic.pixels.as_ref()[0..4], &[0, 0, 0, 255]);
+    assert_eq!(
+        graphic.pixels.as_ref()[7],
+        0,
+        "transparent Sixel background should leave unpainted same-row pixels transparent"
+    );
+    assert_eq!(
+        graphic.pixels.as_ref()[15],
+        0,
+        "transparent Sixel background should leave unpainted lower-row pixels transparent"
+    );
+}
+
+#[test]
+fn parser_terminal_sixel_omitted_p1_preserves_transparent_p2() {
+    let mut terminal = ParserTerminal::new(12, 6);
+
+    terminal.process(b"\x1bP;1q@\x1b\\");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "sixel");
+    assert_eq!(graphic.width, 1);
+    assert_eq!(graphic.height, 6);
+    assert_eq!(&graphic.pixels.as_ref()[0..4], &[0, 0, 0, 255]);
+    assert_eq!(
+        graphic.pixels.as_ref()[23],
+        0,
+        "omitted P1 must not shift transparent-background P2 out of position"
+    );
+}
+
+#[test]
+fn parser_terminal_sixel_empty_color_fields_default_to_zero() {
+    let mut terminal = ParserTerminal::new(12, 6);
+
+    terminal.process(b"\x1bPq#1;2;100;;0@\x1b\\");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(
+        &graphic.pixels.as_ref()[0..4],
+        &[255, 0, 0, 255],
+        "empty Sixel RGB component should default to 0 instead of dropping the color definition"
+    );
+}
+
+#[test]
+fn parser_terminal_sixel_empty_raster_width_defaults_to_data_extent() {
+    let mut terminal = ParserTerminal::new(12, 6);
+
+    terminal.process(b"\x1bPq\"1;1;;2@\x1b\\");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.width, 1);
+    assert_eq!(
+        graphic.height, 2,
+        "empty Sixel raster width should default to 0 without dropping the provided height"
+    );
+}
+
+#[test]
+fn parser_terminal_sixel_sparse_band_preserves_six_pixel_height() {
+    let mut terminal = ParserTerminal::new(12, 6);
+
+    terminal.process(b"\x1bP0;1q@\x1b\\");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "sixel");
+    assert_eq!(graphic.width, 1);
+    assert_eq!(graphic.height, 6);
+    assert_eq!(&graphic.pixels.as_ref()[0..4], &[0, 0, 0, 255]);
+    assert_eq!(
+        graphic.pixels.as_ref()[23],
+        0,
+        "transparent Sixel background should preserve clear rows inside a sparse sixel band"
+    );
+}
+
+#[test]
+fn parser_terminal_sixel_zero_raster_dimensions_fall_back_to_data_extents() {
+    let mut terminal = ParserTerminal::new(12, 6);
+
+    terminal.process(b"\x1bPq\"1;1;0;0~\x1b\\");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "sixel");
+    assert_eq!(graphic.width, 1);
+    assert_eq!(graphic.height, 6);
+    assert_eq!(&graphic.pixels.as_ref()[20..24], &[0, 0, 0, 255]);
+}
+
+#[test]
+fn parser_terminal_sixel_oversized_raster_width_clamps_without_dropping_height() {
+    let mut terminal = ParserTerminal::new(12, 6);
+    terminal.set_sixel_limits(8, 5, 100);
+
+    terminal.process(b"\x1bPq\"1;1;999999;4@\x1b\\");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "sixel");
+    assert_eq!(
+        graphic.width, 8,
+        "oversized Sixel raster width should clamp to the configured width limit"
+    );
+    assert_eq!(
+        graphic.height, 4,
+        "oversized Sixel raster width must not drop a valid raster height"
+    );
+    assert_eq!(&graphic.pixels.as_ref()[0..4], &[0, 0, 0, 255]);
+}
+
+#[test]
+fn parser_terminal_sixel_carriage_return_and_newline_compose_bands() {
+    let mut terminal = ParserTerminal::new(12, 10);
+
+    terminal.process(b"\x1bP0;1q#1;2;100;0;0~$#2;2;0;100;0@-#3;2;0;0;100@\x1b\\X");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "sixel");
+    assert_eq!(graphic.width, 1);
+    assert_eq!(graphic.height, 12);
+
+    let pixels = graphic.pixels.as_ref();
+    assert_eq!(
+        &pixels[0..4],
+        &[0, 255, 0, 255],
+        "Sixel '$' should return to the current band and allow later data to repaint x=0"
+    );
+    assert_eq!(
+        &pixels[4..8],
+        &[255, 0, 0, 255],
+        "Sixel '$' must not clear the rest of the current six-pixel band"
+    );
+    assert_eq!(
+        &pixels[20..24],
+        &[255, 0, 0, 255],
+        "the first band tail should survive the carriage-return repaint"
+    );
+    assert_eq!(
+        &pixels[24..28],
+        &[0, 0, 255, 255],
+        "Sixel '-' should advance to the next six-pixel band before painting"
+    );
+    assert_eq!(
+        &pixels[28..32],
+        &[0, 0, 0, 0],
+        "transparent Sixel background should keep unpainted pixels in the second band clear"
+    );
+    assert_eq!(
+        terminal.active_grid().row_text(6).trim_end(),
+        "X",
+        "text after a multi-band Sixel graphic should land after the resolved graphic cell span"
+    );
+}
+
+#[test]
+fn parser_terminal_sixel_omitted_macro_pixel_aspect_defaults_to_2_to_1() {
+    let mut terminal = ParserTerminal::new(12, 6);
+
+    terminal.process(b"\x1bPq~~\x1b\\");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "sixel");
+    assert_eq!(graphic.width, 2);
+    assert_eq!(graphic.height, 6);
+    assert_eq!(
+        graphic.display_cell_span,
+        Some((4, 3)),
+        "omitted Sixel P1 should use the DEC default 2:1 macro pixel aspect ratio"
+    );
+    assert!(!graphic.placement.preserve_aspect_ratio);
+}
+
+#[test]
+fn parser_terminal_sixel_macro_pixel_aspect_ratio_updates_display_span() {
+    let mut terminal = ParserTerminal::new(12, 6);
+
+    terminal.process(b"\x1bP2q~~\x1b\\");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "sixel");
+    assert_eq!(graphic.width, 2);
+    assert_eq!(graphic.height, 6);
+    assert_eq!(
+        graphic.display_cell_span,
+        Some((10, 3)),
+        "Sixel P1=2 macro pixel aspect ratio should scale display width as 5:1"
+    );
+    assert!(!graphic.placement.preserve_aspect_ratio);
+}
+
+#[test]
+fn parser_terminal_sixel_raster_pixel_aspect_ratio_updates_display_span() {
+    let mut terminal = ParserTerminal::new(12, 6);
+
+    terminal.process(b"\x1bP2q\"2;1;2;6~~\x1b\\X");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "sixel");
+    assert_eq!(graphic.width, 2);
+    assert_eq!(graphic.height, 6);
+    assert_eq!(
+        graphic.display_cell_span,
+        Some((4, 3)),
+        "Sixel raster attributes should override the P1 macro pixel aspect ratio"
+    );
+    assert!(!graphic.placement.preserve_aspect_ratio);
+    assert_eq!(
+        terminal.active_grid().row_text(3).trim_end(),
+        "X",
+        "Sixel cursor advancement should use the aspect-corrected display span"
+    );
+}
+
+#[test]
+fn parser_terminal_sixel_square_macro_pixel_aspect_keeps_natural_span() {
+    let mut terminal = ParserTerminal::new(12, 6);
+
+    terminal.process(b"\x1bP7q~~\x1b\\");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "sixel");
+    assert_eq!(graphic.display_cell_span, Some((2, 3)));
+    assert!(
+        graphic.placement.preserve_aspect_ratio,
+        "Sixel P1=7 is 1:1 and should not synthesize a scaled display width"
+    );
+}
+
+#[test]
+fn sixel_parser_newline_clamps_sparse_data_to_renderable_height() {
+    let limits = par_term_emu_core_rust::sixel::SixelLimits::new(8, 12, 100);
+    let mut parser = par_term_emu_core_rust::sixel::SixelParser::new_with_limits(limits);
+    parser.set_params(&[0, 1, 0]);
+
+    for _ in 0..100 {
+        parser.new_line();
+    }
+    parser.parse_sixel('@');
+
+    let graphic = parser.build_graphic((0, 0));
+
+    assert_eq!(graphic.width, 1);
+    assert_eq!(graphic.height, limits.max_height);
+    assert_eq!(graphic.get_pixel(0, 0), Some((0, 0, 0, 0)));
+    assert_eq!(graphic.get_pixel(0, 6), Some((0, 0, 0, 255)));
+}
+
+#[test]
+fn parser_terminal_ed2_removes_sixel_graphics_on_active_screen() {
+    let mut terminal = ParserTerminal::new(12, 10);
+
+    terminal.process(b"\x1b[2;2H\x1bPq????\x1b\\");
+    terminal.process(b"\x1b[6;2H\x1bPq????\x1b\\");
+    assert_eq!(terminal.graphics_count(), 2);
+    assert!(terminal
+        .all_graphics()
+        .iter()
+        .all(|graphic| graphic.protocol.as_str() == "sixel"));
+
+    terminal.process(b"\x1b[2J");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "ED 2 should clear Sixel graphics from the active screen buffer"
+    );
+}
+
+#[test]
+fn parser_terminal_ed0_removes_current_row_right_and_lower_graphics() {
+    let mut terminal = ParserTerminal::new(12, 8);
+
+    let kept_iterm = format!(
+        "\x1b[2;2H\x1b]1337;File=inline=1;doNotMoveCursor=1;width=1;height=1:{RED_PIXEL_PNG_BASE64}\x1b\\"
+    );
+    let deleted_kitty =
+        format!("\x1b[4;7H\x1b_Ga=T,f=32,s=1,v=1,i=760,C=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(kept_iterm.as_bytes());
+    terminal.process(deleted_kitty.as_bytes());
+    terminal.process(b"\x1b[6;2H\x1bPq????\x1b\\");
+    assert_eq!(terminal.graphics_count(), 3);
+
+    terminal.process(b"\x1b[3;5H\x1b[J");
+
+    let remaining_summary: Vec<_> = terminal
+        .all_graphics()
+        .iter()
+        .map(|graphic| {
+            (
+                graphic.protocol.as_str(),
+                graphic.position,
+                graphic.kitty_image_id,
+            )
+        })
+        .collect();
+    assert_eq!(
+        terminal.graphics_count(),
+        1,
+        "ED 0 should remove graphics from the cursor to the screen end; remaining: {remaining_summary:?}"
+    );
+    let remaining = &terminal.all_graphics()[0];
+    assert_eq!(remaining.protocol.as_str(), "iterm");
+    assert!(
+        remaining.position.1 < 2,
+        "ED 0 should keep only graphics entirely above the cursor; remaining: {remaining_summary:?}"
+    );
+    assert_eq!(
+        terminal.deferred_kitty_delete_count(),
+        1,
+        "ED 0 should remember deleted Kitty placements for frontend clearing"
+    );
+}
+
+#[test]
+fn parser_terminal_ed1_removes_upper_and_current_row_left_graphics() {
+    let mut terminal = ParserTerminal::new(12, 8);
+
+    let deleted_iterm = format!(
+        "\x1b[2;2H\x1b]1337;File=inline=1;doNotMoveCursor=1;width=1;height=1:{RED_PIXEL_PNG_BASE64}\x1b\\"
+    );
+    let deleted_kitty =
+        format!("\x1b[4;3H\x1b_Ga=T,f=32,s=1,v=1,i=761,C=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+    let kept_kitty =
+        format!("\x1b[6;3H\x1b_Ga=T,f=32,s=1,v=1,i=762,C=1,q=1;{GREEN_RGBA_BASE64}\x1b\\");
+    terminal.process(deleted_iterm.as_bytes());
+    terminal.process(deleted_kitty.as_bytes());
+    terminal.process(b"\x1b[4;8H\x1bPq????\x1b\\");
+    terminal.process(kept_kitty.as_bytes());
+    assert_eq!(terminal.graphics_count(), 4);
+
+    terminal.process(b"\x1b[4;5H\x1b[1J");
+
+    let remaining_summary: Vec<_> = terminal
+        .all_graphics()
+        .iter()
+        .map(|graphic| {
+            (
+                graphic.protocol.as_str(),
+                graphic.position,
+                graphic.kitty_image_id,
+            )
+        })
+        .collect();
+    assert_eq!(
+        terminal.graphics_count(),
+        2,
+        "ED 1 should remove graphics from the screen start through the cursor; remaining: {remaining_summary:?}"
+    );
+    assert!(
+        terminal
+            .all_graphics()
+            .iter()
+            .any(|graphic| graphic.protocol.as_str() == "sixel" && graphic.position == (7, 3)),
+        "ED 1 should keep current-row graphics to the right of the cursor"
+    );
+    assert!(
+        terminal
+            .all_graphics()
+            .iter()
+            .any(|graphic| graphic.kitty_image_id == Some(762) && graphic.position == (2, 5)),
+        "ED 1 should keep graphics below the cursor"
+    );
+    assert!(
+        terminal
+            .all_graphics()
+            .iter()
+            .all(|graphic| graphic.protocol.as_str() != "iterm"),
+        "ED 1 should remove graphics on rows above the cursor"
+    );
+    assert_eq!(
+        terminal.deferred_kitty_delete_count(),
+        1,
+        "ED 1 should remember deleted Kitty placements for frontend clearing"
+    );
+}
+
+#[test]
+fn parser_terminal_el_removes_intersecting_iterm_and_sixel_graphics() {
+    let mut terminal = ParserTerminal::new(12, 10);
+
+    let iterm = format!(
+        "\x1b[2;3H\x1b]1337;File=inline=1;doNotMoveCursor=1:{}\x1b\\",
+        RED_PIXEL_PNG_BASE64
+    );
+    terminal.process(iterm.as_bytes());
+    terminal.process(b"\x1b[6;3H\x1bPq????\x1b\\");
+    assert_eq!(terminal.graphics_count(), 2);
+    assert!(terminal
+        .all_graphics()
+        .iter()
+        .any(|graphic| graphic.protocol.as_str() == "iterm"));
+    assert!(terminal
+        .all_graphics()
+        .iter()
+        .any(|graphic| graphic.protocol.as_str() == "sixel"));
+
+    terminal.process(b"\x1b[2;3H\x1b[K");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        1,
+        "EL should clear only graphics intersecting the erased row segment"
+    );
+    let remaining = &terminal.all_graphics()[0];
+    assert_eq!(remaining.protocol.as_str(), "sixel");
+    assert_eq!(remaining.position.1, 5);
+
+    terminal.process(b"\x1b[6;1H\x1b[2K");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "EL 2 should clear Sixel graphics intersecting the erased row"
+    );
+}
+
+#[test]
+fn parser_terminal_decera_removes_intersecting_graphics_on_active_screen() {
+    let mut terminal = ParserTerminal::new(12, 8);
+
+    let first = format!("\x1b[2;3H\x1b_Ga=T,f=32,s=1,v=1,i=770,C=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+    let second = format!("\x1b[6;3H\x1b_Ga=T,f=32,s=1,v=1,i=771,C=1,q=1;{GREEN_RGBA_BASE64}\x1b\\");
+    terminal.process(first.as_bytes());
+    terminal.process(second.as_bytes());
+    assert_eq!(terminal.graphics_count(), 2);
+
+    terminal.process(b"\x1b[2;3;2;3$z");
+
+    assert!(
+        terminal.graphics_at_row(1).is_empty(),
+        "DECERA should clear graphics intersecting the erased rectangle"
+    );
+    assert_eq!(
+        terminal.graphics_count(),
+        1,
+        "DECERA should leave graphics outside the erased rectangle intact"
+    );
+    let remaining = &terminal.all_graphics()[0];
+    assert_eq!(remaining.kitty_image_id, Some(771));
+    assert_eq!(terminal.graphics_at_row(5).len(), 1);
+    assert_eq!(
+        terminal.deferred_kitty_delete_count(),
+        1,
+        "DECERA should remember deleted Kitty placements for frontend clearing"
+    );
+}
+
+#[test]
+fn parser_terminal_decfra_removes_intersecting_graphics_on_active_screen() {
+    let mut terminal = ParserTerminal::new(12, 8);
+
+    let first = format!("\x1b[2;3H\x1b_Ga=T,f=32,s=1,v=1,i=772,C=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+    let second = format!("\x1b[6;3H\x1b_Ga=T,f=32,s=1,v=1,i=773,C=1,q=1;{GREEN_RGBA_BASE64}\x1b\\");
+    terminal.process(first.as_bytes());
+    terminal.process(second.as_bytes());
+    assert_eq!(terminal.graphics_count(), 2);
+
+    terminal.process(b"\x1b[35;2;3;2;3$x");
+
+    assert!(
+        terminal.graphics_at_row(1).is_empty(),
+        "DECFRA should clear graphics intersecting the filled rectangle"
+    );
+    assert_eq!(
+        terminal.graphics_count(),
+        1,
+        "DECFRA should leave graphics outside the filled rectangle intact"
+    );
+    let remaining = &terminal.all_graphics()[0];
+    assert_eq!(remaining.kitty_image_id, Some(773));
+    assert_eq!(terminal.graphics_at_row(5).len(), 1);
+    assert_eq!(
+        terminal.deferred_kitty_delete_count(),
+        1,
+        "DECFRA should remember deleted Kitty placements for frontend clearing"
+    );
+}
+
+#[test]
+fn parser_terminal_deccra_clears_graphics_in_destination_rectangle() {
+    let mut terminal = ParserTerminal::new(12, 8);
+
+    terminal.process(b"\x1b[1;1HA");
+    let overwritten =
+        format!("\x1b[2;3H\x1b_Ga=T,f=32,s=1,v=1,i=774,C=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+    let outside =
+        format!("\x1b[6;3H\x1b_Ga=T,f=32,s=1,v=1,i=775,C=1,q=1;{GREEN_RGBA_BASE64}\x1b\\");
+    terminal.process(overwritten.as_bytes());
+    terminal.process(outside.as_bytes());
+    assert_eq!(terminal.graphics_count(), 2);
+
+    terminal.process(b"\x1b[1;1;1;1;1;2;3$v");
+
+    assert!(
+        terminal.graphics_at_row(1).is_empty(),
+        "DECCRA should clear graphics intersecting the copied-to destination rectangle"
+    );
+    assert_eq!(
+        terminal.graphics_count(),
+        1,
+        "DECCRA should leave graphics outside the destination rectangle intact"
+    );
+    let remaining = &terminal.all_graphics()[0];
+    assert_eq!(remaining.kitty_image_id, Some(775));
+    assert_eq!(terminal.graphics_at_row(5).len(), 1);
+    assert_eq!(
+        terminal.deferred_kitty_delete_count(),
+        1,
+        "DECCRA should remember deleted Kitty placements for frontend clearing"
+    );
+}
+
+#[test]
+fn parser_terminal_ed3_scopes_scrollback_graphics_to_primary_screen() {
+    let mut terminal = ParserTerminal::with_scrollback(12, 4, 20);
+
+    terminal.process(b"\x1b[1;1H\x1bPq????\x1b\\");
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].protocol.as_str(), "sixel");
+    assert!(!terminal.all_graphics()[0].alternate_screen);
+
+    terminal.process(b"\n\n\n\n");
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "primary Sixel graphic should leave the active screen after scrolling off"
+    );
+    assert_eq!(
+        terminal.scrollback_graphics_count(),
+        1,
+        "primary Sixel graphic should be retained in graphics scrollback"
+    );
+
+    terminal.use_alt_screen();
+    terminal.process(b"\x1b[3J");
+    assert_eq!(
+        terminal.scrollback_graphics_count(),
+        1,
+        "alternate-screen ED 3 must not clear primary-screen graphics scrollback"
+    );
+
+    terminal.use_primary_screen();
+    terminal.process(b"\x1b[3J");
+    assert_eq!(
+        terminal.scrollback_graphics_count(),
+        0,
+        "primary-screen ED 3 should clear primary graphics scrollback"
+    );
+}
+
+#[test]
+fn parser_terminal_ed3_scopes_iterm_scrollback_graphics_to_primary_screen() {
+    let mut terminal = ParserTerminal::with_scrollback(12, 4, 20);
+    let iterm = format!(
+        "\x1b[1;1H\x1b]1337;File=inline=1;doNotMoveCursor=1;width=1;height=1:{}\x1b\\",
+        RED_PIXEL_PNG_BASE64
+    );
+
+    terminal.process(iterm.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].protocol.as_str(), "iterm");
+    assert!(!terminal.all_graphics()[0].alternate_screen);
+
+    terminal.process(b"\n\n\n\n");
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "primary iTerm2 graphic should leave the active screen after scrolling off"
+    );
+    assert_eq!(
+        terminal.scrollback_graphics_count(),
+        1,
+        "primary iTerm2 graphic should be retained in graphics scrollback"
+    );
+    assert_eq!(
+        terminal.all_scrollback_graphics()[0].protocol.as_str(),
+        "iterm"
+    );
+    assert!(
+        !terminal.all_scrollback_graphics()[0].alternate_screen,
+        "iTerm2 scrollback graphics should stay scoped to the primary screen"
+    );
+
+    terminal.use_alt_screen();
+    terminal.process(b"\x1b[3J");
+    assert_eq!(
+        terminal.scrollback_graphics_count(),
+        1,
+        "alternate-screen ED 3 must not clear primary iTerm2 graphics scrollback"
+    );
+
+    terminal.use_primary_screen();
+    terminal.process(b"\x1b[3J");
+    assert_eq!(
+        terminal.scrollback_graphics_count(),
+        0,
+        "primary-screen ED 3 should clear primary iTerm2 graphics scrollback"
+    );
+}
+
+#[test]
+fn parser_terminal_scrollback_capacity_evicts_stale_graphics_rows() {
+    let mut terminal = ParserTerminal::with_scrollback(8, 2, 2);
+    let kitty = format!(
+        "\x1b[1;1H\x1b_Ga=T,f=32,s=1,v=1,i=762,p=1,c=1,r=1,C=1,q=1;{RED_RGBA_BASE64}\x1b\\"
+    );
+
+    terminal.process(kitty.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+
+    terminal.process(b"\x1b[2;1H\n");
+
+    assert_eq!(terminal.graphics_count(), 0);
+    assert_eq!(
+        terminal.scrollback_graphics_count(),
+        1,
+        "graphic should follow its text row into graphics scrollback"
+    );
+    assert_eq!(
+        terminal.all_scrollback_graphics()[0].scrollback_row,
+        Some(0)
+    );
+
+    terminal.process(b"\x1b[2;1H\n");
+    assert_eq!(terminal.grid().scrollback_len(), 2);
+    assert_eq!(
+        terminal.scrollback_graphics_count(),
+        1,
+        "graphic should remain while its text row is still retained"
+    );
+
+    terminal.process(b"\x1b[2;1H\n");
+
+    assert_eq!(terminal.grid().scrollback_len(), 2);
+    assert_eq!(
+        terminal.scrollback_graphics_count(),
+        0,
+        "graphics scrollback should drop placements once text scrollback capacity evicts the corresponding row"
+    );
+}
+
+#[test]
+fn parser_terminal_1049_exit_clears_alternate_graphics_and_keeps_primary_graphics() {
+    let mut terminal = ParserTerminal::new(10, 6);
+    let primary = format!("\x1b[2;3H\x1b_Ga=T,f=32,s=1,v=1,i=750,C=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(primary.as_bytes());
+    let primary_graphic_id = terminal.all_graphics()[0].id;
+
+    terminal.process(b"\x1b[?1049h");
+    assert!(terminal.is_alt_screen_active());
+
+    let alternate =
+        format!("\x1b[4;3H\x1b_Ga=T,f=32,s=1,v=1,i=751,C=1,q=1;{GREEN_RGBA_BASE64}\x1b\\");
+    terminal.process(alternate.as_bytes());
+    assert_eq!(terminal.graphics_count(), 2);
+    assert!(
+        terminal.graphics_at_row(1).is_empty(),
+        "primary graphics should not be visible while alternate screen is active"
+    );
+    assert_eq!(terminal.graphics_at_row(3).len(), 1);
+
+    terminal.process(b"\x1b[?1049l");
+
+    assert!(!terminal.is_alt_screen_active());
+    assert_eq!(terminal.graphics_count(), 1);
+    let remaining = &terminal.all_graphics()[0];
+    assert_eq!(remaining.id, primary_graphic_id);
+    assert_eq!(remaining.kitty_image_id, Some(750));
+    assert!(!remaining.alternate_screen);
+    assert_eq!(terminal.graphics_at_row(1).len(), 1);
+    assert!(
+        terminal.graphics_at_row(3).is_empty(),
+        "alternate-screen graphics should be cleared when returning to primary"
+    );
+}
+
+#[test]
+fn parser_terminal_1049_exit_clears_alternate_sixel_and_keeps_primary_sixel() {
+    let mut terminal = ParserTerminal::new(10, 8);
+
+    terminal.process(b"\x1b[2;1H\x1bPq????\x1b\\");
+    let primary_graphic_id = terminal.all_graphics()[0].id;
+    assert_eq!(terminal.all_graphics()[0].protocol.as_str(), "sixel");
+    assert!(!terminal.all_graphics()[0].alternate_screen);
+
+    terminal.process(b"\x1b[?1049h");
+    terminal.process(b"\x1b[6;1H\x1bPq????\x1b\\");
+    assert_eq!(terminal.graphics_count(), 2);
+    assert!(
+        terminal.graphics_at_row(1).is_empty(),
+        "primary Sixel graphics should not be visible while alternate screen is active"
+    );
+    assert_eq!(terminal.graphics_at_row(5).len(), 1);
+
+    terminal.process(b"\x1b[?1049l");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let remaining = &terminal.all_graphics()[0];
+    assert_eq!(remaining.id, primary_graphic_id);
+    assert_eq!(remaining.protocol.as_str(), "sixel");
+    assert!(!remaining.alternate_screen);
+    assert_eq!(terminal.graphics_at_row(1).len(), 1);
+    assert!(
+        terminal.graphics_at_row(5).is_empty(),
+        "alternate Sixel graphics should be cleared when returning to primary"
+    );
+}
+
+#[test]
+fn parser_terminal_ed2_in_alternate_screen_clears_only_alternate_graphics() {
+    let mut terminal = ParserTerminal::new(10, 6);
+    let primary = format!("\x1b[2;3H\x1b_Ga=T,f=32,s=1,v=1,i=760,C=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(primary.as_bytes());
+    let primary_graphic_id = terminal.all_graphics()[0].id;
+
+    terminal.process(b"\x1b[?1049h");
+    let alternate =
+        format!("\x1b[4;3H\x1b_Ga=T,f=32,s=1,v=1,i=761,C=1,q=1;{GREEN_RGBA_BASE64}\x1b\\");
+    terminal.process(alternate.as_bytes());
+    assert_eq!(terminal.graphics_count(), 2);
+
+    terminal.process(b"\x1b[2J");
+
+    assert!(terminal.is_alt_screen_active());
+    assert_eq!(terminal.graphics_count(), 1);
+    assert!(
+        terminal.graphics_at_row(3).is_empty(),
+        "ED 2 should clear alternate-screen graphics from the active screen"
+    );
+    let remaining = &terminal.all_graphics()[0];
+    assert_eq!(remaining.id, primary_graphic_id);
+    assert_eq!(remaining.kitty_image_id, Some(760));
+    assert!(!remaining.alternate_screen);
+
+    terminal.process(b"\x1b[?1049l");
+    assert_eq!(terminal.graphics_at_row(1).len(), 1);
+}
+
+#[test]
+fn parser_terminal_alternate_screen_scroll_drops_sixel_without_scrollback_retention() {
+    let mut terminal = ParserTerminal::with_scrollback(8, 4, 20);
+
+    terminal.process(b"\x1b[?1049h");
+    terminal.process(b"\x1b[1;1H\x1bPq????\x1b\\");
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].protocol.as_str(), "sixel");
+    assert!(terminal.all_graphics()[0].alternate_screen);
+
+    terminal.process(b"\x1b[4;1H\n\n\n\n\n");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "alternate-screen graphics should be dropped after scrolling out of the active viewport"
+    );
+    assert_eq!(
+        terminal.scrollback_graphics_count(),
+        0,
+        "alternate-screen graphics must not be retained in primary graphics scrollback"
+    );
+}
+
+#[test]
+fn parser_terminal_alternate_screen_scroll_drops_kitty_without_scrollback_retention() {
+    let mut terminal = ParserTerminal::with_scrollback(8, 4, 20);
+    let graphic = format!(
+        "\x1b[?1049h\x1b[1;1H\x1b_Ga=T,f=32,s=1,v=1,i=772,c=1,r=1,C=1,q=1;{RED_RGBA_BASE64}\x1b\\"
+    );
+
+    terminal.process(graphic.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].protocol.as_str(), "kitty");
+    assert!(terminal.all_graphics()[0].alternate_screen);
+
+    terminal.process(b"\x1b[4;1H\n\n\n\n\n");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "alternate-screen Kitty graphics should be dropped after scrolling out of the active viewport"
+    );
+    assert_eq!(
+        terminal.scrollback_graphics_count(),
+        0,
+        "alternate-screen Kitty graphics must not be retained in primary graphics scrollback"
+    );
+}
+
+#[test]
+fn parser_terminal_alternate_screen_scroll_drops_iterm_without_scrollback_retention() {
+    let mut terminal = ParserTerminal::with_scrollback(8, 4, 20);
+    let graphic =
+        format!("\x1b[?1049h\x1b[1;1H\x1b]1337;File=inline=1:{RED_PIXEL_PNG_BASE64}\x1b\\");
+
+    terminal.process(graphic.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].protocol.as_str(), "iterm");
+    assert!(terminal.all_graphics()[0].alternate_screen);
+
+    terminal.process(b"\x1b[4;1H\n\n\n\n\n");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "alternate-screen iTerm2 graphics should be dropped after scrolling out of the active viewport"
+    );
+    assert_eq!(
+        terminal.scrollback_graphics_count(),
+        0,
+        "alternate-screen iTerm2 graphics must not be retained in primary graphics scrollback"
+    );
+}
+
+#[test]
+fn parser_terminal_nonzero_top_scroll_region_drops_graphics_without_scrollback_retention() {
+    let mut terminal = ParserTerminal::with_scrollback(8, 6, 20);
+    let graphic =
+        format!("\x1b[3;1H\x1b_Ga=T,f=32,s=1,v=1,i=770,c=1,r=1,C=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+
+    terminal.process(b"\x1b[3;6r");
+    terminal.process(graphic.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].position, (0, 2));
+
+    terminal.process(b"\x1b[1S");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "graphics clipped out of a non-zero-top scroll region should be discarded"
+    );
+    assert_eq!(
+        terminal.scrollback_graphics_count(),
+        0,
+        "non-zero-top scroll regions do not append text rows or graphics to scrollback"
+    );
+}
+
+#[test]
+fn parser_terminal_scroll_up_drops_multirow_graphics_overlapping_top_margin() {
+    let mut terminal = ParserTerminal::with_scrollback(12, 6, 20);
+    let clipped = format!(
+        "\x1b[2;1H\x1b_Ga=T,f=32,s=1,v=1,i=772,p=1,c=1,r=2,C=1,q=1;{RED_RGBA_BASE64}\x1b\\"
+    );
+    let shifted = format!(
+        "\x1b[5;1H\x1b_Ga=T,f=32,s=1,v=1,i=773,p=1,c=1,r=1,C=1,q=1;{GREEN_RGBA_BASE64}\x1b\\"
+    );
+
+    terminal.process(b"\x1b[3;5r");
+    terminal.process(clipped.as_bytes());
+    terminal.process(shifted.as_bytes());
+    assert_eq!(terminal.graphics_count(), 2);
+
+    terminal.process(b"\x1b[1S");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        1,
+        "SU should discard graphics that overlap the deleted top row even when anchored above the scroll region"
+    );
+    assert_eq!(terminal.all_graphics()[0].kitty_image_id, Some(773));
+    assert_eq!(terminal.all_graphics()[0].position.1, 3);
+    assert_eq!(
+        terminal.scrollback_graphics_count(),
+        0,
+        "non-zero-top SU must not retain clipped graphics in scrollback"
+    );
+    assert_eq!(
+        terminal.deferred_kitty_delete_count(),
+        1,
+        "SU should remember overlapping Kitty placements for frontend clearing"
+    );
+}
+
+#[test]
+fn parser_terminal_scroll_up_deferred_delete_for_clipped_nonzero_top_kitty() {
+    let mut terminal = ParserTerminal::with_scrollback(12, 6, 20);
+    let clipped = format!(
+        "\x1b[3;1H\x1b_Ga=T,f=32,s=1,v=1,i=774,p=1,c=1,r=1,C=1,q=1;{RED_RGBA_BASE64}\x1b\\"
+    );
+
+    terminal.process(b"\x1b[3;5r");
+    terminal.process(clipped.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+
+    terminal.process(b"\x1b[1S");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "SU should discard graphics fully clipped out of a non-zero-top scroll region"
+    );
+    assert_eq!(terminal.scrollback_graphics_count(), 0);
+    assert_eq!(
+        terminal.deferred_kitty_delete_count(),
+        1,
+        "fully clipped Kitty placements should be remembered for frontend clearing"
+    );
+}
+
+#[test]
+fn parser_terminal_sixel_at_bottom_scrolls_region() {
+    let mut terminal = ParserTerminal::with_scrollback(8, 4, 20);
+
+    terminal.process(b"\x1b[4;1H\x1bPq~\x1b\\");
+
+    assert_eq!(terminal.cursor().col, 0);
+    assert_eq!(terminal.cursor().row, 3);
+    assert_eq!(
+        terminal.grid().scrollback_len(),
+        3,
+        "Sixel cursor advancement at the bottom should scroll the active region"
+    );
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "sixel");
+    assert_eq!(
+        graphic.position,
+        (0, 0),
+        "Sixel graphic should move with the scrolled active region"
+    );
+}
+
+#[test]
+fn parser_terminal_sixel_advancement_respects_scroll_region_bottom() {
+    let mut terminal = ParserTerminal::new(8, 6);
+
+    terminal.process(b"\x1b[1;1Htop\x1b[2;1Hone\x1b[3;1Htwo\x1b[4;1Hthree\x1b[5;1Hbottom");
+    terminal.process(b"\x1b[2;4r\x1b[4;1H\x1bPq~\x1b\\");
+
+    assert_eq!(
+        terminal.cursor().row,
+        3,
+        "Sixel cursor advancement should stay pinned to the scroll region bottom"
+    );
+    assert_eq!(
+        terminal.active_grid().row_text(4).trim_end(),
+        "bottom",
+        "Sixel advancement inside a partial scroll region must not move into rows below the region"
+    );
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "sixel");
+    assert_eq!(
+        graphic.position,
+        (0, 1),
+        "partially clipped Sixel graphics should stay anchored at the scroll region top"
+    );
+    assert_eq!(
+        graphic.scroll_offset_rows, 1,
+        "Sixel graphics clipped by partial scroll regions should track the hidden top rows"
+    );
+}
+
+fn screenshot_sixel_graphic(
+    row: usize,
+    height: usize,
+    pixels: Vec<u8>,
+    scroll_offset_rows: usize,
+) -> TerminalGraphic {
+    screenshot_rgba_graphic_at(0, row, 1, height, pixels, scroll_offset_rows)
+}
+
+fn screenshot_rgba_graphic_at(
+    col: usize,
+    row: usize,
+    width: usize,
+    height: usize,
+    pixels: Vec<u8>,
+    scroll_offset_rows: usize,
+) -> TerminalGraphic {
+    let width = width.max(1);
+    let height = height.max(1);
+    let mut graphic = TerminalGraphic::new(
+        next_graphic_id(),
+        GraphicProtocol::Sixel,
+        (col, row),
+        width,
+        height,
+        pixels,
+    );
+    graphic.set_cell_dimensions(1, 1);
+    graphic.set_display_cell_span(width, height);
+    graphic.scroll_offset_rows = scroll_offset_rows;
+    graphic
+}
+
+fn screenshot_pixels_config() -> ScreenshotConfig {
+    ScreenshotConfig::default()
+        .with_padding(0)
+        .with_sixel_mode(SixelRenderMode::Pixels)
+}
+
+fn screenshot_halfblocks_config() -> ScreenshotConfig {
+    ScreenshotConfig::default()
+        .with_padding(0)
+        .with_sixel_mode(SixelRenderMode::HalfBlocks)
+}
+
+#[test]
+fn parser_terminal_screenshot_includes_scrollback_graphics_at_offset() {
+    let mut terminal = ParserTerminal::with_scrollback(4, 2, 16);
+    terminal.set_cell_dimensions(1, 1);
+    terminal.process(b"one\ntwo\nthree\n");
+    let scrollback_len = terminal.active_grid().scrollback_len();
+    assert!(
+        scrollback_len > 0,
+        "test setup should create text scrollback"
+    );
+
+    assert!(terminal
+        .graphics_store_mut()
+        .add_graphic(screenshot_sixel_graphic(0, 1, vec![255, 0, 0, 255], 0)));
+    terminal
+        .graphics_store_mut()
+        .adjust_for_scroll_up_with_scrollback(1, 0, 1, scrollback_len.saturating_sub(1));
+    assert_eq!(terminal.scrollback_graphics_count(), 1);
+
+    let disabled = terminal
+        .screenshot(
+            ScreenshotConfig::default()
+                .with_padding(0)
+                .with_sixel_mode(SixelRenderMode::Disabled),
+            1,
+        )
+        .expect("disabled screenshot should render");
+    let pixels = terminal
+        .screenshot(screenshot_pixels_config(), 1)
+        .expect("scrollback graphics screenshot should render");
+
+    assert_ne!(
+        pixels, disabled,
+        "scrollback screenshots should render graphics when pixel mode is enabled"
+    );
+}
+
+#[test]
+fn parser_terminal_screenshot_crops_partially_scrolled_graphic_top() {
+    let mut cropped = ParserTerminal::with_scrollback(4, 2, 16);
+    cropped.set_cell_dimensions(1, 1);
+    assert!(cropped
+        .graphics_store_mut()
+        .add_graphic(screenshot_sixel_graphic(
+            0,
+            2,
+            vec![255, 0, 0, 255, 0, 255, 0, 255],
+            1,
+        )));
+
+    let mut expected = ParserTerminal::with_scrollback(4, 2, 16);
+    expected.set_cell_dimensions(1, 1);
+    assert!(expected
+        .graphics_store_mut()
+        .add_graphic(screenshot_sixel_graphic(0, 1, vec![0, 255, 0, 255], 0)));
+
+    let cropped_png = cropped
+        .screenshot(screenshot_pixels_config(), 0)
+        .expect("cropped graphic screenshot should render");
+    let expected_png = expected
+        .screenshot(screenshot_pixels_config(), 0)
+        .expect("expected graphic screenshot should render");
+
+    assert_eq!(
+        cropped_png, expected_png,
+        "screenshot renderer should skip graphic rows hidden by scroll_offset_rows"
+    );
+}
+
+#[test]
+fn parser_terminal_screenshot_applies_graphic_source_rectangle() {
+    let mut source_rect = ParserTerminal::with_scrollback(4, 2, 16);
+    source_rect.set_cell_dimensions(1, 1);
+    let mut graphic =
+        screenshot_rgba_graphic_at(0, 0, 2, 1, vec![255, 0, 0, 255, 0, 255, 0, 255], 0);
+    graphic.placement.source_x_offset = 1;
+    graphic.placement.source_width = Some(1);
+    assert!(source_rect.graphics_store_mut().add_graphic(graphic));
+
+    let mut expected = ParserTerminal::with_scrollback(4, 2, 16);
+    expected.set_cell_dimensions(1, 1);
+    assert!(expected
+        .graphics_store_mut()
+        .add_graphic(screenshot_rgba_graphic_at(
+            0,
+            0,
+            1,
+            1,
+            vec![0, 255, 0, 255],
+            0,
+        )));
+
+    assert_eq!(
+        source_rect
+            .screenshot(screenshot_pixels_config(), 0)
+            .expect("source-rect screenshot should render"),
+        expected
+            .screenshot(screenshot_pixels_config(), 0)
+            .expect("expected screenshot should render"),
+        "screenshot renderer should sample only the requested graphic source rectangle"
+    );
+}
+
+#[test]
+fn parser_terminal_screenshot_halfblocks_applies_graphic_source_rectangle() {
+    let mut source_rect = ParserTerminal::with_scrollback(4, 2, 16);
+    source_rect.set_cell_dimensions(1, 1);
+    let mut graphic =
+        screenshot_rgba_graphic_at(0, 0, 2, 1, vec![255, 0, 0, 255, 0, 255, 0, 255], 0);
+    graphic.placement.source_x_offset = 1;
+    graphic.placement.source_width = Some(1);
+    assert!(source_rect.graphics_store_mut().add_graphic(graphic));
+
+    let mut expected = ParserTerminal::with_scrollback(4, 2, 16);
+    expected.set_cell_dimensions(1, 1);
+    assert!(expected
+        .graphics_store_mut()
+        .add_graphic(screenshot_rgba_graphic_at(
+            0,
+            0,
+            1,
+            1,
+            vec![0, 255, 0, 255],
+            0,
+        )));
+
+    assert_eq!(
+        source_rect
+            .screenshot(screenshot_halfblocks_config(), 0)
+            .expect("halfblocks source-rect screenshot should render"),
+        expected
+            .screenshot(screenshot_halfblocks_config(), 0)
+            .expect("expected halfblocks screenshot should render"),
+        "halfblocks screenshot renderer should sample only the requested source rectangle"
+    );
+}
+
+#[test]
+fn parser_terminal_screenshot_applies_graphic_offsets() {
+    let mut offset = ParserTerminal::with_scrollback(4, 3, 16);
+    offset.set_cell_dimensions(1, 1);
+    let mut graphic = screenshot_rgba_graphic_at(0, 0, 1, 1, vec![255, 0, 0, 255], 0);
+    graphic.placement.x_offset = 1;
+    graphic.placement.y_offset = 1;
+    assert!(offset.graphics_store_mut().add_graphic(graphic));
+
+    let mut expected = ParserTerminal::with_scrollback(4, 3, 16);
+    expected.set_cell_dimensions(1, 1);
+    assert!(expected
+        .graphics_store_mut()
+        .add_graphic(screenshot_rgba_graphic_at(
+            0,
+            0,
+            2,
+            2,
+            vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 0, 0, 255,],
+            0,
+        )));
+
+    assert_eq!(
+        offset
+            .screenshot(screenshot_pixels_config(), 0)
+            .expect("offset screenshot should render"),
+        expected
+            .screenshot(screenshot_pixels_config(), 0)
+            .expect("expected screenshot should render"),
+        "screenshot renderer should apply per-cell graphic x/y offsets"
+    );
+}
+
+#[test]
+fn parser_terminal_screenshot_orders_graphics_by_z_index() {
+    let mut layered = ParserTerminal::with_scrollback(4, 2, 16);
+    layered.set_cell_dimensions(1, 1);
+    let mut top = screenshot_rgba_graphic_at(0, 0, 1, 1, vec![255, 0, 0, 255], 0);
+    top.placement.z_index = 9;
+    let mut bottom = screenshot_rgba_graphic_at(0, 0, 1, 1, vec![0, 255, 0, 255], 0);
+    bottom.placement.z_index = 0;
+    assert!(layered.graphics_store_mut().add_graphic(top));
+    assert!(layered.graphics_store_mut().add_graphic(bottom));
+
+    let mut expected = ParserTerminal::with_scrollback(4, 2, 16);
+    expected.set_cell_dimensions(1, 1);
+    assert!(expected
+        .graphics_store_mut()
+        .add_graphic(screenshot_rgba_graphic_at(
+            0,
+            0,
+            1,
+            1,
+            vec![255, 0, 0, 255],
+            0,
+        )));
+
+    assert_eq!(
+        layered
+            .screenshot(screenshot_pixels_config(), 0)
+            .expect("layered screenshot should render"),
+        expected
+            .screenshot(screenshot_pixels_config(), 0)
+            .expect("expected screenshot should render"),
+        "higher z-index graphics should render above lower z-index graphics"
+    );
+}
+
+#[test]
+fn parser_terminal_screenshot_applies_requested_pixel_size() {
+    let mut scaled = ParserTerminal::with_scrollback(4, 2, 16);
+    scaled.set_cell_dimensions(1, 1);
+    let mut graphic = screenshot_rgba_graphic_at(0, 0, 1, 1, vec![255, 0, 0, 255], 0);
+    graphic.placement.requested_width = ImageDimension::pixels(2.0);
+    graphic.placement.requested_height = ImageDimension::pixels(1.0);
+    assert!(scaled.graphics_store_mut().add_graphic(graphic));
+
+    let mut expected = ParserTerminal::with_scrollback(4, 2, 16);
+    expected.set_cell_dimensions(1, 1);
+    assert!(expected
+        .graphics_store_mut()
+        .add_graphic(screenshot_rgba_graphic_at(
+            0,
+            0,
+            2,
+            1,
+            vec![255, 0, 0, 255, 255, 0, 0, 255],
+            0,
+        )));
+
+    assert_eq!(
+        scaled
+            .screenshot(screenshot_pixels_config(), 0)
+            .expect("scaled screenshot should render"),
+        expected
+            .screenshot(screenshot_pixels_config(), 0)
+            .expect("expected screenshot should render"),
+        "screenshot renderer should scale graphics to requested pixel dimensions"
+    );
+}
+
+#[test]
+fn parser_terminal_screenshot_halfblocks_applies_requested_pixel_size() {
+    let mut scaled = ParserTerminal::with_scrollback(4, 2, 16);
+    scaled.set_cell_dimensions(1, 1);
+    let mut graphic = screenshot_rgba_graphic_at(0, 0, 1, 1, vec![255, 0, 0, 255], 0);
+    graphic.placement.requested_width = ImageDimension::pixels(2.0);
+    graphic.placement.requested_height = ImageDimension::pixels(1.0);
+    assert!(scaled.graphics_store_mut().add_graphic(graphic));
+
+    let mut expected = ParserTerminal::with_scrollback(4, 2, 16);
+    expected.set_cell_dimensions(1, 1);
+    assert!(expected
+        .graphics_store_mut()
+        .add_graphic(screenshot_rgba_graphic_at(
+            0,
+            0,
+            2,
+            1,
+            vec![255, 0, 0, 255, 255, 0, 0, 255],
+            0,
+        )));
+
+    assert_eq!(
+        scaled
+            .screenshot(screenshot_halfblocks_config(), 0)
+            .expect("halfblocks scaled screenshot should render"),
+        expected
+            .screenshot(screenshot_halfblocks_config(), 0)
+            .expect("expected halfblocks screenshot should render"),
+        "halfblocks screenshot renderer should scale graphics to requested pixel dimensions"
+    );
+}
+
+#[test]
+fn parser_terminal_il_moves_graphics_and_drops_bottom_region_graphics() {
+    let mut terminal = ParserTerminal::new(12, 6);
+    let shifted = format!(
+        "\x1b[3;1H\x1b_Ga=T,f=32,s=1,v=1,i=780,p=1,c=1,r=1,C=1,q=1;{RED_RGBA_BASE64}\x1b\\"
+    );
+    let dropped = format!(
+        "\x1b[5;1H\x1b_Ga=T,f=32,s=1,v=1,i=781,p=1,c=1,r=1,C=1,q=1;{GREEN_RGBA_BASE64}\x1b\\"
+    );
+
+    terminal.process(b"\x1b[3;5r");
+    terminal.process(shifted.as_bytes());
+    terminal.process(dropped.as_bytes());
+    assert_eq!(terminal.graphics_count(), 2);
+
+    terminal.process(b"\x1b[3;1H\x1b[L");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        1,
+        "IL should discard graphics anchored in rows pushed past the bottom margin"
+    );
+    assert_eq!(
+        terminal.all_graphics()[0].position.1,
+        3,
+        "IL should move graphics below the insertion row down with their text rows"
+    );
+    assert_eq!(terminal.all_graphics()[0].kitty_image_id, Some(780));
+}
+
+#[test]
+fn parser_terminal_il_drops_multirow_graphics_partly_pushed_past_bottom() {
+    let mut terminal = ParserTerminal::new(12, 6);
+    let shifted = format!(
+        "\x1b[3;1H\x1b_Ga=T,f=32,s=1,v=1,i=782,p=1,c=1,r=2,C=1,q=1;{RED_RGBA_BASE64}\x1b\\"
+    );
+    let clipped = format!(
+        "\x1b[4;1H\x1b_Ga=T,f=32,s=1,v=1,i=783,p=1,c=1,r=2,C=1,q=1;{GREEN_RGBA_BASE64}\x1b\\"
+    );
+
+    terminal.process(b"\x1b[3;5r");
+    terminal.process(shifted.as_bytes());
+    terminal.process(clipped.as_bytes());
+    assert_eq!(terminal.graphics_count(), 2);
+
+    terminal.process(b"\x1b[3;1H\x1b[L");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        1,
+        "IL should discard multirow graphics whose bottom rows are pushed past the margin"
+    );
+    assert_eq!(terminal.all_graphics()[0].kitty_image_id, Some(782));
+    assert_eq!(terminal.all_graphics()[0].position.1, 3);
+    assert_eq!(
+        terminal.deferred_kitty_delete_count(),
+        1,
+        "IL should remember partly clipped Kitty placements for frontend clearing"
+    );
+}
+
+#[test]
+fn parser_terminal_il_drops_multirow_graphics_overlapping_insert_top() {
+    let mut terminal = ParserTerminal::with_scrollback(12, 6, 20);
+    let clipped = format!(
+        "\x1b[2;1H\x1b_Ga=T,f=32,s=1,v=1,i=784,p=1,c=1,r=2,C=1,q=1;{RED_RGBA_BASE64}\x1b\\"
+    );
+    let shifted = format!(
+        "\x1b[4;1H\x1b_Ga=T,f=32,s=1,v=1,i=785,p=1,c=1,r=1,C=1,q=1;{GREEN_RGBA_BASE64}\x1b\\"
+    );
+
+    terminal.process(b"\x1b[3;5r");
+    terminal.process(clipped.as_bytes());
+    terminal.process(shifted.as_bytes());
+    assert_eq!(terminal.graphics_count(), 2);
+
+    terminal.process(b"\x1b[3;1H\x1b[L");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        1,
+        "IL should discard multirow graphics that overlap inserted top rows even when anchored above the margin"
+    );
+    assert_eq!(terminal.all_graphics()[0].kitty_image_id, Some(785));
+    assert_eq!(terminal.all_graphics()[0].position.1, 4);
+    assert_eq!(
+        terminal.scrollback_graphics_count(),
+        0,
+        "IL must not retain graphics clipped by inserted rows in primary scrollback"
+    );
+    assert_eq!(
+        terminal.deferred_kitty_delete_count(),
+        1,
+        "IL should remember top-overlapping Kitty placements for frontend clearing"
+    );
+}
+
+#[test]
+fn parser_terminal_dl_moves_graphics_without_scrollback_retention() {
+    let mut terminal = ParserTerminal::with_scrollback(12, 6, 20);
+    let deleted = format!(
+        "\x1b[3;1H\x1b_Ga=T,f=32,s=1,v=1,i=790,p=1,c=1,r=1,C=1,q=1;{RED_RGBA_BASE64}\x1b\\"
+    );
+    let shifted = format!(
+        "\x1b[5;1H\x1b_Ga=T,f=32,s=1,v=1,i=791,p=1,c=1,r=1,C=1,q=1;{GREEN_RGBA_BASE64}\x1b\\"
+    );
+
+    terminal.process(deleted.as_bytes());
+    terminal.process(shifted.as_bytes());
+    assert_eq!(terminal.graphics_count(), 2);
+
+    terminal.process(b"\x1b[3;1H\x1b[M");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        1,
+        "DL should delete graphics anchored in the deleted line range"
+    );
+    assert_eq!(
+        terminal.all_graphics()[0].position.1,
+        3,
+        "DL should move graphics below the deleted rows up with their text rows"
+    );
+    assert_eq!(terminal.all_graphics()[0].kitty_image_id, Some(791));
+    assert_eq!(
+        terminal.scrollback_graphics_count(),
+        0,
+        "DL removes lines from the scroll region and must not retain deleted graphics in scrollback"
+    );
+}
+
+#[test]
+fn parser_terminal_dl_drops_multirow_graphics_overlapping_deleted_rows() {
+    let mut terminal = ParserTerminal::with_scrollback(12, 6, 20);
+    let clipped = format!(
+        "\x1b[2;1H\x1b_Ga=T,f=32,s=1,v=1,i=796,p=1,c=1,r=2,C=1,q=1;{RED_RGBA_BASE64}\x1b\\"
+    );
+    let shifted = format!(
+        "\x1b[5;1H\x1b_Ga=T,f=32,s=1,v=1,i=797,p=1,c=1,r=1,C=1,q=1;{GREEN_RGBA_BASE64}\x1b\\"
+    );
+
+    terminal.process(b"\x1b[3;5r");
+    terminal.process(clipped.as_bytes());
+    terminal.process(shifted.as_bytes());
+    assert_eq!(terminal.graphics_count(), 2);
+
+    terminal.process(b"\x1b[3;1H\x1b[M");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        1,
+        "DL should discard multirow graphics that overlap deleted rows even when anchored above the margin"
+    );
+    assert_eq!(terminal.all_graphics()[0].kitty_image_id, Some(797));
+    assert_eq!(terminal.all_graphics()[0].position.1, 3);
+    assert_eq!(
+        terminal.scrollback_graphics_count(),
+        0,
+        "DL must not retain deleted-region graphics in scrollback"
+    );
+    assert_eq!(
+        terminal.deferred_kitty_delete_count(),
+        1,
+        "DL should remember overlapping Kitty placements for frontend clearing"
+    );
+}
+
+#[test]
+fn parser_terminal_sd_moves_graphics_and_drops_bottom_region_graphics() {
+    let mut terminal = ParserTerminal::with_scrollback(12, 6, 20);
+    let shifted = format!(
+        "\x1b[3;1H\x1b_Ga=T,f=32,s=1,v=1,i=792,p=1,c=1,r=1,C=1,q=1;{RED_RGBA_BASE64}\x1b\\"
+    );
+    let dropped = format!(
+        "\x1b[5;1H\x1b_Ga=T,f=32,s=1,v=1,i=793,p=1,c=1,r=1,C=1,q=1;{GREEN_RGBA_BASE64}\x1b\\"
+    );
+
+    terminal.process(b"\x1b[3;5r");
+    terminal.process(shifted.as_bytes());
+    terminal.process(dropped.as_bytes());
+    assert_eq!(terminal.graphics_count(), 2);
+
+    terminal.process(b"\x1b[3;1H\x1b[T");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        1,
+        "SD should discard graphics anchored in rows pushed past the bottom margin"
+    );
+    assert_eq!(
+        terminal.all_graphics()[0].position.1,
+        3,
+        "SD should move graphics inside the scroll region down with their text rows"
+    );
+    assert_eq!(terminal.all_graphics()[0].kitty_image_id, Some(792));
+    assert_eq!(
+        terminal.scrollback_graphics_count(),
+        0,
+        "SD inserts lines into the scroll region and must not retain pushed graphics in scrollback"
+    );
+    assert_eq!(
+        terminal.deferred_kitty_delete_count(),
+        1,
+        "SD should remember deleted Kitty placements for frontend clearing"
+    );
+}
+
+#[test]
+fn parser_terminal_sd_drops_multirow_graphics_partly_pushed_past_bottom() {
+    let mut terminal = ParserTerminal::with_scrollback(12, 6, 20);
+    let shifted = format!(
+        "\x1b[3;1H\x1b_Ga=T,f=32,s=1,v=1,i=794,p=1,c=1,r=2,C=1,q=1;{RED_RGBA_BASE64}\x1b\\"
+    );
+    let clipped = format!(
+        "\x1b[4;1H\x1b_Ga=T,f=32,s=1,v=1,i=795,p=1,c=1,r=2,C=1,q=1;{GREEN_RGBA_BASE64}\x1b\\"
+    );
+
+    terminal.process(b"\x1b[3;5r");
+    terminal.process(shifted.as_bytes());
+    terminal.process(clipped.as_bytes());
+    assert_eq!(terminal.graphics_count(), 2);
+
+    terminal.process(b"\x1b[3;1H\x1b[T");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        1,
+        "SD should discard multirow graphics whose bottom rows are pushed past the margin"
+    );
+    assert_eq!(terminal.all_graphics()[0].kitty_image_id, Some(794));
+    assert_eq!(terminal.all_graphics()[0].position.1, 3);
+    assert_eq!(
+        terminal.scrollback_graphics_count(),
+        0,
+        "SD must not retain partly clipped graphics in primary scrollback"
+    );
+    assert_eq!(
+        terminal.deferred_kitty_delete_count(),
+        1,
+        "SD should remember partly clipped Kitty placements for frontend clearing"
+    );
+}
+
+#[test]
+fn parser_terminal_sd_drops_multirow_graphics_overlapping_scroll_top() {
+    let mut terminal = ParserTerminal::with_scrollback(12, 6, 20);
+    let clipped = format!(
+        "\x1b[2;1H\x1b_Ga=T,f=32,s=1,v=1,i=798,p=1,c=1,r=2,C=1,q=1;{RED_RGBA_BASE64}\x1b\\"
+    );
+    let shifted = format!(
+        "\x1b[4;1H\x1b_Ga=T,f=32,s=1,v=1,i=799,p=1,c=1,r=1,C=1,q=1;{GREEN_RGBA_BASE64}\x1b\\"
+    );
+
+    terminal.process(b"\x1b[3;5r");
+    terminal.process(clipped.as_bytes());
+    terminal.process(shifted.as_bytes());
+    assert_eq!(terminal.graphics_count(), 2);
+
+    terminal.process(b"\x1b[1T");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        1,
+        "SD should discard multirow graphics that overlap inserted top rows even when anchored above the margin"
+    );
+    assert_eq!(terminal.all_graphics()[0].kitty_image_id, Some(799));
+    assert_eq!(terminal.all_graphics()[0].position.1, 4);
+    assert_eq!(
+        terminal.scrollback_graphics_count(),
+        0,
+        "SD must not retain graphics clipped by scroll-down insertion in primary scrollback"
+    );
+    assert_eq!(
+        terminal.deferred_kitty_delete_count(),
+        1,
+        "SD should remember top-overlapping Kitty placements for frontend clearing"
+    );
+}
+
+#[test]
+fn parser_terminal_ich_moves_graphics_and_drops_right_margin_graphics() {
+    let mut terminal = ParserTerminal::new(8, 4);
+    let shifted = format!("\x1b[2;3H\x1b_Ga=T,f=32,s=1,v=1,i=710,p=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+    let dropped =
+        format!("\x1b[2;8H\x1b_Ga=T,f=32,s=1,v=1,i=711,p=1,q=1;{GREEN_RGBA_BASE64}\x1b\\");
+
+    terminal.process(shifted.as_bytes());
+    terminal.process(dropped.as_bytes());
+    assert_eq!(terminal.graphics_count(), 2);
+
+    terminal.process(b"\x1b[2;2H\x1b[2@");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        1,
+        "ICH should discard graphics pushed past the right margin"
+    );
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.kitty_image_id, Some(710));
+    assert_eq!(
+        graphic.position.0, 4,
+        "ICH should move graphics right with shifted row content"
+    );
+    assert_eq!(
+        terminal.deferred_kitty_delete_count(),
+        1,
+        "ICH should remember deleted Kitty placements for frontend clearing"
+    );
+}
+
+#[test]
+fn parser_terminal_insert_mode_write_moves_graphics_like_ich() {
+    let mut terminal = ParserTerminal::new(8, 4);
+    let shifted = format!("\x1b[2;3H\x1b_Ga=T,f=32,s=1,v=1,i=712,p=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+    let dropped =
+        format!("\x1b[2;8H\x1b_Ga=T,f=32,s=1,v=1,i=713,p=1,q=1;{GREEN_RGBA_BASE64}\x1b\\");
+
+    terminal.process(shifted.as_bytes());
+    terminal.process(dropped.as_bytes());
+    assert_eq!(terminal.graphics_count(), 2);
+
+    terminal.process(b"\x1b[4h\x1b[2;2HZ");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        1,
+        "IRM character writes should discard graphics pushed past the right margin"
+    );
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.kitty_image_id, Some(712));
+    assert_eq!(
+        graphic.position.0, 3,
+        "IRM character writes should move graphics right with shifted row content"
+    );
+    assert_eq!(
+        terminal.deferred_kitty_delete_count(),
+        1,
+        "IRM character writes should remember deleted Kitty placements for frontend clearing"
+    );
+}
+
+#[test]
+fn parser_terminal_insert_mode_ascii_run_inserts_and_moves_graphics_by_run_width() {
+    let mut terminal = ParserTerminal::new(10, 4);
+    let shifted = format!("\x1b[2;5H\x1b_Ga=T,f=32,s=1,v=1,i=714,p=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+
+    terminal.process(b"\x1b[2;1HABCDE");
+    terminal.process(shifted.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+
+    terminal.process(b"\x1b[4h\x1b[2;2HXY");
+
+    assert_eq!(
+        terminal.active_grid().row_text(1).trim_end(),
+        "AXYBCDE",
+        "IRM must insert every printable ASCII byte in a run instead of overwriting row text"
+    );
+    assert_eq!(
+        terminal.graphics_count(),
+        1,
+        "IRM ASCII runs should keep graphics that remain inside the row"
+    );
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.kitty_image_id, Some(714));
+    assert_eq!(
+        graphic.position.0, 6,
+        "IRM ASCII runs should move graphics right by the inserted run width"
+    );
+    assert_eq!(terminal.deferred_kitty_delete_count(), 0);
+}
+
+#[test]
+fn parser_terminal_dch_deletes_intersecting_graphics_and_moves_right_side_left() {
+    let mut terminal = ParserTerminal::new(8, 4);
+    let deleted = format!("\x1b[2;3H\x1b_Ga=T,f=32,s=1,v=1,i=720,p=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+    let shifted =
+        format!("\x1b[2;6H\x1b_Ga=T,f=32,s=1,v=1,i=721,p=1,q=1;{GREEN_RGBA_BASE64}\x1b\\");
+
+    terminal.process(deleted.as_bytes());
+    terminal.process(shifted.as_bytes());
+    assert_eq!(terminal.graphics_count(), 2);
+
+    terminal.process(b"\x1b[2;3H\x1b[P");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        1,
+        "DCH should delete graphics intersecting the deleted cell range"
+    );
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.kitty_image_id, Some(721));
+    assert_eq!(
+        graphic.position.0, 4,
+        "DCH should move graphics after the deleted range left"
+    );
+    assert_eq!(
+        terminal.deferred_kitty_delete_count(),
+        1,
+        "DCH should remember deleted Kitty placements for frontend clearing"
+    );
+}
+
+#[test]
+fn parser_terminal_alt_screen_erase_keeps_primary_graphics() {
+    let mut terminal = ParserTerminal::new(10, 6);
+    let primary = format!("\x1b[2;3H\x1b_Ga=T,f=32,s=1,v=1,i=730,C=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(primary.as_bytes());
+    let primary_graphic_id = terminal.all_graphics()[0].id;
+
+    terminal.use_alt_screen();
+    let alternate =
+        format!("\x1b[2;3H\x1b_Ga=T,f=32,s=1,v=1,i=731,C=1,q=1;{GREEN_RGBA_BASE64}\x1b\\");
+    terminal.process(alternate.as_bytes());
+    assert_eq!(terminal.graphics_count(), 2);
+
+    terminal.process(b"\x1b[2;3H\x1b[K");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        1,
+        "EL in the alternate screen must delete only alternate-screen graphics"
+    );
+    let remaining = &terminal.all_graphics()[0];
+    assert_eq!(remaining.id, primary_graphic_id);
+    assert_eq!(remaining.kitty_image_id, Some(730));
+    assert!(!remaining.alternate_screen);
+    assert_eq!(remaining.position, (2, 1));
+}
+
+#[test]
+fn parser_terminal_alt_screen_character_edits_keep_primary_graphics() {
+    let mut terminal = ParserTerminal::new(10, 6);
+    let primary = format!("\x1b[2;6H\x1b_Ga=T,f=32,s=1,v=1,i=740,C=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(primary.as_bytes());
+    let primary_graphic_id = terminal.all_graphics()[0].id;
+
+    terminal.use_alt_screen();
+    let alternate =
+        format!("\x1b[2;4H\x1b_Ga=T,f=32,s=1,v=1,i=741,C=1,q=1;{GREEN_RGBA_BASE64}\x1b\\");
+    terminal.process(alternate.as_bytes());
+    assert_eq!(terminal.graphics_count(), 2);
+
+    terminal.process(b"\x1b[2;2H\x1b[2@");
+    let primary_after_ich = terminal
+        .all_graphics()
+        .iter()
+        .find(|graphic| graphic.id == primary_graphic_id)
+        .expect("primary graphic should survive alternate-screen ICH");
+    assert_eq!(
+        primary_after_ich.position,
+        (5, 1),
+        "ICH in the alternate screen must not move primary-screen graphics"
+    );
+    let alternate_after_ich = terminal
+        .all_graphics()
+        .iter()
+        .find(|graphic| graphic.kitty_image_id == Some(741))
+        .expect("alternate graphic should survive alternate-screen ICH");
+    assert_eq!(
+        alternate_after_ich.position,
+        (5, 1),
+        "ICH should move alternate-screen graphics with the edited row"
+    );
+
+    terminal.process(b"\x1b[2;6H\x1b[P");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        1,
+        "DCH in the alternate screen must delete only alternate-screen graphics"
+    );
+    let remaining = &terminal.all_graphics()[0];
+    assert_eq!(remaining.id, primary_graphic_id);
+    assert_eq!(remaining.kitty_image_id, Some(740));
+    assert_eq!(remaining.position, (5, 1));
+    assert!(!remaining.alternate_screen);
+}
+
+#[test]
+fn parser_terminal_decsera_removes_graphics_intersecting_erased_cells() {
+    let mut terminal = ParserTerminal::new(10, 6);
+    let graphic = format!("\x1b[2;3H\x1b_Ga=T,f=32,s=1,v=1,i=742,C=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+
+    terminal.process(graphic.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+
+    terminal.process(b"\x1b[2;3;2;3${");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "DECSERA should remove graphics intersecting cells it actually erased"
+    );
+    assert_eq!(
+        terminal.deferred_kitty_delete_count(),
+        1,
+        "DECSERA should remember deleted Kitty placements for frontend clearing"
+    );
+}
+
+#[test]
+fn parser_terminal_decsera_removes_intersecting_iterm_and_sixel_graphics() {
+    let mut terminal = ParserTerminal::new(12, 8);
+    let iterm = format!(
+        "\x1b[2;3H\x1b]1337;File=inline=1;doNotMoveCursor=1:{}\x1b\\",
+        RED_PIXEL_PNG_BASE64
+    );
+
+    terminal.process(iterm.as_bytes());
+    terminal.process(b"\x1b[5;3H\x1bPq????\x1b\\");
+    assert_eq!(terminal.graphics_count(), 2);
+    assert!(terminal
+        .all_graphics()
+        .iter()
+        .any(|graphic| graphic.protocol.as_str() == "iterm"));
+    assert!(terminal
+        .all_graphics()
+        .iter()
+        .any(|graphic| graphic.protocol.as_str() == "sixel"));
+
+    terminal.process(b"\x1b[2;3;2;3${");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        1,
+        "DECSERA should remove non-Kitty graphics intersecting erased cells"
+    );
+    let remaining = &terminal.all_graphics()[0];
+    assert_eq!(remaining.protocol.as_str(), "sixel");
+    assert_eq!(remaining.position.1, 4);
+
+    terminal.process(b"\x1b[5;3;5;3${");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "DECSERA should clear Sixel graphics intersecting erased cells"
+    );
+}
+
+#[test]
+fn parser_terminal_decsera_keeps_graphics_over_protected_cells() {
+    let mut terminal = ParserTerminal::new(10, 6);
+    let graphic = format!("\x1b[2;3H\x1b_Ga=T,f=32,s=1,v=1,i=743,C=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+
+    terminal.process(b"\x1b[2;3H\x1b[1\"qX\x1b[0\"q");
+    assert!(terminal.active_grid().get(2, 1).unwrap().flags.guarded());
+    terminal.process(graphic.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+
+    terminal.process(b"\x1b[2;3;2;3${");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        1,
+        "DECSERA should not remove graphics when every intersecting cell is protected"
+    );
+    assert_eq!(terminal.deferred_kitty_delete_count(), 0);
+    let protected = terminal.active_grid().get(2, 1).unwrap();
+    assert_eq!(protected.c, 'X');
+    assert!(protected.flags.guarded());
+}
+
+#[test]
+fn parser_terminal_c1_normalization_preserves_valid_utf8_text() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let text = "ok ✓ 😀";
+
+    terminal.process(text.as_bytes());
+
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), text);
+}
+
+#[test]
+fn parser_terminal_keeps_emoji_tag_sequence_in_one_wide_cell() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let scotland_flag = "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}";
+
+    terminal.process(scotland_flag.as_bytes());
+    terminal.process(b"X");
+
+    let flag = terminal.active_grid().get(0, 0).unwrap();
+    assert_eq!(flag.get_grapheme(), scotland_flag);
+    assert_eq!(flag.width(), 2);
+    assert!(
+        flag.flags.wide_char(),
+        "emoji tag sequence should occupy a wide leading cell"
+    );
+    assert!(
+        terminal
+            .active_grid()
+            .get(1, 0)
+            .unwrap()
+            .flags
+            .wide_char_spacer(),
+        "emoji tag sequence should reserve a continuation cell"
+    );
+    assert_eq!(terminal.active_grid().get(2, 0).unwrap().c, 'X');
+    assert_eq!(
+        terminal.active_grid().row_text(0).trim_end(),
+        format!("{scotland_flag}X")
+    );
+}
+
+#[test]
+fn terminal_width_helpers_treat_emoji_tag_sequence_as_wide_cluster() {
+    let scotland_flag = "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}";
+
+    assert_eq!(str_width(scotland_flag, &WidthConfig::default()), 2);
+
+    let cell = Cell::from_grapheme(scotland_flag);
+    assert_eq!(cell.get_grapheme(), scotland_flag);
+    assert_eq!(cell.width(), 2);
+}
+
+#[test]
+fn parser_terminal_keeps_dangling_emoji_tag_text_narrow() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let tagged_text = "a\u{E0067}";
+
+    terminal.process(tagged_text.as_bytes());
+    terminal.process(b"X");
+
+    let cell = terminal.active_grid().get(0, 0).unwrap();
+    assert_eq!(cell.get_grapheme(), tagged_text);
+    assert_eq!(cell.width(), 1);
+    assert!(
+        !cell.flags.wide_char(),
+        "dangling emoji tag characters must not force plain text wide"
+    );
+    assert!(
+        !terminal
+            .active_grid()
+            .get(1, 0)
+            .unwrap()
+            .flags
+            .wide_char_spacer(),
+        "dangling emoji tag characters must not reserve a continuation cell"
+    );
+    assert_eq!(terminal.active_grid().get(1, 0).unwrap().c, 'X');
+    assert_eq!(
+        terminal.active_grid().row_text(0).trim_end(),
+        format!("{tagged_text}X")
+    );
+}
+
+#[test]
+fn terminal_width_helpers_keep_dangling_emoji_tag_text_narrow() {
+    let tagged_text = "a\u{E0067}";
+
+    assert_eq!(str_width(tagged_text, &WidthConfig::default()), 1);
+
+    let cell = Cell::from_grapheme(tagged_text);
+    assert_eq!(cell.get_grapheme(), tagged_text);
+    assert_eq!(cell.width(), 1);
+}
+
+#[test]
+fn parser_terminal_keeps_text_keycap_sequence_in_one_wide_cell() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let keycap = "1\u{20E3}";
+
+    terminal.process(keycap.as_bytes());
+    terminal.process(b"X");
+
+    let cell = terminal.active_grid().get(0, 0).unwrap();
+    assert_eq!(cell.get_grapheme(), keycap);
+    assert_eq!(cell.width(), 2);
+    assert!(
+        cell.flags.wide_char(),
+        "text keycap sequence should occupy a wide leading cell"
+    );
+    assert!(
+        terminal
+            .active_grid()
+            .get(1, 0)
+            .unwrap()
+            .flags
+            .wide_char_spacer(),
+        "text keycap sequence should reserve a continuation cell"
+    );
+    assert_eq!(terminal.active_grid().get(2, 0).unwrap().c, 'X');
+    assert_eq!(
+        terminal.active_grid().row_text(0).trim_end(),
+        format!("{keycap}X")
+    );
+}
+
+#[test]
+fn terminal_width_helpers_treat_text_keycap_sequence_as_wide_cluster() {
+    let keycap = "#\u{20E3}";
+
+    assert_eq!(str_width(keycap, &WidthConfig::default()), 2);
+
+    let cell = Cell::from_grapheme(keycap);
+    assert_eq!(cell.get_grapheme(), keycap);
+    assert_eq!(cell.width(), 2);
+}
+
+#[test]
+fn parser_terminal_keeps_text_presentation_variation_selector_narrow() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let text_airplane = "\u{2708}\u{FE0E}";
+
+    terminal.process(text_airplane.as_bytes());
+    terminal.process(b"X");
+
+    let airplane = terminal.active_grid().get(0, 0).unwrap();
+    assert_eq!(airplane.get_grapheme(), text_airplane);
+    assert_eq!(airplane.width(), 1);
+    assert!(
+        !airplane.flags.wide_char(),
+        "VS15 text presentation should not force emoji-width rendering"
+    );
+    assert!(
+        !terminal
+            .active_grid()
+            .get(1, 0)
+            .unwrap()
+            .flags
+            .wide_char_spacer(),
+        "VS15 text presentation should not reserve a continuation cell"
+    );
+    assert_eq!(terminal.active_grid().get(1, 0).unwrap().c, 'X');
+    assert_eq!(
+        terminal.active_grid().row_text(0).trim_end(),
+        format!("{text_airplane}X")
+    );
+}
+
+#[test]
+fn parser_terminal_keeps_private_use_nerd_font_icons_narrow() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let powerline_separator = '\u{E0B0}';
+    let supplementary_nerd_icon = '\u{F08C7}';
+    let text = format!("{powerline_separator}{supplementary_nerd_icon}a");
+
+    terminal.process(text.as_bytes());
+
+    let powerline = terminal.active_grid().get(0, 0).unwrap();
+    assert_eq!(powerline.c, powerline_separator);
+    assert_eq!(powerline.width(), 1);
+    assert!(!powerline.flags.wide_char());
+
+    let nerd_icon = terminal.active_grid().get(1, 0).unwrap();
+    assert_eq!(nerd_icon.c, supplementary_nerd_icon);
+    assert_eq!(nerd_icon.width(), 1);
+    assert!(!nerd_icon.flags.wide_char());
+
+    assert_eq!(terminal.active_grid().get(2, 0).unwrap().c, 'a');
+    assert_eq!(terminal.cursor().col, 3);
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), text);
+}
+
+#[test]
+fn terminal_width_helpers_keep_private_use_nerd_font_icons_narrow() {
+    let powerline_separator = "\u{E0B0}";
+    let supplementary_nerd_icon = "\u{F08C7}";
+
+    assert_eq!(str_width(powerline_separator, &WidthConfig::default()), 1);
+    assert_eq!(
+        str_width(supplementary_nerd_icon, &WidthConfig::default()),
+        1
+    );
+
+    let powerline = Cell::from_grapheme(powerline_separator);
+    assert_eq!(powerline.get_grapheme(), powerline_separator);
+    assert_eq!(powerline.width(), 1);
+
+    let nerd_icon = Cell::from_grapheme(supplementary_nerd_icon);
+    assert_eq!(nerd_icon.get_grapheme(), supplementary_nerd_icon);
+    assert_eq!(nerd_icon.width(), 1);
+}
+
+#[test]
+fn session_frame_diff_keeps_private_use_nerd_font_icons_narrow() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&nerd_font_icons_profile()).unwrap())
+            .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "NF:");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let expected = "NF:\u{E0B0}\u{F08C7}Z";
+
+    assert_eq!(
+        frame_row_at_index(&parsed, 0)["text"]
+            .as_str()
+            .unwrap_or_default()
+            .trim_end(),
+        expected
+    );
+    assert_eq!(
+        parsed["cursor"]["col"].as_u64(),
+        Some(6),
+        "private-use icons should each advance by one cell in frame diff: {frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_serializes_complex_grapheme_styles_in_terminal_columns() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&complex_grapheme_style_profile()).unwrap())
+            .unwrap();
+
+    let frame = wait_for_frame_where(session_id, |frame| {
+        frame.contains("A") && frame.contains("D") && frame.contains("#ff0000")
+    });
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let row = frame_row_at_index(&parsed, 0);
+    let expected = "A\u{2708}\u{FE0F}B\u{1F468}\u{200D}\u{1F4BB}C1\u{FE0F}\u{20E3}D";
+
+    assert_eq!(
+        row["text"].as_str().unwrap_or_default().trim_end(),
+        expected
+    );
+    assert_eq!(
+        parsed["cursor"]["col"].as_u64(),
+        Some(10),
+        "emoji-width graphemes should advance the frame cursor by terminal columns: {frame}"
+    );
+
+    let style_runs = row["style_runs"].as_array().expect("expected style runs");
+    let styled_columns = ["#ff0000", "#00ff00", "#0000ff"]
+        .into_iter()
+        .map(|foreground| {
+            let run = style_runs
+                .iter()
+                .find(|run| run["foreground"].as_str() == Some(foreground))
+                .unwrap_or_else(|| panic!("missing style run for {foreground}: {frame}"));
+            (
+                foreground,
+                run["start"].as_u64().unwrap(),
+                run["end"].as_u64().unwrap(),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        styled_columns,
+        vec![("#ff0000", 1, 3), ("#00ff00", 4, 6), ("#0000ff", 7, 9)],
+        "style runs should use terminal columns across wide graphemes: {frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_wraps_wide_grapheme_cluster_at_right_edge() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&wide_grapheme_right_edge_profile()).unwrap(),
+    )
+    .unwrap();
+    session::resize_session(session_id, 2, 4, 0, 0).unwrap();
+
+    let flag = "\u{1F1FA}\u{1F1F8}";
+    let frame = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["viewport_cols"].as_u64() == Some(2)
+            && frame_row_at_index(&parsed, 2)["text"]
+                .as_str()
+                .is_some_and(|text| text.trim_end() == "B")
+    });
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+
+    assert_eq!(
+        frame_row_at_index(&parsed, 0)["text"]
+            .as_str()
+            .unwrap_or_default()
+            .trim_end(),
+        "A",
+        "wide grapheme should wrap before the right edge instead of overwriting row 0: {frame}"
+    );
+    assert_eq!(
+        frame_row_at_index(&parsed, 1)["text"]
+            .as_str()
+            .unwrap_or_default()
+            .trim_end(),
+        flag,
+        "regional flag pair should stay one grapheme on the wrapped row: {frame}"
+    );
+    assert_eq!(
+        frame_row_at_index(&parsed, 2)["text"]
+            .as_str()
+            .unwrap_or_default()
+            .trim_end(),
+        "B",
+        "text after the full-width flag should continue after the reserved continuation cell: {frame}"
+    );
+    assert_eq!(
+        logical_rows_from_frame(&frame),
+        vec![format!("A{flag}B")],
+        "logical rows should reassemble the wrapped wide cluster without fragments: {frame}"
+    );
+    assert_eq!(
+        parsed["cursor"]["row"].as_u64(),
+        Some(2),
+        "cursor row should reflect the wide-cluster wrap and following text: {frame}"
+    );
+    assert_eq!(
+        parsed["cursor"]["col"].as_u64(),
+        Some(1),
+        "cursor column should advance one cell after trailing text: {frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn parser_terminal_keeps_plain_text_variation_selectors_narrow() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    terminal.set_width_config(WidthConfig::cjk());
+    let plain_vs16 = "a\u{FE0F}";
+    let private_use_vs16 = "\u{E0B0}\u{FE0F}";
+
+    terminal.process(format!("{plain_vs16}{private_use_vs16}X").as_bytes());
+
+    let text_cell = terminal.active_grid().get(0, 0).unwrap();
+    assert_eq!(text_cell.get_grapheme(), plain_vs16);
+    assert_eq!(text_cell.width(), 1);
+    assert!(!text_cell.flags.wide_char());
+
+    let private_use_cell = terminal.active_grid().get(1, 0).unwrap();
+    assert_eq!(private_use_cell.get_grapheme(), private_use_vs16);
+    assert_eq!(private_use_cell.width(), 1);
+    assert!(!private_use_cell.flags.wide_char());
+
+    assert_eq!(terminal.active_grid().get(2, 0).unwrap().c, 'X');
+    for col in 0..3 {
+        assert!(
+            !terminal
+                .active_grid()
+                .get(col, 0)
+                .unwrap()
+                .flags
+                .wide_char_spacer(),
+            "plain text variation selector should not leave a spacer at column {col}"
+        );
+    }
+}
+
+#[test]
+fn terminal_width_helpers_ignore_plain_text_variation_selectors() {
+    let plain_vs16 = "a\u{FE0F}";
+    let plain_vs15 = "a\u{FE0E}";
+    let private_use_vs16 = "\u{E0B0}\u{FE0F}";
+
+    assert_eq!(str_width(plain_vs16, &WidthConfig::default()), 1);
+    assert_eq!(str_width(plain_vs16, &WidthConfig::cjk()), 1);
+    assert_eq!(str_width(plain_vs15, &WidthConfig::cjk()), 1);
+    assert_eq!(str_width(private_use_vs16, &WidthConfig::default()), 1);
+
+    let plain_cell = Cell::from_grapheme(plain_vs16);
+    assert_eq!(plain_cell.get_grapheme(), plain_vs16);
+    assert_eq!(plain_cell.width(), 1);
+}
+
+#[test]
+fn terminal_width_helpers_keep_common_emoji_variation_bases_wide() {
+    for grapheme in ["\u{00A9}\u{FE0F}", "\u{2194}\u{FE0F}"] {
+        assert_eq!(str_width(grapheme, &WidthConfig::default()), 2);
+
+        let cell = Cell::from_grapheme(grapheme);
+        assert_eq!(cell.get_grapheme(), grapheme);
+        assert_eq!(cell.width(), 2);
+    }
+}
+
+#[test]
+fn parser_terminal_recalculates_combining_grapheme_with_cjk_width_config() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    terminal.set_width_config(WidthConfig::cjk());
+
+    terminal.process("e\u{0301}".as_bytes());
+    terminal.process(b"X");
+
+    let composed = terminal.active_grid().get(0, 0).unwrap();
+    assert_eq!(composed.get_grapheme(), "\u{00E9}");
+    assert_eq!(composed.width(), 2);
+    assert!(
+        composed.flags.wide_char(),
+        "NFC-composed ambiguous grapheme should use the active CJK width config"
+    );
+    assert!(
+        terminal
+            .active_grid()
+            .get(1, 0)
+            .unwrap()
+            .flags
+            .wide_char_spacer(),
+        "NFC-composed ambiguous grapheme should reserve a continuation cell"
+    );
+    assert_eq!(terminal.active_grid().get(2, 0).unwrap().c, 'X');
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), "\u{00E9}X");
+}
+
+#[test]
+fn parser_terminal_wraps_cjk_ambiguous_combining_grapheme_that_becomes_wide_at_right_edge() {
+    let mut terminal = ParserTerminal::new(2, 4);
+    terminal.set_width_config(WidthConfig::cjk());
+
+    terminal.process("Ae\u{0301}X".as_bytes());
+
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), "A");
+    assert_eq!(terminal.active_grid().row_text(1).trim_end(), "\u{00E9}");
+    let composed = terminal.active_grid().get(0, 1).unwrap();
+    assert_eq!(composed.get_grapheme(), "\u{00E9}");
+    assert_eq!(composed.width(), 2);
+    assert!(
+        composed.flags.wide_char(),
+        "CJK-ambiguous composed grapheme should become wide after NFC normalization"
+    );
+    assert!(
+        terminal
+            .active_grid()
+            .get(1, 1)
+            .unwrap()
+            .flags
+            .wide_char_spacer(),
+        "widened CJK-ambiguous grapheme should reserve a spacer after wrapping"
+    );
+    assert_eq!(terminal.active_grid().row_text(2).trim_end(), "X");
+    assert_eq!(
+        terminal.active_grid().row_text(0).trim_end(),
+        "A",
+        "the old right-edge narrow base cell should be cleared after wrap"
+    );
+}
+
+#[test]
+fn parser_terminal_wraps_grapheme_that_becomes_wide_at_right_edge() {
+    let mut terminal = ParserTerminal::new(2, 4);
+    let airplane_emoji = "✈️";
+
+    terminal.process(format!("A{airplane_emoji}B").as_bytes());
+
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), "A");
+    assert_eq!(
+        terminal.active_grid().row_text(1).trim_end(),
+        airplane_emoji
+    );
+    let emoji = terminal.active_grid().get(0, 1).unwrap();
+    assert_eq!(emoji.get_grapheme(), airplane_emoji);
+    assert_eq!(emoji.width(), 2);
+    assert!(emoji.flags.wide_char());
+    assert!(
+        terminal
+            .active_grid()
+            .get(1, 1)
+            .unwrap()
+            .flags
+            .wide_char_spacer(),
+        "widened grapheme should reserve a spacer after wrapping"
+    );
+    assert_eq!(terminal.active_grid().row_text(2).trim_end(), "B");
+}
+
+#[test]
+fn parser_terminal_widened_grapheme_clears_displaced_wide_neighbor_fragment() {
+    let mut terminal = ParserTerminal::new(8, 4);
+
+    terminal.process("✈中Z".as_bytes());
+    terminal.process(b"\x1b[1;2H");
+    terminal.process("\u{FE0F}".as_bytes());
+
+    let airplane = terminal.active_grid().get(0, 0).unwrap();
+    assert_eq!(airplane.get_grapheme(), "✈️");
+    assert_eq!(airplane.width(), 2);
+    assert!(airplane.flags.wide_char());
+    assert!(
+        terminal
+            .active_grid()
+            .get(1, 0)
+            .unwrap()
+            .flags
+            .wide_char_spacer(),
+        "widened grapheme should replace the displaced wide neighbor with its own spacer"
+    );
+
+    let cleared_old_spacer = terminal.active_grid().get(2, 0).unwrap();
+    assert_eq!(cleared_old_spacer.c, ' ');
+    assert!(!cleared_old_spacer.flags.wide_char());
+    assert!(
+        !cleared_old_spacer.flags.wide_char_spacer(),
+        "old displaced wide neighbor spacer must not survive as a dangling fragment"
+    );
+    assert_eq!(terminal.active_grid().get(3, 0).unwrap().c, 'Z');
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), "✈️ Z");
+}
+
+#[test]
+fn parser_terminal_wraps_regional_flag_that_becomes_wide_at_right_edge() {
+    let mut terminal = ParserTerminal::new(2, 4);
+    let flag = "🇺🇸";
+
+    terminal.process(format!("A{flag}B").as_bytes());
+
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), "A");
+    assert_eq!(terminal.active_grid().row_text(1).trim_end(), flag);
+    let flag_cell = terminal.active_grid().get(0, 1).unwrap();
+    assert_eq!(flag_cell.get_grapheme(), flag);
+    assert_eq!(flag_cell.width(), 2);
+    assert!(flag_cell.flags.wide_char());
+    assert!(
+        terminal
+            .active_grid()
+            .get(1, 1)
+            .unwrap()
+            .flags
+            .wide_char_spacer(),
+        "flag pair should reserve a spacer after wrapping"
+    );
+    assert_eq!(terminal.active_grid().row_text(2).trim_end(), "B");
+}
+
+#[test]
+fn parser_terminal_keeps_non_latin_combining_mark_with_base_cell() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let hebrew_shin_with_dot = "ש\u{05C1}";
+
+    terminal.process(hebrew_shin_with_dot.as_bytes());
+    terminal.process(b"X");
+
+    let composed = terminal.active_grid().get(0, 0).unwrap();
+    assert_eq!(composed.get_grapheme(), hebrew_shin_with_dot);
+    assert_eq!(composed.width(), 1);
+    assert!(!composed.flags.wide_char());
+    assert_eq!(terminal.active_grid().get(1, 0).unwrap().c, 'X');
+    assert_eq!(
+        terminal.active_grid().row_text(0).trim_end(),
+        format!("{hebrew_shin_with_dot}X")
+    );
+}
+
+#[test]
+fn parser_terminal_keeps_plain_text_zwj_sequence_narrow() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let plain_text_zwj = "a\u{200D}";
+
+    terminal.process(plain_text_zwj.as_bytes());
+    terminal.process(b"bX");
+
+    let joined = terminal.active_grid().get(0, 0).unwrap();
+    assert_eq!(joined.get_grapheme(), plain_text_zwj);
+    assert_eq!(joined.width(), 1);
+    assert!(
+        !joined.flags.wide_char(),
+        "plain text joined by ZWJ should not reserve emoji width"
+    );
+    assert!(
+        !terminal
+            .active_grid()
+            .get(1, 0)
+            .unwrap()
+            .flags
+            .wide_char_spacer(),
+        "plain text ZWJ should not leave a wide-character spacer"
+    );
+    assert_eq!(terminal.active_grid().get(1, 0).unwrap().c, 'b');
+    assert_eq!(terminal.active_grid().get(2, 0).unwrap().c, 'X');
+    assert_eq!(terminal.cursor().col, 3);
+    assert_eq!(
+        terminal.active_grid().row_text(0).trim_end(),
+        format!("{plain_text_zwj}bX")
+    );
+}
+
+#[test]
+fn parser_terminal_keeps_zero_width_format_controls_with_base_cell() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let zero_width_formats = "\u{200B}\u{200C}\u{200E}\u{2060}\u{FEFF}";
+    let formatted_text = format!("a{zero_width_formats}");
+
+    terminal.process(formatted_text.as_bytes());
+    terminal.process(b"bX");
+
+    let joined = terminal.active_grid().get(0, 0).unwrap();
+    assert_eq!(joined.get_grapheme(), formatted_text);
+    assert_eq!(joined.width(), 1);
+    assert!(
+        !joined.flags.wide_char(),
+        "zero-width format controls should not force wide-cell rendering"
+    );
+    assert!(
+        !terminal
+            .active_grid()
+            .get(1, 0)
+            .unwrap()
+            .flags
+            .wide_char_spacer(),
+        "zero-width format controls should not reserve a continuation cell"
+    );
+    assert_eq!(terminal.active_grid().get(1, 0).unwrap().c, 'b');
+    assert_eq!(terminal.active_grid().get(2, 0).unwrap().c, 'X');
+    assert_eq!(terminal.cursor().col, 3);
+    assert_eq!(
+        terminal.active_grid().row_text(0).trim_end(),
+        format!("{formatted_text}bX")
+    );
+}
+
+#[test]
+fn terminal_width_helpers_ignore_zero_width_format_controls() {
+    let zero_width_formats = "\u{00AD}\u{200B}\u{200C}\u{200E}\u{2060}\u{FEFF}\u{1BCA0}\u{E0001}";
+    let formatted_text = format!("a{zero_width_formats}");
+
+    assert_eq!(str_width(zero_width_formats, &WidthConfig::default()), 0);
+    assert_eq!(str_width(&formatted_text, &WidthConfig::default()), 1);
+    assert_eq!(
+        str_width(&format!("{formatted_text}b"), &WidthConfig::default()),
+        2
+    );
+
+    let cell = Cell::from_grapheme(&formatted_text);
+    assert_eq!(cell.get_grapheme(), formatted_text);
+    assert_eq!(cell.width(), 1);
+}
+
+#[test]
+fn parser_terminal_keeps_emoji_zwj_sequence_in_one_wide_cell() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let technologist = "👩\u{200D}💻";
+
+    terminal.process(technologist.as_bytes());
+    terminal.process(b"X");
+
+    let emoji = terminal.active_grid().get(0, 0).unwrap();
+    assert_eq!(emoji.get_grapheme(), technologist);
+    assert_eq!(emoji.width(), 2);
+    assert!(
+        emoji.flags.wide_char(),
+        "emoji ZWJ sequence should occupy a wide leading cell"
+    );
+    assert!(
+        terminal
+            .active_grid()
+            .get(1, 0)
+            .unwrap()
+            .flags
+            .wide_char_spacer(),
+        "emoji ZWJ sequence should reserve a continuation cell"
+    );
+    assert_eq!(terminal.active_grid().get(2, 0).unwrap().c, 'X');
+    assert_eq!(
+        terminal.active_grid().row_text(0).trim_end(),
+        format!("{technologist}X")
+    );
+}
+
+#[test]
+fn parser_terminal_wraps_vs16_emoji_zwj_sequence_from_right_edge() {
+    let mut terminal = ParserTerminal::new(2, 4);
+    let rainbow_flag = "\u{1F3F3}\u{FE0F}\u{200D}\u{1F308}";
+
+    terminal.process(format!("A{rainbow_flag}B").as_bytes());
+
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), "A");
+    assert_eq!(terminal.active_grid().row_text(1).trim_end(), rainbow_flag);
+    let flag = terminal.active_grid().get(0, 1).unwrap();
+    assert_eq!(flag.get_grapheme(), rainbow_flag);
+    assert_eq!(flag.width(), 2);
+    assert!(
+        flag.flags.wide_char(),
+        "VS16 emoji ZWJ sequence should stay a wide leading cell after right-edge wrap"
+    );
+    assert!(
+        terminal
+            .active_grid()
+            .get(1, 1)
+            .unwrap()
+            .flags
+            .wide_char_spacer(),
+        "wrapped VS16 emoji ZWJ sequence should reserve a continuation cell"
+    );
+    assert_eq!(terminal.active_grid().row_text(2).trim_end(), "B");
+    assert!(terminal.active_grid().is_line_wrapped(0));
+    assert!(terminal.active_grid().is_line_wrapped(1));
+    assert_eq!(
+        [
+            terminal.active_grid().row_text(0).trim_end(),
+            terminal.active_grid().row_text(1).trim_end(),
+            terminal.active_grid().row_text(2).trim_end(),
+        ]
+        .join(""),
+        format!("A{rainbow_flag}B"),
+        "logical rows should reassemble the wrapped rainbow flag without splitting the ZWJ sequence"
+    );
+}
+
+#[test]
+fn parser_terminal_keeps_multi_emoji_zwj_sequence_in_one_wide_cell() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let family = "👨\u{200D}👩\u{200D}👧\u{200D}👦";
+
+    terminal.process(family.as_bytes());
+    terminal.process(b"X");
+
+    let emoji = terminal.active_grid().get(0, 0).unwrap();
+    assert_eq!(emoji.get_grapheme(), family);
+    assert_eq!(emoji.width(), 2);
+    assert!(
+        emoji.flags.wide_char(),
+        "multi-codepoint emoji ZWJ sequence should occupy a wide leading cell"
+    );
+    assert!(
+        terminal
+            .active_grid()
+            .get(1, 0)
+            .unwrap()
+            .flags
+            .wide_char_spacer(),
+        "multi-codepoint emoji ZWJ sequence should reserve a continuation cell"
+    );
+    assert_eq!(terminal.active_grid().get(2, 0).unwrap().c, 'X');
+    assert_eq!(
+        terminal.active_grid().row_text(0).trim_end(),
+        format!("{family}X")
+    );
+}
+
+#[test]
+fn parser_terminal_keeps_emoji_skin_tone_sequence_in_one_wide_cell() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let waving_hand_medium_skin_tone = "👋🏽";
+
+    terminal.process(waving_hand_medium_skin_tone.as_bytes());
+    terminal.process(b"X");
+
+    let emoji = terminal.active_grid().get(0, 0).unwrap();
+    assert_eq!(emoji.get_grapheme(), waving_hand_medium_skin_tone);
+    assert_eq!(emoji.width(), 2);
+    assert!(
+        emoji.flags.wide_char(),
+        "emoji skin tone sequence should occupy a wide leading cell"
+    );
+    assert!(
+        terminal
+            .active_grid()
+            .get(1, 0)
+            .unwrap()
+            .flags
+            .wide_char_spacer(),
+        "emoji skin tone sequence should reserve a continuation cell"
+    );
+    assert_eq!(terminal.active_grid().get(2, 0).unwrap().c, 'X');
+    assert_eq!(
+        terminal.active_grid().row_text(0).trim_end(),
+        format!("{waving_hand_medium_skin_tone}X")
+    );
+}
+
+#[test]
+fn parser_terminal_keeps_emoji_modifier_zwj_sequence_in_one_wide_cell() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let technologist_medium_skin_tone = "🧑🏽\u{200D}💻";
+
+    terminal.process(technologist_medium_skin_tone.as_bytes());
+    terminal.process(b"X");
+
+    let emoji = terminal.active_grid().get(0, 0).unwrap();
+    assert_eq!(emoji.get_grapheme(), technologist_medium_skin_tone);
+    assert_eq!(emoji.width(), 2);
+    assert!(
+        emoji.flags.wide_char(),
+        "emoji modifier ZWJ sequence should occupy a wide leading cell"
+    );
+    assert!(
+        terminal
+            .active_grid()
+            .get(1, 0)
+            .unwrap()
+            .flags
+            .wide_char_spacer(),
+        "emoji modifier ZWJ sequence should reserve a continuation cell"
+    );
+    assert_eq!(terminal.active_grid().get(2, 0).unwrap().c, 'X');
+    assert_eq!(
+        terminal.active_grid().row_text(0).trim_end(),
+        format!("{technologist_medium_skin_tone}X")
+    );
+}
+
+#[test]
+fn parser_terminal_keeps_plain_text_skin_tone_modifier_narrow() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let plain_text_skin_tone = "a🏽";
+
+    terminal.process(plain_text_skin_tone.as_bytes());
+    terminal.process(b"X");
+
+    let text = terminal.active_grid().get(0, 0).unwrap();
+    assert_eq!(text.get_grapheme(), plain_text_skin_tone);
+    assert_eq!(text.width(), 1);
+    assert!(
+        !text.flags.wide_char(),
+        "skin tone modifiers must not force non-emoji text to emoji width"
+    );
+    assert!(
+        !terminal
+            .active_grid()
+            .get(1, 0)
+            .unwrap()
+            .flags
+            .wide_char_spacer(),
+        "plain text skin tone modifiers must not reserve a continuation cell"
+    );
+    assert_eq!(terminal.active_grid().get(1, 0).unwrap().c, 'X');
+    assert_eq!(
+        terminal.active_grid().row_text(0).trim_end(),
+        format!("{plain_text_skin_tone}X")
+    );
+}
+
+#[test]
+fn terminal_width_helpers_treat_emoji_skin_tone_sequence_as_wide_cluster() {
+    let thumbs_up_dark_skin_tone = "👍🏿";
+
+    assert_eq!(
+        str_width(thumbs_up_dark_skin_tone, &WidthConfig::default()),
+        2
+    );
+
+    let cell = Cell::from_grapheme(thumbs_up_dark_skin_tone);
+    assert_eq!(cell.get_grapheme(), thumbs_up_dark_skin_tone);
+    assert_eq!(cell.width(), 2);
+}
+
+#[test]
+fn terminal_width_helpers_treat_emoji_modifier_zwj_sequence_as_wide_cluster() {
+    let technologist_medium_skin_tone = "🧑🏽\u{200D}💻";
+
+    assert_eq!(
+        str_width(technologist_medium_skin_tone, &WidthConfig::default()),
+        2
+    );
+
+    let cell = Cell::from_grapheme(technologist_medium_skin_tone);
+    assert_eq!(cell.get_grapheme(), technologist_medium_skin_tone);
+    assert_eq!(cell.width(), 2);
+}
+
+#[test]
+fn terminal_width_helpers_keep_plain_text_skin_tone_modifier_narrow() {
+    let plain_text_skin_tone = "a🏽";
+
+    assert_eq!(str_width(plain_text_skin_tone, &WidthConfig::default()), 1);
+    assert_eq!(str_width("\u{1F3FD}", &WidthConfig::default()), 0);
+
+    let cell = Cell::from_grapheme(plain_text_skin_tone);
+    assert_eq!(cell.get_grapheme(), plain_text_skin_tone);
+    assert_eq!(cell.width(), 1);
+}
+
+#[test]
+fn parser_terminal_attaches_variation_selector_supplement_to_base_cell() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let ideographic_variant = "字\u{E0100}";
+
+    terminal.process(ideographic_variant.as_bytes());
+    terminal.process(b"X");
+
+    let ideograph = terminal.active_grid().get(0, 0).unwrap();
+    assert_eq!(ideograph.get_grapheme(), ideographic_variant);
+    assert_eq!(ideograph.width(), 2);
+    assert!(ideograph.flags.wide_char());
+    assert!(terminal
+        .active_grid()
+        .get(1, 0)
+        .unwrap()
+        .flags
+        .wide_char_spacer());
+    assert_eq!(terminal.active_grid().get(2, 0).unwrap().c, 'X');
+    assert_eq!(
+        terminal.active_grid().row_text(0).trim_end(),
+        format!("{ideographic_variant}X")
+    );
+}
+
+#[test]
+fn parser_terminal_dch_at_wide_spacer_deletes_whole_grapheme() {
+    let mut terminal = ParserTerminal::new(12, 4);
+
+    terminal.process("A中BC".as_bytes());
+    terminal.process(b"\x1b[1;3H\x1b[P");
+
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), "ABC");
+    assert_eq!(terminal.active_grid().get(1, 0).unwrap().c, 'B');
+    assert!(!terminal.active_grid().get(1, 0).unwrap().flags.wide_char());
+    assert_eq!(terminal.active_grid().get(2, 0).unwrap().c, 'C');
+    assert!(!terminal
+        .active_grid()
+        .get(2, 0)
+        .unwrap()
+        .flags
+        .wide_char_spacer());
+}
+
+#[test]
+fn parser_terminal_ech_at_wide_spacer_erases_whole_grapheme() {
+    let mut terminal = ParserTerminal::new(12, 4);
+
+    terminal.process("A中B".as_bytes());
+    terminal.process(b"\x1b[1;3H\x1b[X");
+
+    assert_eq!(terminal.active_grid().get(0, 0).unwrap().c, 'A');
+    assert_eq!(terminal.active_grid().get(1, 0).unwrap().c, ' ');
+    assert_eq!(terminal.active_grid().get(2, 0).unwrap().c, ' ');
+    assert!(!terminal.active_grid().get(1, 0).unwrap().flags.wide_char());
+    assert!(!terminal
+        .active_grid()
+        .get(2, 0)
+        .unwrap()
+        .flags
+        .wide_char_spacer());
+    assert_eq!(terminal.active_grid().get(3, 0).unwrap().c, 'B');
+}
+
+#[test]
+fn parser_terminal_ich_at_wide_spacer_leaves_no_wide_fragments() {
+    let mut terminal = ParserTerminal::new(12, 4);
+
+    terminal.process("A中BC".as_bytes());
+    terminal.process(b"\x1b[1;3H\x1b[@");
+
+    for col in 0..terminal.active_grid().cols() {
+        let cell = terminal.active_grid().get(col, 0).unwrap();
+        assert!(
+            !cell.flags.wide_char() && !cell.flags.wide_char_spacer(),
+            "ICH should not leave a wide-character fragment at column {col}"
+        );
+    }
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), "A   BC");
+}
+
+#[test]
+fn parser_terminal_plain_ascii_overwrites_wide_lead_without_fragment() {
+    let mut terminal = ParserTerminal::new(12, 4);
+
+    terminal.process("A中B".as_bytes());
+    terminal.process(b"\x1b[1;2H");
+    terminal.process(b"X");
+
+    assert_eq!(terminal.active_grid().get(0, 0).unwrap().c, 'A');
+    let replacement = terminal.active_grid().get(1, 0).unwrap();
+    assert_eq!(replacement.c, 'X');
+    assert!(!replacement.flags.wide_char());
+    assert!(!replacement.flags.wide_char_spacer());
+
+    let cleared_spacer = terminal.active_grid().get(2, 0).unwrap();
+    assert_eq!(cleared_spacer.c, ' ');
+    assert!(!cleared_spacer.flags.wide_char());
+    assert!(!cleared_spacer.flags.wide_char_spacer());
+    assert_eq!(terminal.active_grid().get(3, 0).unwrap().c, 'B');
+}
+
+#[test]
+fn parser_terminal_plain_ascii_overwrites_wide_spacer_without_fragment() {
+    let mut terminal = ParserTerminal::new(12, 4);
+
+    terminal.process("A中B".as_bytes());
+    terminal.process(b"\x1b[1;3H");
+    terminal.process(b"X");
+
+    assert_eq!(terminal.active_grid().get(0, 0).unwrap().c, 'A');
+    let cleared_lead = terminal.active_grid().get(1, 0).unwrap();
+    assert_eq!(cleared_lead.c, ' ');
+    assert!(!cleared_lead.flags.wide_char());
+    assert!(!cleared_lead.flags.wide_char_spacer());
+
+    let replacement = terminal.active_grid().get(2, 0).unwrap();
+    assert_eq!(replacement.c, 'X');
+    assert!(!replacement.flags.wide_char());
+    assert!(!replacement.flags.wide_char_spacer());
+    assert_eq!(terminal.active_grid().get(3, 0).unwrap().c, 'B');
+}
+
+#[test]
+fn parser_terminal_narrow_unicode_overwrites_wide_lead_without_fragment() {
+    let mut terminal = ParserTerminal::new(12, 4);
+
+    terminal.process("A中B".as_bytes());
+    terminal.process(b"\x1b[1;2H");
+    terminal.process("é".as_bytes());
+
+    assert_eq!(terminal.active_grid().get(0, 0).unwrap().c, 'A');
+    let replacement = terminal.active_grid().get(1, 0).unwrap();
+    assert_eq!(replacement.c, 'é');
+    assert!(!replacement.flags.wide_char());
+    assert!(!replacement.flags.wide_char_spacer());
+
+    let cleared_spacer = terminal.active_grid().get(2, 0).unwrap();
+    assert_eq!(cleared_spacer.c, ' ');
+    assert!(!cleared_spacer.flags.wide_char());
+    assert!(!cleared_spacer.flags.wide_char_spacer());
+    assert_eq!(terminal.active_grid().get(3, 0).unwrap().c, 'B');
+}
+
+#[test]
 fn parser_terminal_applies_quiet_kitty_delete_without_replacement() {
     let mut terminal = ParserTerminal::new(80, 24);
     const RED_RGBA_BASE64: &str = "/wAA/w==";
@@ -2378,6 +12131,14 @@ fn parser_terminal_handles_codex_style_kitty_pet_png_sequence() {
     assert!(terminal.drain_responses().is_empty());
 }
 
+fn long_private_mode_params_with_2026() -> String {
+    [
+        "1000", "1002", "1006", "1007", "1004", "2004", "1", "7", "25", "69", "9", "1005", "1015",
+        "1016", "2026",
+    ]
+    .join(";")
+}
+
 #[test]
 fn parser_terminal_buffers_synchronized_update_remainder_in_same_chunk() {
     let mut terminal = ParserTerminal::new(80, 24);
@@ -2386,6 +12147,30 @@ fn parser_terminal_buffers_synchronized_update_remainder_in_same_chunk() {
 
     assert!(terminal.synchronized_updates());
     assert_eq!(terminal.active_grid().row_text(0).trim_end(), "before");
+
+    terminal.process(b"-shown\x1b[?2026l");
+
+    assert!(!terminal.synchronized_updates());
+    assert_eq!(
+        terminal.active_grid().row_text(0).trim_end(),
+        "beforehidden-shown"
+    );
+}
+
+#[test]
+fn parser_terminal_buffers_synchronized_update_after_long_multi_mode_enable() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let params = long_private_mode_params_with_2026();
+    let sequence = format!("before\x1b[?{params}hhidden");
+
+    terminal.process(sequence.as_bytes());
+
+    assert!(terminal.synchronized_updates());
+    assert_eq!(
+        terminal.active_grid().row_text(0).trim_end(),
+        "before",
+        "long DECSET parameter lists must still hide same-chunk synchronized output"
+    );
 
     terminal.process(b"-shown\x1b[?2026l");
 
@@ -2454,6 +12239,24 @@ fn parser_terminal_buffers_synchronized_update_remainder_when_2026_is_not_first_
 }
 
 #[test]
+fn parser_terminal_buffers_synchronized_update_after_c1_csi_enable() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"before\x9b?2026hhidden");
+
+    assert!(terminal.synchronized_updates());
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), "before");
+
+    terminal.process(b"-shown\x9b?2026l");
+
+    assert!(!terminal.synchronized_updates());
+    assert_eq!(
+        terminal.active_grid().row_text(0).trim_end(),
+        "beforehidden-shown"
+    );
+}
+
+#[test]
 fn parser_terminal_flushes_synchronized_update_that_starts_and_ends_in_same_chunk() {
     let mut terminal = ParserTerminal::new(80, 24);
 
@@ -2467,6 +12270,174 @@ fn parser_terminal_flushes_synchronized_update_that_starts_and_ends_in_same_chun
 }
 
 #[test]
+fn parser_terminal_flushes_synchronized_update_when_2026_is_not_first_reset_mode() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"before\x1b[?2026hhidden");
+    terminal.process(b"-shown\x1b[?25;2026l-after");
+
+    assert!(!terminal.synchronized_updates());
+    assert_eq!(
+        terminal.active_grid().row_text(0).trim_end(),
+        "beforehidden-shown-after"
+    );
+}
+
+#[test]
+fn parser_terminal_flushes_synchronized_update_after_long_multi_mode_disable() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let params = long_private_mode_params_with_2026();
+
+    terminal.process(b"before\x1b[?2026hhidden");
+    terminal.process(format!("-shown\x1b[?{params}l-after").as_bytes());
+
+    assert!(!terminal.synchronized_updates());
+    assert_eq!(
+        terminal.active_grid().row_text(0).trim_end(),
+        "beforehidden-shown-after",
+        "long DECRST parameter lists must flush synchronized output without waiting for timeout"
+    );
+}
+
+#[test]
+fn parser_terminal_does_not_flush_synchronized_update_for_osc_embedded_disable() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"before\x1b[?2026hhidden\x1b]0;fake-\x1b[?2026l-title\x07still");
+
+    assert!(
+        terminal.synchronized_updates(),
+        "OSC payload bytes that look like DEC 2026 reset must not end synchronized output"
+    );
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), "before");
+
+    terminal.process(b"-shown\x1b[?2026l-after");
+
+    assert!(!terminal.synchronized_updates());
+    assert_eq!(
+        terminal.active_grid().row_text(0).trim_end(),
+        "beforehidden-titlestill-shown-after"
+    );
+}
+
+#[test]
+fn parser_terminal_does_not_flush_synchronized_update_for_st_control_string_embedded_disable() {
+    for (name, start, end) in [
+        ("DCS", b"\x1bP".as_slice(), b"\x1b\\".as_slice()),
+        ("SOS", b"\x1bX".as_slice(), b"\x1b\\".as_slice()),
+        ("PM", b"\x1b^".as_slice(), b"\x1b\\".as_slice()),
+        ("APC", b"\x1b_".as_slice(), b"\x1b\\".as_slice()),
+    ] {
+        let mut terminal = ParserTerminal::new(80, 24);
+
+        terminal.process(b"before\x1b[?2026hhidden");
+        terminal.process(start);
+        terminal.process(b"not-sync-\x1b[?2026l");
+        terminal.process(end);
+        terminal.process(b"still");
+
+        assert!(
+            terminal.synchronized_updates(),
+            "{name} payload bytes that look like DEC 2026 reset must not end synchronized output"
+        );
+        assert_eq!(terminal.active_grid().row_text(0).trim_end(), "before");
+
+        terminal.process(b"-shown\x1b[?2026l-after");
+
+        assert!(!terminal.synchronized_updates());
+        assert_eq!(
+            terminal.active_grid().row_text(0).trim_end(),
+            "beforehiddenstill-shown-after",
+            "{name} payload should not flush synchronized output before its real DEC 2026 reset"
+        );
+    }
+}
+
+#[test]
+fn parser_terminal_does_not_flush_synchronized_update_for_split_dcs_embedded_disable() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"before\x1b[?2026hhidden\x1bPnot-sync-\x1b");
+
+    assert!(terminal.synchronized_updates());
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), "before");
+
+    terminal.process(b"[?2026l\x1b\\still");
+
+    assert!(
+        terminal.synchronized_updates(),
+        "split DCS payload bytes that look like DEC 2026 reset must not end synchronized output"
+    );
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), "before");
+
+    terminal.process(b"-shown\x1b[?2026l-after");
+
+    assert!(!terminal.synchronized_updates());
+    assert_eq!(
+        terminal.active_grid().row_text(0).trim_end(),
+        "beforehiddenstill-shown-after"
+    );
+}
+
+#[test]
+fn parser_terminal_flushes_synchronized_update_after_split_multi_mode_disable() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"before\x1b[?2026hhidden\x1b[?25;20");
+    assert!(terminal.synchronized_updates());
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), "before");
+
+    terminal.process(b"26l-after");
+
+    assert!(!terminal.synchronized_updates());
+    assert_eq!(
+        terminal.active_grid().row_text(0).trim_end(),
+        "beforehidden-after"
+    );
+}
+
+#[test]
+fn parser_terminal_flushes_synchronized_update_with_long_trailing_remainder() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let trailing = "x".repeat(64);
+    let update = format!("hidden\x1b[?2026l{trailing}");
+
+    terminal.process(b"before\x1b[?2026h");
+    terminal.process(update.as_bytes());
+
+    assert!(!terminal.synchronized_updates());
+    assert_eq!(
+        terminal.active_grid().row_text(0).trim_end(),
+        format!("beforehidden{trailing}")
+    );
+}
+
+#[test]
+fn parser_terminal_timeout_ignores_nested_sync_enable_while_flushing_stale_buffer() {
+    let mut nested = ParserTerminal::new(80, 24);
+    let mut reset_then_nested = ParserTerminal::new(80, 24);
+
+    nested.process(b"before\x1b[?2026hhidden\x1b[?2026hnested");
+    reset_then_nested.process(b"before\x1b[?2026hhidden\x1bcafter\x1b[?2026hnested");
+
+    thread::sleep(Duration::from_millis(1100));
+
+    assert!(nested.flush_synchronized_updates_if_timed_out());
+    assert!(!nested.synchronized_updates());
+    assert_eq!(
+        nested.active_grid().row_text(0).trim_end(),
+        "beforehiddennested"
+    );
+
+    assert!(reset_then_nested.flush_synchronized_updates_if_timed_out());
+    assert!(!reset_then_nested.synchronized_updates());
+    assert_eq!(
+        reset_then_nested.active_grid().row_text(0).trim_end(),
+        "afternested"
+    );
+}
+
+#[test]
 fn parser_terminal_does_not_buffer_split_non_sync_private_mode() {
     let mut terminal = ParserTerminal::new(80, 24);
 
@@ -2475,6 +12446,77 @@ fn parser_terminal_does_not_buffer_split_non_sync_private_mode() {
 
     assert!(!terminal.synchronized_updates());
     assert_eq!(terminal.active_grid().row_text(0).trim_end(), "beforeshown");
+}
+
+#[test]
+fn parser_terminal_flushes_synchronized_update_on_hard_reset() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"before\x1b[?2026hhidden");
+
+    assert!(terminal.synchronized_updates());
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), "before");
+
+    terminal.process(b"\x1bcafter");
+
+    assert!(!terminal.synchronized_updates());
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), "after");
+}
+
+#[test]
+fn parser_terminal_flushes_synchronized_update_on_split_hard_reset() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"before\x1b[?2026hhidden\x1b");
+
+    assert!(terminal.synchronized_updates());
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), "before");
+
+    terminal.process(b"cafter");
+
+    assert!(!terminal.synchronized_updates());
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), "after");
+}
+
+#[test]
+fn parser_terminal_does_not_flush_sync_update_for_osc_embedded_hard_reset() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"before\x1b[?2026hhidden\x1b]0;not-a-reset-\x1bctitle\x07");
+
+    assert!(
+        terminal.synchronized_updates(),
+        "OSC payload bytes that look like RIS must not end synchronized output"
+    );
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), "before");
+
+    terminal.process(b"-shown\x1b[?2026l");
+
+    assert!(!terminal.synchronized_updates());
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), "title-shown");
+}
+
+#[test]
+fn parser_terminal_does_not_flush_sync_update_for_split_osc_embedded_hard_reset() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"before\x1b[?2026hhidden\x1b]0;not-a-reset-\x1b");
+
+    assert!(terminal.synchronized_updates());
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), "before");
+
+    terminal.process(b"ctitle\x07-shown");
+
+    assert!(
+        terminal.synchronized_updates(),
+        "split OSC payload bytes that look like RIS must not end synchronized output"
+    );
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), "before");
+
+    terminal.process(b"\x1b[?2026l");
+
+    assert!(!terminal.synchronized_updates());
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), "title-shown");
 }
 
 #[test]
@@ -2495,6 +12537,429 @@ fn parser_terminal_handles_screen_wrapped_iterm_graphics() {
 }
 
 #[test]
+fn parser_terminal_handles_screen_wrapped_kitty_graphics() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let wrapped = format!("\x1bP\x1b_Ga=T,f=32,s=1,v=1,i=12;{RED_RGBA_BASE64}\x1b\\\x1b\\");
+
+    terminal.process(wrapped.as_bytes());
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "kitty");
+    assert_eq!(graphic.kitty_image_id, Some(12));
+    assert_eq!(
+        String::from_utf8(terminal.drain_responses()).unwrap(),
+        "\x1b_Gi=12;OK\x1b\\"
+    );
+}
+
+#[test]
+fn parser_terminal_buffers_split_screen_wrapped_kitty_graphics() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let wrapped = format!("\x1bP\x1b_Ga=T,f=32,s=1,v=1,i=13;{RED_RGBA_BASE64}\x1b\\\x1b\\");
+    let (head, tail) = wrapped.as_bytes().split_at(wrapped.len() - 4);
+
+    terminal.process(head);
+
+    assert_eq!(terminal.graphics_count(), 0);
+    assert!(terminal.drain_responses().is_empty());
+
+    terminal.process(tail);
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "kitty");
+    assert_eq!(graphic.kitty_image_id, Some(13));
+    assert_eq!(
+        String::from_utf8(terminal.drain_responses()).unwrap(),
+        "\x1b_Gi=13;OK\x1b\\"
+    );
+}
+
+#[test]
+fn parser_terminal_handles_screen_wrapped_sixel_graphics() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let wrapped = "\x1bP\x1bPq#1;2;100;0;0@\x1b\\\x1b\\";
+
+    terminal.process(wrapped.as_bytes());
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "sixel");
+    assert_eq!(&graphic.pixels[0..4], &[255, 0, 0, 255]);
+}
+
+#[test]
+fn parser_terminal_iterm_inline_image_accepts_wrapped_base64() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let wrapped_base64 = RED_PIXEL_PNG_BASE64
+        .as_bytes()
+        .chunks(16)
+        .map(|chunk| std::str::from_utf8(chunk).unwrap())
+        .collect::<Vec<_>>()
+        .join("\n");
+    let image = format!("\x1b]1337;File=inline=1:{wrapped_base64}\x1b\\");
+
+    terminal.process(image.as_bytes());
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "iterm");
+    assert_eq!(graphic.width, 1);
+    assert_eq!(graphic.height, 1);
+}
+
+#[test]
+fn parser_terminal_iterm_inline_image_accepts_c1_osc_and_st_controls() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let mut image = Vec::new();
+    image.push(0x9d);
+    image.extend_from_slice(format!("1337;File=inline=1:{RED_PIXEL_PNG_BASE64}").as_bytes());
+    image.push(0x9c);
+
+    terminal.process(&image);
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "iterm");
+    assert_eq!(graphic.width, 1);
+    assert_eq!(graphic.height, 1);
+}
+
+#[test]
+fn parser_terminal_iterm_inline_image_accepts_unpadded_base64() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let unpadded_base64 = RED_PIXEL_PNG_BASE64.trim_end_matches('=');
+    let image = format!("\x1b]1337;File=inline=1:{unpadded_base64}\x1b\\");
+
+    terminal.process(image.as_bytes());
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "iterm");
+    assert_eq!(graphic.width, 1);
+    assert_eq!(graphic.height, 1);
+}
+
+#[test]
+fn parser_terminal_iterm_inline_gif_registers_animation_frames() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let image =
+        format!("\x1b]1337;File=inline=1;doNotMoveCursor=1:{RED_GREEN_1X1_GIF_BASE64}\x1b\\");
+
+    terminal.process(image.as_bytes());
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "iterm");
+    assert_eq!(graphic.kitty_image_id, None);
+    let animation_id = graphic
+        .animation_id
+        .expect("animated iTerm GIF should carry an animation id");
+    assert_eq!(graphic.width, 1);
+    assert_eq!(graphic.height, 1);
+    assert_eq!(graphic.pixels.as_ref(), &[255, 0, 0, 255]);
+    let first_asset_version = graphic.asset_version;
+
+    let animation = terminal
+        .graphics_store()
+        .get_animation(animation_id)
+        .expect("animated iTerm GIF should register animation frames");
+    assert_eq!(animation.frame_count(), 2);
+
+    thread::sleep(Duration::from_millis(25));
+    let changed = terminal.update_animations();
+
+    assert_eq!(changed, vec![animation_id]);
+    let updated = &terminal.all_graphics()[0];
+    assert_eq!(updated.pixels.as_ref(), &[0, 255, 0, 255]);
+    assert_ne!(updated.asset_version, first_asset_version);
+}
+
+#[test]
+fn parser_terminal_iterm_single_inline_accepts_matching_declared_size() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let image = format!("\x1b]1337;File=inline=1;size=70:{RED_PIXEL_PNG_BASE64}\x1b\\");
+
+    terminal.process(image.as_bytes());
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "iterm");
+    assert_eq!(graphic.width, 1);
+    assert_eq!(graphic.height, 1);
+}
+
+#[test]
+fn parser_terminal_iterm_single_inline_rejects_size_mismatch() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let image = format!("\x1b]1337;File=inline=1;size=71:{RED_PIXEL_PNG_BASE64}\x1b\\");
+
+    terminal.process(image.as_bytes());
+
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "single iTerm2 inline images with a mismatched size must not render"
+    );
+}
+
+#[test]
+fn parser_terminal_iterm_single_inline_rejects_unsupported_image_payload() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    terminal.process(b"\x1b]1337;File=inline=1:aGVsbG8=\x1b\\");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "unsupported iTerm2 inline image payloads must not render"
+    );
+    assert!(
+        terminal.poll_events().iter().all(|event| !matches!(
+            event,
+            par_term_emu_core_rust::terminal::TerminalEvent::GraphicsAdded(_)
+        )),
+        "unsupported iTerm2 inline image payloads must not emit GraphicsAdded"
+    );
+}
+
+#[test]
+fn parser_terminal_iterm_multipart_image_accepts_wrapped_file_part_base64() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let chunks = RED_PIXEL_PNG_BASE64
+        .as_bytes()
+        .chunks(20)
+        .map(|chunk| std::str::from_utf8(chunk).unwrap())
+        .collect::<Vec<_>>();
+    let wrapped_part = chunks.join("\r\n\t");
+    let start = "\x1b]1337;MultipartFile=inline=1;name=cGl4ZWwucG5n\x1b\\";
+    let part = format!("\x1b]1337;FilePart={wrapped_part}\x1b\\");
+
+    terminal.process(start.as_bytes());
+    terminal.process(part.as_bytes());
+    terminal.process(b"\x1b]1337;FileEnd\x1b\\");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "iterm");
+    assert_eq!(graphic.width, 1);
+    assert_eq!(graphic.height, 1);
+}
+
+#[test]
+fn parser_terminal_iterm_requested_height_advances_cursor_by_display_span() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let image = format!(
+        "\x1b]1337;File=inline=1;height=3;preserveAspectRatio=0:{}\x1b\\X",
+        RED_PIXEL_PNG_BASE64
+    );
+
+    terminal.process(image.as_bytes());
+
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].protocol.as_str(), "iterm");
+    assert_eq!(terminal.all_graphics()[0].display_cell_span, Some((1, 3)));
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), "");
+    assert_eq!(terminal.active_grid().row_text(3).trim_end(), "X");
+}
+
+#[test]
+fn parser_terminal_iterm_advancement_respects_scroll_region_bottom() {
+    let mut terminal = ParserTerminal::new(8, 6);
+    let image = format!(
+        "\x1b[1;1Htop\x1b[2;1Hone\x1b[3;1Htwo\x1b[4;1Hthree\x1b[5;1Hbottom\
+         \x1b[2;4r\x1b[4;1H\x1b]1337;File=inline=1;height=3;preserveAspectRatio=0:{}\x1b\\",
+        RED_PIXEL_PNG_BASE64
+    );
+
+    terminal.process(image.as_bytes());
+
+    assert_eq!(
+        terminal.cursor().row,
+        3,
+        "iTerm2 inline image cursor advancement should stay pinned to the scroll region bottom"
+    );
+    assert_eq!(
+        terminal.active_grid().row_text(4).trim_end(),
+        "bottom",
+        "iTerm2 inline image advancement inside a partial scroll region must not move into rows below the region"
+    );
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "iterm");
+    assert_eq!(graphic.display_cell_span, Some((1, 3)));
+    assert_eq!(
+        graphic.position,
+        (0, 1),
+        "partially clipped iTerm2 images should stay anchored at the scroll region top"
+    );
+    assert_eq!(
+        graphic.scroll_offset_rows, 1,
+        "iTerm2 images clipped by partial scroll regions should track hidden top rows"
+    );
+}
+
+#[test]
+fn parser_terminal_iterm_px_dimensions_accept_space_before_unit() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let image = format!(
+        "\x1b]1337;File=inline=1;width=2 px;height=4 PX;preserveAspectRatio=0;doNotMoveCursor=1:{}\x1b\\",
+        RED_PIXEL_PNG_BASE64
+    );
+
+    terminal.process(image.as_bytes());
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "iterm");
+    assert_eq!(
+        graphic.display_cell_span,
+        Some((2, 2)),
+        "iTerm2 px dimensions should accept a space before the unit"
+    );
+}
+
+#[test]
+fn parser_terminal_iterm_non_positive_dimensions_fall_back_to_auto() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let image = format!(
+        "\x1b]1337;File=inline=1;width=-5 px;height=-10%;preserveAspectRatio=0;doNotMoveCursor=1:{}\x1b\\",
+        RED_GREEN_2X1_PNG_BASE64
+    );
+
+    terminal.process(image.as_bytes());
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "iterm");
+    assert_eq!(graphic.width, 2);
+    assert_eq!(graphic.height, 1);
+    assert!(graphic.placement.requested_width.is_auto());
+    assert_eq!(graphic.placement.requested_width.unit, ImageSizeUnit::Auto);
+    assert!(graphic.placement.requested_height.is_auto());
+    assert_eq!(graphic.placement.requested_height.unit, ImageSizeUnit::Auto);
+    assert_eq!(
+        graphic.display_cell_span,
+        Some((2, 1)),
+        "invalid iTerm2 dimensions should use the decoded image's natural span, not a coerced 1px size"
+    );
+}
+
+#[test]
+fn parser_terminal_iterm_do_not_move_cursor_keeps_text_position() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let image = format!(
+        "\x1b]1337;File=inline=1;height=3;preserveAspectRatio=0;doNotMoveCursor=1:{}\x1b\\X",
+        RED_PIXEL_PNG_BASE64
+    );
+
+    terminal.process(image.as_bytes());
+
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].protocol.as_str(), "iterm");
+    assert_eq!(terminal.all_graphics()[0].display_cell_span, Some((1, 3)));
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), "X");
+    assert_eq!(terminal.active_grid().row_text(3).trim_end(), "");
+}
+
+#[test]
+fn parser_terminal_resize_refreshes_percent_graphic_cell_span() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let image = format!(
+        "\x1b]1337;File=inline=1;width=50%;height=50%;preserveAspectRatio=0;doNotMoveCursor=1:{}\x1b\\",
+        RED_PIXEL_PNG_BASE64
+    );
+
+    terminal.process(image.as_bytes());
+
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].protocol.as_str(), "iterm");
+    assert_eq!(terminal.all_graphics()[0].display_cell_span, Some((40, 12)));
+
+    terminal.resize(40, 12);
+
+    assert_eq!(
+        terminal.all_graphics()[0].display_cell_span,
+        Some((20, 6)),
+        "resize should recompute percent-sized graphic spans against the new viewport"
+    );
+}
+
+#[test]
+fn parser_terminal_resize_refreshes_scrollback_percent_graphic_cell_span() {
+    let mut terminal = ParserTerminal::with_scrollback(80, 24, 40);
+    let image = format!(
+        "\x1b[1;1H\x1b]1337;File=inline=1;width=50%;height=50%;preserveAspectRatio=0;doNotMoveCursor=1:{}\x1b\\",
+        RED_PIXEL_PNG_BASE64
+    );
+
+    terminal.process(image.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].protocol.as_str(), "iterm");
+    assert_eq!(terminal.all_graphics()[0].display_cell_span, Some((40, 12)));
+
+    terminal.process(b"\x1b[24;1H");
+    for _ in 0..13 {
+        terminal.process(b"\n");
+    }
+
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "percent-sized graphic should leave the active viewport after scrolling off"
+    );
+    assert_eq!(terminal.scrollback_graphics_count(), 1);
+    assert_eq!(
+        terminal.all_scrollback_graphics()[0].display_cell_span,
+        Some((40, 12))
+    );
+
+    terminal.resize(40, 12);
+
+    assert_eq!(
+        terminal.all_scrollback_graphics()[0].display_cell_span,
+        Some((20, 6)),
+        "resize should recompute percent-sized graphics retained in scrollback"
+    );
+}
+
+#[test]
+fn parser_terminal_resize_evicts_scrollback_graphics_for_reflowed_away_rows() {
+    let mut terminal = ParserTerminal::with_scrollback(4, 2, 10);
+    let kitty = format!(
+        "\x1b[2;1H\x1b_Ga=T,f=32,s=1,v=1,i=763,p=1,c=1,r=1,C=1,q=1;{RED_RGBA_BASE64}\x1b\\"
+    );
+
+    terminal.process(b"ABCDEFGH");
+    terminal.process(kitty.as_bytes());
+    terminal.process(b"\x1b[2;1H\n\n");
+
+    assert_eq!(terminal.grid().scrollback_len(), 2);
+    assert_eq!(
+        terminal.scrollback_graphics_count(),
+        1,
+        "test setup should retain the graphic on the second wrapped scrollback row"
+    );
+    assert_eq!(
+        terminal.all_scrollback_graphics()[0].scrollback_row,
+        Some(1)
+    );
+
+    terminal.resize(8, 2);
+
+    assert_eq!(
+        terminal.grid().scrollback_len(),
+        1,
+        "resize should reflow the wrapped scrollback rows into one row"
+    );
+    assert_eq!(
+        terminal.scrollback_graphics_count(),
+        0,
+        "graphics scrollback should drop placements whose text row disappears during resize reflow"
+    );
+}
+
+#[test]
 fn parser_terminal_enforces_graphics_memory_limits() {
     let image = format!("\x1b]1337;File=inline=1:{}\x1b\\", RED_PIXEL_PNG_BASE64);
 
@@ -2502,6 +12967,16 @@ fn parser_terminal_enforces_graphics_memory_limits() {
     too_small_for_one_image.set_graphics_memory_limits(3, 1024);
     too_small_for_one_image.process(image.as_bytes());
     assert_eq!(too_small_for_one_image.graphics_count(), 0);
+    assert!(
+        too_small_for_one_image
+            .poll_events()
+            .iter()
+            .all(|event| !matches!(
+                event,
+                par_term_emu_core_rust::terminal::TerminalEvent::GraphicsAdded(_)
+            )),
+        "a rejected iTerm2 image must not emit a graphics-added event"
+    );
 
     let mut one_image_total_budget = ParserTerminal::new(80, 24);
     one_image_total_budget.set_graphics_memory_limits(4, 4);
@@ -2509,6 +12984,98 @@ fn parser_terminal_enforces_graphics_memory_limits() {
     one_image_total_budget.process(image.as_bytes());
     assert_eq!(one_image_total_budget.graphics_count(), 1);
     assert!(one_image_total_budget.dropped_sixel_graphics() > 0);
+}
+
+#[test]
+fn parser_terminal_empty_sixel_does_not_create_phantom_graphic() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let start_cursor = (terminal.cursor().col, terminal.cursor().row);
+
+    terminal.process(b"\x1bPq\x1b\\");
+
+    assert_eq!(terminal.graphics_count(), 0);
+    assert_eq!((terminal.cursor().col, terminal.cursor().row), start_cursor);
+}
+
+#[test]
+fn parser_terminal_dcs_q_with_intermediate_is_not_sixel() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let start_cursor = (terminal.cursor().col, terminal.cursor().row);
+
+    terminal.process(b"\x1bP$qm\x1b\\");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "DCS $ q is DECRQSS-shaped control traffic and must not create a Sixel graphic"
+    );
+    assert_eq!((terminal.cursor().col, terminal.cursor().row), start_cursor);
+}
+
+#[test]
+fn parser_terminal_zero_repeat_sixel_is_noop() {
+    let mut empty_repeat = ParserTerminal::new(80, 24);
+    let start_cursor = (empty_repeat.cursor().col, empty_repeat.cursor().row);
+
+    empty_repeat.process(b"\x1bPq!0~\x1b\\");
+
+    assert_eq!(empty_repeat.graphics_count(), 0);
+    assert_eq!(
+        (empty_repeat.cursor().col, empty_repeat.cursor().row),
+        start_cursor
+    );
+
+    let mut followed_by_data = ParserTerminal::new(80, 24);
+    followed_by_data.process(b"\x1bPq!0~~\x1b\\");
+
+    assert_eq!(followed_by_data.graphics_count(), 1);
+    let graphic = &followed_by_data.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "sixel");
+    assert_eq!(
+        graphic.width, 1,
+        "explicit zero-repeat data must not add an empty leading Sixel column"
+    );
+    assert_eq!(graphic.height, 6);
+}
+
+#[test]
+fn parser_terminal_huge_sixel_repeat_clamps_to_configured_limit() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    terminal.set_sixel_limits(10, 12, 4);
+
+    terminal.process(b"\x1bPq!999999999999999999999999999999999999999999999999~\x1b\\");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "sixel");
+    assert_eq!(
+        graphic.width, 4,
+        "overflowing Sixel repeat counts should saturate before max_repeat clamps them"
+    );
+    assert_eq!(
+        &graphic.pixels.as_ref()[((5 * 4 + 3) * 4)..((5 * 4 + 4) * 4)],
+        &[0, 0, 0, 255]
+    );
+}
+
+#[test]
+fn parser_terminal_sixel_width_reaches_configured_limit() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    terminal.set_sixel_limits(4, 12, 100);
+
+    terminal.process(b"\x1bPq~~~~\x1b\\");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "sixel");
+    assert_eq!(
+        graphic.width, 4,
+        "Sixel graphic width should include the last column at the configured limit"
+    );
+    assert_eq!(
+        &graphic.pixels.as_ref()[((5 * 4 + 3) * 4)..((5 * 4 + 4) * 4)],
+        &[0, 0, 0, 255]
+    );
 }
 
 #[test]
@@ -2527,6 +13094,1173 @@ fn parser_terminal_answers_xtsmgraphics_sixel_geometry_queries() {
         String::from_utf8(terminal.drain_responses()).unwrap(),
         "\x1b[?2;0;800;600S"
     );
+}
+
+#[test]
+fn parser_terminal_answers_xtsmgraphics_sixel_capability_queries() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"\x1b[?1;1;0S");
+    assert_eq!(
+        String::from_utf8(terminal.drain_responses()).unwrap(),
+        "\x1b[?1;0;256S",
+        "Sixel color-register queries should report the supported register count"
+    );
+
+    terminal.process(b"\x1b[?1;4;0S");
+    assert_eq!(
+        String::from_utf8(terminal.drain_responses()).unwrap(),
+        "\x1b[?1;0;256S",
+        "Sixel maximum color-register queries should report the supported register count"
+    );
+
+    terminal.process(b"\x1b[?1;2;256S");
+    assert_eq!(
+        String::from_utf8(terminal.drain_responses()).unwrap(),
+        "\x1b[?1;3;0S",
+        "XTSMGRAPHICS set requests are intentionally read-only"
+    );
+
+    terminal.process(b"\x1b[?2;9;0S");
+    assert_eq!(
+        String::from_utf8(terminal.drain_responses()).unwrap(),
+        "\x1b[?2;2;0S",
+        "unknown XTSMGRAPHICS actions should report invalid action"
+    );
+
+    terminal.process(b"\x1b[?9;1;0S");
+    assert_eq!(
+        String::from_utf8(terminal.drain_responses()).unwrap(),
+        "\x1b[?9;1;0S",
+        "unknown XTSMGRAPHICS items should report invalid item"
+    );
+
+    terminal.process(b"\x1b[?3;1;0S");
+    assert_eq!(
+        String::from_utf8(terminal.drain_responses()).unwrap(),
+        "\x1b[?3;3;0S",
+        "unimplemented graphics geometry item should report invalid value"
+    );
+}
+
+#[test]
+fn parser_terminal_tracks_kitty_keyboard_flags() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"\x1b[=1u\x1b[?u");
+    assert_eq!(terminal.keyboard_flags(), 1);
+    assert_eq!(
+        String::from_utf8(terminal.drain_responses()).unwrap(),
+        "\x1b[?1u"
+    );
+
+    terminal.process(b"\x1b[>5u");
+    assert_eq!(terminal.keyboard_flags(), 5);
+    terminal.process(b"\x1b[<1u");
+    assert_eq!(terminal.keyboard_flags(), 1);
+
+    terminal.process(b"\x1b[=4;2u");
+    assert_eq!(terminal.keyboard_flags(), 5);
+    terminal.process(b"\x1b[=4;3u");
+    assert_eq!(terminal.keyboard_flags(), 1);
+    terminal.process(b"\x1b[<1u");
+    assert_eq!(
+        terminal.keyboard_flags(),
+        0,
+        "popping an empty Kitty keyboard stack should reset to default flags"
+    );
+}
+
+#[test]
+fn parser_terminal_limits_kitty_keyboard_stack_depth() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    for flags in 1..=34u16 {
+        let sequence = format!("\x1b[>{flags}u");
+        terminal.process(sequence.as_bytes());
+        assert_eq!(terminal.keyboard_flags(), flags);
+    }
+
+    for expected_flags in (2..=33u16).rev() {
+        terminal.process(b"\x1b[<1u");
+        assert_eq!(
+            terminal.keyboard_flags(),
+            expected_flags,
+            "Kitty keyboard stack should retain the newest 32 saved flag states"
+        );
+    }
+
+    terminal.process(b"\x1b[<1u");
+    assert_eq!(
+        terminal.keyboard_flags(),
+        0,
+        "popping past the bounded Kitty keyboard stack should reset to default flags"
+    );
+}
+
+#[test]
+fn parser_terminal_keeps_plain_csi_u_out_of_kitty_keyboard_protocol() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"\x1b[=5u");
+    assert_eq!(terminal.keyboard_flags(), 5);
+
+    terminal.process(b"\x1b[7u");
+    assert_eq!(
+        terminal.keyboard_flags(),
+        5,
+        "plain CSI Ps u is DECSMBV and must not overwrite Kitty keyboard flags"
+    );
+    assert_eq!(terminal.margin_bell_volume(), 7);
+    assert!(terminal.drain_responses().is_empty());
+
+    terminal.process(b"\x1b[0u");
+    assert_eq!(
+        terminal.keyboard_flags(),
+        5,
+        "plain CSI 0 u is SCORC/DECSMBV and must not clear Kitty keyboard flags"
+    );
+    assert_eq!(terminal.margin_bell_volume(), 0);
+
+    terminal.process(b"\x1b[?u");
+    assert_eq!(
+        String::from_utf8(terminal.drain_responses()).unwrap(),
+        "\x1b[?5u"
+    );
+}
+
+#[test]
+fn parser_terminal_scopes_kitty_keyboard_stack_to_alternate_screen() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"\x1b[=1u");
+    assert_eq!(terminal.keyboard_flags(), 1);
+
+    terminal.use_alt_screen();
+    assert_eq!(
+        terminal.keyboard_flags(),
+        0,
+        "alternate screen starts with its own Kitty keyboard flags"
+    );
+
+    terminal.process(b"\x1b[>8u");
+    assert_eq!(terminal.keyboard_flags(), 8);
+    terminal.process(b"\x1b[=1;2u");
+    assert_eq!(terminal.keyboard_flags(), 9);
+    terminal.process(b"\x1b[<1u");
+    assert_eq!(terminal.keyboard_flags(), 0);
+
+    terminal.process(b"\x1b[>8u");
+    assert_eq!(terminal.keyboard_flags(), 8);
+    terminal.use_primary_screen();
+    assert_eq!(
+        terminal.keyboard_flags(),
+        1,
+        "leaving alternate screen should restore primary Kitty keyboard flags"
+    );
+
+    terminal.use_alt_screen();
+    assert_eq!(
+        terminal.keyboard_flags(),
+        0,
+        "alternate-screen Kitty keyboard flags should not leak across 1049 cycles"
+    );
+}
+
+#[test]
+fn parser_terminal_scopes_modify_other_keys_to_alternate_screen() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"\x1b[>4;2m");
+    assert_eq!(terminal.modify_other_keys_mode(), 2);
+
+    terminal.use_alt_screen();
+    assert_eq!(
+        terminal.modify_other_keys_mode(),
+        0,
+        "alternate screen should start with its own modifyOtherKeys mode"
+    );
+
+    terminal.process(b"\x1b[>4;1m");
+    assert_eq!(terminal.modify_other_keys_mode(), 1);
+    terminal.process(b"\x1b[?4m");
+    assert_eq!(
+        String::from_utf8(terminal.drain_responses()).unwrap(),
+        "\x1b[>4;1m"
+    );
+
+    terminal.use_primary_screen();
+    assert_eq!(
+        terminal.modify_other_keys_mode(),
+        2,
+        "leaving alternate screen should restore primary modifyOtherKeys mode"
+    );
+    terminal.process(b"\x1b[?4m");
+    assert_eq!(
+        String::from_utf8(terminal.drain_responses()).unwrap(),
+        "\x1b[>4;2m"
+    );
+
+    terminal.use_alt_screen();
+    assert_eq!(
+        terminal.modify_other_keys_mode(),
+        0,
+        "alternate-screen modifyOtherKeys mode should not leak across 1049 cycles"
+    );
+}
+
+#[test]
+fn parser_terminal_handles_alt_screen_private_mode_variants() {
+    for (enter, exit) in [
+        (b"\x1b[?47h".as_slice(), b"\x1b[?47l".as_slice()),
+        (b"\x1b[?1047h".as_slice(), b"\x1b[?1047l".as_slice()),
+    ] {
+        let mut terminal = ParserTerminal::new(80, 24);
+        terminal.process(b"PRIMARY");
+        assert_eq!(terminal.active_grid().row_text(0).trim_end(), "PRIMARY");
+
+        terminal.process(enter);
+        assert!(terminal.is_alt_screen_active());
+        assert_eq!(terminal.active_grid().row_text(0).trim_end(), "");
+
+        terminal.process(b"ALT");
+        assert_eq!(terminal.active_grid().row_text(0).trim_end(), "ALT");
+
+        terminal.process(exit);
+        assert!(!terminal.is_alt_screen_active());
+        assert_eq!(terminal.active_grid().row_text(0).trim_end(), "PRIMARY");
+    }
+}
+
+#[test]
+fn parser_terminal_alt_screen_variants_scope_interaction_modes() {
+    for (enter, exit) in [
+        (b"\x1b[?47h".as_slice(), b"\x1b[?47l".as_slice()),
+        (b"\x1b[?1047h".as_slice(), b"\x1b[?1047l".as_slice()),
+        (b"\x1b[?1049h".as_slice(), b"\x1b[?1049l".as_slice()),
+    ] {
+        let mut terminal = ParserTerminal::new(80, 24);
+
+        terminal.process(b"\x1b[?1004h\x1b[?1007h\x1b[?1002h\x1b[?1006h\x1b[=1u");
+        assert!(terminal.focus_tracking());
+        assert!(terminal.alternate_scroll());
+        assert_eq!(terminal.mouse_mode(), MouseMode::ButtonEvent);
+        assert_eq!(terminal.mouse_encoding(), MouseEncoding::Sgr);
+        assert_eq!(terminal.keyboard_flags(), 1);
+
+        terminal.process(enter);
+        assert!(terminal.is_alt_screen_active());
+        assert!(
+            !terminal.focus_tracking(),
+            "alternate screen should start with independent focus tracking for {enter:?}"
+        );
+        assert!(
+            !terminal.alternate_scroll(),
+            "alternate screen should start with independent alternate-scroll state for {enter:?}"
+        );
+        assert_eq!(
+            terminal.mouse_mode(),
+            MouseMode::Off,
+            "alternate screen should start with independent mouse mode for {enter:?}"
+        );
+        assert_eq!(
+            terminal.mouse_encoding(),
+            MouseEncoding::Default,
+            "alternate screen should start with independent mouse encoding for {enter:?}"
+        );
+        assert_eq!(
+            terminal.keyboard_flags(),
+            0,
+            "alternate screen should start with independent Kitty keyboard flags for {enter:?}"
+        );
+
+        terminal.process(b"\x1b[?1004h\x1b[?1007h\x1b[?1003h\x1b[?1016h\x1b[=8u");
+        assert!(terminal.focus_tracking());
+        assert!(terminal.alternate_scroll());
+        assert_eq!(terminal.mouse_mode(), MouseMode::AnyEvent);
+        assert_eq!(terminal.mouse_encoding(), MouseEncoding::SgrPixels);
+        assert_eq!(terminal.keyboard_flags(), 8);
+
+        terminal.process(exit);
+        assert!(!terminal.is_alt_screen_active());
+        assert!(
+            terminal.focus_tracking(),
+            "primary focus tracking should be restored after {exit:?}"
+        );
+        assert!(
+            terminal.alternate_scroll(),
+            "primary alternate-scroll should be restored after {exit:?}"
+        );
+        assert_eq!(
+            terminal.mouse_mode(),
+            MouseMode::ButtonEvent,
+            "primary mouse mode should be restored after {exit:?}"
+        );
+        assert_eq!(
+            terminal.mouse_encoding(),
+            MouseEncoding::Sgr,
+            "primary mouse encoding should be restored after {exit:?}"
+        );
+        assert_eq!(
+            terminal.keyboard_flags(),
+            1,
+            "primary Kitty keyboard flags should be restored after {exit:?}"
+        );
+
+        terminal.process(enter);
+        assert!(terminal.is_alt_screen_active());
+        assert!(
+            !terminal.focus_tracking(),
+            "alternate-screen focus tracking should not leak across cycles for {enter:?}"
+        );
+        assert!(
+            !terminal.alternate_scroll(),
+            "alternate-screen alternate-scroll should not leak across cycles for {enter:?}"
+        );
+        assert_eq!(
+            terminal.mouse_mode(),
+            MouseMode::Off,
+            "alternate-screen mouse mode should not leak across cycles for {enter:?}"
+        );
+        assert_eq!(
+            terminal.mouse_encoding(),
+            MouseEncoding::Default,
+            "alternate-screen mouse encoding should not leak across cycles for {enter:?}"
+        );
+        assert_eq!(
+            terminal.keyboard_flags(),
+            0,
+            "alternate-screen Kitty keyboard flags should not leak across cycles for {enter:?}"
+        );
+    }
+}
+
+#[test]
+fn parser_terminal_reports_alt_screen_private_mode_status() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"\x1b[?47$p\x1b[?1047$p\x1b[?1049$p");
+    let response = String::from_utf8(terminal.drain_responses()).unwrap();
+    assert!(
+        response.contains("\x1b[?47;2$y")
+            && response.contains("\x1b[?1047;2$y")
+            && response.contains("\x1b[?1049;2$y"),
+        "alternate screen private modes should report reset by default: {response:?}"
+    );
+
+    terminal.process(b"\x1b[?1047h\x1b[?47$p\x1b[?1047$p\x1b[?1049$p");
+    let response = String::from_utf8(terminal.drain_responses()).unwrap();
+    assert!(
+        response.contains("\x1b[?47;1$y")
+            && response.contains("\x1b[?1047;1$y")
+            && response.contains("\x1b[?1049;1$y"),
+        "alternate screen private modes should report set while alt screen is active: {response:?}"
+    );
+
+    terminal.process(b"\x1b[?1047l\x1b[?1047$p");
+    let response = String::from_utf8(terminal.drain_responses()).unwrap();
+    assert!(
+        response.contains("\x1b[?1047;2$y"),
+        "alternate screen private modes should report reset after DECRST 1047: {response:?}"
+    );
+}
+
+#[test]
+fn parser_terminal_restores_cursor_state_for_1048_and_1049() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"\x1b[3;5H\x1b[1m\x1b[?1048h");
+    terminal.process(b"\x1b[10;20H\x1b[22m\x1b[?1048lX");
+    let restored_1048 = terminal.active_grid().get(4, 2).unwrap();
+    assert_eq!(restored_1048.c, 'X');
+    assert!(
+        restored_1048.flags.bold(),
+        "DECRST 1048 should restore the saved character attributes"
+    );
+
+    let mut terminal = ParserTerminal::new(80, 24);
+    terminal.process(b"\x1b[4;6H\x1b[1m\x1b[?1049hALT\x1b[22m\x1b[?1049lX");
+    assert!(!terminal.is_alt_screen_active());
+    let restored_1049 = terminal.active_grid().get(5, 3).unwrap();
+    assert_eq!(restored_1049.c, 'X');
+    assert!(
+        restored_1049.flags.bold(),
+        "DECRST 1049 should restore the cursor attributes saved on DECSET 1049"
+    );
+}
+
+#[test]
+fn parser_terminal_tracks_x10_mouse_mode() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"\x1b[?9h");
+    assert_eq!(terminal.mouse_mode(), MouseMode::X10);
+    terminal.process(b"\x1b[?9$p\x1b[?1000$p");
+    let response = String::from_utf8(terminal.drain_responses()).unwrap();
+    assert!(
+        response.contains("\x1b[?9;1$y"),
+        "X10 mouse mode should report set for DECRQM ?9$p: {response:?}"
+    );
+    assert!(
+        response.contains("\x1b[?1000;2$y"),
+        "X10 mouse mode should not report normal mouse mode as set: {response:?}"
+    );
+
+    terminal.process(b"\x1b[?9l");
+    assert_eq!(terminal.mouse_mode(), MouseMode::Off);
+}
+
+#[test]
+fn parser_terminal_tracks_sgr_pixel_mouse_encoding() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"\x1b[?1016h");
+    assert_eq!(terminal.mouse_encoding(), MouseEncoding::SgrPixels);
+    terminal.process(b"\x1b[?1006$p\x1b[?1016$p");
+    let response = String::from_utf8(terminal.drain_responses()).unwrap();
+    assert!(
+        response.contains("\x1b[?1006;2$y"),
+        "SGR cell mouse encoding should not report set while pixel mode is active: {response:?}"
+    );
+    assert!(
+        response.contains("\x1b[?1016;1$y"),
+        "SGR pixel mouse encoding should report set for DECRQM ?1016$p: {response:?}"
+    );
+
+    terminal.process(b"\x1b[?1016l");
+    assert_eq!(terminal.mouse_encoding(), MouseEncoding::Default);
+}
+
+#[test]
+fn parser_terminal_reports_focus_events_only_when_focus_tracking_is_enabled() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    assert!(terminal.report_focus_in().is_empty());
+    assert!(terminal.report_focus_out().is_empty());
+
+    terminal.process(b"\x1b[?1004h");
+    assert_eq!(terminal.report_focus_in(), b"\x1b[I");
+    assert_eq!(terminal.report_focus_out(), b"\x1b[O");
+
+    terminal.process(b"\x1b[?1004l");
+    assert!(terminal.report_focus_in().is_empty());
+    assert!(terminal.report_focus_out().is_empty());
+}
+
+#[test]
+fn parser_terminal_alternate_screen_exit_resets_transient_interaction_modes() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"\x1b[?1049h\x1b[?1004h\x1b[?1007h\x1b[?1000h\x1b[?1016h");
+
+    assert!(terminal.is_alt_screen_active());
+    assert!(terminal.focus_tracking());
+    assert!(terminal.alternate_scroll());
+    assert_eq!(terminal.mouse_mode(), MouseMode::Normal);
+    assert_eq!(terminal.mouse_encoding(), MouseEncoding::SgrPixels);
+    assert_eq!(terminal.report_focus_in(), b"\x1b[I");
+
+    terminal.process(b"\x1b[?1049l");
+
+    assert!(!terminal.is_alt_screen_active());
+    assert!(
+        !terminal.focus_tracking(),
+        "focus tracking enabled by a full-screen app must not leak back to the primary screen"
+    );
+    assert!(
+        !terminal.alternate_scroll(),
+        "alternate-scroll enabled in alternate screen must reset on return to primary"
+    );
+    assert_eq!(
+        terminal.mouse_mode(),
+        MouseMode::Off,
+        "mouse mode enabled in alternate screen must reset on return to primary"
+    );
+    assert_eq!(
+        terminal.mouse_encoding(),
+        MouseEncoding::Default,
+        "mouse encoding enabled in alternate screen must reset on return to primary"
+    );
+    assert!(terminal.report_focus_in().is_empty());
+}
+
+#[test]
+fn parser_terminal_restores_primary_interaction_modes_after_alt_screen_exit() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"\x1b[?1004h\x1b[?1007h\x1b[?1002h\x1b[?1006h");
+    assert!(terminal.focus_tracking());
+    assert!(terminal.alternate_scroll());
+    assert_eq!(terminal.mouse_mode(), MouseMode::ButtonEvent);
+    assert_eq!(terminal.mouse_encoding(), MouseEncoding::Sgr);
+
+    terminal.process(b"\x1b[?1049h");
+    assert!(terminal.is_alt_screen_active());
+    assert!(
+        !terminal.focus_tracking(),
+        "alternate screen should start with independent focus tracking"
+    );
+    assert!(
+        !terminal.alternate_scroll(),
+        "alternate screen should start with independent alternate-scroll state"
+    );
+    assert_eq!(
+        terminal.mouse_mode(),
+        MouseMode::Off,
+        "alternate screen should start with independent mouse mode"
+    );
+    assert_eq!(
+        terminal.mouse_encoding(),
+        MouseEncoding::Default,
+        "alternate screen should start with independent mouse encoding"
+    );
+
+    terminal.process(b"\x1b[?1004h\x1b[?1007h\x1b[?1000h\x1b[?1016h");
+    terminal.process(b"\x1b[?1004$p\x1b[?1007$p\x1b[?1000$p\x1b[?1016$p");
+    let alt_response = String::from_utf8(terminal.drain_responses()).unwrap();
+    assert!(
+        alt_response.contains("\x1b[?1004;1$y")
+            && alt_response.contains("\x1b[?1007;1$y")
+            && alt_response.contains("\x1b[?1000;1$y")
+            && alt_response.contains("\x1b[?1016;1$y"),
+        "active alternate interaction modes should report set: {alt_response:?}"
+    );
+
+    terminal.process(b"\x1b[?1049l");
+    assert!(!terminal.is_alt_screen_active());
+    assert!(terminal.focus_tracking());
+    assert!(terminal.alternate_scroll());
+    assert_eq!(terminal.mouse_mode(), MouseMode::ButtonEvent);
+    assert_eq!(terminal.mouse_encoding(), MouseEncoding::Sgr);
+    assert_eq!(terminal.report_focus_in(), b"\x1b[I");
+
+    terminal.process(b"\x1b[?1004$p\x1b[?1007$p\x1b[?1002$p\x1b[?1006$p");
+    let primary_response = String::from_utf8(terminal.drain_responses()).unwrap();
+    assert!(
+        primary_response.contains("\x1b[?1004;1$y")
+            && primary_response.contains("\x1b[?1007;1$y")
+            && primary_response.contains("\x1b[?1002;1$y")
+            && primary_response.contains("\x1b[?1006;1$y"),
+        "primary interaction modes should be restored after alt exit: {primary_response:?}"
+    );
+
+    terminal.process(b"\x1b[?1049h");
+    assert_eq!(
+        terminal.mouse_mode(),
+        MouseMode::Off,
+        "alternate-screen mouse mode should not leak across 1049 cycles"
+    );
+    assert!(
+        !terminal.focus_tracking(),
+        "alternate-screen focus tracking should not leak across 1049 cycles"
+    );
+}
+
+#[test]
+fn parser_terminal_hard_reset_clears_interaction_modes() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"\x1b[?1004h\x1b[?1007h\x1b[?1002h\x1b[?1006h\x1b[?2004h\x1b[=1u");
+    assert!(terminal.focus_tracking());
+    assert!(terminal.alternate_scroll());
+    assert!(terminal.bracketed_paste());
+    assert_eq!(terminal.mouse_mode(), MouseMode::ButtonEvent);
+    assert_eq!(terminal.mouse_encoding(), MouseEncoding::Sgr);
+    assert_eq!(terminal.keyboard_flags(), 1);
+
+    terminal.process(b"\x1b[?1049h\x1b[?1004h\x1b[?1007h\x1b[?1003h\x1b[?1016h\x1b[=8u");
+    assert!(terminal.is_alt_screen_active());
+    assert!(terminal.focus_tracking());
+    assert!(terminal.alternate_scroll());
+    assert_eq!(terminal.mouse_mode(), MouseMode::AnyEvent);
+    assert_eq!(terminal.mouse_encoding(), MouseEncoding::SgrPixels);
+    assert_eq!(terminal.keyboard_flags(), 8);
+
+    terminal.process(b"\x1b[?2026h\x1bc");
+
+    assert!(!terminal.is_alt_screen_active());
+    assert!(!terminal.synchronized_updates());
+    assert!(!terminal.focus_tracking());
+    assert!(!terminal.alternate_scroll());
+    assert!(!terminal.bracketed_paste());
+    assert_eq!(terminal.mouse_mode(), MouseMode::Off);
+    assert_eq!(terminal.mouse_encoding(), MouseEncoding::Default);
+    assert_eq!(terminal.keyboard_flags(), 0);
+    assert!(terminal.report_focus_in().is_empty());
+    assert_eq!(terminal.paste_input_bytes("reset"), b"reset");
+
+    terminal.process(
+        b"\x1b[?1004$p\x1b[?1007$p\x1b[?1003$p\x1b[?1016$p\x1b[?2004$p\x1b[?2026$p\x1b[?u",
+    );
+    let response = String::from_utf8(terminal.drain_responses()).unwrap();
+    for mode in [1004, 1007, 1003, 1016, 2004, 2026] {
+        assert!(
+            response.contains(&format!("\x1b[?{mode};2$y")),
+            "RIS should report interaction mode {mode} reset: {response:?}"
+        );
+    }
+    assert!(
+        response.contains("\x1b[?0u"),
+        "RIS should reset Kitty keyboard flags: {response:?}"
+    );
+}
+
+#[test]
+fn parser_terminal_reports_synchronized_output_private_mode_status() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"\x1b[?2026$p");
+    let response = String::from_utf8(terminal.drain_responses()).unwrap();
+    assert!(
+        response.contains("\x1b[?2026;2$y"),
+        "synchronized output should report reset by default: {response:?}"
+    );
+
+    terminal.process(b"\x1b[?2026h\x1b[?2026l\x1b[?2026h");
+    assert!(terminal.synchronized_updates());
+    terminal.process(b"\x1b[?2026$p\x1b[?2026l\x1b[?2026$p");
+    let response = String::from_utf8(terminal.drain_responses()).unwrap();
+    assert!(
+        response.contains("\x1b[?2026;1$y"),
+        "synchronized output should report set while DEC 2026 is active: {response:?}"
+    );
+    assert!(
+        response.contains("\x1b[?2026;2$y"),
+        "synchronized output should report reset after DECRST 2026 in the same flushed buffer: {response:?}"
+    );
+}
+
+#[test]
+fn parser_terminal_reports_sgr_pixel_mouse_coordinates() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.set_mouse_mode(MouseMode::Normal);
+    terminal.set_mouse_encoding(MouseEncoding::SgrPixels);
+
+    assert_eq!(
+        terminal.report_mouse(MouseEvent::new_with_pixels(0, 4, 2, true, 1, 57, 23)),
+        b"\x1b[<4;58;24M",
+        "SGR 1016 reports should use viewport-local pixel coordinates"
+    );
+    assert_eq!(
+        terminal.report_mouse(MouseEvent::new_with_pixels(0, 4, 2, false, 0, 57, 23)),
+        b"\x1b[<0;58;24m",
+        "SGR 1016 release reports should keep pixel coordinates"
+    );
+    assert_eq!(
+        terminal.report_mouse(MouseEvent::new(0, 4, 2, true, 0)),
+        b"\x1b[<0;5;3M",
+        "SGR 1016 should fall back to cell coordinates when no pixel position is supplied"
+    );
+}
+
+#[test]
+fn parser_terminal_reports_utf8_mouse_coordinates_beyond_default_bounds() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.set_mouse_mode(MouseMode::Normal);
+    terminal.set_mouse_encoding(MouseEncoding::Utf8);
+
+    let report = terminal.report_mouse(MouseEvent::new(0, 300, 301, true, 0));
+    assert_eq!(&report[..4], b"\x1b[M ");
+    assert_eq!(
+        std::str::from_utf8(&report[4..]).unwrap(),
+        "ōŎ",
+        "UTF-8 mouse mode should encode coordinates as UTF-8 codepoints instead of clamping like default mode"
+    );
+}
+
+#[test]
+fn parser_terminal_mouse_reports_saturate_extreme_coordinates() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    terminal.set_mouse_mode(MouseMode::Normal);
+
+    terminal.set_mouse_encoding(MouseEncoding::Sgr);
+    let sgr = terminal.report_mouse(MouseEvent::new(0, usize::MAX, usize::MAX, true, 0));
+    assert_eq!(
+        String::from_utf8_lossy(&sgr),
+        format!("\x1b[<0;{};{}M", usize::MAX, usize::MAX),
+        "SGR mouse encoding should saturate instead of overflowing extreme coordinates"
+    );
+
+    terminal.set_mouse_encoding(MouseEncoding::SgrPixels);
+    let sgr_pixels = terminal.report_mouse(MouseEvent::new_with_pixels(
+        0,
+        0,
+        0,
+        true,
+        0,
+        usize::MAX,
+        usize::MAX,
+    ));
+    assert_eq!(
+        String::from_utf8_lossy(&sgr_pixels),
+        format!("\x1b[<0;{};{}M", usize::MAX, usize::MAX),
+        "SGR pixel mouse encoding should saturate pixel coordinates"
+    );
+
+    terminal.set_mouse_encoding(MouseEncoding::Urxvt);
+    let urxvt = terminal.report_mouse(MouseEvent::new(0, usize::MAX, usize::MAX, true, 0));
+    assert_eq!(
+        String::from_utf8_lossy(&urxvt),
+        format!("\x1b[32;{};{}M", usize::MAX, usize::MAX),
+        "URXVT mouse encoding should saturate instead of overflowing extreme coordinates"
+    );
+}
+
+#[test]
+fn parser_terminal_mouse_reports_limit_modifier_bits() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    terminal.set_mouse_mode(MouseMode::Normal);
+
+    terminal.set_mouse_encoding(MouseEncoding::Sgr);
+    assert_eq!(
+        terminal.report_mouse(MouseEvent::new(0, 0, 0, true, u8::MAX)),
+        b"\x1b[<28;1;1M",
+        "SGR mouse reports should ignore modifier bits outside shift/alt/control"
+    );
+
+    terminal.set_mouse_encoding(MouseEncoding::Default);
+    assert_eq!(
+        terminal.report_mouse(MouseEvent::new(0, 0, 0, true, u8::MAX)),
+        &[0x1b, b'[', b'M', 60, 33, 33],
+        "default mouse reports should keep the encoded button byte in range"
+    );
+}
+
+#[test]
+fn parser_terminal_filters_mouse_reports_by_tracking_mode() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    terminal.set_mouse_encoding(MouseEncoding::Sgr);
+
+    terminal.set_mouse_mode(MouseMode::X10);
+    assert_eq!(
+        terminal.report_mouse(MouseEvent::new(0, 0, 0, true, 0)),
+        b"\x1b[<0;1;1M"
+    );
+    assert!(terminal
+        .report_mouse(MouseEvent::new(0, 0, 0, false, 0))
+        .is_empty());
+    assert!(terminal
+        .report_mouse(MouseEvent::new(32, 0, 0, true, 0))
+        .is_empty());
+    assert!(terminal
+        .report_mouse(MouseEvent::new(64, 0, 0, true, 0))
+        .is_empty());
+
+    terminal.set_mouse_mode(MouseMode::Normal);
+    assert_eq!(
+        terminal.report_mouse(MouseEvent::new(0, 0, 0, false, 0)),
+        b"\x1b[<0;1;1m"
+    );
+    assert!(terminal
+        .report_mouse(MouseEvent::new(32, 0, 0, true, 0))
+        .is_empty());
+    assert!(terminal
+        .report_mouse(MouseEvent::new(35, 0, 0, true, 0))
+        .is_empty());
+    assert_eq!(
+        terminal.report_mouse(MouseEvent::new(64, 0, 0, true, 0)),
+        b"\x1b[<64;1;1M"
+    );
+
+    terminal.set_mouse_mode(MouseMode::ButtonEvent);
+    assert_eq!(
+        terminal.report_mouse(MouseEvent::new(32, 0, 0, true, 0)),
+        b"\x1b[<32;1;1M"
+    );
+    assert!(terminal
+        .report_mouse(MouseEvent::new(35, 0, 0, true, 0))
+        .is_empty());
+
+    terminal.set_mouse_mode(MouseMode::AnyEvent);
+    assert_eq!(
+        terminal.report_mouse(MouseEvent::new(35, 0, 0, true, 0)),
+        b"\x1b[<35;1;1M"
+    );
+}
+
+#[test]
+fn parser_terminal_snapshot_restores_active_alt_screen_kitty_keyboard_flags() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"\x1b[=1u");
+    assert_eq!(terminal.keyboard_flags(), 1);
+    terminal.use_alt_screen();
+    terminal.process(b"\x1b[=8u");
+    assert_eq!(terminal.keyboard_flags(), 8);
+
+    let snapshot = terminal.capture_snapshot();
+    let mut restored = ParserTerminal::new(80, 24);
+    restored.restore_from_snapshot(snapshot);
+
+    assert!(restored.is_alt_screen_active());
+    assert_eq!(
+        restored.keyboard_flags(),
+        8,
+        "restored alt-screen snapshot should expose active alt Kitty flags"
+    );
+    restored.process(b"\x1b[?u");
+    assert_eq!(
+        String::from_utf8(restored.drain_responses()).unwrap(),
+        "\x1b[?8u"
+    );
+
+    restored.use_primary_screen();
+    assert_eq!(
+        restored.keyboard_flags(),
+        1,
+        "leaving restored alt screen should recover primary Kitty flags"
+    );
+}
+
+#[test]
+fn parser_terminal_snapshot_restores_kitty_keyboard_stacks() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"\x1b[=1u");
+    terminal.process(b"\x1b[>8u");
+    assert_eq!(terminal.keyboard_flags(), 8);
+
+    terminal.use_alt_screen();
+    terminal.process(b"\x1b[=2u");
+    terminal.process(b"\x1b[>16u");
+    assert_eq!(terminal.keyboard_flags(), 16);
+
+    let snapshot = terminal.capture_snapshot();
+    let mut restored = ParserTerminal::new(80, 24);
+    restored.restore_from_snapshot(snapshot);
+
+    assert!(restored.is_alt_screen_active());
+    assert_eq!(restored.keyboard_flags(), 16);
+    restored.process(b"\x1b[<1u");
+    assert_eq!(
+        restored.keyboard_flags(),
+        2,
+        "restored alt-screen Kitty keyboard stack should pop to the prior alt flags"
+    );
+
+    restored.use_primary_screen();
+    assert_eq!(restored.keyboard_flags(), 8);
+    restored.process(b"\x1b[<1u");
+    assert_eq!(
+        restored.keyboard_flags(),
+        1,
+        "restored primary Kitty keyboard stack should pop to the prior primary flags"
+    );
+}
+
+#[test]
+fn parser_terminal_snapshot_restores_active_alt_screen_modify_other_keys() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"\x1b[>4;2m");
+    assert_eq!(terminal.modify_other_keys_mode(), 2);
+    terminal.use_alt_screen();
+    terminal.process(b"\x1b[>4;1m");
+    assert_eq!(terminal.modify_other_keys_mode(), 1);
+
+    let snapshot = terminal.capture_snapshot();
+    let mut restored = ParserTerminal::new(80, 24);
+    restored.restore_from_snapshot(snapshot);
+
+    assert!(restored.is_alt_screen_active());
+    assert_eq!(
+        restored.modify_other_keys_mode(),
+        1,
+        "restored alt-screen snapshot should expose active alt modifyOtherKeys mode"
+    );
+    restored.process(b"\x1b[?4m");
+    assert_eq!(
+        String::from_utf8(restored.drain_responses()).unwrap(),
+        "\x1b[>4;1m"
+    );
+
+    restored.use_primary_screen();
+    assert_eq!(
+        restored.modify_other_keys_mode(),
+        2,
+        "leaving restored alt screen should recover primary modifyOtherKeys mode"
+    );
+}
+
+#[test]
+fn parser_terminal_snapshot_restores_split_synchronized_update_state() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"before\x1b[?2026hhidden\x1b[?20");
+    assert!(terminal.synchronized_updates());
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), "before");
+
+    let snapshot = terminal.capture_snapshot();
+    let mut restored = ParserTerminal::new(80, 24);
+    restored.restore_from_snapshot(snapshot);
+
+    assert!(restored.synchronized_updates());
+    assert_eq!(restored.active_grid().row_text(0).trim_end(), "before");
+
+    restored.process(b"26l-after");
+
+    assert!(!restored.synchronized_updates());
+    assert_eq!(
+        restored.active_grid().row_text(0).trim_end(),
+        "beforehidden-after",
+        "restored synchronized update state should keep buffered output hidden until DECRST 2026 completes"
+    );
+}
+
+#[test]
+fn parser_terminal_snapshot_restores_active_kitty_graphics() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let kitty = format!(
+        "\x1b[4;5H\x1b_Ga=T,f=32,s=1,v=1,i=904,p=7,c=2,r=3,C=1,q=1;{RED_RGBA_BASE64}\x1b\\"
+    );
+
+    terminal.process(kitty.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+
+    let snapshot = terminal.capture_snapshot();
+    let mut restored = ParserTerminal::new(80, 24);
+    restored.restore_from_snapshot(snapshot);
+
+    assert_eq!(
+        restored.graphics_count(),
+        1,
+        "terminal snapshot restore should keep active Kitty graphics"
+    );
+    let graphic = &restored.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "kitty");
+    assert_eq!(graphic.kitty_image_id, Some(904));
+    assert_eq!(graphic.kitty_placement_id, Some(7));
+    assert_eq!(graphic.position, (4, 3));
+    assert_eq!(graphic.placement.columns, Some(2));
+    assert_eq!(graphic.placement.rows, Some(3));
+    assert_eq!(graphic.pixels.as_ref(), &[255, 0, 0, 255]);
+}
+
+#[test]
+fn parser_terminal_snapshot_restores_scrollback_kitty_graphics() {
+    let mut terminal = ParserTerminal::with_scrollback(8, 4, 20);
+    let kitty = format!(
+        "\x1b[1;1H\x1b_Ga=T,f=32,s=1,v=1,i=905,p=1,c=1,r=1,C=1,q=1;{RED_RGBA_BASE64}\x1b\\"
+    );
+
+    terminal.process(kitty.as_bytes());
+    terminal.process(b"\x1b[4;1H\n\n\n\n");
+    assert_eq!(terminal.graphics_count(), 0);
+    assert_eq!(terminal.scrollback_graphics_count(), 1);
+
+    let snapshot = terminal.capture_snapshot();
+    let mut restored = ParserTerminal::with_scrollback(8, 4, 20);
+    restored.restore_from_snapshot(snapshot);
+
+    assert_eq!(
+        restored.graphics_count(),
+        0,
+        "restoring a scrolled-off graphics snapshot should not resurrect active placements"
+    );
+    assert_eq!(
+        restored.scrollback_graphics_count(),
+        1,
+        "terminal snapshot restore should keep Kitty graphics retained in scrollback"
+    );
+    let graphic = &restored.all_scrollback_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "kitty");
+    assert_eq!(graphic.kitty_image_id, Some(905));
+    assert_eq!(graphic.kitty_placement_id, Some(1));
+    assert_eq!(graphic.scrollback_row, Some(0));
+    assert_eq!(graphic.pixels.as_ref(), &[255, 0, 0, 255]);
+}
+
+#[test]
+fn parser_terminal_snapshot_restores_active_iterm_and_sixel_graphics() {
+    let mut terminal = ParserTerminal::new(12, 6);
+    let iterm = format!(
+        "\x1b[2;3H\x1b]1337;File=inline=1;doNotMoveCursor=1;width=1;height=1:{}\x1b\\",
+        RED_PIXEL_PNG_BASE64
+    );
+
+    terminal.process(iterm.as_bytes());
+    terminal.process(b"\x1b[4;5H\x1bPq#1;2;100;0;0@\x1b\\");
+    assert_eq!(terminal.graphics_count(), 2);
+    let mut original_graphics = terminal
+        .all_graphics()
+        .iter()
+        .map(|graphic| {
+            (
+                graphic.protocol.as_str().to_string(),
+                graphic.position,
+                graphic.display_cell_span,
+                graphic.pixels.as_ref()[0..4].to_vec(),
+            )
+        })
+        .collect::<Vec<_>>();
+    original_graphics.sort_by(|left, right| left.0.cmp(&right.0));
+
+    let snapshot = terminal.capture_snapshot();
+    let mut restored = ParserTerminal::new(12, 6);
+    restored.restore_from_snapshot(snapshot);
+
+    assert_eq!(
+        restored.graphics_count(),
+        2,
+        "terminal snapshot restore should keep active iTerm2 and Sixel graphics"
+    );
+    let mut restored_graphics = restored
+        .all_graphics()
+        .iter()
+        .map(|graphic| {
+            (
+                graphic.protocol.as_str().to_string(),
+                graphic.position,
+                graphic.display_cell_span,
+                graphic.pixels.as_ref()[0..4].to_vec(),
+            )
+        })
+        .collect::<Vec<_>>();
+    restored_graphics.sort_by(|left, right| left.0.cmp(&right.0));
+    assert_eq!(restored_graphics, original_graphics);
+}
+
+#[test]
+fn parser_terminal_snapshot_restores_scrollback_iterm_and_sixel_graphics() {
+    let mut terminal = ParserTerminal::with_scrollback(12, 12, 30);
+    let iterm = format!(
+        "\x1b[1;1H\x1b]1337;File=inline=1;doNotMoveCursor=1;width=1;height=1:{}\x1b\\",
+        RED_PIXEL_PNG_BASE64
+    );
+
+    terminal.process(iterm.as_bytes());
+    terminal.process(b"\x1b[5;1H\x1bPq#1;2;100;0;0@\x1b\\");
+    assert_eq!(terminal.graphics_count(), 2);
+
+    terminal.process(b"\x1b[12;1H");
+    for _ in 0..16 {
+        terminal.process(b"\n");
+    }
+    assert_eq!(terminal.graphics_count(), 0);
+    assert_eq!(terminal.scrollback_graphics_count(), 2);
+    let mut original_graphics = terminal
+        .all_scrollback_graphics()
+        .iter()
+        .map(|graphic| {
+            (
+                graphic.protocol.as_str().to_string(),
+                graphic.position,
+                graphic.scrollback_row,
+                graphic.display_cell_span,
+                graphic.pixels.as_ref()[0..4].to_vec(),
+            )
+        })
+        .collect::<Vec<_>>();
+    original_graphics.sort_by(|left, right| left.0.cmp(&right.0));
+
+    let snapshot = terminal.capture_snapshot();
+    let mut restored = ParserTerminal::with_scrollback(12, 12, 30);
+    restored.restore_from_snapshot(snapshot);
+
+    assert_eq!(
+        restored.graphics_count(),
+        0,
+        "restoring scrolled-off iTerm2/Sixel graphics should not create active placements"
+    );
+    assert_eq!(
+        restored.scrollback_graphics_count(),
+        2,
+        "terminal snapshot restore should keep iTerm2 and Sixel graphics retained in scrollback"
+    );
+    let mut restored_graphics = restored
+        .all_scrollback_graphics()
+        .iter()
+        .map(|graphic| {
+            (
+                graphic.protocol.as_str().to_string(),
+                graphic.position,
+                graphic.scrollback_row,
+                graphic.display_cell_span,
+                graphic.pixels.as_ref()[0..4].to_vec(),
+            )
+        })
+        .collect::<Vec<_>>();
+    restored_graphics.sort_by(|left, right| left.0.cmp(&right.0));
+    assert_eq!(restored_graphics, original_graphics);
+}
+
+#[test]
+fn parser_terminal_snapshot_restores_kitty_clear_redraw_tombstone() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let first =
+        format!("\x1b[1;1H\x1b_Ga=T,f=32,s=1,v=1,i=906,p=4,C=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+
+    terminal.process(first.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+    let first_graphic_id = terminal.all_graphics()[0].id;
+
+    terminal.process(b"\x1b[2J");
+    assert_eq!(terminal.graphics_count(), 0);
+    assert_eq!(terminal.pending_cleared_kitty_graphics_count(), 1);
+
+    let snapshot = terminal.capture_snapshot();
+    let mut restored = ParserTerminal::new(80, 24);
+    restored.restore_from_snapshot(snapshot);
+
+    assert_eq!(restored.graphics_count(), 0);
+    assert_eq!(
+        restored.pending_cleared_kitty_graphics_count(),
+        1,
+        "snapshot restore should retain Kitty clear-screen tombstones for immediate redraw"
+    );
+
+    let replacement =
+        format!("\x1b[1;1H\x1b_Ga=T,f=32,s=1,v=1,i=906,p=4,C=1,q=1;{GREEN_RGBA_BASE64}\x1b\\");
+    restored.process(replacement.as_bytes());
+
+    assert_eq!(restored.graphics_count(), 1);
+    assert_eq!(
+        restored.all_graphics()[0].id,
+        first_graphic_id,
+        "redraw after restored clear tombstone should keep the original render identity"
+    );
+    assert_eq!(restored.pending_cleared_kitty_graphics_count(), 0);
+}
+
+#[test]
+fn parser_terminal_snapshot_restores_kitty_deferred_delete_tombstone() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let first =
+        format!("\x1b[1;1H\x1b_Ga=T,f=32,s=1,v=1,i=907,p=5,C=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+
+    terminal.process(first.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+    let first_graphic_id = terminal.all_graphics()[0].id;
+
+    terminal.process(b"\x1b_Ga=d,d=I,i=907,p=5,q=2;\x1b\\");
+    assert_eq!(terminal.graphics_count(), 0);
+    assert_eq!(terminal.deferred_kitty_delete_count(), 1);
+
+    let snapshot = terminal.capture_snapshot();
+    let mut restored = ParserTerminal::new(80, 24);
+    restored.restore_from_snapshot(snapshot);
+
+    assert_eq!(restored.graphics_count(), 0);
+    assert_eq!(
+        restored.deferred_kitty_delete_count(),
+        1,
+        "snapshot restore should retain Kitty delete tombstones for immediate replacement"
+    );
+
+    let replacement =
+        format!("\x1b[1;1H\x1b_Ga=T,f=32,s=1,v=1,i=908,p=5,C=1,q=1;{GREEN_RGBA_BASE64}\x1b\\");
+    restored.process(replacement.as_bytes());
+
+    assert_eq!(restored.deferred_kitty_delete_count(), 0);
+    assert_eq!(restored.graphics_count(), 1);
+    assert_eq!(
+        restored.all_graphics()[0].id,
+        first_graphic_id,
+        "replacement after restored delete tombstone should keep the original render identity"
+    );
+    assert_eq!(restored.all_graphics()[0].kitty_image_id, Some(908));
 }
 
 #[test]
@@ -2757,11 +14491,9 @@ fn session_reflows_single_long_line_across_resize() {
             .iter()
             .any(|row| row.starts_with("reflow-") && row.len() == 137)
     });
-    assert!(
-        logical_rows_from_frame(&before)
-            .iter()
-            .any(|row| row.starts_with("reflow-") && row.len() == 137)
-    );
+    assert!(logical_rows_from_frame(&before)
+        .iter()
+        .any(|row| row.starts_with("reflow-") && row.len() == 137));
 
     session::resize_session(session_id, 40, 24, 0, 0).unwrap();
 
@@ -2771,18 +14503,14 @@ fn session_reflows_single_long_line_across_resize() {
             .any(|row| row.starts_with("reflow-") && row.len() == 137)
     });
     let after_parsed: serde_json::Value = serde_json::from_str(&after).unwrap();
-    assert!(
-        after_parsed["rows"]
-            .as_array()
-            .expect("expected rows")
-            .iter()
-            .any(|row| row["wrapped"].as_bool() == Some(true))
-    );
-    assert!(
-        logical_rows_from_frame(&after)
-            .iter()
-            .any(|row| row.starts_with("reflow-") && row.len() == 137)
-    );
+    assert!(after_parsed["rows"]
+        .as_array()
+        .expect("expected rows")
+        .iter()
+        .any(|row| row["wrapped"].as_bool() == Some(true)));
+    assert!(logical_rows_from_frame(&after)
+        .iter()
+        .any(|row| row.starts_with("reflow-") && row.len() == 137));
 
     session::close_session(session_id).unwrap();
 }
@@ -2805,11 +14533,9 @@ fn session_preserves_latest_visible_output_when_shrinking_height() {
             .iter()
             .any(|row| row.contains("keep-39"))
     });
-    assert!(
-        logical_rows_from_frame(&before)
-            .iter()
-            .any(|row| row.contains("keep-39"))
-    );
+    assert!(logical_rows_from_frame(&before)
+        .iter()
+        .any(|row| row.contains("keep-39")));
 
     session::resize_session(session_id, 120, 16, 0, 0).unwrap();
 
@@ -2844,12 +14570,256 @@ fn session_frame_diff_exposes_application_cursor_and_keypad_modes() {
 }
 
 #[test]
+fn session_frame_diff_exposes_kitty_keyboard_flags() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&kitty_keyboard_profile()).unwrap())
+            .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "K");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+
+    assert_eq!(parsed["modes"]["kitty_keyboard_flags"].as_u64(), Some(1));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_exposes_focus_tracking_mode() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&focus_tracking_profile()).unwrap())
+            .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "FOCUS");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+
+    assert_eq!(parsed["modes"]["focus_tracking"].as_bool(), Some(true));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_exposes_bracketed_paste_mode_for_xterm_profiles() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&bracketed_paste_mode_profile()).unwrap())
+            .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "PASTE");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+
+    assert_eq!(parsed["modes"]["bracketed_paste"].as_bool(), Some(true));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_sessions_do_not_surface_bracketed_paste_mode() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&vt220_bracketed_paste_mode_profile()).unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "PASTE");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+
+    assert_eq!(parsed["modes"]["bracketed_paste"].as_bool(), Some(false));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_exposes_sgr_pixel_mouse_encoding() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&mouse_sgr_pixels_profile()).unwrap())
+            .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "MOUSEPIX");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+
+    assert_eq!(parsed["modes"]["mouse_mode"].as_str(), Some("normal"));
+    assert_eq!(
+        parsed["modes"]["mouse_encoding"].as_str(),
+        Some("sgr_pixels")
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_exposes_x10_mouse_mode() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&mouse_x10_profile()).unwrap()).unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "MOUSEX10");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+
+    assert_eq!(parsed["modes"]["mouse_mode"].as_str(), Some("x10"));
+    assert_eq!(parsed["modes"]["mouse_encoding"].as_str(), Some("default"));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn session_frame_diff_exposes_alternate_screen_mode() {
     let session_id =
         session::create_session(&serde_json::to_string(&alternate_screen_profile()).unwrap())
             .unwrap();
 
     let frame = wait_for_frame_containing(session_id, "ALTSCREEN");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+
+    assert_eq!(parsed["modes"]["alternate_screen"].as_bool(), Some(true));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_resets_alt_screen_interaction_modes_on_exit() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&alternate_screen_interaction_modes_profile()).unwrap(),
+    )
+    .unwrap();
+
+    let alt_frame = wait_for_frame_containing(session_id, "ALTINTERACTION");
+    let alt: serde_json::Value = serde_json::from_str(&alt_frame).unwrap();
+    assert_eq!(alt["modes"]["alternate_screen"].as_bool(), Some(true));
+    assert_eq!(alt["modes"]["focus_tracking"].as_bool(), Some(true));
+    assert_eq!(alt["modes"]["alternate_scroll"].as_bool(), Some(true));
+    assert_eq!(alt["modes"]["mouse_mode"].as_str(), Some("button_event"));
+    assert_eq!(alt["modes"]["mouse_encoding"].as_str(), Some("sgr"));
+    assert_eq!(alt["modes"]["kitty_keyboard_flags"].as_u64(), Some(1));
+
+    let primary_frame = wait_for_frame_containing(session_id, "PRIMARYDONE");
+    let primary: serde_json::Value = serde_json::from_str(&primary_frame).unwrap();
+    assert_eq!(primary["modes"]["alternate_screen"].as_bool(), Some(false));
+    assert_eq!(primary["modes"]["focus_tracking"].as_bool(), Some(false));
+    assert_eq!(primary["modes"]["alternate_scroll"].as_bool(), Some(false));
+    assert_eq!(primary["modes"]["mouse_mode"].as_str(), Some("off"));
+    assert_eq!(primary["modes"]["mouse_encoding"].as_str(), Some("default"));
+    assert_eq!(primary["modes"]["kitty_keyboard_flags"].as_u64(), Some(0));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_restores_primary_interaction_modes_after_alt_screen() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&primary_interaction_modes_across_alternate_screen_profile())
+            .unwrap(),
+    )
+    .unwrap();
+
+    let primary_modes_frame = wait_for_frame_containing(session_id, "PRIMARYMODES");
+    let primary_modes: serde_json::Value = serde_json::from_str(&primary_modes_frame).unwrap();
+    assert_eq!(
+        primary_modes["modes"]["alternate_screen"].as_bool(),
+        Some(false)
+    );
+    assert_eq!(
+        primary_modes["modes"]["focus_tracking"].as_bool(),
+        Some(true)
+    );
+    assert_eq!(
+        primary_modes["modes"]["alternate_scroll"].as_bool(),
+        Some(true)
+    );
+    assert_eq!(
+        primary_modes["modes"]["bracketed_paste"].as_bool(),
+        Some(true)
+    );
+    assert_eq!(
+        primary_modes["modes"]["mouse_mode"].as_str(),
+        Some("button_event")
+    );
+    assert_eq!(
+        primary_modes["modes"]["mouse_encoding"].as_str(),
+        Some("sgr")
+    );
+    assert_eq!(
+        primary_modes["modes"]["kitty_keyboard_flags"].as_u64(),
+        Some(1)
+    );
+
+    let alt_empty_frame = wait_for_frame_containing(session_id, "ALTEMPTY");
+    let alt_empty: serde_json::Value = serde_json::from_str(&alt_empty_frame).unwrap();
+    assert_eq!(alt_empty["modes"]["alternate_screen"].as_bool(), Some(true));
+    assert_eq!(
+        alt_empty["modes"]["focus_tracking"].as_bool(),
+        Some(false),
+        "primary focus tracking must not leak into alternate screen: {alt_empty_frame}"
+    );
+    assert_eq!(
+        alt_empty["modes"]["alternate_scroll"].as_bool(),
+        Some(false),
+        "primary alternate-scroll must not leak into alternate screen: {alt_empty_frame}"
+    );
+    assert_eq!(
+        alt_empty["modes"]["bracketed_paste"].as_bool(),
+        Some(true),
+        "bracketed paste is a terminal-wide mode and should stay visible in alternate screen: {alt_empty_frame}"
+    );
+    assert_eq!(alt_empty["modes"]["mouse_mode"].as_str(), Some("off"));
+    assert_eq!(
+        alt_empty["modes"]["mouse_encoding"].as_str(),
+        Some("default")
+    );
+    assert_eq!(alt_empty["modes"]["kitty_keyboard_flags"].as_u64(), Some(0));
+
+    let alt_modes_frame = wait_for_frame_containing(session_id, "ALTMODES");
+    let alt_modes: serde_json::Value = serde_json::from_str(&alt_modes_frame).unwrap();
+    assert_eq!(alt_modes["modes"]["alternate_screen"].as_bool(), Some(true));
+    assert_eq!(alt_modes["modes"]["focus_tracking"].as_bool(), Some(true));
+    assert_eq!(alt_modes["modes"]["alternate_scroll"].as_bool(), Some(true));
+    assert_eq!(alt_modes["modes"]["mouse_mode"].as_str(), Some("any_event"));
+    assert_eq!(
+        alt_modes["modes"]["mouse_encoding"].as_str(),
+        Some("sgr_pixels")
+    );
+    assert_eq!(alt_modes["modes"]["kitty_keyboard_flags"].as_u64(), Some(8));
+
+    let restored_frame = wait_for_frame_containing(session_id, "PRIMARYRESTORED");
+    let restored: serde_json::Value = serde_json::from_str(&restored_frame).unwrap();
+    assert_eq!(restored["modes"]["alternate_screen"].as_bool(), Some(false));
+    assert_eq!(
+        restored["modes"]["focus_tracking"].as_bool(),
+        Some(true),
+        "primary focus tracking should be restored after alternate screen exit: {restored_frame}"
+    );
+    assert_eq!(
+        restored["modes"]["alternate_scroll"].as_bool(),
+        Some(true),
+        "primary alternate-scroll should be restored after alternate screen exit: {restored_frame}"
+    );
+    assert_eq!(
+        restored["modes"]["bracketed_paste"].as_bool(),
+        Some(true),
+        "primary bracketed paste mode should remain active after alternate screen exit: {restored_frame}"
+    );
+    assert_eq!(
+        restored["modes"]["mouse_mode"].as_str(),
+        Some("button_event"),
+        "primary mouse mode should be restored after alternate screen exit: {restored_frame}"
+    );
+    assert_eq!(
+        restored["modes"]["mouse_encoding"].as_str(),
+        Some("sgr"),
+        "primary mouse encoding should be restored after alternate screen exit: {restored_frame}"
+    );
+    assert_eq!(
+        restored["modes"]["kitty_keyboard_flags"].as_u64(),
+        Some(1),
+        "primary Kitty keyboard flags should be restored after alternate screen exit: {restored_frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_exposes_1047_alternate_screen_mode() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&alternate_screen_1047_profile()).unwrap())
+            .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "ALT1047");
     let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
 
     assert_eq!(parsed["modes"]["alternate_screen"].as_bool(), Some(true));
@@ -3640,11 +15610,9 @@ fn session_reflows_scrollback_history_across_resize() {
             .iter()
             .any(|row| row.contains(&first_line))
     });
-    assert!(
-        logical_rows_from_frame(&top_before)
-            .iter()
-            .any(|row| row.contains(&first_line))
-    );
+    assert!(logical_rows_from_frame(&top_before)
+        .iter()
+        .any(|row| row.contains(&first_line)));
 
     session::resize_session(session_id, 40, 24, 0, 0).unwrap();
     let top_after = wait_for_frame_where(session_id, |frame| {
@@ -3653,18 +15621,14 @@ fn session_reflows_scrollback_history_across_resize() {
             .any(|row| row.contains(&first_line))
     });
     let top_after_parsed: serde_json::Value = serde_json::from_str(&top_after).unwrap();
-    assert!(
-        top_after_parsed["rows"]
-            .as_array()
-            .expect("expected rows")
-            .iter()
-            .any(|row| row["wrapped"].as_bool() == Some(true))
-    );
-    assert!(
-        logical_rows_from_frame(&top_after)
-            .iter()
-            .any(|row| row.contains(&first_line))
-    );
+    assert!(top_after_parsed["rows"]
+        .as_array()
+        .expect("expected rows")
+        .iter()
+        .any(|row| row["wrapped"].as_bool() == Some(true)));
+    assert!(logical_rows_from_frame(&top_after)
+        .iter()
+        .any(|row| row.contains(&first_line)));
 
     session::scroll_to_session(session_id, 0).unwrap();
     let bottom_after = wait_for_frame_where(session_id, |frame| {
@@ -3672,11 +15636,9 @@ fn session_reflows_scrollback_history_across_resize() {
             .iter()
             .any(|row| row.contains(&last_line))
     });
-    assert!(
-        logical_rows_from_frame(&bottom_after)
-            .iter()
-            .any(|row| row.contains(&last_line))
-    );
+    assert!(logical_rows_from_frame(&bottom_after)
+        .iter()
+        .any(|row| row.contains(&last_line)));
 
     session::close_session(session_id).unwrap();
 }
@@ -3879,6 +15841,438 @@ fn session_synchronized_output_defers_intermediate_frames_until_disable() {
 }
 
 #[test]
+fn session_synchronized_output_allows_host_events_before_visible_flush() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&synchronized_output_host_events_profile()).unwrap(),
+    )
+    .unwrap();
+
+    let events = collect_events_until(session_id, |events| {
+        events.iter().any(|event| event["kind"] == "clipboard_copy")
+            && events.iter().any(|event| event["kind"] == "resize")
+    });
+    let clipboard_event = events
+        .iter()
+        .find(|event| event["kind"] == "clipboard_copy")
+        .expect("expected OSC 52 clipboard event during synchronized output");
+    let resize_event = events
+        .iter()
+        .find(|event| event["kind"] == "resize")
+        .expect("expected resize event during synchronized output");
+
+    assert_eq!(clipboard_event["payload"]["selection"].as_str(), Some("c"));
+    assert_eq!(
+        clipboard_event["payload"]["data"].as_str(),
+        Some("5aSN5Yi25YaF5a658J+Mnw==")
+    );
+    assert_eq!(resize_event["payload"]["rows"].as_u64(), Some(31));
+    assert_eq!(resize_event["payload"]["cols"].as_u64(), Some(101));
+
+    for _ in 0..5 {
+        if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
+            assert!(
+                !frame.contains("SYNC-HOST-DONE"),
+                "host events should flow before the synchronized output frame flushes: {frame}"
+            );
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+
+    let frame = wait_for_frame_containing(session_id, "SYNC-HOST-DONE");
+    let visible_text = logical_rows_from_frame(&frame).join("\n");
+    assert!(
+        visible_text.contains("SYNC-HOST-DONE"),
+        "expected synchronized output to flush after host callbacks: {frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_synchronized_output_coalesces_inline_progress_burst() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&synchronized_inline_progress_profile()).unwrap(),
+    )
+    .unwrap();
+    let _ = wait_for_frame_containing(session_id, "READY");
+
+    let deadline = Instant::now() + Duration::from_millis(700);
+    let mut final_frame = None;
+    while Instant::now() < deadline {
+        if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
+            let visible_text = logical_rows_from_frame(&frame).join("\n");
+            assert!(
+                !visible_text.contains("Deploy 10%") && !visible_text.contains("Deploy 40%"),
+                "synchronized inline progress must not publish intermediate progress frames: {frame}"
+            );
+            if visible_text.contains("Deploy done") {
+                final_frame = Some(frame);
+                break;
+            }
+        }
+        thread::sleep(Duration::from_millis(25));
+    }
+
+    let frame = final_frame.unwrap_or_else(|| wait_for_frame_containing(session_id, "Deploy done"));
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let visible_text = logical_rows_from_frame(&frame).join("\n");
+
+    assert_eq!(
+        parsed["modes"]["synchronized_output"].as_bool(),
+        Some(false),
+        "final synchronized inline progress frame should leave synchronized output disabled: {frame}"
+    );
+    assert!(
+        visible_text.contains("Deploy done"),
+        "expected final synchronized inline progress text: {frame}"
+    );
+    assert!(
+        !visible_text.contains("Deploy 10%") && !visible_text.contains("Deploy 40%"),
+        "final synchronized inline progress frame should only expose the latest repaint: {frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_synchronized_output_timeout_flushes_stuck_frame() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&stuck_synchronized_output_profile()).unwrap(),
+    )
+    .unwrap();
+
+    thread::sleep(Duration::from_millis(300));
+    for _ in 0..5 {
+        if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
+            assert!(
+                !frame.contains("SYNC-STUCK"),
+                "synchronized output should not publish before timeout: {frame}"
+            );
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+
+    let frame = wait_for_frame_containing(session_id, "SYNC-STUCK");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    assert_eq!(
+        parsed["modes"]["synchronized_output"].as_bool(),
+        Some(false),
+        "timeout flush should disable synchronized output mode: {frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_coalesces_inline_progress_spinner_repaint() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&inline_progress_spinner_profile()).unwrap(),
+    )
+    .unwrap();
+    let _ = wait_for_frame_containing(session_id, "READY");
+
+    let frame = wait_for_frame_containing(session_id, "Done");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let visible_text = logical_rows_from_frame(&frame).join("\n");
+
+    assert_eq!(
+        parsed["frame_kind"].as_str(),
+        Some("delta"),
+        "inline progress repaint should update incrementally after the baseline frame: {frame}"
+    );
+    assert!(
+        visible_text.contains("Done"),
+        "expected final progress text: {frame}"
+    );
+    assert!(
+        !visible_text.contains("Downloading 10%") && !visible_text.contains("Downloading 20%"),
+        "spinner burst should not expose intermediate progress text: {frame}"
+    );
+    assert_eq!(
+        parsed["dirty_ranges"]
+            .as_array()
+            .and_then(|ranges| ranges.first())
+            .and_then(|range| range["start"].as_u64()),
+        Some(1),
+        "only the progress row should be dirty: {frame}"
+    );
+    assert_eq!(
+        parsed["dirty_ranges"]
+            .as_array()
+            .and_then(|ranges| ranges.first())
+            .and_then(|range| range["end"].as_u64()),
+        Some(2),
+        "only the progress row should be dirty: {frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_coalesces_cr_only_inline_spinner_repaint() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&inline_progress_cr_only_spinner_profile()).unwrap(),
+    )
+    .unwrap();
+    let _ = wait_for_frame_containing(session_id, "READY");
+
+    let frame = wait_for_frame_containing(session_id, "Working done");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let visible_text = logical_rows_from_frame(&frame).join("\n");
+
+    assert_eq!(
+        parsed["frame_kind"].as_str(),
+        Some("delta"),
+        "CR-only spinner repaint should update incrementally after the baseline frame: {frame}"
+    );
+    assert!(
+        visible_text.contains("Working done"),
+        "expected final CR-only spinner text: {frame}"
+    );
+    assert!(
+        !visible_text.contains("Working -")
+            && !visible_text.contains("Working \\")
+            && !visible_text.contains("Working |"),
+        "CR-only spinner burst should not expose intermediate frames: {frame}"
+    );
+    assert_eq!(
+        parsed["dirty_ranges"]
+            .as_array()
+            .and_then(|ranges| ranges.first())
+            .and_then(|range| range["start"].as_u64()),
+        Some(1),
+        "only the CR-only spinner row should be dirty: {frame}"
+    );
+    assert_eq!(
+        parsed["dirty_ranges"]
+            .as_array()
+            .and_then(|ranges| ranges.first())
+            .and_then(|range| range["end"].as_u64()),
+        Some(2),
+        "only the CR-only spinner row should be dirty: {frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_clears_inline_progress_tail_after_split_cr_el() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&inline_progress_short_overwrite_profile()).unwrap(),
+    )
+    .unwrap();
+    let _ = wait_for_frame_containing(session_id, "READY");
+    let _ = wait_for_frame_containing(session_id, "Downloading 100%");
+
+    let frame = wait_for_frame_containing(session_id, "OK");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let visible_text = logical_rows_from_frame(&frame).join("\n");
+
+    assert_eq!(
+        parsed["frame_kind"].as_str(),
+        Some("delta"),
+        "short progress overwrite should remain an incremental update: {frame}"
+    );
+    assert!(
+        visible_text.contains("OK"),
+        "expected final short progress text: {frame}"
+    );
+    assert!(
+        !visible_text.contains("Downloading") && !visible_text.contains("100%"),
+        "short progress overwrite must not retain the previous long tail: {frame}"
+    );
+    assert_eq!(
+        parsed["dirty_ranges"]
+            .as_array()
+            .and_then(|ranges| ranges.first())
+            .and_then(|range| range["start"].as_u64()),
+        Some(1),
+        "only the progress row should be dirty after CR+EL overwrite: {frame}"
+    );
+    assert_eq!(
+        parsed["dirty_ranges"]
+            .as_array()
+            .and_then(|ranges| ranges.first())
+            .and_then(|range| range["end"].as_u64()),
+        Some(2),
+        "only the progress row should be dirty after CR+EL overwrite: {frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_clears_wide_inline_progress_tail_after_split_cr_el() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&inline_progress_wide_overwrite_profile()).unwrap(),
+    )
+    .unwrap();
+    let _ = wait_for_frame_containing(session_id, "READY");
+    let _ = wait_for_frame_containing(session_id, "Downloading 100%");
+
+    let frame = wait_for_frame_containing(session_id, "OK");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let visible_text = logical_rows_from_frame(&frame).join("\n");
+
+    assert_eq!(
+        parsed["frame_kind"].as_str(),
+        Some("delta"),
+        "wide progress overwrite should remain an incremental update: {frame}"
+    );
+    assert!(
+        visible_text.contains("OK"),
+        "expected final wide progress text: {frame}"
+    );
+    assert!(
+        !visible_text.contains("Downloading")
+            && !visible_text.contains("100%")
+            && !visible_text.contains("⏳"),
+        "wide progress overwrite must not retain the previous wide prompt tail: {frame}"
+    );
+    assert_eq!(
+        parsed["dirty_ranges"]
+            .as_array()
+            .and_then(|ranges| ranges.first())
+            .and_then(|range| range["start"].as_u64()),
+        Some(1),
+        "only the wide progress row should be dirty after CR+EL overwrite: {frame}"
+    );
+    assert_eq!(
+        parsed["dirty_ranges"]
+            .as_array()
+            .and_then(|ranges| ranges.first())
+            .and_then(|range| range["end"].as_u64()),
+        Some(2),
+        "only the wide progress row should be dirty after CR+EL overwrite: {frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_overwrites_wide_inline_progress_with_cr_only_repaint() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&inline_progress_wide_cr_only_overwrite_profile()).unwrap(),
+    )
+    .unwrap();
+    let _ = wait_for_frame_containing(session_id, "READY");
+    let _ = wait_for_frame_containing(session_id, "🧑‍💻 Building");
+
+    let frame = wait_for_frame_containing(session_id, "OK Building");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let visible_text = logical_rows_from_frame(&frame).join("\n");
+
+    assert_eq!(
+        parsed["frame_kind"].as_str(),
+        Some("delta"),
+        "wide CR-only progress overwrite should remain an incremental update: {frame}"
+    );
+    assert!(
+        visible_text.contains("OK Building"),
+        "expected final CR-only wide progress text: {frame}"
+    );
+    assert!(
+        !visible_text.contains("🧑‍💻"),
+        "CR-only overwrite must clear the previous wide emoji cluster without leaving fragments: {frame}"
+    );
+    assert_eq!(
+        parsed["dirty_ranges"]
+            .as_array()
+            .and_then(|ranges| ranges.first())
+            .and_then(|range| range["start"].as_u64()),
+        Some(1),
+        "only the wide CR-only progress row should be dirty after repaint: {frame}"
+    );
+    assert_eq!(
+        parsed["dirty_ranges"]
+            .as_array()
+            .and_then(|ranges| ranges.first())
+            .and_then(|range| range["end"].as_u64()),
+        Some(2),
+        "only the wide CR-only progress row should be dirty after repaint: {frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_defers_split_inline_clear_until_repaint() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&inline_progress_split_clear_repaint_profile()).unwrap(),
+    )
+    .unwrap();
+    let _ = wait_for_frame_containing(session_id, "READY");
+    let _ = wait_for_frame_containing(session_id, "Downloading 100%");
+
+    let deadline = Instant::now() + Duration::from_millis(700);
+    let mut final_frame = None;
+    while Instant::now() < deadline {
+        if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
+            assert!(
+                !frame_has_blank_viewport_row(&frame, 1),
+                "split CR+EL should not publish a blank progress row before repaint: {frame}"
+            );
+            if frame.contains("OK") {
+                final_frame = Some(frame);
+                break;
+            }
+        }
+        thread::sleep(Duration::from_millis(25));
+    }
+
+    let frame = final_frame.unwrap_or_else(|| wait_for_frame_containing(session_id, "OK"));
+    let visible_text = logical_rows_from_frame(&frame).join("\n");
+    assert!(
+        visible_text.contains("OK"),
+        "expected repaint after split inline clear: {frame}"
+    );
+    assert!(
+        !visible_text.contains("Downloading"),
+        "split inline clear repaint must not retain the previous progress tail: {frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_flushes_split_inline_clear_without_repaint_after_grace() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&inline_progress_clear_without_repaint_profile()).unwrap(),
+    )
+    .unwrap();
+    let _ = wait_for_frame_containing(session_id, "READY");
+    let _ = wait_for_frame_containing(session_id, "Transient status");
+
+    let frame = wait_for_frame_where(session_id, |frame| {
+        frame_has_blank_viewport_row(frame, 1) && !frame.contains("Transient status")
+    });
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    assert_eq!(
+        parsed["frame_kind"].as_str(),
+        Some("delta"),
+        "real split inline clear should flush as a delta after the grace window: {frame}"
+    );
+    assert_eq!(
+        parsed["dirty_ranges"]
+            .as_array()
+            .and_then(|ranges| ranges.first())
+            .and_then(|range| range["start"].as_u64()),
+        Some(1),
+        "only the cleared progress row should be dirty: {frame}"
+    );
+    assert_eq!(
+        parsed["dirty_ranges"]
+            .as_array()
+            .and_then(|ranges| ranges.first())
+            .and_then(|range| range["end"].as_u64()),
+        Some(2),
+        "only the cleared progress row should be dirty: {frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn session_osc4_query_reports_rgb_for_alpha_color_specs() {
     let session_id =
         session::create_session(&serde_json::to_string(&osc4_query_profile()).unwrap()).unwrap();
@@ -3904,6 +16298,56 @@ fn session_frame_diff_exposes_osc12_cursor_color() {
     assert_eq!(parsed["cursor_color"].as_str(), Some("#123456"));
 
     session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn parser_terminal_bracketed_paste_input_bytes_strip_embedded_markers() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    terminal.set_bracketed_paste(true);
+
+    let bytes = terminal
+        .paste_input_bytes("safe\x1b[201~echo unsafe\x1b[200~tail\u{009B}0200~end\u{009B}0201~");
+
+    assert_eq!(
+        String::from_utf8(bytes).unwrap(),
+        "\x1b[200~safeecho unsafetailend\x1b[201~"
+    );
+}
+
+#[test]
+fn parser_terminal_bracketed_paste_input_bytes_preserve_non_marker_csi_text() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    terminal.set_bracketed_paste(true);
+
+    let bytes =
+        terminal.paste_input_bytes("UTF-8 🌟 keep\x1b[1;201~literal\u{009B}202~\x1b[200:1~tail");
+
+    assert_eq!(
+        String::from_utf8(bytes).unwrap(),
+        "\x1b[200~UTF-8 🌟 keep\x1b[1;201~literal\u{009B}202~\x1b[200:1~tail\x1b[201~"
+    );
+    assert_eq!(
+        sanitize_bracketed_paste_content("only markers\x1b[200~\u{009B}201~"),
+        "only markers"
+    );
+}
+
+#[test]
+fn parser_terminal_bracketed_paste_input_bytes_noop_for_marker_only_text() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    terminal.set_bracketed_paste(true);
+
+    let bytes = terminal.paste_input_bytes("\x1b[200~\x1b[201~\u{009B}200~\u{009B}201~");
+
+    assert!(bytes.is_empty());
+}
+
+#[test]
+fn parser_terminal_paste_input_bytes_preserve_content_without_bracketed_mode() {
+    let terminal = ParserTerminal::new(80, 24);
+    let content = "safe\x1b[201~echo";
+
+    assert_eq!(terminal.paste_input_bytes(content), content.as_bytes());
 }
 
 #[test]
@@ -4069,6 +16513,18 @@ fn session_emits_shell_command_events_from_osc133() {
 }
 
 #[test]
+fn alt_screen_osc133_does_not_emit_shell_command_events() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc133_alt_screen_shell_command_profile()).unwrap(),
+    )
+    .unwrap();
+
+    assert_event_kind_never_arrives(session_id, "shell_command");
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn session_emits_remote_host_and_user_var_from_osc1337() {
     let session_id = session::create_session(
         &serde_json::to_string(&osc1337_remote_host_user_var_profile()).unwrap(),
@@ -4184,6 +16640,32 @@ fn session_emits_osc9_osc777_osc934_notification_progress_and_badge_events() {
 }
 
 #[test]
+fn session_emits_osc9_indeterminate_progress_without_synthetic_percent() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc9_indeterminate_progress_profile()).unwrap(),
+    )
+    .unwrap();
+
+    let events = collect_events_until(session_id, |events| {
+        events.iter().any(|event| {
+            event["kind"] == "session_progress"
+                && event["payload"]["source"].as_str() == Some("osc9;4")
+        })
+    });
+    let progress = events
+        .iter()
+        .find(|event| {
+            event["kind"] == "session_progress"
+                && event["payload"]["source"].as_str() == Some("osc9;4")
+        })
+        .expect("expected OSC 9;4 progress");
+    assert_eq!(progress["payload"]["state"].as_str(), Some("indeterminate"));
+    assert!(progress["payload"].get("percent").is_none());
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn session_apc_sequence_is_unsupported_noop() {
     let session_id =
         session::create_session(&serde_json::to_string(&apc_unsupported_noop_profile()).unwrap())
@@ -4200,16 +16682,14 @@ fn session_apc_sequence_is_unsupported_noop() {
         !frame.contains("APC-LEAK"),
         "APC payload must not render into terminal rows: {frame}"
     );
-    assert!(
-        parsed["rows"]
-            .as_array()
-            .expect("expected rows")
-            .iter()
-            .all(|row| !row["text"]
-                .as_str()
-                .unwrap_or_default()
-                .contains("APC-LEAK"))
-    );
+    assert!(parsed["rows"]
+        .as_array()
+        .expect("expected rows")
+        .iter()
+        .all(|row| !row["text"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("APC-LEAK")));
 
     let events = session::poll_events(session_id).unwrap();
     assert!(
@@ -4866,12 +17346,10 @@ fn diagnostics_export_returns_privacy_preserving_evidence_package() {
         parsed["summary"]["conclusion"].as_str(),
         Some("insufficient-evidence")
     );
-    assert!(
-        parsed["summary"]["markdown"]
-            .as_str()
-            .unwrap_or_default()
-            .contains("Privacy handling")
-    );
+    assert!(parsed["summary"]["markdown"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("Privacy handling"));
     assert!(
         !response.contains("USER="),
         "diagnostics response should not include raw env"
@@ -5009,4 +17487,218 @@ fn parser_sgr_reset_cases_clear_individual_attributes() {
     assert_eq!(reset.fg, Color::Named(NamedColor::White));
     assert_eq!(reset.bg, Color::Named(NamedColor::Black));
     assert_eq!(reset.underline_color, None);
+}
+
+#[test]
+fn parser_sgr_underline_color_accepts_semicolon_indexed_and_truecolor() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"\x1b[58;5;3mA\x1b[58;2;0;0;4mB\x1b[59mC");
+
+    let rows = terminal.get_row_range(0, 1);
+    assert_eq!(
+        rows[0][0].underline_color,
+        Some(Color::Named(NamedColor::Yellow))
+    );
+    assert_eq!(rows[0][1].underline_color, Some(Color::Rgb(0, 0, 4)));
+    assert_eq!(rows[0][2].underline_color, None);
+}
+
+fn snapshot_test_kitty_graphic() -> TerminalGraphic {
+    let mut graphic = TerminalGraphic::new(
+        next_graphic_id(),
+        GraphicProtocol::Kitty,
+        (5, 2),
+        2,
+        1,
+        vec![255, 0, 0, 255, 0, 255, 0, 255],
+    );
+    graphic.kitty_image_id = Some(77);
+    graphic.kitty_placement_id = Some(1);
+    graphic
+}
+
+fn animation_virtual_placement(image_id: u32, placement_id: u32) -> TerminalGraphic {
+    let mut graphic = TerminalGraphic::new(
+        next_graphic_id(),
+        GraphicProtocol::Kitty,
+        (3, 4),
+        1,
+        1,
+        vec![255, 0, 0, 255],
+    );
+    graphic.kitty_image_id = Some(image_id);
+    graphic.kitty_placement_id = Some(placement_id);
+    graphic
+}
+
+#[test]
+fn graphics_animation_current_frame_updates_virtual_placements() {
+    let mut store = GraphicsStore::new();
+    store.add_virtual_placement(animation_virtual_placement(90, 1));
+    let initial_asset_version = store.get_virtual_placement(90, 1).unwrap().asset_version;
+    store.add_animation_frame(90, AnimationFrame::new(1, vec![255, 0, 0, 255], 1, 1));
+    store.add_animation_frame(90, AnimationFrame::new(2, vec![0, 255, 0, 255], 1, 1));
+
+    assert!(store.set_animation_current_frame(90, 2));
+
+    let restored = store
+        .get_virtual_placement(90, 1)
+        .expect("expected Kitty virtual placement");
+    assert_eq!(restored.pixels.as_ref().as_slice(), &[0, 255, 0, 255]);
+    assert_eq!(restored.width, 1);
+    assert_eq!(restored.height, 1);
+    assert_ne!(restored.asset_version, initial_asset_version);
+}
+
+#[test]
+fn graphics_animation_tick_updates_virtual_placements() {
+    let mut store = GraphicsStore::new();
+    store.add_virtual_placement(animation_virtual_placement(91, 1));
+    store.add_animation_frame(
+        91,
+        AnimationFrame::new(1, vec![255, 0, 0, 255], 1, 1).with_delay(1),
+    );
+    store.add_animation_frame(
+        91,
+        AnimationFrame::new(2, vec![0, 255, 0, 255], 1, 1).with_delay(1),
+    );
+    store.control_animation(91, AnimationControl::EnableLooping);
+    thread::sleep(Duration::from_millis(2));
+
+    let changed = store.update_animations();
+
+    assert_eq!(changed, vec![91]);
+    let restored = store
+        .get_virtual_placement(91, 1)
+        .expect("expected Kitty virtual placement");
+    assert_eq!(restored.pixels.as_ref().as_slice(), &[0, 255, 0, 255]);
+}
+
+#[test]
+fn graphics_animation_current_frame_updates_shared_image_reuse() {
+    let mut store = GraphicsStore::new();
+    store.store_kitty_image(92, 1, 1, vec![255, 0, 0, 255]);
+    store.add_animation_frame(92, AnimationFrame::new(1, vec![255, 0, 0, 255], 1, 1));
+    store.add_animation_frame(92, AnimationFrame::new(2, vec![0, 255, 0, 255], 1, 1));
+
+    assert!(store.set_animation_current_frame(92, 2));
+
+    let restored = store
+        .get_kitty_image(92)
+        .expect("expected Kitty shared image");
+    assert_eq!(restored.0, 1);
+    assert_eq!(restored.1, 1);
+    assert_eq!(restored.2.as_ref().as_slice(), &[0, 255, 0, 255]);
+}
+
+#[test]
+fn graphics_animation_stop_resets_active_virtual_and_shared_images() {
+    let mut store = GraphicsStore::new();
+    let mut active_graphic = animation_virtual_placement(93, 1);
+    active_graphic.is_virtual = false;
+    store.add_graphic(active_graphic);
+    store.add_virtual_placement(animation_virtual_placement(93, 2));
+    store.store_kitty_image(93, 1, 1, vec![255, 0, 0, 255]);
+    store.add_animation_frame(93, AnimationFrame::new(1, vec![255, 0, 0, 255], 1, 1));
+    store.add_animation_frame(93, AnimationFrame::new(2, vec![0, 255, 0, 255], 1, 1));
+    assert!(store.set_animation_current_frame(93, 2));
+    assert_eq!(
+        store.all_graphics()[0].pixels.as_ref().as_slice(),
+        &[0, 255, 0, 255]
+    );
+
+    store.control_animation(93, AnimationControl::Stop);
+
+    assert_eq!(
+        store.all_graphics()[0].pixels.as_ref().as_slice(),
+        &[255, 0, 0, 255]
+    );
+    assert_eq!(
+        store
+            .get_virtual_placement(93, 2)
+            .expect("expected Kitty virtual placement")
+            .pixels
+            .as_ref()
+            .as_slice(),
+        &[255, 0, 0, 255]
+    );
+    assert_eq!(
+        store
+            .get_kitty_image(93)
+            .expect("expected Kitty shared image")
+            .2
+            .as_ref()
+            .as_slice(),
+        &[255, 0, 0, 255]
+    );
+}
+
+#[test]
+fn graphics_snapshot_round_trip_preserves_kitty_shared_images() {
+    let mut store = GraphicsStore::new();
+    store.store_kitty_image(77, 2, 1, vec![10, 20, 30, 40, 50, 60, 70, 80]);
+
+    let snapshot = store.export_snapshot();
+    assert_eq!(snapshot.shared_images.len(), 1);
+    assert_eq!(snapshot.shared_images[0].image_id, 77);
+
+    let mut restored_store = GraphicsStore::new();
+    let count = restored_store.import_snapshot(&snapshot).unwrap();
+
+    assert_eq!(count, 0);
+    let restored = restored_store
+        .get_kitty_image(77)
+        .expect("expected restored Kitty shared image");
+    assert_eq!(restored.0, 2);
+    assert_eq!(restored.1, 1);
+    assert_eq!(
+        restored.2.as_ref().as_slice(),
+        &[10, 20, 30, 40, 50, 60, 70, 80]
+    );
+}
+
+#[test]
+fn graphics_snapshot_round_trip_preserves_virtual_placements() {
+    let mut store = GraphicsStore::new();
+    let mut virtual_graphic = snapshot_test_kitty_graphic();
+    virtual_graphic.kitty_image_id = Some(88);
+    virtual_graphic.kitty_placement_id = Some(3);
+    virtual_graphic.position = (12, 7);
+    virtual_graphic.parent_image_id = Some(77);
+    virtual_graphic.parent_placement_id = Some(1);
+    virtual_graphic.relative_x_offset = 4;
+    virtual_graphic.relative_y_offset = -1;
+    store.add_virtual_placement(virtual_graphic.clone());
+
+    let snapshot = store.export_snapshot();
+    assert_eq!(snapshot.virtual_placements.len(), 1);
+
+    let mut restored_store = GraphicsStore::new();
+    let count = restored_store.import_snapshot(&snapshot).unwrap();
+
+    assert_eq!(count, 0);
+    let restored = restored_store
+        .get_virtual_placement(88, 3)
+        .expect("expected restored Kitty virtual placement");
+    assert!(restored.is_virtual);
+    assert_eq!(restored.position, (12, 7));
+    assert_eq!(restored.parent_image_id, Some(77));
+    assert_eq!(restored.parent_placement_id, Some(1));
+    assert_eq!(restored.relative_x_offset, 4);
+    assert_eq!(restored.relative_y_offset, -1);
+    assert_eq!(restored.pixels.as_ref(), virtual_graphic.pixels.as_ref());
+}
+
+#[test]
+fn graphics_snapshot_import_accepts_json_without_additive_fields() {
+    let mut store = GraphicsStore::new();
+
+    let count = store
+        .import_json(r#"{"version":1,"placements":[],"scrollback":[],"animations":[]}"#)
+        .unwrap();
+
+    assert_eq!(count, 0);
+    assert_eq!(store.graphics_count(), 0);
+    assert!(store.all_virtual_placements().is_empty());
 }

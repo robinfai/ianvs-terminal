@@ -411,7 +411,11 @@ impl Terminal {
             hyperlink_memory_bytes: 0, // Should be calculated
             color_stack_depth: self.color_stack.len(),
             title_stack_depth: self.title_stack.len(),
-            keyboard_stack_depth: self.keyboard_stack.len(),
+            keyboard_stack_depth: if self.alt_screen_active {
+                self.keyboard_stack_alt.len()
+            } else {
+                self.keyboard_stack.len()
+            },
             response_buffer_size: self.response_buffer.len(),
             dirty_row_count: self.dirty_rows.len(),
             pending_bell_events: self.bell_events.len(),
@@ -453,4 +457,34 @@ pub struct TerminalStats {
     pub pending_bell_events: usize,
     /// Pending terminal events count
     pub pending_terminal_events: usize,
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::terminal::Terminal;
+
+    #[test]
+    fn terminal_stats_report_active_keyboard_stack_depth() {
+        let mut terminal = Terminal::new(80, 24);
+
+        terminal.process(b"\x1b[=1u\x1b[>8u");
+        assert_eq!(terminal.get_stats().keyboard_stack_depth, 1);
+
+        terminal.use_alt_screen();
+        assert_eq!(
+            terminal.get_stats().keyboard_stack_depth,
+            0,
+            "alternate screen should report its own Kitty keyboard stack depth"
+        );
+
+        terminal.process(b"\x1b[=2u\x1b[>16u");
+        assert_eq!(terminal.get_stats().keyboard_stack_depth, 1);
+
+        terminal.use_primary_screen();
+        assert_eq!(
+            terminal.get_stats().keyboard_stack_depth,
+            1,
+            "returning to primary should report the primary Kitty keyboard stack depth"
+        );
+    }
 }

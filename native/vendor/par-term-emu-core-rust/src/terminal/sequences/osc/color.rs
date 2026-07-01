@@ -101,8 +101,10 @@ impl Terminal {
                                 let colorspec = colorspec.trim();
                                 if colorspec == "?" {
                                     let command = format!("4;{index}");
-                                    let response =
-                                        Self::format_color_response(&command, self.ansi_palette[index]);
+                                    let response = Self::format_color_response(
+                                        &command,
+                                        self.ansi_palette[index],
+                                    );
                                     self.push_response(response.as_bytes());
                                 } else if !self.disable_insecure_sequences {
                                     if let Some((r, g, b)) = Self::parse_color_spec(colorspec) {

@@ -310,6 +310,9 @@ class Terminal implements TerminalDisposable {
       modes: modes,
       text: data,
     );
+    if (bytes.isEmpty) {
+      return;
+    }
     writeBytes(bytes);
   }
 

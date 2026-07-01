@@ -61,6 +61,24 @@ fn test_dcs_hook_non_sixel_action() {
 }
 
 #[test]
+fn test_dcs_q_with_intermediate_is_not_sixel() {
+    let mut term = create_test_terminal();
+    let params = create_empty_params();
+
+    term.dcs_hook(&params, &[b'$'], false, 'q');
+
+    assert!(term.dcs_active);
+    assert_eq!(term.dcs_action, Some('q'));
+    assert!(term.sixel_parser.is_none());
+
+    term.dcs_put(b'm');
+    term.dcs_unhook();
+
+    assert_eq!(term.graphics_count(), 0);
+    assert!(!term.dcs_active);
+}
+
+#[test]
 fn test_dcs_put_sixel_data() {
     let mut term = create_test_terminal();
     let params = create_empty_params();
@@ -177,6 +195,57 @@ fn test_dcs_unhook_cleans_up() {
     assert_eq!(term.dcs_action, None);
     assert!(term.dcs_buffer.is_empty());
     assert!(term.sixel_parser.is_none());
+}
+
+#[test]
+fn test_dcs_empty_sixel_does_not_create_graphic_or_advance_cursor() {
+    let mut term = create_test_terminal();
+    let params = create_empty_params();
+    let start_cursor = term.cursor;
+
+    term.dcs_hook(&params, &[], false, 'q');
+    term.dcs_unhook();
+
+    assert_eq!(term.graphics_count(), 0);
+    assert_eq!(term.cursor, start_cursor);
+    assert!(!term.dcs_active);
+    assert!(term.sixel_parser.is_none());
+}
+
+#[test]
+fn test_dcs_zero_repeat_sixel_does_not_create_phantom_graphic() {
+    let mut term = create_test_terminal();
+    let start_cursor = term.cursor;
+
+    term.process(b"\x1bPq!0~\x1b\\");
+
+    assert_eq!(term.graphics_count(), 0);
+    assert_eq!(term.cursor, start_cursor);
+}
+
+#[test]
+fn test_dcs_accepts_c1_dcs_and_st_controls() {
+    for sequence in [
+        b"\x1bPq#1;2;100;0;0@\x9c".as_slice(),
+        b"\x90q#1;2;100;0;0@\x9c".as_slice(),
+    ] {
+        let mut term = create_test_terminal();
+
+        term.process(sequence);
+
+        assert_eq!(
+            term.graphics_count(),
+            1,
+            "C1 DCS/ST Sixel sequence should create one graphic: {sequence:?}"
+        );
+        let graphic = term.all_graphics().last().expect("expected Sixel graphic");
+        assert_eq!(graphic.protocol.as_str(), "sixel");
+        assert_eq!(
+            &graphic.pixels[0..4],
+            &[255, 0, 0, 255],
+            "C1 control-terminated Sixel should preserve painted pixels"
+        );
+    }
 }
 
 #[test]
@@ -319,6 +388,137 @@ fn test_dcs_color_command_parsing() {
 }
 
 #[test]
+fn test_dcs_color_definition_clamps_out_of_range_percentages() {
+    let mut term = create_test_terminal();
+    let params = create_empty_params();
+
+    term.dcs_hook(&params, &[], false, 'q');
+
+    // Define color #1 as RGB with oversized percentage values, then paint one pixel.
+    for &byte in b"#1;2;300;150;0@" {
+        term.dcs_put(byte);
+    }
+    term.dcs_unhook();
+
+    let graphic = term.all_graphics().last().expect("expected Sixel graphic");
+    assert_eq!(&graphic.pixels[0..4], &[255, 255, 0, 255]);
+}
+
+#[test]
+fn test_dcs_hls_color_definition_paints_pixel() {
+    let mut term = create_test_terminal();
+    let params = create_empty_params();
+
+    term.dcs_hook(&params, &[], false, 'q');
+
+    // Define color #1 as HLS green, then paint one pixel.
+    for &byte in b"#1;1;120;50;100@" {
+        term.dcs_put(byte);
+    }
+    term.dcs_unhook();
+
+    let graphic = term.all_graphics().last().expect("expected Sixel graphic");
+    assert_eq!(&graphic.pixels[0..4], &[0, 255, 0, 255]);
+}
+
+#[test]
+fn test_dcs_sparse_sixel_band_preserves_six_pixel_height() {
+    let mut term = create_test_terminal();
+    let params = create_empty_params();
+
+    term.dcs_hook(&params, &[], false, 'q');
+
+    term.dcs_put(b'@');
+    term.dcs_unhook();
+
+    let graphic = term.all_graphics().last().expect("expected Sixel graphic");
+    assert_eq!(graphic.width, 1);
+    assert_eq!(graphic.height, 6);
+    assert_eq!(&graphic.pixels[0..4], &[0, 0, 0, 255]);
+    assert_eq!(
+        graphic.pixels[23], 255,
+        "opaque Sixel background should fill unpainted rows in the same sixel band"
+    );
+}
+
+#[test]
+fn test_dcs_omitted_sixel_p1_preserves_transparent_p2() {
+    let mut term = create_test_terminal();
+
+    term.process(b"\x1bP;1q@\x1b\\");
+
+    let graphic = term.all_graphics().last().expect("expected Sixel graphic");
+    assert_eq!(graphic.width, 1);
+    assert_eq!(graphic.height, 6);
+    assert_eq!(&graphic.pixels[0..4], &[0, 0, 0, 255]);
+    assert_eq!(
+        graphic.pixels[23], 0,
+        "omitted P1 should be preserved as 0 so P2=1 keeps the background transparent"
+    );
+}
+
+#[test]
+fn test_dcs_empty_sixel_color_fields_default_to_zero() {
+    let mut term = create_test_terminal();
+    let params = create_empty_params();
+
+    term.dcs_hook(&params, &[], false, 'q');
+    for &byte in b"#1;2;100;;0@" {
+        term.dcs_put(byte);
+    }
+    term.dcs_unhook();
+
+    let graphic = term.all_graphics().last().expect("expected Sixel graphic");
+    assert_eq!(
+        &graphic.pixels[0..4],
+        &[255, 0, 0, 255],
+        "empty RGB fields should default to 0 instead of dropping the color command"
+    );
+}
+
+#[test]
+fn test_dcs_empty_sixel_raster_width_keeps_height() {
+    let mut term = create_test_terminal();
+    let params = create_empty_params();
+
+    term.dcs_hook(&params, &[], false, 'q');
+    for &byte in b"\"1;1;;2@" {
+        term.dcs_put(byte);
+    }
+    term.dcs_unhook();
+
+    let graphic = term.all_graphics().last().expect("expected Sixel graphic");
+    assert_eq!(graphic.width, 1);
+    assert_eq!(
+        graphic.height, 2,
+        "empty raster width should default to 0 without discarding later raster parameters"
+    );
+}
+
+#[test]
+fn test_dcs_oversized_sixel_raster_attributes_are_clamped_not_dropped() {
+    let mut term = create_test_terminal();
+    term.set_sixel_limits(8, 5, 100);
+    let params = create_empty_params();
+
+    term.dcs_hook(&params, &[], false, 'q');
+    for &byte in b"\"1;1;999999;4@" {
+        term.dcs_put(byte);
+    }
+    term.dcs_unhook();
+
+    let graphic = term.all_graphics().last().expect("expected Sixel graphic");
+    assert_eq!(
+        graphic.width, 8,
+        "oversized raster width should clamp to the configured Sixel width limit"
+    );
+    assert_eq!(
+        graphic.height, 4,
+        "oversized raster width must not discard a valid raster height"
+    );
+}
+
+#[test]
 fn test_dcs_raster_attributes_parsing() {
     let mut term = create_test_terminal();
     let params = create_empty_params();
@@ -355,6 +555,49 @@ fn test_dcs_graphics_list_updated() {
 
     // Graphics list should have one more entry
     assert_eq!(term.graphics_count(), initial_graphics_count + 1);
+}
+
+#[test]
+fn test_sixel_graphics_are_scoped_to_alternate_screen_lifecycle() {
+    let mut term = create_test_terminal();
+    let params = create_empty_params();
+
+    let emit_sixel = |term: &mut Terminal| {
+        term.dcs_hook(&params, &[], false, 'q');
+        for &byte in b"????" {
+            term.dcs_put(byte);
+        }
+        term.dcs_unhook();
+    };
+
+    emit_sixel(&mut term);
+    assert_eq!(term.graphics_count(), 1);
+    assert_eq!(term.all_graphics()[0].protocol.as_str(), "sixel");
+    assert!(
+        !term.all_graphics()[0].alternate_screen,
+        "primary Sixel graphics must be tagged as primary-screen graphics"
+    );
+
+    term.use_alt_screen();
+    assert!(term.is_alt_screen_active());
+
+    emit_sixel(&mut term);
+    assert_eq!(term.graphics_count(), 2);
+    assert!(
+        term.all_graphics()
+            .iter()
+            .any(|graphic| graphic.protocol.as_str() == "sixel" && graphic.alternate_screen),
+        "Sixel graphics emitted in the alternate screen must be scoped there"
+    );
+
+    term.use_primary_screen();
+    assert!(!term.is_alt_screen_active());
+    assert_eq!(term.graphics_count(), 1);
+    assert_eq!(term.all_graphics()[0].protocol.as_str(), "sixel");
+    assert!(
+        !term.all_graphics()[0].alternate_screen,
+        "alternate-screen Sixel graphics must be cleared on exit without dropping primary graphics"
+    );
 }
 
 #[test]
@@ -424,6 +667,34 @@ fn test_dcs_cursor_position_after_graphic() {
     assert_eq!(term.cursor.col, 0);
     // Row should have advanced
     assert!(term.cursor.row >= 5);
+}
+
+#[test]
+fn test_dcs_sixel_at_bottom_scrolls_region() {
+    let mut term = Terminal::new(8, 4);
+    let params = create_empty_params();
+
+    term.process(b"top\nmiddle\nbottom");
+    term.cursor.col = 0;
+    term.cursor.row = 3;
+
+    term.dcs_hook(&params, &[], false, 'q');
+    term.dcs_put(b'~');
+    term.dcs_unhook();
+
+    assert_eq!(term.cursor.col, 0);
+    assert_eq!(term.cursor.row, 3);
+    assert_eq!(term.graphics_count(), 1);
+    assert_eq!(
+        term.all_graphics()[0].position,
+        (0, 0),
+        "Sixel graphic should scroll with the active region when cursor advancement pushes past bottom"
+    );
+    assert_eq!(
+        term.scrollback_len(),
+        3,
+        "Sixel cursor advancement at the bottom should scroll the active region"
+    );
 }
 
 #[test]

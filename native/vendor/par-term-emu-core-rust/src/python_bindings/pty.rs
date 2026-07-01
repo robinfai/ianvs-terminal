@@ -1732,23 +1732,12 @@ impl PyPtyTerminal {
     ///     content: String content to paste
     fn paste(&mut self, content: &str) -> PyResult<()> {
         let terminal = self.inner.terminal();
+        let mut paste_bytes = Vec::new();
         if let Ok(term) = Ok::<_, ()>(terminal.lock()) {
-            // Get the paste sequences (handles bracketed paste mode)
-            let start = term.bracketed_paste_start();
-            let end = term.bracketed_paste_end();
-
-            // Write start sequence if in bracketed paste mode
-            if !start.is_empty() {
-                self.write(start)?;
-            }
-
-            // Write the actual content
-            self.write_str(content)?;
-
-            // Write end sequence if in bracketed paste mode
-            if !end.is_empty() {
-                self.write(end)?;
-            }
+            paste_bytes = term.paste_input_bytes(content);
+        }
+        if !paste_bytes.is_empty() {
+            self.write(&paste_bytes)?;
         }
         Ok(())
     }

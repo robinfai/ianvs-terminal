@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -62,6 +63,154 @@ void main() {
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
+
+  testWidgets(
+    'terminal input read-only mode blocks keyboard paste without reading clipboard',
+    (tester) async {
+      final bindings = FakePtyBackend();
+      var clipboardReads = 0;
+      final coreClient = testRuntime(bindings);
+      final viewportController = TerminalViewportController();
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: coreClient,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async {
+          clipboardReads += 1;
+          return 'blocked';
+        },
+        readOnly: () => true,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TerminalViewport(
+              controller: viewportController,
+              selectionController: selectionController,
+              inputController: inputController,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.metaLeft,
+        platform: 'macos',
+      );
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyV, platform: 'macos');
+      await tester.pump();
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyV, platform: 'macos');
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.metaLeft,
+        platform: 'macos',
+      );
+      await tester.pump();
+
+      expect(clipboardReads, 0);
+      expect(bindings.writes, isEmpty);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  test('terminal input read-only mode blocks focus tracking reports', () {
+    final bindings = FakePtyBackend();
+    final coreClient = testRuntime(bindings);
+    final inputController = TerminalInputController(
+      sessionId: '1',
+      runtime: coreClient,
+      readSelection: () => '',
+      copySelection: (_) async {},
+      readClipboard: () async => '',
+      readOnly: () => true,
+    );
+
+    inputController.sendFocusReport(
+      focused: true,
+      modes: const TerminalFrameModes(focusTracking: true),
+    );
+    inputController.sendFocusReport(
+      focused: false,
+      modes: const TerminalFrameModes(focusTracking: true),
+    );
+
+    expect(bindings.writes, isEmpty);
+  });
+
+  testWidgets('terminal viewport read-only mode blocks mouse reports', (
+    tester,
+  ) async {
+    final bindings = FakePtyBackend();
+    final coreClient = testRuntime(bindings);
+    final viewportController = TerminalViewportController()
+      ..updateFrame(
+        const TerminalFrameDiff(
+          rows: [TerminalRow(index: 0, text: '')],
+          cursor: TerminalCursor(row: 0, col: 0, visible: true),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+          modes: TerminalFrameModes(mouseMode: 'normal', mouseEncoding: 'sgr'),
+        ),
+      );
+    final selectionController = SelectionController();
+    final inputController = TerminalInputController(
+      sessionId: '1',
+      runtime: coreClient,
+      readFrame: () => viewportController.frame,
+      readSelection: () => '',
+      copySelection: (_) async {},
+      readClipboard: () async => '',
+      readOnly: () => true,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 180,
+            height: 80,
+            child: TerminalViewport(
+              controller: viewportController,
+              selectionController: selectionController,
+              inputController: inputController,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final renderObject = tester.renderObject<RenderTerminalViewport>(
+      find.byWidgetPredicate(
+        (widget) => widget.runtimeType.toString() == '_TerminalViewportSurface',
+      ),
+    );
+    final pointerPosition = renderObject.localToGlobal(
+      Offset(
+        renderObject.debugCellSize.width * 1.5,
+        renderObject.debugCellSize.height * 0.5,
+      ),
+    );
+    final pointer = TestPointer(19, ui.PointerDeviceKind.mouse);
+
+    await tester.sendEventToBinding(pointer.down(pointerPosition));
+    await tester.pump();
+    await tester.sendEventToBinding(pointer.up());
+    await tester.pump();
+
+    expect(bindings.writes, isEmpty);
+  });
 
   testWidgets(
     'terminal input on macOS sends Control+V to the session instead of pasting clipboard text',
@@ -268,6 +417,197 @@ void main() {
         LogicalKeyboardKey.controlLeft,
         platform: 'macos',
       );
+      await tester.pump();
+    },
+  );
+
+  testWidgets(
+    'terminal input sends Kitty CSI-u for Control+C when keyboard mode is enabled',
+    (tester) async {
+      final bindings = FakePtyBackend();
+      String copied = '';
+      final coreClient = testRuntime(bindings);
+      final viewportController = TerminalViewportController();
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: coreClient,
+        readFrame: () => const TerminalFrameDiff(
+          rows: [],
+          cursor: TerminalCursor(row: 0, col: 0, visible: true),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: [],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+          modes: TerminalFrameModes(kittyKeyboardFlags: 1),
+        ),
+        readSelection: () => 'selected text',
+        copySelection: (text) async {
+          copied = text;
+        },
+        readClipboard: () async => 'ignored',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TerminalViewport(
+              controller: viewportController,
+              selectionController: selectionController,
+              inputController: inputController,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.controlLeft,
+        platform: 'macos',
+      );
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyC, platform: 'macos');
+      await tester.pump();
+
+      expect(bindings.writes, isNotEmpty);
+      expect(utf8.decode(bindings.writes.last), equals('\x1B[99;5u'));
+      expect(copied, isEmpty);
+
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.controlLeft,
+        platform: 'macos',
+      );
+      await tester.pump();
+    },
+  );
+
+  testWidgets(
+    'terminal input preserves Control+Space scope across legacy and Kitty modes',
+    (tester) async {
+      final bindings = FakePtyBackend();
+      var kittyMode = false;
+      final coreClient = testRuntime(bindings);
+      final viewportController = TerminalViewportController();
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: coreClient,
+        readFrame: () => TerminalFrameDiff(
+          rows: const [],
+          cursor: const TerminalCursor(row: 0, col: 0, visible: true),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: const [],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+          modes: TerminalFrameModes(kittyKeyboardFlags: kittyMode ? 1 : 0),
+        ),
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => 'ignored',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TerminalViewport(
+              controller: viewportController,
+              selectionController: selectionController,
+              inputController: inputController,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.controlLeft,
+        platform: 'macos',
+      );
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.space,
+        platform: 'macos',
+      );
+      await tester.pump();
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.space, platform: 'macos');
+
+      kittyMode = true;
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.space,
+        platform: 'macos',
+      );
+      await tester.pump();
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.space, platform: 'macos');
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.controlLeft,
+        platform: 'macos',
+      );
+      await tester.pump();
+
+      expect(bindings.writes, hasLength(2));
+      expect(bindings.writes.first, equals(const [0x00]));
+      expect(utf8.decode(bindings.writes.last), equals('\x1B[32;5u'));
+    },
+  );
+
+  testWidgets(
+    'terminal input sends Kitty associated text when report-all text mode is enabled',
+    (tester) async {
+      final bindings = FakePtyBackend();
+      final coreClient = testRuntime(bindings);
+      final viewportController = TerminalViewportController();
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: coreClient,
+        readFrame: () => const TerminalFrameDiff(
+          rows: [],
+          cursor: TerminalCursor(row: 0, col: 0, visible: true),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: [],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+          modes: TerminalFrameModes(kittyKeyboardFlags: 24),
+        ),
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => 'ignored',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TerminalViewport(
+              controller: viewportController,
+              selectionController: selectionController,
+              inputController: inputController,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.keyE,
+        character: 'é',
+        platform: 'macos',
+      );
+      await tester.pump();
+
+      expect(bindings.writes, isNotEmpty);
+      expect(utf8.decode(bindings.writes.last), equals('\x1B[101;;233u'));
+
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyE, platform: 'macos');
       await tester.pump();
     },
   );
@@ -1760,6 +2100,26 @@ void main() {
       );
     },
   );
+
+  test('xterm keyboard paste removes embedded bracketed paste markers', () {
+    final bytes = TerminalInputController.clipboardPasteBytesFor(
+      emulation: TerminalEmulation.xterm256,
+      modes: const TerminalFrameModes(bracketedPaste: true),
+      text: 'safe\x1B[201~echo unsafe\x1B[200~tail\u{009B}200~end\u{009B}201~',
+    );
+
+    expect(utf8.decode(bytes), '\x1B[200~safeecho unsafetailend\x1B[201~');
+  });
+
+  test('xterm keyboard paste removes zero-padded C1 paste markers', () {
+    final bytes = TerminalInputController.clipboardPasteBytesFor(
+      emulation: TerminalEmulation.xterm256,
+      modes: const TerminalFrameModes(bracketedPaste: true),
+      text: 'safe\x1B[0201~echo unsafe\u{009B}0200~tail',
+    );
+
+    expect(utf8.decode(bytes), '\x1B[200~safeecho unsafetail\x1B[201~');
+  });
 
   test(
     'vt220 keyboard paste stays unwrapped even when xterm paste mode is absent',

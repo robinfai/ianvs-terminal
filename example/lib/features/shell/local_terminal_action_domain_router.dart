@@ -27,6 +27,9 @@ class LocalTerminalActionDomainRouter {
       reopenClosedTab: _workspace(
         LocalWorkspaceProductionOperation.reopenClosedTab,
       ),
+      reopenClosedPane: _workspace(
+        LocalWorkspaceProductionOperation.reopenClosedPane,
+      ),
       duplicateCurrentCwd: _workspace(
         LocalWorkspaceProductionOperation.duplicateCurrentCwd,
       ),

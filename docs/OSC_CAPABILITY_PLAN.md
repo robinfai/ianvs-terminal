@@ -1,6 +1,8 @@
 # OSC Capability Plan
 
-Status: active plan for P0/P1 implementation and P2/P3 product design.
+Status: active support contract. P0/P1 and the promoted P2/P3 OSC families are
+implemented with automated regression coverage; deferred file-transfer scope
+remains outside the current product.
 
 This plan turns OSC support from a list of escape-code numbers into product
 capability gates. The current implementation scope is local terminal fidelity
@@ -42,8 +44,8 @@ P0 closes the support contract and prevents accidental regressions.
 | OSC 8 | hyperlinks | `user-actionable` | Keep hit-target clearing tests; add product polish in P1. |
 | OSC 52 | clipboard copy/paste | `user-actionable` | Keep policy-gated runtime path; document host trust boundaries. |
 | OSC 1337 File inline=1 | inline image | `frame-visible`/rendered graphics | Treat as already planned under graphics; no new P0 expansion. |
-| OSC 7/133/1337 metadata | cwd/prompt/user vars | `parsed-only` or not bridged | Promote through the P2 shell-context contract below. |
-| OSC 9/9;4/777/934/1337 badge | notification/progress/badge | `parsed-only` or not bridged | Promote through the P3 status/notification contract below. |
+| OSC 7/133/1337 metadata | cwd/prompt/user vars | `user-actionable` | Bridged through the P2 shell-context contract below. |
+| OSC 9/9;4/777/934/1337 badge | notification/progress/badge | `user-actionable` | Bridged through the P3 status/notification contract below. |
 | OSC 1337 File inline=0 / RequestUpload | file transfer | `unsupported` for P0/P1 | Defer; conflicts with local-terminal scope if expanded prematurely. |
 
 P0 deliverables:
@@ -98,15 +100,16 @@ Acceptance:
 
 ## P2/P3 Implementation Baseline
 
-- Parser-side support already has useful event concepts for cwd, shell
-  integration markers, zones, user variables, remote host transitions, badges,
-  notifications, and progress.
-- The native session host-protocol path is narrower today. P2/P3 promotion must
-  explicitly bridge parser events into typed native session events and then into
-  Flutter session/productivity/policy state.
-- Existing Flutter surfaces to reuse: shell status bar cwd/health chips, shell
-  productivity reducers, workspace same-cwd actions, notification policy and
-  dispatcher, tab/pane title surfaces, and local terminal verification records.
+- Parser-side support has event concepts for cwd, shell integration markers,
+  zones, user variables, remote host transitions, badges, notifications, and
+  progress.
+- The native session path now bridges those parser events into typed native
+  session events and Flutter session/productivity/policy state for xterm
+  profiles. VT220 profiles ignore promoted OSC session metadata.
+- Existing Flutter surfaces are reused: shell status bar cwd/health chips,
+  shell productivity reducers, workspace same-cwd actions, notification policy
+  and dispatcher, tab/pane title surfaces, and local terminal verification
+  records.
 
 ## P2 Scope: Shell Context and Session Metadata
 
@@ -292,6 +295,9 @@ Implementation:
 - Keep one primary progress value plus a capped map of named progress bars per
   session.
 - Coalesce fast updates so progress cannot force excessive Flutter rebuilds.
+- Keep indeterminate progress state visible without synthesizing a fake `0%`
+  value, and keep CR/EL inline spinner repaint coalescing in native frame
+  diffs.
 
 Policy and trust:
 
@@ -330,14 +336,19 @@ Policy and trust:
 
 ## P2/P3 Delivery Sequence
 
-1. P2-A: Bridge cwd/current-directory events first because workspace duplicate
-   and status-bar behavior already depend on this metadata.
-2. P2-B: Bridge OSC 133 zones into shell productivity after cwd is stable.
-3. P2-C: Add remote identity and allowlisted user variables after local cwd and
-   command zones cannot be confused with remote filesystem actions.
-4. P3-A: Add notification event routing through existing notification policy.
-5. P3-B: Add progress state and status-bar chip with update coalescing.
-6. P3-C: Add badge state after tab/pane title precedence is explicit.
+1. P2-A: Cwd/current-directory events are bridged into pane shell context,
+   status-bar cwd, recent directories, and local/remote duplicate safeguards.
+2. P2-B: OSC 133 markers are bridged into shell productivity prompt marks and
+   command metadata. Alt-screen OSC 133 events are suppressed, and prompt marks
+   are cleared when zones scroll out or local scrollback is cleared.
+3. P2-C: Remote identity and allowlisted user variables are bridged without
+   enabling local filesystem actions for remote-reported paths.
+4. P3-A: Notifications route through the existing notification preference,
+   focus, rate-limit, failure-feedback, and dispatcher policy path.
+5. P3-B: Progress state has a primary chip, capped named progress list, burst
+   coalescing, completion grace, and clear behavior.
+6. P3-C: Badge state appears as capped tab/status chips with update, clear,
+   tooltip, and accessibility coverage.
 
 ## Deferred Work
 
@@ -371,6 +382,8 @@ cargo test --manifest-path native/core/Cargo.toml --test session_test osc1337
 cargo test --manifest-path native/core/Cargo.toml --test session_test osc9
 cargo test --manifest-path native/core/Cargo.toml --test session_test osc777
 cargo test --manifest-path native/core/Cargo.toml --test session_test osc934
+cargo test --manifest-path native/core/Cargo.toml --test session_test inline_progress
+cd example && flutter test test/shell/shell_screen_phase4_test.dart --plain-name "OSC indeterminate progress shows state without fake percent"
 cd example && flutter test test/sessions/session_controller_test.dart --plain-name "shell context"
 cd example && flutter test test/productivity/shell_productivity_reducer_test.dart
 cd example && flutter test test/shell/shell_screen_phase4_test.dart --plain-name "notification"

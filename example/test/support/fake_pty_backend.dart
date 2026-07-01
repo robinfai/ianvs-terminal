@@ -17,6 +17,8 @@ class FakePtyBackend
       <String, Map<String, List<Map<String, Object?>>>>{};
   final Map<String, int> _frameDiffReads = <String, int>{};
   final List<Uint8List> writes = <Uint8List>[];
+  final List<MapEntry<String, Uint8List>> writesBySession =
+      <MapEntry<String, Uint8List>>[];
   final List<List<int>> resizeCalls = <List<int>>[];
   final List<List<int>> scrollCalls = <List<int>>[];
   final List<List<int>> scrollToCalls = <List<int>>[];
@@ -247,7 +249,9 @@ class FakePtyBackend
 
   @override
   void writeInput(String sessionId, List<int> bytes) {
-    writes.add(Uint8List.fromList(bytes));
+    final write = Uint8List.fromList(bytes);
+    writes.add(write);
+    writesBySession.add(MapEntry<String, Uint8List>(sessionId, write));
   }
 
   @override

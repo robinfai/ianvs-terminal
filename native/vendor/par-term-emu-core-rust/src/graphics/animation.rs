@@ -24,6 +24,8 @@ pub struct AnimationFrame {
     pub height: usize,
     /// Frame delay in milliseconds (0 = use animation default)
     pub delay_ms: u32,
+    /// Whether this frame is gapless and should be skipped during playback.
+    pub gapless: bool,
     /// Gap before this frame (left offset in pixels)
     pub x_offset: u32,
     /// Gap before this frame (top offset in pixels)
@@ -41,6 +43,7 @@ impl AnimationFrame {
             width,
             height,
             delay_ms: 0,
+            gapless: false,
             x_offset: 0,
             y_offset: 0,
             composition: CompositionMode::default(),
@@ -50,6 +53,19 @@ impl AnimationFrame {
     /// Set frame delay
     pub fn with_delay(mut self, delay_ms: u32) -> Self {
         self.delay_ms = delay_ms;
+        self.gapless = false;
+        self
+    }
+
+    /// Set Kitty's signed frame gap. Negative values mark gapless frames.
+    pub fn with_gap(mut self, gap_ms: i32) -> Self {
+        if gap_ms < 0 {
+            self.delay_ms = 0;
+            self.gapless = true;
+        } else if gap_ms > 0 {
+            self.delay_ms = gap_ms as u32;
+            self.gapless = false;
+        }
         self
     }
 
@@ -144,6 +160,8 @@ pub struct Animation {
     pub loop_count: u32,
     /// Loops completed
     pub loops_completed: u32,
+    /// Loading mode plays forward but waits at the last frame for more frames.
+    pub loading_mode: bool,
     /// Time when current frame started (for timing)
     pub frame_start_time: Option<std::time::Instant>,
 }
@@ -159,6 +177,7 @@ impl Animation {
             current_frame: 1,
             loop_count: 0,
             loops_completed: 0,
+            loading_mode: false,
             frame_start_time: None,
         }
     }
@@ -199,6 +218,10 @@ impl Animation {
         self.frames.len()
     }
 
+    fn has_displayable_frame(&self) -> bool {
+        self.frames.values().any(|frame| !frame.gapless)
+    }
+
     /// Start or resume animation
     pub fn play(&mut self) {
         if self.state != AnimationState::Playing {
@@ -219,6 +242,7 @@ impl Animation {
         self.state = AnimationState::Stopped;
         self.current_frame = 1;
         self.loops_completed = 0;
+        self.loading_mode = false;
         self.frame_start_time = None;
     }
 
@@ -254,66 +278,54 @@ impl Animation {
             }
         };
 
+        let current_is_gapless = current_frame.gapless;
         let frame_delay = if current_frame.delay_ms > 0 {
             current_frame.delay_ms
         } else {
             self.default_delay_ms
         };
 
-        if frame_delay == 0 {
-            debug_log!(
-                "ANIMATION",
-                "image_id={} update: no frame delay",
-                self.image_id
-            );
-            return false; // No animation timing
-        }
-
-        let frame_start = match self.frame_start_time {
-            Some(t) => t,
-            None => {
+        let elapsed_ms = if current_is_gapless {
+            0
+        } else {
+            if frame_delay == 0 {
                 debug_log!(
                     "ANIMATION",
-                    "image_id={} update: no frame start time",
+                    "image_id={} update: no frame delay",
                     self.image_id
                 );
-                return false;
+                return false; // No animation timing
             }
+
+            let frame_start = match self.frame_start_time {
+                Some(t) => t,
+                None => {
+                    debug_log!(
+                        "ANIMATION",
+                        "image_id={} update: no frame start time",
+                        self.image_id
+                    );
+                    return false;
+                }
+            };
+
+            let elapsed = frame_start.elapsed();
+            if elapsed < Duration::from_millis(frame_delay as u64) {
+                debug_trace!(
+                    "ANIMATION",
+                    "image_id={} update: not ready (elapsed={:?}, delay={}ms)",
+                    self.image_id,
+                    elapsed,
+                    frame_delay
+                );
+                return false; // Not time to advance yet
+            }
+            elapsed.as_millis()
         };
 
-        let elapsed = frame_start.elapsed();
-        if elapsed < Duration::from_millis(frame_delay as u64) {
-            debug_trace!(
-                "ANIMATION",
-                "image_id={} update: not ready (elapsed={:?}, delay={}ms)",
-                self.image_id,
-                elapsed,
-                frame_delay
-            );
-            return false; // Not time to advance yet
-        }
-
-        // Advance to next frame
         let old_frame = self.current_frame;
-        self.current_frame += 1;
-
-        // Check if we've completed all frames
-        if self.current_frame > self.frames.len() as u32 {
-            self.current_frame = 1;
-            self.loops_completed += 1;
-
-            // Check if we should stop looping
-            // loop_count is set to (num_plays - 1), so we stop after (num_plays - 1) additional loops
-            // which gives us num_plays total plays
-            if self.loop_count > 0 && self.loops_completed > self.loop_count {
-                debug_info!(
-                    "ANIMATION",
-                    "image_id={} completed all loops, stopping",
-                    self.image_id
-                );
-                self.stop();
-                return false;
-            }
+        if !self.has_displayable_frame() || !self.advance_to_next_displayable_frame() {
+            return false;
         }
 
         debug_info!(
@@ -323,10 +335,72 @@ impl Animation {
             old_frame,
             self.current_frame,
             frame_delay,
-            elapsed.as_millis()
+            elapsed_ms
         );
-        self.frame_start_time = Some(std::time::Instant::now());
+        if self.state == AnimationState::Playing {
+            self.frame_start_time = Some(std::time::Instant::now());
+        }
         true
+    }
+
+    fn advance_to_next_displayable_frame(&mut self) -> bool {
+        let max_attempts = self.frames.len();
+        for _ in 0..max_attempts {
+            if !self.advance_to_next_frame() {
+                return false;
+            }
+            if self
+                .current_frame()
+                .map(|frame| !frame.gapless)
+                .unwrap_or(false)
+            {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn advance_to_next_frame(&mut self) -> bool {
+        let Some((next_frame, wrapped)) = self.next_frame_number_after(self.current_frame) else {
+            return false;
+        };
+        if wrapped && self.loading_mode {
+            debug_trace!(
+                "ANIMATION",
+                "image_id={} loading mode reached last frame {}, waiting for more frames",
+                self.image_id,
+                self.current_frame
+            );
+            return false;
+        }
+        if wrapped {
+            self.loops_completed += 1;
+            // loop_count is set to (num_plays - 1), so we stop after (num_plays - 1)
+            // additional loops, which gives us num_plays total plays.
+            if self.loop_count > 0 && self.loops_completed > self.loop_count {
+                debug_info!(
+                    "ANIMATION",
+                    "image_id={} completed all loops, stopping",
+                    self.image_id
+                );
+                self.stop();
+                return true;
+            }
+        }
+        self.current_frame = next_frame;
+        true
+    }
+
+    fn next_frame_number_after(&self, current_frame: u32) -> Option<(u32, bool)> {
+        let mut frame_numbers = self.frames.keys().copied().collect::<Vec<_>>();
+        frame_numbers.sort_unstable();
+        let first = *frame_numbers.first()?;
+        for frame_number in frame_numbers {
+            if frame_number > current_frame {
+                return Some((frame_number, false));
+            }
+        }
+        Some((first, true))
     }
 
     /// Apply animation control command
@@ -351,11 +425,13 @@ impl Animation {
                 self.loops_completed = 0;
             }
             AnimationControl::LoadingMode => {
-                // Pause and wait for more frames
-                self.pause();
+                // Play forward, then wait at the last frame for more frames.
+                self.loading_mode = true;
+                self.play();
             }
             AnimationControl::EnableLooping => {
                 // Start/resume normal looping playback
+                self.loading_mode = false;
                 self.play();
             }
         }
@@ -440,9 +516,45 @@ mod tests {
 
         assert_eq!(frame.frame_number, 1);
         assert_eq!(frame.delay_ms, 50);
+        assert!(!frame.gapless);
         assert_eq!(frame.x_offset, 10);
         assert_eq!(frame.y_offset, 20);
         assert_eq!(frame.composition, CompositionMode::Overwrite);
+    }
+
+    #[test]
+    fn test_animation_frame_builder_with_gapless() {
+        let frame = AnimationFrame::new(1, vec![255u8; 16], 2, 2).with_gap(-1);
+
+        assert!(frame.gapless);
+        assert_eq!(frame.delay_ms, 0);
+    }
+
+    #[test]
+    fn test_animation_update_skips_gapless_frames() {
+        let mut anim = Animation::new(1, 1);
+        anim.add_frame(AnimationFrame::new(1, vec![255u8; 4], 1, 1));
+        anim.add_frame(AnimationFrame::new(2, vec![128u8; 4], 1, 1).with_gap(-1));
+        anim.add_frame(AnimationFrame::new(3, vec![64u8; 4], 1, 1));
+        anim.play();
+        anim.frame_start_time = Some(std::time::Instant::now() - Duration::from_millis(2));
+
+        assert!(anim.update());
+        assert_eq!(anim.current_frame, 3);
+    }
+
+    #[test]
+    fn test_animation_update_advances_from_gapless_without_start_time() {
+        let mut anim = Animation::new(1, 1);
+        anim.add_frame(AnimationFrame::new(1, vec![255u8; 4], 1, 1));
+        anim.add_frame(AnimationFrame::new(2, vec![128u8; 4], 1, 1).with_gap(-1));
+        anim.add_frame(AnimationFrame::new(3, vec![64u8; 4], 1, 1));
+        anim.state = AnimationState::Playing;
+        anim.current_frame = 2;
+        anim.frame_start_time = None;
+
+        assert!(anim.update());
+        assert_eq!(anim.current_frame, 3);
     }
 
     #[test]
@@ -548,11 +660,12 @@ mod tests {
     }
 
     #[test]
-    fn test_animation_apply_control_loading_mode_pauses() {
+    fn test_animation_apply_control_loading_mode_keeps_playing() {
         let mut anim = Animation::new(1, 100);
         anim.play();
         anim.apply_control(AnimationControl::LoadingMode);
-        assert_eq!(anim.state, AnimationState::Paused);
+        assert_eq!(anim.state, AnimationState::Playing);
+        assert!(anim.loading_mode);
     }
 
     #[test]
@@ -565,6 +678,39 @@ mod tests {
             AnimationState::Playing,
             "EnableLooping should start playback"
         );
+        assert!(!anim.loading_mode);
+    }
+
+    #[test]
+    fn test_animation_loading_mode_waits_at_last_frame_for_late_frames() {
+        let mut anim = Animation::new(1, 1);
+        anim.add_frame(AnimationFrame::new(1, vec![255u8; 4], 1, 1));
+        anim.add_frame(AnimationFrame::new(2, vec![128u8; 4], 1, 1));
+        anim.apply_control(AnimationControl::LoadingMode);
+
+        anim.frame_start_time = Some(std::time::Instant::now() - Duration::from_millis(2));
+        assert!(anim.update());
+        assert_eq!(anim.current_frame, 2);
+
+        anim.frame_start_time = Some(std::time::Instant::now() - Duration::from_millis(2));
+        assert!(!anim.update());
+        assert_eq!(
+            anim.current_frame, 2,
+            "loading mode should not wrap back to frame 1"
+        );
+        assert_eq!(anim.loops_completed, 0);
+        assert_eq!(anim.state, AnimationState::Playing);
+
+        anim.add_frame(AnimationFrame::new(3, vec![64u8; 4], 1, 1));
+        anim.frame_start_time = Some(std::time::Instant::now() - Duration::from_millis(2));
+        assert!(anim.update());
+        assert_eq!(anim.current_frame, 3);
+
+        anim.apply_control(AnimationControl::EnableLooping);
+        anim.frame_start_time = Some(std::time::Instant::now() - Duration::from_millis(2));
+        assert!(anim.update());
+        assert_eq!(anim.current_frame, 1);
+        assert_eq!(anim.loops_completed, 1);
     }
 
     #[test]

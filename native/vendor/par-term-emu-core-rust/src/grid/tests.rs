@@ -2,6 +2,16 @@ use super::*;
 use crate::cell::Cell;
 use crate::grid::damage::ScrollRegionDamage;
 
+fn set_wide_pair(grid: &mut Grid, col: usize, row: usize, c: char) {
+    let mut lead = Cell::new(c);
+    lead.flags.set_wide_char(true);
+    grid.set(col, row, lead);
+
+    let mut spacer = Cell::default();
+    spacer.flags.set_wide_char_spacer(true);
+    grid.set(col + 1, row, spacer);
+}
+
 #[test]
 fn test_grid_creation() {
     let grid = Grid::new(80, 24, 1000);
@@ -381,6 +391,24 @@ fn test_delete_chars_boundary() {
 }
 
 #[test]
+fn test_delete_chars_at_wide_spacer_deletes_whole_grapheme() {
+    let mut grid = Grid::new(8, 2, 1000);
+    grid.set(0, 0, Cell::new('A'));
+    set_wide_pair(&mut grid, 1, 0, '中');
+    grid.set(3, 0, Cell::new('B'));
+    grid.set(4, 0, Cell::new('C'));
+
+    grid.delete_chars(2, 0, 1);
+
+    assert_eq!(grid.get(0, 0).unwrap().c, 'A');
+    assert_eq!(grid.get(1, 0).unwrap().c, 'B');
+    assert_eq!(grid.get(2, 0).unwrap().c, 'C');
+    assert!(!grid.get(1, 0).unwrap().flags.wide_char());
+    assert!(!grid.get(2, 0).unwrap().flags.wide_char_spacer());
+    assert_eq!(grid.row_text(0).trim_end(), "ABC");
+}
+
+#[test]
 fn test_erase_chars_boundary() {
     let mut grid = Grid::new(10, 5, 1000);
     for i in 0..10 {
@@ -392,6 +420,42 @@ fn test_erase_chars_boundary() {
     assert_eq!(grid.get(4, 0).unwrap().c, '\\'); // Should be preserved (X + 4)
     for i in 5..10 {
         assert_eq!(grid.get(i, 0).unwrap().c, ' '); // Should be erased
+    }
+}
+
+#[test]
+fn test_erase_chars_at_wide_spacer_erases_whole_grapheme() {
+    let mut grid = Grid::new(8, 2, 1000);
+    grid.set(0, 0, Cell::new('A'));
+    set_wide_pair(&mut grid, 1, 0, '中');
+    grid.set(3, 0, Cell::new('B'));
+
+    grid.erase_chars(2, 0, 1);
+
+    assert_eq!(grid.get(0, 0).unwrap().c, 'A');
+    assert_eq!(grid.get(1, 0).unwrap().c, ' ');
+    assert_eq!(grid.get(2, 0).unwrap().c, ' ');
+    assert!(!grid.get(1, 0).unwrap().flags.wide_char());
+    assert!(!grid.get(2, 0).unwrap().flags.wide_char_spacer());
+    assert_eq!(grid.get(3, 0).unwrap().c, 'B');
+}
+
+#[test]
+fn test_insert_chars_at_wide_spacer_does_not_leave_fragments() {
+    let mut grid = Grid::new(8, 2, 1000);
+    grid.set(0, 0, Cell::new('A'));
+    set_wide_pair(&mut grid, 1, 0, '中');
+    grid.set(3, 0, Cell::new('B'));
+    grid.set(4, 0, Cell::new('C'));
+
+    grid.insert_chars(2, 0, 1);
+
+    for col in 0..grid.cols() {
+        let cell = grid.get(col, 0).unwrap();
+        assert!(
+            !cell.flags.wide_char() && !cell.flags.wide_char_spacer(),
+            "insert should not leave a wide-character fragment at column {col}"
+        );
     }
 }
 

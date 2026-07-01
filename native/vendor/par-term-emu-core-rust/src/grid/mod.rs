@@ -189,6 +189,78 @@ impl Grid {
         Some(&mut self.cells[range])
     }
 
+    pub(crate) fn wide_safe_range(
+        &self,
+        col: usize,
+        row: usize,
+        width: usize,
+    ) -> Option<Range<usize>> {
+        if row >= self.rows || col >= self.cols || width == 0 {
+            return None;
+        }
+        let row_cells = self.row(row)?;
+        let mut start = col;
+        let mut end = col.saturating_add(width).min(self.cols);
+        if start >= end {
+            return None;
+        }
+
+        if start > 0
+            && row_cells[start].flags.wide_char_spacer()
+            && row_cells[start - 1].flags.wide_char()
+        {
+            start -= 1;
+        }
+        if end < self.cols
+            && row_cells[end - 1].flags.wide_char()
+            && row_cells[end].flags.wide_char_spacer()
+        {
+            end += 1;
+        }
+        Some(start..end)
+    }
+
+    pub(crate) fn clear_wide_char_at_insertion_boundary(&mut self, col: usize, row: usize) {
+        if row >= self.rows || col == 0 || col >= self.cols {
+            return;
+        }
+        let blank_cell = self.blank_cell();
+        if let Some(row_cells) = self.row_mut(row) {
+            if row_cells[col].flags.wide_char_spacer() && row_cells[col - 1].flags.wide_char() {
+                row_cells[col - 1] = blank_cell.clone();
+                row_cells[col] = blank_cell;
+            }
+        }
+    }
+
+    pub(crate) fn sanitize_wide_char_fragments(&mut self, row: usize) {
+        if row >= self.rows {
+            return;
+        }
+        let blank_cell = self.blank_cell();
+        let cols = self.cols;
+        if let Some(row_cells) = self.row_mut(row) {
+            let mut clear_cols = Vec::new();
+            for col in 0..cols {
+                if row_cells[col].flags.wide_char_spacer() {
+                    let paired_with_lead = col > 0 && row_cells[col - 1].flags.wide_char();
+                    if !paired_with_lead {
+                        clear_cols.push(col);
+                    }
+                } else if row_cells[col].flags.wide_char() {
+                    let paired_with_spacer =
+                        col + 1 < cols && row_cells[col + 1].flags.wide_char_spacer();
+                    if !paired_with_spacer {
+                        clear_cols.push(col);
+                    }
+                }
+            }
+            for col in clear_cols {
+                row_cells[col] = blank_cell.clone();
+            }
+        }
+    }
+
     /// Get the text content of a row
     pub fn row_text(&self, row: usize) -> String {
         if let Some(cells) = self.row(row) {

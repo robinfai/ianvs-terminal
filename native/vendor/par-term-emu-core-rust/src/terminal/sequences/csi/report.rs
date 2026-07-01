@@ -127,14 +127,53 @@ impl Terminal {
                                     2
                                 }
                             }
-                            1000 | 1002 | 1003 => {
-                                if self.mouse_mode != crate::mouse::MouseMode::Off {
+                            9 => match self.mouse_mode() {
+                                crate::mouse::MouseMode::X10 => 1,
+                                _ => 2,
+                            },
+                            1000 => match self.mouse_mode() {
+                                crate::mouse::MouseMode::Normal => 1,
+                                _ => 2,
+                            },
+                            1002 => match self.mouse_mode() {
+                                crate::mouse::MouseMode::ButtonEvent => 1,
+                                _ => 2,
+                            },
+                            1003 => match self.mouse_mode() {
+                                crate::mouse::MouseMode::AnyEvent => 1,
+                                _ => 2,
+                            },
+                            1004 => {
+                                if self.focus_tracking() {
                                     1
                                 } else {
                                     2
                                 }
                             }
-                            1049 => {
+                            1005 => match self.mouse_encoding() {
+                                crate::mouse::MouseEncoding::Utf8 => 1,
+                                _ => 2,
+                            },
+                            1006 => match self.mouse_encoding() {
+                                crate::mouse::MouseEncoding::Sgr => 1,
+                                _ => 2,
+                            },
+                            1007 => {
+                                if self.alternate_scroll() {
+                                    1
+                                } else {
+                                    2
+                                }
+                            }
+                            1015 => match self.mouse_encoding() {
+                                crate::mouse::MouseEncoding::Urxvt => 1,
+                                _ => 2,
+                            },
+                            1016 => match self.mouse_encoding() {
+                                crate::mouse::MouseEncoding::SgrPixels => 1,
+                                _ => 2,
+                            },
+                            47 | 1047 | 1049 => {
                                 if self.alt_screen_active {
                                     1
                                 } else {
@@ -149,7 +188,10 @@ impl Terminal {
                                 }
                             }
                             2026 => {
-                                if self.synchronized_updates {
+                                if self
+                                    .sync_update_report_override
+                                    .unwrap_or(self.synchronized_updates)
+                                {
                                     1
                                 } else {
                                     2

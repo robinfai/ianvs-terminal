@@ -237,22 +237,12 @@ extension _ShellScreenStateCoprocesses on _ShellScreenState {
     }
   }
 
-  bool _notificationSessionIsInactive(String sessionId) {
+  bool _sessionIsInactive(String sessionId) {
     return ref.read(sessionControllerProvider).activeSessionId != sessionId;
   }
 
-  bool _sessionTabIsInactive(String sessionId) {
-    final sessionState = ref.read(sessionControllerProvider);
-    final activeSessionId = sessionState.activeSessionId;
-    if (activeSessionId == null) {
-      return true;
-    }
-    for (final tab in sessionState.tabs) {
-      if (tab.containsSession(sessionId)) {
-        return !tab.containsSession(activeSessionId);
-      }
-    }
-    return true;
+  bool _notificationSessionIsInactive(String sessionId) {
+    return _sessionIsInactive(sessionId);
   }
 
   bool _activityNotificationAllowed(String sessionId) {
@@ -279,9 +269,18 @@ extension _ShellScreenStateCoprocesses on _ShellScreenState {
   String _sessionTitleForNotification(String sessionId) {
     final state = ref.read(sessionControllerProvider);
     for (final tab in state.tabs) {
-      final pane = tab.paneFor(sessionId);
-      if (pane != null) {
-        return pane.title;
+      final panes = tab.effectivePanes;
+      final paneIndex = panes.indexWhere((pane) => pane.sessionId == sessionId);
+      if (paneIndex >= 0) {
+        final pane = panes[paneIndex];
+        final title = pane.title.trim();
+        if (panes.length < 2) {
+          return title.isEmpty ? 'Session $sessionId' : title;
+        }
+        final paneLabel = 'pane ${paneIndex + 1}';
+        return title.isEmpty
+            ? '$paneLabel ($sessionId)'
+            : '$title $paneLabel ($sessionId)';
       }
     }
     return 'Session $sessionId';

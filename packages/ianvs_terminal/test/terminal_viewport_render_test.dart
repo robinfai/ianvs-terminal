@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -145,6 +146,188 @@ void main() {
     expect(ghostStyle.foreground, isNot(const Color(0xFFE5E7EB)));
     expect(ghostStyle.background, isNull);
   });
+
+  testWidgets(
+    'powerline glyphs use cell-snapped geometry while Nerd icons stay narrow',
+    (tester) async {
+      final renderObject = await _pumpRenderViewport(
+        tester,
+        row: const TerminalRow(index: 0, text: '󰣇a'),
+      );
+
+      final cells = renderObject.debugResolvedCellsForRow(0);
+      expect(cells.map((cell) => cell.text), ['', '', '', '', '󰣇', 'a']);
+
+      final cellSize = renderObject.debugCellSize;
+      final devicePixelRatio = tester.view.devicePixelRatio;
+      final bleed = math.min(cellSize.width * 0.10, 1.0);
+      final capBleed = bleed * 0.5;
+
+      expect(cells[0].glyphClass, TerminalGlyphClass.powerlineCustom);
+      expect(
+        cells[0].placementPolicy,
+        TerminalGlyphPlacementPolicy.powerlineRightArrow,
+      );
+      expect(cells[0].usesCustomGeometry, isTrue);
+      _expectRectClose(
+        cells[0].placementRect,
+        _snapRectForTest(
+          Rect.fromLTWH(0, 0, cellSize.width + bleed, cellSize.height),
+          devicePixelRatio,
+        ),
+      );
+
+      expect(cells[1].glyphClass, TerminalGlyphClass.powerlineCustom);
+      expect(
+        cells[1].placementPolicy,
+        TerminalGlyphPlacementPolicy.powerlineLeftArrow,
+      );
+      expect(cells[1].usesCustomGeometry, isTrue);
+      _expectRectClose(
+        cells[1].placementRect,
+        _snapRectForTest(
+          Rect.fromLTWH(
+            cellSize.width - bleed,
+            0,
+            cellSize.width + bleed,
+            cellSize.height,
+          ),
+          devicePixelRatio,
+        ),
+      );
+
+      expect(
+        cells[2].placementPolicy,
+        TerminalGlyphPlacementPolicy.powerlineLeftCap,
+      );
+      _expectRectClose(
+        cells[2].placementRect,
+        _snapRectForTest(
+          Rect.fromLTWH(
+            (2 * cellSize.width) - capBleed,
+            0,
+            cellSize.width + capBleed,
+            cellSize.height,
+          ),
+          devicePixelRatio,
+        ),
+      );
+
+      expect(
+        cells[3].placementPolicy,
+        TerminalGlyphPlacementPolicy.powerlineRightCap,
+      );
+      _expectRectClose(
+        cells[3].placementRect,
+        _snapRectForTest(
+          Rect.fromLTWH(
+            3 * cellSize.width,
+            0,
+            cellSize.width + capBleed,
+            cellSize.height,
+          ),
+          devicePixelRatio,
+        ),
+      );
+
+      expect(cells[4].glyphClass, TerminalGlyphClass.nerdIcon);
+      expect(cells[4].usesCustomGeometry, isFalse);
+      expect(
+        cells[4].placementPolicy,
+        TerminalGlyphPlacementPolicy.baselineLeft,
+      );
+      expect(cells[4].column, 4);
+      expect(cells[5].text, 'a');
+      expect(cells[5].column, 5);
+    },
+  );
+
+  testWidgets(
+    'emoji clusters reserve wide render columns while Nerd icons stay narrow',
+    (tester) async {
+      const technologist = '👩\u{200D}💻';
+      const flag = '🇺🇸';
+      const nerdIcon = '󰣇';
+      const combining = 'e\u0301';
+      final renderObject = await _pumpRenderViewport(
+        tester,
+        row: const TerminalRow(
+          index: 0,
+          text: '$technologist$flag$nerdIcon${combining}X',
+        ),
+      );
+
+      final cells = renderObject.debugResolvedCellsForRow(0);
+      expect(
+        cells.map((cell) => (cell.text, cell.column)).toList(growable: false),
+        <(String, int)>[
+          (technologist, 0),
+          (flag, 2),
+          (nerdIcon, 4),
+          (combining, 5),
+          ('X', 6),
+        ],
+      );
+
+      final cellSize = renderObject.debugCellSize;
+      for (final cell in cells) {
+        expect(
+          cell.drawOffset.dx,
+          moreOrLessEquals(cell.column * cellSize.width, epsilon: 0.001),
+          reason: '${cell.text} should draw at terminal column ${cell.column}',
+        );
+      }
+      expect(cells[0].glyphClass, TerminalGlyphClass.text);
+      expect(cells[1].glyphClass, TerminalGlyphClass.text);
+      expect(cells[2].glyphClass, TerminalGlyphClass.nerdIcon);
+      expect(cells[3].glyphClass, TerminalGlyphClass.text);
+      expect(cells[4].glyphClass, TerminalGlyphClass.text);
+    },
+  );
+
+  testWidgets(
+    'emoji tag keycap and modifier clusters keep render columns stable',
+    (tester) async {
+      const scotlandFlag =
+          '\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}';
+      const textKeycap = '1\u{20E3}';
+      const wavingHandMediumSkinTone = '👋🏽';
+      const textAirplane = '✈︎';
+      const plainModifier = 'a🏽';
+      final renderObject = await _pumpRenderViewport(
+        tester,
+        row: const TerminalRow(
+          index: 0,
+          text:
+              '$scotlandFlag$textKeycap$wavingHandMediumSkinTone'
+              '$textAirplane${plainModifier}Z',
+        ),
+      );
+
+      final cells = renderObject.debugResolvedCellsForRow(0);
+      expect(
+        cells.map((cell) => (cell.text, cell.column)).toList(growable: false),
+        <(String, int)>[
+          (scotlandFlag, 0),
+          (textKeycap, 2),
+          (wavingHandMediumSkinTone, 4),
+          (textAirplane, 6),
+          (plainModifier, 7),
+          ('Z', 8),
+        ],
+      );
+
+      final cellSize = renderObject.debugCellSize;
+      for (final cell in cells) {
+        expect(
+          cell.drawOffset.dx,
+          moreOrLessEquals(cell.column * cellSize.width, epsilon: 0.001),
+          reason: '${cell.text} should draw at terminal column ${cell.column}',
+        );
+        expect(cell.glyphClass, TerminalGlyphClass.text);
+      }
+    },
+  );
 
   testWidgets('search highlights align to snapped terminal cells', (
     tester,
@@ -349,6 +532,455 @@ void main() {
     controller.dispose();
   });
 
+  testWidgets(
+    'terminal viewport positions graphics using viewport-relative rows',
+    (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final cache = TerminalGraphicsCache(loadAsset: (_) async => null);
+      addTearDown(cache.dispose);
+
+      const contentPadding = EdgeInsets.fromLTRB(3, 5, 7, 11);
+      const cellSize = Size(11, 19);
+      final controller = TerminalViewportController()
+        ..updateMeasuredCellSize(cellSize)
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [
+              TerminalRow(index: 50, text: 'before'),
+              TerminalRow(index: 51, text: 'image'),
+              TerminalRow(index: 52, text: 'after'),
+            ],
+            cursor: TerminalCursor(row: 1, col: 0, visible: false),
+            viewportRows: 3,
+            viewportCols: 8,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 3)],
+            scrollbackOffset: 7,
+            scrollbackMaxOffset: 10,
+            viewportStartRow: 50,
+            graphics: [
+              TerminalGraphicPlacement(
+                renderId: 220,
+                placementId: 220,
+                assetKey: TerminalGraphicAssetKey(id: 17, version: 3),
+                protocol: 'kitty',
+                row: 1,
+                col: 2,
+                widthPx: 24,
+                heightPx: 72,
+                widthCells: 2,
+                heightCells: 4,
+                sourceXOffsetPx: 8,
+                visibleWidthPx: 16,
+                sourceYOffsetPx: 18,
+                visibleHeightPx: 36,
+                xOffsetPx: 4,
+                yOffsetPx: 6,
+              ),
+            ],
+          ),
+        );
+      final selectionController = SelectionController();
+      final runtime = TerminalRuntimeController(
+        backend: _NoopPtyBackend(),
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: runtime,
+        readFrame: () => controller.frame,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: SizedBox(
+            width: 160,
+            height: 96,
+            child: TerminalViewport(
+              controller: controller,
+              selectionController: selectionController,
+              inputController: inputController,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+              contentPadding: contentPadding,
+              graphicsCache: cache,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      final positioned = tester.widget<Positioned>(
+        find.ancestor(
+          of: find.byKey(const Key('terminal-graphic-220')),
+          matching: find.byType(Positioned),
+        ),
+      );
+
+      expect(
+        positioned.left,
+        moreOrLessEquals(
+          contentPadding.left + 2 * cellSize.width + 4,
+          epsilon: 0.001,
+        ),
+      );
+      expect(
+        positioned.top,
+        moreOrLessEquals(
+          contentPadding.top + cellSize.height + 6,
+          epsilon: 0.001,
+        ),
+      );
+      expect(positioned.width, moreOrLessEquals(16, epsilon: 0.001));
+      expect(positioned.height, moreOrLessEquals(36, epsilon: 0.001));
+
+      runtime.dispose();
+      controller.dispose();
+    },
+  );
+
+  testWidgets('terminal viewport layers graphics around text by z-index', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final cache = TerminalGraphicsCache(loadAsset: (_) async => null);
+    addTearDown(cache.dispose);
+
+    final controller = TerminalViewportController()
+      ..updateFrame(
+        const TerminalFrameDiff(
+          rows: [TerminalRow(index: 0, text: 'text')],
+          cursor: TerminalCursor(row: 0, col: 0, visible: false),
+          viewportRows: 1,
+          viewportCols: 8,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+          graphics: [
+            TerminalGraphicPlacement(
+              renderId: 401,
+              placementId: 401,
+              assetKey: TerminalGraphicAssetKey(id: 41, version: 1),
+              protocol: 'kitty',
+              row: 0,
+              col: 0,
+              widthPx: 8,
+              heightPx: 16,
+              widthCells: 1,
+              heightCells: 1,
+              zIndex: -1,
+            ),
+            TerminalGraphicPlacement(
+              renderId: 402,
+              placementId: 402,
+              assetKey: TerminalGraphicAssetKey(id: 42, version: 1),
+              protocol: 'kitty',
+              row: 0,
+              col: 1,
+              widthPx: 8,
+              heightPx: 16,
+              widthCells: 1,
+              heightCells: 1,
+              zIndex: 1,
+            ),
+          ],
+        ),
+      );
+    final selectionController = SelectionController();
+    final runtime = TerminalRuntimeController(
+      backend: _NoopPtyBackend(),
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    final inputController = TerminalInputController(
+      sessionId: '1',
+      runtime: runtime,
+      readFrame: () => controller.frame,
+      readSelection: () => '',
+      copySelection: (_) async {},
+      readClipboard: () async => '',
+    );
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: SizedBox(
+          width: 160,
+          height: 48,
+          child: TerminalViewport(
+            controller: controller,
+            selectionController: selectionController,
+            inputController: inputController,
+            onScrollLines: (_) {},
+            onScrollToOffset: (_) {},
+            graphicsCache: cache,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    const belowGraphicKey = Key('terminal-graphic-401');
+    const aboveGraphicKey = Key('terminal-graphic-402');
+    expect(find.byKey(belowGraphicKey), findsOneWidget);
+    expect(find.byKey(aboveGraphicKey), findsOneWidget);
+
+    final stackElement = tester
+        .elementList(find.byType(Stack))
+        .firstWhere(
+          (element) =>
+              _elementSubtreeContainsKey(element, belowGraphicKey) &&
+              _elementSubtreeContainsKey(element, aboveGraphicKey) &&
+              _elementSubtreeContainsWidgetTypeName(
+                element,
+                '_TerminalViewportSurface',
+              ),
+        );
+    final belowIndex = _directChildIndexContainingKey(
+      stackElement,
+      belowGraphicKey,
+    );
+    final surfaceIndex = _directChildIndexContainingWidgetTypeName(
+      stackElement,
+      '_TerminalViewportSurface',
+    );
+    final aboveIndex = _directChildIndexContainingKey(
+      stackElement,
+      aboveGraphicKey,
+    );
+
+    expect(belowIndex, lessThan(surfaceIndex));
+    expect(surfaceIndex, lessThan(aboveIndex));
+
+    runtime.dispose();
+    controller.dispose();
+  });
+
+  testWidgets(
+    'terminal viewport gives duplicate render-id graphics unique keys',
+    (tester) async {
+      final cache = TerminalGraphicsCache(loadAsset: (_) async => null);
+      addTearDown(cache.dispose);
+
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: 'tiles')],
+            cursor: TerminalCursor(row: 0, col: 0, visible: false),
+            viewportRows: 1,
+            viewportCols: 8,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+            graphics: [
+              TerminalGraphicPlacement(
+                renderId: 501,
+                placementId: 501,
+                assetKey: TerminalGraphicAssetKey(id: 50, version: 1),
+                protocol: 'kitty',
+                row: 0,
+                col: 0,
+                widthPx: 16,
+                heightPx: 16,
+                widthCells: 1,
+                heightCells: 1,
+                sourceXOffsetPx: 0,
+                visibleWidthPx: 8,
+              ),
+              TerminalGraphicPlacement(
+                renderId: 501,
+                placementId: 501,
+                assetKey: TerminalGraphicAssetKey(id: 50, version: 1),
+                protocol: 'kitty',
+                row: 0,
+                col: 1,
+                widthPx: 16,
+                heightPx: 16,
+                widthCells: 1,
+                heightCells: 1,
+                sourceXOffsetPx: 8,
+                visibleWidthPx: 8,
+              ),
+            ],
+          ),
+        );
+      final selectionController = SelectionController();
+      final runtime = TerminalRuntimeController(
+        backend: _NoopPtyBackend(),
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: runtime,
+        readFrame: () => controller.frame,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: SizedBox(
+            width: 160,
+            height: 48,
+            child: TerminalViewport(
+              controller: controller,
+              selectionController: selectionController,
+              inputController: inputController,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+              graphicsCache: cache,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byKey(const Key('terminal-graphic-501')), findsNothing);
+      expect(
+        find.byKey(const Key('terminal-graphic-501-0-0-0')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('terminal-graphic-501-8-0-1')),
+        findsOneWidget,
+      );
+
+      runtime.dispose();
+      controller.dispose();
+    },
+  );
+
+  testWidgets('terminal viewport applies graphic source rectangle transform', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final sourceImage = (await tester.runAsync(
+      () => createTestImage(cache: false),
+    ))!;
+    addTearDown(sourceImage.dispose);
+    final cache = TerminalGraphicsCache(
+      loadAsset: (key) async => TerminalGraphicAsset(
+        key: key,
+        width: 2,
+        height: 2,
+        rgba: Uint8List.fromList(const <int>[
+          255, 0, 0, 255, // top-left red
+          0, 255, 0, 255, // top-right green
+          0, 0, 255, 255, // bottom-left blue
+          255, 255, 0, 255, // bottom-right yellow
+        ]),
+      ),
+      decodeImage: (_, _, _) async => sourceImage.clone(),
+    );
+    addTearDown(cache.dispose);
+
+    final controller = TerminalViewportController()
+      ..updateFrame(
+        const TerminalFrameDiff(
+          rows: [TerminalRow(index: 0, text: '')],
+          cursor: TerminalCursor(row: 0, col: 0, visible: false),
+          viewportRows: 1,
+          viewportCols: 1,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+          graphics: [
+            TerminalGraphicPlacement(
+              renderId: 303,
+              placementId: 303,
+              assetKey: TerminalGraphicAssetKey(id: 31, version: 1),
+              protocol: 'kitty',
+              row: 0,
+              col: 0,
+              widthPx: 2,
+              heightPx: 2,
+              widthCells: 1,
+              heightCells: 1,
+              sourceXOffsetPx: 1,
+              visibleWidthPx: 1,
+              sourceYOffsetPx: 1,
+              visibleHeightPx: 1,
+              preserveAspectRatio: false,
+            ),
+          ],
+        ),
+      );
+    final selectionController = SelectionController();
+    final runtime = TerminalRuntimeController(
+      backend: _NoopPtyBackend(),
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    final inputController = TerminalInputController(
+      sessionId: '1',
+      runtime: runtime,
+      readFrame: () => controller.frame,
+      readSelection: () => '',
+      copySelection: (_) async {},
+      readClipboard: () async => '',
+    );
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: SizedBox(
+          width: 4,
+          height: 4,
+          child: TerminalViewport(
+            controller: controller,
+            selectionController: selectionController,
+            inputController: inputController,
+            onScrollLines: (_) {},
+            onScrollToOffset: (_) {},
+            graphicsCache: cache,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byKey(const Key('terminal-graphic-303')), findsOneWidget);
+    expect(find.byType(RawImage), findsOneWidget);
+    expect(
+      tester.getSize(find.byKey(const Key('terminal-graphic-303'))),
+      const Size(1, 1),
+    );
+    expect(tester.getSize(find.byType(RawImage)), const Size(2, 2));
+
+    final transform = tester.widget<Transform>(
+      find.descendant(
+        of: find.byKey(const Key('terminal-graphic-303')),
+        matching: find.byType(Transform),
+      ),
+    );
+    final storage = transform.transform.storage;
+    expect(storage[12], moreOrLessEquals(-1, epsilon: 0.001));
+    expect(storage[13], moreOrLessEquals(-1, epsilon: 0.001));
+
+    runtime.dispose();
+    controller.dispose();
+  });
+
   testWidgets('terminal viewport uses placement id for graphic identity', (
     tester,
   ) async {
@@ -548,6 +1180,116 @@ void main() {
       await tester.pump();
       await tester.pump();
 
+      final secondVisibleImage = tester
+          .widget<RawImage>(find.byType(RawImage))
+          .image;
+      expect(secondVisibleImage, isNotNull);
+      expect(secondVisibleImage, isNot(same(firstVisibleImage)));
+
+      runtime.dispose();
+      controller.dispose();
+    },
+  );
+
+  testWidgets(
+    'terminal viewport keeps animated graphic geometry stable across versions',
+    (tester) async {
+      final firstImage = (await tester.runAsync(
+        () => createTestImage(cache: false),
+      ))!;
+      final secondImage = (await tester.runAsync(
+        () => createTestImage(cache: false),
+      ))!;
+      final cache = TerminalGraphicsCache(
+        loadAsset: (key) async => TerminalGraphicAsset(
+          key: key,
+          width: 1,
+          height: 1,
+          rgba: Uint8List.fromList(<int>[
+            key.version == 1 ? 255 : 0,
+            key.version == 2 ? 255 : 0,
+            0,
+            255,
+          ]),
+        ),
+        decodeImage: (rgba, width, height) async =>
+            rgba[0] == 255 ? firstImage : secondImage,
+      );
+      addTearDown(cache.dispose);
+
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          _graphicFrame(
+            const TerminalGraphicAssetKey(id: 7, version: 1),
+            renderId: 77,
+            placementId: 77,
+            col: 2,
+          ),
+        );
+      final selectionController = SelectionController();
+      final runtime = TerminalRuntimeController(
+        backend: _NoopPtyBackend(),
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: runtime,
+        readFrame: () => controller.frame,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: SizedBox(
+            width: 160,
+            height: 48,
+            child: TerminalViewport(
+              controller: controller,
+              selectionController: selectionController,
+              inputController: inputController,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+              graphicsCache: cache,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      controller.updateFrame(controller.frame);
+      await tester.pump();
+      await tester.pump();
+
+      final graphicFinder = find.byKey(const Key('terminal-graphic-77'));
+      expect(graphicFinder, findsOneWidget);
+      final firstTopLeft = tester.getTopLeft(graphicFinder);
+      final firstSize = tester.getSize(graphicFinder);
+      final firstVisibleImage = tester
+          .widget<RawImage>(find.byType(RawImage))
+          .image;
+      expect(firstVisibleImage, isNotNull);
+
+      controller.updateFrame(
+        _graphicFrame(
+          const TerminalGraphicAssetKey(id: 7, version: 2),
+          renderId: 77,
+          placementId: 77,
+          col: 2,
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+
+      expect(graphicFinder, findsOneWidget);
+      expect(tester.getTopLeft(graphicFinder), firstTopLeft);
+      expect(tester.getSize(graphicFinder), firstSize);
       final secondVisibleImage = tester
           .widget<RawImage>(find.byType(RawImage))
           .image;
@@ -847,6 +1589,84 @@ void main() {
     runtime.dispose();
     controller.dispose();
   });
+
+  testWidgets(
+    'terminal viewport does not resurrect omitted graphic after late decode',
+    (tester) async {
+      final image = (await tester.runAsync(
+        () => createTestImage(cache: false),
+      ))!;
+      final decodeCompleter = Completer<ui.Image>();
+      final cache = TerminalGraphicsCache(
+        loadAsset: (key) async => TerminalGraphicAsset(
+          key: key,
+          width: 1,
+          height: 1,
+          rgba: Uint8List.fromList(const <int>[255, 0, 0, 255]),
+        ),
+        decodeImage: (_, _, _) => decodeCompleter.future,
+      );
+      addTearDown(cache.dispose);
+
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          _graphicFrame(const TerminalGraphicAssetKey(id: 7, version: 1)),
+        );
+      final selectionController = SelectionController();
+      final runtime = TerminalRuntimeController(
+        backend: _NoopPtyBackend(),
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: runtime,
+        readFrame: () => controller.frame,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: SizedBox(
+            width: 160,
+            height: 48,
+            child: TerminalViewport(
+              controller: controller,
+              selectionController: selectionController,
+              inputController: inputController,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+              graphicsCache: cache,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byKey(const Key('terminal-graphic-11')), findsOneWidget);
+      expect(find.byType(RawImage), findsNothing);
+
+      controller.updateFrame(_emptyGraphicFrame());
+      await tester.pump();
+
+      expect(find.byKey(const Key('terminal-graphic-11')), findsNothing);
+
+      decodeCompleter.complete(image);
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byKey(const Key('terminal-graphic-11')), findsNothing);
+      expect(find.byType(RawImage), findsNothing);
+      expect(tester.takeException(), isNull);
+
+      runtime.dispose();
+      controller.dispose();
+    },
+  );
 
   testWidgets('terminal viewport evicts stale graphics on initial mount', (
     tester,
@@ -1190,6 +2010,74 @@ void _expectRectClose(Rect actual, Rect expected) {
   expect(actual.top, moreOrLessEquals(expected.top, epsilon: 0.001));
   expect(actual.width, moreOrLessEquals(expected.width, epsilon: 0.001));
   expect(actual.height, moreOrLessEquals(expected.height, epsilon: 0.001));
+}
+
+Rect _snapRectForTest(Rect rect, double devicePixelRatio) {
+  double snap(double value) {
+    if (!value.isFinite ||
+        !devicePixelRatio.isFinite ||
+        devicePixelRatio <= 0) {
+      return value;
+    }
+    return (value * devicePixelRatio).roundToDouble() / devicePixelRatio;
+  }
+
+  final left = snap(rect.left);
+  final top = snap(rect.top);
+  final right = math.max(left, snap(rect.right));
+  final bottom = math.max(top, snap(rect.bottom));
+  return Rect.fromLTRB(left, top, right, bottom);
+}
+
+bool _elementSubtreeContainsKey(Element element, Key key) {
+  if (element.widget.key == key) {
+    return true;
+  }
+  var found = false;
+  element.visitChildElements((child) {
+    if (!found && _elementSubtreeContainsKey(child, key)) {
+      found = true;
+    }
+  });
+  return found;
+}
+
+bool _elementSubtreeContainsWidgetTypeName(Element element, String typeName) {
+  if (element.widget.runtimeType.toString() == typeName) {
+    return true;
+  }
+  var found = false;
+  element.visitChildElements((child) {
+    if (!found && _elementSubtreeContainsWidgetTypeName(child, typeName)) {
+      found = true;
+    }
+  });
+  return found;
+}
+
+int _directChildIndexContainingKey(Element parent, Key key) {
+  return _directChildIndexWhere(
+    parent,
+    (child) => _elementSubtreeContainsKey(child, key),
+  );
+}
+
+int _directChildIndexContainingWidgetTypeName(Element parent, String typeName) {
+  return _directChildIndexWhere(
+    parent,
+    (child) => _elementSubtreeContainsWidgetTypeName(child, typeName),
+  );
+}
+
+int _directChildIndexWhere(Element parent, bool Function(Element child) test) {
+  final children = <Element>[];
+  parent.visitChildElements(children.add);
+  for (var index = 0; index < children.length; index += 1) {
+    if (test(children[index])) {
+      return index;
+    }
+  }
+  return -1;
 }
 
 class _NoopPtyBackend implements PtySessionBackend {

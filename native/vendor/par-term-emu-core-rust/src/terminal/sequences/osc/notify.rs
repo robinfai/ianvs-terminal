@@ -54,8 +54,8 @@ impl Terminal {
             Err(_) => return,
         };
 
-        let state_num: u8 = match state_param.parse() {
-            Ok(n) => n,
+        let state_num: u8 = match state_param.parse::<u32>() {
+            Ok(n) => n.min(u8::MAX as u32) as u8,
             Err(_) => return,
         };
 
@@ -63,7 +63,11 @@ impl Terminal {
 
         let progress = if state.requires_progress() && params.len() >= 2 {
             match std::str::from_utf8(params[1]) {
-                Ok(s) => s.trim().parse::<u8>().unwrap_or(0).min(100),
+                Ok(s) => s
+                    .trim()
+                    .parse::<u32>()
+                    .map(|progress| progress.min(100) as u8)
+                    .unwrap_or(0),
                 Err(_) => 0,
             }
         } else {

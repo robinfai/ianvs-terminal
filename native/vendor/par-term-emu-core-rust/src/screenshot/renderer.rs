@@ -2,7 +2,7 @@ use image::{Rgba, RgbaImage};
 
 use crate::cell::{Cell, UnderlineStyle};
 use crate::cursor::{Cursor, CursorStyle};
-use crate::graphics::TerminalGraphic;
+use crate::graphics::{ImageDimension, ImageSizeUnit, TerminalGraphic};
 use crate::grid::Grid;
 
 use super::config::{ScreenshotConfig, SixelRenderMode};
@@ -21,6 +21,25 @@ pub struct Renderer {
     canvas_height: u32,
     /// Text shaper for handling multi-codepoint emoji (like flags)
     shaper: Option<TextShaper>,
+}
+
+fn screenshot_graphic_dimension_px(
+    dimension: ImageDimension,
+    fallback_px: usize,
+    cell_px: usize,
+    terminal_px: usize,
+) -> Option<usize> {
+    if dimension.is_auto() {
+        return None;
+    }
+    let value = dimension.value.max(0.0);
+    let px = match dimension.unit {
+        ImageSizeUnit::Auto => fallback_px,
+        ImageSizeUnit::Cells => (value * cell_px as f64).round() as usize,
+        ImageSizeUnit::Pixels => value.round() as usize,
+        ImageSizeUnit::Percent => ((value / 100.0) * terminal_px as f64).round() as usize,
+    };
+    Some(px.max(1))
 }
 
 impl Renderer {
@@ -118,12 +137,16 @@ impl Renderer {
         match self.config.sixel_render_mode {
             SixelRenderMode::Disabled => {}
             SixelRenderMode::Pixels => {
-                for graphic in graphics {
+                let mut ordered_graphics: Vec<&TerminalGraphic> = graphics.iter().collect();
+                ordered_graphics.sort_by_key(|graphic| graphic.placement.z_index);
+                for graphic in ordered_graphics {
                     self.render_sixel_pixels(&mut image, graphic);
                 }
             }
             SixelRenderMode::HalfBlocks => {
-                for graphic in graphics {
+                let mut ordered_graphics: Vec<&TerminalGraphic> = graphics.iter().collect();
+                ordered_graphics.sort_by_key(|graphic| graphic.placement.z_index);
+                for graphic in ordered_graphics {
                     self.render_sixel_halfblocks(&mut image, graphic)?;
                 }
             }
@@ -922,20 +945,54 @@ impl Renderer {
     /// Render Sixel graphic onto the image using actual pixels
     fn render_sixel_pixels(&self, image: &mut RgbaImage, graphic: &TerminalGraphic) {
         // Calculate pixel position from terminal position
-        let x_offset = self.config.padding_px + graphic.position.0 as u32 * self.cell_width;
-        let y_offset = self.config.padding_px + graphic.position.1 as u32 * self.cell_height;
+        let base_x = self.config.padding_px + graphic.position.0 as u32 * self.cell_width;
+        let base_y = self.config.padding_px + graphic.position.1 as u32 * self.cell_height;
+        let (graphic_cell_width, graphic_cell_height) = graphic
+            .cell_dimensions
+            .unwrap_or((self.cell_width, self.cell_height));
+        let Some((source_x, source_y, source_width, source_height)) = graphic.source_rect_pixels()
+        else {
+            return;
+        };
+        let (display_width, display_height) = self.graphic_display_size(
+            graphic,
+            source_width,
+            source_height,
+            graphic_cell_width.max(1) as usize,
+            graphic_cell_height.max(1) as usize,
+        );
+        if display_width == 0 || display_height == 0 {
+            return;
+        }
+
+        let hidden_top_px = graphic
+            .scroll_offset_rows
+            .saturating_mul(graphic_cell_height.max(1) as usize)
+            .min(graphic.placement.y_offset as usize + display_height);
+        let image_top_px = graphic.placement.y_offset as usize;
+        let display_start_y = hidden_top_px
+            .saturating_sub(image_top_px)
+            .min(display_height);
 
         // Blit the Sixel graphic pixels onto the image
-        for py in 0..graphic.height {
-            for px in 0..graphic.width {
-                if let Some((r, g, b, a)) = graphic.get_pixel(px, py) {
+        for display_y in display_start_y..display_height {
+            let source_py = source_y + display_y.saturating_mul(source_height) / display_height;
+            let dest_y = base_y.saturating_add(
+                image_top_px
+                    .saturating_add(display_y)
+                    .saturating_sub(hidden_top_px) as u32,
+            );
+            for display_x in 0..display_width {
+                let source_px = source_x + display_x.saturating_mul(source_width) / display_width;
+                if let Some((r, g, b, a)) = graphic.get_pixel(source_px, source_py) {
                     // Skip fully transparent pixels
                     if a == 0 {
                         continue;
                     }
 
-                    let dest_x = x_offset + px as u32;
-                    let dest_y = y_offset + py as u32;
+                    let dest_x = base_x
+                        .saturating_add(graphic.placement.x_offset)
+                        .saturating_add(display_x as u32);
 
                     // Alpha blend the Sixel pixel
                     blend_rgba_pixel(
@@ -952,6 +1009,57 @@ impl Renderer {
         }
     }
 
+    fn graphic_display_size(
+        &self,
+        graphic: &TerminalGraphic,
+        source_width: usize,
+        source_height: usize,
+        cell_width: usize,
+        cell_height: usize,
+    ) -> (usize, usize) {
+        let terminal_width = self
+            .canvas_width
+            .saturating_sub(self.config.padding_px.saturating_mul(2))
+            .max(self.cell_width) as usize;
+        let terminal_height = self
+            .canvas_height
+            .saturating_sub(self.config.padding_px.saturating_mul(2))
+            .max(self.cell_height) as usize;
+        let requested_width = screenshot_graphic_dimension_px(
+            graphic.placement.requested_width,
+            source_width,
+            cell_width,
+            terminal_width,
+        );
+        let requested_height = screenshot_graphic_dimension_px(
+            graphic.placement.requested_height,
+            source_height,
+            cell_height,
+            terminal_height,
+        );
+
+        match (requested_width, requested_height) {
+            (Some(width), Some(height)) => (width, height),
+            (Some(width), None) if graphic.placement.preserve_aspect_ratio && source_width > 0 => {
+                let height = ((width as f64 * source_height as f64) / source_width as f64)
+                    .round()
+                    .max(1.0) as usize;
+                (width, height)
+            }
+            (None, Some(height))
+                if graphic.placement.preserve_aspect_ratio && source_height > 0 =>
+            {
+                let width = ((height as f64 * source_width as f64) / source_height as f64)
+                    .round()
+                    .max(1.0) as usize;
+                (width, height)
+            }
+            (Some(width), None) => (width, source_height.max(1)),
+            (None, Some(height)) => (source_width.max(1), height),
+            (None, None) => (source_width.max(1), source_height.max(1)),
+        }
+    }
+
     /// Render Sixel graphic using half-block characters (matches TUI appearance)
     fn render_sixel_halfblocks(
         &mut self,
@@ -962,29 +1070,49 @@ impl Renderer {
         let base_col = graphic.position.0;
         let base_row = graphic.position.1;
 
-        // Get how many terminal cells this graphic spans
-        // This uses the original terminal's cell dimensions if available,
-        // otherwise falls back to the screenshot's cell dimensions
-        let (cells_wide, cells_high) = graphic.cell_span(self.cell_width, self.cell_height);
+        let (graphic_cell_width, graphic_cell_height) = graphic
+            .cell_dimensions
+            .unwrap_or((self.cell_width, self.cell_height));
+        let Some((source_x, source_y, source_width, source_height)) = graphic.source_rect_pixels()
+        else {
+            return Ok(());
+        };
+        let (display_width, display_height) = self.graphic_display_size(
+            graphic,
+            source_width,
+            source_height,
+            graphic_cell_width.max(1) as usize,
+            graphic_cell_height.max(1) as usize,
+        );
+        if display_width == 0 || display_height == 0 {
+            return Ok(());
+        }
 
-        for cell_row in 0..cells_high {
+        let cells_wide = display_width
+            .div_ceil(graphic_cell_width.max(1) as usize)
+            .max(1);
+        let cells_high = display_height
+            .div_ceil(graphic_cell_height.max(1) as usize)
+            .max(1);
+        let hidden_top_rows = graphic.scroll_offset_rows.min(cells_high);
+
+        for cell_row in hidden_top_rows..cells_high {
             for cell_col in 0..cells_wide {
                 let col = base_col + cell_col;
-                let row = base_row + cell_row;
+                let row = base_row + cell_row.saturating_sub(hidden_top_rows);
 
-                // Map this cell position to Sixel pixels
-                // The Sixel spans cells_wide x cells_high cells
-                // Each cell represents (graphic.width / cells_wide) x (graphic.height / cells_high) pixels
-                let pixels_per_cell_x = graphic.width as f32 / cells_wide as f32;
-                let pixels_per_cell_y = graphic.height as f32 / cells_high as f32;
-
-                // Sample at the center horizontally, and at 1/4 and 3/4 vertically
-                let sixel_x =
-                    (cell_col as f32 * pixels_per_cell_x + pixels_per_cell_x / 2.0) as usize;
+                let display_x = ((cell_col * display_width) + (display_width / cells_wide) / 2)
+                    .min(display_width.saturating_sub(1));
+                let cell_top = cell_row * display_height / cells_high;
+                let cell_bottom = (cell_row + 1) * display_height / cells_high;
+                let cell_height = cell_bottom.saturating_sub(cell_top).max(1);
+                let display_y_top = (cell_top + cell_height / 4).min(display_height - 1);
+                let display_y_bottom = (cell_top + (cell_height * 3) / 4).min(display_height - 1);
+                let sixel_x = source_x + display_x.saturating_mul(source_width) / display_width;
                 let sixel_y_top =
-                    (cell_row as f32 * pixels_per_cell_y + pixels_per_cell_y / 4.0) as usize;
+                    source_y + display_y_top.saturating_mul(source_height) / display_height;
                 let sixel_y_bottom =
-                    (cell_row as f32 * pixels_per_cell_y + 3.0 * pixels_per_cell_y / 4.0) as usize;
+                    source_y + display_y_bottom.saturating_mul(source_height) / display_height;
 
                 // Get top and bottom pixel colors
                 let top_color = if sixel_x < graphic.width && sixel_y_top < graphic.height {
@@ -1012,8 +1140,14 @@ impl Renderer {
 
                 // Render the half-block character '▀' (UPPER HALF BLOCK)
                 // Foreground = top pixel, Background = bottom pixel
-                let x = col as u32 * self.cell_width + self.config.padding_px;
-                let y = row as u32 * self.cell_height + self.config.padding_px;
+                let x = (col as u32)
+                    .saturating_mul(self.cell_width)
+                    .saturating_add(self.config.padding_px)
+                    .saturating_add(graphic.placement.x_offset);
+                let y = (row as u32)
+                    .saturating_mul(self.cell_height)
+                    .saturating_add(self.config.padding_px)
+                    .saturating_add(graphic.placement.y_offset);
 
                 // First render background (bottom color)
                 self.render_background(image, x, y, bottom_rgb);

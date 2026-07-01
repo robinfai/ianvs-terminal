@@ -418,10 +418,11 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
 
   void _scrollToSearchHit(_ScopedSearchMatch hit) {
     final sessionController = ref.read(sessionControllerProvider.notifier);
-    sessionController.activateSession(hit.session.sessionId);
+    final sessionId = hit.session.sessionId;
+    _activateSession(sessionController, sessionId, requestFocus: false);
     ref
         .read(terminalRuntimeControllerProvider)
-        .scrollViewportTo(hit.session.sessionId, hit.match.scrollbackOffset);
+        .scrollViewportTo(sessionId, hit.match.scrollbackOffset);
   }
 
   List<terminal.TerminalSearchMatch> _searchMatchesForSession(
@@ -475,14 +476,12 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
       return;
     }
     final sessionController = ref.read(sessionControllerProvider.notifier);
-    sessionController.activateSession(result.session.sessionId);
+    final sessionId = result.session.sessionId;
+    _activateSession(sessionController, sessionId, requestFocus: false);
     ref
         .read(terminalRuntimeControllerProvider)
-        .scrollViewportTo(
-          result.session.sessionId,
-          result.match.scrollbackOffset,
-        );
-    _focusSession(result.session.sessionId);
+        .scrollViewportTo(sessionId, result.match.scrollbackOffset);
+    _focusSession(sessionId);
   }
 
   List<_SearchableSession> _searchableSessions(SessionState sessionState) {
@@ -534,9 +533,12 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     _mutateState(() {
       _isAutocompleteOpen = true;
       _isSearchOpen = false;
+      _autocompleteSessionId = activeSessionId;
       _autocompletePrefix = prefix;
       _autocompleteSuggestions = suggestions;
       _activeAutocompleteIndex = 0;
+      _resetAutoComposerState(clearText: true);
+      _resetCopyModeState();
     });
   }
 
@@ -680,14 +682,21 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
   }
 
   void _closeAutocomplete() {
-    final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
+    final ownerSessionId =
+        _autocompleteSessionId ??
+        ref.read(sessionControllerProvider).activeSessionId;
     _mutateState(() {
-      _isAutocompleteOpen = false;
-      _autocompletePrefix = '';
-      _autocompleteSuggestions = const [];
-      _activeAutocompleteIndex = 0;
+      _resetAutocompleteState();
     });
-    _focusSession(activeSessionId);
+    _focusSession(ownerSessionId);
+  }
+
+  void _resetAutocompleteState() {
+    _isAutocompleteOpen = false;
+    _autocompleteSessionId = null;
+    _autocompletePrefix = '';
+    _autocompleteSuggestions = const [];
+    _activeAutocompleteIndex = 0;
   }
 
   bool _selectLastCommandOutput(
@@ -732,8 +741,11 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
   }
 
   void _acceptAutocomplete(String suggestion) {
-    final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
-    if (activeSessionId == null) {
+    final targetSessionId =
+        _autocompleteSessionId ??
+        ref.read(sessionControllerProvider).activeSessionId;
+    if (targetSessionId == null || !_sessionExists(targetSessionId)) {
+      _closeAutocomplete();
       return;
     }
     final suffix =
@@ -741,7 +753,7 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
         ? suggestion.substring(_autocompletePrefix.length)
         : suggestion;
     if (suffix.isNotEmpty) {
-      _sendPlainTextToSession(activeSessionId, suffix);
+      _sendPlainTextToSession(targetSessionId, suffix);
     }
     _closeAutocomplete();
   }
@@ -756,9 +768,10 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     final suggestions = _autoComposerSuggestionsForText('', sessionState);
     _mutateState(() {
       _isAutoComposerOpen = true;
+      _autoComposerSessionId = activeSessionId;
       _isSearchOpen = false;
-      _isAutocompleteOpen = false;
-      _isCopyModeOpen = false;
+      _resetAutocompleteState();
+      _resetCopyModeState();
       _autoComposerSuggestions = suggestions;
       _activeAutoComposerIndex = 0;
     });
@@ -771,13 +784,23 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
   }
 
   void _closeAutoComposer() {
-    final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
+    final ownerSessionId =
+        _autoComposerSessionId ??
+        ref.read(sessionControllerProvider).activeSessionId;
     _mutateState(() {
-      _isAutoComposerOpen = false;
-      _autoComposerSuggestions = const [];
-      _activeAutoComposerIndex = 0;
+      _resetAutoComposerState();
     });
-    _focusSession(activeSessionId);
+    _focusSession(ownerSessionId);
+  }
+
+  void _resetAutoComposerState({bool clearText = false}) {
+    _isAutoComposerOpen = false;
+    _autoComposerSessionId = null;
+    if (clearText) {
+      _autoComposerController.clear();
+    }
+    _autoComposerSuggestions = const [];
+    _activeAutoComposerIndex = 0;
   }
 
   void _updateAutoComposerSuggestions(String text) {
@@ -794,17 +817,17 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
   ]) {
     final SessionState state =
         sessionState ?? ref.read(sessionControllerProvider);
-    final activeSessionId = state.activeSessionId;
-    if (activeSessionId == null) {
+    final targetSessionId = _autoComposerSessionId ?? state.activeSessionId;
+    if (targetSessionId == null || !_sessionExists(targetSessionId)) {
       return const <String>[];
     }
     final frame = ref
         .read(sessionControllerProvider.notifier)
-        .viewportFor(activeSessionId)
+        .viewportFor(targetSessionId)
         .frame;
     final prefix = _autoComposerPrefixForText(text);
     return _mergeAutocompleteSuggestions([
-      _shellCommandAutocompleteSuggestions(state, activeSessionId, prefix),
+      _shellCommandAutocompleteSuggestions(state, targetSessionId, prefix),
       _autocompleteSuggestionsForFrame(frame, prefix),
     ]);
   }
@@ -842,15 +865,18 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
   }
 
   void _sendAutoComposerCommand() {
-    final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
-    if (activeSessionId == null) {
+    final targetSessionId =
+        _autoComposerSessionId ??
+        ref.read(sessionControllerProvider).activeSessionId;
+    if (targetSessionId == null || !_sessionExists(targetSessionId)) {
+      _closeAutoComposer();
       return;
     }
     final command = _autoComposerController.text.trimRight();
     if (command.isEmpty) {
       return;
     }
-    if (!_sendPlainTextToSession(activeSessionId, '$command\n')) {
+    if (!_sendPlainTextToSession(targetSessionId, '$command\n')) {
       return;
     }
     _autoComposerController.clear();

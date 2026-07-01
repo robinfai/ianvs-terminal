@@ -66,6 +66,40 @@ void main() {
       );
     });
 
+    test('focus and resize pane actions update active tab pane state', () {
+      final initial = LocalWorkspaceActionReducer.reduce(
+        workspace: const TerminalWorkspace(),
+        actionId: TerminalActionId.newTab,
+        context: _context(tab: 'tab-1', pane: 'pane-1'),
+      );
+      final split = LocalWorkspaceActionReducer.reduce(
+        workspace: initial,
+        actionId: TerminalActionId.splitRight,
+        context: _context(pane: 'pane-2', split: 'split-1'),
+      );
+
+      final previous = LocalWorkspaceActionReducer.reduce(
+        workspace: split,
+        actionId: TerminalActionId.focusPreviousPane,
+        context: _context(),
+      );
+      final next = LocalWorkspaceActionReducer.reduce(
+        workspace: previous,
+        actionId: TerminalActionId.focusNextPane,
+        context: _context(),
+      );
+      final resized = LocalWorkspaceActionReducer.reduce(
+        workspace: next,
+        actionId: TerminalActionId.resizePane,
+        context: _context(),
+      );
+
+      expect(split.activeTab!.activePaneId, 'pane-2');
+      expect(previous.activeTab!.activePaneId, 'pane-1');
+      expect(next.activeTab!.activePaneId, 'pane-2');
+      expect(resized.activeTab!.root.ratio, closeTo(0.42, 0.0001));
+    });
+
     test('close and reopen tab actions roundtrip closed tab stack', () {
       final initial = LocalWorkspaceActionReducer.reduce(
         workspace: const TerminalWorkspace(),

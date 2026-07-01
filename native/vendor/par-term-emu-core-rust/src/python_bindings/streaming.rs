@@ -1829,12 +1829,19 @@ pub fn encode_client_message<'py>(
             };
             let col = get_u16("col").unwrap_or(0);
             let row = get_u16("row").unwrap_or(0);
+            let pixel_x = get_u16("pixel_x");
+            let pixel_y = get_u16("pixel_y");
             let button = get_u8("button").unwrap_or(0);
             let shift = get_bool("shift").unwrap_or(false);
             let ctrl = get_bool("ctrl").unwrap_or(false);
             let alt = get_bool("alt").unwrap_or(false);
             let event_type = get_str("event_type").unwrap_or_else(|| "press".to_string());
-            ClientMessage::mouse(col, row, button, shift, ctrl, alt, event_type)
+            match (pixel_x, pixel_y) {
+                (Some(pixel_x), Some(pixel_y)) => ClientMessage::mouse_with_pixels(
+                    col, row, pixel_x, pixel_y, button, shift, ctrl, alt, event_type,
+                ),
+                _ => ClientMessage::mouse(col, row, button, shift, ctrl, alt, event_type),
+            }
         }
         "focus_change" => {
             let focused = get_bool("focused").unwrap_or(true);
@@ -1950,6 +1957,8 @@ pub fn decode_client_message<'py>(
         ClientMessage::Mouse {
             col,
             row,
+            pixel_x,
+            pixel_y,
             button,
             shift,
             ctrl,
@@ -1959,6 +1968,12 @@ pub fn decode_client_message<'py>(
             dict.set_item("type", "mouse")?;
             dict.set_item("col", col)?;
             dict.set_item("row", row)?;
+            if let Some(pixel_x) = pixel_x {
+                dict.set_item("pixel_x", pixel_x)?;
+            }
+            if let Some(pixel_y) = pixel_y {
+                dict.set_item("pixel_y", pixel_y)?;
+            }
             dict.set_item("button", button)?;
             dict.set_item("shift", shift)?;
             dict.set_item("ctrl", ctrl)?;

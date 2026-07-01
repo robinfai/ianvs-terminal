@@ -2,6 +2,23 @@ use crate::shell_integration::ShellIntegrationMarker;
 use crate::terminal::Terminal;
 use base64::Engine;
 
+fn process_osc1337(term: &mut Terminal, payload: &str) {
+    let sequence = format!("\x1b]1337;{payload}\x1b\\");
+    term.process(sequence.as_bytes());
+}
+
+fn tiny_png_base64() -> String {
+    let image = image::RgbaImage::from_pixel(1, 1, image::Rgba([255, 0, 0, 255]));
+    let mut png_data = Vec::new();
+    image
+        .write_to(
+            &mut std::io::Cursor::new(&mut png_data),
+            image::ImageFormat::Png,
+        )
+        .expect("test PNG should encode");
+    base64::engine::general_purpose::STANDARD.encode(png_data)
+}
+
 #[test]
 fn test_parse_color_spec_rgb_format() {
     // Valid rgb: format
@@ -510,6 +527,36 @@ fn test_progress_bar_clamps_to_100() {
 }
 
 #[test]
+fn test_progress_bar_clamps_large_numeric_percent_to_100() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"\x1b]9;4;1;999999\x1b\\");
+
+    assert_eq!(
+        term.progress_state(),
+        crate::terminal::ProgressState::Normal
+    );
+    assert_eq!(term.progress_value(), 100);
+}
+
+#[test]
+fn test_progress_bar_large_numeric_state_defaults_to_hidden() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"\x1b]9;4;1;55\x1b\\");
+    assert!(term.has_progress());
+
+    term.process(b"\x1b]9;4;999999;50\x1b\\");
+
+    assert!(!term.has_progress());
+    assert_eq!(
+        term.progress_state(),
+        crate::terminal::ProgressState::Hidden
+    );
+    assert_eq!(term.progress_value(), 0);
+}
+
+#[test]
 fn test_progress_bar_manual_set() {
     let mut term = Terminal::new(80, 24);
 
@@ -892,6 +939,428 @@ fn test_set_user_var_multiple_variables() {
 
     let vars = term.get_user_vars();
     assert_eq!(vars.len(), 3);
+}
+
+#[test]
+fn test_iterm_multipart_inline_without_size_waits_for_file_end() {
+    let mut term = Terminal::new(80, 24);
+    let name = base64::engine::general_purpose::STANDARD.encode("pixel.png");
+    let image = tiny_png_base64();
+
+    process_osc1337(&mut term, &format!("MultipartFile=inline=1;name={name}"));
+    process_osc1337(&mut term, &format!("FilePart={image}"));
+
+    assert_eq!(
+        term.graphics_count(),
+        0,
+        "inline multipart images without size must wait for FileEnd"
+    );
+
+    process_osc1337(&mut term, "FileEnd");
+
+    assert_eq!(term.graphics_count(), 1);
+    let graphic = term
+        .all_graphics()
+        .last()
+        .expect("FileEnd should finalize the inline iTerm2 image");
+    assert_eq!(graphic.protocol.as_str(), "iterm");
+    assert_eq!(graphic.width, 1);
+    assert_eq!(graphic.height, 1);
+}
+
+#[test]
+fn test_iterm_single_inline_accepts_wrapped_base64() {
+    let mut term = Terminal::new(80, 24);
+    let image = tiny_png_base64()
+        .as_bytes()
+        .chunks(16)
+        .map(|chunk| std::str::from_utf8(chunk).unwrap())
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    process_osc1337(&mut term, &format!("File=inline=1:{image}"));
+
+    assert_eq!(term.graphics_count(), 1);
+    let graphic = term
+        .all_graphics()
+        .last()
+        .expect("wrapped single-sequence iTerm2 image should decode");
+    assert_eq!(graphic.protocol.as_str(), "iterm");
+    assert_eq!(graphic.width, 1);
+    assert_eq!(graphic.height, 1);
+}
+
+#[test]
+fn test_iterm_single_inline_accepts_c1_osc_and_st_controls() {
+    let mut term = Terminal::new(80, 24);
+    let image = tiny_png_base64();
+    let mut sequence = Vec::new();
+    sequence.push(0x9d);
+    sequence.extend_from_slice(format!("1337;File=inline=1:{image}").as_bytes());
+    sequence.push(0x9c);
+
+    term.process(&sequence);
+
+    assert_eq!(term.graphics_count(), 1);
+    let graphic = term
+        .all_graphics()
+        .last()
+        .expect("C1 OSC/ST iTerm2 image should decode");
+    assert_eq!(graphic.protocol.as_str(), "iterm");
+    assert_eq!(graphic.width, 1);
+    assert_eq!(graphic.height, 1);
+}
+
+#[test]
+fn test_iterm_multipart_inline_accepts_wrapped_file_part_base64() {
+    let mut term = Terminal::new(80, 24);
+    let name = base64::engine::general_purpose::STANDARD.encode("pixel.png");
+    let image = tiny_png_base64()
+        .as_bytes()
+        .chunks(20)
+        .map(|chunk| std::str::from_utf8(chunk).unwrap())
+        .collect::<Vec<_>>()
+        .join("\r\n\t");
+
+    process_osc1337(&mut term, &format!("MultipartFile=inline=1;name={name}"));
+    process_osc1337(&mut term, &format!("FilePart={image}"));
+    process_osc1337(&mut term, "FileEnd");
+
+    assert_eq!(term.graphics_count(), 1);
+    let graphic = term
+        .all_graphics()
+        .last()
+        .expect("wrapped multipart iTerm2 image should decode at FileEnd");
+    assert_eq!(graphic.protocol.as_str(), "iterm");
+    assert_eq!(graphic.width, 1);
+    assert_eq!(graphic.height, 1);
+}
+
+#[test]
+fn test_iterm_multipart_inline_accepts_unaligned_file_part_base64() {
+    let mut term = Terminal::new(80, 24);
+    let name = base64::engine::general_purpose::STANDARD.encode("pixel.png");
+    let image = tiny_png_base64();
+    let (first, rest) = image.split_at(5);
+    let (second, third) = rest.split_at(7);
+
+    process_osc1337(&mut term, &format!("MultipartFile=inline=1;name={name}"));
+    process_osc1337(&mut term, &format!("FilePart={first}"));
+    process_osc1337(&mut term, &format!("FilePart={second}"));
+    process_osc1337(&mut term, &format!("FilePart={third}"));
+
+    assert_eq!(
+        term.graphics_count(),
+        0,
+        "unaligned multipart iTerm2 images still wait for FileEnd"
+    );
+
+    process_osc1337(&mut term, "FileEnd");
+
+    assert_eq!(term.graphics_count(), 1);
+    let graphic = term
+        .all_graphics()
+        .last()
+        .expect("unaligned multipart iTerm2 image should decode at FileEnd");
+    assert_eq!(graphic.protocol.as_str(), "iterm");
+    assert_eq!(graphic.width, 1);
+    assert_eq!(graphic.height, 1);
+}
+
+#[test]
+fn test_iterm_multipart_inline_with_size_waits_for_file_end() {
+    let mut term = Terminal::new(80, 24);
+    let name = base64::engine::general_purpose::STANDARD.encode("pixel.png");
+    let image = tiny_png_base64();
+    let decoded_size = base64::engine::general_purpose::STANDARD
+        .decode(image.as_bytes())
+        .expect("test image should decode")
+        .len();
+
+    process_osc1337(
+        &mut term,
+        &format!("MultipartFile=inline=1;size={decoded_size};name={name}"),
+    );
+    process_osc1337(&mut term, &format!("FilePart={image}"));
+
+    assert_eq!(
+        term.graphics_count(),
+        0,
+        "inline multipart images must wait for FileEnd even when size is reached"
+    );
+
+    process_osc1337(&mut term, "FileEnd");
+
+    assert_eq!(term.graphics_count(), 1);
+    let graphic = term
+        .all_graphics()
+        .last()
+        .expect("FileEnd should finalize the inline iTerm2 image");
+    assert_eq!(graphic.protocol.as_str(), "iterm");
+    assert_eq!(graphic.width, 1);
+    assert_eq!(graphic.height, 1);
+}
+
+#[test]
+fn test_iterm_multipart_download_without_size_waits_for_file_end() {
+    let mut term = Terminal::new(80, 24);
+    let filename = base64::engine::general_purpose::STANDARD.encode("artifact.txt");
+    let payload = base64::engine::general_purpose::STANDARD.encode("hello");
+
+    process_osc1337(
+        &mut term,
+        &format!("MultipartFile=inline=0;name={filename}"),
+    );
+    let started_events = term.poll_events();
+    let transfer_id = started_events
+        .iter()
+        .find_map(|event| match event {
+            crate::terminal::TerminalEvent::FileTransferStarted {
+                id,
+                direction,
+                filename,
+                total_bytes,
+            } => {
+                assert!(matches!(
+                    direction,
+                    crate::terminal::TransferDirection::Download
+                ));
+                assert_eq!(filename.as_deref(), Some("artifact.txt"));
+                assert_eq!(*total_bytes, None);
+                Some(*id)
+            }
+            _ => None,
+        })
+        .expect("MultipartFile should start a download transfer");
+
+    process_osc1337(&mut term, &format!("FilePart={payload}"));
+    let part_events = term.poll_events();
+    assert!(part_events.iter().any(|event| matches!(
+        event,
+        crate::terminal::TerminalEvent::FileTransferProgress {
+            id,
+            bytes_transferred: 5,
+            total_bytes: None,
+        } if *id == transfer_id
+    )));
+    assert!(
+        part_events.iter().all(|event| !matches!(
+            event,
+            crate::terminal::TerminalEvent::FileTransferCompleted { .. }
+                | crate::terminal::TerminalEvent::FileTransferFailed { .. }
+        )),
+        "download without size must remain pending until FileEnd"
+    );
+
+    process_osc1337(&mut term, "FileEnd");
+    let completed_events = term.poll_events();
+    assert!(completed_events.iter().any(|event| matches!(
+        event,
+        crate::terminal::TerminalEvent::FileTransferCompleted {
+        id,
+        filename,
+        size: 5,
+    } if *id == transfer_id && filename.as_deref() == Some("artifact.txt")
+    )));
+}
+
+#[test]
+fn test_iterm_single_download_without_name_uses_default_filename() {
+    let mut term = Terminal::new(80, 24);
+    let payload = base64::engine::general_purpose::STANDARD.encode("hello");
+
+    process_osc1337(&mut term, &format!("File=inline=0:{payload}"));
+    let events = term.poll_events();
+
+    let transfer_id = events
+        .iter()
+        .find_map(|event| match event {
+            crate::terminal::TerminalEvent::FileTransferStarted { id, filename, .. } => {
+                assert_eq!(filename.as_deref(), Some("Unnamed file"));
+                Some(*id)
+            }
+            _ => None,
+        })
+        .expect("single File download should emit a started event");
+
+    assert!(events.iter().any(|event| matches!(
+        event,
+        crate::terminal::TerminalEvent::FileTransferCompleted {
+            id,
+            filename,
+            size: 5,
+        } if *id == transfer_id && filename.as_deref() == Some("Unnamed file")
+    )));
+}
+
+#[test]
+fn test_iterm_multipart_download_without_name_uses_default_filename() {
+    let mut term = Terminal::new(80, 24);
+    let payload = base64::engine::general_purpose::STANDARD.encode("hello");
+
+    process_osc1337(&mut term, "MultipartFile=inline=0;size=5");
+    let started_events = term.poll_events();
+    let transfer_id = started_events
+        .iter()
+        .find_map(|event| match event {
+            crate::terminal::TerminalEvent::FileTransferStarted { id, filename, .. } => {
+                assert_eq!(filename.as_deref(), Some("Unnamed file"));
+                Some(*id)
+            }
+            _ => None,
+        })
+        .expect("MultipartFile download should emit a started event");
+
+    process_osc1337(&mut term, &format!("FilePart={payload}"));
+    let _ = term.poll_events();
+    process_osc1337(&mut term, "FileEnd");
+    let completed_events = term.poll_events();
+    assert!(completed_events.iter().any(|event| matches!(
+        event,
+        crate::terminal::TerminalEvent::FileTransferCompleted {
+            id,
+            filename,
+            size: 5,
+        } if *id == transfer_id && filename.as_deref() == Some("Unnamed file")
+    )));
+}
+
+#[test]
+fn test_iterm_multipart_download_accepts_unaligned_file_part_base64() {
+    let mut term = Terminal::new(80, 24);
+    let filename = base64::engine::general_purpose::STANDARD.encode("artifact.txt");
+    let payload = base64::engine::general_purpose::STANDARD.encode("hello");
+    let (first, rest) = payload.split_at(3);
+    let (second, third) = rest.split_at(2);
+
+    process_osc1337(
+        &mut term,
+        &format!("MultipartFile=inline=0;size=5;name={filename}"),
+    );
+    let started_events = term.poll_events();
+    let transfer_id = started_events
+        .iter()
+        .find_map(|event| match event {
+            crate::terminal::TerminalEvent::FileTransferStarted { id, .. } => Some(*id),
+            _ => None,
+        })
+        .expect("MultipartFile should start a download transfer");
+
+    process_osc1337(&mut term, &format!("FilePart={first}"));
+    let first_events = term.poll_events();
+    assert!(
+        first_events.iter().all(|event| !matches!(
+            event,
+            crate::terminal::TerminalEvent::FileTransferProgress { .. }
+                | crate::terminal::TerminalEvent::FileTransferCompleted { .. }
+                | crate::terminal::TerminalEvent::FileTransferFailed { .. }
+        )),
+        "partial base64 quantum should not emit transfer progress"
+    );
+
+    process_osc1337(&mut term, &format!("FilePart={second}"));
+    let second_events = term.poll_events();
+    assert!(second_events.iter().any(|event| matches!(
+        event,
+        crate::terminal::TerminalEvent::FileTransferProgress {
+            id,
+            bytes_transferred: 3,
+            total_bytes: Some(5),
+        } if *id == transfer_id
+    )));
+
+    process_osc1337(&mut term, &format!("FilePart={third}"));
+    let third_events = term.poll_events();
+    assert!(third_events.iter().any(|event| matches!(
+        event,
+        crate::terminal::TerminalEvent::FileTransferProgress {
+            id,
+            bytes_transferred: 5,
+            total_bytes: Some(5),
+        } if *id == transfer_id
+    )));
+    assert!(
+        third_events.iter().all(|event| !matches!(
+            event,
+            crate::terminal::TerminalEvent::FileTransferCompleted { .. }
+                | crate::terminal::TerminalEvent::FileTransferFailed { .. }
+        )),
+        "unaligned download transfer must still wait for FileEnd"
+    );
+
+    process_osc1337(&mut term, "FileEnd");
+    let completed_events = term.poll_events();
+    assert!(completed_events.iter().any(|event| matches!(
+        event,
+        crate::terminal::TerminalEvent::FileTransferCompleted {
+            id,
+            filename,
+            size: 5,
+        } if *id == transfer_id && filename.as_deref() == Some("artifact.txt")
+    )));
+}
+
+#[test]
+fn test_iterm_multipart_download_with_size_waits_for_file_end() {
+    let mut term = Terminal::new(80, 24);
+    let filename = base64::engine::general_purpose::STANDARD.encode("artifact.txt");
+    let payload = base64::engine::general_purpose::STANDARD.encode("hello");
+
+    process_osc1337(
+        &mut term,
+        &format!("MultipartFile=inline=0;size=5;name={filename}"),
+    );
+    let started_events = term.poll_events();
+    let transfer_id = started_events
+        .iter()
+        .find_map(|event| match event {
+            crate::terminal::TerminalEvent::FileTransferStarted {
+                id,
+                direction,
+                filename,
+                total_bytes,
+            } => {
+                assert!(matches!(
+                    direction,
+                    crate::terminal::TransferDirection::Download
+                ));
+                assert_eq!(filename.as_deref(), Some("artifact.txt"));
+                assert_eq!(*total_bytes, Some(5));
+                Some(*id)
+            }
+            _ => None,
+        })
+        .expect("MultipartFile should start a download transfer");
+
+    process_osc1337(&mut term, &format!("FilePart={payload}"));
+    let part_events = term.poll_events();
+    assert!(part_events.iter().any(|event| matches!(
+        event,
+        crate::terminal::TerminalEvent::FileTransferProgress {
+            id,
+            bytes_transferred: 5,
+            total_bytes: Some(5),
+        } if *id == transfer_id
+    )));
+    assert!(
+        part_events.iter().all(|event| !matches!(
+            event,
+            crate::terminal::TerminalEvent::FileTransferCompleted { .. }
+                | crate::terminal::TerminalEvent::FileTransferFailed { .. }
+        )),
+        "download multipart transfers must wait for FileEnd even when size is reached"
+    );
+
+    process_osc1337(&mut term, "FileEnd");
+    let completed_events = term.poll_events();
+    assert!(completed_events.iter().any(|event| matches!(
+        event,
+        crate::terminal::TerminalEvent::FileTransferCompleted {
+            id,
+            filename,
+            size: 5,
+        } if *id == transfer_id && filename.as_deref() == Some("artifact.txt")
+    )));
 }
 
 #[test]

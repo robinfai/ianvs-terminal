@@ -31,8 +31,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
   }) {
     _scheduledViewportSizes[sessionId] = viewportSize;
     _terminalViewportDevicePixelRatios[sessionId] = devicePixelRatio;
-    _viewportResizeTimer?.cancel();
-    _viewportResizeTimer = null;
+    _viewportResizeTimers.remove(sessionId)?.cancel();
     if (immediate) {
       _commitViewportResize(
         sessionController,
@@ -43,14 +42,121 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       return;
     }
 
-    _viewportResizeTimer = Timer(_ShellScreenState._viewportResizeDebounce, () {
-      _commitViewportResize(
-        sessionController,
-        sessionId,
-        viewportSize,
-        devicePixelRatio,
-      );
+    _viewportResizeTimers[sessionId] = Timer(
+      _ShellScreenState._viewportResizeDebounce,
+      () {
+        _viewportResizeTimers.remove(sessionId);
+        _commitViewportResize(
+          sessionController,
+          sessionId,
+          viewportSize,
+          devicePixelRatio,
+        );
+      },
+    );
+  }
+
+  void _clearViewportMetricsForSession(String sessionId) {
+    _viewportResizeTimers.remove(sessionId)?.cancel();
+    _scheduledViewportSizes.remove(sessionId);
+    _committedViewportSizes.remove(sessionId);
+    _measuredTerminalCellSizes.remove(sessionId);
+    _terminalViewportDevicePixelRatios.remove(sessionId);
+  }
+
+  void _clearPresentationStateForSession(String sessionId) {
+    _clearViewportMetricsForSession(sessionId);
+
+    final selectionController = _selectionControllers.remove(sessionId);
+    if (selectionController != null) {
+      selectionController.clear();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        selectionController.dispose();
+      });
+    }
+
+    final focusNode = _terminalFocusNodes.remove(sessionId);
+    if (focusNode != null) {
+      focusNode.unfocus();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        focusNode.dispose();
+      });
+    }
+
+    _mutateState(() {
+      _readOnlySessionIds.remove(sessionId);
+      _lastActivityNotificationAt.remove(sessionId);
+      _lastActivityFramePreviews.remove(sessionId);
+      _lastNewOutputFramePreviews.remove(sessionId);
+      _triggerMatchesBySession.remove(sessionId);
+      _terminalFrameSequenceBySession.remove(sessionId);
+      _searchRefreshFrameSignatures.remove(sessionId);
+      final searchHadSession =
+          _searchMatchesBySession.containsKey(sessionId) ||
+          _searchHits.any((hit) => hit.session.sessionId == sessionId);
+      if (searchHadSession) {
+        _searchMatchesBySession =
+            Map.unmodifiable(<String, List<terminal.TerminalSearchMatch>>{
+              for (final entry in _searchMatchesBySession.entries)
+                if (entry.key != sessionId) entry.key: entry.value,
+            });
+        _searchHits = List.unmodifiable(
+          _searchHits.where((hit) => hit.session.sessionId != sessionId),
+        );
+        _activeSearchIndex = _searchHits.isEmpty
+            ? 0
+            : _activeSearchIndex.clamp(0, _searchHits.length - 1).toInt();
+        _lastSearchScopeSessionSignature = null;
+      }
+      _sessionsSeenForActivityNotifications.remove(sessionId);
+      _sessionsSeenForNewOutputBadges.remove(sessionId);
+      _sessionsWithNewOutput.remove(sessionId);
+      _coprocessInputKeysBySession.remove(sessionId);
+      _coprocesses = <String, _ShellCoprocess>{
+        for (final entry in _coprocesses.entries)
+          if (entry.key != sessionId) entry.key: entry.value,
+      };
+      _annotations = [
+        for (final annotation in _annotations)
+          if (annotation.sessionId != sessionId) annotation,
+      ];
+      _capturedOutputEntries = [
+        for (final entry in _capturedOutputEntries)
+          if (entry.sessionId != sessionId) entry,
+      ];
+      if (_zoomedPaneSessionId == sessionId) {
+        _zoomedPaneSessionId = null;
+      }
+      if (_lastRenderableSessionId == sessionId) {
+        _lastRenderableSessionId = null;
+      }
+      if (_hoveredTerminalLinkSessionId == sessionId) {
+        _hoveredTerminalLink = null;
+        _hoveredTerminalLinkSessionId = null;
+      }
+      if (_lastOsc52StatusSessionId == sessionId) {
+        _osc52StatusClearTimer?.cancel();
+        _osc52StatusClearTimer = null;
+        _lastOsc52StatusLabel = null;
+        _lastOsc52StatusEvent = null;
+        _lastOsc52StatusSessionId = null;
+      }
+      if (_copyModeSessionId == sessionId) {
+        _resetCopyModeState();
+      }
+      if (_autocompleteSessionId == sessionId) {
+        _resetAutocompleteState();
+      }
+      if (_autoComposerSessionId == sessionId) {
+        _resetAutoComposerState(clearText: true);
+      }
     });
+  }
+
+  void _clearPresentationStateForSessions(Iterable<String> sessionIds) {
+    for (final sessionId in sessionIds.toList(growable: false)) {
+      _clearPresentationStateForSession(sessionId);
+    }
   }
 
   String get _emptyStateTitle {
@@ -144,6 +250,8 @@ extension _ShellScreenStateSessions on _ShellScreenState {
 
   void _syncPresentationState(SessionState sessionState) {
     final currentTabCount = sessionState.tabs.length;
+    _syncZoomedPaneState(sessionState);
+    _syncHoveredTerminalLinkVisibility(sessionState);
     if (currentTabCount == 0 && _lastObservedTabCount > 0) {
       _recentlyClosedLastSession = true;
       _activeTerminalHasFocus = false;
@@ -166,21 +274,85 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       _activeSearchIndex = 0;
       _lastSearchScopeSessionSignature = null;
       _autocompletePrefix = '';
+      _autocompleteSessionId = null;
       _autocompleteSuggestions = const [];
       _activeAutocompleteIndex = 0;
+      _autoComposerSessionId = null;
       _autoComposerController.clear();
       _autoComposerSuggestions = const [];
       _activeAutoComposerIndex = 0;
-      _copyModeAnchorRow = null;
-      _copyModeAnchorCol = null;
-      _copyModeExtentRow = null;
-      _copyModeExtentCol = null;
+      _resetCopyModeState();
       _workspaceCueTimer?.cancel();
       _workspaceCueTimer = null;
     } else {
+      final copyModeSessionId = _copyModeSessionId;
+      if (_isCopyModeOpen &&
+          (copyModeSessionId == null ||
+              copyModeSessionId != sessionState.activeSessionId)) {
+        if (copyModeSessionId != null) {
+          _selectionControllers[copyModeSessionId]?.clear();
+        }
+        _resetCopyModeState();
+      }
+      final autocompleteSessionId = _autocompleteSessionId;
+      if (_isAutocompleteOpen &&
+          (autocompleteSessionId == null ||
+              autocompleteSessionId != sessionState.activeSessionId)) {
+        _resetAutocompleteState();
+      }
+      final autoComposerSessionId = _autoComposerSessionId;
+      if (_isAutoComposerOpen &&
+          (autoComposerSessionId == null ||
+              autoComposerSessionId != sessionState.activeSessionId)) {
+        _resetAutoComposerState(clearText: true);
+      }
       _syncSearchResultsForSessionScope(sessionState);
     }
     _lastObservedTabCount = currentTabCount;
+  }
+
+  void _syncHoveredTerminalLinkVisibility(SessionState sessionState) {
+    final sessionId = _hoveredTerminalLinkSessionId;
+    if (sessionId == null) {
+      return;
+    }
+    if (_sessionIsVisibleInWorkspace(sessionState, sessionId)) {
+      return;
+    }
+    _hoveredTerminalLink = null;
+    _hoveredTerminalLinkSessionId = null;
+  }
+
+  bool _sessionIsVisibleInWorkspace(
+    SessionState sessionState,
+    String sessionId,
+  ) {
+    final activeSessionId = sessionState.activeSessionId;
+    if (activeSessionId == null) {
+      return false;
+    }
+    final activeTab = _tabForSession(sessionState, activeSessionId);
+    if (activeTab == null || !activeTab.containsSession(sessionId)) {
+      return false;
+    }
+    final zoomedPaneSessionId = _zoomedPaneSessionId;
+    if (zoomedPaneSessionId != null &&
+        activeTab.containsSession(zoomedPaneSessionId)) {
+      return sessionId == zoomedPaneSessionId;
+    }
+    return true;
+  }
+
+  void _syncZoomedPaneState(SessionState sessionState) {
+    final zoomedPaneSessionId = _zoomedPaneSessionId;
+    if (zoomedPaneSessionId == null) {
+      return;
+    }
+
+    final zoomedTab = _tabForSession(sessionState, zoomedPaneSessionId);
+    if (zoomedTab == null || zoomedTab.effectivePanes.length < 2) {
+      _zoomedPaneSessionId = null;
+    }
   }
 
   void _createSession(
@@ -195,12 +367,43 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     _focusSession(ref.read(sessionControllerProvider).activeSessionId);
   }
 
-  void _activateSession(SessionController sessionController, String sessionId) {
-    _clearNewOutputForTab(
-      _tabForSession(ref.read(sessionControllerProvider), sessionId),
+  void _activateSession(
+    SessionController sessionController,
+    String sessionId, {
+    bool requestFocus = true,
+  }) {
+    final sessionState = ref.read(sessionControllerProvider);
+    final targetTab = _tabForSession(sessionState, sessionId);
+    final activeTab = _tabForSession(
+      sessionState,
+      sessionState.activeSessionId,
     );
+    if (targetTab != null &&
+        activeTab != null &&
+        targetTab.sessionId == activeTab.sessionId) {
+      _clearNewOutputForSession(sessionId);
+    } else {
+      _clearNewOutputForTab(targetTab);
+    }
+    _syncZoomedPaneForActivation(targetTab, sessionId);
     sessionController.activateSession(sessionId);
-    _focusSession(sessionId);
+    if (requestFocus) {
+      _focusSession(sessionId);
+    }
+  }
+
+  void _syncZoomedPaneForActivation(TerminalTab? targetTab, String sessionId) {
+    final zoomedPaneSessionId = _zoomedPaneSessionId;
+    if (targetTab == null ||
+        zoomedPaneSessionId == null ||
+        zoomedPaneSessionId == sessionId ||
+        !targetTab.containsSession(zoomedPaneSessionId)) {
+      return;
+    }
+
+    _mutateState(() {
+      _zoomedPaneSessionId = sessionId;
+    });
   }
 
   TerminalTab? _tabForSession(SessionState sessionState, String? sessionId) {
@@ -219,6 +422,103 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     return tab.effectivePanes.any(
       (pane) => _sessionsWithNewOutput.contains(pane.sessionId),
     );
+  }
+
+  List<TerminalPane> _tabNewOutputPanes(TerminalTab tab) {
+    final panes = tab.effectivePanes
+        .where((pane) => _sessionsWithNewOutput.contains(pane.sessionId))
+        .toList(growable: false);
+    final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
+    if (activeSessionId == null || panes.length < 2) {
+      return panes;
+    }
+    return <TerminalPane>[
+      for (final pane in panes)
+        if (pane.sessionId != activeSessionId) pane,
+      for (final pane in panes)
+        if (pane.sessionId == activeSessionId) pane,
+    ];
+  }
+
+  String _tabNewOutputTooltip(TerminalTab tab) {
+    final panes = _tabNewOutputPanes(tab);
+    if (panes.isEmpty || tab.effectivePanes.length < 2) {
+      return 'New output';
+    }
+    final focusHint = panes.length == 1
+        ? 'Click to focus this pane.'
+        : 'Click to focus the first pane with new output.';
+    return [
+      panes.length == 1
+          ? 'New output in a split pane.'
+          : 'New output in ${panes.length} split panes.',
+      for (final pane in panes) _terminalPaneContextLine(pane.sessionId),
+      focusHint,
+    ].join('\n');
+  }
+
+  String _hiddenTabsNewOutputTooltip(Iterable<TerminalTab> tabs) {
+    final targets = _hiddenTabsNewOutputTargets(tabs);
+    if (targets.isEmpty) {
+      return 'Hidden tabs have new output';
+    }
+    final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
+    if (targets.length == 1) {
+      final target = targets.single;
+      final needsFocus = target.pane.sessionId != activeSessionId;
+      return [
+        'New output in a hidden tab.',
+        'Tab: ${_shellTabDisplayTitle(target.tab)} (${target.tab.sessionId})',
+        _terminalPaneContextLine(target.pane.sessionId),
+        needsFocus ? 'Click to focus this pane.' : 'Pane already focused.',
+      ].join('\n');
+    }
+    final hasFocusableTarget = targets.any(
+      (target) => target.pane.sessionId != activeSessionId,
+    );
+    return [
+      'New output in ${targets.length} hidden panes.',
+      for (final target in targets)
+        '${_shellTabDisplayTitle(target.tab)} (${target.tab.sessionId}) - '
+            '${_terminalPaneContextLine(target.pane.sessionId)}',
+      hasFocusableTarget
+          ? 'Click to focus the first pane with new output.'
+          : 'Pane already focused.',
+    ].join('\n');
+  }
+
+  String? _hiddenTabsNewOutputPaneSessionId(Iterable<TerminalTab> tabs) {
+    final targets = _hiddenTabsNewOutputTargets(tabs);
+    return targets.isEmpty ? null : targets.first.pane.sessionId;
+  }
+
+  List<_ShellHiddenNewOutputTarget> _hiddenTabsNewOutputTargets(
+    Iterable<TerminalTab> tabs,
+  ) {
+    final targets = <_ShellHiddenNewOutputTarget>[];
+    for (final tab in tabs) {
+      for (final pane in _tabNewOutputPanes(tab)) {
+        targets.add(_ShellHiddenNewOutputTarget(tab: tab, pane: pane));
+      }
+    }
+    final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
+    if (activeSessionId == null || targets.length < 2) {
+      return targets;
+    }
+    return <_ShellHiddenNewOutputTarget>[
+      for (final target in targets)
+        if (target.pane.sessionId != activeSessionId) target,
+      for (final target in targets)
+        if (target.pane.sessionId == activeSessionId) target,
+    ];
+  }
+
+  String? _tabNewOutputPaneSessionId(TerminalTab tab) {
+    if (tab.effectivePanes.length < 2) {
+      return null;
+    }
+    final panes = _tabNewOutputPanes(tab);
+    return panes.isEmpty ? null : panes.first.sessionId;
   }
 
   Color _tabTerminalBackgroundColor(
@@ -241,19 +541,20 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     }
     var changed = false;
     for (final pane in tab.effectivePanes) {
-      changed = _sessionsWithNewOutput.remove(pane.sessionId) || changed;
+      changed =
+          _clearNewOutputForSession(pane.sessionId, notify: false) || changed;
     }
     if (changed && mounted) {
       _mutateState(() {});
     }
   }
 
-  void _clearNewOutputForSessions(Iterable<String> sessionIds) {
-    for (final sessionId in sessionIds) {
-      _sessionsWithNewOutput.remove(sessionId);
-      _sessionsSeenForNewOutputBadges.remove(sessionId);
-      _lastNewOutputFramePreviews.remove(sessionId);
+  bool _clearNewOutputForSession(String sessionId, {bool notify = true}) {
+    final changed = _sessionsWithNewOutput.remove(sessionId);
+    if (changed && notify && mounted) {
+      _mutateState(() {});
     }
+    return changed;
   }
 
   String? _splitAxisConflictReason(
@@ -261,7 +562,40 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     String? sessionId,
     TerminalSplitAxis requestedAxis,
   ) {
+    if (sessionId == null) {
+      return 'No active pane is available.';
+    }
+    final tab = _tabForSession(sessionState, sessionId);
+    if (tab == null || tab.paneFor(sessionId) == null) {
+      return 'No active pane is available.';
+    }
+    final frame = ref
+        .read(sessionControllerProvider.notifier)
+        .viewportFor(sessionId)
+        .frame;
+    final primarySize = requestedAxis == TerminalSplitAxis.horizontal
+        ? frame.viewportCols
+        : frame.viewportRows;
+    if (primarySize <= 0) {
+      return null;
+    }
+    final minimumPrimarySize = _minimumPanePrimaryCells(requestedAxis);
+    if (primarySize < minimumPrimarySize * 2) {
+      return _minimumPaneSizeConflictReason(requestedAxis);
+    }
     return null;
+  }
+
+  int _minimumPanePrimaryCells(TerminalSplitAxis axis) {
+    return axis == TerminalSplitAxis.horizontal
+        ? _ShellScreenState._minimumHorizontalPaneCols
+        : _ShellScreenState._minimumVerticalPaneRows;
+  }
+
+  String _minimumPaneSizeConflictReason(TerminalSplitAxis axis) {
+    return axis == TerminalSplitAxis.horizontal
+        ? 'Another pane would become narrower than ${_ShellScreenState._minimumHorizontalPaneCols} columns.'
+        : 'Another pane would become shorter than ${_ShellScreenState._minimumVerticalPaneRows} rows.';
   }
 
   bool _sessionHasRenderableContent(
@@ -330,11 +664,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     String activeSessionId, {
     required int delta,
   }) {
-    final zoomedPaneSessionId = _zoomedPaneSessionId;
-    final zoomedPane = zoomedPaneSessionId == null
-        ? null
-        : activeTab.paneFor(zoomedPaneSessionId);
-    final panes = zoomedPane == null ? activeTab.effectivePanes : [zoomedPane];
+    final panes = activeTab.effectivePanes;
     if (panes.length < 2) {
       return false;
     }
@@ -393,9 +723,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
           ? _ShellScreenState._minimumHorizontalPaneCols
           : _ShellScreenState._minimumVerticalPaneRows;
       if (primarySize <= minimumPrimarySize) {
-        return activeTab.splitAxis == TerminalSplitAxis.horizontal
-            ? 'Another pane would become narrower than ${_ShellScreenState._minimumHorizontalPaneCols} columns.'
-            : 'Another pane would become shorter than ${_ShellScreenState._minimumVerticalPaneRows} rows.';
+        return _minimumPaneSizeConflictReason(activeTab.splitAxis);
       }
     }
     return null;
@@ -530,26 +858,43 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     });
   }
 
-  void _splitActiveSession(
+  bool _splitActiveSession(
     SessionController sessionController,
     TerminalProfile profile,
     TerminalSplitAxis axis,
   ) {
     final currentState = ref.read(sessionControllerProvider);
     final activeSessionId = currentState.activeSessionId;
-    final conflictReason = _splitAxisConflictReason(
-      currentState,
-      activeSessionId,
-      axis,
-    );
+    if (activeSessionId == null) {
+      sessionController.createSession(profile);
+      _focusSession(ref.read(sessionControllerProvider).activeSessionId);
+      return true;
+    }
+    return _splitSession(sessionController, activeSessionId, profile, axis);
+  }
+
+  bool _splitSession(
+    SessionController sessionController,
+    String targetSessionId,
+    TerminalProfile profile,
+    TerminalSplitAxis axis,
+  ) {
+    final currentState = ref.read(sessionControllerProvider);
+    final targetTab = _tabForSession(currentState, targetSessionId);
+    final conflictReason =
+        (targetTab == null
+            ? null
+            : _zoomedPaneManagementUnavailableReason(targetTab)) ??
+        _splitAxisConflictReason(currentState, targetSessionId, axis);
     if (conflictReason != null) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(conflictReason)));
-      return;
+      return false;
     }
-    sessionController.splitActiveSession(profile, axis);
+    sessionController.splitSession(targetSessionId, profile, axis);
     _focusSession(ref.read(sessionControllerProvider).activeSessionId);
+    return true;
   }
 
   void _closeSession(
@@ -563,10 +908,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     if (closesLastSession) {
       _recentlyClosedLastSession = true;
     }
-    _scheduledViewportSizes.remove(sessionId);
-    _committedViewportSizes.remove(sessionId);
-    _terminalViewportDevicePixelRatios.remove(sessionId);
-    _clearNewOutputForSessions([sessionId]);
+    _clearPresentationStateForSession(sessionId);
     sessionController.closeSession(sessionId);
     final nextActiveSessionId = ref
         .read(sessionControllerProvider)
@@ -590,12 +932,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     if (closesLastTab) {
       _recentlyClosedLastSession = true;
     }
-    for (final pane in closingTab.effectivePanes) {
-      _scheduledViewportSizes.remove(pane.sessionId);
-      _committedViewportSizes.remove(pane.sessionId);
-      _terminalViewportDevicePixelRatios.remove(pane.sessionId);
-    }
-    _clearNewOutputForSessions(
+    _clearPresentationStateForSessions(
       closingTab.effectivePanes.map((pane) => pane.sessionId),
     );
     sessionController.closeTab(tabSessionId);
@@ -699,4 +1036,11 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     );
     return 'Configured default • ${configuredProfile?.name ?? effectiveProfile?.name ?? 'No profile available'}';
   }
+}
+
+class _ShellHiddenNewOutputTarget {
+  const _ShellHiddenNewOutputTarget({required this.tab, required this.pane});
+
+  final TerminalTab tab;
+  final TerminalPane pane;
 }

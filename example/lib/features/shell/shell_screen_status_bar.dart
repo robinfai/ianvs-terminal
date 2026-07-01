@@ -10,21 +10,28 @@ class _ShellStatusBar extends StatelessWidget {
     required this.viewportLabel,
     required this.modeItems,
     required this.shellIntegrationHealth,
+    this.shellIntegrationHealthTooltip,
     required this.encodingLabel,
     this.linkLabel,
     this.linkTooltip,
+    this.onLinkPressed,
     this.osc52Label,
     this.osc52Tooltip,
+    this.onOsc52Pressed,
     this.remoteLabel,
     this.remoteTooltip,
+    this.onRemotePressed,
     this.progressLabel,
     this.progressTooltip,
     this.progressItems = const <TerminalPaneProgressState>[],
+    this.onProgressPressed,
     this.notificationLabel,
     this.notificationTooltip,
     this.notifications = const <TerminalPaneNotificationState>[],
+    this.onNotificationPressed,
     this.badgeLabel,
     this.badgeTooltip,
+    this.onBadgePressed,
   });
 
   final AppThemeTokens palette;
@@ -34,21 +41,28 @@ class _ShellStatusBar extends StatelessWidget {
   final String? viewportLabel;
   final List<_ShellStatusModeItem> modeItems;
   final _ShellIntegrationHealth shellIntegrationHealth;
+  final String? shellIntegrationHealthTooltip;
   final String encodingLabel;
   final String? linkLabel;
   final String? linkTooltip;
+  final VoidCallback? onLinkPressed;
   final String? osc52Label;
   final String? osc52Tooltip;
+  final VoidCallback? onOsc52Pressed;
   final String? remoteLabel;
   final String? remoteTooltip;
+  final VoidCallback? onRemotePressed;
   final String? progressLabel;
   final String? progressTooltip;
   final List<TerminalPaneProgressState> progressItems;
+  final VoidCallback? onProgressPressed;
   final String? notificationLabel;
   final String? notificationTooltip;
   final List<TerminalPaneNotificationState> notifications;
+  final VoidCallback? onNotificationPressed;
   final String? badgeLabel;
   final String? badgeTooltip;
+  final VoidCallback? onBadgePressed;
 
   @override
   Widget build(BuildContext context) {
@@ -79,7 +93,10 @@ class _ShellStatusBar extends StatelessWidget {
           tone: tone,
           label: modeItem.label,
           tooltip: modeItem.tooltip,
-          semanticsLabel: modeItem.semanticsLabel,
+          semanticsLabel: _statusSemanticsLabel(
+            modeItem.semanticsLabel,
+            modeItem.tooltip,
+          ),
           monospace: true,
           highlighted: true,
           maxWidth: 118,
@@ -95,6 +112,7 @@ class _ShellStatusBar extends StatelessWidget {
           monospace: true,
           highlighted: true,
           maxWidth: 220,
+          onPressed: onLinkPressed,
         ),
       if (osc52Label != null)
         _ShellStatusItem(
@@ -103,10 +121,14 @@ class _ShellStatusBar extends StatelessWidget {
           tone: tone,
           label: osc52Label!,
           tooltip: osc52Tooltip,
-          semanticsLabel: 'OSC 52 clipboard status: $osc52Label',
+          semanticsLabel: _statusSemanticsLabel(
+            'OSC 52 clipboard status: $osc52Label',
+            osc52Tooltip,
+          ),
           monospace: true,
           highlighted: true,
           maxWidth: 190,
+          onPressed: onOsc52Pressed,
         ),
       if (remoteLabel != null)
         _ShellStatusItem(
@@ -120,6 +142,7 @@ class _ShellStatusBar extends StatelessWidget {
           monospace: true,
           highlighted: true,
           maxWidth: 190,
+          onPressed: onRemotePressed,
         ),
       if (progressLabel != null)
         _ShellStatusProgressItem(
@@ -129,6 +152,7 @@ class _ShellStatusBar extends StatelessWidget {
           label: progressLabel!,
           tooltip: progressTooltip,
           progressItems: progressItems,
+          onPressed: onProgressPressed,
         ),
       if (notificationLabel != null)
         _ShellStatusNotificationItem(
@@ -138,6 +162,7 @@ class _ShellStatusBar extends StatelessWidget {
           label: notificationLabel!,
           tooltip: notificationTooltip,
           notifications: notifications,
+          onPressed: onNotificationPressed,
         ),
       if (badgeLabel != null)
         _ShellStatusItem(
@@ -146,18 +171,26 @@ class _ShellStatusBar extends StatelessWidget {
           tone: tone,
           label: badgeLabel!,
           tooltip: badgeTooltip,
-          semanticsLabel: 'Terminal badge: $badgeLabel',
+          semanticsLabel: _statusSemanticsLabel(
+            'Terminal badge: $badgeLabel',
+            badgeTooltip,
+          ),
           monospace: true,
           highlighted: true,
           maxWidth: 170,
+          onPressed: onBadgePressed,
         ),
       _ShellStatusItem(
         key: const Key('shell-status-shell-integration'),
         palette: palette,
         tone: tone,
         label: shellIntegrationHealth.label,
-        tooltip: shellIntegrationHealth.tooltip,
-        semanticsLabel: shellIntegrationHealth.semanticsLabel,
+        tooltip:
+            shellIntegrationHealthTooltip ?? shellIntegrationHealth.tooltip,
+        semanticsLabel: _statusSemanticsLabel(
+          shellIntegrationHealth.semanticsLabel,
+          shellIntegrationHealthTooltip ?? shellIntegrationHealth.tooltip,
+        ),
         monospace: true,
         highlighted: shellIntegrationHealth.highlighted,
         maxWidth: 142,
@@ -422,6 +455,7 @@ class _ShellStatusProgressItem extends StatelessWidget {
     required this.label,
     required this.progressItems,
     this.tooltip,
+    this.onPressed,
   });
 
   final Key itemKey;
@@ -430,21 +464,35 @@ class _ShellStatusProgressItem extends StatelessWidget {
   final String label;
   final List<TerminalPaneProgressState> progressItems;
   final String? tooltip;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
-    final item = _ShellStatusItem(
+    Widget item = _ShellStatusItem(
       key: itemKey,
       palette: palette,
       tone: tone,
       label: label,
       tooltip: progressItems.length <= 1 ? tooltip : null,
-      semanticsLabel: 'Terminal progress status: $label',
+      semanticsLabel: _statusSemanticsLabel(
+        'Terminal progress status: $label',
+        tooltip,
+      ),
       monospace: true,
       highlighted: true,
       maxWidth: 190,
     );
     if (progressItems.length <= 1) {
+      if (onPressed != null) {
+        item = MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onPressed,
+            child: item,
+          ),
+        );
+      }
       return item;
     }
     return _ShellStatusPopup<int>(
@@ -452,6 +500,7 @@ class _ShellStatusProgressItem extends StatelessWidget {
       tone: tone,
       tooltip: tooltip ?? 'Terminal progress',
       item: item,
+      onOpened: onPressed,
       entries: [
         for (var index = 0; index < progressItems.length; index += 1)
           PopupMenuItem<int>(
@@ -486,6 +535,7 @@ class _ShellStatusNotificationItem extends StatelessWidget {
     required this.label,
     required this.notifications,
     this.tooltip,
+    this.onPressed,
   });
 
   final Key itemKey;
@@ -494,6 +544,7 @@ class _ShellStatusNotificationItem extends StatelessWidget {
   final String label;
   final List<TerminalPaneNotificationState> notifications;
   final String? tooltip;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -503,12 +554,25 @@ class _ShellStatusNotificationItem extends StatelessWidget {
       tone: tone,
       label: label,
       tooltip: notifications.isEmpty ? tooltip : null,
-      semanticsLabel: 'Terminal notification status: $label',
+      semanticsLabel: _statusSemanticsLabel(
+        'Terminal notification status: $label',
+        tooltip,
+      ),
       monospace: true,
       highlighted: true,
       maxWidth: 210,
     );
     if (notifications.isEmpty) {
+      if (onPressed != null) {
+        return MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onPressed,
+            child: item,
+          ),
+        );
+      }
       return item;
     }
     return _ShellStatusPopup<int>(
@@ -516,6 +580,7 @@ class _ShellStatusNotificationItem extends StatelessWidget {
       tone: tone,
       tooltip: tooltip ?? 'Terminal notifications',
       item: item,
+      onOpened: onPressed,
       entries: [
         for (var index = 0; index < notifications.take(6).length; index += 1)
           PopupMenuItem<int>(
@@ -540,9 +605,21 @@ class _ShellStatusNotificationItem extends StatelessWidget {
   String _notificationMenuSubtitle(TerminalPaneNotificationState notification) {
     return [
       if (notification.message.trim().isNotEmpty) notification.message.trim(),
+      if (notification.remoteHost?.trim().isNotEmpty == true)
+        notification.remoteUser?.trim().isNotEmpty == true
+            ? '${notification.remoteUser!.trim()}@${notification.remoteHost!.trim()}'
+            : notification.remoteHost!.trim(),
       notification.source,
     ].join(' · ');
   }
+}
+
+String _statusSemanticsLabel(String label, String? tooltip) {
+  final detail = tooltip?.trim();
+  if (detail == null || detail.isEmpty) {
+    return label;
+  }
+  return '$label. $detail';
 }
 
 class _ShellStatusPopup<T> extends StatelessWidget {
@@ -552,6 +629,7 @@ class _ShellStatusPopup<T> extends StatelessWidget {
     required this.tooltip,
     required this.item,
     required this.entries,
+    this.onOpened,
   });
 
   final AppThemeTokens palette;
@@ -559,6 +637,7 @@ class _ShellStatusPopup<T> extends StatelessWidget {
   final String tooltip;
   final Widget item;
   final List<PopupMenuEntry<T>> entries;
+  final VoidCallback? onOpened;
 
   @override
   Widget build(BuildContext context) {
@@ -590,6 +669,7 @@ class _ShellStatusPopup<T> extends StatelessWidget {
         shadowColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         shape: menuShape,
+        onOpened: onOpened,
         itemBuilder: (context) => entries,
         child: item,
       ),
@@ -670,6 +750,7 @@ class _ShellStatusItem extends StatelessWidget {
     this.highlighted = false,
     this.tooltip,
     this.semanticsLabel,
+    this.onPressed,
   });
 
   final AppThemeTokens palette;
@@ -681,6 +762,7 @@ class _ShellStatusItem extends StatelessWidget {
   final bool highlighted;
   final String? tooltip;
   final String? semanticsLabel;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -724,8 +806,24 @@ class _ShellStatusItem extends StatelessWidget {
         ),
       ),
     );
-    if (semanticsLabel != null) {
-      item = Semantics(container: true, label: semanticsLabel, child: item);
+    if (onPressed != null) {
+      item = MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onPressed,
+          child: item,
+        ),
+      );
+    }
+    if (semanticsLabel != null || onPressed != null) {
+      item = Semantics(
+        container: true,
+        label: semanticsLabel,
+        button: onPressed != null,
+        onTap: onPressed,
+        child: item,
+      );
     }
     if (tooltip != null) {
       item = Tooltip(message: tooltip!, child: item);

@@ -421,6 +421,18 @@ pub struct PyImagePlacement {
     /// Y offset within the cell in pixels
     #[pyo3(get)]
     pub y_offset: u32,
+    /// X offset of the source image rectangle in pixels
+    #[pyo3(get)]
+    pub source_x_offset: u32,
+    /// Y offset of the source image rectangle in pixels
+    #[pyo3(get)]
+    pub source_y_offset: u32,
+    /// Width of the source image rectangle in pixels
+    #[pyo3(get)]
+    pub source_width: Option<u32>,
+    /// Height of the source image rectangle in pixels
+    #[pyo3(get)]
+    pub source_height: Option<u32>,
 }
 
 #[pymethods]
@@ -445,6 +457,10 @@ impl From<&crate::graphics::ImagePlacement> for PyImagePlacement {
             z_index: placement.z_index,
             x_offset: placement.x_offset,
             y_offset: placement.y_offset,
+            source_x_offset: placement.source_x_offset,
+            source_y_offset: placement.source_y_offset,
+            source_width: placement.source_width,
+            source_height: placement.source_height,
         }
     }
 }
@@ -471,6 +487,10 @@ pub struct PyGraphic {
     pub scroll_offset_rows: usize,
     #[pyo3(get)]
     pub cell_dimensions: Option<(u32, u32)>,
+    #[pyo3(get)]
+    pub alternate_screen: bool,
+    #[pyo3(get)]
+    pub animation_id: Option<u32>,
     #[pyo3(get)]
     pub was_compressed: bool,
     #[pyo3(get)]
@@ -571,6 +591,8 @@ impl From<&crate::sixel::SixelGraphic> for PyGraphic {
             original_height: graphic.height,
             scroll_offset_rows: graphic.scroll_offset_rows,
             cell_dimensions: graphic.cell_dimensions,
+            alternate_screen: false,
+            animation_id: None,
             was_compressed: false,
             placement: PyImagePlacement::from(&crate::graphics::ImagePlacement::inline()),
             pixels: graphic.pixels.clone(),
@@ -590,6 +612,8 @@ impl From<&crate::graphics::TerminalGraphic> for PyGraphic {
             original_height: graphic.original_height,
             scroll_offset_rows: graphic.scroll_offset_rows,
             cell_dimensions: graphic.cell_dimensions,
+            alternate_screen: graphic.alternate_screen,
+            animation_id: graphic.animation_id,
             was_compressed: graphic.was_compressed,
             placement: PyImagePlacement::from(&graphic.placement),
             pixels: (*graphic.pixels).clone(),
@@ -3866,6 +3890,8 @@ mod tests {
             original_height: 2,
             scroll_offset_rows: 0,
             cell_dimensions: None,
+            alternate_screen: false,
+            animation_id: None,
             was_compressed: false,
             placement: PyImagePlacement::from(&crate::graphics::ImagePlacement::inline()),
             pixels,
@@ -3889,6 +3915,8 @@ mod tests {
             original_height: 2,
             scroll_offset_rows: 0,
             cell_dimensions: None,
+            alternate_screen: false,
+            animation_id: None,
             was_compressed: false,
             placement: PyImagePlacement::from(&crate::graphics::ImagePlacement::inline()),
             pixels: vec![0; 16], // 2x2 RGBA
@@ -3911,6 +3939,8 @@ mod tests {
             original_height: 3,
             scroll_offset_rows: 0,
             cell_dimensions: None,
+            alternate_screen: false,
+            animation_id: None,
             was_compressed: false,
             placement: PyImagePlacement::from(&crate::graphics::ImagePlacement::inline()),
             pixels: vec![128; 36], // 3x3 RGBA with all values at 128
@@ -3940,6 +3970,8 @@ mod tests {
             original_height: 1,
             scroll_offset_rows: 0,
             cell_dimensions: None,
+            alternate_screen: false,
+            animation_id: None,
             was_compressed: false,
             placement: PyImagePlacement::from(&crate::graphics::ImagePlacement::inline()),
             pixels: original_pixels.clone(),
@@ -3962,6 +3994,8 @@ mod tests {
             original_height: 50,
             scroll_offset_rows: 0,
             cell_dimensions: None,
+            alternate_screen: false,
+            animation_id: None,
             was_compressed: false,
             placement: PyImagePlacement::from(&crate::graphics::ImagePlacement::inline()),
             pixels: vec![],
@@ -3986,6 +4020,8 @@ mod tests {
             original_height: 30,
             scroll_offset_rows: 0,
             cell_dimensions: None,
+            alternate_screen: false,
+            animation_id: None,
             was_compressed: false,
             placement: PyImagePlacement::from(&crate::graphics::ImagePlacement::inline()),
             pixels: vec![1, 2, 3, 4],
@@ -4027,6 +4063,8 @@ mod tests {
             original_height: 2,
             scroll_offset_rows: 0,
             cell_dimensions: None,
+            alternate_screen: false,
+            animation_id: None,
             was_compressed: false,
             placement: PyImagePlacement::from(&crate::graphics::ImagePlacement::inline()),
             pixels,
@@ -4156,6 +4194,8 @@ mod tests {
             original_height: 1,
             scroll_offset_rows: 0,
             cell_dimensions: None,
+            alternate_screen: false,
+            animation_id: None,
             was_compressed: false,
             placement: PyImagePlacement::from(&crate::graphics::ImagePlacement::inline()),
             pixels,

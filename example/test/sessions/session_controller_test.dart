@@ -521,6 +521,246 @@ void main() {
     expect(afterCloseSecond.activeSessionId, isNull);
   });
 
+  test('reopenClosedPane restores the most recent pane in the active tab', () {
+    final coreClient = FakePtyBackend();
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(coreClient),
+        sessionControllerProvider.overrideWith(_TestSessionController.new),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(sessionControllerProvider.notifier);
+    final profile = defaultTerminalProfile().copyWith(id: 'shell-1');
+
+    controller.createSession(profile);
+    final firstSessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+    controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+    final closedSessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+
+    controller.closeSession(closedSessionId);
+
+    final afterClose = container.read(sessionControllerProvider);
+    expect(afterClose.activeSessionId, firstSessionId);
+    expect(afterClose.tabs.single.effectivePanes, hasLength(1));
+    expect(controller.canReopenClosedPane, isTrue);
+
+    final reopenedSessionId = controller.reopenClosedPane();
+
+    final reopenedState = container.read(sessionControllerProvider);
+    final reopenedTab = reopenedState.tabs.single;
+    expect(reopenedSessionId, isNotNull);
+    expect(reopenedSessionId, isNot(closedSessionId));
+    expect(reopenedState.activeSessionId, reopenedSessionId);
+    expect(reopenedTab.effectivePanes, hasLength(2));
+    expect(reopenedTab.containsSession(firstSessionId), isTrue);
+    expect(reopenedTab.containsSession(reopenedSessionId!), isTrue);
+    expect(reopenedTab.splitAxis, TerminalSplitAxis.horizontal);
+    expect(controller.canReopenClosedPane, isFalse);
+  });
+
+  test('reopenClosedPane restores a closed split root pane', () {
+    final coreClient = FakePtyBackend();
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(coreClient),
+        sessionControllerProvider.overrideWith(_TestSessionController.new),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(sessionControllerProvider.notifier);
+    final profile = defaultTerminalProfile().copyWith(id: 'shell-1');
+
+    controller.createSession(profile);
+    final rootSessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+    controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+    final survivingSessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+
+    controller.activateSession(rootSessionId);
+    controller.closeSession(rootSessionId);
+
+    final afterRootClose = container.read(sessionControllerProvider);
+    expect(afterRootClose.tabs, hasLength(1));
+    expect(afterRootClose.tabs.single.sessionId, rootSessionId);
+    expect(afterRootClose.tabs.single.effectivePanes, hasLength(1));
+    expect(afterRootClose.tabs.single.containsSession(rootSessionId), isFalse);
+    expect(afterRootClose.activeSessionId, survivingSessionId);
+    expect(controller.canReopenClosedPane, isTrue);
+
+    final reopenedSessionId = controller.reopenClosedPane();
+
+    final reopenedState = container.read(sessionControllerProvider);
+    final reopenedTab = reopenedState.tabs.single;
+    expect(reopenedSessionId, isNotNull);
+    expect(reopenedSessionId, isNot(rootSessionId));
+    expect(reopenedState.activeSessionId, reopenedSessionId);
+    expect(reopenedTab.effectivePanes, hasLength(2));
+    expect(reopenedTab.containsSession(survivingSessionId), isTrue);
+    expect(reopenedTab.containsSession(reopenedSessionId!), isTrue);
+  });
+
+  test('closeTab closes remaining pane after split root pane was closed', () {
+    final coreClient = FakePtyBackend();
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(coreClient),
+        sessionControllerProvider.overrideWith(_TestSessionController.new),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(sessionControllerProvider.notifier);
+    final profile = defaultTerminalProfile().copyWith(id: 'shell-1');
+
+    controller.createSession(profile);
+    final rootSessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+    controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+    final survivingSessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+
+    controller.activateSession(rootSessionId);
+    controller.closeSession(rootSessionId);
+
+    final afterRootClose = container.read(sessionControllerProvider);
+    expect(afterRootClose.tabs.single.sessionId, rootSessionId);
+    expect(afterRootClose.activeSessionId, survivingSessionId);
+
+    controller.closeTab(afterRootClose.tabs.single.sessionId);
+
+    final afterCloseTab = container.read(sessionControllerProvider);
+    expect(afterCloseTab.tabs, isEmpty);
+    expect(afterCloseTab.activeSessionId, isNull);
+  });
+
+  test(
+    'closing active pane in inactive split tab reassigns tab active pane',
+    () {
+      final coreClient = FakePtyBackend();
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(coreClient),
+          sessionControllerProvider.overrideWith(_TestSessionController.new),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final controller = container.read(sessionControllerProvider.notifier);
+      final profile = defaultTerminalProfile().copyWith(id: 'shell-1');
+
+      controller.createSession(profile);
+      final foregroundSessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      controller.createSession(profile);
+      final splitRootSessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+      final closingPaneSessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+
+      controller.activateSession(foregroundSessionId);
+      controller.closeSession(closingPaneSessionId);
+
+      final afterClose = container.read(sessionControllerProvider);
+      final backgroundTab = afterClose.tabs.firstWhere(
+        (tab) => tab.sessionId == splitRootSessionId,
+      );
+      expect(afterClose.activeSessionId, foregroundSessionId);
+      expect(backgroundTab.effectivePanes, hasLength(1));
+      expect(backgroundTab.containsSession(closingPaneSessionId), isFalse);
+      expect(backgroundTab.activePaneSessionId, isNull);
+      expect(backgroundTab.activeSessionId, splitRootSessionId);
+    },
+  );
+
+  test('splitSession targets an inactive pane inside a split tab', () {
+    final coreClient = FakePtyBackend();
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(coreClient),
+        sessionControllerProvider.overrideWith(_TestSessionController.new),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(sessionControllerProvider.notifier);
+    final profile = defaultTerminalProfile().copyWith(id: 'shell-1');
+
+    controller.createSession(profile);
+    final firstSessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+    controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+    final secondSessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+
+    controller.splitSession(
+      firstSessionId,
+      profile,
+      TerminalSplitAxis.vertical,
+    );
+
+    final splitState = container.read(sessionControllerProvider);
+    final newSessionId = splitState.activeSessionId!;
+    final layout = splitState.tabs.single.effectivePaneLayout;
+    expect(splitState.tabs, hasLength(1));
+    expect(splitState.tabs.single.effectivePanes, hasLength(3));
+    expect(secondSessionId, isNot(firstSessionId));
+    expect(newSessionId, isNot(firstSessionId));
+    expect(newSessionId, isNot(secondSessionId));
+    expect(layout.splitAxis, TerminalSplitAxis.horizontal);
+    expect(layout.first!.splitAxis, TerminalSplitAxis.vertical);
+    expect(layout.first!.containsSession(firstSessionId), isTrue);
+    expect(layout.first!.containsSession(newSessionId), isTrue);
+    expect(layout.second!.pane!.sessionId, secondSessionId);
+  });
+
   test('splitActiveSession supports nested mixed directions', () {
     final coreClient = FakePtyBackend();
     final container = ProviderContainer(
@@ -572,6 +812,50 @@ void main() {
       afterCloseNestedPane.tabs.single.effectivePaneLayout.splitAxis,
       TerminalSplitAxis.horizontal,
     );
+  });
+
+  test('resizePaneSplit targets an inactive split tab', () {
+    final coreClient = FakePtyBackend();
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(coreClient),
+        sessionControllerProvider.overrideWith(_TestSessionController.new),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(sessionControllerProvider.notifier);
+    final profile = defaultTerminalProfile().copyWith(id: 'shell-1');
+
+    controller.createSession(profile);
+    final firstSessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+    controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+    final splitLayoutId = container
+        .read(sessionControllerProvider)
+        .tabs
+        .single
+        .effectivePaneLayout
+        .id;
+
+    controller.createSession(profile);
+    final activeOtherTabSessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+
+    controller.resizePaneSplit(firstSessionId, splitLayoutId, 0.35);
+
+    final resizedState = container.read(sessionControllerProvider);
+    expect(resizedState.activeSessionId, activeOtherTabSessionId);
+    expect(resizedState.tabs.first.effectivePaneLayout.ratio, 0.35);
+    expect(resizedState.tabs.last.effectivePaneLayout.ratio, 0.5);
   });
 
   test('reopenClosedTab preserves nested pane layout shape', () {
@@ -886,6 +1170,191 @@ void main() {
     expect(container.read(sessionControllerProvider).tabs.single.title, '构建目标');
   });
 
+  test('inactive root pane OSC title does not replace active pane title', () {
+    final coreBindings = FakePtyBackend();
+    final coreClient = coreBindings;
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(coreClient),
+        sessionControllerProvider.overrideWith(_TestSessionController.new),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalConfigRepository(null),
+        ),
+        sessionPollingEnabledProvider.overrideWithValue(false),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    Map<String, Object?> frameWithTitle(String title) {
+      return <String, Object?>{
+        'rows': <Object?>[
+          <String, Object?>{
+            'index': 0,
+            'text': title,
+            'style_runs': const <Object?>[],
+          },
+        ],
+        'cursor': <String, Object?>{
+          'row': 0,
+          'col': title.length,
+          'visible': true,
+        },
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': <Object?>[
+          <String, Object?>{'start': 0, 'end': 1},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+        'window_title': title,
+        'window_icon_name': null,
+      };
+    }
+
+    final controller = container.read(sessionControllerProvider.notifier);
+    final profile = defaultTerminalProfile().copyWith(id: 'shell-1');
+    controller.createSession(profile);
+    final rootSessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+    controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+    final activeSessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+
+    coreBindings.setFrame(
+      int.parse(activeSessionId),
+      frameWithTitle('Active Pane'),
+    );
+    controller.resizeSession(activeSessionId, const Size(640, 480), 1.0);
+    coreBindings.setFrame(int.parse(rootSessionId), frameWithTitle('Deploy'));
+    controller.resizeSession(rootSessionId, const Size(640, 480), 1.0);
+
+    final tab = container.read(sessionControllerProvider).tabs.single;
+    expect(tab.activeSessionId, activeSessionId);
+    expect(tab.activePane.title, 'Active Pane');
+    expect(tab.paneFor(rootSessionId)?.title, 'Deploy');
+  });
+
+  testWidgets('terminal content preview follows active tab visible panes', (
+    tester,
+  ) async {
+    final coreBindings = FakePtyBackend();
+    final coreClient = coreBindings;
+    final published = <({bool hasContent, String? preview})>[];
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(coreClient),
+        sessionControllerProvider.overrideWith(_TestSessionController.new),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalConfigRepository(null),
+        ),
+        sessionTerminalContentPublisherProvider.overrideWithValue(({
+          required terminalHasVisibleContent,
+          required terminalPreview,
+        }) {
+          published.add((
+            hasContent: terminalHasVisibleContent,
+            preview: terminalPreview,
+          ));
+        }),
+        sessionPollingEnabledProvider.overrideWithValue(false),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    Map<String, Object?> frameWithText(String text) {
+      return <String, Object?>{
+        'rows': <Object?>[
+          <String, Object?>{
+            'index': 0,
+            'text': text,
+            'style_runs': const <Object?>[],
+          },
+        ],
+        'cursor': <String, Object?>{
+          'row': 0,
+          'col': text.length,
+          'visible': true,
+        },
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': <Object?>[
+          <String, Object?>{'start': 0, 'end': 1},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+        'window_title': null,
+        'window_icon_name': null,
+      };
+    }
+
+    final controller = container.read(sessionControllerProvider.notifier);
+    final runtime = container.read(terminalRuntimeControllerProvider);
+    final profile = defaultTerminalProfile().copyWith(id: 'shell-1');
+    controller.createSession(profile);
+    final rootSessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+    controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+    final activePaneSessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+
+    coreBindings.setFrame(
+      int.parse(activePaneSessionId),
+      frameWithText('Active Pane'),
+    );
+    runtime.refreshSession(activePaneSessionId);
+    await tester.pump();
+    expect(published.last, (hasContent: true, preview: 'Active Pane'));
+
+    coreBindings.setFrame(int.parse(rootSessionId), frameWithText('Deploy'));
+    runtime.refreshSession(rootSessionId);
+    await tester.pump();
+    expect(published.last, (hasContent: true, preview: 'Active Pane'));
+
+    coreBindings.setFrame(int.parse(activePaneSessionId), frameWithText('   '));
+    runtime.refreshSession(activePaneSessionId);
+    await tester.pump();
+    expect(published.last, (hasContent: true, preview: 'Deploy'));
+
+    controller.createSession(profile);
+    final otherTabSessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+    coreBindings.setFrame(
+      int.parse(otherTabSessionId),
+      frameWithText('Other Tab'),
+    );
+    runtime.refreshSession(otherTabSessionId);
+    await tester.pump();
+    expect(published.last, (hasContent: true, preview: 'Other Tab'));
+
+    final publishCount = published.length;
+    coreBindings.setFrame(
+      int.parse(rootSessionId),
+      frameWithText('Updated Deploy'),
+    );
+    runtime.refreshSession(rootSessionId);
+    await tester.pump();
+    expect(published, hasLength(publishCount));
+  });
+
   testWidgets(
     'shell hook metadata updates per-session shell integration state',
     (tester) async {
@@ -1122,6 +1591,129 @@ void main() {
     expect(pane.shellIntegration.username, 'dev');
   });
 
+  testWidgets('automatic profile restore preserves split pane OSC metadata', (
+    tester,
+  ) async {
+    final defaultProfile = defaultTerminalProfile().copyWith(
+      id: 'local',
+      name: 'Local',
+    );
+    final rootProfile = defaultTerminalProfile().copyWith(
+      id: 'root',
+      name: 'Root Session',
+      switchRules: const [
+        TerminalProfileSwitchRule(
+          kind: TerminalProfileSwitchRuleKind.username,
+          pattern: 'root',
+        ),
+      ],
+    );
+    final bindings = _EventfulPtyBackend(FakePtyBackend());
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(bindings),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(
+            TerminalProfilesDocument(profiles: [defaultProfile, rootProfile]),
+          ),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalConfigRepository(null),
+        ),
+        sessionPollingEnabledProvider.overrideWithValue(false),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container.read(sessionControllerProvider);
+    await tester.pump(const Duration(milliseconds: 50));
+    final controller = container.read(sessionControllerProvider.notifier);
+    controller.splitActiveSession(defaultProfile, TerminalSplitAxis.horizontal);
+    await tester.pump();
+
+    final targetSessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+
+    void enqueue(String kind, Map<String, Object?> payload) {
+      bindings.enqueueEvent(targetSessionId, {
+        'kind': kind,
+        'payload': payload,
+      });
+    }
+
+    Future<void> flush() async {
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(targetSessionId);
+      await tester.pump();
+    }
+
+    enqueue('session_badge', const <String, Object?>{'text': 'Deploy'});
+    enqueue('session_progress', const <String, Object?>{
+      'source': 'osc9;4',
+      'action': 'set',
+      'state': 'normal',
+      'percent': 30,
+      'label': 'Deploy',
+    });
+    enqueue('session_progress', const <String, Object?>{
+      'source': 'osc934',
+      'named': true,
+      'action': 'set',
+      'id': 'build',
+      'state': 'normal',
+      'percent': 80,
+      'label': 'Compile',
+    });
+    enqueue('session_notification', const <String, Object?>{
+      'source': 'osc777',
+      'title': 'Deploy done',
+      'message': 'Inactive metadata should survive restore',
+    });
+    await flush();
+
+    enqueue('shell_hook', const <String, Object?>{
+      'hook': 'command_finished',
+      'command': 'sudo -s',
+      'user': 'root',
+      'pwd': '/root',
+    });
+    await flush();
+    expect(
+      container
+          .read(sessionControllerProvider)
+          .tabs
+          .single
+          .paneFor(targetSessionId)!
+          .profileId,
+      'root',
+    );
+
+    enqueue('shell_hook', const <String, Object?>{
+      'hook': 'command_finished',
+      'command': 'exit',
+      'user': 'dev',
+      'pwd': '/Users/dev',
+    });
+    await flush();
+
+    final pane = container
+        .read(sessionControllerProvider)
+        .tabs
+        .single
+        .paneFor(targetSessionId)!;
+    expect(pane.profileId, 'local');
+    expect(pane.oscBadge, 'Deploy');
+    expect(pane.progress?.label, 'Deploy');
+    expect(pane.namedProgress['build']?.label, 'Compile');
+    expect(pane.recentNotifications.single.title, 'Deploy done');
+    expect(pane.shellIntegration.username, 'dev');
+  });
+
   testWidgets(
     'shell context ignores OSC metadata when shell integration is disabled',
     (tester) async {
@@ -1273,6 +1865,67 @@ void main() {
       expect(pane.shellIntegration.hostname, 'localhost');
     },
   );
+
+  testWidgets('shell command scrolled-out zones evict prompt marks', (
+    tester,
+  ) async {
+    final bindings = _EventfulPtyBackend(FakePtyBackend());
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(bindings),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(
+            TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+          ),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalConfigRepository(null),
+        ),
+        sessionPollingEnabledProvider.overrideWithValue(false),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container.read(sessionControllerProvider);
+    await tester.pump(const Duration(milliseconds: 50));
+    final sessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+
+    void enqueueShellCommand(Map<String, Object?> payload) {
+      bindings.enqueueEvent(sessionId, {
+        'kind': 'shell_command',
+        'payload': payload,
+      });
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(sessionId);
+    }
+
+    enqueueShellCommand(const <String, Object?>{
+      'source': 'osc133',
+      'eventType': 'prompt_start',
+      'cursorLine': 42,
+      'command': 'echo ok',
+    });
+    await tester.pump();
+
+    var pane = container.read(sessionControllerProvider).tabs.single.activePane;
+    expect(pane.shellIntegration.promptMarks, hasLength(1));
+
+    enqueueShellCommand(const <String, Object?>{
+      'source': 'osc133',
+      'eventType': 'zone_scrolled_out',
+      'zoneType': 'output',
+    });
+    await tester.pump();
+
+    pane = container.read(sessionControllerProvider).tabs.single.activePane;
+    expect(pane.shellIntegration.promptMarks, isEmpty);
+  });
 
   testWidgets('shell context user variables are allowlisted and capped', (
     tester,
@@ -1468,7 +2121,9 @@ void main() {
     await flush();
 
     pane = container.read(sessionControllerProvider).tabs.single.activePane;
-    expect(pane.namedProgress, isEmpty);
+    expect(pane.namedProgress['build']?.action, 'complete');
+    expect(pane.namedProgress['build']?.state, 'complete');
+    expect(pane.namedProgress['build']?.percent, 100);
     expect(pane.oscBadge, isNull);
 
     enqueue('session_progress', const <String, Object?>{
@@ -1492,7 +2147,8 @@ void main() {
     await flush();
 
     pane = container.read(sessionControllerProvider).tabs.single.activePane;
-    expect(pane.namedProgress, isEmpty);
+    expect(pane.namedProgress['test']?.action, 'complete');
+    expect(pane.namedProgress['test']?.state, 'complete');
     expect(pane.progress?.action, 'complete');
     expect(pane.progress?.state, 'complete');
 
@@ -1500,7 +2156,60 @@ void main() {
 
     pane = container.read(sessionControllerProvider).tabs.single.activePane;
     expect(pane.progress, isNull);
+    expect(pane.namedProgress, isEmpty);
   });
+
+  testWidgets(
+    'OSC indeterminate progress displays state instead of zero percent',
+    (tester) async {
+      final bindings = _EventfulPtyBackend(FakePtyBackend());
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(bindings),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalConfigRepository(null),
+          ),
+          sessionPollingEnabledProvider.overrideWithValue(false),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(sessionControllerProvider);
+      await tester.pump(const Duration(milliseconds: 50));
+      final sessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+
+      bindings.enqueueEvent(sessionId, {
+        'kind': 'session_progress',
+        'payload': const <String, Object?>{
+          'source': 'osc9;4',
+          'action': 'set',
+          'state': 'indeterminate',
+        },
+      });
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(sessionId);
+      await tester.pump();
+
+      final pane = container
+          .read(sessionControllerProvider)
+          .tabs
+          .single
+          .activePane;
+      expect(pane.progress?.percent, isNull);
+      expect(pane.progress?.displayLabel, 'PROGRESS INDETERMINATE');
+    },
+  );
 
   test(
     'resize events update the terminal session before resizing the macOS window',

@@ -12,7 +12,8 @@
 //! uses the same approach.
 //!
 //! A `GraphicsSnapshot` captures the full graphics state (active placements,
-//! scrollback, and animations) for round-trip persistence.
+//! scrollback, Kitty shared images, virtual placements, transient Kitty
+//! lifecycle state, and animations) for round-trip persistence.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -22,7 +23,8 @@ use serde::{Deserialize, Serialize};
 
 use super::animation::{AnimationFrame, AnimationState, CompositionMode};
 use super::{
-    graphic_content_version, GraphicProtocol, GraphicsStore, ImagePlacement, TerminalGraphic,
+    graphic_content_version, GraphicProtocol, GraphicsStore, ImagePlacement, KittyDeferredDelete,
+    TerminalGraphic,
 };
 
 /// Reference to image data - either inline base64 or an external file path
@@ -42,6 +44,8 @@ pub struct SerializableAnimationFrame {
     pub width: usize,
     pub height: usize,
     pub delay_ms: u32,
+    #[serde(default)]
+    pub gapless: bool,
     pub x_offset: u32,
     pub y_offset: u32,
     pub composition: CompositionMode,
@@ -58,6 +62,25 @@ pub struct SerializableAnimation {
     pub current_frame: u32,
     pub loop_count: u32,
     pub loops_completed: u32,
+    #[serde(default)]
+    pub loading_mode: bool,
+}
+
+/// Serializable Kitty image data stored by image ID for later placement reuse.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SerializableSharedImage {
+    pub image_id: u32,
+    pub width: usize,
+    pub height: usize,
+    pub data: ImageDataRef,
+}
+
+/// Serializable Kitty delete criteria waiting for a replacement transfer.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SerializableKittyDeferredDelete {
+    pub image_id: Option<u32>,
+    pub placement_id: Option<u32>,
+    pub alternate_screen: Option<bool>,
 }
 
 /// Serializable representation of a terminal graphic
@@ -89,9 +112,14 @@ pub struct SerializableGraphic {
     pub scroll_offset_rows: usize,
     /// Row in scrollback buffer
     pub scrollback_row: Option<usize>,
+    /// Whether this placement belongs to the alternate screen buffer
+    #[serde(default)]
+    pub alternate_screen: bool,
 
     // Kitty-specific fields
     pub kitty_image_id: Option<u32>,
+    #[serde(default)]
+    pub animation_id: Option<u32>,
     pub kitty_placement_id: Option<u32>,
     pub is_virtual: bool,
     pub parent_image_id: Option<u32>,
@@ -116,6 +144,21 @@ pub struct GraphicsSnapshot {
     pub placements: Vec<SerializableGraphic>,
     /// Graphics in scrollback
     pub scrollback: Vec<SerializableGraphic>,
+    /// Kitty transmit-only image payloads available for later placement reuse
+    #[serde(default)]
+    pub shared_images: Vec<SerializableSharedImage>,
+    /// Kitty virtual placements used by Unicode placeholder rendering
+    #[serde(default)]
+    pub virtual_placements: Vec<SerializableGraphic>,
+    /// Recently cleared Kitty placements kept for redraw identity reuse
+    #[serde(default)]
+    pub cleared_kitty_placements: Vec<SerializableGraphic>,
+    /// Recently deleted Kitty placements kept for replacement identity reuse
+    #[serde(default)]
+    pub deleted_kitty_placements: Vec<SerializableGraphic>,
+    /// Kitty delete criteria waiting for a replacement transfer
+    #[serde(default)]
+    pub deferred_kitty_deletes: Vec<SerializableKittyDeferredDelete>,
     /// Animations indexed by image ID
     pub animations: Vec<SerializableAnimation>,
 }
@@ -123,6 +166,21 @@ pub struct GraphicsSnapshot {
 impl GraphicsSnapshot {
     /// Current schema version
     pub const CURRENT_VERSION: u32 = 1;
+
+    /// Create an empty snapshot using the current schema.
+    pub fn empty_current_version() -> Self {
+        Self {
+            version: Self::CURRENT_VERSION,
+            placements: Vec::new(),
+            scrollback: Vec::new(),
+            shared_images: Vec::new(),
+            virtual_placements: Vec::new(),
+            cleared_kitty_placements: Vec::new(),
+            deleted_kitty_placements: Vec::new(),
+            deferred_kitty_deletes: Vec::new(),
+            animations: Vec::new(),
+        }
+    }
 }
 
 // --- Conversion: TerminalGraphic -> SerializableGraphic ---
@@ -142,7 +200,9 @@ impl From<&TerminalGraphic> for SerializableGraphic {
             display_cell_span: g.display_cell_span,
             scroll_offset_rows: g.scroll_offset_rows,
             scrollback_row: g.scrollback_row,
+            alternate_screen: g.alternate_screen,
             kitty_image_id: g.kitty_image_id,
+            animation_id: g.animation_id,
             kitty_placement_id: g.kitty_placement_id,
             is_virtual: g.is_virtual,
             parent_image_id: g.parent_image_id,
@@ -180,7 +240,9 @@ impl SerializableGraphic {
             display_cell_span: self.display_cell_span,
             scroll_offset_rows: self.scroll_offset_rows,
             scrollback_row: self.scrollback_row,
+            alternate_screen: self.alternate_screen,
             kitty_image_id: self.kitty_image_id,
+            animation_id: self.animation_id,
             kitty_placement_id: self.kitty_placement_id,
             is_virtual: self.is_virtual,
             parent_image_id: self.parent_image_id,
@@ -219,6 +281,28 @@ impl SerializableGraphic {
     }
 }
 
+impl SerializableSharedImage {
+    fn from_parts(image_id: u32, width: usize, height: usize, pixels: &[u8]) -> Self {
+        let encoded = base64::engine::general_purpose::STANDARD.encode(pixels);
+        Self {
+            image_id,
+            width,
+            height,
+            data: ImageDataRef::Inline(encoded),
+        }
+    }
+
+    fn resolve_data(&self) -> Result<Vec<u8>, GraphicsSerializationError> {
+        match &self.data {
+            ImageDataRef::Inline(b64) => base64::engine::general_purpose::STANDARD
+                .decode(b64)
+                .map_err(|e| GraphicsSerializationError::Base64Decode(e.to_string())),
+            ImageDataRef::File(path) => std::fs::read(path)
+                .map_err(|e| GraphicsSerializationError::FileRead(path.clone(), e.to_string())),
+        }
+    }
+}
+
 // --- Conversion: AnimationFrame -> SerializableAnimationFrame ---
 
 impl From<&AnimationFrame> for SerializableAnimationFrame {
@@ -229,6 +313,7 @@ impl From<&AnimationFrame> for SerializableAnimationFrame {
             width: f.width,
             height: f.height,
             delay_ms: f.delay_ms,
+            gapless: f.gapless,
             x_offset: f.x_offset,
             y_offset: f.y_offset,
             composition: f.composition,
@@ -253,6 +338,7 @@ impl SerializableAnimationFrame {
             width: self.width,
             height: self.height,
             delay_ms: self.delay_ms,
+            gapless: self.gapless,
             x_offset: self.x_offset,
             y_offset: self.y_offset,
             composition: self.composition,
@@ -265,8 +351,9 @@ impl SerializableAnimationFrame {
 impl GraphicsStore {
     /// Export all graphics state as a serializable snapshot
     ///
-    /// This captures active placements, scrollback graphics, and animation
-    /// state. Pixel data is encoded as base64 inline.
+    /// This captures active placements, scrollback graphics, Kitty shared image
+    /// payloads, virtual placements, and animation state. Pixel data is encoded
+    /// as base64 inline.
     pub fn export_snapshot(&self) -> GraphicsSnapshot {
         let placements = self
             .all_graphics()
@@ -278,6 +365,42 @@ impl GraphicsStore {
             .all_scrollback_graphics()
             .iter()
             .map(SerializableGraphic::from)
+            .collect();
+
+        let shared_images = self
+            .shared_images
+            .iter()
+            .map(|(image_id, (width, height, pixels))| {
+                SerializableSharedImage::from_parts(*image_id, *width, *height, pixels)
+            })
+            .collect();
+
+        let virtual_placements = self
+            .all_virtual_placements()
+            .values()
+            .map(SerializableGraphic::from)
+            .collect();
+
+        let cleared_kitty_placements = self
+            .cleared_kitty_placements
+            .iter()
+            .map(SerializableGraphic::from)
+            .collect();
+
+        let deleted_kitty_placements = self
+            .deleted_kitty_placements
+            .iter()
+            .map(SerializableGraphic::from)
+            .collect();
+
+        let deferred_kitty_deletes = self
+            .deferred_kitty_deletes
+            .iter()
+            .map(|delete| SerializableKittyDeferredDelete {
+                image_id: delete.image_id,
+                placement_id: delete.placement_id,
+                alternate_screen: delete.alternate_screen,
+            })
             .collect();
 
         let animations = self
@@ -295,6 +418,7 @@ impl GraphicsStore {
                 current_frame: anim.current_frame,
                 loop_count: anim.loop_count,
                 loops_completed: anim.loops_completed,
+                loading_mode: anim.loading_mode,
             })
             .collect();
 
@@ -302,6 +426,11 @@ impl GraphicsStore {
             version: GraphicsSnapshot::CURRENT_VERSION,
             placements,
             scrollback,
+            shared_images,
+            virtual_placements,
+            cleared_kitty_placements,
+            deleted_kitty_placements,
+            deferred_kitty_deletes,
             animations,
         }
     }
@@ -323,6 +452,25 @@ impl GraphicsStore {
 
         self.clear_snapshot_import_state();
 
+        // Restore Kitty transmit-only image data before placements so visible
+        // placements remain the last resort if memory limits force eviction.
+        for shared_image in &snapshot.shared_images {
+            let pixels = shared_image.resolve_data()?;
+            self.store_kitty_image(
+                shared_image.image_id,
+                shared_image.width,
+                shared_image.height,
+                pixels,
+            );
+        }
+
+        // Restore virtual placements before active placements for the same
+        // reason: concrete visible placements should win limited memory.
+        for sg in &snapshot.virtual_placements {
+            let graphic = sg.to_terminal_graphic()?;
+            self.add_virtual_placement(graphic);
+        }
+
         // Restore active placements
         for sg in &snapshot.placements {
             let graphic = sg.to_terminal_graphic()?;
@@ -335,6 +483,31 @@ impl GraphicsStore {
             // Add directly to scrollback via the internal method
             self.add_scrollback_graphic(graphic);
         }
+
+        for sg in &snapshot.cleared_kitty_placements {
+            let graphic = sg.to_terminal_graphic()?;
+            if graphic.protocol == GraphicProtocol::Kitty {
+                self.cleared_kitty_placements.push(graphic);
+            }
+        }
+
+        for sg in &snapshot.deleted_kitty_placements {
+            let graphic = sg.to_terminal_graphic()?;
+            if graphic.protocol == GraphicProtocol::Kitty {
+                self.deleted_kitty_placements.push(graphic);
+            }
+        }
+
+        self.deferred_kitty_deletes = snapshot
+            .deferred_kitty_deletes
+            .iter()
+            .map(|delete| KittyDeferredDelete {
+                image_id: delete.image_id,
+                placement_id: delete.placement_id,
+                alternate_screen: delete.alternate_screen,
+            })
+            .collect();
+        self.prune_deferred_kitty_deletes_without_tombstones();
 
         // Restore animations
         for sa in &snapshot.animations {
@@ -400,6 +573,7 @@ impl GraphicsStore {
         self.virtual_placements.clear();
         self.animations.clear();
         self.scrollback.clear();
+        self.tracked_text_scrollback_len = 0;
         self.scrollback_position = 0;
     }
 
@@ -423,6 +597,7 @@ impl GraphicsStore {
             };
             anim.loop_count = sa.loop_count;
             anim.loops_completed = sa.loops_completed;
+            anim.loading_mode = sa.loading_mode;
         }
     }
 }
@@ -490,6 +665,7 @@ mod tests {
             pixels,
         );
         g.kitty_image_id = Some(42);
+        g.animation_id = Some(88);
         g.kitty_placement_id = Some(1);
         g.was_compressed = true;
         g.placement = ImagePlacement {
@@ -512,6 +688,7 @@ mod tests {
         assert_eq!(serializable.width, 2);
         assert_eq!(serializable.height, 2);
         assert_eq!(serializable.kitty_image_id, Some(42));
+        assert_eq!(serializable.animation_id, Some(88));
         assert!(serializable.was_compressed);
         assert_eq!(serializable.placement.z_index, 3);
 
@@ -526,6 +703,7 @@ mod tests {
         assert_eq!(restored.original_height, original.original_height);
         assert_eq!(restored.pixels.as_ref(), original.pixels.as_ref());
         assert_eq!(restored.kitty_image_id, original.kitty_image_id);
+        assert_eq!(restored.animation_id, original.animation_id);
         assert_eq!(restored.kitty_placement_id, original.kitty_placement_id);
         assert_eq!(restored.was_compressed, original.was_compressed);
         assert_eq!(restored.placement, original.placement);
@@ -593,6 +771,71 @@ mod tests {
         let count = store2.import_json(&json).unwrap();
         assert_eq!(count, 1);
         assert_eq!(store2.graphics_count(), 1);
+    }
+
+    #[test]
+    fn test_graphics_store_round_trip_preserves_kitty_shared_images() {
+        let mut store = GraphicsStore::new();
+        store.store_kitty_image(77, 2, 1, vec![10, 20, 30, 40, 50, 60, 70, 80]);
+
+        let snapshot = store.export_snapshot();
+        assert_eq!(snapshot.shared_images.len(), 1);
+        assert_eq!(snapshot.shared_images[0].image_id, 77);
+
+        let mut store2 = GraphicsStore::new();
+        let count = store2.import_snapshot(&snapshot).unwrap();
+
+        assert_eq!(count, 0);
+        let restored = store2.get_kitty_image(77).unwrap();
+        assert_eq!(restored.0, 2);
+        assert_eq!(restored.1, 1);
+        assert_eq!(
+            restored.2.as_ref().as_slice(),
+            &[10, 20, 30, 40, 50, 60, 70, 80]
+        );
+    }
+
+    #[test]
+    fn test_graphics_store_round_trip_preserves_virtual_placements() {
+        let mut store = GraphicsStore::new();
+        let mut virtual_graphic = create_test_graphic();
+        virtual_graphic.kitty_image_id = Some(88);
+        virtual_graphic.kitty_placement_id = Some(3);
+        virtual_graphic.position = (12, 7);
+        virtual_graphic.parent_image_id = Some(77);
+        virtual_graphic.parent_placement_id = Some(2);
+        virtual_graphic.relative_x_offset = 4;
+        virtual_graphic.relative_y_offset = -1;
+        store.add_virtual_placement(virtual_graphic.clone());
+
+        let snapshot = store.export_snapshot();
+        assert_eq!(snapshot.virtual_placements.len(), 1);
+
+        let mut store2 = GraphicsStore::new();
+        let count = store2.import_snapshot(&snapshot).unwrap();
+
+        assert_eq!(count, 0);
+        let restored = store2.get_virtual_placement(88, 3).unwrap();
+        assert!(restored.is_virtual);
+        assert_eq!(restored.position, (12, 7));
+        assert_eq!(restored.parent_image_id, Some(77));
+        assert_eq!(restored.parent_placement_id, Some(2));
+        assert_eq!(restored.relative_x_offset, 4);
+        assert_eq!(restored.relative_y_offset, -1);
+        assert_eq!(restored.pixels.as_ref(), virtual_graphic.pixels.as_ref());
+    }
+
+    #[test]
+    fn test_graphics_snapshot_import_accepts_json_without_additive_fields() {
+        let mut store = GraphicsStore::new();
+
+        let count = store
+            .import_json(r#"{"version":1,"placements":[],"scrollback":[],"animations":[]}"#)
+            .unwrap();
+
+        assert_eq!(count, 0);
+        assert_eq!(store.graphics_count(), 0);
+        assert!(store.all_virtual_placements().is_empty());
     }
 
     #[test]
@@ -676,6 +919,11 @@ mod tests {
                 SerializableGraphic::from(&small_scrollback),
                 SerializableGraphic::from(&large_scrollback),
             ],
+            shared_images: vec![],
+            virtual_placements: vec![],
+            cleared_kitty_placements: vec![],
+            deleted_kitty_placements: vec![],
+            deferred_kitty_deletes: vec![],
             animations: vec![],
         };
         let mut store = GraphicsStore::with_limits(GraphicsLimits {
@@ -705,7 +953,7 @@ mod tests {
 
         // Add animation frames
         let frame1 = AnimationFrame::new(1, vec![255u8; 16], 2, 2).with_delay(100);
-        let frame2 = AnimationFrame::new(2, vec![128u8; 16], 2, 2).with_delay(200);
+        let frame2 = AnimationFrame::new(2, vec![128u8; 16], 2, 2).with_gap(-1);
         store.add_animation_frame(image_id, frame1);
         store.add_animation_frame(image_id, frame2);
 
@@ -713,6 +961,10 @@ mod tests {
         assert_eq!(snapshot.animations.len(), 1);
         assert_eq!(snapshot.animations[0].image_id, image_id);
         assert_eq!(snapshot.animations[0].frames.len(), 2);
+        assert!(snapshot.animations[0]
+            .frames
+            .iter()
+            .any(|frame| frame.frame_number == 2 && frame.gapless));
 
         // Round trip
         let mut store2 = GraphicsStore::new();
@@ -720,16 +972,13 @@ mod tests {
         let anim = store2.get_animation(image_id).unwrap();
         assert_eq!(anim.frame_count(), 2);
         assert_eq!(anim.default_delay_ms, 100);
+        assert!(anim.get_frame(2).unwrap().gapless);
     }
 
     #[test]
     fn test_unsupported_version() {
-        let snapshot = GraphicsSnapshot {
-            version: 999,
-            placements: vec![],
-            scrollback: vec![],
-            animations: vec![],
-        };
+        let mut snapshot = GraphicsSnapshot::empty_current_version();
+        snapshot.version = 999;
 
         let mut store = GraphicsStore::new();
         let result = store.import_snapshot(&snapshot);
@@ -771,12 +1020,7 @@ mod tests {
         assert!(store.get_animation(77).is_some());
 
         // Import empty snapshot should clear existing
-        let empty = GraphicsSnapshot {
-            version: 1,
-            placements: vec![],
-            scrollback: vec![],
-            animations: vec![],
-        };
+        let empty = GraphicsSnapshot::empty_current_version();
         let count = store.import_snapshot(&empty).unwrap();
         assert_eq!(count, 0);
         assert_eq!(store.graphics_count(), 0);
@@ -794,6 +1038,11 @@ mod tests {
             version: GraphicsSnapshot::CURRENT_VERSION,
             placements: vec![],
             scrollback: vec![],
+            shared_images: vec![],
+            virtual_placements: vec![],
+            cleared_kitty_placements: vec![],
+            deleted_kitty_placements: vec![],
+            deferred_kitty_deletes: vec![],
             animations: vec![SerializableAnimation {
                 image_id: 99,
                 frames: vec![
@@ -805,6 +1054,7 @@ mod tests {
                 current_frame: 2,
                 loop_count: 3,
                 loops_completed: 1,
+                loading_mode: true,
             }],
         };
         let mut store = GraphicsStore::with_limits(GraphicsLimits {
@@ -821,6 +1071,7 @@ mod tests {
         assert!(animation.current_frame().is_some());
         assert_eq!(animation.loop_count, 3);
         assert_eq!(animation.loops_completed, 1);
+        assert!(animation.loading_mode);
         assert_eq!(store.dropped_count(), 1);
     }
 
@@ -898,6 +1149,10 @@ mod tests {
             z_index: -1,
             x_offset: 2,
             y_offset: 3,
+            source_x_offset: 4,
+            source_y_offset: 6,
+            source_width: Some(8),
+            source_height: Some(9),
         };
 
         let sg = SerializableGraphic::from(&g);
@@ -925,5 +1180,9 @@ mod tests {
         assert_eq!(restored.placement.z_index, -1);
         assert_eq!(restored.placement.x_offset, 2);
         assert_eq!(restored.placement.y_offset, 3);
+        assert_eq!(restored.placement.source_x_offset, 4);
+        assert_eq!(restored.placement.source_y_offset, 6);
+        assert_eq!(restored.placement.source_width, Some(8));
+        assert_eq!(restored.placement.source_height, Some(9));
     }
 }

@@ -34,8 +34,8 @@ impl Grid {
     /// Clear from cursor to end of line
     pub fn clear_line_right(&mut self, col: usize, row: usize) {
         let blank_cell = self.blank_cell();
-        if row < self.rows {
-            for c in col..self.cols {
+        if let Some(range) = self.wide_safe_range(col, row, self.cols.saturating_sub(col)) {
+            for c in range {
                 if let Some(cell) = self.get_mut(c, row) {
                     *cell = blank_cell.clone();
                 }
@@ -45,8 +45,8 @@ impl Grid {
 
     /// Clear from cursor to end of line using the active background color.
     pub fn clear_line_right_with_bg(&mut self, col: usize, row: usize, bg: Color) {
-        if row < self.rows {
-            for c in col..self.cols {
+        if let Some(range) = self.wide_safe_range(col, row, self.cols.saturating_sub(col)) {
+            for c in range {
                 if let Some(cell) = self.get_mut(c, row) {
                     cell.erase_with_bg(bg);
                 }
@@ -57,8 +57,8 @@ impl Grid {
     /// Clear from beginning of line to cursor
     pub fn clear_line_left(&mut self, col: usize, row: usize) {
         let blank_cell = self.blank_cell();
-        if row < self.rows {
-            for c in 0..=col.min(self.cols - 1) {
+        if let Some(range) = self.wide_safe_range(0, row, col.saturating_add(1)) {
+            for c in range {
                 if let Some(cell) = self.get_mut(c, row) {
                     *cell = blank_cell.clone();
                 }
@@ -68,8 +68,8 @@ impl Grid {
 
     /// Clear from beginning of line to cursor using the active background color.
     pub fn clear_line_left_with_bg(&mut self, col: usize, row: usize, bg: Color) {
-        if row < self.rows {
-            for c in 0..=col.min(self.cols - 1) {
+        if let Some(range) = self.wide_safe_range(0, row, col.saturating_add(1)) {
+            for c in range {
                 if let Some(cell) = self.get_mut(c, row) {
                     cell.erase_with_bg(bg);
                 }
@@ -112,9 +112,8 @@ impl Grid {
     /// Erase characters at (col, row)
     pub fn erase_characters(&mut self, col: usize, row: usize, n: usize) {
         let blank_cell = self.blank_cell();
-        if row < self.rows {
-            let end = (col + n).min(self.cols);
-            for c in col..end {
+        if let Some(range) = self.wide_safe_range(col, row, n) {
+            for c in range {
                 if let Some(cell) = self.get_mut(c, row) {
                     *cell = blank_cell.clone();
                 }
@@ -124,9 +123,8 @@ impl Grid {
 
     /// Erase characters at (col, row) using the active background color.
     pub fn erase_characters_with_bg(&mut self, col: usize, row: usize, n: usize, bg: Color) {
-        if row < self.rows {
-            let end = (col + n).min(self.cols);
-            for c in col..end {
+        if let Some(range) = self.wide_safe_range(col, row, n) {
+            for c in range {
                 if let Some(cell) = self.get_mut(c, row) {
                     cell.erase_with_bg(bg);
                 }

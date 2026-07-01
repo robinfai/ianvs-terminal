@@ -560,6 +560,8 @@ impl From<&AppClientMessage> for pb::ClientMessage {
             AppClientMessage::Mouse {
                 col,
                 row,
+                pixel_x: _,
+                pixel_y: _,
                 button,
                 shift,
                 ctrl,
@@ -980,6 +982,8 @@ impl TryFrom<pb::ClientMessage> for AppClientMessage {
             Some(Message::Mouse(mouse)) => Ok(AppClientMessage::Mouse {
                 col: mouse.col as u16,
                 row: mouse.row as u16,
+                pixel_x: None,
+                pixel_y: None,
                 button: mouse.button.min(255) as u8,
                 shift: mouse.shift,
                 ctrl: mouse.ctrl,

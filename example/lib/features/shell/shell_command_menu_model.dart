@@ -30,6 +30,7 @@ class ShellCommandMenuModel {
     TerminalActionId.autoComposer,
     TerminalActionId.splitRight,
     TerminalActionId.splitDown,
+    TerminalActionId.reopenClosedPane,
     TerminalActionId.hotkeyWindow,
   ];
 

@@ -49,11 +49,14 @@ class TerminalInputController extends terminal.TerminalInputController {
   }
 
   @override
-  void sendFocusReport({required bool focused}) {
+  void sendFocusReport({
+    required bool focused,
+    terminal.TerminalFrameModes? modes,
+  }) {
     if (isReadOnly) {
       return;
     }
-    super.sendFocusReport(focused: focused);
+    super.sendFocusReport(focused: focused, modes: modes);
   }
 
   @override
@@ -64,6 +67,8 @@ class TerminalInputController extends terminal.TerminalInputController {
     required int button,
     required bool pressed,
     int modifiers = 0,
+    int? pixelX,
+    int? pixelY,
   }) {
     if (isReadOnly) {
       return;
@@ -75,6 +80,8 @@ class TerminalInputController extends terminal.TerminalInputController {
       button: button,
       pressed: pressed,
       modifiers: modifiers,
+      pixelX: pixelX,
+      pixelY: pixelY,
     );
   }
 

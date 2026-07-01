@@ -8,6 +8,7 @@ use crate::model::{
 use crate::pty::spawn_pty;
 use par_term_emu_core_rust::cell::{Cell, CellFlags};
 use par_term_emu_core_rust::color::Color;
+use par_term_emu_core_rust::graphics::placeholder::{PlaceholderInfo, parse_diacritics};
 use par_term_emu_core_rust::graphics::{
     ImageDimension, ImageSizeUnit, PLACEHOLDER_CHAR, TerminalGraphic,
 };
@@ -34,6 +35,7 @@ const DEFAULT_COLS: u16 = 120;
 const MAX_TRANSCRIPT_BYTES: usize = 256 * 1024;
 const RESOURCE_SAMPLE_CAPACITY: usize = 60;
 const RESOURCE_SAMPLE_INTERVAL: Duration = Duration::from_secs(1);
+const INLINE_CLEAR_REPAINT_GRACE: Duration = Duration::from_millis(180);
 const RESOURCE_SAMPLER_MAX_FAILURES: u64 = 5;
 const MAX_GRAPHIC_ASSET_SNAPSHOTS: usize = 128;
 const VT220_PRIMARY_DA_RESPONSE: &str = "\x1b[?62;1;2;6;7;8;9c";
@@ -150,6 +152,12 @@ impl From<ScrollRegionDamage> for PendingScrollRegion {
             delta_rows: value.delta_rows,
         }
     }
+}
+
+#[derive(Clone, Debug)]
+struct DeferredInlineClearFrame {
+    damage_generation: u64,
+    started_at: Instant,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -662,7 +670,10 @@ impl HostProtocolState {
     }
 }
 
-fn callback_event_from_parser_event(event: ParserTerminalEvent) -> Option<CallbackEvent> {
+fn callback_event_from_parser_event(
+    event: ParserTerminalEvent,
+    suppress_shell_zones: bool,
+) -> Option<CallbackEvent> {
     match event {
         ParserTerminalEvent::BellRang(_) => Some(CallbackEvent::Bell),
         ParserTerminalEvent::CwdChanged(change) => {
@@ -695,49 +706,67 @@ fn callback_event_from_parser_event(event: ParserTerminalEvent) -> Option<Callba
             exit_code,
             timestamp,
             cursor_line,
-        } => Some(CallbackEvent::ShellCommand {
-            payload: serde_json::json!({
-                "source": "osc133",
-                "eventType": sanitize_protocol_text(&event_type, 80),
-                "command": command
-                    .as_deref()
-                    .and_then(|value| sanitize_protocol_text_option(Some(value), 512)),
-                "exitCode": exit_code,
-                "timestamp": timestamp,
-                "cursorLine": cursor_line,
-            }),
-        }),
+        } => {
+            if suppress_shell_zones {
+                return None;
+            }
+            Some(CallbackEvent::ShellCommand {
+                payload: serde_json::json!({
+                    "source": "osc133",
+                    "eventType": sanitize_protocol_text(&event_type, 80),
+                    "command": command
+                        .as_deref()
+                        .and_then(|value| sanitize_protocol_text_option(Some(value), 512)),
+                    "exitCode": exit_code,
+                    "timestamp": timestamp,
+                    "cursorLine": cursor_line,
+                }),
+            })
+        }
         ParserTerminalEvent::ZoneOpened {
             zone_id,
             zone_type,
             abs_row_start,
-        } => Some(CallbackEvent::ShellCommand {
-            payload: serde_json::json!({
-                "source": "osc133",
-                "eventType": "zone_opened",
-                "zoneId": zone_id,
-                "zoneType": zone_type.to_string(),
-                "absRowStart": abs_row_start,
-            }),
-        }),
+        } => {
+            if suppress_shell_zones {
+                return None;
+            }
+            Some(CallbackEvent::ShellCommand {
+                payload: serde_json::json!({
+                    "source": "osc133",
+                    "eventType": "zone_opened",
+                    "zoneId": zone_id,
+                    "zoneType": zone_type.to_string(),
+                    "absRowStart": abs_row_start,
+                }),
+            })
+        }
         ParserTerminalEvent::ZoneClosed {
             zone_id,
             zone_type,
             abs_row_start,
             abs_row_end,
             exit_code,
-        } => Some(CallbackEvent::ShellCommand {
-            payload: serde_json::json!({
-                "source": "osc133",
-                "eventType": "zone_closed",
-                "zoneId": zone_id,
-                "zoneType": zone_type.to_string(),
-                "absRowStart": abs_row_start,
-                "absRowEnd": abs_row_end,
-                "exitCode": exit_code,
-            }),
-        }),
+        } => {
+            if suppress_shell_zones {
+                return None;
+            }
+            Some(CallbackEvent::ShellCommand {
+                payload: serde_json::json!({
+                    "source": "osc133",
+                    "eventType": "zone_closed",
+                    "zoneId": zone_id,
+                    "zoneType": zone_type.to_string(),
+                    "absRowStart": abs_row_start,
+                    "absRowEnd": abs_row_end,
+                    "exitCode": exit_code,
+                }),
+            })
+        }
         ParserTerminalEvent::ZoneScrolledOut { zone_id, zone_type } => {
+            if suppress_shell_zones {
+                return None;
+            }
             Some(CallbackEvent::ShellCommand {
                 payload: serde_json::json!({
                     "source": "osc133",
@@ -827,6 +856,35 @@ fn callback_event_from_parser_event(event: ParserTerminalEvent) -> Option<Callba
     }
 }
 
+fn input_sets_alt_screen(input: &[u8]) -> bool {
+    let mut index = 0;
+    while index + 3 < input.len() {
+        if input[index] != 0x1b || input[index + 1] != b'[' || input[index + 2] != b'?' {
+            index += 1;
+            continue;
+        }
+        let params_start = index + 3;
+        let mut cursor = params_start;
+        while cursor < input.len() && (input[cursor].is_ascii_digit() || input[cursor] == b';') {
+            cursor += 1;
+        }
+        if cursor >= input.len() {
+            return false;
+        }
+        if input[cursor] == b'h' {
+            let params = &input[params_start..cursor];
+            if params
+                .split(|byte| *byte == b';')
+                .any(|param| matches!(param, b"47" | b"1047" | b"1049"))
+            {
+                return true;
+            }
+        }
+        index = cursor + 1;
+    }
+    false
+}
+
 fn primary_progress_payload_from_osc9(remainder: &[u8]) -> Option<serde_json::Value> {
     let mut parts = remainder.split(|byte| *byte == b';');
     if parts.next()? != b"4" {
@@ -845,15 +903,26 @@ fn primary_progress_payload_from_osc9(remainder: &[u8]) -> Option<serde_json::Va
         .next()
         .and_then(|part| std::str::from_utf8(part).ok())
         .and_then(|value| value.trim().parse::<u8>().ok())
-        .map(|value| value.min(100))
-        .unwrap_or(0);
-    Some(serde_json::json!({
-        "source": "osc9;4",
-        "named": false,
-        "action": if state == "hidden" { "clear" } else { "set" },
-        "state": state,
-        "percent": percent,
-    }))
+        .map(|value| value.min(100));
+    let mut payload = serde_json::Map::from_iter([
+        (
+            "source".to_string(),
+            serde_json::Value::String("osc9;4".to_string()),
+        ),
+        ("named".to_string(), serde_json::Value::Bool(false)),
+        (
+            "action".to_string(),
+            serde_json::Value::String(if state == "hidden" { "clear" } else { "set" }.to_string()),
+        ),
+        (
+            "state".to_string(),
+            serde_json::Value::String(state.to_string()),
+        ),
+    ]);
+    if let Some(percent) = percent {
+        payload.insert("percent".to_string(), serde_json::json!(percent));
+    }
+    Some(serde_json::Value::Object(payload))
 }
 
 fn shell_context_payload_from_current_dir(data: &str) -> Option<serde_json::Value> {
@@ -983,6 +1052,7 @@ pub struct TerminalSession {
     last_frame_had_graphics: Mutex<bool>,
     deferred_clear_graphics_generation: Mutex<Option<u64>>,
     deferred_kitty_delete_graphics_generation: Mutex<Option<u64>>,
+    deferred_inline_clear_frame: Mutex<Option<DeferredInlineClearFrame>>,
     exited: AtomicBool,
 }
 
@@ -1059,6 +1129,7 @@ impl TerminalSession {
             last_frame_had_graphics: Mutex::new(false),
             deferred_clear_graphics_generation: Mutex::new(None),
             deferred_kitty_delete_graphics_generation: Mutex::new(None),
+            deferred_inline_clear_frame: Mutex::new(None),
             exited: AtomicBool::new(false),
         });
 
@@ -1089,15 +1160,23 @@ impl TerminalSession {
                                 .observe(&buf[..read], reader_session.emulation);
                             let host_protocol_micros = host_started_at.elapsed().as_micros() as u64;
                             let process_started_at = Instant::now();
+                            let was_alt_screen_active = state.terminal.is_alt_screen_active();
+                            let input_enters_alt_screen = input_sets_alt_screen(&buf[..read]);
                             state.terminal.process(&buf[..read]);
                             let parser_events = state.terminal.poll_events();
                             let notifications = state.terminal.take_notifications();
                             if reader_session.emulation == TerminalEmulation::Xterm256 {
-                                callback_events.extend(
-                                    parser_events
-                                        .into_iter()
-                                        .filter_map(callback_event_from_parser_event),
-                                );
+                                let suppress_shell_zones = was_alt_screen_active
+                                    || input_enters_alt_screen
+                                    || state.terminal.is_alt_screen_active();
+                                callback_events.extend(parser_events.into_iter().filter_map(
+                                    |event| {
+                                        callback_event_from_parser_event(
+                                            event,
+                                            suppress_shell_zones,
+                                        )
+                                    },
+                                ));
                                 callback_events.extend(notifications.into_iter().map(
                                     |notification| CallbackEvent::SessionNotification {
                                         title: sanitize_protocol_text(&notification.title, 160),
@@ -1449,9 +1528,7 @@ impl TerminalSession {
     }
 
     pub fn take_frame_diff(&self) -> Result<Option<TerminalFrameDiff>, SessionError> {
-        if !self.dirty.swap(false, Ordering::SeqCst) {
-            return Ok(None);
-        }
+        let mut had_dirty_work = self.dirty.swap(false, Ordering::SeqCst);
 
         let frame_started_at = Instant::now();
 
@@ -1459,6 +1536,20 @@ impl TerminalSession {
         let mut state = self.state.lock();
         let state_lock_wait_micros = state_lock_started_at.elapsed().as_micros() as u64;
         let frame_extract_started_at = Instant::now();
+        if state.terminal.flush_synchronized_updates_if_timed_out() {
+            had_dirty_work = true;
+        }
+        let graphics_animation_changed = if self.graphics_enabled
+            && !state.terminal.synchronized_updates()
+            && !state.terminal.kitty_graphics_transfer_in_progress()
+        {
+            !state.terminal.update_animations().is_empty()
+        } else {
+            false
+        };
+        if !had_dirty_work && !graphics_animation_changed {
+            return Ok(None);
+        }
         let alt_screen_active = state.terminal.is_alt_screen_active();
         let scrollback_max_offset = current_scrollback_max(&state);
         if state.terminal.synchronized_updates()
@@ -1502,6 +1593,13 @@ impl TerminalSession {
             } else {
                 "default".to_string()
             },
+            kitty_keyboard_flags: if self.emulation == TerminalEmulation::Xterm256 {
+                terminal.keyboard_flags()
+            } else {
+                0
+            },
+            synchronized_output: self.emulation == TerminalEmulation::Xterm256
+                && terminal.synchronized_updates(),
         };
 
         let window_title = if self.emulation == TerminalEmulation::Xterm256 {
@@ -1595,6 +1693,7 @@ impl TerminalSession {
                     viewport_rows,
                     scrollback_len,
                     alt_screen_active,
+                    pending_frame_work.snapshot_fallback_reason.as_deref() == Some("clear_screen"),
                 );
                 (
                     placements,
@@ -1616,6 +1715,11 @@ impl TerminalSession {
             return Ok(None);
         }
         if self.should_defer_clear_graphics_frame(&pending_frame_work, graphic_placements_count) {
+            *self.pending_frame_work.lock() = pending_frame_work;
+            self.dirty.store(true, Ordering::SeqCst);
+            return Ok(None);
+        }
+        if self.should_defer_inline_clear_frame(&pending_frame_work, &rows, &last_rows) {
             *self.pending_frame_work.lock() = pending_frame_work;
             self.dirty.store(true, Ordering::SeqCst);
             return Ok(None);
@@ -1647,6 +1751,7 @@ impl TerminalSession {
         if deferred_kitty_delete_count == 0 {
             *self.deferred_kitty_delete_graphics_generation.lock() = None;
         }
+        *self.deferred_inline_clear_frame.lock() = None;
 
         Ok(Some(TerminalFrameDiff {
             frame_schema_version: TERMINAL_FRAME_SCHEMA_VERSION.to_string(),
@@ -1716,6 +1821,56 @@ impl TerminalSession {
             return false;
         }
         *deferred_generation = Some(pending_frame_work.damage_generation);
+        true
+    }
+
+    fn should_defer_inline_clear_frame(
+        &self,
+        pending_frame_work: &PendingFrameWork,
+        rows: &[TerminalRow],
+        previous_rows: &[CachedRowState],
+    ) -> bool {
+        if pending_frame_work.full_repaint
+            || pending_frame_work.snapshot_fallback_reason.is_some()
+            || pending_frame_work.scroll_region.is_some()
+            || rows.len() != 1
+        {
+            return false;
+        }
+
+        let row = &rows[0];
+        if !row.text.trim().is_empty() {
+            return false;
+        }
+        let Some(previous_row) = previous_rows.get(row.index) else {
+            return false;
+        };
+        if previous_row.text.trim().is_empty() {
+            return false;
+        }
+        let Some(cursor_after) = pending_frame_work.cursor_after.as_ref() else {
+            return false;
+        };
+        if cursor_after.row != row.index || cursor_after.col > 1 {
+            return false;
+        }
+
+        let mut deferred_frame = self.deferred_inline_clear_frame.lock();
+        if let Some(deferred) = deferred_frame
+            .as_ref()
+            .filter(|deferred| deferred.damage_generation == pending_frame_work.damage_generation)
+        {
+            if deferred.started_at.elapsed() < INLINE_CLEAR_REPAINT_GRACE {
+                return true;
+            }
+            *deferred_frame = None;
+            return false;
+        }
+
+        *deferred_frame = Some(DeferredInlineClearFrame {
+            damage_generation: pending_frame_work.damage_generation,
+            started_at: Instant::now(),
+        });
         true
     }
 
@@ -2796,6 +2951,7 @@ fn build_graphic_placements(
     viewport_rows: usize,
     scrollback_len: usize,
     alt_screen_active: bool,
+    include_pending_cleared_kitty: bool,
 ) -> Vec<TerminalGraphicPlacement> {
     if viewport_rows == 0 {
         return Vec::new();
@@ -2806,6 +2962,9 @@ fn build_graphic_placements(
     let mut placements = Vec::new();
 
     for graphic in terminal.all_graphics() {
+        if graphic.alternate_screen != alt_screen_active {
+            continue;
+        }
         if let Some(placement) = graphic_placement_for_viewport(
             graphic,
             active_row_base.saturating_add(graphic.position.1),
@@ -2819,17 +2978,22 @@ fn build_graphic_placements(
         }
     }
 
-    for graphic in terminal.pending_cleared_kitty_graphics() {
-        if let Some(placement) = graphic_placement_for_viewport(
-            graphic,
-            active_row_base.saturating_add(graphic.position.1),
-            viewport_start_row,
-            viewport_end_row,
-            viewport_cols,
-            total_viewport_rows,
-            graphic.scroll_offset_rows,
-        ) {
-            placements.push(placement);
+    if include_pending_cleared_kitty {
+        for graphic in terminal.pending_cleared_kitty_graphics() {
+            if graphic.alternate_screen != alt_screen_active {
+                continue;
+            }
+            if let Some(placement) = graphic_placement_for_viewport(
+                graphic,
+                active_row_base.saturating_add(graphic.position.1),
+                viewport_start_row,
+                viewport_end_row,
+                viewport_cols,
+                total_viewport_rows,
+                graphic.scroll_offset_rows,
+            ) {
+                placements.push(placement);
+            }
         }
     }
 
@@ -2852,7 +3016,164 @@ fn build_graphic_placements(
         }
     }
 
+    let theme = terminal_theme_snapshot(terminal);
+    push_kitty_placeholder_graphic_placements(
+        terminal,
+        &theme,
+        viewport_start_row,
+        viewport_rows,
+        viewport_end_row,
+        viewport_cols,
+        total_viewport_rows,
+        alt_screen_active,
+        &mut placements,
+    );
+
     placements
+}
+
+#[allow(clippy::too_many_arguments)]
+fn push_kitty_placeholder_graphic_placements(
+    terminal: &Terminal,
+    theme: &TerminalThemeSnapshot,
+    viewport_start_row: usize,
+    viewport_rows: usize,
+    viewport_end_row: usize,
+    viewport_cols: usize,
+    total_viewport_rows: usize,
+    alt_screen_active: bool,
+    placements: &mut Vec<TerminalGraphicPlacement>,
+) {
+    for viewport_row in 0..viewport_rows {
+        let visible_index = viewport_start_row.saturating_add(viewport_row);
+        let (cells, _) = row_cells_for_visible_index(terminal, visible_index);
+        let mut column_offset = 0usize;
+        let mut previous_placeholder: Option<PlaceholderInfo> = None;
+
+        for cell in cells.unwrap_or_default() {
+            if cell.flags.wide_char_spacer() {
+                continue;
+            }
+
+            let column_start = column_offset;
+            column_offset = column_offset.saturating_add(cell.width());
+            let Some(mut placeholder_info) = placeholder_info_from_cell(cell, theme) else {
+                previous_placeholder = None;
+                continue;
+            };
+
+            if let Some(previous) = previous_placeholder {
+                let expected_col = previous.col.unwrap_or(0).saturating_add(1);
+                if placeholder_info.can_inherit_from(&previous, expected_col) {
+                    placeholder_info.inherit_from(&previous);
+                }
+            }
+            previous_placeholder = Some(placeholder_info);
+
+            let Some(graphic) = terminal
+                .graphics_store()
+                .get_placeholder_graphic(&placeholder_info)
+            else {
+                continue;
+            };
+            if graphic.alternate_screen != alt_screen_active || graphic.pixels.is_empty() {
+                continue;
+            }
+            if let Some(placement) = kitty_placeholder_placement_for_viewport(
+                graphic,
+                placeholder_info,
+                column_start,
+                visible_index,
+                viewport_start_row,
+                viewport_end_row,
+                viewport_cols,
+                total_viewport_rows,
+            ) {
+                placements.push(placement);
+            }
+        }
+    }
+}
+
+fn placeholder_info_from_cell(
+    cell: &Cell,
+    theme: &TerminalThemeSnapshot,
+) -> Option<PlaceholderInfo> {
+    let grapheme = cell.get_grapheme();
+    if !grapheme.starts_with(PLACEHOLDER_CHAR) {
+        return None;
+    }
+
+    let diacritics: String = grapheme.chars().skip(1).collect();
+    let (row, col, msb) = parse_diacritics(&diacritics);
+    Some(
+        PlaceholderInfo::from_color(color_to_u24(cell.fg, theme))
+            .with_placement_id(
+                cell.underline_color
+                    .map_or(0, |color| color_to_u24(color, theme)),
+            )
+            .with_diacritics(row, col, msb),
+    )
+}
+
+fn color_to_u24(color: Color, theme: &TerminalThemeSnapshot) -> u32 {
+    let (red, green, blue) = resolve_color_rgb(color, &theme.ansi_palette);
+    ((red as u32) << 16) | ((green as u32) << 8) | blue as u32
+}
+
+#[allow(clippy::too_many_arguments)]
+fn kitty_placeholder_placement_for_viewport(
+    graphic: &TerminalGraphic,
+    placeholder_info: PlaceholderInfo,
+    placeholder_col: usize,
+    absolute_row: usize,
+    viewport_start_row: usize,
+    viewport_end_row: usize,
+    viewport_cols: usize,
+    total_viewport_rows: usize,
+) -> Option<TerminalGraphicPlacement> {
+    let row = placeholder_info.row? as usize;
+    let col = placeholder_info.col? as usize;
+    let (source_x, source_y, source_width, source_height) = graphic.source_rect_pixels()?;
+    let (span_cols, span_rows) = graphic.display_cell_span.unwrap_or_else(|| {
+        graphic.resolved_cell_span(Some(viewport_cols), Some(total_viewport_rows))
+    });
+    if col >= span_cols || row >= span_rows {
+        return None;
+    }
+
+    let tile_start_x = source_width.saturating_mul(col) / span_cols.max(1);
+    let tile_end_x = source_width.saturating_mul(col.saturating_add(1)) / span_cols.max(1);
+    let tile_start_y = source_height.saturating_mul(row) / span_rows.max(1);
+    let tile_end_y = source_height.saturating_mul(row.saturating_add(1)) / span_rows.max(1);
+    let tile_width = tile_end_x.saturating_sub(tile_start_x).max(1);
+    let tile_height = tile_end_y.saturating_sub(tile_start_y).max(1);
+
+    let mut placeholder_graphic = graphic.clone();
+    placeholder_graphic.position = (placeholder_col, 0);
+    placeholder_graphic.placement.source_x_offset =
+        source_x.saturating_add(tile_start_x).min(u32::MAX as usize) as u32;
+    placeholder_graphic.placement.source_y_offset =
+        source_y.saturating_add(tile_start_y).min(u32::MAX as usize) as u32;
+    placeholder_graphic.placement.source_width = Some(tile_width.min(u32::MAX as usize) as u32);
+    placeholder_graphic.placement.source_height = Some(tile_height.min(u32::MAX as usize) as u32);
+    placeholder_graphic.placement.requested_width = ImageDimension::cells(1.0);
+    placeholder_graphic.placement.requested_height = ImageDimension::cells(1.0);
+    placeholder_graphic.placement.columns = Some(1);
+    placeholder_graphic.placement.rows = Some(1);
+    placeholder_graphic.placement.x_offset = 0;
+    placeholder_graphic.placement.y_offset = 0;
+    placeholder_graphic.set_display_cell_span(1, 1);
+
+    graphic_placement_for_viewport(
+        &placeholder_graphic,
+        absolute_row,
+        viewport_start_row,
+        viewport_end_row,
+        viewport_cols,
+        total_viewport_rows,
+        0,
+    )
 }
 
 fn graphic_placement_for_viewport(
@@ -2864,9 +3185,27 @@ fn graphic_placement_for_viewport(
     total_viewport_rows: usize,
     scrolled_top_rows: usize,
 ) -> Option<TerminalGraphicPlacement> {
-    let (width_px, height_px, width_cells, height_cells) =
-        graphic_display_geometry(graphic, viewport_cols, total_viewport_rows);
-    let (_, cell_height_px) = graphic_cell_dimensions_px(graphic);
+    let geometry = graphic_display_geometry(graphic, viewport_cols, total_viewport_rows)?;
+    let width_px = geometry.width_px;
+    let height_px = geometry.height_px;
+    let width_cells = geometry.width_cells;
+    let height_cells = geometry.height_cells;
+    let (cell_width_px, cell_height_px) = graphic_cell_dimensions_px(graphic);
+    let terminal_width_px = viewport_cols.saturating_mul(cell_width_px);
+    let x_offset_px = graphic.placement.x_offset as usize;
+    let graphic_left_px = graphic
+        .position
+        .0
+        .saturating_mul(cell_width_px)
+        .saturating_add(x_offset_px);
+    if terminal_width_px == 0 || graphic_left_px >= terminal_width_px {
+        return None;
+    }
+    let source_x_offset_px = geometry.source_x_offset_px;
+    let visible_width_px = geometry
+        .visible_width_px
+        .min(terminal_width_px.saturating_sub(graphic_left_px))
+        .max(1);
     let scrolled_top_rows = scrolled_top_rows.min(height_cells);
     let displayed_height_cells = height_cells.saturating_sub(scrolled_top_rows);
     if displayed_height_cells == 0 {
@@ -2881,17 +3220,31 @@ fn graphic_placement_for_viewport(
         .saturating_sub(absolute_start_row)
         .min(displayed_height_cells);
     let hidden_rows = scrolled_top_rows.saturating_add(viewport_hidden_rows);
-    let source_y_offset_px = hidden_rows.saturating_mul(cell_height_px).min(height_px);
     let visible_height_cells = displayed_height_cells
         .saturating_sub(viewport_hidden_rows)
         .min(viewport_end_row.saturating_sub(absolute_start_row.max(viewport_start_row)));
     if visible_height_cells == 0 {
         return None;
     }
-    let visible_height_px = height_px
-        .saturating_sub(source_y_offset_px)
-        .min(visible_height_cells.saturating_mul(cell_height_px))
-        .max(1);
+    let y_offset_px = graphic.placement.y_offset as usize;
+    let hidden_px = hidden_rows.saturating_mul(cell_height_px);
+    let visible_window_top_px = hidden_px;
+    let visible_window_bottom_px =
+        hidden_px.saturating_add(visible_height_cells.saturating_mul(cell_height_px));
+    let image_top_px = y_offset_px;
+    let image_bottom_px = y_offset_px.saturating_add(geometry.visible_height_px);
+    let visible_image_top_px = image_top_px.max(visible_window_top_px);
+    let visible_image_bottom_px = image_bottom_px.min(visible_window_bottom_px);
+    if visible_image_bottom_px <= visible_image_top_px {
+        return None;
+    }
+    let image_hidden_px = visible_image_top_px.saturating_sub(image_top_px);
+    let source_y_offset_px = geometry
+        .source_y_offset_px
+        .saturating_add(image_hidden_px)
+        .min(height_px.saturating_sub(1));
+    let visible_height_px = visible_image_bottom_px.saturating_sub(visible_image_top_px);
+    let effective_y_offset_px = visible_image_top_px.saturating_sub(hidden_px);
     let placement_id = graphic_placement_id(graphic);
     Some(TerminalGraphicPlacement {
         render_id: placement_id,
@@ -2905,13 +3258,26 @@ fn graphic_placement_for_viewport(
         height_px,
         width_cells: width_cells.max(1),
         height_cells: height_cells.max(1),
+        source_x_offset_px,
+        visible_width_px,
         source_y_offset_px,
         visible_height_px,
         z_index: graphic.placement.z_index,
         x_offset_px: graphic.placement.x_offset,
-        y_offset_px: graphic.placement.y_offset,
+        y_offset_px: effective_y_offset_px.min(u32::MAX as usize) as u32,
         preserve_aspect_ratio: graphic.placement.preserve_aspect_ratio,
     })
+}
+
+struct GraphicDisplayGeometry {
+    width_px: usize,
+    height_px: usize,
+    width_cells: usize,
+    height_cells: usize,
+    source_x_offset_px: usize,
+    visible_width_px: usize,
+    source_y_offset_px: usize,
+    visible_height_px: usize,
 }
 
 fn graphic_placement_id(graphic: &TerminalGraphic) -> u64 {
@@ -2919,7 +3285,11 @@ fn graphic_placement_id(graphic: &TerminalGraphic) -> u64 {
 }
 
 fn graphic_asset_id(graphic: &TerminalGraphic) -> u64 {
-    graphic.kitty_image_id.map(u64::from).unwrap_or(graphic.id)
+    graphic
+        .kitty_image_id
+        .or(graphic.animation_id)
+        .map(u64::from)
+        .unwrap_or(graphic.id)
 }
 
 fn graphic_asset_version(graphic: &TerminalGraphic) -> u64 {
@@ -2932,6 +3302,8 @@ fn graphic_asset_snapshots(terminal: &Terminal) -> Vec<GraphicAssetSnapshot> {
         .iter()
         .chain(terminal.pending_cleared_kitty_graphics().iter())
         .chain(terminal.all_scrollback_graphics().iter())
+        .chain(terminal.graphics_store().all_virtual_placements().values())
+        .filter(|graphic| !graphic.pixels.is_empty())
         .map(|graphic| GraphicAssetSnapshot {
             asset_id: graphic_asset_id(graphic),
             asset_version: graphic_asset_version(graphic),
@@ -2999,7 +3371,7 @@ fn graphic_display_geometry(
     graphic: &TerminalGraphic,
     viewport_cols: usize,
     viewport_rows: usize,
-) -> (usize, usize, usize, usize) {
+) -> Option<GraphicDisplayGeometry> {
     let (cell_width_px, cell_height_px) = graphic_cell_dimensions_px(graphic);
     let terminal_width_px = viewport_cols
         .saturating_mul(cell_width_px)
@@ -3007,40 +3379,74 @@ fn graphic_display_geometry(
     let terminal_height_px = viewport_rows
         .saturating_mul(cell_height_px)
         .max(cell_height_px);
+    let (source_x, source_y, source_width, source_height) = graphic.source_rect_pixels()?;
 
     let requested_width = graphic_dimension_px(
         graphic.placement.requested_width,
-        graphic.width,
+        source_width,
         cell_width_px,
         terminal_width_px,
     );
     let requested_height = graphic_dimension_px(
         graphic.placement.requested_height,
-        graphic.height,
+        source_height,
         cell_height_px,
         terminal_height_px,
     );
 
-    let (width_px, height_px) = match (requested_width, requested_height) {
+    let (visible_width_px, visible_height_px) = match (requested_width, requested_height) {
         (Some(width), Some(height)) => (width, height),
-        (Some(width), None) if graphic.placement.preserve_aspect_ratio && graphic.width > 0 => {
-            let height = ((width as f64 * graphic.height as f64) / graphic.width as f64)
+        (Some(width), None) if graphic.placement.preserve_aspect_ratio && source_width > 0 => {
+            let height = ((width as f64 * source_height as f64) / source_width as f64)
                 .round()
                 .max(1.0) as usize;
             (width, height)
         }
-        (None, Some(height)) if graphic.placement.preserve_aspect_ratio && graphic.height > 0 => {
-            let width = ((height as f64 * graphic.width as f64) / graphic.height as f64)
+        (None, Some(height)) if graphic.placement.preserve_aspect_ratio && source_height > 0 => {
+            let width = ((height as f64 * source_width as f64) / source_height as f64)
                 .round()
                 .max(1.0) as usize;
             (width, height)
         }
-        _ => (graphic.width.max(1), graphic.height.max(1)),
+        (Some(width), None) => (width, source_height.max(1)),
+        (None, Some(height)) => (source_width.max(1), height),
+        _ => (source_width.max(1), source_height.max(1)),
     };
 
-    let width_cells = width_px.div_ceil(cell_width_px).max(1);
-    let height_cells = height_px.div_ceil(cell_height_px).max(1);
-    (width_px, height_px, width_cells, height_cells)
+    let scale_x = visible_width_px as f64 / source_width as f64;
+    let scale_y = visible_height_px as f64 / source_height as f64;
+    let width_px = ((graphic.width as f64) * scale_x).round().max(1.0) as usize;
+    let height_px = ((graphic.height as f64) * scale_y).round().max(1.0) as usize;
+    let source_x_offset_px = ((source_x as f64) * scale_x).round() as usize;
+    let source_y_offset_px = ((source_y as f64) * scale_y).round() as usize;
+    let source_x_offset_px = source_x_offset_px.min(width_px.saturating_sub(1));
+    let source_y_offset_px = source_y_offset_px.min(height_px.saturating_sub(1));
+    let visible_width_px = visible_width_px
+        .min(width_px.saturating_sub(source_x_offset_px))
+        .max(1);
+    let visible_height_px = visible_height_px
+        .min(height_px.saturating_sub(source_y_offset_px))
+        .max(1);
+    let x_offset_px = graphic.placement.x_offset as usize;
+    let y_offset_px = graphic.placement.y_offset as usize;
+    let width_cells = x_offset_px
+        .saturating_add(visible_width_px)
+        .div_ceil(cell_width_px)
+        .max(1);
+    let height_cells = y_offset_px
+        .saturating_add(visible_height_px)
+        .div_ceil(cell_height_px)
+        .max(1);
+    Some(GraphicDisplayGeometry {
+        width_px,
+        height_px,
+        width_cells,
+        height_cells,
+        source_x_offset_px,
+        visible_width_px,
+        source_y_offset_px,
+        visible_height_px,
+    })
 }
 
 fn graphic_cell_dimensions_px(graphic: &TerminalGraphic) -> (usize, usize) {
@@ -4001,6 +4407,7 @@ fn mouse_encoding_name(encoding: MouseEncoding) -> &'static str {
         MouseEncoding::Default => "default",
         MouseEncoding::Utf8 => "utf8",
         MouseEncoding::Sgr => "sgr",
+        MouseEncoding::SgrPixels => "sgr_pixels",
         MouseEncoding::Urxvt => "urxvt",
     }
 }
@@ -4465,14 +4872,14 @@ mod tests {
         let mut terminal = Terminal::with_scrollback(80, 24, 16);
         terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,i=49374;/wAA/w==\x1b\\");
 
-        let first = build_graphic_placements(&terminal, 0, 24, 0, false);
+        let first = build_graphic_placements(&terminal, 0, 24, 0, false, false);
         assert_eq!(first.len(), 1);
         assert_eq!(first[0].asset_id, 49374);
 
         terminal.process(b"\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\");
         terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,i=49374;/wAA/w==\x1b\\");
 
-        let second = build_graphic_placements(&terminal, 0, 24, 0, false);
+        let second = build_graphic_placements(&terminal, 0, 24, 0, false, false);
         assert_eq!(second.len(), 1);
         assert_eq!(second[0].render_id, first[0].render_id);
         assert_eq!(second[0].placement_id, first[0].placement_id);
@@ -4482,7 +4889,7 @@ mod tests {
         terminal.process(b"\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\");
         terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,i=49374;AP8A/w==\x1b\\");
 
-        let third = build_graphic_placements(&terminal, 0, 24, 0, false);
+        let third = build_graphic_placements(&terminal, 0, 24, 0, false, false);
         assert_eq!(third.len(), 1);
         assert_eq!(third[0].render_id, first[0].render_id);
         assert_eq!(third[0].asset_id, 49374);
@@ -4494,14 +4901,14 @@ mod tests {
         let mut terminal = Terminal::with_scrollback(80, 24, 16);
         terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,i=49374;/wAA/w==\x1b\\");
 
-        let first = build_graphic_placements(&terminal, 0, 24, 0, false);
+        let first = build_graphic_placements(&terminal, 0, 24, 0, false, false);
         assert_eq!(first.len(), 1);
         assert_eq!(first[0].asset_id, 49374);
 
         terminal.process(b"\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\");
         terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,i=49375;AP8A/w==\x1b\\");
 
-        let second = build_graphic_placements(&terminal, 0, 24, 0, false);
+        let second = build_graphic_placements(&terminal, 0, 24, 0, false, false);
         assert_eq!(second.len(), 1);
         assert_eq!(second[0].placement_id, first[0].placement_id);
         assert_eq!(second[0].render_id, first[0].render_id);
@@ -4514,7 +4921,7 @@ mod tests {
         let mut terminal = Terminal::with_scrollback(80, 24, 16);
         terminal.process(b"\x1b[1;1H\x1b_Ga=T,f=32,s=1,v=1,i=49374;/wAA/w==\x1b\\");
 
-        let first = build_graphic_placements(&terminal, 0, 24, 0, false);
+        let first = build_graphic_placements(&terminal, 0, 24, 0, false, false);
         assert_eq!(first.len(), 1);
         assert_eq!(first[0].row, 0);
         assert_eq!(first[0].col, 0);
@@ -4523,7 +4930,7 @@ mod tests {
         terminal.process(b"\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\");
         terminal.process(b"\x1b[5;5H\x1b_Ga=T,f=32,s=1,v=1,i=49375;AP8A/w==\x1b\\");
 
-        let second = build_graphic_placements(&terminal, 0, 24, 0, false);
+        let second = build_graphic_placements(&terminal, 0, 24, 0, false, false);
         assert_eq!(second.len(), 1);
         assert_eq!(second[0].placement_id, first[0].placement_id);
         assert_eq!(second[0].render_id, first[0].render_id);
@@ -4538,14 +4945,14 @@ mod tests {
         let mut terminal = Terminal::with_scrollback(80, 24, 16);
         terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,i=49374,p=1;/wAA/w==\x1b\\");
 
-        let first = build_graphic_placements(&terminal, 0, 24, 0, false);
+        let first = build_graphic_placements(&terminal, 0, 24, 0, false, false);
         assert_eq!(first.len(), 1);
         assert_eq!(first[0].asset_id, 49374);
 
         terminal.process(b"\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\");
         terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,i=49375,p=2;AP8A/w==\x1b\\");
 
-        let second = build_graphic_placements(&terminal, 0, 24, 0, false);
+        let second = build_graphic_placements(&terminal, 0, 24, 0, false, false);
         assert_eq!(second.len(), 1);
         assert_ne!(second[0].placement_id, first[0].placement_id);
         assert_ne!(second[0].render_id, first[0].render_id);
@@ -4557,7 +4964,7 @@ mod tests {
         let mut terminal = Terminal::with_scrollback(80, 24, 16);
         terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,i=49374;/wAA/w==\x1b\\");
 
-        let placements = build_graphic_placements(&terminal, 0, 24, 0, false);
+        let placements = build_graphic_placements(&terminal, 0, 24, 0, false, false);
 
         assert_eq!(placements.len(), 1);
         assert_eq!(placements[0].render_id, placements[0].placement_id);
@@ -4575,10 +4982,62 @@ mod tests {
         terminal.process(b"\x1b[2;1H\x1b_Ga=T,f=32,s=1,v=1,i=49374;/wAA/w==\x1b\\");
 
         let placements =
-            build_graphic_placements(&terminal, scrollback_len, 3, scrollback_len, false);
+            build_graphic_placements(&terminal, scrollback_len, 3, scrollback_len, false, false);
 
         assert_eq!(placements.len(), 1);
         assert_eq!(placements[0].row, 1);
+    }
+
+    #[test]
+    fn graphic_placements_are_scoped_to_alternate_screen_lifecycle() {
+        let mut terminal = Terminal::with_scrollback(80, 24, 16);
+        terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,i=49374;/wAA/w==\x1b\\");
+
+        let primary = build_graphic_placements(&terminal, 0, 24, 0, false, false);
+        assert_eq!(primary.len(), 1);
+        assert_eq!(primary[0].asset_id, 49374);
+
+        terminal.process(b"\x1b[?1049h");
+        assert!(terminal.is_alt_screen_active());
+        assert!(
+            build_graphic_placements(&terminal, 0, 24, 0, true, false).is_empty(),
+            "primary graphics must not leak into the alternate screen"
+        );
+
+        terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,i=49375;AP8A/w==\x1b\\");
+        let alt = build_graphic_placements(&terminal, 0, 24, 0, true, false);
+        assert_eq!(alt.len(), 1);
+        assert_eq!(alt[0].asset_id, 49375);
+
+        terminal.process(b"\x1b[?1049l");
+        assert!(!terminal.is_alt_screen_active());
+        let restored = build_graphic_placements(&terminal, 0, 24, 0, false, false);
+        assert_eq!(restored.len(), 1);
+        assert_eq!(restored[0].asset_id, 49374);
+        assert!(
+            terminal
+                .all_graphics()
+                .iter()
+                .all(|graphic| graphic.kitty_image_id != Some(49375)),
+            "alternate-screen graphics should be discarded on exit"
+        );
+    }
+
+    #[test]
+    fn alternate_screen_clear_does_not_clear_primary_graphics() {
+        let mut terminal = Terminal::with_scrollback(80, 24, 16);
+        terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,i=49374;/wAA/w==\x1b\\");
+        terminal.process(b"\x1b[?1049h");
+        terminal.process(b"\x1b[2J");
+        assert!(
+            build_graphic_placements(&terminal, 0, 24, 0, true, false).is_empty(),
+            "alternate-screen clear should leave the alternate screen empty"
+        );
+
+        terminal.process(b"\x1b[?1049l");
+        let restored = build_graphic_placements(&terminal, 0, 24, 0, false, false);
+        assert_eq!(restored.len(), 1);
+        assert_eq!(restored[0].asset_id, 49374);
     }
 
     #[test]
@@ -4587,7 +5046,7 @@ mod tests {
         apply_terminal_pixel_metrics(&mut terminal, 80, 24, 800, 480, 0, 0);
 
         terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,c=9,r=5,i=49374;/wAA/w==\x1b\\");
-        let placements = build_graphic_placements(&terminal, 0, 24, 0, false);
+        let placements = build_graphic_placements(&terminal, 0, 24, 0, false, false);
 
         assert_eq!(placements.len(), 1);
         assert_eq!(placements[0].width_px, 90);
@@ -4602,7 +5061,7 @@ mod tests {
         apply_terminal_pixel_metrics(&mut terminal, 80, 24, 815, 487, 9, 18);
 
         terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,c=9,r=5,i=49374;/wAA/w==\x1b\\");
-        let placements = build_graphic_placements(&terminal, 0, 24, 0, false);
+        let placements = build_graphic_placements(&terminal, 0, 24, 0, false, false);
 
         assert_eq!(placements.len(), 1);
         assert_eq!(placements[0].width_px, 81);
@@ -4612,13 +5071,34 @@ mod tests {
     }
 
     #[test]
+    fn resolved_graphic_cell_span_includes_kitty_cell_offsets() {
+        let mut graphic = TerminalGraphic::new(
+            1,
+            par_term_emu_core_rust::graphics::GraphicProtocol::Kitty,
+            (0, 0),
+            10,
+            10,
+            vec![255u8; 10 * 10 * 4],
+        );
+        graphic.set_cell_dimensions(10, 20);
+        graphic.placement.x_offset = 5;
+        graphic.placement.y_offset = 15;
+
+        assert_eq!(graphic.resolved_cell_span(Some(80), Some(24)), (2, 2));
+
+        graphic.placement.requested_width = ImageDimension::cells(3.0);
+        graphic.placement.requested_height = ImageDimension::cells(2.0);
+        assert_eq!(graphic.resolved_cell_span(Some(80), Some(24)), (4, 3));
+    }
+
+    #[test]
     fn resize_updates_existing_graphic_cell_geometry() {
         let mut terminal = Terminal::with_scrollback(80, 24, 16);
         apply_terminal_pixel_metrics(&mut terminal, 80, 24, 800, 480, 10, 20);
         terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,c=9,r=5,i=49374;/wAA/w==\x1b\\");
 
         apply_terminal_pixel_metrics(&mut terminal, 80, 24, 815, 487, 9, 18);
-        let placements = build_graphic_placements(&terminal, 0, 24, 0, false);
+        let placements = build_graphic_placements(&terminal, 0, 24, 0, false, false);
 
         assert_eq!(placements.len(), 1);
         assert_eq!(placements[0].width_px, 81);
@@ -4626,6 +5106,154 @@ mod tests {
         assert_eq!(placements[0].width_cells, 9);
         assert_eq!(placements[0].height_cells, 5);
         assert_eq!(terminal.all_graphics()[0].display_cell_span, Some((9, 5)));
+    }
+
+    #[test]
+    fn graphic_placement_crops_right_edge_to_viewport_width() {
+        let mut graphic = TerminalGraphic::new(
+            1,
+            par_term_emu_core_rust::graphics::GraphicProtocol::Kitty,
+            (75, 0),
+            1,
+            1,
+            vec![255u8; 4],
+        );
+        graphic.set_cell_dimensions(10, 20);
+        graphic.placement.requested_width = ImageDimension::cells(9.0);
+        graphic.placement.requested_height = ImageDimension::cells(5.0);
+        graphic.set_display_cell_span(9, 5);
+
+        let placement = graphic_placement_for_viewport(&graphic, 0, 0, 24, 80, 24, 0)
+            .expect("right-clipped graphic should remain visible");
+
+        assert_eq!(placement.col, 75);
+        assert_eq!(placement.width_px, 90);
+        assert_eq!(placement.source_x_offset_px, 0);
+        assert_eq!(placement.visible_width_px, 50);
+        assert_eq!(placement.visible_height_px, 100);
+    }
+
+    #[test]
+    fn graphic_placement_applies_kitty_source_rectangle_before_viewport_crop() {
+        let mut graphic = TerminalGraphic::new(
+            1,
+            par_term_emu_core_rust::graphics::GraphicProtocol::Kitty,
+            (75, 0),
+            100,
+            50,
+            vec![255u8; 100 * 50 * 4],
+        );
+        graphic.set_cell_dimensions(10, 10);
+        graphic.placement.source_x_offset = 20;
+        graphic.placement.source_y_offset = 10;
+        graphic.placement.source_width = Some(40);
+        graphic.placement.source_height = Some(20);
+        graphic.placement.requested_width = ImageDimension::cells(8.0);
+        graphic.placement.requested_height = ImageDimension::cells(4.0);
+        graphic.set_display_cell_span(8, 4);
+
+        let placement = graphic_placement_for_viewport(&graphic, 0, 0, 24, 80, 24, 0)
+            .expect("source-cropped graphic should remain visible");
+
+        assert_eq!(placement.col, 75);
+        assert_eq!(placement.width_px, 200);
+        assert_eq!(placement.height_px, 100);
+        assert_eq!(placement.width_cells, 8);
+        assert_eq!(placement.height_cells, 4);
+        assert_eq!(placement.source_x_offset_px, 40);
+        assert_eq!(placement.visible_width_px, 50);
+        assert_eq!(placement.source_y_offset_px, 20);
+        assert_eq!(placement.visible_height_px, 40);
+    }
+
+    #[test]
+    fn graphic_placement_cell_span_includes_kitty_cell_offsets() {
+        let mut graphic = TerminalGraphic::new(
+            1,
+            par_term_emu_core_rust::graphics::GraphicProtocol::Kitty,
+            (0, 0),
+            10,
+            10,
+            vec![255u8; 10 * 10 * 4],
+        );
+        graphic.set_cell_dimensions(10, 20);
+        graphic.placement.x_offset = 5;
+        graphic.placement.y_offset = 15;
+
+        let placement = graphic_placement_for_viewport(&graphic, 0, 0, 24, 80, 24, 0)
+            .expect("offset graphic should remain visible");
+
+        assert_eq!(placement.width_px, 10);
+        assert_eq!(placement.height_px, 10);
+        assert_eq!(placement.width_cells, 2);
+        assert_eq!(placement.height_cells, 2);
+        assert_eq!(placement.visible_width_px, 10);
+        assert_eq!(placement.visible_height_px, 10);
+        assert_eq!(placement.x_offset_px, 5);
+        assert_eq!(placement.y_offset_px, 15);
+    }
+
+    #[test]
+    fn graphic_placement_keeps_kitty_offset_tail_visible_at_viewport_top() {
+        let mut graphic = TerminalGraphic::new(
+            1,
+            par_term_emu_core_rust::graphics::GraphicProtocol::Kitty,
+            (0, 0),
+            10,
+            10,
+            vec![255u8; 10 * 10 * 4],
+        );
+        graphic.set_cell_dimensions(10, 20);
+        graphic.placement.y_offset = 15;
+
+        let placement = graphic_placement_for_viewport(&graphic, 0, 1, 3, 80, 24, 0)
+            .expect("offset image tail should remain visible in the next viewport row");
+
+        assert_eq!(placement.row, 0);
+        assert_eq!(placement.height_cells, 2);
+        assert_eq!(placement.source_y_offset_px, 5);
+        assert_eq!(placement.visible_height_px, 5);
+        assert_eq!(placement.y_offset_px, 0);
+    }
+
+    #[test]
+    fn graphic_placement_drops_kitty_offset_gap_before_image() {
+        let mut graphic = TerminalGraphic::new(
+            1,
+            par_term_emu_core_rust::graphics::GraphicProtocol::Kitty,
+            (0, 0),
+            10,
+            5,
+            vec![255u8; 10 * 5 * 4],
+        );
+        graphic.set_cell_dimensions(10, 20);
+        graphic.placement.y_offset = 30;
+
+        assert!(
+            graphic_placement_for_viewport(&graphic, 0, 0, 1, 80, 24, 0).is_none(),
+            "a viewport row that only intersects the offset gap should not emit a placement"
+        );
+    }
+
+    #[test]
+    fn graphic_placement_drops_graphics_starting_past_right_edge() {
+        let mut graphic = TerminalGraphic::new(
+            1,
+            par_term_emu_core_rust::graphics::GraphicProtocol::Kitty,
+            (80, 0),
+            1,
+            1,
+            vec![255u8; 4],
+        );
+        graphic.set_cell_dimensions(10, 20);
+        graphic.placement.requested_width = ImageDimension::cells(9.0);
+        graphic.placement.requested_height = ImageDimension::cells(5.0);
+        graphic.set_display_cell_span(9, 5);
+
+        assert!(
+            graphic_placement_for_viewport(&graphic, 0, 0, 24, 80, 24, 0).is_none(),
+            "graphics starting beyond the right edge should not produce placements"
+        );
     }
 
     #[test]
@@ -4678,6 +5306,30 @@ mod tests {
     }
 
     #[test]
+    fn graphic_placement_crops_bottom_edge_to_viewport_height() {
+        let mut graphic = TerminalGraphic::new(
+            1,
+            par_term_emu_core_rust::graphics::GraphicProtocol::Kitty,
+            (0, 4),
+            1,
+            1,
+            vec![255u8; 4],
+        );
+        graphic.set_cell_dimensions(10, 20);
+        graphic.placement.requested_width = ImageDimension::cells(9.0);
+        graphic.placement.requested_height = ImageDimension::cells(5.0);
+        graphic.set_display_cell_span(9, 5);
+
+        let placement = graphic_placement_for_viewport(&graphic, 4, 0, 6, 80, 6, 0)
+            .expect("graphic bottom rows should remain visible inside a short viewport");
+
+        assert_eq!(placement.row, 4);
+        assert_eq!(placement.source_y_offset_px, 0);
+        assert_eq!(placement.height_px, 100);
+        assert_eq!(placement.visible_height_px, 40);
+    }
+
+    #[test]
     fn cached_graphic_assets_survive_kitty_placement_retransmit() {
         let mut state = TerminalState {
             terminal: Terminal::with_scrollback(80, 24, 16),
@@ -4693,7 +5345,7 @@ mod tests {
             .terminal
             .process(b"\x1b_Ga=T,f=32,s=1,v=1,i=49374;/wAA/w==\x1b\\");
 
-        let first = build_graphic_placements(&state.terminal, 0, 24, 0, false);
+        let first = build_graphic_placements(&state.terminal, 0, 24, 0, false, false);
         assert_eq!(first.len(), 1);
         let snapshots = graphic_asset_snapshots(&state.terminal);
         cache_graphic_asset_snapshots(&mut state, snapshots);
@@ -4703,7 +5355,7 @@ mod tests {
             .terminal
             .process(b"\x1b_Ga=T,f=32,s=1,v=1,i=49374;AP8A/w==\x1b\\");
 
-        let second = build_graphic_placements(&state.terminal, 0, 24, 0, false);
+        let second = build_graphic_placements(&state.terminal, 0, 24, 0, false, false);
         assert_eq!(second.len(), 1);
         assert_ne!(second[0].asset_version, first[0].asset_version);
         let old_asset =

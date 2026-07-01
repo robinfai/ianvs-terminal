@@ -8,7 +8,7 @@
 - 当前只支持 local shell
 - 还没有 SSH 会话链路
 - scrollback 搜索目前只支持本地纯文本搜索
-- 还没有 sync
+- 已支持 xterm synchronized output mode；剩余风险主要是性能回归自动化和更宽宿主环境验证
 - 还没有插件系统
 - 当前没有 native renderer
 - 当前没有 `wgpu` renderer
@@ -37,7 +37,7 @@
 
 ## 当前已接受的延期风险
 
-- `2026-04-23` 决定先不处理宽字符和组合字符的真实终端列宽。当前 `TerminalTextCells.fromText(...)` 仍按 rune 计列，所以像 `你`、部分 emoji、组合字符这类内容，仍可能把 style run、cursor、selection、导出的列坐标带偏。当前这轮只保证非 BMP 单字符不会再被 UTF-16 下标切坏，没有把真实终端列宽问题一起收掉。
+- Unicode 真实终端列宽已不再按 rune 计列：Rust parser 和 Flutter `TerminalTextCells` 已覆盖 CJK、combining marks、emoji presentation/ZWJ/tag/keycap/flag cluster、Powerline 与 Nerd Font private-use glyph 的列宽和 continuation cell。剩余风险主要是宿主机器缺少对应字体时的视觉 fallback box，需要在字体/profile 变更时做视觉 smoke。
 - `2026-04-23` 决定先不把 `ps1 diag export` 接到真实 live shell prompt。当前导出链默认仍基于 repo 内固定 fixture，所以 `ps1-current.png`、`shell-surface-current.png` 适合做稳定回归和几何排查，不等于真实用户会话截图。拿它和 Kaku 对比时，要把这个限制算进结论里。
 
 ## 使用建议

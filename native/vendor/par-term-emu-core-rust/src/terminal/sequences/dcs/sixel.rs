@@ -1,14 +1,28 @@
 //! Sixel graphics DCS sequence handling
 
+use super::parse_sixel_repeat_count;
 use crate::sixel;
 use crate::terminal::Terminal;
 use vte::Params;
 
-/// Maximum allowed sixel raster dimension (width or height) in pixels
-const MAX_SIXEL_DIMENSION: usize = 16384;
-
 /// Maximum number of sixel color registers
 const MAX_SIXEL_COLORS: usize = 4096;
+
+fn parse_sixel_u16_param(value: &str) -> Option<u16> {
+    if value.is_empty() {
+        Some(0)
+    } else {
+        value.parse::<u16>().ok()
+    }
+}
+
+fn parse_sixel_usize_param(value: &str) -> Option<usize> {
+    if value.is_empty() {
+        Some(0)
+    } else {
+        value.parse::<usize>().ok()
+    }
+}
 
 impl Terminal {
     /// Process accumulated Sixel command from DCS buffer
@@ -28,19 +42,23 @@ impl Terminal {
             '#' => {
                 // Color command: #Pc or #Pc;Pu;Px;Py;Pz
                 let params: Vec<&str> = buffer_str[1..].split(';').collect();
-                if let Ok(color_idx) = params[0].parse::<usize>() {
+                if let Some(color_idx) = params
+                    .first()
+                    .and_then(|value| parse_sixel_usize_param(value))
+                {
                     if color_idx >= MAX_SIXEL_COLORS {
                         // Reject out-of-range color indices
                     } else if params.len() == 1 {
                         // Select color
                         parser.select_color(color_idx);
-                    } else if params.len() == 5 {
+                    } else if params.len() >= 5 {
                         // Define color
-                        if let (Ok(color_system), Ok(x), Ok(y), Ok(z)) = (
-                            params[1].parse::<u8>(),
-                            params[2].parse::<u16>(),
-                            params[3].parse::<u16>(),
-                            params[4].parse::<u16>(),
+                        if let (Some(color_system), Some(x), Some(y), Some(z)) = (
+                            parse_sixel_u16_param(params[1])
+                                .and_then(|value| value.try_into().ok()),
+                            parse_sixel_u16_param(params[2]),
+                            parse_sixel_u16_param(params[3]),
+                            parse_sixel_u16_param(params[4]),
                         ) {
                             parser.define_color(color_idx, color_system, x, y, z);
                         }
@@ -51,15 +69,13 @@ impl Terminal {
                 // Raster attributes: "Pan;Pad;Ph;Pv
                 let params: Vec<&str> = buffer_str[1..].split(';').collect();
                 if params.len() >= 4 {
-                    if let (Ok(pan), Ok(pad), Ok(width), Ok(height)) = (
-                        params[0].parse::<u16>(),
-                        params[1].parse::<u16>(),
-                        params[2].parse::<usize>(),
-                        params[3].parse::<usize>(),
+                    if let (Some(pan), Some(pad), Some(width), Some(height)) = (
+                        parse_sixel_u16_param(params[0]),
+                        parse_sixel_u16_param(params[1]),
+                        parse_sixel_usize_param(params[2]),
+                        parse_sixel_usize_param(params[3]),
                     ) {
-                        if width <= MAX_SIXEL_DIMENSION && height <= MAX_SIXEL_DIMENSION {
-                            parser.set_raster_attributes(pan, pad, width, height);
-                        }
+                        parser.set_raster_attributes(pan, pad, width, height);
                     }
                 }
             }
@@ -68,9 +84,8 @@ impl Terminal {
                 if buffer_str.len() >= 2 {
                     let count_str = &buffer_str[1..buffer_str.len() - 1];
                     let repeat_char = buffer_str.chars().last().unwrap_or('?');
-                    if let Ok(count) = count_str.parse::<usize>() {
-                        parser.parse_repeat(count, repeat_char);
-                    }
+                    let count = parse_sixel_repeat_count(count_str);
+                    parser.parse_repeat(count, repeat_char);
                 }
             }
             _ => {}
@@ -85,7 +100,7 @@ impl Terminal {
         // Convert Params to Vec<u16> for set_params
         let params_vec: Vec<u16> = params
             .iter()
-            .flat_map(|subparams| subparams.iter().copied())
+            .map(|subparams| subparams.first().copied().unwrap_or(0))
             .collect();
 
         parser.set_params(&params_vec);

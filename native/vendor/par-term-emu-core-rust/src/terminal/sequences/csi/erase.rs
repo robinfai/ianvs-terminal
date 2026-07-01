@@ -24,16 +24,19 @@ impl Terminal {
                 let cursor_row = self.cursor.row;
                 let erase_bg = self.bg;
                 match n {
-                    0 => self
-                        .active_grid_mut()
-                        .clear_screen_below_with_bg(cursor_col, cursor_row, erase_bg),
-                    1 => self
-                        .active_grid_mut()
-                        .clear_screen_above_with_bg(cursor_col, cursor_row, erase_bg),
+                    0 => {
+                        self.active_grid_mut()
+                            .clear_screen_below_with_bg(cursor_col, cursor_row, erase_bg);
+                        self.delete_graphics_below_cursor(cursor_col, cursor_row);
+                    }
+                    1 => {
+                        self.active_grid_mut()
+                            .clear_screen_above_with_bg(cursor_col, cursor_row, erase_bg);
+                        self.delete_graphics_above_cursor(cursor_col, cursor_row);
+                    }
                     2 => {
                         self.active_grid_mut().clear();
-                        self.graphics_store.clear();
-                        self.graphics_store.clear_scrollback_graphics();
+                        self.clear_graphics();
                         self.terminal_events
                             .push(crate::terminal::TerminalEvent::ScreenCleared {
                                 include_scrollback: false,
@@ -45,10 +48,10 @@ impl Terminal {
                         );
                     }
                     3 => {
-                        self.active_grid_mut().clear();
                         self.active_grid_mut().clear_scrollback();
-                        self.graphics_store.clear();
-                        self.graphics_store.clear_scrollback_graphics();
+                        if !self.alt_screen_active {
+                            self.graphics_store.clear_scrollback_graphics();
+                        }
                         self.terminal_events
                             .push(crate::terminal::TerminalEvent::ScreenCleared {
                                 include_scrollback: true,
@@ -56,7 +59,7 @@ impl Terminal {
                         debug::log(
                             debug::DebugLevel::Debug,
                             "CLEAR",
-                            "Cleared screen, scrollback, and graphics (ED 3)",
+                            "Cleared scrollback and scrollback graphics (ED 3)",
                         );
                     }
                     _ => {}
@@ -74,15 +77,36 @@ impl Terminal {
                 let cursor_row = self.cursor.row;
                 let erase_bg = self.bg;
                 match n {
-                    0 => self
-                        .active_grid_mut()
-                        .clear_line_right_with_bg(cursor_col, cursor_row, erase_bg),
-                    1 => self
-                        .active_grid_mut()
-                        .clear_line_left_with_bg(cursor_col, cursor_row, erase_bg),
-                    2 => self
-                        .active_grid_mut()
-                        .clear_row_with_bg(cursor_row, erase_bg),
+                    0 => {
+                        self.active_grid_mut()
+                            .clear_line_right_with_bg(cursor_col, cursor_row, erase_bg);
+                        self.delete_graphics_in_rect(
+                            cursor_col,
+                            cursor_row,
+                            self.active_grid().cols(),
+                            cursor_row.saturating_add(1),
+                        );
+                    }
+                    1 => {
+                        self.active_grid_mut()
+                            .clear_line_left_with_bg(cursor_col, cursor_row, erase_bg);
+                        self.delete_graphics_in_rect(
+                            0,
+                            cursor_row,
+                            cursor_col.saturating_add(1),
+                            cursor_row.saturating_add(1),
+                        );
+                    }
+                    2 => {
+                        self.active_grid_mut()
+                            .clear_row_with_bg(cursor_row, erase_bg);
+                        self.delete_graphics_in_rect(
+                            0,
+                            cursor_row,
+                            self.active_grid().cols(),
+                            cursor_row.saturating_add(1),
+                        );
+                    }
                     _ => {}
                 }
             }
@@ -100,9 +124,56 @@ impl Terminal {
                 let erase_bg = self.bg;
                 self.active_grid_mut()
                     .erase_characters_with_bg(cursor_col, cursor_row, n, erase_bg);
+                self.delete_graphics_in_rect(
+                    cursor_col,
+                    cursor_row,
+                    cursor_col.saturating_add(n),
+                    cursor_row.saturating_add(1),
+                );
             }
             _ => {}
         }
+    }
+
+    fn delete_graphics_below_cursor(&mut self, cursor_col: usize, cursor_row: usize) {
+        let cols = self.active_grid().cols();
+        let rows = self.active_grid().rows();
+        self.delete_graphics_in_rect(cursor_col, cursor_row, cols, cursor_row.saturating_add(1));
+        self.delete_graphics_in_rect(0, cursor_row.saturating_add(1), cols, rows);
+    }
+
+    fn delete_graphics_above_cursor(&mut self, cursor_col: usize, cursor_row: usize) {
+        let cols = self.active_grid().cols();
+        self.delete_graphics_in_rect(0, 0, cols, cursor_row);
+        self.delete_graphics_in_rect(
+            0,
+            cursor_row,
+            cursor_col.saturating_add(1),
+            cursor_row.saturating_add(1),
+        );
+    }
+
+    pub(crate) fn delete_graphics_in_rect(
+        &mut self,
+        start_col: usize,
+        start_row: usize,
+        end_col: usize,
+        end_row: usize,
+    ) {
+        let cols = self.active_grid().cols();
+        let rows = self.active_grid().rows();
+        let start_col = start_col.min(cols);
+        let start_row = start_row.min(rows);
+        let end_col = end_col.min(cols);
+        let end_row = end_row.min(rows);
+        self.graphics_store
+            .delete_graphics_intersecting_rect_for_screen(
+                start_col,
+                start_row,
+                end_col,
+                end_row,
+                self.alt_screen_active,
+            );
     }
 
     /// DECSCA - Select Character Protection Attribute
@@ -183,10 +254,13 @@ impl Terminal {
         }
         // Second pass: erase the collected cells
         let blank_cell = self.active_grid().blank_cell();
-        for (col, row) in to_erase {
+        for &(col, row) in &to_erase {
             if let Some(cells) = self.active_grid_mut().row_mut(row) {
                 cells[col] = blank_cell.clone();
             }
+        }
+        for &(col, row) in &to_erase {
+            self.delete_graphics_in_rect(col, row, col.saturating_add(1), row.saturating_add(1));
         }
 
         debug::log(

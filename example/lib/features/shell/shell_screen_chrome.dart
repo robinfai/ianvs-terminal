@@ -14,10 +14,16 @@ class _ShellChromeBar extends StatelessWidget {
     required this.activeSessionId,
     required this.activeTabTitle,
     required this.tabHasNewOutput,
+    required this.tabNewOutputTooltip,
+    required this.hiddenTabsNewOutputTooltip,
+    required this.hiddenTabsNewOutputPaneSessionId,
+    required this.tabNewOutputPaneSessionId,
     required this.tabColor,
     required this.referenceDemoMode,
     required this.onNewTab,
     required this.onActivateSession,
+    required this.onActivateBadgePane,
+    required this.onActivateNewOutputPane,
     required this.onCloseSession,
     required this.onReorderTab,
     required this.onShowTabContextMenu,
@@ -30,10 +36,17 @@ class _ShellChromeBar extends StatelessWidget {
   final String? activeSessionId;
   final String activeTabTitle;
   final bool Function(TerminalTab tab) tabHasNewOutput;
+  final String Function(TerminalTab tab) tabNewOutputTooltip;
+  final String Function(Iterable<TerminalTab> tabs) hiddenTabsNewOutputTooltip;
+  final String? Function(Iterable<TerminalTab> tabs)
+  hiddenTabsNewOutputPaneSessionId;
+  final String? Function(TerminalTab tab) tabNewOutputPaneSessionId;
   final Color? Function(TerminalTab tab) tabColor;
   final bool referenceDemoMode;
   final VoidCallback? onNewTab;
   final ValueChanged<String> onActivateSession;
+  final ValueChanged<String> onActivateBadgePane;
+  final ValueChanged<String> onActivateNewOutputPane;
   final ValueChanged<String> onCloseSession;
   final void Function({required int oldIndex, required int newIndex})
   onReorderTab;
@@ -116,9 +129,18 @@ class _ShellChromeBar extends StatelessWidget {
                               tabs: tabs,
                               activeSessionId: activeSessionId,
                               tabHasNewOutput: tabHasNewOutput,
+                              tabNewOutputTooltip: tabNewOutputTooltip,
+                              hiddenTabsNewOutputTooltip:
+                                  hiddenTabsNewOutputTooltip,
+                              hiddenTabsNewOutputPaneSessionId:
+                                  hiddenTabsNewOutputPaneSessionId,
+                              tabNewOutputPaneSessionId:
+                                  tabNewOutputPaneSessionId,
                               tabColor: tabColor,
                               onNewTab: onNewTab,
                               onActivateSession: onActivateSession,
+                              onActivateBadgePane: onActivateBadgePane,
+                              onActivateNewOutputPane: onActivateNewOutputPane,
                               onCloseSession: onCloseSession,
                               onReorderTab: onReorderTab,
                               onShowTabContextMenu: onShowTabContextMenu,
@@ -484,9 +506,15 @@ class _ShellTabStrip extends StatefulWidget {
     required this.tabs,
     required this.activeSessionId,
     required this.tabHasNewOutput,
+    required this.tabNewOutputTooltip,
+    required this.hiddenTabsNewOutputTooltip,
+    required this.hiddenTabsNewOutputPaneSessionId,
+    required this.tabNewOutputPaneSessionId,
     required this.tabColor,
     required this.onNewTab,
     required this.onActivateSession,
+    required this.onActivateBadgePane,
+    required this.onActivateNewOutputPane,
     required this.onCloseSession,
     required this.onReorderTab,
     required this.onShowTabContextMenu,
@@ -497,9 +525,16 @@ class _ShellTabStrip extends StatefulWidget {
   final List<TerminalTab> tabs;
   final String? activeSessionId;
   final bool Function(TerminalTab tab) tabHasNewOutput;
+  final String Function(TerminalTab tab) tabNewOutputTooltip;
+  final String Function(Iterable<TerminalTab> tabs) hiddenTabsNewOutputTooltip;
+  final String? Function(Iterable<TerminalTab> tabs)
+  hiddenTabsNewOutputPaneSessionId;
+  final String? Function(TerminalTab tab) tabNewOutputPaneSessionId;
   final Color? Function(TerminalTab tab) tabColor;
   final VoidCallback? onNewTab;
   final ValueChanged<String> onActivateSession;
+  final ValueChanged<String> onActivateBadgePane;
+  final ValueChanged<String> onActivateNewOutputPane;
   final ValueChanged<String> onCloseSession;
   final void Function({required int oldIndex, required int newIndex})
   onReorderTab;
@@ -653,6 +688,11 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
                                   shortcutIndex: shortcutIndex,
                                   isActive: isActive,
                                   hasNewOutput: widget.tabHasNewOutput(tab),
+                                  newOutputTooltip: widget.tabNewOutputTooltip(
+                                    tab,
+                                  ),
+                                  newOutputPaneSessionId: widget
+                                      .tabNewOutputPaneSessionId(tab),
                                   tabColor: widget.tabColor(tab),
                                   compact: compactTabs,
                                   chromeBackgroundColor: chromeBackground,
@@ -670,6 +710,10 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
                                   onActivate: () => widget.onActivateSession(
                                     tab.activeSessionId,
                                   ),
+                                  onActivateBadgePane: (sessionId) =>
+                                      widget.onActivateBadgePane(sessionId),
+                                  onActivateNewOutputPane: (sessionId) =>
+                                      widget.onActivateNewOutputPane(sessionId),
                                   onClose: () =>
                                       widget.onCloseSession(tab.sessionId),
                                   onShowContextMenu: (position) => widget
@@ -689,9 +733,17 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
                     tabs: hiddenTabs,
                     activeSessionId: widget.activeSessionId,
                     tabHasNewOutput: widget.tabHasNewOutput,
+                    tabNewOutputTooltip: widget.tabNewOutputTooltip,
+                    hiddenTabsNewOutputTooltip:
+                        widget.hiddenTabsNewOutputTooltip,
+                    hiddenTabsNewOutputPaneSessionId:
+                        widget.hiddenTabsNewOutputPaneSessionId,
+                    tabNewOutputPaneSessionId: widget.tabNewOutputPaneSessionId,
                     tabBackgroundColor: (_) => chromeBackground,
                     tabColor: widget.tabColor,
                     onActivateSession: widget.onActivateSession,
+                    onActivateBadgePane: widget.onActivateBadgePane,
+                    onActivateNewOutputPane: widget.onActivateNewOutputPane,
                     width: actionButtonWidth,
                   ),
                 if (!hasOverflow && actionButtonWidth > 0)
@@ -884,9 +936,15 @@ class _ShellTabOverflowMenu extends StatefulWidget {
     required this.tabs,
     required this.activeSessionId,
     required this.tabHasNewOutput,
+    required this.tabNewOutputTooltip,
+    required this.hiddenTabsNewOutputTooltip,
+    required this.hiddenTabsNewOutputPaneSessionId,
+    required this.tabNewOutputPaneSessionId,
     required this.tabBackgroundColor,
     required this.tabColor,
     required this.onActivateSession,
+    required this.onActivateBadgePane,
+    required this.onActivateNewOutputPane,
     required this.width,
   });
 
@@ -895,9 +953,16 @@ class _ShellTabOverflowMenu extends StatefulWidget {
   final List<TerminalTab> tabs;
   final String? activeSessionId;
   final bool Function(TerminalTab tab) tabHasNewOutput;
+  final String Function(TerminalTab tab) tabNewOutputTooltip;
+  final String Function(Iterable<TerminalTab> tabs) hiddenTabsNewOutputTooltip;
+  final String? Function(Iterable<TerminalTab> tabs)
+  hiddenTabsNewOutputPaneSessionId;
+  final String? Function(TerminalTab tab) tabNewOutputPaneSessionId;
   final Color Function(TerminalTab tab) tabBackgroundColor;
   final Color? Function(TerminalTab tab) tabColor;
   final ValueChanged<String> onActivateSession;
+  final ValueChanged<String> onActivateBadgePane;
+  final ValueChanged<String> onActivateNewOutputPane;
   final double width;
 
   @override
@@ -917,9 +982,17 @@ class _ShellTabOverflowMenuState extends State<_ShellTabOverflowMenu> {
     super.didUpdateWidget(oldWidget);
     if (_overlayEntry != null) {
       if (widget.tabs.isEmpty) {
-        _closeMenu();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _closeMenu();
+          }
+        });
       } else {
-        _overlayEntry!.markNeedsBuild();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _overlayEntry?.markNeedsBuild();
+          }
+        });
       }
     }
   }
@@ -960,11 +1033,21 @@ class _ShellTabOverflowMenuState extends State<_ShellTabOverflowMenu> {
               tabs: widget.tabs,
               activeSessionId: widget.activeSessionId,
               tabHasNewOutput: widget.tabHasNewOutput,
+              tabNewOutputTooltip: widget.tabNewOutputTooltip,
+              tabNewOutputPaneSessionId: widget.tabNewOutputPaneSessionId,
               tabBackgroundColor: widget.tabBackgroundColor,
               tabColor: widget.tabColor,
               onSelected: (sessionId) {
                 _closeMenu();
                 widget.onActivateSession(sessionId);
+              },
+              onBadgeSelected: (sessionId) {
+                _closeMenu();
+                widget.onActivateBadgePane(sessionId);
+              },
+              onNewOutputPaneSelected: (sessionId) {
+                _closeMenu();
+                widget.onActivateNewOutputPane(sessionId);
               },
             ),
           ),
@@ -1001,7 +1084,22 @@ class _ShellTabOverflowMenuState extends State<_ShellTabOverflowMenu> {
           );
     final isActive = activeHiddenTab != null;
     final isOpen = _overlayEntry != null;
-    final hasHiddenNewOutput = widget.tabs.any(widget.tabHasNewOutput);
+    final hiddenOutputTabs = widget.tabs
+        .where(widget.tabHasNewOutput)
+        .toList(growable: false);
+    final hasHiddenNewOutput = hiddenOutputTabs.isNotEmpty;
+    final hiddenNewOutputPaneSessionId = widget
+        .hiddenTabsNewOutputPaneSessionId(hiddenOutputTabs);
+    final hiddenBadgeTargets = _shellHiddenTabBadgeTargets(
+      widget.tabs,
+      activeSessionId: widget.activeSessionId,
+    );
+    final hasHiddenBadges = hiddenBadgeTargets.isNotEmpty;
+    final hiddenPaneSignalTargets = _shellHiddenTabPaneSignalTargets(
+      widget.tabs,
+      activeSessionId: widget.activeSessionId,
+    );
+    final hasHiddenPaneSignals = hiddenPaneSignalTargets.isNotEmpty;
     final activeTone = activeHiddenTab == null
         ? null
         : _ShellTabTone.fromTerminalBackground(
@@ -1017,16 +1115,28 @@ class _ShellTabOverflowMenuState extends State<_ShellTabOverflowMenu> {
         : _hovered || isOpen
         ? chromeTone.hoverBackground
         : Colors.transparent;
+    final overflowTooltip = _hiddenTabsOverflowButtonTooltip(
+      hiddenTabCount: widget.tabs.length,
+      badgePaneCount: hiddenBadgeTargets.length,
+      paneSignalCount: hiddenPaneSignalTargets.length,
+      newOutputTabCount: hiddenOutputTabs.length,
+    );
+    final overflowSemanticsLabel = _hiddenTabsOverflowButtonSemanticsLabel(
+      hiddenTabCount: widget.tabs.length,
+      badgePaneCount: hiddenBadgeTargets.length,
+      paneSignalCount: hiddenPaneSignalTargets.length,
+      newOutputTabCount: hiddenOutputTabs.length,
+    );
 
     return CompositedTransformTarget(
       link: _layerLink,
       child: Tooltip(
-        message: 'Show hidden tabs',
+        message: overflowTooltip,
         child: SizedBox(
           width: widget.width,
           height: double.infinity,
           child: Semantics(
-            label: 'shell-tab-overflow',
+            label: overflowSemanticsLabel,
             button: true,
             selected: isActive,
             expanded: isOpen,
@@ -1065,13 +1175,69 @@ class _ShellTabOverflowMenuState extends State<_ShellTabOverflowMenu> {
                               ? activeTone!.primaryText
                               : chromeTone.subtleText,
                         ),
-                        if (hasHiddenNewOutput)
+                        if (!isOpen && hasHiddenBadges)
                           Positioned(
-                            top: 5,
-                            right: 4,
+                            top: 2,
+                            left: 2,
+                            width: 10,
+                            height: 10,
+                            child: _ShellTabOverflowBadgeMarker(
+                              key: const Key('shell-tab-overflow-badge'),
+                              palette: widget.palette,
+                              tooltip: _hiddenTabsBadgeTooltip(
+                                hiddenBadgeTargets,
+                                activeSessionId: widget.activeSessionId,
+                              ),
+                              onPressed: () {
+                                _closeMenu();
+                                widget.onActivateBadgePane(
+                                  hiddenBadgeTargets.first.badge.sessionId,
+                                );
+                              },
+                            ),
+                          ),
+                        if (!isOpen && hasHiddenPaneSignals)
+                          Positioned(
+                            bottom: 2,
+                            left: 2,
+                            width: 10,
+                            height: 10,
+                            child: _ShellTabOverflowSignalMarker(
+                              key: const Key('shell-tab-overflow-pane-signal'),
+                              palette: widget.palette,
+                              tooltip: _hiddenTabsPaneSignalTooltip(
+                                hiddenPaneSignalTargets,
+                                activeSessionId: widget.activeSessionId,
+                              ),
+                              onPressed: () {
+                                _closeMenu();
+                                widget.onActivateBadgePane(
+                                  hiddenPaneSignalTargets
+                                      .first
+                                      .signal
+                                      .sessionId,
+                                );
+                              },
+                            ),
+                          ),
+                        if (!isOpen && hasHiddenNewOutput)
+                          Positioned(
+                            top: 0,
+                            right: -2,
                             child: _ShellTabNewOutputDot(
                               key: const Key('shell-tab-overflow-new-output'),
                               palette: widget.palette,
+                              tooltip: widget.hiddenTabsNewOutputTooltip(
+                                hiddenOutputTabs,
+                              ),
+                              onPressed: hiddenNewOutputPaneSessionId == null
+                                  ? null
+                                  : () {
+                                      _closeMenu();
+                                      widget.onActivateNewOutputPane(
+                                        hiddenNewOutputPaneSessionId,
+                                      );
+                                    },
                             ),
                           ),
                       ],
@@ -1095,9 +1261,13 @@ class _ShellTabOverflowPanel extends StatelessWidget {
     required this.tabs,
     required this.activeSessionId,
     required this.tabHasNewOutput,
+    required this.tabNewOutputTooltip,
+    required this.tabNewOutputPaneSessionId,
     required this.tabBackgroundColor,
     required this.tabColor,
     required this.onSelected,
+    required this.onBadgeSelected,
+    required this.onNewOutputPaneSelected,
   });
 
   final AppThemeTokens palette;
@@ -1106,9 +1276,13 @@ class _ShellTabOverflowPanel extends StatelessWidget {
   final List<TerminalTab> tabs;
   final String? activeSessionId;
   final bool Function(TerminalTab tab) tabHasNewOutput;
+  final String Function(TerminalTab tab) tabNewOutputTooltip;
+  final String? Function(TerminalTab tab) tabNewOutputPaneSessionId;
   final Color Function(TerminalTab tab) tabBackgroundColor;
   final Color? Function(TerminalTab tab) tabColor;
   final ValueChanged<String> onSelected;
+  final ValueChanged<String> onBadgeSelected;
+  final ValueChanged<String> onNewOutputPaneSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -1156,9 +1330,15 @@ class _ShellTabOverflowPanel extends StatelessWidget {
                               activeSessionId != null &&
                               tab.containsSession(activeSessionId!),
                           hasNewOutput: tabHasNewOutput(tab),
+                          newOutputTooltip: tabNewOutputTooltip(tab),
+                          newOutputPaneSessionId: tabNewOutputPaneSessionId(
+                            tab,
+                          ),
                           terminalBackgroundColor: tabBackgroundColor(tab),
                           tabColor: tabColor(tab),
                           onSelected: () => onSelected(tab.activeSessionId),
+                          onBadgeSelected: onBadgeSelected,
+                          onNewOutputPaneSelected: onNewOutputPaneSelected,
                         ),
                     ],
                   ),
@@ -1179,18 +1359,26 @@ class _ShellTabOverflowRow extends StatefulWidget {
     required this.tab,
     required this.isActive,
     required this.hasNewOutput,
+    required this.newOutputTooltip,
+    required this.newOutputPaneSessionId,
     required this.terminalBackgroundColor,
     required this.tabColor,
     required this.onSelected,
+    required this.onBadgeSelected,
+    required this.onNewOutputPaneSelected,
   });
 
   final AppThemeTokens palette;
   final TerminalTab tab;
   final bool isActive;
   final bool hasNewOutput;
+  final String newOutputTooltip;
+  final String? newOutputPaneSessionId;
   final Color terminalBackgroundColor;
   final Color? tabColor;
   final VoidCallback onSelected;
+  final ValueChanged<String> onBadgeSelected;
+  final ValueChanged<String> onNewOutputPaneSelected;
 
   @override
   State<_ShellTabOverflowRow> createState() => _ShellTabOverflowRowState();
@@ -1202,7 +1390,12 @@ class _ShellTabOverflowRowState extends State<_ShellTabOverflowRow> {
   @override
   Widget build(BuildContext context) {
     final title = _shellTabDisplayTitle(widget.tab);
-    final badgeText = _shellTabBadgeText(widget.tab);
+    final badgeInfos = _shellTabBadgeInfos(widget.tab);
+    final paneSignalInfos = _shellTabPaneSignalInfos(widget.tab);
+    final paneSignalInfo = paneSignalInfos.isEmpty
+        ? null
+        : paneSignalInfos.first;
+    final canActivateBadgePane = widget.tab.effectivePanes.length > 1;
     final tone = _ShellTabTone.fromTerminalBackground(
       palette: widget.palette,
       terminalBackground: widget.terminalBackgroundColor,
@@ -1244,12 +1437,23 @@ class _ShellTabOverflowRowState extends State<_ShellTabOverflowRow> {
                           ? Colors.white
                           : Colors.transparent,
                     ),
-                    if (!widget.isActive && widget.hasNewOutput)
-                      _ShellTabNewOutputDot(
-                        key: Key(
-                          'shell-tab-new-output-${widget.tab.sessionId}',
+                    if (widget.hasNewOutput)
+                      Align(
+                        alignment: widget.isActive
+                            ? Alignment.bottomRight
+                            : Alignment.center,
+                        child: _ShellTabNewOutputDot(
+                          key: Key(
+                            'shell-tab-new-output-${widget.tab.sessionId}',
+                          ),
+                          palette: widget.palette,
+                          tooltip: widget.newOutputTooltip,
+                          onPressed: widget.newOutputPaneSessionId == null
+                              ? null
+                              : () => widget.onNewOutputPaneSelected(
+                                  widget.newOutputPaneSessionId!,
+                                ),
                         ),
-                        palette: widget.palette,
                       ),
                   ],
                 ),
@@ -1292,18 +1496,52 @@ class _ShellTabOverflowRowState extends State<_ShellTabOverflowRow> {
                   ),
                 ),
               ),
-              if (badgeText != null) ...[
+              ..._shellTabBadgeChips(
+                keyPrefix: 'shell-tab-overflow-badge-${widget.tab.sessionId}',
+                tab: widget.tab,
+                badges: badgeInfos,
+                palette: widget.palette,
+                foreground: textColor,
+                background: widget.palette.panel.withValues(
+                  alpha: widget.isActive ? 0.32 : 0.64,
+                ),
+                border: widget.palette.textPrimary.withValues(alpha: 0.20),
+                maxWidth: 54,
+                badgeNeedsFocus: (badge) =>
+                    !(widget.isActive && badge.isActivePane),
+                onSelected: canActivateBadgePane
+                    ? widget.onBadgeSelected
+                    : null,
+              ),
+              if (paneSignalInfo != null) ...[
                 const SizedBox(width: 6),
                 _ShellTabBadgeChip(
-                  key: Key('shell-tab-overflow-badge-${widget.tab.sessionId}'),
-                  palette: widget.palette,
-                  text: _shellTabBadgeLabel(badgeText),
-                  fullText: badgeText,
-                  foreground: textColor,
-                  background: widget.palette.panel.withValues(
-                    alpha: widget.isActive ? 0.32 : 0.64,
+                  key: Key(
+                    'shell-tab-overflow-pane-signal-${widget.tab.sessionId}',
                   ),
-                  border: widget.palette.textPrimary.withValues(alpha: 0.20),
+                  palette: widget.palette,
+                  text: _shellTabPaneSignalLabel(paneSignalInfos),
+                  tooltip: _shellTabPaneSignalTooltip(
+                    widget.tab,
+                    paneSignalInfo,
+                    paneSignalInfos,
+                    primaryNeedsFocus:
+                        !(widget.isActive && paneSignalInfo.isActivePane),
+                  ),
+                  semanticsLabel: _shellTabPaneSignalSemanticsLabel(
+                    widget.tab,
+                    paneSignalInfo,
+                    paneSignalInfos,
+                    primaryNeedsFocus:
+                        !(widget.isActive && paneSignalInfo.isActivePane),
+                  ),
+                  onPressed: () =>
+                      widget.onBadgeSelected(paneSignalInfo.sessionId),
+                  foreground: textColor,
+                  background: widget.palette.focusRing.withValues(
+                    alpha: widget.isActive ? 0.34 : 0.58,
+                  ),
+                  border: widget.palette.focusRing.withValues(alpha: 0.34),
                 ),
               ],
             ],
@@ -1314,24 +1552,155 @@ class _ShellTabOverflowRowState extends State<_ShellTabOverflowRow> {
   }
 }
 
-class _ShellTabNewOutputDot extends StatelessWidget {
-  const _ShellTabNewOutputDot({super.key, required this.palette});
+class _ShellTabOverflowBadgeMarker extends StatelessWidget {
+  const _ShellTabOverflowBadgeMarker({
+    super.key,
+    required this.palette,
+    required this.tooltip,
+    required this.onPressed,
+  });
 
   final AppThemeTokens palette;
+  final String tooltip;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: 'New output',
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: palette.focus,
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: palette.textPrimary.withValues(alpha: 0.36),
+      message: tooltip,
+      child: Semantics(
+        container: true,
+        label: tooltip,
+        button: true,
+        onTap: onPressed,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onPressed,
+            child: SizedBox.square(
+              dimension: 10,
+              child: Center(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: palette.warningContainer.withValues(alpha: 0.96),
+                    borderRadius: BorderRadius.circular(3),
+                    border: Border.all(
+                      color: palette.warning.withValues(alpha: 0.78),
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.badge_outlined,
+                    size: 7,
+                    color: palette.warning,
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
-        child: const SizedBox.square(dimension: 7),
+      ),
+    );
+  }
+}
+
+class _ShellTabOverflowSignalMarker extends StatelessWidget {
+  const _ShellTabOverflowSignalMarker({
+    super.key,
+    required this.palette,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final AppThemeTokens palette;
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Semantics(
+        container: true,
+        label: tooltip,
+        button: true,
+        onTap: onPressed,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onPressed,
+            child: SizedBox.square(
+              dimension: 10,
+              child: Center(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: palette.focusRing.withValues(alpha: 0.96),
+                    borderRadius: BorderRadius.circular(3),
+                    border: Border.all(
+                      color: palette.textPrimary.withValues(alpha: 0.36),
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.info_outline_rounded,
+                    size: 7,
+                    color: palette.panel,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ShellTabNewOutputDot extends StatelessWidget {
+  const _ShellTabNewOutputDot({
+    super.key,
+    required this.palette,
+    required this.tooltip,
+    this.onPressed,
+  });
+
+  final AppThemeTokens palette;
+  final String tooltip;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final marker = Semantics(
+      container: true,
+      label: tooltip,
+      button: onPressed != null,
+      onTap: onPressed,
+      child: SizedBox.square(
+        dimension: 14,
+        child: Center(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: palette.focus,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: palette.textPrimary.withValues(alpha: 0.36),
+              ),
+            ),
+            child: const SizedBox.square(dimension: 7),
+          ),
+        ),
+      ),
+    );
+    final tooltipMarker = Tooltip(message: tooltip, child: marker);
+    if (onPressed == null) {
+      return tooltipMarker;
+    }
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onPressed,
+        child: tooltipMarker,
       ),
     );
   }
@@ -1342,28 +1711,37 @@ class _ShellTabBadgeChip extends StatelessWidget {
     super.key,
     required this.palette,
     required this.text,
-    required this.fullText,
+    required this.tooltip,
+    required this.semanticsLabel,
     required this.foreground,
     required this.background,
     required this.border,
+    this.maxWidth = 72,
+    this.onPressed,
   });
 
   final AppThemeTokens palette;
   final String text;
-  final String fullText;
+  final String tooltip;
+  final String semanticsLabel;
   final Color foreground;
   final Color background;
   final Color border;
+  final double maxWidth;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: 'OSC 1337 badge: $fullText',
+    final onPressed = this.onPressed;
+    final chip = Tooltip(
+      message: tooltip,
       child: Semantics(
         container: true,
-        label: 'Terminal badge: $fullText',
+        label: semanticsLabel,
+        button: onPressed != null,
+        onTap: onPressed,
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 72),
+          constraints: BoxConstraints(maxWidth: maxWidth),
           child: DecoratedBox(
             decoration: BoxDecoration(
               color: background,
@@ -1388,7 +1766,101 @@ class _ShellTabBadgeChip extends StatelessWidget {
         ),
       ),
     );
+    if (onPressed == null) {
+      return chip;
+    }
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onPressed,
+        child: chip,
+      ),
+    );
   }
+}
+
+List<Widget> _shellTabBadgeChips({
+  required String keyPrefix,
+  required TerminalTab tab,
+  required List<_ShellTabBadgeInfo> badges,
+  required AppThemeTokens palette,
+  required Color foreground,
+  required Color background,
+  required Color border,
+  required double maxWidth,
+  required bool Function(_ShellTabBadgeInfo badge) badgeNeedsFocus,
+  required ValueChanged<String>? onSelected,
+}) {
+  if (badges.isEmpty) {
+    return const <Widget>[];
+  }
+  const visibleBadgeLimit = 2;
+  final visibleBadges = badges.take(visibleBadgeLimit).toList(growable: false);
+  final hiddenBadges = badges.skip(visibleBadgeLimit).toList(growable: false);
+  final chips = <Widget>[];
+
+  for (var index = 0; index < visibleBadges.length; index += 1) {
+    final badge = visibleBadges[index];
+    chips.add(const SizedBox(width: 6));
+    chips.add(
+      _ShellTabBadgeChip(
+        key: Key(index == 0 ? keyPrefix : '$keyPrefix-${badge.sessionId}'),
+        palette: palette,
+        text: _shellTabBadgeLabel(badge.text, badgeCount: 1),
+        tooltip: _shellTabBadgeTooltip(
+          tab,
+          badge,
+          badges,
+          badgeNeedsFocus: badgeNeedsFocus(badge),
+        ),
+        semanticsLabel: _shellTabBadgeSemanticsLabel(
+          tab,
+          badge,
+          badges,
+          badgeNeedsFocus: badgeNeedsFocus(badge),
+        ),
+        onPressed: onSelected == null
+            ? null
+            : () => onSelected(badge.sessionId),
+        foreground: foreground,
+        background: background,
+        border: border,
+        maxWidth: maxWidth,
+      ),
+    );
+  }
+
+  if (hiddenBadges.isNotEmpty) {
+    final firstHidden = hiddenBadges.first;
+    chips.add(const SizedBox(width: 6));
+    chips.add(
+      _ShellTabBadgeChip(
+        key: Key('$keyPrefix-more'),
+        palette: palette,
+        text: '+${hiddenBadges.length}',
+        tooltip: _shellTabBadgeOverflowTooltip(
+          tab,
+          hiddenBadges,
+          badgeNeedsFocus,
+        ),
+        semanticsLabel: _shellTabBadgeOverflowSemanticsLabel(
+          tab,
+          hiddenBadges,
+          badgeNeedsFocus,
+        ),
+        onPressed: onSelected == null
+            ? null
+            : () => onSelected(firstHidden.sessionId),
+        foreground: foreground,
+        background: background,
+        border: border,
+        maxWidth: 34,
+      ),
+    );
+  }
+
+  return chips;
 }
 
 class _ShellTabButton extends StatefulWidget {
@@ -1398,12 +1870,16 @@ class _ShellTabButton extends StatefulWidget {
     required this.shortcutIndex,
     required this.isActive,
     required this.hasNewOutput,
+    required this.newOutputTooltip,
+    required this.newOutputPaneSessionId,
     required this.tabColor,
     required this.compact,
     required this.chromeBackgroundColor,
     required this.focusNode,
     required this.dragRegionBuilder,
     required this.onActivate,
+    required this.onActivateBadgePane,
+    required this.onActivateNewOutputPane,
     required this.onClose,
     required this.onShowContextMenu,
   });
@@ -1413,12 +1889,16 @@ class _ShellTabButton extends StatefulWidget {
   final int? shortcutIndex;
   final bool isActive;
   final bool hasNewOutput;
+  final String newOutputTooltip;
+  final String? newOutputPaneSessionId;
   final Color? tabColor;
   final bool compact;
   final Color chromeBackgroundColor;
   final FocusNode focusNode;
   final Widget Function(Widget child) dragRegionBuilder;
   final VoidCallback onActivate;
+  final ValueChanged<String> onActivateBadgePane;
+  final ValueChanged<String> onActivateNewOutputPane;
   final VoidCallback onClose;
   final ValueChanged<Offset> onShowContextMenu;
 
@@ -1432,7 +1912,12 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
   @override
   Widget build(BuildContext context) {
     final title = _shellTabDisplayTitle(widget.tab);
-    final badgeText = _shellTabBadgeText(widget.tab);
+    final badgeInfos = _shellTabBadgeInfos(widget.tab);
+    final paneSignalInfos = _shellTabPaneSignalInfos(widget.tab);
+    final paneSignalInfo = paneSignalInfos.isEmpty
+        ? null
+        : paneSignalInfos.first;
+    final canActivateBadgePane = widget.tab.effectivePanes.length > 1;
     final tone = _ShellTabTone.fromTerminalBackground(
       palette: widget.palette,
       terminalBackground: widget.chromeBackgroundColor,
@@ -1448,7 +1933,11 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
       onExit: (_) => setState(() => _hovered = false),
       child: Semantics(
         identifier: _shellTabSemanticsIdentifier(widget.tab),
-        label: _shellTabSemanticsLabel(widget.tab, widget.shortcutIndex),
+        label: _shellTabSemanticsLabel(
+          widget.tab,
+          widget.shortcutIndex,
+          hasNewOutput: widget.hasNewOutput,
+        ),
         selected: widget.isActive,
         button: true,
         excludeSemantics: true,
@@ -1532,32 +2021,82 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                                     ),
                                   ),
                                 ),
-                                if (badgeText != null) ...[
+                                ..._shellTabBadgeChips(
+                                  keyPrefix:
+                                      'shell-tab-badge-${widget.tab.sessionId}',
+                                  tab: widget.tab,
+                                  badges: badgeInfos,
+                                  palette: widget.palette,
+                                  foreground: widget.isActive
+                                      ? tone.primaryText
+                                      : tone.mutedText,
+                                  background: tone.hoverBackground.withValues(
+                                    alpha: widget.isActive ? 0.70 : 0.45,
+                                  ),
+                                  border: tone.border.withValues(alpha: 0.38),
+                                  maxWidth: widget.compact ? 46 : 62,
+                                  badgeNeedsFocus: (badge) =>
+                                      !(widget.isActive && badge.isActivePane),
+                                  onSelected: canActivateBadgePane
+                                      ? widget.onActivateBadgePane
+                                      : null,
+                                ),
+                                if (paneSignalInfo != null) ...[
                                   const SizedBox(width: 6),
                                   _ShellTabBadgeChip(
                                     key: Key(
-                                      'shell-tab-badge-${widget.tab.sessionId}',
+                                      'shell-tab-pane-signal-${widget.tab.sessionId}',
                                     ),
                                     palette: widget.palette,
-                                    text: _shellTabBadgeLabel(badgeText),
-                                    fullText: badgeText,
+                                    text: _shellTabPaneSignalLabel(
+                                      paneSignalInfos,
+                                    ),
+                                    tooltip: _shellTabPaneSignalTooltip(
+                                      widget.tab,
+                                      paneSignalInfo,
+                                      paneSignalInfos,
+                                      primaryNeedsFocus:
+                                          !(widget.isActive &&
+                                              paneSignalInfo.isActivePane),
+                                    ),
+                                    semanticsLabel:
+                                        _shellTabPaneSignalSemanticsLabel(
+                                          widget.tab,
+                                          paneSignalInfo,
+                                          paneSignalInfos,
+                                          primaryNeedsFocus:
+                                              !(widget.isActive &&
+                                                  paneSignalInfo.isActivePane),
+                                        ),
+                                    onPressed: () => widget.onActivateBadgePane(
+                                      paneSignalInfo.sessionId,
+                                    ),
                                     foreground: widget.isActive
                                         ? tone.primaryText
                                         : tone.mutedText,
-                                    background: tone.hoverBackground.withValues(
-                                      alpha: widget.isActive ? 0.70 : 0.45,
+                                    background: widget.palette.focusRing
+                                        .withValues(
+                                          alpha: widget.isActive ? 0.58 : 0.42,
+                                        ),
+                                    border: widget.palette.focusRing.withValues(
+                                      alpha: 0.34,
                                     ),
-                                    border: tone.border.withValues(alpha: 0.38),
                                   ),
                                 ],
-                                if (widget.hasNewOutput &&
-                                    !widget.isActive) ...[
+                                if (widget.hasNewOutput) ...[
                                   const SizedBox(width: 6),
                                   _ShellTabNewOutputDot(
                                     key: Key(
                                       'shell-tab-new-output-${widget.tab.sessionId}',
                                     ),
                                     palette: widget.palette,
+                                    tooltip: widget.newOutputTooltip,
+                                    onPressed:
+                                        widget.newOutputPaneSessionId == null
+                                        ? null
+                                        : () => widget.onActivateNewOutputPane(
+                                            widget.newOutputPaneSessionId!,
+                                          ),
                                   ),
                                 ],
                                 if (widget.shortcutIndex != null) ...[
@@ -1644,37 +2183,610 @@ String _shellTabSemanticsIdentifier(TerminalTab tab) {
   return 'shell-tab-${tab.sessionId}';
 }
 
-String _shellTabSemanticsLabel(TerminalTab tab, int? shortcutIndex) {
-  final shortcut = shortcutIndex == null ? '' : ', Command $shortcutIndex';
-  final badge = _shellTabBadgeText(tab);
-  final badgeLabel = badge == null ? '' : ', badge $badge';
-  return '${_shellTabDisplayTitle(tab)} tab$badgeLabel$shortcut';
+String _shellTabSemanticsLabel(
+  TerminalTab tab,
+  int? shortcutIndex, {
+  bool hasNewOutput = false,
+}) {
+  final parts = <String>['${_shellTabDisplayTitle(tab)} tab'];
+  final badges = _shellTabBadgeInfos(tab);
+  final badge = badges.isEmpty ? null : badges.first;
+  final additionalBadgeCount = badges.length - 1;
+  if (badge != null) {
+    if (tab.effectivePanes.length < 2) {
+      parts.add('badge ${badge.text}');
+    } else {
+      parts.add(
+        'badge ${badge.text} from ${badge.isActivePane ? 'active' : 'inactive'} pane',
+      );
+      if (additionalBadgeCount > 0) {
+        parts.add(
+          'plus $additionalBadgeCount other pane badge${additionalBadgeCount == 1 ? '' : 's'}',
+        );
+      }
+    }
+  }
+
+  final signals = _shellTabPaneSignalInfos(tab);
+  if (signals.isNotEmpty) {
+    final primary = signals.first;
+    final signalScope = tab.effectivePanes.length < 2
+        ? ''
+        : ' from ${primary.isActivePane ? 'active' : 'inactive'} pane';
+    parts.add('${primary.title.toLowerCase()}: ${primary.summary}$signalScope');
+    final additionalSignalCount = signals.length - 1;
+    if (additionalSignalCount > 0) {
+      parts.add(
+        'plus $additionalSignalCount other pane signal${additionalSignalCount == 1 ? '' : 's'}',
+      );
+    }
+  }
+
+  if (hasNewOutput) {
+    parts.add(
+      tab.effectivePanes.length < 2 ? 'new output' : 'new output in split pane',
+    );
+  }
+
+  if (shortcutIndex != null) {
+    parts.add('Command $shortcutIndex');
+  }
+  return parts.join(', ');
 }
 
 String _shellTabDisplayTitle(TerminalTab tab) {
-  if (tab.effectivePanes.length < 2) {
-    return tab.title;
-  }
   final activePaneTitle = tab.activePane.title.trim();
   return activePaneTitle.isEmpty ? tab.title : activePaneTitle;
 }
 
-String? _shellTabBadgeText(TerminalTab tab) {
-  final text = tab.activePane.oscBadge?.trim();
+List<_ShellTabBadgeInfo> _shellTabBadgeInfos(TerminalTab tab) {
+  final activePane = tab.activePane;
+  final badges = <_ShellTabBadgeInfo>[];
+
+  void addPaneBadge(TerminalPane pane, {required bool isActivePane}) {
+    final text = _normalizedShellTabBadgeText(pane.oscBadge);
+    if (text != null) {
+      badges.add(
+        _ShellTabBadgeInfo(
+          text: text,
+          sessionId: pane.sessionId,
+          paneTitle: pane.title,
+          isActivePane: isActivePane,
+        ),
+      );
+    }
+  }
+
+  for (final pane in tab.effectivePanes) {
+    if (pane.sessionId != activePane.sessionId) {
+      addPaneBadge(pane, isActivePane: false);
+    }
+  }
+  addPaneBadge(activePane, isActivePane: true);
+  return badges;
+}
+
+String? _normalizedShellTabBadgeText(String? rawText) {
+  final text = rawText?.trim();
   if (text == null || text.isEmpty) {
     return null;
   }
   return text;
 }
 
-String _shellTabBadgeLabel(String text) {
+String _shellTabBadgeLabel(String text, {required int badgeCount}) {
   final trimmed = text.trim();
-  const maxRunes = 10;
+  final suffix = badgeCount > 1 ? ' +${badgeCount - 1}' : '';
+  final maxRunes = badgeCount > 1 ? 7 : 10;
   final runes = trimmed.runes.toList(growable: false);
-  if (runes.length <= maxRunes) {
-    return trimmed.toUpperCase();
+  final visible = runes.length <= maxRunes
+      ? trimmed
+      : '${String.fromCharCodes(runes.take(maxRunes - 1))}…';
+  return '${visible.toUpperCase()}$suffix';
+}
+
+String _shellTabBadgeTooltip(
+  TerminalTab tab,
+  _ShellTabBadgeInfo badge,
+  List<_ShellTabBadgeInfo> badges, {
+  required bool badgeNeedsFocus,
+}) {
+  if (tab.effectivePanes.length < 2) {
+    return 'OSC 1337 badge: ${badge.text}';
   }
-  return '${String.fromCharCodes(runes.take(maxRunes - 1)).toUpperCase()}…';
+  final otherBadges = badges
+      .where((candidate) => candidate.sessionId != badge.sessionId)
+      .toList(growable: false);
+  return [
+    'OSC 1337 badge: ${badge.text}',
+    _shellTabBadgePaneContext(badge),
+    if (otherBadges.isNotEmpty) ...[
+      'Other pane badges:',
+      for (final otherBadge in otherBadges)
+        '${_shellTabBadgePaneContext(otherBadge)}: ${otherBadge.text}',
+    ],
+    if (badgeNeedsFocus) 'Click to focus this pane.',
+  ].join('\n');
+}
+
+String _shellTabBadgeSemanticsLabel(
+  TerminalTab tab,
+  _ShellTabBadgeInfo badge,
+  List<_ShellTabBadgeInfo> badges, {
+  required bool badgeNeedsFocus,
+}) {
+  if (tab.effectivePanes.length < 2) {
+    return 'Terminal badge: ${badge.text}';
+  }
+  final otherBadgeCount = badges
+      .where((candidate) => candidate.sessionId != badge.sessionId)
+      .length;
+  final otherBadgeLabel = otherBadgeCount == 0
+      ? ''
+      : '; $otherBadgeCount other pane badge${otherBadgeCount == 1 ? '' : 's'}';
+  return 'Terminal badge: ${badge.text}; '
+      '${_shellTabBadgePaneContext(badge)}$otherBadgeLabel; '
+      '${badgeNeedsFocus ? 'click to focus this pane' : 'pane already focused'}';
+}
+
+String _shellTabBadgeOverflowTooltip(
+  TerminalTab tab,
+  List<_ShellTabBadgeInfo> hiddenBadges,
+  bool Function(_ShellTabBadgeInfo badge) badgeNeedsFocus,
+) {
+  if (hiddenBadges.length == 1) {
+    final badge = hiddenBadges.single;
+    return [
+      'Additional OSC 1337 badge: ${badge.text}',
+      _shellTabBadgePaneContext(badge),
+      badgeNeedsFocus(badge)
+          ? 'Click to focus this pane.'
+          : 'Pane already focused.',
+    ].join('\n');
+  }
+  final firstHiddenNeedsFocus = badgeNeedsFocus(hiddenBadges.first);
+  return [
+    'Additional OSC 1337 badges in this split tab.',
+    for (final badge in hiddenBadges)
+      '${_shellTabBadgePaneContext(badge)}: ${badge.text}',
+    firstHiddenNeedsFocus
+        ? 'Click to focus the first remaining badge pane.'
+        : 'First remaining badge pane is already focused.',
+  ].join('\n');
+}
+
+String _shellTabBadgeOverflowSemanticsLabel(
+  TerminalTab tab,
+  List<_ShellTabBadgeInfo> hiddenBadges,
+  bool Function(_ShellTabBadgeInfo badge) badgeNeedsFocus,
+) {
+  if (hiddenBadges.length == 1) {
+    final badge = hiddenBadges.single;
+    final action = badgeNeedsFocus(badge)
+        ? 'click to focus this pane'
+        : 'pane already focused';
+    return 'Terminal badge: ${badge.text}; ${_shellTabBadgePaneContext(badge)}; $action';
+  }
+  final action = badgeNeedsFocus(hiddenBadges.first)
+      ? 'click to focus the first remaining badge pane'
+      : 'first remaining badge pane is already focused';
+  return 'Terminal badges: ${hiddenBadges.length} additional pane badges in ${_shellTabDisplayTitle(tab)}; $action';
+}
+
+String _shellTabBadgePaneContext(_ShellTabBadgeInfo badge) {
+  final paneState = badge.isActivePane ? 'active pane' : 'inactive pane';
+  final title = badge.paneTitle.trim();
+  if (title.isEmpty) {
+    return 'Pane: ${badge.sessionId} · $paneState';
+  }
+  return 'Pane: $title (${badge.sessionId}) · $paneState';
+}
+
+class _ShellTabBadgeInfo {
+  const _ShellTabBadgeInfo({
+    required this.text,
+    required this.sessionId,
+    required this.paneTitle,
+    required this.isActivePane,
+  });
+
+  final String text;
+  final String sessionId;
+  final String paneTitle;
+  final bool isActivePane;
+}
+
+enum _ShellTabPaneSignalKind { progress, notification }
+
+class _ShellTabPaneSignalInfo {
+  const _ShellTabPaneSignalInfo({
+    required this.kind,
+    required this.sessionId,
+    required this.paneTitle,
+    required this.isActivePane,
+    required this.detail,
+    required this.summary,
+  });
+
+  final _ShellTabPaneSignalKind kind;
+  final String sessionId;
+  final String paneTitle;
+  final bool isActivePane;
+  final String detail;
+  final String summary;
+
+  String get label {
+    return switch (kind) {
+      _ShellTabPaneSignalKind.progress => 'PROG',
+      _ShellTabPaneSignalKind.notification => 'NOTE',
+    };
+  }
+
+  String get title {
+    return switch (kind) {
+      _ShellTabPaneSignalKind.progress => 'Terminal progress',
+      _ShellTabPaneSignalKind.notification => 'Terminal notification',
+    };
+  }
+}
+
+List<TerminalPaneProgressState> _shellPaneActiveProgressItems(
+  TerminalPane pane,
+) {
+  return <TerminalPaneProgressState>[
+    if (pane.progress case final progress? when progress.active) progress,
+    for (final progress in pane.namedProgress.values)
+      if (progress.active) progress,
+  ];
+}
+
+TerminalPaneProgressState? _shellPanePrimaryProgress(TerminalPane pane) {
+  final primary = pane.progress;
+  final activePrimary = primary != null && primary.active ? primary : null;
+  final activeNamed = pane.namedProgress.values
+      .where((progress) => progress.active)
+      .toList(growable: false);
+
+  if (activePrimary == null) {
+    return activeNamed.isEmpty ? null : activeNamed.last;
+  }
+  if (!_shellPaneProgressIsComplete(activePrimary)) {
+    return activePrimary;
+  }
+  final runningNamed = activeNamed
+      .where((progress) => !_shellPaneProgressIsComplete(progress))
+      .toList(growable: false);
+  if (runningNamed.isNotEmpty) {
+    return runningNamed.last;
+  }
+  return activeNamed.isEmpty ? activePrimary : activeNamed.last;
+}
+
+bool _shellPaneProgressIsComplete(TerminalPaneProgressState progress) {
+  return progress.action == 'complete' || progress.state == 'complete';
+}
+
+List<_ShellTabPaneSignalInfo> _shellTabPaneSignalInfos(TerminalTab tab) {
+  final activePane = tab.activePane;
+  final signals = <_ShellTabPaneSignalInfo>[];
+
+  void addPaneSignals(TerminalPane pane, {required bool isActivePane}) {
+    final progressItems = _shellPaneActiveProgressItems(pane);
+    if (progressItems.isNotEmpty) {
+      final primaryProgress = _shellPanePrimaryProgress(pane)!;
+      signals.add(
+        _ShellTabPaneSignalInfo(
+          kind: _ShellTabPaneSignalKind.progress,
+          sessionId: pane.sessionId,
+          paneTitle: pane.title,
+          isActivePane: isActivePane,
+          detail: progressItems.length == 1
+              ? _shellTabProgressDetail(primaryProgress)
+              : [
+                  'Terminal progress in this pane.',
+                  for (final progress in progressItems)
+                    '${progress.displayLabel}: ${_shellTabProgressDetail(progress)}',
+                ].join('\n'),
+          summary: primaryProgress.displayLabel,
+        ),
+      );
+    }
+
+    final notification = pane.recentNotifications.isEmpty
+        ? null
+        : pane.recentNotifications.first;
+    if (notification != null) {
+      signals.add(
+        _ShellTabPaneSignalInfo(
+          kind: _ShellTabPaneSignalKind.notification,
+          sessionId: pane.sessionId,
+          paneTitle: pane.title,
+          isActivePane: isActivePane,
+          detail: _shellTabNotificationDetail(notification),
+          summary:
+              '${notification.title}${notification.count > 1 ? ' x${notification.count}' : ''}',
+        ),
+      );
+    }
+  }
+
+  for (final pane in tab.effectivePanes) {
+    if (pane.sessionId == activePane.sessionId) {
+      continue;
+    }
+    addPaneSignals(pane, isActivePane: false);
+  }
+  addPaneSignals(activePane, isActivePane: true);
+  return signals;
+}
+
+String _shellTabPaneSignalLabel(List<_ShellTabPaneSignalInfo> signals) {
+  if (signals.isEmpty) {
+    return 'PANE';
+  }
+  final suffix = signals.length > 1 ? ' +${signals.length - 1}' : '';
+  return '${signals.first.label}$suffix';
+}
+
+String _shellTabPaneSignalTooltip(
+  TerminalTab tab,
+  _ShellTabPaneSignalInfo primary,
+  List<_ShellTabPaneSignalInfo> signals, {
+  required bool primaryNeedsFocus,
+}) {
+  final otherSignals = signals
+      .where((candidate) => candidate != primary)
+      .toList(growable: false);
+  if (tab.effectivePanes.length < 2 && otherSignals.isEmpty) {
+    return [primary.title, primary.detail].join('\n');
+  }
+  return [
+    '${primary.title} in a split pane.',
+    _shellTabPaneSignalContext(primary),
+    primary.detail,
+    if (otherSignals.isNotEmpty) ...[
+      'Other pane signals:',
+      for (final otherSignal in otherSignals)
+        '${_shellTabPaneSignalContext(otherSignal)}: '
+            '${otherSignal.label} ${otherSignal.summary}',
+    ],
+    if (primaryNeedsFocus)
+      otherSignals.isEmpty
+          ? 'Click to focus this pane.'
+          : 'Click to focus the first pane with a signal.',
+  ].join('\n');
+}
+
+String _shellTabPaneSignalSemanticsLabel(
+  TerminalTab tab,
+  _ShellTabPaneSignalInfo primary,
+  List<_ShellTabPaneSignalInfo> signals, {
+  required bool primaryNeedsFocus,
+}) {
+  if (tab.effectivePanes.length < 2) {
+    return '${primary.title}: ${primary.summary}';
+  }
+  final otherSignalCount = signals.length - 1;
+  final otherSignalLabel = otherSignalCount <= 0
+      ? ''
+      : '; $otherSignalCount other pane signal${otherSignalCount == 1 ? '' : 's'}';
+  return '${primary.title}: ${primary.summary}; '
+      '${_shellTabPaneSignalContext(primary)}$otherSignalLabel; '
+      '${primaryNeedsFocus ? 'click to focus this pane' : 'pane already focused'}';
+}
+
+String _shellTabPaneSignalContext(_ShellTabPaneSignalInfo signal) {
+  final paneState = signal.isActivePane ? 'active pane' : 'inactive pane';
+  final title = signal.paneTitle.trim();
+  if (title.isEmpty) {
+    return 'Pane: ${signal.sessionId} · $paneState';
+  }
+  return 'Pane: $title (${signal.sessionId}) · $paneState';
+}
+
+String _shellTabProgressDetail(TerminalPaneProgressState progress) {
+  return [
+    'Terminal progress reported by ${progress.source}.',
+    if (progress.label?.trim().isNotEmpty == true)
+      'Label: ${progress.label!.trim()}',
+    if (progress.percent != null) 'Percent: ${progress.percent}%',
+    if (progress.state?.trim().isNotEmpty == true)
+      'State: ${progress.state!.trim()}',
+    if (progress.id?.trim().isNotEmpty == true) 'ID: ${progress.id!.trim()}',
+  ].join('\n');
+}
+
+String _shellTabNotificationDetail(TerminalPaneNotificationState notification) {
+  return [
+    'Terminal notification reported by ${notification.source}.',
+    'Title: ${notification.title}',
+    if (notification.message.trim().isNotEmpty)
+      'Message: ${notification.message.trim()}',
+    if (notification.remoteHost?.trim().isNotEmpty == true)
+      'Remote host: ${notification.remoteHost!.trim()}',
+    if (notification.remoteUser?.trim().isNotEmpty == true)
+      'Remote user: ${notification.remoteUser!.trim()}',
+    if (notification.count > 1) 'Count: ${notification.count}',
+  ].join('\n');
+}
+
+List<_ShellHiddenTabBadgeTarget> _shellHiddenTabBadgeTargets(
+  Iterable<TerminalTab> tabs, {
+  required String? activeSessionId,
+}) {
+  final targets = <_ShellHiddenTabBadgeTarget>[];
+  for (final tab in tabs) {
+    for (final badge in _shellTabBadgeInfos(tab)) {
+      targets.add(_ShellHiddenTabBadgeTarget(tab: tab, badge: badge));
+    }
+  }
+  return _prioritizeHiddenTargets(
+    targets,
+    activeSessionId: activeSessionId,
+    sessionIdFor: (target) => target.badge.sessionId,
+  );
+}
+
+String _hiddenTabsBadgeTooltip(
+  List<_ShellHiddenTabBadgeTarget> targets, {
+  required String? activeSessionId,
+}) {
+  if (targets.length == 1) {
+    final target = targets.single;
+    final needsFocus = target.badge.sessionId != activeSessionId;
+    return [
+      'OSC 1337 badge in a hidden tab.',
+      'Tab: ${_shellTabDisplayTitle(target.tab)} (${target.tab.sessionId})',
+      'OSC 1337 badge: ${target.badge.text}',
+      _shellTabBadgePaneContext(target.badge),
+      needsFocus ? 'Click to focus this pane.' : 'Pane already focused.',
+    ].join('\n');
+  }
+  final hasFocusableTarget = targets.any(
+    (target) => target.badge.sessionId != activeSessionId,
+  );
+  return [
+    'OSC 1337 badges in ${targets.length} hidden panes.',
+    for (final target in targets)
+      '${_shellTabDisplayTitle(target.tab)} (${target.tab.sessionId}) - '
+          '${_shellTabBadgePaneContext(target.badge)}: ${target.badge.text}',
+    hasFocusableTarget
+        ? 'Click to focus the first badge pane.'
+        : 'Pane already focused.',
+  ].join('\n');
+}
+
+class _ShellHiddenTabBadgeTarget {
+  const _ShellHiddenTabBadgeTarget({required this.tab, required this.badge});
+
+  final TerminalTab tab;
+  final _ShellTabBadgeInfo badge;
+}
+
+List<_ShellHiddenTabPaneSignalTarget> _shellHiddenTabPaneSignalTargets(
+  Iterable<TerminalTab> tabs, {
+  required String? activeSessionId,
+}) {
+  final targets = <_ShellHiddenTabPaneSignalTarget>[];
+  for (final tab in tabs) {
+    for (final signal in _shellTabPaneSignalInfos(tab)) {
+      targets.add(_ShellHiddenTabPaneSignalTarget(tab: tab, signal: signal));
+    }
+  }
+  return _prioritizeHiddenTargets(
+    targets,
+    activeSessionId: activeSessionId,
+    sessionIdFor: (target) => target.signal.sessionId,
+  );
+}
+
+String _hiddenTabsPaneSignalTooltip(
+  List<_ShellHiddenTabPaneSignalTarget> targets, {
+  required String? activeSessionId,
+}) {
+  if (targets.length == 1) {
+    final target = targets.single;
+    final needsFocus = target.signal.sessionId != activeSessionId;
+    return [
+      '${target.signal.title} in a hidden tab.',
+      'Tab: ${_shellTabDisplayTitle(target.tab)} (${target.tab.sessionId})',
+      _shellTabPaneSignalContext(target.signal),
+      target.signal.detail,
+      needsFocus ? 'Click to focus this pane.' : 'Pane already focused.',
+    ].join('\n');
+  }
+  final hasFocusableTarget = targets.any(
+    (target) => target.signal.sessionId != activeSessionId,
+  );
+  return [
+    'Pane signals in ${targets.length} hidden panes.',
+    for (final target in targets)
+      '${_shellTabDisplayTitle(target.tab)} (${target.tab.sessionId}) - '
+          '${_shellTabPaneSignalContext(target.signal)}: '
+          '${target.signal.label} ${target.signal.summary}',
+    hasFocusableTarget
+        ? 'Click to focus the first pane with a signal.'
+        : 'Pane already focused.',
+  ].join('\n');
+}
+
+String _hiddenTabsOverflowButtonTooltip({
+  required int hiddenTabCount,
+  required int badgePaneCount,
+  required int paneSignalCount,
+  required int newOutputTabCount,
+}) {
+  final hasSignals =
+      badgePaneCount > 0 || paneSignalCount > 0 || newOutputTabCount > 0;
+  return [
+    hiddenTabCount == 1
+        ? 'Show 1 hidden tab'
+        : 'Show $hiddenTabCount hidden tabs',
+    if (badgePaneCount > 0)
+      badgePaneCount == 1
+          ? 'Hidden OSC 1337 badge: 1 pane'
+          : 'Hidden OSC 1337 badges: $badgePaneCount panes',
+    if (paneSignalCount > 0)
+      paneSignalCount == 1
+          ? 'Hidden pane signal: 1 pane'
+          : 'Hidden pane signals: $paneSignalCount panes',
+    if (newOutputTabCount > 0)
+      newOutputTabCount == 1
+          ? 'Hidden new output: 1 tab'
+          : 'Hidden new output: $newOutputTabCount tabs',
+    if (hasSignals) 'Signal markers can focus their source panes.',
+  ].join('\n');
+}
+
+String _hiddenTabsOverflowButtonSemanticsLabel({
+  required int hiddenTabCount,
+  required int badgePaneCount,
+  required int paneSignalCount,
+  required int newOutputTabCount,
+}) {
+  return [
+    hiddenTabCount == 1
+        ? 'Show 1 hidden tab'
+        : 'Show $hiddenTabCount hidden tabs',
+    if (badgePaneCount > 0)
+      badgePaneCount == 1
+          ? '1 hidden OSC 1337 badge pane'
+          : '$badgePaneCount hidden OSC 1337 badge panes',
+    if (paneSignalCount > 0)
+      paneSignalCount == 1
+          ? '1 hidden pane signal'
+          : '$paneSignalCount hidden pane signals',
+    if (newOutputTabCount > 0)
+      newOutputTabCount == 1
+          ? '1 hidden tab with new output'
+          : '$newOutputTabCount hidden tabs with new output',
+  ].join(', ');
+}
+
+List<T> _prioritizeHiddenTargets<T>(
+  List<T> targets, {
+  required String? activeSessionId,
+  required String Function(T target) sessionIdFor,
+}) {
+  if (activeSessionId == null || targets.length < 2) {
+    return targets;
+  }
+  return <T>[
+    for (final target in targets)
+      if (sessionIdFor(target) != activeSessionId) target,
+    for (final target in targets)
+      if (sessionIdFor(target) == activeSessionId) target,
+  ];
+}
+
+class _ShellHiddenTabPaneSignalTarget {
+  const _ShellHiddenTabPaneSignalTarget({
+    required this.tab,
+    required this.signal,
+  });
+
+  final TerminalTab tab;
+  final _ShellTabPaneSignalInfo signal;
 }
 
 class _ShellStartupSurface extends StatelessWidget {

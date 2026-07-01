@@ -28,6 +28,7 @@
 //! ```
 
 use serde::{Deserialize, Serialize};
+use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthChar;
 
 /// Unicode version for width calculation tables.
@@ -347,6 +348,18 @@ pub fn is_east_asian_ambiguous(c: char) -> bool {
     )
 }
 
+/// Check if a character is in a Unicode Private Use Area.
+///
+/// Nerd Font and Powerline glyphs commonly live in these ranges. Terminals
+/// treat these codepoints as font-selected glyphs rather than East Asian or
+/// emoji characters, so the parser keeps them single-cell to match frontend
+/// layout and common monospace terminal behavior.
+#[inline]
+pub fn is_private_use(c: char) -> bool {
+    let code = c as u32;
+    matches!(code, 0xE000..=0xF8FF | 0xF0000..=0xFFFFD | 0x100000..=0x10FFFD)
+}
+
 /// Calculate the display width of a character.
 ///
 /// This function calculates how many terminal cells a character occupies,
@@ -377,6 +390,22 @@ pub fn is_east_asian_ambiguous(c: char) -> bool {
 /// ```
 #[inline]
 pub fn char_width(c: char, config: &WidthConfig) -> usize {
+    if crate::grapheme::is_variation_selector(c)
+        || crate::grapheme::is_zwj(c)
+        || crate::grapheme::is_zero_width_format(c)
+        || crate::grapheme::is_emoji_tag(c)
+        || crate::grapheme::is_skin_tone_modifier(c)
+        || crate::grapheme::is_combining_mark(c)
+    {
+        return 0;
+    }
+
+    // Private-use glyphs are terminal font features. Keeping them single-cell
+    // prevents Nerd Font icons from shifting prompt and status-line columns.
+    if is_private_use(c) {
+        return 1;
+    }
+
     // Handle ambiguous width characters
     if config.ambiguous_width.is_wide() && is_east_asian_ambiguous(c) {
         return 2;
@@ -401,7 +430,9 @@ pub fn char_width_cjk(c: char) -> usize {
 
 /// Calculate the display width of a string.
 ///
-/// This sums the widths of all characters in the string.
+/// This measures by Unicode grapheme cluster so emoji ZWJ sequences, keycaps,
+/// regional-indicator flags, variation selectors, and emoji modifiers occupy
+/// the same number of terminal cells as the rendered cluster.
 ///
 /// # Arguments
 ///
@@ -412,7 +443,34 @@ pub fn char_width_cjk(c: char) -> usize {
 ///
 /// The total display width in cells
 pub fn str_width(s: &str, config: &WidthConfig) -> usize {
-    s.chars().map(|c| char_width(c, config)).sum()
+    UnicodeSegmentation::graphemes(s, true)
+        .map(|grapheme| grapheme_width(grapheme, config))
+        .sum()
+}
+
+fn grapheme_width(grapheme: &str, config: &WidthConfig) -> usize {
+    if grapheme.is_empty() {
+        return 0;
+    }
+
+    let regional_indicator_count = grapheme
+        .chars()
+        .filter(|c| crate::grapheme::is_regional_indicator(*c))
+        .count();
+    if regional_indicator_count == 2
+        || (grapheme.contains('\u{200D}')
+            && grapheme
+                .chars()
+                .any(crate::grapheme::is_emoji_sequence_codepoint))
+        || crate::grapheme::has_emoji_presentation_selector(grapheme)
+        || crate::grapheme::is_keycap_sequence(grapheme)
+        || crate::grapheme::has_emoji_modifier_sequence(grapheme)
+        || crate::grapheme::is_emoji_tag_sequence(grapheme)
+    {
+        return 2;
+    }
+
+    grapheme.chars().map(|c| char_width(c, config)).sum()
 }
 
 /// Calculate the display width of a string with CJK ambiguous width.
@@ -511,6 +569,18 @@ mod tests {
     }
 
     #[test]
+    fn test_char_width_private_use_nerd_font_icons_are_narrow() {
+        let config = WidthConfig::default();
+
+        assert!(is_private_use('\u{E0B0}'));
+        assert!(is_private_use('\u{F08C7}'));
+        assert!(is_private_use('\u{100000}'));
+        assert_eq!(char_width('\u{E0B0}', &config), 1);
+        assert_eq!(char_width('\u{F08C7}', &config), 1);
+        assert_eq!(char_width('\u{100000}', &config), 1);
+    }
+
+    #[test]
     fn test_char_width_control_characters() {
         let config = WidthConfig::default();
         // Control characters have width 0
@@ -521,11 +591,32 @@ mod tests {
     }
 
     #[test]
+    fn test_char_width_zero_width_format_characters() {
+        let config = WidthConfig::default();
+        assert_eq!(char_width('\u{00AD}', &config), 0); // SOFT HYPHEN
+        assert_eq!(char_width('\u{200B}', &config), 0); // ZERO WIDTH SPACE
+        assert_eq!(char_width('\u{200C}', &config), 0); // ZERO WIDTH NON-JOINER
+        assert_eq!(char_width('\u{200E}', &config), 0); // LEFT-TO-RIGHT MARK
+        assert_eq!(char_width('\u{2060}', &config), 0); // WORD JOINER
+        assert_eq!(char_width('\u{FEFF}', &config), 0); // ZERO WIDTH NO-BREAK SPACE
+        assert_eq!(char_width('\u{1BCA0}', &config), 0); // SHORTHAND FORMAT LETTER OVERLAP
+        assert_eq!(char_width('\u{E0001}', &config), 0); // LANGUAGE TAG
+        assert_eq!(
+            str_width(
+                "a\u{00AD}\u{200B}\u{200C}\u{200E}\u{2060}\u{FEFF}\u{1BCA0}\u{E0001}b",
+                &config
+            ),
+            2
+        );
+    }
+
+    #[test]
     fn test_char_width_combining_characters() {
         let config = WidthConfig::default();
         // Combining characters have width 0
         assert_eq!(char_width('\u{0301}', &config), 0); // Combining acute accent
         assert_eq!(char_width('\u{0300}', &config), 0); // Combining grave accent
+        assert_eq!(char_width('\u{1F3FD}', &config), 0); // Skin tone modifier
     }
 
     #[test]
@@ -573,6 +664,40 @@ mod tests {
         let config = WidthConfig::default();
         // "a" (1) + CJK char (2) + "b" (1) = 4
         assert_eq!(str_width("a\u{4E00}b", &config), 4);
+    }
+
+    #[test]
+    fn test_str_width_grapheme_clusters() {
+        let config = WidthConfig::default();
+
+        // Emoji presentation variation selector should reserve a two-cell glyph.
+        assert_eq!(str_width("⚠️", &config), 2);
+        assert_eq!(str_width("✈️", &config), 2);
+
+        // Text presentation variation selector should not force emoji width.
+        assert_eq!(str_width("✈︎", &config), 1);
+
+        // Complex emoji clusters render as one two-cell terminal glyph.
+        assert_eq!(str_width("👍🏽", &config), 2);
+        assert_eq!(str_width("a🏽", &config), 1);
+        assert_eq!(str_width("\u{1F3FD}", &config), 0);
+        assert_eq!(str_width("👨‍💻", &config), 2);
+        assert_eq!(str_width("👨‍👩‍👧‍👦", &config), 2);
+        assert_eq!(str_width("🏳️‍🌈", &config), 2);
+        assert_eq!(str_width("a\u{200D}", &config), 1);
+        assert_eq!(str_width("a\u{200D}b", &config), 2);
+        assert_eq!(str_width("🇺🇸", &config), 2);
+        assert_eq!(str_width("1️⃣", &config), 2);
+        assert_eq!(str_width("1\u{20E3}", &config), 2);
+        assert_eq!(str_width("#\u{20E3}", &config), 2);
+        assert_eq!(str_width("*\u{20E3}", &config), 2);
+        assert_eq!(
+            str_width(
+                "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}",
+                &config
+            ),
+            2
+        );
     }
 
     #[test]

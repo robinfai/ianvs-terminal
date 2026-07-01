@@ -57,6 +57,7 @@ impl Grid {
         if row >= self.rows || col >= self.cols {
             return;
         }
+        self.clear_wide_char_at_insertion_boundary(col, row);
         let n = n.min(self.cols - col);
         let cols = self.cols;
         let blank_cell = self.blank_cell();
@@ -69,14 +70,16 @@ impl Grid {
                 *cell = blank_cell.clone();
             }
         }
+        self.sanitize_wide_char_fragments(row);
     }
 
     /// Delete n characters at position
     pub fn delete_chars(&mut self, col: usize, row: usize, n: usize) {
-        if row >= self.rows || col >= self.cols {
+        let Some(range) = self.wide_safe_range(col, row, n) else {
             return;
-        }
-        let n = n.min(self.cols - col);
+        };
+        let col = range.start;
+        let n = range.end - range.start;
         let cols = self.cols;
         let blank_cell = self.blank_cell();
 
@@ -88,6 +91,7 @@ impl Grid {
                 *cell = blank_cell.clone();
             }
         }
+        self.sanitize_wide_char_fragments(row);
     }
 
     /// Alias for insert_chars to satisfy CSI dispatcher

@@ -54,6 +54,7 @@ class _ShellCommandMenu extends StatefulWidget {
     required this.hasMultiplePanes,
     required this.activePaneZoomed,
     required this.canReopenClosedTab,
+    required this.canReopenClosedPane,
     required this.splitRightUnavailableReason,
     required this.splitDownUnavailableReason,
     required this.hotkeyWindowStatus,
@@ -80,6 +81,7 @@ class _ShellCommandMenu extends StatefulWidget {
   final bool hasMultiplePanes;
   final bool activePaneZoomed;
   final bool canReopenClosedTab;
+  final bool canReopenClosedPane;
   final String? splitRightUnavailableReason;
   final String? splitDownUnavailableReason;
   final HotkeyWindowStatus? hotkeyWindowStatus;
@@ -118,6 +120,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
     final hasMultiplePanes = widget.hasMultiplePanes;
     final activePaneZoomed = widget.activePaneZoomed;
     final canReopenClosedTab = widget.canReopenClosedTab;
+    final canReopenClosedPane = widget.canReopenClosedPane;
     final splitRightUnavailableReason = widget.splitRightUnavailableReason;
     final splitDownUnavailableReason = widget.splitDownUnavailableReason;
     final hotkeyWindowStatus = widget.hotkeyWindowStatus;
@@ -149,6 +152,8 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
     const activeSessionRequired = 'Open a terminal tab first.';
     const defaultProfileRequired = 'No default profile is configured.';
     const closedTabRequired = 'No recently closed tab is available.';
+    const closedPaneRequired =
+        'No recently closed pane is available for this tab.';
     const readOnlySendRequired = 'Disable read-only mode to send text.';
 
     String? hotkeyWindowUnavailableReason() {
@@ -175,8 +180,15 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
       if (!hasActiveSession) {
         return activeSessionRequired;
       }
-      if (activePaneZoomed) {
-        return 'Unzoom the active pane to manage other panes.';
+      if (!hasMultiplePanes) {
+        return 'Add another pane to use this action.';
+      }
+      return null;
+    }
+
+    String? paneZoomUnavailableReason() {
+      if (!hasActiveSession) {
+        return activeSessionRequired;
       }
       if (!hasMultiplePanes) {
         return 'Add another pane to use this action.';
@@ -375,6 +387,21 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         ).pop(TerminalActionId.reopenClosedTab),
                       ),
                       commandTile(
+                        key: const Key('shell-reopen-closed-pane'),
+                        actionId: TerminalActionId.reopenClosedPane,
+                        icon: Icons.restore_page_rounded,
+                        title: 'Reopen closed pane',
+                        subtitle:
+                            'Session action • Restore the most recently closed pane in this tab.',
+                        enabled: hasActiveSession && canReopenClosedPane,
+                        disabledReason: !hasActiveSession
+                            ? activeSessionRequired
+                            : closedPaneRequired,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.reopenClosedPane),
+                      ),
+                      commandTile(
                         key: const Key('shell-toolbelt'),
                         actionId: TerminalActionId.toolbelt,
                         icon: Icons.view_sidebar_rounded,
@@ -434,8 +461,8 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                             : 'Zoom active pane',
                         subtitle:
                             'Session action • Focus one pane temporarily.',
-                        enabled: hasActiveSession,
-                        disabledReason: activeSessionRequired,
+                        enabled: paneZoomUnavailableReason() == null,
+                        disabledReason: paneZoomUnavailableReason(),
                         onTap: () => Navigator.of(
                           context,
                         ).pop(TerminalActionId.zoomPane),
@@ -896,6 +923,10 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
     TerminalActionId.defaults,
   ),
   MapEntry('reopen closed tab restore tab', TerminalActionId.reopenClosedTab),
+  MapEntry(
+    'reopen closed pane restore split pane',
+    TerminalActionId.reopenClosedPane,
+  ),
   MapEntry('toolbelt sidebar terminal tools', TerminalActionId.toolbelt),
   MapEntry('split right vertical pane', TerminalActionId.splitRight),
   MapEntry('split down horizontal pane', TerminalActionId.splitDown),
@@ -1116,34 +1147,54 @@ class _PaneDividerHandleState extends State<_PaneDividerHandle> {
             : SystemMouseCursors.resizeUpDown,
         onEnter: (_) => _setHovered(true),
         onExit: (_) => _setHovered(false),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onHorizontalDragStart: horizontal ? (_) => _setDragging(true) : null,
-          onHorizontalDragEnd: horizontal ? (_) => _setDragging(false) : null,
-          onHorizontalDragCancel: horizontal ? () => _setDragging(false) : null,
-          onHorizontalDragUpdate: horizontal
-              ? (details) => widget.onDragUpdate(details.delta.dx)
-              : null,
-          onVerticalDragStart: horizontal ? null : (_) => _setDragging(true),
-          onVerticalDragEnd: horizontal ? null : (_) => _setDragging(false),
-          onVerticalDragCancel: horizontal ? null : () => _setDragging(false),
-          onVerticalDragUpdate: horizontal
-              ? null
-              : (details) => widget.onDragUpdate(details.delta.dy),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 90),
-            curve: Curves.easeOutCubic,
-            color: background,
-            child: Align(
-              alignment: Alignment.center,
+        child: Tooltip(
+          message: horizontal
+              ? 'Drag to resize panes horizontally'
+              : 'Drag to resize panes vertically',
+          child: Semantics(
+            label: horizontal
+                ? 'Drag to resize panes horizontally'
+                : 'Drag to resize panes vertically',
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onHorizontalDragStart: horizontal
+                  ? (_) => _setDragging(true)
+                  : null,
+              onHorizontalDragEnd: horizontal
+                  ? (_) => _setDragging(false)
+                  : null,
+              onHorizontalDragCancel: horizontal
+                  ? () => _setDragging(false)
+                  : null,
+              onHorizontalDragUpdate: horizontal
+                  ? (details) => widget.onDragUpdate(details.delta.dx)
+                  : null,
+              onVerticalDragStart: horizontal
+                  ? null
+                  : (_) => _setDragging(true),
+              onVerticalDragEnd: horizontal ? null : (_) => _setDragging(false),
+              onVerticalDragCancel: horizontal
+                  ? null
+                  : () => _setDragging(false),
+              onVerticalDragUpdate: horizontal
+                  ? null
+                  : (details) => widget.onDragUpdate(details.delta.dy),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 90),
                 curve: Curves.easeOutCubic,
-                width: horizontal ? lineThickness : double.infinity,
-                height: horizontal ? double.infinity : lineThickness,
-                decoration: BoxDecoration(
-                  color: lineColor,
-                  borderRadius: BorderRadius.circular(2),
+                color: background,
+                child: Align(
+                  alignment: Alignment.center,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 90),
+                    curve: Curves.easeOutCubic,
+                    width: horizontal ? lineThickness : double.infinity,
+                    height: horizontal ? double.infinity : lineThickness,
+                    decoration: BoxDecoration(
+                      color: lineColor,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
                 ),
               ),
             ),

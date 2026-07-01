@@ -381,6 +381,10 @@ pub struct TerminalGraphicPlacement {
     pub width_cells: usize,
     pub height_cells: usize,
     #[serde(default)]
+    pub source_x_offset_px: usize,
+    #[serde(default)]
+    pub visible_width_px: usize,
+    #[serde(default)]
     pub source_y_offset_px: usize,
     #[serde(default)]
     pub visible_height_px: usize,
@@ -431,6 +435,10 @@ pub struct TerminalFrameModes {
     pub mouse_mode: String,
     #[serde(default = "default_mouse_encoding")]
     pub mouse_encoding: String,
+    #[serde(default)]
+    pub kitty_keyboard_flags: u16,
+    #[serde(default)]
+    pub synchronized_output: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]

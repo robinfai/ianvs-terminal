@@ -253,6 +253,33 @@ class TerminalWorkspaceTab {
     );
   }
 
+  TerminalWorkspaceTab focusRelativePane(int delta) {
+    final paneIds = root.leafPaneIds;
+    if (paneIds.length < 2) {
+      return this;
+    }
+    final activeIndex = paneIds.indexOf(effectiveActivePaneId);
+    if (activeIndex < 0) {
+      return focusPane(paneIds.first);
+    }
+    final nextIndex = (activeIndex + delta) % paneIds.length;
+    final normalizedIndex = nextIndex < 0
+        ? nextIndex + paneIds.length
+        : nextIndex;
+    return focusPane(paneIds[normalizedIndex]);
+  }
+
+  TerminalWorkspaceTab growActivePane(double delta) {
+    final targetPaneId = effectiveActivePaneId;
+    return TerminalWorkspaceTab(
+      id: id,
+      root: root.growPane(targetPaneId, delta),
+      activePaneId: targetPaneId,
+      closedPanes: closedPanes,
+      zoomedPaneId: effectiveZoomedPaneId,
+    );
+  }
+
   TerminalWorkspaceTab resizeActiveSplit(double ratio) {
     final targetPaneId = effectiveActivePaneId;
     return TerminalWorkspaceTab(
@@ -484,6 +511,13 @@ class TerminalPaneNode {
     return '';
   }
 
+  List<String> get leafPaneIds {
+    if (isLeaf) {
+      return id.isEmpty ? const <String>[] : <String>[id];
+    }
+    return [for (final child in children) ...child.leafPaneIds];
+  }
+
   bool containsPane(String paneId) {
     return findPane(paneId) != null;
   }
@@ -514,6 +548,53 @@ class TerminalPaneNode {
       second: children.last.replacePane(paneId, replacement),
       ratio: ratio,
     );
+  }
+
+  TerminalPaneNode growPane(String paneId, double delta) {
+    if (isLeaf) {
+      return this;
+    }
+
+    final first = children.first;
+    final second = children.last;
+    if (first.containsPane(paneId)) {
+      if (!first.isLeaf) {
+        return TerminalPaneNode.split(
+          id: id,
+          direction: direction!,
+          first: first.growPane(paneId, delta),
+          second: second,
+          ratio: ratio,
+        );
+      }
+      return TerminalPaneNode.split(
+        id: id,
+        direction: direction!,
+        first: first,
+        second: second,
+        ratio: ratio + delta,
+      );
+    }
+    if (second.containsPane(paneId)) {
+      if (!second.isLeaf) {
+        return TerminalPaneNode.split(
+          id: id,
+          direction: direction!,
+          first: first,
+          second: second.growPane(paneId, delta),
+          ratio: ratio,
+        );
+      }
+      return TerminalPaneNode.split(
+        id: id,
+        direction: direction!,
+        first: first,
+        second: second,
+        ratio: ratio - delta,
+      );
+    }
+
+    return this;
   }
 
   TerminalPaneNode resizeSplitContainingPane(String paneId, double nextRatio) {

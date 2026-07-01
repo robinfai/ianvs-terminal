@@ -109,7 +109,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   StreamSubscription<terminal.TerminalSessionEvent>? _terminalEventSubscription;
   late final LocalTerminalShellUiWiringSnapshot _completionDiagnosticsSnapshot;
   Timer? _workspaceCueTimer;
-  Timer? _viewportResizeTimer;
+  final Map<String, Timer> _viewportResizeTimers = {};
   bool _isCommandMenuOpen = false;
   bool _isDefaultsOpen = false;
   bool _isProfilesOpen = false;
@@ -156,14 +156,22 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   _TerminalSearchScope _searchScope = _TerminalSearchScope.activePane;
   String? _lastSearchScopeSessionSignature;
   terminal.TerminalLinkTarget? _hoveredTerminalLink;
+  String? _hoveredTerminalLinkSessionId;
   String? _lastOsc52StatusLabel;
-  String? _lastOsc52StatusTooltip;
+  terminal.TerminalSessionClipboardEvent? _lastOsc52StatusEvent;
+  String? _lastOsc52StatusSessionId;
   Timer? _osc52StatusClearTimer;
+  String? _copyModeSessionId;
+  String? _lastNotificationFailureLabel;
+  String? _lastNotificationFailureTooltip;
+  Timer? _notificationFailureStatusClearTimer;
   int _osc52BlockedCount = 0;
   SessionOsc52PromptController? _osc52PromptController;
+  String? _autocompleteSessionId;
   String _autocompletePrefix = '';
   List<String> _autocompleteSuggestions = const [];
   int _activeAutocompleteIndex = 0;
+  String? _autoComposerSessionId;
   List<String> _autoComposerSuggestions = const [];
   int _activeAutoComposerIndex = 0;
   List<PasteHistoryEntry> _pasteHistoryEntries = const [];
@@ -207,8 +215,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     _osc52PromptController?.clearHandler();
     _terminalEventSubscription?.cancel();
     _workspaceCueTimer?.cancel();
-    _viewportResizeTimer?.cancel();
+    for (final timer in _viewportResizeTimers.values) {
+      timer.cancel();
+    }
+    _viewportResizeTimers.clear();
     _osc52StatusClearTimer?.cancel();
+    _notificationFailureStatusClearTimer?.cancel();
     for (final focusNode in _terminalFocusNodes.values) {
       focusNode.dispose();
     }
@@ -278,43 +290,108 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final statusPane = displayedSessionId == null
         ? activePane
         : displayedTab?.paneFor(displayedSessionId) ?? activePane;
+    final statusSessionId = statusPane?.sessionId;
     final statusDirectory = statusPane?.shellIntegration.currentDirectory;
     final statusRemoteHost = statusPane?.shellIntegration.hostname?.trim();
     final statusRemoteUser = statusPane?.shellIntegration.username?.trim();
     final statusBadge = statusPane?.oscBadge?.trim();
-    final statusNamedProgress = statusPane == null
+    final statusProgressItems = statusPane == null
         ? const <TerminalPaneProgressState>[]
-        : statusPane.namedProgress.values.toList(growable: false);
-    final statusProgress =
-        statusPane?.progress ??
-        (statusNamedProgress.isEmpty ? null : statusNamedProgress.last);
-    final statusProgressItems = [
-      if (statusPane?.progress case final progress? when progress.active)
-        progress,
-      for (final progress in statusNamedProgress)
-        if (progress.active) progress,
-    ];
+        : _shellPaneActiveProgressItems(statusPane);
+    final statusProgress = statusPane == null
+        ? null
+        : _shellPanePrimaryProgress(statusPane);
     final statusNotifications =
         statusPane?.recentNotifications ??
         const <TerminalPaneNotificationState>[];
     final statusNotification = statusNotifications.isEmpty
         ? null
         : statusNotifications.first;
+    final statusNotificationLabel =
+        _lastNotificationFailureLabel ??
+        (statusNotification == null
+            ? null
+            : _notificationStatusLabel(statusNotification));
+    final statusNotificationTooltip =
+        _lastNotificationFailureTooltip ??
+        _statusTooltipForPane(
+          sessionId: statusSessionId,
+          tooltip: statusNotification == null
+              ? null
+              : _notificationStatusTooltip(statusNotification),
+          includeFocusHint: statusNotification != null,
+        );
+    final statusNotificationItems = _lastNotificationFailureLabel == null
+        ? statusNotifications
+        : const <TerminalPaneNotificationState>[];
+    final lastOsc52StatusEvent = _lastOsc52StatusEvent;
+    final lastOsc52StatusTooltip = lastOsc52StatusEvent == null
+        ? null
+        : _osc52StatusTooltipFor(lastOsc52StatusEvent);
+    void focusSessionPane(String? sessionId) {
+      if (sessionId == null) {
+        return;
+      }
+      _activateSession(sessionController, sessionId);
+    }
+
+    void focusStatusPane() => focusSessionPane(statusPane?.sessionId);
+    void focusHoveredLinkPane() =>
+        focusSessionPane(_hoveredTerminalLinkSessionId);
+    void focusOsc52Pane() =>
+        focusSessionPane(_lastOsc52StatusSessionId ?? statusPane?.sessionId);
+
     final statusProfile = statusPane == null
         ? null
         : _profileForPane(statusPane, sessionState.profiles);
     final statusDisplayDirectory = statusDirectory?.trim().isNotEmpty == true
         ? statusDirectory!.trim()
         : statusProfile?.cwd;
-    final statusDirectoryTooltip =
-        statusDisplayDirectory?.trim().isNotEmpty == true
-        ? _statusDirectoryTooltip(
-            path: statusDisplayDirectory!.trim(),
-            fromShellIntegration: statusDirectory?.trim().isNotEmpty == true,
-            hostname: statusRemoteHost,
-            username: statusRemoteUser,
-          )
-        : null;
+    final statusDirectoryTooltip = _statusTooltipForPane(
+      sessionId: statusSessionId,
+      tooltip: statusDisplayDirectory?.trim().isNotEmpty == true
+          ? _statusDirectoryTooltip(
+              path: statusDisplayDirectory!.trim(),
+              fromShellIntegration: statusDirectory?.trim().isNotEmpty == true,
+              hostname: statusRemoteHost,
+              username: statusRemoteUser,
+            )
+          : null,
+    );
+    final statusShellIntegrationHealth = statusPane == null
+        ? null
+        : _ShellIntegrationHealth.fromSnapshot(statusPane.shellIntegration);
+    final statusShellIntegrationHealthTooltip = _statusTooltipForPane(
+      sessionId: statusSessionId,
+      tooltip: statusShellIntegrationHealth?.tooltip,
+    );
+    final statusRemoteTooltip = _statusTooltipForPane(
+      sessionId: statusSessionId,
+      tooltip: statusRemoteHost != null && statusRemoteHost.isNotEmpty
+          ? [
+              'Remote context reported by shell integration.',
+              'Host: $statusRemoteHost',
+              if (statusRemoteUser != null && statusRemoteUser.isNotEmpty)
+                'User: $statusRemoteUser',
+              'Local file actions stay disabled for remote paths.',
+            ].join('\n')
+          : null,
+      includeFocusHint: statusRemoteHost != null && statusRemoteHost.isNotEmpty,
+    );
+    final statusProgressTooltip = _statusTooltipForPane(
+      sessionId: statusSessionId,
+      tooltip: statusProgress != null && statusProgress.active
+          ? _progressStatusTooltip(statusProgress)
+          : null,
+      includeFocusHint: statusProgress != null && statusProgress.active,
+    );
+    final statusBadgeTooltip = _statusTooltipForPane(
+      sessionId: statusSessionId,
+      tooltip: statusBadge != null && statusBadge.isNotEmpty
+          ? 'OSC 1337 badge: $statusBadge'
+          : null,
+      includeFocusHint: statusBadge != null && statusBadge.isNotEmpty,
+    );
     final statusViewportLabel = _viewportStatusLabelFor(displayedSessionId);
     final statusViewportController = displayedSessionId == null
         ? null
@@ -384,6 +461,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         requiredActionNames: const {
           'newTab',
           'closeTab',
+          'reopenClosedPane',
           'splitRight',
           'splitDown',
           'closePane',
@@ -416,12 +494,34 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             return const ShellActionBindingResult.completed();
           },
           closeTab: (_) {
-            if (activeSessionId == null) {
+            if (activeSessionId == null || activeTab == null) {
               return const ShellActionBindingResult.skipped(
                 'Close tab requires an active session.',
               );
             }
-            _closeSession(sessionController, sessionState, activeSessionId);
+            _closeTab(sessionController, sessionState, activeTab.sessionId);
+            return const ShellActionBindingResult.completed();
+          },
+          reopenClosedPane: (_) {
+            if (!sessionController.canReopenClosedPane) {
+              return const ShellActionBindingResult.skipped(
+                'No recently closed pane is available for this tab.',
+              );
+            }
+            final reopenedSessionId = sessionController.reopenClosedPane();
+            if (reopenedSessionId == null) {
+              return const ShellActionBindingResult.skipped(
+                'No recently closed pane could be reopened.',
+              );
+            }
+            _syncZoomedPaneForActivation(
+              _tabForSession(
+                ref.read(sessionControllerProvider),
+                reopenedSessionId,
+              ),
+              reopenedSessionId,
+            );
+            _focusSession(reopenedSessionId);
             return const ShellActionBindingResult.completed();
           },
           closePane: (_) {
@@ -439,6 +539,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 'Split right requires a default profile and active session.',
               );
             }
+            final paneManagementBlockedReason = activeTab == null
+                ? null
+                : _zoomedPaneManagementUnavailableReason(activeTab);
+            if (paneManagementBlockedReason != null) {
+              return ShellActionBindingResult.skipped(
+                paneManagementBlockedReason,
+              );
+            }
             final conflictReason = _splitAxisConflictReason(
               sessionState,
               activeSessionId,
@@ -447,11 +555,15 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             if (conflictReason != null) {
               return ShellActionBindingResult.skipped(conflictReason);
             }
-            _splitActiveSession(
+            if (!_splitActiveSession(
               sessionController,
               defaultProfile,
               TerminalSplitAxis.horizontal,
-            );
+            )) {
+              return const ShellActionBindingResult.skipped(
+                'Split right is unavailable.',
+              );
+            }
             return const ShellActionBindingResult.completed();
           },
           splitDown: (_) {
@@ -460,6 +572,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 'Split down requires a default profile and active session.',
               );
             }
+            final paneManagementBlockedReason = activeTab == null
+                ? null
+                : _zoomedPaneManagementUnavailableReason(activeTab);
+            if (paneManagementBlockedReason != null) {
+              return ShellActionBindingResult.skipped(
+                paneManagementBlockedReason,
+              );
+            }
             final conflictReason = _splitAxisConflictReason(
               sessionState,
               activeSessionId,
@@ -468,11 +588,15 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             if (conflictReason != null) {
               return ShellActionBindingResult.skipped(conflictReason);
             }
-            _splitActiveSession(
+            if (!_splitActiveSession(
               sessionController,
               defaultProfile,
               TerminalSplitAxis.vertical,
-            );
+            )) {
+              return const ShellActionBindingResult.skipped(
+                'Split down is unavailable.',
+              );
+            }
             return const ShellActionBindingResult.completed();
           },
           focusNextPane: (_) {
@@ -480,12 +604,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
               return const ShellActionBindingResult.skipped(
                 'Focus next pane requires an active session.',
               );
-            }
-            final blockedReason = _zoomedPaneManagementUnavailableReason(
-              activeTab,
-            );
-            if (blockedReason != null) {
-              return ShellActionBindingResult.skipped(blockedReason);
             }
             if (!_focusRelativePane(
               sessionController,
@@ -504,12 +622,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
               return const ShellActionBindingResult.skipped(
                 'Focus previous pane requires an active session.',
               );
-            }
-            final blockedReason = _zoomedPaneManagementUnavailableReason(
-              activeTab,
-            );
-            if (blockedReason != null) {
-              return ShellActionBindingResult.skipped(blockedReason);
             }
             if (!_focusRelativePane(
               sessionController,
@@ -712,10 +824,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           _navigateShellPrompt(activeSessionId, direction: 1);
           return KeyEventResult.handled;
         case TerminalActionId.closeActiveTab:
-          if (activeSessionId == null) {
+          if (activeSessionId == null || activeTab == null) {
             return KeyEventResult.handled;
           }
-          _closeSession(sessionController, sessionState, activeSessionId);
+          _closeTab(sessionController, sessionState, activeTab.sessionId);
           return KeyEventResult.handled;
         case TerminalActionId.openDefaults:
           unawaited(
@@ -767,6 +879,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 activeSessionId: activeSessionId,
                 activeTabTitle: activeChromeTitle,
                 tabHasNewOutput: _tabHasNewOutput,
+                tabNewOutputTooltip: _tabNewOutputTooltip,
+                hiddenTabsNewOutputTooltip: _hiddenTabsNewOutputTooltip,
+                hiddenTabsNewOutputPaneSessionId:
+                    _hiddenTabsNewOutputPaneSessionId,
+                tabNewOutputPaneSessionId: _tabNewOutputPaneSessionId,
                 tabColor: (tab) => _tabProfileColor(sessionState, tab),
                 referenceDemoMode: referenceDemoMode,
                 onNewTab: defaultProfile == null
@@ -779,6 +896,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         );
                       },
                 onActivateSession: (sessionId) =>
+                    _activateSession(sessionController, sessionId),
+                onActivateBadgePane: (sessionId) =>
+                    _activateSession(sessionController, sessionId),
+                onActivateNewOutputPane: (sessionId) =>
                     _activateSession(sessionController, sessionId),
                 onCloseSession: (sessionId) =>
                     _closeTab(sessionController, sessionState, sessionId),
@@ -979,52 +1100,42 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     directoryTooltip: statusDirectoryTooltip,
                     viewportLabel: statusViewportLabel,
                     modeItems: const <_ShellStatusModeItem>[],
-                    shellIntegrationHealth:
-                        _ShellIntegrationHealth.fromSnapshot(
-                          statusPane.shellIntegration,
-                        ),
+                    shellIntegrationHealth: statusShellIntegrationHealth!,
+                    shellIntegrationHealthTooltip:
+                        statusShellIntegrationHealthTooltip,
                     encodingLabel: 'UTF-8',
                     linkLabel: _terminalLinkStatusLabel,
                     linkTooltip: _terminalLinkStatusTooltip,
+                    onLinkPressed: _hoveredTerminalLinkSessionId == null
+                        ? null
+                        : focusHoveredLinkPane,
                     osc52Label: _lastOsc52StatusLabel,
-                    osc52Tooltip: _lastOsc52StatusTooltip,
+                    osc52Tooltip: lastOsc52StatusTooltip,
+                    onOsc52Pressed: _lastOsc52StatusLabel == null
+                        ? null
+                        : focusOsc52Pane,
                     remoteLabel:
                         statusRemoteHost != null && statusRemoteHost.isNotEmpty
                         ? 'REMOTE ${_shortStatusValue(statusRemoteHost)}'
                         : null,
-                    remoteTooltip:
-                        statusRemoteHost != null && statusRemoteHost.isNotEmpty
-                        ? [
-                            'Remote context reported by shell integration.',
-                            'Host: $statusRemoteHost',
-                            if (statusRemoteUser != null &&
-                                statusRemoteUser.isNotEmpty)
-                              'User: $statusRemoteUser',
-                            'Local file actions stay disabled for remote paths.',
-                          ].join('\n')
-                        : null,
+                    remoteTooltip: statusRemoteTooltip,
+                    onRemotePressed: focusStatusPane,
                     progressLabel:
                         statusProgress != null && statusProgress.active
                         ? statusProgress.displayLabel
                         : null,
-                    progressTooltip:
-                        statusProgress != null && statusProgress.active
-                        ? _progressStatusTooltip(statusProgress)
-                        : null,
+                    progressTooltip: statusProgressTooltip,
                     progressItems: statusProgressItems,
-                    notificationLabel: statusNotification == null
-                        ? null
-                        : _notificationStatusLabel(statusNotification),
-                    notificationTooltip: statusNotification == null
-                        ? null
-                        : _notificationStatusTooltip(statusNotification),
-                    notifications: statusNotifications,
+                    onProgressPressed: focusStatusPane,
+                    notificationLabel: statusNotificationLabel,
+                    notificationTooltip: statusNotificationTooltip,
+                    notifications: statusNotificationItems,
+                    onNotificationPressed: focusStatusPane,
                     badgeLabel: statusBadge != null && statusBadge.isNotEmpty
                         ? 'BADGE ${_shortStatusValue(statusBadge)}'
                         : null,
-                    badgeTooltip: statusBadge != null && statusBadge.isNotEmpty
-                        ? 'OSC 1337 badge: $statusBadge'
-                        : null,
+                    badgeTooltip: statusBadgeTooltip,
+                    onBadgePressed: focusStatusPane,
                   )
                 else
                   ListenableBuilder(
@@ -1041,56 +1152,44 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                           displayedSessionId,
                           statusViewportController.frame.modes,
                         ),
-                        shellIntegrationHealth:
-                            _ShellIntegrationHealth.fromSnapshot(
-                              statusPane.shellIntegration,
-                            ),
+                        shellIntegrationHealth: statusShellIntegrationHealth!,
+                        shellIntegrationHealthTooltip:
+                            statusShellIntegrationHealthTooltip,
                         encodingLabel: 'UTF-8',
                         linkLabel: _terminalLinkStatusLabel,
                         linkTooltip: _terminalLinkStatusTooltip,
+                        onLinkPressed: _hoveredTerminalLinkSessionId == null
+                            ? null
+                            : focusHoveredLinkPane,
                         osc52Label: _lastOsc52StatusLabel,
-                        osc52Tooltip: _lastOsc52StatusTooltip,
+                        osc52Tooltip: lastOsc52StatusTooltip,
+                        onOsc52Pressed: _lastOsc52StatusLabel == null
+                            ? null
+                            : focusOsc52Pane,
                         remoteLabel:
                             statusRemoteHost != null &&
                                 statusRemoteHost.isNotEmpty
                             ? 'REMOTE ${_shortStatusValue(statusRemoteHost)}'
                             : null,
-                        remoteTooltip:
-                            statusRemoteHost != null &&
-                                statusRemoteHost.isNotEmpty
-                            ? [
-                                'Remote context reported by shell integration.',
-                                'Host: $statusRemoteHost',
-                                if (statusRemoteUser != null &&
-                                    statusRemoteUser.isNotEmpty)
-                                  'User: $statusRemoteUser',
-                                'Local file actions stay disabled for remote paths.',
-                              ].join('\n')
-                            : null,
+                        remoteTooltip: statusRemoteTooltip,
+                        onRemotePressed: focusStatusPane,
                         progressLabel:
                             statusProgress != null && statusProgress.active
                             ? statusProgress.displayLabel
                             : null,
-                        progressTooltip:
-                            statusProgress != null && statusProgress.active
-                            ? _progressStatusTooltip(statusProgress)
-                            : null,
+                        progressTooltip: statusProgressTooltip,
                         progressItems: statusProgressItems,
-                        notificationLabel: statusNotification == null
-                            ? null
-                            : _notificationStatusLabel(statusNotification),
-                        notificationTooltip: statusNotification == null
-                            ? null
-                            : _notificationStatusTooltip(statusNotification),
-                        notifications: statusNotifications,
+                        onProgressPressed: focusStatusPane,
+                        notificationLabel: statusNotificationLabel,
+                        notificationTooltip: statusNotificationTooltip,
+                        notifications: statusNotificationItems,
+                        onNotificationPressed: focusStatusPane,
                         badgeLabel:
                             statusBadge != null && statusBadge.isNotEmpty
                             ? 'BADGE ${_shortStatusValue(statusBadge)}'
                             : null,
-                        badgeTooltip:
-                            statusBadge != null && statusBadge.isNotEmpty
-                            ? 'OSC 1337 badge: $statusBadge'
-                            : null,
+                        badgeTooltip: statusBadgeTooltip,
+                        onBadgePressed: focusStatusPane,
                       );
                     },
                   ),

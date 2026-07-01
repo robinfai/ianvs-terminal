@@ -594,6 +594,7 @@ impl SessionState {
             let encoding_name = match mouse_encoding {
                 MouseEncoding::Utf8 => "mouse_utf8",
                 MouseEncoding::Sgr => "mouse_sgr",
+                MouseEncoding::SgrPixels => "mouse_sgr_pixels",
                 MouseEncoding::Urxvt => "mouse_urxvt",
                 MouseEncoding::Default => unreachable!(),
             };
@@ -1974,7 +1975,7 @@ impl StreamingServer {
                                     subscriptions = Some(events.into_iter().collect());
                                 }
                                 crate::streaming::protocol::ClientMessage::Mouse {
-                                    col, row, button, shift, ctrl, alt, event_type,
+                                    col, row, pixel_x, pixel_y, button, shift, ctrl, alt, event_type,
                                 } => {
                                     if read_only { continue; }
                                     if let Some(writer) = session.pty_writer.read().ok().and_then(|g| g.clone()) {
@@ -1985,13 +1986,24 @@ impl StreamingServer {
                                                 | if alt { 2 } else { 0 }
                                                 | if ctrl { 4 } else { 0 };
                                             let pressed = event_type != "release";
-                                            let mouse_event = crate::mouse::MouseEvent::new(
-                                                button,
-                                                col as usize,
-                                                row as usize,
-                                                pressed,
-                                                mods,
-                                            );
+                                            let mouse_event = match (pixel_x, pixel_y) {
+                                                (Some(pixel_x), Some(pixel_y)) => crate::mouse::MouseEvent::new_with_pixels(
+                                                    button,
+                                                    col as usize,
+                                                    row as usize,
+                                                    pressed,
+                                                    mods,
+                                                    pixel_x as usize,
+                                                    pixel_y as usize,
+                                                ),
+                                                _ => crate::mouse::MouseEvent::new(
+                                                    button,
+                                                    col as usize,
+                                                    row as usize,
+                                                    pressed,
+                                                    mods,
+                                                ),
+                                            };
                                             terminal.report_mouse(mouse_event)
                                         };
                                         if !bytes.is_empty() {
@@ -2041,17 +2053,17 @@ impl StreamingServer {
                                         }
                                     }
                                     if let Some(writer) = session.pty_writer.read().ok().and_then(|g| g.clone()) {
-                                        let terminal = session.terminal.lock();
+                                        let paste_bytes = {
+                                            let terminal = session.terminal.lock();
+                                            terminal.paste_input_bytes(&content)
+                                        };
                                         session.metrics.input_bytes.fetch_add(content.len(), Ordering::Relaxed);
                                         if let Ok(mut w) = Ok::<_, ()>(writer.lock()) {
                                             use std::io::Write;
-                                            let result = if terminal.bracketed_paste() {
-                                                w.write_all(terminal.bracketed_paste_start())
-                                                    .and_then(|_| w.write_all(content.as_bytes()))
-                                                    .and_then(|_| w.write_all(terminal.bracketed_paste_end()))
-                                                    .and_then(|_| w.flush())
+                                            let result = if paste_bytes.is_empty() {
+                                                Ok(())
                                             } else {
-                                                w.write_all(content.as_bytes())
+                                                w.write_all(&paste_bytes)
                                                     .and_then(|_| w.flush())
                                             };
                                             if let Err(e) = result {

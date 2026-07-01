@@ -333,7 +333,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Image Metadata Serialization**: Support for persisting and restoring graphics state with terminal sessions (#18)
   - New `serialization` module with `SerializableGraphic`, `GraphicsSnapshot`, and `ImageDataRef` types
   - `ImageDataRef` supports inline base64-encoded pixel data or external file path references for compact storage
-  - `GraphicsStore.export_snapshot()` / `import_snapshot()` for full graphics state round-trip (placements, scrollback, animations)
+  - `GraphicsStore.export_snapshot()` / `import_snapshot()` for full graphics state round-trip (placements, scrollback, Kitty shared images, virtual placements, animations)
   - `GraphicsStore.export_json()` / `import_json()` convenience methods for JSON serialization
   - Python `Terminal.export_graphics_json()` and `Terminal.import_graphics_json(json)` bindings
   - Added `Serialize`/`Deserialize` derives to `GraphicProtocol`, `ImageDisplayMode`, `ImageSizeUnit`, `ImageDimension`, `ImagePlacement`, `CompositionMode`, `AnimationState`, `AnimationControl`

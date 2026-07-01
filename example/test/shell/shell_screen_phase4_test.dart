@@ -14,6 +14,7 @@ import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_ports.dart';
+import 'package:app/features/sessions/session_state.dart';
 import 'package:app/features/shell/shell_action_registry.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/terminal/terminal_viewport.dart';
@@ -70,6 +71,19 @@ Future<void> _pumpShellScreen(
   );
   await tester.pump();
   await tester.pumpAndSettle();
+}
+
+RenderTerminalViewport _renderTerminalViewportForPane(
+  WidgetTester tester,
+  String sessionId,
+) {
+  final paneRect = tester.getRect(find.byKey(Key('shell-pane-$sessionId')));
+  return tester.allRenderObjects.whereType<RenderTerminalViewport>().firstWhere(
+    (renderObject) {
+      final topLeft = renderObject.localToGlobal(Offset.zero);
+      return paneRect.contains(topLeft + const Offset(1, 1));
+    },
+  );
 }
 
 class _MemoryLocalTerminalConfigRepository
@@ -311,6 +325,171 @@ void main() {
     await tester.pump();
   });
 
+  testWidgets('OSC 8 hover status can focus an inactive split pane', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final splitState = container.read(sessionControllerProvider);
+    final activeSessionId = splitState.activeSessionId!;
+    final inactiveSessionId = splitState.tabs.single.effectivePanes
+        .firstWhere((pane) => pane.sessionId != activeSessionId)
+        .sessionId;
+
+    fakeBindings.setFrame(inactiveSessionId, <String, Object?>{
+      'rows': <Object?>[
+        <String, Object?>{
+          'index': 0,
+          'text': 'open docs',
+          'style_runs': <Object?>[],
+        },
+      ],
+      'cursor': <String, Object?>{'row': 0, 'col': 0, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': <Object?>[
+        <String, Object?>{'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+      'hyperlinks': <Object?>[
+        <String, Object?>{
+          'row': 0,
+          'start_col': 5,
+          'end_col': 9,
+          'uri': 'https://example.com/docs',
+        },
+      ],
+    });
+    container
+        .read(terminalRuntimeControllerProvider)
+        .refreshSession(inactiveSessionId);
+    await tester.pump(const Duration(milliseconds: 40));
+
+    final renderObject = _renderTerminalViewportForPane(
+      tester,
+      inactiveSessionId,
+    );
+    final cellSize = renderObject.debugCellSize;
+    final linkPosition = renderObject.localToGlobal(
+      Offset(cellSize.width * 6, cellSize.height / 2),
+    );
+    final pointer = TestPointer(54, PointerDeviceKind.mouse);
+    await tester.sendEventToBinding(pointer.hover(linkPosition));
+    await tester.pump();
+
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      activeSessionId,
+    );
+    expect(find.byKey(Key('shell-pane-dim-$inactiveSessionId')), findsNothing);
+    expect(find.byKey(terminalLinkTooltipKey), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-link-target')), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Tooltip &&
+            widget.message?.contains('Pane:') == true &&
+            widget.message?.contains('inactive pane') == true &&
+            widget.message?.contains('Click to focus this pane.') == true &&
+            widget.message?.contains('Target: https://example.com/docs') ==
+                true,
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('shell-status-link-target')));
+    await tester.pump();
+
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      inactiveSessionId,
+    );
+
+    await tester.sendEventToBinding(pointer.removePointer());
+    await tester.pump();
+  });
+
+  testWidgets('zooming split pane clears hidden OSC 8 hover status', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final splitState = container.read(sessionControllerProvider);
+    final activeSessionId = splitState.activeSessionId!;
+    final inactiveSessionId = splitState.tabs.single.effectivePanes
+        .firstWhere((pane) => pane.sessionId != activeSessionId)
+        .sessionId;
+
+    fakeBindings.setFrame(inactiveSessionId, <String, Object?>{
+      'rows': <Object?>[
+        <String, Object?>{
+          'index': 0,
+          'text': 'open docs',
+          'style_runs': <Object?>[],
+        },
+      ],
+      'cursor': <String, Object?>{'row': 0, 'col': 0, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': <Object?>[
+        <String, Object?>{'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+      'hyperlinks': <Object?>[
+        <String, Object?>{
+          'row': 0,
+          'start_col': 5,
+          'end_col': 9,
+          'uri': 'https://example.com/docs',
+        },
+      ],
+    });
+    container
+        .read(terminalRuntimeControllerProvider)
+        .refreshSession(inactiveSessionId);
+    await tester.pump(const Duration(milliseconds: 40));
+
+    final renderObject = _renderTerminalViewportForPane(
+      tester,
+      inactiveSessionId,
+    );
+    final cellSize = renderObject.debugCellSize;
+    final linkPosition = renderObject.localToGlobal(
+      Offset(cellSize.width * 6, cellSize.height / 2),
+    );
+    final pointer = TestPointer(55, PointerDeviceKind.mouse);
+    await tester.sendEventToBinding(pointer.hover(linkPosition));
+    await tester.pump();
+
+    expect(find.byKey(const Key('shell-status-link-target')), findsOneWidget);
+
+    await _tapCommandMenuAction(tester, const Key('shell-zoom-pane'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(Key('shell-pane-$activeSessionId')), findsOneWidget);
+    expect(find.byKey(Key('shell-pane-$inactiveSessionId')), findsNothing);
+    expect(find.byKey(const Key('shell-status-link-target')), findsNothing);
+
+    await tester.sendEventToBinding(pointer.removePointer());
+    await tester.pump();
+  });
+
   testWidgets('OSC 8 file links ask before opening', (tester) async {
     final fakeBindings = FakePtyBackend();
 
@@ -359,6 +538,80 @@ void main() {
 
     expect(find.text('Open local file link?'), findsOneWidget);
     expect(find.textContaining('file:///tmp/secret.txt'), findsOneWidget);
+
+    await tester.tap(find.text('Deny'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Blocked file link'), findsOneWidget);
+  });
+
+  testWidgets('OSC 8 file link prompt identifies source split pane', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final splitState = container.read(sessionControllerProvider);
+    final activeSessionId = splitState.activeSessionId!;
+    final inactiveSessionId = splitState.tabs.single.effectivePanes
+        .firstWhere((pane) => pane.sessionId != activeSessionId)
+        .sessionId;
+
+    fakeBindings.setFrame(inactiveSessionId, <String, Object?>{
+      'rows': <Object?>[
+        <String, Object?>{
+          'index': 0,
+          'text': 'open file',
+          'style_runs': <Object?>[],
+        },
+      ],
+      'cursor': <String, Object?>{'row': 0, 'col': 0, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': <Object?>[
+        <String, Object?>{'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+      'hyperlinks': <Object?>[
+        <String, Object?>{
+          'row': 0,
+          'start_col': 5,
+          'end_col': 9,
+          'uri': 'file:///tmp/source-pane.txt',
+        },
+      ],
+    });
+    container
+        .read(terminalRuntimeControllerProvider)
+        .refreshSession(inactiveSessionId);
+    await tester.pump(const Duration(milliseconds: 40));
+
+    final renderObject = _renderTerminalViewportForPane(
+      tester,
+      inactiveSessionId,
+    );
+    final cellSize = renderObject.debugCellSize;
+    final linkPosition = renderObject.localToGlobal(
+      Offset(cellSize.width * 6, cellSize.height / 2),
+    );
+    final pointer = TestPointer(46, PointerDeviceKind.mouse);
+    await tester.sendEventToBinding(pointer.down(linkPosition));
+    await tester.pump();
+    await tester.sendEventToBinding(pointer.up());
+    await tester.pump(kDoubleTapTimeout);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Open local file link?'), findsOneWidget);
+    expect(find.textContaining('file:///tmp/source-pane.txt'), findsOneWidget);
+    expect(find.textContaining('Source: Pane:'), findsOneWidget);
+    expect(find.textContaining('($inactiveSessionId)'), findsOneWidget);
 
     await tester.tap(find.text('Deny'));
     await tester.pumpAndSettle();
@@ -441,7 +694,8 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('Session: 1'), findsOneWidget);
+    expect(find.textContaining('Session:'), findsOneWidget);
+    expect(find.textContaining('(1) · active pane'), findsOneWidget);
     expect(find.text('Selection: c'), findsOneWidget);
     expect(find.text('Size: 13 characters / 13 bytes'), findsOneWidget);
     expect(find.text('paste preview'), findsOneWidget);
@@ -452,6 +706,640 @@ void main() {
     expect(find.text('OSC 52 paste read blocked by policy'), findsOneWidget);
     expect(clipboardReads, 1);
     expect(fakeBindings.writes, isEmpty);
+  });
+
+  testWidgets('OSC 52 prompt identifies inactive split pane', (tester) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      localConfigRepository: _MemoryLocalTerminalConfigRepository(
+        const LocalTerminalConfigDocument(
+          clipboard: LocalTerminalClipboardConfig(
+            osc52: LocalTerminalOsc52Policy.ask,
+          ),
+        ),
+      ),
+      clipboardPaste: () async => 'pane preview',
+    );
+    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final splitState = container.read(sessionControllerProvider);
+    final activeSessionId = splitState.activeSessionId!;
+    final inactiveSessionId = splitState.tabs.single.effectivePanes
+        .firstWhere((pane) => pane.sessionId != activeSessionId)
+        .sessionId;
+
+    fakeBindings.enqueueEvent(
+      inactiveSessionId,
+      PtyEvent(
+        kind: 'clipboard_paste_request',
+        sessionId: inactiveSessionId,
+        payload: const <String, Object?>{'selection': 'c'},
+      ),
+    );
+    container
+        .read(terminalRuntimeControllerProvider)
+        .refreshSession(inactiveSessionId);
+    await tester.pump();
+
+    expect(find.text('Allow OSC 52 paste read?'), findsOneWidget);
+    expect(
+      find.textContaining('($inactiveSessionId) · inactive pane'),
+      findsOneWidget,
+    );
+    expect(find.text('pane preview'), findsOneWidget);
+  });
+
+  testWidgets('OSC 52 copy prompt identifies inactive split pane', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      localConfigRepository: _MemoryLocalTerminalConfigRepository(
+        const LocalTerminalConfigDocument(
+          clipboard: LocalTerminalClipboardConfig(
+            osc52: LocalTerminalOsc52Policy.ask,
+          ),
+        ),
+      ),
+    );
+    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final splitState = container.read(sessionControllerProvider);
+    final activeSessionId = splitState.activeSessionId!;
+    final inactiveSessionId = splitState.tabs.single.effectivePanes
+        .firstWhere((pane) => pane.sessionId != activeSessionId)
+        .sessionId;
+    const clipboardText = 'Deploy clipboard copy';
+
+    fakeBindings.enqueueEvent(
+      inactiveSessionId,
+      PtyEvent(
+        kind: 'clipboard_copy',
+        sessionId: inactiveSessionId,
+        payload: <String, Object?>{
+          'selection': 'p',
+          'data': base64.encode(utf8.encode(clipboardText)),
+        },
+      ),
+    );
+    container
+        .read(terminalRuntimeControllerProvider)
+        .refreshSession(inactiveSessionId);
+    await tester.pump();
+
+    expect(find.text('Allow OSC 52 clipboard copy?'), findsOneWidget);
+    expect(
+      find.textContaining(
+        'The terminal wants to write the following text to your clipboard.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('($inactiveSessionId) · inactive pane'),
+      findsOneWidget,
+    );
+    expect(find.text('Selection: p'), findsOneWidget);
+    expect(find.text('Size: 21 characters / 21 bytes'), findsOneWidget);
+    expect(find.text(clipboardText), findsOneWidget);
+
+    await tester.tap(find.text('Deny'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('OSC52 COPY BLOCKED'), findsOneWidget);
+    expect(
+      find.textContaining('OSC 52 clipboard copy blocked by policy ·'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('inactive pane'), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-osc52')), findsOneWidget);
+  });
+
+  testWidgets('OSC 52 status can focus the originating split pane', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      localConfigRepository: _MemoryLocalTerminalConfigRepository(
+        const LocalTerminalConfigDocument(
+          clipboard: LocalTerminalClipboardConfig(
+            osc52: LocalTerminalOsc52Policy.disabled,
+          ),
+        ),
+      ),
+    );
+    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final splitState = container.read(sessionControllerProvider);
+    final activeSessionId = splitState.activeSessionId!;
+    final inactiveSessionId = splitState.tabs.single.effectivePanes
+        .firstWhere((pane) => pane.sessionId != activeSessionId)
+        .sessionId;
+
+    await _tapCommandMenuAction(tester, const Key('shell-zoom-pane'));
+    expect(find.byKey(Key('shell-pane-$activeSessionId')), findsOneWidget);
+    expect(find.byKey(Key('shell-pane-$inactiveSessionId')), findsNothing);
+
+    fakeBindings.enqueueEvent(
+      inactiveSessionId,
+      PtyEvent(
+        kind: 'clipboard_copy',
+        sessionId: inactiveSessionId,
+        payload: <String, Object?>{
+          'selection': 'c',
+          'data': base64.encode(utf8.encode('pane copy')),
+        },
+      ),
+    );
+    container
+        .read(terminalRuntimeControllerProvider)
+        .refreshSession(inactiveSessionId);
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      activeSessionId,
+    );
+    expect(
+      find.textContaining('OSC 52 clipboard copy blocked by policy'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('inactive pane'), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-osc52')), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('shell-status-osc52')),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.label?.contains(
+                    'OSC 52 clipboard write blocked',
+                  ) ==
+                  true &&
+              widget.properties.label?.contains('inactive pane') == true &&
+              widget.properties.label?.contains('Click to focus this pane.') ==
+                  true,
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Tooltip &&
+            widget.message?.contains('OSC 52 clipboard write blocked') ==
+                true &&
+            widget.message?.contains('inactive pane') == true &&
+            widget.message?.contains('Click to focus this pane.') == true,
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('shell-status-osc52')));
+    await tester.pump();
+
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      inactiveSessionId,
+    );
+    expect(find.byKey(Key('shell-pane-$inactiveSessionId')), findsOneWidget);
+    expect(find.byKey(Key('shell-pane-$activeSessionId')), findsNothing);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('shell-status-osc52')),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Tooltip &&
+              widget.message?.contains('OSC 52 clipboard write blocked') ==
+                  true &&
+              widget.message?.contains('active pane') == true &&
+              widget.message?.contains('inactive pane') == false &&
+              widget.message?.contains('Click to focus this pane.') == false,
+        ),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('closing split pane clears its OSC 52 status affordance', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      localConfigRepository: _MemoryLocalTerminalConfigRepository(
+        const LocalTerminalConfigDocument(
+          clipboard: LocalTerminalClipboardConfig(
+            osc52: LocalTerminalOsc52Policy.disabled,
+          ),
+        ),
+      ),
+    );
+    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final closingSessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+
+    fakeBindings.enqueueEvent(
+      closingSessionId,
+      PtyEvent(
+        kind: 'clipboard_copy',
+        sessionId: closingSessionId,
+        payload: <String, Object?>{
+          'selection': 'c',
+          'data': base64.encode(utf8.encode('closing pane copy')),
+        },
+      ),
+    );
+    container
+        .read(terminalRuntimeControllerProvider)
+        .refreshSession(closingSessionId);
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(find.byKey(const Key('shell-status-osc52')), findsOneWidget);
+
+    await tester.tap(
+      find.byKey(Key('shell-pane-action-close-$closingSessionId')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      isNot(closingSessionId),
+    );
+    expect(find.byKey(const Key('shell-status-osc52')), findsNothing);
+    expect(find.textContaining('closing pane copy'), findsNothing);
+  });
+
+  testWidgets('closing split pane clears OSC pane metadata affordances', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final splitState = container.read(sessionControllerProvider);
+    final activeSessionId = splitState.activeSessionId!;
+    final tabSessionId = splitState.tabs.single.sessionId;
+    final closingSessionId = splitState.tabs.single.effectivePanes
+        .firstWhere((pane) => pane.sessionId != activeSessionId)
+        .sessionId;
+
+    fakeBindings.enqueueEvent(
+      closingSessionId,
+      PtyEvent(
+        kind: 'session_progress',
+        sessionId: closingSessionId,
+        payload: const <String, Object?>{
+          'source': 'osc934',
+          'named': true,
+          'action': 'set',
+          'id': 'build',
+          'state': 'normal',
+          'percent': 64,
+          'label': 'Compile',
+        },
+      ),
+    );
+    fakeBindings.enqueueEvent(
+      closingSessionId,
+      PtyEvent(
+        kind: 'session_notification',
+        sessionId: closingSessionId,
+        payload: const <String, Object?>{
+          'source': 'osc777',
+          'title': 'Build',
+          'message': 'Inactive pane done',
+        },
+      ),
+    );
+    fakeBindings.enqueueEvent(
+      closingSessionId,
+      PtyEvent(
+        kind: 'session_badge',
+        sessionId: closingSessionId,
+        payload: const <String, Object?>{'text': 'Deploy'},
+      ),
+    );
+    container
+        .read(terminalRuntimeControllerProvider)
+        .refreshSession(closingSessionId);
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      activeSessionId,
+    );
+    expect(find.byKey(const Key('shell-status-badge')), findsNothing);
+    expect(find.byKey(const Key('shell-status-progress')), findsNothing);
+    expect(find.byKey(const Key('shell-status-notification')), findsNothing);
+    expect(find.byKey(Key('shell-tab-badge-$tabSessionId')), findsOneWidget);
+    expect(
+      find.byKey(Key('shell-tab-pane-signal-$tabSessionId')),
+      findsOneWidget,
+    );
+    expect(find.text('DEPLOY'), findsOneWidget);
+    expect(find.text('BUILD 64%'), findsOneWidget);
+    expect(find.text('NOTIFY Build'), findsOneWidget);
+    expect(find.text('BADGE Deploy'), findsOneWidget);
+    expect(
+      find.byKey(Key('shell-pane-header-indicator-progress-$closingSessionId')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(
+        Key('shell-pane-header-indicator-notification-$closingSessionId'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(Key('shell-pane-header-indicator-badge-$closingSessionId')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(Key('shell-pane-header-$closingSessionId')));
+    await tester.pump();
+
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      closingSessionId,
+    );
+    expect(find.byKey(const Key('shell-status-badge')), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-progress')), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-notification')), findsOneWidget);
+
+    await tester.tap(
+      find.byKey(Key('shell-pane-action-close-$closingSessionId')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      activeSessionId,
+    );
+    expect(find.byKey(const Key('shell-status-badge')), findsNothing);
+    expect(find.byKey(const Key('shell-status-progress')), findsNothing);
+    expect(find.byKey(const Key('shell-status-notification')), findsNothing);
+    expect(find.byKey(Key('shell-tab-badge-$tabSessionId')), findsNothing);
+    expect(
+      find.byKey(Key('shell-tab-pane-signal-$tabSessionId')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(Key('shell-pane-header-indicator-progress-$closingSessionId')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(
+        Key('shell-pane-header-indicator-notification-$closingSessionId'),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.byKey(Key('shell-pane-header-indicator-badge-$closingSessionId')),
+      findsNothing,
+    );
+    expect(find.text('DEPLOY'), findsNothing);
+    expect(find.text('BUILD 64%'), findsNothing);
+    expect(find.text('NOTIFY Build'), findsNothing);
+    expect(find.text('BADGE Deploy'), findsNothing);
+  });
+
+  testWidgets('tab badge from inactive split pane focuses originating pane', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final splitState = container.read(sessionControllerProvider);
+    final activeSessionId = splitState.activeSessionId!;
+    final inactiveSessionId = splitState.tabs.single.effectivePanes
+        .firstWhere((pane) => pane.sessionId != activeSessionId)
+        .sessionId;
+    final tabSessionId = splitState.tabs.single.sessionId;
+
+    fakeBindings.enqueueEvent(
+      inactiveSessionId,
+      PtyEvent(
+        kind: 'session_badge',
+        sessionId: inactiveSessionId,
+        payload: const <String, Object?>{'text': 'Deploy'},
+      ),
+    );
+    container
+        .read(terminalRuntimeControllerProvider)
+        .refreshSession(inactiveSessionId);
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      activeSessionId,
+    );
+    expect(find.byKey(Key('shell-tab-badge-$tabSessionId')), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Tooltip &&
+            widget.message?.startsWith('OSC 1337 badge: Deploy\n') == true &&
+            widget.message?.contains('($inactiveSessionId) · inactive pane') ==
+                true &&
+            widget.message?.contains('Click to focus this pane.') == true,
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(Key('shell-tab-badge-$tabSessionId')));
+    await tester.pumpAndSettle();
+
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      inactiveSessionId,
+    );
+  });
+
+  testWidgets('visible inactive tab badge focuses originating split pane', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final controller = container.read(sessionControllerProvider.notifier);
+    final profile = defaultTerminalProfile();
+
+    controller.createSession(profile);
+    await tester.pump();
+    controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+    await tester.pump();
+    controller.activateSession('1');
+    await tester.pumpAndSettle();
+
+    final splitState = container.read(sessionControllerProvider);
+    final splitTab = splitState.tabs.firstWhere((tab) => tab.sessionId != '1');
+    final inactiveSplitSessionId = splitTab.effectivePanes
+        .firstWhere((pane) => pane.sessionId != splitTab.activeSessionId)
+        .sessionId;
+
+    fakeBindings.enqueueEvent(
+      inactiveSplitSessionId,
+      PtyEvent(
+        kind: 'session_badge',
+        sessionId: inactiveSplitSessionId,
+        payload: const <String, Object?>{'text': 'Deploy'},
+      ),
+    );
+    container
+        .read(terminalRuntimeControllerProvider)
+        .refreshSession(inactiveSplitSessionId);
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(container.read(sessionControllerProvider).activeSessionId, '1');
+    expect(
+      find.byKey(Key('shell-tab-badge-${splitTab.sessionId}')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(Key('shell-tab-badge-${splitTab.sessionId}')),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Tooltip &&
+              widget.message?.contains('OSC 1337 badge: Deploy') == true &&
+              widget.message?.contains('inactive pane') == true &&
+              widget.message?.contains('Click to focus this pane.') == true,
+        ),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(Key('shell-tab-badge-${splitTab.sessionId}')));
+    await tester.pumpAndSettle();
+
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      inactiveSplitSessionId,
+    );
+    expect(find.byKey(const Key('shell-status-badge')), findsOneWidget);
+    expect(find.text('BADGE Deploy'), findsOneWidget);
+  });
+
+  testWidgets('closing split pane clears hovered OSC 8 link status', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final splitState = container.read(sessionControllerProvider);
+    final activeSessionId = splitState.activeSessionId!;
+    final inactiveSessionId = splitState.tabs.single.effectivePanes
+        .firstWhere((pane) => pane.sessionId != activeSessionId)
+        .sessionId;
+
+    fakeBindings.setFrame(inactiveSessionId, <String, Object?>{
+      'rows': <Object?>[
+        <String, Object?>{
+          'index': 0,
+          'text': 'open docs',
+          'style_runs': <Object?>[],
+        },
+      ],
+      'cursor': <String, Object?>{'row': 0, 'col': 0, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': <Object?>[
+        <String, Object?>{'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+      'hyperlinks': <Object?>[
+        <String, Object?>{
+          'row': 0,
+          'start_col': 5,
+          'end_col': 9,
+          'uri': 'https://example.com/docs',
+        },
+      ],
+    });
+    container
+        .read(terminalRuntimeControllerProvider)
+        .refreshSession(inactiveSessionId);
+    await tester.pump(const Duration(milliseconds: 40));
+
+    final renderObject = _renderTerminalViewportForPane(
+      tester,
+      inactiveSessionId,
+    );
+    final cellSize = renderObject.debugCellSize;
+    final linkPosition = renderObject.localToGlobal(
+      Offset(cellSize.width * 6, cellSize.height / 2),
+    );
+    final pointer = TestPointer(64, PointerDeviceKind.mouse);
+    await tester.sendEventToBinding(pointer.hover(linkPosition));
+    await tester.pump();
+
+    expect(find.byKey(const Key('shell-status-link-target')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('shell-status-link-target')));
+    await tester.pump();
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      inactiveSessionId,
+    );
+
+    await tester.tap(
+      find.byKey(Key('shell-pane-action-close-$inactiveSessionId')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      isNot(inactiveSessionId),
+    );
+    expect(find.byKey(const Key('shell-status-link-target')), findsNothing);
+
+    await tester.sendEventToBinding(pointer.removePointer());
+    await tester.pump();
   });
 
   testWidgets('OSC 52 profile policy prompts before paste read', (
@@ -508,6 +1396,67 @@ void main() {
     expect(find.text('Allow OSC 52 paste read?'), findsOneWidget);
     expect(find.text('Size: 0 characters / 0 bytes'), findsOneWidget);
     expect(find.text('Clipboard is empty'), findsOneWidget);
+  });
+
+  testWidgets('OSC indeterminate progress shows state without fake percent', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+
+    fakeBindings.enqueueEvent(
+      1,
+      const PtyEvent(
+        kind: 'session_progress',
+        sessionId: '1',
+        payload: <String, Object?>{
+          'source': 'osc9;4',
+          'action': 'set',
+          'state': 'indeterminate',
+          'label': 'Waiting',
+        },
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(find.byKey(const Key('shell-status-progress')), findsOneWidget);
+    expect(find.text('PROGRESS INDETERMINATE'), findsOneWidget);
+    expect(find.text('PROGRESS 0%'), findsNothing);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('shell-status-progress')),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Tooltip &&
+              widget.message?.contains(
+                    'Terminal progress reported by osc9;4.',
+                  ) ==
+                  true &&
+              widget.message?.contains('Label: Waiting') == true &&
+              widget.message?.contains('State: indeterminate') == true &&
+              widget.message?.contains('Percent:') == false,
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('shell-status-progress')),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.label?.contains(
+                    'Terminal progress status: PROGRESS INDETERMINATE',
+                  ) ==
+                  true &&
+              widget.properties.label?.contains('State: indeterminate') ==
+                  true &&
+              widget.properties.label?.contains('Percent:') == false,
+        ),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets(
@@ -604,6 +1553,22 @@ void main() {
       fakeBindings.enqueueEvent(
         1,
         const PtyEvent(
+          kind: 'session_badge',
+          sessionId: '1',
+          payload: <String, Object?>{'text': 'DeploymentStatusVeryLong'},
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(find.text('DEPLOYMEN…'), findsOneWidget);
+      expect(
+        find.byTooltip('OSC 1337 badge: DeploymentStatusVeryLong'),
+        findsNWidgets(2),
+      );
+
+      fakeBindings.enqueueEvent(
+        1,
+        const PtyEvent(
           kind: 'session_progress',
           sessionId: '1',
           payload: <String, Object?>{
@@ -626,6 +1591,206 @@ void main() {
       expect(find.text('BUILD 80%'), findsOneWidget);
       expect(find.text('TEST 25%'), findsWidgets);
       expect(find.text('Verify · normal · 25% · osc934'), findsOneWidget);
+      await tester.tapAt(const Offset(20, 20));
+      await tester.pumpAndSettle();
+
+      fakeBindings.enqueueEvent(
+        1,
+        const PtyEvent(
+          kind: 'session_progress',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'osc934',
+            'named': true,
+            'action': 'remove',
+            'id': 'test',
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(find.text('TEST 100%'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 1500));
+      expect(find.text('TEST 100%'), findsNothing);
+      expect(find.text('BUILD 80%'), findsOneWidget);
+
+      fakeBindings.enqueueEvent(
+        1,
+        const PtyEvent(
+          kind: 'session_progress',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'osc934',
+            'named': true,
+            'action': 'remove_all',
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(find.text('BUILD 100%'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 1500));
+      expect(find.byKey(const Key('shell-status-progress')), findsNothing);
+
+      fakeBindings.enqueueEvent(
+        1,
+        const PtyEvent(
+          kind: 'session_badge',
+          sessionId: '1',
+          payload: <String, Object?>{'text': ''},
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(find.byKey(const Key('shell-status-badge')), findsNothing);
+      expect(find.byKey(const Key('shell-tab-badge-1')), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'split pane progress indicators prefer running named progress over completed primary progress',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final controller = container.read(sessionControllerProvider.notifier);
+      final splitState = container.read(sessionControllerProvider);
+      final progressSessionId = splitState.activeSessionId!;
+      final otherSessionId = splitState.tabs.single.effectivePanes
+          .firstWhere((pane) => pane.sessionId != progressSessionId)
+          .sessionId;
+      final tabSessionId = splitState.tabs.single.sessionId;
+
+      fakeBindings.enqueueEvent(
+        progressSessionId,
+        PtyEvent(
+          kind: 'session_progress',
+          sessionId: progressSessionId,
+          payload: const <String, Object?>{
+            'source': 'osc9;4',
+            'action': 'set',
+            'state': 'normal',
+            'percent': 20,
+            'label': 'Primary',
+          },
+        ),
+      );
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(progressSessionId);
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(find.text('PROGRESS 20%'), findsOneWidget);
+
+      fakeBindings.enqueueEvent(
+        progressSessionId,
+        PtyEvent(
+          kind: 'session_progress',
+          sessionId: progressSessionId,
+          payload: const <String, Object?>{
+            'source': 'osc9;4',
+            'action': 'clear',
+          },
+        ),
+      );
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(progressSessionId);
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(find.text('PROGRESS 100%'), findsOneWidget);
+
+      fakeBindings.enqueueEvent(
+        progressSessionId,
+        PtyEvent(
+          kind: 'session_progress',
+          sessionId: progressSessionId,
+          payload: const <String, Object?>{
+            'source': 'osc934',
+            'named': true,
+            'action': 'set',
+            'id': 'build',
+            'state': 'normal',
+            'percent': 42,
+            'label': 'Build',
+          },
+        ),
+      );
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(progressSessionId);
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('shell-status-progress')),
+          matching: find.text('BUILD 42%'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('shell-status-progress')),
+          matching: find.text('PROGRESS 100%'),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('shell-status-progress')),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Semantics &&
+                widget.properties.label?.contains(
+                      'Terminal progress reported by osc934',
+                    ) ==
+                    true &&
+                widget.properties.label?.contains('ID: build') == true,
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(Key('shell-tab-pane-signal-$tabSessionId')),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Tooltip &&
+                widget.message?.contains(
+                      'Terminal progress reported by osc934',
+                    ) ==
+                    true,
+          ),
+        ),
+        findsOneWidget,
+      );
+
+      controller.activateSession(otherSessionId);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: find.byKey(
+            Key('shell-pane-header-indicator-progress-$progressSessionId'),
+          ),
+          matching: find.text('BUILD 42%'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(
+            Key('shell-pane-header-indicator-progress-$progressSessionId'),
+          ),
+          matching: find.text('PROGRESS 100%'),
+        ),
+        findsNothing,
+      );
     },
   );
 
@@ -658,6 +1823,1426 @@ void main() {
         find.text(
           'Unavailable: Remote-reported current directories cannot be duplicated as local sessions.',
         ),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('OSC pane metadata stays visible across split panes', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final splitState = container.read(sessionControllerProvider);
+    final tab = splitState.tabs.single;
+    final activeSessionId = splitState.activeSessionId!;
+    final inactiveSessionId = tab.effectivePanes
+        .firstWhere((pane) => pane.sessionId != activeSessionId)
+        .sessionId;
+
+    fakeBindings.enqueueEvent(
+      inactiveSessionId,
+      PtyEvent(
+        kind: 'shell_context',
+        sessionId: inactiveSessionId,
+        payload: const <String, Object?>{
+          'source': 'osc7',
+          'cwd': '/srv/app',
+          'hostname': 'remote.example',
+          'username': 'deploy',
+        },
+      ),
+    );
+    fakeBindings.enqueueEvent(
+      inactiveSessionId,
+      PtyEvent(
+        kind: 'session_progress',
+        sessionId: inactiveSessionId,
+        payload: const <String, Object?>{
+          'source': 'osc934',
+          'named': true,
+          'action': 'set',
+          'id': 'build',
+          'state': 'normal',
+          'percent': 80,
+          'label': 'Compile',
+        },
+      ),
+    );
+    fakeBindings.enqueueEvent(
+      inactiveSessionId,
+      PtyEvent(
+        kind: 'session_notification',
+        sessionId: inactiveSessionId,
+        payload: const <String, Object?>{
+          'source': 'osc777',
+          'title': 'Build',
+          'message': 'Inactive pane done',
+        },
+      ),
+    );
+    fakeBindings.enqueueEvent(
+      inactiveSessionId,
+      PtyEvent(
+        kind: 'session_badge',
+        sessionId: inactiveSessionId,
+        payload: const <String, Object?>{'text': 'Deploy'},
+      ),
+    );
+    container
+        .read(terminalRuntimeControllerProvider)
+        .refreshSession(inactiveSessionId);
+    await tester.pump();
+
+    expect(
+      find.byKey(Key('shell-pane-header-indicator-remote-$inactiveSessionId')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(
+        Key('shell-pane-header-indicator-progress-$inactiveSessionId'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(
+        Key('shell-pane-header-indicator-notification-$inactiveSessionId'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(Key('shell-pane-header-indicator-badge-$inactiveSessionId')),
+      findsOneWidget,
+    );
+    expect(find.text('REMOTE remote.example'), findsOneWidget);
+    expect(find.text('BUILD 80%'), findsOneWidget);
+    expect(find.text('NOTIFY Build'), findsOneWidget);
+    expect(find.text('BADGE Deploy'), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-badge')), findsNothing);
+    expect(find.byKey(const Key('shell-status-progress')), findsNothing);
+    expect(find.byKey(const Key('shell-status-notification')), findsNothing);
+    expect(find.byKey(Key('shell-tab-badge-${tab.sessionId}')), findsOneWidget);
+    expect(find.text('DEPLOY'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(Key('shell-tab-badge-${tab.sessionId}')),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Tooltip &&
+              widget.message?.contains('OSC 1337 badge: Deploy') == true &&
+              widget.message?.contains('Pane:') == true &&
+              widget.message?.contains('inactive pane') == true &&
+              widget.message?.contains('Click to focus this pane.') == true,
+        ),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(Key('shell-tab-badge-${tab.sessionId}')));
+    await tester.pump();
+
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      inactiveSessionId,
+    );
+    expect(find.byKey(const Key('shell-status-badge')), findsOneWidget);
+
+    await tester.tap(find.byKey(Key('shell-pane-header-$activeSessionId')));
+    await tester.pump();
+
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      activeSessionId,
+    );
+    expect(find.byKey(const Key('shell-status-badge')), findsNothing);
+
+    fakeBindings.enqueueEvent(
+      activeSessionId,
+      PtyEvent(
+        kind: 'session_badge',
+        sessionId: activeSessionId,
+        payload: const <String, Object?>{'text': 'Active'},
+      ),
+    );
+    container
+        .read(terminalRuntimeControllerProvider)
+        .refreshSession(activeSessionId);
+    await tester.pump();
+
+    expect(find.text('ACTIVE'), findsOneWidget);
+    expect(find.text('DEPLOY'), findsOneWidget);
+    expect(
+      find.byKey(Key('shell-tab-badge-${tab.sessionId}-$activeSessionId')),
+      findsOneWidget,
+    );
+    expect(find.text('BADGE Active'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(Key('shell-tab-badge-${tab.sessionId}')),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Tooltip &&
+              widget.message?.contains('OSC 1337 badge: Deploy') == true &&
+              widget.message?.contains('Other pane badges:') == true &&
+              widget.message?.contains('Active') == true &&
+              widget.message?.contains('inactive pane') == true &&
+              widget.message?.contains('Click to focus this pane.') == true,
+        ),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(Key('shell-tab-badge-${tab.sessionId}')));
+    await tester.pump();
+
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      inactiveSessionId,
+    );
+
+    await tester.tap(find.byKey(Key('shell-tab-badge-${tab.sessionId}')));
+    await tester.pump();
+
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      activeSessionId,
+    );
+
+    await tester.tap(find.byKey(Key('shell-pane-header-$activeSessionId')));
+    await tester.pump();
+
+    fakeBindings.enqueueEvent(
+      activeSessionId,
+      PtyEvent(
+        kind: 'session_badge',
+        sessionId: activeSessionId,
+        payload: const <String, Object?>{'text': ''},
+      ),
+    );
+    container
+        .read(terminalRuntimeControllerProvider)
+        .refreshSession(activeSessionId);
+    await tester.pump();
+
+    expect(find.byKey(const Key('shell-status-badge')), findsNothing);
+    expect(find.text('DEPLOY'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Tooltip &&
+            widget.message?.contains('Pane:') == true &&
+            widget.message?.contains('inactive pane') == true &&
+            widget.message?.contains('Click to focus this pane.') == true,
+      ),
+      findsWidgets,
+    );
+
+    await tester.tap(
+      find.byKey(Key('shell-pane-header-indicator-badge-$inactiveSessionId')),
+    );
+    await tester.pump();
+
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      inactiveSessionId,
+    );
+    expect(find.byKey(const Key('shell-status-badge')), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-progress')), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-notification')), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('shell-status-badge')),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.label?.contains('OSC 1337 badge: Deploy') ==
+                  true &&
+              widget.properties.label?.contains('Pane:') == true &&
+              widget.properties.label?.contains('active pane') == true,
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('shell-status-progress')),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.label?.contains(
+                    'Terminal progress reported by osc934',
+                  ) ==
+                  true &&
+              widget.properties.label?.contains('Pane:') == true &&
+              widget.properties.label?.contains('active pane') == true,
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('shell-status-notification')),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.label?.contains(
+                    'Terminal notification reported by osc777',
+                  ) ==
+                  true &&
+              widget.properties.label?.contains('Pane:') == true &&
+              widget.properties.label?.contains('active pane') == true,
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('shell-status-badge')),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Tooltip &&
+              widget.message?.contains('OSC 1337 badge: Deploy') == true &&
+              widget.message?.contains('Pane:') == true &&
+              widget.message?.contains('active pane') == true &&
+              widget.message?.contains('Click to focus this pane.') == false,
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('shell-status-progress')),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Tooltip &&
+              widget.message?.contains(
+                    'Terminal progress reported by osc934',
+                  ) ==
+                  true &&
+              widget.message?.contains('Pane:') == true &&
+              widget.message?.contains('active pane') == true &&
+              widget.message?.contains('Click to focus this pane.') == false,
+        ),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('split tab overflow badge focuses the hidden badge pane', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final controller = container.read(sessionControllerProvider.notifier);
+    final profile = defaultTerminalProfile();
+
+    controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+    await tester.pumpAndSettle();
+    controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+    await tester.pumpAndSettle();
+    controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+    await tester.pumpAndSettle();
+
+    final splitState = container.read(sessionControllerProvider);
+    final tab = splitState.tabs.single;
+    final activeSessionId = splitState.activeSessionId!;
+    final inactiveSessionIds = tab.effectivePanes
+        .where((pane) => pane.sessionId != activeSessionId)
+        .map((pane) => pane.sessionId)
+        .toList(growable: false);
+    expect(inactiveSessionIds, hasLength(3));
+
+    final firstVisibleBadgeSessionId = inactiveSessionIds[0];
+    final secondVisibleBadgeSessionId = inactiveSessionIds[1];
+    final hiddenBadgeSessionId = inactiveSessionIds[2];
+    final badgeTexts = <String, String>{
+      activeSessionId: 'Active',
+      firstVisibleBadgeSessionId: 'Build',
+      secondVisibleBadgeSessionId: 'Test',
+      hiddenBadgeSessionId: 'Deploy',
+    };
+    for (final entry in badgeTexts.entries) {
+      fakeBindings.enqueueEvent(
+        entry.key,
+        PtyEvent(
+          kind: 'session_badge',
+          sessionId: entry.key,
+          payload: <String, Object?>{'text': entry.value},
+        ),
+      );
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(entry.key);
+    }
+    await tester.pump(const Duration(milliseconds: 40));
+
+    final firstInactiveBadge = find.byKey(
+      Key('shell-tab-badge-${tab.sessionId}'),
+    );
+    final secondInactiveBadge = find.byKey(
+      Key('shell-tab-badge-${tab.sessionId}-$secondVisibleBadgeSessionId'),
+    );
+    final hiddenBadgeOverflow = find.byKey(
+      Key('shell-tab-badge-${tab.sessionId}-more'),
+    );
+    expect(firstInactiveBadge, findsOneWidget);
+    expect(secondInactiveBadge, findsOneWidget);
+    expect(hiddenBadgeOverflow, findsOneWidget);
+    expect(
+      find.descendant(of: firstInactiveBadge, matching: find.text('BUILD')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: secondInactiveBadge, matching: find.text('TEST')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: hiddenBadgeOverflow, matching: find.text('+2')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: hiddenBadgeOverflow,
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Tooltip &&
+              widget.message?.contains('Additional OSC 1337 badges') == true &&
+              widget.message?.contains('($hiddenBadgeSessionId)') == true &&
+              widget.message?.contains('inactive pane') == true &&
+              widget.message?.contains(
+                    'Click to focus the first remaining badge pane.',
+                  ) ==
+                  true,
+        ),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(hiddenBadgeOverflow);
+    await tester.pumpAndSettle();
+
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      hiddenBadgeSessionId,
+    );
+    expect(find.byKey(const Key('shell-status-badge')), findsOneWidget);
+    expect(find.text('BADGE Deploy'), findsOneWidget);
+  });
+
+  testWidgets(
+    'overflow tab badge can focus an inactive pane inside a hidden split tab',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final controller = container.read(sessionControllerProvider.notifier);
+      final profile = defaultTerminalProfile();
+      for (var index = 0; index < 11; index += 1) {
+        controller.createSession(profile);
+      }
+      controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+      controller.activateSession('1');
+      await tester.pumpAndSettle();
+
+      final splitTab = container
+          .read(sessionControllerProvider)
+          .tabs
+          .firstWhere((tab) => tab.sessionId == '12');
+      final inactiveSplitSessionId = splitTab.effectivePanes
+          .firstWhere((pane) => pane.sessionId != splitTab.activeSessionId)
+          .sessionId;
+
+      fakeBindings.enqueueEvent(
+        inactiveSplitSessionId,
+        PtyEvent(
+          kind: 'session_badge',
+          sessionId: inactiveSplitSessionId,
+          payload: const <String, Object?>{'text': 'Deploy'},
+        ),
+      );
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(inactiveSplitSessionId);
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(
+        find.byKey(const Key('shell-tab-overflow-button')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('shell-tab-badge-12')), findsNothing);
+      expect(find.byKey(const Key('shell-tab-overflow-badge')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('shell-tab-overflow-badge')),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Tooltip &&
+                widget.message?.contains('OSC 1337 badge in a hidden tab.') ==
+                    true &&
+                widget.message?.contains('OSC 1337 badge: Deploy') == true &&
+                widget.message?.contains('inactive pane') == true &&
+                widget.message?.contains('Click to focus this pane.') == true,
+          ),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('shell-tab-overflow-button')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('shell-tab-overflow-item-12')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('shell-tab-overflow-badge-12')),
+        findsOneWidget,
+      );
+      expect(find.text('DEPLOY'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('shell-tab-overflow-badge-12')),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Tooltip &&
+                widget.message?.contains('OSC 1337 badge: Deploy') == true &&
+                widget.message?.contains('Pane:') == true &&
+                widget.message?.contains('inactive pane') == true &&
+                widget.message?.contains('Click to focus this pane.') == true,
+          ),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('shell-tab-overflow-badge-12')));
+      await tester.pumpAndSettle();
+
+      expect(
+        container.read(sessionControllerProvider).activeSessionId,
+        inactiveSplitSessionId,
+      );
+      expect(find.byKey(const Key('shell-status-badge')), findsOneWidget);
+    },
+  );
+
+  testWidgets('overflow split tab exposes separate pane badges', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final controller = container.read(sessionControllerProvider.notifier);
+    final profile = defaultTerminalProfile();
+    for (var index = 0; index < 11; index += 1) {
+      controller.createSession(profile);
+    }
+    controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+    controller.activateSession('1');
+    await tester.pumpAndSettle();
+
+    final splitTab = container
+        .read(sessionControllerProvider)
+        .tabs
+        .firstWhere((tab) => tab.sessionId == '12');
+    final activeSplitSessionId = splitTab.activeSessionId;
+    final inactiveSplitSessionId = splitTab.effectivePanes
+        .firstWhere((pane) => pane.sessionId != activeSplitSessionId)
+        .sessionId;
+
+    fakeBindings.enqueueEvent(
+      activeSplitSessionId,
+      PtyEvent(
+        kind: 'session_badge',
+        sessionId: activeSplitSessionId,
+        payload: const <String, Object?>{'text': 'Active'},
+      ),
+    );
+    fakeBindings.enqueueEvent(
+      inactiveSplitSessionId,
+      PtyEvent(
+        kind: 'session_badge',
+        sessionId: inactiveSplitSessionId,
+        payload: const <String, Object?>{'text': 'Deploy'},
+      ),
+    );
+    container
+        .read(terminalRuntimeControllerProvider)
+        .refreshSession(activeSplitSessionId);
+    container
+        .read(terminalRuntimeControllerProvider)
+        .refreshSession(inactiveSplitSessionId);
+    await tester.pump(const Duration(milliseconds: 40));
+
+    await tester.tap(find.byKey(const Key('shell-tab-overflow-button')));
+    await tester.pumpAndSettle();
+
+    final inactiveBadge = find.byKey(const Key('shell-tab-overflow-badge-12'));
+    final activeBadge = find.byKey(
+      Key('shell-tab-overflow-badge-12-$activeSplitSessionId'),
+    );
+    expect(activeBadge, findsOneWidget);
+    expect(inactiveBadge, findsOneWidget);
+    expect(
+      find.descendant(of: inactiveBadge, matching: find.text('DEPLOY')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: activeBadge, matching: find.text('ACTIVE')),
+      findsOneWidget,
+    );
+
+    await tester.tap(inactiveBadge);
+    await tester.pumpAndSettle();
+
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      inactiveSplitSessionId,
+    );
+    expect(find.byKey(const Key('shell-status-badge')), findsOneWidget);
+    expect(find.text('BADGE Deploy'), findsOneWidget);
+  });
+
+  testWidgets('visible split tab badge does not mark hidden overflow tabs', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final controller = container.read(sessionControllerProvider.notifier);
+    final profile = defaultTerminalProfile();
+    controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+    await tester.pumpAndSettle();
+
+    final visibleSplitTab = container
+        .read(sessionControllerProvider)
+        .tabs
+        .firstWhere((tab) => tab.effectivePanes.length > 1);
+    final inactiveSplitSessionId = visibleSplitTab.effectivePanes
+        .firstWhere((pane) => pane.sessionId != visibleSplitTab.activeSessionId)
+        .sessionId;
+
+    fakeBindings.enqueueEvent(
+      inactiveSplitSessionId,
+      PtyEvent(
+        kind: 'session_badge',
+        sessionId: inactiveSplitSessionId,
+        payload: const <String, Object?>{'text': 'Deploy'},
+      ),
+    );
+    container
+        .read(terminalRuntimeControllerProvider)
+        .refreshSession(inactiveSplitSessionId);
+
+    for (var index = 0; index < 11; index += 1) {
+      controller.createSession(profile);
+    }
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('shell-tab-overflow-button')), findsOneWidget);
+    expect(
+      find.byKey(Key('shell-tab-badge-${visibleSplitTab.sessionId}')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('shell-tab-overflow-badge')), findsNothing);
+  });
+
+  testWidgets('overflow badge marker can focus a hidden split pane', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final controller = container.read(sessionControllerProvider.notifier);
+    final profile = defaultTerminalProfile();
+    for (var index = 0; index < 11; index += 1) {
+      controller.createSession(profile);
+    }
+    controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+    controller.activateSession('1');
+    await tester.pumpAndSettle();
+
+    final splitTab = container
+        .read(sessionControllerProvider)
+        .tabs
+        .firstWhere((tab) => tab.sessionId == '12');
+    final inactiveSplitSessionId = splitTab.effectivePanes
+        .firstWhere((pane) => pane.sessionId != splitTab.activeSessionId)
+        .sessionId;
+
+    fakeBindings.enqueueEvent(
+      inactiveSplitSessionId,
+      PtyEvent(
+        kind: 'session_badge',
+        sessionId: inactiveSplitSessionId,
+        payload: const <String, Object?>{'text': 'Deploy'},
+      ),
+    );
+    container
+        .read(terminalRuntimeControllerProvider)
+        .refreshSession(inactiveSplitSessionId);
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(find.byKey(const Key('shell-tab-overflow-badge')), findsOneWidget);
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      isNot(inactiveSplitSessionId),
+    );
+
+    await tester.tap(find.byKey(const Key('shell-tab-overflow-button')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('shell-tab-overflow-panel')), findsOneWidget);
+    expect(find.byKey(const Key('shell-tab-overflow-badge')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('shell-tab-overflow-button')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('shell-tab-overflow-panel')), findsNothing);
+    expect(find.byKey(const Key('shell-tab-overflow-badge')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('shell-tab-overflow-badge')));
+    await tester.pumpAndSettle();
+
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      inactiveSplitSessionId,
+    );
+    expect(find.byKey(const Key('shell-tab-overflow-panel')), findsNothing);
+    expect(find.byKey(const Key('shell-status-badge')), findsOneWidget);
+    expect(find.text('BADGE Deploy'), findsOneWidget);
+  });
+
+  testWidgets(
+    'hidden overflow badge marker prioritizes inactive pane in active hidden tab',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final controller = container.read(sessionControllerProvider.notifier);
+      final profile = defaultTerminalProfile();
+      for (var index = 0; index < 11; index += 1) {
+        controller.createSession(profile);
+      }
+      controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+      await tester.pumpAndSettle();
+
+      final splitState = container.read(sessionControllerProvider);
+      final activeSplitSessionId = splitState.activeSessionId!;
+      final splitTab = splitState.tabs.firstWhere(
+        (tab) =>
+            tab.effectivePanes.length > 1 &&
+            tab.containsSession(activeSplitSessionId),
+      );
+      final inactiveSplitSessionId = splitTab.effectivePanes
+          .firstWhere((pane) => pane.sessionId != activeSplitSessionId)
+          .sessionId;
+
+      fakeBindings.enqueueEvent(
+        activeSplitSessionId,
+        PtyEvent(
+          kind: 'session_badge',
+          sessionId: activeSplitSessionId,
+          payload: const <String, Object?>{'text': 'Active'},
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        inactiveSplitSessionId,
+        PtyEvent(
+          kind: 'session_badge',
+          sessionId: inactiveSplitSessionId,
+          payload: const <String, Object?>{'text': 'Deploy'},
+        ),
+      );
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(activeSplitSessionId);
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(inactiveSplitSessionId);
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(find.byKey(const Key('shell-tab-overflow-badge')), findsOneWidget);
+      expect(
+        find.byKey(Key('shell-tab-badge-${splitTab.sessionId}')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('shell-tab-overflow-badge')),
+          matching: find.byWidgetPredicate((widget) {
+            if (widget is! Tooltip) {
+              return false;
+            }
+            final message = widget.message;
+            if (message == null) {
+              return false;
+            }
+            return message.contains('OSC 1337 badges in 2 hidden panes.') &&
+                message.contains('($inactiveSplitSessionId)') &&
+                message.contains('($activeSplitSessionId)') &&
+                message.indexOf('($inactiveSplitSessionId)') <
+                    message.indexOf('($activeSplitSessionId)') &&
+                message.contains('Click to focus the first badge pane.');
+          }),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('shell-tab-overflow-badge')));
+      await tester.pumpAndSettle();
+
+      expect(
+        container.read(sessionControllerProvider).activeSessionId,
+        inactiveSplitSessionId,
+      );
+      expect(find.byKey(const Key('shell-status-badge')), findsOneWidget);
+      expect(find.text('BADGE Deploy'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'hidden overflow badge marker labels active hidden pane as already focused',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final controller = container.read(sessionControllerProvider.notifier);
+      final profile = defaultTerminalProfile();
+      for (var index = 0; index < 11; index += 1) {
+        controller.createSession(profile);
+      }
+      controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+      await tester.pumpAndSettle();
+
+      final activeSplitSessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+
+      fakeBindings.enqueueEvent(
+        activeSplitSessionId,
+        PtyEvent(
+          kind: 'session_badge',
+          sessionId: activeSplitSessionId,
+          payload: const <String, Object?>{'text': 'Active'},
+        ),
+      );
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(activeSplitSessionId);
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(find.byKey(const Key('shell-tab-overflow-badge')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('shell-tab-overflow-badge')),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Tooltip &&
+                widget.message?.contains('OSC 1337 badge in a hidden tab.') ==
+                    true &&
+                widget.message?.contains('OSC 1337 badge: Active') == true &&
+                widget.message?.contains('active pane') == true &&
+                widget.message?.contains('Pane already focused.') == true &&
+                widget.message?.contains('Click to focus this pane') == false,
+          ),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('shell-tab-overflow-badge')));
+      await tester.pumpAndSettle();
+
+      expect(
+        container.read(sessionControllerProvider).activeSessionId,
+        activeSplitSessionId,
+      );
+      expect(find.byKey(const Key('shell-status-badge')), findsOneWidget);
+      expect(find.text('BADGE Active'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'overflow tab new output dot can focus an inactive pane inside a hidden split tab',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final controller = container.read(sessionControllerProvider.notifier);
+      final profile = defaultTerminalProfile();
+      for (var index = 0; index < 11; index += 1) {
+        controller.createSession(profile);
+      }
+      controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+      controller.activateSession('1');
+      await tester.pumpAndSettle();
+
+      final splitTab = container
+          .read(sessionControllerProvider)
+          .tabs
+          .firstWhere((tab) => tab.sessionId == '12');
+      final inactiveSplitSessionId = splitTab.effectivePanes
+          .firstWhere((pane) => pane.sessionId != splitTab.activeSessionId)
+          .sessionId;
+
+      fakeBindings.setFrame(inactiveSplitSessionId, <String, Object?>{
+        'rows': <Object?>[
+          <String, Object?>{
+            'index': 0,
+            'text': 'hidden pane output',
+            'style_runs': <Object?>[],
+          },
+        ],
+        'cursor': <String, Object?>{'row': 0, 'col': 18, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': <Object?>[
+          <String, Object?>{'start': 0, 'end': 1},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+      });
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(inactiveSplitSessionId);
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(
+        find.byKey(const Key('shell-tab-overflow-button')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('shell-tab-new-output-12')), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('shell-tab-overflow-new-output')),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Tooltip &&
+                widget.message?.contains('New output in a hidden tab.') ==
+                    true &&
+                widget.message?.contains('Pane:') == true &&
+                widget.message?.contains('inactive pane') == true &&
+                widget.message?.contains('Click to focus this pane.') == true,
+          ),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('shell-tab-overflow-button')));
+      await tester.pumpAndSettle();
+
+      final overflowDot = find.byKey(const Key('shell-tab-new-output-12'));
+      expect(overflowDot, findsOneWidget);
+      expect(
+        find.descendant(
+          of: overflowDot,
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Tooltip &&
+                widget.message?.contains('New output in a split pane.') ==
+                    true &&
+                widget.message?.contains('Pane:') == true &&
+                widget.message?.contains('inactive pane') == true &&
+                widget.message?.contains('Click to focus this pane.') == true,
+          ),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(overflowDot);
+      await tester.pumpAndSettle();
+
+      expect(
+        container.read(sessionControllerProvider).activeSessionId,
+        inactiveSplitSessionId,
+      );
+      expect(find.byKey(const Key('shell-tab-overflow-panel')), findsNothing);
+      expect(find.byKey(const Key('shell-tab-new-output-12')), findsNothing);
+    },
+  );
+
+  testWidgets('overflow new output marker can focus a hidden split pane', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final controller = container.read(sessionControllerProvider.notifier);
+    final profile = defaultTerminalProfile();
+    for (var index = 0; index < 11; index += 1) {
+      controller.createSession(profile);
+    }
+    controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+    controller.activateSession('1');
+    await tester.pumpAndSettle();
+
+    final splitTab = container
+        .read(sessionControllerProvider)
+        .tabs
+        .firstWhere((tab) => tab.sessionId == '12');
+    final inactiveSplitSessionId = splitTab.effectivePanes
+        .firstWhere((pane) => pane.sessionId != splitTab.activeSessionId)
+        .sessionId;
+
+    fakeBindings.setFrame(inactiveSplitSessionId, <String, Object?>{
+      'rows': <Object?>[
+        <String, Object?>{
+          'index': 0,
+          'text': 'hidden pane output',
+          'style_runs': <Object?>[],
+        },
+      ],
+      'cursor': <String, Object?>{'row': 0, 'col': 18, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': <Object?>[
+        <String, Object?>{'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+    });
+    container
+        .read(terminalRuntimeControllerProvider)
+        .refreshSession(inactiveSplitSessionId);
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(
+      find.byKey(const Key('shell-tab-overflow-new-output')),
+      findsOneWidget,
+    );
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      isNot(inactiveSplitSessionId),
+    );
+
+    await tester.tap(find.byKey(const Key('shell-tab-overflow-button')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('shell-tab-overflow-panel')), findsOneWidget);
+    expect(
+      find.byKey(const Key('shell-tab-overflow-new-output')),
+      findsNothing,
+    );
+
+    await tester.tap(find.byKey(const Key('shell-tab-overflow-button')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('shell-tab-overflow-panel')), findsNothing);
+    expect(
+      find.byKey(const Key('shell-tab-overflow-new-output')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('shell-tab-overflow-new-output')));
+    await tester.pumpAndSettle();
+
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      inactiveSplitSessionId,
+    );
+    expect(find.byKey(const Key('shell-tab-overflow-panel')), findsNothing);
+    expect(
+      find.byKey(const Key('shell-tab-overflow-new-output')),
+      findsNothing,
+    );
+  });
+
+  testWidgets(
+    'hidden overflow new output marker prioritizes inactive pane in active hidden split tab',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final controller = container.read(sessionControllerProvider.notifier);
+      final profile = defaultTerminalProfile();
+      for (var index = 0; index < 11; index += 1) {
+        controller.createSession(profile);
+      }
+      controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+      controller.activateSession('1');
+      await tester.pumpAndSettle();
+
+      final splitTab = container
+          .read(sessionControllerProvider)
+          .tabs
+          .firstWhere((tab) => tab.sessionId == '12');
+      final activeHiddenSessionId = splitTab.effectivePanes.first.sessionId;
+      final inactiveHiddenSessionId = splitTab.effectivePanes
+          .firstWhere((pane) => pane.sessionId != activeHiddenSessionId)
+          .sessionId;
+
+      for (final entry in <String, String>{
+        activeHiddenSessionId: 'active hidden output',
+        inactiveHiddenSessionId: 'inactive hidden output',
+      }.entries) {
+        fakeBindings.setFrame(entry.key, <String, Object?>{
+          'rows': <Object?>[
+            <String, Object?>{
+              'index': 0,
+              'text': entry.value,
+              'style_runs': <Object?>[],
+            },
+          ],
+          'cursor': <String, Object?>{
+            'row': 0,
+            'col': entry.value.length,
+            'visible': true,
+          },
+          'selection': null,
+          'viewport_rows': 24,
+          'viewport_cols': 80,
+          'dirty_ranges': <Object?>[
+            <String, Object?>{'start': 0, 'end': 1},
+          ],
+          'scrollback_offset': 0,
+          'scrollback_max_offset': 0,
+        });
+        container
+            .read(terminalRuntimeControllerProvider)
+            .refreshSession(entry.key);
+        await tester.pump(const Duration(milliseconds: 40));
+      }
+
+      controller.activateSession(activeHiddenSessionId);
+      await tester.pumpAndSettle();
+      expect(
+        container.read(sessionControllerProvider).activeSessionId,
+        activeHiddenSessionId,
+      );
+      expect(
+        find.byKey(const Key('shell-tab-overflow-new-output')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('shell-tab-overflow-new-output')),
+          matching: find.byWidgetPredicate((widget) {
+            if (widget is! Tooltip || widget.message == null) {
+              return false;
+            }
+            final message = widget.message!;
+            final inactiveIndex = message.indexOf(
+              '($inactiveHiddenSessionId) · inactive pane',
+            );
+            final activeIndex = message.indexOf(
+              '($activeHiddenSessionId) · active pane',
+            );
+            return message.contains('New output in 2 hidden panes.') &&
+                message.contains(
+                  'Click to focus the first pane with new output.',
+                ) &&
+                inactiveIndex >= 0 &&
+                activeIndex >= 0 &&
+                inactiveIndex < activeIndex;
+          }),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('shell-tab-overflow-new-output')));
+      await tester.pumpAndSettle();
+
+      expect(
+        container.read(sessionControllerProvider).activeSessionId,
+        inactiveHiddenSessionId,
+      );
+    },
+  );
+
+  testWidgets('inactive split pane header exposes active terminal modes', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final splitState = container.read(sessionControllerProvider);
+    final activeSessionId = splitState.activeSessionId!;
+    final inactiveSessionId = splitState.tabs.single.effectivePanes
+        .firstWhere((pane) => pane.sessionId != activeSessionId)
+        .sessionId;
+
+    fakeBindings.setFrame(inactiveSessionId, <String, Object?>{
+      'rows': <Object?>[
+        <String, Object?>{
+          'index': 0,
+          'text': 'vim README.md',
+          'style_runs': <Object?>[],
+        },
+      ],
+      'cursor': <String, Object?>{'row': 0, 'col': 13, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': <Object?>[
+        <String, Object?>{'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+      'modes': <String, Object?>{
+        'alternate_screen': true,
+        'bracketed_paste': true,
+        'focus_tracking': true,
+        'mouse_mode': 'button_event',
+        'mouse_encoding': 'sgr',
+        'kitty_keyboard_flags': 10,
+        'synchronized_output': true,
+      },
+    });
+    container
+        .read(terminalRuntimeControllerProvider)
+        .refreshSession(inactiveSessionId);
+    await tester.pump();
+
+    expect(
+      find.byKey(Key('shell-pane-header-indicator-alt-$inactiveSessionId')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(Key('shell-pane-header-indicator-mouse-$inactiveSessionId')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(Key('shell-pane-header-indicator-paste-$inactiveSessionId')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(Key('shell-pane-header-indicator-focus-$inactiveSessionId')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(
+        Key('shell-pane-header-indicator-kitty-keyboard-$inactiveSessionId'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(Key('shell-pane-header-indicator-sync-$inactiveSessionId')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('shell-status-mode-focus')), findsNothing);
+    expect(
+      find.descendant(
+        of: find.byKey(
+          Key('shell-pane-header-indicator-focus-$inactiveSessionId'),
+        ),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Tooltip &&
+              widget.message?.contains('Focus reporting is active') == true &&
+              widget.message?.contains('inactive pane') == true &&
+              widget.message?.contains('Click to focus this pane.') == true,
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(
+          Key('shell-pane-header-indicator-kitty-keyboard-$inactiveSessionId'),
+        ),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Tooltip &&
+              widget.message?.contains('Kitty keyboard protocol is active') ==
+                  true &&
+              widget.message?.contains('repeat and release events') == true &&
+              widget.message?.contains('inactive pane') == true &&
+              widget.message?.contains('Click to focus this pane.') == true,
+        ),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.byKey(
+        Key('shell-pane-header-indicator-kitty-keyboard-$inactiveSessionId'),
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      inactiveSessionId,
+    );
+    expect(find.byKey(const Key('shell-status-mode-alt')), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-mode-mouse')), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-mode-paste')), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-mode-focus')), findsOneWidget);
+    expect(
+      find.byKey(const Key('shell-status-mode-kitty-keyboard')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('shell-status-mode-sync')), findsOneWidget);
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.byKey(const Key('shell-toggle-read-only')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('shell-toggle-read-only')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('shell-status-mode-read-only')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(Key('shell-pane-header-$activeSessionId')));
+    await tester.pump();
+
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      activeSessionId,
+    );
+    expect(
+      find.byKey(
+        Key('shell-pane-header-indicator-read-only-$inactiveSessionId'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(
+          Key('shell-pane-header-indicator-read-only-$inactiveSessionId'),
+        ),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Tooltip &&
+              widget.message?.contains('Read-only mode is enabled') == true &&
+              widget.message?.contains('inactive pane') == true &&
+              widget.message?.contains('Click to focus this pane.') == true,
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('shell-status-mode-read-only')), findsNothing);
+  });
+
+  testWidgets(
+    'read-only split pane blocks middle-click paste before clipboard read',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      var clipboardReads = 0;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.getData') {
+            clipboardReads += 1;
+            return <String, dynamic>{'text': 'blocked middle paste'};
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final splitState = container.read(sessionControllerProvider);
+      final readOnlySessionId = splitState.activeSessionId!;
+      final activeSessionId = splitState.tabs.single.effectivePanes
+          .firstWhere((pane) => pane.sessionId != readOnlySessionId)
+          .sessionId;
+
+      await _openCommandMenu(tester);
+      await tester.ensureVisible(
+        find.byKey(const Key('shell-toggle-read-only')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('shell-toggle-read-only')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(Key('shell-pane-header-$activeSessionId')));
+      await tester.pump();
+      expect(
+        container.read(sessionControllerProvider).activeSessionId,
+        activeSessionId,
+      );
+      expect(
+        find.byKey(
+          Key('shell-pane-header-indicator-read-only-$readOnlySessionId'),
+        ),
+        findsOneWidget,
+      );
+
+      final renderObject = _renderTerminalViewportForPane(
+        tester,
+        readOnlySessionId,
+      );
+      final pastePosition = renderObject.localToGlobal(
+        Offset(renderObject.size.width / 2, renderObject.size.height / 2),
+      );
+      final pointer = TestPointer(91, PointerDeviceKind.mouse);
+      await tester.sendEventToBinding(
+        pointer.down(pastePosition, buttons: kMiddleMouseButton),
+      );
+      await tester.pump();
+      await tester.sendEventToBinding(pointer.up());
+      await tester.pumpAndSettle();
+
+      expect(
+        container.read(sessionControllerProvider).activeSessionId,
+        readOnlySessionId,
+      );
+      expect(clipboardReads, 0);
+      expect(fakeBindings.writesBySession, isEmpty);
+      expect(
+        find.byKey(const Key('shell-status-mode-read-only')),
         findsOneWidget,
       );
     },
@@ -717,6 +3302,22 @@ void main() {
       fakeBindings.enqueueEvent(
         1,
         const PtyEvent(
+          kind: 'shell_context',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'osc7',
+            'cwd': '/srv/app',
+            'hostname': 'remote.example',
+            'username': 'deploy',
+          },
+        ),
+      );
+      container.read(terminalRuntimeControllerProvider).refreshSession('1');
+      await tester.pump();
+
+      fakeBindings.enqueueEvent(
+        1,
+        const PtyEvent(
           kind: 'session_notification',
           sessionId: '1',
           payload: <String, Object?>{
@@ -736,8 +3337,13 @@ void main() {
           .first
           .paneFor('1')!;
       expect(paneOne.recentNotifications.first.message, 'Inactive pane done');
+      expect(paneOne.recentNotifications.first.remoteHost, 'remote.example');
+      expect(paneOne.recentNotifications.first.remoteUser, 'deploy');
       expect(notifications, hasLength(1));
-      expect(notifications.single['title'], startsWith('Build in '));
+      expect(
+        notifications.single['title'],
+        startsWith('Build on deploy@remote.example in '),
+      );
       expect(notifications.single['body'], 'Inactive pane done');
       expect(
         notifications.single['identifier'],
@@ -745,6 +3351,316 @@ void main() {
       );
     },
   );
+
+  testWidgets('OSC notification snackbar identifies inactive split pane', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final splitState = container.read(sessionControllerProvider);
+    final activeSessionId = splitState.activeSessionId!;
+    final inactiveSessionId = splitState.tabs.single.effectivePanes
+        .firstWhere((pane) => pane.sessionId != activeSessionId)
+        .sessionId;
+
+    fakeBindings.enqueueEvent(
+      inactiveSessionId,
+      PtyEvent(
+        kind: 'session_notification',
+        sessionId: inactiveSessionId,
+        payload: const <String, Object?>{
+          'source': 'osc777',
+          'title': 'Build',
+          'message': 'Inactive pane done',
+        },
+      ),
+    );
+    container
+        .read(terminalRuntimeControllerProvider)
+        .refreshSession(inactiveSessionId);
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(
+      find.descendant(
+        of: find.byType(SnackBar),
+        matching: find.textContaining('Build: Inactive pane done · Pane:'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byType(SnackBar),
+        matching: find.textContaining('($inactiveSessionId) · inactive pane'),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('command finished notification identifies inactive split pane', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    final notifications = <Map<String, String?>>[];
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      notificationSender: ({required title, body, identifier}) async {
+        notifications.add({
+          'title': title,
+          'body': body,
+          'identifier': identifier,
+        });
+      },
+    );
+
+    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final paneOneTitle = container
+        .read(sessionControllerProvider)
+        .tabs
+        .single
+        .paneFor('1')!
+        .title;
+
+    fakeBindings.enqueueEvent(
+      1,
+      const PtyEvent(
+        kind: 'shell_context',
+        sessionId: '1',
+        payload: <String, Object?>{
+          'source': 'osc7',
+          'cwd': '/srv/app',
+          'hostname': 'remote.example',
+          'username': 'deploy',
+        },
+      ),
+    );
+    container.read(terminalRuntimeControllerProvider).refreshSession('1');
+    await tester.pump();
+
+    fakeBindings.enqueueEvent(
+      1,
+      const PtyEvent(
+        kind: 'shell_hook',
+        sessionId: '1',
+        payload: <String, Object?>{
+          'hook': 'command_finished',
+          'command': 'deploy staging',
+          'exit_code': 0,
+        },
+      ),
+    );
+    container.read(terminalRuntimeControllerProvider).refreshSession('1');
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(notifications, hasLength(1));
+    expect(
+      notifications.single['title'],
+      'Command finished on deploy@remote.example in $paneOneTitle pane 1 (1)',
+    );
+    expect(notifications.single['body'], contains('deploy staging'));
+    expect(notifications.single['body'], contains('Exit code 0'));
+    expect(
+      notifications.single['identifier'],
+      startsWith('ianvs-terminal.command.1.'),
+    );
+  });
+
+  testWidgets(
+    'activity bell and exit notifications identify inactive split pane',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      final notifications = <Map<String, String?>>[];
+
+      Map<String, Object?> frameWithText(String text) {
+        return <String, Object?>{
+          'rows': <Object?>[
+            <String, Object?>{
+              'index': 0,
+              'text': text,
+              'style_runs': <Object?>[],
+            },
+          ],
+          'cursor': <String, Object?>{'row': 0, 'col': text.length},
+          'selection': null,
+          'viewport_rows': 24,
+          'viewport_cols': 80,
+          'dirty_ranges': <Object?>[
+            <String, Object?>{'start': 0, 'end': 1},
+          ],
+          'scrollback_offset': 0,
+          'scrollback_max_offset': 0,
+        };
+      }
+
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        notificationSender: ({required title, body, identifier}) async {
+          notifications.add({
+            'title': title,
+            'body': body,
+            'identifier': identifier,
+          });
+        },
+      );
+
+      await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final splitState = container.read(sessionControllerProvider);
+      final activeSessionId = splitState.activeSessionId!;
+      final tab = splitState.tabs.single;
+      final inactivePane = tab.effectivePanes.firstWhere(
+        (pane) => pane.sessionId != activeSessionId,
+      );
+      final inactiveSessionId = inactivePane.sessionId;
+      final inactivePaneIndex = tab.effectivePanes.indexWhere(
+        (pane) => pane.sessionId == inactiveSessionId,
+      );
+      final inactivePaneLabel =
+          '${inactivePane.title} pane ${inactivePaneIndex + 1} '
+          '($inactiveSessionId)';
+
+      fakeBindings.setFrame(
+        inactiveSessionId,
+        frameWithText('inactive output one'),
+      );
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(inactiveSessionId);
+      await tester.pump(const Duration(milliseconds: 40));
+      fakeBindings.setFrame(
+        inactiveSessionId,
+        frameWithText('inactive output two'),
+      );
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(inactiveSessionId);
+      await tester.pump(const Duration(milliseconds: 40));
+
+      fakeBindings.enqueueEvent(
+        inactiveSessionId,
+        PtyEvent(kind: 'bell', sessionId: inactiveSessionId),
+      );
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(inactiveSessionId);
+      await tester.pump(const Duration(milliseconds: 40));
+
+      fakeBindings.enqueueEvent(
+        inactiveSessionId,
+        PtyEvent(
+          kind: 'exit',
+          sessionId: inactiveSessionId,
+          payload: const <String, Object?>{'code': 7},
+        ),
+      );
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(inactiveSessionId);
+      await tester.pump(const Duration(milliseconds: 40));
+
+      final activityNotifications = notifications
+          .where(
+            (notification) =>
+                notification['title'] == 'Activity in $inactivePaneLabel' &&
+                notification['identifier'] ==
+                    'ianvs-terminal.activity.$inactiveSessionId',
+          )
+          .toList(growable: false);
+      expect(activityNotifications, hasLength(1));
+      expect(
+        activityNotifications.single['body'],
+        startsWith('inactive output'),
+      );
+      expect(
+        notifications.where(
+          (notification) =>
+              notification['title'] == 'Bell in $inactivePaneLabel' &&
+              notification['body'] == 'The terminal requested attention.' &&
+              notification['identifier'] ==
+                  'ianvs-terminal.bell.$inactiveSessionId',
+        ),
+        hasLength(1),
+      );
+      expect(
+        notifications.where(
+          (notification) =>
+              notification['title'] == 'Session ended' &&
+              notification['body'] ==
+                  '$inactivePaneLabel exited with code 7.' &&
+              notification['identifier']?.startsWith(
+                    'ianvs-terminal.exit.$inactiveSessionId.',
+                  ) ==
+                  true,
+        ),
+        hasLength(1),
+      );
+    },
+  );
+
+  testWidgets('OSC notification permission failures stay visible', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      notificationSender: ({required title, body, identifier}) async {
+        throw PlatformException(
+          code: 'notification_authorization_failed',
+          message: 'denied',
+        );
+      },
+    );
+
+    await _tapCommandMenuAction(tester, const Key('shell-new-tab'));
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+
+    fakeBindings.enqueueEvent(
+      1,
+      const PtyEvent(
+        kind: 'session_notification',
+        sessionId: '1',
+        payload: <String, Object?>{
+          'source': 'osc777',
+          'title': 'Deploy',
+          'message': 'Needs attention',
+        },
+      ),
+    );
+    container.read(terminalRuntimeControllerProvider).refreshSession('1');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 700));
+
+    expect(find.text('NOTIFY BLOCKED'), findsOneWidget);
+    expect(
+      find.byTooltip(
+        'macOS notifications are blocked for Ianvs Terminal. Enable them in System Settings > Notifications.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        'macOS notifications are blocked for Ianvs Terminal. Enable them in System Settings > Notifications.',
+      ),
+      findsOneWidget,
+    );
+  });
 
   testWidgets('notification toggles read and write local config when present', (
     tester,
@@ -979,7 +3895,9 @@ void main() {
   testWidgets('local paste config can force bracketed paste wrapping', (
     tester,
   ) async {
-    const clipboardText = 'bracket me';
+    const clipboardText =
+        'safe\x1B[201~echo unsafe\x1B[200~tail\u{009B}200~end\u{009B}201~';
+    const sanitizedText = 'safeecho unsafetailend';
     final fakeBindings = FakePtyBackend();
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       SystemChannels.platform,
@@ -1017,7 +3935,159 @@ void main() {
     expect(
       fakeBindings.writes.single,
       ascii.encode('\x1B[200~') +
-          utf8.encode(clipboardText) +
+          utf8.encode(sanitizedText) +
+          ascii.encode('\x1B[201~'),
+    );
+  });
+
+  testWidgets('marker-only forced bracketed paste is ignored', (tester) async {
+    const clipboardText = '\x1B[200~\x1B[201~\u{009B}200~\u{009B}201~';
+    final fakeBindings = FakePtyBackend();
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (methodCall) async {
+        if (methodCall.method == 'Clipboard.getData') {
+          return <String, dynamic>{'text': clipboardText};
+        }
+        if (methodCall.method == 'Clipboard.setData') {
+          return null;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      localConfigRepository: _MemoryLocalTerminalConfigRepository(
+        const LocalTerminalConfigDocument(
+          paste: LocalTerminalPasteConfig(
+            bracketedPaste: LocalTerminalBracketedPastePolicy.force,
+          ),
+        ),
+      ),
+    );
+
+    await _tapCommandMenuAction(tester, const Key('shell-paste-clipboard'));
+
+    expect(fakeBindings.writes, isEmpty);
+    expect(fakeBindings.writesBySession, isEmpty);
+  });
+
+  testWidgets(
+    'local paste config can force plain paste despite terminal mode',
+    (tester) async {
+      const clipboardText = 'plain paste';
+      final fakeBindings = FakePtyBackend();
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (methodCall) async {
+          if (methodCall.method == 'Clipboard.getData') {
+            return <String, dynamic>{'text': clipboardText};
+          }
+          if (methodCall.method == 'Clipboard.setData') {
+            return null;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        localConfigRepository: _MemoryLocalTerminalConfigRepository(
+          const LocalTerminalConfigDocument(
+            paste: LocalTerminalPasteConfig(
+              bracketedPaste: LocalTerminalBracketedPastePolicy.plain,
+            ),
+          ),
+        ),
+      );
+      fakeBindings.setFrame(1, <String, Object?>{
+        'rows': <Object?>[],
+        'cursor': <String, Object?>{'row': 0, 'col': 0, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': <Object?>[],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+        'modes': <String, Object?>{'bracketed_paste': true},
+      });
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      container.read(terminalRuntimeControllerProvider).refreshSession('1');
+      await tester.pump();
+
+      await _tapCommandMenuAction(tester, const Key('shell-paste-clipboard'));
+
+      expect(fakeBindings.writes.single, utf8.encode(clipboardText));
+    },
+  );
+
+  testWidgets('advanced paste honors forced bracketed paste wrapping', (
+    tester,
+  ) async {
+    const clipboardText =
+        'advanced\x1B[200~ bracket\x1B[201~\u{009B}200~ sanitized\u{009B}201~';
+    const sanitizedText = 'advanced bracket sanitized';
+    final fakeBindings = FakePtyBackend();
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (methodCall) async {
+        if (methodCall.method == 'Clipboard.getData') {
+          return <String, dynamic>{'text': clipboardText};
+        }
+        if (methodCall.method == 'Clipboard.setData') {
+          return null;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      localConfigRepository: _MemoryLocalTerminalConfigRepository(
+        const LocalTerminalConfigDocument(
+          paste: LocalTerminalPasteConfig(
+            bracketedPaste: LocalTerminalBracketedPastePolicy.force,
+          ),
+        ),
+      ),
+    );
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.byKey(const Key('shell-advanced-paste')));
+    await tester.tap(find.byKey(const Key('shell-advanced-paste')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('advanced-paste-send')));
+    await tester.tap(find.byKey(const Key('advanced-paste-send')));
+    await tester.pumpAndSettle();
+
+    expect(
+      fakeBindings.writes.single,
+      ascii.encode('\x1B[200~') +
+          utf8.encode(sanitizedText) +
           ascii.encode('\x1B[201~'),
     );
   });
@@ -1026,6 +4096,7 @@ void main() {
     'command-v uses paste confirmation before sending multiline text',
     (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
 
       const clipboardText = 'one\ntwo';
       final fakeBindings = FakePtyBackend();
@@ -1074,6 +4145,150 @@ void main() {
     },
   );
 
+  testWidgets('command-v honors forced bracketed paste wrapping', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+
+    const clipboardText =
+        'keyboard\x1B[201~paste\x1B[200~\u{009B}200~safe\u{009B}201~';
+    const sanitizedText = 'keyboardpastesafe';
+    final fakeBindings = FakePtyBackend();
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (methodCall) async {
+        if (methodCall.method == 'Clipboard.getData') {
+          return <String, dynamic>{'text': clipboardText};
+        }
+        if (methodCall.method == 'Clipboard.setData') {
+          return null;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      localConfigRepository: _MemoryLocalTerminalConfigRepository(
+        const LocalTerminalConfigDocument(
+          paste: LocalTerminalPasteConfig(
+            bracketedPaste: LocalTerminalBracketedPastePolicy.force,
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byType(TerminalViewport));
+    await tester.pump();
+
+    await tester.sendKeyDownEvent(
+      LogicalKeyboardKey.metaLeft,
+      platform: 'macos',
+    );
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyV, platform: 'macos');
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyV, platform: 'macos');
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
+    await tester.pumpAndSettle();
+
+    debugDefaultTargetPlatformOverride = null;
+
+    expect(fakeBindings.writes, hasLength(1));
+    expect(
+      fakeBindings.writes.single,
+      ascii.encode('\x1B[200~') +
+          utf8.encode(sanitizedText) +
+          ascii.encode('\x1B[201~'),
+    );
+  });
+
+  testWidgets('command-v read-only paste does not read clipboard', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+
+    final fakeBindings = FakePtyBackend();
+    var clipboardReads = 0;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (methodCall) async {
+        if (methodCall.method == 'Clipboard.getData') {
+          clipboardReads += 1;
+          return <String, dynamic>{'text': 'blocked command-v paste'};
+        }
+        if (methodCall.method == 'Clipboard.setData') {
+          return null;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.byKey(const Key('shell-toggle-read-only')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('shell-toggle-read-only')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(TerminalViewport));
+    await tester.pump();
+
+    await tester.sendKeyDownEvent(
+      LogicalKeyboardKey.metaLeft,
+      platform: 'macos',
+    );
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyV, platform: 'macos');
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyV, platform: 'macos');
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
+    await tester.pumpAndSettle();
+
+    debugDefaultTargetPlatformOverride = null;
+
+    expect(clipboardReads, 0);
+    expect(fakeBindings.writes, isEmpty);
+  });
+
+  testWidgets('command menu disables pane zoom until a split exists', (
+    tester,
+  ) async {
+    await _pumpShellScreen(tester, fakeBindings: FakePtyBackend());
+
+    await _openCommandMenu(tester);
+
+    final zoomAction = find.byKey(const Key('shell-zoom-pane'));
+    expect(zoomAction, findsOneWidget);
+    expect(find.text('Zoom active pane'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: zoomAction,
+        matching: find.textContaining(
+          'Unavailable: Add another pane to use this action.',
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<ListTile>(
+            find.descendant(of: zoomAction, matching: find.byType(ListTile)),
+          )
+          .enabled,
+      isFalse,
+    );
+  });
+
   testWidgets('zoom active pane hides the split sibling and can unzoom', (
     tester,
   ) async {
@@ -1096,6 +4311,731 @@ void main() {
     expect(find.byType(TerminalViewport), findsNWidgets(2));
     expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
     expect(find.byKey(const Key('shell-status-bar')), findsOneWidget);
+  });
+
+  testWidgets('command menu disables split actions while pane is zoomed', (
+    tester,
+  ) async {
+    await _pumpShellScreen(tester, fakeBindings: FakePtyBackend());
+
+    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+    await _tapCommandMenuAction(tester, const Key('shell-zoom-pane'));
+
+    await _openCommandMenu(tester);
+
+    final splitRightAction = find.byKey(const Key('shell-split-right'));
+    final splitDownAction = find.byKey(const Key('shell-split-down'));
+    expect(splitRightAction, findsOneWidget);
+    expect(splitDownAction, findsOneWidget);
+    for (final action in <Finder>[splitRightAction, splitDownAction]) {
+      expect(
+        find.descendant(
+          of: action,
+          matching: find.textContaining(
+            'Unavailable: Unzoom the active pane to manage other panes.',
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<ListTile>(
+              find.descendant(of: action, matching: find.byType(ListTile)),
+            )
+            .enabled,
+        isFalse,
+      );
+    }
+
+    expect(find.byType(TerminalViewport), findsOneWidget);
+  });
+
+  testWidgets('focus next and previous pane work while zoomed', (tester) async {
+    await _pumpShellScreen(tester, fakeBindings: FakePtyBackend());
+
+    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final splitState = container.read(sessionControllerProvider);
+    final activeSessionId = splitState.activeSessionId!;
+    final inactiveSessionId = splitState.tabs.single.effectivePanes
+        .firstWhere((pane) => pane.sessionId != activeSessionId)
+        .sessionId;
+
+    await _tapCommandMenuAction(tester, const Key('shell-zoom-pane'));
+
+    expect(find.byKey(Key('shell-pane-$activeSessionId')), findsOneWidget);
+    expect(find.byKey(Key('shell-pane-$inactiveSessionId')), findsNothing);
+
+    await _tapCommandMenuAction(tester, const Key('shell-focus-next-pane'));
+
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      inactiveSessionId,
+    );
+    expect(find.byKey(Key('shell-pane-$inactiveSessionId')), findsOneWidget);
+    expect(find.byKey(Key('shell-pane-$activeSessionId')), findsNothing);
+
+    await _tapCommandMenuAction(tester, const Key('shell-focus-previous-pane'));
+
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      activeSessionId,
+    );
+    expect(find.byKey(Key('shell-pane-$activeSessionId')), findsOneWidget);
+    expect(find.byKey(Key('shell-pane-$inactiveSessionId')), findsNothing);
+  });
+
+  testWidgets('command menu can reopen the most recently closed split pane', (
+    tester,
+  ) async {
+    await _pumpShellScreen(tester, fakeBindings: FakePtyBackend());
+
+    await _openCommandMenu(tester);
+    expect(find.text('Reopen closed pane'), findsOneWidget);
+    expect(
+      find.textContaining('No recently closed pane is available for this tab.'),
+      findsOneWidget,
+    );
+    await tester.tapAt(const Offset(20, 20));
+    await tester.pumpAndSettle();
+
+    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final splitState = container.read(sessionControllerProvider);
+    final closedSessionId = splitState.activeSessionId!;
+    final retainedSessionId = splitState.tabs.single.effectivePanes
+        .firstWhere((pane) => pane.sessionId != closedSessionId)
+        .sessionId;
+
+    await tester.tap(
+      find.byKey(Key('shell-pane-action-close-$closedSessionId')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(TerminalViewport), findsOneWidget);
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      retainedSessionId,
+    );
+
+    await _tapCommandMenuAction(tester, const Key('shell-reopen-closed-pane'));
+
+    final reopenedState = container.read(sessionControllerProvider);
+    final reopenedSessionId = reopenedState.activeSessionId!;
+    expect(reopenedSessionId, isNot(closedSessionId));
+    expect(reopenedState.tabs.single.effectivePanes, hasLength(2));
+    expect(find.byType(TerminalViewport), findsNWidgets(2));
+    expect(find.byKey(Key('shell-pane-$retainedSessionId')), findsOneWidget);
+    expect(find.byKey(Key('shell-pane-$reopenedSessionId')), findsOneWidget);
+    expect(find.byKey(Key('shell-pane-$closedSessionId')), findsNothing);
+  });
+
+  testWidgets('tab badge activation keeps zoomed pane visible for the target', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+
+    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final splitState = container.read(sessionControllerProvider);
+    final activeSessionId = splitState.activeSessionId!;
+    final inactiveSessionId = splitState.tabs.single.effectivePanes
+        .firstWhere((pane) => pane.sessionId != activeSessionId)
+        .sessionId;
+
+    await _tapCommandMenuAction(tester, const Key('shell-zoom-pane'));
+
+    expect(find.byKey(Key('shell-pane-$activeSessionId')), findsOneWidget);
+    expect(find.byKey(Key('shell-pane-$inactiveSessionId')), findsNothing);
+
+    fakeBindings.enqueueEvent(
+      inactiveSessionId,
+      PtyEvent(
+        kind: 'session_badge',
+        sessionId: inactiveSessionId,
+        payload: const <String, Object?>{'text': 'Deploy'},
+      ),
+    );
+    container
+        .read(terminalRuntimeControllerProvider)
+        .refreshSession(inactiveSessionId);
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(find.byKey(const Key('shell-tab-badge-1')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('shell-tab-badge-1')));
+    await tester.pumpAndSettle();
+
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      inactiveSessionId,
+    );
+    expect(find.byKey(Key('shell-pane-$inactiveSessionId')), findsOneWidget);
+    expect(find.byKey(Key('shell-pane-$activeSessionId')), findsNothing);
+    expect(find.byKey(const Key('shell-status-badge')), findsOneWidget);
+  });
+
+  testWidgets(
+    'tab pane signal focuses zoom-hidden progress and notification pane',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+
+      await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final splitState = container.read(sessionControllerProvider);
+      final activeSessionId = splitState.activeSessionId!;
+      final inactiveSessionId = splitState.tabs.single.effectivePanes
+          .firstWhere((pane) => pane.sessionId != activeSessionId)
+          .sessionId;
+
+      await _tapCommandMenuAction(tester, const Key('shell-zoom-pane'));
+
+      expect(find.byKey(Key('shell-pane-$activeSessionId')), findsOneWidget);
+      expect(find.byKey(Key('shell-pane-$inactiveSessionId')), findsNothing);
+
+      fakeBindings.enqueueEvent(
+        inactiveSessionId,
+        PtyEvent(
+          kind: 'session_progress',
+          sessionId: inactiveSessionId,
+          payload: const <String, Object?>{
+            'source': 'osc934',
+            'named': true,
+            'action': 'set',
+            'id': 'build',
+            'state': 'normal',
+            'percent': 67,
+            'label': 'Deploy',
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        inactiveSessionId,
+        PtyEvent(
+          kind: 'session_notification',
+          sessionId: inactiveSessionId,
+          payload: const <String, Object?>{
+            'source': 'osc777',
+            'title': 'Deploy',
+            'message': 'Inactive pane done',
+          },
+        ),
+      );
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(inactiveSessionId);
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(find.byKey(const Key('shell-tab-pane-signal-1')), findsOneWidget);
+      expect(find.text('PROG +1'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('shell-tab-pane-signal-1')),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Tooltip &&
+                widget.message?.contains('Terminal progress in a split pane') ==
+                    true &&
+                widget.message?.contains('inactive pane') == true &&
+                widget.message?.contains('Other pane signals') == true &&
+                widget.message?.contains('NOTE Deploy') == true &&
+                widget.message?.contains('Click to focus the first pane') ==
+                    true,
+          ),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('shell-tab-pane-signal-1')));
+      await tester.pump();
+
+      expect(
+        container.read(sessionControllerProvider).activeSessionId,
+        inactiveSessionId,
+      );
+      expect(find.byKey(Key('shell-pane-$inactiveSessionId')), findsOneWidget);
+      expect(find.byKey(Key('shell-pane-$activeSessionId')), findsNothing);
+      expect(find.byKey(const Key('shell-status-progress')), findsOneWidget);
+      expect(
+        find.byKey(const Key('shell-status-notification')),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'tab pane signal prioritizes zoom-hidden inactive pane over active pane signal',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+
+      await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final splitState = container.read(sessionControllerProvider);
+      final activeSessionId = splitState.activeSessionId!;
+      final inactiveSessionId = splitState.tabs.single.effectivePanes
+          .firstWhere((pane) => pane.sessionId != activeSessionId)
+          .sessionId;
+
+      await _tapCommandMenuAction(tester, const Key('shell-zoom-pane'));
+
+      fakeBindings.enqueueEvent(
+        activeSessionId,
+        PtyEvent(
+          kind: 'session_progress',
+          sessionId: activeSessionId,
+          payload: const <String, Object?>{
+            'source': 'osc934',
+            'named': true,
+            'action': 'set',
+            'id': 'active',
+            'state': 'normal',
+            'percent': 12,
+            'label': 'Active',
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        inactiveSessionId,
+        PtyEvent(
+          kind: 'session_notification',
+          sessionId: inactiveSessionId,
+          payload: const <String, Object?>{
+            'source': 'osc777',
+            'title': 'Deploy',
+            'message': 'Zoom-hidden pane done',
+          },
+        ),
+      );
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(activeSessionId);
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(inactiveSessionId);
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(find.byKey(Key('shell-pane-$activeSessionId')), findsOneWidget);
+      expect(find.byKey(Key('shell-pane-$inactiveSessionId')), findsNothing);
+      expect(find.byKey(const Key('shell-status-progress')), findsOneWidget);
+      expect(find.byKey(const Key('shell-status-notification')), findsNothing);
+      expect(find.byKey(const Key('shell-tab-pane-signal-1')), findsOneWidget);
+      expect(find.text('NOTE +1'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('shell-tab-pane-signal-1')),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Tooltip &&
+                widget.message?.contains(
+                      'Terminal notification in a split pane',
+                    ) ==
+                    true &&
+                widget.message?.contains('inactive pane') == true &&
+                widget.message?.contains('Other pane signals') == true &&
+                widget.message?.contains('PROG ACTIVE 12%') == true &&
+                widget.message?.contains(
+                      'Click to focus the first pane with a signal.',
+                    ) ==
+                    true,
+          ),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('shell-tab-pane-signal-1')));
+      await tester.pump();
+
+      expect(
+        container.read(sessionControllerProvider).activeSessionId,
+        inactiveSessionId,
+      );
+      expect(find.byKey(Key('shell-pane-$inactiveSessionId')), findsOneWidget);
+      expect(find.byKey(Key('shell-pane-$activeSessionId')), findsNothing);
+      expect(
+        find.byKey(const Key('shell-status-notification')),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('split tab semantics describe pane signals and new output', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+
+    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final splitState = container.read(sessionControllerProvider);
+    final tab = splitState.tabs.single;
+    final activeSessionId = splitState.activeSessionId!;
+    final inactiveSessionId = tab.effectivePanes
+        .firstWhere((pane) => pane.sessionId != activeSessionId)
+        .sessionId;
+
+    fakeBindings.enqueueEvent(
+      inactiveSessionId,
+      PtyEvent(
+        kind: 'session_badge',
+        sessionId: inactiveSessionId,
+        payload: const <String, Object?>{'text': 'Deploy'},
+      ),
+    );
+    fakeBindings.enqueueEvent(
+      inactiveSessionId,
+      PtyEvent(
+        kind: 'session_progress',
+        sessionId: inactiveSessionId,
+        payload: const <String, Object?>{
+          'source': 'osc934',
+          'named': true,
+          'action': 'set',
+          'id': 'deploy',
+          'state': 'normal',
+          'percent': 42,
+          'label': 'Deploy',
+        },
+      ),
+    );
+    fakeBindings.enqueueEvent(
+      inactiveSessionId,
+      PtyEvent(
+        kind: 'session_notification',
+        sessionId: inactiveSessionId,
+        payload: const <String, Object?>{
+          'source': 'osc777',
+          'title': 'Deploy',
+          'message': 'Inactive pane done',
+        },
+      ),
+    );
+    fakeBindings.setFrame(inactiveSessionId, <String, Object?>{
+      'rows': <Object?>[
+        <String, Object?>{
+          'index': 0,
+          'text': 'inactive pane output',
+          'style_runs': <Object?>[],
+        },
+      ],
+      'cursor': <String, Object?>{'row': 0, 'col': 20, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': <Object?>[
+        <String, Object?>{'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+    });
+    container
+        .read(terminalRuntimeControllerProvider)
+        .refreshSession(inactiveSessionId);
+    await tester.pump(const Duration(milliseconds: 40));
+
+    final semantics = tester.getSemantics(
+      find.bySemanticsIdentifier('shell-tab-${tab.sessionId}'),
+    );
+    expect(semantics.label, contains('badge Deploy from inactive pane'));
+    expect(
+      semantics.label,
+      contains('terminal progress: DEPLOY 42% from inactive pane'),
+    );
+    expect(semantics.label, contains('plus 1 other pane signal'));
+    expect(semantics.label, contains('new output in split pane'));
+  });
+
+  testWidgets('overflow pane signal can focus a hidden split pane', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final controller = container.read(sessionControllerProvider.notifier);
+    final profile = defaultTerminalProfile();
+    for (var index = 0; index < 11; index += 1) {
+      controller.createSession(profile);
+    }
+    controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+    controller.activateSession('1');
+    await tester.pumpAndSettle();
+
+    final splitTab = container
+        .read(sessionControllerProvider)
+        .tabs
+        .firstWhere((tab) => tab.sessionId == '12');
+    final inactiveSplitSessionId = splitTab.effectivePanes
+        .firstWhere((pane) => pane.sessionId != splitTab.activeSessionId)
+        .sessionId;
+
+    fakeBindings.enqueueEvent(
+      inactiveSplitSessionId,
+      PtyEvent(
+        kind: 'session_progress',
+        sessionId: inactiveSplitSessionId,
+        payload: const <String, Object?>{
+          'source': 'osc934',
+          'named': true,
+          'action': 'set',
+          'id': 'deploy',
+          'state': 'normal',
+          'percent': 42,
+          'label': 'Deploy',
+        },
+      ),
+    );
+    container
+        .read(terminalRuntimeControllerProvider)
+        .refreshSession(inactiveSplitSessionId);
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(find.byKey(const Key('shell-tab-overflow-button')), findsOneWidget);
+    expect(
+      find.byKey(const Key('shell-tab-overflow-pane-signal')),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Tooltip &&
+            widget.message?.contains('Hidden pane signal: 1 pane') == true &&
+            widget.message?.contains(
+                  'Signal markers can focus their source panes.',
+                ) ==
+                true,
+      ),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .getSemantics(find.byKey(const Key('shell-tab-overflow-button')))
+          .label,
+      contains('1 hidden pane signal'),
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('shell-tab-overflow-pane-signal')),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Tooltip &&
+              widget.message?.contains('Terminal progress in a hidden tab') ==
+                  true &&
+              widget.message?.contains('inactive pane') == true &&
+              widget.message?.contains('Click to focus this pane') == true,
+        ),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('shell-tab-overflow-pane-signal')));
+    await tester.pumpAndSettle();
+
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      inactiveSplitSessionId,
+    );
+    expect(find.byKey(const Key('shell-status-progress')), findsOneWidget);
+
+    controller.activateSession('1');
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('shell-tab-overflow-pane-signal')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('shell-tab-overflow-button')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('shell-tab-overflow-panel')), findsOneWidget);
+    expect(
+      find.byKey(const Key('shell-tab-overflow-pane-signal')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const Key('shell-tab-overflow-pane-signal-12')),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.byKey(const Key('shell-tab-overflow-pane-signal-12')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      inactiveSplitSessionId,
+    );
+    expect(find.byKey(const Key('shell-status-progress')), findsOneWidget);
+  });
+
+  testWidgets(
+    'hidden overflow pane signal marks active hidden pane as already focused',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final controller = container.read(sessionControllerProvider.notifier);
+      final profile = defaultTerminalProfile();
+      for (var index = 0; index < 11; index += 1) {
+        controller.createSession(profile);
+      }
+      controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+      await tester.pumpAndSettle();
+
+      final activeSplitSessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+
+      fakeBindings.enqueueEvent(
+        activeSplitSessionId,
+        PtyEvent(
+          kind: 'session_progress',
+          sessionId: activeSplitSessionId,
+          payload: const <String, Object?>{
+            'source': 'osc934',
+            'named': true,
+            'action': 'set',
+            'id': 'deploy',
+            'state': 'normal',
+            'percent': 42,
+            'label': 'Deploy',
+          },
+        ),
+      );
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(activeSplitSessionId);
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(
+        find.byKey(const Key('shell-tab-overflow-pane-signal')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('shell-tab-overflow-pane-signal')),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Tooltip &&
+                widget.message?.contains('Terminal progress in a hidden tab') ==
+                    true &&
+                widget.message?.contains('active pane') == true &&
+                widget.message?.contains('Pane already focused.') == true &&
+                widget.message?.contains('Click to focus this pane') == false,
+          ),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('shell-tab-overflow-pane-signal')));
+      await tester.pumpAndSettle();
+
+      expect(
+        container.read(sessionControllerProvider).activeSessionId,
+        activeSplitSessionId,
+      );
+      expect(find.byKey(const Key('shell-status-progress')), findsOneWidget);
+    },
+  );
+
+  testWidgets('close tab shortcut closes every pane in the active tab', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+
+    final fakeBindings = FakePtyBackend();
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      localConfigRepository: _MemoryLocalTerminalConfigRepository(
+        const LocalTerminalConfigDocument(
+          clipboard: LocalTerminalClipboardConfig(
+            osc52: LocalTerminalOsc52Policy.disabled,
+          ),
+        ),
+      ),
+    );
+    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    expect(
+      container.read(sessionControllerProvider).tabs.single.effectivePanes,
+      hasLength(2),
+    );
+
+    await _tapCommandMenuAction(tester, const Key('shell-new-tab'));
+    await tester.tap(find.byKey(const Key('shell-tab-1')));
+    await tester.pumpAndSettle();
+
+    final splitState = container.read(sessionControllerProvider);
+    final splitTab = splitState.tabs.firstWhere((tab) => tab.sessionId == '1');
+    final inactiveSplitSessionId = splitTab.effectivePanes
+        .firstWhere((pane) => pane.sessionId != splitTab.activeSessionId)
+        .sessionId;
+    fakeBindings.enqueueEvent(
+      inactiveSplitSessionId,
+      PtyEvent(
+        kind: 'clipboard_copy',
+        sessionId: inactiveSplitSessionId,
+        payload: <String, Object?>{
+          'selection': 'c',
+          'data': base64.encode(utf8.encode('closing tab pane copy')),
+        },
+      ),
+    );
+    container
+        .read(terminalRuntimeControllerProvider)
+        .refreshSession(inactiveSplitSessionId);
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(find.byKey(const Key('shell-status-osc52')), findsOneWidget);
+    expect(find.textContaining('inactive pane'), findsOneWidget);
+
+    await tester.tap(find.byType(TerminalViewport).last);
+    await tester.pump();
+    await tester.sendKeyDownEvent(
+      LogicalKeyboardKey.metaLeft,
+      platform: 'macos',
+    );
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyW, platform: 'macos');
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyW, platform: 'macos');
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
+    await tester.pumpAndSettle();
+    debugDefaultTargetPlatformOverride = null;
+
+    expect(container.read(sessionControllerProvider).tabs, hasLength(1));
+    expect(find.byType(TerminalViewport), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-osc52')), findsNothing);
+    expect(find.textContaining('closing tab pane copy'), findsNothing);
   });
 
   testWidgets('hotkey window failure is visible when registration is missing', (
@@ -1190,6 +5130,63 @@ void main() {
       );
     },
   );
+
+  testWidgets('split panes each commit their debounced terminal resize', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 2.0;
+    tester.view.physicalSize = const Size(1600, 1200);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final fakeBindings = FakePtyBackend();
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+
+    await _openTabContextMenu(tester);
+    await tester.tap(find.text('Split right'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 260));
+    await tester.pumpAndSettle();
+
+    final initialResizeCount = fakeBindings.resizeCalls.length;
+
+    tester.view.physicalSize = const Size(1480, 1200);
+    await tester.pump();
+    tester.view.physicalSize = const Size(1320, 1200);
+    await tester.pump(const Duration(milliseconds: 120));
+
+    expect(fakeBindings.resizeCalls.length, initialResizeCount);
+
+    await tester.pump(const Duration(milliseconds: 260));
+
+    final resizeCalls = fakeBindings.resizeCalls
+        .skip(initialResizeCount)
+        .toList(growable: false);
+    expect(resizeCalls.map((call) => call[0]), unorderedEquals(<int>[1, 2]));
+
+    for (final sessionId in const <String>['1', '2']) {
+      final renderObject = _renderTerminalViewportForPane(tester, sessionId);
+      final resizeCall = resizeCalls.singleWhere(
+        (call) => call[0] == int.parse(sessionId),
+      );
+      expect(
+        resizeCall[1],
+        (renderObject.size.width / renderObject.debugCellSize.width).floor(),
+      );
+      expect(
+        resizeCall[2],
+        (renderObject.size.height / renderObject.debugCellSize.height).floor(),
+      );
+      expect(
+        resizeCall[3],
+        (renderObject.size.width * tester.view.devicePixelRatio).round(),
+      );
+      expect(
+        resizeCall[4],
+        (renderObject.size.height * tester.view.devicePixelRatio).round(),
+      );
+    }
+  });
 
   testWidgets('terminal focus alone does not show the shell workspace cue', (
     tester,

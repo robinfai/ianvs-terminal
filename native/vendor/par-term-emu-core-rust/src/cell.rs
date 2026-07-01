@@ -642,6 +642,41 @@ mod tests {
     }
 
     #[test]
+    fn test_cell_from_grapheme_uses_cluster_width() {
+        let zwj = Cell::from_grapheme("👨‍💻");
+        assert_eq!(zwj.c, '👨');
+        assert_eq!(zwj.get_grapheme(), "👨‍💻");
+        assert_eq!(zwj.width(), 2);
+
+        let family = Cell::from_grapheme("👨‍👩‍👧‍👦");
+        assert_eq!(family.c, '👨');
+        assert_eq!(family.get_grapheme(), "👨‍👩‍👧‍👦");
+        assert_eq!(family.width(), 2);
+
+        let keycap = Cell::from_grapheme("1️⃣");
+        assert_eq!(keycap.c, '1');
+        assert_eq!(keycap.get_grapheme(), "1️⃣");
+        assert_eq!(keycap.width(), 2);
+
+        let text_keycap = Cell::from_grapheme("1\u{20E3}");
+        assert_eq!(text_keycap.c, '1');
+        assert_eq!(text_keycap.get_grapheme(), "1\u{20E3}");
+        assert_eq!(text_keycap.width(), 2);
+
+        let scotland_flag =
+            Cell::from_grapheme("\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}");
+        assert_eq!(
+            scotland_flag.get_grapheme(),
+            "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}"
+        );
+        assert_eq!(scotland_flag.width(), 2);
+
+        let text_presentation = Cell::from_grapheme("✈︎");
+        assert_eq!(text_presentation.get_grapheme(), "✈︎");
+        assert_eq!(text_presentation.width(), 1);
+    }
+
+    #[test]
     fn test_cell_with_zero_width_char() {
         // Combining characters have width 0
         let cell = Cell::new('\u{0301}'); // Combining acute accent

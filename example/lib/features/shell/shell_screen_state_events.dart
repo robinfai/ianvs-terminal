@@ -51,14 +51,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         _refreshSearchMatchesAfterFrame(sessionId, frame);
         _scheduleRenderableSessionSwap(sessionId);
       case terminal.TerminalSessionExitEvent():
-        _terminalFrameSequenceBySession.remove(event.sessionId);
-        _lastNewOutputFramePreviews.remove(event.sessionId);
-        _searchRefreshFrameSignatures.remove(event.sessionId);
-        _sessionsSeenForNewOutputBadges.remove(event.sessionId);
-        _sessionsWithNewOutput.remove(event.sessionId);
-        _triggerMatchesBySession.remove(event.sessionId);
-        _stopCoprocess(event.sessionId);
-        _clearCapturedOutput(event.sessionId);
+        _clearPresentationStateForSession(event.sessionId);
         _notifySessionExit(event.sessionId, event.exitCode);
       case terminal.TerminalSessionBellEvent():
         _notifyBell(event.sessionId);
@@ -121,7 +114,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     final details = <Widget>[
       _Osc52PromptDetail(
         label: 'Session',
-        value: request.sessionId ?? 'current',
+        value: _osc52SessionDetailValue(request.sessionId),
       ),
       _Osc52PromptDetail(label: 'Selection', value: request.selection ?? 'c'),
       if (request.characterCount != null || request.byteCount != null)
@@ -214,11 +207,11 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       _osc52BlockedCount += 1;
     }
     final label = _osc52StatusLabelFor(event);
-    final tooltip = _osc52StatusTooltipFor(event);
     _osc52StatusClearTimer?.cancel();
     _mutateState(() {
       _lastOsc52StatusLabel = label;
-      _lastOsc52StatusTooltip = tooltip;
+      _lastOsc52StatusEvent = event;
+      _lastOsc52StatusSessionId = event.sessionId;
     });
     _showShellSnackBar(_osc52SnackBarMessageFor(event));
     _osc52StatusClearTimer = Timer(const Duration(seconds: 6), () {
@@ -227,7 +220,8 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       }
       _mutateState(() {
         _lastOsc52StatusLabel = null;
-        _lastOsc52StatusTooltip = null;
+        _lastOsc52StatusEvent = null;
+        _lastOsc52StatusSessionId = null;
       });
     });
   }
@@ -257,7 +251,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     };
     return [
       'OSC 52 $operation $decision',
-      'Session: ${event.sessionId}',
+      'Session: ${_osc52SessionDetailValue(event.sessionId)}',
       if (event.selection != null) 'Selection: ${event.selection}',
       if (event.characterCount != null) 'Characters: ${event.characterCount}',
       if (event.byteCount != null) 'Bytes: ${event.byteCount}',
@@ -265,14 +259,41 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         'Preview: ${_visibleOsc52Preview(event.textPreview!)}'
             '${event.textPreviewTruncated ? '\n... preview truncated' : ''}',
       if (_osc52BlockedCount > 0) 'Blocked in this window: $_osc52BlockedCount',
+      if (_osc52StatusShouldOfferPaneFocus(event)) 'Click to focus this pane.',
     ].join('\n');
+  }
+
+  bool _osc52StatusShouldOfferPaneFocus(
+    terminal.TerminalSessionClipboardEvent event,
+  ) {
+    final state = ref.read(sessionControllerProvider);
+    final tab = _tabForSession(state, event.sessionId);
+    return tab != null &&
+        tab.effectivePanes.length > 1 &&
+        state.activeSessionId != event.sessionId;
+  }
+
+  String _osc52SessionDetailValue(String? sessionId) {
+    final state = ref.read(sessionControllerProvider);
+    final resolvedSessionId = sessionId ?? state.activeSessionId;
+    if (resolvedSessionId == null) {
+      return 'current';
+    }
+    final pane = _paneForSession(state, resolvedSessionId);
+    final paneState = state.activeSessionId == resolvedSessionId
+        ? 'active pane'
+        : 'inactive pane';
+    if (pane == null) {
+      return '$resolvedSessionId · $paneState';
+    }
+    return '${pane.title} ($resolvedSessionId) · $paneState';
   }
 
   String _osc52SnackBarMessageFor(
     terminal.TerminalSessionClipboardEvent event,
   ) {
     final count = event.characterCount;
-    return switch ((event.operation, event.decision)) {
+    final message = switch ((event.operation, event.decision)) {
       (
         terminal.TerminalClipboardOperation.copy,
         terminal.TerminalClipboardDecision.allowed,
@@ -304,6 +325,10 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       ) =>
         'OSC 52 paste read ignored: invalid payload',
     };
+    if (!_osc52StatusShouldOfferPaneFocus(event)) {
+      return message;
+    }
+    return '$message · ${_osc52SessionDetailValue(event.sessionId)}';
   }
 
   void _handleOscNotification(terminal.TerminalSessionNotificationEvent event) {
@@ -311,19 +336,53 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     final message = event.message.trim();
     final visibleTitle = title.isEmpty ? 'Terminal notification' : title;
     final visibleMessage = message.isEmpty ? visibleTitle : message;
-    _showShellSnackBar('$visibleTitle: $visibleMessage');
+    _showShellSnackBar(
+      _oscNotificationSnackBarMessage(
+        event,
+        title: visibleTitle,
+        message: visibleMessage,
+      ),
+    );
     if (!_activityNotificationsEnabled ||
         !_notificationSessionIsInactive(event.sessionId) ||
         !_activityNotificationAllowed(event.sessionId)) {
       return;
     }
+    final remoteContext = _oscNotificationRemoteContext(event.sessionId);
     _sendShellNotification(
-      title:
-          '$visibleTitle in ${_sessionTitleForNotification(event.sessionId)}',
+      title: remoteContext == null
+          ? '$visibleTitle in ${_sessionTitleForNotification(event.sessionId)}'
+          : '$visibleTitle on $remoteContext in ${_sessionTitleForNotification(event.sessionId)}',
       body: visibleMessage,
       identifier:
           'ianvs-terminal.osc.${event.sessionId}.${DateTime.now().microsecondsSinceEpoch}',
     );
+  }
+
+  String _oscNotificationSnackBarMessage(
+    terminal.TerminalSessionNotificationEvent event, {
+    required String title,
+    required String message,
+  }) {
+    final baseMessage = '$title: $message';
+    if (!_notificationSessionIsInactive(event.sessionId)) {
+      return baseMessage;
+    }
+    return '$baseMessage · ${_terminalPaneContextLine(event.sessionId)}';
+  }
+
+  String? _oscNotificationRemoteContext(String sessionId) {
+    final state = ref.read(sessionControllerProvider);
+    final pane = _paneForSession(state, sessionId);
+    final hostname = pane?.shellIntegration.hostname?.trim();
+    if (!_shellHostIsRemote(hostname)) {
+      return null;
+    }
+    final username = pane?.shellIntegration.username?.trim();
+    if (username != null && username.isNotEmpty) {
+      return '$username@$hostname';
+    }
+    return hostname;
   }
 
   void _notifyInactiveActivity(
@@ -360,7 +419,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (!hasSeenSession ||
         previousPreview == preview ||
         preview == null ||
-        !_sessionTabIsInactive(sessionId)) {
+        !_sessionIsInactive(sessionId)) {
       return;
     }
     if (_sessionsWithNewOutput.contains(sessionId)) {
@@ -405,7 +464,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     final command = event.command;
     final exitCode = event.exitCode;
     _sendShellNotification(
-      title: 'Command finished',
+      title: _commandFinishedNotificationTitle(event.sessionId),
       body: [
         if (command != null && command.trim().isNotEmpty) command.trim(),
         if (exitCode != null) 'Exit code $exitCode',
@@ -413,6 +472,17 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       identifier:
           'ianvs-terminal.command.${event.sessionId}.${DateTime.now().microsecondsSinceEpoch}',
     );
+  }
+
+  String _commandFinishedNotificationTitle(String sessionId) {
+    final remoteContext = _oscNotificationRemoteContext(sessionId);
+    if (remoteContext != null) {
+      return 'Command finished on $remoteContext in ${_sessionTitleForNotification(sessionId)}';
+    }
+    if (!_sessionIsInMultiPaneTab(sessionId)) {
+      return 'Command finished';
+    }
+    return 'Command finished in ${_sessionTitleForNotification(sessionId)}';
   }
 
   Future<void> _loadNotificationPreferences() async {

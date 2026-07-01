@@ -46,6 +46,7 @@ void main() {
         'newTab',
         'closeTab',
         'reopenClosedTab',
+        'reopenClosedPane',
         'duplicateCurrentCwd',
         'toolbelt',
         'splitRight',

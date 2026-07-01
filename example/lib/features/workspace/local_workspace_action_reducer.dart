@@ -7,12 +7,14 @@ class LocalWorkspaceActionContext {
     required this.nextPaneId,
     required this.nextSplitId,
     required this.fallbackIntent,
+    this.paneResizeDelta = 0.08,
   });
 
   final String nextTabId;
   final String nextPaneId;
   final String nextSplitId;
   final TerminalPaneSessionIntent fallbackIntent;
+  final double paneResizeDelta;
 }
 
 class LocalWorkspaceActionReducer {
@@ -53,6 +55,15 @@ class LocalWorkspaceActionReducer {
       ),
       TerminalActionId.reopenClosedPane => workspace.updateActiveTab(
         (tab) => tab.reopenClosedPane(splitNodeId: context.nextSplitId),
+      ),
+      TerminalActionId.focusNextPane => workspace.updateActiveTab(
+        (tab) => tab.focusRelativePane(1),
+      ),
+      TerminalActionId.focusPreviousPane => workspace.updateActiveTab(
+        (tab) => tab.focusRelativePane(-1),
+      ),
+      TerminalActionId.resizePane => workspace.updateActiveTab(
+        (tab) => tab.growActivePane(context.paneResizeDelta),
       ),
       TerminalActionId.zoomPane => workspace.updateActiveTab(
         (tab) => tab.toggleZoomActivePane(),

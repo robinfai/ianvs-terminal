@@ -94,6 +94,7 @@ ShellActionProductionCallbacks _baselineCallbacks() {
     newTab: _complete,
     closeTab: _complete,
     reopenClosedTab: _complete,
+    reopenClosedPane: _complete,
     duplicateCurrentCwd: _complete,
     toolbelt: _complete,
     splitRight: _complete,

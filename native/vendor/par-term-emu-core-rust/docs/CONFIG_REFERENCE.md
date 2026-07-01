@@ -222,6 +222,7 @@ term.set_margin_bell_volume(3)   # Low volume
 - `MouseEncoding::Utf8` - UTF-8 extended coordinates
 - `MouseEncoding::Sgr` - SGR format (recommended)
 - `MouseEncoding::Urxvt` - URXVT extended encoding
+- `MouseEncoding::SgrPixels` - SGR format with pixel coordinates
 
 **Implementation:** See `MouseEncoding` enum in `src/mouse.rs` and usage in `Terminal` struct
 

@@ -582,6 +582,12 @@ pub enum ClientMessage {
         col: u16,
         /// Row position
         row: u16,
+        /// Viewport-local pixel X position for SGR 1016 reports
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pixel_x: Option<u16>,
+        /// Viewport-local pixel Y position for SGR 1016 reports
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pixel_y: Option<u16>,
         /// Button: 0=left, 1=middle, 2=right, 3=release, 4=scroll_up, 5=scroll_down
         button: u8,
         /// Shift key held
@@ -1297,6 +1303,34 @@ impl ClientMessage {
         Self::Mouse {
             col,
             row,
+            pixel_x: None,
+            pixel_y: None,
+            button,
+            shift,
+            ctrl,
+            alt,
+            event_type,
+        }
+    }
+
+    /// Create a mouse input message with SGR 1016 pixel coordinates.
+    #[allow(clippy::too_many_arguments)]
+    pub fn mouse_with_pixels(
+        col: u16,
+        row: u16,
+        pixel_x: u16,
+        pixel_y: u16,
+        button: u8,
+        shift: bool,
+        ctrl: bool,
+        alt: bool,
+        event_type: String,
+    ) -> Self {
+        Self::Mouse {
+            col,
+            row,
+            pixel_x: Some(pixel_x),
+            pixel_y: Some(pixel_y),
             button,
             shift,
             ctrl,

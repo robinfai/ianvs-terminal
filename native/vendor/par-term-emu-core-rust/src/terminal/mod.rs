@@ -75,13 +75,14 @@ use crate::cell::{Cell, CellFlags};
 use crate::color::{Color, NamedColor};
 use crate::cursor::{Cursor, CursorStyle};
 use crate::debug;
-use crate::graphics::{GraphicsLimits, GraphicsStore};
+use crate::graphics::{GraphicsLimits, GraphicsStore, TerminalGraphic};
 use crate::grid::Grid;
 use crate::mouse::{MouseEncoding, MouseEvent, MouseEventRecord, MouseMode, MousePosition};
 use crate::shell_integration::ShellIntegration;
 use crate::sixel;
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 /// Character set designation for G0/G1 charset slots.
 ///
@@ -106,6 +107,24 @@ pub(crate) enum PlainTextParserState {
     Dcs,
     String,
 }
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum SyncUpdateScanState {
+    #[default]
+    Ground,
+    Escape,
+    Csi,
+    ControlString {
+        bel_terminated: bool,
+    },
+    ControlStringEscape {
+        bel_terminated: bool,
+    },
+}
+
+const SYNCHRONIZED_UPDATE_TIMEOUT: Duration = Duration::from_secs(1);
+const SYNCHRONIZED_UPDATE_CSI_SCAN_LIMIT: usize = 512;
+const KEYBOARD_PROTOCOL_STACK_LIMIT: usize = 32;
 
 impl Charset {
     /// Translate a character according to the DEC Special / Line Drawing table.
@@ -179,6 +198,74 @@ pub fn sanitize_clipboard_content(content: &mut String, max_bytes: usize) {
     }
 }
 
+/// Remove embedded bracketed paste start/end markers from pasted text.
+///
+/// Applications use CSI 200~/201~ as structural paste delimiters. If pasted
+/// content itself contains those delimiters, sending it inside an outer
+/// bracketed paste envelope can let the content terminate or restart the paste.
+/// Strip only exact marker forms and keep unrelated CSI text intact.
+pub fn sanitize_bracketed_paste_content(content: &str) -> String {
+    let mut sanitized = String::with_capacity(content.len());
+    let mut index = 0;
+
+    while index < content.len() {
+        if let Some(marker_end) = bracketed_paste_marker_end(content, index) {
+            index = marker_end;
+            continue;
+        }
+
+        let ch = content[index..]
+            .chars()
+            .next()
+            .expect("index should always point at a UTF-8 boundary");
+        sanitized.push(ch);
+        index += ch.len_utf8();
+    }
+
+    sanitized
+}
+
+fn bracketed_paste_marker_end(content: &str, start: usize) -> Option<usize> {
+    let first = content[start..].chars().next()?;
+    let mut index = start + first.len_utf8();
+
+    if first == '\x1b' {
+        let next = content[index..].chars().next()?;
+        if next != '[' {
+            return None;
+        }
+        index += next.len_utf8();
+    } else if first != '\u{009B}' {
+        return None;
+    }
+
+    let params_start = index;
+    while index < content.len() {
+        let ch = content[index..].chars().next()?;
+        if ch == '~' {
+            let params = &content[params_start..index];
+            return is_bracketed_paste_marker_params(params).then_some(index + ch.len_utf8());
+        }
+        if !matches!(ch, '0'..='9' | ':' | ';') {
+            return None;
+        }
+        index += ch.len_utf8();
+    }
+
+    None
+}
+
+fn is_bracketed_paste_marker_params(params: &str) -> bool {
+    let mut parts = params.split([';', ':']);
+    let Some(first) = parts.next() else {
+        return false;
+    };
+    if parts.next().is_some() {
+        return false;
+    }
+    matches!(first.parse::<u16>(), Ok(200 | 201))
+}
+
 /// Helper function to convert cells to text
 pub fn cells_to_text(cells: &[Cell]) -> String {
     cells
@@ -228,84 +315,292 @@ pub(crate) fn contains_bytes(haystack: &[u8], needle: &[u8]) -> bool {
         .any(|window| window == needle)
 }
 
-fn synchronized_update_enable_end(data: &[u8]) -> Option<usize> {
-    let mut index = 0;
-    while index + 3 < data.len() {
-        if data[index] != b'\x1b' || data[index + 1] != b'[' || data[index + 2] != b'?' {
-            index += 1;
-            continue;
-        }
-
-        let params_start = index + 3;
-        let mut end = params_start;
-        while end < data.len() {
-            let byte = data[end];
-            if (0x40..=0x7e).contains(&byte) {
-                if byte == b'h' && private_params_contain_2026(&data[params_start..end]) {
-                    return Some(end + 1);
-                }
-                break;
-            }
-            end += 1;
-        }
-        index += 1;
-    }
-    None
-}
-
 fn private_params_contain_2026(params: &[u8]) -> bool {
     params
         .split(|byte| *byte == b';' || *byte == b':')
         .any(|part| part == b"2026")
 }
 
-fn synchronized_update_enable_end_with_tail(tail: &[u8], data: &[u8]) -> Option<usize> {
-    if tail.is_empty() {
-        return synchronized_update_enable_end(data);
+fn terminal_reset_end(data: &[u8]) -> Option<usize> {
+    let mut state = SyncUpdateScanState::Ground;
+
+    for (index, byte) in data.iter().copied().enumerate() {
+        match state {
+            SyncUpdateScanState::Ground => match byte {
+                b'\x1b' => state = SyncUpdateScanState::Escape,
+                0x90 | 0x98 | 0x9e | 0x9f => {
+                    state = SyncUpdateScanState::ControlString {
+                        bel_terminated: false,
+                    };
+                }
+                0x9d => {
+                    state = SyncUpdateScanState::ControlString {
+                        bel_terminated: true,
+                    };
+                }
+                0x9b => state = SyncUpdateScanState::Csi,
+                _ => {}
+            },
+            SyncUpdateScanState::Escape => match byte {
+                b'c' => return Some(index + 1),
+                b'[' => state = SyncUpdateScanState::Csi,
+                b']' => {
+                    state = SyncUpdateScanState::ControlString {
+                        bel_terminated: true,
+                    };
+                }
+                b'P' | b'X' | b'^' | b'_' => {
+                    state = SyncUpdateScanState::ControlString {
+                        bel_terminated: false,
+                    };
+                }
+                b'\x1b' => state = SyncUpdateScanState::Escape,
+                0x9b => state = SyncUpdateScanState::Csi,
+                0x90 | 0x98 | 0x9e | 0x9f => {
+                    state = SyncUpdateScanState::ControlString {
+                        bel_terminated: false,
+                    };
+                }
+                0x9d => {
+                    state = SyncUpdateScanState::ControlString {
+                        bel_terminated: true,
+                    };
+                }
+                _ => state = SyncUpdateScanState::Ground,
+            },
+            SyncUpdateScanState::Csi => {
+                if (0x40..=0x7e).contains(&byte) {
+                    state = SyncUpdateScanState::Ground;
+                }
+            }
+            SyncUpdateScanState::ControlString { bel_terminated } => match byte {
+                0x9c => state = SyncUpdateScanState::Ground,
+                b'\x07' if bel_terminated => state = SyncUpdateScanState::Ground,
+                b'\x1b' => state = SyncUpdateScanState::ControlStringEscape { bel_terminated },
+                _ => {}
+            },
+            SyncUpdateScanState::ControlStringEscape { bel_terminated } => {
+                if byte == b'\\' {
+                    state = SyncUpdateScanState::Ground;
+                } else {
+                    state = SyncUpdateScanState::ControlString { bel_terminated };
+                }
+            }
+        }
     }
 
-    let mut combined = Vec::with_capacity(tail.len() + data.len());
-    combined.extend_from_slice(tail);
-    combined.extend_from_slice(data);
-    let combined_end = synchronized_update_enable_end(&combined)?;
-    if combined_end <= tail.len() {
-        return None;
-    }
-    Some(combined_end - tail.len())
+    None
 }
 
-fn synchronized_update_pending_tail(data: &[u8]) -> Vec<u8> {
-    for start in (0..data.len()).rev() {
-        if data[start] != b'\x1b' {
+fn synchronized_update_mode_end_with_state(
+    data: &[u8],
+    mode_final: u8,
+    state: &mut SyncUpdateScanState,
+    csi_buffer: &mut Vec<u8>,
+) -> Option<usize> {
+    for (index, byte) in data.iter().copied().enumerate() {
+        match *state {
+            SyncUpdateScanState::Ground => match byte {
+                b'\x1b' => {
+                    *state = SyncUpdateScanState::Escape;
+                    csi_buffer.clear();
+                }
+                0x9b => {
+                    *state = SyncUpdateScanState::Csi;
+                    csi_buffer.clear();
+                }
+                0x90 | 0x98 | 0x9e | 0x9f => {
+                    *state = SyncUpdateScanState::ControlString {
+                        bel_terminated: false,
+                    };
+                    csi_buffer.clear();
+                }
+                0x9d => {
+                    *state = SyncUpdateScanState::ControlString {
+                        bel_terminated: true,
+                    };
+                    csi_buffer.clear();
+                }
+                _ => {}
+            },
+            SyncUpdateScanState::Escape => match byte {
+                b'[' => {
+                    *state = SyncUpdateScanState::Csi;
+                    csi_buffer.clear();
+                }
+                b']' => {
+                    *state = SyncUpdateScanState::ControlString {
+                        bel_terminated: true,
+                    };
+                    csi_buffer.clear();
+                }
+                b'P' | b'X' | b'^' | b'_' => {
+                    *state = SyncUpdateScanState::ControlString {
+                        bel_terminated: false,
+                    };
+                    csi_buffer.clear();
+                }
+                b'\x1b' => {
+                    *state = SyncUpdateScanState::Escape;
+                    csi_buffer.clear();
+                }
+                0x9b => {
+                    *state = SyncUpdateScanState::Csi;
+                    csi_buffer.clear();
+                }
+                0x90 | 0x98 | 0x9e | 0x9f => {
+                    *state = SyncUpdateScanState::ControlString {
+                        bel_terminated: false,
+                    };
+                    csi_buffer.clear();
+                }
+                0x9d => {
+                    *state = SyncUpdateScanState::ControlString {
+                        bel_terminated: true,
+                    };
+                    csi_buffer.clear();
+                }
+                _ => {
+                    *state = SyncUpdateScanState::Ground;
+                    csi_buffer.clear();
+                }
+            },
+            SyncUpdateScanState::Csi => {
+                if (0x40..=0x7e).contains(&byte) {
+                    let is_private_2026 = csi_buffer
+                        .strip_prefix(b"?")
+                        .is_some_and(private_params_contain_2026);
+                    *state = SyncUpdateScanState::Ground;
+                    csi_buffer.clear();
+                    if byte == mode_final && is_private_2026 {
+                        return Some(index + 1);
+                    }
+                } else {
+                    csi_buffer.push(byte);
+                    if csi_buffer.len() > SYNCHRONIZED_UPDATE_CSI_SCAN_LIMIT {
+                        *state = SyncUpdateScanState::Ground;
+                        csi_buffer.clear();
+                    }
+                }
+            }
+            SyncUpdateScanState::ControlString { bel_terminated } => match byte {
+                0x9c => {
+                    *state = SyncUpdateScanState::Ground;
+                    csi_buffer.clear();
+                }
+                b'\x07' if bel_terminated => {
+                    *state = SyncUpdateScanState::Ground;
+                    csi_buffer.clear();
+                }
+                b'\x1b' => {
+                    *state = SyncUpdateScanState::ControlStringEscape { bel_terminated };
+                    csi_buffer.clear();
+                }
+                _ => {}
+            },
+            SyncUpdateScanState::ControlStringEscape { bel_terminated } => {
+                if byte == b'\\' {
+                    *state = SyncUpdateScanState::Ground;
+                    csi_buffer.clear();
+                } else {
+                    *state = SyncUpdateScanState::ControlString { bel_terminated };
+                }
+            }
+        }
+    }
+    None
+}
+
+fn normalize_c1_controls(data: &[u8]) -> Cow<'_, [u8]> {
+    let mut normalized = Vec::with_capacity(data.len() + 8);
+    let mut index = 0;
+    let mut changed = false;
+    while index < data.len() {
+        let byte = data[index];
+        if byte <= 0x7f {
+            normalized.push(byte);
+            index += 1;
             continue;
         }
-        let suffix = &data[start..];
-        if is_potential_synchronized_update_prefix(suffix) {
-            return suffix.to_vec();
+
+        if let Some(utf8_len) = valid_utf8_sequence_len_at(data, index) {
+            normalized.extend_from_slice(&data[index..index + utf8_len]);
+            index += utf8_len;
+            continue;
         }
+
+        if let Some(replacement) = c1_control_replacement(byte) {
+            changed = true;
+            normalized.extend_from_slice(replacement);
+        } else {
+            normalized.push(byte);
+        }
+        index += 1;
     }
-    Vec::new()
+
+    if changed {
+        Cow::Owned(normalized)
+    } else {
+        Cow::Borrowed(data)
+    }
 }
 
-fn is_potential_synchronized_update_prefix(data: &[u8]) -> bool {
-    if data.is_empty() || data[0] != b'\x1b' {
-        return false;
+fn valid_utf8_sequence_len_at(data: &[u8], index: usize) -> Option<usize> {
+    let first = *data.get(index)?;
+    let is_continuation = |offset: usize| {
+        data.get(index + offset)
+            .is_some_and(|byte| (0x80..=0xbf).contains(byte))
+    };
+
+    match first {
+        0xc2..=0xdf if is_continuation(1) => Some(2),
+        0xe0 if data
+            .get(index + 1)
+            .is_some_and(|byte| (0xa0..=0xbf).contains(byte))
+            && is_continuation(2) =>
+        {
+            Some(3)
+        }
+        0xe1..=0xec | 0xee..=0xef if is_continuation(1) && is_continuation(2) => Some(3),
+        0xed if data
+            .get(index + 1)
+            .is_some_and(|byte| (0x80..=0x9f).contains(byte))
+            && is_continuation(2) =>
+        {
+            Some(3)
+        }
+        0xf0 if data
+            .get(index + 1)
+            .is_some_and(|byte| (0x90..=0xbf).contains(byte))
+            && is_continuation(2)
+            && is_continuation(3) =>
+        {
+            Some(4)
+        }
+        0xf1..=0xf3 if is_continuation(1) && is_continuation(2) && is_continuation(3) => Some(4),
+        0xf4 if data
+            .get(index + 1)
+            .is_some_and(|byte| (0x80..=0x8f).contains(byte))
+            && is_continuation(2)
+            && is_continuation(3) =>
+        {
+            Some(4)
+        }
+        _ => None,
     }
-    if data.len() == 1 {
-        return true;
+}
+
+fn c1_control_replacement(byte: u8) -> Option<&'static [u8]> {
+    match byte {
+        0x90 => Some(b"\x1bP"),
+        0x98 => Some(b"\x1bX"),
+        0x9b => Some(b"\x1b["),
+        0x9c => Some(b"\x1b\\"),
+        0x9d => Some(b"\x1b]"),
+        0x9e => Some(b"\x1b^"),
+        0x9f => Some(b"\x1b_"),
+        _ => None,
     }
-    if data[1] != b'[' {
-        return false;
-    }
-    if data.len() == 2 {
-        return true;
-    }
-    if data[2] != b'?' {
-        return false;
-    }
-    data[3..]
-        .iter()
-        .all(|byte| byte.is_ascii_digit() || *byte == b';' || *byte == b':')
 }
 
 pub mod damage;
@@ -432,22 +727,38 @@ pub struct Terminal {
     pub(crate) title: String,
     /// Mouse tracking mode
     pub(crate) mouse_mode: MouseMode,
+    /// Mouse tracking mode for the alternate screen.
+    pub(crate) mouse_mode_alt: MouseMode,
     /// Mouse encoding format
     pub(crate) mouse_encoding: MouseEncoding,
+    /// Mouse encoding format for the alternate screen.
+    pub(crate) mouse_encoding_alt: MouseEncoding,
     /// Alternate scroll mode (DECSET 1007)
     pub(crate) alternate_scroll: bool,
+    /// Alternate scroll mode for the alternate screen.
+    pub(crate) alternate_scroll_alt: bool,
     /// Focus tracking enabled
     pub(crate) focus_tracking: bool,
+    /// Focus tracking enabled for the alternate screen.
+    pub(crate) focus_tracking_alt: bool,
     /// Bracketed paste mode
     pub(crate) bracketed_paste: bool,
     /// Synchronized update mode (DEC 2026)
     pub(crate) synchronized_updates: bool,
+    /// When the current synchronized update batch started.
+    pub(crate) sync_update_started_at: Option<Instant>,
     /// Buffer for batched updates (when synchronized mode is active)
     pub(crate) update_buffer: Vec<u8>,
-    /// Possible split DEC 2026 enable sequence prefix from the previous chunk
+    /// Possible split DEC 2026 CSI parameters from the previous chunk.
     pub(crate) sync_update_scan_tail: Vec<u8>,
+    /// Parser state for DEC 2026 raw scanning outside control string payloads.
+    pub(crate) sync_update_scan_state: SyncUpdateScanState,
     /// Flag to track if synchronized updates were explicitly disabled during a flush
     pub(crate) sync_update_explicitly_disabled: bool,
+    /// Temporarily ignore DEC 2026 enable while flushing a stale synchronized update buffer.
+    pub(crate) suppress_synchronized_update_enable: bool,
+    /// DEC 2026 mode state reported while replaying a synchronized update buffer.
+    pub(crate) sync_update_report_override: Option<bool>,
     /// Shell integration state
     pub(crate) shell_integration: ShellIntegration,
     /// Scroll region top (0-indexed)
@@ -470,6 +781,8 @@ pub struct Terminal {
     pub(crate) application_cursor: bool,
     /// Kitty keyboard protocol flags (progressive enhancement)
     pub(crate) keyboard_flags: u16,
+    /// Kitty keyboard protocol flags for the alternate screen.
+    pub(crate) keyboard_flags_alt: u16,
     /// Stack for keyboard protocol flags (main screen)
     pub(crate) keyboard_stack: Vec<u16>,
     /// Stack for keyboard protocol flags (alternate screen)
@@ -477,6 +790,8 @@ pub struct Terminal {
     /// modifyOtherKeys mode (XTerm extension for enhanced keyboard input)
     /// 0 = disabled, 1 = report modifiers for special keys, 2 = report modifiers for all keys
     pub(crate) modify_other_keys_mode: u8,
+    /// modifyOtherKeys mode for the alternate screen.
+    pub(crate) modify_other_keys_mode_alt: u8,
     /// Response buffer for device queries (DA/DSR/etc)
     pub(crate) response_buffer: Vec<u8>,
     /// Hyperlink storage: ID -> URL mapping (for deduplication)
@@ -808,14 +1123,22 @@ impl Terminal {
             saved_flags: CellFlags::default(),
             title: String::new(),
             mouse_mode: MouseMode::Off,
+            mouse_mode_alt: MouseMode::Off,
             mouse_encoding: MouseEncoding::Default,
+            mouse_encoding_alt: MouseEncoding::Default,
             alternate_scroll: false,
+            alternate_scroll_alt: false,
             focus_tracking: false,
+            focus_tracking_alt: false,
             bracketed_paste: false,
             synchronized_updates: false,
+            sync_update_started_at: None,
             update_buffer: Vec::new(),
             sync_update_scan_tail: Vec::new(),
+            sync_update_scan_state: SyncUpdateScanState::Ground,
             sync_update_explicitly_disabled: false,
+            suppress_synchronized_update_enable: false,
+            sync_update_report_override: None,
             shell_integration: ShellIntegration::new(),
             scroll_region_top: 0,
             scroll_region_bottom: rows.saturating_sub(1),
@@ -827,9 +1150,11 @@ impl Terminal {
             tab_stops,
             application_cursor: false,
             keyboard_flags: 0,
+            keyboard_flags_alt: 0,
             keyboard_stack: Vec::new(),
             keyboard_stack_alt: Vec::new(),
             modify_other_keys_mode: 0,
+            modify_other_keys_mode_alt: 0,
             response_buffer: Vec::new(),
             hyperlinks: HashMap::new(),
             current_hyperlink_id: None,
@@ -1048,6 +1373,11 @@ impl Terminal {
         lines
     }
 
+    /// Get the number of primary scrollback lines currently retained.
+    pub fn scrollback_len(&self) -> usize {
+        self.grid.scrollback_len()
+    }
+
     /// Get the cursor
     pub fn cursor(&self) -> &Cursor {
         &self.cursor
@@ -1103,6 +1433,11 @@ impl Terminal {
 
         self.grid.resize(cols, rows);
         self.alt_grid.resize(cols, rows);
+        let (cell_width, cell_height) = self.cell_dimensions;
+        self.graphics_store
+            .refresh_cell_dimensions(cell_width, cell_height, cols, rows);
+        self.graphics_store
+            .sync_text_scrollback_after_reflow(self.grid.scrollback_len());
 
         // Update pixel dimensions proportionally (10x20 per cell if not explicitly set)
         // This ensures CSI 14 t queries return valid pixel dimensions after resize
@@ -1294,6 +1629,7 @@ impl Terminal {
             self.alt_cursor = primary_cursor;
             // Clear the alternate screen buffer to ensure it starts blank
             self.alt_grid.clear();
+            self.graphics_store.clear_alternate_screen_graphics();
             // Notify about alt screen entry
             self.terminal_events
                 .push(crate::terminal::TerminalEvent::ModeChanged(
@@ -1315,10 +1651,10 @@ impl Terminal {
             self.cursor = self.alt_cursor;
             // Save alternate cursor for when we switch back
             self.alt_cursor = alt_cursor;
-            // Reset keyboard protocol flags when exiting alternate screen
+            // Reset alternate-screen keyboard protocol state when exiting.
             // TUI apps may enable Kitty keyboard protocol and fail to disable it on exit
-            if self.keyboard_flags != 0 {
-                self.keyboard_flags = 0;
+            if self.keyboard_flags_alt != 0 {
+                self.keyboard_flags_alt = 0;
                 self.terminal_events
                     .push(crate::terminal::TerminalEvent::ModeChanged(
                         "keyboard_protocol".to_string(),
@@ -1326,32 +1662,49 @@ impl Terminal {
                     ));
             }
             self.keyboard_stack_alt.clear();
-            // Also reset modifyOtherKeys mode
-            if self.modify_other_keys_mode != 0 {
-                self.modify_other_keys_mode = 0;
+            // Also reset alternate-screen modifyOtherKeys mode without clobbering primary state.
+            if self.modify_other_keys_mode_alt != 0 {
+                self.modify_other_keys_mode_alt = 0;
                 self.terminal_events
                     .push(crate::terminal::TerminalEvent::ModeChanged(
                         "modify_other_keys".to_string(),
                         false,
                     ));
             }
-            // And focus tracking
-            if self.focus_tracking {
-                self.focus_tracking = false;
+            // And alternate-screen interaction modes.
+            if self.focus_tracking_alt {
+                self.focus_tracking_alt = false;
                 self.terminal_events
                     .push(crate::terminal::TerminalEvent::ModeChanged(
                         "focus_tracking".to_string(),
                         false,
                     ));
             }
-            if self.alternate_scroll {
-                self.alternate_scroll = false;
+            if self.alternate_scroll_alt {
+                self.alternate_scroll_alt = false;
                 self.terminal_events
                     .push(crate::terminal::TerminalEvent::ModeChanged(
                         "alternate_scroll".to_string(),
                         false,
                     ));
             }
+            if self.mouse_mode_alt != MouseMode::Off {
+                self.mouse_mode_alt = MouseMode::Off;
+                self.terminal_events
+                    .push(crate::terminal::TerminalEvent::ModeChanged(
+                        "mouse_mode".to_string(),
+                        false,
+                    ));
+            }
+            if self.mouse_encoding_alt != MouseEncoding::Default {
+                self.mouse_encoding_alt = MouseEncoding::Default;
+                self.terminal_events
+                    .push(crate::terminal::TerminalEvent::ModeChanged(
+                        "mouse_encoding".to_string(),
+                        false,
+                    ));
+            }
+            self.graphics_store.clear_alternate_screen_graphics();
             // Notify about alt screen exit
             self.terminal_events
                 .push(crate::terminal::TerminalEvent::ModeChanged(
@@ -1489,42 +1842,74 @@ impl Terminal {
 
     /// Get mouse mode
     pub fn mouse_mode(&self) -> MouseMode {
-        self.mouse_mode
+        if self.alt_screen_active {
+            self.mouse_mode_alt
+        } else {
+            self.mouse_mode
+        }
     }
 
     /// Set mouse mode
     pub fn set_mouse_mode(&mut self, mode: MouseMode) {
-        self.mouse_mode = mode;
+        if self.alt_screen_active {
+            self.mouse_mode_alt = mode;
+        } else {
+            self.mouse_mode = mode;
+        }
     }
 
     /// Get mouse encoding
     pub fn mouse_encoding(&self) -> MouseEncoding {
-        self.mouse_encoding
+        if self.alt_screen_active {
+            self.mouse_encoding_alt
+        } else {
+            self.mouse_encoding
+        }
     }
 
     /// Set mouse encoding
     pub fn set_mouse_encoding(&mut self, encoding: MouseEncoding) {
-        self.mouse_encoding = encoding;
+        if self.alt_screen_active {
+            self.mouse_encoding_alt = encoding;
+        } else {
+            self.mouse_encoding = encoding;
+        }
     }
 
     /// Check if alternate scroll is enabled
     pub fn alternate_scroll(&self) -> bool {
-        self.alternate_scroll
+        if self.alt_screen_active {
+            self.alternate_scroll_alt
+        } else {
+            self.alternate_scroll
+        }
     }
 
     /// Set alternate scroll
     pub fn set_alternate_scroll(&mut self, enabled: bool) {
-        self.alternate_scroll = enabled;
+        if self.alt_screen_active {
+            self.alternate_scroll_alt = enabled;
+        } else {
+            self.alternate_scroll = enabled;
+        }
     }
 
     /// Check if focus tracking is enabled
     pub fn focus_tracking(&self) -> bool {
-        self.focus_tracking
+        if self.alt_screen_active {
+            self.focus_tracking_alt
+        } else {
+            self.focus_tracking
+        }
     }
 
     /// Set focus tracking
     pub fn set_focus_tracking(&mut self, enabled: bool) {
-        self.focus_tracking = enabled;
+        if self.alt_screen_active {
+            self.focus_tracking_alt = enabled;
+        } else {
+            self.focus_tracking = enabled;
+        }
     }
 
     /// Save current cursor state
@@ -1724,15 +2109,16 @@ impl Terminal {
 
     /// Report mouse event
     pub fn report_mouse(&mut self, event: MouseEvent) -> Vec<u8> {
-        if self.mouse_mode == MouseMode::Off {
+        let mouse_mode = self.mouse_mode();
+        if mouse_mode == MouseMode::Off {
             return Vec::new();
         }
-        event.encode(self.mouse_mode, self.mouse_encoding)
+        event.encode(mouse_mode, self.mouse_encoding())
     }
 
     /// Report focus in event
     pub fn report_focus_in(&self) -> Vec<u8> {
-        if self.focus_tracking {
+        if self.focus_tracking() {
             b"\x1b[I".to_vec()
         } else {
             Vec::new()
@@ -1741,7 +2127,7 @@ impl Terminal {
 
     /// Report focus out event
     pub fn report_focus_out(&self) -> Vec<u8> {
-        if self.focus_tracking {
+        if self.focus_tracking() {
             b"\x1b[O".to_vec()
         } else {
             Vec::new()
@@ -1771,15 +2157,35 @@ impl Terminal {
     /// If bracketed paste mode is enabled, wraps the content with ESC[200~ and ESC[201~
     /// Otherwise, processes the content directly
     pub fn paste(&mut self, content: &str) {
-        if self.bracketed_paste {
-            // Send: ESC[200~ + content + ESC[201~
-            self.process(b"\x1b[200~");
-            self.process(content.as_bytes());
-            self.process(b"\x1b[201~");
-        } else {
-            // Send content directly
-            self.process(content.as_bytes());
+        let bytes = self.paste_input_bytes(content);
+        if !bytes.is_empty() {
+            self.process(&bytes);
         }
+    }
+
+    /// Build the bytes that should be written for a paste request.
+    ///
+    /// Bracketed paste mode wraps sanitized content with CSI 200~/201~. Embedded
+    /// paste markers are stripped so paste content cannot escape the envelope.
+    pub fn paste_input_bytes(&self, content: &str) -> Vec<u8> {
+        if content.is_empty() {
+            return Vec::new();
+        }
+        if !self.bracketed_paste {
+            return content.as_bytes().to_vec();
+        }
+
+        let sanitized = sanitize_bracketed_paste_content(content);
+        if sanitized.is_empty() {
+            return Vec::new();
+        }
+
+        let mut bytes =
+            Vec::with_capacity(b"\x1b[200~".len() + sanitized.len() + b"\x1b[201~".len());
+        bytes.extend_from_slice(b"\x1b[200~");
+        bytes.extend_from_slice(sanitized.as_bytes());
+        bytes.extend_from_slice(b"\x1b[201~");
+        bytes
     }
 
     /// Check if synchronized updates mode is enabled
@@ -1787,8 +2193,42 @@ impl Terminal {
         self.synchronized_updates
     }
 
+    /// Flush and disable synchronized updates if the application held the mode too long.
+    pub fn flush_synchronized_updates_if_timed_out(&mut self) -> bool {
+        let Some(started_at) = self.sync_update_started_at else {
+            return false;
+        };
+        if !self.synchronized_updates || started_at.elapsed() < SYNCHRONIZED_UPDATE_TIMEOUT {
+            return false;
+        }
+
+        debug::log(
+            debug::DebugLevel::Debug,
+            "SYNC_UPDATE",
+            "Timed out waiting for synchronized update disable; flushing buffered output",
+        );
+        self.synchronized_updates = false;
+        self.sync_update_started_at = None;
+        self.sync_update_explicitly_disabled = true;
+        self.sync_update_scan_tail.clear();
+        self.sync_update_scan_state = SyncUpdateScanState::Ground;
+        self.terminal_events.push(TerminalEvent::ModeChanged(
+            "synchronized_updates".to_string(),
+            false,
+        ));
+        let saved_suppression = self.suppress_synchronized_update_enable;
+        self.suppress_synchronized_update_enable = true;
+        self.flush_synchronized_updates();
+        self.suppress_synchronized_update_enable = saved_suppression;
+        true
+    }
+
     /// Flush the synchronized update buffer
     pub fn flush_synchronized_updates(&mut self) {
+        self.flush_synchronized_updates_with_report_state(self.synchronized_updates);
+    }
+
+    fn flush_synchronized_updates_with_report_state(&mut self, report_state: bool) {
         if !self.update_buffer.is_empty() {
             let buffer = std::mem::take(&mut self.update_buffer);
             debug::log(
@@ -1798,13 +2238,17 @@ impl Terminal {
             );
             // Process the buffered data without synchronized mode
             let saved_mode = self.synchronized_updates;
+            let saved_report_override = self.sync_update_report_override;
             self.sync_update_explicitly_disabled = false;
             self.synchronized_updates = false;
+            self.sync_update_report_override = Some(report_state);
             self.process(&buffer);
+            self.sync_update_report_override = saved_report_override;
 
             // Restore only if it was originally enabled and not explicitly disabled
             if saved_mode && !self.sync_update_explicitly_disabled && !self.synchronized_updates {
                 self.synchronized_updates = true;
+                self.sync_update_started_at = Some(Instant::now());
             }
         }
     }
@@ -1905,21 +2349,60 @@ impl Terminal {
     /// Process a buffered Sixel command (color, raster, repeat)
     /// Get current Kitty keyboard protocol flags
     pub fn keyboard_flags(&self) -> u16 {
-        self.keyboard_flags
+        self.active_keyboard_flags()
     }
 
     /// Push keyboard flags to stack
     pub fn push_keyboard_flags(&mut self, flags: u16) {
-        self.keyboard_stack.push(self.keyboard_flags);
-        self.keyboard_flags = flags;
+        let current_flags = self.active_keyboard_flags();
+        let stack = self.active_keyboard_stack_mut();
+        if stack.len() >= KEYBOARD_PROTOCOL_STACK_LIMIT {
+            stack.remove(0);
+        }
+        stack.push(current_flags);
+        self.set_active_keyboard_flags(flags);
     }
 
     /// Pop keyboard flags from stack
     pub fn pop_keyboard_flags(&mut self, count: usize) {
         for _ in 0..count {
-            if let Some(flags) = self.keyboard_stack.pop() {
-                self.keyboard_flags = flags;
-            }
+            let flags = self.active_keyboard_stack_mut().pop().unwrap_or(0);
+            self.set_active_keyboard_flags(flags);
+        }
+    }
+
+    pub(crate) fn set_keyboard_flags_with_mode(&mut self, flags: u16, mode: u16) {
+        let current_flags = self.active_keyboard_flags();
+        let next_flags = match mode {
+            1 => flags,
+            2 => current_flags | flags,
+            3 => current_flags & !flags,
+            _ => flags,
+        };
+        self.set_active_keyboard_flags(next_flags);
+    }
+
+    pub(crate) fn active_keyboard_flags(&self) -> u16 {
+        if self.alt_screen_active {
+            self.keyboard_flags_alt
+        } else {
+            self.keyboard_flags
+        }
+    }
+
+    fn set_active_keyboard_flags(&mut self, flags: u16) {
+        if self.alt_screen_active {
+            self.keyboard_flags_alt = flags;
+        } else {
+            self.keyboard_flags = flags;
+        }
+    }
+
+    fn active_keyboard_stack_mut(&mut self) -> &mut Vec<u16> {
+        if self.alt_screen_active {
+            &mut self.keyboard_stack_alt
+        } else {
+            &mut self.keyboard_stack
         }
     }
 
@@ -1935,19 +2418,27 @@ impl Terminal {
 
     /// Set Kitty keyboard protocol flags (for testing/direct control)
     pub fn set_keyboard_flags(&mut self, flags: u16) {
-        self.keyboard_flags = flags;
+        self.set_active_keyboard_flags(flags);
     }
 
     /// Get modifyOtherKeys mode (XTerm extension)
     /// 0 = disabled, 1 = report modifiers for special keys, 2 = report modifiers for all keys
     pub fn modify_other_keys_mode(&self) -> u8 {
-        self.modify_other_keys_mode
+        if self.alt_screen_active {
+            self.modify_other_keys_mode_alt
+        } else {
+            self.modify_other_keys_mode
+        }
     }
 
     /// Set modifyOtherKeys mode (for testing/direct control)
     pub fn set_modify_other_keys_mode(&mut self, mode: u8) {
-        // Clamp to valid range (0-2)
-        self.modify_other_keys_mode = mode.min(2);
+        let mode = mode.min(2);
+        if self.alt_screen_active {
+            self.modify_other_keys_mode_alt = mode;
+        } else {
+            self.modify_other_keys_mode = mode;
+        }
     }
 
     /// Get clipboard content (OSC 52)
@@ -2377,10 +2868,14 @@ impl Terminal {
         } else {
             None
         };
-        let graphics = if config.sixel_render_mode != crate::screenshot::SixelRenderMode::Disabled
-            && scrollback_offset == 0
-        {
-            self.all_graphics()
+        let screenshot_graphics =
+            if config.sixel_render_mode != crate::screenshot::SixelRenderMode::Disabled {
+                self.graphics_for_screenshot_view(scrollback_offset)
+            } else {
+                Vec::new()
+            };
+        let graphics = if config.sixel_render_mode != crate::screenshot::SixelRenderMode::Disabled {
+            screenshot_graphics.as_slice()
         } else {
             &[]
         };
@@ -2416,14 +2911,107 @@ impl Terminal {
         } else {
             None
         };
-        let graphics = if config.sixel_render_mode != crate::screenshot::SixelRenderMode::Disabled
-            && scrollback_offset == 0
-        {
-            self.all_graphics()
+        let screenshot_graphics =
+            if config.sixel_render_mode != crate::screenshot::SixelRenderMode::Disabled {
+                self.graphics_for_screenshot_view(scrollback_offset)
+            } else {
+                Vec::new()
+            };
+        let graphics = if config.sixel_render_mode != crate::screenshot::SixelRenderMode::Disabled {
+            screenshot_graphics.as_slice()
         } else {
             &[]
         };
         crate::screenshot::save_grid(&grid, cursor, graphics, path, config)
+    }
+
+    fn graphics_for_screenshot_view(&self, scrollback_offset: usize) -> Vec<TerminalGraphic> {
+        let grid = self.active_grid();
+        let scrollback_len = grid.scrollback_len();
+        let effective_offset = scrollback_offset.min(scrollback_len);
+        let viewport_start_row = scrollback_len.saturating_sub(effective_offset);
+        let (_, viewport_rows) = self.size();
+        let viewport_end_row = viewport_start_row.saturating_add(viewport_rows);
+        let active_row_base = if self.alt_screen_active {
+            0
+        } else {
+            scrollback_len
+        };
+        let mut graphics = Vec::new();
+
+        for graphic in self.all_graphics() {
+            if graphic.alternate_screen != self.alt_screen_active {
+                continue;
+            }
+            if let Some(view_graphic) = self.graphic_for_screenshot_view(
+                graphic,
+                active_row_base.saturating_add(graphic.position.1),
+                viewport_start_row,
+                viewport_end_row,
+                graphic.scroll_offset_rows,
+            ) {
+                graphics.push(view_graphic);
+            }
+        }
+
+        if !self.alt_screen_active {
+            for graphic in self.all_scrollback_graphics() {
+                let Some(scrollback_row) = graphic.scrollback_row else {
+                    continue;
+                };
+                if let Some(view_graphic) = self.graphic_for_screenshot_view(
+                    graphic,
+                    scrollback_row,
+                    viewport_start_row,
+                    viewport_end_row,
+                    0,
+                ) {
+                    graphics.push(view_graphic);
+                }
+            }
+        }
+
+        graphics
+    }
+
+    fn graphic_for_screenshot_view(
+        &self,
+        graphic: &TerminalGraphic,
+        absolute_start_row: usize,
+        viewport_start_row: usize,
+        viewport_end_row: usize,
+        scrolled_top_rows: usize,
+    ) -> Option<TerminalGraphic> {
+        if viewport_start_row >= viewport_end_row {
+            return None;
+        }
+        let (cols, rows) = self.size();
+        let (_, height_cells) = graphic
+            .display_cell_span
+            .unwrap_or_else(|| graphic.resolved_cell_span(Some(cols), Some(rows)));
+        let height_cells = height_cells.max(1);
+        let scrolled_top_rows = scrolled_top_rows.min(height_cells);
+        let displayed_height_cells = height_cells.saturating_sub(scrolled_top_rows);
+        if displayed_height_cells == 0 {
+            return None;
+        }
+        let absolute_end_row = absolute_start_row.saturating_add(displayed_height_cells);
+        if absolute_end_row <= viewport_start_row || absolute_start_row >= viewport_end_row {
+            return None;
+        }
+
+        let viewport_hidden_rows = viewport_start_row
+            .saturating_sub(absolute_start_row)
+            .min(displayed_height_cells);
+        let hidden_rows = scrolled_top_rows.saturating_add(viewport_hidden_rows);
+        let mut view_graphic = graphic.clone();
+        view_graphic.position.1 = absolute_start_row.saturating_sub(viewport_start_row);
+        if absolute_start_row < viewport_start_row {
+            view_graphic.position.1 = 0;
+        }
+        view_graphic.scroll_offset_rows = hidden_rows;
+        view_graphic.scrollback_row = None;
+        Some(view_graphic)
     }
 
     /// Drain and return pending responses
@@ -2494,27 +3082,27 @@ impl Terminal {
             return;
         }
 
-        if let Some(sync_enable_end) =
-            synchronized_update_enable_end_with_tail(&self.sync_update_scan_tail, data)
-        {
-            self.sync_update_scan_tail.clear();
-            let (prefix, suffix) = data.split_at(sync_enable_end);
-            self.process_unsynchronized(prefix);
-            if self.synchronized_updates {
-                self.buffer_synchronized_update(suffix);
-            } else if !suffix.is_empty() {
-                self.process_unsynchronized(suffix);
+        if !self.suppress_synchronized_update_enable {
+            if let Some(sync_enable_end) = synchronized_update_mode_end_with_state(
+                data,
+                b'h',
+                &mut self.sync_update_scan_state,
+                &mut self.sync_update_scan_tail,
+            ) {
+                self.sync_update_scan_tail.clear();
+                self.sync_update_scan_state = SyncUpdateScanState::Ground;
+                let (prefix, suffix) = data.split_at(sync_enable_end);
+                self.process_unsynchronized(prefix);
+                if self.synchronized_updates {
+                    self.buffer_synchronized_update(suffix);
+                } else if !suffix.is_empty() {
+                    self.process_unsynchronized(suffix);
+                }
+                return;
             }
-            return;
-        }
-
-        if self.sync_update_scan_tail.is_empty() {
-            self.sync_update_scan_tail = synchronized_update_pending_tail(data);
         } else {
-            let mut scan_data = Vec::with_capacity(self.sync_update_scan_tail.len() + data.len());
-            scan_data.extend_from_slice(&self.sync_update_scan_tail);
-            scan_data.extend_from_slice(data);
-            self.sync_update_scan_tail = synchronized_update_pending_tail(&scan_data);
+            self.sync_update_scan_tail.clear();
+            self.sync_update_scan_state = SyncUpdateScanState::Ground;
         }
         self.process_unsynchronized(data);
     }
@@ -2523,12 +3111,28 @@ impl Terminal {
         // Buffer data instead of processing it immediately.
         self.update_buffer.extend_from_slice(data);
 
-        // Peek at the end of the buffer to see if it contains the disable sequence.
-        // We check the last 32 bytes to account for sequences split across chunks.
-        let peek_len = 32.min(self.update_buffer.len());
-        let peek_start = self.update_buffer.len() - peek_len;
-        if contains_bytes(&self.update_buffer[peek_start..], b"\x1b[?2026l") {
+        if synchronized_update_mode_end_with_state(
+            data,
+            b'l',
+            &mut self.sync_update_scan_state,
+            &mut self.sync_update_scan_tail,
+        )
+        .is_some()
+        {
+            self.sync_update_scan_tail.clear();
+            self.sync_update_scan_state = SyncUpdateScanState::Ground;
             self.flush_synchronized_updates();
+            return;
+        }
+        if terminal_reset_end(&self.update_buffer).is_some() {
+            let report_state = self.synchronized_updates;
+            self.sync_update_scan_tail.clear();
+            self.sync_update_scan_state = SyncUpdateScanState::Ground;
+            self.synchronized_updates = false;
+            self.sync_update_started_at = None;
+            self.sync_update_explicitly_disabled = true;
+            self.flush_synchronized_updates_with_report_state(report_state);
+            return;
         }
     }
 
@@ -2537,18 +3141,24 @@ impl Terminal {
             return;
         }
 
-        let mut processed_data = None;
         let has_wrapped_graphics = !self.graphics_passthrough_buffer.is_empty()
             || contains_bytes(data, b"\x1bPtmux;")
             || contains_bytes(data, b"\x1bP\x1b");
-        if has_wrapped_graphics {
-            processed_data = Some(self.handle_graphics_passthrough_sequences(data));
-        }
-        let current_data = processed_data.as_deref().unwrap_or(data);
-        if !self.kitty_apc_buffer.is_empty() || contains_bytes(current_data, b"\x1b_") {
-            processed_data = Some(self.handle_kitty_apc_sequences(current_data));
-        }
-        let data = processed_data.as_deref().unwrap_or(data);
+        let passthrough_processed = if has_wrapped_graphics {
+            Some(self.handle_graphics_passthrough_sequences(data))
+        } else {
+            None
+        };
+        let current_data = passthrough_processed.as_deref().unwrap_or(data);
+        let normalized_c1_data = normalize_c1_controls(current_data);
+        let current_data = normalized_c1_data.as_ref();
+        let kitty_processed =
+            if !self.kitty_apc_buffer.is_empty() || contains_bytes(current_data, b"\x1b_") {
+                Some(self.handle_kitty_apc_sequences(current_data))
+            } else {
+                None
+            };
+        let data = kitty_processed.as_deref().unwrap_or(current_data);
 
         if self.can_process_plain_ascii_fast_path(data) {
             let fast_path_started_at = Instant::now();
@@ -2567,14 +3177,15 @@ impl Terminal {
             for notification in notifications {
                 match notification {
                     crate::tmux_control::TmuxNotification::TerminalOutput { data } => {
+                        let normalized_data = normalize_c1_controls(&data);
                         // Feed non-control data back to standard VTE parser
                         let mut parser = std::mem::replace(&mut self.parser, vte::Parser::new());
                         let parser_started_at = Instant::now();
-                        parser.advance(self, &data);
+                        parser.advance(self, normalized_data.as_ref());
                         self.record_parser_advance_debug_micros(
                             parser_started_at.elapsed().as_micros() as u64,
                         );
-                        self.observe_plain_text_parser_state(&data);
+                        self.observe_plain_text_parser_state(normalized_data.as_ref());
                         let _ = std::mem::replace(&mut self.parser, parser);
                     }
                     _ => {
@@ -2644,8 +3255,10 @@ impl Terminal {
 
         // Save current tab stops
         let tab_stops = self.tab_stops.clone();
+        let suppress_synchronized_update_enable = self.suppress_synchronized_update_enable;
 
         *self = Self::with_scrollback(cols, rows, scrollback);
+        self.suppress_synchronized_update_enable = suppress_synchronized_update_enable;
 
         // Restore tab stops
         self.tab_stops = tab_stops;

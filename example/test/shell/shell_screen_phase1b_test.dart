@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_ports.dart';
+import 'package:app/features/sessions/session_state.dart';
 import 'package:app/features/shell/reference_demo.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/ui/app_ui.dart';
@@ -371,6 +372,255 @@ void main() {
     expect(find.byKey(const Key('shell-tab-new-output-1')), findsNothing);
   });
 
+  testWidgets('active split tab marks new output from inactive panes', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    await pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    container
+        .read(sessionControllerProvider.notifier)
+        .splitActiveSession(
+          defaultTerminalProfile(),
+          TerminalSplitAxis.horizontal,
+        );
+    await tester.pumpAndSettle();
+
+    final splitState = container.read(sessionControllerProvider);
+    final tab = splitState.tabs.single;
+    final activeSessionId = splitState.activeSessionId!;
+    final inactiveSessionId = tab.effectivePanes
+        .firstWhere((pane) => pane.sessionId != activeSessionId)
+        .sessionId;
+
+    expect(
+      find.byKey(Key('shell-tab-new-output-${tab.sessionId}')),
+      findsNothing,
+    );
+
+    fakeBindings.setFrame(inactiveSessionId, _terminalFrame('pane output'));
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(
+      find.byKey(Key('shell-tab-new-output-${tab.sessionId}')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(Key('shell-tab-new-output-${tab.sessionId}')),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Tooltip &&
+              widget.message?.contains('New output in a split pane.') == true &&
+              widget.message?.contains('Pane:') == true &&
+              widget.message?.contains('inactive pane') == true &&
+              widget.message?.contains('Click to focus this pane.') == true,
+        ),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(Key('shell-tab-new-output-${tab.sessionId}')));
+    await tester.pumpAndSettle();
+
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      inactiveSessionId,
+    );
+    expect(
+      find.byKey(Key('shell-tab-new-output-${tab.sessionId}')),
+      findsNothing,
+    );
+  });
+
+  testWidgets(
+    'focusing one split pane only clears that pane new output marker',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      await pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final controller = container.read(sessionControllerProvider.notifier);
+      controller.splitActiveSession(
+        defaultTerminalProfile(),
+        TerminalSplitAxis.horizontal,
+      );
+      await tester.pumpAndSettle();
+      controller.splitActiveSession(
+        defaultTerminalProfile(),
+        TerminalSplitAxis.vertical,
+      );
+      await tester.pumpAndSettle();
+
+      final splitState = container.read(sessionControllerProvider);
+      final tab = splitState.tabs.single;
+      final activeSessionId = splitState.activeSessionId!;
+      final inactiveSessionIds = tab.effectivePanes
+          .where((pane) => pane.sessionId != activeSessionId)
+          .map((pane) => pane.sessionId)
+          .toList(growable: false);
+      expect(inactiveSessionIds, hasLength(2));
+
+      fakeBindings.setFrame(inactiveSessionIds[0], _terminalFrame('pane one'));
+      await tester.pump(const Duration(milliseconds: 40));
+      fakeBindings.setFrame(inactiveSessionIds[1], _terminalFrame('pane two'));
+      await tester.pump(const Duration(milliseconds: 40));
+
+      final tabDot = find.byKey(Key('shell-tab-new-output-${tab.sessionId}'));
+      expect(tabDot, findsOneWidget);
+      expect(
+        find.descendant(
+          of: tabDot,
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Tooltip &&
+                widget.message?.contains('New output in 2 split panes.') ==
+                    true &&
+                widget.message?.contains(inactiveSessionIds[0]) == true &&
+                widget.message?.contains(inactiveSessionIds[1]) == true &&
+                widget.message?.contains(
+                      'Click to focus the first pane with new output.',
+                    ) ==
+                    true,
+          ),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(tabDot);
+      await tester.pumpAndSettle();
+
+      expect(
+        container.read(sessionControllerProvider).activeSessionId,
+        inactiveSessionIds[0],
+      );
+      expect(tabDot, findsOneWidget);
+      expect(
+        find.descendant(
+          of: tabDot,
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Tooltip &&
+                widget.message?.contains('New output in a split pane.') ==
+                    true &&
+                widget.message?.contains(inactiveSessionIds[0]) == false &&
+                widget.message?.contains(inactiveSessionIds[1]) == true &&
+                widget.message?.contains('Click to focus this pane.') == true,
+          ),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(tabDot);
+      await tester.pumpAndSettle();
+
+      expect(
+        container.read(sessionControllerProvider).activeSessionId,
+        inactiveSessionIds[1],
+      );
+      expect(tabDot, findsNothing);
+    },
+  );
+
+  testWidgets(
+    'visible split tab new output prioritizes inactive pane over active marker',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      await pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final controller = container.read(sessionControllerProvider.notifier);
+      controller.splitActiveSession(
+        defaultTerminalProfile(),
+        TerminalSplitAxis.horizontal,
+      );
+      await tester.pumpAndSettle();
+
+      final splitState = container.read(sessionControllerProvider);
+      final tab = splitState.tabs.single;
+      final originalActiveSessionId = splitState.activeSessionId!;
+      final originalInactiveSessionId = tab.effectivePanes
+          .firstWhere((pane) => pane.sessionId != originalActiveSessionId)
+          .sessionId;
+
+      fakeBindings.setFrame(
+        originalInactiveSessionId,
+        _terminalFrame('active marker output'),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      controller.activateSession(originalInactiveSessionId);
+      await tester.pumpAndSettle();
+
+      fakeBindings.setFrame(
+        originalActiveSessionId,
+        _terminalFrame('inactive marker output'),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      final tabDot = find.byKey(Key('shell-tab-new-output-${tab.sessionId}'));
+      expect(tabDot, findsOneWidget);
+      expect(
+        find.descendant(
+          of: tabDot,
+          matching: find.byWidgetPredicate((widget) {
+            if (widget is! Tooltip || widget.message == null) {
+              return false;
+            }
+            final message = widget.message!;
+            final inactiveIndex = message.indexOf(
+              '($originalActiveSessionId) · inactive pane',
+            );
+            final activeIndex = message.indexOf(
+              '($originalInactiveSessionId) · active pane',
+            );
+            return message.contains('New output in 2 split panes.') &&
+                message.contains(
+                  'Click to focus the first pane with new output.',
+                ) &&
+                inactiveIndex >= 0 &&
+                activeIndex >= 0 &&
+                inactiveIndex < activeIndex;
+          }),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(tabDot);
+      await tester.pumpAndSettle();
+
+      expect(
+        container.read(sessionControllerProvider).activeSessionId,
+        originalActiveSessionId,
+      );
+    },
+  );
+
   testWidgets('overflow menu only dots hidden tabs with new output', (
     tester,
   ) async {
@@ -397,7 +647,7 @@ void main() {
 
     expect(
       find.byKey(const Key('shell-tab-overflow-new-output')),
-      findsOneWidget,
+      findsNothing,
     );
     expect(find.byKey(const Key('shell-tab-new-output-12')), findsOneWidget);
     expect(find.byKey(const Key('shell-tab-new-output-11')), findsNothing);

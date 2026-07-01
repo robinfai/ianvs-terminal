@@ -269,8 +269,10 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
 
     _mutateState(() {
       _isCopyModeOpen = true;
+      _copyModeSessionId = sessionId;
       _isSearchOpen = false;
-      _isAutocompleteOpen = false;
+      _resetAutocompleteState();
+      _resetAutoComposerState(clearText: true);
       _copyModeAnchorRow = row;
       _copyModeAnchorCol = anchorCol;
       _copyModeExtentRow = row;
@@ -302,7 +304,16 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
       _closeCopyMode(null);
       return KeyEventResult.handled;
     }
-    final selectionController = _selectionControllers[activeSessionId];
+    final copyModeSessionId = _copyModeSessionId;
+    if (copyModeSessionId == null || copyModeSessionId != activeSessionId) {
+      _closeCopyMode(
+        copyModeSessionId == null
+            ? null
+            : _selectionControllers[copyModeSessionId],
+      );
+      return null;
+    }
+    final selectionController = _selectionControllers[copyModeSessionId];
     if (selectionController == null) {
       _closeCopyMode(null);
       return KeyEventResult.handled;
@@ -317,7 +328,7 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
         unawaited(
           _copySelection(
             sessionController,
-            activeSessionId,
+            copyModeSessionId,
             selectionController,
           ),
         );
@@ -326,7 +337,7 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
       case LogicalKeyboardKey.arrowLeft:
         _moveCopyModeSelection(
           sessionController,
-          activeSessionId,
+          copyModeSessionId,
           selectionController,
           columnDelta: -1,
         );
@@ -334,7 +345,7 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
       case LogicalKeyboardKey.arrowRight:
         _moveCopyModeSelection(
           sessionController,
-          activeSessionId,
+          copyModeSessionId,
           selectionController,
           columnDelta: 1,
         );
@@ -342,7 +353,7 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
       case LogicalKeyboardKey.arrowUp:
         _moveCopyModeSelection(
           sessionController,
-          activeSessionId,
+          copyModeSessionId,
           selectionController,
           rowDelta: -1,
         );
@@ -350,7 +361,7 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
       case LogicalKeyboardKey.arrowDown:
         _moveCopyModeSelection(
           sessionController,
-          activeSessionId,
+          copyModeSessionId,
           selectionController,
           rowDelta: 1,
         );
@@ -401,14 +412,19 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
 
   void _closeCopyMode(SelectionController? selectionController) {
     _mutateState(() {
-      _isCopyModeOpen = false;
-      _copyModeAnchorRow = null;
-      _copyModeAnchorCol = null;
-      _copyModeExtentRow = null;
-      _copyModeExtentCol = null;
+      _resetCopyModeState();
     });
     selectionController?.clear();
     _focusSession(ref.read(sessionControllerProvider).activeSessionId);
+  }
+
+  void _resetCopyModeState() {
+    _isCopyModeOpen = false;
+    _copyModeSessionId = null;
+    _copyModeAnchorRow = null;
+    _copyModeAnchorCol = null;
+    _copyModeExtentRow = null;
+    _copyModeExtentCol = null;
   }
 
   Future<void> _pasteToSession(String sessionId) async {
@@ -553,18 +569,16 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
     if (_isSessionReadOnly(sessionId)) {
       return;
     }
-    ref
-        .read(terminalRuntimeControllerProvider)
-        .sendInput(
-          sessionId,
-          TerminalInputController.clipboardPasteBytesFor(
-            emulation:
-                terminalConfig?.emulation ??
-                terminal.TerminalEmulation.xterm256,
-            modes: _pasteModesFor(frame.modes),
-            text: text,
-          ),
-        );
+    final bytes = TerminalInputController.clipboardPasteBytesFor(
+      emulation:
+          terminalConfig?.emulation ?? terminal.TerminalEmulation.xterm256,
+      modes: _pasteModesFor(frame.modes),
+      text: text,
+    );
+    if (bytes.isEmpty) {
+      return;
+    }
+    ref.read(terminalRuntimeControllerProvider).sendInput(sessionId, bytes);
   }
 
   bool _sendPlainTextToSession(String sessionId, String text) {

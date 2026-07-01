@@ -79,6 +79,8 @@ pub enum PyMouseEncoding {
     Sgr = 2,
     /// URXVT encoding (1015)
     Urxvt = 3,
+    /// SGR pixel-position encoding (1016)
+    SgrPixels = 4,
 }
 
 impl From<crate::mouse::MouseEncoding> for PyMouseEncoding {
@@ -87,6 +89,7 @@ impl From<crate::mouse::MouseEncoding> for PyMouseEncoding {
             crate::mouse::MouseEncoding::Default => PyMouseEncoding::Default,
             crate::mouse::MouseEncoding::Utf8 => PyMouseEncoding::Utf8,
             crate::mouse::MouseEncoding::Sgr => PyMouseEncoding::Sgr,
+            crate::mouse::MouseEncoding::SgrPixels => PyMouseEncoding::SgrPixels,
             crate::mouse::MouseEncoding::Urxvt => PyMouseEncoding::Urxvt,
         }
     }
@@ -98,6 +101,7 @@ impl From<PyMouseEncoding> for crate::mouse::MouseEncoding {
             PyMouseEncoding::Default => crate::mouse::MouseEncoding::Default,
             PyMouseEncoding::Utf8 => crate::mouse::MouseEncoding::Utf8,
             PyMouseEncoding::Sgr => crate::mouse::MouseEncoding::Sgr,
+            PyMouseEncoding::SgrPixels => crate::mouse::MouseEncoding::SgrPixels,
             PyMouseEncoding::Urxvt => crate::mouse::MouseEncoding::Urxvt,
         }
     }

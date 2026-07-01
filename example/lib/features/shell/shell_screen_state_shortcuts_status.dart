@@ -29,6 +29,8 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
       if (mounted && _notificationsBlockedBySystem) {
         _mutateState(() {
           _notificationsBlockedBySystem = false;
+          _lastNotificationFailureLabel = null;
+          _lastNotificationFailureTooltip = null;
         });
       }
     } on PlatformException catch (error) {
@@ -52,11 +54,35 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
       if (message == null) {
         return;
       }
+      _showNotificationFailureStatus(message);
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(message)));
     }
+  }
+
+  void _showNotificationFailureStatus(String message) {
+    _notificationFailureStatusClearTimer?.cancel();
+    if (!mounted) {
+      return;
+    }
+    _mutateState(() {
+      _lastNotificationFailureLabel = 'NOTIFY BLOCKED';
+      _lastNotificationFailureTooltip = message;
+    });
+    _notificationFailureStatusClearTimer = Timer(
+      const Duration(seconds: 8),
+      () {
+        if (!mounted) {
+          return;
+        }
+        _mutateState(() {
+          _lastNotificationFailureLabel = null;
+          _lastNotificationFailureTooltip = null;
+        });
+      },
+    );
   }
 
   String get _visibleOverlay {
@@ -82,21 +108,26 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
     final SessionState snapshotState =
         state ?? ref.read(sessionControllerProvider);
     final activeSessionId = snapshotState.activeSessionId;
-    final terminalFrame = activeSessionId == null
-        ? null
-        : ref
-              .read(sessionControllerProvider.notifier)
-              .viewportFor(activeSessionId)
-              .frame;
-    final terminalRows = terminalFrame?.rows ?? const [];
-    String? terminalPreview;
-    for (final row in terminalRows) {
-      final text = row.text.trim();
-      if (text.isNotEmpty) {
-        terminalPreview = text;
-        break;
+    TerminalTab? activeTab;
+    if (activeSessionId != null) {
+      for (final tab in snapshotState.tabs) {
+        if (tab.containsSession(activeSessionId)) {
+          activeTab = tab;
+          break;
+        }
       }
     }
+    final sessionController = ref.read(sessionControllerProvider.notifier);
+    final terminalFrame = activeSessionId == null
+        ? null
+        : sessionController.viewportFor(activeSessionId).frame;
+    final terminalPreview = activeTab == null
+        ? null
+        : _acceptancePreviewForActiveTabPanes(
+            activeTab,
+            frameForSession: (sessionId) =>
+                sessionController.viewportFor(sessionId).frame,
+          );
     shellAcceptanceProbe.update(
       ShellAcceptanceSnapshot(
         commandMenuOpen: _isCommandMenuOpen,
@@ -128,6 +159,32 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
               },
       ),
     );
+  }
+
+  String? _acceptancePreviewForActiveTabPanes(
+    TerminalTab activeTab, {
+    required terminal.TerminalFrameDiff? Function(String sessionId)
+    frameForSession,
+  }) {
+    final activePane = activeTab.activePane;
+    final panes = <TerminalPane>[
+      activePane,
+      for (final pane in activeTab.effectivePanes)
+        if (pane.sessionId != activePane.sessionId) pane,
+    ];
+    for (final pane in panes) {
+      final frame = frameForSession(pane.sessionId);
+      if (frame == null) {
+        continue;
+      }
+      for (final row in frame.rows) {
+        final text = row.text.trim();
+        if (text.isNotEmpty) {
+          return text;
+        }
+      }
+    }
+    return null;
   }
 
   bool get _usesMetaShortcuts {
@@ -308,6 +365,10 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
       'Title: ${notification.title}',
       if (notification.message.trim().isNotEmpty)
         'Message: ${notification.message.trim()}',
+      if (notification.remoteHost?.trim().isNotEmpty == true)
+        'Remote host: ${notification.remoteHost!.trim()}',
+      if (notification.remoteUser?.trim().isNotEmpty == true)
+        'Remote user: ${notification.remoteUser!.trim()}',
       if (notification.count > 1) 'Count: ${notification.count}',
       'Click to inspect recent notifications for this pane.',
     ].join('\n');
@@ -334,6 +395,29 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
     ].join('\n');
   }
 
+  String? _statusTooltipForPane({
+    required String? sessionId,
+    required String? tooltip,
+    bool includeFocusHint = false,
+  }) {
+    if (tooltip == null || tooltip.trim().isEmpty) {
+      return tooltip;
+    }
+    if (sessionId == null || !_sessionIsInMultiPaneTab(sessionId)) {
+      return tooltip;
+    }
+    return [
+      _terminalPaneContextLine(sessionId),
+      tooltip,
+      if (includeFocusHint && _sessionNeedsFocus(sessionId))
+        'Click to focus this pane.',
+    ].join('\n');
+  }
+
+  bool _sessionNeedsFocus(String sessionId) {
+    return ref.read(sessionControllerProvider).activeSessionId != sessionId;
+  }
+
   bool _shellHostIsRemote(String? hostname) {
     final normalized = hostname?.trim().toLowerCase();
     if (normalized == null || normalized.isEmpty) {
@@ -354,10 +438,13 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
     final items = <_ShellStatusModeItem>[];
     if (modes.alternateScreen) {
       items.add(
-        const _ShellStatusModeItem(
-          key: Key('shell-status-mode-alt'),
+        _ShellStatusModeItem(
+          key: const Key('shell-status-mode-alt'),
           label: 'ALT',
-          tooltip: 'Alternate screen buffer is active.',
+          tooltip: _statusTooltipForPane(
+            sessionId: sessionId,
+            tooltip: 'Alternate screen buffer is active.',
+          )!,
           semanticsLabel: 'Terminal mode: alternate screen buffer active',
         ),
       );
@@ -369,28 +456,78 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
         _ShellStatusModeItem(
           key: const Key('shell-status-mode-mouse'),
           label: 'MOUSE',
-          tooltip: 'Mouse reporting is active: $mouseMode, $mouseEncoding.',
+          tooltip: _statusTooltipForPane(
+            sessionId: sessionId,
+            tooltip: 'Mouse reporting is active: $mouseMode, $mouseEncoding.',
+          )!,
           semanticsLabel: 'Terminal mode: mouse reporting active',
         ),
       );
     }
     if (modes.bracketedPaste) {
       items.add(
-        const _ShellStatusModeItem(
-          key: Key('shell-status-mode-paste'),
+        _ShellStatusModeItem(
+          key: const Key('shell-status-mode-paste'),
           label: 'PASTE',
-          tooltip: 'Bracketed paste mode is active.',
+          tooltip: _statusTooltipForPane(
+            sessionId: sessionId,
+            tooltip: 'Bracketed paste mode is active.',
+          )!,
           semanticsLabel: 'Terminal mode: bracketed paste active',
+        ),
+      );
+    }
+    if (modes.focusTracking) {
+      items.add(
+        _ShellStatusModeItem(
+          key: const Key('shell-status-mode-focus'),
+          label: 'FOCUS',
+          tooltip: _statusTooltipForPane(
+            sessionId: sessionId,
+            tooltip:
+                'Focus reporting is active. The application receives focus-in and focus-out events.',
+          )!,
+          semanticsLabel: 'Terminal mode: focus reporting active',
+        ),
+      );
+    }
+    if (modes.kittyKeyboardFlags != 0) {
+      items.add(
+        _ShellStatusModeItem(
+          key: const Key('shell-status-mode-kitty-keyboard'),
+          label: 'KEYS',
+          tooltip: _statusTooltipForPane(
+            sessionId: sessionId,
+            tooltip: _kittyKeyboardStatusTooltip(modes.kittyKeyboardFlags),
+          )!,
+          semanticsLabel: 'Terminal mode: Kitty keyboard protocol active',
+        ),
+      );
+    }
+    if (modes.synchronizedOutput) {
+      items.add(
+        _ShellStatusModeItem(
+          key: const Key('shell-status-mode-sync'),
+          label: 'SYNC',
+          tooltip: _statusTooltipForPane(
+            sessionId: sessionId,
+            tooltip:
+                'Synchronized output mode is active. Intermediate updates are held until the application flushes.',
+          )!,
+          semanticsLabel: 'Terminal mode: synchronized output active',
         ),
       );
     }
     if (_isSessionReadOnly(sessionId)) {
       items.add(
-        const _ShellStatusModeItem(
-          key: Key('shell-status-mode-read-only'),
+        _ShellStatusModeItem(
+          key: const Key('shell-status-mode-read-only'),
           label: 'READ ONLY',
-          tooltip:
-              'Read-only mode is enabled for this pane. Input and paste sends are blocked.',
+          tooltip: _statusTooltipForPane(
+            sessionId: sessionId,
+            tooltip:
+                'Read-only mode is enabled for this pane. Input and paste sends are blocked.',
+          )!,
           semanticsLabel: 'Terminal pane is read-only',
         ),
       );
@@ -400,6 +537,7 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
 
   String _mouseModeStatusLabel(String mode) {
     return switch (mode) {
+      'x10' => 'X10 tracking',
       'normal' => 'normal tracking',
       'button_event' => 'button-event tracking',
       'any_event' => 'any-event tracking',
@@ -410,10 +548,26 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
   String _mouseEncodingStatusLabel(String encoding) {
     return switch (encoding) {
       'sgr' => 'SGR encoding',
+      'sgr_pixels' => 'SGR pixels encoding',
       'utf8' => 'UTF-8 encoding',
       'urxvt' => 'URXVT encoding',
       'default' => 'default encoding',
       _ => '${encoding.replaceAll('_', ' ')} encoding',
     };
+  }
+
+  String _kittyKeyboardStatusTooltip(int flags) {
+    final enabled = <String>[
+      if ((flags & 1) != 0) 'disambiguated keys',
+      if ((flags & 2) != 0) 'repeat and release events',
+      if ((flags & 4) != 0) 'alternate key forms',
+      if ((flags & 8) != 0) 'all keys',
+      if ((flags & 16) != 0) 'associated text',
+    ];
+    return [
+      'Kitty keyboard protocol is active.',
+      if (enabled.isNotEmpty) 'Enabled: ${enabled.join(', ')}.',
+      'Some key combinations are sent as Kitty CSI-u sequences.',
+    ].join('\n');
   }
 }

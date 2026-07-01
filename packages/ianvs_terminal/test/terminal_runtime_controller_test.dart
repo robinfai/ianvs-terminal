@@ -233,6 +233,70 @@ void main() {
   );
 
   test(
+    'terminal viewport controller preserves timestamps for repeated spinner frames',
+    () {
+      final firstModifiedAt = DateTime.utc(2026, 5, 13, 1, 2, 3);
+      final repeatedModifiedAt = DateTime.utc(2026, 5, 13, 1, 2, 4);
+      final styledModifiedAt = DateTime.utc(2026, 5, 13, 1, 2, 5);
+      final timestamps = <DateTime>[
+        firstModifiedAt,
+        repeatedModifiedAt,
+        styledModifiedAt,
+      ];
+      final controller = TerminalViewportController(
+        now: () => timestamps.removeAt(0),
+      );
+
+      controller.updateFrame(
+        const TerminalFrameDiff(
+          rows: [TerminalRow(index: 0, text: r'\ building')],
+          cursor: TerminalCursor(row: 0, col: 10, visible: true),
+          viewportRows: 1,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+      controller.updateFrame(
+        const TerminalFrameDiff(
+          frameKind: TerminalFrameKind.delta,
+          rows: [TerminalRow(index: 0, text: r'\ building')],
+          cursor: TerminalCursor(row: 0, col: 10, visible: true),
+          viewportRows: 1,
+          viewportCols: 80,
+          dirtyRanges: [],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+
+      expect(controller.frame.rows.single.modifiedAt, firstModifiedAt);
+
+      controller.updateFrame(
+        const TerminalFrameDiff(
+          frameKind: TerminalFrameKind.delta,
+          rows: [
+            TerminalRow(
+              index: 0,
+              text: r'\ building',
+              styleRuns: [TerminalStyleRun(start: 0, end: 10, bold: true)],
+            ),
+          ],
+          cursor: TerminalCursor(row: 0, col: 10, visible: true),
+          viewportRows: 1,
+          viewportCols: 80,
+          dirtyRanges: [],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+
+      expect(controller.frame.rows.single.modifiedAt, styledModifiedAt);
+    },
+  );
+
+  test(
     'terminal viewport controller leaves whitespace-only rows untimestamped',
     () {
       final modifiedAt = DateTime.utc(2026, 5, 13, 1, 2, 3);
@@ -261,15 +325,67 @@ void main() {
   test('terminal frame modes parse alternate screen hints', () {
     final modes = TerminalFrameModes.fromJson(const <String, Object?>{
       'alternate_screen': true,
+      'kitty_keyboard_flags': 5,
+      'synchronized_output': true,
+    });
+    final invalid = TerminalFrameModes.fromJson(const <String, Object?>{
+      'kitty_keyboard_flags': -1,
     });
 
     expect(modes.alternateScreen, isTrue);
+    expect(modes.kittyKeyboardFlags, 5);
+    expect(modes.synchronizedOutput, isTrue);
+    expect(invalid.kittyKeyboardFlags, 0);
   });
+
+  test(
+    'terminal viewport controller applies synchronized output mode deltas',
+    () {
+      final controller = TerminalViewportController();
+
+      controller.updateFrame(
+        const TerminalFrameDiff(
+          rows: [TerminalRow(index: 0, text: 'sync start')],
+          cursor: TerminalCursor(row: 0, col: 10, visible: true),
+          viewportRows: 1,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+          modes: TerminalFrameModes(synchronizedOutput: true),
+        ),
+      );
+      expect(controller.frame.modes.synchronizedOutput, isTrue);
+
+      controller.updateFrame(
+        const TerminalFrameDiff(
+          frameKind: TerminalFrameKind.delta,
+          rows: [TerminalRow(index: 0, text: 'sync final')],
+          cursor: TerminalCursor(row: 0, col: 10, visible: true),
+          viewportRows: 1,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+          modes: TerminalFrameModes(synchronizedOutput: false),
+        ),
+      );
+
+      expect(controller.frame.rows.single.text, 'sync final');
+      expect(controller.frame.modes.synchronizedOutput, isFalse);
+    },
+  );
 
   test('terminal frame modes normalize mouse tokens', () {
     final modes = TerminalFrameModes.fromJson(const <String, Object?>{
       'mouse_mode': ' Any_Event ',
       'mouse_encoding': ' SGR ',
+    });
+    final x10 = TerminalFrameModes.fromJson(const <String, Object?>{
+      'mouse_mode': ' X10 ',
+    });
+    final pixels = TerminalFrameModes.fromJson(const <String, Object?>{
+      'mouse_encoding': ' SGR-Pixels ',
     });
     final invalid = TerminalFrameModes.fromJson(const <String, Object?>{
       'mouse_mode': 'hover',
@@ -278,6 +394,8 @@ void main() {
 
     expect(modes.mouseMode, 'any_event');
     expect(modes.mouseEncoding, 'sgr');
+    expect(x10.mouseMode, 'x10');
+    expect(pixels.mouseEncoding, 'sgr_pixels');
     expect(invalid.mouseMode, 'off');
     expect(invalid.mouseEncoding, 'default');
   });
@@ -834,6 +952,34 @@ void main() {
     expect(frame.inlineImages.last.bytes, imageBytes);
   });
 
+  test('terminal frames drop inline images that start past the right edge', () {
+    final imageBytes = utf8.encode('fake-png');
+    final frame = TerminalFrameDiff.fromJson(<String, Object?>{
+      'rows': const [
+        {'index': 0, 'text': 'image', 'style_runs': []},
+      ],
+      'cursor': const {'row': 0, 'col': 0, 'visible': true},
+      'viewport_rows': 2,
+      'viewport_cols': 8,
+      'dirty_ranges': const [
+        {'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+      'inline_images': [
+        {
+          'row': 0,
+          'col': 8,
+          'width_cells': 4,
+          'height_cells': 2,
+          'data': base64.encode(imageBytes),
+        },
+      ],
+    });
+
+    expect(frame.inlineImages, isEmpty);
+  });
+
   test('terminal frames parse graphics placement payloads', () {
     final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
       'rows': [
@@ -860,6 +1006,8 @@ void main() {
           'height_px': 4,
           'width_cells': 4,
           'height_cells': 2,
+          'source_x_offset_px': 2,
+          'visible_width_px': 6,
           'source_y_offset_px': 1,
           'visible_height_px': 3,
           'z_index': 1,
@@ -882,12 +1030,86 @@ void main() {
     expect(graphic.heightPx, 4);
     expect(graphic.widthCells, 4);
     expect(graphic.heightCells, 2);
+    expect(graphic.sourceXOffsetPx, 2);
+    expect(graphic.visibleWidthPx, 6);
     expect(graphic.sourceYOffsetPx, 1);
     expect(graphic.visibleHeightPx, 3);
     expect(graphic.zIndex, 1);
     expect(graphic.xOffsetPx, 2);
     expect(graphic.yOffsetPx, 1);
     expect(graphic.preserveAspectRatio, isFalse);
+  });
+
+  test('terminal frames preserve multi-protocol graphics placements', () {
+    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+      'rows': [
+        {'index': 0, 'text': 'graphics', 'style_runs': []},
+        {'index': 1, 'text': 'below', 'style_runs': []},
+      ],
+      'cursor': {'row': 0, 'col': 0, 'visible': true},
+      'viewport_rows': 4,
+      'viewport_cols': 12,
+      'dirty_ranges': [
+        {'start': 0, 'end': 2},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+      'graphics': [
+        {
+          'render_id': 303,
+          'placement_id': 33,
+          'asset_id': 30,
+          'asset_version': 1,
+          'protocol': 'iterm',
+          'row': 1,
+          'col': 2,
+          'width_px': 12,
+          'height_px': 6,
+          'width_cells': 3,
+          'height_cells': 1,
+          'z_index': 1,
+        },
+        {
+          'render_id': 101,
+          'placement_id': 11,
+          'asset_id': 10,
+          'asset_version': 1,
+          'protocol': 'kitty',
+          'row': 0,
+          'col': 1,
+          'width_px': 8,
+          'height_px': 6,
+          'width_cells': 2,
+          'height_cells': 1,
+          'z_index': 0,
+        },
+        {
+          'render_id': 202,
+          'placement_id': 22,
+          'asset_id': 20,
+          'asset_version': 1,
+          'protocol': 'sixel',
+          'row': 0,
+          'col': 0,
+          'width_px': 8,
+          'height_px': 6,
+          'width_cells': 2,
+          'height_cells': 1,
+          'z_index': -1,
+        },
+      ],
+    });
+
+    expect(frame.graphics.map((graphic) => graphic.protocol).toList(), <String>[
+      'sixel',
+      'kitty',
+      'iterm',
+    ]);
+    expect(frame.graphics.map((graphic) => graphic.renderId).toList(), <int>[
+      202,
+      101,
+      303,
+    ]);
   });
 
   test('terminal frames keep legacy graphics payloads readable', () {
@@ -922,9 +1144,126 @@ void main() {
     expect(frame.graphics, hasLength(1));
     expect(frame.graphics.single.renderId, 0);
     expect(frame.graphics.single.placementId, 0);
+    expect(frame.graphics.single.sourceXOffsetPx, 0);
+    expect(frame.graphics.single.visibleWidthPx, 8);
     expect(frame.graphics.single.sourceYOffsetPx, 0);
     expect(frame.graphics.single.visibleHeightPx, 4);
   });
+
+  test('terminal frames drop graphics that start past the right edge', () {
+    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+      'rows': [
+        {'index': 0, 'text': 'image', 'style_runs': []},
+      ],
+      'cursor': {'row': 0, 'col': 0, 'visible': true},
+      'viewport_rows': 2,
+      'viewport_cols': 8,
+      'dirty_ranges': [
+        {'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+      'graphics': [
+        {
+          'placement_id': 11,
+          'asset_id': 7,
+          'asset_version': 3,
+          'protocol': 'kitty',
+          'row': 0,
+          'col': 8,
+          'width_px': 8,
+          'height_px': 4,
+          'width_cells': 4,
+          'height_cells': 2,
+        },
+      ],
+    });
+
+    expect(frame.graphics, isEmpty);
+  });
+
+  test('terminal frames drop graphics with invalid horizontal clip', () {
+    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+      'rows': [
+        {'index': 0, 'text': 'image', 'style_runs': []},
+      ],
+      'cursor': {'row': 0, 'col': 0, 'visible': true},
+      'viewport_rows': 2,
+      'viewport_cols': 8,
+      'dirty_ranges': [
+        {'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+      'graphics': [
+        {
+          'placement_id': 11,
+          'asset_id': 7,
+          'asset_version': 3,
+          'protocol': 'kitty',
+          'row': 0,
+          'col': 2,
+          'width_px': 8,
+          'height_px': 4,
+          'width_cells': 4,
+          'height_cells': 2,
+          'source_x_offset_px': 6,
+          'visible_width_px': 3,
+        },
+        {
+          'placement_id': 12,
+          'asset_id': 7,
+          'asset_version': 3,
+          'protocol': 'sixel',
+          'row': 0,
+          'col': 2,
+          'width_px': 8,
+          'height_px': 4,
+          'width_cells': 4,
+          'height_cells': 2,
+          'source_x_offset_px': 8,
+        },
+      ],
+    });
+
+    expect(frame.graphics, isEmpty);
+  });
+
+  test(
+    'terminal viewport controller drops graphics with invalid vertical clip',
+    () {
+      final controller = TerminalViewportController();
+
+      controller.updateFrame(
+        const TerminalFrameDiff(
+          rows: [TerminalRow(index: 0, text: 'image')],
+          cursor: TerminalCursor(row: 0, col: 0, visible: true),
+          viewportRows: 2,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+          graphics: [
+            TerminalGraphicPlacement(
+              placementId: 11,
+              assetKey: TerminalGraphicAssetKey(id: 7, version: 3),
+              protocol: 'kitty',
+              row: 0,
+              col: 2,
+              widthPx: 8,
+              heightPx: 4,
+              widthCells: 4,
+              heightCells: 2,
+              sourceYOffsetPx: 3,
+              visibleHeightPx: 2,
+            ),
+          ],
+        ),
+      );
+
+      expect(controller.frame.graphics, isEmpty);
+    },
+  );
 
   test('terminal graphics cache retries after a missing asset', () async {
     var loadCount = 0;
@@ -965,6 +1304,57 @@ void main() {
     expect(third, same(second));
     expect(loadCount, 2);
   });
+
+  test(
+    'terminal graphics cache skips invalid assets without decoding',
+    () async {
+      var loadCount = 0;
+      var decodeCount = 0;
+      final cache = TerminalGraphicsCache(
+        loadAsset: (key) async {
+          loadCount += 1;
+          if (loadCount == 1) {
+            return TerminalGraphicAsset(
+              key: key,
+              width: 2,
+              height: 1,
+              rgba: Uint8List.fromList(const <int>[255, 0, 0, 255]),
+            );
+          }
+          return TerminalGraphicAsset(
+            key: key,
+            width: 1,
+            height: 1,
+            rgba: Uint8List.fromList(const <int>[0, 255, 0, 255]),
+          );
+        },
+        decodeImage: (rgba, width, height) {
+          decodeCount += 1;
+          final completer = Completer<Image>();
+          decodeImageFromPixels(
+            rgba,
+            width,
+            height,
+            PixelFormat.rgba8888,
+            completer.complete,
+          );
+          return completer.future;
+        },
+      );
+      addTearDown(cache.dispose);
+
+      const key = TerminalGraphicAssetKey(id: 43, version: 1);
+      final invalid = await cache.imageFor(key);
+      final valid = await cache.imageFor(key);
+      final cached = await cache.imageFor(key);
+
+      expect(invalid, isNull);
+      expect(valid, isNotNull);
+      expect(cached, same(valid));
+      expect(loadCount, 2);
+      expect(decodeCount, 1);
+    },
+  );
 
   test('terminal graphics cache premultiplies alpha before decoding', () async {
     late Uint8List decodedRgba;
@@ -1048,6 +1438,57 @@ void main() {
       expect(loadCount, 2);
     },
   );
+
+  test('terminal graphics cache evicts old animation asset versions', () async {
+    final loadCounts = <TerminalGraphicAssetKey, int>{};
+    final cache = TerminalGraphicsCache(
+      loadAsset: (key) async {
+        loadCounts.update(key, (value) => value + 1, ifAbsent: () => 1);
+        return TerminalGraphicAsset(
+          key: key,
+          width: 1,
+          height: 1,
+          rgba: Uint8List.fromList(<int>[
+            key.version == 1 ? 255 : 0,
+            key.version == 2 ? 255 : 0,
+            0,
+            255,
+          ]),
+        );
+      },
+      decodeImage: (rgba, width, height) {
+        final completer = Completer<Image>();
+        decodeImageFromPixels(
+          rgba,
+          width,
+          height,
+          PixelFormat.rgba8888,
+          completer.complete,
+        );
+        return completer.future;
+      },
+    );
+    addTearDown(cache.dispose);
+
+    const firstVersion = TerminalGraphicAssetKey(id: 42, version: 1);
+    const secondVersion = TerminalGraphicAssetKey(id: 42, version: 2);
+
+    final firstImage = await cache.imageFor(firstVersion);
+    expect(firstImage, isNotNull);
+
+    cache.evictExcept(<TerminalGraphicAssetKey>{secondVersion});
+    expect(firstImage!.debugDisposed, isTrue);
+
+    final secondImage = await cache.imageFor(secondVersion);
+    expect(secondImage, isNotNull);
+    expect(loadCounts[firstVersion], 1);
+    expect(loadCounts[secondVersion], 1);
+
+    final reloadedFirstImage = await cache.imageFor(firstVersion);
+    expect(reloadedFirstImage, isNotNull);
+    expect(reloadedFirstImage, isNot(same(firstImage)));
+    expect(loadCounts[firstVersion], 2);
+  });
 
   test('terminal graphics cache drops pending image after eviction', () async {
     final loadAsset = Completer<TerminalGraphicAsset?>();
@@ -1170,6 +1611,57 @@ void main() {
       (sessionId, 7, 3),
     ]);
   });
+
+  test(
+    'terminal runtime keeps graphics caches isolated across panes',
+    () async {
+      final runtimeBackend = _FakePtyBackend();
+      runtimeBackend.graphicAssets[(7, 3)] = PtyGraphicAsset(
+        assetId: 7,
+        assetVersion: 3,
+        width: 1,
+        height: 1,
+        rgba: Uint8List.fromList(const <int>[255, 0, 0, 255]),
+      );
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final firstSessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final secondSessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/zsh'),
+        ),
+      );
+      final firstCache = runtime.graphicsCacheFor(firstSessionId);
+      final secondCache = runtime.graphicsCacheFor(secondSessionId);
+      const key = TerminalGraphicAssetKey(id: 7, version: 3);
+
+      final firstImage = await firstCache.imageFor(key);
+      final secondImage = await secondCache.imageFor(key);
+      final firstImageAgain = await firstCache.imageFor(key);
+      final secondImageAgain = await secondCache.imageFor(key);
+
+      expect(firstCache, isNot(same(secondCache)));
+      expect(firstImage, isNotNull);
+      expect(secondImage, isNotNull);
+      expect(firstImage, isNot(same(secondImage)));
+      expect(firstImageAgain, same(firstImage));
+      expect(secondImageAgain, same(secondImage));
+      expect(runtimeBackend.graphicAssetRequests, <(String, int, int)>[
+        (firstSessionId, 7, 3),
+        (secondSessionId, 7, 3),
+      ]);
+    },
+  );
 
   test('terminal frames ignore malformed inline image payloads', () {
     const encodedImage = 'ZmFrZS1wbmc=';
@@ -1483,6 +1975,61 @@ void main() {
       runtime.dispose();
     }
   });
+
+  testWidgets(
+    'terminal runtime keeps synchronized output null frames hidden until final polling frame',
+    (tester) async {
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+      );
+      try {
+        final sessionId = runtime.createSession(
+          const TerminalSessionConfig(
+            launch: TerminalLaunchConfig(program: '/bin/sh'),
+          ),
+        );
+        final viewport = runtime.viewportFor(sessionId);
+        final frameEvents = <TerminalSessionFrameEvent>[];
+        final subscription = runtime.events
+            .where((event) => event is TerminalSessionFrameEvent)
+            .cast<TerminalSessionFrameEvent>()
+            .listen(frameEvents.add);
+        addTearDown(subscription.cancel);
+
+        expect(runtimeBackend.takeFrameDiffCalls, 1);
+        expect(viewport.frame.rows.first.text, 'demo');
+
+        runtimeBackend
+          ..clearFrame(sessionId)
+          ..enqueueRawFrame(sessionId, '');
+        runtime.sendInput(sessionId, Uint8List.fromList(const [0x41]));
+
+        await tester.pump(const Duration(milliseconds: 34));
+
+        final hiddenFramePolls = runtimeBackend.takeFrameDiffCalls;
+        expect(hiddenFramePolls, greaterThanOrEqualTo(2));
+        expect(viewport.frame.rows.first.text, 'demo');
+        expect(frameEvents, isEmpty);
+
+        runtimeBackend.setFrame(sessionId, _singleRowSnapshot('sync final'));
+        runtime.sendInput(sessionId, Uint8List.fromList(const [0x42]));
+        await tester.pump();
+
+        expect(
+          runtimeBackend.takeFrameDiffCalls,
+          greaterThan(hiddenFramePolls),
+        );
+        expect(viewport.frame.rows.first.text, 'sync final');
+        expect(frameEvents, hasLength(1));
+        expect(frameEvents.single.frame.rows.first.text, 'sync final');
+      } finally {
+        runtime.dispose();
+      }
+    },
+  );
 
   testWidgets(
     'terminal runtime controller schedules queued polling refresh after async events',
@@ -2166,6 +2713,76 @@ void main() {
     expect(invalidText, 'demo');
     expect(runtime.exportScrollbackText(sessionId), isNull);
   });
+
+  test(
+    'terminal runtime fallback selection preserves complex grapheme columns',
+    () {
+      const technologist = '👩\u{200D}💻';
+      const nerdIcon = '󰣇';
+      const combining = 'e\u0301';
+      final runtimeBackend = _FakePtyBackend()..selectionRawResponse = '{';
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      runtime
+          .viewportFor(sessionId)
+          .applySnapshot(
+            TerminalFrameDiff.fromJson(
+              _singleRowSnapshot('$technologist$nerdIcon${combining}X'),
+            ),
+          );
+
+      expect(
+        runtime.selectionText(
+          sessionId,
+          const TerminalSelection(
+            startRow: 0,
+            startCol: 1,
+            endRow: 0,
+            endCol: 2,
+          ),
+          block: false,
+        ),
+        technologist,
+      );
+      expect(
+        runtime.selectionText(
+          sessionId,
+          const TerminalSelection(
+            startRow: 0,
+            startCol: 2,
+            endRow: 0,
+            endCol: 4,
+          ),
+          block: false,
+        ),
+        '$nerdIcon$combining',
+      );
+      expect(
+        runtime.selectionText(
+          sessionId,
+          const TerminalSelection(
+            startRow: 0,
+            startCol: 3,
+            endRow: 0,
+            endCol: 4,
+          ),
+          block: false,
+        ),
+        combining,
+      );
+    },
+  );
 
   test('terminal runtime skips malformed search match entries', () {
     final runtimeBackend = _FakePtyBackend()
@@ -3481,6 +4098,109 @@ void main() {
     expect(seenEvents.whereType<TerminalSessionExitEvent>(), isEmpty);
     expect(runtimeBackend.resizeCalls, isEmpty);
   });
+
+  testWidgets(
+    'terminal runtime controller keeps metadata events isolated across panes',
+    (tester) async {
+      final seenEvents = <TerminalSessionEvent>[];
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final subscription = runtime.events.listen(seenEvents.add);
+      addTearDown(subscription.cancel);
+
+      final deploySessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final testSessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/zsh'),
+        ),
+      );
+
+      runtimeBackend.enqueueEvent(
+        deploySessionId,
+        PtyEvent(
+          kind: 'session_badge',
+          sessionId: deploySessionId,
+          payload: const <String, Object?>{
+            'source': 'osc1337_set_badge_format',
+            'text': 'Deploy',
+          },
+        ),
+      );
+      runtimeBackend.enqueueEvent(
+        deploySessionId,
+        PtyEvent(
+          kind: 'session_progress',
+          sessionId: deploySessionId,
+          payload: const <String, Object?>{
+            'source': 'osc934',
+            'id': 'deploy',
+            'state': 'normal',
+            'percent': 42,
+            'label': 'Deploy',
+          },
+        ),
+      );
+      runtimeBackend.enqueueEvent(
+        testSessionId,
+        PtyEvent(
+          kind: 'session_badge',
+          sessionId: testSessionId,
+          payload: const <String, Object?>{
+            'source': 'osc1337_set_badge_format',
+            'text': 'Test',
+          },
+        ),
+      );
+      runtimeBackend.enqueueEvent(
+        testSessionId,
+        PtyEvent(
+          kind: 'session_progress',
+          sessionId: testSessionId,
+          payload: const <String, Object?>{
+            'source': 'osc934',
+            'id': 'test',
+            'state': 'normal',
+            'percent': 7,
+            'label': 'Test',
+          },
+        ),
+      );
+
+      runtime.sendInput(testSessionId, Uint8List(0));
+      runtime.sendInput(deploySessionId, Uint8List(0));
+      await tester.pump();
+
+      final badges = seenEvents
+          .whereType<TerminalSessionBadgeEvent>()
+          .map((event) => (event.sessionId, event.text))
+          .toSet();
+      expect(badges, <(String, String?)>{
+        (deploySessionId, 'Deploy'),
+        (testSessionId, 'Test'),
+      });
+
+      final progressEvents = seenEvents
+          .whereType<TerminalSessionProgressEvent>()
+          .map(
+            (event) => (event.sessionId, event.id, event.percent, event.label),
+          )
+          .toSet();
+      expect(progressEvents, <(String, String?, int?, String?)>{
+        (deploySessionId, 'deploy', 42, 'Deploy'),
+        (testSessionId, 'test', 7, 'Test'),
+      });
+    },
+  );
 
   testWidgets('terminal runtime controller dispose closes active sessions', (
     tester,

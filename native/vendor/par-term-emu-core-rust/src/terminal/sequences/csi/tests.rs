@@ -3,6 +3,10 @@ use crate::cursor::CursorStyle;
 use crate::mouse::{MouseEncoding, MouseMode};
 use crate::terminal::{Terminal, TerminalEvent};
 
+fn emit_test_sixel_graphic(term: &mut Terminal) {
+    term.process(b"\x1bPq????\x1b\\");
+}
+
 // ========== Cursor Movement Tests ==========
 
 #[test]
@@ -264,6 +268,69 @@ fn test_el_uses_current_background_color() {
     }
 }
 
+#[test]
+fn test_el_removes_intersecting_graphics() {
+    let mut term = Terminal::new(12, 10);
+
+    term.process(b"\x1b[2;2H");
+    emit_test_sixel_graphic(&mut term);
+    term.process(b"\x1b[6;2H");
+    emit_test_sixel_graphic(&mut term);
+    assert_eq!(term.graphics_count(), 2);
+
+    term.process(b"\x1b[2;3H\x1b[K");
+
+    assert_eq!(term.graphics_count(), 1);
+    assert_eq!(
+        term.all_graphics()[0].position.1,
+        5,
+        "EL should remove the graphic intersecting the erased row without touching another row"
+    );
+}
+
+#[test]
+fn test_ed0_removes_graphics_below_cursor_only() {
+    let mut term = Terminal::new(12, 10);
+
+    term.process(b"\x1b[2;2H");
+    emit_test_sixel_graphic(&mut term);
+    term.process(b"\x1b[6;2H");
+    emit_test_sixel_graphic(&mut term);
+    assert_eq!(term.graphics_count(), 2);
+
+    term.process(b"\x1b[5;1H\x1b[J");
+
+    assert_eq!(term.graphics_count(), 1);
+    assert_eq!(
+        term.all_graphics()[0].position.1,
+        1,
+        "ED 0 should keep graphics entirely above the cursor"
+    );
+}
+
+#[test]
+fn test_ech_removes_graphics_only_when_erased_cells_intersect() {
+    let mut term = Terminal::new(12, 10);
+
+    term.process(b"\x1b[3;4H");
+    emit_test_sixel_graphic(&mut term);
+    assert_eq!(term.graphics_count(), 1);
+
+    term.process(b"\x1b[3;1H\x1b[2X");
+    assert_eq!(
+        term.graphics_count(),
+        1,
+        "ECH should keep graphics outside the erased cell range"
+    );
+
+    term.process(b"\x1b[3;3H\x1b[2X");
+    assert_eq!(
+        term.graphics_count(),
+        0,
+        "ECH should remove graphics intersecting the erased cell range"
+    );
+}
+
 // ========== Mode Tests ==========
 
 #[test]
@@ -319,6 +386,62 @@ fn test_private_mode_alt_screen() {
 }
 
 #[test]
+fn test_private_mode_alt_screen_47_and_1047() {
+    for (enter, exit) in [
+        (b"\x1b[?47h".as_slice(), b"\x1b[?47l".as_slice()),
+        (b"\x1b[?1047h".as_slice(), b"\x1b[?1047l".as_slice()),
+    ] {
+        let mut term = Terminal::new(80, 24);
+        term.process(b"PRIMARY");
+        assert_eq!(term.active_grid().row_text(0).trim_end(), "PRIMARY");
+
+        term.process(enter);
+        assert!(term.alt_screen_active);
+        assert_eq!(term.active_grid().row_text(0).trim_end(), "");
+
+        term.process(b"ALT");
+        assert_eq!(term.active_grid().row_text(0).trim_end(), "ALT");
+
+        term.process(exit);
+        assert!(!term.alt_screen_active);
+        assert_eq!(term.active_grid().row_text(0).trim_end(), "PRIMARY");
+    }
+}
+
+#[test]
+fn test_private_mode_1048_saves_and_restores_cursor() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"\x1b[3;5H\x1b[1m\x1b[?1048h");
+    term.process(b"\x1b[10;20H\x1b[22m");
+    assert_eq!(term.cursor.row, 9);
+    assert_eq!(term.cursor.col, 19);
+    assert!(!term.flags.bold());
+
+    term.process(b"\x1b[?1048l");
+    assert_eq!(term.cursor.row, 2);
+    assert_eq!(term.cursor.col, 4);
+    assert!(term.flags.bold());
+}
+
+#[test]
+fn test_private_mode_1049_restores_saved_cursor_attributes() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"\x1b[4;6H\x1b[1m\x1b[?1049h");
+    assert!(term.alt_screen_active);
+    term.process(b"\x1b[12;30H\x1b[22mALT");
+    assert_eq!(term.cursor.row, 11);
+    assert!(!term.flags.bold());
+
+    term.process(b"\x1b[?1049l");
+    assert!(!term.alt_screen_active);
+    assert_eq!(term.cursor.row, 3);
+    assert_eq!(term.cursor.col, 5);
+    assert!(term.flags.bold());
+}
+
+#[test]
 fn test_private_mode_mouse() {
     let mut term = Terminal::new(80, 24);
 
@@ -355,8 +478,12 @@ fn test_private_mode_mouse_encoding() {
     term.process(b"\x1b[?1015h");
     assert!(matches!(term.mouse_encoding, MouseEncoding::Urxvt));
 
+    // SGR pixel mouse
+    term.process(b"\x1b[?1016h");
+    assert!(matches!(term.mouse_encoding, MouseEncoding::SgrPixels));
+
     // Reset to default
-    term.process(b"\x1b[?1006l");
+    term.process(b"\x1b[?1016l");
     assert!(matches!(term.mouse_encoding, MouseEncoding::Default));
 }
 
@@ -639,6 +766,34 @@ fn test_mode_changed_event_mouse_encoding() {
     let events = find_mode_events(&mut term, "mouse_sgr");
     assert_eq!(events.len(), 1);
     assert!(!events[0].1);
+
+    // Enable SGR pixel encoding
+    term.process(b"\x1b[?1016h");
+    let events = find_mode_events(&mut term, "mouse_sgr_pixels");
+    assert_eq!(events.len(), 1);
+    assert!(events[0].1);
+
+    // Disable SGR pixel encoding
+    term.process(b"\x1b[?1016l");
+    let events = find_mode_events(&mut term, "mouse_sgr_pixels");
+    assert_eq!(events.len(), 1);
+    assert!(!events[0].1);
+}
+
+#[test]
+fn test_mode_changed_event_alt_screen_1047() {
+    let mut term = Terminal::new(80, 24);
+    term.poll_events();
+
+    term.process(b"\x1b[?1047h");
+    let events = find_mode_events(&mut term, "alternate_screen");
+    assert_eq!(events.len(), 1);
+    assert!(events[0].1);
+
+    term.process(b"\x1b[?1047l");
+    let events = find_mode_events(&mut term, "alternate_screen");
+    assert_eq!(events.len(), 1);
+    assert!(!events[0].1);
 }
 
 #[test]
@@ -853,6 +1008,72 @@ fn test_decrqm_unrecognized_mode_returns_zero() {
 }
 
 #[test]
+fn test_decrqm_mouse_encoding_modes_report_set_and_reset() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"\x1b[?1016$p");
+    let response = term.drain_responses();
+    let response = std::str::from_utf8(&response).unwrap();
+    assert!(
+        response.contains("\x1b[?1016;2$y"),
+        "SGR pixel mouse encoding should be reset by default, got: {response:?}"
+    );
+
+    term.process(b"\x1b[?1016h\x1b[?1006$p\x1b[?1016$p");
+    let response = term.drain_responses();
+    let response = std::str::from_utf8(&response).unwrap();
+    assert!(
+        response.contains("\x1b[?1006;2$y"),
+        "SGR cell mouse encoding should report reset while SGR pixel mode is active: {response:?}"
+    );
+    assert!(
+        response.contains("\x1b[?1016;1$y"),
+        "SGR pixel mouse encoding should report set after DECSET 1016: {response:?}"
+    );
+
+    term.process(b"\x1b[?1016l\x1b[?1016$p");
+    let response = term.drain_responses();
+    let response = std::str::from_utf8(&response).unwrap();
+    assert!(
+        response.contains("\x1b[?1016;2$y"),
+        "SGR pixel mouse encoding should report reset after DECRST 1016: {response:?}"
+    );
+}
+
+#[test]
+fn test_decrqm_alt_screen_variants_report_set_and_reset() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"\x1b[?47$p\x1b[?1047$p\x1b[?1049$p");
+    let response = term.drain_responses();
+    let response = std::str::from_utf8(&response).unwrap();
+    assert!(
+        response.contains("\x1b[?47;2$y")
+            && response.contains("\x1b[?1047;2$y")
+            && response.contains("\x1b[?1049;2$y"),
+        "alternate screen variants should report reset by default: {response:?}"
+    );
+
+    term.process(b"\x1b[?1047h\x1b[?47$p\x1b[?1047$p\x1b[?1049$p");
+    let response = term.drain_responses();
+    let response = std::str::from_utf8(&response).unwrap();
+    assert!(
+        response.contains("\x1b[?47;1$y")
+            && response.contains("\x1b[?1047;1$y")
+            && response.contains("\x1b[?1049;1$y"),
+        "alternate screen variants should report set while alt screen is active: {response:?}"
+    );
+
+    term.process(b"\x1b[?1047l\x1b[?1047$p");
+    let response = term.drain_responses();
+    let response = std::str::from_utf8(&response).unwrap();
+    assert!(
+        response.contains("\x1b[?1047;2$y"),
+        "alternate screen should report reset after DECRST 1047: {response:?}"
+    );
+}
+
+#[test]
 fn test_decrqm_ansi_insert_mode_off_by_default() {
     let mut term = Terminal::new(80, 24);
     term.process(b"\x1b[4$p");
@@ -974,6 +1195,81 @@ fn test_synchronized_updates_mode_toggle() {
 }
 
 #[test]
+fn test_synchronized_updates_timeout_keeps_buffer_before_deadline() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"before\x1b[?2026hhidden");
+
+    assert!(!term.flush_synchronized_updates_if_timed_out());
+    assert!(term.synchronized_updates);
+    assert_eq!(term.update_buffer, b"hidden");
+    assert_eq!(term.active_grid().row_text(0).trim_end(), "before");
+}
+
+#[test]
+fn test_synchronized_updates_timeout_flushes_buffer_and_disables_mode() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"before\x1b[?2026hhidden");
+    term.sync_update_started_at =
+        Some(std::time::Instant::now() - std::time::Duration::from_secs(2));
+
+    assert!(term.flush_synchronized_updates_if_timed_out());
+    assert!(!term.synchronized_updates);
+    assert!(term.update_buffer.is_empty());
+    assert_eq!(term.active_grid().row_text(0).trim_end(), "beforehidden");
+}
+
+#[test]
+fn test_synchronized_updates_timeout_ignores_nested_enable_in_stale_buffer() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"before\x1b[?2026hhidden\x1b[?2026hnested");
+    term.sync_update_started_at =
+        Some(std::time::Instant::now() - std::time::Duration::from_secs(2));
+
+    assert!(term.flush_synchronized_updates_if_timed_out());
+    assert!(!term.synchronized_updates);
+    assert!(term.update_buffer.is_empty());
+    assert_eq!(
+        term.active_grid().row_text(0).trim_end(),
+        "beforehiddennested"
+    );
+}
+
+#[test]
+fn test_synchronized_updates_timeout_ignores_nested_enable_after_reset() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"before\x1b[?2026hhidden\x1bcafter\x1b[?2026hnested");
+    term.sync_update_started_at =
+        Some(std::time::Instant::now() - std::time::Duration::from_secs(2));
+
+    assert!(term.flush_synchronized_updates_if_timed_out());
+    assert!(!term.synchronized_updates);
+    assert!(term.update_buffer.is_empty());
+    assert_eq!(term.active_grid().row_text(0).trim_end(), "afternested");
+}
+
+#[test]
+fn test_synchronized_updates_manual_flush_resets_timeout_window() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"before\x1b[?2026hhidden");
+    term.sync_update_started_at =
+        Some(std::time::Instant::now() - std::time::Duration::from_secs(2));
+    term.flush_synchronized_updates();
+
+    assert!(term.synchronized_updates);
+    assert!(term.update_buffer.is_empty());
+    assert_eq!(term.active_grid().row_text(0).trim_end(), "beforehidden");
+    assert!(
+        !term.flush_synchronized_updates_if_timed_out(),
+        "manual flush should start a fresh synchronized update timeout window"
+    );
+}
+
+#[test]
 fn test_synchronized_updates_buffers_remainder_after_enable_in_same_chunk() {
     let mut term = Terminal::new(80, 24);
 
@@ -1059,6 +1355,26 @@ fn test_synchronized_updates_buffers_remainder_when_2026_is_not_first_mode() {
 }
 
 #[test]
+fn test_synchronized_updates_buffers_remainder_after_c1_csi_enable() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"before\x9b?2026hhidden");
+
+    assert!(term.synchronized_updates);
+    assert_eq!(term.update_buffer, b"hidden");
+    assert_eq!(term.active_grid().row_text(0).trim_end(), "before");
+
+    term.process(b"-shown\x9b?2026l");
+
+    assert!(!term.synchronized_updates);
+    assert!(term.update_buffer.is_empty());
+    assert_eq!(
+        term.active_grid().row_text(0).trim_end(),
+        "beforehidden-shown"
+    );
+}
+
+#[test]
 fn test_synchronized_updates_flushes_start_and_end_in_same_chunk() {
     let mut term = Terminal::new(80, 24);
 
@@ -1070,6 +1386,93 @@ fn test_synchronized_updates_flushes_start_and_end_in_same_chunk() {
         term.active_grid().row_text(0).trim_end(),
         "beforehidden-after"
     );
+}
+
+#[test]
+fn test_synchronized_updates_flushes_when_2026_is_not_first_reset_mode() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"before\x1b[?2026hhidden");
+    term.process(b"-shown\x1b[?25;2026l-after");
+
+    assert!(!term.synchronized_updates);
+    assert!(term.update_buffer.is_empty());
+    assert_eq!(
+        term.active_grid().row_text(0).trim_end(),
+        "beforehidden-shown-after"
+    );
+}
+
+#[test]
+fn test_synchronized_updates_flushes_after_split_multi_mode_disable() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"before\x1b[?2026hhidden\x1b[?25;20");
+    assert!(term.synchronized_updates);
+    assert_eq!(term.active_grid().row_text(0).trim_end(), "before");
+
+    term.process(b"26l-after");
+
+    assert!(!term.synchronized_updates);
+    assert!(term.update_buffer.is_empty());
+    assert_eq!(
+        term.active_grid().row_text(0).trim_end(),
+        "beforehidden-after"
+    );
+}
+
+#[test]
+fn test_synchronized_updates_flushes_disable_with_long_trailing_remainder() {
+    let mut term = Terminal::new(80, 24);
+    let trailing = "x".repeat(64);
+    let update = format!("hidden\x1b[?2026l{trailing}");
+
+    term.process(b"before\x1b[?2026h");
+    term.process(update.as_bytes());
+
+    assert!(!term.synchronized_updates);
+    assert!(term.update_buffer.is_empty());
+    assert_eq!(
+        term.active_grid().row_text(0).trim_end(),
+        format!("beforehidden{trailing}")
+    );
+}
+
+#[test]
+fn test_synchronized_updates_does_not_flush_for_osc_embedded_hard_reset() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"before\x1b[?2026hhidden\x1b]0;not-a-reset-\x1bctitle\x07");
+
+    assert!(term.synchronized_updates);
+    assert_eq!(term.active_grid().row_text(0).trim_end(), "before");
+
+    term.process(b"-shown\x1b[?2026l");
+
+    assert!(!term.synchronized_updates);
+    assert!(term.update_buffer.is_empty());
+    assert_eq!(term.active_grid().row_text(0).trim_end(), "title-shown");
+}
+
+#[test]
+fn test_synchronized_updates_does_not_flush_for_split_osc_embedded_hard_reset() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"before\x1b[?2026hhidden\x1b]0;not-a-reset-\x1b");
+
+    assert!(term.synchronized_updates);
+    assert_eq!(term.active_grid().row_text(0).trim_end(), "before");
+
+    term.process(b"ctitle\x07-shown");
+
+    assert!(term.synchronized_updates);
+    assert_eq!(term.active_grid().row_text(0).trim_end(), "before");
+
+    term.process(b"\x1b[?2026l");
+
+    assert!(!term.synchronized_updates);
+    assert!(term.update_buffer.is_empty());
+    assert_eq!(term.active_grid().row_text(0).trim_end(), "title-shown");
 }
 
 #[test]

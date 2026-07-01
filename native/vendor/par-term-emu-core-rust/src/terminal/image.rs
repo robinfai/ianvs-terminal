@@ -67,6 +67,10 @@ pub(crate) struct ITermMultipartState {
     pub params: HashMap<String, String>,
     /// Accumulated base64 chunks from FilePart commands
     pub chunks: Vec<String>,
+    /// Base64 tail that is not long enough to decode until the next FilePart.
+    pub pending_base64: Vec<u8>,
+    /// Whether padding has already been seen in the multipart base64 stream.
+    pub base64_padding_seen: bool,
     /// Expected total size in bytes (from size= parameter)
     pub total_size: Option<usize>,
     /// Current accumulated size (sum of decoded chunks)

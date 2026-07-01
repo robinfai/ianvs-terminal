@@ -224,7 +224,12 @@ class SessionController extends Notifier<SessionState> {
   final Map<String, _AutomaticProfileBaseline> _automaticProfileBaselines =
       <String, _AutomaticProfileBaseline>{};
   final Map<String, Timer> _progressGraceTimers = <String, Timer>{};
+  final Map<String, ({int order, TerminalSessionProgressEvent event})>
+  _pendingProgressEvents =
+      <String, ({int order, TerminalSessionProgressEvent event})>{};
   final List<TerminalTab> _recentlyClosedTabs = <TerminalTab>[];
+  final Map<String, List<TerminalPane>> _recentlyClosedPanesByTab =
+      <String, List<TerminalPane>>{};
   TerminalAppPreferencesDocument _appPreferences =
       const TerminalAppPreferencesDocument();
   LocalTerminalConfigDocument _localConfigDocument =
@@ -233,6 +238,8 @@ class SessionController extends Notifier<SessionState> {
       LocalTerminalConfigBootstrapSource.defaults;
   bool _preferencesLoadedFromDisk = false;
   StreamSubscription<TerminalSessionEvent>? _runtimeEventsSubscription;
+  bool _progressFlushScheduled = false;
+  int _progressEventOrder = 0;
 
   @protected
   String? get bootstrapDefaultProfileIdOverride => null;
@@ -241,6 +248,20 @@ class SessionController extends Notifier<SessionState> {
       ref.read(terminalRuntimeControllerProvider);
 
   bool get canReopenClosedTab => _recentlyClosedTabs.isNotEmpty;
+
+  bool get canReopenClosedPane {
+    final activeSessionId = state.activeSessionId;
+    if (activeSessionId == null) {
+      return false;
+    }
+    final tabIndex = _tabIndexContainingSession(activeSessionId);
+    if (tabIndex == -1) {
+      return false;
+    }
+    return _recentlyClosedPanesByTab[state.tabs[tabIndex].sessionId]
+            ?.isNotEmpty ??
+        false;
+  }
 
   void _setWindowTitle(String title) {
     unawaited(ref.read(sessionWindowTitleWriterProvider)(title));
@@ -265,6 +286,7 @@ class SessionController extends Notifier<SessionState> {
         timer.cancel();
       }
       _progressGraceTimers.clear();
+      _pendingProgressEvents.clear();
       for (final controller in _demoViewports.values) {
         controller.dispose();
       }
@@ -457,17 +479,25 @@ class SessionController extends Notifier<SessionState> {
   }
 
   void splitActiveSession(TerminalProfile profile, TerminalSplitAxis axis) {
-    if (ref.read(sessionDemoFixtureProvider) != null) {
-      return;
-    }
     final activeSessionId = state.activeSessionId;
     if (activeSessionId == null) {
       createSession(profile);
       return;
     }
 
-    final activeTabIndex = _tabIndexContainingSession(activeSessionId);
-    if (activeTabIndex == -1) {
+    splitSession(activeSessionId, profile, axis);
+  }
+
+  void splitSession(
+    String targetSessionId,
+    TerminalProfile profile,
+    TerminalSplitAxis axis,
+  ) {
+    if (ref.read(sessionDemoFixtureProvider) != null) {
+      return;
+    }
+    final targetTabIndex = _tabIndexContainingSession(targetSessionId);
+    if (targetTabIndex == -1) {
       createSession(profile);
       return;
     }
@@ -485,14 +515,14 @@ class SessionController extends Notifier<SessionState> {
       profileId: profile.id,
       profileSnapshot: launchProfile,
     );
-    final activeTab = state.tabs[activeTabIndex];
-    final nextPaneLayout = activeTab.effectivePaneLayout.splitPane(
-      sessionId: activeSessionId,
+    final targetTab = state.tabs[targetTabIndex];
+    final nextPaneLayout = targetTab.effectivePaneLayout.splitPane(
+      sessionId: targetSessionId,
       newPane: newPane,
       axis: axis,
     );
     final nextTabs = <TerminalTab>[...state.tabs];
-    nextTabs[activeTabIndex] = activeTab.copyWith(
+    nextTabs[targetTabIndex] = targetTab.copyWith(
       panes: nextPaneLayout.panes,
       paneLayout: nextPaneLayout,
       activePaneSessionId: sessionId,
@@ -561,6 +591,8 @@ class SessionController extends Notifier<SessionState> {
     final demoFixture = ref.read(sessionDemoFixtureProvider);
     if (demoFixture != null) {
       _publishDemoContent(demoFixture, pane.sessionId);
+    } else {
+      _publishActiveTabTerminalContent();
     }
   }
 
@@ -605,18 +637,27 @@ class SessionController extends Notifier<SessionState> {
     if (activeSessionId == null) {
       return;
     }
-    final tabIndex = _tabIndexContainingSession(activeSessionId);
+
+    resizePaneSplit(activeSessionId, splitNodeId, ratio);
+  }
+
+  void resizePaneSplit(
+    String targetSessionId,
+    String splitNodeId,
+    double ratio,
+  ) {
+    final tabIndex = _tabIndexContainingSession(targetSessionId);
     if (tabIndex == -1) {
       return;
     }
 
-    final activeTab = state.tabs[tabIndex];
-    final nextPaneLayout = activeTab.effectivePaneLayout.resizeSplit(
+    final targetTab = state.tabs[tabIndex];
+    final nextPaneLayout = targetTab.effectivePaneLayout.resizeSplit(
       splitNodeId,
       ratio,
     );
     final nextTabs = <TerminalTab>[...state.tabs];
-    nextTabs[tabIndex] = activeTab.copyWith(
+    nextTabs[tabIndex] = targetTab.copyWith(
       panes: nextPaneLayout.panes,
       paneLayout: nextPaneLayout,
     );
@@ -666,6 +707,21 @@ class SessionController extends Notifier<SessionState> {
     _removeSessionState(sessionId);
   }
 
+  void clearPromptMarks(String sessionId) {
+    final pane = _paneForSession(sessionId);
+    if (pane == null || pane.shellIntegration.promptMarks.isEmpty) {
+      return;
+    }
+    _replaceSessionPane(
+      sessionId,
+      pane.copyWith(
+        shellIntegration: pane.shellIntegration.copyWith(
+          promptMarks: const <TerminalShellPromptMark>[],
+        ),
+      ),
+    );
+  }
+
   void closeTab(String tabSessionId) {
     final tabIndex = state.tabs.indexWhere(
       (tab) => tab.sessionId == tabSessionId,
@@ -709,6 +765,7 @@ class SessionController extends Notifier<SessionState> {
     final activePane = _paneForSession(state.activeSessionId!);
     if (activePane != null) {
       _setWindowTitle(activePane.title);
+      _publishActiveTabTerminalContent();
     }
   }
 
@@ -780,6 +837,69 @@ class SessionController extends Notifier<SessionState> {
     );
     final activePane = reopenedTab.paneFor(activeSessionId);
     _setWindowTitle(activePane?.title ?? reopenedTab.title);
+  }
+
+  String? reopenClosedPane({
+    TerminalSplitAxis axis = TerminalSplitAxis.horizontal,
+  }) {
+    if (ref.read(sessionDemoFixtureProvider) != null) {
+      return null;
+    }
+    final activeSessionId = state.activeSessionId;
+    if (activeSessionId == null) {
+      return null;
+    }
+    final tabIndex = _tabIndexContainingSession(activeSessionId);
+    if (tabIndex == -1) {
+      return null;
+    }
+
+    final activeTab = state.tabs[tabIndex];
+    final closedPanes = _recentlyClosedPanesByTab[activeTab.sessionId];
+    if (closedPanes == null || closedPanes.isEmpty) {
+      return null;
+    }
+
+    final sourcePane = closedPanes.first;
+    final profile = _profileForClosedPane(sourcePane);
+    if (profile == null) {
+      return null;
+    }
+
+    _ensureRuntimeSubscription();
+    final environmentOverrides = ref.read(sessionEnvironmentOverridesProvider);
+    final launchProfile = _profileWithSessionEnvironment(
+      profile,
+      environmentOverrides,
+    );
+    final sessionId = _runtime.createSession(launchProfile.toSessionConfig());
+    final reopenedPane = TerminalPane(
+      sessionId: sessionId,
+      title: sourcePane.title,
+      profileId: profile.id,
+      profileSnapshot: launchProfile,
+    );
+    final nextPaneLayout = activeTab.effectivePaneLayout.splitPane(
+      sessionId: activeSessionId,
+      newPane: reopenedPane,
+      axis: axis,
+    );
+    final nextTabs = <TerminalTab>[...state.tabs];
+    nextTabs[tabIndex] = activeTab.copyWith(
+      panes: nextPaneLayout.panes,
+      paneLayout: nextPaneLayout,
+      activePaneSessionId: sessionId,
+      splitAxis: axis,
+    );
+
+    closedPanes.removeAt(0);
+    if (closedPanes.isEmpty) {
+      _recentlyClosedPanesByTab.remove(activeTab.sessionId);
+    }
+
+    state = state.copyWith(tabs: nextTabs, activeSessionId: sessionId);
+    _setWindowTitle(reopenedPane.title);
+    return sessionId;
   }
 
   TerminalPaneLayoutNode? _reopenedPaneLayout(
@@ -893,7 +1013,7 @@ class SessionController extends Notifier<SessionState> {
         _applySessionNotification(event);
         break;
       case TerminalSessionProgressEvent():
-        _applySessionProgress(event);
+        _queueSessionProgress(event);
         break;
       case TerminalSessionBadgeEvent():
         _applySessionBadge(event);
@@ -910,17 +1030,23 @@ class SessionController extends Notifier<SessionState> {
       windowIconName: frame.windowIconName,
     );
 
-    String? preview;
-    for (final row in frame.rows) {
-      final text = row.text.trim();
-      if (text.isNotEmpty) {
-        preview = text;
-        break;
-      }
+    final activeSessionId = state.activeSessionId;
+    if (activeSessionId == null) {
+      _publishTerminalContent(
+        terminalHasVisibleContent: false,
+        terminalPreview: null,
+      );
+      return;
     }
-    _publishTerminalContent(
-      terminalHasVisibleContent: preview != null,
-      terminalPreview: preview,
+    final activeTabIndex = _tabIndexContainingSession(activeSessionId);
+    if (activeTabIndex == -1 ||
+        !state.tabs[activeTabIndex].containsSession(sessionId)) {
+      return;
+    }
+
+    _publishActiveTabTerminalContent(
+      updatedSessionId: sessionId,
+      updatedFrame: frame,
     );
   }
 
@@ -995,6 +1121,20 @@ class SessionController extends Notifier<SessionState> {
     final current = currentPane.shellIntegration;
     final command =
         _boundedShellMetadata(event.command, 512) ?? current.lastCommand;
+    if (eventType == 'zone_scrolled_out') {
+      if (current.promptMarks.isEmpty) {
+        return;
+      }
+      _replaceSessionPane(
+        event.sessionId,
+        currentPane.copyWith(
+          shellIntegration: current.copyWith(
+            promptMarks: const <TerminalShellPromptMark>[],
+          ),
+        ),
+      );
+      return;
+    }
     final promptOffset = event.cursorLine;
     final nextPromptMarks = eventType == 'prompt_start' && promptOffset != null
         ? _promptMarksForValues(
@@ -1062,12 +1202,20 @@ class SessionController extends Notifier<SessionState> {
         _boundedShellMetadata(event.title, 160) ?? 'Terminal notification';
     final message = _boundedShellMetadata(event.message, 512) ?? '';
     final source = _boundedShellMetadata(event.source, 48) ?? 'osc';
+    final remoteHost = _isRemoteShellHost(currentPane.shellIntegration.hostname)
+        ? _boundedShellMetadata(currentPane.shellIntegration.hostname, 255)
+        : null;
+    final remoteUser = remoteHost == null
+        ? null
+        : _boundedShellMetadata(currentPane.shellIntegration.username, 255);
     final recent = currentPane.recentNotifications;
     final isDuplicate =
         recent.isNotEmpty &&
         recent.first.source == source &&
         recent.first.title == title &&
-        recent.first.message == message;
+        recent.first.message == message &&
+        recent.first.remoteHost == remoteHost &&
+        recent.first.remoteUser == remoteUser;
     final nextNotifications = <TerminalPaneNotificationState>[
       if (isDuplicate)
         recent.first.copyWith(count: recent.first.count + 1)
@@ -1076,6 +1224,8 @@ class SessionController extends Notifier<SessionState> {
           source: source,
           title: title,
           message: message,
+          remoteHost: remoteHost,
+          remoteUser: remoteUser,
         ),
       for (var index = isDuplicate ? 1 : 0; index < recent.length; index += 1)
         recent[index],
@@ -1100,27 +1250,19 @@ class SessionController extends Notifier<SessionState> {
     if (currentPane == null) {
       return;
     }
-    _progressGraceTimers.remove(event.sessionId)?.cancel();
+    if (event.named) {
+      _applyNamedSessionProgress(event, currentPane);
+      return;
+    }
+    _progressGraceTimers.remove(_progressGraceKey(event.sessionId))?.cancel();
     final progress = _progressStateForEvent(event);
-    final nextNamedProgress = _namedProgressForEvent(
-      currentPane.namedProgress,
-      event,
-      progress,
-    );
-    if (!event.named && progress == null) {
+    if (progress == null) {
       final currentProgress = currentPane.progress;
       if (currentProgress != null && currentProgress.active) {
-        final completedProgress = currentProgress.copyWith(
-          action: 'complete',
-          state: 'complete',
-          percent: currentProgress.percent ?? 100,
-        );
+        final completedProgress = _completedProgress(currentProgress);
         _replaceSessionPane(
           event.sessionId,
-          currentPane.copyWith(
-            progress: completedProgress,
-            namedProgress: nextNamedProgress,
-          ),
+          currentPane.copyWith(progress: completedProgress),
         );
         _scheduleProgressGraceClear(event.sessionId);
         return;
@@ -1128,28 +1270,148 @@ class SessionController extends Notifier<SessionState> {
     }
     _replaceSessionPane(
       event.sessionId,
-      currentPane.copyWith(
-        progress: event.named ? currentPane.progress : progress,
-        namedProgress: nextNamedProgress,
-      ),
+      currentPane.copyWith(progress: progress),
     );
   }
 
-  void _scheduleProgressGraceClear(String sessionId) {
-    _progressGraceTimers[sessionId] = Timer(
-      const Duration(milliseconds: 1400),
-      () {
-        _progressGraceTimers.remove(sessionId);
-        if (!ref.mounted) {
-          return;
+  void _applyNamedSessionProgress(
+    TerminalSessionProgressEvent event,
+    TerminalPane currentPane,
+  ) {
+    final action = _boundedShellMetadata(event.action, 32);
+    if (action == 'remove_all') {
+      final completed = <String, TerminalPaneProgressState>{};
+      for (final entry in currentPane.namedProgress.entries) {
+        if (entry.value.active) {
+          completed[entry.key] = _completedProgress(entry.value);
+          _scheduleProgressGraceClear(event.sessionId, id: entry.key);
         }
-        final pane = _paneForSession(sessionId);
-        if (pane?.progress?.action != 'complete') {
-          return;
-        }
-        _replaceSessionPane(sessionId, pane!.copyWith(progress: null));
-      },
+      }
+      _replaceSessionPane(
+        event.sessionId,
+        currentPane.copyWith(namedProgress: Map.unmodifiable(completed)),
+      );
+      return;
+    }
+
+    final id = _boundedShellMetadata(event.id, 80);
+    if (id == null) {
+      return;
+    }
+    _progressGraceTimers
+        .remove(_progressGraceKey(event.sessionId, id))
+        ?.cancel();
+    final progress = _progressStateForEvent(event);
+    final next = <String, TerminalPaneProgressState>{
+      ...currentPane.namedProgress,
+    };
+    if (action == 'remove' || progress == null) {
+      final current = next[id];
+      if (current != null && current.active) {
+        next[id] = _completedProgress(current);
+        _replaceSessionPane(
+          event.sessionId,
+          currentPane.copyWith(namedProgress: Map.unmodifiable(next)),
+        );
+        _scheduleProgressGraceClear(event.sessionId, id: id);
+        return;
+      }
+      next.remove(id);
+    } else {
+      next
+        ..remove(id)
+        ..[id] = progress;
+      while (next.length > 8) {
+        next.remove(next.keys.first);
+      }
+    }
+    _replaceSessionPane(
+      event.sessionId,
+      currentPane.copyWith(namedProgress: Map.unmodifiable(next)),
     );
+  }
+
+  void _scheduleProgressGraceClear(String sessionId, {String? id}) {
+    final key = _progressGraceKey(sessionId, id);
+    _progressGraceTimers.remove(key)?.cancel();
+    _progressGraceTimers[key] = Timer(const Duration(milliseconds: 1400), () {
+      _progressGraceTimers.remove(key);
+      if (!ref.mounted) {
+        return;
+      }
+      final pane = _paneForSession(sessionId);
+      if (pane == null) {
+        return;
+      }
+      if (id == null) {
+        if (pane.progress?.action != 'complete') {
+          return;
+        }
+        _replaceSessionPane(sessionId, pane.copyWith(progress: null));
+        return;
+      }
+      if (pane.namedProgress[id]?.action != 'complete') {
+        return;
+      }
+      final next = <String, TerminalPaneProgressState>{...pane.namedProgress}
+        ..remove(id);
+      _replaceSessionPane(
+        sessionId,
+        pane.copyWith(namedProgress: Map.unmodifiable(next)),
+      );
+    });
+  }
+
+  TerminalPaneProgressState _completedProgress(
+    TerminalPaneProgressState progress,
+  ) {
+    return progress.copyWith(
+      action: 'complete',
+      state: 'complete',
+      percent: 100,
+    );
+  }
+
+  void _queueSessionProgress(TerminalSessionProgressEvent event) {
+    final key = _progressEventKey(event);
+    _pendingProgressEvents[key] = (
+      order: _progressEventOrder += 1,
+      event: event,
+    );
+    if (_progressFlushScheduled) {
+      return;
+    }
+    _progressFlushScheduled = true;
+    scheduleMicrotask(_flushPendingProgressEvents);
+  }
+
+  void _flushPendingProgressEvents() {
+    _progressFlushScheduled = false;
+    if (!ref.mounted) {
+      _pendingProgressEvents.clear();
+      return;
+    }
+    final entries = _pendingProgressEvents.values.toList(growable: false)
+      ..sort((a, b) => a.order.compareTo(b.order));
+    _pendingProgressEvents.clear();
+    for (final entry in entries) {
+      _applySessionProgress(entry.event);
+    }
+  }
+
+  String _progressEventKey(TerminalSessionProgressEvent event) {
+    if (!event.named) {
+      return '${event.sessionId}:primary';
+    }
+    final action = event.action ?? '';
+    if (action == 'remove_all') {
+      return '${event.sessionId}:named:*';
+    }
+    return '${event.sessionId}:named:${event.id ?? action}';
+  }
+
+  String _progressGraceKey(String sessionId, [String? id]) {
+    return id == null ? '$sessionId:primary' : '$sessionId:named:$id';
   }
 
   TerminalPaneProgressState? _progressStateForEvent(
@@ -1167,36 +1429,6 @@ class SessionController extends Notifier<SessionState> {
       percent: event.percent?.clamp(0, 100).toInt(),
       label: _boundedShellMetadata(event.label, 160),
     );
-  }
-
-  Map<String, TerminalPaneProgressState> _namedProgressForEvent(
-    Map<String, TerminalPaneProgressState> current,
-    TerminalSessionProgressEvent event,
-    TerminalPaneProgressState? progress,
-  ) {
-    if (!event.named) {
-      return current;
-    }
-    final action = _boundedShellMetadata(event.action, 32);
-    if (action == 'remove_all') {
-      return const <String, TerminalPaneProgressState>{};
-    }
-    final id = _boundedShellMetadata(event.id, 80);
-    if (id == null) {
-      return current;
-    }
-    final next = <String, TerminalPaneProgressState>{...current};
-    if (action == 'remove' || progress == null) {
-      next.remove(id);
-    } else {
-      next
-        ..remove(id)
-        ..[id] = progress;
-      while (next.length > 8) {
-        next.remove(next.keys.first);
-      }
-    }
-    return Map.unmodifiable(next);
   }
 
   TerminalShellIntegrationSnapshot _shellIntegrationForHook(
@@ -1437,29 +1669,19 @@ class SessionController extends Notifier<SessionState> {
 
     final nextTabs = <TerminalTab>[...state.tabs];
     if (currentTab.panes.isEmpty && currentTab.sessionId == sessionId) {
-      nextTabs[tabIndex] = TerminalTab(
-        sessionId: currentTab.sessionId,
+      nextTabs[tabIndex] = currentTab.copyWith(
         title: baseline.title,
         profileId: baseline.profileId,
         profileSnapshot: baseline.profileSnapshot,
-        isExited: currentTab.isExited,
-        exitCode: currentTab.exitCode,
-        panes: currentTab.panes,
-        paneLayout: currentTab.paneLayout,
-        activePaneSessionId: currentTab.activePaneSessionId,
-        splitAxis: currentTab.splitAxis,
         shellIntegration: shellIntegration,
       );
     } else {
       nextTabs[tabIndex] = currentTab
           .replacePane(
-            TerminalPane(
-              sessionId: currentPane.sessionId,
+            currentPane.copyWith(
               title: baseline.title,
               profileId: baseline.profileId,
               profileSnapshot: baseline.profileSnapshot,
-              isExited: currentPane.isExited,
-              exitCode: currentPane.exitCode,
               shellIntegration: shellIntegration,
             ),
           )
@@ -1559,12 +1781,77 @@ class SessionController extends Notifier<SessionState> {
   }
 
   void _publishDemoContent(SessionDemoFixture fixture, String? sessionId) {
-    final frame = sessionId == null ? null : fixture.frameFor(sessionId);
-    final preview = frame == null ? null : _previewForFrame(frame);
+    final activeTab = _activeTabForSessionId(sessionId);
+    final preview = activeTab == null
+        ? null
+        : _previewForActiveTabPanes(
+            activeTab,
+            frameForSession: fixture.frameFor,
+          );
     _publishTerminalContent(
       terminalHasVisibleContent: preview != null,
       terminalPreview: preview,
     );
+  }
+
+  void _publishActiveTabTerminalContent({
+    String? updatedSessionId,
+    TerminalFrameDiff? updatedFrame,
+  }) {
+    final activeSessionId = state.activeSessionId;
+    final activeTab = _activeTabForSessionId(activeSessionId);
+    final preview = activeTab == null
+        ? null
+        : _previewForActiveTabPanes(
+            activeTab,
+            frameForSession: (sessionId) {
+              if (sessionId == updatedSessionId) {
+                return updatedFrame;
+              }
+              return _runtime.viewportFor(sessionId).frame;
+            },
+          );
+    _publishTerminalContent(
+      terminalHasVisibleContent: preview != null,
+      terminalPreview: preview,
+    );
+  }
+
+  TerminalTab? _activeTabForSessionId(String? sessionId) {
+    if (sessionId == null) {
+      return null;
+    }
+    final tabIndex = _tabIndexContainingSession(sessionId);
+    if (tabIndex == -1) {
+      return null;
+    }
+    return state.tabs[tabIndex];
+  }
+
+  String? _previewForActiveTabPanes(
+    TerminalTab activeTab, {
+    required TerminalFrameDiff? Function(String sessionId) frameForSession,
+  }) {
+    for (final pane in _activeTabPanesInPreviewOrder(activeTab)) {
+      final frame = frameForSession(pane.sessionId);
+      if (frame == null) {
+        continue;
+      }
+      final preview = _previewForFrame(frame);
+      if (preview != null) {
+        return preview;
+      }
+    }
+    return null;
+  }
+
+  List<TerminalPane> _activeTabPanesInPreviewOrder(TerminalTab activeTab) {
+    final activePane = activeTab.activePane;
+    return <TerminalPane>[
+      activePane,
+      for (final pane in activeTab.effectivePanes)
+        if (pane.sessionId != activePane.sessionId) pane,
+    ];
   }
 
   String? _previewForFrame(TerminalFrameDiff frame) {
@@ -1644,6 +1931,7 @@ class SessionController extends Notifier<SessionState> {
     String sessionId, {
     bool runtimeAlreadyClosed = false,
   }) {
+    _clearProgressTrackingForSession(sessionId);
     _automaticProfileBaselines.remove(sessionId);
     final tabIndex = _tabIndexContainingSession(sessionId);
     if (tabIndex == -1) {
@@ -1655,14 +1943,21 @@ class SessionController extends Notifier<SessionState> {
     if (!tabHasMultiplePanes) {
       _removeTabState(tabIndex, recordClosedTab: !runtimeAlreadyClosed);
     } else {
+      if (!runtimeAlreadyClosed) {
+        final closingPane = tab.paneFor(sessionId);
+        if (closingPane != null) {
+          _recordClosedPane(tab.sessionId, closingPane);
+        }
+      }
       final nextPaneLayout = tab.effectivePaneLayout.removePane(sessionId);
       if (nextPaneLayout == null) {
         _removeTabState(tabIndex, recordClosedTab: !runtimeAlreadyClosed);
         return;
       }
       final nextPanes = nextPaneLayout.panes;
-      final closingActivePane = state.activeSessionId == sessionId;
-      final nextActivePaneId = closingActivePane
+      final closingGlobalActivePane = state.activeSessionId == sessionId;
+      final closingTabActivePane = tab.activeSessionId == sessionId;
+      final nextActivePaneId = closingTabActivePane
           ? nextPanes.last.sessionId
           : tab.activeSessionId;
       final nextTabs = <TerminalTab>[...state.tabs];
@@ -1675,7 +1970,7 @@ class SessionController extends Notifier<SessionState> {
       );
       state = state.copyWith(
         tabs: nextTabs,
-        activeSessionId: closingActivePane
+        activeSessionId: closingGlobalActivePane
             ? nextActivePaneId
             : state.activeSessionId,
       );
@@ -1699,6 +1994,7 @@ class SessionController extends Notifier<SessionState> {
       final activePane = _paneForSession(state.activeSessionId!);
       if (activePane != null) {
         _setWindowTitle(activePane.title);
+        _publishActiveTabTerminalContent();
       }
     } else {
       _publishTerminalContent(
@@ -1714,6 +2010,7 @@ class SessionController extends Notifier<SessionState> {
 
   void _removeTabState(int tabIndex, {bool recordClosedTab = false}) {
     final closingTab = state.tabs[tabIndex];
+    _recentlyClosedPanesByTab.remove(closingTab.sessionId);
     if (recordClosedTab) {
       _recentlyClosedTabs
         ..removeWhere((tab) => tab.sessionId == closingTab.sessionId)
@@ -1724,6 +2021,7 @@ class SessionController extends Notifier<SessionState> {
     }
     for (final pane in closingTab.effectivePanes) {
       _automaticProfileBaselines.remove(pane.sessionId);
+      _clearProgressTrackingForSession(pane.sessionId);
     }
     final nextTabs = <TerminalTab>[
       ...state.tabs.take(tabIndex),
@@ -1742,6 +2040,19 @@ class SessionController extends Notifier<SessionState> {
     );
   }
 
+  void _recordClosedPane(String tabSessionId, TerminalPane pane) {
+    final closedPanes = _recentlyClosedPanesByTab.putIfAbsent(
+      tabSessionId,
+      () => <TerminalPane>[],
+    );
+    closedPanes
+      ..removeWhere((closedPane) => closedPane.sessionId == pane.sessionId)
+      ..insert(0, pane);
+    if (closedPanes.length > 10) {
+      closedPanes.removeRange(10, closedPanes.length);
+    }
+  }
+
   int _tabIndexContainingSession(String sessionId) {
     return state.tabs.indexWhere((tab) => tab.containsSession(sessionId));
   }
@@ -1752,6 +2063,22 @@ class SessionController extends Notifier<SessionState> {
       return null;
     }
     return state.tabs[tabIndex].paneFor(sessionId);
+  }
+
+  void _clearProgressTrackingForSession(String sessionId) {
+    final prefix = '$sessionId:';
+    for (final key
+        in _progressGraceTimers.keys
+            .where((key) => key.startsWith(prefix))
+            .toList(growable: false)) {
+      _progressGraceTimers.remove(key)?.cancel();
+    }
+    for (final key
+        in _pendingProgressEvents.keys
+            .where((key) => key.startsWith(prefix))
+            .toList(growable: false)) {
+      _pendingProgressEvents.remove(key);
+    }
   }
 
   Future<void> saveProfile(TerminalProfile profile) async {

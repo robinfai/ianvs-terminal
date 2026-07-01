@@ -24,6 +24,42 @@ void main() {
       );
     });
 
+    test('dispatches pane focus actions through workspace reducer', () {
+      final workspace = const TerminalWorkspace().addTab(
+        TerminalWorkspaceTab(
+          id: 'tab-1',
+          activePaneId: 'pane-2',
+          root: TerminalPaneNode.split(
+            id: 'split-1',
+            direction: TerminalPaneSplitDirection.right,
+            first: TerminalPaneNode.leaf(
+              id: 'pane-1',
+              sessionIntent: TerminalPaneSessionIntent(profileId: 'default'),
+            ),
+            second: TerminalPaneNode.leaf(
+              id: 'pane-2',
+              sessionIntent: TerminalPaneSessionIntent(profileId: 'default'),
+            ),
+          ),
+        ),
+      );
+
+      final result = ShellActionDispatcher.dispatch(
+        actionId: TerminalActionId.focusPreviousPane,
+        state: ShellActionDispatchState(workspace: workspace),
+        context: _context(),
+      );
+
+      expect(result, isA<ShellWorkspaceDispatchResult>());
+      expect(
+        (result as ShellWorkspaceDispatchResult)
+            .workspace
+            .activeTab!
+            .activePaneId,
+        'pane-1',
+      );
+    });
+
     test('dispatches productivity actions when workspace is unchanged', () {
       final result = ShellActionDispatcher.dispatch(
         actionId: TerminalActionId.toggleReadOnly,

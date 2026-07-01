@@ -1,4 +1,56 @@
-use super::Terminal;
+use super::{sanitize_bracketed_paste_content, Terminal};
+use crate::graphics::{GraphicProtocol, TerminalGraphic};
+
+#[test]
+fn sanitize_bracketed_paste_content_removes_embedded_markers() {
+    let content = "safe\x1b[201~echo unsafe\x1b[200~tail\u{009B}0200~end\u{009B}0201~";
+
+    assert_eq!(
+        sanitize_bracketed_paste_content(content),
+        "safeecho unsafetailend"
+    );
+}
+
+#[test]
+fn sanitize_bracketed_paste_content_preserves_non_marker_csi_and_unicode() {
+    let content = "UTF-8 🌟 keep\x1b[1;201~literal\u{009B}202~";
+
+    assert_eq!(
+        sanitize_bracketed_paste_content(content),
+        "UTF-8 🌟 keep\x1b[1;201~literal\u{009B}202~"
+    );
+}
+
+#[test]
+fn paste_input_bytes_wraps_sanitized_bracketed_paste_content() {
+    let mut term = Terminal::new(8, 4);
+    term.set_bracketed_paste(true);
+
+    let bytes = term.paste_input_bytes("safe\x1b[201~echo\x1b[200~tail");
+
+    assert_eq!(
+        String::from_utf8(bytes).unwrap(),
+        "\x1b[200~safeechotail\x1b[201~"
+    );
+}
+
+#[test]
+fn paste_input_bytes_treats_marker_only_bracketed_paste_as_noop() {
+    let mut term = Terminal::new(8, 4);
+    term.set_bracketed_paste(true);
+
+    let bytes = term.paste_input_bytes("\x1b[200~\x1b[201~\u{009B}200~\u{009B}201~");
+
+    assert!(bytes.is_empty());
+}
+
+#[test]
+fn paste_input_bytes_preserves_content_when_bracketed_paste_is_disabled() {
+    let term = Terminal::new(8, 4);
+    let content = "safe\x1b[201~echo";
+
+    assert_eq!(term.paste_input_bytes(content), content.as_bytes());
+}
 
 #[test]
 fn resize_drains_full_repaint_damage() {
@@ -46,6 +98,70 @@ fn alternate_screen_switches_drain_full_repaint_damage() {
     assert_eq!(
         exited.snapshot_fallback_reason.as_deref(),
         Some("alternate_screen_switch")
+    );
+}
+
+fn screenshot_test_graphic(row: usize, height_rows: usize) -> TerminalGraphic {
+    let height_rows = height_rows.max(1);
+    let mut graphic = TerminalGraphic::new(
+        1,
+        GraphicProtocol::Sixel,
+        (0, row),
+        1,
+        height_rows,
+        vec![255; height_rows * 4],
+    );
+    graphic.set_cell_dimensions(1, 1);
+    graphic.set_display_cell_span(1, height_rows);
+    graphic
+}
+
+#[test]
+fn screenshot_view_keeps_active_graphic_scroll_crop() {
+    let mut term = Terminal::new(4, 4);
+    let mut graphic = screenshot_test_graphic(0, 3);
+    graphic.scroll_offset_rows = 1;
+    assert!(term.graphics_store.add_graphic(graphic));
+
+    let graphics = term.graphics_for_screenshot_view(0);
+
+    assert_eq!(graphics.len(), 1);
+    assert_eq!(graphics[0].position, (0, 0));
+    assert_eq!(
+        graphics[0].scroll_offset_rows, 1,
+        "screenshot rendering must preserve active graphic top crop"
+    );
+}
+
+#[test]
+fn screenshot_view_includes_scrollback_graphics_at_requested_offset() {
+    let mut term = Terminal::with_scrollback(4, 2, 16);
+    term.process(b"one\ntwo\nthree\n");
+    let scrollback_len = term.active_grid().scrollback_len();
+    assert!(
+        scrollback_len > 0,
+        "test setup should create text scrollback"
+    );
+
+    assert!(term
+        .graphics_store
+        .add_graphic(screenshot_test_graphic(0, 1)));
+    term.graphics_store.adjust_for_scroll_up_with_scrollback(
+        1,
+        0,
+        1,
+        scrollback_len.saturating_sub(1),
+    );
+    assert_eq!(term.graphics_store.scrollback_count(), 1);
+
+    let graphics = term.graphics_for_screenshot_view(1);
+
+    assert_eq!(graphics.len(), 1);
+    assert_eq!(graphics[0].position, (0, 0));
+    assert_eq!(graphics[0].scroll_offset_rows, 0);
+    assert_eq!(
+        graphics[0].scrollback_row, None,
+        "screenshot renderer receives viewport-relative graphics"
     );
 }
 

@@ -239,6 +239,26 @@ void main() {
     expect(terminal.cols, 80);
     expect(terminal.rows, 24);
   });
+
+  testWidgets('terminal facade paste ignores empty text', (tester) async {
+    final backend = _FakePtyBackend();
+    final runtime = _runtimeFor(backend);
+    addTearDown(runtime.dispose);
+    final terminal = Terminal(
+      runtime: runtime,
+      sessionConfig: const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    addTearDown(terminal.dispose);
+    terminal.open();
+    backend.writeCalls.clear();
+
+    terminal.paste('');
+    await tester.pump();
+
+    expect(backend.writeCalls, isEmpty);
+  });
 }
 
 TerminalRuntimeController _runtimeFor(_FakePtyBackend backend) {

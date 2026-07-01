@@ -70,16 +70,23 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           );
     final hasMultiplePanes =
         (activeTabBeforeOpen?.effectivePanes.length ?? 0) > 1;
-    final splitRightUnavailableReason = _splitAxisConflictReason(
-      sessionState,
-      activeSessionIdBeforeOpen,
-      TerminalSplitAxis.horizontal,
-    );
-    final splitDownUnavailableReason = _splitAxisConflictReason(
-      sessionState,
-      activeSessionIdBeforeOpen,
-      TerminalSplitAxis.vertical,
-    );
+    final paneManagementBlockedReason = activeTabBeforeOpen == null
+        ? null
+        : _zoomedPaneManagementUnavailableReason(activeTabBeforeOpen);
+    final splitRightUnavailableReason =
+        paneManagementBlockedReason ??
+        _splitAxisConflictReason(
+          sessionState,
+          activeSessionIdBeforeOpen,
+          TerminalSplitAxis.horizontal,
+        );
+    final splitDownUnavailableReason =
+        paneManagementBlockedReason ??
+        _splitAxisConflictReason(
+          sessionState,
+          activeSessionIdBeforeOpen,
+          TerminalSplitAxis.vertical,
+        );
     final hotkeyWindowStatusFuture = WindowBridge.hotkeyStatus();
     Widget commandMenu(HotkeyWindowStatus? hotkeyWindowStatus) {
       return _ShellCommandMenu(
@@ -98,6 +105,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         hasMultiplePanes: hasMultiplePanes,
         activePaneZoomed: activePaneZoomed,
         canReopenClosedTab: sessionController.canReopenClosedTab,
+        canReopenClosedPane: sessionController.canReopenClosedPane,
         splitRightUnavailableReason: splitRightUnavailableReason,
         splitDownUnavailableReason: splitDownUnavailableReason,
         hotkeyWindowStatus: hotkeyWindowStatus,
@@ -178,6 +186,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         'newTab',
         'closeTab',
         'reopenClosedTab',
+        'reopenClosedPane',
         'duplicateCurrentCwd',
         'toolbelt',
         'splitRight',
@@ -244,7 +253,13 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
               'Close tab requires an active session.',
             );
           }
-          _closeSession(sessionController, currentState, currentSessionId);
+          final currentTab = _tabForSession(currentState, currentSessionId);
+          if (currentTab == null) {
+            return const ShellActionBindingResult.skipped(
+              'Close tab requires an active tab.',
+            );
+          }
+          _closeTab(sessionController, currentState, currentTab.sessionId);
           return const ShellActionBindingResult.completed();
         },
         duplicateCurrentCwd: (_) {
@@ -295,6 +310,28 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           _focusSession(ref.read(sessionControllerProvider).activeSessionId);
           return const ShellActionBindingResult.completed();
         },
+        reopenClosedPane: (_) {
+          if (!sessionController.canReopenClosedPane) {
+            return const ShellActionBindingResult.skipped(
+              'No recently closed pane is available for this tab.',
+            );
+          }
+          final reopenedSessionId = sessionController.reopenClosedPane();
+          if (reopenedSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'No recently closed pane could be reopened.',
+            );
+          }
+          _syncZoomedPaneForActivation(
+            _tabForSession(
+              ref.read(sessionControllerProvider),
+              reopenedSessionId,
+            ),
+            reopenedSessionId,
+          );
+          _focusSession(reopenedSessionId);
+          return const ShellActionBindingResult.completed();
+        },
         closePane: (_) {
           if (currentSessionId == null) {
             return const ShellActionBindingResult.skipped(
@@ -316,6 +353,15 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
               'Split right requires a default profile and active session.',
             );
           }
+          final currentTab = _tabForSession(currentState, currentSessionId);
+          final paneManagementBlockedReason = currentTab == null
+              ? null
+              : _zoomedPaneManagementUnavailableReason(currentTab);
+          if (paneManagementBlockedReason != null) {
+            return ShellActionBindingResult.skipped(
+              paneManagementBlockedReason,
+            );
+          }
           final conflictReason = _splitAxisConflictReason(
             currentState,
             currentSessionId,
@@ -324,38 +370,21 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           if (conflictReason != null) {
             return ShellActionBindingResult.skipped(conflictReason);
           }
-          _splitActiveSession(
+          if (!_splitActiveSession(
             sessionController,
             defaultProfile,
             TerminalSplitAxis.horizontal,
-          );
+          )) {
+            return const ShellActionBindingResult.skipped(
+              'Split right is unavailable.',
+            );
+          }
           return const ShellActionBindingResult.completed();
         },
         splitDown: (_) {
           if (defaultProfile == null || currentSessionId == null) {
             return const ShellActionBindingResult.skipped(
               'Split down requires a default profile and active session.',
-            );
-          }
-          final conflictReason = _splitAxisConflictReason(
-            currentState,
-            currentSessionId,
-            TerminalSplitAxis.vertical,
-          );
-          if (conflictReason != null) {
-            return ShellActionBindingResult.skipped(conflictReason);
-          }
-          _splitActiveSession(
-            sessionController,
-            defaultProfile,
-            TerminalSplitAxis.vertical,
-          );
-          return const ShellActionBindingResult.completed();
-        },
-        focusNextPane: (_) {
-          if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Focus next pane requires an active session.',
             );
           }
           final currentTab = _tabForSession(currentState, currentSessionId);
@@ -367,6 +396,32 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
               paneManagementBlockedReason,
             );
           }
+          final conflictReason = _splitAxisConflictReason(
+            currentState,
+            currentSessionId,
+            TerminalSplitAxis.vertical,
+          );
+          if (conflictReason != null) {
+            return ShellActionBindingResult.skipped(conflictReason);
+          }
+          if (!_splitActiveSession(
+            sessionController,
+            defaultProfile,
+            TerminalSplitAxis.vertical,
+          )) {
+            return const ShellActionBindingResult.skipped(
+              'Split down is unavailable.',
+            );
+          }
+          return const ShellActionBindingResult.completed();
+        },
+        focusNextPane: (_) {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Focus next pane requires an active session.',
+            );
+          }
+          final currentTab = _tabForSession(currentState, currentSessionId);
           if (currentTab == null ||
               !_focusRelativePane(
                 sessionController,
@@ -387,12 +442,6 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
             );
           }
           final currentTab = _tabForSession(currentState, currentSessionId);
-          final blockedReason = currentTab == null
-              ? null
-              : _zoomedPaneManagementUnavailableReason(currentTab);
-          if (blockedReason != null) {
-            return ShellActionBindingResult.skipped(blockedReason);
-          }
           if (currentTab == null ||
               !_focusRelativePane(
                 sessionController,
@@ -628,6 +677,11 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           final cleared = ref
               .read(terminalRuntimeControllerProvider)
               .clearScrollback(currentSessionId);
+          if (cleared) {
+            ref
+                .read(sessionControllerProvider.notifier)
+                .clearPromptMarks(currentSessionId);
+          }
           if (!cleared && mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -875,11 +929,15 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
               'Two-pane layout template is already satisfied.',
             );
           }
-          _splitActiveSession(
+          if (!_splitActiveSession(
             sessionController,
             defaultProfile,
             TerminalSplitAxis.horizontal,
-          );
+          )) {
+            return const ShellActionBindingResult.skipped(
+              'Apply layout template is unavailable.',
+            );
+          }
           return const ShellActionBindingResult.completed();
         },
         exportScrollback: (_) async {
@@ -1278,16 +1336,23 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     );
     final targetSessionId = tab.activeSessionId;
     final hasMultiplePanes = tab.effectivePanes.length > 1;
-    final splitRightBlockedReason = _splitAxisConflictReason(
-      sessionState,
-      targetSessionId,
-      TerminalSplitAxis.horizontal,
+    final paneManagementBlockedReason = _zoomedPaneManagementUnavailableReason(
+      tab,
     );
-    final splitDownBlockedReason = _splitAxisConflictReason(
-      sessionState,
-      targetSessionId,
-      TerminalSplitAxis.vertical,
-    );
+    final splitRightBlockedReason =
+        paneManagementBlockedReason ??
+        _splitAxisConflictReason(
+          sessionState,
+          targetSessionId,
+          TerminalSplitAxis.horizontal,
+        );
+    final splitDownBlockedReason =
+        paneManagementBlockedReason ??
+        _splitAxisConflictReason(
+          sessionState,
+          targetSessionId,
+          TerminalSplitAxis.vertical,
+        );
     final targetPane = tab.paneFor(targetSessionId);
     final hasCurrentDirectory =
         (targetPane?.shellIntegration.currentDirectory ?? '').isNotEmpty;
@@ -1300,9 +1365,6 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         : null;
     final isTargetPaneZoomed =
         _zoomedPaneSessionId == targetSessionId && targetPane != null;
-    final paneManagementBlockedReason = _zoomedPaneManagementUnavailableReason(
-      tab,
-    );
     final growPaneBlockedReason = targetPane == null
         ? 'Add another pane to use this action.'
         : paneManagementBlockedReason ??
@@ -1393,18 +1455,18 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           action: TerminalActionId.focusNextPane,
           icon: Icons.keyboard_tab_rounded,
           title: 'Focus next pane',
-          enabled: hasMultiplePanes && paneManagementBlockedReason == null,
+          enabled: hasMultiplePanes,
           disabledReason: hasMultiplePanes
-              ? paneManagementBlockedReason
+              ? null
               : 'Add another pane to use this action.',
         ),
         item(
           action: TerminalActionId.focusPreviousPane,
           icon: Icons.keyboard_tab_rounded,
           title: 'Focus previous pane',
-          enabled: hasMultiplePanes && paneManagementBlockedReason == null,
+          enabled: hasMultiplePanes,
           disabledReason: hasMultiplePanes
-              ? paneManagementBlockedReason
+              ? null
               : 'Add another pane to use this action.',
         ),
         item(
@@ -1485,8 +1547,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       return;
     }
 
-    sessionController.activateSession(targetSessionId);
-    _focusSession(targetSessionId);
+    _activateSession(sessionController, targetSessionId);
     final currentState = ref.read(sessionControllerProvider);
     final currentSessionId = currentState.activeSessionId;
     if (currentSessionId == null) {
@@ -1560,15 +1621,6 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         return;
       case TerminalActionId.focusNextPane:
         final currentTab = _tabForSession(currentState, currentSessionId);
-        final blockedReason = currentTab == null
-            ? null
-            : _zoomedPaneManagementUnavailableReason(currentTab);
-        if (blockedReason != null) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(blockedReason)));
-          return;
-        }
         if (currentTab != null) {
           _focusRelativePane(
             sessionController,
@@ -1580,15 +1632,6 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         return;
       case TerminalActionId.focusPreviousPane:
         final currentTab = _tabForSession(currentState, currentSessionId);
-        final blockedReason = currentTab == null
-            ? null
-            : _zoomedPaneManagementUnavailableReason(currentTab);
-        if (blockedReason != null) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(blockedReason)));
-          return;
-        }
         if (currentTab != null) {
           _focusRelativePane(
             sessionController,

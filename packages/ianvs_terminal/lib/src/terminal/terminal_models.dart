@@ -77,6 +77,8 @@ class TerminalFrameModes {
     this.charProtected = false,
     this.mouseMode = 'off',
     this.mouseEncoding = 'default',
+    this.kittyKeyboardFlags = 0,
+    this.synchronizedOutput = false,
   });
 
   final bool alternateScreen;
@@ -92,6 +94,8 @@ class TerminalFrameModes {
   final bool charProtected;
   final String mouseMode;
   final String mouseEncoding;
+  final int kittyKeyboardFlags;
+  final bool synchronizedOutput;
 
   static const empty = TerminalFrameModes();
 
@@ -119,6 +123,11 @@ class TerminalFrameModes {
       charProtected: _boolFromJson(json['char_protected'], fallback: false),
       mouseMode: _terminalMouseModeFromJson(json['mouse_mode']),
       mouseEncoding: _terminalMouseEncodingFromJson(json['mouse_encoding']),
+      kittyKeyboardFlags: _nonNegativeIntFromJson(json['kitty_keyboard_flags']),
+      synchronizedOutput: _boolFromJson(
+        json['synchronized_output'],
+        fallback: false,
+      ),
     );
   }
 }
@@ -454,6 +463,8 @@ class TerminalGraphicPlacement {
     required this.heightPx,
     required this.widthCells,
     required this.heightCells,
+    this.sourceXOffsetPx = 0,
+    int? visibleWidthPx,
     this.sourceYOffsetPx = 0,
     int? visibleHeightPx,
     this.zIndex = 0,
@@ -461,6 +472,7 @@ class TerminalGraphicPlacement {
     this.yOffsetPx = 0,
     this.preserveAspectRatio = true,
   }) : renderId = renderId ?? placementId,
+       visibleWidthPx = visibleWidthPx ?? widthPx - sourceXOffsetPx,
        visibleHeightPx = visibleHeightPx ?? heightPx - sourceYOffsetPx;
 
   final int renderId;
@@ -473,6 +485,8 @@ class TerminalGraphicPlacement {
   final int heightPx;
   final int widthCells;
   final int heightCells;
+  final int sourceXOffsetPx;
+  final int visibleWidthPx;
   final int sourceYOffsetPx;
   final int visibleHeightPx;
   final int zIndex;
@@ -505,6 +519,12 @@ class TerminalGraphicPlacement {
     final heightCells = _intOrNullFromJson(
       json['height_cells'] ?? json['heightCells'],
     );
+    final sourceXOffsetPx = _nonNegativeIntFromJson(
+      json['source_x_offset_px'] ?? json['sourceXOffsetPx'],
+    );
+    final visibleWidthPx = _intOrNullFromJson(
+      json['visible_width_px'] ?? json['visibleWidthPx'],
+    );
     final sourceYOffsetPx = _nonNegativeIntFromJson(
       json['source_y_offset_px'] ?? json['sourceYOffsetPx'],
     );
@@ -527,6 +547,10 @@ class TerminalGraphicPlacement {
         widthCells <= 0 ||
         heightCells == null ||
         heightCells <= 0 ||
+        sourceXOffsetPx >= widthPx ||
+        (visibleWidthPx != null &&
+            (visibleWidthPx <= 0 ||
+                visibleWidthPx > widthPx - sourceXOffsetPx)) ||
         sourceYOffsetPx >= heightPx ||
         (visibleHeightPx != null &&
             (visibleHeightPx <= 0 ||
@@ -544,6 +568,8 @@ class TerminalGraphicPlacement {
       heightPx: heightPx,
       widthCells: widthCells,
       heightCells: heightCells,
+      sourceXOffsetPx: sourceXOffsetPx,
+      visibleWidthPx: visibleWidthPx ?? widthPx - sourceXOffsetPx,
       sourceYOffsetPx: sourceYOffsetPx,
       visibleHeightPx: visibleHeightPx ?? heightPx - sourceYOffsetPx,
       zIndex: _intFromJson(json['z_index'] ?? json['zIndex'], fallback: 0),
@@ -753,8 +779,16 @@ class TerminalFrameDiff {
         json['hyperlinks'],
         TerminalHyperlinkRange.tryFromJson,
       ),
-      inlineImages: _inlineImagesFromJson(json['inline_images']),
-      graphics: _graphicsFromJson(json['graphics']),
+      inlineImages: _normalizeInlineImages(
+        images: _inlineImagesFromJson(json['inline_images']),
+        viewportRows: viewportRows,
+        viewportCols: viewportCols,
+      ),
+      graphics: _normalizeGraphics(
+        graphics: _graphicsFromJson(json['graphics']),
+        viewportRows: viewportRows,
+        viewportCols: viewportCols,
+      ),
     );
   }
 }
@@ -957,15 +991,18 @@ class TerminalViewportState {
       currentImages: _shiftInlineImages(
         images: frame.inlineImages,
         viewportRows: nextFrame.viewportRows,
+        viewportCols: nextFrame.viewportCols,
         rowShift: nextFrame.viewportRowShift,
       ),
       incomingImages: nextFrame.inlineImages,
       dirtyRanges: dirtyRanges,
       viewportRows: nextFrame.viewportRows,
+      viewportCols: nextFrame.viewportCols,
     );
     final mergedGraphics = _normalizeGraphics(
       graphics: nextFrame.graphics,
       viewportRows: nextFrame.viewportRows,
+      viewportCols: nextFrame.viewportCols,
     );
 
     return TerminalViewportState(
@@ -1171,6 +1208,7 @@ String? _nonEmptyTrimmedStringFromJson(Object? value) {
 String _terminalMouseModeFromJson(Object? value) {
   final normalized = value is String ? value.trim().toLowerCase() : null;
   return switch (normalized) {
+    'x10' => 'x10',
     'normal' => 'normal',
     'button_event' => 'button_event',
     'any_event' => 'any_event',
@@ -1182,6 +1220,7 @@ String _terminalMouseEncodingFromJson(Object? value) {
   final normalized = value is String ? value.trim().toLowerCase() : null;
   return switch (normalized) {
     'sgr' => 'sgr',
+    'sgr_pixels' || 'sgr-pixels' || 'sgrpixels' => 'sgr_pixels',
     'urxvt' => 'urxvt',
     'utf8' => 'utf8',
     _ => 'default',
@@ -1248,18 +1287,15 @@ TerminalFrameDiff _normalizeSnapshotFrame(
           return range.row >= 0 && range.row < frame.viewportRows;
         })
         .toList(growable: false),
-    inlineImages: frame.inlineImages
-        .where((image) {
-          return image.row >= 0 &&
-              image.row < frame.viewportRows &&
-              image.widthCells > 0 &&
-              image.heightCells > 0 &&
-              image.bytes.isNotEmpty;
-        })
-        .toList(growable: false),
+    inlineImages: _normalizeInlineImages(
+      images: frame.inlineImages,
+      viewportRows: frame.viewportRows,
+      viewportCols: frame.viewportCols,
+    ),
     graphics: _normalizeGraphics(
       graphics: frame.graphics,
       viewportRows: frame.viewportRows,
+      viewportCols: frame.viewportCols,
     ),
   );
 }
@@ -1388,7 +1424,11 @@ List<TerminalRow> _mergeViewportRows({
     if (row.index < 0 || row.index >= viewportRows) {
       continue;
     }
-    mergedRows[row.index] = _rowWithFallbackModifiedAt(row, modifiedAt);
+    final currentRow = mergedRows[row.index];
+    mergedRows[row.index] =
+        row.modifiedAt == null && _sameRowVisualContent(currentRow, row)
+        ? currentRow
+        : _rowWithFallbackModifiedAt(row, modifiedAt);
   }
 
   return mergedRows;
@@ -1446,6 +1486,40 @@ TerminalRow _rowWithFallbackModifiedAt(TerminalRow row, DateTime? modifiedAt) {
     modifiedAt: modifiedAt,
     styleRuns: row.styleRuns,
   );
+}
+
+bool _sameRowVisualContent(TerminalRow left, TerminalRow right) {
+  return left.text == right.text &&
+      left.wrapped == right.wrapped &&
+      _sameStyleRuns(left.styleRuns, right.styleRuns);
+}
+
+bool _sameStyleRuns(List<TerminalStyleRun> left, List<TerminalStyleRun> right) {
+  if (identical(left, right)) {
+    return true;
+  }
+  if (left.length != right.length) {
+    return false;
+  }
+  for (var index = 0; index < left.length; index += 1) {
+    if (!_sameStyleRun(left[index], right[index])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool _sameStyleRun(TerminalStyleRun left, TerminalStyleRun right) {
+  return left.start == right.start &&
+      left.end == right.end &&
+      left.foreground == right.foreground &&
+      left.background == right.background &&
+      left.bold == right.bold &&
+      left.dim == right.dim &&
+      left.italic == right.italic &&
+      left.underline == right.underline &&
+      left.blink == right.blink &&
+      left.inverse == right.inverse;
 }
 
 List<TerminalHyperlinkRange> _mergeHyperlinks({
@@ -1522,6 +1596,7 @@ List<TerminalInlineImage> _mergeInlineImages({
   required List<TerminalInlineImage> incomingImages,
   required List<TerminalDirtyRange> dirtyRanges,
   required int viewportRows,
+  required int viewportCols,
 }) {
   final dirtyRows = <int>{
     for (final range in dirtyRanges)
@@ -1543,11 +1618,11 @@ List<TerminalInlineImage> _mergeInlineImages({
 
   final merged = <TerminalInlineImage>[
     for (final image in currentImages)
-      if (!_inlineImageInvalid(image, viewportRows) &&
+      if (!_inlineImageInvalid(image, viewportRows, viewportCols) &&
           (dirtyRows.isEmpty || !imageTouchesDirtyRows(image)))
         image,
     for (final image in incomingImages)
-      if (!_inlineImageInvalid(image, viewportRows)) image,
+      if (!_inlineImageInvalid(image, viewportRows, viewportCols)) image,
   ];
   merged.sort((left, right) {
     final byRow = left.row.compareTo(right.row);
@@ -1562,6 +1637,7 @@ List<TerminalInlineImage> _mergeInlineImages({
 List<TerminalInlineImage> _shiftInlineImages({
   required List<TerminalInlineImage> images,
   required int viewportRows,
+  required int viewportCols,
   required int rowShift,
 }) {
   final shifted = <TerminalInlineImage>[];
@@ -1575,7 +1651,7 @@ List<TerminalInlineImage> _shiftInlineImages({
       bytes: image.bytes,
       altText: image.altText,
     );
-    if (_inlineImageInvalid(shiftedImage, viewportRows)) {
+    if (_inlineImageInvalid(shiftedImage, viewportRows, viewportCols)) {
       continue;
     }
     shifted.add(shiftedImage);
@@ -1583,10 +1659,26 @@ List<TerminalInlineImage> _shiftInlineImages({
   return shifted;
 }
 
-bool _inlineImageInvalid(TerminalInlineImage image, int viewportRows) {
+List<TerminalInlineImage> _normalizeInlineImages({
+  required List<TerminalInlineImage> images,
+  required int viewportRows,
+  required int viewportCols,
+}) {
+  return [
+    for (final image in images)
+      if (!_inlineImageInvalid(image, viewportRows, viewportCols)) image,
+  ];
+}
+
+bool _inlineImageInvalid(
+  TerminalInlineImage image,
+  int viewportRows,
+  int viewportCols,
+) {
   return image.row < 0 ||
       image.row >= viewportRows ||
       image.col < 0 ||
+      image.col >= viewportCols ||
       image.widthCells <= 0 ||
       image.heightCells <= 0 ||
       image.bytes.isEmpty;
@@ -1595,10 +1687,11 @@ bool _inlineImageInvalid(TerminalInlineImage image, int viewportRows) {
 List<TerminalGraphicPlacement> _normalizeGraphics({
   required List<TerminalGraphicPlacement> graphics,
   required int viewportRows,
+  required int viewportCols,
 }) {
   final normalized = <TerminalGraphicPlacement>[
     for (final graphic in graphics)
-      if (!_graphicInvalid(graphic, viewportRows)) graphic,
+      if (!_graphicInvalid(graphic, viewportRows, viewportCols)) graphic,
   ];
   normalized.sort((left, right) {
     final byZ = left.zIndex.compareTo(right.zIndex);
@@ -1614,26 +1707,53 @@ List<TerminalGraphicPlacement> _normalizeGraphics({
   return normalized;
 }
 
-bool _graphicInvalid(TerminalGraphicPlacement graphic, int viewportRows) {
+bool _graphicInvalid(
+  TerminalGraphicPlacement graphic,
+  int viewportRows,
+  int viewportCols,
+) {
   return graphic.row < 0 ||
       graphic.row >= viewportRows ||
       graphic.col < 0 ||
+      graphic.col >= viewportCols ||
       graphic.widthPx <= 0 ||
       graphic.heightPx <= 0 ||
       graphic.widthCells <= 0 ||
       graphic.heightCells <= 0 ||
+      graphic.sourceXOffsetPx < 0 ||
+      graphic.sourceXOffsetPx >= graphic.widthPx ||
+      graphic.visibleWidthPx <= 0 ||
+      graphic.visibleWidthPx > graphic.widthPx - graphic.sourceXOffsetPx ||
+      graphic.sourceYOffsetPx < 0 ||
+      graphic.sourceYOffsetPx >= graphic.heightPx ||
+      graphic.visibleHeightPx <= 0 ||
+      graphic.visibleHeightPx > graphic.heightPx - graphic.sourceYOffsetPx ||
       graphic.assetKey.id <= 0 ||
       graphic.assetKey.version <= 0;
 }
 
 int _terminalDisplayWidthForGrapheme(String grapheme) {
+  final runes = grapheme.runes.toList(growable: false);
+  final regionalIndicatorCount = runes.where(_isRegionalIndicatorRune).length;
+  if (regionalIndicatorCount == 2 ||
+      _isEmojiZwjSequence(runes) ||
+      _hasEmojiPresentationSelector(runes) ||
+      _isKeycapSequence(runes) ||
+      _hasEmojiModifierSequence(runes) ||
+      _isEmojiTagSequence(runes)) {
+    return 2;
+  }
+
   var width = 0;
-  for (final rune in grapheme.runes) {
+  final sumVisibleWidths = runes.contains(0x200D);
+  for (final rune in runes) {
     if (_isZeroWidthRune(rune)) {
       continue;
     }
     final runeWidth = _isWideRune(rune) ? 2 : 1;
-    if (runeWidth > width) {
+    if (sumVisibleWidths) {
+      width += runeWidth;
+    } else if (runeWidth > width) {
       width = runeWidth;
     }
   }
@@ -1669,7 +1789,7 @@ List<_TerminalGraphemeCluster> _terminalGraphemeClusters(String text) {
     final attachesToPrevious =
         buffer.isNotEmpty &&
         (_isZeroWidthRune(rune) ||
-            previousWasJoiner ||
+            (previousWasJoiner && _isEmojiSequenceRune(rune)) ||
             (isRegionalIndicator && regionalIndicatorRunLength.isOdd));
     if (!attachesToPrevious) {
       flushCurrentCluster();
@@ -1690,6 +1810,7 @@ List<_TerminalGraphemeCluster> _terminalGraphemeClusters(String text) {
 bool _isZeroWidthRune(int rune) {
   return (rune >= 0x0000 && rune <= 0x001F) ||
       (rune >= 0x007F && rune <= 0x009F) ||
+      rune == 0x00AD ||
       rune == 0x200C ||
       rune == 0x200D ||
       (rune >= 0x0300 && rune <= 0x036F) ||
@@ -1872,7 +1993,10 @@ bool _isZeroWidthRune(int rune) {
       (rune >= 0xFE00 && rune <= 0xFE0F) ||
       rune == 0xFEFF ||
       (rune >= 0xFFF9 && rune <= 0xFFFB) ||
+      (rune >= 0x1BCA0 && rune <= 0x1BCA3) ||
       (rune >= 0x1F3FB && rune <= 0x1F3FF) ||
+      _isEmojiTagRune(rune) ||
+      rune == 0xE0001 ||
       (rune >= 0xE0100 && rune <= 0xE01EF);
 }
 
@@ -1896,6 +2020,159 @@ bool _isWideRune(int rune) {
 
 bool _isRegionalIndicatorRune(int rune) {
   return rune >= 0x1F1E6 && rune <= 0x1F1FF;
+}
+
+bool _isSkinToneModifierRune(int rune) {
+  return rune >= 0x1F3FB && rune <= 0x1F3FF;
+}
+
+bool _isEmojiModifierBaseRune(int rune) {
+  return rune == 0x261D ||
+      rune == 0x26F9 ||
+      (rune >= 0x270A && rune <= 0x270D) ||
+      rune == 0x1F385 ||
+      (rune >= 0x1F3C2 && rune <= 0x1F3C4) ||
+      rune == 0x1F3C7 ||
+      (rune >= 0x1F3CA && rune <= 0x1F3CC) ||
+      (rune >= 0x1F442 && rune <= 0x1F443) ||
+      (rune >= 0x1F446 && rune <= 0x1F450) ||
+      (rune >= 0x1F466 && rune <= 0x1F469) ||
+      rune == 0x1F46E ||
+      (rune >= 0x1F470 && rune <= 0x1F478) ||
+      rune == 0x1F47C ||
+      (rune >= 0x1F481 && rune <= 0x1F483) ||
+      (rune >= 0x1F485 && rune <= 0x1F487) ||
+      rune == 0x1F4AA ||
+      (rune >= 0x1F574 && rune <= 0x1F575) ||
+      rune == 0x1F57A ||
+      rune == 0x1F590 ||
+      (rune >= 0x1F595 && rune <= 0x1F596) ||
+      (rune >= 0x1F645 && rune <= 0x1F647) ||
+      (rune >= 0x1F64B && rune <= 0x1F64F) ||
+      rune == 0x1F6A3 ||
+      (rune >= 0x1F6B4 && rune <= 0x1F6B6) ||
+      rune == 0x1F6C0 ||
+      rune == 0x1F6CC ||
+      rune == 0x1F90C ||
+      rune == 0x1F90F ||
+      (rune >= 0x1F918 && rune <= 0x1F91F) ||
+      rune == 0x1F926 ||
+      (rune >= 0x1F930 && rune <= 0x1F939) ||
+      (rune >= 0x1F93D && rune <= 0x1F93E) ||
+      rune == 0x1F977 ||
+      (rune >= 0x1F9B5 && rune <= 0x1F9B6) ||
+      (rune >= 0x1F9B8 && rune <= 0x1F9B9) ||
+      rune == 0x1F9BB ||
+      (rune >= 0x1F9CD && rune <= 0x1F9CF) ||
+      (rune >= 0x1F9D1 && rune <= 0x1F9DD) ||
+      (rune >= 0x1FAC3 && rune <= 0x1FAC5) ||
+      (rune >= 0x1FAF0 && rune <= 0x1FAF8);
+}
+
+bool _hasEmojiModifierSequence(List<int> runes) {
+  int? lastBase;
+  for (final rune in runes) {
+    if (_isSkinToneModifierRune(rune)) {
+      return lastBase != null && _isEmojiModifierBaseRune(lastBase);
+    }
+    if (_isVariationSelectorRune(rune) ||
+        rune == 0x200D ||
+        _isEmojiTagRune(rune) ||
+        _isZeroWidthRune(rune)) {
+      continue;
+    }
+    lastBase = rune;
+  }
+  return false;
+}
+
+bool _isEmojiTagRune(int rune) {
+  return rune >= 0xE0020 && rune <= 0xE007F;
+}
+
+bool _isEmojiTagSequence(List<int> runes) {
+  if (runes.isEmpty || runes.first != 0x1F3F4) {
+    return false;
+  }
+  var sawTagSpec = false;
+  for (var index = 1; index < runes.length; index += 1) {
+    final rune = runes[index];
+    if (rune == 0xE007F) {
+      return sawTagSpec && index == runes.length - 1;
+    }
+    if (!_isEmojiTagRune(rune)) {
+      return false;
+    }
+    sawTagSpec = true;
+  }
+  return false;
+}
+
+bool _isEmojiZwjSequence(List<int> runes) {
+  return runes.contains(0x200D) && runes.any(_isEmojiSequenceRune);
+}
+
+bool _isEmojiSequenceRune(int rune) {
+  return (rune >= 0x2600 && rune <= 0x27BF) ||
+      (rune >= 0x1F000 && rune <= 0x1FFFF);
+}
+
+bool _hasEmojiPresentationSelector(List<int> runes) {
+  int? lastBase;
+  for (final rune in runes) {
+    if (rune == 0xFE0F) {
+      return lastBase != null && _isEmojiVariationBaseRune(lastBase);
+    }
+    if (_isVariationSelectorRune(rune) || _isZeroWidthRune(rune)) {
+      continue;
+    }
+    lastBase = rune;
+  }
+  return false;
+}
+
+bool _isVariationSelectorRune(int rune) {
+  return (rune >= 0xFE00 && rune <= 0xFE0F) ||
+      (rune >= 0xE0100 && rune <= 0xE01EF);
+}
+
+bool _isEmojiVariationBaseRune(int rune) {
+  return _isEmojiSequenceRune(rune) ||
+      rune == 0x00A9 ||
+      rune == 0x00AE ||
+      rune == 0x203C ||
+      rune == 0x2049 ||
+      rune == 0x2122 ||
+      rune == 0x2139 ||
+      (rune >= 0x2194 && rune <= 0x2199) ||
+      (rune >= 0x21A9 && rune <= 0x21AA) ||
+      (rune >= 0x231A && rune <= 0x231B) ||
+      rune == 0x2328 ||
+      rune == 0x23CF ||
+      (rune >= 0x23E9 && rune <= 0x23F3) ||
+      (rune >= 0x23F8 && rune <= 0x23FA) ||
+      rune == 0x24C2 ||
+      (rune >= 0x25AA && rune <= 0x25AB) ||
+      rune == 0x25B6 ||
+      rune == 0x25C0 ||
+      (rune >= 0x25FB && rune <= 0x25FE) ||
+      (rune >= 0x2934 && rune <= 0x2935) ||
+      (rune >= 0x2B05 && rune <= 0x2B07) ||
+      (rune >= 0x2B1B && rune <= 0x2B1C) ||
+      rune == 0x2B50 ||
+      rune == 0x2B55;
+}
+
+bool _isKeycapSequence(List<int> runes) {
+  if (runes.isEmpty || !_isKeycapBaseRune(runes.first)) {
+    return false;
+  }
+  return (runes.length == 2 && runes[1] == 0x20E3) ||
+      (runes.length == 3 && runes[1] == 0xFE0F && runes[2] == 0x20E3);
+}
+
+bool _isKeycapBaseRune(int rune) {
+  return (rune >= 0x30 && rune <= 0x39) || rune == 0x23 || rune == 0x2A;
 }
 
 class _TerminalGraphemeCluster {

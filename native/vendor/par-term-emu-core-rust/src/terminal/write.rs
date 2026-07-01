@@ -59,6 +59,8 @@ impl Terminal {
                 return;
             }
 
+            self.clear_wide_fragments_for_write(cursor_col, cursor_row, writable);
+
             let mut cell_flags = self.flags;
             cell_flags.hyperlink_id = self.current_hyperlink_id;
             cell_flags.set_guarded(self.char_protected);
@@ -136,62 +138,48 @@ impl Terminal {
         // Handle regional indicator pairs (flag emoji like 🇺🇸)
         // When the second regional indicator arrives, combine it with the first
         if grapheme::is_regional_indicator(c) {
-            // Check if previous cell is also a regional indicator (first half of a flag)
-            let (prev_col, prev_row) = if self.cursor.col > 0 {
-                (self.cursor.col - 1, self.cursor.row)
-            } else if self.cursor.row > 0 {
-                (cols - 1, self.cursor.row - 1)
-            } else {
+            let Some((target_col, target_row)) = self.previous_grapheme_cell_position(cols) else {
                 // At position (0, 0), this is the first regional indicator
                 // Continue to write it as a normal character below
                 return self.write_regional_indicator_first(c, cols);
             };
 
             // Check if previous cell is a regional indicator without a pair yet
-            let should_combine = if let Some(prev_cell) = self.active_grid().get(prev_col, prev_row)
+            let should_combine = if let Some(target_cell) =
+                self.active_grid().get(target_col, target_row)
             {
-                grapheme::is_regional_indicator(prev_cell.c) && prev_cell.combining.is_empty()
+                grapheme::is_regional_indicator(target_cell.c) && target_cell.combining.is_empty()
             } else {
                 false
             };
 
             if should_combine {
                 // Extract cursor position before mutable borrow
-                let cursor_col = self.cursor.col;
                 let cursor_row = self.cursor.row;
 
-                // Extract spacer cell properties from target cell first
-                let spacer = if cursor_col < cols {
-                    if let Some(target_cell) = self.active_grid().get(prev_col, prev_row) {
-                        let mut spacer_flags = target_cell.flags;
-                        spacer_flags.set_wide_char(false);
-                        spacer_flags.set_wide_char_spacer(true);
-                        Some(Cell {
-                            c: ' ',
-                            combining: Vec::new(),
-                            fg: target_cell.fg,
-                            bg: target_cell.bg,
-                            underline_color: target_cell.underline_color,
-                            flags: spacer_flags,
-                            width: 1,
-                        })
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                };
+                let can_wrap_widened = self.auto_wrap && cols >= 2;
+                let mut wrapped_wide_cell = None;
+                let mut grown_wide_cell = None;
 
                 // Previous cell is a lone regional indicator - combine them
-                if let Some(target_cell) = self.active_grid_mut().get_mut(prev_col, prev_row) {
+                if let Some(target_cell) = self.active_grid_mut().get_mut(target_col, target_row) {
                     target_cell.combining.push(c);
                     target_cell.width = 2;
                     target_cell.flags.set_wide_char(true);
+                    if target_col + 1 >= cols && can_wrap_widened {
+                        wrapped_wide_cell = Some(target_cell.clone());
+                    } else if target_col + 1 < cols {
+                        grown_wide_cell = Some(target_cell.clone());
+                    }
                 }
 
-                // Create spacer cell at current position
-                if let Some(spacer) = spacer {
-                    self.active_grid_mut().set(cursor_col, cursor_row, spacer);
+                if let Some(cell) = wrapped_wide_cell {
+                    self.wrap_widened_grapheme_from_right_edge(target_col, target_row, cell);
+                    return;
+                }
+
+                if let Some(cell) = grown_wide_cell {
+                    self.write_wide_spacer_for_grown_cell(target_col, target_row, &cell);
                 }
 
                 // Advance cursor past the spacer
@@ -205,8 +193,8 @@ impl Terminal {
                     }
                 }
 
-                self.mark_row_dirty(prev_row);
-                if cursor_row != prev_row {
+                self.mark_row_dirty(target_row);
+                if cursor_row != target_row {
                     self.mark_row_dirty(cursor_row);
                 }
                 return;
@@ -216,46 +204,29 @@ impl Terminal {
             return self.write_regional_indicator_first(c, cols);
         }
 
-        // Handle combining characters (variation selectors, ZWJ, skin tone modifiers)
+        // Handle combining characters and zero-width grapheme modifiers
+        // (variation selectors, ZWJ, skin tone modifiers, emoji tags).
         // These should be added to the previous cell instead of creating a new cell
         if grapheme::is_variation_selector(c)
             || grapheme::is_zwj(c)
+            || grapheme::is_zero_width_format(c)
             || grapheme::is_skin_tone_modifier(c)
+            || grapheme::is_emoji_tag(c)
             || grapheme::is_combining_mark(c)
         {
-            // Find the previous actual character cell (skip over wide char spacers)
-            let (prev_col, prev_row) = if self.cursor.col > 0 {
-                (self.cursor.col - 1, self.cursor.row)
-            } else if self.cursor.row > 0 {
-                (cols - 1, self.cursor.row - 1)
-            } else {
-                // At position (0, 0), nowhere to add combining char
+            let Some((target_col, target_row)) = self.previous_grapheme_cell_position(cols) else {
                 return;
             };
 
-            // Check if the previous cell is a wide char spacer
-            // If so, the actual wide char is one more cell to the left
-            let (target_col, target_row) =
-                if let Some(cell) = self.active_grid().get(prev_col, prev_row) {
-                    if cell.flags.wide_char_spacer() {
-                        // Previous cell is a spacer, go back one more cell for the wide char
-                        if prev_col > 0 {
-                            (prev_col - 1, prev_row)
-                        } else if prev_row > 0 {
-                            (cols - 1, prev_row - 1)
-                        } else {
-                            // Spacer at start of grid, nowhere to go
-                            return;
-                        }
-                    } else {
-                        (prev_col, prev_row)
-                    }
-                } else {
-                    return;
-                };
-
             // Copy normalization form before mutable borrow
             let norm_form = self.normalization_form;
+            let width_config = self.width_config;
+            let cursor_should_advance_after_width_growth =
+                self.cursor.row == target_row && self.cursor.col == target_col + 1;
+            let mut advanced_width = false;
+            let can_wrap_widened = self.auto_wrap && cols >= 2;
+            let mut wrapped_wide_cell = None;
+            let mut grown_wide_cell = None;
 
             // Add combining character to the target cell
             if let Some(target_cell) = self.active_grid_mut().get_mut(target_col, target_row) {
@@ -279,31 +250,36 @@ impl Terminal {
 
                 // Recalculate width if needed (e.g., emoji with variation selector)
                 let grapheme = target_cell.get_grapheme();
-                let new_width = grapheme::is_wide_grapheme(&grapheme);
+                let new_width = grapheme::is_wide_grapheme_with_config(&grapheme, &width_config);
                 if new_width && target_cell.width() == 1 {
                     target_cell.width = 2;
                     target_cell.flags.set_wide_char(true);
+                    advanced_width = cursor_should_advance_after_width_growth;
 
                     if target_col + 1 < cols {
-                        let mut spacer_flags = target_cell.flags;
-                        spacer_flags.set_wide_char(false);
-                        spacer_flags.set_wide_char_spacer(true);
-
-                        let spacer = Cell {
-                            c: ' ',
-                            combining: Vec::new(),
-                            fg: target_cell.fg,
-                            bg: target_cell.bg,
-                            underline_color: target_cell.underline_color,
-                            flags: spacer_flags,
-                            width: 1,
-                        };
-                        self.active_grid_mut()
-                            .set(target_col + 1, target_row, spacer);
+                        grown_wide_cell = Some(target_cell.clone());
+                    } else if can_wrap_widened {
+                        wrapped_wide_cell = Some(target_cell.clone());
                     }
                 }
 
                 self.mark_row_dirty(target_row);
+            }
+            if let Some(cell) = wrapped_wide_cell {
+                self.wrap_widened_grapheme_from_right_edge(target_col, target_row, cell);
+                return;
+            }
+            if let Some(cell) = grown_wide_cell {
+                self.write_wide_spacer_for_grown_cell(target_col, target_row, &cell);
+            }
+            if advanced_width {
+                self.cursor.col += 1;
+                if self.cursor.col >= cols {
+                    self.cursor.col = cols.saturating_sub(1);
+                    if self.auto_wrap {
+                        self.pending_wrap = true;
+                    }
+                }
             }
             return;
         }
@@ -318,33 +294,20 @@ impl Terminal {
         );
 
         if is_potential_emoji && (self.cursor.col > 0 || self.cursor.row > 0) {
-            let (prev_col, prev_row) = if self.cursor.col > 0 {
-                (self.cursor.col - 1, self.cursor.row)
-            } else {
-                (cols - 1, self.cursor.row - 1)
+            let Some((target_col, target_row)) = self.previous_grapheme_cell_position(cols) else {
+                return;
             };
-
-            // Skip spacers to find actual wide char
-            let (target_col, target_row) =
-                if let Some(cell) = self.active_grid().get(prev_col, prev_row) {
-                    if cell.flags.wide_char_spacer() {
-                        if prev_col > 0 {
-                            (prev_col - 1, prev_row)
-                        } else if prev_row > 0 {
-                            (cols - 1, prev_row - 1)
-                        } else {
-                            (prev_col, prev_row) // Fallback
-                        }
-                    } else {
-                        (prev_col, prev_row)
-                    }
-                } else {
-                    (prev_col, prev_row)
-                };
 
             // Check if target cell has ZWJ in combining chars
             if let Some(target_cell) = self.active_grid().get(target_col, target_row) {
                 if target_cell.combining.contains(&'\u{200D}') {
+                    let width_config = self.width_config;
+                    let cursor_should_advance_after_width_growth =
+                        self.cursor.row == target_row && self.cursor.col == target_col + 1;
+                    let mut advanced_width = false;
+                    let can_wrap_widened = self.auto_wrap && cols >= 2;
+                    let mut wrapped_wide_cell = None;
+                    let mut grown_wide_cell = None;
                     // Previous cell has ZWJ, add current char as combining
                     if let Some(target_cell_mut) =
                         self.active_grid_mut().get_mut(target_col, target_row)
@@ -353,31 +316,37 @@ impl Terminal {
 
                         // Recalculate width if needed
                         let grapheme = target_cell_mut.get_grapheme();
-                        let new_width = grapheme::is_wide_grapheme(&grapheme);
+                        let new_width =
+                            grapheme::is_wide_grapheme_with_config(&grapheme, &width_config);
                         if new_width && target_cell_mut.width() == 1 {
                             target_cell_mut.width = 2;
                             target_cell_mut.flags.set_wide_char(true);
+                            advanced_width = cursor_should_advance_after_width_growth;
 
                             if target_col + 1 < cols {
-                                let mut spacer_flags = target_cell_mut.flags;
-                                spacer_flags.set_wide_char(false);
-                                spacer_flags.set_wide_char_spacer(true);
-
-                                let spacer = Cell {
-                                    c: ' ',
-                                    combining: Vec::new(),
-                                    fg: target_cell_mut.fg,
-                                    bg: target_cell_mut.bg,
-                                    underline_color: target_cell_mut.underline_color,
-                                    flags: spacer_flags,
-                                    width: 1,
-                                };
-                                self.active_grid_mut()
-                                    .set(target_col + 1, target_row, spacer);
+                                grown_wide_cell = Some(target_cell_mut.clone());
+                            } else if can_wrap_widened {
+                                wrapped_wide_cell = Some(target_cell_mut.clone());
                             }
                         }
 
                         self.mark_row_dirty(target_row);
+                    }
+                    if let Some(cell) = wrapped_wide_cell {
+                        self.wrap_widened_grapheme_from_right_edge(target_col, target_row, cell);
+                        return;
+                    }
+                    if let Some(cell) = grown_wide_cell {
+                        self.write_wide_spacer_for_grown_cell(target_col, target_row, &cell);
+                    }
+                    if advanced_width {
+                        self.cursor.col += 1;
+                        if self.cursor.col >= cols {
+                            self.cursor.col = cols.saturating_sub(1);
+                            if self.auto_wrap {
+                                self.pending_wrap = true;
+                            }
+                        }
                     }
                     return;
                 }
@@ -574,6 +543,15 @@ impl Terminal {
         if self.insert_mode {
             self.active_grid_mut()
                 .insert_chars(cursor_col, cursor_row, char_width);
+            self.graphics_store.adjust_for_insert_characters_for_screen(
+                char_width,
+                cursor_col,
+                cursor_row,
+                cols,
+                self.alt_screen_active,
+            );
+        } else {
+            self.clear_wide_fragments_for_write(cursor_col, cursor_row, char_width.max(1));
         }
 
         self.active_grid_mut().set(cursor_col, cursor_row, cell);
@@ -605,15 +583,164 @@ impl Terminal {
             // Spacer is on same row, already marked dirty above
         }
 
-        // Handle delayed autowrap for width-1 characters
-        if self.auto_wrap && char_width == 1 && self.cursor.col >= cols {
-            // Stay at last column and set wrap-pending; do not move yet
-            self.cursor.col = cols - 1;
-            self.pending_wrap = true;
-        } else if self.cursor.col >= cols {
+        // Handle delayed autowrap when the glyph reaches the right margin.
+        if self.cursor.col >= cols {
+            if self.auto_wrap {
+                self.pending_wrap = true;
+            }
             // Fallback: if auto-wrap is disabled or some edge case, clamp to last column
             self.cursor.col = cols - 1;
         }
+    }
+
+    fn blank_cell_for_current_write(&self) -> Cell {
+        let mut flags = self.flags;
+        flags.hyperlink_id = self.current_hyperlink_id;
+        flags.set_guarded(self.char_protected);
+        flags.set_wide_char(false);
+        flags.set_wide_char_spacer(false);
+        Cell {
+            c: ' ',
+            combining: Vec::new(),
+            fg: self.fg,
+            bg: self.bg,
+            underline_color: self.underline_color,
+            flags,
+            width: 1,
+        }
+    }
+
+    fn clear_wide_fragments_for_write(&mut self, col: usize, row: usize, width: usize) {
+        if width == 0 {
+            return;
+        }
+        let cols = self.active_grid().cols();
+        let output_end = col.saturating_add(width).min(cols);
+        let Some(range) = self.active_grid().wide_safe_range(col, row, width) else {
+            return;
+        };
+        if range.start == col && range.end == output_end {
+            return;
+        }
+
+        let blank = self.blank_cell_for_current_write();
+        if let Some(row_cells) = self.active_grid_mut().row_mut(row) {
+            for clear_col in range {
+                if clear_col < col || clear_col >= output_end {
+                    row_cells[clear_col] = blank.clone();
+                }
+            }
+        }
+    }
+
+    fn previous_grapheme_cell_position(&self, cols: usize) -> Option<(usize, usize)> {
+        if cols == 0 {
+            return None;
+        }
+
+        let (candidate_col, candidate_row) = if self.pending_wrap {
+            (self.cursor.col.min(cols.saturating_sub(1)), self.cursor.row)
+        } else if self.cursor.col > 0 {
+            (self.cursor.col - 1, self.cursor.row)
+        } else if self.cursor.row > 0 {
+            (cols - 1, self.cursor.row - 1)
+        } else {
+            return None;
+        };
+
+        let cell = self.active_grid().get(candidate_col, candidate_row)?;
+        if !cell.flags.wide_char_spacer() {
+            return Some((candidate_col, candidate_row));
+        }
+
+        if candidate_col > 0 {
+            Some((candidate_col - 1, candidate_row))
+        } else if candidate_row > 0 {
+            Some((cols - 1, candidate_row - 1))
+        } else {
+            None
+        }
+    }
+
+    fn wide_spacer_for_cell(cell: &Cell) -> Cell {
+        let mut spacer_flags = cell.flags;
+        spacer_flags.set_wide_char(false);
+        spacer_flags.set_wide_char_spacer(true);
+        Cell {
+            c: ' ',
+            combining: Vec::new(),
+            fg: cell.fg,
+            bg: cell.bg,
+            underline_color: cell.underline_color,
+            flags: spacer_flags,
+            width: 1,
+        }
+    }
+
+    fn write_wide_spacer_for_grown_cell(
+        &mut self,
+        target_col: usize,
+        target_row: usize,
+        cell: &Cell,
+    ) {
+        let cols = self.active_grid().cols();
+        if target_col + 1 >= cols {
+            return;
+        }
+
+        self.clear_wide_fragments_for_write(target_col, target_row, 2);
+        let spacer = Self::wide_spacer_for_cell(cell);
+        self.active_grid_mut()
+            .set(target_col + 1, target_row, spacer);
+        self.mark_row_dirty(target_row);
+    }
+
+    fn wrap_widened_grapheme_from_right_edge(
+        &mut self,
+        target_col: usize,
+        target_row: usize,
+        cell: Cell,
+    ) {
+        let (cols, rows) = self.size();
+        if cols < 2 || rows == 0 {
+            return;
+        }
+
+        self.active_grid_mut()
+            .set(target_col, target_row, Cell::default());
+        self.active_grid_mut().set_line_wrapped(target_row, true);
+        self.mark_row_dirty(target_row);
+
+        let in_scroll_region =
+            target_row >= self.scroll_region_top && target_row <= self.scroll_region_bottom;
+        let destination_row = if in_scroll_region && target_row == self.scroll_region_bottom {
+            let scroll_top = self.scroll_region_top;
+            let scroll_bottom = self.scroll_region_bottom;
+            debug::log_scroll("wrap-widened-grapheme", scroll_top, scroll_bottom, 1);
+            self.active_grid_mut()
+                .scroll_region_up(1, scroll_top, scroll_bottom);
+            self.adjust_graphics_for_scroll_up(1, scroll_top, scroll_bottom);
+            scroll_bottom
+        } else {
+            target_row.saturating_add(1).min(rows - 1)
+        };
+        let destination_col = if self.use_lr_margins {
+            self.left_margin.min(cols.saturating_sub(2))
+        } else {
+            0
+        };
+
+        let spacer = Self::wide_spacer_for_cell(&cell);
+        self.active_grid_mut()
+            .set(destination_col, destination_row, cell);
+        self.active_grid_mut()
+            .set(destination_col + 1, destination_row, spacer);
+        self.mark_row_dirty(destination_row);
+
+        let next_col = destination_col + 2;
+        self.cursor.row = destination_row;
+        self.cursor.col = next_col.min(cols - 1);
+        self.pending_wrap = self.auto_wrap && next_col >= cols;
     }
 
     /// Write the first regional indicator of a potential flag pair.
@@ -678,6 +805,15 @@ impl Terminal {
         if self.insert_mode {
             self.active_grid_mut()
                 .insert_chars(cursor_col, cursor_row, 1);
+            self.graphics_store.adjust_for_insert_characters_for_screen(
+                1,
+                cursor_col,
+                cursor_row,
+                cols,
+                self.alt_screen_active,
+            );
+        } else {
+            self.clear_wide_fragments_for_write(cursor_col, cursor_row, 1);
         }
 
         self.active_grid_mut().set(cursor_col, cursor_row, cell);
@@ -884,6 +1020,287 @@ mod tests {
 
         // First row should be marked as wrapped
         assert!(term.active_grid().is_line_wrapped(0));
+    }
+
+    #[test]
+    fn test_write_char_wide_character_ending_at_right_edge_wraps_next() {
+        let mut term = create_test_terminal();
+        term.auto_wrap = true;
+        term.cursor.col = 78;
+
+        term.write_char('😀');
+        term.write_char('X');
+
+        let emoji = term.active_grid().get(78, 0).unwrap();
+        assert_eq!(emoji.c, '😀');
+        assert_eq!(emoji.width(), 2);
+        assert!(emoji.flags.wide_char());
+        assert!(term
+            .active_grid()
+            .get(79, 0)
+            .unwrap()
+            .flags
+            .wide_char_spacer());
+        assert!(term.active_grid().is_line_wrapped(0));
+        assert_eq!(term.active_grid().get(0, 1).unwrap().c, 'X');
+        assert_eq!(term.cursor.row, 1);
+        assert_eq!(term.cursor.col, 1);
+        assert!(!term.pending_wrap);
+    }
+
+    #[test]
+    fn test_write_char_variation_selector_width_growth_advances_cursor() {
+        let mut term = create_test_terminal();
+
+        term.write_char('✈');
+        term.write_char('\u{FE0F}');
+        term.write_char('X');
+
+        let emoji = term.active_grid().get(0, 0).unwrap();
+        assert_eq!(emoji.get_grapheme(), "✈️");
+        assert_eq!(emoji.width(), 2);
+        assert!(emoji.flags.wide_char());
+        assert!(term
+            .active_grid()
+            .get(1, 0)
+            .unwrap()
+            .flags
+            .wide_char_spacer());
+        assert_eq!(term.active_grid().get(2, 0).unwrap().c, 'X');
+        assert_eq!(term.cursor.col, 3);
+    }
+
+    #[test]
+    fn test_write_char_keycap_cluster_advances_cursor_once() {
+        let mut term = create_test_terminal();
+
+        term.write_char('1');
+        term.write_char('\u{FE0F}');
+        term.write_char('\u{20E3}');
+        term.write_char('X');
+
+        let keycap = term.active_grid().get(0, 0).unwrap();
+        assert_eq!(keycap.get_grapheme(), "1️⃣");
+        assert_eq!(keycap.width(), 2);
+        assert!(keycap.flags.wide_char());
+        assert!(term
+            .active_grid()
+            .get(1, 0)
+            .unwrap()
+            .flags
+            .wide_char_spacer());
+        assert_eq!(term.active_grid().get(2, 0).unwrap().c, 'X');
+        assert_eq!(term.cursor.col, 3);
+    }
+
+    #[test]
+    fn test_write_char_text_presentation_selector_keeps_narrow_cursor() {
+        let mut term = create_test_terminal();
+
+        term.write_char('✈');
+        term.write_char('\u{FE0E}');
+        term.write_char('X');
+
+        let text = term.active_grid().get(0, 0).unwrap();
+        assert_eq!(text.get_grapheme(), "✈︎");
+        assert_eq!(text.width(), 1);
+        assert!(!text.flags.wide_char());
+        assert_eq!(term.active_grid().get(1, 0).unwrap().c, 'X');
+        assert_eq!(term.cursor.col, 2);
+    }
+
+    #[test]
+    fn test_write_char_plain_text_zwj_stays_narrow() {
+        let mut term = create_test_terminal();
+
+        term.write_char('a');
+        term.write_char('\u{200D}');
+        term.write_char('b');
+        term.write_char('X');
+
+        let joined = term.active_grid().get(0, 0).unwrap();
+        assert_eq!(joined.get_grapheme(), "a\u{200D}");
+        assert_eq!(joined.width(), 1);
+        assert!(!joined.flags.wide_char());
+        assert!(!term
+            .active_grid()
+            .get(1, 0)
+            .unwrap()
+            .flags
+            .wide_char_spacer());
+        assert_eq!(term.active_grid().get(1, 0).unwrap().c, 'b');
+        assert_eq!(term.active_grid().get(2, 0).unwrap().c, 'X');
+        assert_eq!(term.cursor.col, 3);
+    }
+
+    #[test]
+    fn test_write_char_variation_selector_supplement_attaches_to_base() {
+        let mut term = create_test_terminal();
+
+        term.write_char('字');
+        term.write_char('\u{E0100}');
+        term.write_char('X');
+
+        let ideograph = term.active_grid().get(0, 0).unwrap();
+        assert_eq!(ideograph.get_grapheme(), "字\u{E0100}");
+        assert_eq!(ideograph.width(), 2);
+        assert!(ideograph.flags.wide_char());
+        assert!(term
+            .active_grid()
+            .get(1, 0)
+            .unwrap()
+            .flags
+            .wide_char_spacer());
+        assert_eq!(term.active_grid().get(2, 0).unwrap().c, 'X');
+        assert_eq!(term.cursor.col, 3);
+    }
+
+    #[test]
+    fn test_write_char_emoji_tag_sequence_stays_one_wide_cell() {
+        let mut term = create_test_terminal();
+
+        let scotland_flag = "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}";
+        for c in scotland_flag.chars() {
+            term.write_char(c);
+        }
+        term.write_char('X');
+
+        let flag = term.active_grid().get(0, 0).unwrap();
+        assert_eq!(flag.get_grapheme(), scotland_flag);
+        assert_eq!(flag.width(), 2);
+        assert!(flag.flags.wide_char());
+        assert!(term
+            .active_grid()
+            .get(1, 0)
+            .unwrap()
+            .flags
+            .wide_char_spacer());
+        assert_eq!(term.active_grid().get(2, 0).unwrap().c, 'X');
+        assert_eq!(term.cursor.col, 3);
+    }
+
+    #[test]
+    fn test_write_char_variation_selector_width_growth_at_right_edge_wraps_next() {
+        let mut term = create_test_terminal();
+        term.auto_wrap = true;
+        term.cursor.col = 78;
+
+        term.write_char('✈');
+        term.write_char('\u{FE0F}');
+        term.write_char('X');
+
+        let emoji = term.active_grid().get(78, 0).unwrap();
+        assert_eq!(emoji.get_grapheme(), "✈️");
+        assert_eq!(emoji.width(), 2);
+        assert!(emoji.flags.wide_char());
+        assert!(term
+            .active_grid()
+            .get(79, 0)
+            .unwrap()
+            .flags
+            .wide_char_spacer());
+        assert!(term.active_grid().is_line_wrapped(0));
+        assert_eq!(term.active_grid().get(0, 1).unwrap().c, 'X');
+        assert_eq!(term.cursor.row, 1);
+        assert_eq!(term.cursor.col, 1);
+        assert!(!term.pending_wrap);
+    }
+
+    #[test]
+    fn test_write_char_variation_selector_uses_pending_wrap_cell() {
+        let mut term = create_test_terminal();
+        term.auto_wrap = true;
+        term.cursor.col = 78;
+        term.write_char('Q');
+
+        term.write_char('✈');
+        term.write_char('\u{FE0F}');
+        term.write_char('X');
+
+        assert_eq!(term.active_grid().get(78, 0).unwrap().c, 'Q');
+        let emoji = term.active_grid().get(79, 0).unwrap();
+        assert_eq!(emoji.get_grapheme(), "✈️");
+        assert_eq!(emoji.width(), 2);
+        assert!(emoji.flags.wide_char());
+        assert!(term.active_grid().is_line_wrapped(0));
+        assert_eq!(term.active_grid().get(0, 1).unwrap().c, 'X');
+        assert_eq!(term.cursor.row, 1);
+        assert_eq!(term.cursor.col, 1);
+        assert!(!term.pending_wrap);
+    }
+
+    #[test]
+    fn test_write_char_combining_mark_uses_pending_wrap_cell() {
+        let mut term = create_test_terminal();
+        term.auto_wrap = true;
+        term.cursor.col = 78;
+        term.write_char('Q');
+
+        term.write_char('e');
+        term.write_char('\u{0301}');
+        term.write_char('X');
+
+        assert_eq!(term.active_grid().get(78, 0).unwrap().c, 'Q');
+        let accented = term.active_grid().get(79, 0).unwrap();
+        assert_eq!(accented.get_grapheme(), "é");
+        assert_eq!(accented.width(), 1);
+        assert!(!accented.flags.wide_char());
+        assert!(term.active_grid().is_line_wrapped(0));
+        assert_eq!(term.active_grid().get(0, 1).unwrap().c, 'X');
+        assert_eq!(term.cursor.row, 1);
+        assert_eq!(term.cursor.col, 1);
+        assert!(!term.pending_wrap);
+    }
+
+    #[test]
+    fn test_write_char_regional_indicator_pair_uses_pending_wrap_cell() {
+        let mut term = create_test_terminal();
+        term.auto_wrap = true;
+        term.cursor.col = 78;
+        term.write_char('Q');
+
+        term.write_char('\u{1F1FA}');
+        term.write_char('\u{1F1F8}');
+        term.write_char('X');
+
+        assert_eq!(term.active_grid().get(78, 0).unwrap().c, 'Q');
+        let flag = term.active_grid().get(79, 0).unwrap();
+        assert_eq!(flag.get_grapheme(), "🇺🇸");
+        assert_eq!(flag.width(), 2);
+        assert!(flag.flags.wide_char());
+        assert!(term.active_grid().is_line_wrapped(0));
+        assert_eq!(term.active_grid().get(0, 1).unwrap().c, 'X');
+        assert_eq!(term.cursor.row, 1);
+        assert_eq!(term.cursor.col, 1);
+        assert!(!term.pending_wrap);
+    }
+
+    #[test]
+    fn test_write_char_zwj_sequence_uses_pending_wrap_cell() {
+        let mut term = create_test_terminal();
+        term.auto_wrap = true;
+        term.cursor.col = 78;
+
+        term.write_char('👨');
+        term.write_char('\u{200D}');
+        term.write_char('💻');
+        term.write_char('X');
+
+        let emoji = term.active_grid().get(78, 0).unwrap();
+        assert_eq!(emoji.get_grapheme(), "👨‍💻");
+        assert_eq!(emoji.width(), 2);
+        assert!(emoji.flags.wide_char());
+        assert!(term
+            .active_grid()
+            .get(79, 0)
+            .unwrap()
+            .flags
+            .wide_char_spacer());
+        assert!(term.active_grid().is_line_wrapped(0));
+        assert_eq!(term.active_grid().get(0, 1).unwrap().c, 'X');
+        assert_eq!(term.cursor.row, 1);
+        assert_eq!(term.cursor.col, 1);
+        assert!(!term.pending_wrap);
     }
 
     #[test]

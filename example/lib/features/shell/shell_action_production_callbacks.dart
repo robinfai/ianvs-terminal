@@ -7,6 +7,7 @@ class ShellActionProductionCallbacks {
     this.newTab,
     this.closeTab,
     this.reopenClosedTab,
+    this.reopenClosedPane,
     this.duplicateCurrentCwd,
     this.toolbelt,
     this.splitRight,
@@ -69,6 +70,7 @@ class ShellActionProductionCallbacks {
   final ShellActionBinding? newTab;
   final ShellActionBinding? closeTab;
   final ShellActionBinding? reopenClosedTab;
+  final ShellActionBinding? reopenClosedPane;
   final ShellActionBinding? duplicateCurrentCwd;
   final ShellActionBinding? toolbelt;
   final ShellActionBinding? splitRight;
@@ -139,6 +141,7 @@ class ShellActionProductionCallbacks {
     add('newTab', newTab);
     add('closeTab', closeTab);
     add('reopenClosedTab', reopenClosedTab);
+    add('reopenClosedPane', reopenClosedPane);
     add('duplicateCurrentCwd', duplicateCurrentCwd);
     add('toolbelt', toolbelt);
     add('splitRight', splitRight);

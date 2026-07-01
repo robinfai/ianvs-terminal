@@ -22,6 +22,8 @@ pub enum MouseEncoding {
     Utf8,
     /// SGR encoding (1006)
     Sgr,
+    /// SGR pixel-position encoding (1016)
+    SgrPixels,
     /// URXVT encoding (1015)
     Urxvt,
 }
@@ -60,6 +62,10 @@ pub struct MouseEvent {
     pub row: usize,
     pub pressed: bool,
     pub modifiers: u8,
+    /// Viewport-local pixel X coordinate for SGR 1016 mouse reports.
+    pub pixel_x: Option<usize>,
+    /// Viewport-local pixel Y coordinate for SGR 1016 mouse reports.
+    pub pixel_y: Option<usize>,
 }
 
 /// Mouse event record with position and metadata
@@ -174,63 +180,130 @@ impl MouseEvent {
             row,
             pressed,
             modifiers,
+            pixel_x: None,
+            pixel_y: None,
+        }
+    }
+
+    /// Create a mouse event with viewport-local pixel coordinates for SGR 1016.
+    pub fn new_with_pixels(
+        button: u8,
+        col: usize,
+        row: usize,
+        pressed: bool,
+        modifiers: u8,
+        pixel_x: usize,
+        pixel_y: usize,
+    ) -> Self {
+        Self {
+            button,
+            col,
+            row,
+            pressed,
+            modifiers,
+            pixel_x: Some(pixel_x),
+            pixel_y: Some(pixel_y),
         }
     }
 
     /// Encode mouse event to bytes based on encoding format
     pub fn encode(&self, mode: MouseMode, encoding: MouseEncoding) -> Vec<u8> {
+        if !self.should_report(mode) {
+            return Vec::new();
+        }
         match encoding {
-            MouseEncoding::Sgr => self.encode_sgr(mode),
+            MouseEncoding::Sgr => self.encode_sgr(),
+            MouseEncoding::SgrPixels => self.encode_sgr_pixels(),
             MouseEncoding::Urxvt => self.encode_urxvt(),
             MouseEncoding::Utf8 => self.encode_utf8(),
             MouseEncoding::Default => self.encode_default(),
         }
     }
 
-    fn encode_sgr(&self, _mode: MouseMode) -> Vec<u8> {
-        let button_code = self.button | (self.modifiers << 2);
+    fn should_report(&self, mode: MouseMode) -> bool {
+        let is_motion = self.button >= 32 && self.button < 64;
+        let is_button_drag_motion = (32..=34).contains(&self.button);
+        match mode {
+            MouseMode::Off => false,
+            MouseMode::X10 => self.pressed && !is_motion && self.button < 64,
+            MouseMode::Normal => !is_motion,
+            MouseMode::ButtonEvent => !is_motion || is_button_drag_motion,
+            MouseMode::AnyEvent => true,
+        }
+    }
+
+    fn encode_sgr(&self) -> Vec<u8> {
+        self.encode_sgr_at(self.col, self.row)
+    }
+
+    fn encode_sgr_pixels(&self) -> Vec<u8> {
+        self.encode_sgr_at(
+            self.pixel_x.unwrap_or(self.col),
+            self.pixel_y.unwrap_or(self.row),
+        )
+    }
+
+    fn encode_sgr_at(&self, x: usize, y: usize) -> Vec<u8> {
+        let button_code = self.button_code();
         let release = if self.pressed { 'M' } else { 'm' };
         format!(
             "\x1b[<{};{};{}{}",
             button_code,
-            self.col + 1,
-            self.row + 1,
+            x.saturating_add(1),
+            y.saturating_add(1),
             release
         )
         .into_bytes()
     }
 
     fn encode_urxvt(&self) -> Vec<u8> {
-        let button_code = self.button | (self.modifiers << 2) | if self.pressed { 0 } else { 3 };
+        let button_code = self.button_code() | if self.pressed { 0 } else { 3 };
         format!(
             "\x1b[{};{};{}M",
-            button_code + 32,
-            self.col + 1,
-            self.row + 1
+            u16::from(button_code).saturating_add(32),
+            self.col.saturating_add(1),
+            self.row.saturating_add(1)
         )
         .into_bytes()
     }
 
     fn encode_utf8(&self) -> Vec<u8> {
-        let button_code = self.button | (self.modifiers << 2) | if self.pressed { 0 } else { 3 };
-        let mut bytes = vec![b'\x1b', b'[', b'M', button_code + 32];
-        let col = self.col.saturating_add(1).min(223) as u8 + 32;
-        let row = self.row.saturating_add(1).min(223) as u8 + 32;
-        bytes.extend(&[col, row]);
+        let button_code = self.button_code() | if self.pressed { 0 } else { 3 };
+        let mut bytes = vec![
+            b'\x1b',
+            b'[',
+            b'M',
+            u16::from(button_code).saturating_add(32).min(255) as u8,
+        ];
+        push_mouse_utf8_value(&mut bytes, self.col.saturating_add(33));
+        push_mouse_utf8_value(&mut bytes, self.row.saturating_add(33));
         bytes
     }
 
     fn encode_default(&self) -> Vec<u8> {
-        let button_code = self.button | (self.modifiers << 2) | if self.pressed { 0 } else { 3 };
+        let button_code = self.button_code() | if self.pressed { 0 } else { 3 };
         vec![
             b'\x1b',
             b'[',
             b'M',
-            button_code + 32,
+            u16::from(button_code).saturating_add(32).min(255) as u8,
             self.col.saturating_add(1).min(223) as u8 + 32,
             self.row.saturating_add(1).min(223) as u8 + 32,
         ]
     }
+
+    fn button_code(&self) -> u8 {
+        self.button | ((self.modifiers & 0x07) << 2)
+    }
+}
+
+fn push_mouse_utf8_value(bytes: &mut Vec<u8>, value: usize) {
+    let scalar = u32::try_from(value)
+        .ok()
+        .and_then(char::from_u32)
+        .unwrap_or(char::MAX);
+    let mut encoded = [0_u8; 4];
+    bytes.extend_from_slice(scalar.encode_utf8(&mut encoded).as_bytes());
 }
 
 #[cfg(test)]
@@ -332,6 +405,52 @@ mod tests {
     }
 
     #[test]
+    fn test_mouse_event_mode_filtering() {
+        let press = MouseEvent::new(0, 0, 0, true, 0);
+        let release = MouseEvent::new(0, 0, 0, false, 0);
+        let drag = MouseEvent::new(32, 0, 0, true, 0);
+        let hover = MouseEvent::new(35, 0, 0, true, 0);
+        let scroll = MouseEvent::new(64, 0, 0, true, 0);
+
+        assert_eq!(
+            press.encode(MouseMode::X10, MouseEncoding::Sgr),
+            b"\x1b[<0;1;1M"
+        );
+        assert!(release
+            .encode(MouseMode::X10, MouseEncoding::Sgr)
+            .is_empty());
+        assert!(drag.encode(MouseMode::X10, MouseEncoding::Sgr).is_empty());
+        assert!(scroll.encode(MouseMode::X10, MouseEncoding::Sgr).is_empty());
+
+        assert_eq!(
+            release.encode(MouseMode::Normal, MouseEncoding::Sgr),
+            b"\x1b[<0;1;1m"
+        );
+        assert!(drag
+            .encode(MouseMode::Normal, MouseEncoding::Sgr)
+            .is_empty());
+        assert!(hover
+            .encode(MouseMode::Normal, MouseEncoding::Sgr)
+            .is_empty());
+        assert_eq!(
+            scroll.encode(MouseMode::Normal, MouseEncoding::Sgr),
+            b"\x1b[<64;1;1M"
+        );
+
+        assert_eq!(
+            drag.encode(MouseMode::ButtonEvent, MouseEncoding::Sgr),
+            b"\x1b[<32;1;1M"
+        );
+        assert!(hover
+            .encode(MouseMode::ButtonEvent, MouseEncoding::Sgr)
+            .is_empty());
+        assert_eq!(
+            hover.encode(MouseMode::AnyEvent, MouseEncoding::Sgr),
+            b"\x1b[<35;1;1M"
+        );
+    }
+
+    #[test]
     fn test_mouse_event_large_coordinates() {
         // Test with large coordinates (beyond 223 for default encoding)
         let event = MouseEvent::new(0, 250, 200, true, 0);
@@ -350,18 +469,15 @@ mod tests {
     }
 
     #[test]
-    fn test_mouse_event_utf8_large_coordinates_clamped() {
-        // Large coordinates should be clamped similarly to default encoding
-        let event = MouseEvent::new(0, 250, 200, true, 0);
+    fn test_mouse_event_utf8_large_coordinates() {
+        let event = MouseEvent::new(0, 300, 301, true, 0);
         let encoded = event.encode(MouseMode::Normal, MouseEncoding::Utf8);
 
-        assert_eq!(encoded.len(), 6);
         assert_eq!(encoded[0], b'\x1b');
         assert_eq!(encoded[1], b'[');
         assert_eq!(encoded[2], b'M');
         assert_eq!(encoded[3], 32); // button code + 32
-        assert_eq!(encoded[4], 255); // col: (250 + 1).min(223) + 32 = 223 + 32 = 255
-        assert_eq!(encoded[5], 233); // row: (200 + 1).min(223) + 32 = 201 + 32 = 233
+        assert_eq!(std::str::from_utf8(&encoded[4..]).unwrap(), "ōŎ");
     }
 
     #[test]

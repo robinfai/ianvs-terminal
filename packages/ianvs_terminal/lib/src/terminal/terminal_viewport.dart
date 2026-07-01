@@ -118,6 +118,7 @@ class TerminalViewport extends StatefulWidget {
     this.focusNode,
     this.onHostKeyEvent,
     this.onOpenLink,
+    this.onOpenLinkTarget,
     this.onLinkHoverChanged,
     this.onLinkContextMenu,
     this.searchMatches = const [],
@@ -144,6 +145,7 @@ class TerminalViewport extends StatefulWidget {
   final FocusNode? focusNode;
   final KeyEventResult Function(KeyEvent event)? onHostKeyEvent;
   final ValueChanged<String>? onOpenLink;
+  final ValueChanged<TerminalLinkTarget>? onOpenLinkTarget;
   final ValueChanged<TerminalLinkTarget?>? onLinkHoverChanged;
   final ValueChanged<TerminalLinkTarget>? onLinkContextMenu;
   final List<TerminalSearchMatch> searchMatches;
@@ -189,6 +191,7 @@ class _TerminalViewportState extends State<TerminalViewport>
   Duration? _lastPrimaryTapUpTimestamp;
   int _lastPrimaryTapCount = 0;
   int _currentPrimaryTapCount = 0;
+  Offset? _activeMouseButtonGlobalPosition;
   bool _selectionMovedSincePointerDown = false;
   _LocalSelectionMode _localSelectionMode = _LocalSelectionMode.cell;
   _TerminalWordRange? _wordSelectionAnchor;
@@ -209,6 +212,9 @@ class _TerminalViewportState extends State<TerminalViewport>
     _bindFocusNodeListener();
     _syncCursorBlinkTimer();
     _syncGraphicsCache();
+    if (_focusNode.hasFocus) {
+      _syncFocusTrackingReport();
+    }
   }
 
   @override
@@ -222,10 +228,31 @@ class _TerminalViewportState extends State<TerminalViewport>
         !identical(oldWidget.graphicsCache, widget.graphicsCache)) {
       _syncGraphicsCache();
     }
-    if (!identical(oldWidget.focusNode, widget.focusNode)) {
+    final focusNodeChanged = !identical(oldWidget.focusNode, widget.focusNode);
+    final focusReportOwnerChanged =
+        !identical(oldWidget.controller, widget.controller) ||
+        oldWidget.inputController.sessionId !=
+            widget.inputController.sessionId ||
+        !identical(
+          oldWidget.inputController.runtime,
+          widget.inputController.runtime,
+        );
+    if (focusNodeChanged || focusReportOwnerChanged) {
+      _reportFocusTrackingLossForDetachedFocus(
+        focusNode: _listenedFocusNode,
+        modes: oldWidget.controller.frame.modes,
+        inputController: oldWidget.inputController,
+      );
+      if (focusReportOwnerChanged) {
+        _lastReportedFocusTrackingFocus = null;
+      }
+    }
+    if (focusNodeChanged) {
       _unbindFocusNodeListener();
       _bindFocusNodeListener();
     }
+    _syncTextInputConnection();
+    _syncFocusTrackingReport();
     _syncCursorBlinkTimer();
   }
 
@@ -233,6 +260,7 @@ class _TerminalViewportState extends State<TerminalViewport>
   void dispose() {
     widget.onLinkHoverChanged?.call(null);
     widget.controller.removeListener(_handleFrameUpdate);
+    _reportFocusTrackingLossOnUnmount();
     _unbindFocusNodeListener();
     _closeTextInputConnection(notify: false);
     _cursorBlinkTimer?.cancel();
@@ -252,6 +280,33 @@ class _TerminalViewportState extends State<TerminalViewport>
   void _unbindFocusNodeListener() {
     _listenedFocusNode?.removeListener(_handleFocusChange);
     _listenedFocusNode = null;
+  }
+
+  void _reportFocusTrackingLossOnUnmount() {
+    _reportFocusTrackingLossForDetachedFocus(
+      focusNode: _listenedFocusNode,
+      modes: widget.controller.frame.modes,
+    );
+  }
+
+  void _reportFocusTrackingLossForDetachedFocus({
+    required FocusNode? focusNode,
+    required TerminalFrameModes modes,
+    TerminalInputController? inputController,
+  }) {
+    if (!modes.focusTracking) {
+      _lastReportedFocusTrackingFocus = null;
+      return;
+    }
+    if (_lastReportedFocusTrackingFocus != true &&
+        focusNode?.hasFocus != true) {
+      return;
+    }
+    _lastReportedFocusTrackingFocus = false;
+    (inputController ?? widget.inputController).sendFocusReport(
+      focused: false,
+      modes: modes,
+    );
   }
 
   void _handleFrameUpdate() {
@@ -416,7 +471,7 @@ class _TerminalViewportState extends State<TerminalViewport>
       return;
     }
     _lastReportedFocusTrackingFocus = focused;
-    widget.inputController.sendFocusReport(focused: focused);
+    widget.inputController.sendFocusReport(focused: focused, modes: modes);
   }
 
   void _scheduleMeasuredCellSizeReport() {
@@ -668,12 +723,37 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   TerminalCellPosition? _cellForGlobalPosition(Offset globalPosition) {
+    return _mousePositionForGlobalPosition(globalPosition)?.cell;
+  }
+
+  ({TerminalCellPosition cell, int pixelX, int pixelY})?
+  _mousePositionForGlobalPosition(Offset globalPosition) {
     final renderObject = _renderViewport;
     if (renderObject == null) {
       return null;
     }
     final localPosition = renderObject.globalToLocal(globalPosition);
-    return renderObject.debugCellForOffset(localPosition);
+    return _mousePositionForLocalPosition(renderObject, localPosition);
+  }
+
+  ({TerminalCellPosition cell, int pixelX, int pixelY})?
+  _mousePositionForLocalPosition(
+    RenderTerminalViewport renderObject,
+    Offset localPosition,
+  ) {
+    if (localPosition.dx < 0 ||
+        localPosition.dy < 0 ||
+        localPosition.dx >= renderObject.size.width ||
+        localPosition.dy >= renderObject.size.height) {
+      return null;
+    }
+    final maxPixelX = math.max(0, renderObject.size.width.ceil() - 1);
+    final maxPixelY = math.max(0, renderObject.size.height.ceil() - 1);
+    return (
+      cell: renderObject.debugCellForOffset(localPosition),
+      pixelX: localPosition.dx.floor().clamp(0, maxPixelX).toInt(),
+      pixelY: localPosition.dy.floor().clamp(0, maxPixelY).toInt(),
+    );
   }
 
   TerminalCellPosition? _selectionCellForGlobalPosition(Offset globalPosition) {
@@ -764,17 +844,19 @@ class _TerminalViewportState extends State<TerminalViewport>
     if (!_terminalMouseEnabled) {
       return;
     }
-    final cell = _cellForGlobalPosition(globalPosition);
-    if (cell == null) {
+    final position = _mousePositionForGlobalPosition(globalPosition);
+    if (position == null) {
       return;
     }
     widget.inputController.sendMouseReport(
       modes: widget.controller.frame.modes,
-      row: cell.row,
-      col: cell.col,
+      row: position.cell.row,
+      col: position.cell.col,
       button: button,
       pressed: pressed,
       modifiers: _mouseModifiers(),
+      pixelX: position.pixelX,
+      pixelY: position.pixelY,
     );
   }
 
@@ -828,7 +910,11 @@ class _TerminalViewportState extends State<TerminalViewport>
       _syncSelectionAutoScroll();
       return;
     }
+    if (!_surfaceContainsGlobalPosition(event.position)) {
+      return;
+    }
     _activeMouseButton = _mouseButtonFor(event.buttons);
+    _activeMouseButtonGlobalPosition = event.position;
     _sendMouseEvent(
       globalPosition: event.position,
       button: _activeMouseButton!,
@@ -860,7 +946,11 @@ class _TerminalViewportState extends State<TerminalViewport>
     if (mode != 'button_event' && mode != 'any_event') {
       return;
     }
+    if (!_surfaceContainsGlobalPosition(event.position)) {
+      return;
+    }
     _activeMouseButton ??= _mouseButtonFor(event.buttons);
+    _activeMouseButtonGlobalPosition = event.position;
     _sendMouseEvent(
       globalPosition: event.position,
       button: _activeMouseButton! | 32,
@@ -909,18 +999,46 @@ class _TerminalViewportState extends State<TerminalViewport>
       _stopSelectionAutoScroll();
       return;
     }
-    _sendMouseEvent(
-      globalPosition: event.position,
-      button: _activeMouseButton ?? 0,
-      pressed: false,
-    );
+    if (widget.controller.frame.modes.mouseMode == 'x10') {
+      _activeMouseButton = null;
+      _activeMouseButtonGlobalPosition = null;
+      return;
+    }
+    final releasePosition = _surfaceContainsGlobalPosition(event.position)
+        ? event.position
+        : _activeMouseButtonGlobalPosition;
+    if (releasePosition != null) {
+      _sendMouseEvent(
+        globalPosition: releasePosition,
+        button: _activeMouseButton ?? 0,
+        pressed: false,
+      );
+    }
     _activeMouseButton = null;
+    _activeMouseButtonGlobalPosition = null;
   }
 
   void _handlePointerCancel(PointerCancelEvent event) {
     _stopScrollMomentum();
     if (_terminalMouseEnabled) {
+      if (widget.controller.frame.modes.mouseMode == 'x10') {
+        _activeMouseButton = null;
+        _activeMouseButtonGlobalPosition = null;
+        return;
+      }
+      final activeMouseButton = _activeMouseButton;
+      final releasePosition = _surfaceContainsGlobalPosition(event.position)
+          ? event.position
+          : _activeMouseButtonGlobalPosition;
+      if (activeMouseButton != null && releasePosition != null) {
+        _sendMouseEvent(
+          globalPosition: releasePosition,
+          button: activeMouseButton,
+          pressed: false,
+        );
+      }
       _activeMouseButton = null;
+      _activeMouseButtonGlobalPosition = null;
       return;
     }
     _currentPrimaryTapCount = 0;
@@ -948,19 +1066,21 @@ class _TerminalViewportState extends State<TerminalViewport>
       renderObject.size.width / 2,
       renderObject.size.height / 2,
     );
-    final cell = globalPosition == null
-        ? renderObject.debugCellForOffset(localFallback)
-        : _cellForGlobalPosition(globalPosition);
-    if (cell == null) {
+    final position = globalPosition == null
+        ? _mousePositionForLocalPosition(renderObject, localFallback)
+        : _mousePositionForGlobalPosition(globalPosition);
+    if (position == null) {
       return;
     }
     widget.inputController.sendMouseReport(
       modes: widget.controller.frame.modes,
-      row: cell.row,
-      col: cell.col,
+      row: position.cell.row,
+      col: position.cell.col,
       button: deltaY < 0 ? 64 : 65,
       pressed: true,
       modifiers: _mouseModifiers(),
+      pixelX: position.pixelX,
+      pixelY: position.pixelY,
     );
   }
 
@@ -984,15 +1104,20 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   void _openLinkAt(Offset globalPosition) {
+    final onOpenLinkTarget = widget.onOpenLinkTarget;
     final onOpenLink = widget.onOpenLink;
-    if (onOpenLink == null) {
+    if (onOpenLinkTarget == null && onOpenLink == null) {
       return;
     }
-    final link = _linkAt(globalPosition);
-    if (link == null) {
+    final target = _linkTargetAt(globalPosition);
+    if (target == null) {
       return;
     }
-    onOpenLink(link);
+    if (onOpenLinkTarget != null) {
+      onOpenLinkTarget(target);
+      return;
+    }
+    onOpenLink!(target.uri);
   }
 
   void _showLinkContextMenuAt(Offset globalPosition) {
@@ -1053,7 +1178,7 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   void _schedulePendingLinkOpen(Offset globalPosition) {
-    if (widget.onOpenLink == null) {
+    if (widget.onOpenLink == null && widget.onOpenLinkTarget == null) {
       return;
     }
     _cancelPendingLinkOpen();
@@ -1069,10 +1194,6 @@ class _TerminalViewportState extends State<TerminalViewport>
   void _cancelPendingLinkOpen() {
     _pendingLinkOpenTimer?.cancel();
     _pendingLinkOpenTimer = null;
-  }
-
-  String? _linkAt(Offset globalPosition) {
-    return _linkTargetAt(globalPosition)?.uri;
   }
 
   TerminalLinkTarget? _linkTargetAt(Offset globalPosition) {
@@ -1345,7 +1466,7 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   KeyEventResult _handleTerminalKeyEvent(KeyEvent event) {
-    if (!_isTerminalKeyPressEvent(event)) {
+    if (!_isTerminalKeyEvent(event, widget.controller.frame.modes)) {
       return KeyEventResult.ignored;
     }
     if (_shouldDeferKeyPressToSystemTextInput(event)) {
@@ -1715,20 +1836,64 @@ class _TerminalViewportState extends State<TerminalViewport>
     }
     return [
       for (final image in frame.inlineImages)
-        if (image.row >= 0 &&
-            image.row < frame.viewportRows &&
-            image.col >= 0 &&
-            image.widthCells > 0 &&
-            image.heightCells > 0)
-          Positioned(
-            left: contentPadding.left + image.col * cellSize.width,
-            top: contentPadding.top + image.row * cellSize.height,
-            width: image.widthCells * cellSize.width,
-            height: image.heightCells * cellSize.height,
-            child: IgnorePointer(
-              key: Key('terminal-inline-image-${image.row}-${image.col}'),
+        ?_buildInlineImageOverlay(
+          frame,
+          contentPadding,
+          colors,
+          cellSize,
+          image,
+        ),
+    ];
+  }
+
+  Widget? _buildInlineImageOverlay(
+    TerminalFrameDiff frame,
+    EdgeInsets contentPadding,
+    TerminalViewportColors colors,
+    Size cellSize,
+    TerminalInlineImage image,
+  ) {
+    if (image.row < 0 ||
+        image.row >= frame.viewportRows ||
+        image.col < 0 ||
+        image.col >= frame.viewportCols ||
+        image.widthCells <= 0 ||
+        image.heightCells <= 0) {
+      return null;
+    }
+    final visibleCols = frame.viewportCols - image.col;
+    final visibleRows = frame.viewportRows - image.row;
+    if (visibleCols <= 0 || visibleRows <= 0) {
+      return null;
+    }
+    final fullWidth = image.widthCells * cellSize.width;
+    final fullHeight = image.heightCells * cellSize.height;
+    final visibleWidth = math.min(fullWidth, visibleCols * cellSize.width);
+    final visibleHeight = math.min(fullHeight, visibleRows * cellSize.height);
+    if (visibleWidth <= 0 || visibleHeight <= 0) {
+      return null;
+    }
+    return Positioned(
+      left: contentPadding.left + image.col * cellSize.width,
+      top: contentPadding.top + image.row * cellSize.height,
+      width: visibleWidth,
+      height: visibleHeight,
+      child: IgnorePointer(
+        key: Key('terminal-inline-image-${image.row}-${image.col}'),
+        child: ClipRect(
+          child: SizedBox(
+            width: visibleWidth,
+            height: visibleHeight,
+            child: OverflowBox(
+              alignment: Alignment.topLeft,
+              minWidth: fullWidth,
+              maxWidth: fullWidth,
+              minHeight: fullHeight,
+              maxHeight: fullHeight,
               child: Image.memory(
                 image.bytes,
+                width: fullWidth,
+                height: fullHeight,
                 fit: BoxFit.contain,
                 gaplessPlayback: true,
                 filterQuality: FilterQuality.medium,
@@ -1741,7 +1906,9 @@ class _TerminalViewportState extends State<TerminalViewport>
               ),
             ),
           ),
-    ];
+        ),
+      ),
+    );
   }
 
   List<Widget> _buildGraphicOverlays(
@@ -1770,36 +1937,82 @@ class _TerminalViewportState extends State<TerminalViewport>
     if (placements.isEmpty) {
       return const <Widget>[];
     }
-    return [
+    final visiblePlacements = <TerminalGraphicPlacement>[
       for (final graphic in placements)
-        if (graphic.row >= 0 &&
-            graphic.row < frame.viewportRows &&
-            graphic.col >= 0 &&
-            graphic.widthCells > 0 &&
-            graphic.heightCells > 0)
-          Positioned(
-            left:
-                contentPadding.left +
-                graphic.col * cellSize.width +
-                graphic.xOffsetPx / devicePixelRatio,
-            top:
-                contentPadding.top +
-                graphic.row * cellSize.height +
-                graphic.yOffsetPx / devicePixelRatio,
-            width: graphic.widthPx / devicePixelRatio,
-            height: graphic.visibleHeightPx / devicePixelRatio,
-            child: IgnorePointer(
-              child: _TerminalGraphicOverlay(
-                key: Key('terminal-graphic-${graphic.renderId}'),
-                cache: graphicsCache,
-                placement: graphic,
-                displayWidth: graphic.widthPx / devicePixelRatio,
-                displayHeight: graphic.heightPx / devicePixelRatio,
-                sourceYOffset: graphic.sourceYOffsetPx / devicePixelRatio,
+        if (_graphicPlacementVisible(frame, graphic)) graphic,
+    ];
+    if (visiblePlacements.isEmpty) {
+      return const <Widget>[];
+    }
+    final renderIdCounts = <int, int>{};
+    for (final graphic in visiblePlacements) {
+      renderIdCounts.update(
+        graphic.renderId,
+        (count) => count + 1,
+        ifAbsent: () => 1,
+      );
+    }
+    final renderIdOccurrences = <int, int>{};
+    return [
+      for (final graphic in visiblePlacements)
+        Positioned(
+          left:
+              contentPadding.left +
+              graphic.col * cellSize.width +
+              graphic.xOffsetPx / devicePixelRatio,
+          top:
+              contentPadding.top +
+              graphic.row * cellSize.height +
+              graphic.yOffsetPx / devicePixelRatio,
+          width: graphic.visibleWidthPx / devicePixelRatio,
+          height: graphic.visibleHeightPx / devicePixelRatio,
+          child: IgnorePointer(
+            child: _TerminalGraphicOverlay(
+              key: _terminalGraphicOverlayKey(
+                graphic,
+                renderIdCounts: renderIdCounts,
+                renderIdOccurrences: renderIdOccurrences,
               ),
+              cache: graphicsCache,
+              placement: graphic,
+              displayWidth: graphic.widthPx / devicePixelRatio,
+              displayHeight: graphic.heightPx / devicePixelRatio,
+              sourceXOffset: graphic.sourceXOffsetPx / devicePixelRatio,
+              sourceYOffset: graphic.sourceYOffsetPx / devicePixelRatio,
             ),
           ),
+        ),
     ];
+  }
+
+  bool _graphicPlacementVisible(
+    TerminalFrameDiff frame,
+    TerminalGraphicPlacement graphic,
+  ) {
+    return graphic.row >= 0 &&
+        graphic.row < frame.viewportRows &&
+        graphic.col >= 0 &&
+        graphic.widthCells > 0 &&
+        graphic.heightCells > 0;
+  }
+
+  Key _terminalGraphicOverlayKey(
+    TerminalGraphicPlacement graphic, {
+    required Map<int, int> renderIdCounts,
+    required Map<int, int> renderIdOccurrences,
+  }) {
+    if ((renderIdCounts[graphic.renderId] ?? 0) <= 1) {
+      return Key('terminal-graphic-${graphic.renderId}');
+    }
+    final occurrence = renderIdOccurrences.update(
+      graphic.renderId,
+      (value) => value + 1,
+      ifAbsent: () => 0,
+    );
+    return Key(
+      'terminal-graphic-${graphic.renderId}-'
+      '${graphic.sourceXOffsetPx}-${graphic.sourceYOffsetPx}-$occurrence',
+    );
   }
 
   List<Widget> _buildTimestampOverlays(
@@ -2002,8 +2215,22 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 }
 
-bool _isTerminalKeyPressEvent(KeyEvent event) {
-  return event is KeyDownEvent || event is KeyRepeatEvent;
+bool _isTerminalKeyEvent(KeyEvent event, TerminalFrameModes modes) {
+  if (event is KeyDownEvent || event is KeyRepeatEvent) {
+    return true;
+  }
+  if (event is! KeyUpEvent) {
+    return false;
+  }
+  const kittyKeyboardDisambiguateFlag = 1;
+  const kittyKeyboardReportEventsFlag = 2;
+  const kittyKeyboardReportAllKeysFlag = 8;
+  final flags = modes.kittyKeyboardFlags;
+  if ((flags & kittyKeyboardReportEventsFlag) == 0) {
+    return false;
+  }
+  return (flags & kittyKeyboardReportAllKeysFlag) != 0 ||
+      (flags & kittyKeyboardDisambiguateFlag) != 0;
 }
 
 _TerminalWordRange? _wordRangeAtRelativeCell(
@@ -2413,6 +2640,7 @@ class _TerminalGraphicOverlay extends StatefulWidget {
     required this.placement,
     required this.displayWidth,
     required this.displayHeight,
+    required this.sourceXOffset,
     required this.sourceYOffset,
   });
 
@@ -2420,6 +2648,7 @@ class _TerminalGraphicOverlay extends StatefulWidget {
   final TerminalGraphicPlacement placement;
   final double displayWidth;
   final double displayHeight;
+  final double sourceXOffset;
   final double sourceYOffset;
 
   @override
@@ -2495,16 +2724,23 @@ class _TerminalGraphicOverlayState extends State<_TerminalGraphicOverlay> {
     }
     return ClipRect(
       child: Transform.translate(
-        offset: Offset(0, -widget.sourceYOffset),
-        child: SizedBox(
-          width: widget.displayWidth,
-          height: widget.displayHeight,
-          child: RawImage(
-            image: image,
-            fit: widget.placement.preserveAspectRatio
-                ? BoxFit.contain
-                : BoxFit.fill,
-            filterQuality: FilterQuality.medium,
+        offset: Offset(-widget.sourceXOffset, -widget.sourceYOffset),
+        child: OverflowBox(
+          alignment: Alignment.topLeft,
+          minWidth: widget.displayWidth,
+          maxWidth: widget.displayWidth,
+          minHeight: widget.displayHeight,
+          maxHeight: widget.displayHeight,
+          child: SizedBox(
+            width: widget.displayWidth,
+            height: widget.displayHeight,
+            child: RawImage(
+              image: image,
+              fit: widget.placement.preserveAspectRatio
+                  ? BoxFit.contain
+                  : BoxFit.fill,
+              filterQuality: FilterQuality.medium,
+            ),
           ),
         ),
       ),

@@ -127,12 +127,16 @@ class TerminalPaneNotificationState {
     required this.source,
     required this.title,
     required this.message,
+    this.remoteHost,
+    this.remoteUser,
     this.count = 1,
   });
 
   final String source;
   final String title;
   final String message;
+  final String? remoteHost;
+  final String? remoteUser;
   final int count;
 
   TerminalPaneNotificationState copyWith({int? count}) {
@@ -140,6 +144,8 @@ class TerminalPaneNotificationState {
       source: source,
       title: title,
       message: message,
+      remoteHost: remoteHost,
+      remoteUser: remoteUser,
       count: count ?? this.count,
     );
   }
@@ -540,8 +546,24 @@ class TerminalTab {
       );
     }
     final nextLayout = effectivePaneLayout.replacePane(replacement);
+    final replacingRootPane = replacement.sessionId == sessionId;
     return copyWith(
-      title: replacement.sessionId == sessionId ? replacement.title : title,
+      title: replacingRootPane ? replacement.title : title,
+      profileId: replacingRootPane ? replacement.profileId : profileId,
+      profileSnapshot: replacingRootPane
+          ? replacement.profileSnapshot
+          : profileSnapshot,
+      isExited: replacingRootPane ? replacement.isExited : isExited,
+      exitCode: replacingRootPane ? replacement.exitCode : exitCode,
+      shellIntegration: replacingRootPane
+          ? replacement.shellIntegration
+          : shellIntegration,
+      oscBadge: replacingRootPane ? replacement.oscBadge : _terminalTabNoChange,
+      progress: replacingRootPane ? replacement.progress : _terminalTabNoChange,
+      namedProgress: replacingRootPane ? replacement.namedProgress : null,
+      recentNotifications: replacingRootPane
+          ? replacement.recentNotifications
+          : null,
       panes: nextLayout.panes,
       paneLayout: nextLayout,
     );

@@ -98,6 +98,12 @@ impl Terminal {
 
                     self.active_grid_mut()
                         .fill_rectangle(fill_cell, top, left, bottom, right);
+                    self.delete_graphics_in_rect(
+                        left,
+                        top,
+                        right.saturating_add(1),
+                        bottom.saturating_add(1),
+                    );
                 }
                 'v' => {
                     // DECCRA - Copy Rectangular Area: CSI Pt ; Pl ; Pb ; Pr ; Pp ; Dt ; Dl ; Dp $ v
@@ -125,9 +131,34 @@ impl Terminal {
                     let dst_top = dt.saturating_sub(1);
                     let dst_left = dl.saturating_sub(1);
 
+                    let copy_target_rect =
+                        if src_top < rows && src_left < cols && dst_top < rows && dst_left < cols {
+                            let src_bottom = src_bottom.min(rows.saturating_sub(1));
+                            let src_right = src_right.min(cols.saturating_sub(1));
+                            if src_top <= src_bottom && src_left <= src_right {
+                                let height = src_bottom - src_top + 1;
+                                let width = src_right - src_left + 1;
+                                let dst_bottom = dst_top.saturating_add(height - 1).min(rows - 1);
+                                let dst_right = dst_left.saturating_add(width - 1).min(cols - 1);
+                                Some((dst_top, dst_left, dst_bottom, dst_right))
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        };
+
                     self.active_grid_mut().copy_rectangle(
                         src_top, src_left, src_bottom, src_right, dst_top, dst_left,
                     );
+                    if let Some((dst_top, dst_left, dst_bottom, dst_right)) = copy_target_rect {
+                        self.delete_graphics_in_rect(
+                            dst_left,
+                            dst_top,
+                            dst_right.saturating_add(1),
+                            dst_bottom.saturating_add(1),
+                        );
+                    }
                 }
                 'z' => {
                     // DECERA - Erase Rectangular Area: CSI Pt ; Pl ; Pb ; Pr $ z
@@ -152,6 +183,12 @@ impl Terminal {
 
                     self.active_grid_mut()
                         .erase_rectangle_unconditional(top, left, bottom, right);
+                    self.delete_graphics_in_rect(
+                        left,
+                        top,
+                        right.saturating_add(1),
+                        bottom.saturating_add(1),
+                    );
                 }
                 '{' => {
                     // DECSERA - Selective Erase Rectangular Area: CSI Pt ; Pl ; Pb ; Pr $ {

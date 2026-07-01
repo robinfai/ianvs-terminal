@@ -6,7 +6,9 @@
 use crate::cell::{Cell, CellFlags};
 use crate::color::Color;
 use crate::cursor::Cursor;
+use crate::graphics::{GraphicsSnapshot, GraphicsStore, ImageDataRef};
 use crate::mouse::{MouseEncoding, MouseMode};
+use crate::terminal::SyncUpdateScanState;
 use crate::zone::Zone;
 
 /// Snapshot of a single Grid's state (primary or alternate screen).
@@ -54,6 +56,10 @@ pub struct TerminalSnapshot {
     /// Whether the alternate screen is currently active
     pub alt_screen_active: bool,
 
+    // --- Graphics ---
+    /// Unified graphics state for Sixel, iTerm2 inline images, and Kitty graphics.
+    pub graphics: GraphicsSnapshot,
+
     // --- Cursors ---
     /// Primary cursor state
     pub cursor: Cursor,
@@ -99,14 +105,34 @@ pub struct TerminalSnapshot {
     pub application_cursor: bool,
     /// Bracketed paste mode
     pub bracketed_paste: bool,
+    /// Synchronized update mode (DEC 2026)
+    pub(crate) synchronized_updates: bool,
+    /// Timestamp when the active synchronized update batch started
+    pub(crate) sync_update_started_at: Option<std::time::Instant>,
+    /// Buffered output held while synchronized update mode is active
+    pub(crate) update_buffer: Vec<u8>,
+    /// Possible split DEC 2026 CSI parameters from the previous chunk
+    pub(crate) sync_update_scan_tail: Vec<u8>,
+    /// Raw scanner state for DEC 2026 outside control string payloads
+    pub(crate) sync_update_scan_state: SyncUpdateScanState,
+    /// Whether synchronized updates were explicitly disabled during a flush
+    pub(crate) sync_update_explicitly_disabled: bool,
     /// Focus tracking mode
     pub focus_tracking: bool,
+    /// Alternate-screen focus tracking mode
+    pub focus_tracking_alt: bool,
     /// Mouse tracking mode
     pub mouse_mode: MouseMode,
+    /// Alternate-screen mouse tracking mode
+    pub mouse_mode_alt: MouseMode,
     /// Mouse encoding format
     pub mouse_encoding: MouseEncoding,
+    /// Alternate-screen mouse encoding format
+    pub mouse_encoding_alt: MouseEncoding,
     /// Alternate scroll mode
     pub alternate_scroll: bool,
+    /// Alternate-screen alternate scroll mode
+    pub alternate_scroll_alt: bool,
     /// Whether left/right margins are enabled (DECLRMM)
     pub use_lr_margins: bool,
     /// Left margin column (0-indexed)
@@ -115,8 +141,16 @@ pub struct TerminalSnapshot {
     pub right_margin: usize,
     /// Keyboard flags (kitty keyboard protocol)
     pub keyboard_flags: u16,
+    /// Alternate-screen keyboard flags (kitty keyboard protocol)
+    pub keyboard_flags_alt: u16,
+    /// Keyboard protocol flag stack for the primary screen
+    pub keyboard_stack: Vec<u16>,
+    /// Keyboard protocol flag stack for the alternate screen
+    pub keyboard_stack_alt: Vec<u16>,
     /// modifyOtherKeys mode level
     pub modify_other_keys_mode: u8,
+    /// Alternate-screen modifyOtherKeys mode level
+    pub modify_other_keys_mode_alt: u8,
     /// Character protection attribute (DECSCA)
     pub char_protected: bool,
     /// Whether bold text uses bright colors
@@ -164,9 +198,74 @@ impl TerminalSnapshot {
 
         let tab_stops_size = self.tab_stops.len();
         let title_size = self.title.len();
+        let keyboard_stack_size = (self.keyboard_stack.len() + self.keyboard_stack_alt.len())
+            * std::mem::size_of::<u16>();
+        let sync_update_size = self.update_buffer.len() + self.sync_update_scan_tail.len();
+        let graphics_size = graphics_snapshot_estimate_size(&self.graphics);
 
-        base + grid_cells + alt_grid_cells + wrapped_size + zone_size + tab_stops_size + title_size
+        base + grid_cells
+            + alt_grid_cells
+            + wrapped_size
+            + zone_size
+            + tab_stops_size
+            + title_size
+            + keyboard_stack_size
+            + sync_update_size
+            + graphics_size
     }
+}
+
+fn graphics_snapshot_estimate_size(snapshot: &GraphicsSnapshot) -> usize {
+    let vector_items = std::mem::size_of_val(snapshot.placements.as_slice())
+        + std::mem::size_of_val(snapshot.scrollback.as_slice())
+        + std::mem::size_of_val(snapshot.shared_images.as_slice())
+        + std::mem::size_of_val(snapshot.virtual_placements.as_slice())
+        + std::mem::size_of_val(snapshot.cleared_kitty_placements.as_slice())
+        + std::mem::size_of_val(snapshot.deleted_kitty_placements.as_slice())
+        + std::mem::size_of_val(snapshot.deferred_kitty_deletes.as_slice())
+        + std::mem::size_of_val(snapshot.animations.as_slice());
+
+    let placement_data = snapshot
+        .placements
+        .iter()
+        .chain(snapshot.scrollback.iter())
+        .chain(snapshot.virtual_placements.iter())
+        .chain(snapshot.cleared_kitty_placements.iter())
+        .chain(snapshot.deleted_kitty_placements.iter())
+        .map(|graphic| image_data_ref_estimate_size(&graphic.data))
+        .sum::<usize>();
+
+    let shared_image_data = snapshot
+        .shared_images
+        .iter()
+        .map(|image| image_data_ref_estimate_size(&image.data))
+        .sum::<usize>();
+
+    let animation_data = snapshot
+        .animations
+        .iter()
+        .map(|animation| {
+            std::mem::size_of_val(animation.frames.as_slice())
+                + animation
+                    .frames
+                    .iter()
+                    .map(|frame| image_data_ref_estimate_size(&frame.data))
+                    .sum::<usize>()
+        })
+        .sum::<usize>();
+
+    vector_items + placement_data + shared_image_data + animation_data
+}
+
+fn image_data_ref_estimate_size(data: &ImageDataRef) -> usize {
+    match data {
+        ImageDataRef::Inline(value) | ImageDataRef::File(value) => value.len(),
+    }
+}
+
+#[cfg(test)]
+fn empty_graphics_snapshot() -> GraphicsSnapshot {
+    GraphicsSnapshot::empty_current_version()
 }
 
 use crate::terminal::Terminal;
@@ -185,6 +284,7 @@ impl Terminal {
             grid,
             alt_grid,
             alt_screen_active: self.alt_screen_active,
+            graphics: self.graphics_store.export_snapshot(),
             cursor: self.cursor,
             alt_cursor: self.alt_cursor,
             saved_cursor: self.saved_cursor,
@@ -204,15 +304,29 @@ impl Terminal {
             line_feed_new_line_mode: self.line_feed_new_line_mode,
             application_cursor: self.application_cursor,
             bracketed_paste: self.bracketed_paste,
+            synchronized_updates: self.synchronized_updates,
+            sync_update_started_at: self.sync_update_started_at,
+            update_buffer: self.update_buffer.clone(),
+            sync_update_scan_tail: self.sync_update_scan_tail.clone(),
+            sync_update_scan_state: self.sync_update_scan_state,
+            sync_update_explicitly_disabled: self.sync_update_explicitly_disabled,
             focus_tracking: self.focus_tracking,
+            focus_tracking_alt: self.focus_tracking_alt,
             mouse_mode: self.mouse_mode,
+            mouse_mode_alt: self.mouse_mode_alt,
             mouse_encoding: self.mouse_encoding,
+            mouse_encoding_alt: self.mouse_encoding_alt,
             alternate_scroll: self.alternate_scroll,
+            alternate_scroll_alt: self.alternate_scroll_alt,
             use_lr_margins: self.use_lr_margins,
             left_margin: self.left_margin,
             right_margin: self.right_margin,
             keyboard_flags: self.keyboard_flags,
+            keyboard_flags_alt: self.keyboard_flags_alt,
+            keyboard_stack: self.keyboard_stack.clone(),
+            keyboard_stack_alt: self.keyboard_stack_alt.clone(),
             modify_other_keys_mode: self.modify_other_keys_mode,
+            modify_other_keys_mode_alt: self.modify_other_keys_mode_alt,
             char_protected: self.char_protected,
             bold_brightening: self.bold_brightening,
             scroll_region_top: self.scroll_region_top,
@@ -230,6 +344,17 @@ impl Terminal {
         self.grid.restore_from_snapshot(&snap.grid);
         self.alt_grid.restore_from_snapshot(&snap.alt_grid);
         self.alt_screen_active = snap.alt_screen_active;
+        let graphics_limits = *self.graphics_store.limits();
+        let mut restored_graphics = GraphicsStore::with_limits(graphics_limits);
+        if let Err(error) = restored_graphics.import_snapshot(&snap.graphics) {
+            crate::debug::log(
+                crate::debug::DebugLevel::Info,
+                "SNAPSHOT",
+                &format!("Failed to restore graphics snapshot: {}", error),
+            );
+            restored_graphics = GraphicsStore::with_limits(graphics_limits);
+        }
+        self.graphics_store = restored_graphics;
         self.cursor = snap.cursor;
         self.alt_cursor = snap.alt_cursor;
         self.saved_cursor = snap.saved_cursor;
@@ -249,15 +374,31 @@ impl Terminal {
         self.line_feed_new_line_mode = snap.line_feed_new_line_mode;
         self.application_cursor = snap.application_cursor;
         self.bracketed_paste = snap.bracketed_paste;
+        self.synchronized_updates = snap.synchronized_updates;
+        self.sync_update_started_at = snap.sync_update_started_at;
+        self.update_buffer = snap.update_buffer;
+        self.sync_update_scan_tail = snap.sync_update_scan_tail;
+        self.sync_update_scan_state = snap.sync_update_scan_state;
+        self.sync_update_explicitly_disabled = snap.sync_update_explicitly_disabled;
+        self.suppress_synchronized_update_enable = false;
+        self.sync_update_report_override = None;
         self.focus_tracking = snap.focus_tracking;
+        self.focus_tracking_alt = snap.focus_tracking_alt;
         self.mouse_mode = snap.mouse_mode;
+        self.mouse_mode_alt = snap.mouse_mode_alt;
         self.mouse_encoding = snap.mouse_encoding;
+        self.mouse_encoding_alt = snap.mouse_encoding_alt;
         self.alternate_scroll = snap.alternate_scroll;
+        self.alternate_scroll_alt = snap.alternate_scroll_alt;
         self.use_lr_margins = snap.use_lr_margins;
         self.left_margin = snap.left_margin;
         self.right_margin = snap.right_margin;
         self.keyboard_flags = snap.keyboard_flags;
+        self.keyboard_flags_alt = snap.keyboard_flags_alt;
+        self.keyboard_stack = snap.keyboard_stack;
+        self.keyboard_stack_alt = snap.keyboard_stack_alt;
         self.modify_other_keys_mode = snap.modify_other_keys_mode;
+        self.modify_other_keys_mode_alt = snap.modify_other_keys_mode_alt;
         self.char_protected = snap.char_protected;
         self.bold_brightening = snap.bold_brightening;
         self.scroll_region_top = snap.scroll_region_top;
@@ -302,6 +443,7 @@ mod tests {
             grid,
             alt_grid,
             alt_screen_active: false,
+            graphics: empty_graphics_snapshot(),
             cursor: Cursor::default(),
             alt_cursor: Cursor::default(),
             saved_cursor: None,
@@ -321,15 +463,29 @@ mod tests {
             line_feed_new_line_mode: false,
             application_cursor: false,
             bracketed_paste: false,
+            synchronized_updates: false,
+            sync_update_started_at: None,
+            update_buffer: Vec::new(),
+            sync_update_scan_tail: Vec::new(),
+            sync_update_scan_state: SyncUpdateScanState::Ground,
+            sync_update_explicitly_disabled: false,
             focus_tracking: false,
+            focus_tracking_alt: false,
             mouse_mode: MouseMode::Off,
+            mouse_mode_alt: MouseMode::Off,
             mouse_encoding: MouseEncoding::Default,
+            mouse_encoding_alt: MouseEncoding::Default,
             alternate_scroll: false,
+            alternate_scroll_alt: false,
             use_lr_margins: false,
             left_margin: 0,
             right_margin: cols.saturating_sub(1),
             keyboard_flags: 0,
+            keyboard_flags_alt: 0,
+            keyboard_stack: Vec::new(),
+            keyboard_stack_alt: Vec::new(),
             modify_other_keys_mode: 0,
+            modify_other_keys_mode_alt: 0,
             char_protected: false,
             bold_brightening: true,
             scroll_region_top: 0,

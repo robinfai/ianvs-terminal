@@ -29,28 +29,32 @@ Decide and, if accepted, add ianvs terminal support for kitty keyboard protocol 
 
 ## Probe Evidence
 
-- `rg -n "kitty|CSI u|disambiguate" packages/ianvs_terminal/lib native/core/src example/test packages/ianvs_terminal/test` finds no ianvs terminal kitty keyboard protocol mode or `CSI u` input path.
-- `cd packages/ianvs_terminal && flutter test test/terminal_input_controller_test.dart --plain-name "Control letters"` passes local Control A-Z C0-byte mapping, including Ctrl-C, but it does not exercise kitty mode.
+- `native/vendor/par-term-emu-core-rust/src/terminal/sequences/csi/keyboard.rs` implements Kitty keyboard flag query, set/add/clear, push, and pop sequences.
+- `native/vendor/par-term-emu-core-rust/src/terminal/mod.rs` scopes Kitty keyboard flags and stacks across primary vs alternate screen buffers.
+- `packages/ianvs_terminal/lib/src/terminal/terminal_input_controller.dart` emits `CSI u` input when kitty disambiguation/report-all flags are active while preserving default xterm key bytes when flags are zero.
+- Report-all plus `Report associated text` (`flags & 16`) appends sanitized Unicode codepoint payloads to Kitty `CSI u` events; control codepoints are filtered and the flag does not force plain text keys into CSI-u unless report-all is active.
+- `cd packages/ianvs_terminal && flutter test test/terminal_input_controller_test.dart --plain-name kitty` covers C0 exceptions, Ctrl-C disambiguation, modifier-only suppression, report-all modifier-only output, repeat/release event metadata, and associated text codepoint payloads.
 - Computer Use manual pass on 2026-05-29, macOS 15.7.7: in fish normal mode, `sleep 10` was interrupted by ETX and the terminal showed `^C` plus `[SIGINT]`.
-- Kitty protocol support remains a product-scope decision queued in [../../XTERM_MANUAL_CONFIRMATION_QUEUE.md](../../XTERM_MANUAL_CONFIRMATION_QUEUE.md) item M-010 before any implementation.
-- The audit row is deferred until M-010 decides whether kitty keyboard protocol belongs in ianvs terminal's supported surface; default xterm key sequences remain unchanged.
+- Kitty keyboard support is now accepted for ianvs terminal's xterm256 surface as an opt-in protocol mode; default xterm key sequences remain unchanged when kitty flags are zero.
 
 ## Functional Acceptance
 
-- A scope note states whether kitty keyboard protocol is in ianvs terminal's supported terminal surface. Current decision: deferred pending M-010 product-scope confirmation.
-- If in scope, parser tests cover enabling/disabling the relevant kitty keyboard flags.
-- If in scope, input tests cover space, enter, tab, backspace, modifier-only events, and Ctrl-C under kitty mode.
-- If out of scope, the audit rows are marked `Deferred` with an explicit rationale. Done in `docs/TERMINAL_XTERM_RECENT_FIX_AUDIT.md` pending M-010.
+- A scope note states whether kitty keyboard protocol is in ianvs terminal's supported terminal surface. Current decision: accepted for opt-in xterm256 sessions.
+- Parser tests cover enabling, adding, clearing, querying, push/pop, empty-stack reset, and alternate-screen stack isolation for the relevant kitty keyboard flags.
+- Input tests cover space, enter, tab, backspace, modifier-only events, Ctrl-C under kitty mode, repeat/release metadata, and associated text payloads.
 
 ## Verification Commands
 
 See [../../TESTING.md](../../TESTING.md).
 
 ```bash
-cd example
+cd packages/ianvs_terminal
 flutter test test/terminal_input_controller_test.dart --plain-name kitty
 
-cd native/core
+cd ../../example
+flutter test test/terminal_input_controller_test.dart --plain-name Kitty
+
+cd ../native/core
 cargo test --test session_test kitty_keyboard
 ```
 
@@ -69,3 +73,4 @@ cargo test --test session_test kitty_keyboard
 ## Risks / Follow-ups
 
 - Flutter may not expose every low-level physical-key/modifier transition needed for full kitty parity on every platform.
+- Flutter may report longer composition strings differently across platforms; keep platform-specific probes in T-074 if associated-text behavior diverges outside macOS.

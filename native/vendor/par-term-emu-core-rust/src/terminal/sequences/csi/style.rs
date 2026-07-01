@@ -23,6 +23,36 @@ impl Terminal {
         }
     }
 
+    fn color_from_sgr_semicolon_params<'a, I>(iter: &mut I) -> Option<Color>
+    where
+        I: Iterator<Item = &'a [u16]>,
+    {
+        match *iter.next()?.first()? {
+            2 => {
+                let r = iter.next().and_then(|p| p.first()).copied().unwrap_or(0) as u8;
+                let g = iter.next().and_then(|p| p.first()).copied().unwrap_or(0) as u8;
+                let b = iter.next().and_then(|p| p.first()).copied().unwrap_or(0) as u8;
+                Some(Color::Rgb(r, g, b))
+            }
+            5 => iter
+                .next()
+                .and_then(|p| p.first())
+                .map(|idx| Color::from_ansi_code(*idx as u8)),
+            _ => None,
+        }
+    }
+
+    fn color_from_sgr_params<'a, I>(param_slice: &[u16], iter: &mut I) -> Option<Color>
+    where
+        I: Iterator<Item = &'a [u16]>,
+    {
+        if param_slice.len() > 1 {
+            Self::color_from_sgr_subparams(param_slice)
+        } else {
+            Self::color_from_sgr_semicolon_params(iter)
+        }
+    }
+
     pub(crate) fn handle_csi_style(&mut self, action: char, params: &Params, intermediates: &[u8]) {
         if action == 'm' {
             // Check for modifyOtherKeys mode setting: CSI > 4 ; mode m
@@ -40,13 +70,13 @@ impl Terminal {
                         .and_then(|p| p.first())
                         .copied()
                         .unwrap_or(0) as u8;
-                    self.modify_other_keys_mode = mode.min(2);
+                    self.set_modify_other_keys_mode(mode);
                     debug::log(
                         debug::DebugLevel::Info,
                         "CSI",
                         &format!(
                             "modifyOtherKeys mode set to {}",
-                            self.modify_other_keys_mode
+                            self.modify_other_keys_mode()
                         ),
                     );
                 }
@@ -62,7 +92,7 @@ impl Terminal {
                     .copied()
                     .unwrap_or(0);
                 if param == 4 {
-                    let response = format!("\x1b[>4;{}m", self.modify_other_keys_mode);
+                    let response = format!("\x1b[>4;{}m", self.modify_other_keys_mode());
                     self.push_response(response.as_bytes());
                 }
                 return;
@@ -134,89 +164,23 @@ impl Terminal {
                         }
                         30..=37 => self.fg = Color::Named(NamedColor::from_u8((param - 30) as u8)),
                         38 => {
-                            if param_slice.len() > 1 {
-                                if let Some(color) = Self::color_from_sgr_subparams(param_slice) {
-                                    self.fg = color;
-                                }
-                            } else if let Some(next) = iter.next() {
-                                if let Some(&mode) = next.first() {
-                                    match mode {
-                                        2 => {
-                                            let r = iter
-                                                .next()
-                                                .and_then(|p| p.first())
-                                                .copied()
-                                                .unwrap_or(0)
-                                                as u8;
-                                            let g = iter
-                                                .next()
-                                                .and_then(|p| p.first())
-                                                .copied()
-                                                .unwrap_or(0)
-                                                as u8;
-                                            let b = iter
-                                                .next()
-                                                .and_then(|p| p.first())
-                                                .copied()
-                                                .unwrap_or(0)
-                                                as u8;
-                                            self.fg = Color::Rgb(r, g, b);
-                                        }
-                                        5 => {
-                                            if let Some(idx) = iter.next().and_then(|p| p.first()) {
-                                                self.fg = Color::from_ansi_code(*idx as u8);
-                                            }
-                                        }
-                                        _ => {}
-                                    }
-                                }
+                            if let Some(color) = Self::color_from_sgr_params(param_slice, &mut iter)
+                            {
+                                self.fg = color;
                             }
                         }
                         39 => self.fg = self.default_fg,
                         40..=47 => self.bg = Color::Named(NamedColor::from_u8((param - 40) as u8)),
                         48 => {
-                            if param_slice.len() > 1 {
-                                if let Some(color) = Self::color_from_sgr_subparams(param_slice) {
-                                    self.bg = color;
-                                }
-                            } else if let Some(next) = iter.next() {
-                                if let Some(&mode) = next.first() {
-                                    match mode {
-                                        2 => {
-                                            let r = iter
-                                                .next()
-                                                .and_then(|p| p.first())
-                                                .copied()
-                                                .unwrap_or(0)
-                                                as u8;
-                                            let g = iter
-                                                .next()
-                                                .and_then(|p| p.first())
-                                                .copied()
-                                                .unwrap_or(0)
-                                                as u8;
-                                            let b = iter
-                                                .next()
-                                                .and_then(|p| p.first())
-                                                .copied()
-                                                .unwrap_or(0)
-                                                as u8;
-                                            self.bg = Color::Rgb(r, g, b);
-                                        }
-                                        5 => {
-                                            if let Some(idx) = iter.next().and_then(|p| p.first()) {
-                                                self.bg = Color::from_ansi_code(*idx as u8);
-                                            }
-                                        }
-                                        _ => {}
-                                    }
-                                }
+                            if let Some(color) = Self::color_from_sgr_params(param_slice, &mut iter)
+                            {
+                                self.bg = color;
                             }
                         }
                         49 => self.bg = self.default_bg,
                         58 => {
-                            // Set underline color
-                            if let Some(color) = Self::color_from_sgr_subparams(param_slice) {
+                            if let Some(color) = Self::color_from_sgr_params(param_slice, &mut iter)
+                            {
                                 self.underline_color = Some(color);
                             }
                         }

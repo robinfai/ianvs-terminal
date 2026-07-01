@@ -6,12 +6,15 @@
 //! Reference: <https://iterm2.com/documentation-images.html>
 
 use std::collections::HashMap;
+use std::io::Cursor;
 
 use crate::debug;
 use crate::graphics::{
-    next_graphic_id, GraphicProtocol, GraphicsError, ImageDimension, ImageDisplayMode,
-    ImagePlacement, TerminalGraphic,
+    next_graphic_id, AnimationFrame, GraphicProtocol, GraphicsError, ImageDimension,
+    ImageDisplayMode, ImagePlacement, TerminalGraphic,
 };
+use base64::Engine;
+use image::AnimationDecoder;
 
 /// Maximum allowed image dimension (width or height) in pixels
 const MAX_IMAGE_DIMENSION: usize = 16384;
@@ -26,6 +29,13 @@ pub struct ITermParser {
     params: HashMap<String, String>,
     /// Base64-encoded image data
     data: Vec<u8>,
+}
+
+/// Decoded iTerm2 inline image plus optional animation frames.
+#[derive(Debug)]
+pub struct ITermDecodedImage {
+    pub graphic: TerminalGraphic,
+    pub animation_frames: Vec<AnimationFrame>,
 }
 
 impl ITermParser {
@@ -63,6 +73,21 @@ impl ITermParser {
         self.params.get("inline").map(|v| v == "1").unwrap_or(false)
     }
 
+    /// Whether iTerm2 requested that the cursor stay at its original position.
+    pub fn do_not_move_cursor(&self) -> bool {
+        self.params
+            .get("doNotMoveCursor")
+            .map(|v| v == "1")
+            .unwrap_or(false)
+    }
+
+    /// Declared decoded byte size from the optional iTerm2 `size=` parameter.
+    pub fn declared_size(&self) -> Option<usize> {
+        self.params
+            .get("size")
+            .and_then(|value| value.parse::<usize>().ok())
+    }
+
     /// Get a reference to all parsed parameters
     pub fn params(&self) -> &HashMap<String, String> {
         &self.params
@@ -91,6 +116,15 @@ impl ITermParser {
 
     /// Decode the image and create a TerminalGraphic
     pub fn decode_image(&self, position: (usize, usize)) -> Result<TerminalGraphic, GraphicsError> {
+        self.decode_image_with_animation(position)
+            .map(|decoded| decoded.graphic)
+    }
+
+    /// Decode the image and preserve multi-frame GIF payloads as animation frames.
+    pub fn decode_image_with_animation(
+        &self,
+        position: (usize, usize),
+    ) -> Result<ITermDecodedImage, GraphicsError> {
         // Reject empty data (e.g., cleared due to size limit)
         if self.data.is_empty() {
             return Err(GraphicsError::ITermError(
@@ -106,10 +140,25 @@ impl ITermParser {
             ));
         }
 
-        // Decode base64
-        let decoded =
-            base64::Engine::decode(&base64::engine::general_purpose::STANDARD, &self.data)
-                .map_err(|e| GraphicsError::Base64Error(e.to_string()))?;
+        // Decode base64. Some imgcat-like tools wrap base64 data; iTerm2 and
+        // compatible terminals tolerate ASCII whitespace in the payload.
+        let decoded = decode_base64_ignoring_ascii_whitespace(&self.data)
+            .map_err(|e| GraphicsError::Base64Error(e.to_string()))?;
+        if let Some(expected_size) = self.declared_size() {
+            if decoded.len() != expected_size {
+                return Err(GraphicsError::ITermError(format!(
+                    "size mismatch: received {} bytes, expected {}",
+                    decoded.len(),
+                    expected_size
+                )));
+            }
+        }
+
+        if matches!(image::guess_format(&decoded), Ok(image::ImageFormat::Gif)) {
+            if let Some(decoded_gif) = self.decode_animated_gif(position, &decoded)? {
+                return Ok(decoded_gif);
+            }
+        }
 
         // Decode image using image crate
         let img = image::load_from_memory(&decoded)
@@ -149,7 +198,62 @@ impl ITermParser {
         // Build placement metadata from parsed parameters
         graphic.placement = self.build_placement();
 
-        Ok(graphic)
+        Ok(ITermDecodedImage {
+            graphic,
+            animation_frames: Vec::new(),
+        })
+    }
+
+    fn decode_animated_gif(
+        &self,
+        position: (usize, usize),
+        decoded: &[u8],
+    ) -> Result<Option<ITermDecodedImage>, GraphicsError> {
+        let decoder = image::codecs::gif::GifDecoder::new(Cursor::new(decoded))
+            .map_err(|e| GraphicsError::ImageError(e.to_string()))?;
+        let frames = decoder
+            .into_frames()
+            .collect_frames()
+            .map_err(|e| GraphicsError::ImageError(e.to_string()))?;
+        if frames.len() <= 1 {
+            return Ok(None);
+        }
+
+        let mut animation_frames = Vec::with_capacity(frames.len());
+        for (index, frame) in frames.into_iter().enumerate() {
+            let delay_ms = frame_delay_ms(frame.delay());
+            let rgba = frame.into_buffer();
+            let width = rgba.width() as usize;
+            let height = rgba.height() as usize;
+            if width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION {
+                return Err(GraphicsError::ImageTooLarge(
+                    width.max(height),
+                    MAX_IMAGE_DIMENSION,
+                ));
+            }
+            let pixels = rgba.into_raw();
+            animation_frames.push(
+                AnimationFrame::new((index + 1) as u32, pixels, width, height).with_delay(delay_ms),
+            );
+        }
+
+        let first_frame = animation_frames
+            .first()
+            .ok_or_else(|| GraphicsError::ITermError("No GIF frames decoded".to_string()))?;
+        let mut graphic = TerminalGraphic::new(
+            next_graphic_id(),
+            GraphicProtocol::ITermInline,
+            position,
+            first_frame.width,
+            first_frame.height,
+            first_frame.pixels.as_ref().clone(),
+        );
+        graphic.placement = self.build_placement();
+
+        Ok(Some(ITermDecodedImage {
+            graphic,
+            animation_frames,
+        }))
     }
 
     /// Get a parameter value
@@ -199,7 +303,15 @@ impl ITermParser {
     /// - "auto": automatic sizing
     /// - Plain number without suffix: cells
     fn parse_dimension(s: &str) -> ImageDimension {
-        let s = s.trim();
+        let trimmed = s.trim();
+        let compacted_unit;
+        let parts = trimmed.split_whitespace().collect::<Vec<_>>();
+        let s = if parts.len() == 2 && (parts[1].eq_ignore_ascii_case("px") || parts[1] == "%") {
+            compacted_unit = format!("{}{}", parts[0], parts[1].to_ascii_lowercase());
+            compacted_unit.as_str()
+        } else {
+            trimmed
+        };
 
         if s.eq_ignore_ascii_case("auto") || s == "0" {
             return ImageDimension::auto();
@@ -207,23 +319,76 @@ impl ITermParser {
 
         if let Some(stripped) = s.strip_suffix('%') {
             if let Ok(val) = stripped.parse::<f64>() {
-                return ImageDimension::percent(val);
+                return Self::positive_dimension(val, ImageDimension::percent);
             }
         }
 
-        if let Some(stripped) = s.strip_suffix("px") {
+        if let Some(stripped) = s
+            .strip_suffix("px")
+            .or_else(|| s.strip_suffix("PX"))
+            .or_else(|| s.strip_suffix("Px"))
+            .or_else(|| s.strip_suffix("pX"))
+        {
             if let Ok(val) = stripped.parse::<f64>() {
-                return ImageDimension::pixels(val);
+                return Self::positive_dimension(val, ImageDimension::pixels);
             }
         }
 
         // Plain number = cells per iTerm2 spec
         if let Ok(val) = s.parse::<f64>() {
-            return ImageDimension::cells(val);
+            return Self::positive_dimension(val, ImageDimension::cells);
         }
 
         ImageDimension::auto()
     }
+
+    fn positive_dimension(val: f64, constructor: fn(f64) -> ImageDimension) -> ImageDimension {
+        if val.is_finite() && val > 0.0 {
+            constructor(val)
+        } else {
+            ImageDimension::auto()
+        }
+    }
+}
+
+pub(crate) fn decode_base64_ignoring_ascii_whitespace(
+    data: &[u8],
+) -> Result<Vec<u8>, base64::DecodeError> {
+    let compact;
+    let data = if data.iter().all(|byte| !byte.is_ascii_whitespace()) {
+        data
+    } else {
+        compact = data
+            .iter()
+            .copied()
+            .filter(|byte| !byte.is_ascii_whitespace())
+            .collect::<Vec<_>>();
+        &compact
+    };
+
+    match base64::engine::general_purpose::STANDARD.decode(data) {
+        Ok(decoded) => Ok(decoded),
+        Err(error) => {
+            let remainder = data.len() % 4;
+            if remainder == 0 || remainder == 1 {
+                return Err(error);
+            }
+            let mut padded = Vec::with_capacity(data.len() + (4 - remainder));
+            padded.extend_from_slice(data);
+            padded.extend(std::iter::repeat_n(b'=', 4 - remainder));
+            base64::engine::general_purpose::STANDARD
+                .decode(padded)
+                .map_err(|_| error)
+        }
+    }
+}
+
+fn frame_delay_ms(delay: image::Delay) -> u32 {
+    let (numerator, denominator) = delay.numer_denom_ms();
+    if numerator == 0 || denominator == 0 {
+        return 0;
+    }
+    numerator.div_ceil(denominator)
 }
 
 #[cfg(test)]
@@ -263,12 +428,15 @@ mod tests {
     #[test]
     fn test_parse_params_full() {
         let mut parser = ITermParser::new();
-        let result = parser.parse_params("name=dGVzdA==;size=1234;width=100;height=50;inline=1");
+        let result = parser
+            .parse_params("name=dGVzdA==;size=1234;width=100;height=50;inline=1;doNotMoveCursor=1");
         assert!(result.is_ok());
         assert_eq!(parser.get_param("name"), Some("dGVzdA=="));
         assert_eq!(parser.get_param("size"), Some("1234"));
         assert_eq!(parser.get_param("width"), Some("100"));
         assert_eq!(parser.get_param("height"), Some("50"));
+        assert_eq!(parser.declared_size(), Some(1234));
+        assert!(parser.do_not_move_cursor());
     }
 
     #[test]
@@ -282,6 +450,32 @@ mod tests {
     fn test_parse_dimension_zero() {
         let dim = ITermParser::parse_dimension("0");
         assert!(dim.is_auto());
+    }
+
+    #[test]
+    fn test_parse_dimension_non_positive_values_are_auto() {
+        for raw in [
+            "-5", "-5px", "-5 px", "-10%", "-10 %", "0px", "0%", "0 px", "0 %",
+        ] {
+            let dim = ITermParser::parse_dimension(raw);
+            assert!(
+                dim.is_auto(),
+                "expected {raw:?} to fall back to automatic sizing"
+            );
+            assert_eq!(dim.unit, crate::graphics::ImageSizeUnit::Auto);
+        }
+    }
+
+    #[test]
+    fn test_parse_dimension_non_finite_values_are_auto() {
+        for raw in ["NaN", "inf", "infpx", "inf px", "inf%", "inf %"] {
+            let dim = ITermParser::parse_dimension(raw);
+            assert!(
+                dim.is_auto(),
+                "expected {raw:?} to fall back to automatic sizing"
+            );
+            assert_eq!(dim.unit, crate::graphics::ImageSizeUnit::Auto);
+        }
     }
 
     #[test]
@@ -299,8 +493,26 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_dimension_pixels_accepts_space_before_unit() {
+        let dim = ITermParser::parse_dimension("200 px");
+        assert_eq!(dim.value, 200.0);
+        assert_eq!(dim.unit, crate::graphics::ImageSizeUnit::Pixels);
+
+        let uppercase = ITermParser::parse_dimension("200 PX");
+        assert_eq!(uppercase.value, 200.0);
+        assert_eq!(uppercase.unit, crate::graphics::ImageSizeUnit::Pixels);
+    }
+
+    #[test]
     fn test_parse_dimension_percent() {
         let dim = ITermParser::parse_dimension("50%");
+        assert_eq!(dim.value, 50.0);
+        assert_eq!(dim.unit, crate::graphics::ImageSizeUnit::Percent);
+    }
+
+    #[test]
+    fn test_parse_dimension_percent_accepts_space_before_unit() {
+        let dim = ITermParser::parse_dimension("50 %");
         assert_eq!(dim.value, 50.0);
         assert_eq!(dim.unit, crate::graphics::ImageSizeUnit::Percent);
     }
@@ -372,5 +584,19 @@ mod tests {
             placement.display_mode,
             crate::graphics::ImageDisplayMode::Download
         );
+    }
+
+    #[test]
+    fn test_decode_base64_ignores_ascii_whitespace() {
+        let decoded = decode_base64_ignoring_ascii_whitespace(b"aG Vs\nbG8=\r\t").unwrap();
+
+        assert_eq!(decoded, b"hello");
+    }
+
+    #[test]
+    fn test_decode_base64_accepts_missing_padding() {
+        let decoded = decode_base64_ignoring_ascii_whitespace(b"aGVsbG8").unwrap();
+
+        assert_eq!(decoded, b"hello");
     }
 }

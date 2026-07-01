@@ -401,7 +401,7 @@ impl PyTerminal {
     ///
     /// Args:
     ///     flags: Flags to set (1=disambiguate, 2=report events, 4=alternate keys, 8=report all, 16=associated text)
-    ///     mode: 0=disable all, 1=set flags, 2=lock flags (default: 1)
+    ///     mode: 1=set flags, 2=add flags, 3=clear flags (default: 1)
     ///
     /// Sends: CSI = flags ; mode u
     #[pyo3(signature = (flags, mode=1))]
@@ -1359,7 +1359,7 @@ impl PyTerminal {
     /// Get mouse encoding format
     ///
     /// Returns:
-    ///     MouseEncoding enum value (Default, Utf8, Sgr, Urxvt)
+    ///     MouseEncoding enum value (Default, Utf8, Sgr, Urxvt, SgrPixels)
     fn mouse_encoding(&self) -> PyResult<PyMouseEncoding> {
         Ok(self.inner.mouse_encoding().into())
     }
@@ -1374,6 +1374,7 @@ impl PyTerminal {
     ///         - Utf8: UTF-8 encoding (supports larger coordinates)
     ///         - Sgr: SGR encoding (1006) - recommended for modern terminals
     ///         - Urxvt: URXVT encoding (1015)
+    ///         - SgrPixels: SGR pixel-position encoding (1016)
     fn set_mouse_encoding(&mut self, encoding: PyMouseEncoding) -> PyResult<()> {
         self.inner.set_mouse_encoding(encoding.into());
         Ok(())
@@ -1559,8 +1560,9 @@ impl PyTerminal {
 
     /// Export all graphics metadata as a JSON string for session persistence
     ///
-    /// Serializes all active placements, scrollback graphics, and animation state
-    /// into a JSON string. Image pixel data is base64-encoded inline.
+    /// Serializes all active placements, scrollback graphics, Kitty shared images,
+    /// virtual placements, and animation state into a JSON string. Image pixel data
+    /// is base64-encoded inline.
     ///
     /// Returns:
     ///     JSON string containing the serialized graphics snapshot
@@ -1579,7 +1581,8 @@ impl PyTerminal {
     /// Import graphics metadata from a JSON string to restore session state
     ///
     /// Deserializes graphics from JSON and restores active placements, scrollback
-    /// graphics, and animation state. Existing graphics are cleared first.
+    /// graphics, Kitty shared images, virtual placements, and animation state.
+    /// Existing graphics are cleared first.
     ///
     /// Args:
     ///     json: JSON string from a previous export_graphics_json() call

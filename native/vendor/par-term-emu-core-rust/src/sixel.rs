@@ -75,14 +75,14 @@ impl SixelColor {
         Self { r, g, b }
     }
 
-    pub fn from_hls(h: u16, l: u8, s: u8) -> Self {
+    pub fn from_hls(h: u16, l: u16, s: u16) -> Self {
         // Convert HLS to RGB
         // H: 0-360 degrees
         // L: 0-100 percent
         // S: 0-100 percent
 
-        let l = l as f32 / 100.0;
-        let s = s as f32 / 100.0;
+        let l = l.min(100) as f32 / 100.0;
+        let s = s.min(100) as f32 / 100.0;
         let h = (h % 360) as f32;
 
         if s == 0.0 {
@@ -127,7 +127,7 @@ impl SixelColor {
         Self::new(r, g, b)
     }
 
-    pub fn from_rgb_percent(r: u8, g: u8, b: u8) -> Self {
+    pub fn from_rgb_percent(r: u16, g: u16, b: u16) -> Self {
         // Convert 0-100 percent to 0-255
         let r = ((r.min(100) as f32 / 100.0) * 255.0) as u8;
         let g = ((g.min(100) as f32 / 100.0) * 255.0) as u8;
@@ -205,6 +205,16 @@ impl SixelGraphic {
         }
     }
 
+    /// Fill the entire graphic with a color.
+    pub fn fill(&mut self, color: SixelColor) {
+        for pixel in self.pixels.chunks_exact_mut(4) {
+            pixel[0] = color.r;
+            pixel[1] = color.g;
+            pixel[2] = color.b;
+            pixel[3] = 255;
+        }
+    }
+
     /// Get pixel color at (x, y) as (r, g, b, a)
     pub fn get_pixel(&self, x: usize, y: usize) -> Option<(u8, u8, u8, u8)> {
         if x < self.width && y < self.height {
@@ -250,13 +260,19 @@ pub struct SixelParser {
     /// Current cursor position (x, y) in pixels
     cursor: (usize, usize),
     /// Image data being built
-    image_data: Vec<Vec<usize>>, // [row][col] = color_index
+    image_data: Vec<Vec<Option<usize>>>, // [row][col] = Some(color_index) when painted
     /// Maximum width seen
     max_width: usize,
+    /// Maximum Sixel band height reached, including transparent/unpainted rows
+    max_height: usize,
+    /// Whether at least one Sixel data character has been consumed.
+    sixel_data_seen: bool,
     /// Background mode (0=pixel, 1=transparent, 2=pixel)
     background_mode: u8,
     /// Raster attributes (width, height)
     raster_size: Option<(usize, usize)>,
+    /// Pixel aspect ratio from raster attributes (Pan, Pad).
+    raster_pixel_aspect_ratio: Option<(u16, u16)>,
     /// Resource limits for this parser
     limits: SixelLimits,
 }
@@ -294,14 +310,19 @@ impl SixelParser {
             cursor: (0, 0),
             image_data: vec![vec![]],
             max_width: 0,
+            max_height: 0,
+            sixel_data_seen: false,
             background_mode: 0,
             raster_size: None,
+            raster_pixel_aspect_ratio: None,
             limits,
         }
     }
 
     pub fn set_params(&mut self, params: &[u16]) {
         self.params = params.to_vec();
+        self.raster_pixel_aspect_ratio =
+            sixel_macro_pixel_aspect_ratio(params.first().copied().unwrap_or(0));
         // P2 is background mode
         if params.len() >= 2 {
             self.background_mode = params[1] as u8;
@@ -315,8 +336,15 @@ impl SixelParser {
             return;
         }
 
+        self.sixel_data_seen = true;
+
         // Sixel value is character code minus 0x3F
         let sixel_value = code - 0x3F;
+        if self.cursor.1 < self.limits.max_height {
+            self.max_height = self
+                .max_height
+                .max(self.cursor.1.saturating_add(6).min(self.limits.max_height));
+        }
 
         // Each bit represents a pixel (bit 0 = top, bit 5 = bottom)
         for bit in 0..6 {
@@ -336,17 +364,19 @@ impl SixelParser {
                 }
 
                 while self.image_data[y].len() <= x {
-                    self.image_data[y].push(0); // Background color
+                    self.image_data[y].push(None);
                 }
 
-                self.image_data[y][x] = self.current_color;
+                self.image_data[y][x] = Some(self.current_color);
             }
         }
 
-        // Move cursor right
-        self.cursor.0 += 1;
-        if self.cursor.0 < self.limits.max_width {
-            self.max_width = self.max_width.max(self.cursor.0);
+        // Move cursor right. If the painted column was exactly the last
+        // allowed column, the final width is the configured limit.
+        let painted_x = self.cursor.0;
+        self.cursor.0 = self.cursor.0.saturating_add(1);
+        if painted_x < self.limits.max_width {
+            self.max_width = self.max_width.max(self.cursor.0.min(self.limits.max_width));
         }
     }
 
@@ -366,7 +396,11 @@ impl SixelParser {
     /// Handle graphics new line (-)
     pub fn new_line(&mut self) {
         self.cursor.0 = 0;
-        self.cursor.1 += 6; // Move down by 6 pixels (one sixel height)
+        self.cursor.1 = self
+            .cursor
+            .1
+            .saturating_add(6)
+            .min(self.limits.max_height.saturating_sub(6));
     }
 
     /// Select color (#Pc)
@@ -378,33 +412,64 @@ impl SixelParser {
     pub fn define_color(&mut self, index: usize, color_system: u8, x: u16, y: u16, z: u16) {
         let color = if color_system == 1 {
             // HLS
-            SixelColor::from_hls(x, y as u8, z as u8)
+            SixelColor::from_hls(x, y, z)
         } else if color_system == 2 {
             // RGB (0-100 percent)
-            SixelColor::from_rgb_percent(x as u8, y as u8, z as u8)
+            SixelColor::from_rgb_percent(x, y, z)
         } else {
             return;
         };
 
         self.palette.insert(index, color);
+        self.current_color = index;
     }
 
     /// Set raster attributes ("Pan;Pad;Ph;Pv)
-    pub fn set_raster_attributes(&mut self, _pan: u16, _pad: u16, width: usize, height: usize) {
+    pub fn set_raster_attributes(&mut self, pan: u16, pad: u16, width: usize, height: usize) {
         // Clamp raster size to the same conservative bounds used for image data.
         self.raster_size = Some((
             width.min(self.limits.max_width),
             height.min(self.limits.max_height),
         ));
+        self.raster_pixel_aspect_ratio = if pan == 0 || pad == 0 {
+            None
+        } else {
+            Some((pan, pad))
+        };
+    }
+
+    pub fn has_sixel_data(&self) -> bool {
+        self.sixel_data_seen
+    }
+
+    pub fn raster_pixel_aspect_ratio(&self) -> Option<(u16, u16)> {
+        self.raster_pixel_aspect_ratio
     }
 
     /// Build final graphic from parsed data
     pub fn build_graphic(&self, position: (usize, usize)) -> SixelGraphic {
-        let height = self.image_data.len();
+        let height = self.max_height.max(self.image_data.len()).max(1);
         let width = self.max_width.max(1);
 
-        // Use raster size if provided, otherwise use calculated size
-        let (mut final_width, mut final_height) = self.raster_size.unwrap_or((width, height));
+        // Use raster size if provided. A zero raster dimension is treated as
+        // omitted so malformed/partial attributes cannot create 0px graphics.
+        let (mut final_width, mut final_height) = self
+            .raster_size
+            .map(|(raster_width, raster_height)| {
+                (
+                    if raster_width == 0 {
+                        width
+                    } else {
+                        raster_width
+                    },
+                    if raster_height == 0 {
+                        height
+                    } else {
+                        raster_height
+                    },
+                )
+            })
+            .unwrap_or((width, height));
 
         // Enforce limits on final graphic size as a last line of defense.
         final_width = final_width.min(self.limits.max_width);
@@ -412,23 +477,41 @@ impl SixelParser {
 
         let mut graphic = SixelGraphic::new(position, final_width, final_height);
         graphic.palette = self.palette.clone();
+        if self.background_mode != 1 {
+            if let Some(&background) = self.palette.get(&0) {
+                graphic.fill(background);
+            }
+        }
 
         // Fill in pixels from image_data
         for (y, row) in self.image_data.iter().enumerate() {
             if y >= final_height {
                 break;
             }
-            for (x, &color_idx) in row.iter().enumerate() {
+            for (x, color_idx) in row.iter().enumerate() {
                 if x >= final_width {
                     break;
                 }
-                if let Some(&color) = self.palette.get(&color_idx) {
+                let Some(color_idx) = color_idx else {
+                    continue;
+                };
+                if let Some(&color) = self.palette.get(color_idx) {
                     graphic.set_pixel(x, y, color);
                 }
             }
         }
 
         graphic
+    }
+}
+
+fn sixel_macro_pixel_aspect_ratio(macro_param: u16) -> Option<(u16, u16)> {
+    match macro_param {
+        0 | 1 | 5 | 6 => Some((2, 1)),
+        2 => Some((5, 1)),
+        3 | 4 => Some((3, 1)),
+        7 | 8 | 9 => Some((1, 1)),
+        _ => None,
     }
 }
 
@@ -448,6 +531,31 @@ mod tests {
         assert_eq!(color.r, 255);
         assert_eq!(color.g, 127);
         assert_eq!(color.b, 0);
+    }
+
+    #[test]
+    fn test_sixel_color_percent_values_clamp_before_conversion() {
+        let color = SixelColor::from_rgb_percent(300, 150, 0);
+        assert_eq!(color, SixelColor::new(255, 255, 0));
+    }
+
+    #[test]
+    fn test_sixel_hls_percent_values_clamp_before_conversion() {
+        let color = SixelColor::from_hls(0, 300, 300);
+        assert_eq!(color, SixelColor::new(255, 255, 255));
+    }
+
+    #[test]
+    fn test_sixel_color_from_hls_primary_hues() {
+        assert_eq!(SixelColor::from_hls(0, 50, 100), SixelColor::new(255, 0, 0));
+        assert_eq!(
+            SixelColor::from_hls(120, 50, 100),
+            SixelColor::new(0, 255, 0)
+        );
+        assert_eq!(
+            SixelColor::from_hls(240, 50, 100),
+            SixelColor::new(0, 0, 255)
+        );
     }
 
     #[test]
@@ -474,6 +582,38 @@ mod tests {
         assert_eq!(color.r, 255);
         assert_eq!(color.g, 0);
         assert_eq!(color.b, 0);
+        assert_eq!(
+            parser.current_color, 1,
+            "defining a Sixel color should select that color for following data"
+        );
+    }
+
+    #[test]
+    fn test_sixel_parser_color_definition_clamps_out_of_range_percentages() {
+        let mut parser = SixelParser::new();
+
+        parser.define_color(1, 2, 300, 150, 0);
+
+        assert_eq!(
+            parser.palette.get(&1).copied(),
+            Some(SixelColor::new(255, 255, 0))
+        );
+    }
+
+    #[test]
+    fn test_sixel_parser_hls_color_definition() {
+        let mut parser = SixelParser::new();
+
+        parser.define_color(1, 1, 120, 50, 100);
+
+        assert_eq!(
+            parser.palette.get(&1).copied(),
+            Some(SixelColor::new(0, 255, 0))
+        );
+        assert_eq!(
+            parser.current_color, 1,
+            "defining a HLS Sixel color should select that color"
+        );
     }
 
     #[test]
@@ -499,6 +639,25 @@ mod tests {
     }
 
     #[test]
+    fn test_sixel_parser_new_line_clamps_to_renderable_height() {
+        let limits = SixelLimits::new(8, 12, 100);
+        let mut parser = SixelParser::new_with_limits(limits);
+        parser.set_params(&[0, 1, 0]);
+
+        for _ in 0..100 {
+            parser.new_line();
+        }
+        parser.parse_sixel('@');
+
+        let graphic = parser.build_graphic((0, 0));
+
+        assert_eq!(graphic.width, 1);
+        assert_eq!(graphic.height, limits.max_height);
+        assert_eq!(graphic.get_pixel(0, 0), Some((0, 0, 0, 0)));
+        assert_eq!(graphic.get_pixel(0, 6), Some((0, 0, 0, 255)));
+    }
+
+    #[test]
     fn test_sixel_graphic_set_get_pixel() {
         let mut graphic = SixelGraphic::new((0, 0), 10, 10);
         let color = SixelColor::new(255, 128, 64);
@@ -510,11 +669,145 @@ mod tests {
     }
 
     #[test]
+    fn test_sixel_graphic_fill() {
+        let mut graphic = SixelGraphic::new((0, 0), 2, 2);
+        graphic.fill(SixelColor::new(10, 20, 30));
+
+        assert_eq!(graphic.get_pixel(0, 0), Some((10, 20, 30, 255)));
+        assert_eq!(graphic.get_pixel(1, 1), Some((10, 20, 30, 255)));
+    }
+
+    #[test]
+    fn test_sixel_parser_opaque_background_fills_unpainted_raster_pixels() {
+        let mut parser = SixelParser::new();
+        parser.set_params(&[0, 2, 0]);
+        parser.define_color(0, 2, 100, 0, 0);
+        parser.define_color(1, 2, 0, 100, 0);
+        parser.set_raster_attributes(1, 1, 3, 2);
+        parser.select_color(1);
+        parser.parse_sixel('@');
+
+        let graphic = parser.build_graphic((0, 0));
+
+        assert_eq!(graphic.get_pixel(0, 0), Some((0, 255, 0, 255)));
+        assert_eq!(graphic.get_pixel(1, 0), Some((255, 0, 0, 255)));
+        assert_eq!(graphic.get_pixel(2, 1), Some((255, 0, 0, 255)));
+    }
+
+    #[test]
+    fn test_sixel_parser_transparent_background_keeps_unpainted_pixels_clear() {
+        let mut parser = SixelParser::new();
+        parser.set_params(&[0, 1, 0]);
+        parser.define_color(0, 2, 100, 0, 0);
+        parser.set_raster_attributes(1, 1, 3, 2);
+        parser.select_color(0);
+        parser.parse_sixel('@');
+
+        let graphic = parser.build_graphic((0, 0));
+
+        assert_eq!(graphic.get_pixel(0, 0), Some((255, 0, 0, 255)));
+        assert_eq!(graphic.get_pixel(1, 0), Some((0, 0, 0, 0)));
+        assert_eq!(graphic.get_pixel(2, 1), Some((0, 0, 0, 0)));
+    }
+
+    #[test]
+    fn test_sixel_parser_records_non_square_raster_pixel_aspect_ratio() {
+        let mut parser = SixelParser::new();
+
+        parser.set_raster_attributes(2, 1, 3, 2);
+
+        assert_eq!(parser.raster_pixel_aspect_ratio(), Some((2, 1)));
+    }
+
+    #[test]
+    fn test_sixel_parser_omitted_macro_param_defaults_to_two_to_one() {
+        let mut parser = SixelParser::new();
+
+        parser.set_params(&[]);
+
+        assert_eq!(parser.raster_pixel_aspect_ratio(), Some((2, 1)));
+    }
+
+    #[test]
+    fn test_sixel_parser_raster_attributes_override_macro_param() {
+        let mut parser = SixelParser::new();
+
+        parser.set_params(&[2, 0, 0]);
+        assert_eq!(parser.raster_pixel_aspect_ratio(), Some((5, 1)));
+
+        parser.set_raster_attributes(1, 1, 3, 2);
+
+        assert_eq!(parser.raster_pixel_aspect_ratio(), Some((1, 1)));
+    }
+
+    #[test]
+    fn test_sixel_parser_ignores_zero_raster_pixel_aspect_ratio_component() {
+        let mut parser = SixelParser::new();
+
+        parser.set_raster_attributes(0, 1, 3, 2);
+
+        assert_eq!(parser.raster_pixel_aspect_ratio(), None);
+    }
+
+    #[test]
+    fn test_sixel_parser_zero_raster_dimensions_fall_back_to_data_extents() {
+        let mut parser = SixelParser::new();
+        parser.set_raster_attributes(1, 1, 0, 0);
+        parser.parse_sixel('~');
+
+        let graphic = parser.build_graphic((0, 0));
+
+        assert_eq!(graphic.width, 1);
+        assert_eq!(graphic.height, 6);
+        assert_eq!(graphic.get_pixel(0, 5), Some((0, 0, 0, 255)));
+    }
+
+    #[test]
     fn test_sixel_parser_repeat() {
         let mut parser = SixelParser::new();
         parser.parse_repeat(5, '~');
 
         assert_eq!(parser.cursor.0, 5);
+    }
+
+    #[test]
+    fn test_sixel_parser_tracks_data_seen_without_treating_zero_repeat_as_data() {
+        let mut parser = SixelParser::new();
+
+        assert!(!parser.has_sixel_data());
+        parser.parse_repeat(0, '~');
+        assert!(!parser.has_sixel_data());
+        parser.parse_sixel('?');
+        assert!(parser.has_sixel_data());
+    }
+
+    #[test]
+    fn test_sixel_parser_sparse_data_preserves_full_sixel_band_height() {
+        let mut parser = SixelParser::new();
+
+        parser.parse_sixel('@');
+
+        let graphic = parser.build_graphic((0, 0));
+
+        assert_eq!(graphic.width, 1);
+        assert_eq!(graphic.height, 6);
+        assert_eq!(graphic.get_pixel(0, 0), Some((0, 0, 0, 255)));
+        assert_eq!(graphic.get_pixel(0, 5), Some((0, 0, 0, 255)));
+    }
+
+    #[test]
+    fn test_sixel_parser_sparse_transparent_data_preserves_clear_band_rows() {
+        let mut parser = SixelParser::new();
+        parser.set_params(&[0, 1, 0]);
+
+        parser.parse_sixel('@');
+
+        let graphic = parser.build_graphic((0, 0));
+
+        assert_eq!(graphic.width, 1);
+        assert_eq!(graphic.height, 6);
+        assert_eq!(graphic.get_pixel(0, 0), Some((0, 0, 0, 255)));
+        assert_eq!(graphic.get_pixel(0, 5), Some((0, 0, 0, 0)));
     }
 
     #[test]
@@ -531,6 +824,18 @@ mod tests {
             .image_data
             .iter()
             .all(|row| row.len() <= limits.max_width));
+    }
+
+    #[test]
+    fn test_sixel_parser_width_reaches_configured_limit() {
+        let limits = SixelLimits::new(4, 12, 100);
+        let mut parser = SixelParser::new_with_limits(limits);
+
+        parser.parse_repeat(4, '~');
+
+        let graphic = parser.build_graphic((0, 0));
+        assert_eq!(graphic.width, 4);
+        assert_eq!(graphic.get_pixel(3, 5), Some((0, 0, 0, 255)));
     }
 
     #[test]

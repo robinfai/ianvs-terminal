@@ -4,7 +4,7 @@
 //! Supports Sixel, iTerm2, and Kitty graphics protocols via unified GraphicsStore.
 
 use crate::debug;
-use crate::graphics::kitty::{KittyAction, KittyGraphicResult, KittyMedium, KittyParser};
+use crate::graphics::kitty::{KittyAction, KittyGraphicResult, KittyParser};
 use crate::graphics::TerminalGraphic;
 use crate::terminal::Terminal;
 use std::time::Instant;
@@ -50,6 +50,7 @@ impl Terminal {
                 if !self.retain_incomplete_graphics_passthrough(&input[start..]) {
                     self.push_kitty_response(
                         None,
+                        None,
                         "EINVAL: graphics passthrough sequence exceeds configured byte limit",
                     );
                 }
@@ -59,6 +60,7 @@ impl Terminal {
             let payload = &input[payload_start..terminator_start];
             if self.graphics_sequence_exceeds_limit(payload.len()) {
                 self.push_kitty_response(
+                    None,
                     None,
                     "EINVAL: graphics passthrough sequence exceeds configured byte limit",
                 );
@@ -103,6 +105,7 @@ impl Terminal {
                 if !self.retain_incomplete_kitty_apc(&input[start..]) {
                     self.push_kitty_response(
                         None,
+                        None,
                         "EINVAL: graphics sequence exceeds configured byte limit",
                     );
                 }
@@ -136,24 +139,32 @@ impl Terminal {
         if self.graphics_sequence_exceeds_limit(payload.len()) {
             self.push_kitty_response(
                 None,
+                None,
                 "EINVAL: graphics sequence exceeds configured byte limit",
             );
             return;
         }
         let Ok(payload) = std::str::from_utf8(payload) else {
-            self.push_kitty_response(None, "EINVAL: invalid UTF-8");
+            self.push_kitty_response(None, None, "EINVAL: invalid UTF-8");
             return;
         };
-        let mut parser = self.kitty_parser.take().unwrap_or_else(KittyParser::new);
+        let mut parser = if self.kitty_parser.is_some() && kitty_payload_is_delete_command(payload)
+        {
+            self.kitty_parser = None;
+            KittyParser::new()
+        } else {
+            self.kitty_parser.take().unwrap_or_else(KittyParser::new)
+        };
         parser.set_max_data_bytes(self.graphics_store.max_decoded_image_bytes());
         let more_chunks = match parser.parse_chunk(payload) {
             Ok(more_chunks) => more_chunks,
             Err(error) => {
                 let image_id = parser.image_id;
+                let image_number = parser.image_number;
                 let should_send_error = parser.should_send_error_response();
                 self.kitty_parser = None;
                 if should_send_error {
-                    self.push_kitty_response(image_id, &format!("EINVAL: {error}"));
+                    self.push_kitty_response(image_id, image_number, &format!("EINVAL: {error}"));
                 }
                 return;
             }
@@ -172,46 +183,70 @@ impl Terminal {
         }
 
         let image_id = parser.image_id;
+        let image_number = parser.image_number;
+        let prebuild_response_image_id = image_id.or_else(|| {
+            image_number.and_then(|number| self.graphics_store.kitty_image_id_for_number(number))
+        });
         let action = parser.action;
         let should_send_ok = parser.should_send_success_response();
         let should_send_error = parser.should_send_error_response();
-        if parser.medium != KittyMedium::Direct {
-            if should_send_error {
-                self.push_kitty_response(image_id, "ENOTSUP: only direct inline data is enabled");
-            }
-            self.kitty_parser = None;
-            return;
-        }
-
         let position = parser
             .placement_position
             .unwrap_or((self.cursor.col, self.cursor.row));
-        match parser.build_graphic(position, &mut self.graphics_store) {
+        match parser.build_graphic_for_screen(
+            position,
+            &mut self.graphics_store,
+            self.alt_screen_active,
+        ) {
             Ok(KittyGraphicResult::Graphic(mut graphic)) => {
+                let response_image_id = graphic.kitty_image_id.or(image_id);
+                let should_move_cursor = parser.should_move_cursor_after_display();
+                graphic.set_alternate_screen(self.alt_screen_active);
                 let (cell_w, cell_h) = self.cell_dimensions;
                 graphic.set_cell_dimensions(cell_w, cell_h);
                 let (cols, rows) = self.size();
                 let (span_cols, span_rows) = graphic.resolved_cell_span(Some(cols), Some(rows));
                 graphic.set_display_cell_span(span_cols, span_rows);
+                let mut should_add_graphic = true;
+                if should_move_cursor {
+                    should_add_graphic = self.move_cursor_after_kitty_placement(
+                        &mut graphic,
+                        position,
+                        span_cols,
+                        span_rows,
+                    );
+                }
                 let row = graphic.position.1;
-                if self.graphics_store.add_graphic(graphic) {
+                if should_add_graphic && self.graphics_store.add_graphic(graphic) {
                     self.terminal_events
                         .push(crate::terminal::TerminalEvent::GraphicsAdded(row));
                 }
                 if should_send_ok {
-                    self.push_kitty_response(image_id, "OK");
+                    self.push_kitty_response(response_image_id, image_number, "OK");
                 }
             }
-            Ok(KittyGraphicResult::VirtualPlacement { position, .. }) => {
+            Ok(KittyGraphicResult::VirtualPlacement {
+                image_id: resolved_image_id,
+                position,
+                ..
+            }) => {
+                let (cell_w, cell_h) = self.cell_dimensions;
+                let (cols, rows) = self.size();
+                self.graphics_store
+                    .refresh_cell_dimensions(cell_w, cell_h, cols, rows);
                 self.terminal_events
                     .push(crate::terminal::TerminalEvent::GraphicsAdded(position.1));
                 if should_send_ok {
-                    self.push_kitty_response(image_id, "OK");
+                    self.push_kitty_response(Some(resolved_image_id), image_number, "OK");
                 }
             }
             Ok(KittyGraphicResult::None) => {
-                if should_send_ok && (action == KittyAction::Query || image_id.is_some()) {
-                    self.push_kitty_response(image_id, "OK");
+                let response_image_id = prebuild_response_image_id.or_else(|| {
+                    image_number
+                        .and_then(|number| self.graphics_store.kitty_image_id_for_number(number))
+                });
+                if should_send_ok && (action == KittyAction::Query || response_image_id.is_some()) {
+                    self.push_kitty_response(response_image_id, image_number, "OK");
                 }
             }
             Err(error) => {
@@ -221,15 +256,114 @@ impl Terminal {
                     "EINVAL"
                 };
                 if should_send_error {
-                    self.push_kitty_response(image_id, &format!("{code}: {error}"));
+                    let response_image_id = prebuild_response_image_id.or_else(|| {
+                        image_number.and_then(|number| {
+                            self.graphics_store.kitty_image_id_for_number(number)
+                        })
+                    });
+                    self.push_kitty_response(
+                        response_image_id,
+                        image_number,
+                        &format!("{code}: {error}"),
+                    );
                 }
             }
         }
         self.kitty_parser = None;
     }
 
-    fn push_kitty_response(&mut self, image_id: Option<u32>, message: &str) {
-        let params = image_id.map(|id| format!("i={id}")).unwrap_or_default();
+    fn move_cursor_after_kitty_placement(
+        &mut self,
+        graphic: &mut TerminalGraphic,
+        position: (usize, usize),
+        span_cols: usize,
+        span_rows: usize,
+    ) -> bool {
+        let (cols, rows) = self.size();
+        if cols == 0 || rows == 0 {
+            return true;
+        }
+
+        let col = position
+            .0
+            .saturating_add(span_cols)
+            .min(cols.saturating_sub(1));
+        self.advance_cursor_after_graphic_block_at(graphic, span_rows, position, col)
+    }
+
+    pub(crate) fn advance_cursor_after_graphic_block(
+        &mut self,
+        graphic: &mut TerminalGraphic,
+        graphic_rows: usize,
+    ) -> bool {
+        self.advance_cursor_after_graphic_block_at(
+            graphic,
+            graphic_rows,
+            (self.cursor.col, self.cursor.row),
+            0,
+        )
+    }
+
+    fn advance_cursor_after_graphic_block_at(
+        &mut self,
+        graphic: &mut TerminalGraphic,
+        graphic_rows: usize,
+        base_position: (usize, usize),
+        cursor_col: usize,
+    ) -> bool {
+        let graphic_rows = graphic_rows.max(1);
+        let (_cols, screen_rows) = self.size();
+        let (base_col, base_row) = base_position;
+        let in_scroll_region =
+            base_row >= self.scroll_region_top && base_row <= self.scroll_region_bottom;
+        let outside_lr_margin =
+            self.use_lr_margins && (base_col < self.left_margin || base_col > self.right_margin);
+        let new_cursor_row = base_row.saturating_add(graphic_rows);
+        let mut should_add_graphic = true;
+
+        if in_scroll_region && !outside_lr_margin && new_cursor_row > self.scroll_region_bottom {
+            let scroll_amount = new_cursor_row - self.scroll_region_bottom;
+            let scroll_top = self.scroll_region_top;
+            let scroll_bottom = self.scroll_region_bottom;
+
+            self.active_grid_mut()
+                .scroll_region_up(scroll_amount, scroll_top, scroll_bottom);
+            self.adjust_graphics_for_scroll_up(scroll_amount, scroll_top, scroll_bottom);
+
+            let original_row = graphic.position.1;
+            let rows_above_region_top =
+                scroll_amount.saturating_sub(original_row.saturating_sub(scroll_top));
+            graphic.position.1 = original_row.saturating_sub(scroll_amount).max(scroll_top);
+            graphic.scroll_offset_rows = graphic
+                .scroll_offset_rows
+                .saturating_add(rows_above_region_top);
+            if graphic.scroll_offset_rows >= graphic_rows
+                && (graphic.alternate_screen || scroll_top > 0)
+            {
+                should_add_graphic = false;
+            }
+            self.cursor.row = scroll_bottom;
+        } else {
+            self.cursor.row = new_cursor_row.min(screen_rows.saturating_sub(1));
+        }
+        self.cursor.col = cursor_col;
+        self.pending_wrap = false;
+
+        should_add_graphic
+    }
+
+    fn push_kitty_response(
+        &mut self,
+        image_id: Option<u32>,
+        image_number: Option<u32>,
+        message: &str,
+    ) {
+        let params = match (image_id, image_number) {
+            (Some(id), Some(number)) => format!("i={id},I={number}"),
+            (Some(id), None) => format!("i={id}"),
+            (None, Some(number)) => format!("I={number}"),
+            (None, None) => String::new(),
+        };
         self.response_buffer
             .extend_from_slice(format!("\x1b_G{params};{message}\x1b\\").as_bytes());
     }
@@ -276,12 +410,15 @@ impl Terminal {
     pub fn settle_graphics_transactions(&mut self) {}
 
     pub(crate) fn commit_deferred_kitty_deletes_for_visual_output(&mut self) {
-        if let Some((image_id, placement_id, position)) = self.pending_kitty_replacement_target() {
+        if let Some((image_id, placement_id, position, alternate_screen)) =
+            self.pending_kitty_replacement_target()
+        {
             self.graphics_store
                 .commit_deferred_kitty_deletes_preserving_replacement(
                     image_id,
                     placement_id,
                     position,
+                    alternate_screen,
                 );
             return;
         }
@@ -291,7 +428,7 @@ impl Terminal {
         self.graphics_store.commit_deferred_kitty_deletes();
     }
 
-    fn pending_kitty_replacement_target(&self) -> Option<(Option<u32>, u32, (usize, usize))> {
+    fn pending_kitty_replacement_target(&self) -> Option<(Option<u32>, u32, (usize, usize), bool)> {
         let parser = self.kitty_parser.as_ref()?;
         match parser.action {
             KittyAction::TransmitDisplay | KittyAction::Put => Some((
@@ -300,6 +437,7 @@ impl Terminal {
                 parser
                     .placement_position
                     .unwrap_or((self.cursor.col, self.cursor.row)),
+                self.alt_screen_active,
             )),
             _ => None,
         }
@@ -314,7 +452,11 @@ impl Terminal {
 
     /// Get graphics at a specific row
     pub fn graphics_at_row(&self, row: usize) -> Vec<&TerminalGraphic> {
-        self.graphics_store.graphics_at_row(row)
+        self.graphics_store
+            .graphics_at_row(row)
+            .into_iter()
+            .filter(|graphic| graphic.alternate_screen == self.alt_screen_active)
+            .collect()
     }
 
     /// Get all graphics
@@ -360,7 +502,7 @@ impl Terminal {
 
     /// Clear all graphics
     pub fn clear_graphics(&mut self) {
-        self.graphics_store.clear();
+        self.graphics_store.clear_screen(self.alt_screen_active);
     }
 
     /// Get immutable access to graphics store
@@ -390,16 +532,33 @@ impl Terminal {
         // We need to pass the OLD scrollback length (before scroll) to graphics store
         // Since the grid has already grown by `n` lines, subtract `n` to get the old length
         let scrollback_len = self.active_grid().scrollback_len();
-        let old_scrollback_len = scrollback_len.saturating_sub(n);
+        let old_scrollback_len = if !self.alt_screen_active && top == 0 {
+            scrollback_len.saturating_sub(n)
+        } else {
+            scrollback_len
+        };
 
         // Adjust graphics - pass old_scrollback_len so graphics are placed at the correct position
         // Graphics entering scrollback should be placed where the text they align with went
-        self.graphics_store.adjust_for_scroll_up_with_scrollback(
-            n,
-            top,
-            bottom,
-            old_scrollback_len,
-        );
+        if !self.alt_screen_active && top == 0 {
+            self.graphics_store
+                .adjust_for_scroll_up_for_screen_with_scrollback_len(
+                    n,
+                    top,
+                    bottom,
+                    old_scrollback_len,
+                    scrollback_len,
+                    self.alt_screen_active,
+                );
+        } else {
+            self.graphics_store.adjust_for_scroll_up_for_screen(
+                n,
+                top,
+                bottom,
+                old_scrollback_len,
+                self.alt_screen_active,
+            );
+        }
 
         debug::log(
             debug::DebugLevel::Debug,
@@ -426,7 +585,12 @@ impl Terminal {
     /// * `top` - Top of scroll region (0-indexed)
     /// * `bottom` - Bottom of scroll region (0-indexed)
     pub(super) fn adjust_graphics_for_scroll_down(&mut self, n: usize, top: usize, bottom: usize) {
-        self.graphics_store.adjust_for_scroll_down(n, top, bottom);
+        self.graphics_store.adjust_for_scroll_down_for_screen(
+            n,
+            top,
+            bottom,
+            self.alt_screen_active,
+        );
 
         debug::log(
             debug::DebugLevel::Debug,
@@ -447,6 +611,7 @@ impl Terminal {
     pub(crate) fn handle_iterm_image(&mut self, data: &str) {
         // Handle MultipartFile (start of chunked transfer)
         if let Some(params) = data.strip_prefix("MultipartFile=") {
+            self.abort_iterm_multipart_buffer("interrupted by new MultipartFile");
             self.handle_multipart_file_start(params);
             return;
         }
@@ -457,23 +622,99 @@ impl Terminal {
             return;
         }
 
+        // Handle FileEnd (end of multipart transfer)
+        if data == "FileEnd" {
+            self.handle_file_end();
+            return;
+        }
+
         // Handle single-sequence File= transfer
+        self.abort_iterm_multipart_buffer("interrupted by single File transfer");
         self.handle_single_file_transfer(data);
+    }
+
+    fn abort_iterm_multipart_buffer(&mut self, reason: &str) {
+        let Some(state) = self.iterm_multipart_buffer.take() else {
+            return;
+        };
+        if state.is_file_transfer {
+            if let Some(transfer_id) = state.transfer_id {
+                self.fail_iterm_file_transfer(transfer_id, reason.to_string());
+            }
+        }
     }
 
     /// Decode a base64-encoded filename from iTerm2 `name=` parameter
     fn decode_iterm_filename(params: &std::collections::HashMap<String, String>) -> String {
+        const DEFAULT_FILENAME: &str = "Unnamed file";
+
         params
             .get("name")
             .and_then(|encoded| {
-                base64::Engine::decode(
-                    &base64::engine::general_purpose::STANDARD,
-                    encoded.as_bytes(),
-                )
-                .ok()
+                crate::graphics::iterm::decode_base64_ignoring_ascii_whitespace(encoded.as_bytes())
+                    .ok()
             })
             .and_then(|bytes| String::from_utf8(bytes).ok())
-            .unwrap_or_default()
+            .filter(|filename| !filename.is_empty())
+            .unwrap_or_else(|| DEFAULT_FILENAME.to_string())
+    }
+
+    fn fail_iterm_file_transfer(&mut self, transfer_id: u64, reason: String) {
+        let _ = self
+            .file_transfer_manager
+            .fail_transfer(transfer_id, reason.clone());
+        self.terminal_events
+            .push(crate::terminal::TerminalEvent::FileTransferFailed {
+                id: transfer_id,
+                reason,
+            });
+    }
+
+    fn decode_complete_iterm_multipart_base64(
+        state: &mut crate::terminal::ITermMultipartState,
+        base64_chunk: &str,
+    ) -> Result<Vec<u8>, String> {
+        let cleaned_chunk: Vec<u8> = base64_chunk
+            .bytes()
+            .filter(|byte| !byte.is_ascii_whitespace())
+            .collect();
+        if cleaned_chunk.is_empty() {
+            return Ok(Vec::new());
+        }
+        if state.base64_padding_seen {
+            return Err("base64 data continued after padding".to_string());
+        }
+        if cleaned_chunk.contains(&b'=') {
+            state.base64_padding_seen = true;
+        }
+
+        state.pending_base64.extend_from_slice(&cleaned_chunk);
+        let decode_len = if state.base64_padding_seen {
+            if state.pending_base64.len() % 4 != 0 {
+                return Ok(Vec::new());
+            }
+            state.pending_base64.len()
+        } else {
+            (state.pending_base64.len() / 4) * 4
+        };
+        if decode_len == 0 {
+            return Ok(Vec::new());
+        }
+
+        let complete: Vec<u8> = state.pending_base64.drain(..decode_len).collect();
+        crate::graphics::iterm::decode_base64_ignoring_ascii_whitespace(&complete)
+            .map_err(|error| error.to_string())
+    }
+
+    fn decode_final_iterm_multipart_base64(
+        state: &mut crate::terminal::ITermMultipartState,
+    ) -> Result<Vec<u8>, String> {
+        if state.pending_base64.is_empty() {
+            return Ok(Vec::new());
+        }
+        let complete = std::mem::take(&mut state.pending_base64);
+        crate::graphics::iterm::decode_base64_ignoring_ascii_whitespace(&complete)
+            .map_err(|error| error.to_string())
     }
 
     /// Handle MultipartFile command (start of chunked transfer)
@@ -512,6 +753,8 @@ impl Terminal {
             self.iterm_multipart_buffer = Some(crate::terminal::ITermMultipartState {
                 params,
                 chunks: Vec::new(),
+                pending_base64: Vec::new(),
+                base64_padding_seen: false,
                 total_size,
                 accumulated_size: 0,
                 is_file_transfer: false,
@@ -561,6 +804,8 @@ impl Terminal {
             self.iterm_multipart_buffer = Some(crate::terminal::ITermMultipartState {
                 params,
                 chunks: Vec::new(),
+                pending_base64: Vec::new(),
+                base64_padding_seen: false,
                 total_size,
                 accumulated_size: 0,
                 is_file_transfer: true,
@@ -584,11 +829,9 @@ impl Terminal {
             }
         };
 
-        // Decode the chunk
-        let decoded = match base64::Engine::decode(
-            &base64::engine::general_purpose::STANDARD,
-            base64_chunk.as_bytes(),
-        ) {
+        // Decode only complete base64 quanta. iTerm2 MultipartFile/FilePart
+        // streams may split the encoded data at arbitrary byte boundaries.
+        let decoded = match Self::decode_complete_iterm_multipart_base64(state, base64_chunk) {
             Ok(d) => d,
             Err(e) => {
                 debug::log(
@@ -615,8 +858,33 @@ impl Terminal {
             }
         };
         let decoded_size = decoded.len();
+        let new_accumulated = state.accumulated_size + decoded_size;
 
-        if state.is_file_transfer {
+        if let Some(expected_size) = state.total_size {
+            if new_accumulated > expected_size {
+                let reason = format!(
+                    "size mismatch: received {} bytes, expected {}",
+                    new_accumulated, expected_size
+                );
+                debug::log(
+                    debug::DebugLevel::Debug,
+                    "ITERM",
+                    &format!(
+                        "FilePart rejected: accumulated {} + chunk {} > expected {}",
+                        state.accumulated_size, decoded_size, expected_size
+                    ),
+                );
+                if state.is_file_transfer {
+                    if let Some(transfer_id) = state.transfer_id {
+                        self.fail_iterm_file_transfer(transfer_id, reason);
+                    }
+                }
+                self.iterm_multipart_buffer = None;
+                return;
+            }
+        }
+
+        if state.is_file_transfer && !decoded.is_empty() {
             // File transfer path: append decoded data to transfer manager
             if let Some(transfer_id) = state.transfer_id {
                 if let Err(e) = self
@@ -638,7 +906,6 @@ impl Terminal {
                 }
 
                 // Emit progress event
-                let new_accumulated = state.accumulated_size + decoded_size;
                 self.terminal_events
                     .push(crate::terminal::TerminalEvent::FileTransferProgress {
                         id: transfer_id,
@@ -648,70 +915,130 @@ impl Terminal {
             }
         }
 
-        // Check if adding this chunk would exceed size limit (inline images only)
-        let new_accumulated = state.accumulated_size + decoded_size;
-        if !state.is_file_transfer {
-            if let Some(expected_size) = state.total_size {
-                if new_accumulated > expected_size {
-                    debug::log(
-                        debug::DebugLevel::Debug,
-                        "ITERM",
-                        &format!(
-                            "FilePart rejected: accumulated {} + chunk {} > expected {}",
-                            state.accumulated_size, decoded_size, expected_size
-                        ),
-                    );
-                    self.iterm_multipart_buffer = None;
-                    return;
-                }
-            }
-        }
-
         // For inline images: accumulate base64 chunks
         if !state.is_file_transfer {
             state.chunks.push(base64_chunk.to_string());
         }
         state.accumulated_size = new_accumulated;
 
-        // Check if transfer is complete
-        let is_complete = if let Some(expected_size) = state.total_size {
-            state.accumulated_size >= expected_size
-        } else {
-            // Without size parameter, we can't determine completion automatically
+        // iTerm2 multipart transfers are explicitly terminated by FileEnd.
+        // size= is kept as an expected decoded byte count for limit checks and
+        // progress reporting, not as an implicit end marker.
+    }
+
+    /// Handle FileEnd command (end of multipart transfer).
+    fn handle_file_end(&mut self) {
+        if self.iterm_multipart_buffer.is_none() {
             debug::log(
                 debug::DebugLevel::Debug,
                 "ITERM",
-                "MultipartFile missing size parameter - cannot determine completion",
+                "FileEnd received without MultipartFile",
             );
-            // If file transfer, fail it
-            if state.is_file_transfer {
-                if let Some(transfer_id) = state.transfer_id {
-                    let _ = self
-                        .file_transfer_manager
-                        .fail_transfer(transfer_id, "missing size parameter".to_string());
-                    self.terminal_events
-                        .push(crate::terminal::TerminalEvent::FileTransferFailed {
-                            id: transfer_id,
-                            reason: "missing size parameter".to_string(),
-                        });
-                }
-            }
-            self.iterm_multipart_buffer = None;
             return;
-        };
-
-        if is_complete {
-            self.finalize_multipart_transfer();
         }
+
+        self.finalize_multipart_transfer();
     }
 
     /// Finalize multipart transfer and process the complete data
     fn finalize_multipart_transfer(&mut self) {
         // Take the buffer state
-        let state = match self.iterm_multipart_buffer.take() {
+        let mut state = match self.iterm_multipart_buffer.take() {
             Some(s) => s,
             None => return,
         };
+
+        let final_decoded = match Self::decode_final_iterm_multipart_base64(&mut state) {
+            Ok(decoded) => decoded,
+            Err(error) => {
+                debug::log(
+                    debug::DebugLevel::Debug,
+                    "ITERM",
+                    &format!("FileEnd base64 decode failed: {}", error),
+                );
+                if state.is_file_transfer {
+                    if let Some(transfer_id) = state.transfer_id {
+                        self.fail_iterm_file_transfer(
+                            transfer_id,
+                            format!("base64 decode error: {}", error),
+                        );
+                    }
+                }
+                return;
+            }
+        };
+
+        if !final_decoded.is_empty() {
+            let new_accumulated = state.accumulated_size + final_decoded.len();
+            if let Some(expected_size) = state.total_size {
+                if new_accumulated > expected_size {
+                    let reason = format!(
+                        "size mismatch: received {} bytes, expected {}",
+                        new_accumulated, expected_size
+                    );
+                    debug::log(
+                        debug::DebugLevel::Debug,
+                        "ITERM",
+                        &format!("FileEnd rejected: {}", reason),
+                    );
+                    if state.is_file_transfer {
+                        if let Some(transfer_id) = state.transfer_id {
+                            self.fail_iterm_file_transfer(transfer_id, reason);
+                        }
+                    }
+                    return;
+                }
+            }
+            if state.is_file_transfer {
+                if let Some(transfer_id) = state.transfer_id {
+                    if let Err(error) = self
+                        .file_transfer_manager
+                        .append_data(transfer_id, &final_decoded)
+                    {
+                        debug::log(
+                            debug::DebugLevel::Debug,
+                            "ITERM",
+                            &format!("File transfer append failed: {}", error),
+                        );
+                        self.terminal_events.push(
+                            crate::terminal::TerminalEvent::FileTransferFailed {
+                                id: transfer_id,
+                                reason: error,
+                            },
+                        );
+                        return;
+                    }
+                    self.terminal_events.push(
+                        crate::terminal::TerminalEvent::FileTransferProgress {
+                            id: transfer_id,
+                            bytes_transferred: new_accumulated,
+                            total_bytes: state.total_size,
+                        },
+                    );
+                }
+            }
+            state.accumulated_size = new_accumulated;
+        }
+
+        if let Some(expected_size) = state.total_size {
+            if state.accumulated_size != expected_size {
+                let reason = format!(
+                    "size mismatch: received {} bytes, expected {}",
+                    state.accumulated_size, expected_size
+                );
+                debug::log(
+                    debug::DebugLevel::Debug,
+                    "ITERM",
+                    &format!("FileEnd rejected: {}", reason),
+                );
+                if state.is_file_transfer {
+                    if let Some(transfer_id) = state.transfer_id {
+                        self.fail_iterm_file_transfer(transfer_id, reason);
+                    }
+                }
+                return;
+            }
+        }
 
         if state.is_file_transfer {
             // File transfer path: complete the transfer
@@ -823,74 +1150,62 @@ impl Terminal {
             let position = (self.cursor.col, self.cursor.row);
 
             // Decode and create graphic
-            match parser.decode_image(position) {
-                Ok(mut graphic) => {
+            match parser.decode_image_with_animation(position) {
+                Ok(decoded) => {
+                    let mut graphic = decoded.graphic;
+                    let animation_frames = decoded.animation_frames;
+                    let animation_id = if animation_frames.len() > 1 {
+                        Some(self.graphics_store.allocate_local_animation_id())
+                    } else {
+                        None
+                    };
+                    graphic.animation_id = animation_id;
+                    graphic.set_alternate_screen(self.alt_screen_active);
                     // Set cell dimensions
                     let (cell_w, cell_h) = self.cell_dimensions;
                     graphic.set_cell_dimensions(cell_w, cell_h);
+                    let (cols, rows) = self.size();
+                    let (graphic_width_in_cols, graphic_height_in_rows) =
+                        graphic.resolved_cell_span(Some(cols), Some(rows));
+                    graphic.set_display_cell_span(graphic_width_in_cols, graphic_height_in_rows);
 
-                    // Calculate graphic height in terminal rows (ceiling division)
-                    let graphic_height_in_rows = graphic.height.div_ceil(cell_h as usize);
-
-                    // Move cursor to line below graphic (similar to Sixel behavior)
-                    let new_cursor_col = 0;
-                    let new_cursor_row = self.cursor.row.saturating_add(graphic_height_in_rows);
-
-                    // Check if we need to scroll
-                    let (_, rows) = self.size();
-                    if new_cursor_row >= rows {
-                        // Graphic pushed cursor past bottom, need to scroll
-                        let scroll_amount = new_cursor_row - rows + 1;
-                        let scroll_top = self.scroll_region_top;
-                        let scroll_bottom = self.scroll_region_bottom;
-
-                        // Scroll the grid and existing graphics
-                        self.active_grid_mut().scroll_region_up(
-                            scroll_amount,
-                            scroll_top,
-                            scroll_bottom,
+                    let mut should_add_graphic = true;
+                    if !parser.do_not_move_cursor() {
+                        should_add_graphic = self.advance_cursor_after_graphic_block(
+                            &mut graphic,
+                            graphic_height_in_rows,
                         );
-                        self.adjust_graphics_for_scroll_up(
-                            scroll_amount,
-                            scroll_top,
-                            scroll_bottom,
-                        );
-
-                        // Adjust new graphic's position for the scroll
-                        let original_row = graphic.position.1;
-                        let new_row = original_row.saturating_sub(scroll_amount);
-                        graphic.position.1 = new_row;
-
-                        // Track rows that scrolled off top
-                        if scroll_amount > original_row {
-                            graphic.scroll_offset_rows = scroll_amount - original_row;
-                        }
-
-                        self.cursor.row = rows - 1;
-                        self.cursor.col = new_cursor_col;
-                    } else {
-                        self.cursor.row = new_cursor_row;
-                        self.cursor.col = new_cursor_col;
                     }
 
                     // Add to graphics store (limit enforced internally)
-                    self.graphics_store.add_graphic(graphic.clone());
-                    self.terminal_events
-                        .push(crate::terminal::TerminalEvent::GraphicsAdded(position.1));
+                    let row = graphic.position.1;
+                    if should_add_graphic && self.graphics_store.add_graphic(graphic.clone()) {
+                        if let Some(animation_id) = animation_id {
+                            for frame in animation_frames {
+                                self.graphics_store.add_animation_frame(animation_id, frame);
+                            }
+                            self.graphics_store.control_animation(
+                                animation_id,
+                                crate::graphics::AnimationControl::EnableLooping,
+                            );
+                        }
+                        self.terminal_events
+                            .push(crate::terminal::TerminalEvent::GraphicsAdded(row));
 
-                    debug::log(
-                        debug::DebugLevel::Debug,
-                        "ITERM",
-                        &format!(
-                            "Added iTerm image at ({}, {}), size {}x{}, cursor moved to ({}, {})",
-                            position.0,
-                            position.1,
-                            graphic.width,
-                            graphic.height,
-                            self.cursor.col,
-                            self.cursor.row
-                        ),
-                    );
+                        debug::log(
+                            debug::DebugLevel::Debug,
+                            "ITERM",
+                            &format!(
+                                "Added iTerm image at ({}, {}), size {}x{}, cursor moved to ({}, {})",
+                                position.0,
+                                position.1,
+                                graphic.width,
+                                graphic.height,
+                                self.cursor.col,
+                                self.cursor.row
+                            ),
+                        );
+                    }
                 }
                 Err(e) => {
                     debug::log(
@@ -903,8 +1218,7 @@ impl Terminal {
         } else {
             // ===== File download path =====
             // Decode the base64 data
-            let decoded = match base64::Engine::decode(
-                &base64::engine::general_purpose::STANDARD,
+            let decoded = match crate::graphics::iterm::decode_base64_ignoring_ascii_whitespace(
                 image_data.as_bytes(),
             ) {
                 Ok(d) => d,
@@ -919,7 +1233,8 @@ impl Terminal {
             };
 
             let filename = Self::decode_iterm_filename(parser.params());
-            let total_bytes = Some(decoded.len());
+            let expected_size = parser.declared_size();
+            let total_bytes = expected_size.or(Some(decoded.len()));
 
             // Start, append data, and complete in one go
             let transfer_id = self.file_transfer_manager.start_download(
@@ -940,6 +1255,20 @@ impl Terminal {
                     },
                     total_bytes,
                 });
+
+            if let Some(expected_size) = expected_size {
+                if decoded.len() != expected_size {
+                    self.fail_iterm_file_transfer(
+                        transfer_id,
+                        format!(
+                            "size mismatch: received {} bytes, expected {}",
+                            decoded.len(),
+                            expected_size
+                        ),
+                    );
+                    return;
+                }
+            }
 
             // Append the full data
             if let Err(e) = self
@@ -1010,6 +1339,18 @@ fn find_apc_terminator(input: &[u8], start: usize) -> Option<(usize, usize)> {
     None
 }
 
+fn kitty_payload_is_delete_command(payload: &str) -> bool {
+    let params = payload
+        .split_once(';')
+        .map_or(payload, |(params, _)| params);
+    params.split(',').any(|pair| {
+        let Some((key, value)) = pair.split_once('=') else {
+            return false;
+        };
+        key == "a" && value.starts_with('d')
+    })
+}
+
 fn find_dcs_passthrough_terminator(
     input: &[u8],
     start: usize,
@@ -1067,6 +1408,14 @@ mod tests {
     }
 
     #[test]
+    fn kitty_delete_command_detection_handles_unordered_parameters() {
+        assert!(kitty_payload_is_delete_command("a=d,d=i,i=1;"));
+        assert!(kitty_payload_is_delete_command("d=i,i=1,a=d;"));
+        assert!(!kitty_payload_is_delete_command("a=T,m=1;AAAA"));
+        assert!(!kitty_payload_is_delete_command("m=0;AAAA"));
+    }
+
+    #[test]
     fn incomplete_kitty_apc_over_limit_is_dropped() {
         let mut term = create_test_terminal();
         term.set_graphics_memory_limits(8, 8);
@@ -1077,6 +1426,26 @@ mod tests {
 
         assert!(term.kitty_apc_buffer.is_empty());
         assert!(!term.kitty_graphics_transfer_in_progress());
+    }
+
+    #[test]
+    fn kitty_apc_accepts_c1_apc_and_st_controls() {
+        let mut term = create_test_terminal();
+        let mut sequence = Vec::new();
+        sequence.push(0x9f);
+        sequence.extend_from_slice(b"Ga=T,f=32,s=1,v=1,i=17,q=1;/wAA/w==");
+        sequence.push(0x9c);
+
+        term.process(&sequence);
+
+        assert_eq!(term.graphics_count(), 1);
+        let graphic = term.all_graphics().last().expect("expected Kitty graphic");
+        assert_eq!(graphic.protocol.as_str(), "kitty");
+        assert_eq!(graphic.width, 1);
+        assert_eq!(graphic.height, 1);
+        assert_eq!(graphic.kitty_image_id, Some(17));
+        assert_eq!(graphic.pixels.as_ref(), &[255, 0, 0, 255]);
+        assert!(term.drain_responses().is_empty());
     }
 
     #[test]

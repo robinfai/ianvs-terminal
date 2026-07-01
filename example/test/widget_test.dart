@@ -10,6 +10,7 @@ import 'package:ianvs_pty/ianvs_pty.dart';
 
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
+import 'package:app/features/sessions/session_state.dart';
 import 'package:app/features/shell/instant_replay_store.dart';
 import 'package:app/features/shell/paste_history_repository.dart';
 import 'package:app/features/shell/shell_screen.dart';
@@ -296,6 +297,19 @@ RenderTerminalViewport _terminalRenderObject(WidgetTester tester) {
   return tester.allRenderObjects.whereType<RenderTerminalViewport>().last;
 }
 
+RenderTerminalViewport _terminalRenderObjectForPane(
+  WidgetTester tester,
+  String sessionId,
+) {
+  final paneRect = tester.getRect(find.byKey(Key('shell-pane-$sessionId')));
+  return tester.allRenderObjects.whereType<RenderTerminalViewport>().firstWhere(
+    (renderObject) {
+      final topLeft = renderObject.localToGlobal(Offset.zero);
+      return paneRect.contains(topLeft + const Offset(1, 1));
+    },
+  );
+}
+
 void _expectRectClose(Rect actual, Rect expected) {
   expect(actual.left, moreOrLessEquals(expected.left, epsilon: 0.001));
   expect(actual.top, moreOrLessEquals(expected.top, epsilon: 0.001));
@@ -520,6 +534,106 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
+  testWidgets(
+    'tab overflow badge can focus an inactive split pane',
+    (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(1200, 700);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final fakeBindings = FakePtyBackend();
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openTabCountWithShortcut(tester, 8);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final sessionController = container.read(
+        sessionControllerProvider.notifier,
+      );
+      sessionController.activateSession('8');
+      sessionController.splitActiveSession(
+        defaultTerminalProfile(),
+        TerminalSplitAxis.horizontal,
+      );
+      await tester.pumpAndSettle();
+
+      final splitState = container.read(sessionControllerProvider);
+      final hiddenTab = splitState.tabs.singleWhere(
+        (tab) => tab.sessionId == '8',
+      );
+      final activeSessionId = splitState.activeSessionId!;
+      final inactiveSessionId = hiddenTab.effectivePanes
+          .firstWhere((pane) => pane.sessionId != activeSessionId)
+          .sessionId;
+
+      fakeBindings.enqueueEvent(
+        inactiveSessionId,
+        PtyEvent(
+          kind: 'session_badge',
+          sessionId: inactiveSessionId,
+          payload: const <String, Object?>{'text': 'Deploy'},
+        ),
+      );
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(inactiveSessionId);
+      await tester.pump();
+
+      tester.view.physicalSize = const Size(560, 700);
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('shell-tab-overflow-button')),
+        findsOneWidget,
+      );
+      expect(find.bySemanticsIdentifier('shell-tab-8'), findsNothing);
+
+      await tester.tap(find.byKey(const Key('shell-tab-overflow-button')));
+      await tester.pumpAndSettle();
+
+      final overflowBadge = find.byKey(const Key('shell-tab-overflow-badge-8'));
+      expect(overflowBadge, findsOneWidget);
+      expect(
+        find.descendant(of: overflowBadge, matching: find.text('DEPLOY')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: overflowBadge,
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Tooltip &&
+                widget.message?.contains('OSC 1337 badge: Deploy') == true &&
+                widget.message?.contains('inactive pane') == true &&
+                widget.message?.contains('Click to focus this pane.') == true,
+          ),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(overflowBadge);
+      await tester.pumpAndSettle();
+
+      expect(
+        container.read(sessionControllerProvider).activeSessionId,
+        inactiveSessionId,
+      );
+      expect(find.byKey(const Key('shell-tab-overflow-panel')), findsNothing);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
   testWidgets('new tab keeps current terminal visible until its first frame', (
     tester,
   ) async {
@@ -678,6 +792,8 @@ void main() {
       await _openTabContextMenu(tester);
       await tester.tap(find.text('Split right'));
       await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 260));
+      await tester.pumpAndSettle();
 
       await _openTabContextMenu(tester);
       expect(
@@ -685,6 +801,12 @@ void main() {
         findsNothing,
       );
       expect(find.text('Split down'), findsOneWidget);
+      expect(
+        find.text(
+          'Unavailable: Another pane would become narrower than 24 columns.',
+        ),
+        findsOneWidget,
+      );
       expect(
         find.text('Unavailable: This tab already has multiple panes.'),
         findsOneWidget,
@@ -792,6 +914,185 @@ void main() {
     expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
     expect(find.byKey(const Key('shell-pane-dim-2')), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
+  });
+
+  testWidgets(
+    'clicking an inactive split pane with mouse reporting activates and reports to that pane',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openTabContextMenu(tester);
+      await tester.tap(find.text('Split right'));
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      fakeBindings.setFrame(1, <String, Object?>{
+        ..._terminalFrameWithTitle('Mouse Pane'),
+        'modes': <String, Object?>{
+          'mouse_mode': 'normal',
+          'mouse_encoding': 'sgr',
+        },
+      });
+      container.read(terminalRuntimeControllerProvider).refreshSession('1');
+      await tester.pump();
+
+      fakeBindings.writes.clear();
+      fakeBindings.writesBySession.clear();
+
+      final inactiveViewport = find.descendant(
+        of: find.byKey(const Key('shell-pane-1')),
+        matching: find.byType(TerminalViewport),
+      );
+      await tester.tap(inactiveViewport);
+      await tester.pump();
+
+      expect(container.read(sessionControllerProvider).activeSessionId, '1');
+      expect(fakeBindings.writesBySession.map((entry) => entry.key).toList(), [
+        '1',
+        '1',
+      ]);
+      expect(
+        ascii.decode(fakeBindings.writesBySession.first.value),
+        startsWith('\x1B[<0;'),
+      );
+      expect(
+        ascii.decode(fakeBindings.writesBySession.last.value),
+        endsWith('m'),
+      );
+    },
+  );
+
+  testWidgets(
+    'switching split panes routes focus reports to the pane gaining or losing focus',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openTabContextMenu(tester);
+      await tester.tap(find.text('Split right'));
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      for (final sessionId in const ['1', '2']) {
+        fakeBindings.setFrame(sessionId, <String, Object?>{
+          ..._terminalFrameWithTitle('Focus Pane $sessionId'),
+          'modes': const <String, Object?>{'focus_tracking': true},
+        });
+        container
+            .read(terminalRuntimeControllerProvider)
+            .refreshSession(sessionId);
+      }
+      await tester.pump();
+
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('shell-pane-2')),
+          matching: find.byType(TerminalViewport),
+        ),
+      );
+      await tester.pump();
+      fakeBindings.writes.clear();
+      fakeBindings.writesBySession.clear();
+
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('shell-pane-1')),
+          matching: find.byType(TerminalViewport),
+        ),
+      );
+      await tester.pump();
+
+      expect(container.read(sessionControllerProvider).activeSessionId, '1');
+      expect(
+        fakeBindings.writesBySession
+            .map((entry) => '${entry.key}:${ascii.decode(entry.value)}')
+            .toList(),
+        ['2:\x1B[O', '1:\x1B[I'],
+      );
+    },
+  );
+
+  testWidgets('disabling focus tracking stops split pane focus reports', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openTabContextMenu(tester);
+    await tester.tap(find.text('Split right'));
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    for (final sessionId in const ['1', '2']) {
+      fakeBindings.setFrame(sessionId, <String, Object?>{
+        ..._terminalFrameWithTitle('Focus Pane $sessionId'),
+        'modes': const <String, Object?>{'focus_tracking': true},
+      });
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(sessionId);
+    }
+    await tester.pump();
+
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const Key('shell-pane-2')),
+        matching: find.byType(TerminalViewport),
+      ),
+    );
+    await tester.pump();
+
+    for (final sessionId in const ['1', '2']) {
+      fakeBindings.setFrame(sessionId, <String, Object?>{
+        ..._terminalFrameWithTitle('Focus Pane $sessionId'),
+        'modes': const <String, Object?>{'focus_tracking': false},
+      });
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(sessionId);
+    }
+    await tester.pump();
+    fakeBindings.writes.clear();
+    fakeBindings.writesBySession.clear();
+
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const Key('shell-pane-1')),
+        matching: find.byType(TerminalViewport),
+      ),
+    );
+    await tester.pump();
+
+    expect(container.read(sessionControllerProvider).activeSessionId, '1');
+    expect(fakeBindings.writesBySession, isEmpty);
   });
 
   testWidgets('active split pane header exposes split affordances', (
@@ -907,6 +1208,107 @@ void main() {
     },
   );
 
+  testWidgets(
+    'collapsed split tab keeps remaining pane title and badge after closing root pane',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openTabContextMenu(tester);
+      await tester.tap(find.text('Split right'));
+      await tester.pumpAndSettle();
+
+      Map<String, Object?> frameWithTitle(String output, String title) {
+        return <String, Object?>{
+          'rows': <Object?>[
+            <String, Object?>{
+              'index': 0,
+              'text': output,
+              'style_runs': const <Object?>[],
+            },
+          ],
+          'cursor': <String, Object?>{
+            'row': 0,
+            'col': output.length,
+            'visible': true,
+          },
+          'selection': null,
+          'viewport_rows': 24,
+          'viewport_cols': 80,
+          'dirty_ranges': <Object?>[
+            <String, Object?>{'start': 0, 'end': 1},
+          ],
+          'scrollback_offset': 0,
+          'scrollback_max_offset': 0,
+          'window_title': title,
+          'window_icon_name': null,
+        };
+      }
+
+      fakeBindings.setFrame(
+        1,
+        frameWithTitle('left output', 'Left Pane Title'),
+      );
+      fakeBindings.setFrame(
+        2,
+        frameWithTitle('right output', 'Right Pane Title'),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      fakeBindings.enqueueEvent(
+        2,
+        const PtyEvent(
+          kind: 'session_badge',
+          sessionId: '2',
+          payload: <String, Object?>{'text': 'Deploy'},
+        ),
+      );
+      container.read(terminalRuntimeControllerProvider).refreshSession('2');
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('shell-pane-1')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('shell-pane-action-close-1')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('shell-pane-1')), findsNothing);
+      expect(find.byKey(const Key('shell-pane-2')), findsOneWidget);
+      expect(find.byKey(const Key('shell-pane-header-2')), findsNothing);
+      expect(find.text('Left Pane Title'), findsNothing);
+      expect(find.text('Right Pane Title'), findsNWidgets(2));
+      expect(
+        tester
+            .widget<Text>(find.byKey(const Key('shell-chrome-window-title')))
+            .data,
+        'Right Pane Title',
+      );
+      expect(find.byKey(const Key('shell-status-badge')), findsOneWidget);
+      expect(find.text('BADGE Deploy'), findsOneWidget);
+      expect(find.text('DEPLOY'), findsOneWidget);
+      expect(container.read(sessionControllerProvider).activeSessionId, '2');
+
+      await _hoverShellTab(tester, '1');
+      await tester.tap(find.byKey(const Key('shell-tab-close-1')));
+      await tester.pumpAndSettle();
+
+      expect(container.read(sessionControllerProvider).tabs, isEmpty);
+      expect(find.byKey(const Key('shell-pane-2')), findsNothing);
+      expect(find.byKey(const Key('shell-status-badge')), findsNothing);
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
+
   testWidgets('active split pane header zooms and closes the pane', (
     tester,
   ) async {
@@ -945,6 +1347,51 @@ void main() {
     expect(find.byKey(const Key('shell-pane-1')), findsNothing);
     expect(find.byKey(const Key('shell-pane-2')), findsOneWidget);
     expect(find.byKey(const Key('shell-pane-header-2')), findsOneWidget);
+    expect(
+      find.byKey(const Key('shell-pane-action-split-right-2')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('shell-pane-action-split-down-2')),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<IconButton>(
+            find.byKey(const Key('shell-pane-action-split-right-2')),
+          )
+          .onPressed,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<IconButton>(
+            find.byKey(const Key('shell-pane-action-split-down-2')),
+          )
+          .onPressed,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<IconButton>(
+            find.byKey(const Key('shell-pane-action-split-right-2')),
+          )
+          .tooltip,
+      'Split right unavailable: Unzoom the active pane to manage other panes.',
+    );
+    expect(
+      tester
+          .widget<IconButton>(
+            find.byKey(const Key('shell-pane-action-split-down-2')),
+          )
+          .tooltip,
+      'Split down unavailable: Unzoom the active pane to manage other panes.',
+    );
+
+    await tester.tap(find.byKey(const Key('shell-pane-action-split-right-2')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('shell-pane-3')), findsNothing);
 
     await tester.tap(find.byKey(const Key('shell-pane-action-zoom-2')));
     await tester.pumpAndSettle();
@@ -991,6 +1438,42 @@ void main() {
 
     expect(tester.getSize(firstPane).width, greaterThan(firstWidthBefore));
     expect(tester.getSize(secondPane).width, lessThan(secondWidthBefore));
+    expect(fakeBindings.writes, isEmpty);
+  });
+
+  testWidgets('dragging a split pane divider respects minimum pane width', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openTabContextMenu(tester);
+    await tester.tap(find.text('Split right'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 260));
+    await tester.pumpAndSettle();
+
+    final secondPane = find.byKey(const Key('shell-pane-2'));
+    final divider = find.byKey(const Key('shell-pane-divider-1-2'));
+    expect(divider, findsOneWidget);
+
+    final secondRenderObject = _terminalRenderObjectForPane(tester, '2');
+    final minimumPaneWidth = 24 * secondRenderObject.debugCellSize.width;
+
+    await tester.drag(divider, const Offset(2000, 0));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getSize(secondPane).width,
+      greaterThanOrEqualTo(minimumPaneWidth),
+    );
     expect(fakeBindings.writes, isEmpty);
   });
 
@@ -2360,6 +2843,38 @@ void main() {
 
       expect(copiedText, 'al');
       expect(find.text('Copy mode'), findsNothing);
+      expect(fakeBindings.writes, isEmpty);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'switching split panes exits copy mode for the previous pane',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openTabContextMenu(tester);
+      await tester.tap(find.text('Split right'));
+      await tester.pumpAndSettle();
+
+      await _sendMetaShiftShortcut(tester, LogicalKeyboardKey.keyC);
+      expect(find.text('Copy mode'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('shell-pane-1')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Copy mode'), findsNothing);
+
+      await _sendMetaShiftShortcut(tester, LogicalKeyboardKey.keyC);
+      expect(find.text('Copy mode'), findsOneWidget);
       expect(fakeBindings.writes, isEmpty);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
@@ -4281,6 +4796,65 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
+  testWidgets(
+    'switching split panes closes autocomplete for the previous pane',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openTabContextMenu(tester);
+      await tester.tap(find.text('Split right'));
+      await tester.pumpAndSettle();
+
+      fakeBindings.setFrame(2, {
+        'rows': [
+          {
+            'index': 0,
+            'text': 'git checkout feature/login',
+            'style_runs': const [],
+          },
+          {'index': 1, 'text': 'git che', 'style_runs': const []},
+        ],
+        'cursor': {'row': 1, 'col': 7, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 0, 'end': 2},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+      });
+      await tester.pump(const Duration(milliseconds: 40));
+
+      await tester.tap(find.byKey(const Key('shell-pane-2')));
+      await tester.pump();
+      await _sendMetaShortcut(tester, LogicalKeyboardKey.semicolon);
+
+      expect(
+        find.byKey(const Key('terminal-autocomplete-menu')),
+        findsOneWidget,
+      );
+      expect(find.text('checkout'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('shell-pane-1')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('terminal-autocomplete-menu')), findsNothing);
+      expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
+      expect(find.byKey(const Key('shell-pane-dim-2')), findsOneWidget);
+      expect(fakeBindings.writes, isEmpty);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
   testWidgets('auto composer edits a command with shell history completion', (
     tester,
   ) async {
@@ -4358,6 +4932,66 @@ void main() {
     );
     expect(find.byKey(const Key('terminal-auto-composer')), findsNothing);
   });
+
+  testWidgets(
+    'switching split panes closes auto composer for the previous pane',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openTabContextMenu(tester);
+      await tester.tap(find.text('Split right'));
+      await tester.pumpAndSettle();
+
+      fakeBindings.enqueueEvent(
+        2,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '2',
+          payload: const <String, Object?>{
+            'hook': 'command_finished',
+            'command': 'git checkout feature/login',
+            'pwd': '/Users/dev/project',
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      await _openCommandMenu(tester);
+      await tester.ensureVisible(find.byKey(const Key('shell-auto-composer')));
+      await tester.tap(find.byKey(const Key('shell-auto-composer')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('terminal-auto-composer')), findsOneWidget);
+
+      await tester.enterText(
+        find.byKey(const Key('terminal-auto-composer-field')),
+        'git checkout f',
+      );
+      await tester.pump();
+      expect(
+        find.byKey(
+          const Key('terminal-auto-composer-suggestion-feature/login'),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('shell-pane-1')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('terminal-auto-composer')), findsNothing);
+      expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
+      expect(find.byKey(const Key('shell-pane-dim-2')), findsOneWidget);
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
 
   testWidgets('shell status bar shows current shell integration context', (
     tester,
@@ -4505,9 +5139,12 @@ void main() {
       'modes': {
         'alternate_screen': true,
         'bracketed_paste': true,
-        'mouse_mode': 'button_event',
-        'mouse_encoding': 'sgr',
+        'focus_tracking': true,
+        'mouse_mode': 'x10',
+        'mouse_encoding': 'sgr_pixels',
+        'kitty_keyboard_flags': 10,
         'application_cursor': true,
+        'synchronized_output': true,
       },
     });
     await tester.pump(const Duration(milliseconds: 40));
@@ -4515,10 +5152,19 @@ void main() {
     expect(find.byKey(const Key('shell-status-mode-alt')), findsOneWidget);
     expect(find.byKey(const Key('shell-status-mode-mouse')), findsOneWidget);
     expect(find.byKey(const Key('shell-status-mode-paste')), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-mode-focus')), findsOneWidget);
+    expect(
+      find.byKey(const Key('shell-status-mode-kitty-keyboard')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('shell-status-mode-sync')), findsOneWidget);
     expect(find.byKey(const Key('shell-status-mode-read-only')), findsNothing);
     expect(find.text('ALT'), findsOneWidget);
     expect(find.text('MOUSE'), findsOneWidget);
     expect(find.text('PASTE'), findsOneWidget);
+    expect(find.text('FOCUS'), findsOneWidget);
+    expect(find.text('KEYS'), findsOneWidget);
+    expect(find.text('SYNC'), findsOneWidget);
     expect(find.text('APP CURSOR'), findsNothing);
     expect(
       find.byTooltip('Alternate screen buffer is active.'),
@@ -4526,11 +5172,33 @@ void main() {
     );
     expect(
       find.byTooltip(
-        'Mouse reporting is active: button-event tracking, SGR encoding.',
+        'Mouse reporting is active: X10 tracking, SGR pixels encoding.',
       ),
       findsOneWidget,
     );
     expect(find.byTooltip('Bracketed paste mode is active.'), findsOneWidget);
+    expect(
+      find.byTooltip(
+        'Focus reporting is active. The application receives focus-in and focus-out events.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byTooltip(
+        [
+          'Kitty keyboard protocol is active.',
+          'Enabled: repeat and release events, all keys.',
+          'Some key combinations are sent as Kitty CSI-u sequences.',
+        ].join('\n'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byTooltip(
+        'Synchronized output mode is active. Intermediate updates are held until the application flushes.',
+      ),
+      findsOneWidget,
+    );
 
     await _openCommandMenu(tester);
     await tester.ensureVisible(find.byKey(const Key('shell-toggle-read-only')));
@@ -5850,6 +6518,182 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('1/2'), findsOneWidget);
+      expect(fakeBindings.scrollToCalls.last, [1, 3]);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'shell search jump clears inactive pane new output marker',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openCommandMenu(tester);
+      await tester.tap(find.byKey(const Key('shell-split-right')));
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final tab = container.read(sessionControllerProvider).tabs.single;
+      final activeSessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      final inactiveSessionId = tab.effectivePanes
+          .firstWhere((pane) => pane.sessionId != activeSessionId)
+          .sessionId;
+
+      Map<String, Object?> frame(String text) {
+        return <String, Object?>{
+          'rows': <Object?>[
+            <String, Object?>{
+              'index': 0,
+              'text': text,
+              'style_runs': <Object?>[],
+            },
+          ],
+          'cursor': <String, Object?>{'row': 0, 'col': text.length},
+          'selection': null,
+          'viewport_rows': 24,
+          'viewport_cols': 80,
+          'dirty_ranges': <Object?>[
+            <String, Object?>{'start': 0, 'end': 1},
+          ],
+          'scrollback_offset': 0,
+          'scrollback_max_offset': 0,
+        };
+      }
+
+      fakeBindings.setFrame(inactiveSessionId, frame('first background line'));
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(inactiveSessionId);
+      await tester.pump(const Duration(milliseconds: 40));
+      fakeBindings.setFrame(inactiveSessionId, frame('needle background line'));
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(inactiveSessionId);
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(
+        find.byKey(Key('shell-tab-new-output-${tab.sessionId}')),
+        findsOneWidget,
+      );
+
+      fakeBindings.setSearchMatches(activeSessionId, 'needle', [
+        <String, Object?>{
+          'row': 2,
+          'start_col': 0,
+          'end_col': 6,
+          'text': 'active pane needle',
+          'scrollback_offset': 2,
+        },
+      ]);
+      fakeBindings.setSearchMatches(inactiveSessionId, 'needle', [
+        <String, Object?>{
+          'row': 7,
+          'start_col': 0,
+          'end_col': 6,
+          'text': 'inactive pane needle',
+          'scrollback_offset': 7,
+        },
+      ]);
+
+      await _openShellSearch(tester);
+      await tester.enterText(
+        find.byKey(const Key('terminal-search-field')),
+        'needle',
+      );
+      await tester.pumpAndSettle();
+      await _selectSearchScope(tester, 'current_tab');
+      await tester.tap(find.byKey(const Key('terminal-search-next')));
+      await tester.pumpAndSettle();
+
+      expect(
+        container.read(sessionControllerProvider).activeSessionId,
+        inactiveSessionId,
+      );
+      expect(fakeBindings.scrollToCalls.last, [
+        int.parse(inactiveSessionId),
+        7,
+      ]);
+      expect(
+        find.byKey(Key('shell-tab-new-output-${tab.sessionId}')),
+        findsNothing,
+      );
+      final searchField = tester.widget<TextField>(
+        find.byKey(const Key('terminal-search-field')),
+      );
+      expect(searchField.focusNode?.hasFocus, isTrue);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'shell search drops closed split pane matches',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openCommandMenu(tester);
+      await tester.tap(find.byKey(const Key('shell-split-right')));
+      await tester.pumpAndSettle();
+
+      fakeBindings.setSearchMatches(1, 'needle', [
+        {
+          'row': 3,
+          'start_col': 0,
+          'end_col': 6,
+          'text': 'left pane needle',
+          'scrollback_offset': 3,
+        },
+      ]);
+      fakeBindings.setSearchMatches(2, 'needle', [
+        {
+          'row': 7,
+          'start_col': 2,
+          'end_col': 8,
+          'text': 'right pane needle',
+          'scrollback_offset': 7,
+        },
+      ]);
+
+      await _openShellSearch(tester);
+      await tester.enterText(
+        find.byKey(const Key('terminal-search-field')),
+        'needle',
+      );
+      await tester.pumpAndSettle();
+      await _selectSearchScope(tester, 'current_tab');
+
+      expect(find.text('2/2'), findsOneWidget);
+      expect(fakeBindings.scrollToCalls.last, [2, 7]);
+
+      await tester.tap(find.byKey(const Key('shell-pane-action-close-2')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('shell-pane-1')), findsOneWidget);
+      expect(find.byKey(const Key('shell-pane-2')), findsNothing);
+      expect(find.text('1/1'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('terminal-search-next')));
+      await tester.pumpAndSettle();
+
       expect(fakeBindings.scrollToCalls.last, [1, 3]);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),

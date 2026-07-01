@@ -113,7 +113,19 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                 }
                 final nextRatio =
                     node.ratio + (primaryDelta / availablePrimarySize);
-                sessionController.resizeActivePaneSplit(node.id, nextRatio);
+                final constrainedRatio = _constrainedPaneSplitRatio(
+                  sessionController,
+                  node,
+                  nextRatio,
+                );
+                if ((constrainedRatio - node.ratio).abs() < 0.0001) {
+                  return;
+                }
+                sessionController.resizePaneSplit(
+                  first.firstLeafId,
+                  node.id,
+                  constrainedRatio,
+                );
               },
             ),
             Expanded(
@@ -188,64 +200,94 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
       sessionId,
       TerminalSplitAxis.vertical,
     );
+    final paneManagementBlockedReason = _zoomedPaneManagementUnavailableReason(
+      activeTab,
+    );
+    final splitRightBlockedReason =
+        paneManagementBlockedReason ?? splitRightUnavailableReason;
+    final splitDownBlockedReason =
+        paneManagementBlockedReason ?? splitDownUnavailableReason;
     final paneIndex = math.max(
       0,
       activeTab.effectivePanes.indexWhere(
         (pane) => pane.sessionId == sessionId,
       ),
     );
-
+    final hasHoveredLink = _hoveredTerminalLinkSessionId == sessionId;
     return LayoutBuilder(
       key: Key('shell-pane-$sessionId'),
       builder: (context, constraints) {
         final viewportController = sessionController.viewportFor(sessionId);
         final paneHeader = showsPaneHeader
-            ? _TerminalPaneHeader(
-                key: Key('shell-pane-header-$sessionId'),
-                palette: palette,
-                sessionId: sessionId,
-                title: pane.title,
-                subtitle:
-                    'Pane ${paneIndex + 1}/${activeTab.effectivePanes.length}',
-                isActive: isActive,
-                isZoomed: _zoomedPaneSessionId == sessionId,
-                canZoom: activeTab.effectivePanes.length > 1,
-                onSplitRight:
-                    defaultProfile == null ||
-                        splitRightUnavailableReason != null
-                    ? null
-                    : () => _splitActiveSession(
-                        sessionController,
-                        defaultProfile,
-                        TerminalSplitAxis.horizontal,
-                      ),
-                onSplitDown:
-                    defaultProfile == null || splitDownUnavailableReason != null
-                    ? null
-                    : () => _splitActiveSession(
-                        sessionController,
-                        defaultProfile,
-                        TerminalSplitAxis.vertical,
-                      ),
-                onToggleZoom: activeTab.effectivePanes.length < 2
-                    ? null
-                    : () {
-                        _mutateState(() {
-                          _zoomedPaneSessionId =
-                              _zoomedPaneSessionId == sessionId
-                              ? null
-                              : sessionId;
-                        });
-                        _focusSession(sessionId);
-                      },
-                onClose: () =>
-                    _closeSession(sessionController, sessionState, sessionId),
+            ? ListenableBuilder(
+                listenable: viewportController,
+                builder: (context, _) {
+                  return _TerminalPaneHeader(
+                    key: Key('shell-pane-header-$sessionId'),
+                    palette: palette,
+                    sessionId: sessionId,
+                    title: pane.title,
+                    subtitle:
+                        'Pane ${paneIndex + 1}/${activeTab.effectivePanes.length}',
+                    isActive: isActive,
+                    isZoomed: _zoomedPaneSessionId == sessionId,
+                    canZoom: activeTab.effectivePanes.length > 1,
+                    indicators: _paneHeaderIndicatorsFor(
+                      pane,
+                      modes: viewportController.frame.modes,
+                      readOnly: _isSessionReadOnly(sessionId),
+                    ),
+                    onActivate: () =>
+                        _activateSession(sessionController, sessionId),
+                    splitRightTooltip: splitRightBlockedReason == null
+                        ? 'Split right'
+                        : 'Split right unavailable: $splitRightBlockedReason',
+                    onSplitRight:
+                        defaultProfile == null ||
+                            splitRightBlockedReason != null
+                        ? null
+                        : () => _splitSession(
+                            sessionController,
+                            sessionId,
+                            defaultProfile,
+                            TerminalSplitAxis.horizontal,
+                          ),
+                    splitDownTooltip: splitDownBlockedReason == null
+                        ? 'Split down'
+                        : 'Split down unavailable: $splitDownBlockedReason',
+                    onSplitDown:
+                        defaultProfile == null || splitDownBlockedReason != null
+                        ? null
+                        : () => _splitSession(
+                            sessionController,
+                            sessionId,
+                            defaultProfile,
+                            TerminalSplitAxis.vertical,
+                          ),
+                    onToggleZoom: activeTab.effectivePanes.length < 2
+                        ? null
+                        : () {
+                            _mutateState(() {
+                              _zoomedPaneSessionId =
+                                  _zoomedPaneSessionId == sessionId
+                                  ? null
+                                  : sessionId;
+                            });
+                            _focusSession(sessionId);
+                          },
+                    onClose: () => _closeSession(
+                      sessionController,
+                      sessionState,
+                      sessionId,
+                    ),
+                  );
+                },
               )
             : null;
 
         return Listener(
           onPointerDown: (event) {
-            if (!isActive && (event.buttons & kPrimaryMouseButton) != 0) {
+            if (!isActive && event.buttons != 0) {
               _activateSession(sessionController, sessionId);
             }
             final frame = sessionController.viewportFor(sessionId).frame;
@@ -370,13 +412,19 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                                     .read(terminalRuntimeControllerProvider)
                                     .scrollViewportTo(sessionId, offset);
                               },
-                              onOpenLink: (url) =>
-                                  unawaited(_openTerminalLink(url)),
-                              onLinkHoverChanged: _handleTerminalLinkHover,
-                              onLinkContextMenu: _handleTerminalLinkContextMenu,
+                              onOpenLinkTarget: (target) => unawaited(
+                                _openTerminalLinkTarget(sessionId, target),
+                              ),
+                              onLinkHoverChanged: (target) =>
+                                  _handleTerminalLinkHover(sessionId, target),
+                              onLinkContextMenu: (target) =>
+                                  _handleTerminalLinkContextMenu(
+                                    sessionId,
+                                    target,
+                                  ),
                             ),
                           ),
-                          if (!isActive)
+                          if (!isActive && !hasHoveredLink)
                             Positioned.fill(
                               child: IgnorePointer(
                                 child: ColoredBox(
@@ -417,7 +465,9 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                                 ),
                               ),
                             ),
-                          if (isActive && _isAutocompleteOpen)
+                          if (isActive &&
+                              _isAutocompleteOpen &&
+                              _autocompleteSessionId == sessionId)
                             Positioned(
                               top:
                                   _ShellScreenState._terminalOverlayPadding.top,
@@ -436,7 +486,9 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                                 onClose: _closeAutocomplete,
                               ),
                             ),
-                          if (isActive && _isAutoComposerOpen)
+                          if (isActive &&
+                              _isAutoComposerOpen &&
+                              _autoComposerSessionId == sessionId)
                             Positioned(
                               left: _ShellScreenState
                                   ._terminalOverlayPadding
@@ -482,7 +534,9 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                                 palette: palette,
                               ),
                             ),
-                          if (isActive && _isCopyModeOpen)
+                          if (isActive &&
+                              _isCopyModeOpen &&
+                              _copyModeSessionId == sessionId)
                             Positioned(
                               top:
                                   _ShellScreenState._terminalOverlayPadding.top,
@@ -569,17 +623,84 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
     return [
       if (target.hasMismatchedVisibleText)
         'OSC 8 link text differs from the target',
+      if (_hoveredTerminalLinkSessionId case final sessionId?
+          when _sessionIsInMultiPaneTab(sessionId))
+        _terminalPaneContextLine(sessionId),
       'Target: $uri',
       if (target.visibleText != null && target.visibleText!.trim().isNotEmpty)
         'Text: ${target.visibleText!.trim()}',
+      if (_hoveredTerminalLinkSessionId case final sessionId?
+          when _sessionIsInMultiPaneTab(sessionId) &&
+              _sessionNeedsFocus(sessionId))
+        'Click to focus this pane.',
     ].join('\n');
   }
 
-  void _handleTerminalLinkHover(terminal.TerminalLinkTarget? target) {
+  double _constrainedPaneSplitRatio(
+    SessionController sessionController,
+    TerminalPaneLayoutNode node,
+    double requestedRatio,
+  ) {
+    final axis = node.splitAxis;
+    final first = node.first;
+    final second = node.second;
+    if (axis == null || first == null || second == null) {
+      return requestedRatio;
+    }
+
+    final firstSize = _paneLayoutPrimaryCells(sessionController, first, axis);
+    final secondSize = _paneLayoutPrimaryCells(sessionController, second, axis);
+    final totalSize = firstSize + secondSize;
+    final minimumSize = _minimumPanePrimaryCells(axis);
+    if (totalSize <= 0 || totalSize < minimumSize * 2) {
+      return node.ratio;
+    }
+
+    final lowerBound = minimumSize / totalSize;
+    final upperBound = 1 - lowerBound;
+    if (lowerBound >= upperBound) {
+      return node.ratio;
+    }
+    return requestedRatio.clamp(lowerBound, upperBound).toDouble();
+  }
+
+  int _paneLayoutPrimaryCells(
+    SessionController sessionController,
+    TerminalPaneLayoutNode node,
+    TerminalSplitAxis axis,
+  ) {
+    if (node.isLeaf) {
+      final frame = sessionController.viewportFor(node.pane!.sessionId).frame;
+      return axis == TerminalSplitAxis.horizontal
+          ? frame.viewportCols
+          : frame.viewportRows;
+    }
+
+    final firstSize = _paneLayoutPrimaryCells(
+      sessionController,
+      node.first!,
+      axis,
+    );
+    final secondSize = _paneLayoutPrimaryCells(
+      sessionController,
+      node.second!,
+      axis,
+    );
+    if (node.splitAxis == axis) {
+      return firstSize + secondSize;
+    }
+    return math.max(firstSize, secondSize);
+  }
+
+  void _handleTerminalLinkHover(
+    String sessionId,
+    terminal.TerminalLinkTarget? target,
+  ) {
     final previous = _hoveredTerminalLink;
     if (previous?.uri == target?.uri &&
         previous?.visibleText == target?.visibleText &&
-        previous?.explicitHyperlink == target?.explicitHyperlink) {
+        previous?.explicitHyperlink == target?.explicitHyperlink &&
+        _hoveredTerminalLinkSessionId == (target == null ? null : sessionId)) {
       return;
     }
     if (!mounted) {
@@ -587,10 +708,36 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
     }
     _mutateState(() {
       _hoveredTerminalLink = target;
+      _hoveredTerminalLinkSessionId = target == null ? null : sessionId;
     });
   }
 
+  bool _sessionIsInMultiPaneTab(String sessionId) {
+    final tab = _tabForSession(ref.read(sessionControllerProvider), sessionId);
+    return tab != null && tab.effectivePanes.length > 1;
+  }
+
+  String _terminalPaneContextLine(String sessionId) {
+    final state = ref.read(sessionControllerProvider);
+    final pane = _paneForSession(state, sessionId);
+    final paneState = state.activeSessionId == sessionId
+        ? 'active pane'
+        : 'inactive pane';
+    if (pane == null) {
+      return 'Pane: $sessionId · $paneState';
+    }
+    return 'Pane: ${pane.title} ($sessionId) · $paneState';
+  }
+
+  Future<void> _openTerminalLinkTarget(
+    String sessionId,
+    terminal.TerminalLinkTarget target,
+  ) {
+    return _openTerminalLink(target.uri, sourceSessionId: sessionId);
+  }
+
   Future<void> _handleTerminalLinkContextMenu(
+    String sessionId,
     terminal.TerminalLinkTarget target,
   ) async {
     if (!mounted) {
@@ -632,7 +779,7 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
     }
     switch (action) {
       case _TerminalLinkMenuAction.open:
-        await _openTerminalLink(target.uri);
+        await _openTerminalLink(target.uri, sourceSessionId: sessionId);
       case _TerminalLinkMenuAction.copy:
         await ClipboardBridge.copy(target.uri);
         _showShellSnackBar('Copied link target');
@@ -648,7 +795,7 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
     }
   }
 
-  Future<void> _openTerminalLink(String url) async {
+  Future<void> _openTerminalLink(String url, {String? sourceSessionId}) async {
     final normalized = url.trim();
     final uri = Uri.tryParse(normalized);
     final scheme = uri?.scheme.toLowerCase();
@@ -660,7 +807,11 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
       );
       return;
     }
-    if (scheme == 'file' && !await _confirmOpenFileLink(normalized)) {
+    if (scheme == 'file' &&
+        !await _confirmOpenFileLink(
+          normalized,
+          sourceSessionId: sourceSessionId,
+        )) {
       _showShellSnackBar('Blocked file link');
       return;
     }
@@ -676,17 +827,29 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
     }
   }
 
-  Future<bool> _confirmOpenFileLink(String url) async {
+  Future<bool> _confirmOpenFileLink(
+    String url, {
+    String? sourceSessionId,
+  }) async {
     if (!mounted) {
       return false;
     }
+    final sourceContext =
+        sourceSessionId != null && _sessionIsInMultiPaneTab(sourceSessionId)
+        ? _terminalPaneContextLine(sourceSessionId)
+        : null;
     final result = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: const Text('Open local file link?'),
           content: SelectableText(
-            'The terminal is asking to open a local file URL.\n\n$url',
+            [
+              'The terminal is asking to open a local file URL.',
+              if (sourceContext != null) 'Source: $sourceContext',
+              '',
+              url,
+            ].join('\n'),
           ),
           actions: [
             TextButton(
@@ -726,6 +889,190 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
     }
     return 'TARGET';
   }
+
+  List<_TerminalPaneHeaderIndicator> _paneHeaderIndicatorsFor(
+    TerminalPane pane, {
+    required terminal.TerminalFrameModes modes,
+    required bool readOnly,
+  }) {
+    final indicators = <_TerminalPaneHeaderIndicator>[];
+    final contextLine = _terminalPaneContextLine(pane.sessionId);
+    final focusLine = _sessionNeedsFocus(pane.sessionId)
+        ? 'Click to focus this pane.'
+        : null;
+    void addModeIndicator({
+      required String kind,
+      required String label,
+      required String tooltip,
+      required IconData icon,
+    }) {
+      indicators.add(
+        _TerminalPaneHeaderIndicator(
+          kind: kind,
+          label: label,
+          tooltip: [contextLine, tooltip, ?focusLine].join('\n'),
+          icon: icon,
+        ),
+      );
+    }
+
+    final hostname = pane.shellIntegration.hostname?.trim();
+    final username = pane.shellIntegration.username?.trim();
+    if (_shellHostIsRemote(hostname)) {
+      indicators.add(
+        _TerminalPaneHeaderIndicator(
+          kind: 'remote',
+          label: 'REMOTE ${_shortStatusValue(hostname!, max: 14)}',
+          tooltip: [
+            contextLine,
+            'Remote context reported by shell integration.',
+            'Host: $hostname',
+            if (username != null && username.isNotEmpty) 'User: $username',
+            'Local file actions stay disabled for remote paths.',
+            ?focusLine,
+          ].join('\n'),
+          icon: Icons.cloud_outlined,
+        ),
+      );
+    }
+
+    final progressItems = _shellPaneActiveProgressItems(pane);
+    if (progressItems.isNotEmpty) {
+      final primaryProgress = _shellPanePrimaryProgress(pane)!;
+      indicators.add(
+        _TerminalPaneHeaderIndicator(
+          kind: 'progress',
+          label: _shortStatusValue(primaryProgress.displayLabel, max: 16),
+          tooltip: progressItems.length == 1
+              ? [
+                  contextLine,
+                  _progressStatusTooltip(primaryProgress),
+                  ?focusLine,
+                ].join('\n')
+              : [
+                  contextLine,
+                  'Terminal progress in this pane.',
+                  for (final progress in progressItems)
+                    '${progress.displayLabel}: ${_progressStatusTooltip(progress)}',
+                  ?focusLine,
+                ].join('\n'),
+          icon: Icons.timelapse_rounded,
+        ),
+      );
+    }
+
+    final notification = pane.recentNotifications.isEmpty
+        ? null
+        : pane.recentNotifications.first;
+    if (notification != null) {
+      indicators.add(
+        _TerminalPaneHeaderIndicator(
+          kind: 'notification',
+          label:
+              'NOTIFY ${_shortStatusValue(notification.title, max: 12)}'
+              '${notification.count > 1 ? ' x${notification.count}' : ''}',
+          tooltip: [
+            contextLine,
+            _notificationStatusTooltip(notification),
+            ?focusLine,
+          ].join('\n'),
+          icon: Icons.notifications_none_rounded,
+        ),
+      );
+    }
+
+    final badge = pane.oscBadge?.trim();
+    if (badge != null && badge.isNotEmpty) {
+      indicators.add(
+        _TerminalPaneHeaderIndicator(
+          kind: 'badge',
+          label: 'BADGE ${_shortStatusValue(badge, max: 12)}',
+          tooltip: [
+            contextLine,
+            'OSC 1337 badge: $badge',
+            ?focusLine,
+          ].join('\n'),
+          icon: Icons.badge_outlined,
+        ),
+      );
+    }
+
+    if (modes.alternateScreen) {
+      addModeIndicator(
+        kind: 'alt',
+        label: 'ALT',
+        tooltip: 'Alternate screen buffer is active.',
+        icon: Icons.fullscreen_rounded,
+      );
+    }
+    if (modes.mouseMode != 'off') {
+      addModeIndicator(
+        kind: 'mouse',
+        label: 'MOUSE',
+        tooltip:
+            'Mouse reporting is active: ${_mouseModeStatusLabel(modes.mouseMode)}, ${_mouseEncodingStatusLabel(modes.mouseEncoding)}.',
+        icon: Icons.mouse_outlined,
+      );
+    }
+    if (modes.bracketedPaste) {
+      addModeIndicator(
+        kind: 'paste',
+        label: 'PASTE',
+        tooltip: 'Bracketed paste mode is active.',
+        icon: Icons.content_paste_rounded,
+      );
+    }
+    if (modes.focusTracking) {
+      addModeIndicator(
+        kind: 'focus',
+        label: 'FOCUS',
+        tooltip:
+            'Focus reporting is active. The application receives focus-in and focus-out events.',
+        icon: Icons.center_focus_strong_rounded,
+      );
+    }
+    if (modes.kittyKeyboardFlags != 0) {
+      addModeIndicator(
+        kind: 'kitty-keyboard',
+        label: 'KEYS',
+        tooltip: _kittyKeyboardStatusTooltip(modes.kittyKeyboardFlags),
+        icon: Icons.keyboard_alt_outlined,
+      );
+    }
+    if (modes.synchronizedOutput) {
+      addModeIndicator(
+        kind: 'sync',
+        label: 'SYNC',
+        tooltip:
+            'Synchronized output mode is active. Intermediate updates are held until the application flushes.',
+        icon: Icons.sync_rounded,
+      );
+    }
+    if (readOnly) {
+      addModeIndicator(
+        kind: 'read-only',
+        label: 'READ ONLY',
+        tooltip:
+            'Read-only mode is enabled for this pane. Input and paste sends are blocked.',
+        icon: Icons.lock_outline_rounded,
+      );
+    }
+    return indicators;
+  }
+}
+
+class _TerminalPaneHeaderIndicator {
+  const _TerminalPaneHeaderIndicator({
+    required this.kind,
+    required this.label,
+    required this.tooltip,
+    required this.icon,
+  });
+
+  final String kind;
+  final String label;
+  final String tooltip;
+  final IconData icon;
 }
 
 class _TerminalPaneHeader extends StatelessWidget {
@@ -738,7 +1085,11 @@ class _TerminalPaneHeader extends StatelessWidget {
     required this.isActive,
     required this.isZoomed,
     required this.canZoom,
+    required this.indicators,
+    required this.onActivate,
+    required this.splitRightTooltip,
     required this.onSplitRight,
+    required this.splitDownTooltip,
     required this.onSplitDown,
     required this.onToggleZoom,
     required this.onClose,
@@ -751,7 +1102,11 @@ class _TerminalPaneHeader extends StatelessWidget {
   final bool isActive;
   final bool isZoomed;
   final bool canZoom;
+  final List<_TerminalPaneHeaderIndicator> indicators;
+  final VoidCallback onActivate;
+  final String splitRightTooltip;
   final VoidCallback? onSplitRight;
+  final String splitDownTooltip;
   final VoidCallback? onSplitDown;
   final VoidCallback? onToggleZoom;
   final VoidCallback onClose;
@@ -778,84 +1133,239 @@ class _TerminalPaneHeader extends StatelessWidget {
         height: 32,
         child: Padding(
           padding: const EdgeInsetsDirectional.only(start: 8, end: 5),
-          child: Row(
-            children: [
-              Icon(
-                Icons.terminal_rounded,
-                size: 14,
-                color: metadataColor,
-                semanticLabel: isActive ? 'Active pane' : 'Inactive pane',
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        title,
-                        key: Key('shell-pane-header-title-$sessionId'),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: textTheme.labelMedium?.copyWith(
-                          color: foregroundColor,
-                          fontWeight: FontWeight.w800,
-                          height: 1,
-                        ),
-                      ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 230;
+              final showLeadingIcon = constraints.maxWidth >= 210;
+              final showSubtitle = constraints.maxWidth >= 260;
+              final showSplitActions = !compact;
+              final showIndicators = constraints.maxWidth >= 110;
+              final showZoomAction = constraints.maxWidth >= 96;
+              final showCloseAction = constraints.maxWidth >= 72;
+              final actions = <Widget>[
+                if (showSplitActions) ...[
+                  _TerminalPaneHeaderAction(
+                    buttonKey: Key('shell-pane-action-split-right-$sessionId'),
+                    tooltip: splitRightTooltip,
+                    icon: Icons.vertical_split_rounded,
+                    palette: palette,
+                    onPressed: onSplitRight,
+                  ),
+                  _TerminalPaneHeaderAction(
+                    buttonKey: Key('shell-pane-action-split-down-$sessionId'),
+                    tooltip: splitDownTooltip,
+                    icon: Icons.horizontal_split_rounded,
+                    palette: palette,
+                    onPressed: onSplitDown,
+                  ),
+                ],
+                if (showZoomAction)
+                  _TerminalPaneHeaderAction(
+                    buttonKey: Key('shell-pane-action-zoom-$sessionId'),
+                    tooltip: isZoomed ? 'Unzoom pane' : 'Zoom pane',
+                    icon: isZoomed
+                        ? Icons.close_fullscreen_rounded
+                        : Icons.open_in_full_rounded,
+                    palette: palette,
+                    onPressed: canZoom ? onToggleZoom : null,
+                    selected: isZoomed,
+                  ),
+                if (showCloseAction)
+                  _TerminalPaneHeaderAction(
+                    buttonKey: Key('shell-pane-action-close-$sessionId'),
+                    tooltip: 'Close pane',
+                    icon: Icons.close_rounded,
+                    palette: palette,
+                    onPressed: onClose,
+                  ),
+              ];
+              return Row(
+                children: [
+                  if (showLeadingIcon) ...[
+                    Icon(
+                      Icons.terminal_rounded,
+                      size: 14,
+                      color: metadataColor,
+                      semanticLabel: isActive ? 'Active pane' : 'Inactive pane',
                     ),
                     const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        subtitle,
-                        key: Key('shell-pane-header-subtitle-$sessionId'),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: textTheme.labelSmall?.copyWith(
-                          color: metadataColor,
-                          fontWeight: FontWeight.w700,
-                          height: 1,
+                  ],
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            title,
+                            key: Key('shell-pane-header-title-$sessionId'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: textTheme.labelMedium?.copyWith(
+                              color: foregroundColor,
+                              fontWeight: FontWeight.w800,
+                              height: 1,
+                            ),
+                          ),
                         ),
+                        if (showSubtitle) ...[
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              subtitle,
+                              key: Key('shell-pane-header-subtitle-$sessionId'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: textTheme.labelSmall?.copyWith(
+                                color: metadataColor,
+                                fontWeight: FontWeight.w700,
+                                height: 1,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (!isActive && showIndicators && indicators.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: _TerminalPaneHeaderIndicatorStrip(
+                        sessionId: sessionId,
+                        indicators: indicators,
+                        foregroundColor: foregroundColor,
+                        borderColor: palette.border,
+                        backgroundColor: palette.panel.withValues(alpha: 0.38),
+                        onActivate: onActivate,
                       ),
                     ),
                   ],
+                  if (isActive && actions.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    ...actions,
+                  ],
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TerminalPaneHeaderIndicatorChip extends StatelessWidget {
+  const _TerminalPaneHeaderIndicatorChip({
+    super.key,
+    required this.indicator,
+    required this.foregroundColor,
+    required this.backgroundColor,
+    required this.borderColor,
+    required this.onActivate,
+  });
+
+  final _TerminalPaneHeaderIndicator indicator;
+  final Color foregroundColor;
+  final Color backgroundColor;
+  final Color borderColor;
+  final VoidCallback onActivate;
+
+  @override
+  Widget build(BuildContext context) {
+    final chip = ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 112, minHeight: 20),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: borderColor),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                indicator.icon,
+                size: 12,
+                color: foregroundColor.withValues(alpha: 0.82),
+              ),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  indicator.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: foregroundColor,
+                    fontSize: 10.5,
+                    height: 1,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
-              if (isActive) ...[
-                const SizedBox(width: 6),
-                _TerminalPaneHeaderAction(
-                  buttonKey: Key('shell-pane-action-split-right-$sessionId'),
-                  tooltip: 'Split right',
-                  icon: Icons.vertical_split_rounded,
-                  palette: palette,
-                  onPressed: onSplitRight,
-                ),
-                _TerminalPaneHeaderAction(
-                  buttonKey: Key('shell-pane-action-split-down-$sessionId'),
-                  tooltip: 'Split down',
-                  icon: Icons.horizontal_split_rounded,
-                  palette: palette,
-                  onPressed: onSplitDown,
-                ),
-                _TerminalPaneHeaderAction(
-                  buttonKey: Key('shell-pane-action-zoom-$sessionId'),
-                  tooltip: isZoomed ? 'Unzoom pane' : 'Zoom pane',
-                  icon: isZoomed
-                      ? Icons.close_fullscreen_rounded
-                      : Icons.open_in_full_rounded,
-                  palette: palette,
-                  onPressed: canZoom ? onToggleZoom : null,
-                  selected: isZoomed,
-                ),
-                _TerminalPaneHeaderAction(
-                  buttonKey: Key('shell-pane-action-close-$sessionId'),
-                  tooltip: 'Close pane',
-                  icon: Icons.close_rounded,
-                  palette: palette,
-                  onPressed: onClose,
-                ),
-              ],
             ],
           ),
+        ),
+      ),
+    );
+    return Tooltip(
+      message: indicator.tooltip,
+      child: Semantics(
+        label: indicator.tooltip,
+        button: true,
+        onTap: onActivate,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onActivate,
+            child: chip,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TerminalPaneHeaderIndicatorStrip extends StatelessWidget {
+  const _TerminalPaneHeaderIndicatorStrip({
+    required this.sessionId,
+    required this.indicators,
+    required this.foregroundColor,
+    required this.backgroundColor,
+    required this.borderColor,
+    required this.onActivate,
+  });
+
+  final String sessionId;
+  final List<_TerminalPaneHeaderIndicator> indicators;
+  final Color foregroundColor;
+  final Color backgroundColor;
+  final Color borderColor;
+  final VoidCallback onActivate;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: SingleChildScrollView(
+        reverse: true,
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final indicator in indicators) ...[
+              _TerminalPaneHeaderIndicatorChip(
+                key: Key(
+                  'shell-pane-header-indicator-${indicator.kind}-$sessionId',
+                ),
+                indicator: indicator,
+                foregroundColor: foregroundColor,
+                borderColor: borderColor,
+                backgroundColor: backgroundColor,
+                onActivate: onActivate,
+              ),
+              const SizedBox(width: 4),
+            ],
+          ],
         ),
       ),
     );
