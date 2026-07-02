@@ -3,6 +3,12 @@ use serde_json::Value;
 use std::collections::BTreeMap;
 
 pub const TERMINAL_FRAME_SCHEMA_VERSION: &str = "terminal-frame-diff-v1";
+pub const DEFAULT_SCROLLBACK_LINES: usize = 8_000;
+pub const MAX_SCROLLBACK_LINES: usize = 100_000;
+
+pub fn normalize_scrollback_lines(value: usize) -> usize {
+    value.clamp(1, MAX_SCROLLBACK_LINES)
+}
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -253,10 +259,11 @@ impl<'de> Deserialize<'de> for TerminalProfile {
             env: wire.env.unwrap_or_default(),
             cwd: wire.cwd,
         });
-        let terminal = wire.terminal.unwrap_or_else(|| TerminalProfileTerminal {
+        let mut terminal = wire.terminal.unwrap_or_else(|| TerminalProfileTerminal {
             emulation: wire.terminal_emulation.unwrap_or_default(),
             ..TerminalProfileTerminal::default()
         });
+        terminal.scrollback_lines = normalize_scrollback_lines(terminal.scrollback_lines);
 
         Ok(Self {
             id: wire.id,
@@ -513,7 +520,7 @@ fn default_preserve_aspect_ratio() -> bool {
 }
 
 fn default_scrollback_lines() -> usize {
-    8_000
+    DEFAULT_SCROLLBACK_LINES
 }
 
 fn default_terminal_primary_font_family() -> String {

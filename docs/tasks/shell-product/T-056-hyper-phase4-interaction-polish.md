@@ -9,7 +9,7 @@
 - `example/lib/features/shell/`
 - `example/test/shell/`
 - `example/test/widget_test.dart`
-- `example/integration_test/ianvs_smoke_test.dart`
+- `example/integration_test/ianvs_terminal_smoke_test.dart`
 - `example/test/sessions/session_controller_test.dart`
   - 仅在实现直接消费 session lifecycle state 时才纳入
 - `docs/TESTING.md`
@@ -38,7 +38,7 @@ flutter analyze
 flutter test test/widget_test.dart
 flutter test test/shell/shell_screen_phase2a_test.dart
 flutter test test/shell/shell_screen_phase2b_test.dart
-flutter test integration_test/ianvs_smoke_test.dart
+flutter test -d macos integration_test/ianvs_terminal_smoke_test.dart
 ```
 
 若实现直接消费 session lifecycle state，追加：
@@ -77,7 +77,7 @@ flutter test test/sessions/session_controller_test.dart
   - `flutter test test/shell/shell_screen_phase2b_test.dart`
   - `flutter test test/shell/shell_screen_phase3_test.dart`
   - `flutter test test/shell/shell_screen_phase4_test.dart`
-  - `flutter test integration_test/ianvs_smoke_test.dart`
+  - `flutter test -d macos integration_test/ianvs_terminal_smoke_test.dart`
 - 结论：`T-056` 已完成，且不再阻塞 defaults / lifecycle lane
 
 ## Risks / Follow-ups

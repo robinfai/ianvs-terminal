@@ -13,9 +13,17 @@ void main() {
     test('pane visual policy exposes visible divider state', () {
       const visible = LocalTerminalPaneVisualPolicy(dividerThickness: 1);
       const hidden = LocalTerminalPaneVisualPolicy(dividerThickness: 0);
+      const infinite = LocalTerminalPaneVisualPolicy(
+        dividerThickness: double.infinity,
+      );
+      const nonFinite = LocalTerminalPaneVisualPolicy(
+        dividerThickness: double.nan,
+      );
 
       expect(visible.hasVisibleDivider, isTrue);
       expect(hidden.hasVisibleDivider, isFalse);
+      expect(infinite.hasVisibleDivider, isFalse);
+      expect(nonFinite.hasVisibleDivider, isFalse);
     });
 
     test('layout templates remain local only', () {
@@ -114,6 +122,40 @@ void main() {
       },
     );
 
+    test('visual preset and template JSON normalizes labels', () {
+      const preset = LocalTerminalThemePreset(
+        id: ' baseline ',
+        name: ' Baseline ',
+        dark: LocalTerminalColorScheme(
+          background: 0x000000,
+          foreground: 0xffffff,
+          cursor: 0xffffff,
+          selection: 0x333333,
+          splitDivider: 0x222222,
+          inactivePaneOverlay: 0x11000000,
+        ),
+        light: LocalTerminalColorScheme(
+          background: 0xffffff,
+          foreground: 0x000000,
+          cursor: 0x000000,
+          selection: 0xdddddd,
+          splitDivider: 0xcccccc,
+          inactivePaneOverlay: 0x11000000,
+        ),
+      );
+      const template = LocalTerminalLayoutTemplate(
+        id: ' two-pane ',
+        name: ' Two Pane ',
+        paneCount: 2,
+        localOnly: true,
+      );
+
+      expect(preset.toJson()['id'], 'baseline');
+      expect(preset.toJson()['name'], 'Baseline');
+      expect(template.toJson()['id'], 'two-pane');
+      expect(template.toJson()['name'], 'Two Pane');
+    });
+
     test('json decoding defaults out-of-range color fields', () {
       final scheme = LocalTerminalColorScheme.fromJson({
         'background': -1,
@@ -128,12 +170,54 @@ void main() {
       expect(fractional.background, 0x000000);
     });
 
+    test('color scheme JSON normalizes out-of-range direct colors', () {
+      const scheme = LocalTerminalColorScheme(
+        background: -1,
+        foreground: 0x1ffffffff,
+        cursor: 0xffffff,
+        selection: -1,
+        splitDivider: 0x222222,
+        inactivePaneOverlay: 0x1ffffffff,
+      );
+
+      final json = scheme.toJson();
+
+      expect(json['background'], 0x000000);
+      expect(json['foreground'], 0xffffff);
+      expect(json['cursor'], 0xffffff);
+      expect(json['selection'], 0x333333);
+      expect(json['splitDivider'], 0x222222);
+      expect(json['inactivePaneOverlay'], 0x11000000);
+    });
+
+    test('json decoding accepts common hex color strings', () {
+      final scheme = LocalTerminalColorScheme.fromJson({
+        'background': '#050608',
+        'foreground': '0xeeeeee',
+        'cursor': '#ff00ff',
+        'inactivePaneOverlay': '0x33000000',
+        'selection': '#bad-color',
+      });
+
+      expect(scheme.background, 0x050608);
+      expect(scheme.foreground, 0xeeeeee);
+      expect(scheme.cursor, 0xff00ff);
+      expect(scheme.inactivePaneOverlay, 0x33000000);
+      expect(scheme.selection, 0x333333);
+    });
+
     test('advanced visual policy flags renderer-risk options', () {
       const safe = LocalTerminalAdvancedVisualPolicy();
       const risky = LocalTerminalAdvancedVisualPolicy(blurEnabled: true);
+      const transparent = LocalTerminalAdvancedVisualPolicy(opacity: 0.8);
+      const overOpaque = LocalTerminalAdvancedVisualPolicy(opacity: 1.2);
+      const nonFinite = LocalTerminalAdvancedVisualPolicy(opacity: double.nan);
 
       expect(safe.touchesRendererRisk, isFalse);
       expect(risky.touchesRendererRisk, isTrue);
+      expect(transparent.touchesRendererRisk, isTrue);
+      expect(overOpaque.touchesRendererRisk, isTrue);
+      expect(nonFinite.touchesRendererRisk, isTrue);
     });
 
     test('theme preset can be encoded and decoded for import export', () {

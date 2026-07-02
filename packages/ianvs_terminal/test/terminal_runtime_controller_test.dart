@@ -431,7 +431,7 @@ void main() {
         {'index': 1, 'text': 'too-large', 'modified_at': 1e100},
       ],
       'cursor': {'row': 0, 'col': 0, 'visible': true},
-      'viewport_rows': 2,
+      'viewport_rows': 4,
       'viewport_cols': 80,
       'dirty_ranges': [
         {'start': 0, 'end': 2},
@@ -476,6 +476,132 @@ void main() {
     expect(run.background, const Color(0x80445566));
     expect(frame.cursorColor, const Color(0xFF123456));
     expect(frame.rows.single.styleRuns.last.foreground, isNull);
+  });
+
+  test('terminal rows cap style run batches', () {
+    final frame = TerminalFrameDiff.fromJson(<String, Object?>{
+      'rows': [
+        {
+          'index': 0,
+          'text': 'styled',
+          'style_runs': [
+            for (var index = 0; index < 1026; index += 1)
+              {'start': index, 'end': index + 1},
+          ],
+        },
+      ],
+      'cursor': const {'row': 0, 'col': 0, 'visible': true},
+      'viewport_rows': 1,
+      'viewport_cols': 1200,
+      'dirty_ranges': const [
+        {'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+    });
+
+    expect(frame.rows.single.styleRuns, hasLength(1024));
+    expect(frame.rows.single.styleRuns.first.start, 0);
+    expect(frame.rows.single.styleRuns.last.start, 1023);
+  });
+
+  test('terminal frames bound viewport row and dirty range batches', () {
+    final frame = TerminalFrameDiff.fromJson(<String, Object?>{
+      'rows': [
+        for (var index = 0; index < 80; index += 1)
+          {'index': index, 'text': 'row-$index'},
+      ],
+      'cursor': const {'row': 0, 'col': 0, 'visible': true},
+      'viewport_rows': 2,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        for (var index = 0; index < 80; index += 1) {'start': 0, 'end': 2},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+    });
+
+    expect(frame.rows.map((row) => row.text).toList(), <String>[
+      'row-0',
+      'row-1',
+    ]);
+    expect(
+      frame.dirtyRanges
+          .map((range) => (range.start, range.end))
+          .toList(growable: false),
+      <(int, int)>[(0, 2)],
+    );
+  });
+
+  test('terminal frames clamp row text to viewport columns', () {
+    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+      'rows': [
+        {
+          'index': 0,
+          'text': 'abcdef',
+          'style_runs': [
+            {'start': 0, 'end': 6, 'bold': true},
+          ],
+        },
+        {'index': 1, 'text': 'a你bc'},
+      ],
+      'cursor': {'row': 0, 'col': 0, 'visible': true},
+      'viewport_rows': 2,
+      'viewport_cols': 3,
+      'dirty_ranges': [
+        {'start': 0, 'end': 2},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+    });
+
+    expect(frame.rows.map((row) => row.text).toList(), <String>['abc', 'a你']);
+    expect(frame.rows.first.styleRuns, hasLength(1));
+  });
+
+  test('terminal frames omit partial wide glyphs when clamping rows', () {
+    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+      'rows': [
+        {'index': 0, 'text': '你a'},
+        {'index': 1, 'text': 'a你b'},
+        {'index': 2, 'text': '你'},
+      ],
+      'cursor': {'row': 0, 'col': 0, 'visible': true},
+      'viewport_rows': 3,
+      'viewport_cols': 1,
+      'dirty_ranges': [
+        {'start': 0, 'end': 3},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+    });
+
+    expect(frame.rows.map((row) => row.text).toList(), <String>['', 'a', '']);
+  });
+
+  test('terminal frames cap hyperlink batches', () {
+    final frame = TerminalFrameDiff.fromJson(<String, Object?>{
+      'rows': const [],
+      'cursor': const {'row': 0, 'col': 0, 'visible': true},
+      'viewport_rows': 5000,
+      'viewport_cols': 80,
+      'dirty_ranges': const [],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+      'hyperlinks': [
+        for (var index = 0; index < 4100; index += 1)
+          {
+            'row': index,
+            'start_col': 0,
+            'end_col': 1,
+            'uri': 'https://example.com/$index',
+          },
+      ],
+    });
+
+    expect(frame.hyperlinks, hasLength(4096));
+    expect(frame.hyperlinks.first.uri, 'https://example.com/0');
+    expect(frame.hyperlinks.last.uri, 'https://example.com/4095');
   });
 
   test('terminal frames skip malformed collection entries', () {
@@ -598,6 +724,65 @@ void main() {
     expect(frame.modes.alternateScreen, isTrue);
     expect(frame.modes.mouseMode, 'off');
   });
+
+  test(
+    'terminal frames scan valid collection entries past malformed prefixes',
+    () {
+      final imageBytes = Uint8List.fromList(<int>[1, 2, 3]);
+      final encodedImage = base64.encode(imageBytes);
+      final frame = TerminalFrameDiff.fromJson(<String, Object?>{
+        'rows': [
+          for (var index = 0; index < 70; index += 1) 'bad-row-$index',
+          {
+            'index': 0,
+            'text': 'styled',
+            'style_runs': [
+              for (var index = 0; index < 1030; index += 1) 'bad-style-$index',
+              {'start': 0, 'end': 6, 'bold': true},
+            ],
+          },
+          {'index': 1, 'text': 'plain'},
+        ],
+        'cursor': const {'row': 0, 'col': 0, 'visible': true},
+        'viewport_rows': 2,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          for (var index = 0; index < 70; index += 1) 'bad-range-$index',
+          {'start': 0, 'end': 2},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+        'hyperlinks': [
+          for (var index = 0; index < 4100; index += 1) 'bad-link-$index',
+          {
+            'row': 1,
+            'start_col': 0,
+            'end_col': 5,
+            'uri': 'https://example.com/recovered',
+          },
+        ],
+        'inline_images': [
+          for (var index = 0; index < 40; index += 1) 'bad-image-$index',
+          {
+            'row': 1,
+            'col': 0,
+            'width_cells': 1,
+            'height_cells': 1,
+            'data': encodedImage,
+          },
+        ],
+      });
+
+      expect(frame.rows.map((row) => row.text), <String>['styled', 'plain']);
+      expect(frame.rows.first.styleRuns.single.bold, isTrue);
+      expect(
+        frame.dirtyRanges.map((range) => (range.start, range.end)),
+        <(int, int)>[(0, 2)],
+      );
+      expect(frame.hyperlinks.single.uri, 'https://example.com/recovered');
+      expect(frame.inlineImages.single.bytes, imageBytes);
+    },
+  );
 
   test('terminal frames default malformed scalar fields', () {
     final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
@@ -844,6 +1029,18 @@ void main() {
       'scrollback_max_offset': 10,
       'viewport_start_row': 3,
     });
+    final oversized = TerminalFrameDiff.fromJson(const <String, Object?>{
+      'rows': [],
+      'cursor': {'row': 0, 'col': 0, 'visible': true},
+      'viewport_rows': 70000,
+      'viewport_cols': 70000,
+      'dirty_ranges': [
+        {'start': 0, 'end': 999999},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+      'viewport_start_row': 3,
+    });
 
     expect(negative.viewportRows, 0);
     expect(negative.viewportCols, 0);
@@ -853,6 +1050,84 @@ void main() {
     expect(negative.viewportRowShift, -1);
     expect(overflow.scrollbackOffset, 10);
     expect(overflow.scrollbackMaxOffset, 10);
+    expect(oversized.viewportRows, 65535);
+    expect(oversized.viewportCols, 65535);
+    expect(oversized.dirtyRanges.single.end, 65535);
+  });
+
+  test('terminal viewport controller clamps direct scalar frame bounds', () {
+    final negativeController = TerminalViewportController()
+      ..updateFrame(
+        const TerminalFrameDiff(
+          rows: [],
+          cursor: TerminalCursor(row: 0, col: 0, visible: true),
+          viewportRows: -2,
+          viewportCols: -80,
+          dirtyRanges: [],
+          scrollbackOffset: -4,
+          scrollbackMaxOffset: -1,
+          viewportStartRow: -9,
+          viewportRowShift: -1,
+        ),
+      );
+    addTearDown(negativeController.dispose);
+
+    final negative = negativeController.frame;
+    expect(negative.viewportRows, 0);
+    expect(negative.viewportCols, 0);
+    expect(negative.scrollbackOffset, 0);
+    expect(negative.scrollbackMaxOffset, 0);
+    expect(negative.viewportStartRow, 0);
+    expect(negative.viewportRowShift, 0);
+
+    final overflowController = TerminalViewportController()
+      ..updateFrame(
+        const TerminalFrameDiff(
+          rows: [],
+          cursor: TerminalCursor(row: 0, col: 0, visible: true),
+          viewportRows: 70000,
+          viewportCols: 70000,
+          dirtyRanges: [],
+          scrollbackOffset: 99,
+          scrollbackMaxOffset: 10,
+          viewportStartRow: 3,
+        ),
+      );
+    addTearDown(overflowController.dispose);
+
+    final overflow = overflowController.frame;
+    expect(overflow.viewportRows, 65535);
+    expect(overflow.viewportCols, 65535);
+    expect(overflow.scrollbackOffset, 10);
+    expect(overflow.scrollbackMaxOffset, 10);
+    expect(overflow.viewportStartRow, 3);
+  });
+
+  test('terminal viewport controller drops invalid direct coordinates', () {
+    final controller = TerminalViewportController()
+      ..updateFrame(
+        const TerminalFrameDiff(
+          rows: [TerminalRow(index: 0, text: 'ready')],
+          cursor: TerminalCursor(row: -1, col: 0, visible: true),
+          selection: TerminalSelection(
+            startRow: 0,
+            startCol: -1,
+            endRow: 0,
+            endCol: 5,
+          ),
+          viewportRows: 1,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+    addTearDown(controller.dispose);
+
+    expect(controller.frame.cursor.row, 0);
+    expect(controller.frame.cursor.col, 0);
+    expect(controller.frame.cursor.visible, isFalse);
+    expect(controller.frame.selection, isNull);
   });
 
   test('terminal frames default fractional scalar fields', () {
@@ -918,7 +1193,7 @@ void main() {
         {'index': 0, 'text': 'image', 'style_runs': []},
       ],
       'cursor': const {'row': 0, 'col': 0, 'visible': true},
-      'viewport_rows': 2,
+      'viewport_rows': 4,
       'viewport_cols': 80,
       'dirty_ranges': const [
         {'start': 0, 'end': 1},
@@ -978,6 +1253,53 @@ void main() {
     });
 
     expect(frame.inlineImages, isEmpty);
+  });
+
+  test('terminal frames clamp inline image overlays to viewport bounds', () {
+    final imageBytes = utf8.encode('fake-png');
+    final frame = TerminalFrameDiff.fromJson(<String, Object?>{
+      'rows': const [
+        {'index': 0, 'text': 'image', 'style_runs': []},
+      ],
+      'cursor': const {'row': 0, 'col': 0, 'visible': true},
+      'viewport_rows': 2,
+      'viewport_cols': 5,
+      'dirty_ranges': const [
+        {'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+      'inline_images': [
+        {
+          'row': 0,
+          'col': 3,
+          'width_cells': 10,
+          'height_cells': 10,
+          'data': base64.encode(imageBytes),
+          'alt': 'wide preview',
+        },
+        {
+          'row': 0,
+          'col': 5,
+          'width_cells': 1,
+          'height_cells': 1,
+          'data': base64.encode(imageBytes),
+        },
+        {
+          'row': 2,
+          'col': 0,
+          'width_cells': 1,
+          'height_cells': 1,
+          'data': base64.encode(imageBytes),
+        },
+      ],
+    });
+
+    expect(frame.inlineImages, hasLength(1));
+    expect(frame.inlineImages.single.col, 3);
+    expect(frame.inlineImages.single.widthCells, 2);
+    expect(frame.inlineImages.single.heightCells, 2);
+    expect(frame.inlineImages.single.altText, 'wide preview');
   });
 
   test('terminal frames parse graphics placement payloads', () {
@@ -1816,6 +2138,117 @@ void main() {
       expect(frame.inlineImages, isEmpty);
     },
   );
+
+  test('terminal frames cap inline image batches', () {
+    final imageBytes = Uint8List.fromList(<int>[1, 2, 3]);
+    final encodedImage = base64.encode(imageBytes);
+    final frame = TerminalFrameDiff.fromJson(<String, Object?>{
+      'rows': const [
+        {'index': 0, 'text': 'image', 'style_runs': []},
+      ],
+      'cursor': const {'row': 0, 'col': 0, 'visible': true},
+      'viewport_rows': 40,
+      'viewport_cols': 80,
+      'dirty_ranges': const [
+        {'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+      'inline_images': [
+        for (var index = 0; index < 34; index += 1)
+          {
+            'row': index,
+            'col': 0,
+            'width_cells': 1,
+            'height_cells': 1,
+            'data': encodedImage,
+          },
+      ],
+    });
+
+    expect(frame.inlineImages, hasLength(32));
+    expect(frame.inlineImages.first.row, 0);
+    expect(frame.inlineImages.last.row, 31);
+  });
+
+  test('terminal viewport controller caps normalized overlay state', () {
+    final controller = TerminalViewportController();
+    final imageBytes = Uint8List.fromList(<int>[1, 2, 3]);
+
+    controller.updateFrame(
+      TerminalFrameDiff(
+        rows: const [TerminalRow(index: 0, text: 'ready')],
+        cursor: const TerminalCursor(row: 0, col: 5, visible: true),
+        viewportRows: 100,
+        viewportCols: 80,
+        dirtyRanges: const [TerminalDirtyRange(start: 0, end: 1)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+        hyperlinks: [
+          for (var index = 0; index < 4100; index += 1)
+            TerminalHyperlinkRange(
+              row: index % 100,
+              startCol: 0,
+              endCol: 1,
+              uri: 'https://example.com/$index',
+            ),
+        ],
+        inlineImages: [
+          for (var index = 0; index < 40; index += 1)
+            TerminalInlineImage(
+              row: index % 100,
+              col: 0,
+              widthCells: 1,
+              heightCells: 1,
+              bytes: imageBytes,
+            ),
+        ],
+      ),
+    );
+
+    expect(controller.frame.hyperlinks, hasLength(4096));
+    expect(controller.frame.inlineImages, hasLength(32));
+  });
+
+  test('terminal viewport controller drops invalid direct hyperlinks', () {
+    final controller = TerminalViewportController();
+
+    controller.updateFrame(
+      const TerminalFrameDiff(
+        rows: [TerminalRow(index: 0, text: 'ready')],
+        cursor: TerminalCursor(row: 0, col: 5, visible: true),
+        viewportRows: 1,
+        viewportCols: 80,
+        dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+        hyperlinks: [
+          TerminalHyperlinkRange(
+            row: 0,
+            startCol: -1,
+            endCol: 5,
+            uri: 'https://example.com/negative',
+          ),
+          TerminalHyperlinkRange(
+            row: 0,
+            startCol: 5,
+            endCol: 5,
+            uri: 'https://example.com/empty',
+          ),
+          TerminalHyperlinkRange(row: 0, startCol: 0, endCol: 1, uri: '  '),
+          TerminalHyperlinkRange(
+            row: 0,
+            startCol: 1,
+            endCol: 3,
+            uri: 'https://example.com/valid',
+          ),
+        ],
+      ),
+    );
+
+    expect(controller.frame.hyperlinks, hasLength(1));
+    expect(controller.frame.hyperlinks.single.uri, 'https://example.com/valid');
+  });
 
   test('terminal runtime falls back when JSON requests are unsupported', () {
     final runtimeBackend = _FakePtyBackend()..returnNullJsonRequests = true;
@@ -2862,6 +3295,27 @@ void main() {
       },
       'block': true,
     });
+
+    expect(
+      runtime.exportScrollbackText(sessionId, maxLines: -1),
+      'scrollback text',
+    );
+    expect(runtimeBackend.jsonRequests.last, <String, Object?>{
+      'kind': 'terminal.export_scrollback',
+      'maxLines': 0,
+    });
+
+    expect(
+      runtime.exportScrollbackText(
+        sessionId,
+        maxLines: maxTerminalScrollbackLines + 1,
+      ),
+      'scrollback text',
+    );
+    expect(runtimeBackend.jsonRequests.last, <String, Object?>{
+      'kind': 'terminal.export_scrollback',
+      'maxLines': maxTerminalScrollbackLines,
+    });
   });
 
   test('terminal runtime degrades malformed JSON request responses', () {
@@ -3042,6 +3496,76 @@ void main() {
     expect(search.errorText, isNull);
   });
 
+  test('terminal runtime scans search matches past malformed prefixes', () {
+    final runtimeBackend = _FakePtyBackend()
+      ..searchRawResponse = jsonEncode(<String, Object?>{
+        'matches': <Object?>[
+          for (var index = 0; index < 1004; index += 1)
+            <String, Object?>{'row': 'bad-$index'},
+          <String, Object?>{
+            'row': 3,
+            'start_col': 1,
+            'end_col': 4,
+            'text': 'hit',
+            'scrollback_offset': 2,
+          },
+        ],
+      });
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+
+    final search = runtime.searchTextResult(sessionId, 'hit');
+
+    expect(search.matches.single.text, 'hit');
+    expect(search.matches.single.scrollbackOffset, 2);
+  });
+
+  test('terminal runtime caps oversized search match responses', () {
+    final runtimeBackend = _FakePtyBackend()
+      ..searchRawResponse = jsonEncode(<String, Object?>{
+        'matches': <Object?>[
+          for (var index = 0; index < 1002; index += 1)
+            <String, Object?>{
+              'row': index,
+              'start_col': 0,
+              'end_col': 1,
+              'text': 'x$index',
+              'scrollback_offset': index,
+            },
+        ],
+      });
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+
+    final search = runtime.searchTextResult(sessionId, 'x');
+
+    expect(search.matches, hasLength(1000));
+    expect(search.matches.first.text, 'x0');
+    expect(search.matches.last.text, 'x999');
+  });
+
   test('terminal runtime normalizes search error text', () {
     final runtimeBackend = _FakePtyBackend()
       ..searchRawResponse = jsonEncode(<String, Object?>{
@@ -3201,6 +3725,114 @@ void main() {
     expect(trimmed.summaryMarkdown, '# Terminal diagnostics');
   });
 
+  test('terminal diagnostics export caps decoded list fields', () {
+    final export = TerminalDiagnosticsExport.fromJson(<String, Object?>{
+      'resource_samples': <Object?>[
+        for (var index = 0; index < 62; index += 1)
+          <String, Object?>{'rss_bytes': index},
+      ],
+      'events': <Object?>[
+        for (var index = 0; index < 202; index += 1)
+          <String, Object?>{'sequence': index},
+      ],
+    });
+
+    expect(export.resourceSamples, hasLength(60));
+    expect(export.resourceSamples.last['rss_bytes'], 59);
+    expect(export.events, hasLength(200));
+    expect(export.events.last['sequence'], 199);
+  });
+
+  test(
+    'terminal diagnostics export scans list fields past malformed prefixes',
+    () {
+      final export = TerminalDiagnosticsExport.fromJson(<String, Object?>{
+        'resource_samples': <Object?>[
+          for (var index = 0; index < 62; index += 1) 'bad-sample-$index',
+          <String, Object?>{'rss_bytes': 128},
+        ],
+        'events': <Object?>[
+          for (var index = 0; index < 202; index += 1) 'bad-event-$index',
+          <String, Object?>{'sequence': 12},
+        ],
+      });
+
+      expect(export.resourceSamples.single['rss_bytes'], 128);
+      expect(export.events.single['sequence'], 12);
+    },
+  );
+
+  test('terminal diagnostics export bounds decoded summary fields', () {
+    final export = TerminalDiagnosticsExport.fromJson(<String, Object?>{
+      'summary': <String, Object?>{
+        'conclusion': ' ${'c' * 5000} ',
+        'markdown': ' ${'m' * 5000} ',
+        'evidence': <Object?>[
+          for (var index = 0; index < 24; index += 1)
+            ' ${index.toString().padLeft(2, '0')}-${'e' * 700} ',
+          <String, Object?>{'raw_command': 'ssh prod'},
+        ],
+        'next_steps': <Object?>[
+          for (var index = 0; index < 24; index += 1)
+            ' ${index.toString().padLeft(2, '0')}-${'n' * 700} ',
+        ],
+        'attribution_scores': <Object?, Object?>{
+          'non_finite': double.nan,
+          7: 'ignored',
+          for (var index = 0; index < 40; index += 1)
+            ' score-$index ': ' ${'s' * 5000} ',
+        },
+      },
+    });
+
+    final evidence = export.summary['evidence']! as List<String>;
+    final nextSteps = export.summary['next_steps']! as List<String>;
+    final scores =
+        export.summary['attribution_scores']! as Map<String, Object?>;
+
+    expect(export.conclusion, hasLength(4096));
+    expect(export.summaryMarkdown, hasLength(4096));
+    expect(evidence, hasLength(20));
+    expect(evidence.first, hasLength(512));
+    expect(evidence.last, startsWith('19-'));
+    expect(nextSteps, hasLength(20));
+    expect(nextSteps.first, hasLength(512));
+    expect(scores, hasLength(32));
+    expect(scores.keys.first, 'score-0');
+    expect(
+      scores.values.first,
+      isA<String>().having((value) => value.length, 'length', 4096),
+    );
+    expect(scores.containsKey('non_finite'), isFalse);
+  });
+
+  test('terminal diagnostics export scans summary fields past invalids', () {
+    final export = TerminalDiagnosticsExport.fromJson(<String, Object?>{
+      'summary': <String, Object?>{
+        for (var index = 0; index < 34; index += 1)
+          'invalid_$index': double.nan,
+        'conclusion': ' recovered ',
+        'evidence': <Object?>[
+          for (var index = 0; index < 22; index += 1)
+            <String, Object?>{'raw_command': 'ssh prod-$index'},
+          ' evidence recovered ',
+        ],
+        'attribution_scores': <Object?, Object?>{
+          for (var index = 0; index < 34; index += 1) index: double.nan,
+          ' score ': ' useful ',
+        },
+      },
+    });
+
+    final evidence = export.summary['evidence']! as List<String>;
+    final scores =
+        export.summary['attribution_scores']! as Map<String, Object?>;
+
+    expect(export.conclusion, 'recovered');
+    expect(evidence, <String>['evidence recovered']);
+    expect(scores, <String, Object?>{'score': 'useful'});
+  });
+
   test(
     'terminal runtime degrades diagnostics export to null on bad backend data',
     () {
@@ -3314,6 +3946,65 @@ void main() {
       throwsRangeError,
     );
     expect(runtimeBackend.resizeCalls, isEmpty);
+  });
+
+  test('terminal runtime controller clamps oversized resize dimensions', () {
+    final runtimeBackend = _FakePtyBackend();
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+
+    runtime.resizeSessionCells(
+      sessionId,
+      cols: maxTerminalDimension + 1,
+      rows: maxTerminalDimension + 2,
+      cellSize: terminalFallbackCellSize,
+    );
+
+    expect(runtimeBackend.resizeCalls.last, <Object?>[
+      sessionId,
+      maxTerminalDimension,
+      maxTerminalDimension,
+      maxTerminalDimension,
+      maxTerminalDimension,
+      terminalFallbackCellSize.width.round(),
+      terminalFallbackCellSize.height.round(),
+    ]);
+
+    final secondSessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    runtimeBackend.resizeCalls.clear();
+    runtime.resizeSession(
+      secondSessionId,
+      Size(
+        terminalFallbackCellSize.width * maxTerminalDimension * 2,
+        terminalFallbackCellSize.height * maxTerminalDimension * 2,
+      ),
+      1,
+    );
+
+    expect(runtimeBackend.resizeCalls.last, <Object?>[
+      secondSessionId,
+      maxTerminalDimension,
+      maxTerminalDimension,
+      maxTerminalDimension,
+      maxTerminalDimension,
+      terminalFallbackCellSize.width.round(),
+      terminalFallbackCellSize.height.round(),
+    ]);
   });
 
   testWidgets(
@@ -3930,6 +4621,7 @@ void main() {
         ),
       );
       final paddedPayload = base64.encode(utf8.encode('padded ok'));
+      final oversizedPayload = base64.encode(Uint8List(4 * 1024 * 1024 + 1));
       final whitespacePayload =
           '${paddedPayload.substring(0, 4)}\n ${paddedPayload.substring(4)}';
 
@@ -3947,6 +4639,14 @@ void main() {
           kind: 'clipboard_copy',
           sessionId: sessionId,
           payload: <String, Object?>{'data': whitespacePayload},
+        ),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_copy',
+          sessionId: sessionId,
+          payload: <String, Object?>{'data': oversizedPayload},
         ),
       );
       runtimeBackend.enqueueEvent(
@@ -4112,6 +4812,53 @@ void main() {
     expect(clipboardEvent.operation, TerminalClipboardOperation.pasteRequest);
     expect(clipboardEvent.decision, TerminalClipboardDecision.blocked);
   });
+
+  testWidgets(
+    'terminal runtime controller skips oversized OSC 52 paste request responses',
+    (tester) async {
+      var readClipboardCount = 0;
+      final seenEvents = <TerminalSessionEvent>[];
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async {
+          readClipboardCount += 1;
+          return ''.padRight(4 * 1024 * 1024 + 1, 'a');
+        },
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final subscription = runtime.events.listen(seenEvents.add);
+      addTearDown(subscription.cancel);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_paste_request',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'selection': 'c'},
+        ),
+      );
+
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+
+      expect(readClipboardCount, 1);
+      expect(runtimeBackend.writeCalls, hasLength(1));
+      expect(runtimeBackend.writeCalls.single, isEmpty);
+      final clipboardEvent = seenEvents
+          .whereType<TerminalSessionClipboardEvent>()
+          .single;
+      expect(clipboardEvent.operation, TerminalClipboardOperation.pasteRequest);
+      expect(clipboardEvent.decision, TerminalClipboardDecision.invalidPayload);
+    },
+  );
 
   testWidgets(
     'terminal runtime controller skips malformed event payload fields',

@@ -118,6 +118,54 @@ void main() {
     expect(blank.fallback, terminalFontFamilyFallback);
   });
 
+  test('terminal font config caps direct json fallback entries', () {
+    final font = TerminalFontConfig.fromJson(<String, Object?>{
+      'fallback': <Object?>[
+        for (
+          var index = 0;
+          index < maxTerminalFontFallbackFamilies + 2;
+          index += 1
+        )
+          ' Font $index ',
+      ],
+    });
+
+    expect(font.fallback, hasLength(maxTerminalFontFallbackFamilies));
+    expect(font.fallback.first, 'Font 0');
+    expect(font.fallback.last, 'Font ${maxTerminalFontFallbackFamilies - 1}');
+  });
+
+  test('terminal font config scans direct fallback past invalid entries', () {
+    final font = TerminalFontConfig.fromJson(<String, Object?>{
+      'fallback': <Object?>[
+        for (var index = 0; index < maxTerminalFontFallbackFamilies; index += 1)
+          '   ',
+        for (var index = 0; index < maxTerminalFontFallbackFamilies; index += 1)
+          ' Font $index ',
+      ],
+    });
+
+    expect(font.fallback, hasLength(maxTerminalFontFallbackFamilies));
+    expect(font.fallback.first, 'Font 0');
+    expect(font.fallback.last, 'Font ${maxTerminalFontFallbackFamilies - 1}');
+  });
+
+  test('terminal font config defaults invalid direct dimensions', () {
+    const invalid = TerminalFontConfig(
+      size: double.nan,
+      lineHeight: double.infinity,
+    );
+    const nonPositive = TerminalFontConfig(size: 0, lineHeight: -1);
+    const valid = TerminalFontConfig(size: 15, lineHeight: 1.3);
+
+    expect(invalid.size, terminalFontSize);
+    expect(invalid.lineHeight, terminalLineHeight);
+    expect(nonPositive.size, terminalFontSize);
+    expect(nonPositive.lineHeight, terminalLineHeight);
+    expect(valid.size, 15);
+    expect(valid.lineHeight, 1.3);
+  });
+
   test('terminal session config normalizes direct enum tokens', () {
     final config = TerminalSessionConfig.fromJson(const <String, Object?>{
       'launch': <String, Object?>{'program': '/bin/zsh'},
@@ -198,6 +246,7 @@ void main() {
   test('terminal launch config trims direct json string fields', () {
     final launch = TerminalLaunchConfig.fromJson(const <String, Object?>{
       'program': '  /bin/zsh  ',
+      'args': <Object?>['  -l  ', '   ', 42, ' --noprofile '],
       'env': <Object?, Object?>{
         ' TERM ': 'xterm-256color',
         'EMPTY': '',
@@ -214,6 +263,7 @@ void main() {
     });
 
     expect(launch.program, '/bin/zsh');
+    expect(launch.args, const ['-l', '--noprofile']);
     expect(launch.env, const <String, String>{
       'TERM': 'xterm-256color',
       'EMPTY': '',
@@ -222,6 +272,64 @@ void main() {
     expect(blank.program, '');
     expect(blank.cwd, isNull);
   });
+
+  test('terminal launch config caps direct json args and env entries', () {
+    final launch = TerminalLaunchConfig.fromJson(<String, Object?>{
+      'program': '/bin/zsh',
+      'args': <Object?>[
+        for (var index = 0; index < maxTerminalLaunchArgs + 2; index += 1)
+          'arg-$index',
+      ],
+      'env': <Object?, Object?>{
+        for (
+          var index = 0;
+          index < maxTerminalEnvironmentEntries + 2;
+          index += 1
+        )
+          'KEY_$index': 'value-$index',
+      },
+    });
+
+    expect(launch.args, hasLength(maxTerminalLaunchArgs));
+    expect(launch.args.last, 'arg-${maxTerminalLaunchArgs - 1}');
+    expect(launch.env, hasLength(maxTerminalEnvironmentEntries));
+    expect(
+      launch.env['KEY_${maxTerminalEnvironmentEntries - 1}'],
+      'value-${maxTerminalEnvironmentEntries - 1}',
+    );
+    expect(launch.env, isNot(contains('KEY_$maxTerminalEnvironmentEntries')));
+  });
+
+  test(
+    'terminal launch config scans direct json args and env past invalids',
+    () {
+      final launch = TerminalLaunchConfig.fromJson(<String, Object?>{
+        'program': '/bin/zsh',
+        'args': <Object?>[
+          for (var index = 0; index < maxTerminalLaunchArgs; index += 1) '   ',
+          for (var index = 0; index < maxTerminalLaunchArgs; index += 1)
+            ' arg-$index ',
+        ],
+        'env': <Object?, Object?>{
+          for (var index = 0; index < maxTerminalEnvironmentEntries; index += 1)
+            'BAD_$index': false,
+          for (var index = 0; index < maxTerminalEnvironmentEntries; index += 1)
+            ' KEY_$index ': 'value-$index',
+        },
+      });
+
+      expect(launch.args, hasLength(maxTerminalLaunchArgs));
+      expect(launch.args.first, 'arg-0');
+      expect(launch.args.last, 'arg-${maxTerminalLaunchArgs - 1}');
+      expect(launch.env, hasLength(maxTerminalEnvironmentEntries));
+      expect(launch.env['KEY_0'], 'value-0');
+      expect(
+        launch.env['KEY_${maxTerminalEnvironmentEntries - 1}'],
+        'value-${maxTerminalEnvironmentEntries - 1}',
+      );
+      expect(launch.env, isNot(contains('BAD_0')));
+    },
+  );
 
   test('terminal profile JSON normalizes enum tokens', () {
     final warnings = <TerminalConfigWarning>[];
@@ -321,6 +429,164 @@ void main() {
         'appearance.font.family',
         'appearance.font.fallback[1]',
       ]),
+    );
+  });
+
+  test('terminal profile JSON caps collection fields with warnings', () {
+    final warnings = <TerminalConfigWarning>[];
+
+    final config = TerminalSessionConfig.fromProfileJson(
+      <String, Object?>{
+        'launch': <String, Object?>{
+          'program': '/bin/zsh',
+          'args': <Object?>[
+            for (var index = 0; index < maxTerminalLaunchArgs + 2; index += 1)
+              'arg-$index',
+          ],
+          'env': <Object?, Object?>{
+            for (
+              var index = 0;
+              index < maxTerminalEnvironmentEntries + 2;
+              index += 1
+            )
+              'KEY_$index': 'value-$index',
+          },
+        },
+        'appearance': <String, Object?>{
+          'font': <String, Object?>{
+            'fallback': <Object?>[
+              for (
+                var index = 0;
+                index < maxTerminalFontFallbackFamilies + 2;
+                index += 1
+              )
+                'Font $index',
+            ],
+          },
+        },
+      },
+      defaultProgram: '/bin/sh',
+      onWarning: warnings.add,
+    );
+
+    expect(config.launch.args, hasLength(maxTerminalLaunchArgs));
+    expect(config.launch.env, hasLength(maxTerminalEnvironmentEntries));
+    expect(
+      config.display.font.fallback,
+      hasLength(maxTerminalFontFallbackFamilies),
+    );
+    expect(
+      warnings.map((warning) => warning.path),
+      containsAll(<String>[
+        'launch.args',
+        'launch.env',
+        'appearance.font.fallback',
+      ]),
+    );
+    expect(
+      warnings.map((warning) => warning.fallbackSummary),
+      containsAll(<String>[
+        'loaded first $maxTerminalLaunchArgs valid entries',
+        'loaded first $maxTerminalEnvironmentEntries valid entries',
+        'loaded first $maxTerminalFontFallbackFamilies valid fallback font entries',
+      ]),
+    );
+  });
+
+  test('terminal profile JSON scans launch entries past invalids', () {
+    final warnings = <TerminalConfigWarning>[];
+
+    final config = TerminalSessionConfig.fromProfileJson(
+      <String, Object?>{
+        'launch': <String, Object?>{
+          'program': '/bin/zsh',
+          'args': <Object?>[
+            for (var index = 0; index < maxTerminalLaunchArgs; index += 1) '',
+            for (var index = 0; index < maxTerminalLaunchArgs; index += 1)
+              'arg-$index',
+          ],
+          'env': <Object?, Object?>{
+            for (
+              var index = 0;
+              index < maxTerminalEnvironmentEntries;
+              index += 1
+            )
+              'BAD_$index': false,
+            for (
+              var index = 0;
+              index < maxTerminalEnvironmentEntries;
+              index += 1
+            )
+              ' KEY_$index ': 'value-$index',
+          },
+        },
+      },
+      defaultProgram: '/bin/sh',
+      onWarning: warnings.add,
+    );
+
+    expect(config.launch.args, hasLength(maxTerminalLaunchArgs));
+    expect(config.launch.args.first, 'arg-0');
+    expect(config.launch.args.last, 'arg-${maxTerminalLaunchArgs - 1}');
+    expect(config.launch.env, hasLength(maxTerminalEnvironmentEntries));
+    expect(config.launch.env['KEY_0'], 'value-0');
+    expect(
+      config.launch.env['KEY_${maxTerminalEnvironmentEntries - 1}'],
+      'value-${maxTerminalEnvironmentEntries - 1}',
+    );
+    expect(config.launch.env, isNot(contains('BAD_0')));
+    expect(
+      warnings.map((warning) => warning.fallbackSummary),
+      containsAll(<String>[
+        'loaded first $maxTerminalLaunchArgs valid entries',
+        'loaded first $maxTerminalEnvironmentEntries valid entries',
+      ]),
+    );
+  });
+
+  test('terminal profile JSON scans font fallback past invalid entries', () {
+    final warnings = <TerminalConfigWarning>[];
+
+    final config = TerminalSessionConfig.fromProfileJson(
+      <String, Object?>{
+        'launch': const <String, Object?>{'program': '/bin/zsh'},
+        'appearance': <String, Object?>{
+          'font': <String, Object?>{
+            'fallback': <Object?>[
+              for (
+                var index = 0;
+                index < maxTerminalFontFallbackFamilies;
+                index += 1
+              )
+                '   ',
+              for (
+                var index = 0;
+                index < maxTerminalFontFallbackFamilies;
+                index += 1
+              )
+                ' Font $index ',
+            ],
+          },
+        },
+      },
+      defaultProgram: '/bin/sh',
+      onWarning: warnings.add,
+    );
+
+    expect(
+      config.display.font.fallback,
+      hasLength(maxTerminalFontFallbackFamilies),
+    );
+    expect(config.display.font.fallback.first, 'Font 0');
+    expect(
+      config.display.font.fallback.last,
+      'Font ${maxTerminalFontFallbackFamilies - 1}',
+    );
+    expect(
+      warnings.map((warning) => warning.fallbackSummary),
+      contains(
+        'loaded first $maxTerminalFontFallbackFamilies valid fallback font entries',
+      ),
     );
   });
 
@@ -440,6 +706,28 @@ void main() {
     expect(fractional.scrollbackLines, defaultTerminalScrollbackLines);
   });
 
+  test('terminal session config caps excessive scrollback lines', () {
+    final constructed = TerminalSessionConfig(
+      launch: const TerminalLaunchConfig(program: '/bin/zsh'),
+      scrollbackLines: maxTerminalScrollbackLines + 1,
+    );
+    final fromJson = TerminalSessionConfig.fromJson(<String, Object?>{
+      'terminal': <String, Object?>{
+        'scrollbackLines': maxTerminalScrollbackLines + 1,
+      },
+    });
+    final options = TerminalOptions(scrollback: maxTerminalScrollbackLines + 1);
+
+    expect(constructed.scrollbackLines, maxTerminalScrollbackLines);
+    expect(constructed.toJson()['terminal'], <String, Object?>{
+      'emulation': 'xterm256',
+      'scrollbackLines': maxTerminalScrollbackLines,
+      'graphics': const TerminalGraphicsConfig().toJson(),
+    });
+    expect(fromJson.scrollbackLines, maxTerminalScrollbackLines);
+    expect(options.scrollback, maxTerminalScrollbackLines);
+  });
+
   test('terminal profile JSON validates shell integration settings', () {
     final warnings = <TerminalConfigWarning>[];
 
@@ -512,5 +800,28 @@ void main() {
     expect(fractionalWarnings.map((warning) => warning.path), <String>[
       'terminal.scrollbackLines',
     ]);
+  });
+
+  test('terminal profile JSON warns and caps excessive scrollback lines', () {
+    final warnings = <TerminalConfigWarning>[];
+
+    final config = TerminalSessionConfig.fromProfileJson(
+      <String, Object?>{
+        'shell': '/bin/zsh',
+        'terminal': <String, Object?>{
+          'scrollbackLines': maxTerminalScrollbackLines + 1,
+        },
+      },
+      defaultProgram: '/bin/zsh',
+      onWarning: warnings.add,
+    );
+
+    expect(config.scrollbackLines, maxTerminalScrollbackLines);
+    expect(warnings, hasLength(1));
+    expect(warnings.single.path, 'terminal.scrollbackLines');
+    expect(
+      warnings.single.fallbackSummary,
+      'clamped to maximum value $maxTerminalScrollbackLines',
+    );
   });
 }

@@ -934,6 +934,116 @@ void main() {
     ]);
   });
 
+  testWidgets('profile editor blocks metadata collections above limits', (
+    tester,
+  ) async {
+    TerminalProfile? savedProfile;
+    await _pumpEditorHarness(
+      tester,
+      initialValue: TerminalProfile(
+        id: 'default',
+        name: 'Local Shell',
+        shell: '/bin/zsh',
+      ),
+      onSaved: (value) => savedProfile = value,
+    );
+
+    await tester.enterText(
+      find.byKey(const Key('profile-editor-tags')),
+      [
+        for (var index = 0; index < maxTerminalProfileTags + 1; index += 1)
+          'tag-$index',
+      ].join(', '),
+    );
+    await tester.enterText(
+      find.byKey(const Key('profile-editor-triggers')),
+      [
+        for (var index = 0; index < maxTerminalProfileTriggers + 1; index += 1)
+          'TRIGGER_$index => notify',
+      ].join('\n'),
+    );
+    await tester.enterText(
+      find.byKey(const Key('profile-editor-switch-rules')),
+      [
+        for (
+          var index = 0;
+          index < maxTerminalProfileSwitchRules + 1;
+          index += 1
+        )
+          'host: host-$index.example.com',
+      ].join('\n'),
+    );
+
+    await _ensureVisible(tester, find.byKey(const Key('profile-editor-save')));
+    await tester.tap(find.byKey(const Key('profile-editor-save')));
+    await tester.pumpAndSettle();
+
+    expect(savedProfile, isNull);
+    expect(
+      find.text('Use $maxTerminalProfileTags tags or fewer.'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Use $maxTerminalProfileTriggers triggers or fewer.'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Use $maxTerminalProfileSwitchRules switching rules or fewer.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+    'profile editor blocks launch and font collections above limits',
+    (tester) async {
+      TerminalProfile? savedProfile;
+      await _pumpEditorHarness(
+        tester,
+        initialValue: TerminalProfile(
+          id: 'default',
+          name: 'Local Shell',
+          shell: '/bin/zsh',
+          args: [
+            for (var index = 0; index < maxTerminalLaunchArgs + 1; index += 1)
+              'arg-$index',
+          ],
+          appearance: terminal.TerminalDisplayConfig(
+            font: terminal.TerminalFontConfig(
+              fallback: [
+                for (
+                  var index = 0;
+                  index < maxTerminalFontFallbackFamilies + 1;
+                  index += 1
+                )
+                  'Font $index',
+              ],
+            ),
+          ),
+        ),
+        onSaved: (value) => savedProfile = value,
+      );
+
+      await _ensureVisible(
+        tester,
+        find.byKey(const Key('profile-editor-save')),
+      );
+      await tester.tap(find.byKey(const Key('profile-editor-save')));
+      await tester.pumpAndSettle();
+
+      expect(savedProfile, isNull);
+      expect(
+        find.text('Use $maxTerminalLaunchArgs arguments or fewer.'),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'Use $maxTerminalFontFallbackFamilies fallback fonts or fewer.',
+        ),
+        findsOneWidget,
+      );
+    },
+  );
+
   testWidgets('profile editor blocks invalid values and duplicate env keys', (
     tester,
   ) async {
@@ -1068,6 +1178,42 @@ void main() {
     expect(savedProfile, isNull);
     expect(find.text('Font size must be greater than 0'), findsOneWidget);
     expect(find.text('Line height must be greater than 0'), findsOneWidget);
+    expect(find.byKey(const Key('profile-editor-dialog')), findsOneWidget);
+  });
+
+  testWidgets('profile editor rejects excessive scrollback retention', (
+    tester,
+  ) async {
+    TerminalProfile? savedProfile;
+    await _pumpEditorHarness(
+      tester,
+      initialValue: TerminalProfile(
+        id: 'default',
+        name: 'Local Shell',
+        shell: '/bin/zsh',
+      ),
+      onSaved: (value) => savedProfile = value,
+    );
+
+    await _ensureVisible(
+      tester,
+      find.byKey(const Key('profile-editor-scrollback')),
+    );
+    await tester.enterText(
+      find.byKey(const Key('profile-editor-scrollback')),
+      '${terminal.maxTerminalScrollbackLines + 1}',
+    );
+    await _ensureVisible(tester, find.byKey(const Key('profile-editor-save')));
+    await tester.tap(find.byKey(const Key('profile-editor-save')));
+    await tester.pumpAndSettle();
+
+    expect(savedProfile, isNull);
+    expect(
+      find.text(
+        'Scrollback lines must be ${terminal.maxTerminalScrollbackLines} or less',
+      ),
+      findsOneWidget,
+    );
     expect(find.byKey(const Key('profile-editor-dialog')), findsOneWidget);
   });
 

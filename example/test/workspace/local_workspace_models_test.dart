@@ -80,6 +80,44 @@ void main() {
       expect(reopened.closedTabs, isEmpty);
     });
 
+    test('workspace keeps a bounded closed tab history', () {
+      var workspace = const TerminalWorkspace();
+      for (var index = 0; index < maxWorkspaceClosedTabs + 3; index += 1) {
+        workspace = workspace.addTab(_tab('tab-$index'));
+      }
+
+      while (!workspace.isEmpty) {
+        workspace = workspace.closeActiveTab();
+      }
+
+      expect(workspace.closedTabs, hasLength(maxWorkspaceClosedTabs));
+      expect(
+        workspace.closedTabs.map((tab) => tab.id).toList(growable: false),
+        [
+          for (var index = 0; index < maxWorkspaceClosedTabs; index += 1)
+            'tab-$index',
+        ],
+      );
+      expect(
+        (workspace.toJson()['closedTabs'] as List<Object?>),
+        hasLength(maxWorkspaceClosedTabs),
+      );
+    });
+
+    test('workspace JSON excludes closed tabs by normalized active ids', () {
+      final workspace = TerminalWorkspace(
+        tabs: [_tab(' tab-1 ')],
+        activeTabId: ' tab-1 ',
+        closedTabs: [_tab('tab-1'), _tab('closed')],
+      );
+
+      final json = workspace.toJson();
+      final closedTabs = json['closedTabs'] as List<Object?>;
+
+      expect(closedTabs, hasLength(1));
+      expect(closedTabs.single, containsPair('id', 'closed'));
+    });
+
     test('workspace layout roundtrips local pane topology', () {
       final workspace = const TerminalWorkspace().addTab(
         _tab('tab-1').splitActivePane(
@@ -180,6 +218,73 @@ void main() {
       expect(workspace.closedTabs.single.activeSessionIntent!.cwd, isNull);
     });
 
+    test('workspace session intent JSON normalizes persisted fields', () {
+      const intent = TerminalPaneSessionIntent(
+        profileId: ' default ',
+        cwd: ' /repo ',
+      );
+      const blank = TerminalPaneSessionIntent(profileId: '   ', cwd: '   ');
+
+      expect(intent.toJson(), {'profileId': 'default', 'cwd': '/repo'});
+      expect(blank.toJson(), {'profileId': '', 'cwd': null});
+    });
+
+    test('workspace JSON normalizes direct tab and pane identifiers', () {
+      final workspace = TerminalWorkspace(
+        activeTabId: 'tab-1',
+        tabs: [
+          _tab(' other '),
+          TerminalWorkspaceTab(
+            id: ' tab-1 ',
+            activePaneId: ' pane-1 ',
+            zoomedPaneId: ' pane-1 ',
+            root: TerminalPaneNode.leaf(
+              id: ' pane-1 ',
+              sessionIntent: const TerminalPaneSessionIntent(
+                profileId: ' default ',
+                cwd: ' /repo ',
+              ),
+            ),
+            closedPanes: [
+              TerminalPaneNode.leaf(
+                id: '   ',
+                sessionIntent: const TerminalPaneSessionIntent(
+                  profileId: 'ignored',
+                ),
+              ),
+              TerminalPaneNode.leaf(
+                id: ' closed-pane ',
+                sessionIntent: const TerminalPaneSessionIntent(
+                  profileId: ' default ',
+                ),
+              ),
+            ],
+          ),
+        ],
+        closedTabs: [_tab(' tab-1 '), _tab(' closed ')],
+      );
+
+      expect(workspace.activeTab!.id, ' tab-1 ');
+
+      final json = workspace.toJson();
+      final tabs = json['tabs']! as List<Object?>;
+      final activeTab = tabs.last! as Map<String, Object?>;
+      final activeRoot = activeTab['root']! as Map<String, Object?>;
+      final closedPanes = activeTab['closedPanes']! as List<Object?>;
+      final closedTabs = json['closedTabs']! as List<Object?>;
+
+      expect(json['activeTabId'], 'tab-1');
+      expect(tabs.first, containsPair('id', 'other'));
+      expect(activeTab['id'], 'tab-1');
+      expect(activeTab['activePaneId'], 'pane-1');
+      expect(activeTab['zoomedPaneId'], 'pane-1');
+      expect(activeRoot['id'], 'pane-1');
+      expect(closedPanes, hasLength(1));
+      expect(closedPanes.single, containsPair('id', 'closed-pane'));
+      expect(closedTabs, hasLength(1));
+      expect(closedTabs.single, containsPair('id', 'closed'));
+    });
+
     test('workspace layout skips malformed tabs and panes', () {
       final workspace = TerminalWorkspace.fromJson(const {
         'activeTabId': 'missing-tab',
@@ -239,8 +344,249 @@ void main() {
       expect(workspace.activeTabId, 'tab-1');
       expect(workspace.activeTab!.activePaneId, 'pane-2');
       expect(workspace.activeTab!.activeSessionIntent!.profileId, 'default');
+      expect(workspace.activeTab!.root.containsPane(''), isFalse);
       expect(workspace.closedTabs, hasLength(1));
       expect(workspace.closedTabs.single.id, 'closed');
+    });
+
+    test('workspace layout collapses malformed split children', () {
+      final workspace = TerminalWorkspace.fromJson(const {
+        'activeTabId': 'tab-1',
+        'tabs': [
+          {
+            'id': 'tab-1',
+            'root': {
+              'id': 'split-1',
+              'type': 'split',
+              'direction': 'right',
+              'children': [
+                {
+                  'id': '   ',
+                  'type': 'leaf',
+                  'sessionIntent': {'profileId': 'ignored'},
+                },
+                {
+                  'id': ' pane-1 ',
+                  'type': 'leaf',
+                  'sessionIntent': {'profileId': ' default '},
+                },
+              ],
+            },
+          },
+        ],
+      });
+
+      final tab = workspace.activeTab!;
+      expect(tab.activePaneId, 'pane-1');
+      expect(tab.root.isLeaf, isTrue);
+      expect(tab.root.containsPane(''), isFalse);
+      expect((tab.toJson()['root']! as Map<String, Object?>)['id'], 'pane-1');
+    });
+
+    test('workspace layout skips malformed closed panes before reopen', () {
+      final workspace = TerminalWorkspace.fromJson(const {
+        'activeTabId': 'tab-1',
+        'tabs': [
+          {
+            'id': 'tab-1',
+            'activePaneId': 'pane-1',
+            'root': {
+              'id': 'pane-1',
+              'type': 'leaf',
+              'sessionIntent': {'profileId': 'default'},
+            },
+            'closedPanes': [
+              {
+                'id': '   ',
+                'type': 'leaf',
+                'sessionIntent': {'profileId': 'ignored'},
+              },
+              {
+                'id': ' closed-pane ',
+                'type': 'leaf',
+                'sessionIntent': {'profileId': ' default '},
+              },
+            ],
+          },
+        ],
+      });
+
+      final tab = workspace.activeTab!;
+      expect(tab.closedPanes, hasLength(1));
+      expect(tab.closedPanes.single.firstLeafId, 'closed-pane');
+
+      final reopened = tab.reopenClosedPane(splitNodeId: 'split-1');
+      expect(reopened.activePaneId, 'closed-pane');
+      expect(reopened.root.containsPane(''), isFalse);
+    });
+
+    test('workspace layout limits persisted closed history scans', () {
+      final tooManyMalformedClosedTabs = maxWorkspaceClosedTabs * 4 + 1;
+      final tooManyMalformedClosedPanes = maxWorkspaceClosedPanes * 4 + 1;
+      final workspace = TerminalWorkspace.fromJson({
+        'activeTabId': 'tab-1',
+        'tabs': [
+          {
+            'id': 'tab-1',
+            'activePaneId': 'pane-1',
+            'root': _leafJson('pane-1'),
+            'closedPanes': [
+              for (
+                var index = 0;
+                index < tooManyMalformedClosedPanes;
+                index += 1
+              )
+                'malformed-pane-$index',
+              _leafJson('closed-pane-too-late'),
+            ],
+          },
+        ],
+        'closedTabs': [
+          for (var index = 0; index < tooManyMalformedClosedTabs; index += 1)
+            'malformed-tab-$index',
+          _tabJson('closed-too-late', 'closed-pane-too-late'),
+        ],
+      });
+
+      expect(workspace.closedTabs, isEmpty);
+      expect(workspace.activeTab!.closedPanes, isEmpty);
+    });
+
+    test('workspace layout limits persisted split child scans', () {
+      final workspace = TerminalWorkspace.fromJson({
+        'activeTabId': 'tab-1',
+        'tabs': [
+          {
+            'id': 'tab-1',
+            'root': {
+              'id': 'split-1',
+              'type': 'split',
+              'direction': 'right',
+              'children': [
+                for (var index = 0; index < 9; index += 1)
+                  'malformed-child-$index',
+                _leafJson('pane-too-late'),
+              ],
+            },
+          },
+        ],
+      });
+
+      expect(workspace.tabs, isEmpty);
+      expect(workspace.activeTabId, isNull);
+    });
+
+    test('workspace keeps a bounded closed pane history', () {
+      var tab = _tab('tab-1');
+      for (var index = 0; index < maxWorkspaceClosedPanes + 3; index += 1) {
+        tab = tab
+            .splitActivePane(
+              splitNodeId: 'split-$index',
+              newPaneId: 'closed-pane-$index',
+              sessionIntent: const TerminalPaneSessionIntent(
+                profileId: 'default',
+              ),
+              direction: TerminalPaneSplitDirection.right,
+            )
+            .closeActivePane();
+      }
+
+      expect(tab.closedPanes, hasLength(maxWorkspaceClosedPanes));
+      expect(
+        tab.closedPanes.map((pane) => pane.firstLeafId).toList(growable: false),
+        [
+          for (var index = maxWorkspaceClosedPanes + 2; index >= 3; index -= 1)
+            'closed-pane-$index',
+        ],
+      );
+      expect(
+        (tab.toJson()['closedPanes'] as List<Object?>),
+        hasLength(maxWorkspaceClosedPanes),
+      );
+    });
+
+    test('workspace layout skips duplicate and blank tab ids', () {
+      final workspace = TerminalWorkspace.fromJson(const {
+        'activeTabId': 'tab-1',
+        'tabs': [
+          {
+            'id': 'tab-1',
+            'activePaneId': 'pane-1',
+            'root': {
+              'id': 'pane-1',
+              'type': 'leaf',
+              'sessionIntent': {'profileId': 'default'},
+            },
+          },
+          {
+            'id': ' tab-1 ',
+            'activePaneId': 'duplicate-pane',
+            'root': {
+              'id': 'duplicate-pane',
+              'type': 'leaf',
+              'sessionIntent': {'profileId': 'duplicate'},
+            },
+          },
+          {
+            'id': '   ',
+            'activePaneId': 'blank-tab-pane',
+            'root': {
+              'id': 'blank-tab-pane',
+              'type': 'leaf',
+              'sessionIntent': {'profileId': 'blank'},
+            },
+          },
+          {
+            'id': 'tab-2',
+            'activePaneId': 'pane-2',
+            'root': {
+              'id': 'pane-2',
+              'type': 'leaf',
+              'sessionIntent': {'profileId': 'default'},
+            },
+          },
+        ],
+        'closedTabs': [
+          {
+            'id': 'tab-1',
+            'root': {
+              'id': 'closed-conflict-pane',
+              'type': 'leaf',
+              'sessionIntent': {'profileId': 'closed-conflict'},
+            },
+          },
+          {
+            'id': 'closed',
+            'root': {
+              'id': 'closed-pane',
+              'type': 'leaf',
+              'sessionIntent': {'profileId': 'default'},
+            },
+          },
+          {
+            'id': ' closed ',
+            'root': {
+              'id': 'duplicate-closed-pane',
+              'type': 'leaf',
+              'sessionIntent': {'profileId': 'duplicate-closed'},
+            },
+          },
+        ],
+      });
+
+      expect(
+        workspace.tabs.map((tab) => tab.id).toList(growable: false),
+        const ['tab-1', 'tab-2'],
+      );
+      expect(workspace.activeTab!.activeSessionIntent!.profileId, 'default');
+      expect(workspace.closedTabs, hasLength(1));
+      expect(workspace.closedTabs.single.id, 'closed');
+
+      final closedActive = workspace.closeActiveTab();
+      expect(
+        closedActive.tabs.map((tab) => tab.id).toList(growable: false),
+        const ['tab-2'],
+      );
     });
 
     test('workspace layout rejects remote-only fields', () {
@@ -495,4 +841,16 @@ TerminalWorkspaceTab _tab(String id, {String? cwd}) {
       sessionIntent: TerminalPaneSessionIntent(profileId: 'default', cwd: cwd),
     ),
   );
+}
+
+Map<String, Object?> _tabJson(String tabId, String paneId) {
+  return {'id': tabId, 'activePaneId': paneId, 'root': _leafJson(paneId)};
+}
+
+Map<String, Object?> _leafJson(String paneId) {
+  return {
+    'id': paneId,
+    'type': 'leaf',
+    'sessionIntent': {'profileId': 'default'},
+  };
 }

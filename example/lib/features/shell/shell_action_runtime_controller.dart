@@ -50,13 +50,13 @@ class ShellActionRuntimeState {
     TerminalWorkspace? workspace,
     ShellProductivityState? productivity,
     LocalTerminalPolicyBundle? policies,
-    ShellActionSideEffectPlan? lastPlan,
-    String? lastScrollbackExportPath,
-    LocalTerminalPasteDecision? lastPasteDecision,
-    LocalTerminalNotificationIntent? lastNotificationIntent,
-    ShellPromptMark? lastPromptTarget,
-    ShellCommandOutputRange? lastCommandOutputRange,
-    String? lastRecentDirectory,
+    Object? lastPlan = _copyWithUnset,
+    Object? lastScrollbackExportPath = _copyWithUnset,
+    Object? lastPasteDecision = _copyWithUnset,
+    Object? lastNotificationIntent = _copyWithUnset,
+    Object? lastPromptTarget = _copyWithUnset,
+    Object? lastCommandOutputRange = _copyWithUnset,
+    Object? lastRecentDirectory = _copyWithUnset,
     bool? themePickerRequested,
     Object? lastExternalExecutorError = _copyWithUnset,
   }) {
@@ -64,16 +64,28 @@ class ShellActionRuntimeState {
       workspace: workspace ?? this.workspace,
       productivity: productivity ?? this.productivity,
       policies: policies ?? this.policies,
-      lastPlan: lastPlan ?? this.lastPlan,
+      lastPlan: identical(lastPlan, _copyWithUnset)
+          ? this.lastPlan
+          : lastPlan as ShellActionSideEffectPlan?,
       lastScrollbackExportPath:
-          lastScrollbackExportPath ?? this.lastScrollbackExportPath,
-      lastPasteDecision: lastPasteDecision ?? this.lastPasteDecision,
-      lastNotificationIntent:
-          lastNotificationIntent ?? this.lastNotificationIntent,
-      lastPromptTarget: lastPromptTarget ?? this.lastPromptTarget,
-      lastCommandOutputRange:
-          lastCommandOutputRange ?? this.lastCommandOutputRange,
-      lastRecentDirectory: lastRecentDirectory ?? this.lastRecentDirectory,
+          identical(lastScrollbackExportPath, _copyWithUnset)
+          ? this.lastScrollbackExportPath
+          : lastScrollbackExportPath as String?,
+      lastPasteDecision: identical(lastPasteDecision, _copyWithUnset)
+          ? this.lastPasteDecision
+          : lastPasteDecision as LocalTerminalPasteDecision?,
+      lastNotificationIntent: identical(lastNotificationIntent, _copyWithUnset)
+          ? this.lastNotificationIntent
+          : lastNotificationIntent as LocalTerminalNotificationIntent?,
+      lastPromptTarget: identical(lastPromptTarget, _copyWithUnset)
+          ? this.lastPromptTarget
+          : lastPromptTarget as ShellPromptMark?,
+      lastCommandOutputRange: identical(lastCommandOutputRange, _copyWithUnset)
+          ? this.lastCommandOutputRange
+          : lastCommandOutputRange as ShellCommandOutputRange?,
+      lastRecentDirectory: identical(lastRecentDirectory, _copyWithUnset)
+          ? this.lastRecentDirectory
+          : lastRecentDirectory as String?,
       themePickerRequested: themePickerRequested ?? this.themePickerRequested,
       lastExternalExecutorError:
           identical(lastExternalExecutorError, _copyWithUnset)

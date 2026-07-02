@@ -26,12 +26,51 @@ void main() {
         directoryResolver: () async => directory,
       );
 
-      await repository.save([_preset(), _preset(id: '   ')]);
+      await repository.save([_preset(), _preset(), _preset(id: '   ')]);
       final loaded = await repository.load();
+      final raw =
+          jsonDecode(
+                await File(
+                  '${directory.path}/ianvs_themes.json',
+                ).readAsString(),
+              )
+              as List<dynamic>;
 
+      expect(raw, hasLength(1));
       expect(loaded, hasLength(1));
       expect(loaded.single.id, 'baseline');
       expect(loaded.single.dark.background, 0x000000);
+    });
+
+    test('caps persisted theme presets', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-themes-capped',
+      );
+      final repository = LocalTerminalThemeRepository(
+        directoryResolver: () async => directory,
+      );
+
+      await repository.save([
+        for (
+          var index = 0;
+          index < maxLocalTerminalThemePresets + 2;
+          index += 1
+        )
+          _preset(id: 'preset-$index'),
+      ]);
+      final loaded = await repository.load();
+      final raw =
+          jsonDecode(
+                await File(
+                  '${directory.path}/ianvs_themes.json',
+                ).readAsString(),
+              )
+              as List<dynamic>;
+
+      expect(raw, hasLength(maxLocalTerminalThemePresets));
+      expect(loaded, hasLength(maxLocalTerminalThemePresets));
+      expect(loaded.first.id, 'preset-0');
+      expect(loaded.last.id, 'preset-${maxLocalTerminalThemePresets - 1}');
     });
 
     test('exports a single preset document', () async {
@@ -45,6 +84,26 @@ void main() {
       final file = await repository.exportPreset(_preset());
 
       expect(file.path, contains('baseline.ianvs-terminal-theme.json'));
+      expect(await file.readAsString(), contains('"baseline"'));
+    });
+
+    test('exports a preset without overwriting an existing file', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-theme-export-collision',
+      );
+      final existing = File(
+        '${directory.path}/baseline.ianvs-terminal-theme.json',
+      );
+      await existing.writeAsString('existing theme');
+      final repository = LocalTerminalThemeRepository(
+        directoryResolver: () async => directory,
+      );
+
+      final file = await repository.exportPreset(_preset());
+
+      expect(file.path, isNot(existing.path));
+      expect(file.path, contains('baseline.ianvs-terminal-theme-1.json'));
+      expect(await existing.readAsString(), 'existing theme');
       expect(await file.readAsString(), contains('"baseline"'));
     });
 
@@ -72,6 +131,28 @@ void main() {
         isFalse,
       );
     });
+
+    test(
+      'truncates long exported preset ids to a writable file name',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'ianvs terminal-theme-export-long-name',
+        );
+        addTearDown(() => directory.delete(recursive: true));
+        final repository = LocalTerminalThemeRepository(
+          directoryResolver: () async => directory,
+        );
+
+        final file = await repository.exportPreset(
+          _preset(id: 'theme-${List.filled(400, 'a').join()}'),
+        );
+
+        final filename = file.uri.pathSegments.last;
+        expect(filename.length, lessThanOrEqualTo(146));
+        expect(await file.exists(), isTrue);
+        expect(await file.readAsString(), contains('"theme-'));
+      },
+    );
 
     test('quarantines corrupt theme list', () async {
       final directory = await Directory.systemTemp.createTemp(
@@ -125,6 +206,82 @@ void main() {
       expect(loaded.single.dark.foreground, 0xeeeeee);
       expect(loaded.single.light.background, 0xffffff);
       expect(loaded.single.light.foreground, 0xffffff);
+      expect(
+        directory.listSync().any(
+          (entry) => entry.path.contains('ianvs_themes.json.corrupt'),
+        ),
+        isFalse,
+      );
+    });
+
+    test('limits persisted theme preset scans without quarantine', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-themes-bounded-load',
+      );
+      final file = File('${directory.path}/ianvs_themes.json');
+      await file.writeAsString(
+        jsonEncode([
+          for (
+            var index = 0;
+            index < maxLocalTerminalThemePresets * 4 + 1;
+            index += 1
+          )
+            'not-a-preset-$index',
+          _preset(id: 'too-late').toJson(),
+        ]),
+      );
+      final repository = LocalTerminalThemeRepository(
+        directoryResolver: () async => directory,
+      );
+
+      final loaded = await repository.load();
+
+      expect(loaded, isEmpty);
+      expect(
+        directory.listSync().any(
+          (entry) => entry.path.contains('ianvs_themes.json.corrupt'),
+        ),
+        isFalse,
+      );
+    });
+
+    test('skips duplicate theme preset ids without quarantine', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-themes-duplicate-ids',
+      );
+      final file = File('${directory.path}/ianvs_themes.json');
+      await file.writeAsString(
+        jsonEncode([
+          {
+            'id': ' shared ',
+            'name': 'First',
+            'dark': {'background': 0x000000},
+            'light': {'background': 0xffffff},
+          },
+          {
+            'id': 'shared',
+            'name': 'Second',
+            'dark': {'background': 0x111111},
+            'light': {'background': 0xeeeeee},
+          },
+          {
+            'id': 'unique',
+            'name': 'Unique',
+            'dark': {'background': 0x222222},
+            'light': {'background': 0xdddddd},
+          },
+        ]),
+      );
+      final repository = LocalTerminalThemeRepository(
+        directoryResolver: () async => directory,
+      );
+
+      final loaded = await repository.load();
+
+      expect(
+        loaded.map((preset) => preset.name).toList(growable: false),
+        const ['First', 'Unique'],
+      );
       expect(
         directory.listSync().any(
           (entry) => entry.path.contains('ianvs_themes.json.corrupt'),

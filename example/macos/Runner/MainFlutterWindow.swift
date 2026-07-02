@@ -328,6 +328,22 @@ class MainFlutterWindow: NSWindow {
           return
         }
 
+        let allowedSchemes: Set<String> = ["http", "https", "file"]
+        guard
+          let scheme = url.scheme?.lowercased(),
+          allowedSchemes.contains(scheme),
+          (scheme == "file" ? !url.path.isEmpty : url.host != nil)
+        else {
+          result(
+            FlutterError(
+              code: "unsupported_url_scheme",
+              message: "External URL scheme is not allowed",
+              details: nil
+            )
+          )
+          return
+        }
+
         if !NSWorkspace.shared.open(url) {
           result(
             FlutterError(

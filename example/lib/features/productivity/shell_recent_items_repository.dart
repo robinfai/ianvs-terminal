@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
+import '../../platform/corrupt_file_quarantine.dart';
 import 'shell_productivity_models.dart';
 
 typedef ShellRecentItemsDirectoryResolver = Future<Directory> Function();
@@ -26,7 +27,7 @@ class ShellRecentItemsRepository {
         jsonDecode(raw) as Map<String, Object?>,
       );
     } on Object {
-      await _quarantineCorruptFile(file);
+      await quarantineCorruptFile(file);
       const repaired = ShellRecentItemsState();
       await save(repaired);
       return repaired;
@@ -42,11 +43,5 @@ class ShellRecentItemsRepository {
   Future<File> _recentItemsFile() async {
     final directory = await _directoryResolver();
     return File('${directory.path}/ianvs_recent_items.json');
-  }
-
-  Future<void> _quarantineCorruptFile(File file) async {
-    final quarantinedPath =
-        '${file.path}.corrupt.${DateTime.now().millisecondsSinceEpoch}';
-    await file.rename(quarantinedPath);
   }
 }

@@ -39,7 +39,7 @@ cd <repo-root>
 command -v vttest || true
 
 cd example
-flutter test integration_test/ianvs_smoke_test.dart
+flutter test -d macos integration_test/ianvs_terminal_smoke_test.dart
 flutter run -d macos
 ```
 

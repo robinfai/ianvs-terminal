@@ -77,7 +77,7 @@ cargo test
 cd example
 flutter analyze
 flutter test
-flutter test integration_test/ianvs_smoke_test.dart
+flutter test -d macos integration_test/ianvs_terminal_smoke_test.dart
 
 cd <repo-root>
 ./tools/verify_flutter_terminal.sh

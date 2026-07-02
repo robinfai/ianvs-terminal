@@ -1,7 +1,12 @@
 import 'dart:convert';
 
 import '../preferences/app_preferences_models.dart';
+import '../policies/local_terminal_policy_models.dart';
 import '../shell/shell_action_registry.dart';
+
+const int maxLocalTerminalKeyBindingKeyLength = 64;
+final int _maxLocalTerminalKeyBindingEntriesToScan =
+    TerminalActionId.values.length * 4;
 
 class LocalTerminalConfigDocument {
   const LocalTerminalConfigDocument({
@@ -55,11 +60,14 @@ class LocalTerminalConfigDocument {
     LocalTerminalHotkeyWindowConfig? hotkeyWindow,
   }) {
     return LocalTerminalConfigDocument(
-      schemaVersion: schemaVersion ?? this.schemaVersion,
+      schemaVersion: _schemaVersionFromJson(
+        schemaVersion ?? this.schemaVersion,
+        currentSchemaVersion,
+      ),
       defaultProfileId:
           identical(defaultProfileId, _localTerminalConfigNoChange)
           ? this.defaultProfileId
-          : defaultProfileId as String?,
+          : _nonEmptyTrimmedStringOrNull(defaultProfileId as String?),
       appearance: appearance ?? this.appearance,
       keybindings: keybindings ?? this.keybindings,
       workspace: workspace ?? this.workspace,
@@ -73,8 +81,11 @@ class LocalTerminalConfigDocument {
 
   Map<String, Object?> toJson() {
     return {
-      'schemaVersion': schemaVersion,
-      'defaultProfileId': defaultProfileId,
+      'schemaVersion': _schemaVersionFromJson(
+        schemaVersion,
+        currentSchemaVersion,
+      ),
+      'defaultProfileId': _nonEmptyTrimmedStringOrNull(defaultProfileId),
       'appearance': appearance.toJson(),
       'keybindings': keybindings.toJson(),
       'workspace': workspace.toJson(),
@@ -249,7 +260,10 @@ class LocalTerminalKeyBinding {
       return null;
     }
 
-    final key = _nonEmptyTrimmedStringOrNull(json['key']);
+    final key = _boundedNonEmptyTrimmedStringOrNull(
+      json['key'],
+      maxLength: maxLocalTerminalKeyBindingKeyLength,
+    );
     if (key == null) {
       return null;
     }
@@ -319,7 +333,7 @@ class LocalTerminalPasteConfig {
     this.bracketedPaste = LocalTerminalBracketedPastePolicy.auto,
     this.confirmLargePaste = true,
     this.confirmMultilinePaste = true,
-    this.historySize = 50,
+    this.historySize = defaultLocalTerminalPasteHistoryEntries,
   });
 
   final LocalTerminalBracketedPastePolicy bracketedPaste;
@@ -344,7 +358,7 @@ class LocalTerminalPasteConfig {
         json?['confirmMultilinePaste'],
         true,
       ),
-      historySize: _nonNegativeIntFromJson(json?['historySize'], 50),
+      historySize: _pasteHistorySizeFromJson(json?['historySize']),
     );
   }
 }
@@ -442,6 +456,17 @@ String? _nonEmptyTrimmedStringOrNull(Object? value) {
   return text == null || text.isEmpty ? null : text;
 }
 
+String? _boundedNonEmptyTrimmedStringOrNull(
+  Object? value, {
+  required int maxLength,
+}) {
+  final text = _nonEmptyTrimmedStringOrNull(value);
+  if (text == null || text.length > maxLength) {
+    return null;
+  }
+  return text;
+}
+
 bool _boolFromJson(Object? value, bool fallback) {
   return value is bool ? value : fallback;
 }
@@ -468,6 +493,16 @@ int _nonNegativeIntFromJson(Object? value, int fallback) {
   return parsed == null || parsed < 0 ? fallback : parsed;
 }
 
+int _pasteHistorySizeFromJson(Object? value) {
+  final parsed = _nonNegativeIntFromJson(
+    value,
+    defaultLocalTerminalPasteHistoryEntries,
+  );
+  return parsed > defaultLocalTerminalPasteHistoryEntries
+      ? defaultLocalTerminalPasteHistoryEntries
+      : parsed;
+}
+
 int _positiveWholeIntFromJson(Object? value, int fallback) {
   final parsed = _wholeIntOrNull(value);
   return parsed == null || parsed <= 0 ? fallback : parsed;
@@ -478,7 +513,11 @@ Set<TerminalActionId> _actionIdSet(Object? value) {
     return const <TerminalActionId>{};
   }
 
-  return value.map(_actionId).whereType<TerminalActionId>().toSet();
+  return value
+      .take(_maxLocalTerminalKeyBindingEntriesToScan)
+      .map(_actionId)
+      .whereType<TerminalActionId>()
+      .toSet();
 }
 
 Map<TerminalActionId, LocalTerminalKeyBindingOverride> _actionBindingOverrides(
@@ -490,7 +529,9 @@ Map<TerminalActionId, LocalTerminalKeyBindingOverride> _actionBindingOverrides(
   }
 
   final overrides = <TerminalActionId, LocalTerminalKeyBindingOverride>{};
-  for (final entry in json.entries) {
+  for (final entry in json.entries.take(
+    _maxLocalTerminalKeyBindingEntriesToScan,
+  )) {
     final actionId = _actionId(entry.key);
     if (actionId == null) {
       continue;

@@ -21,20 +21,40 @@ enum TerminalCursorStyle { block, underline, bar }
 
 class TerminalOptions {
   const TerminalOptions({
-    this.cols = 80,
-    this.rows = 24,
-    this.scrollback = defaultTerminalScrollbackLines,
+    int cols = defaultTerminalColumns,
+    int rows = defaultTerminalRows,
+    int scrollback = defaultTerminalScrollbackLines,
     this.fontFamily = terminalPrimaryFontFamily,
     this.fontFamilyFallback = terminalFontFamilyFallback,
-    this.fontSize = terminalFontSize,
-    this.lineHeight = terminalLineHeight,
+    double fontSize = terminalFontSize,
+    double lineHeight = terminalLineHeight,
     this.cursorBlink = true,
     this.cursorStyle = TerminalCursorStyle.block,
     this.theme = const TerminalColorPalette(),
     this.copyOnSelect = false,
     this.optionDragMode = TerminalOptionDragMode.blockSelection,
     this.emulation = TerminalEmulation.xterm256,
-  });
+  }) : cols = cols <= 0
+           ? defaultTerminalColumns
+           : cols > maxTerminalDimension
+           ? maxTerminalDimension
+           : cols,
+       rows = rows <= 0
+           ? defaultTerminalRows
+           : rows > maxTerminalDimension
+           ? maxTerminalDimension
+           : rows,
+       scrollback = scrollback < 1
+           ? defaultTerminalScrollbackLines
+           : scrollback > maxTerminalScrollbackLines
+           ? maxTerminalScrollbackLines
+           : scrollback,
+       fontSize = fontSize > 0 && fontSize < double.infinity
+           ? fontSize
+           : terminalFontSize,
+       lineHeight = lineHeight > 0 && lineHeight < double.infinity
+           ? lineHeight
+           : terminalLineHeight;
 
   final int cols;
   final int rows;
@@ -320,9 +340,18 @@ class Terminal implements TerminalDisposable {
     if (columns <= 0 || rows <= 0) {
       throw RangeError('Terminal dimensions must be positive.');
     }
-    _currentCols = columns;
-    _currentRows = rows;
-    _runtime.resizeSessionCells(_requireSessionId(), cols: columns, rows: rows);
+    final boundedColumns = _normalizeTerminalDimension(
+      columns,
+      defaultTerminalColumns,
+    );
+    final boundedRows = _normalizeTerminalDimension(rows, defaultTerminalRows);
+    _runtime.resizeSessionCells(
+      _requireSessionId(),
+      cols: boundedColumns,
+      rows: boundedRows,
+    );
+    _currentCols = boundedColumns;
+    _currentRows = boundedRows;
   }
 
   void scrollLines(int amount) {
@@ -541,6 +570,16 @@ TerminalCursorShape _cursorShapeFor(TerminalCursorStyle style) {
     TerminalCursorStyle.underline => TerminalCursorShape.underline,
     TerminalCursorStyle.bar => TerminalCursorShape.beam,
   };
+}
+
+int _normalizeTerminalDimension(int value, int fallback) {
+  if (value <= 0) {
+    return fallback;
+  }
+  if (value > maxTerminalDimension) {
+    return maxTerminalDimension;
+  }
+  return value;
 }
 
 TerminalRenderEvent? _renderEventFromIntent(TerminalRenderIntent intent) {

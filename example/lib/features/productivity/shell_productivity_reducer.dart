@@ -1,5 +1,8 @@
 import 'shell_productivity_models.dart';
 
+const int maxShellPromptMarks = 500;
+const int maxShellCommandOutputRanges = 500;
+
 sealed class ShellProductivityEvent {
   const ShellProductivityEvent();
 }
@@ -99,10 +102,11 @@ class ShellProductivityReducer {
     return ShellProductivitySnapshot(
       state: ShellProductivityState(
         features: snapshot.state.features,
-        promptMarks: [
-          ...snapshot.state.promptMarks,
+        promptMarks: _appendBounded(
+          snapshot.state.promptMarks,
           ShellPromptMark(id: id, row: event.row, cwd: cwd),
-        ],
+          maxShellPromptMarks,
+        ),
         commandOutputRanges: snapshot.state.commandOutputRanges,
         recentCommands: snapshot.state.recentCommands,
         recentDirectories: snapshot.state.recentDirectories,
@@ -143,18 +147,26 @@ class ShellProductivityReducer {
     ShellProductivitySnapshot snapshot,
     ShellCommandOutputRangeEvent event,
   ) {
+    final commandId = _trimmedOrNull(event.commandId);
+    if (commandId == null ||
+        event.startRow < 0 ||
+        event.endRow < event.startRow) {
+      return snapshot;
+    }
+
     return ShellProductivitySnapshot(
       state: ShellProductivityState(
         features: snapshot.state.features,
         promptMarks: snapshot.state.promptMarks,
-        commandOutputRanges: [
-          ...snapshot.state.commandOutputRanges,
+        commandOutputRanges: _appendBounded(
+          snapshot.state.commandOutputRanges,
           ShellCommandOutputRange(
-            commandId: event.commandId,
+            commandId: commandId,
             startRow: event.startRow,
             endRow: event.endRow,
           ),
-        ],
+          maxShellCommandOutputRanges,
+        ),
         recentCommands: snapshot.state.recentCommands,
         recentDirectories: snapshot.state.recentDirectories,
         readOnly: snapshot.state.readOnly,
@@ -163,6 +175,14 @@ class ShellProductivityReducer {
       currentCwd: snapshot.currentCwd,
     );
   }
+}
+
+List<T> _appendBounded<T>(List<T> current, T next, int limit) {
+  if (limit <= 0) {
+    return <T>[];
+  }
+  final start = current.length >= limit ? current.length - limit + 1 : 0;
+  return <T>[...current.skip(start), next];
 }
 
 String? _trimmedOrNull(String? value) {

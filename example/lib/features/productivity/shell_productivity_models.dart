@@ -1,3 +1,5 @@
+const int maxShellRecentItems = 50;
+
 class ShellIntegrationFeatureSet {
   const ShellIntegrationFeatureSet({
     this.promptMarks = true,
@@ -45,7 +47,8 @@ class ShellCommandOutputRange {
   final int startRow;
   final int endRow;
 
-  bool get isValid => startRow >= 0 && endRow >= startRow;
+  bool get isValid =>
+      commandId.trim().isNotEmpty && startRow >= 0 && endRow >= startRow;
 }
 
 class ShellProductivityState {
@@ -251,19 +254,20 @@ class ShellRecentItemsState {
   ShellRecentItemsState trimmed() {
     final effectiveLimit = _effectiveLimit(limit);
     return ShellRecentItemsState(
-      commands: commands.take(effectiveLimit).toList(growable: false),
-      directories: directories.take(effectiveLimit).toList(growable: false),
+      commands: _normalizeRecentCommands(commands, effectiveLimit),
+      directories: _normalizeRecentDirectories(directories, effectiveLimit),
       limit: effectiveLimit,
     );
   }
 
   Map<String, Object?> toJson() {
+    final normalized = trimmed();
     return {
-      'limit': limit,
-      'commands': commands
+      'limit': normalized.limit,
+      'commands': normalized.commands
           .map((entry) => entry.toJson())
           .toList(growable: false),
-      'directories': directories
+      'directories': normalized.directories
           .map((entry) => entry.toJson())
           .toList(growable: false),
     };
@@ -272,19 +276,28 @@ class ShellRecentItemsState {
   static ShellRecentItemsState fromJson(Map<Object?, Object?> json) {
     return ShellRecentItemsState(
       limit: _limitFromJson(json['limit']),
-      commands: _objectList(json['commands'])
-          .map(ShellRecentCommandEntry.fromJson)
-          .where((entry) => entry.command.isNotEmpty)
-          .toList(growable: false),
-      directories: _objectList(json['directories'])
-          .map(ShellRecentDirectoryEntry.fromJson)
-          .where((entry) => entry.path.isNotEmpty)
-          .toList(growable: false),
+      commands:
+          _objectList(
+                json['commands'],
+                maxEntries: _maxPersistedRecentItemEntriesToScan,
+              )
+              .map(ShellRecentCommandEntry.fromJson)
+              .where((entry) => entry.command.isNotEmpty)
+              .toList(growable: false),
+      directories:
+          _objectList(
+                json['directories'],
+                maxEntries: _maxPersistedRecentItemEntriesToScan,
+              )
+              .map(ShellRecentDirectoryEntry.fromJson)
+              .where((entry) => entry.path.isNotEmpty)
+              .toList(growable: false),
     ).trimmed();
   }
 }
 
-const _defaultRecentItemsLimit = 50;
+const _defaultRecentItemsLimit = maxShellRecentItems;
+const _maxPersistedRecentItemEntriesToScan = maxShellRecentItems * 4;
 
 class ShellCommandBlock {
   const ShellCommandBlock({
@@ -438,6 +451,60 @@ List<T> _prependUnique<T>(
   ];
 }
 
+List<ShellRecentCommandEntry> _normalizeRecentCommands(
+  Iterable<ShellRecentCommandEntry> commands,
+  int limit,
+) {
+  final seen = <String>{};
+  final normalized = <ShellRecentCommandEntry>[];
+  for (final entry in commands) {
+    final command = _trimmedStringOrNull(entry.command);
+    if (command == null) {
+      continue;
+    }
+    final cwd = _trimmedStringOrNull(entry.cwd);
+    final key = '$cwd\n$command';
+    if (!seen.add(key)) {
+      continue;
+    }
+    normalized.add(
+      ShellRecentCommandEntry(
+        command: command,
+        cwd: cwd,
+        exitCode: entry.exitCode,
+      ),
+    );
+    if (normalized.length >= limit) {
+      break;
+    }
+  }
+  return normalized;
+}
+
+List<ShellRecentDirectoryEntry> _normalizeRecentDirectories(
+  Iterable<ShellRecentDirectoryEntry> directories,
+  int limit,
+) {
+  final seen = <String>{};
+  final normalized = <ShellRecentDirectoryEntry>[];
+  for (final entry in directories) {
+    final path = _trimmedStringOrNull(entry.path);
+    if (path == null || !seen.add(path)) {
+      continue;
+    }
+    normalized.add(
+      ShellRecentDirectoryEntry(
+        path: path,
+        label: _trimmedStringOrNull(entry.label),
+      ),
+    );
+    if (normalized.length >= limit) {
+      break;
+    }
+  }
+  return normalized;
+}
+
 Map<Object?, Object?>? _objectMap(Object? value) {
   if (value is Map<Object?, Object?>) {
     return value;
@@ -485,15 +552,15 @@ int _effectiveLimit(int value) {
   if (value < 1) {
     return _defaultRecentItemsLimit;
   }
-  return value;
+  return value > maxShellRecentItems ? maxShellRecentItems : value;
 }
 
-List<Map<Object?, Object?>> _objectList(Object? value) {
+List<Map<Object?, Object?>> _objectList(Object? value, {int? maxEntries}) {
   if (value is! List) {
     return const <Map<Object?, Object?>>[];
   }
 
-  return value
+  return (maxEntries == null ? value : value.take(maxEntries))
       .map(_objectMap)
       .whereType<Map<Object?, Object?>>()
       .toList(growable: false);

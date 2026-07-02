@@ -14,6 +14,20 @@ void main() {
       expect(snapshot.recentItems.directories.single.path, '/repo');
     });
 
+    test('keeps only the latest prompt marks', () {
+      var snapshot = const ShellProductivitySnapshot();
+      for (var index = 0; index < maxShellPromptMarks + 2; index += 1) {
+        snapshot = ShellProductivityReducer.reduce(
+          snapshot,
+          ShellPromptMarkEvent(id: 'p$index', row: index),
+        );
+      }
+
+      expect(snapshot.state.promptMarks, hasLength(maxShellPromptMarks));
+      expect(snapshot.state.promptMarks.first.id, 'p2');
+      expect(snapshot.state.promptMarks.last.id, 'p${maxShellPromptMarks + 1}');
+    });
+
     test('ignores invalid prompt mark events', () {
       final blankId = ShellProductivityReducer.reduce(
         const ShellProductivitySnapshot(),
@@ -86,7 +100,7 @@ void main() {
       final snapshot = ShellProductivityReducer.reduce(
         const ShellProductivitySnapshot(),
         const ShellCommandOutputRangeEvent(
-          commandId: 'cmd-1',
+          commandId: ' cmd-1 ',
           startRow: 3,
           endRow: 8,
         ),
@@ -94,6 +108,52 @@ void main() {
 
       expect(snapshot.state.canSelectCommandOutput, isTrue);
       expect(snapshot.state.lastCommandOutputRange()!.commandId, 'cmd-1');
+    });
+
+    test('ignores invalid command output range events', () {
+      final blankCommand = ShellProductivityReducer.reduce(
+        const ShellProductivitySnapshot(),
+        const ShellCommandOutputRangeEvent(
+          commandId: '   ',
+          startRow: 3,
+          endRow: 8,
+        ),
+      );
+      final invalidRows = ShellProductivityReducer.reduce(
+        const ShellProductivitySnapshot(),
+        const ShellCommandOutputRangeEvent(
+          commandId: 'cmd-1',
+          startRow: 8,
+          endRow: 3,
+        ),
+      );
+
+      expect(blankCommand.state.commandOutputRanges, isEmpty);
+      expect(invalidRows.state.commandOutputRanges, isEmpty);
+    });
+
+    test('keeps only the latest command output ranges', () {
+      var snapshot = const ShellProductivitySnapshot();
+      for (var index = 0; index < maxShellCommandOutputRanges + 2; index += 1) {
+        snapshot = ShellProductivityReducer.reduce(
+          snapshot,
+          ShellCommandOutputRangeEvent(
+            commandId: 'cmd-$index',
+            startRow: index,
+            endRow: index + 1,
+          ),
+        );
+      }
+
+      expect(
+        snapshot.state.commandOutputRanges,
+        hasLength(maxShellCommandOutputRanges),
+      );
+      expect(snapshot.state.commandOutputRanges.first.commandId, 'cmd-2');
+      expect(
+        snapshot.state.commandOutputRanges.last.commandId,
+        'cmd-${maxShellCommandOutputRanges + 1}',
+      );
     });
   });
 }

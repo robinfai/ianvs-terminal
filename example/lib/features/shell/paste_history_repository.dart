@@ -3,7 +3,13 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
+import '../../platform/corrupt_file_quarantine.dart';
+import '../policies/local_terminal_policy_models.dart';
+
 typedef PasteHistoryDirectoryResolver = Future<Directory> Function();
+
+const int maxPasteHistoryEntries = defaultLocalTerminalPasteHistoryEntries;
+const int _maxPersistedPasteHistoryEntriesToScan = maxPasteHistoryEntries * 4;
 
 enum PasteHistoryKind {
   copy,
@@ -54,19 +60,49 @@ class PasteHistoryDocument {
   final List<PasteHistoryEntry> entries;
 
   Map<String, Object?> toJson() {
-    return {'entries': entries.map((entry) => entry.toJson()).toList()};
+    return {
+      'entries': _normalizedEntries(
+        entries,
+      ).map((entry) => entry.toJson()).toList(),
+    };
   }
 
   String encode() => jsonEncode(toJson());
 
   static PasteHistoryDocument fromJson(Map<String, Object?> json) {
     return PasteHistoryDocument(
-      entries: _objectList(json['entries'])
-          .map(PasteHistoryEntry.fromJson)
-          .where((entry) => entry.text.isNotEmpty)
-          .toList(),
+      entries: _normalizedEntries(
+        _objectList(
+          json['entries'],
+          maxEntries: _maxPersistedPasteHistoryEntriesToScan,
+        ).map(PasteHistoryEntry.fromJson),
+      ),
     );
   }
+}
+
+List<PasteHistoryEntry> _normalizedEntries(
+  Iterable<PasteHistoryEntry> entries,
+) {
+  final normalized = <PasteHistoryEntry>[];
+  final seenTexts = <String>{};
+  for (final entry in entries) {
+    final text = entry.text.trimRight();
+    if (text.trim().isEmpty || !seenTexts.add(text)) {
+      continue;
+    }
+    normalized.add(
+      PasteHistoryEntry(
+        text: text,
+        kind: entry.kind,
+        createdAt: entry.createdAt,
+      ),
+    );
+    if (normalized.length >= maxPasteHistoryEntries) {
+      break;
+    }
+  }
+  return normalized;
 }
 
 Map<Object?, Object?>? _objectMap(Object? value) {
@@ -79,12 +115,12 @@ Map<Object?, Object?>? _objectMap(Object? value) {
   return null;
 }
 
-List<Map<Object?, Object?>> _objectList(Object? value) {
+List<Map<Object?, Object?>> _objectList(Object? value, {int? maxEntries}) {
   if (value is! List) {
     return const <Map<Object?, Object?>>[];
   }
 
-  return value
+  return (maxEntries == null ? value : value.take(maxEntries))
       .map(_objectMap)
       .whereType<Map<Object?, Object?>>()
       .toList(growable: false);
@@ -112,7 +148,7 @@ class PasteHistoryRepository {
         jsonDecode(raw) as Map<String, Object?>,
       );
     } on Object {
-      await _quarantineCorruptFile(file);
+      await quarantineCorruptFile(file);
       const repaired = PasteHistoryDocument();
       await save(repaired);
       return repaired;
@@ -135,11 +171,5 @@ class PasteHistoryRepository {
   Future<File> _historyFile() async {
     final directory = await _directoryResolver();
     return File('${directory.path}/ianvs_paste_history.json');
-  }
-
-  Future<void> _quarantineCorruptFile(File file) async {
-    final quarantinedPath =
-        '${file.path}.corrupt.${DateTime.now().millisecondsSinceEpoch}';
-    await file.rename(quarantinedPath);
   }
 }

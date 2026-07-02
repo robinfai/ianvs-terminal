@@ -7,6 +7,7 @@
 ```bash
 cd native/core
 cargo fmt --check
+cargo clippy --all-targets -- -D warnings
 cargo test
 ```
 
@@ -25,11 +26,12 @@ cd example
 flutter analyze
 flutter test
 flutter test -d macos integration_test/ianvs_terminal_smoke_test.dart
+flutter test -d macos integration_test/real_pty_acceptance_test.dart
 ```
 
-当前 macOS smoke 显式指定 `-d macos`。在本机不指定 device 时，
-Flutter 可能先进入 Android `adb devices` discovery 并卡住；这不是
-ianvs terminal 产品回归。
+当前 macOS integration gates 显式指定 `-d macos`。在本机不指定
+device 时，Flutter 可能先进入 Android `adb devices` discovery 并卡住；
+这不是 ianvs terminal 产品回归。
 
 ## 运行 demo
 
@@ -160,10 +162,13 @@ terminal frame/event 通道，覆盖：
 ```
 
 这个脚本会先构建并验证 `native/core`，再跑 `packages/ianvs_pty`、`packages/ianvs_terminal`、`example` 的默认验证链路，并用 `grep` 守住 Phase 3 的单一 defaults 写入口约束。
+脚本末尾会顺序执行 macOS smoke 与 real PTY acceptance，覆盖启动级 UI
+路径和真实 `NativePtyBackend` / shell frame-event 路径。
 
 ## 按边界挑命令
 
 - 只改 `packages/ianvs_pty`
+  - `cd native/core && cargo clippy --all-targets -- -D warnings`
   - `cd native/core && cargo test`
   - `cd packages/ianvs_pty && dart test`
 - 只改 `packages/ianvs_terminal`

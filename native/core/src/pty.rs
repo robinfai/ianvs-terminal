@@ -144,19 +144,15 @@ where
     let mut args = profile.launch.args.clone();
     let mut shell_integration_proxy = None;
 
-    if let Some(kind) = shell_integration_kind(profile, &program) {
-        if let Ok(proxy) = create_proxy(kind, profile, &program) {
-            match kind {
-                ShellIntegrationKind::Zsh => apply_zsh_shell_integration(&mut env, &proxy),
-                ShellIntegrationKind::Bash => {
-                    apply_bash_shell_integration(&mut args, &mut env, &proxy)
-                }
-                ShellIntegrationKind::Fish => {
-                    apply_fish_shell_integration(&mut args, &mut env, &proxy)
-                }
-            }
-            shell_integration_proxy = Some(proxy);
+    if let Some(kind) = shell_integration_kind(profile, &program)
+        && let Ok(proxy) = create_proxy(kind, profile, &program)
+    {
+        match kind {
+            ShellIntegrationKind::Zsh => apply_zsh_shell_integration(&mut env, &proxy),
+            ShellIntegrationKind::Bash => apply_bash_shell_integration(&mut args, &mut env, &proxy),
+            ShellIntegrationKind::Fish => apply_fish_shell_integration(&mut args, &mut env, &proxy),
         }
+        shell_integration_proxy = Some(proxy);
     }
     apply_graphics_advertisement(profile, &mut env);
 

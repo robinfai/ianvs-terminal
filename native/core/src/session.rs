@@ -1,9 +1,9 @@
 use crate::model::{
-    TERMINAL_FRAME_SCHEMA_VERSION, TerminalCursor, TerminalDirtyRange, TerminalEmulation,
-    TerminalEvent, TerminalFrameDiff, TerminalFrameKind, TerminalFrameModes,
+    MAX_SCROLLBACK_LINES, TERMINAL_FRAME_SCHEMA_VERSION, TerminalCursor, TerminalDirtyRange,
+    TerminalEmulation, TerminalEvent, TerminalFrameDiff, TerminalFrameKind, TerminalFrameModes,
     TerminalGraphicPlacement, TerminalHyperlinkRange, TerminalProfile, TerminalProfileAnsiColors,
     TerminalProfileColors, TerminalRow, TerminalSearchMatch, TerminalSelectionRequest,
-    TerminalStyleRun,
+    TerminalStyleRun, normalize_scrollback_lines,
 };
 use crate::pty::spawn_pty;
 use par_term_emu_core_rust::cell::{Cell, CellFlags};
@@ -57,7 +57,8 @@ impl TerminalSearchMode {
             Some("case_insensitive_substring") => Self::CaseInsensitiveSubstring,
             Some("case_sensitive_regex") => Self::CaseSensitiveRegex,
             Some("case_insensitive_regex") => Self::CaseInsensitiveRegex,
-            Some("smart_case_substring") | _ => Self::SmartCaseSubstring,
+            Some("smart_case_substring") => Self::SmartCaseSubstring,
+            _ => Self::SmartCaseSubstring,
         }
     }
 
@@ -645,10 +646,10 @@ impl HostProtocolState {
                 }
             }
             b"1337" => {
-                if let Ok(data) = std::str::from_utf8(remainder) {
-                    if let Some(payload) = shell_context_payload_from_current_dir(data) {
-                        events.push(CallbackEvent::ShellContext { payload });
-                    }
+                if let Ok(data) = std::str::from_utf8(remainder)
+                    && let Some(payload) = shell_context_payload_from_current_dir(data)
+                {
+                    events.push(CallbackEvent::ShellContext { payload });
                 }
             }
             _ => {}
@@ -1021,14 +1022,14 @@ fn percent_decode_lossy(value: &str) -> String {
     let mut decoded = Vec::with_capacity(bytes.len());
     let mut index = 0usize;
     while index < bytes.len() {
-        if bytes[index] == b'%' && index + 2 < bytes.len() {
-            if let (Some(high), Some(low)) =
+        if bytes[index] == b'%'
+            && index + 2 < bytes.len()
+            && let (Some(high), Some(low)) =
                 (hex_nibble(bytes[index + 1]), hex_nibble(bytes[index + 2]))
-            {
-                decoded.push((high << 4) | low);
-                index += 3;
-                continue;
-            }
+        {
+            decoded.push((high << 4) | low);
+            index += 3;
+            continue;
         }
         decoded.push(bytes[index]);
         index += 1;
@@ -1083,7 +1084,7 @@ pub struct TerminalSession {
 impl TerminalSession {
     pub fn spawn(session_id: u64, profile: TerminalProfile) -> Result<Arc<Self>, SessionError> {
         let emulation = profile.terminal.emulation;
-        let scrollback_lines = profile.terminal.scrollback_lines.max(1);
+        let scrollback_lines = normalize_scrollback_lines(profile.terminal.scrollback_lines);
         let graphics_enabled =
             emulation == TerminalEmulation::Xterm256 && profile.terminal.graphics.enabled;
         let profile_colors = profile.appearance.colors.clone();
@@ -1694,17 +1695,17 @@ impl TerminalSession {
             if frame_kind == TerminalFrameKind::Snapshot {
                 build_snapshot_frame(terminal, self.emulation, viewport_start_row, viewport_rows)
             } else {
-                build_delta_frame(
+                build_delta_frame(DeltaFrameContext {
                     terminal,
-                    self.emulation,
+                    emulation: self.emulation,
                     viewport_start_row,
                     viewport_rows,
                     scrollback_len,
                     alt_screen_active,
-                    &pending_frame_work,
-                    &last_rows,
+                    pending_frame_work: &pending_frame_work,
+                    previous_rows: &last_rows,
                     viewport_row_shift,
-                )
+                })
             };
         let (graphics, active_graphics_count, scrollback_graphics_count, asset_snapshots) =
             if self.graphics_enabled {
@@ -2857,13 +2858,13 @@ fn shift_cached_rows(
     viewport_row_shift: i32,
 ) -> Vec<CachedRowState> {
     let mut shifted = vec![CachedRowState::default(); viewport_rows];
-    for row in 0..viewport_rows {
+    for (row, shifted_row) in shifted.iter_mut().enumerate() {
         let previous_index = row as isize - viewport_row_shift as isize;
         let Some(previous_index) = usize::try_from(previous_index).ok() else {
             continue;
         };
         if let Some(previous_row) = previous_rows.get(previous_index) {
-            shifted[row] = previous_row.clone();
+            *shifted_row = previous_row.clone();
         }
     }
     shifted
@@ -2912,16 +2913,20 @@ fn build_snapshot_frame(
     )
 }
 
-fn build_delta_frame(
-    terminal: &Terminal,
+struct DeltaFrameContext<'a> {
+    terminal: &'a Terminal,
     emulation: TerminalEmulation,
     viewport_start_row: usize,
     viewport_rows: usize,
     scrollback_len: usize,
     alt_screen_active: bool,
-    pending_frame_work: &PendingFrameWork,
-    previous_rows: &[CachedRowState],
+    pending_frame_work: &'a PendingFrameWork,
+    previous_rows: &'a [CachedRowState],
     viewport_row_shift: i32,
+}
+
+fn build_delta_frame(
+    context: DeltaFrameContext<'_>,
 ) -> (
     Vec<TerminalRow>,
     Vec<TerminalHyperlinkRange>,
@@ -2930,6 +2935,17 @@ fn build_delta_frame(
     usize,
     usize,
 ) {
+    let DeltaFrameContext {
+        terminal,
+        emulation,
+        viewport_start_row,
+        viewport_rows,
+        scrollback_len,
+        alt_screen_active,
+        pending_frame_work,
+        previous_rows,
+        viewport_row_shift,
+    } = context;
     let candidate_row_indexes = delta_candidate_row_indexes(
         pending_frame_work,
         viewport_rows,
@@ -3518,6 +3534,11 @@ fn delta_candidate_row_indexes(
 
     add_shift_exposed_rows(&mut candidates, viewport_rows, viewport_row_shift);
     for row in &pending_frame_work.dirty_rows {
+        if uses_viewport_shift
+            && !row_is_exposed_by_viewport_shift(*row, viewport_rows, viewport_row_shift)
+        {
+            continue;
+        }
         if let Some(visible_row) = visible_row_for_screen_row(
             *row,
             viewport_start_row,
@@ -3544,17 +3565,17 @@ fn delta_candidate_row_indexes(
         }
     }
 
-    if let Some(scroll_region) = pending_frame_work.scroll_region.as_ref() {
-        if !uses_viewport_shift {
-            add_visible_rows_for_scroll_region(
-                &mut candidates,
-                scroll_region,
-                viewport_start_row,
-                viewport_rows,
-                scrollback_len,
-                alt_screen_active,
-            );
-        }
+    if let Some(scroll_region) = pending_frame_work.scroll_region.as_ref()
+        && !uses_viewport_shift
+    {
+        add_visible_rows_for_scroll_region(
+            &mut candidates,
+            scroll_region,
+            viewport_start_row,
+            viewport_rows,
+            scrollback_len,
+            alt_screen_active,
+        );
     }
 
     add_visible_cursor_row(
@@ -3575,6 +3596,23 @@ fn delta_candidate_row_indexes(
     );
 
     candidates.into_iter().collect()
+}
+
+fn row_is_exposed_by_viewport_shift(
+    row: usize,
+    viewport_rows: usize,
+    viewport_row_shift: i32,
+) -> bool {
+    if viewport_row_shift == 0 || viewport_rows == 0 {
+        return false;
+    }
+
+    let shift = viewport_row_shift.unsigned_abs() as usize;
+    if viewport_row_shift < 0 {
+        return row >= viewport_rows.saturating_sub(shift);
+    }
+
+    row < shift.min(viewport_rows)
 }
 
 fn add_shift_exposed_rows(
@@ -4596,11 +4634,7 @@ pub fn request_session_json(
         }
         "terminal.clear_scrollback" => clear_scrollback_session(session_id).map(Some),
         "terminal.export_scrollback" => {
-            let max_lines = request
-                .get("maxLines")
-                .or_else(|| request.get("max_lines"))
-                .and_then(serde_json::Value::as_u64)
-                .and_then(|value| usize::try_from(value).ok());
+            let max_lines = scrollback_export_max_lines_from_request(&request);
             export_scrollback_session(session_id, max_lines).map(Some)
         }
         "terminal.export_diagnostics" => {
@@ -4634,6 +4668,31 @@ pub fn request_session_json(
         }
         _ => Ok(None),
     }
+}
+
+fn scrollback_export_max_lines_from_request(request: &serde_json::Value) -> Option<usize> {
+    let raw_value = request
+        .get("maxLines")
+        .or_else(|| request.get("max_lines"))?;
+    if raw_value.is_null() {
+        return None;
+    }
+    if let Some(value) = raw_value.as_i64() {
+        if value <= 0 {
+            return Some(0);
+        }
+        return usize::try_from(value as u64)
+            .ok()
+            .map(|value| value.min(MAX_SCROLLBACK_LINES));
+    }
+    if let Some(value) = raw_value.as_u64() {
+        return Some(
+            usize::try_from(value)
+                .unwrap_or(MAX_SCROLLBACK_LINES)
+                .min(MAX_SCROLLBACK_LINES),
+        );
+    }
+    Some(0)
 }
 
 pub fn take_frame_diff(session_id: u64) -> Result<Option<String>, SessionError> {
@@ -4689,7 +4748,9 @@ pub fn copy_graphic_asset_rgba(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::{TerminalProfileAnsiColors, TerminalProfileSpecialColors};
+    use crate::model::{
+        MAX_SCROLLBACK_LINES, TerminalProfileAnsiColors, TerminalProfileSpecialColors,
+    };
     use par_term_emu_core_rust::cell::Cell;
     use par_term_emu_core_rust::color::NamedColor;
     use par_term_emu_core_rust::terminal::Terminal;
@@ -4707,6 +4768,53 @@ mod tests {
             }),
             ..PendingFrameWork::default()
         }
+    }
+
+    #[test]
+    fn terminal_profile_deserialization_clamps_scrollback_lines() {
+        let profile: TerminalProfile = serde_json::from_value(serde_json::json!({
+            "id": "test",
+            "name": "Test",
+            "terminal": {
+                "scrollbackLines": MAX_SCROLLBACK_LINES + 1
+            }
+        }))
+        .unwrap();
+
+        assert_eq!(profile.terminal.scrollback_lines, MAX_SCROLLBACK_LINES);
+        assert_eq!(normalize_scrollback_lines(0), 1);
+    }
+
+    #[test]
+    fn scrollback_export_max_lines_request_is_bounded() {
+        assert_eq!(
+            scrollback_export_max_lines_from_request(&serde_json::json!({})),
+            None
+        );
+        assert_eq!(
+            scrollback_export_max_lines_from_request(
+                &serde_json::json!({"maxLines": serde_json::Value::Null})
+            ),
+            None
+        );
+        assert_eq!(
+            scrollback_export_max_lines_from_request(&serde_json::json!({"maxLines": -1})),
+            Some(0)
+        );
+        assert_eq!(
+            scrollback_export_max_lines_from_request(&serde_json::json!({"maxLines": 12.5})),
+            Some(0)
+        );
+        assert_eq!(
+            scrollback_export_max_lines_from_request(&serde_json::json!({"max_lines": 42})),
+            Some(42)
+        );
+        assert_eq!(
+            scrollback_export_max_lines_from_request(
+                &serde_json::json!({"maxLines": MAX_SCROLLBACK_LINES + 1})
+            ),
+            Some(MAX_SCROLLBACK_LINES)
+        );
     }
 
     #[test]

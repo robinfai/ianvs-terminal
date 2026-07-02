@@ -114,6 +114,7 @@ final TerminalRowTextMetrics terminalFallbackRowTextMetrics =
     );
 
 const double _smartCursorContrastRatio = 4.5;
+const int _maxGlyphParagraphCacheEntries = 1024;
 
 class RenderTerminalViewport extends RenderBox {
   RenderTerminalViewport({
@@ -466,6 +467,7 @@ class RenderTerminalViewport extends RenderBox {
   double get debugCellBaseline => _cellBaseline;
   TerminalRowTextMetrics get debugRowTextMetrics => _rowTextMetrics;
   int get debugParagraphBuilds => _paragraphBuilds;
+  int get debugGlyphParagraphCacheSize => _glyphParagraphCache.length;
   List<String> get debugLastPaintedRowTexts =>
       List<String>.unmodifiable(_debugLastPaintedRowTexts);
   List<int> get debugLastRebuiltRowIndexes =>
@@ -586,6 +588,11 @@ class RenderTerminalViewport extends RenderBox {
     final highlightsByRow = <int, List<_SearchHighlightSpan>>{};
     for (var index = 0; index < _searchMatches.length; index += 1) {
       final match = _searchMatches[index];
+      if (match.startCol < 0 ||
+          match.endCol <= match.startCol ||
+          match.text.isEmpty) {
+        continue;
+      }
       final relativeRow = match.row - frame.viewportStartRow;
       if (relativeRow < 0 || relativeRow >= frame.viewportRows) {
         continue;
@@ -623,7 +630,10 @@ class RenderTerminalViewport extends RenderBox {
       return;
     }
     final style = _searchHighlightStyle;
-    final radius = Radius.circular(math.max(0, style.radius));
+    final radiusValue = style.radius.isFinite
+        ? math.max(0.0, style.radius)
+        : 0.0;
+    final radius = Radius.circular(radiusValue);
     for (final highlight in highlights) {
       final isActive = highlight.index == _activeSearchMatchIndex;
       final rrect = RRect.fromRectAndRadius(highlight.rect, radius);
@@ -763,6 +773,9 @@ class RenderTerminalViewport extends RenderBox {
     );
     final resolvedStyles = <TerminalResolvedStyle>[];
     for (final run in row.styleRuns) {
+      if (run.start < 0 || run.end <= run.start) {
+        continue;
+      }
       final start = textCells.clampColumn(run.start);
       final end = run.end.clamp(start, textCells.cellCount).toInt();
       if (start >= end) {
@@ -1196,15 +1209,19 @@ class RenderTerminalViewport extends RenderBox {
     return _cursorCellFor(cursor)?.background ?? _canvasBackgroundFor(frame);
   }
 
-  double get _minimumContrastRatio =>
-      _colors.minimumContrastRatio.clamp(1.0, 21.0).toDouble();
+  double get _minimumContrastRatio {
+    final ratio = _colors.minimumContrastRatio;
+    return ratio.isFinite ? ratio.clamp(1.0, 21.0).toDouble() : 1.0;
+  }
 
   Color _foregroundWithContrastRatio(
     Color foreground,
     Color background,
     double ratio,
   ) {
-    final targetRatio = ratio.clamp(1.0, 21.0).toDouble();
+    final targetRatio = ratio.isFinite
+        ? ratio.clamp(1.0, 21.0).toDouble()
+        : 1.0;
     if (targetRatio <= 1 ||
         _contrastRatio(foreground, background) >= targetRatio) {
       return foreground;
@@ -1279,8 +1296,9 @@ class RenderTerminalViewport extends RenderBox {
       style.fontStyle,
       style.decoration,
     );
-    final cached = _glyphParagraphCache[signature];
+    final cached = _glyphParagraphCache.remove(signature);
     if (cached != null) {
+      _glyphParagraphCache[signature] = cached;
       return cached;
     }
     final builder = ui.ParagraphBuilder(_paragraphStyle())
@@ -1301,8 +1319,18 @@ class RenderTerminalViewport extends RenderBox {
       size: Size(paragraph.maxIntrinsicWidth, paragraph.height),
       alphabeticBaseline: paragraph.alphabeticBaseline,
     );
-    _glyphParagraphCache[signature] = glyphParagraph;
+    _cacheGlyphParagraph(signature, glyphParagraph);
     return glyphParagraph;
+  }
+
+  void _cacheGlyphParagraph(
+    int signature,
+    _CachedGlyphParagraph glyphParagraph,
+  ) {
+    _glyphParagraphCache[signature] = glyphParagraph;
+    while (_glyphParagraphCache.length > _maxGlyphParagraphCacheEntries) {
+      _glyphParagraphCache.remove(_glyphParagraphCache.keys.first);
+    }
   }
 
   _MeasuredCellMetrics _measureCellMetrics() {

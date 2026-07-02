@@ -7,12 +7,26 @@ import 'dart:ui';
 import 'package:ianvs_pty/ianvs_pty.dart';
 
 import '../config/terminal_config.dart';
+import '../config/terminal_defaults.dart';
 import '../terminal/selection_controller.dart';
 import '../terminal/terminal_graphics_cache.dart';
 import '../terminal/terminal_graphics_diagnostics.dart';
 import '../terminal/terminal_models.dart';
 import '../terminal/terminal_viewport.dart';
 import 'terminal_benchmarking.dart';
+
+const int _maxOsc52ClipboardDecodedBytes = 4 * 1024 * 1024;
+const int _maxOsc52ClipboardEncodedLength =
+    ((_maxOsc52ClipboardDecodedBytes + 2) ~/ 3) * 4;
+const int _maxSearchMatchesPerResponse = 1000;
+const int _maxDecodedCollectionScanMultiplier = 4;
+const int _maxDiagnosticsResourceSamples = 60;
+const int _maxDiagnosticsEvents = 200;
+const int _maxDiagnosticsSummaryEntries = 32;
+const int _maxDiagnosticsSummaryNestedEntries = 32;
+const int _maxDiagnosticsSummaryListEntries = 20;
+const int _maxDiagnosticsSummaryStringLength = 4096;
+const int _maxDiagnosticsSummaryListStringLength = 512;
 
 typedef TerminalWindowResizeCallback =
     Future<void> Function({
@@ -340,10 +354,11 @@ final class TerminalDiagnosticsExport {
       manifest: _mapValue(json['manifest']),
       resourceSamples: _mapList(
         json['resource_samples'] ?? json['resourceSamples'],
+        maxEntries: _maxDiagnosticsResourceSamples,
       ),
       terminalStats: _mapValue(json['terminal_stats'] ?? json['terminalStats']),
-      events: _mapList(json['events']),
-      summary: _mapValue(json['summary']),
+      events: _mapList(json['events'], maxEntries: _maxDiagnosticsEvents),
+      summary: _diagnosticsSummaryValue(json['summary']),
     );
   }
 
@@ -376,15 +391,154 @@ Map<String, Object?> _mapValue(Object? value) {
   return const <String, Object?>{};
 }
 
-List<Map<String, Object?>> _mapList(Object? value) {
+Map<String, Object?> _diagnosticsSummaryValue(Object? value) {
+  if (value is! Map) {
+    return const <String, Object?>{};
+  }
+  final result = <String, Object?>{};
+  for (final entry in value.entries.take(
+    _maxDecodedCollectionEntriesToScan(_maxDiagnosticsSummaryEntries),
+  )) {
+    if (result.length >= _maxDiagnosticsSummaryEntries) {
+      break;
+    }
+    final key = entry.key;
+    if (key is! String) {
+      continue;
+    }
+    final boundedValue = _boundedDiagnosticsSummaryEntry(key, entry.value);
+    if (boundedValue != null) {
+      result[key] = boundedValue;
+    }
+  }
+  return Map<String, Object?>.unmodifiable(result);
+}
+
+Object? _boundedDiagnosticsSummaryEntry(String key, Object? value) {
+  return switch (key) {
+    'evidence' || 'next_steps' => _diagnosticsSummaryStringList(value),
+    _ => _boundedDiagnosticsSummaryJson(value, depth: 2),
+  };
+}
+
+List<String> _diagnosticsSummaryStringList(Object? value) {
+  if (value is! List) {
+    return const <String>[];
+  }
+  final strings = <String>[];
+  for (final entry in value.take(
+    _maxDecodedCollectionEntriesToScan(_maxDiagnosticsSummaryListEntries),
+  )) {
+    if (strings.length >= _maxDiagnosticsSummaryListEntries) {
+      break;
+    }
+    final text = _boundedNonEmptyTrimmedString(
+      entry,
+      maxLength: _maxDiagnosticsSummaryListStringLength,
+    );
+    if (text != null) {
+      strings.add(text);
+    }
+  }
+  return List<String>.unmodifiable(strings);
+}
+
+Object? _boundedDiagnosticsSummaryJson(Object? value, {required int depth}) {
+  if (value == null || value is bool) {
+    return value;
+  }
+  if (value is num) {
+    return value.isFinite ? value : null;
+  }
+  final text = _boundedNonEmptyTrimmedString(
+    value,
+    maxLength: _maxDiagnosticsSummaryStringLength,
+  );
+  if (text != null) {
+    return text;
+  }
+  if (depth <= 0) {
+    return null;
+  }
+  if (value is List) {
+    final result = <Object?>[];
+    for (final entry in value.take(
+      _maxDecodedCollectionEntriesToScan(_maxDiagnosticsSummaryListEntries),
+    )) {
+      if (result.length >= _maxDiagnosticsSummaryListEntries) {
+        break;
+      }
+      final boundedValue = _boundedDiagnosticsSummaryJson(
+        entry,
+        depth: depth - 1,
+      );
+      if (boundedValue != null) {
+        result.add(boundedValue);
+      }
+    }
+    return List<Object?>.unmodifiable(result);
+  }
+  if (value is Map) {
+    final result = <String, Object?>{};
+    for (final entry in value.entries.take(
+      _maxDecodedCollectionEntriesToScan(_maxDiagnosticsSummaryNestedEntries),
+    )) {
+      if (result.length >= _maxDiagnosticsSummaryNestedEntries) {
+        break;
+      }
+      final key = _boundedNonEmptyTrimmedString(
+        entry.key,
+        maxLength: _maxDiagnosticsSummaryListStringLength,
+      );
+      if (key == null) {
+        continue;
+      }
+      final boundedValue = _boundedDiagnosticsSummaryJson(
+        entry.value,
+        depth: depth - 1,
+      );
+      if (boundedValue != null) {
+        result[key] = boundedValue;
+      }
+    }
+    return Map<String, Object?>.unmodifiable(result);
+  }
+  return null;
+}
+
+String? _boundedNonEmptyTrimmedString(Object? value, {required int maxLength}) {
+  final text = _stringFromJsonValue(value)?.trim();
+  if (text == null || text.isEmpty) {
+    return null;
+  }
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return text.substring(0, maxLength);
+}
+
+List<Map<String, Object?>> _mapList(Object? value, {int? maxEntries}) {
   if (value is! List) {
     return const <Map<String, Object?>>[];
   }
-  return List<Map<String, Object?>>.unmodifiable(
-    value.whereType<Map>().map(
-      (entry) => Map<String, Object?>.unmodifiable(_stringKeyedJsonMap(entry)),
-    ),
-  );
+  final maps = <Map<String, Object?>>[];
+  final entries = maxEntries == null
+      ? value
+      : value.take(_maxDecodedCollectionEntriesToScan(maxEntries));
+  for (final entry in entries) {
+    if (entry is! Map) {
+      continue;
+    }
+    maps.add(Map<String, Object?>.unmodifiable(_stringKeyedJsonMap(entry)));
+    if (maxEntries != null && maps.length >= maxEntries) {
+      break;
+    }
+  }
+  return List<Map<String, Object?>>.unmodifiable(maps);
+}
+
+int _maxDecodedCollectionEntriesToScan(int maxEntries) {
+  return maxEntries * _maxDecodedCollectionScanMultiplier;
 }
 
 final class _DecodedFrameBenchmarkMetrics {
@@ -687,12 +841,17 @@ class TerminalRuntimeController {
 
   List<TerminalSearchMatch> _decodeSearchMatches(List<dynamic> entries) {
     final matches = <TerminalSearchMatch>[];
-    for (final entry in entries) {
+    for (final entry in entries.take(
+      _maxDecodedCollectionEntriesToScan(_maxSearchMatchesPerResponse),
+    )) {
       if (entry is! Map) {
         continue;
       }
       try {
         matches.add(TerminalSearchMatch.fromJson(_stringKeyedJsonMap(entry)));
+        if (matches.length >= _maxSearchMatchesPerResponse) {
+          break;
+        }
       } on Object {
         continue;
       }
@@ -757,7 +916,7 @@ class TerminalRuntimeController {
       sessionId,
       jsonEncode(<String, Object?>{
         'kind': 'terminal.export_scrollback',
-        'maxLines': ?maxLines,
+        'maxLines': ?_boundedScrollbackExportMaxLines(maxLines),
       }),
     );
     if (raw == null || raw.isEmpty) {
@@ -840,20 +999,23 @@ class TerminalRuntimeController {
     }
     final cellWidth = measuredCellSize.width;
     final cellHeight = measuredCellSize.height;
-    final cols = math.max(20, (viewportSize.width / cellWidth).floor());
-    final rows = math.max(8, (viewportSize.height / cellHeight).floor());
-    final pixelWidth = math.max(
-      1,
-      (viewportSize.width * devicePixelRatio).round(),
+    final cols = _boundedTerminalDimension(
+      math.max(20, (viewportSize.width / cellWidth).floor()),
     );
-    final pixelHeight = math.max(
-      1,
-      (viewportSize.height * devicePixelRatio).round(),
+    final rows = _boundedTerminalDimension(
+      math.max(8, (viewportSize.height / cellHeight).floor()),
     );
-    final cellPixelWidth = math.max(1, (cellWidth * devicePixelRatio).round());
-    final cellPixelHeight = math.max(
-      1,
-      (cellHeight * devicePixelRatio).round(),
+    final pixelWidth = _boundedTerminalPixelDimension(
+      viewportSize.width * devicePixelRatio,
+    );
+    final pixelHeight = _boundedTerminalPixelDimension(
+      viewportSize.height * devicePixelRatio,
+    );
+    final cellPixelWidth = _boundedTerminalPixelDimension(
+      cellWidth * devicePixelRatio,
+    );
+    final cellPixelHeight = _boundedTerminalPixelDimension(
+      cellHeight * devicePixelRatio,
     );
     final nextMetric = _SessionResizeMetric(
       cols: cols,
@@ -917,25 +1079,29 @@ class TerminalRuntimeController {
         'Terminal dimensions and devicePixelRatio must be positive.',
       );
     }
+    final boundedCols = _boundedTerminalDimension(cols);
+    final boundedRows = _boundedTerminalDimension(rows);
     final measuredCellSize = cellSize ?? _cellSizeFor(sessionId);
     if (!_isPositiveFiniteSize(measuredCellSize)) {
       throw RangeError('Cell size must be positive and finite.');
     }
-    final logicalWidth = cols * measuredCellSize.width;
-    final logicalHeight = rows * measuredCellSize.height;
-    final pixelWidth = math.max(1, (logicalWidth * devicePixelRatio).round());
-    final pixelHeight = math.max(1, (logicalHeight * devicePixelRatio).round());
-    final cellPixelWidth = math.max(
-      1,
-      (measuredCellSize.width * devicePixelRatio).round(),
+    final logicalWidth = boundedCols * measuredCellSize.width;
+    final logicalHeight = boundedRows * measuredCellSize.height;
+    final pixelWidth = _boundedTerminalPixelDimension(
+      logicalWidth * devicePixelRatio,
     );
-    final cellPixelHeight = math.max(
-      1,
-      (measuredCellSize.height * devicePixelRatio).round(),
+    final pixelHeight = _boundedTerminalPixelDimension(
+      logicalHeight * devicePixelRatio,
+    );
+    final cellPixelWidth = _boundedTerminalPixelDimension(
+      measuredCellSize.width * devicePixelRatio,
+    );
+    final cellPixelHeight = _boundedTerminalPixelDimension(
+      measuredCellSize.height * devicePixelRatio,
     );
     final nextMetric = _SessionResizeMetric(
-      cols: cols,
-      rows: rows,
+      cols: boundedCols,
+      rows: boundedRows,
       pixelWidth: pixelWidth,
       pixelHeight: pixelHeight,
       cellWidth: cellPixelWidth,
@@ -946,8 +1112,8 @@ class TerminalRuntimeController {
     );
     final previous = _lastResizeMetrics[sessionId];
     if (previous != null &&
-        previous.cols == cols &&
-        previous.rows == rows &&
+        previous.cols == boundedCols &&
+        previous.rows == boundedRows &&
         previous.pixelWidth == pixelWidth &&
         previous.pixelHeight == pixelHeight &&
         previous.cellWidth == cellPixelWidth &&
@@ -956,8 +1122,8 @@ class TerminalRuntimeController {
     }
     _backend.resizeSession(
       sessionId,
-      cols: cols,
-      rows: rows,
+      cols: boundedCols,
+      rows: boundedRows,
       pixelWidth: pixelWidth,
       pixelHeight: pixelHeight,
       cellWidth: cellPixelWidth,
@@ -967,8 +1133,8 @@ class TerminalRuntimeController {
     _resizeEvents.add(
       TerminalSessionResizeEvent(
         sessionId,
-        cols: cols,
-        rows: rows,
+        cols: boundedCols,
+        rows: boundedRows,
         pixelWidth: pixelWidth,
         pixelHeight: pixelHeight,
         cellWidth: cellPixelWidth,
@@ -1533,40 +1699,38 @@ class TerminalRuntimeController {
       return;
     }
 
+    final boundedCols = _boundedTerminalDimension(cols);
+    final boundedRows = _boundedTerminalDimension(rows);
     final measuredCellSize = _cellSizeFor(sessionId);
-    final targetWidth = cols * measuredCellSize.width;
-    final targetHeight = rows * measuredCellSize.height;
+    final targetWidth = boundedCols * measuredCellSize.width;
+    final targetHeight = boundedRows * measuredCellSize.height;
     final widthDelta = targetWidth - metric.logicalWidth;
     final heightDelta = targetHeight - metric.logicalHeight;
-    final targetPixelWidth = math.max(
-      1,
-      (targetWidth * metric.devicePixelRatio).round(),
+    final targetPixelWidth = _boundedTerminalPixelDimension(
+      targetWidth * metric.devicePixelRatio,
     );
-    final targetPixelHeight = math.max(
-      1,
-      (targetHeight * metric.devicePixelRatio).round(),
+    final targetPixelHeight = _boundedTerminalPixelDimension(
+      targetHeight * metric.devicePixelRatio,
     );
-    final targetCellPixelWidth = math.max(
-      1,
-      (measuredCellSize.width * metric.devicePixelRatio).round(),
+    final targetCellPixelWidth = _boundedTerminalPixelDimension(
+      measuredCellSize.width * metric.devicePixelRatio,
     );
-    final targetCellPixelHeight = math.max(
-      1,
-      (measuredCellSize.height * metric.devicePixelRatio).round(),
+    final targetCellPixelHeight = _boundedTerminalPixelDimension(
+      measuredCellSize.height * metric.devicePixelRatio,
     );
 
     _backend.resizeSession(
       sessionId,
-      cols: cols,
-      rows: rows,
+      cols: boundedCols,
+      rows: boundedRows,
       pixelWidth: targetPixelWidth,
       pixelHeight: targetPixelHeight,
       cellWidth: targetCellPixelWidth,
       cellHeight: targetCellPixelHeight,
     );
     _lastResizeMetrics[sessionId] = _SessionResizeMetric(
-      cols: cols,
-      rows: rows,
+      cols: boundedCols,
+      rows: boundedRows,
       pixelWidth: targetPixelWidth,
       pixelHeight: targetPixelHeight,
       cellWidth: targetCellPixelWidth,
@@ -1578,8 +1742,8 @@ class TerminalRuntimeController {
     _resizeEvents.add(
       TerminalSessionResizeEvent(
         sessionId,
-        cols: cols,
-        rows: rows,
+        cols: boundedCols,
+        rows: boundedRows,
         pixelWidth: targetPixelWidth,
         pixelHeight: targetPixelHeight,
         cellWidth: targetCellPixelWidth,
@@ -1611,6 +1775,17 @@ class TerminalRuntimeController {
 
   bool _isPositiveFiniteDouble(double value) {
     return value.isFinite && value > 0;
+  }
+
+  int _boundedTerminalDimension(int value) {
+    return value.clamp(1, maxTerminalDimension).toInt();
+  }
+
+  int _boundedTerminalPixelDimension(double value) {
+    if (!value.isFinite || value <= 0) {
+      return 1;
+    }
+    return value.round().clamp(1, maxTerminalDimension).toInt();
   }
 
   Future<void> _handleClipboardCopyEvent(
@@ -1710,12 +1885,40 @@ class TerminalRuntimeController {
   }
 
   Uint8List? _decodeOsc52ClipboardPayload(String raw) {
-    final normalized = raw.replaceAll(RegExp(r'\s+'), '');
+    final normalized = _normalizedBoundedBase64Payload(raw);
+    if (normalized == null) {
+      return null;
+    }
     try {
-      return Uint8List.fromList(base64.decode(normalized));
+      final bytes = Uint8List.fromList(base64.decode(normalized));
+      return bytes.length > _maxOsc52ClipboardDecodedBytes ? null : bytes;
     } on FormatException {
       return null;
     }
+  }
+
+  String? _normalizedBoundedBase64Payload(String raw) {
+    final buffer = StringBuffer();
+    for (var index = 0; index < raw.length; index += 1) {
+      final codeUnit = raw.codeUnitAt(index);
+      if (_isAsciiWhitespace(codeUnit)) {
+        continue;
+      }
+      buffer.writeCharCode(codeUnit);
+      if (buffer.length > _maxOsc52ClipboardEncodedLength) {
+        return null;
+      }
+    }
+    return buffer.toString();
+  }
+
+  bool _isAsciiWhitespace(int codeUnit) {
+    return codeUnit == 0x09 ||
+        codeUnit == 0x0a ||
+        codeUnit == 0x0b ||
+        codeUnit == 0x0c ||
+        codeUnit == 0x0d ||
+        codeUnit == 0x20;
   }
 
   Future<void> _handleClipboardPasteRequestEvent(
@@ -1753,8 +1956,26 @@ class TerminalRuntimeController {
       return;
     }
     final clipboardText = await resolveClipboardText();
-    final summary = _summarizeClipboardText(clipboardText);
-    final encoded = base64.encode(utf8.encode(clipboardText));
+    final clipboardBytes = _boundedUtf8Encode(
+      clipboardText,
+      _maxOsc52ClipboardDecodedBytes,
+    );
+    if (clipboardBytes == null) {
+      _events.add(
+        TerminalSessionClipboardEvent(
+          sessionId,
+          operation: TerminalClipboardOperation.pasteRequest,
+          decision: TerminalClipboardDecision.invalidPayload,
+          selection: selection,
+        ),
+      );
+      return;
+    }
+    final summary = _summarizeClipboardText(
+      clipboardText,
+      byteCount: clipboardBytes.length,
+    );
+    final encoded = base64.encode(clipboardBytes);
     final response = '\x1B]52;$selection;$encoded\x07';
     sendInput(sessionId, Uint8List.fromList(utf8.encode(response)));
     _events.add(
@@ -1769,6 +1990,25 @@ class TerminalRuntimeController {
         textPreviewTruncated: summary.previewTruncated,
       ),
     );
+  }
+
+  Uint8List? _boundedUtf8Encode(String text, int maxBytes) {
+    var byteLength = 0;
+    for (final rune in text.runes) {
+      if (rune <= 0x7f) {
+        byteLength += 1;
+      } else if (rune <= 0x7ff) {
+        byteLength += 2;
+      } else if (rune <= 0xffff) {
+        byteLength += 3;
+      } else {
+        byteLength += 4;
+      }
+      if (byteLength > maxBytes) {
+        return null;
+      }
+    }
+    return Uint8List.fromList(utf8.encode(text));
   }
 
   _ClipboardTextSummary _summarizeClipboardText(String text, {int? byteCount}) {
@@ -1859,6 +2099,19 @@ class TerminalRuntimeController {
         colors: config.display.colors.resolveWith(),
       ),
     );
+  }
+
+  int? _boundedScrollbackExportMaxLines(int? value) {
+    if (value == null) {
+      return null;
+    }
+    if (value <= 0) {
+      return 0;
+    }
+    if (value > maxTerminalScrollbackLines) {
+      return maxTerminalScrollbackLines;
+    }
+    return value;
   }
 
   void dispose() {

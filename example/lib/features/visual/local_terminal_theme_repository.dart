@@ -3,7 +3,13 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
+import '../../platform/corrupt_file_quarantine.dart';
+import '../../platform/local_file_collision.dart';
 import 'local_terminal_visual_models.dart';
+
+const int maxLocalTerminalThemePresets = 100;
+const _maxSafeBasenameLength = 120;
+const _maxPersistedThemePresetEntriesToScan = maxLocalTerminalThemePresets * 4;
 
 typedef LocalTerminalThemeDirectoryResolver = Future<Directory> Function();
 
@@ -26,14 +32,15 @@ class LocalTerminalThemeRepository {
       if (decoded is! List) {
         throw const FormatException('Theme preset list must be an array.');
       }
-      return decoded
-          .map(_objectMap)
-          .whereType<Map<Object?, Object?>>()
-          .map(LocalTerminalThemePreset.fromJson)
-          .where((preset) => preset.isUsable)
-          .toList(growable: false);
+      return _uniqueUsablePresets(
+        decoded
+            .take(_maxPersistedThemePresetEntriesToScan)
+            .map(_objectMap)
+            .whereType<Map<Object?, Object?>>()
+            .map(LocalTerminalThemePreset.fromJson),
+      );
     } on Object {
-      await _quarantineCorruptFile(file);
+      await quarantineCorruptFile(file);
       await save(const <LocalTerminalThemePreset>[]);
       return const <LocalTerminalThemePreset>[];
     }
@@ -44,10 +51,9 @@ class LocalTerminalThemeRepository {
     await file.parent.create(recursive: true);
     await file.writeAsString(
       jsonEncode(
-        presets
-            .where((preset) => preset.isUsable)
-            .map((preset) => preset.toJson())
-            .toList(growable: false),
+        _uniqueUsablePresets(
+          presets,
+        ).map((preset) => preset.toJson()).toList(growable: false),
       ),
     );
   }
@@ -56,8 +62,8 @@ class LocalTerminalThemeRepository {
     final directory = await _directoryResolver();
     await directory.create(recursive: true);
     final safePresetId = _safeBasename(preset.id);
-    final file = File(
-      '${directory.path}/$safePresetId.ianvs-terminal-theme.json',
+    final file = await nextAvailableFile(
+      File('${directory.path}/$safePresetId.ianvs-terminal-theme.json'),
     );
     await file.writeAsString(preset.encode());
     return file;
@@ -68,21 +74,46 @@ class LocalTerminalThemeRepository {
     return File('${directory.path}/ianvs_themes.json');
   }
 
-  Future<void> _quarantineCorruptFile(File file) async {
-    final quarantinedPath =
-        '${file.path}.corrupt.${DateTime.now().millisecondsSinceEpoch}';
-    await file.rename(quarantinedPath);
-  }
-
   String _safeBasename(String basename) {
     final safe = basename
         .replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '-')
         .replaceAll(RegExp('-+'), '-')
         .replaceAll(RegExp(r'^-+|-+$'), '');
-    if (safe.isEmpty) {
-      return 'theme-${DateTime.now().millisecondsSinceEpoch}';
+    if (safe.isEmpty || RegExp(r'^\.+$').hasMatch(safe)) {
+      return _fallbackBasename();
     }
-    return safe;
+    if (safe.length <= _maxSafeBasenameLength) {
+      return safe;
+    }
+    final truncated = safe
+        .substring(0, _maxSafeBasenameLength)
+        .replaceAll(RegExp(r'[._-]+$'), '');
+    if (truncated.isEmpty || RegExp(r'^\.+$').hasMatch(truncated)) {
+      return _fallbackBasename();
+    }
+    return truncated;
+  }
+
+  String _fallbackBasename() {
+    return 'theme-${DateTime.now().millisecondsSinceEpoch}';
+  }
+
+  List<LocalTerminalThemePreset> _uniqueUsablePresets(
+    Iterable<LocalTerminalThemePreset> presets,
+  ) {
+    final seenIds = <String>{};
+    final unique = <LocalTerminalThemePreset>[];
+    for (final preset in presets) {
+      final id = preset.id.trim();
+      if (id.isEmpty || preset.name.trim().isEmpty || !seenIds.add(id)) {
+        continue;
+      }
+      unique.add(preset);
+      if (unique.length >= maxLocalTerminalThemePresets) {
+        break;
+      }
+    }
+    return unique;
   }
 }
 

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
+import '../../platform/corrupt_file_quarantine.dart';
 import 'profile_models.dart';
 
 typedef DirectoryResolver = Future<Directory> Function();
@@ -32,13 +33,14 @@ class ProfileRepository {
             )
           : null;
       if (json == null) {
-        return _documentForInvalidLoad(
+        return _repairInvalidLoad(
+          file,
           rawValueSummary: 'root value was not an object',
         );
       }
       return TerminalProfilesDocument.fromJson(json);
     } on FormatException catch (error) {
-      return _documentForInvalidLoad(rawValueSummary: error.message);
+      return _repairInvalidLoad(file, rawValueSummary: error.message);
     }
   }
 
@@ -78,10 +80,12 @@ class ProfileRepository {
     return safe;
   }
 
-  TerminalProfilesDocument _documentForInvalidLoad({
+  Future<TerminalProfilesDocument> _repairInvalidLoad(
+    File file, {
     required String rawValueSummary,
-  }) {
-    return TerminalProfilesDocument(
+  }) async {
+    await quarantineCorruptFile(file);
+    final repaired = TerminalProfilesDocument(
       profiles: [defaultTerminalProfile(), vt220TerminalProfile()],
       loadWarnings: [
         TerminalProfileLoadWarning(
@@ -89,9 +93,12 @@ class ProfileRepository {
           profileName: 'Profiles document',
           path: 'document',
           rawValueSummary: rawValueSummary,
-          fallbackSummary: 'loaded in-memory fallback profiles',
+          fallbackSummary:
+              'quarantined corrupt file and saved fallback profiles',
         ),
       ],
     );
+    await save(repaired);
+    return repaired;
   }
 }

@@ -2187,12 +2187,9 @@ class SessionController extends Notifier<SessionState> {
   }
 
   Future<void> setTerminalViewportPadding(double padding) async {
-    final nextPadding = padding
-        .clamp(
-          TerminalAppAppearance.minTerminalViewportPadding,
-          TerminalAppAppearance.maxTerminalViewportPadding,
-        )
-        .toDouble();
+    final nextPadding = TerminalAppAppearance.normalizeTerminalViewportPadding(
+      padding,
+    );
     _appPreferences = _appPreferences.copyWith(
       appearance: _appPreferences.appearance.copyWith(
         terminalViewportPadding: nextPadding,

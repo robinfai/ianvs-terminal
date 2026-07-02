@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
+import '../../platform/corrupt_file_quarantine.dart';
 import 'app_preferences_models.dart';
 
 typedef AppPreferencesDirectoryResolver = Future<Directory> Function();
@@ -25,7 +26,7 @@ class AppPreferencesRepository {
         jsonDecode(raw) as Map<String, Object?>,
       );
     } on Object {
-      await _quarantineCorruptFile(file);
+      await quarantineCorruptFile(file);
       const repaired = TerminalAppPreferencesDocument();
       await save(repaired);
       return repaired;
@@ -41,11 +42,5 @@ class AppPreferencesRepository {
   Future<File> _preferencesFile() async {
     final directory = await _directoryResolver();
     return File('${directory.path}/ianvs_preferences.json');
-  }
-
-  Future<void> _quarantineCorruptFile(File file) async {
-    final quarantinedPath =
-        '${file.path}.corrupt.${DateTime.now().millisecondsSinceEpoch}';
-    await file.rename(quarantinedPath);
   }
 }

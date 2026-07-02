@@ -410,4 +410,41 @@ void main() {
       22,
     );
   });
+
+  test('setTerminalViewportPadding defaults non-finite shell insets', () async {
+    final preferencesRepository = _TestAppPreferencesRepository(null);
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(
+            TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
+          ),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          preferencesRepository,
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container.read(sessionControllerProvider.notifier);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    await container
+        .read(sessionControllerProvider.notifier)
+        .setTerminalViewportPadding(double.nan);
+
+    expect(
+      container.read(sessionControllerProvider).terminalViewportPadding,
+      TerminalAppAppearance.defaultTerminalViewportPadding,
+    );
+    expect(
+      preferencesRepository
+          .savedDocuments
+          .last
+          .appearance
+          .terminalViewportPadding,
+      TerminalAppAppearance.defaultTerminalViewportPadding,
+    );
+  });
 }

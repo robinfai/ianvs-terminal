@@ -1,5 +1,10 @@
 import 'terminal_defaults.dart';
 
+const int maxTerminalLaunchArgs = 128;
+const int maxTerminalEnvironmentEntries = 256;
+const int maxTerminalFontFallbackFamilies = 32;
+const int _directConfigEntryScanMultiplier = 4;
+
 enum TerminalEmulation { xterm256, vt220 }
 
 enum TerminalCursorShape { block, underline, beam }
@@ -61,8 +66,8 @@ class TerminalLaunchConfig {
     final map = _asObjectMap(json);
     return TerminalLaunchConfig(
       program: _trimmedStringOrNull(map?['program']) ?? '',
-      args: _stringList(map?['args']),
-      env: _stringMap(map?['env']),
+      args: _stringList(map?['args'], maxEntries: maxTerminalLaunchArgs),
+      env: _stringMap(map?['env'], maxEntries: maxTerminalEnvironmentEntries),
       cwd: _trimmedStringOrNull(map?['cwd']),
     );
   }
@@ -146,9 +151,12 @@ class TerminalFontConfig {
   const TerminalFontConfig({
     this.family = terminalPrimaryFontFamily,
     this.fallback = terminalFontFamilyFallback,
-    this.size = terminalFontSize,
-    this.lineHeight = terminalLineHeight,
-  });
+    double size = terminalFontSize,
+    double lineHeight = terminalLineHeight,
+  }) : size = size > 0 && size < double.infinity ? size : terminalFontSize,
+       lineHeight = lineHeight > 0 && lineHeight < double.infinity
+           ? lineHeight
+           : terminalLineHeight;
 
   final String family;
   final List<String> fallback;
@@ -185,6 +193,7 @@ class TerminalFontConfig {
       fallback: _trimmedStringList(
         map?['fallback'],
         fallback: terminalFontFamilyFallback,
+        maxEntries: maxTerminalFontFallbackFamilies,
       ),
       size: _positiveFiniteDoubleOr(map?['size'], terminalFontSize),
       lineHeight: _positiveFiniteDoubleOr(
@@ -568,12 +577,16 @@ class TerminalSessionConfig {
   const TerminalSessionConfig({
     required this.launch,
     this.emulation = TerminalEmulation.xterm256,
-    this.scrollbackLines = defaultTerminalScrollbackLines,
+    int scrollbackLines = defaultTerminalScrollbackLines,
     this.graphics = const TerminalGraphicsConfig(),
     this.shellIntegration = const TerminalShellIntegrationConfig(),
     this.display = const TerminalDisplayConfig(),
     this.interaction = const TerminalInteractionConfig(),
-  });
+  }) : scrollbackLines = scrollbackLines < 1
+           ? defaultTerminalScrollbackLines
+           : scrollbackLines > maxTerminalScrollbackLines
+           ? maxTerminalScrollbackLines
+           : scrollbackLines;
 
   final TerminalLaunchConfig launch;
   final TerminalEmulation emulation;
@@ -608,7 +621,7 @@ class TerminalSessionConfig {
       'launch': launch.toJson(),
       'terminal': <String, Object?>{
         'emulation': emulation.name,
-        'scrollbackLines': scrollbackLines,
+        'scrollbackLines': normalizeTerminalScrollbackLines(scrollbackLines),
         'graphics': graphics.toJson(),
       },
       'shellIntegration': shellIntegration.toJson(),
@@ -625,6 +638,7 @@ class TerminalSessionConfig {
       scrollbackLines: _positiveIntOr(
         terminal?['scrollbackLines'],
         defaultTerminalScrollbackLines,
+        maximum: maxTerminalScrollbackLines,
       ),
       graphics: TerminalGraphicsConfig.fromJson(terminal?['graphics']),
       display: TerminalDisplayConfig.fromJson(json['appearance']),
@@ -656,6 +670,7 @@ class TerminalSessionConfig {
       scrollbackLines: _positiveIntField(
         terminal?['scrollbackLines'],
         fallback: defaultTerminalScrollbackLines,
+        maximum: maxTerminalScrollbackLines,
         path: 'terminal.scrollbackLines',
         onWarning: onWarning,
       ),
@@ -711,11 +726,13 @@ TerminalLaunchConfig _launchConfigFromProfileJson(
       args: _stringListField(
         launch['args'],
         path: 'launch.args',
+        maxEntries: maxTerminalLaunchArgs,
         onWarning: onWarning,
       ),
       env: _stringMapField(
         launch['env'],
         path: 'launch.env',
+        maxEntries: maxTerminalEnvironmentEntries,
         onWarning: onWarning,
       ),
       cwd: _nullableStringField(
@@ -737,8 +754,18 @@ TerminalLaunchConfig _launchConfigFromProfileJson(
             path: 'shell',
           )
         : program,
-    args: _stringListField(legacy['args'], path: 'args', onWarning: onWarning),
-    env: _stringMapField(legacy['env'], path: 'env', onWarning: onWarning),
+    args: _stringListField(
+      legacy['args'],
+      path: 'args',
+      maxEntries: maxTerminalLaunchArgs,
+      onWarning: onWarning,
+    ),
+    env: _stringMapField(
+      legacy['env'],
+      path: 'env',
+      maxEntries: maxTerminalEnvironmentEntries,
+      onWarning: onWarning,
+    ),
     cwd: _nullableStringField(legacy['cwd'], path: 'cwd', onWarning: onWarning),
   );
 }
@@ -767,7 +794,11 @@ TerminalDisplayConfig _displayConfigFromProfileJson(
               onWarning: onWarning,
             )
           : family,
-      fallback: _fontFallbackList(font?['fallback'], onWarning: onWarning),
+      fallback: _fontFallbackList(
+        font?['fallback'],
+        maxEntries: maxTerminalFontFallbackFamilies,
+        onWarning: onWarning,
+      ),
       size: _positiveDoubleField(
         font?['size'],
         fallback: terminalFontSize,
@@ -969,9 +1000,23 @@ String? _hexColorOrNull(Object? rawValue) {
 List<String> _stringList(
   Object? value, {
   List<String> fallback = const <String>[],
+  int? maxEntries,
 }) {
   if (value is List) {
-    return value.whereType<String>().toList();
+    final strings = <String>[];
+    final entries = maxEntries == null
+        ? value
+        : value.take(maxEntries * _directConfigEntryScanMultiplier);
+    for (final entry in entries) {
+      if (maxEntries != null && strings.length >= maxEntries) {
+        break;
+      }
+      final text = _trimmedStringOrNull(entry);
+      if (text != null) {
+        strings.add(text);
+      }
+    }
+    return strings;
   }
   return fallback;
 }
@@ -979,12 +1024,19 @@ List<String> _stringList(
 List<String> _trimmedStringList(
   Object? value, {
   required List<String> fallback,
+  int? maxEntries,
 }) {
   if (value is! List) {
     return fallback;
   }
   final values = <String>[];
-  for (final entry in value) {
+  final entries = maxEntries == null
+      ? value
+      : value.take(maxEntries * _directConfigEntryScanMultiplier);
+  for (final entry in entries) {
+    if (maxEntries != null && values.length >= maxEntries) {
+      break;
+    }
     final text = _trimmedStringOrNull(entry);
     if (text != null) {
       values.add(text);
@@ -993,10 +1045,16 @@ List<String> _trimmedStringList(
   return values.isEmpty ? fallback : values;
 }
 
-Map<String, String> _stringMap(Object? value) {
+Map<String, String> _stringMap(Object? value, {int? maxEntries}) {
   if (value is Map) {
     final values = <String, String>{};
-    for (final entry in value.entries) {
+    final entries = maxEntries == null
+        ? value.entries
+        : value.entries.take(maxEntries * _directConfigEntryScanMultiplier);
+    for (final entry in entries) {
+      if (maxEntries != null && values.length >= maxEntries) {
+        break;
+      }
       final key = entry.key;
       final entryValue = entry.value;
       if (key is String && key.trim().isNotEmpty && entryValue is String) {
@@ -1018,8 +1076,15 @@ double _positiveFiniteDoubleOr(Object? value, double fallback) {
   return fallback;
 }
 
-int _positiveIntOr(Object? value, int fallback) {
-  return _positiveWholeIntOrNull(value) ?? fallback;
+int _positiveIntOr(Object? value, int fallback, {int? maximum}) {
+  final parsed = _positiveWholeIntOrNull(value);
+  if (parsed == null) {
+    return fallback;
+  }
+  if (maximum != null && parsed > maximum) {
+    return maximum;
+  }
+  return parsed;
 }
 
 bool _boolOr(Object? value, bool fallback) {
@@ -1130,6 +1195,7 @@ String? _nullableStringField(
 List<String> _stringListField(
   Object? rawValue, {
   required String path,
+  int? maxEntries,
   required TerminalConfigWarningCallback? onWarning,
 }) {
   if (rawValue == null) {
@@ -1146,8 +1212,23 @@ List<String> _stringListField(
     return const <String>[];
   }
   final values = <String>[];
-  for (var index = 0; index < rawValue.length; index += 1) {
-    final entry = rawValue[index];
+  if (maxEntries != null && rawValue.length > maxEntries) {
+    onWarning?.call(
+      TerminalConfigWarning(
+        path: path,
+        rawValue: rawValue.length,
+        fallbackSummary: 'loaded first $maxEntries valid entries',
+      ),
+    );
+  }
+  final entries = maxEntries == null
+      ? rawValue
+      : rawValue.take(maxEntries * _directConfigEntryScanMultiplier);
+  var index = 0;
+  for (final entry in entries) {
+    if (maxEntries != null && values.length >= maxEntries) {
+      break;
+    }
     if (entry is String) {
       if (entry.isEmpty) {
         onWarning?.call(
@@ -1157,9 +1238,11 @@ List<String> _stringListField(
             fallbackSummary: 'ignored empty value',
           ),
         );
+        index += 1;
         continue;
       }
       values.add(entry);
+      index += 1;
       continue;
     }
     onWarning?.call(
@@ -1169,12 +1252,14 @@ List<String> _stringListField(
         fallbackSummary: 'ignored invalid non-string value',
       ),
     );
+    index += 1;
   }
   return values;
 }
 
 List<String> _fontFallbackList(
   Object? rawValue, {
+  int? maxEntries,
   required TerminalConfigWarningCallback? onWarning,
 }) {
   if (rawValue == null) {
@@ -1191,8 +1276,23 @@ List<String> _fontFallbackList(
     return <String>[...terminalFontFamilyFallback];
   }
   final values = <String>[];
-  for (var index = 0; index < rawValue.length; index += 1) {
-    final entry = rawValue[index];
+  if (maxEntries != null && rawValue.length > maxEntries) {
+    onWarning?.call(
+      TerminalConfigWarning(
+        path: 'appearance.font.fallback',
+        rawValue: rawValue.length,
+        fallbackSummary: 'loaded first $maxEntries valid fallback font entries',
+      ),
+    );
+  }
+  final entries = maxEntries == null
+      ? rawValue
+      : rawValue.take(maxEntries * _directConfigEntryScanMultiplier);
+  var index = 0;
+  for (final entry in entries) {
+    if (maxEntries != null && values.length >= maxEntries) {
+      break;
+    }
     if (entry is String) {
       final normalized = entry.trim();
       if (normalized.isEmpty) {
@@ -1203,9 +1303,11 @@ List<String> _fontFallbackList(
             fallbackSummary: 'ignored empty value',
           ),
         );
+        index += 1;
         continue;
       }
       values.add(normalized);
+      index += 1;
       continue;
     }
     onWarning?.call(
@@ -1215,6 +1317,7 @@ List<String> _fontFallbackList(
         fallbackSummary: 'ignored invalid non-string value',
       ),
     );
+    index += 1;
   }
   return values.isEmpty ? <String>[...terminalFontFamilyFallback] : values;
 }
@@ -1222,6 +1325,7 @@ List<String> _fontFallbackList(
 Map<String, String> _stringMapField(
   Object? rawValue, {
   required String path,
+  int? maxEntries,
   required TerminalConfigWarningCallback? onWarning,
 }) {
   if (rawValue == null) {
@@ -1238,7 +1342,22 @@ Map<String, String> _stringMapField(
     return const <String, String>{};
   }
   final values = <String, String>{};
-  for (final entry in rawValue.entries) {
+  if (maxEntries != null && rawValue.length > maxEntries) {
+    onWarning?.call(
+      TerminalConfigWarning(
+        path: path,
+        rawValue: rawValue.length,
+        fallbackSummary: 'loaded first $maxEntries valid entries',
+      ),
+    );
+  }
+  final entries = maxEntries == null
+      ? rawValue.entries
+      : rawValue.entries.take(maxEntries * _directConfigEntryScanMultiplier);
+  for (final entry in entries) {
+    if (maxEntries != null && values.length >= maxEntries) {
+      break;
+    }
     final key = entry.key;
     final value = entry.value;
     if (key is! String || key.trim().isEmpty || value is! String) {
@@ -1259,11 +1378,22 @@ Map<String, String> _stringMapField(
 int _positiveIntField(
   Object? rawValue, {
   required int fallback,
+  int? maximum,
   required String path,
   required TerminalConfigWarningCallback? onWarning,
 }) {
   final value = _positiveWholeIntOrNull(rawValue);
   if (value != null) {
+    if (maximum != null && value > maximum) {
+      onWarning?.call(
+        TerminalConfigWarning(
+          path: path,
+          rawValue: rawValue,
+          fallbackSummary: 'clamped to maximum value $maximum',
+        ),
+      );
+      return maximum;
+    }
     return value;
   }
   if (rawValue != null) {

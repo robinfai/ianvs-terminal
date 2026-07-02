@@ -30,6 +30,13 @@ List<String> _normalizedTagsFromText(String text) {
   return tags;
 }
 
+String? _tagsError(String text) {
+  if (_normalizedTagsFromText(text).length > maxTerminalProfileTags) {
+    return 'Use $maxTerminalProfileTags tags or fewer.';
+  }
+  return null;
+}
+
 List<TerminalProfileTrigger> _triggersFromText(String text) {
   final triggers = <TerminalProfileTrigger>[];
   final lines = text.split('\n');
@@ -53,6 +60,11 @@ List<TerminalProfileTrigger> _triggersFromText(String text) {
       throw FormatException('Line ${index + 1}: invalid trigger regex.');
     }
     if (actionText.isEmpty || actionText.toLowerCase() == 'notify') {
+      if (triggers.length >= maxTerminalProfileTriggers) {
+        throw FormatException(
+          'Use $maxTerminalProfileTriggers triggers or fewer.',
+        );
+      }
       triggers.add(TerminalProfileTrigger(pattern: pattern));
       continue;
     }
@@ -61,6 +73,11 @@ List<TerminalProfileTrigger> _triggersFromText(String text) {
       final value = _unescapeTriggerValue(actionText.substring(5).trimLeft());
       if (value.isEmpty) {
         throw FormatException('Line ${index + 1}: send text is required.');
+      }
+      if (triggers.length >= maxTerminalProfileTriggers) {
+        throw FormatException(
+          'Use $maxTerminalProfileTriggers triggers or fewer.',
+        );
       }
       triggers.add(
         TerminalProfileTrigger(
@@ -118,6 +135,11 @@ List<TerminalProfileSwitchRule> _switchRulesFromText(String text) {
     }
     if (pattern.isEmpty) {
       throw FormatException('Line ${index + 1}: pattern is required.');
+    }
+    if (rules.length >= maxTerminalProfileSwitchRules) {
+      throw FormatException(
+        'Use $maxTerminalProfileSwitchRules switching rules or fewer.',
+      );
     }
     rules.add(TerminalProfileSwitchRule(kind: kind, pattern: pattern));
   }
@@ -416,6 +438,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   late final TextEditingController _lineHeightController;
   late final TextEditingController _sectionSearchController;
   late final FocusNode _nameFocusNode;
+  late final FocusNode _tagsFocusNode;
   late final FocusNode _triggersFocusNode;
   late final FocusNode _switchRulesFocusNode;
   late final FocusNode _shellFocusNode;
@@ -467,6 +490,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     );
     _sectionSearchController = TextEditingController();
     _nameFocusNode = FocusNode(debugLabel: 'profile-editor-name');
+    _tagsFocusNode = FocusNode(debugLabel: 'profile-editor-tags');
     _triggersFocusNode = FocusNode(debugLabel: 'profile-editor-triggers');
     _switchRulesFocusNode = FocusNode(
       debugLabel: 'profile-editor-switch-rules',
@@ -533,6 +557,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     _disposeControllers(_fallbackControllers);
     _disposeFocusNodes([
       _nameFocusNode,
+      _tagsFocusNode,
       _triggersFocusNode,
       _switchRulesFocusNode,
       _shellFocusNode,
@@ -700,7 +725,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     return null;
   }
 
-  String? _positiveIntegerError(String value, String label) {
+  String? _positiveIntegerError(String value, String label, {int? maximum}) {
     final trimmed = value.trim();
     if (trimmed.isEmpty) {
       return '$label is required';
@@ -708,6 +733,9 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     final parsed = int.tryParse(trimmed);
     if (parsed == null || parsed < 1) {
       return '$label must be a positive integer';
+    }
+    if (maximum != null && parsed > maximum) {
+      return '$label must be $maximum or less';
     }
     return null;
   }
@@ -725,6 +753,12 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   }
 
   String? _envKeyError(int index) {
+    if (index == 0) {
+      final limitError = _envLimitError();
+      if (limitError != null) {
+        return limitError;
+      }
+    }
     final trimmed = _envControllers[index].keyController.text.trim();
     if (trimmed.isEmpty) {
       return 'Key is required';
@@ -906,6 +940,16 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     ];
   }
 
+  String? _stringListLimitError({
+    required List<TextEditingController> controllers,
+    required int maxEntries,
+    required String entryLabel,
+  }) {
+    return _nonEmptyEntries(controllers).length > maxEntries
+        ? 'Use $maxEntries $entryLabel or fewer.'
+        : null;
+  }
+
   Map<String, String> _envEntries() {
     final env = <String, String>{};
     for (final entry in _envControllers) {
@@ -916,6 +960,12 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       env[key] = entry.valueController.text;
     }
     return env;
+  }
+
+  String? _envLimitError() {
+    return _envEntries().length > maxTerminalEnvironmentEntries
+        ? 'Use $maxTerminalEnvironmentEntries environment variables or fewer.'
+        : null;
   }
 
   Future<void> _save() async {
@@ -1118,8 +1168,19 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     if (_requiredFieldError(_nameController.text, 'Name') != null) {
       return _nameFocusNode;
     }
+    if (_tagsError(_tagsController.text) != null) {
+      return _tagsFocusNode;
+    }
     if (_requiredFieldError(_shellController.text, 'Shell') != null) {
       return _shellFocusNode;
+    }
+    if (_stringListLimitError(
+          controllers: _argControllers,
+          maxEntries: maxTerminalLaunchArgs,
+          entryLabel: 'arguments',
+        ) !=
+        null) {
+      return null;
     }
     if (_triggerLinesError(_triggersController.text) != null) {
       return _triggersFocusNode;
@@ -1132,13 +1193,25 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
         return entry.keyFocusNode;
       }
     }
-    if (_positiveIntegerError(_scrollbackController.text, 'Scrollback lines') !=
+    if (_positiveIntegerError(
+          _scrollbackController.text,
+          'Scrollback lines',
+          maximum: maxTerminalScrollbackLines,
+        ) !=
         null) {
       return _scrollbackFocusNode;
     }
     if (_requiredFieldError(_fontFamilyController.text, 'Font family') !=
         null) {
       return _fontFamilyFocusNode;
+    }
+    if (_stringListLimitError(
+          controllers: _fallbackControllers,
+          maxEntries: maxTerminalFontFallbackFamilies,
+          entryLabel: 'fallback fonts',
+        ) !=
+        null) {
+      return null;
     }
     if (_positiveDoubleError(_fontSizeController.text, 'Font size') != null) {
       return _fontSizeFocusNode;
@@ -1628,10 +1701,12 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                 TextFormField(
                                   key: const Key('profile-editor-tags'),
                                   controller: _tagsController,
+                                  focusNode: _tagsFocusNode,
                                   decoration: const InputDecoration(
                                     labelText: 'Tags',
                                     helperText: 'Separate tags with commas.',
                                   ),
+                                  validator: (value) => _tagsError(value ?? ''),
                                 ),
                               ],
                             ),
@@ -1686,6 +1761,8 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                     emptyLabel: 'No launch arguments',
                                     controllers: _argControllers,
                                     fieldKeyPrefix: 'profile-editor-arg',
+                                    maxEntries: maxTerminalLaunchArgs,
+                                    limitEntryLabel: 'arguments',
                                     onAdd: _addArg,
                                     onRemove: _removeArg,
                                     onMoveUp: (index) =>
@@ -1777,6 +1854,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                           _positiveIntegerError(
                                             value ?? '',
                                             'Scrollback lines',
+                                            maximum: maxTerminalScrollbackLines,
                                           ),
                                     ),
                                   ],
@@ -1823,6 +1901,8 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                     emptyLabel: 'No fallback fonts',
                                     controllers: _fallbackControllers,
                                     fieldKeyPrefix: 'profile-editor-fallback',
+                                    maxEntries: maxTerminalFontFallbackFamilies,
+                                    limitEntryLabel: 'fallback fonts',
                                     onAdd: _addFallback,
                                     onRemove: _removeFallback,
                                     onMoveUp: (index) =>
@@ -2173,12 +2253,15 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     required String emptyLabel,
     required List<TextEditingController> controllers,
     required String fieldKeyPrefix,
+    required int maxEntries,
+    required String limitEntryLabel,
     required VoidCallback onAdd,
     required void Function(int index) onRemove,
     required void Function(int index) onMoveUp,
     required void Function(int index) onMoveDown,
   }) {
     final theme = context.appTheme;
+    final canAdd = controllers.length < maxEntries;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2199,7 +2282,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
               icon: Icons.add,
               label: addLabel,
               tooltip: addLabel,
-              onPressed: onAdd,
+              onPressed: canAdd ? onAdd : null,
             ),
           ],
         ),
@@ -2226,6 +2309,13 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                     decoration: InputDecoration(
                       labelText: '$title ${index + 1}',
                     ),
+                    validator: (_) => index == 0
+                        ? _stringListLimitError(
+                            controllers: controllers,
+                            maxEntries: maxEntries,
+                            entryLabel: limitEntryLabel,
+                          )
+                        : null,
                   ),
                 ),
                 SizedBox(width: theme.spacing.sm),
@@ -2258,6 +2348,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
 
   Widget _buildEnvEditor() {
     final theme = context.appTheme;
+    final canAdd = _envControllers.length < maxTerminalEnvironmentEntries;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2278,7 +2369,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
               icon: Icons.add,
               label: 'Add variable',
               tooltip: 'Add variable',
-              onPressed: _addEnv,
+              onPressed: canAdd ? _addEnv : null,
             ),
           ],
         ),

@@ -134,8 +134,92 @@ void main() {
       ),
       throwsArgumentError,
     );
+    expect(
+      () => backend.resizeSession(
+        '18446744073709551616',
+        cols: 80,
+        rows: 24,
+        pixelWidth: 800,
+        pixelHeight: 600,
+      ),
+      throwsRangeError,
+    );
     expect(bindings.lastSessionId, isNull);
   });
+
+  test('native pty backend rejects invalid input bytes before bindings', () {
+    final bindings = _RequestRecordingPtyBindings();
+    final backend = NativePtyBackend.fromBindings(bindings);
+
+    expect(() => backend.writeInput('1', const [-1]), throwsRangeError);
+    expect(bindings.lastSessionId, isNull);
+
+    expect(() => backend.writeInput('1', const [0x100]), throwsRangeError);
+    expect(bindings.lastSessionId, isNull);
+
+    backend.writeInput('1', const [0x00, 0xff]);
+    expect(bindings.lastSessionId, 1);
+    expect(bindings.lastWriteBytes, const [0x00, 0xff]);
+  });
+
+  test('native pty backend rejects resize values before bindings', () {
+    final bindings = _RequestRecordingPtyBindings();
+    final backend = NativePtyBackend.fromBindings(bindings);
+
+    void expectInvalidResize({
+      int cols = 80,
+      int rows = 24,
+      int pixelWidth = 800,
+      int pixelHeight = 600,
+      int cellWidth = 10,
+      int cellHeight = 25,
+    }) {
+      bindings.lastSessionId = null;
+      expect(
+        () => backend.resizeSession(
+          '1',
+          cols: cols,
+          rows: rows,
+          pixelWidth: pixelWidth,
+          pixelHeight: pixelHeight,
+          cellWidth: cellWidth,
+          cellHeight: cellHeight,
+        ),
+        throwsRangeError,
+      );
+      expect(bindings.lastSessionId, isNull);
+    }
+
+    expectInvalidResize(cols: 0);
+    expectInvalidResize(rows: 0);
+    expectInvalidResize(cols: 65536);
+    expectInvalidResize(rows: 65536);
+    expectInvalidResize(pixelWidth: -1);
+    expectInvalidResize(pixelHeight: -1);
+    expectInvalidResize(pixelWidth: 65536);
+    expectInvalidResize(pixelHeight: 65536);
+    expectInvalidResize(cellWidth: -1);
+    expectInvalidResize(cellHeight: -1);
+    expectInvalidResize(cellWidth: 65536);
+    expectInvalidResize(cellHeight: 65536);
+  });
+
+  test(
+    'native pty backend rejects out-of-range scroll values before bindings',
+    () {
+      final bindings = _RequestRecordingPtyBindings();
+      final backend = NativePtyBackend.fromBindings(bindings);
+
+      expect(() => backend.scrollViewport('1', 0x80000000), throwsRangeError);
+      expect(bindings.lastSessionId, isNull);
+
+      expect(() => backend.scrollViewport('1', -0x80000001), throwsRangeError);
+      expect(bindings.lastSessionId, isNull);
+
+      expect(() => backend.scrollViewportTo('1', -1), throwsRangeError);
+      expect(bindings.lastSessionId, isNull);
+    },
+  );
 
   test('pty event decoding skips malformed entries', () {
     final events = PtyEvent.listFromJson(<Object?>[
@@ -150,6 +234,23 @@ void main() {
       <String, Object?>{'kind': 'fractional-session', 'session_id': 7.5},
       <String, Object?>{'kind': 'zero-session', 'session_id': 0},
       <String, Object?>{'kind': 'blank-session', 'session_id': '   '},
+      <String, Object?>{'kind': 'bad-string-session', 'session_id': 'abc'},
+      <String, Object?>{'kind': 'zero-string-session', 'session_id': '0'},
+      <String, Object?>{'kind': 'negative-string-session', 'session_id': '-1'},
+      <String, Object?>{'kind': '   ', 'session_id': 9},
+      <String, Object?>{
+        'kind': 'fractional-string-session',
+        'session_id': '7.5',
+      },
+      <String, Object?>{
+        'kind': 'huge-string-session',
+        'session_id': '18446744073709551616',
+      },
+      <String, Object?>{
+        'kind': List<String>.filled(129, 'x').join(),
+        'session_id': 9,
+      },
+      <String, Object?>{'kind': ' resized ', 'session_id': ' 9 '},
       <String, Object?>{
         'kind': 'exit',
         'session_id': ' 8 ',
@@ -157,18 +258,45 @@ void main() {
       },
     ]);
 
-    expect(events, hasLength(2));
+    expect(events, hasLength(3));
     expect(events.first.kind, 'started');
     expect(events.first.sessionId, '7');
     expect(events.first.payload, <String, Object?>{'cwd': '/tmp/project'});
+    expect(events[1].kind, 'resized');
+    expect(events[1].sessionId, '9');
     expect(events.last.kind, 'exit');
     expect(events.last.sessionId, '8');
     expect(events.last.payload, isNull);
   });
 
+  test('pty event decoding caps oversized event batches', () {
+    final events = PtyEvent.listFromJson(<Object?>[
+      for (var index = 0; index < 1026; index += 1)
+        <String, Object?>{'kind': 'event', 'session_id': index + 1},
+    ]);
+
+    expect(events, hasLength(1024));
+    expect(events.first.sessionId, '1');
+    expect(events.last.sessionId, '1024');
+  });
+
   test('pty event decoding rejects invalid single events', () {
     expect(
       () => PtyEvent.fromJson(<String, Object?>{'kind': 'started'}),
+      throwsFormatException,
+    );
+    expect(
+      () => PtyEvent.fromJson(<String, Object?>{
+        'kind': 'started',
+        'session_id': 'abc',
+      }),
+      throwsFormatException,
+    );
+    expect(
+      () => PtyEvent.fromJson(<String, Object?>{
+        'kind': '   ',
+        'session_id': '1',
+      }),
       throwsFormatException,
     );
   });
@@ -276,7 +404,41 @@ class _NoopDebugPtyBindings extends _NoopPtyBindings {
 class _RequestRecordingPtyBindings extends _NoopPtyBindings {
   int? lastSessionId;
   String? lastRequestJson;
+  List<int>? lastWriteBytes;
   String? response = '{"ok":true}';
+
+  @override
+  int sessionWrite(int sessionId, List<int> bytes) {
+    lastSessionId = sessionId;
+    lastWriteBytes = List<int>.of(bytes);
+    return 0;
+  }
+
+  @override
+  int sessionResize(
+    int sessionId,
+    int cols,
+    int rows,
+    int pixelWidth,
+    int pixelHeight, [
+    int cellWidth = 0,
+    int cellHeight = 0,
+  ]) {
+    lastSessionId = sessionId;
+    return 0;
+  }
+
+  @override
+  int sessionScroll(int sessionId, int deltaLines) {
+    lastSessionId = sessionId;
+    return 0;
+  }
+
+  @override
+  int sessionScrollTo(int sessionId, int offset) {
+    lastSessionId = sessionId;
+    return 0;
+  }
 
   @override
   String? sessionRequestJson(int sessionId, String requestJson) {

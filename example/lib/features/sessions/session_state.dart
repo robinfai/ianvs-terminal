@@ -33,9 +33,9 @@ class TerminalPane {
   TerminalPane copyWith({
     String? title,
     String? profileId,
-    TerminalProfile? profileSnapshot,
+    Object? profileSnapshot = _terminalPaneNoChange,
     bool? isExited,
-    int? exitCode,
+    Object? exitCode = _terminalPaneNoChange,
     TerminalShellIntegrationSnapshot? shellIntegration,
     Object? oscBadge = _terminalPaneNoChange,
     Object? progress = _terminalPaneNoChange,
@@ -46,9 +46,13 @@ class TerminalPane {
       sessionId: sessionId,
       title: title ?? this.title,
       profileId: profileId ?? this.profileId,
-      profileSnapshot: profileSnapshot ?? this.profileSnapshot,
+      profileSnapshot: identical(profileSnapshot, _terminalPaneNoChange)
+          ? this.profileSnapshot
+          : profileSnapshot as TerminalProfile?,
       isExited: isExited ?? this.isExited,
-      exitCode: exitCode ?? this.exitCode,
+      exitCode: identical(exitCode, _terminalPaneNoChange)
+          ? this.exitCode
+          : exitCode as int?,
       shellIntegration: shellIntegration ?? this.shellIntegration,
       oscBadge: identical(oscBadge, _terminalPaneNoChange)
           ? this.oscBadge
@@ -572,9 +576,9 @@ class TerminalTab {
   TerminalTab copyWith({
     String? title,
     String? profileId,
-    TerminalProfile? profileSnapshot,
+    Object? profileSnapshot = _terminalTabNoChange,
     bool? isExited,
-    int? exitCode,
+    Object? exitCode = _terminalTabNoChange,
     List<TerminalPane>? panes,
     Object? paneLayout = _terminalTabNoChange,
     Object? activePaneSessionId = _terminalTabNoChange,
@@ -597,9 +601,13 @@ class TerminalTab {
       sessionId: sessionId,
       title: title ?? this.title,
       profileId: profileId ?? this.profileId,
-      profileSnapshot: profileSnapshot ?? this.profileSnapshot,
+      profileSnapshot: identical(profileSnapshot, _terminalTabNoChange)
+          ? this.profileSnapshot
+          : profileSnapshot as TerminalProfile?,
       isExited: isExited ?? this.isExited,
-      exitCode: exitCode ?? this.exitCode,
+      exitCode: identical(exitCode, _terminalTabNoChange)
+          ? this.exitCode
+          : exitCode as int?,
       panes: panes ?? this.panes,
       paneLayout: nextPaneLayout,
       activePaneSessionId: identical(activePaneSessionId, _terminalTabNoChange)
@@ -774,7 +782,9 @@ class SessionState {
           configurationWarnings ?? this.configurationWarnings,
       themeMode: themeMode ?? this.themeMode,
       terminalViewportPadding:
-          terminalViewportPadding ?? this.terminalViewportPadding,
+          TerminalAppAppearance.normalizeTerminalViewportPadding(
+            terminalViewportPadding ?? this.terminalViewportPadding,
+          ),
       isReady: isReady ?? this.isReady,
       lastError: identical(lastError, _sessionStateNoChange)
           ? this.lastError

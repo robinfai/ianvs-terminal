@@ -78,16 +78,21 @@ pub extern "C" fn ianvs_session_resize_with_cell_size(
 #[unsafe(no_mangle)]
 /// # Safety
 ///
-/// `bytes` must point to `len` readable bytes for the duration of this call.
+/// When `len` is non-zero, `bytes` must point to `len` readable bytes for the
+/// duration of this call. When `len` is zero, `bytes` may be null.
 pub unsafe extern "C" fn ianvs_session_write(
     session_id: u64,
     bytes: *const u8,
     len: usize,
 ) -> c_int {
-    if bytes.is_null() {
-        return -1;
-    }
-    let bytes = unsafe { std::slice::from_raw_parts(bytes, len) };
+    let bytes = if len == 0 {
+        &[]
+    } else {
+        if bytes.is_null() {
+            return -1;
+        }
+        unsafe { std::slice::from_raw_parts(bytes, len) }
+    };
     session::write_session(session_id, bytes)
         .map(|_| 0)
         .unwrap_or(-1)

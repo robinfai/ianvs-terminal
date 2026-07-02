@@ -149,6 +149,27 @@ void main() {
     expect(spans.single.background, const Color(0xFF00FF00));
   });
 
+  testWidgets('invalid direct style runs do not affect cells', (tester) async {
+    final renderObject = await _pumpRenderViewport(
+      tester,
+      row: const TerminalRow(
+        index: 0,
+        text: 'abc',
+        styleRuns: [
+          TerminalStyleRun(start: -2, end: 2, background: Color(0xFF00FF00)),
+          TerminalStyleRun(start: 2, end: 1, background: Color(0xFFFF0000)),
+          TerminalStyleRun(start: 1, end: 3, background: Color(0xFF0000FF)),
+        ],
+      ),
+    );
+
+    final spans = renderObject.debugBackgroundSpansForRow(0);
+    expect(spans, hasLength(1));
+    expect(spans.single.startColumn, 1);
+    expect(spans.single.endColumn, 3);
+    expect(spans.single.background, const Color(0xFF0000FF));
+  });
+
   testWidgets('autosuggestion foreground renders as a visible ghost run', (
     tester,
   ) async {
@@ -180,6 +201,34 @@ void main() {
     expect(ghostStyle.foreground, isNot(const Color(0xFF10141A)));
     expect(ghostStyle.foreground, isNot(const Color(0xFFE5E7EB)));
     expect(ghostStyle.background, isNull);
+  });
+
+  testWidgets('non-finite contrast ratio falls back to default contrast', (
+    tester,
+  ) async {
+    final renderObject = await _pumpRenderViewport(
+      tester,
+      row: const TerminalRow(
+        index: 0,
+        text: 'ghost',
+        styleRuns: [
+          TerminalStyleRun(start: 0, end: 5, foreground: Color(0xFF687378)),
+        ],
+      ),
+      colors: const TerminalViewportColors(
+        canvasBackground: Color(0xFF10141A),
+        foreground: Color(0xFFE5E7EB),
+        cursor: Color(0xFFE5E7EB),
+        selection: Color(0x663B82F6),
+        scrollbarTrack: Color(0x00000000),
+        scrollbarThumb: Color(0x00000000),
+        minimumContrastRatio: double.nan,
+      ),
+    );
+
+    final resolvedStyle = renderObject.debugResolvedStylesForRow(0).single;
+
+    expect(resolvedStyle.foreground, const Color(0xFF687378));
   });
 
   testWidgets(
@@ -425,6 +474,36 @@ void main() {
     );
   });
 
+  testWidgets('search highlights tolerate non-finite radius', (tester) async {
+    final renderObject = await _pumpRenderViewportFrame(
+      tester,
+      frame: const TerminalFrameDiff(
+        rows: [TerminalRow(index: 0, text: 'ready')],
+        cursor: TerminalCursor(row: 0, col: 0, visible: false),
+        viewportRows: 1,
+        viewportCols: 8,
+        dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+      ),
+      searchMatches: const [
+        TerminalSearchMatch(
+          row: 0,
+          startCol: 1,
+          endCol: 4,
+          text: 'ead',
+          scrollbackOffset: 0,
+        ),
+      ],
+      activeSearchMatchIndex: 0,
+      searchHighlightStyle: const TerminalSearchHighlightStyle(
+        radius: double.nan,
+      ),
+    );
+
+    expect(renderObject.debugSearchHighlightRects, hasLength(1));
+  });
+
   testWidgets('search highlights skip matches outside visible rows', (
     tester,
   ) async {
@@ -478,6 +557,69 @@ void main() {
         cellSize.width,
         cellSize.height,
         cellSize.width * 4,
+        cellSize.height,
+      ),
+    );
+  });
+
+  testWidgets('search highlights skip invalid direct matches', (tester) async {
+    final renderObject = await _pumpRenderViewportFrame(
+      tester,
+      frame: const TerminalFrameDiff(
+        rows: [
+          TerminalRow(index: 0, text: 'row zero'),
+          TerminalRow(index: 1, text: 'row one'),
+        ],
+        cursor: TerminalCursor(row: 0, col: 0, visible: false),
+        viewportRows: 2,
+        viewportCols: 6,
+        dirtyRanges: [TerminalDirtyRange(start: 0, end: 2)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+        viewportStartRow: 30,
+      ),
+      searchMatches: const [
+        TerminalSearchMatch(
+          row: 30,
+          startCol: -1,
+          endCol: 2,
+          text: 'bad',
+          scrollbackOffset: 0,
+        ),
+        TerminalSearchMatch(
+          row: 30,
+          startCol: 4,
+          endCol: 3,
+          text: 'bad',
+          scrollbackOffset: 0,
+        ),
+        TerminalSearchMatch(
+          row: 31,
+          startCol: 0,
+          endCol: 1,
+          text: '',
+          scrollbackOffset: 0,
+        ),
+        TerminalSearchMatch(
+          row: 31,
+          startCol: 4,
+          endCol: 12,
+          text: 'ok',
+          scrollbackOffset: 0,
+        ),
+      ],
+    );
+
+    final cellSize = renderObject.debugCellSize;
+    final rects = renderObject.debugSearchHighlightRects;
+
+    expect(rects, hasLength(1));
+    _expectRectClose(
+      rects.single,
+      Rect.fromLTWH(
+        cellSize.width * 4,
+        cellSize.height,
+        cellSize.width * 2,
         cellSize.height,
       ),
     );
@@ -2146,6 +2288,8 @@ Future<RenderTerminalViewport> _pumpRenderViewport(
     scrollbarTrack: Color(0x00000000),
     scrollbarThumb: Color(0x00000000),
   ),
+  TerminalSearchHighlightStyle searchHighlightStyle =
+      const TerminalSearchHighlightStyle(),
 }) async {
   final controller = TerminalViewportController()
     ..updateFrame(
@@ -2172,6 +2316,7 @@ Future<RenderTerminalViewport> _pumpRenderViewport(
             controller: controller,
             selectionController: selectionController,
             colors: colors,
+            searchHighlightStyle: searchHighlightStyle,
           ),
         ),
       ),
@@ -2188,6 +2333,16 @@ Future<RenderTerminalViewport> _pumpRenderViewportFrame(
   required TerminalFrameDiff frame,
   List<TerminalSearchMatch> searchMatches = const [],
   int activeSearchMatchIndex = -1,
+  TerminalViewportColors colors = const TerminalViewportColors(
+    canvasBackground: Color(0xFF10141A),
+    foreground: Color(0xFFE5E7EB),
+    cursor: Color(0xFFE5E7EB),
+    selection: Color(0x663B82F6),
+    scrollbarTrack: Color(0x00000000),
+    scrollbarThumb: Color(0x00000000),
+  ),
+  TerminalSearchHighlightStyle searchHighlightStyle =
+      const TerminalSearchHighlightStyle(),
   bool cursorVisible = false,
   GlobalKey? repaintBoundaryKey,
   TerminalBenchmarkEventSink? benchmarkEventSink,
@@ -2203,16 +2358,10 @@ Future<RenderTerminalViewport> _pumpRenderViewportFrame(
     child: _RenderViewportHarness(
       controller: controller,
       selectionController: selectionController,
-      colors: const TerminalViewportColors(
-        canvasBackground: Color(0xFF10141A),
-        foreground: Color(0xFFE5E7EB),
-        cursor: Color(0xFFE5E7EB),
-        selection: Color(0x663B82F6),
-        scrollbarTrack: Color(0x00000000),
-        scrollbarThumb: Color(0x00000000),
-      ),
+      colors: colors,
       searchMatches: searchMatches,
       activeSearchMatchIndex: activeSearchMatchIndex,
+      searchHighlightStyle: searchHighlightStyle,
       cursorVisible: cursorVisible,
       benchmarkEventSink: benchmarkEventSink,
     ),
@@ -2241,6 +2390,7 @@ class _RenderViewportHarness extends LeafRenderObjectWidget {
     required this.colors,
     this.searchMatches = const [],
     this.activeSearchMatchIndex = -1,
+    this.searchHighlightStyle = const TerminalSearchHighlightStyle(),
     this.cursorVisible = false,
     this.benchmarkEventSink,
   });
@@ -2250,6 +2400,7 @@ class _RenderViewportHarness extends LeafRenderObjectWidget {
   final TerminalViewportColors colors;
   final List<TerminalSearchMatch> searchMatches;
   final int activeSearchMatchIndex;
+  final TerminalSearchHighlightStyle searchHighlightStyle;
   final bool cursorVisible;
   final TerminalBenchmarkEventSink? benchmarkEventSink;
 
@@ -2265,6 +2416,7 @@ class _RenderViewportHarness extends LeafRenderObjectWidget {
       colors: colors,
       searchMatches: searchMatches,
       activeSearchMatchIndex: activeSearchMatchIndex,
+      searchHighlightStyle: searchHighlightStyle,
       benchmarkEventSink: benchmarkEventSink,
     );
   }
@@ -2284,6 +2436,7 @@ class _RenderViewportHarness extends LeafRenderObjectWidget {
       ..colors = colors
       ..searchMatches = searchMatches
       ..activeSearchMatchIndex = activeSearchMatchIndex
+      ..searchHighlightStyle = searchHighlightStyle
       ..benchmarkEventSink = benchmarkEventSink;
   }
 }

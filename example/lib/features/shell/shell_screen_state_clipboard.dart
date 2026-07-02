@@ -166,7 +166,10 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
       note: note.trim(),
     );
     _mutateState(() {
-      _annotations = [annotation, ..._annotations];
+      _annotations = <_TerminalAnnotation>[
+        annotation,
+        ..._annotations,
+      ].take(_ShellScreenState._annotationLimit).toList(growable: false);
     });
     return annotation;
   }

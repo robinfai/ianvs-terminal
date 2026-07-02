@@ -46,7 +46,7 @@ flutter analyze
 flutter test test/widget_test.dart
 flutter test test/shell/shell_screen_phase2b_test.dart
 flutter test test/terminal_input_controller_test.dart
-flutter test integration_test/ianvs_smoke_test.dart
+flutter test -d macos integration_test/ianvs_terminal_smoke_test.dart
 ```
 
 ## Manual QA

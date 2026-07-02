@@ -58,7 +58,7 @@ The objective can close only when all of the following are true:
 | Unit/widget/integration tests | Focused test files have been added across shell, workspace, productivity, policy, visual, diagnostics, manifests, evidence models, `example/integration_test`, and terminal packages; latest all-automated passed in `20260627T172040Z-all-automated`, and latest integration passed in `20260627T172908Z-integration` | Verified | Canonical evidence conversion is complete. |
 | Static analysis | Verification command plan requires `flutter analyze` | Passed | `build/local-terminal-verification/20260627T172040Z-all-automated`: `No issues found!`. |
 | Formatting | Verification command plan requires expanded `dart format` coverage across app, integration/test-driver/tool files, and local packages | Passed | `build/local-terminal-verification/20260627T172040Z-all-automated`: `Formatted 311 files (0 changed)`. |
-| Manual/integration gates | Manual template defines local shell, paste/focus, multipane, notification, and hotkey-window gates; integration batch maps to macOS-targeted `ianvs_smoke_test.dart` plus `real_pty_acceptance_test.dart` | Verified | Manual/integration-backed ledger rows are passed. |
+| Manual/integration gates | Manual template defines local shell, paste/focus, multipane, notification, and hotkey-window gates; integration batch maps to macOS-targeted `ianvs_terminal_smoke_test.dart` plus `real_pty_acceptance_test.dart` | Verified | Manual/integration-backed ledger rows are passed. |
 
 ## Evidence That Must Not Be Treated As Completion
 

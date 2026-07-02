@@ -250,8 +250,14 @@ void main() {
         loaded.profiles.single.terminalEmulation,
         TerminalEmulation.xterm256,
       );
-      expect(loaded.schemaVersion, 1);
-      expect(loaded.toJson()['schemaVersion'], 1);
+      expect(
+        loaded.schemaVersion,
+        TerminalProfilesDocument.currentSchemaVersion,
+      );
+      expect(
+        loaded.toJson()['schemaVersion'],
+        TerminalProfilesDocument.currentSchemaVersion,
+      );
       expect(loaded.toJson().containsKey('defaultProfileId'), isFalse);
     },
   );
@@ -289,7 +295,10 @@ void main() {
         loaded.profiles.single.terminalEmulation,
         TerminalEmulation.xterm256,
       );
-      expect(loaded.schemaVersion, 1);
+      expect(
+        loaded.schemaVersion,
+        TerminalProfilesDocument.currentSchemaVersion,
+      );
     },
   );
 
@@ -432,6 +441,269 @@ void main() {
     final disabledProfile = document.profiles.last;
     expect(disabledProfile.id, 'dev-host');
     expect(disabledProfile.appearance.colors.tab, isNull);
+  });
+
+  test('profile document bounds dynamic profile tags and keeps marker', () {
+    final document = TerminalProfilesDocument.fromJson({
+      'Profiles': [
+        {
+          'Name': 'prod.example.com',
+          'Guid': 'prod-host',
+          'Tags': [
+            for (var index = 0; index < maxTerminalProfileTags + 10; index += 1)
+              'tag-$index',
+          ],
+        },
+      ],
+    });
+
+    final profile = document.profiles.single;
+    expect(profile.tags, hasLength(maxTerminalProfileTags));
+    expect(profile.tags.first, 'tag-0');
+    expect(
+      profile.tags[maxTerminalProfileTags - 2],
+      'tag-${maxTerminalProfileTags - 2}',
+    );
+    expect(profile.tags.last, 'Dynamic');
+  });
+
+  test('profile document skips duplicate profile ids', () {
+    final document = TerminalProfilesDocument.fromJson({
+      'schemaVersion': 4,
+      'profiles': [
+        {
+          'id': 'shared',
+          'name': 'First Shell',
+          'launch': {
+            'program': '/bin/zsh',
+            'args': const ['-l'],
+          },
+        },
+        {
+          'id': 'shared',
+          'name': 'Second Shell',
+          'launch': {
+            'program': '/bin/bash',
+            'args': const ['-l'],
+          },
+        },
+        {
+          'id': 'unique',
+          'name': 'Unique Shell',
+          'launch': {
+            'program': '/bin/sh',
+            'args': const ['-l'],
+          },
+        },
+      ],
+    });
+
+    expect(document.profiles.map((profile) => profile.name), const [
+      'First Shell',
+      'Unique Shell',
+    ]);
+    expect(
+      document.loadWarnings,
+      contains(
+        const TerminalProfileLoadWarning(
+          profileId: 'shared',
+          profileName: 'Second Shell',
+          path: 'profiles[1].id',
+          rawValueSummary: '"shared"',
+          fallbackSummary: 'ignored duplicate profile id',
+        ),
+      ),
+    );
+  });
+
+  test('profile document caps restored profile entries', () {
+    final inputCount = maxTerminalProfiles + 2;
+    final document = TerminalProfilesDocument.fromJson({
+      'schemaVersion': 4,
+      'profiles': [
+        for (var index = 0; index < inputCount; index += 1)
+          {
+            'id': 'profile-$index',
+            'name': 'Profile $index',
+            'launch': {
+              'program': '/bin/zsh',
+              'args': const ['-l'],
+            },
+          },
+      ],
+    });
+
+    expect(document.profiles, hasLength(maxTerminalProfiles));
+    expect(document.profiles.last.id, 'profile-${maxTerminalProfiles - 1}');
+    expect(
+      document.profiles.map((profile) => profile.id),
+      isNot(contains('profile-$maxTerminalProfiles')),
+    );
+    expect(
+      document.loadWarnings,
+      contains(
+        TerminalProfileLoadWarning(
+          profileId: 'document',
+          profileName: 'Profiles document',
+          path: 'profiles',
+          rawValueSummary: _profileCollectionRawValueSummary(
+            inputCount,
+            'profile',
+          ),
+          fallbackSummary: _profileCollectionFallbackSummary(
+            maxTerminalProfiles,
+            'profile',
+          ),
+        ),
+      ),
+    );
+  });
+
+  test('profile document caps restored profile metadata collections', () {
+    final tagInputCount = maxTerminalProfileTags + 2;
+    final triggerInputCount = maxTerminalProfileTriggers + 2;
+    final switchRuleInputCount = maxTerminalProfileSwitchRules + 2;
+    final document = TerminalProfilesDocument.fromJson({
+      'schemaVersion': 4,
+      'profiles': [
+        {
+          'id': 'bounded',
+          'name': 'Bounded Shell',
+          'tags': [
+            for (var index = 0; index < tagInputCount; index += 1) 'tag-$index',
+          ],
+          'triggers': [
+            for (var index = 0; index < triggerInputCount; index += 1)
+              {'pattern': 'TRIGGER_$index'},
+          ],
+          'automaticProfileSwitching': [
+            for (var index = 0; index < switchRuleInputCount; index += 1)
+              {'kind': 'host', 'pattern': 'host-$index.example.com'},
+          ],
+          'launch': {
+            'program': '/bin/zsh',
+            'args': const ['-l'],
+          },
+        },
+      ],
+    });
+
+    final profile = document.profiles.single;
+    expect(profile.tags, hasLength(maxTerminalProfileTags));
+    expect(profile.tags.last, 'tag-${maxTerminalProfileTags - 1}');
+    expect(profile.triggers, hasLength(maxTerminalProfileTriggers));
+    expect(
+      profile.triggers.last.pattern,
+      'TRIGGER_${maxTerminalProfileTriggers - 1}',
+    );
+    expect(profile.switchRules, hasLength(maxTerminalProfileSwitchRules));
+    expect(
+      profile.switchRules.last.pattern,
+      'host-${maxTerminalProfileSwitchRules - 1}.example.com',
+    );
+    expect(
+      document.loadWarnings,
+      containsAll([
+        TerminalProfileLoadWarning(
+          profileId: 'bounded',
+          profileName: 'Bounded Shell',
+          path: 'tags',
+          rawValueSummary: _profileCollectionRawValueSummary(
+            tagInputCount,
+            'tag',
+          ),
+          fallbackSummary: _profileCollectionFallbackSummary(
+            maxTerminalProfileTags,
+            'tag',
+          ),
+        ),
+        TerminalProfileLoadWarning(
+          profileId: 'bounded',
+          profileName: 'Bounded Shell',
+          path: 'triggers',
+          rawValueSummary: _profileCollectionRawValueSummary(
+            triggerInputCount,
+            'trigger',
+          ),
+          fallbackSummary: _profileCollectionFallbackSummary(
+            maxTerminalProfileTriggers,
+            'trigger',
+          ),
+        ),
+        TerminalProfileLoadWarning(
+          profileId: 'bounded',
+          profileName: 'Bounded Shell',
+          path: 'automaticProfileSwitching',
+          rawValueSummary: _profileCollectionRawValueSummary(
+            switchRuleInputCount,
+            'switching rule',
+          ),
+          fallbackSummary: _profileCollectionFallbackSummary(
+            maxTerminalProfileSwitchRules,
+            'switching rule',
+          ),
+        ),
+      ]),
+    );
+  });
+
+  test('profile document scans past invalid metadata entries', () {
+    final document = TerminalProfilesDocument.fromJson({
+      'schemaVersion': 4,
+      'profiles': [
+        {
+          'id': 'recovered',
+          'name': 'Recovered Shell',
+          'tags': [
+            for (var index = 0; index < maxTerminalProfileTags; index += 1)
+              '   ',
+            for (var index = 0; index < maxTerminalProfileTags; index += 1)
+              'tag-$index',
+          ],
+          'triggers': [
+            for (var index = 0; index < maxTerminalProfileTriggers; index += 1)
+              {'pattern': '['},
+            for (var index = 0; index < maxTerminalProfileTriggers; index += 1)
+              {'pattern': 'TRIGGER_$index'},
+          ],
+          'automaticProfileSwitching': [
+            for (
+              var index = 0;
+              index < maxTerminalProfileSwitchRules;
+              index += 1
+            )
+              {'kind': 'unknown', 'pattern': 'ignored-$index'},
+            for (
+              var index = 0;
+              index < maxTerminalProfileSwitchRules;
+              index += 1
+            )
+              {'kind': 'host', 'pattern': 'host-$index.example.com'},
+          ],
+          'launch': {
+            'program': '/bin/zsh',
+            'args': const ['-l'],
+          },
+        },
+      ],
+    });
+
+    final profile = document.profiles.single;
+    expect(profile.tags, hasLength(maxTerminalProfileTags));
+    expect(profile.tags.first, 'tag-0');
+    expect(profile.tags.last, 'tag-${maxTerminalProfileTags - 1}');
+    expect(profile.triggers, hasLength(maxTerminalProfileTriggers));
+    expect(profile.triggers.first.pattern, 'TRIGGER_0');
+    expect(
+      profile.triggers.last.pattern,
+      'TRIGGER_${maxTerminalProfileTriggers - 1}',
+    );
+    expect(profile.switchRules, hasLength(maxTerminalProfileSwitchRules));
+    expect(profile.switchRules.first.pattern, 'host-0.example.com');
+    expect(
+      profile.switchRules.last.pattern,
+      'host-${maxTerminalProfileSwitchRules - 1}.example.com',
+    );
   });
 
   test(
@@ -759,17 +1031,17 @@ void main() {
 
     final loaded = await repository.load();
 
-    expect(loaded.schemaVersion, 1);
+    expect(loaded.schemaVersion, TerminalProfilesDocument.currentSchemaVersion);
     expect(loaded.profiles.single.id, 'default');
     expect(
       loaded.loadWarnings,
       contains(
-        const TerminalProfileLoadWarning(
+        TerminalProfileLoadWarning(
           profileId: 'document',
           profileName: 'Profiles document',
           path: 'schemaVersion',
           rawValueSummary: '"latest"',
-          fallbackSummary: 'used schema version 1',
+          fallbackSummary: _currentSchemaFallbackSummary(),
         ),
       ),
     );
@@ -781,16 +1053,19 @@ void main() {
       'profiles': [],
     });
 
-    expect(document.schemaVersion, 1);
+    expect(
+      document.schemaVersion,
+      TerminalProfilesDocument.currentSchemaVersion,
+    );
     expect(
       document.loadWarnings,
       contains(
-        const TerminalProfileLoadWarning(
+        TerminalProfileLoadWarning(
           profileId: 'document',
           profileName: 'Profiles document',
           path: 'schemaVersion',
           rawValueSummary: '2.5',
-          fallbackSummary: 'used schema version 1',
+          fallbackSummary: _currentSchemaFallbackSummary(),
         ),
       ),
     );
@@ -820,17 +1095,17 @@ void main() {
 
     final loaded = await repository.load();
 
-    expect(loaded.schemaVersion, 1);
+    expect(loaded.schemaVersion, TerminalProfilesDocument.currentSchemaVersion);
     expect(loaded.profiles.single.id, 'default');
     expect(
       loaded.loadWarnings,
       contains(
-        const TerminalProfileLoadWarning(
+        TerminalProfileLoadWarning(
           profileId: 'document',
           profileName: 'Profiles document',
           path: 'schemaVersion',
           rawValueSummary: 'Infinity',
-          fallbackSummary: 'used schema version 1',
+          fallbackSummary: _currentSchemaFallbackSummary(),
         ),
       ),
     );
@@ -863,17 +1138,17 @@ void main() {
 
     final loaded = await repository.load();
 
-    expect(loaded.schemaVersion, 1);
+    expect(loaded.schemaVersion, TerminalProfilesDocument.currentSchemaVersion);
     expect(loaded.profiles.single.id, 'default');
     expect(
       loaded.loadWarnings,
       contains(
-        const TerminalProfileLoadWarning(
+        TerminalProfileLoadWarning(
           profileId: 'document',
           profileName: 'Profiles document',
           path: 'schemaVersion',
           rawValueSummary: '-2',
-          fallbackSummary: 'used schema version 1',
+          fallbackSummary: _currentSchemaFallbackSummary(),
         ),
       ),
     );
@@ -936,7 +1211,7 @@ void main() {
   );
 
   test(
-    'profile repository falls back in-memory when the json document is malformed',
+    'profile repository quarantines malformed json and saves fallback profiles',
     () async {
       final directory = await Directory.systemTemp.createTemp(
         'ianvs terminal-profiles-malformed-json',
@@ -949,6 +1224,13 @@ void main() {
       );
 
       final loaded = await repository.load();
+      final repairedRaw = jsonDecode(await file.readAsString());
+      final quarantinedFiles = await directory
+          .list()
+          .where(
+            (entity) => entity.path.contains('ianvs_profiles.json.corrupt'),
+          )
+          .toList();
 
       expect(
         loaded.profiles.map((profile) => profile.id),
@@ -962,9 +1244,29 @@ void main() {
       expect(loaded.loadWarnings.single.path, 'document');
       expect(
         loaded.loadWarnings.single.fallbackSummary,
-        'loaded in-memory fallback profiles',
+        'quarantined corrupt file and saved fallback profiles',
       );
-      expect(await file.readAsString(), '{bad json');
+      expect(repairedRaw, isA<Map<String, Object?>>());
+      expect(quarantinedFiles, hasLength(1));
+      expect(
+        await File(quarantinedFiles.single.path).readAsString(),
+        '{bad json',
+      );
     },
   );
+}
+
+String _currentSchemaFallbackSummary() {
+  return 'used schema version ${TerminalProfilesDocument.currentSchemaVersion}';
+}
+
+String _profileCollectionRawValueSummary(int inputCount, String entryLabel) {
+  return '$inputCount $entryLabel entries';
+}
+
+String _profileCollectionFallbackSummary(int maxEntries, String entryLabel) {
+  if (entryLabel == 'profile') {
+    return 'loaded first $maxEntries $entryLabel entries';
+  }
+  return 'loaded first $maxEntries valid $entryLabel entries';
 }

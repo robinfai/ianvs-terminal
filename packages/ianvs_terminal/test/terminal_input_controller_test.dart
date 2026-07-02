@@ -1941,6 +1941,44 @@ void main() {
       );
     });
 
+    test('mouse reports clamp invalid SGR parameters', () {
+      final bytes = TerminalInputController.mouseReportBytesFor(
+        modes: const TerminalFrameModes(
+          mouseMode: 'normal',
+          mouseEncoding: 'sgr',
+        ),
+        row: -4,
+        col: -7,
+        button: -2,
+        pressed: true,
+        modifiers: -1,
+      );
+
+      expect(ascii.decode(bytes), '\x1B[<0;1;1M');
+    });
+
+    test('utf8 mouse reports cap coordinates before encoding', () {
+      final bytes = TerminalInputController.mouseReportBytesFor(
+        modes: const TerminalFrameModes(
+          mouseMode: 'normal',
+          mouseEncoding: 'utf8',
+        ),
+        row: 0x7fffffff,
+        col: 0x7fffffff,
+        button: 999,
+        pressed: true,
+        modifiers: 999,
+      );
+
+      expect(bytes.take(4).toList(growable: false), <int>[
+        0x1b,
+        0x5b,
+        0x4d,
+        255,
+      ]);
+      expect(bytes.length, 12);
+    });
+
     test('encodes URXVT release bytes', () {
       final bytes = TerminalInputController.mouseReportBytesFor(
         modes: const TerminalFrameModes(

@@ -67,6 +67,14 @@ typedef _GraphicAssetRgbaCopyNative =
 typedef _GraphicAssetRgbaCopyDart =
     int Function(int, int, int, ffi.Pointer<ffi.Uint8>, int);
 
+const _maxUint16 = 0xffff;
+const _minInt32 = -0x80000000;
+const _maxInt32 = 0x7fffffff;
+const _maxEventKindLength = 128;
+const _maxPtyEventBatchLength = 1024;
+final _sessionIdDigits = RegExp(r'^[0-9]+$');
+final _maxUint64 = BigInt.parse('18446744073709551615');
+
 final class _NativeGraphicAssetMeta extends ffi.Struct {
   @ffi.Uint32()
   external int width;
@@ -182,9 +190,9 @@ class PtyEvent {
     if (map == null) {
       return null;
     }
-    final kind = map['kind'];
+    final kind = _eventKindFromJson(map['kind']);
     final sessionId = _sessionIdFromJson(map['session_id']);
-    if (kind is! String || sessionId == null) {
+    if (kind == null || sessionId == null) {
       return null;
     }
     return PtyEvent(
@@ -199,7 +207,7 @@ class PtyEvent {
       return const <PtyEvent>[];
     }
     final events = <PtyEvent>[];
-    for (final entry in json) {
+    for (final entry in json.take(_maxPtyEventBatchLength)) {
       final event = PtyEvent.tryFromJson(entry);
       if (event != null) {
         events.add(event);
@@ -207,6 +215,17 @@ class PtyEvent {
     }
     return events;
   }
+}
+
+String? _eventKindFromJson(Object? value) {
+  if (value is! String) {
+    return null;
+  }
+  final trimmed = value.trim();
+  if (trimmed.isEmpty || trimmed.length > _maxEventKindLength) {
+    return null;
+  }
+  return trimmed;
 }
 
 Map<String, Object?>? _stringKeyedJsonMap(Object? value) {
@@ -224,18 +243,30 @@ Map<String, Object?>? _stringKeyedJsonMap(Object? value) {
 }
 
 String? _sessionIdFromJson(Object? value) {
-  if (value is num && value.isFinite) {
+  if (value is int) {
+    return _sessionIdStringFromDigits(value.toString());
+  }
+  if (value is double && value.isFinite) {
     final parsed = value.toInt();
-    if (parsed > 0 && value == parsed) {
-      return parsed.toString();
+    if (value == parsed) {
+      return _sessionIdStringFromDigits(parsed.toString());
     }
-    return null;
   }
   if (value is String) {
-    final trimmed = value.trim();
-    return trimmed.isEmpty ? null : trimmed;
+    return _sessionIdStringFromDigits(value.trim());
   }
   return null;
+}
+
+String? _sessionIdStringFromDigits(String value) {
+  if (!_sessionIdDigits.hasMatch(value)) {
+    return null;
+  }
+  final parsed = BigInt.parse(value);
+  if (parsed <= BigInt.zero || parsed > _maxUint64) {
+    return null;
+  }
+  return parsed.toString();
 }
 
 abstract class PtyBindings {
@@ -604,30 +635,45 @@ class NativePtyBackend
     int cellWidth = 0,
     int cellHeight = 0,
   }) {
+    final nativeSessionId = _nativeSessionId(sessionId);
+    final nativeCols = _nativeUint16('cols', cols, min: 1);
+    final nativeRows = _nativeUint16('rows', rows, min: 1);
+    final nativePixelWidth = _nativeUint16('pixelWidth', pixelWidth);
+    final nativePixelHeight = _nativeUint16('pixelHeight', pixelHeight);
+    final nativeCellWidth = _nativeUint16('cellWidth', cellWidth);
+    final nativeCellHeight = _nativeUint16('cellHeight', cellHeight);
     _bindings.sessionResize(
-      _nativeSessionId(sessionId),
-      cols,
-      rows,
-      pixelWidth,
-      pixelHeight,
-      cellWidth,
-      cellHeight,
+      nativeSessionId,
+      nativeCols,
+      nativeRows,
+      nativePixelWidth,
+      nativePixelHeight,
+      nativeCellWidth,
+      nativeCellHeight,
     );
   }
 
   @override
   void writeInput(String sessionId, List<int> bytes) {
-    _bindings.sessionWrite(_nativeSessionId(sessionId), bytes);
+    final nativeSessionId = _nativeSessionId(sessionId);
+    _validateNativeBytes(bytes);
+    _bindings.sessionWrite(nativeSessionId, bytes);
   }
 
   @override
   void scrollViewport(String sessionId, int deltaLines) {
-    _bindings.sessionScroll(_nativeSessionId(sessionId), deltaLines);
+    _bindings.sessionScroll(
+      _nativeSessionId(sessionId),
+      _nativeInt32('deltaLines', deltaLines),
+    );
   }
 
   @override
   void scrollViewportTo(String sessionId, int offset) {
-    _bindings.sessionScrollTo(_nativeSessionId(sessionId), offset);
+    _bindings.sessionScrollTo(
+      _nativeSessionId(sessionId),
+      _nativeNonNegativeOffset(offset),
+    );
   }
 
   @override
@@ -678,15 +724,59 @@ class NativePtyBackend
 }
 
 int _nativeSessionId(String sessionId) {
-  final parsed = int.tryParse(sessionId);
-  if (parsed == null || parsed <= 0) {
+  if (!_sessionIdDigits.hasMatch(sessionId)) {
     throw ArgumentError.value(
       sessionId,
       'sessionId',
       'must be a positive integer',
     );
   }
+  final parsedBigInt = BigInt.parse(sessionId);
+  if (parsedBigInt <= BigInt.zero) {
+    throw ArgumentError.value(
+      sessionId,
+      'sessionId',
+      'must be a positive integer',
+    );
+  }
+  if (parsedBigInt > _maxUint64) {
+    throw RangeError('sessionId must fit in uint64: $sessionId');
+  }
+  final parsed = int.tryParse(sessionId);
+  if (parsed == null) {
+    throw RangeError('sessionId must fit in Dart int: $sessionId');
+  }
   return parsed;
+}
+
+void _validateNativeBytes(List<int> bytes) {
+  for (var index = 0; index < bytes.length; index += 1) {
+    final byte = bytes[index];
+    if (byte < 0 || byte > 0xff) {
+      throw RangeError.range(byte, 0, 0xff, 'bytes[$index]');
+    }
+  }
+}
+
+int _nativeUint16(String name, int value, {int min = 0}) {
+  if (value < min || value > _maxUint16) {
+    throw RangeError.range(value, min, _maxUint16, name);
+  }
+  return value;
+}
+
+int _nativeInt32(String name, int value) {
+  if (value < _minInt32 || value > _maxInt32) {
+    throw RangeError.range(value, _minInt32, _maxInt32, name);
+  }
+  return value;
+}
+
+int _nativeNonNegativeOffset(int offset) {
+  if (offset < 0) {
+    throw RangeError.range(offset, 0, null, 'offset');
+  }
+  return offset;
 }
 
 String _resolveLibraryPath() {

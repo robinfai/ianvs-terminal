@@ -14,7 +14,7 @@
 - `example/test/app/app_theme_mode_test.dart`
 - `example/test/shell/shell_screen_phase3_test.dart`
 - `example/test/sessions/session_controller_phase3_test.dart`
-- `example/integration_test/ianvs_smoke_test.dart`
+- `example/integration_test/ianvs_terminal_smoke_test.dart`
 - `docs/TESTING.md`
 - `docs/tasks/shell-product/T-049-hyper-phase3-ui-experience.md`
 
@@ -50,7 +50,7 @@ flutter test test/sessions/session_controller_phase3_test.dart
 flutter test test/preferences/app_preferences_repository_test.dart
 flutter test test/preferences/app_preferences_repository_phase3_test.dart
 flutter test test/app/app_theme_mode_test.dart
-flutter test integration_test/ianvs_smoke_test.dart
+flutter test -d macos integration_test/ianvs_terminal_smoke_test.dart
 ```
 
 ## Manual QA

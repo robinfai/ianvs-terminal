@@ -132,12 +132,12 @@ Fill these fields when a command is run:
 | Field | Value |
 | --- | --- |
 | Command | `bash tools/local_terminal_verification_capture.sh run integration` |
-| Underlying command | `PROFILE=debug tools/build_core.sh`; then from `example`, `IANVS_CORE_LIB=../native/core/target/debug/libianvs_core.dylib flutter test -d macos integration_test/ianvs_smoke_test.dart`; then the same command shape for `integration_test/real_pty_acceptance_test.dart` |
+| Underlying command | `PROFILE=debug tools/build_core.sh`; then from `example`, `IANVS_CORE_LIB=../native/core/target/debug/libianvs_core.dylib flutter test -d macos integration_test/ianvs_terminal_smoke_test.dart`; then the same command shape for `integration_test/real_pty_acceptance_test.dart` |
 | Working directory | `/Users/luobinghui/projects/flutter/ianvs terminal` |
 | Date/time | Started `20260516T165717Z`; finished `20260516T165935Z` |
 | Exit status | `0` |
 | Output log | `build/local-terminal-verification/20260516T171644Z-integration/output.log` |
-| Output summary | Built `native/core` debug dylib, built the macOS app, passed `ianvs_smoke_test.dart` 4/4, and passed `real_pty_acceptance_test.dart` 7/7. |
+| Output summary | Built `native/core` debug dylib, built the macOS app, passed `ianvs_terminal_smoke_test.dart` 4/4, and passed `real_pty_acceptance_test.dart` 7/7. |
 | Failing tests or issues | None in this rerun. |
 | Follow-up task, if needed | Conversion into `LocalTerminalVerificationGateRecord` values is represented by `LocalTerminalVerificationPlanRecords.latestPassed()`; completion-report closure is covered by `LocalTerminalCurrentCompletionState.verified`. |
 | Verification gate status | passed |

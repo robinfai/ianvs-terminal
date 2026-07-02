@@ -3,7 +3,12 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
+import '../../platform/corrupt_file_quarantine.dart';
 import 'local_terminal_visual_models.dart';
+
+const int maxLocalTerminalLayoutTemplates = 100;
+const _maxPersistedLayoutTemplateEntriesToScan =
+    maxLocalTerminalLayoutTemplates * 4;
 
 typedef LocalTerminalLayoutTemplateDirectoryResolver =
     Future<Directory> Function();
@@ -27,14 +32,15 @@ class LocalTerminalLayoutTemplateRepository {
       if (decoded is! List) {
         throw const FormatException('Layout template list must be an array.');
       }
-      return decoded
-          .map(_objectMap)
-          .whereType<Map<Object?, Object?>>()
-          .map(LocalTerminalLayoutTemplate.fromJson)
-          .where((template) => template.localOnly && template.isUsable)
-          .toList(growable: false);
+      return _uniqueUsableTemplates(
+        decoded
+            .take(_maxPersistedLayoutTemplateEntriesToScan)
+            .map(_objectMap)
+            .whereType<Map<Object?, Object?>>()
+            .map(LocalTerminalLayoutTemplate.fromJson),
+      );
     } on Object {
-      await _quarantineCorruptFile(file);
+      await quarantineCorruptFile(file);
       await save(const <LocalTerminalLayoutTemplate>[]);
       return const <LocalTerminalLayoutTemplate>[];
     }
@@ -45,10 +51,9 @@ class LocalTerminalLayoutTemplateRepository {
     await file.parent.create(recursive: true);
     await file.writeAsString(
       jsonEncode(
-        templates
-            .where((template) => template.localOnly && template.isUsable)
-            .map((template) => template.toJson())
-            .toList(growable: false),
+        _uniqueUsableTemplates(
+          templates,
+        ).map((template) => template.toJson()).toList(growable: false),
       ),
     );
   }
@@ -58,10 +63,22 @@ class LocalTerminalLayoutTemplateRepository {
     return File('${directory.path}/ianvs_layout_templates.json');
   }
 
-  Future<void> _quarantineCorruptFile(File file) async {
-    final quarantinedPath =
-        '${file.path}.corrupt.${DateTime.now().millisecondsSinceEpoch}';
-    await file.rename(quarantinedPath);
+  List<LocalTerminalLayoutTemplate> _uniqueUsableTemplates(
+    Iterable<LocalTerminalLayoutTemplate> templates,
+  ) {
+    final seenIds = <String>{};
+    final unique = <LocalTerminalLayoutTemplate>[];
+    for (final template in templates) {
+      final id = template.id.trim();
+      if (!template.canApply || !seenIds.add(id)) {
+        continue;
+      }
+      unique.add(template);
+      if (unique.length >= maxLocalTerminalLayoutTemplates) {
+        break;
+      }
+    }
+    return unique;
   }
 }
 

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
+import '../../platform/corrupt_file_quarantine.dart';
 import '../preferences/app_preferences_models.dart';
 import 'local_terminal_config_models.dart';
 
@@ -27,7 +28,7 @@ class LocalTerminalConfigRepository {
         jsonDecode(raw) as Map<String, Object?>,
       );
     } on Object {
-      await _quarantineCorruptFile(file);
+      await quarantineCorruptFile(file);
       const repaired = LocalTerminalConfigDocument();
       await save(repaired);
       return repaired;
@@ -43,12 +44,6 @@ class LocalTerminalConfigRepository {
   Future<File> _configFile() async {
     final directory = await _directoryResolver();
     return File('${directory.path}/ianvs_config.json');
-  }
-
-  Future<void> _quarantineCorruptFile(File file) async {
-    final quarantinedPath =
-        '${file.path}.corrupt.${DateTime.now().millisecondsSinceEpoch}';
-    await file.rename(quarantinedPath);
   }
 }
 

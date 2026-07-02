@@ -1,3 +1,5 @@
+const int maxPasswordManagerEntries = 50;
+
 class PasswordManagerEntry {
   const PasswordManagerEntry({
     required this.id,
@@ -24,6 +26,9 @@ class PasswordManagerStore {
       password: password,
     );
     _entries.insert(0, entry);
+    if (_entries.length > maxPasswordManagerEntries) {
+      _entries.removeRange(maxPasswordManagerEntries, _entries.length);
+    }
     return entry;
   }
 

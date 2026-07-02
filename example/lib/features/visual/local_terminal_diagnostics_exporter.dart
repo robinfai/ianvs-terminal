@@ -1,7 +1,18 @@
 import 'dart:convert';
 import 'dart:io';
 
+import '../../platform/local_file_collision.dart';
 import '../terminal/terminal.dart' as terminal;
+
+const _maxSafeBasenameLength = 120;
+const _maxDiagnosticsResourceSamples = 60;
+const _maxDiagnosticsEvents = 200;
+const _maxDiagnosticsSummaryEntries = 32;
+const _maxDiagnosticsSummaryNestedEntries = 32;
+const _maxDiagnosticsSummaryListEntries = 20;
+const _maxDiagnosticsSummaryScanMultiplier = 4;
+const _maxDiagnosticsSummaryStringLength = 4096;
+const _maxDiagnosticsSummaryListStringLength = 512;
 
 class LocalTerminalDiagnosticsExporter {
   const LocalTerminalDiagnosticsExporter._();
@@ -14,15 +25,18 @@ class LocalTerminalDiagnosticsExporter {
     if (exports.isEmpty) {
       throw StateError('At least one diagnostics export is required.');
     }
+    final boundedExports = exports.map(_boundedExport).toList(growable: false);
 
     await directory.create(recursive: true);
-    final target = Directory('${directory.path}/${_safeBasename(basename)}');
+    final target = await nextAvailableDirectory(
+      Directory('${directory.path}/${_safeBasename(basename)}'),
+    );
     await target.create(recursive: true);
 
     final manifest = <String, Object?>{
       'schema_version': 'terminal-diagnostics-bundle-v1',
       'generated_at': DateTime.now().toUtc().toIso8601String(),
-      'session_count': exports.length,
+      'session_count': boundedExports.length,
       'privacy': const <String, Object?>{
         'content_included': false,
         'scrollback_included': false,
@@ -30,13 +44,13 @@ class LocalTerminalDiagnosticsExporter {
         'raw_command_included': false,
         'raw_cwd_included': false,
       },
-      'sessions': exports.map((export) => export.manifest).toList(),
+      'sessions': boundedExports.map((export) => export.manifest).toList(),
     };
 
     await _writeJson(File('${target.path}/manifest.json'), manifest);
     await _writeJson(
       File('${target.path}/sessions.json'),
-      exports
+      boundedExports
           .map(
             (export) => <String, Object?>{
               'manifest': export.manifest,
@@ -47,7 +61,7 @@ class LocalTerminalDiagnosticsExporter {
     );
     await _writeJsonLines(
       File('${target.path}/resource_samples.jsonl'),
-      exports.expand(
+      boundedExports.expand(
         (export) => export.resourceSamples.map(
           (sample) => _withSessionId(sample, export.manifest),
         ),
@@ -55,7 +69,7 @@ class LocalTerminalDiagnosticsExporter {
     );
     await _writeJsonLines(
       File('${target.path}/terminal_stats.jsonl'),
-      exports.map(
+      boundedExports.map(
         (export) => <String, Object?>{
           'session_id': export.manifest['session_id'],
           'terminal_stats': export.terminalStats,
@@ -64,7 +78,7 @@ class LocalTerminalDiagnosticsExporter {
     );
     await _writeJsonLines(
       File('${target.path}/events.jsonl'),
-      exports.expand(
+      boundedExports.expand(
         (export) => export.events.map(
           (event) => _withSessionId(event, export.manifest),
         ),
@@ -72,9 +86,27 @@ class LocalTerminalDiagnosticsExporter {
     );
     await File(
       '${target.path}/summary.md',
-    ).writeAsString(_summaryMarkdown(exports));
+    ).writeAsString(_summaryMarkdown(boundedExports));
 
     return target;
+  }
+
+  static terminal.TerminalDiagnosticsExport _boundedExport(
+    terminal.TerminalDiagnosticsExport export,
+  ) {
+    return terminal.TerminalDiagnosticsExport(
+      manifest: _boundedJsonMap(export.manifest),
+      resourceSamples: export.resourceSamples
+          .take(_maxDiagnosticsResourceSamples)
+          .map(_boundedJsonMap)
+          .toList(growable: false),
+      terminalStats: _boundedJsonMap(export.terminalStats),
+      events: export.events
+          .take(_maxDiagnosticsEvents)
+          .map(_boundedJsonMap)
+          .toList(growable: false),
+      summary: _boundedSummary(export.summary),
+    );
   }
 
   static Future<void> _writeJson(File file, Object? value) {
@@ -184,16 +216,133 @@ class LocalTerminalDiagnosticsExporter {
       return const <String>[];
     }
     final strings = <String>[];
-    for (final entry in value) {
-      if (entry is! String) {
-        continue;
+    for (final entry in value.take(
+      _maxDiagnosticsSummaryEntriesToScan(_maxDiagnosticsSummaryListEntries),
+    )) {
+      if (strings.length >= _maxDiagnosticsSummaryListEntries) {
+        break;
       }
-      final text = entry.trim();
-      if (text.isNotEmpty) {
+      final text = _boundedNonEmptyTrimmedString(
+        entry,
+        maxLength: _maxDiagnosticsSummaryListStringLength,
+      );
+      if (text != null) {
         strings.add(text);
       }
     }
     return strings;
+  }
+
+  static Map<String, Object?> _boundedSummary(Map<String, Object?> value) {
+    final result = <String, Object?>{};
+    for (final entry in value.entries.take(
+      _maxDiagnosticsSummaryEntriesToScan(_maxDiagnosticsSummaryEntries),
+    )) {
+      if (result.length >= _maxDiagnosticsSummaryEntries) {
+        break;
+      }
+      final boundedValue = switch (entry.key) {
+        'evidence' || 'next_steps' => _stringList(entry.value),
+        _ => _boundedJsonValue(entry.value, depth: 2),
+      };
+      if (boundedValue != null) {
+        result[entry.key] = boundedValue;
+      }
+    }
+    return result;
+  }
+
+  static Map<String, Object?> _boundedJsonMap(Map<String, Object?> value) {
+    final result = <String, Object?>{};
+    for (final entry in value.entries.take(
+      _maxDiagnosticsSummaryEntriesToScan(_maxDiagnosticsSummaryNestedEntries),
+    )) {
+      if (result.length >= _maxDiagnosticsSummaryNestedEntries) {
+        break;
+      }
+      final boundedValue = _boundedJsonValue(entry.value, depth: 2);
+      if (boundedValue != null) {
+        result[entry.key] = boundedValue;
+      }
+    }
+    return result;
+  }
+
+  static Object? _boundedJsonValue(Object? value, {required int depth}) {
+    if (value == null || value is bool) {
+      return value;
+    }
+    if (value is num) {
+      return value.isFinite ? value : null;
+    }
+    final text = _boundedNonEmptyTrimmedString(
+      value,
+      maxLength: _maxDiagnosticsSummaryStringLength,
+    );
+    if (text != null) {
+      return text;
+    }
+    if (depth <= 0) {
+      return null;
+    }
+    if (value is List) {
+      final result = <Object?>[];
+      for (final entry in value.take(
+        _maxDiagnosticsSummaryEntriesToScan(_maxDiagnosticsSummaryListEntries),
+      )) {
+        if (result.length >= _maxDiagnosticsSummaryListEntries) {
+          break;
+        }
+        final boundedValue = _boundedJsonValue(entry, depth: depth - 1);
+        if (boundedValue != null) {
+          result.add(boundedValue);
+        }
+      }
+      return result;
+    }
+    if (value is Map) {
+      final result = <String, Object?>{};
+      for (final entry in value.entries.take(
+        _maxDiagnosticsSummaryEntriesToScan(
+          _maxDiagnosticsSummaryNestedEntries,
+        ),
+      )) {
+        if (result.length >= _maxDiagnosticsSummaryNestedEntries) {
+          break;
+        }
+        final key = _boundedNonEmptyTrimmedString(
+          entry.key,
+          maxLength: _maxDiagnosticsSummaryListStringLength,
+        );
+        if (key == null) {
+          continue;
+        }
+        final boundedValue = _boundedJsonValue(entry.value, depth: depth - 1);
+        if (boundedValue != null) {
+          result[key] = boundedValue;
+        }
+      }
+      return result;
+    }
+    return null;
+  }
+
+  static int _maxDiagnosticsSummaryEntriesToScan(int maxEntries) {
+    return maxEntries * _maxDiagnosticsSummaryScanMultiplier;
+  }
+
+  static String? _boundedNonEmptyTrimmedString(
+    Object? value, {
+    required int maxLength,
+  }) {
+    final text = value is String ? value.trim() : null;
+    if (text == null || text.isEmpty) {
+      return null;
+    }
+    if (text.length <= maxLength) {
+      return text;
+    }
+    return text.substring(0, maxLength);
   }
 
   static String _safeBasename(String basename) {
@@ -202,8 +351,21 @@ class LocalTerminalDiagnosticsExporter {
         .replaceAll(RegExp('-+'), '-')
         .replaceAll(RegExp(r'^-+|-+$'), '');
     if (safe.isEmpty || RegExp(r'^\.+$').hasMatch(safe)) {
-      return 'diagnostics-${DateTime.now().millisecondsSinceEpoch}';
+      return _fallbackBasename();
     }
-    return safe;
+    if (safe.length <= _maxSafeBasenameLength) {
+      return safe;
+    }
+    final truncated = safe
+        .substring(0, _maxSafeBasenameLength)
+        .replaceAll(RegExp(r'[._-]+$'), '');
+    if (truncated.isEmpty || RegExp(r'^\.+$').hasMatch(truncated)) {
+      return _fallbackBasename();
+    }
+    return truncated;
+  }
+
+  static String _fallbackBasename() {
+    return 'diagnostics-${DateTime.now().millisecondsSinceEpoch}';
   }
 }

@@ -29,6 +29,7 @@ extension _ShellScreenStateCoprocesses on _ShellScreenState {
       if (!seenKeys.add(inputKey)) {
         continue;
       }
+      _trimCoprocessInputHistory(seenKeys);
       nextCoprocess = nextCoprocess.copyWith(
         inputLineCount: nextCoprocess.inputLineCount + 1,
         lastInput: input,
@@ -48,6 +49,12 @@ extension _ShellScreenStateCoprocesses on _ShellScreenState {
     }
     if (pendingResponse != null) {
       _sendPlainTextToSession(sessionId, pendingResponse);
+    }
+  }
+
+  void _trimCoprocessInputHistory(Set<String> seenKeys) {
+    while (seenKeys.length > _ShellScreenState._coprocessInputHistoryLimit) {
+      seenKeys.remove(seenKeys.first);
     }
   }
 
@@ -125,6 +132,7 @@ extension _ShellScreenStateCoprocesses on _ShellScreenState {
         if (!seenMatches.add(matchKey)) {
           continue;
         }
+        _trimTriggerMatchHistory(seenMatches);
         _recordCapturedOutput(sessionId, trigger, logicalRow);
         _runProfileTrigger(sessionId, trigger, text);
       }
@@ -177,10 +185,32 @@ extension _ShellScreenStateCoprocesses on _ShellScreenState {
   }
 
   RegExp? _regexForTrigger(TerminalProfileTrigger trigger) {
+    final cacheKey = _triggerRegexCacheKey(trigger);
+    if (_profileTriggerRegexCache.containsKey(cacheKey)) {
+      return _profileTriggerRegexCache[cacheKey];
+    }
+
+    RegExp? regex;
     try {
-      return RegExp(trigger.pattern, caseSensitive: trigger.caseSensitive);
+      regex = RegExp(trigger.pattern, caseSensitive: trigger.caseSensitive);
     } on FormatException {
-      return null;
+      regex = null;
+    }
+    if (_profileTriggerRegexCache.length >=
+        _ShellScreenState._profileTriggerRegexCacheLimit) {
+      _profileTriggerRegexCache.clear();
+    }
+    _profileTriggerRegexCache[cacheKey] = regex;
+    return regex;
+  }
+
+  String _triggerRegexCacheKey(TerminalProfileTrigger trigger) {
+    return '${trigger.caseSensitive ? '1' : '0'}\u0000${trigger.pattern}';
+  }
+
+  void _trimTriggerMatchHistory(Set<String> seenMatches) {
+    while (seenMatches.length > _ShellScreenState._triggerMatchHistoryLimit) {
+      seenMatches.remove(seenMatches.first);
     }
   }
 

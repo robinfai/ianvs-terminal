@@ -471,27 +471,20 @@ class TerminalInputController {
     int? pixelX,
     int? pixelY,
   }) {
+    final normalizedRow = _mouseCoordinate(row);
+    final normalizedCol = _mouseCoordinate(col);
+    final normalizedButton = _mouseButton(button);
+    final normalizedModifiers = _mouseModifiers(modifiers);
+    final normalizedPixelX = pixelX == null ? null : _mouseCoordinate(pixelX);
+    final normalizedPixelY = pixelY == null ? null : _mouseCoordinate(pixelY);
     if (!_shouldReportMouseEvent(
       mode: modes.mouseMode,
-      button: button,
+      button: normalizedButton,
       pressed: pressed,
     )) {
       return const <int>[];
     }
-    final normalizedRow = row < 0 ? 0 : row;
-    final normalizedCol = col < 0 ? 0 : col;
-    final normalizedPixelX = pixelX == null
-        ? null
-        : pixelX < 0
-        ? 0
-        : pixelX;
-    final normalizedPixelY = pixelY == null
-        ? null
-        : pixelY < 0
-        ? 0
-        : pixelY;
-    final normalizedModifiers = modifiers < 0 ? 0 : modifiers & 0x07;
-    final buttonCode = button | (normalizedModifiers << 2);
+    final buttonCode = normalizedButton | (normalizedModifiers << 2);
     return switch (modes.mouseEncoding) {
       'sgr' => ascii.encode(
         '\x1B[<$buttonCode;${normalizedCol + 1};${normalizedRow + 1}${pressed ? 'M' : 'm'}',
@@ -505,7 +498,7 @@ class TerminalInputController {
       'utf8' => _defaultMouseReportBytes(
         row: normalizedRow,
         col: normalizedCol,
-        button: button,
+        button: normalizedButton,
         pressed: pressed,
         modifiers: normalizedModifiers,
         utf8Coordinates: true,
@@ -513,13 +506,29 @@ class TerminalInputController {
       _ => _defaultMouseReportBytes(
         row: normalizedRow,
         col: normalizedCol,
-        button: button,
+        button: normalizedButton,
         pressed: pressed,
         modifiers: normalizedModifiers,
         utf8Coordinates: false,
       ),
     };
   }
+}
+
+const int _maxMouseCoordinate = 0x10ffff - 33;
+const int _maxMouseButton = 223;
+const int _maxMouseModifierMask = 7;
+
+int _mouseCoordinate(int value) {
+  return value.clamp(0, _maxMouseCoordinate).toInt();
+}
+
+int _mouseButton(int value) {
+  return value.clamp(0, _maxMouseButton).toInt();
+}
+
+int _mouseModifiers(int value) {
+  return value.clamp(0, _maxMouseModifierMask).toInt();
 }
 
 bool _shouldReportMouseEvent({
@@ -1178,7 +1187,12 @@ List<int> _defaultMouseReportBytes({
   required bool utf8Coordinates,
 }) {
   final buttonCode = button | (modifiers << 2) | (pressed ? 0 : 3);
-  final encoded = <int>[0x1b, 0x5b, 0x4d, buttonCode + 32];
+  final encoded = <int>[
+    0x1b,
+    0x5b,
+    0x4d,
+    (buttonCode + 32).clamp(0, 255).toInt(),
+  ];
   if (utf8Coordinates) {
     encoded.addAll(utf8.encode(String.fromCharCode(col + 33)));
     encoded.addAll(utf8.encode(String.fromCharCode(row + 33)));

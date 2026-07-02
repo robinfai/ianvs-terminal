@@ -79,13 +79,17 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   static const _workspaceCueDuration = Duration(milliseconds: 1400);
   static const _viewportResizeDebounce = Duration(milliseconds: 240);
   static const _terminalOverlayPadding = EdgeInsets.fromLTRB(12, 10, 14, 12);
-  static const _pasteHistoryLimit = 30;
+  static const _pasteHistoryLimit = maxPasteHistoryEntries;
+  static const _annotationLimit = 80;
   static const _capturedOutputLimit = 80;
+  static const _coprocessInputHistoryLimit = 512;
   static const _minimumHorizontalPaneCols = 24;
   static const _minimumVerticalPaneRows = 8;
   static const _paneGrowRatioStep = 0.08;
   static const _minimumSiblingPaneRatio = 0.24;
   static const _paneDividerDragThickness = 8.0;
+  static const _profileTriggerRegexCacheLimit = maxTerminalProfileTriggers * 4;
+  static const _triggerMatchHistoryLimit = 512;
 
   final Map<String, SelectionController> _selectionControllers = {};
   final Map<String, FocusNode> _terminalFocusNodes = {};
@@ -99,6 +103,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, String?> _lastActivityFramePreviews = {};
   final Map<String, String?> _lastNewOutputFramePreviews = {};
   final Map<String, Set<String>> _triggerMatchesBySession = {};
+  final Map<String, RegExp?> _profileTriggerRegexCache = {};
   final Map<String, int> _terminalFrameSequenceBySession = {};
   final Map<String, String> _searchRefreshFrameSignatures = {};
   final TextEditingController _autoComposerController = TextEditingController();
@@ -222,6 +227,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     _viewportResizeTimers.clear();
     _osc52StatusClearTimer?.cancel();
     _notificationFailureStatusClearTimer?.cancel();
+    for (final selectionController in _selectionControllers.values) {
+      selectionController.dispose();
+    }
     for (final focusNode in _terminalFocusNodes.values) {
       focusNode.dispose();
     }

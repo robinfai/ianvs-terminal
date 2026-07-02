@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/config/local_terminal_config_repository.dart';
+import 'package:app/features/policies/local_terminal_policy_models.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/shell/shell_action_registry.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -139,7 +140,10 @@ void main() {
         );
         expect(loaded.paste.confirmLargePaste, isTrue);
         expect(loaded.paste.confirmMultilinePaste, isFalse);
-        expect(loaded.paste.historySize, 50);
+        expect(
+          loaded.paste.historySize,
+          defaultLocalTerminalPasteHistoryEntries,
+        );
         expect(loaded.shellIntegration.enabled, isTrue);
         expect(loaded.notifications.enabled, isFalse);
         expect(loaded.hotkeyWindow.enabled, isFalse);
@@ -178,7 +182,10 @@ void main() {
           LocalTerminalConfigDocument.currentSchemaVersion,
         );
         expect(loaded.defaultProfileId, 'local-dev');
-        expect(loaded.paste.historySize, 50);
+        expect(
+          loaded.paste.historySize,
+          defaultLocalTerminalPasteHistoryEntries,
+        );
         expect(
           directory.listSync().any(
             (entry) => entry.path.contains('ianvs_config.json.corrupt'),

@@ -1,7 +1,8 @@
 import 'dart:ui' show Size;
 
-import 'package:flutter_test/flutter_test.dart';
 import 'package:app/features/shell/window_bridge.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('window metrics accepts finite platform sizes', () {
@@ -72,5 +73,39 @@ void main() {
     });
 
     expect(status.shortcut, '⌥⌘Space');
+  });
+
+  testWidgets('openExternalUrl only forwards supported URL schemes', (
+    tester,
+  ) async {
+    const channel = MethodChannel('app/window_bridge');
+    final calls = <MethodCall>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+      call,
+    ) async {
+      calls.add(call);
+      return null;
+    });
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      ),
+    );
+
+    await WindowBridge.openExternalUrl('x-apple.systempreferences:Security');
+    await WindowBridge.openExternalUrl('javascript:alert(1)');
+    await WindowBridge.openExternalUrl('http:');
+    await WindowBridge.openExternalUrl('  https://example.com/path  ');
+    await WindowBridge.openExternalUrl('file:///tmp/ianvs.txt');
+
+    expect(calls, hasLength(2));
+    expect(calls.first.method, 'openExternalUrl');
+    expect(calls.first.arguments, <String, Object?>{
+      'url': 'https://example.com/path',
+    });
+    expect(calls.last.arguments, <String, Object?>{
+      'url': 'file:///tmp/ianvs.txt',
+    });
   });
 }

@@ -19,12 +19,12 @@ class LocalTerminalColorScheme {
 
   Map<String, Object?> toJson() {
     return {
-      'background': background,
-      'foreground': foreground,
-      'cursor': cursor,
-      'selection': selection,
-      'splitDivider': splitDivider,
-      'inactivePaneOverlay': inactivePaneOverlay,
+      'background': _colorIntFromJson(background, 0x000000),
+      'foreground': _colorIntFromJson(foreground, 0xffffff),
+      'cursor': _colorIntFromJson(cursor, 0xffffff),
+      'selection': _colorIntFromJson(selection, 0x333333),
+      'splitDivider': _colorIntFromJson(splitDivider, 0x222222),
+      'inactivePaneOverlay': _colorIntFromJson(inactivePaneOverlay, 0x11000000),
     };
   }
 
@@ -64,8 +64,8 @@ class LocalTerminalThemePreset {
 
   Map<String, Object?> toJson() {
     return {
-      'id': id,
-      'name': name,
+      'id': id.trim(),
+      'name': name.trim(),
       'dark': dark.toJson(),
       'light': light.toJson(),
     };
@@ -121,7 +121,8 @@ class LocalTerminalPaneVisualPolicy {
   final bool dimInactivePanes;
   final double dividerThickness;
 
-  bool get hasVisibleDivider => dividerThickness > 0;
+  bool get hasVisibleDivider =>
+      dividerThickness.isFinite && dividerThickness > 0;
 }
 
 class LocalTerminalLayoutTemplate {
@@ -143,8 +144,8 @@ class LocalTerminalLayoutTemplate {
 
   Map<String, Object?> toJson() {
     return {
-      'id': id,
-      'name': name,
+      'id': id.trim(),
+      'name': name.trim(),
       'paneCount': paneCount,
       'localOnly': localOnly,
     };
@@ -172,7 +173,11 @@ class LocalTerminalAdvancedVisualPolicy {
   final double opacity;
 
   bool get touchesRendererRisk {
-    return backgroundImageEnabled || blurEnabled || opacity < 1.0;
+    return backgroundImageEnabled ||
+        blurEnabled ||
+        !opacity.isFinite ||
+        opacity < 1.0 ||
+        opacity > 1.0;
   }
 }
 
@@ -256,6 +261,23 @@ bool _boolFromJson(Object? value, bool fallback) {
 }
 
 int _intFromJson(Object? value, int fallback) {
+  return _wholeIntOrNull(value) ?? fallback;
+}
+
+int _colorIntFromJson(Object? value, int fallback) {
+  final parsed = _wholeIntOrNull(value) ?? _hexColorIntOrNull(value);
+  if (parsed == null || parsed < 0 || parsed > 0xffffffff) {
+    return fallback;
+  }
+  return parsed;
+}
+
+int _nonNegativeIntFromJson(Object? value, int fallback) {
+  final parsed = _intFromJson(value, fallback);
+  return parsed < 0 ? fallback : parsed;
+}
+
+int? _wholeIntOrNull(Object? value) {
   if (value is int) {
     return value;
   }
@@ -265,15 +287,22 @@ int _intFromJson(Object? value, int fallback) {
       return parsed;
     }
   }
-  return fallback;
+  return null;
 }
 
-int _colorIntFromJson(Object? value, int fallback) {
-  final parsed = _intFromJson(value, fallback);
-  return parsed < 0 || parsed > 0xffffffff ? fallback : parsed;
-}
-
-int _nonNegativeIntFromJson(Object? value, int fallback) {
-  final parsed = _intFromJson(value, fallback);
-  return parsed < 0 ? fallback : parsed;
+int? _hexColorIntOrNull(Object? value) {
+  if (value is! String) {
+    return null;
+  }
+  final text = value.trim();
+  final normalized = text.startsWith('#')
+      ? text.substring(1)
+      : text.toLowerCase().startsWith('0x')
+      ? text.substring(2)
+      : null;
+  if (normalized == null ||
+      (normalized.length != 6 && normalized.length != 8)) {
+    return null;
+  }
+  return int.tryParse(normalized, radix: 16);
 }

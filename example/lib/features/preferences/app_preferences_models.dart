@@ -26,12 +26,12 @@ class TerminalAppDefaults {
     return TerminalAppDefaults(
       defaultProfileId: identical(defaultProfileId, _appPreferencesNoChange)
           ? this.defaultProfileId
-          : defaultProfileId as String?,
+          : _nonEmptyTrimmedStringOrNull(defaultProfileId as String?),
     );
   }
 
   Map<String, Object?> toJson() {
-    return {'defaultProfileId': defaultProfileId};
+    return {'defaultProfileId': _nonEmptyTrimmedStringOrNull(defaultProfileId)};
   }
 
   static TerminalAppDefaults fromJson(Map<Object?, Object?>? json) {
@@ -60,28 +60,31 @@ class TerminalAppAppearance {
   }) {
     return TerminalAppAppearance(
       themeMode: themeMode ?? this.themeMode,
-      terminalViewportPadding:
-          terminalViewportPadding ?? this.terminalViewportPadding,
+      terminalViewportPadding: normalizeTerminalViewportPadding(
+        terminalViewportPadding ?? this.terminalViewportPadding,
+      ),
     );
   }
 
   Map<String, Object?> toJson() {
     return {
       'themeMode': themeMode.name,
-      'terminalViewportPadding': terminalViewportPadding,
+      'terminalViewportPadding': normalizeTerminalViewportPadding(
+        terminalViewportPadding,
+      ),
     };
   }
 
   static TerminalAppAppearance fromJson(Map<Object?, Object?>? json) {
     return TerminalAppAppearance(
       themeMode: TerminalThemeMode.fromJsonValue(json?['themeMode']),
-      terminalViewportPadding: _paddingFromJson(
+      terminalViewportPadding: normalizeTerminalViewportPadding(
         json?['terminalViewportPadding'],
       ),
     );
   }
 
-  static double _paddingFromJson(Object? value) {
+  static double normalizeTerminalViewportPadding(Object? value) {
     final parsed = switch (value) {
       num() => value.toDouble(),
       String() => double.tryParse(value),
@@ -158,7 +161,10 @@ class TerminalAppPreferencesDocument {
     TerminalAppNotifications? notifications,
   }) {
     return TerminalAppPreferencesDocument(
-      schemaVersion: schemaVersion ?? this.schemaVersion,
+      schemaVersion: _schemaVersionFromJson(
+        schemaVersion ?? this.schemaVersion,
+        currentSchemaVersion,
+      ),
       defaults: defaults ?? this.defaults,
       appearance: appearance ?? this.appearance,
       notifications: notifications ?? this.notifications,
@@ -167,7 +173,10 @@ class TerminalAppPreferencesDocument {
 
   Map<String, Object?> toJson() {
     return {
-      'schemaVersion': schemaVersion,
+      'schemaVersion': _schemaVersionFromJson(
+        schemaVersion,
+        currentSchemaVersion,
+      ),
       'defaults': defaults.toJson(),
       'appearance': appearance.toJson(),
       'notifications': notifications.toJson(),

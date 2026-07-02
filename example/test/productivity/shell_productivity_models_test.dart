@@ -72,6 +72,18 @@ void main() {
       expect(state.lastCommandOutputRange(), isNull);
     });
 
+    test('command output ranges require a command id', () {
+      const state = ShellProductivityState(
+        commandOutputRanges: [
+          ShellCommandOutputRange(commandId: '   ', startRow: 1, endRow: 2),
+          ShellCommandOutputRange(commandId: 'cmd', startRow: 3, endRow: 4),
+        ],
+      );
+
+      expect(state.canSelectCommandOutput, isTrue);
+      expect(state.lastCommandOutputRange()!.commandId, 'cmd');
+    });
+
     test('read only mode blocks text send and paste', () {
       const state = ShellProductivityState(readOnly: true);
 
@@ -265,6 +277,38 @@ void main() {
       expect(state.directories.single.label, 'Repo');
     });
 
+    test('recent items trim and deduplicate restored entries', () {
+      final state = ShellRecentItemsState.fromJson({
+        'limit': 3,
+        'commands': [
+          {'command': '  flutter test  ', 'cwd': ' /repo ', 'exitCode': 0},
+          {'command': 'flutter test', 'cwd': '/repo', 'exitCode': 1},
+          {'command': 'dart analyze', 'cwd': '/repo', 'exitCode': 0},
+          {'command': 'dart format', 'cwd': '/repo', 'exitCode': 0},
+          {'command': 'flutter test', 'cwd': '/other', 'exitCode': 0},
+        ],
+        'directories': [
+          {'path': ' /repo ', 'label': ' Repo '},
+          {'path': '/repo', 'label': 'Duplicate Repo'},
+          {'path': '/tmp'},
+          {'path': '/var'},
+          {'path': '/opt'},
+        ],
+      });
+
+      expect(
+        state.commands.map((entry) => entry.command).toList(growable: false),
+        const ['flutter test', 'dart analyze', 'dart format'],
+      );
+      expect(state.commands.first.cwd, '/repo');
+      expect(state.commands.first.exitCode, 0);
+      expect(
+        state.directories.map((entry) => entry.path).toList(growable: false),
+        const ['/repo', '/tmp', '/var'],
+      );
+      expect(state.directories.first.label, 'Repo');
+    });
+
     test('recent command json rejects fractional exit codes', () {
       final state = ShellRecentItemsState.fromJson({
         'commands': [
@@ -297,7 +341,19 @@ void main() {
         50,
       );
       expect(ShellRecentItemsState.fromJson({'limit': 2.5}).limit, 50);
+      expect(
+        ShellRecentItemsState.fromJson({
+          'limit': maxShellRecentItems + 1,
+        }).limit,
+        maxShellRecentItems,
+      );
       expect(const ShellRecentItemsState(limit: -1).trimmed().limit, 50);
+      expect(
+        const ShellRecentItemsState(
+          limit: maxShellRecentItems + 1,
+        ).trimmed().limit,
+        maxShellRecentItems,
+      );
     });
   });
 }

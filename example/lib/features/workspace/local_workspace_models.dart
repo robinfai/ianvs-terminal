@@ -1,5 +1,11 @@
 enum TerminalPaneSplitDirection { right, down }
 
+const int maxWorkspaceClosedTabs = 10;
+const int maxWorkspaceClosedPanes = 10;
+const int _maxWorkspaceClosedTabsToScan = maxWorkspaceClosedTabs * 4;
+const int _maxWorkspaceClosedPanesToScan = maxWorkspaceClosedPanes * 4;
+const int _maxWorkspaceSplitChildrenToScan = 8;
+
 class TerminalPaneSessionIntent {
   const TerminalPaneSessionIntent({required this.profileId, this.cwd});
 
@@ -7,7 +13,10 @@ class TerminalPaneSessionIntent {
   final String? cwd;
 
   Map<String, Object?> toJson() {
-    return {'profileId': profileId, 'cwd': cwd};
+    return {
+      'profileId': _nonEmptyStringOrNull(profileId) ?? '',
+      'cwd': _nonEmptyStringOrNull(cwd),
+    };
   }
 
   static TerminalPaneSessionIntent fromJson(Map<Object?, Object?> json) {
@@ -32,26 +41,33 @@ class TerminalWorkspace {
   bool get isEmpty => tabs.isEmpty;
 
   Map<String, Object?> toJson() {
+    final restorableTabs = _uniqueRestorableTabs(tabs);
+    final activeTabId = _activeTabFrom(restorableTabs, this.activeTabId)?.id;
+    final activeIds = _normalizedIds(restorableTabs.map((tab) => tab.id));
     return {
-      'tabs': tabs.map((tab) => tab.toJson()).toList(growable: false),
-      'activeTabId': activeTabId,
-      'closedTabs': closedTabs
-          .map((tab) => tab.toJson())
-          .toList(growable: false),
+      'tabs': restorableTabs.map((tab) => tab.toJson()).toList(growable: false),
+      'activeTabId': activeTabId?.trim(),
+      'closedTabs': _boundedClosedTabs(
+        closedTabs,
+        excludedIds: activeIds,
+      ).map((tab) => tab.toJson()).toList(growable: false),
     };
   }
 
   static TerminalWorkspace fromJson(Map<Object?, Object?> json) {
     _rejectRemoteWorkspaceKeys(json);
 
-    final tabs = _objectList(json['tabs'])
-        .map(TerminalWorkspaceTab.fromJson)
-        .where((tab) => tab.isRestorable)
-        .toList(growable: false);
-    final closedTabs = _objectList(json['closedTabs'])
-        .map(TerminalWorkspaceTab.fromJson)
-        .where((tab) => tab.isRestorable)
-        .toList(growable: false);
+    final tabs = _uniqueRestorableTabs(
+      _workspaceTabsFromJson(json['tabs'], fallbackPrefix: 'tab'),
+    );
+    final closedTabs = _boundedClosedTabs(
+      _workspaceTabsFromJson(
+        json['closedTabs'],
+        fallbackPrefix: 'closed-tab',
+        maxEntries: _maxWorkspaceClosedTabsToScan,
+      ),
+      excludedIds: {for (final tab in tabs) tab.id},
+    );
     final rawActiveTabId = _nonEmptyStringOrNull(json['activeTabId']);
     final activeTabId =
         rawActiveTabId != null &&
@@ -67,12 +83,7 @@ class TerminalWorkspace {
   }
 
   TerminalWorkspaceTab? get activeTab {
-    for (final tab in tabs) {
-      if (tab.id == activeTabId) {
-        return tab;
-      }
-    }
-    return tabs.isEmpty ? null : tabs.last;
+    return _activeTabFrom(tabs, activeTabId);
   }
 
   TerminalWorkspace addTab(TerminalWorkspaceTab tab) {
@@ -130,7 +141,7 @@ class TerminalWorkspace {
     return TerminalWorkspace(
       tabs: nextTabs,
       activeTabId: nextTabs.isEmpty ? null : nextTabs.last.id,
-      closedTabs: [tab, ...closedTabs],
+      closedTabs: _boundedClosedTabs([tab, ...closedTabs]),
     );
   }
 
@@ -183,7 +194,7 @@ class TerminalWorkspaceTab {
   final String? zoomedPaneId;
 
   bool get hasActivePane => root.containsPane(activePaneId);
-  bool get isRestorable => root.hasRestorablePane;
+  bool get isRestorable => id.trim().isNotEmpty && root.hasRestorablePane;
 
   String get effectiveActivePaneId {
     return hasActivePane ? activePaneId : root.firstLeafId;
@@ -204,17 +215,20 @@ class TerminalWorkspaceTab {
 
   Map<String, Object?> toJson() {
     return {
-      'id': id,
-      'activePaneId': effectiveActivePaneId,
+      'id': id.trim(),
+      'activePaneId': effectiveActivePaneId.trim(),
       'root': root.toJson(),
-      'closedPanes': closedPanes
-          .map((pane) => pane.toJson())
-          .toList(growable: false),
-      'zoomedPaneId': effectiveZoomedPaneId,
+      'closedPanes': _boundedClosedPanes(
+        closedPanes,
+      ).map((pane) => pane.toJson()).toList(growable: false),
+      'zoomedPaneId': effectiveZoomedPaneId?.trim(),
     };
   }
 
-  static TerminalWorkspaceTab fromJson(Map<Object?, Object?> json) {
+  static TerminalWorkspaceTab fromJson(
+    Map<Object?, Object?> json, {
+    String? fallbackId,
+  }) {
     final root = TerminalPaneNode.fromJson(
       _objectMap(json['root']) ?? const {},
     );
@@ -228,13 +242,23 @@ class TerminalWorkspaceTab {
         rawZoomedPaneId != null && root.containsPane(rawZoomedPaneId)
         ? rawZoomedPaneId
         : null;
+    final rawId = json['id'];
+    final id =
+        _nonEmptyStringOrNull(rawId) ??
+        (rawId is String ? '' : fallbackId ?? '');
     return TerminalWorkspaceTab(
-      id: _nonEmptyStringOrNull(json['id']) ?? '',
+      id: id,
       root: root,
       activePaneId: activePaneId,
-      closedPanes: _objectList(
-        json['closedPanes'],
-      ).map(TerminalPaneNode.fromJson).toList(growable: false),
+      closedPanes:
+          _objectList(
+                json['closedPanes'],
+                maxEntries: _maxWorkspaceClosedPanesToScan,
+              )
+              .map(TerminalPaneNode.fromJson)
+              .where((pane) => pane.hasRestorablePane)
+              .take(maxWorkspaceClosedPanes)
+              .toList(growable: false),
       zoomedPaneId: zoomedPaneId,
     );
   }
@@ -371,7 +395,7 @@ class TerminalWorkspaceTab {
       id: id,
       root: nextRoot,
       activePaneId: nextRoot.firstLeafId,
-      closedPanes: [?active, ...closedPanes],
+      closedPanes: _boundedClosedPanes([?active, ...closedPanes]),
       zoomedPaneId: currentZoomedPaneId == targetPaneId
           ? null
           : currentZoomedPaneId,
@@ -451,7 +475,7 @@ class TerminalPaneNode {
   bool get isLeaf => sessionIntent != null;
   bool get hasRestorablePane {
     if (isLeaf) {
-      return id.isNotEmpty;
+      return id.trim().isNotEmpty;
     }
     return children.any((child) => child.hasRestorablePane);
   }
@@ -459,14 +483,14 @@ class TerminalPaneNode {
   Map<String, Object?> toJson() {
     if (isLeaf) {
       return {
-        'id': id,
+        'id': id.trim(),
         'type': 'leaf',
         'sessionIntent': sessionIntent!.toJson(),
       };
     }
 
     return {
-      'id': id,
+      'id': id.trim(),
       'type': 'split',
       'direction': direction!.name,
       'ratio': ratio,
@@ -478,14 +502,25 @@ class TerminalPaneNode {
 
   static TerminalPaneNode fromJson(Map<Object?, Object?> json) {
     if (json['type'] == 'split') {
-      final children = _objectList(
-        json['children'],
-      ).map(TerminalPaneNode.fromJson).toList(growable: false);
+      final children =
+          _objectList(
+                json['children'],
+                maxEntries: _maxWorkspaceSplitChildrenToScan,
+              )
+              .map(TerminalPaneNode.fromJson)
+              .where((child) => child.hasRestorablePane)
+              .toList(growable: false);
+      if (children.isEmpty) {
+        return _emptyLeaf();
+      }
+      if (children.length == 1) {
+        return children.first;
+      }
       return TerminalPaneNode.split(
         id: _nonEmptyStringOrNull(json['id']) ?? '',
         direction: _splitDirection(json['direction']),
-        first: children.isEmpty ? _emptyLeaf() : children.first,
-        second: children.length < 2 ? _emptyLeaf() : children[1],
+        first: children.first,
+        second: children[1],
         ratio: _splitRatioFromJson(json['ratio'], 0.5),
       );
     }
@@ -711,6 +746,21 @@ class TerminalPaneNode {
   }
 }
 
+List<TerminalWorkspaceTab> _workspaceTabsFromJson(
+  Object? value, {
+  required String fallbackPrefix,
+  int? maxEntries,
+}) {
+  final tabJson = _objectList(value, maxEntries: maxEntries);
+  return [
+    for (var index = 0; index < tabJson.length; index += 1)
+      TerminalWorkspaceTab.fromJson(
+        tabJson[index],
+        fallbackId: '$fallbackPrefix-${index + 1}',
+      ),
+  ];
+}
+
 Map<Object?, Object?>? _objectMap(Object? value) {
   if (value is Map<Object?, Object?>) {
     return value;
@@ -742,6 +792,77 @@ String? _lastNonEmptyTabId(List<TerminalWorkspaceTab> tabs) {
   return null;
 }
 
+TerminalWorkspaceTab? _activeTabFrom(
+  List<TerminalWorkspaceTab> tabs,
+  String? activeTabId,
+) {
+  final normalizedActiveTabId = activeTabId?.trim();
+  if (normalizedActiveTabId != null && normalizedActiveTabId.isNotEmpty) {
+    for (final tab in tabs) {
+      if (tab.id.trim() == normalizedActiveTabId) {
+        return tab;
+      }
+    }
+  }
+  return tabs.isEmpty ? null : tabs.last;
+}
+
+List<TerminalWorkspaceTab> _uniqueRestorableTabs(
+  Iterable<TerminalWorkspaceTab> tabs, {
+  Set<String> excludedIds = const <String>{},
+}) {
+  final seenIds = _normalizedIds(excludedIds);
+  final unique = <TerminalWorkspaceTab>[];
+  for (final tab in tabs) {
+    final id = tab.id.trim();
+    if (!tab.isRestorable || !seenIds.add(id)) {
+      continue;
+    }
+    unique.add(tab);
+  }
+  return unique;
+}
+
+List<TerminalWorkspaceTab> _boundedClosedTabs(
+  Iterable<TerminalWorkspaceTab> tabs, {
+  Set<String> excludedIds = const <String>{},
+}) {
+  final seenIds = _normalizedIds(excludedIds);
+  final bounded = <TerminalWorkspaceTab>[];
+  for (final tab in tabs) {
+    final id = tab.id.trim();
+    if (!tab.isRestorable || !seenIds.add(id)) {
+      continue;
+    }
+    bounded.add(tab);
+    if (bounded.length == maxWorkspaceClosedTabs) {
+      break;
+    }
+  }
+  return bounded;
+}
+
+Set<String> _normalizedIds(Iterable<String> ids) {
+  return {
+    for (final id in ids)
+      if (id.trim().isNotEmpty) id.trim(),
+  };
+}
+
+List<TerminalPaneNode> _boundedClosedPanes(Iterable<TerminalPaneNode> panes) {
+  final bounded = <TerminalPaneNode>[];
+  for (final pane in panes) {
+    if (!pane.hasRestorablePane) {
+      continue;
+    }
+    bounded.add(pane);
+    if (bounded.length >= maxWorkspaceClosedPanes) {
+      break;
+    }
+  }
+  return bounded;
+}
+
 double _splitRatioFromJson(Object? value, double fallback) {
   if (value is num) {
     return _normalizeSplitRatio(value.toDouble(), fallback);
@@ -756,12 +877,13 @@ double _normalizeSplitRatio(double value, double fallback) {
   return value.clamp(0.1, 0.9).toDouble();
 }
 
-List<Map<Object?, Object?>> _objectList(Object? value) {
+List<Map<Object?, Object?>> _objectList(Object? value, {int? maxEntries}) {
   if (value is! List) {
     return const <Map<Object?, Object?>>[];
   }
 
-  return value
+  final entries = maxEntries == null ? value : value.take(maxEntries);
+  return entries
       .map(_objectMap)
       .whereType<Map<Object?, Object?>>()
       .toList(growable: false);

@@ -240,6 +240,58 @@ void main() {
     expect(terminal.rows, 24);
   });
 
+  test('terminal options normalize resize dimensions', () {
+    final oversized = TerminalOptions(
+      cols: maxTerminalDimension + 1,
+      rows: maxTerminalDimension + 2,
+    );
+    const invalid = TerminalOptions(cols: 0, rows: -1);
+
+    expect(oversized.cols, maxTerminalDimension);
+    expect(oversized.rows, maxTerminalDimension);
+    expect(invalid.cols, defaultTerminalColumns);
+    expect(invalid.rows, defaultTerminalRows);
+  });
+
+  test('terminal options default invalid font dimensions', () {
+    const invalid = TerminalOptions(
+      fontSize: double.nan,
+      lineHeight: double.infinity,
+    );
+    const nonPositive = TerminalOptions(fontSize: 0, lineHeight: -1);
+    const valid = TerminalOptions(fontSize: 15, lineHeight: 1.3);
+
+    expect(invalid.fontSize, terminalFontSize);
+    expect(invalid.lineHeight, terminalLineHeight);
+    expect(nonPositive.fontSize, terminalFontSize);
+    expect(nonPositive.lineHeight, terminalLineHeight);
+    expect(valid.fontSize, 15);
+    expect(valid.lineHeight, 1.3);
+  });
+
+  testWidgets('terminal facade keeps dimensions when backend rejects resize', (
+    tester,
+  ) async {
+    final backend = _FakePtyBackend();
+    final runtime = _runtimeFor(backend);
+    addTearDown(runtime.dispose);
+    final terminal = Terminal(
+      runtime: runtime,
+      sessionConfig: const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    addTearDown(terminal.dispose);
+    terminal.open();
+    backend.resizeError = RangeError('native resize rejected');
+
+    expect(() => terminal.resize(120, 40), throwsRangeError);
+    await tester.pump();
+
+    expect(terminal.cols, 80);
+    expect(terminal.rows, 24);
+  });
+
   testWidgets('terminal facade paste ignores empty text', (tester) async {
     final backend = _FakePtyBackend();
     final runtime = _runtimeFor(backend);
@@ -296,6 +348,7 @@ class _FakePtyBackend
   final Map<String, Map<String, Object?>> _frames =
       <String, Map<String, Object?>>{};
   final Map<String, List<PtyEvent>> _queuedEvents = <String, List<PtyEvent>>{};
+  Object? resizeError;
   int _nextSessionId = 0;
 
   Map<String, Object?>? get lastCreateSessionPayload {
@@ -342,6 +395,10 @@ class _FakePtyBackend
     int cellWidth = 0,
     int cellHeight = 0,
   }) {
+    final error = resizeError;
+    if (error != null) {
+      throw error;
+    }
     resizeCalls.add(<Object?>[
       sessionId,
       cols,

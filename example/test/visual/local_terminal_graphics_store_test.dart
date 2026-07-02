@@ -121,5 +121,34 @@ void main() {
       expect(plan.accepted, isTrue);
       expect(plan.evictIds, ['old']);
     });
+
+    test('returns normalized eviction ids', () {
+      final plan = LocalTerminalGraphicsStorePlanner.planInsert(
+        policy: const LocalTerminalGraphicsStoragePolicy(
+          enabled: true,
+          maxBytes: 10,
+        ),
+        existing: const [
+          LocalTerminalGraphicsEntry(
+            id: ' old-image ',
+            bytes: 7,
+            createdAtMillis: 1,
+          ),
+          LocalTerminalGraphicsEntry(
+            id: 'new-image',
+            bytes: 2,
+            createdAtMillis: 2,
+          ),
+        ],
+        next: const LocalTerminalGraphicsEntry(
+          id: 'next',
+          bytes: 5,
+          createdAtMillis: 3,
+        ),
+      );
+
+      expect(plan.accepted, isTrue);
+      expect(plan.evictIds, ['old-image']);
+    });
   });
 }

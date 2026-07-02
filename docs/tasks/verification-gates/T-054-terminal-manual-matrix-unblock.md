@@ -50,7 +50,7 @@ env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u AL
   flutter devices
 env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY \
   no_proxy=127.0.0.1,localhost,::1 NO_PROXY=127.0.0.1,localhost,::1 \
-  flutter test integration_test/ianvs_smoke_test.dart
+  flutter test -d macos integration_test/ianvs_terminal_smoke_test.dart
 env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY \
   no_proxy=127.0.0.1,localhost,::1 NO_PROXY=127.0.0.1,localhost,::1 \
   flutter run -d macos
@@ -111,7 +111,7 @@ env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u AL
     - `flutter --version`: `pass`
     - `flutter doctor -v`: `pass`
     - `flutter devices`: `pass`
-    - `flutter test integration_test/ianvs_smoke_test.dart`: `pass`
+    - `flutter test -d macos integration_test/ianvs_terminal_smoke_test.dart`: `pass`
     - `flutter run -d macos`: `blocked`
       - `exit code: 124`
       - `Dart VM Service observed: yes`

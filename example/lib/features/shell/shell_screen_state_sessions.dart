@@ -66,6 +66,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
 
   void _clearPresentationStateForSession(String sessionId) {
     _clearViewportMetricsForSession(sessionId);
+    _clearInstantReplayHistory(sessionId);
 
     final selectionController = _selectionControllers.remove(sessionId);
     if (selectionController != null) {

@@ -117,10 +117,10 @@ void main() {
         final loaded = await repository.load();
 
         expect(loaded, isNotNull);
-        expect(loaded!.activeTabId, isNull);
+        expect(loaded!.activeTabId, 'tab-1');
         expect(loaded.tabs, hasLength(1));
         final tab = loaded.tabs.single;
-        expect(tab.id, '');
+        expect(tab.id, 'tab-1');
         expect(tab.activePaneId, 'pane-1');
         expect(tab.zoomedPaneId, isNull);
         expect(tab.root.direction, TerminalPaneSplitDirection.down);

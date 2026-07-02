@@ -1,3 +1,5 @@
+import 'package:app/features/preferences/app_preferences_models.dart';
+import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_state.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -42,6 +44,44 @@ void main() {
         expect(tab.activeSessionId, 'root-pane');
       },
     );
+
+    test('pane and tab copyWith can clear nullable state', () {
+      final profile = defaultTerminalProfile();
+      final pane = TerminalPane(
+        sessionId: 'pane',
+        title: 'pane',
+        profileId: profile.id,
+        profileSnapshot: profile,
+        exitCode: 7,
+      );
+      final tab = TerminalTab(
+        sessionId: 'tab',
+        title: 'tab',
+        profileId: profile.id,
+        profileSnapshot: profile,
+        exitCode: 9,
+      );
+
+      expect(pane.copyWith().profileSnapshot, profile);
+      expect(pane.copyWith().exitCode, 7);
+      expect(pane.copyWith(profileSnapshot: null).profileSnapshot, isNull);
+      expect(pane.copyWith(exitCode: null).exitCode, isNull);
+      expect(tab.copyWith().profileSnapshot, profile);
+      expect(tab.copyWith().exitCode, 9);
+      expect(tab.copyWith(profileSnapshot: null).profileSnapshot, isNull);
+      expect(tab.copyWith(exitCode: null).exitCode, isNull);
+    });
+
+    test('session state copyWith normalizes terminal viewport padding', () {
+      final state = SessionState.initial().copyWith(
+        terminalViewportPadding: double.nan,
+      );
+
+      expect(
+        state.terminalViewportPadding,
+        TerminalAppAppearance.defaultTerminalViewportPadding,
+      );
+    });
 
     test('replacing split root pane keeps tab root metadata synchronized', () {
       final oldProgress = TerminalPaneProgressState(

@@ -1,5 +1,7 @@
 enum LocalTerminalCopyOnSelectMode { off, clipboard }
 
+const int defaultLocalTerminalPasteHistoryEntries = 30;
+
 enum LocalTerminalPointerPasteMode { disabled, paste }
 
 enum LocalTerminalRightClickMode { contextMenu, paste, copySelection }
@@ -21,7 +23,7 @@ class LocalTerminalPastePolicy {
     this.confirmLargePaste = true,
     this.confirmMultilinePaste = true,
     this.largePasteThreshold = 4096,
-    this.historySize = 50,
+    this.historySize = defaultLocalTerminalPasteHistoryEntries,
   });
 
   final bool confirmLargePaste;
@@ -48,7 +50,7 @@ class LocalTerminalPastePolicy {
 class LocalTerminalPasteHistoryPolicy {
   const LocalTerminalPasteHistoryPolicy({
     this.enabled = true,
-    this.maxEntries = 50,
+    this.maxEntries = defaultLocalTerminalPasteHistoryEntries,
     this.persist = true,
     this.captureMultiline = true,
     this.captureLargePaste = false,
@@ -70,7 +72,7 @@ class LocalTerminalPasteHistoryPolicy {
     if (!captureLargePaste && largePaste) {
       return false;
     }
-    return text.isNotEmpty;
+    return text.trim().isNotEmpty;
   }
 }
 
@@ -95,12 +97,22 @@ class LocalTerminalPasteHistoryState {
       return this;
     }
 
+    final normalizedText = text.trimRight();
+    final nextEntries = <String>[normalizedText];
+    final seenTexts = <String>{normalizedText};
+    for (final entry in entries) {
+      final normalizedEntry = entry.trimRight();
+      if (normalizedEntry.trim().isEmpty || !seenTexts.add(normalizedEntry)) {
+        continue;
+      }
+      nextEntries.add(normalizedEntry);
+      if (nextEntries.length >= policy.maxEntries) {
+        break;
+      }
+    }
+
     return LocalTerminalPasteHistoryState(
-      entries: [
-        text,
-        for (final entry in entries)
-          if (entry != text) entry,
-      ].take(policy.maxEntries).toList(growable: false),
+      entries: nextEntries,
       focusShouldReturnToTerminal: focusShouldReturnToTerminal,
     );
   }

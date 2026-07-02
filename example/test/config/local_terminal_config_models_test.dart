@@ -1,4 +1,5 @@
 import 'package:app/features/config/local_terminal_config_models.dart';
+import 'package:app/features/policies/local_terminal_policy_models.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/shell/shell_action_registry.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -41,6 +42,22 @@ void main() {
       );
     });
 
+    test('schema version copyWith and toJson normalize persisted values', () {
+      final copied = const LocalTerminalConfigDocument().copyWith(
+        schemaVersion: -1,
+      );
+      const direct = LocalTerminalConfigDocument(schemaVersion: 0);
+
+      expect(
+        copied.schemaVersion,
+        LocalTerminalConfigDocument.currentSchemaVersion,
+      );
+      expect(
+        direct.toJson()['schemaVersion'],
+        LocalTerminalConfigDocument.currentSchemaVersion,
+      );
+    });
+
     test('default profile id trims whitespace and rejects blanks', () {
       final trimmed = LocalTerminalConfigDocument.fromJson(const {
         'defaultProfileId': ' ssh ',
@@ -52,6 +69,23 @@ void main() {
       expect(trimmed.defaultProfileId, 'ssh');
       expect(blank.defaultProfileId, isNull);
     });
+
+    test(
+      'default profile id copyWith and toJson normalize persisted values',
+      () {
+        final trimmed = const LocalTerminalConfigDocument().copyWith(
+          defaultProfileId: ' ssh ',
+        );
+        final blank = const LocalTerminalConfigDocument(
+          defaultProfileId: 'ssh',
+        ).copyWith(defaultProfileId: '   ');
+        const direct = LocalTerminalConfigDocument(defaultProfileId: '   ');
+
+        expect(trimmed.defaultProfileId, 'ssh');
+        expect(blank.defaultProfileId, isNull);
+        expect(direct.toJson()['defaultProfileId'], isNull);
+      },
+    );
 
     test('keybinding overrides roundtrip through json', () {
       const config = LocalTerminalConfigDocument(
@@ -106,6 +140,40 @@ void main() {
       );
     });
 
+    test('keybinding json rejects overly long keys', () {
+      final config = LocalTerminalConfigDocument.fromJson({
+        'keybindings': {
+          'overrides': {
+            'newTab': {
+              'binding': {
+                'key': List<String>.filled(
+                  maxLocalTerminalKeyBindingKeyLength + 1,
+                  'K',
+                ).join(),
+                'meta': true,
+              },
+            },
+            'openDefaults': {
+              'binding': {'key': 'KeyO', 'meta': true},
+            },
+          },
+        },
+      });
+
+      expect(
+        config.keybindings.overrides[TerminalActionId.newTab]!.binding,
+        isNull,
+      );
+      expect(
+        config
+            .keybindings
+            .overrides[TerminalActionId.openDefaults]!
+            .binding!
+            .key,
+        'KeyO',
+      );
+    });
+
     test('keybinding action ids trim whitespace and ignore case', () {
       final config = LocalTerminalConfigDocument.fromJson(const {
         'keybindings': {
@@ -125,6 +193,37 @@ void main() {
       expect(
         config.keybindings.overrides[TerminalActionId.newTab]!.binding!.key,
         'KeyN',
+      );
+    });
+
+    test('keybinding json restores valid actions after malformed prefixes', () {
+      final malformedPrefixLength = TerminalActionId.values.length * 2;
+      final config = LocalTerminalConfigDocument.fromJson({
+        'keybindings': {
+          'disabledDefaultActions': [
+            for (var index = 0; index < malformedPrefixLength; index += 1)
+              'not-an-action-$index',
+            'newTab',
+          ],
+          'overrides': {
+            for (var index = 0; index < malformedPrefixLength; index += 1)
+              'not-an-action-$index': {
+                'binding': {'key': 'KeyX'},
+              },
+            'paste': {
+              'binding': {'key': 'KeyV', 'meta': true},
+            },
+          },
+        },
+      });
+
+      expect(
+        config.keybindings.disabledDefaultActions,
+        contains(TerminalActionId.newTab),
+      );
+      expect(
+        config.keybindings.overrides[TerminalActionId.paste]!.binding!.key,
+        'KeyV',
       );
     });
 
@@ -236,7 +335,7 @@ void main() {
       expect(decoded.notifications.activity, isFalse);
     });
 
-    test('paste history size accepts zero but rejects negatives', () {
+    test('paste history size accepts zero and caps invalid values', () {
       final disabled = LocalTerminalConfigDocument.fromJson(const {
         'paste': {'historySize': 0},
       });
@@ -246,10 +345,23 @@ void main() {
       final fractional = LocalTerminalConfigDocument.fromJson(const {
         'paste': {'historySize': 2.5},
       });
+      final excessive = LocalTerminalConfigDocument.fromJson({
+        'paste': {'historySize': defaultLocalTerminalPasteHistoryEntries + 1},
+      });
 
       expect(disabled.paste.historySize, 0);
-      expect(negative.paste.historySize, 50);
-      expect(fractional.paste.historySize, 50);
+      expect(
+        negative.paste.historySize,
+        defaultLocalTerminalPasteHistoryEntries,
+      );
+      expect(
+        fractional.paste.historySize,
+        defaultLocalTerminalPasteHistoryEntries,
+      );
+      expect(
+        excessive.paste.historySize,
+        defaultLocalTerminalPasteHistoryEntries,
+      );
     });
   });
 }

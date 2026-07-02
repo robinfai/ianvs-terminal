@@ -17,10 +17,14 @@ class ColorPickerPalette extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = context.appTheme;
+    final effectiveAspectRatio = _usablePositiveFinite(
+      aspectRatio,
+      fallback: 2.4,
+    );
     return Semantics(
       label: 'Color palette',
       child: AspectRatio(
-        aspectRatio: aspectRatio,
+        aspectRatio: effectiveAspectRatio,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(theme.radius.lg),
           child: Material(
@@ -30,6 +34,9 @@ class ColorPickerPalette extends StatelessWidget {
                 final size = Size(constraints.maxWidth, constraints.maxHeight);
 
                 void update(Offset localPosition) {
+                  if (!_isUsableSize(size)) {
+                    return;
+                  }
                   final saturation = (localPosition.dx / size.width).clamp(
                     0.0,
                     1.0,
@@ -84,6 +91,9 @@ class HueSlider extends StatelessWidget {
               final width = constraints.maxWidth;
 
               void update(Offset localPosition) {
+                if (!width.isFinite || width <= 0) {
+                  return;
+                }
                 final hue = ((localPosition.dx / width) * 360).clamp(
                   0.0,
                   360.0,
@@ -110,6 +120,17 @@ class HueSlider extends StatelessWidget {
       ),
     );
   }
+}
+
+bool _isUsableSize(Size size) {
+  return size.width.isFinite &&
+      size.height.isFinite &&
+      size.width > 0 &&
+      size.height > 0;
+}
+
+double _usablePositiveFinite(double value, {required double fallback}) {
+  return value.isFinite && value > 0 ? value : fallback;
 }
 
 class _ColorPickerPalettePainter extends CustomPainter {

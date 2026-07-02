@@ -13,6 +13,22 @@ typedef TerminalProfileCursor = terminal_pkg.TerminalCursorConfig;
 typedef TerminalProfileAppearance = terminal_pkg.TerminalDisplayConfig;
 typedef TerminalProfileInteraction = terminal_pkg.TerminalInteractionConfig;
 
+const int maxTerminalScrollbackLines = terminal_pkg.maxTerminalScrollbackLines;
+const int maxTerminalLaunchArgs = terminal_pkg.maxTerminalLaunchArgs;
+const int maxTerminalEnvironmentEntries =
+    terminal_pkg.maxTerminalEnvironmentEntries;
+const int maxTerminalFontFallbackFamilies =
+    terminal_pkg.maxTerminalFontFallbackFamilies;
+const int maxTerminalProfiles = 200;
+const int maxTerminalProfileTags = 32;
+const int maxTerminalProfileTriggers = 64;
+const int maxTerminalProfileSwitchRules = 64;
+const int _maxDynamicProfileTagsToScan = maxTerminalProfileTags * 4;
+const int _maxProfileTagEntriesToScan = maxTerminalProfileTags * 4;
+const int _maxProfileTriggerEntriesToScan = maxTerminalProfileTriggers * 4;
+const int _maxProfileSwitchRuleEntriesToScan =
+    maxTerminalProfileSwitchRules * 4;
+
 enum TerminalProfileTriggerAction { notify, sendText }
 
 enum TerminalProfileSwitchRuleKind { hostname, username, directory }
@@ -324,13 +340,30 @@ class TerminalProfilesDocument {
   static TerminalProfilesDocument fromJson(Map<String, Object?> json) {
     final warnings = <TerminalProfileLoadWarning>[];
     final profiles = <TerminalProfile>[];
+    final seenProfileIds = <String>{};
     final dynamicProfilesFormat =
         json['profiles'] == null && json['Profiles'] != null;
     final rawProfiles = dynamicProfilesFormat
         ? json['Profiles']
         : json['profiles'];
+    final profilesPath = dynamicProfilesFormat ? 'Profiles' : 'profiles';
     if (rawProfiles is List<dynamic>) {
-      for (var index = 0; index < rawProfiles.length; index += 1) {
+      final profileCount = rawProfiles.length > maxTerminalProfiles
+          ? maxTerminalProfiles
+          : rawProfiles.length;
+      if (rawProfiles.length > maxTerminalProfiles) {
+        warnings.add(
+          TerminalProfileLoadWarning(
+            profileId: 'document',
+            profileName: 'Profiles document',
+            path: profilesPath,
+            rawValueSummary: '${rawProfiles.length} profile entries',
+            fallbackSummary:
+                'loaded first $maxTerminalProfiles profile entries',
+          ),
+        );
+      }
+      for (var index = 0; index < profileCount; index += 1) {
         final rawProfile = rawProfiles[index];
         final profileMap = _asStringMap(rawProfile);
         if (profileMap == null) {
@@ -338,31 +371,42 @@ class TerminalProfilesDocument {
             TerminalProfileLoadWarning(
               profileId: 'profile-$index',
               profileName: 'Profile ${index + 1}',
-              path: 'profiles[$index]',
+              path: '$profilesPath[$index]',
               rawValueSummary: _rawValueSummary(rawProfile),
               fallbackSummary: 'ignored invalid profile entry',
             ),
           );
           continue;
         }
-        profiles.add(
-          _normalizeBuiltInShellProfile(
-            TerminalProfile.fromJson(
-              dynamicProfilesFormat
-                  ? _dynamicProfileToProfileJson(profileMap)
-                  : profileMap,
-              fallbackId: _fallbackProfileIdFor(index),
-              loadWarnings: warnings,
-            ),
+        final profile = _normalizeBuiltInShellProfile(
+          TerminalProfile.fromJson(
+            dynamicProfilesFormat
+                ? _dynamicProfileToProfileJson(profileMap)
+                : profileMap,
+            fallbackId: _fallbackProfileIdFor(index),
+            loadWarnings: warnings,
           ),
         );
+        if (!seenProfileIds.add(profile.id)) {
+          warnings.add(
+            TerminalProfileLoadWarning(
+              profileId: profile.id,
+              profileName: profile.name,
+              path: '$profilesPath[$index].id',
+              rawValueSummary: _rawValueSummary(profile.id),
+              fallbackSummary: 'ignored duplicate profile id',
+            ),
+          );
+          continue;
+        }
+        profiles.add(profile);
       }
     } else {
       warnings.add(
         TerminalProfileLoadWarning(
           profileId: 'document',
           profileName: 'Profiles document',
-          path: 'profiles',
+          path: profilesPath,
           rawValueSummary: _rawValueSummary(rawProfiles),
           fallbackSummary: 'loaded no profiles from invalid profile list',
         ),
@@ -382,7 +426,7 @@ int _schemaVersionFromJson(
   List<TerminalProfileLoadWarning> warnings,
 ) {
   if (rawValue == null) {
-    return 1;
+    return TerminalProfilesDocument.currentSchemaVersion;
   }
   if (rawValue is num && rawValue.isFinite && rawValue > 0) {
     final parsed = rawValue.toInt();
@@ -396,10 +440,11 @@ int _schemaVersionFromJson(
       profileName: 'Profiles document',
       path: 'schemaVersion',
       rawValueSummary: _rawValueSummary(rawValue),
-      fallbackSummary: 'used schema version 1',
+      fallbackSummary:
+          'used schema version ${TerminalProfilesDocument.currentSchemaVersion}',
     ),
   );
-  return 1;
+  return TerminalProfilesDocument.currentSchemaVersion;
 }
 
 Map<String, Object?> _dynamicProfileToProfileJson(
@@ -415,7 +460,10 @@ Map<String, Object?> _dynamicProfileToProfileJson(
   final rawTags = dynamicProfile['Tags'] ?? dynamicProfile['tags'];
   final tags = <String>[];
   if (rawTags is List) {
-    for (final rawTag in rawTags) {
+    for (final rawTag in rawTags.take(_maxDynamicProfileTagsToScan)) {
+      if (tags.length >= maxTerminalProfileTags - 1) {
+        break;
+      }
       final tag = _stringOrNull(rawTag)?.trim();
       if (tag != null && tag.isNotEmpty) {
         tags.add(tag);
@@ -570,12 +618,24 @@ class _TerminalProfileWarningSink {
     required Object? rawValue,
     required String fallbackSummary,
   }) {
+    addSummary(
+      path: path,
+      rawValueSummary: _rawValueSummary(rawValue),
+      fallbackSummary: fallbackSummary,
+    );
+  }
+
+  void addSummary({
+    required String path,
+    required String rawValueSummary,
+    required String fallbackSummary,
+  }) {
     _warnings?.add(
       TerminalProfileLoadWarning(
         profileId: profileId,
         profileName: profileName,
         path: path,
-        rawValueSummary: _rawValueSummary(rawValue),
+        rawValueSummary: rawValueSummary,
         fallbackSummary: fallbackSummary,
       ),
     );
@@ -603,11 +663,31 @@ List<String> _profileTagsFromJson(
     return const [];
   }
   if (rawValue is String) {
-    return _normalizeProfileTags(rawValue.split(','));
+    final rawTags = rawValue.split(',');
+    final tagCount = _boundedProfileEntriesToScan(
+      rawCount: rawTags.length,
+      maxEntries: maxTerminalProfileTags,
+      maxEntriesToScan: _maxProfileTagEntriesToScan,
+      path: 'tags',
+      entryLabel: 'tag',
+      warningSink: warningSink,
+    );
+    return _normalizeProfileTags(
+      rawTags.take(tagCount),
+      maxEntries: maxTerminalProfileTags,
+    );
   }
   if (rawValue is List) {
     final tags = <String>[];
-    for (var index = 0; index < rawValue.length; index += 1) {
+    final tagCount = _boundedProfileEntriesToScan(
+      rawCount: rawValue.length,
+      maxEntries: maxTerminalProfileTags,
+      maxEntriesToScan: _maxProfileTagEntriesToScan,
+      path: 'tags',
+      entryLabel: 'tag',
+      warningSink: warningSink,
+    );
+    for (var index = 0; index < tagCount; index += 1) {
       final entry = rawValue[index];
       if (entry is String) {
         tags.add(entry);
@@ -619,7 +699,7 @@ List<String> _profileTagsFromJson(
         fallbackSummary: 'ignored invalid tag entry',
       );
     }
-    return _normalizeProfileTags(tags);
+    return _normalizeProfileTags(tags, maxEntries: maxTerminalProfileTags);
   }
 
   warningSink.add(
@@ -630,10 +710,13 @@ List<String> _profileTagsFromJson(
   return const [];
 }
 
-List<String> _normalizeProfileTags(Iterable<String> tags) {
+List<String> _normalizeProfileTags(Iterable<String> tags, {int? maxEntries}) {
   final normalized = <String>[];
   final seen = <String>{};
   for (final tag in tags) {
+    if (maxEntries != null && normalized.length >= maxEntries) {
+      break;
+    }
     final trimmed = tag.trim();
     if (trimmed.isEmpty) {
       continue;
@@ -664,7 +747,18 @@ List<TerminalProfileTrigger> _profileTriggersFromJson(
   }
 
   final triggers = <TerminalProfileTrigger>[];
-  for (var index = 0; index < rawValue.length; index += 1) {
+  final triggerCount = _boundedProfileEntriesToScan(
+    rawCount: rawValue.length,
+    maxEntries: maxTerminalProfileTriggers,
+    maxEntriesToScan: _maxProfileTriggerEntriesToScan,
+    path: 'triggers',
+    entryLabel: 'trigger',
+    warningSink: warningSink,
+  );
+  for (var index = 0; index < triggerCount; index += 1) {
+    if (triggers.length >= maxTerminalProfileTriggers) {
+      break;
+    }
     final rawEntry = rawValue[index];
     if (rawEntry is! Map) {
       warningSink.add(
@@ -750,7 +844,18 @@ List<TerminalProfileSwitchRule> _profileSwitchRulesFromJson(
   }
 
   final rules = <TerminalProfileSwitchRule>[];
-  for (var index = 0; index < rawValue.length; index += 1) {
+  final ruleCount = _boundedProfileEntriesToScan(
+    rawCount: rawValue.length,
+    maxEntries: maxTerminalProfileSwitchRules,
+    maxEntriesToScan: _maxProfileSwitchRuleEntriesToScan,
+    path: 'automaticProfileSwitching',
+    entryLabel: 'switching rule',
+    warningSink: warningSink,
+  );
+  for (var index = 0; index < ruleCount; index += 1) {
+    if (rules.length >= maxTerminalProfileSwitchRules) {
+      break;
+    }
     final rawEntry = rawValue[index];
     if (rawEntry is! Map) {
       warningSink.add(
@@ -797,6 +902,28 @@ List<TerminalProfileSwitchRule> _profileSwitchRulesFromJson(
     );
   }
   return List.unmodifiable(rules);
+}
+
+int _boundedProfileEntriesToScan({
+  required int rawCount,
+  required int maxEntries,
+  required int maxEntriesToScan,
+  required String path,
+  required String entryLabel,
+  required _TerminalProfileWarningSink warningSink,
+}) {
+  final entriesToScan = rawCount > maxEntriesToScan
+      ? maxEntriesToScan
+      : rawCount;
+  if (rawCount <= maxEntries) {
+    return entriesToScan;
+  }
+  warningSink.addSummary(
+    path: path,
+    rawValueSummary: '$rawCount $entryLabel entries',
+    fallbackSummary: 'loaded first $maxEntries valid $entryLabel entries',
+  );
+  return entriesToScan;
 }
 
 TerminalProfileTriggerAction? _triggerActionFromJson(Object? rawValue) {

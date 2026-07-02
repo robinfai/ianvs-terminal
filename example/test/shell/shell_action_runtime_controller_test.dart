@@ -21,6 +21,67 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('Shell action runtime controller', () {
+    test('state copyWith can clear nullable results', () {
+      const plan = ShellActionSideEffectPlan(
+        kind: ShellActionSideEffectKind.none,
+      );
+      const pasteDecision = LocalTerminalPasteDecision(
+        kind: LocalTerminalPasteDecisionKind.sendImmediately,
+        captureHistory: true,
+        text: 'hello',
+      );
+      const notificationIntent = LocalTerminalNotificationIntent(
+        type: LocalTerminalNotificationEventType.bell,
+        target: LocalTerminalMonitorTarget.badge,
+      );
+      const promptTarget = ShellPromptMark(id: 'prompt', row: 1);
+      const outputRange = ShellCommandOutputRange(
+        commandId: 'cmd',
+        startRow: 1,
+        endRow: 2,
+      );
+      final error = Object();
+      final state = ShellActionRuntimeState(
+        lastPlan: plan,
+        lastScrollbackExportPath: '/tmp/scrollback.txt',
+        lastPasteDecision: pasteDecision,
+        lastNotificationIntent: notificationIntent,
+        lastPromptTarget: promptTarget,
+        lastCommandOutputRange: outputRange,
+        lastRecentDirectory: '/tmp',
+        lastExternalExecutorError: error,
+      );
+
+      final unchanged = state.copyWith();
+      final cleared = state.copyWith(
+        lastPlan: null,
+        lastScrollbackExportPath: null,
+        lastPasteDecision: null,
+        lastNotificationIntent: null,
+        lastPromptTarget: null,
+        lastCommandOutputRange: null,
+        lastRecentDirectory: null,
+        lastExternalExecutorError: null,
+      );
+
+      expect(unchanged.lastPlan, plan);
+      expect(unchanged.lastScrollbackExportPath, '/tmp/scrollback.txt');
+      expect(unchanged.lastPasteDecision, pasteDecision);
+      expect(unchanged.lastNotificationIntent, notificationIntent);
+      expect(unchanged.lastPromptTarget, promptTarget);
+      expect(unchanged.lastCommandOutputRange, outputRange);
+      expect(unchanged.lastRecentDirectory, '/tmp');
+      expect(unchanged.lastExternalExecutorError, error);
+      expect(cleared.lastPlan, isNull);
+      expect(cleared.lastScrollbackExportPath, isNull);
+      expect(cleared.lastPasteDecision, isNull);
+      expect(cleared.lastNotificationIntent, isNull);
+      expect(cleared.lastPromptTarget, isNull);
+      expect(cleared.lastCommandOutputRange, isNull);
+      expect(cleared.lastRecentDirectory, isNull);
+      expect(cleared.lastExternalExecutorError, isNull);
+    });
+
     test('updates workspace state for workspace actions', () async {
       final controller = ShellActionRuntimeController();
       final persisted = <TerminalWorkspace>[];

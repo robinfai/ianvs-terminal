@@ -37,7 +37,7 @@ flutter analyze
 flutter test test/sessions/session_controller_test.dart
 flutter test test/terminal/render_terminal_viewport_test.dart
 flutter test
-flutter test integration_test/ianvs_smoke_test.dart
+flutter test -d macos integration_test/ianvs_terminal_smoke_test.dart
 ```
 
 ## Manual QA

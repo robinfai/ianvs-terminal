@@ -11,7 +11,9 @@ class LocalTerminalGraphicsEntry {
   final int bytes;
   final int createdAtMillis;
 
-  bool get isValid => id.trim().isNotEmpty && bytes > 0;
+  String get normalizedId => id.trim();
+
+  bool get isValid => normalizedId.isNotEmpty && bytes > 0;
 }
 
 class LocalTerminalGraphicsEvictionPlan {
@@ -47,9 +49,9 @@ class LocalTerminalGraphicsStorePlanner {
       );
     }
 
-    final nextId = next.id.trim();
+    final nextId = next.normalizedId;
     final validExisting = existing
-        .where((entry) => entry.isValid && entry.id.trim() != nextId)
+        .where((entry) => entry.isValid && entry.normalizedId != nextId)
         .toList(growable: false);
     final total = validExisting.fold<int>(0, (sum, entry) => sum + entry.bytes);
     final projected = total + next.bytes;
@@ -72,7 +74,7 @@ class LocalTerminalGraphicsStorePlanner {
         break;
       }
       remainingTotal -= entry.bytes;
-      evictIds.add(entry.id);
+      evictIds.add(entry.normalizedId);
     }
 
     return LocalTerminalGraphicsEvictionPlan(

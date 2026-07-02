@@ -51,7 +51,7 @@ fn force_kitty_animation_frame_elapsed(terminal: &mut ParserTerminal, image_id: 
 
 fn base64_standard_no_pad_encode(data: &[u8]) -> String {
     const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut output = String::with_capacity((data.len() + 2) / 3 * 4);
+    let mut output = String::with_capacity(data.len().div_ceil(3) * 4);
     for chunk in data.chunks(3) {
         let b0 = chunk[0];
         let b1 = *chunk.get(1).unwrap_or(&0);
@@ -85,7 +85,7 @@ fn create_kitty_shared_memory_payload(data: &[u8]) -> (String, String) {
     let name = format!(
         "/ivs{:x}{:x}",
         std::process::id() & 0xffff,
-        (nanos & 0xffff_ffff) as u128,
+        nanos & 0xffff_ffff,
     );
     let c_name = CString::new(name.as_bytes()).unwrap();
     let fd = unsafe {
@@ -1402,10 +1402,10 @@ fn vt220_wraparound_repaint_profile() -> TerminalProfile {
 
 fn wait_for_frame_containing(session_id: u64, needle: &str) -> String {
     for _ in 0..SESSION_WAIT_ATTEMPTS {
-        if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
-            if frame.contains(needle) {
-                return frame;
-            }
+        if let Some(frame) = session::take_frame_diff(session_id).unwrap()
+            && frame.contains(needle)
+        {
+            return frame;
         }
         thread::sleep(Duration::from_millis(100));
     }
@@ -1645,7 +1645,7 @@ fn frame_row_with_text<'a>(frame: &'a serde_json::Value, needle: &str) -> &'a se
         .expect("expected matching frame row")
 }
 
-fn frame_row_at_index<'a>(frame: &'a serde_json::Value, index: u64) -> &'a serde_json::Value {
+fn frame_row_at_index(frame: &serde_json::Value, index: u64) -> &serde_json::Value {
     frame["rows"]
         .as_array()
         .and_then(|rows| rows.iter().find(|row| row["index"].as_u64() == Some(index)))
@@ -1775,7 +1775,7 @@ fn session_frame_diff_exports_graphic_placements_and_asset_bytes() {
     assert_eq!(meta.rgba_len, 4);
     assert_eq!(meta.version, asset_version);
 
-    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
         ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
             session_id,
@@ -1871,7 +1871,7 @@ fn session_frame_diff_exports_iterm_inline_image_alpha_pixels() {
     assert_eq!(meta.rgba_len, 2 * 4);
     assert_eq!(meta.version, asset_version);
 
-    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
         ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
             session_id,
@@ -1958,7 +1958,7 @@ fn session_frame_diff_exports_imgcat_style_iterm_wrapped_unpadded_payload() {
     assert_eq!(meta.rgba_len, 4);
     assert_eq!(meta.version, asset_version);
 
-    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
         ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
             session_id,
@@ -2037,7 +2037,7 @@ fn session_frame_diff_exports_screen_wrapped_iterm_inline_image() {
     assert_eq!(meta.rgba_len, 4);
     assert_eq!(meta.version, asset_version);
 
-    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
         ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
             session_id,
@@ -2124,7 +2124,7 @@ PY"#,
     assert_eq!(meta.rgba_len, 4);
     assert_eq!(meta.version, asset_version);
 
-    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
         ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
             session_id,
@@ -2239,7 +2239,7 @@ PY"#,
     assert_eq!(meta.rgba_len, 4);
     assert_eq!(meta.version, asset_version);
 
-    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
         ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
             session_id,
@@ -2519,10 +2519,10 @@ fn session_frame_diff_recomputes_sixel_and_kitty_placements_after_cell_resize() 
 
 #[test]
 fn session_frame_diff_preserves_primary_graphics_across_alt_screen_resize() {
-    fn placement_with<'a>(
-        parsed: &'a serde_json::Value,
+    fn placement_with(
+        parsed: &serde_json::Value,
         predicate: impl Fn(&serde_json::Value) -> bool,
-    ) -> &'a serde_json::Value {
+    ) -> &serde_json::Value {
         parsed["graphics"]
             .as_array()
             .expect("expected graphics placements")
@@ -3112,7 +3112,7 @@ fn session_frame_diff_exports_sixel_placements_and_asset_bytes() {
     assert_eq!(meta.rgba_len, 24);
     assert_eq!(meta.version, asset_version);
 
-    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
         ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
             session_id,
@@ -3184,7 +3184,7 @@ fn session_frame_diff_exports_transparent_sixel_asset_alpha() {
     assert_eq!(meta.rgba_len, 3 * 2 * 4);
     assert_eq!(meta.version, asset_version);
 
-    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
         ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
             session_id,
@@ -3252,7 +3252,7 @@ fn assert_wrapped_sixel_red_asset(
     assert_eq!(meta.rgba_len, 24);
     assert_eq!(meta.version, asset_version);
 
-    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
         ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
             session_id,
@@ -3384,7 +3384,7 @@ fn assert_wrapped_kitty_red_asset(
     assert_eq!(meta.rgba_len, 4);
     assert_eq!(meta.version, asset_version);
 
-    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
         ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
             session_id,
@@ -3536,7 +3536,7 @@ fn session_frame_diff_exports_sixel_repeat_palette_pixels() {
     assert_eq!(meta.rgba_len, 3 * 12 * 4);
     assert_eq!(meta.version, asset_version);
 
-    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
         ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
             session_id,
@@ -3698,7 +3698,7 @@ out('\x1b\\', 0.20)
     assert_eq!(meta.rgba_len, 3 * 6 * 4);
     assert_eq!(meta.version, asset_version);
 
-    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
         ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
             session_id,
@@ -4259,7 +4259,7 @@ fn session_frame_diff_updates_kitty_animation_scrollback_asset_after_current_fra
     };
     assert_eq!(first_meta_status, 0);
     assert_eq!(first_meta.rgba_len, 4);
-    let mut first_rgba = vec![0_u8; first_meta.rgba_len as usize];
+    let mut first_rgba = vec![0_u8; first_meta.rgba_len];
     let first_copy_status = unsafe {
         ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
             session_id,
@@ -4335,7 +4335,7 @@ fn session_frame_diff_updates_kitty_animation_scrollback_asset_after_current_fra
     };
     assert_eq!(updated_meta_status, 0);
     assert_eq!(updated_meta.rgba_len, 4);
-    let mut updated_rgba = vec![0_u8; updated_meta.rgba_len as usize];
+    let mut updated_rgba = vec![0_u8; updated_meta.rgba_len];
     let updated_copy_status = unsafe {
         ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
             session_id,
@@ -4961,7 +4961,7 @@ fn session_frame_diff_ticks_kitty_animation_without_new_output() {
     assert_eq!(meta_status, 0);
     assert_eq!(meta.rgba_len, 4);
 
-    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
         ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
             session_id,
@@ -5031,7 +5031,7 @@ fn session_frame_diff_ticks_iterm_gif_animation_without_new_output() {
     };
     assert_eq!(first_meta_status, 0);
     assert_eq!(first_meta.rgba_len, 4);
-    let mut first_rgba = vec![0_u8; first_meta.rgba_len as usize];
+    let mut first_rgba = vec![0_u8; first_meta.rgba_len];
     let first_copy_status = unsafe {
         ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
             session_id,
@@ -5082,7 +5082,7 @@ fn session_frame_diff_ticks_iterm_gif_animation_without_new_output() {
     assert_eq!(meta_status, 0);
     assert_eq!(meta.rgba_len, 4);
 
-    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
         ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
             session_id,
@@ -5155,7 +5155,7 @@ fn session_frame_diff_updates_iterm_gif_scrollback_asset_after_animation_tick() 
     };
     assert_eq!(first_meta_status, 0);
     assert_eq!(first_meta.rgba_len, 4);
-    let mut first_rgba = vec![0_u8; first_meta.rgba_len as usize];
+    let mut first_rgba = vec![0_u8; first_meta.rgba_len];
     let first_copy_status = unsafe {
         ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
             session_id,
@@ -5232,7 +5232,7 @@ fn session_frame_diff_updates_iterm_gif_scrollback_asset_after_animation_tick() 
     assert_eq!(updated_meta_status, 0);
     assert_eq!(updated_meta.rgba_len, 4);
 
-    let mut updated_rgba = vec![0_u8; updated_meta.rgba_len as usize];
+    let mut updated_rgba = vec![0_u8; updated_meta.rgba_len];
     let updated_copy_status = unsafe {
         ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
             session_id,
@@ -5334,7 +5334,7 @@ fn session_frame_diff_applies_kitty_animation_current_frame_control() {
     assert_eq!(meta.height, 1);
     assert_eq!(meta.rgba_len, 8);
 
-    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
         ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
             session_id,
@@ -5473,7 +5473,7 @@ fn session_frame_diff_applies_kitty_animation_compose_control() {
     assert_eq!(meta.height, 2);
     assert_eq!(meta.rgba_len, 16);
 
-    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
         ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
             session_id,
@@ -5603,7 +5603,7 @@ fn session_frame_diff_applies_kitty_animation_stop_control() {
     assert_eq!(meta.height, 1);
     assert_eq!(meta.rgba_len, 4);
 
-    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
         ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
             session_id,
@@ -5732,7 +5732,7 @@ fn session_frame_diff_applies_kitty_animation_frame_delete() {
     assert_eq!(meta.height, 1);
     assert_eq!(meta.rgba_len, 4);
 
-    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
         ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
             session_id,
@@ -6722,7 +6722,7 @@ PY"#,
     assert_eq!(meta.height, 8);
     assert_eq!(meta.rgba_len, raw_pixels.len());
 
-    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
         ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
             session_id,
@@ -15691,6 +15691,28 @@ fn ffi_poll_events_returns_null_when_queue_is_empty() {
 }
 
 #[test]
+fn ffi_session_write_accepts_null_pointer_for_empty_payload() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&interactive_profile()).unwrap()).unwrap();
+
+    let empty_result =
+        unsafe { ianvs_core::ffi::ianvs_session_write(session_id, std::ptr::null(), 0) };
+    assert_eq!(
+        empty_result, 0,
+        "empty writes should not require callers to allocate a sentinel buffer"
+    );
+
+    let non_empty_result =
+        unsafe { ianvs_core::ffi::ianvs_session_write(session_id, std::ptr::null(), 1) };
+    assert_eq!(
+        non_empty_result, -1,
+        "non-empty writes still require a readable pointer"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn session_reflows_scrollback_history_across_resize() {
     let session_id =
         session::create_session(&serde_json::to_string(&interactive_profile()).unwrap()).unwrap();
@@ -15835,21 +15857,24 @@ fn session_resize_keeps_readline_input_compact() {
     session::write_session(session_id, READLINE_INPUT.as_bytes()).unwrap();
 
     let _ = wait_for_frame_where(session_id, |frame| {
-        frame.contains("PROMPT-XYZ>") && frame.contains(READLINE_INPUT)
+        logical_rows_from_frame(frame)
+            .iter()
+            .any(|row| row.contains("PROMPT-XYZ>") && row.contains(READLINE_INPUT))
     });
 
     session::resize_session(session_id, 40, 24, 0, 0).unwrap();
     let _ = wait_for_frame_where(session_id, |frame| {
-        frame.contains("\"frame_kind\":\"snapshot\"")
-            && frame.contains("\"viewport_cols\":40")
-            && frame.contains("PROMPT-XYZ>")
+        logical_rows_from_frame(frame)
+            .iter()
+            .any(|row| row.contains("PROMPT-XYZ>") && row.contains(READLINE_INPUT))
     });
     session::resize_session(session_id, 96, 24, 0, 0).unwrap();
 
     let after = wait_for_frame_where(session_id, |frame| {
         frame.contains("\"frame_kind\":\"snapshot\"")
-            && frame.contains("PROMPT-XYZ>")
-            && frame.contains(READLINE_INPUT)
+            && logical_rows_from_frame(frame)
+                .iter()
+                .any(|row| row.contains("PROMPT-XYZ>") && row.contains(READLINE_INPUT))
     });
     let parsed: serde_json::Value = serde_json::from_str(&after).unwrap();
     let rows = parsed["rows"].as_array().expect("expected rows");
@@ -16932,13 +16957,12 @@ fn vt220_wraparound_repaint_keeps_full_width_rows_dirty_and_complete() {
         frame_row_at_index(&second_parsed, 2)["text"].as_str(),
         Some("*****")
     );
-    assert_eq!(
+    assert!(
         second_parsed["dirty_ranges"]
             .as_array()
             .is_some_and(|ranges| ranges.iter().any(|range| {
                 range["start"].as_u64() == Some(0) && range["end"].as_u64().unwrap_or_default() >= 3
             })),
-        true,
         "wrap-around repaint should cover all three rows in at least one dirty range: {}",
         serde_json::to_string_pretty(&second_parsed).unwrap()
     );

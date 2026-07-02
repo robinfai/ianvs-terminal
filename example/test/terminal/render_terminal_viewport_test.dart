@@ -102,6 +102,62 @@ void main() {
     },
   );
 
+  testWidgets('terminal viewport bounds cached glyph paragraphs', (
+    tester,
+  ) async {
+    const maxGlyphParagraphCacheEntries = 1024;
+    const glyphCount = maxGlyphParagraphCacheEntries + 16;
+    final controller = TerminalViewportController()
+      ..updateFrame(
+        TerminalFrameDiff(
+          rows: [
+            TerminalRow(index: 0, text: _uniqueHangulGlyphs(0, glyphCount)),
+          ],
+          cursor: const TerminalCursor(row: 0, col: 0, visible: true),
+          viewportRows: 1,
+          viewportCols: glyphCount * 2,
+          dirtyRanges: const [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+
+    await _pumpTerminalViewportWithController(
+      tester,
+      controller: controller,
+      themeMode: ThemeMode.light,
+    );
+
+    final renderObject = _terminalRenderObject(tester);
+    expect(
+      renderObject.debugGlyphParagraphCacheSize,
+      maxGlyphParagraphCacheEntries,
+    );
+
+    controller.updateFrame(
+      TerminalFrameDiff(
+        rows: [
+          TerminalRow(
+            index: 0,
+            text: _uniqueHangulGlyphs(glyphCount, glyphCount),
+          ),
+        ],
+        cursor: const TerminalCursor(row: 0, col: 0, visible: true),
+        viewportRows: 1,
+        viewportCols: glyphCount * 2,
+        dirtyRanges: const [TerminalDirtyRange(start: 0, end: 1)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      renderObject.debugGlyphParagraphCacheSize,
+      maxGlyphParagraphCacheEntries,
+    );
+  });
+
   testWidgets('terminal viewport overlays inline images at cell coordinates', (
     tester,
   ) async {
@@ -6969,6 +7025,17 @@ double _testContrastRatio(Color foreground, Color background) {
       ? foregroundLuminance
       : backgroundLuminance;
   return (lighter + 0.05) / (darker + 0.05);
+}
+
+String _uniqueHangulGlyphs(int start, int count) {
+  const firstSyllable = 0xac00;
+  const syllableCount = 0xd7a3 - firstSyllable + 1;
+  return String.fromCharCodes(
+    List<int>.generate(
+      count,
+      (index) => firstSyllable + ((start + index) % syllableCount),
+    ),
+  );
 }
 
 double _testRelativeLuminance(Color color) {

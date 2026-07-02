@@ -137,11 +137,26 @@ class WindowBridge {
     if (BindingBase.debugBindingType() == null) {
       return;
     }
+    final normalizedUrl = url.trim();
+    final uri = Uri.tryParse(normalizedUrl);
+    if (uri == null || !_isAllowedExternalUri(uri)) {
+      return;
+    }
     try {
-      await _channel.invokeMethod<void>('openExternalUrl', {'url': url});
+      await _channel.invokeMethod<void>('openExternalUrl', {
+        'url': normalizedUrl,
+      });
     } on MissingPluginException {
       return;
     }
+  }
+
+  static bool _isAllowedExternalUri(Uri uri) {
+    return switch (uri.scheme.toLowerCase()) {
+      'http' || 'https' => uri.host.isNotEmpty,
+      'file' => uri.path.isNotEmpty,
+      _ => false,
+    };
   }
 
   static Future<void> showNotification({

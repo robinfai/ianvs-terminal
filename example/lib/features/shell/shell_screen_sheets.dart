@@ -200,7 +200,9 @@ class _CapturedOutputSheetState extends State<_CapturedOutputSheet> {
   @override
   void initState() {
     super.initState();
-    _entries = widget.entries;
+    _entries = widget.entries
+        .take(maxPasswordManagerEntries)
+        .toList(growable: false);
   }
 
   @override
@@ -1092,7 +1094,10 @@ class _PasswordManagerSheetState extends State<_PasswordManagerSheet> {
       password: password,
     );
     setState(() {
-      _entries = [entry, ..._entries];
+      _entries = [
+        entry,
+        ..._entries,
+      ].take(maxPasswordManagerEntries).toList(growable: false);
       _labelController.clear();
       _passwordController.clear();
     });

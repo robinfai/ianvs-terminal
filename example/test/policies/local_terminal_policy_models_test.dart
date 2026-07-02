@@ -27,6 +27,7 @@ void main() {
 
       expect(policy.canPaste(readOnly: true), isFalse);
       expect(policy.canPaste(readOnly: false), isTrue);
+      expect(policy.historySize, defaultLocalTerminalPasteHistoryEntries);
     });
 
     test('monitor rule respects focus and threshold', () {
@@ -91,12 +92,17 @@ void main() {
       'paste history policy gates capture and keeps newest unique entries',
       () {
         const policy = LocalTerminalPasteHistoryPolicy(maxEntries: 2);
+        const defaultPolicy = LocalTerminalPasteHistoryPolicy();
         final state = const LocalTerminalPasteHistoryState()
             .record(text: 'one', policy: policy, largePaste: false)
             .record(text: 'two', policy: policy, largePaste: false)
             .record(text: 'one', policy: policy, largePaste: false)
             .record(text: 'large', policy: policy, largePaste: true);
 
+        expect(
+          defaultPolicy.maxEntries,
+          defaultLocalTerminalPasteHistoryEntries,
+        );
         expect(state.entries, ['one', 'two']);
         expect(state.focusShouldReturnToTerminal, isTrue);
       },
@@ -111,6 +117,33 @@ void main() {
       );
 
       expect(state.entries, isEmpty);
+    });
+
+    test('paste history policy rejects whitespace-only capture', () {
+      final state = const LocalTerminalPasteHistoryState().record(
+        text: '   \n\t ',
+        policy: const LocalTerminalPasteHistoryPolicy(),
+        largePaste: false,
+      );
+
+      expect(state.entries, isEmpty);
+    });
+
+    test('paste history state normalizes trailing whitespace duplicates', () {
+      final state =
+          const LocalTerminalPasteHistoryState(entries: ['legacy  ', 'legacy'])
+              .record(
+                text: 'one  ',
+                policy: const LocalTerminalPasteHistoryPolicy(maxEntries: 3),
+                largePaste: false,
+              )
+              .record(
+                text: 'one',
+                policy: const LocalTerminalPasteHistoryPolicy(maxEntries: 3),
+                largePaste: false,
+              );
+
+      expect(state.entries, ['one', 'legacy']);
     });
   });
 }
