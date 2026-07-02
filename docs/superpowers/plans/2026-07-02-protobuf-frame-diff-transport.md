@@ -77,6 +77,7 @@
 - `decode_error`, `schema_mismatch`, and `missing_required_field` are experiment failures. Do not silently apply a stale frame.
 - `unsupported_backend` is the only fallback reason allowed for compatibility tests. It must not occur in a real protobuf release-gate run.
 - The existing render profile currently updates `TerminalViewportController` directly. The protobuf release-gate work must add a runtime-transport profile path instead of assuming the current render-only harness proves FFI transport.
+- Native baseline note from 2026-07-02 investigation: default-parallel `cargo test --test session_test` can flake in graphics + alternate-screen frame-diff tests because they depend on transient frames emitted by real child-process scripts with fixed sleeps. Focused tests and full serial `cargo test --test session_test -- --test-threads=1` passed on the clean worktree. Use the serial full `session_test` command as the native baseline gate unless the test synchronization is fixed separately.
 
 ---
 
@@ -2183,6 +2184,7 @@ cd native/core
 cargo fmt --check
 cargo test session_frame_diff_protobuf --test session_test
 cargo test ffi_take_frame_diff_protobuf_returns_bytes_and_len --test session_test
+cargo test --test session_test -- --test-threads=1
 ```
 
 Expected: all pass.
