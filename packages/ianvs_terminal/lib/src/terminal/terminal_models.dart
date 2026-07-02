@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui';
 
+import '../proto/frame_diff.pb.dart' as frame_pb;
+
 enum TerminalFrameKind { snapshot, delta }
 
 const int _maxInlineImageDecodedBytes = 4 * 1024 * 1024;
@@ -791,6 +793,18 @@ class TerminalFrameDiff {
       ),
     );
   }
+
+  factory TerminalFrameDiff.fromProtobufBytes(List<int> bytes) {
+    final frame_pb.TerminalFrameDiff proto;
+    try {
+      proto = frame_pb.TerminalFrameDiff.fromBuffer(bytes);
+    } on Object {
+      throw const FormatException(
+        'Invalid terminal frame diff protobuf payload',
+      );
+    }
+    return _terminalFrameDiffFromProtobuf(proto);
+  }
 }
 
 List<TerminalInlineImage> _inlineImagesFromJson(Object? value) {
@@ -799,6 +813,322 @@ List<TerminalInlineImage> _inlineImagesFromJson(Object? value) {
 
 List<TerminalGraphicPlacement> _graphicsFromJson(Object? value) {
   return _jsonListFromJson(value, TerminalGraphicPlacement.tryFromJson);
+}
+
+TerminalFrameDiff _terminalFrameDiffFromProtobuf(
+  frame_pb.TerminalFrameDiff proto,
+) {
+  final viewportRows = proto.viewportRows;
+  final viewportCols = proto.viewportCols;
+  final scrollbackMaxOffset = proto.scrollbackMaxOffset;
+  final scrollbackOffset = proto.scrollbackOffset
+      .clamp(0, scrollbackMaxOffset)
+      .toInt();
+  return TerminalFrameDiff(
+    frameSchemaVersion:
+        _nonEmptyTrimmedProtoString(
+          hasValue: proto.hasFrameSchemaVersion(),
+          value: proto.frameSchemaVersion,
+        ) ??
+        TerminalFrameDiff.currentFrameSchemaVersion,
+    frameKind: _terminalFrameKindFromProtobuf(proto.frameKind),
+    rows: [for (final row in proto.rows) ?_terminalRowFromProtobuf(row)],
+    cursor: proto.hasCursor()
+        ? _terminalCursorFromProtobuf(proto.cursor)
+        : const TerminalCursor(row: 0, col: 0, visible: false),
+    selection: proto.hasSelection()
+        ? _terminalSelectionFromProtobuf(proto.selection)
+        : null,
+    viewportRows: viewportRows,
+    viewportCols: viewportCols,
+    dirtyRanges: _normalizeDirtyRanges([
+      for (final range in proto.dirtyRanges)
+        TerminalDirtyRange(start: range.start, end: range.end),
+    ], viewportRows),
+    scrollbackOffset: scrollbackOffset,
+    scrollbackMaxOffset: scrollbackMaxOffset,
+    viewportStartRow: proto.viewportStartRow,
+    viewportRowShift: proto.viewportRowShift,
+    defaultForeground: _colorFromProtobuf(
+      hasValue: proto.hasDefaultForeground(),
+      value: proto.defaultForeground,
+    ),
+    defaultBackground: _colorFromProtobuf(
+      hasValue: proto.hasDefaultBackground(),
+      value: proto.defaultBackground,
+    ),
+    cursorColor: _colorFromProtobuf(
+      hasValue: proto.hasCursorColor(),
+      value: proto.cursorColor,
+    ),
+    modes: proto.hasModes()
+        ? _terminalFrameModesFromProtobuf(proto.modes)
+        : TerminalFrameModes.empty,
+    windowTitle: proto.hasWindowTitle() ? proto.windowTitle : null,
+    windowIconName: proto.hasWindowIconName() ? proto.windowIconName : null,
+    hyperlinks: [
+      for (final hyperlink in proto.hyperlinks)
+        ?_terminalHyperlinkFromProtobuf(hyperlink),
+    ],
+    inlineImages: _normalizeInlineImages(
+      images: [
+        for (final image in proto.inlineImages)
+          ?_terminalInlineImageFromProtobuf(image),
+      ],
+      viewportRows: viewportRows,
+      viewportCols: viewportCols,
+    ),
+    graphics: _normalizeGraphics(
+      graphics: [
+        for (final graphic in proto.graphics)
+          ?_terminalGraphicFromProtobuf(graphic),
+      ],
+      viewportRows: viewportRows,
+      viewportCols: viewportCols,
+    ),
+  );
+}
+
+TerminalFrameKind _terminalFrameKindFromProtobuf(
+  frame_pb.TerminalFrameKind value,
+) {
+  return switch (value) {
+    frame_pb.TerminalFrameKind.TERMINAL_FRAME_KIND_DELTA =>
+      TerminalFrameKind.delta,
+    _ => TerminalFrameKind.snapshot,
+  };
+}
+
+TerminalRow? _terminalRowFromProtobuf(frame_pb.TerminalRow row) {
+  return TerminalRow(
+    index: row.index,
+    text: row.text,
+    wrapped: row.wrapped,
+    modifiedAt: _dateTimeFromProtobufMicros(row),
+    styleRuns: [
+      for (final run in row.styleRuns) ?_terminalStyleRunFromProtobuf(run),
+    ],
+  );
+}
+
+TerminalStyleRun? _terminalStyleRunFromProtobuf(frame_pb.TerminalStyleRun run) {
+  if (run.end <= run.start) {
+    return null;
+  }
+  return TerminalStyleRun(
+    start: run.start,
+    end: run.end,
+    foreground: _colorFromProtobuf(
+      hasValue: run.hasForeground(),
+      value: run.foreground,
+    ),
+    background: _colorFromProtobuf(
+      hasValue: run.hasBackground(),
+      value: run.background,
+    ),
+    bold: run.bold,
+    dim: run.dim,
+    italic: run.italic,
+    underline: run.underline,
+    blink: run.blink,
+    inverse: run.inverse,
+  );
+}
+
+DateTime? _dateTimeFromProtobufMicros(frame_pb.TerminalRow row) {
+  if (!row.hasModifiedAtMicros()) {
+    return null;
+  }
+  final micros = row.modifiedAtMicros.toInt();
+  if (micros <= 0) {
+    return null;
+  }
+  try {
+    return DateTime.fromMicrosecondsSinceEpoch(micros, isUtc: true);
+  } on Object {
+    return null;
+  }
+}
+
+TerminalCursor _terminalCursorFromProtobuf(frame_pb.TerminalCursor cursor) {
+  return TerminalCursor(
+    row: cursor.row,
+    col: cursor.col,
+    visible: cursor.visible,
+  );
+}
+
+TerminalSelection? _terminalSelectionFromProtobuf(
+  frame_pb.TerminalSelection selection,
+) {
+  if (!selection.present) {
+    return null;
+  }
+  return TerminalSelection(
+    startRow: selection.startRow,
+    startCol: selection.startCol,
+    endRow: selection.endRow,
+    endCol: selection.endCol,
+  );
+}
+
+TerminalFrameModes _terminalFrameModesFromProtobuf(
+  frame_pb.TerminalFrameModes modes,
+) {
+  return TerminalFrameModes(
+    alternateScreen: modes.alternateScreen,
+    alternateScroll: modes.alternateScroll,
+    applicationCursor: modes.applicationCursor,
+    applicationKeypad: modes.applicationKeypad,
+    insertMode: modes.insertMode,
+    originMode: modes.originMode,
+    lineFeedNewLineMode: modes.lineFeedNewLineMode,
+    hideCursor: modes.hideCursor,
+    bracketedPaste: modes.bracketedPaste,
+    focusTracking: modes.focusTracking,
+    charProtected: modes.charProtected,
+    mouseMode: _terminalMouseModeFromJson(modes.mouseMode),
+    mouseEncoding: _terminalMouseEncodingFromJson(modes.mouseEncoding),
+    kittyKeyboardFlags: modes.kittyKeyboardFlags,
+    synchronizedOutput: modes.synchronizedOutput,
+  );
+}
+
+TerminalHyperlinkRange? _terminalHyperlinkFromProtobuf(
+  frame_pb.TerminalHyperlinkRange hyperlink,
+) {
+  final uri = _nonEmptyTrimmedProtoString(
+    hasValue: hyperlink.hasUri(),
+    value: hyperlink.uri,
+  );
+  if (hyperlink.endCol <= hyperlink.startCol || uri == null) {
+    return null;
+  }
+  return TerminalHyperlinkRange(
+    row: hyperlink.row,
+    startCol: hyperlink.startCol,
+    endCol: hyperlink.endCol,
+    uri: uri,
+  );
+}
+
+TerminalInlineImage? _terminalInlineImageFromProtobuf(
+  frame_pb.TerminalInlineImage image,
+) {
+  final encoded = image.hasData() ? image.data : '';
+  if (encoded.isEmpty || encoded.length > _maxInlineImageEncodedLength) {
+    return null;
+  }
+  final Uint8List bytes;
+  try {
+    bytes = base64.decode(encoded);
+  } on FormatException {
+    return null;
+  }
+  if (bytes.isEmpty || bytes.length > _maxInlineImageDecodedBytes) {
+    return null;
+  }
+  final widthCells = image.hasWidthCells() ? image.widthCells : 1;
+  final heightCells = image.hasHeightCells() ? image.heightCells : 1;
+  if (widthCells <= 0 || heightCells <= 0) {
+    return null;
+  }
+  return TerminalInlineImage(
+    row: image.hasRow() ? image.row : 0,
+    col: image.hasCol() ? image.col : 0,
+    widthCells: widthCells,
+    heightCells: heightCells,
+    bytes: bytes,
+    altText: image.hasAltText() ? image.altText : null,
+  );
+}
+
+TerminalGraphicPlacement? _terminalGraphicFromProtobuf(
+  frame_pb.TerminalGraphicPlacement graphic,
+) {
+  if (!graphic.hasAssetKey()) {
+    return null;
+  }
+  final assetKey = graphic.assetKey;
+  final protocol = _nonEmptyTrimmedProtoString(
+    hasValue: graphic.hasProtocol(),
+    value: graphic.protocol,
+  );
+  final placementId = graphic.placementId;
+  final renderId = graphic.hasRenderId() && graphic.renderId > 0
+      ? graphic.renderId
+      : placementId;
+  final widthPx = graphic.widthPx;
+  final heightPx = graphic.heightPx;
+  final widthCells = graphic.widthCells;
+  final heightCells = graphic.heightCells;
+  final sourceXOffsetPx = graphic.sourceXOffsetPx;
+  final visibleWidthPx = graphic.hasVisibleWidthPx()
+      ? graphic.visibleWidthPx
+      : widthPx - sourceXOffsetPx;
+  final sourceYOffsetPx = graphic.sourceYOffsetPx;
+  final visibleHeightPx = graphic.hasVisibleHeightPx()
+      ? graphic.visibleHeightPx
+      : heightPx - sourceYOffsetPx;
+  if (assetKey.assetId <= 0 ||
+      assetKey.assetVersion <= 0 ||
+      protocol == null ||
+      widthPx <= 0 ||
+      heightPx <= 0 ||
+      widthCells <= 0 ||
+      heightCells <= 0 ||
+      sourceXOffsetPx >= widthPx ||
+      visibleWidthPx <= 0 ||
+      visibleWidthPx > widthPx - sourceXOffsetPx ||
+      sourceYOffsetPx >= heightPx ||
+      visibleHeightPx <= 0 ||
+      visibleHeightPx > heightPx - sourceYOffsetPx) {
+    return null;
+  }
+  return TerminalGraphicPlacement(
+    renderId: renderId,
+    placementId: placementId,
+    assetKey: TerminalGraphicAssetKey(
+      id: assetKey.assetId,
+      version: assetKey.assetVersion,
+    ),
+    protocol: protocol,
+    row: graphic.row,
+    col: graphic.col,
+    widthPx: widthPx,
+    heightPx: heightPx,
+    widthCells: widthCells,
+    heightCells: heightCells,
+    sourceXOffsetPx: sourceXOffsetPx,
+    visibleWidthPx: visibleWidthPx,
+    sourceYOffsetPx: sourceYOffsetPx,
+    visibleHeightPx: visibleHeightPx,
+    zIndex: graphic.zIndex,
+    xOffsetPx: graphic.xOffsetPx < 0 ? 0 : graphic.xOffsetPx,
+    yOffsetPx: graphic.yOffsetPx < 0 ? 0 : graphic.yOffsetPx,
+    preserveAspectRatio: graphic.preserveAspectRatio,
+  );
+}
+
+Color? _colorFromProtobuf({
+  required bool hasValue,
+  required frame_pb.ColorRgb value,
+}) {
+  if (!hasValue || !value.present || value.rgb > 0xFFFFFF) {
+    return null;
+  }
+  return Color(0xFF000000 | value.rgb);
+}
+
+String? _nonEmptyTrimmedProtoString({
+  required bool hasValue,
+  required String value,
+}) {
+  if (!hasValue) {
+    return null;
+  }
+  final trimmed = value.trim();
+  return trimmed.isEmpty ? null : trimmed;
 }
 
 List<TerminalDirtyRange> _normalizeDirtyRanges(

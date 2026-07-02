@@ -4,7 +4,9 @@ import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fixnum/fixnum.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
+import 'package:ianvs_terminal/src/proto/frame_diff.pb.dart' as frame_pb;
 import 'package:ianvs_pty/ianvs_pty.dart';
 
 void main() {
@@ -665,6 +667,157 @@ void main() {
 
     expect(explicit.frameSchemaVersion, 'terminal-frame-diff-v2');
     expect(legacy.frameSchemaVersion, 'terminal-frame-diff-v1');
+  });
+
+  test('terminal frames parse protobuf payloads', () {
+    final imageBytes = utf8.encode('fake-png');
+    final payload = frame_pb.TerminalFrameDiff(
+      frameSchemaVersion: 'terminal-frame-diff-v2',
+      frameKind: frame_pb.TerminalFrameKind.TERMINAL_FRAME_KIND_DELTA,
+      rows: [
+        frame_pb.TerminalRow(
+          index: 1,
+          text: 'styled',
+          wrapped: true,
+          modifiedAtMicros: Int64(1780000000123456),
+          styleRuns: [
+            frame_pb.TerminalStyleRun(
+              start: 0,
+              end: 6,
+              foreground: frame_pb.ColorRgb(present: true, rgb: 0x112233),
+              background: frame_pb.ColorRgb(present: true, rgb: 0x445566),
+              bold: true,
+            ),
+          ],
+        ),
+      ],
+      cursor: frame_pb.TerminalCursor(row: 1, col: 6, visible: true),
+      selection: frame_pb.TerminalSelection(
+        present: true,
+        startRow: 1,
+        startCol: 0,
+        endRow: 1,
+        endCol: 6,
+      ),
+      viewportRows: 3,
+      viewportCols: 80,
+      dirtyRanges: [frame_pb.TerminalDirtyRange(start: 1, end: 4)],
+      scrollbackOffset: 9,
+      scrollbackMaxOffset: 4,
+      viewportStartRow: 12,
+      viewportRowShift: -1,
+      defaultForeground: frame_pb.ColorRgb(present: true, rgb: 0xaaaaaa),
+      defaultBackground: frame_pb.ColorRgb(present: true, rgb: 0x101010),
+      cursorColor: frame_pb.ColorRgb(present: true, rgb: 0xff00aa),
+      modes: frame_pb.TerminalFrameModes(
+        alternateScreen: true,
+        mouseMode: ' Any_Event ',
+        mouseEncoding: ' SGR-Pixels ',
+        kittyKeyboardFlags: 7,
+        synchronizedOutput: true,
+      ),
+      windowTitle: 'title',
+      windowIconName: 'icon',
+      hyperlinks: [
+        frame_pb.TerminalHyperlinkRange(
+          row: 1,
+          startCol: 0,
+          endCol: 6,
+          uri: ' https://example.com ',
+        ),
+      ],
+      inlineImages: [
+        frame_pb.TerminalInlineImage(
+          row: 1,
+          col: 2,
+          widthCells: 4,
+          heightCells: 2,
+          data: base64.encode(imageBytes),
+          altText: 'preview',
+        ),
+      ],
+      graphics: [
+        frame_pb.TerminalGraphicPlacement(
+          placementId: 11,
+          renderId: 101,
+          assetKey: frame_pb.TerminalGraphicAssetKey(
+            assetId: 7,
+            assetVersion: 3,
+          ),
+          protocol: 'kitty',
+          row: 1,
+          col: 2,
+          widthPx: 8,
+          heightPx: 4,
+          widthCells: 4,
+          heightCells: 2,
+          sourceXOffsetPx: 2,
+          visibleWidthPx: 6,
+          sourceYOffsetPx: 1,
+          visibleHeightPx: 3,
+          zIndex: 1,
+          xOffsetPx: 2,
+          yOffsetPx: 1,
+          preserveAspectRatio: false,
+        ),
+      ],
+    );
+
+    final frame = TerminalFrameDiff.fromProtobufBytes(payload.writeToBuffer());
+
+    expect(frame.frameSchemaVersion, 'terminal-frame-diff-v2');
+    expect(frame.frameKind, TerminalFrameKind.delta);
+    expect(frame.rows.single.index, 1);
+    expect(frame.rows.single.text, 'styled');
+    expect(frame.rows.single.wrapped, isTrue);
+    expect(
+      frame.rows.single.modifiedAt,
+      DateTime.fromMicrosecondsSinceEpoch(1780000000123456, isUtc: true),
+    );
+    expect(
+      frame.rows.single.styleRuns.single.foreground,
+      const Color(0xFF112233),
+    );
+    expect(
+      frame.rows.single.styleRuns.single.background,
+      const Color(0xFF445566),
+    );
+    expect(frame.rows.single.styleRuns.single.bold, isTrue);
+    expect(frame.cursor.row, 1);
+    expect(frame.cursor.col, 6);
+    expect(frame.cursor.visible, isTrue);
+    expect(frame.selection, isNotNull);
+    expect(frame.selection!.startRow, 1);
+    expect(frame.viewportRows, 3);
+    expect(frame.viewportCols, 80);
+    expect(
+      frame.dirtyRanges.map((range) => (range.start, range.end)).toList(),
+      <(int, int)>[(1, 3)],
+    );
+    expect(frame.scrollbackOffset, 4);
+    expect(frame.scrollbackMaxOffset, 4);
+    expect(frame.viewportStartRow, 12);
+    expect(frame.viewportRowShift, -1);
+    expect(frame.defaultForeground, const Color(0xFFAAAAAA));
+    expect(frame.defaultBackground, const Color(0xFF101010));
+    expect(frame.cursorColor, const Color(0xFFFF00AA));
+    expect(frame.modes.alternateScreen, isTrue);
+    expect(frame.modes.mouseMode, 'any_event');
+    expect(frame.modes.mouseEncoding, 'sgr_pixels');
+    expect(frame.modes.kittyKeyboardFlags, 7);
+    expect(frame.modes.synchronizedOutput, isTrue);
+    expect(frame.windowTitle, 'title');
+    expect(frame.windowIconName, 'icon');
+    expect(frame.hyperlinks.single.uri, 'https://example.com');
+    expect(frame.inlineImages.single.bytes, imageBytes);
+    expect(frame.inlineImages.single.altText, 'preview');
+    expect(
+      frame.graphics.single.assetKey,
+      const TerminalGraphicAssetKey(id: 7, version: 3),
+    );
+    expect(frame.graphics.single.renderId, 101);
+    expect(frame.graphics.single.visibleWidthPx, 6);
+    expect(frame.graphics.single.preserveAspectRatio, isFalse);
   });
 
   test('terminal render intent describes sparse delta repaint work', () {
