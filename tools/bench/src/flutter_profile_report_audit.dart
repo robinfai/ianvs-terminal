@@ -315,7 +315,7 @@ String _formalMarkdown(FlutterProfileReportAuditResult result) {
       ..writeln('|---|---|---:|---:|---:|---:|---:|---:|');
     for (final row in _performanceSummaryRows(result.rows)) {
       buffer.writeln(
-        '| ${_markdownCell(row.target)} | ${_markdownCell(row.workload)} | '
+        '| ${_markdownCell(row.target)} | ${_markdownCell(row.workload)} (${_markdownCell(row.wireFormat)}) | '
         '${row.repeatCount} | ${row.hashMatchCount} | '
         '${_formatDouble(row.p95TotalSpanAverage)} | '
         '${_formatDouble(row.p95TotalSpanMax)} | '
@@ -339,7 +339,8 @@ List<_PerformanceSummaryRow> _performanceSummaryRows(
 ) {
   final grouped = <String, List<Map<String, String>>>{};
   for (final row in rows) {
-    final key = '${row['target_device'] ?? ''}\n${row['workload'] ?? ''}';
+    final key =
+        '${row['target_device'] ?? ''}\n${row['workload'] ?? ''}\n${row['wire_format'] ?? ''}';
     grouped.putIfAbsent(key, () => <Map<String, String>>[]).add(row);
   }
   final summaries = grouped.entries
@@ -356,6 +357,7 @@ List<_PerformanceSummaryRow> _performanceSummaryRows(
         return _PerformanceSummaryRow(
           target: groupRows.first['target_device'] ?? '',
           workload: groupRows.first['workload'] ?? '',
+          wireFormat: groupRows.first['wire_format'] ?? '',
           repeatCount: groupRows.length,
           hashMatchCount: groupRows
               .where((row) => row['hash_match'] == 'true')
@@ -383,6 +385,7 @@ final class _PerformanceSummaryRow {
   const _PerformanceSummaryRow({
     required this.target,
     required this.workload,
+    required this.wireFormat,
     required this.repeatCount,
     required this.hashMatchCount,
     required this.p95TotalSpanAverage,
@@ -393,6 +396,7 @@ final class _PerformanceSummaryRow {
 
   final String target;
   final String workload;
+  final String wireFormat;
   final int repeatCount;
   final int hashMatchCount;
   final double? p95TotalSpanAverage;

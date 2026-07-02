@@ -2016,10 +2016,43 @@ void main() {
     expect(runtimeBackend.takeFrameDiffCalls, 0);
   });
 
+  testWidgets('terminal runtime can force JSON frame transport', (
+    tester,
+  ) async {
+    final runtimeBackend = _ProtobufFramePtyBackend(
+      initialFrame: _singleRowProtobuf('protobuf demo'),
+    );
+    final events = <Map<String, Object?>>[];
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+      frameWireFormatPreference: TerminalFrameWireFormatPreference.json,
+      benchmarkEventSink: events.add,
+    );
+    addTearDown(runtime.dispose);
+
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    await tester.pump();
+
+    expect(runtime.viewportFor(sessionId).frame.rows.first.text, 'demo');
+    expect(runtimeBackend.takeFrameDiffProtobufCalls, 0);
+    expect(runtimeBackend.takeFrameDiffCalls, 1);
+    expect(events.single['wire_format'], 'json');
+    expect(events.single['raw_frame_bytes'], greaterThan(0));
+    expect(events.single['json_decode_micros'], isA<int>());
+    expect(events.single['protobuf_decode_micros'], 0);
+  });
+
   testWidgets(
-    'terminal runtime falls back to JSON when protobuf bytes are unavailable',
+    'terminal runtime falls back to JSON when protobuf backend is unavailable',
     (tester) async {
-      final runtimeBackend = _ProtobufFramePtyBackend();
+      final runtimeBackend = _FakePtyBackend();
       final runtime = TerminalRuntimeController(
         backend: runtimeBackend,
         copyToClipboard: (_) async {},
@@ -2036,7 +2069,6 @@ void main() {
       await tester.pump();
 
       expect(runtime.viewportFor(sessionId).frame.rows.first.text, 'demo');
-      expect(runtimeBackend.takeFrameDiffProtobufCalls, 1);
       expect(runtimeBackend.takeFrameDiffCalls, 1);
 
       runtimeBackend.setFrame(sessionId, _singleRowSnapshot('json fallback'));
@@ -2047,15 +2079,40 @@ void main() {
         runtime.viewportFor(sessionId).frame.rows.first.text,
         'json fallback',
       );
-      expect(runtimeBackend.takeFrameDiffProtobufCalls, 2);
       expect(runtimeBackend.takeFrameDiffCalls, 2);
+    },
+  );
+
+  testWidgets(
+    'terminal runtime does not JSON fallback while protobuf frame stream is idle',
+    (tester) async {
+      final runtimeBackend = _ProtobufFramePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+
+      expect(runtimeBackend.takeFrameDiffProtobufCalls, 1);
+      expect(runtimeBackend.takeFrameDiffCalls, 0);
     },
   );
 
   testWidgets(
     'terminal runtime skips malformed protobuf frames without reading JSON',
     (tester) async {
-      final runtimeBackend = _ProtobufFramePtyBackend();
+      final runtimeBackend = _ProtobufFramePtyBackend(
+        initialFrame: _singleRowProtobuf('demo'),
+      );
       final runtime = TerminalRuntimeController(
         backend: runtimeBackend,
         copyToClipboard: (_) async {},
@@ -4759,13 +4816,53 @@ void main() {
     expect(event['json_decode_micros'], 0);
     expect(event['protobuf_decode_micros'], isA<int>());
   });
+
+  test('terminal runtime emits native frame benchmark stats', () async {
+    final runtimeBackend =
+        _ProtobufFramePtyBackend(
+            initialFrame: _singleRowProtobuf('native stats'),
+          )
+          ..frameDiagnosticsRawResponse = jsonEncode(<String, Object?>{
+            'rows_scanned': 40,
+            'rows_emitted': 8,
+            'frame_build_micros': 321,
+            'json_encode_micros': 0,
+            'protobuf_encode_micros': 17,
+          });
+    final benchmarkEvents = <Map<String, Object?>>[];
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+      benchmarkEventSink: benchmarkEvents.add,
+    );
+    addTearDown(runtime.dispose);
+
+    runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    final event = benchmarkEvents.singleWhere(
+      (event) => event['schema_version'] == 'ianvs-bench-dart-runtime-v1',
+    );
+    expect(event['native_frame_build_micros'], 321);
+    expect(event['native_json_encode_micros'], 0);
+    expect(event['native_protobuf_encode_micros'], 17);
+    expect(event['native_rows_scanned'], 40);
+    expect(event['native_rows_emitted'], 8);
+  });
 }
 
 class _FakePtyBackend
     implements
         PtySessionBackend,
         PtySessionJsonRequestBackend,
-        PtySessionGraphicAssetBackend {
+        PtySessionGraphicAssetBackend,
+        PtySessionDiagnosticsBackend {
   String? lastCreateSessionJson;
   int takeFrameDiffCalls = 0;
   int pollEventsCalls = 0;
@@ -4787,6 +4884,8 @@ class _FakePtyBackend
   String? scrollbackRawResponse;
   Map<String, Object?>? diagnosticsResponse;
   String? diagnosticsRawResponse;
+  String? frameDiagnosticsRawResponse;
+  String? sessionDiagnosticsRawResponse;
   bool returnNullJsonRequests = false;
 
   final Map<String, Map<String, Object?>> _frames =
@@ -4962,6 +5061,15 @@ class _FakePtyBackend
     graphicAssetRequests.add((sessionId, assetId, assetVersion));
     return graphicAssets[(assetId, assetVersion)];
   }
+
+  @override
+  String? takeDiagnosticsJson(String sessionId, String kind) {
+    return switch (kind) {
+      'frame' => frameDiagnosticsRawResponse,
+      'session' => sessionDiagnosticsRawResponse,
+      _ => null,
+    };
+  }
 }
 
 class _ProtobufFramePtyBackend extends _FakePtyBackend
@@ -4973,6 +5081,9 @@ class _ProtobufFramePtyBackend extends _FakePtyBackend
   int takeFrameDiffProtobufCalls = 0;
   final Map<String, List<Uint8List?>> _queuedProtobufFrames =
       <String, List<Uint8List?>>{};
+
+  @override
+  bool get supportsProtobufFrameDiffs => true;
 
   @override
   String createSession(String sessionConfigJson) {

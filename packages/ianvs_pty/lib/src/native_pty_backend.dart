@@ -269,6 +269,7 @@ String? _sessionIdFromJson(Object? value) {
 }
 
 abstract class PtyBindings {
+  bool get supportsFrameDiffProtobuf;
   int ping();
   int sessionCreateJson(String sessionConfigJson);
   int sessionClose(int sessionId);
@@ -375,6 +376,9 @@ class NativePtyBindings implements PtyBindings {
   final _GraphicAssetRgbaCopyDart? _graphicAssetRgbaCopy;
   final _FreeStringDart _stringFree;
   final _FreeBytesDart? _bytesFree;
+
+  @override
+  bool get supportsFrameDiffProtobuf => _takeFrameDiffProtobuf != null;
 
   factory NativePtyBindings.load() {
     return NativePtyBindings(ffi.DynamicLibrary.open(_resolveLibraryPath()));
@@ -625,6 +629,7 @@ abstract class PtySessionGraphicAssetBackend {
 }
 
 abstract class PtySessionProtobufFrameBackend {
+  bool get supportsProtobufFrameDiffs;
   Uint8List? takeFrameDiffProtobuf(String sessionId);
 }
 
@@ -709,6 +714,9 @@ class NativePtyBackend
   String? takeFrameDiffJson(String sessionId) {
     return _bindings.sessionTakeFrameDiffJson(_nativeSessionId(sessionId));
   }
+
+  @override
+  bool get supportsProtobufFrameDiffs => _bindings.supportsFrameDiffProtobuf;
 
   @override
   Uint8List? takeFrameDiffProtobuf(String sessionId) {

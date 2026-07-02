@@ -12,6 +12,7 @@ Map<String, Object?> writeTerminalRenderProfileReport({
   required int semanticGenerations,
   required List<Map<String, Object?>> flutterRenderEvents,
   required List<Map<String, Object?>> flutterFrameTimingEvents,
+  List<Map<String, Object?>> dartRuntimeEvents = const <Map<String, Object?>>[],
   required String expectedViewportHash,
   required String actualViewportHash,
   DateTime? startedAt,
@@ -38,6 +39,7 @@ Map<String, Object?> writeTerminalRenderProfileReport({
       'frame_policy': policy,
       'renderer': 'flutter',
       'engine': 'real',
+      'wire_format': _wireFormatFor(dartRuntimeEvents),
     },
   });
   _writeJson(File('${outputDir.path}/correctness.json'), <String, Object?>{
@@ -57,6 +59,10 @@ Map<String, Object?> writeTerminalRenderProfileReport({
     File('${outputDir.path}/flutter_frame_timing.ndjson'),
     flutterFrameTimingEvents,
   );
+  _writeNdjson(
+    File('${outputDir.path}/dart_runtime.ndjson'),
+    dartRuntimeEvents,
+  );
 
   final summary = _summarize(
     workload: workload,
@@ -68,6 +74,7 @@ Map<String, Object?> writeTerminalRenderProfileReport({
     hashMatch: hashMatch,
     flutterRenderEvents: flutterRenderEvents,
     flutterFrameTimingEvents: flutterFrameTimingEvents,
+    dartRuntimeEvents: dartRuntimeEvents,
   );
   _writeSummary(outputDir, summary);
   return summary;
@@ -103,7 +110,7 @@ void writeTerminalRenderProfileAggregateSummary(
     ..writeln('|---|---|---:|---:|---:|---:|');
   for (final summary in summaries) {
     md.writeln(
-      '| ${summary['target_device']} | ${summary['workload']} | '
+      '| ${summary['target_device']} | ${summary['workload']} (${summary['wire_format']}) | '
       '${summary['repeat']} | ${summary['hash_match']} | '
       '${summary['frames_presented']} | '
       '${_display(summary['p95_total_span_micros'])} |',
@@ -119,7 +126,7 @@ void writeTerminalRenderProfileAggregateSummary(
     ..writeln('|---|---|---:|---:|---:|---:|');
   for (final summary in groupedSummaries) {
     md.writeln(
-      '| ${summary['target_device']} | ${summary['workload']} | '
+      '| ${summary['target_device']} | ${summary['workload']} (${summary['wire_format']}) | '
       '${summary['repeat_count']} | ${summary['hash_match_count']} | '
       '${_display(summary['p95_total_span_micros_avg'])} | '
       '${summary['missed_vsync_count_total']} |',
@@ -138,19 +145,24 @@ Map<String, Object?> _summarize({
   required bool hashMatch,
   required List<Map<String, Object?>> flutterRenderEvents,
   required List<Map<String, Object?>> flutterFrameTimingEvents,
+  required List<Map<String, Object?>> dartRuntimeEvents,
 }) {
   final frameCount = flutterRenderEvents.length;
   final cacheHits = _sumInt(flutterRenderEvents, 'row_cache_hits');
   final cacheMisses = _sumInt(flutterRenderEvents, 'row_cache_misses');
+  final runtimeFrameCount = dartRuntimeEvents.length;
   return <String, Object?>{
     'workload': workload,
     'policy': policy,
     'repeat': repeatIndex,
     'target_platform': targetPlatform,
     'target_device': targetDevice,
+    'wire_format': _wireFormatFor(dartRuntimeEvents),
     'hash_match': hashMatch,
     'semantic_generations': semanticGenerations,
-    'frame_diffs_generated': frameCount,
+    'frame_diffs_generated': runtimeFrameCount == 0
+        ? frameCount
+        : runtimeFrameCount,
     'frames_presented': frameCount,
     'coalescing_ratio': frameCount == 0
         ? 'N/A'
@@ -161,9 +173,39 @@ Map<String, Object?> _summarize({
     'delta_count': flutterRenderEvents
         .where((event) => event['frame_kind'] == 'delta')
         .length,
-    'avg_rows_emitted': 'N/A',
-    'p95_frame_build_micros': 'N/A',
-    'p95_apply_frame_micros': 'N/A',
+    'avg_rows_emitted': _averageIntValues(
+      dartRuntimeEvents,
+      'native_rows_emitted',
+    ),
+    'p95_frame_build_micros': _percentile(
+      _intValues(dartRuntimeEvents, 'native_frame_build_micros'),
+      95,
+    ),
+    'p95_apply_frame_micros': _percentile(
+      _intValues(dartRuntimeEvents, 'apply_frame_micros'),
+      95,
+    ),
+    'runtime_frame_count': runtimeFrameCount,
+    'runtime_raw_frame_bytes_total': _sumInt(
+      dartRuntimeEvents,
+      'raw_frame_bytes',
+    ),
+    'p95_json_decode_micros': _percentile(
+      _intValues(dartRuntimeEvents, 'json_decode_micros'),
+      95,
+    ),
+    'p95_protobuf_decode_micros': _percentile(
+      _intValues(dartRuntimeEvents, 'protobuf_decode_micros'),
+      95,
+    ),
+    'p95_native_json_encode_micros': _percentile(
+      _intValues(dartRuntimeEvents, 'native_json_encode_micros'),
+      95,
+    ),
+    'p95_native_protobuf_encode_micros': _percentile(
+      _intValues(dartRuntimeEvents, 'native_protobuf_encode_micros'),
+      95,
+    ),
     'p95_build_duration_micros': _percentile(
       _intValues(flutterFrameTimingEvents, 'build_duration_micros'),
       95,
@@ -221,8 +263,17 @@ void _writeSummary(Directory outputDir, Map<String, Object?> summary) {
     '- target_device: `${summary['target_device']}`\n'
     '- workload: `${summary['workload']}`\n'
     '- policy: `${summary['policy']}`\n'
+    '- wire_format: `${summary['wire_format']}`\n'
     '- hash_match: `${summary['hash_match']}`\n'
     '- frames_presented: `${summary['frames_presented']}`\n'
+    '- runtime_frame_count: `${summary['runtime_frame_count']}`\n'
+    '- runtime_raw_frame_bytes_total: `${summary['runtime_raw_frame_bytes_total']}`\n'
+    '- p95_frame_build_micros: `${summary['p95_frame_build_micros']}`\n'
+    '- p95_apply_frame_micros: `${summary['p95_apply_frame_micros']}`\n'
+    '- p95_json_decode_micros: `${summary['p95_json_decode_micros']}`\n'
+    '- p95_protobuf_decode_micros: `${summary['p95_protobuf_decode_micros']}`\n'
+    '- p95_native_json_encode_micros: `${summary['p95_native_json_encode_micros']}`\n'
+    '- p95_native_protobuf_encode_micros: `${summary['p95_native_protobuf_encode_micros']}`\n'
     '- p95_build_duration_micros: `${summary['p95_build_duration_micros']}`\n'
     '- p95_raster_duration_micros: `${summary['p95_raster_duration_micros']}`\n'
     '- p95_total_span_micros: `${summary['p95_total_span_micros']}`\n'
@@ -251,6 +302,29 @@ List<int> _intValues(List<Map<String, Object?>> events, String key) {
       .toList(growable: false);
 }
 
+Object _averageIntValues(List<Map<String, Object?>> events, String key) {
+  final values = _intValues(events, key);
+  if (values.isEmpty) {
+    return 'N/A';
+  }
+  return values.reduce((a, b) => a + b) / values.length;
+}
+
+String _wireFormatFor(List<Map<String, Object?>> events) {
+  final formats = events
+      .map((event) => event['wire_format'])
+      .whereType<String>()
+      .where((value) => value.isNotEmpty && value != 'unknown')
+      .toSet();
+  if (formats.length == 1) {
+    return formats.single;
+  }
+  if (formats.isEmpty) {
+    return 'render_only';
+  }
+  return 'mixed';
+}
+
 Object _percentile(List<int> values, int percentile) {
   if (values.isEmpty) {
     return 'N/A';
@@ -267,6 +341,7 @@ const _summaryCsvHeader = <String>[
   'workload',
   'policy',
   'repeat',
+  'wire_format',
   'hash_match',
   'semantic_generations',
   'frame_diffs_generated',
@@ -277,6 +352,12 @@ const _summaryCsvHeader = <String>[
   'avg_rows_emitted',
   'p95_frame_build_micros',
   'p95_apply_frame_micros',
+  'runtime_frame_count',
+  'runtime_raw_frame_bytes_total',
+  'p95_json_decode_micros',
+  'p95_protobuf_decode_micros',
+  'p95_native_json_encode_micros',
+  'p95_native_protobuf_encode_micros',
   'p95_build_duration_micros',
   'p95_raster_duration_micros',
   'p95_total_span_micros',
@@ -289,6 +370,7 @@ const _groupedSummaryCsvHeader = <String>[
   'target_platform',
   'target_device',
   'workload',
+  'wire_format',
   'repeat_count',
   'hash_match_count',
   'frames_presented_avg',
@@ -305,6 +387,7 @@ List<String> _summaryCsvRow(Map<String, Object?> summary) {
     _csv(summary['workload']),
     _csv(summary['policy']),
     _csv(summary['repeat']),
+    _csv(summary['wire_format']),
     _csv(summary['hash_match']),
     _csv(summary['semantic_generations']),
     _csv(summary['frame_diffs_generated']),
@@ -315,6 +398,12 @@ List<String> _summaryCsvRow(Map<String, Object?> summary) {
     _csv(_display(summary['avg_rows_emitted'])),
     _csv(summary['p95_frame_build_micros']),
     _csv(summary['p95_apply_frame_micros']),
+    _csv(summary['runtime_frame_count']),
+    _csv(summary['runtime_raw_frame_bytes_total']),
+    _csv(summary['p95_json_decode_micros']),
+    _csv(summary['p95_protobuf_decode_micros']),
+    _csv(summary['p95_native_json_encode_micros']),
+    _csv(summary['p95_native_protobuf_encode_micros']),
     _csv(summary['p95_build_duration_micros']),
     _csv(summary['p95_raster_duration_micros']),
     _csv(summary['p95_total_span_micros']),
@@ -330,7 +419,7 @@ List<Map<String, Object?>> _groupSummariesByWorkload(
   final grouped = <String, List<Map<String, Object?>>>{};
   for (final summary in summaries) {
     final key =
-        '${summary['target_platform']}\u0000${summary['target_device']}\u0000${summary['workload']}';
+        '${summary['target_platform']}\u0000${summary['target_device']}\u0000${summary['workload']}\u0000${summary['wire_format']}';
     grouped.putIfAbsent(key, () => <Map<String, Object?>>[]).add(summary);
   }
 
@@ -341,6 +430,7 @@ List<Map<String, Object?>> _groupSummariesByWorkload(
       'target_platform': first['target_platform'],
       'target_device': first['target_device'],
       'workload': first['workload'],
+      'wire_format': first['wire_format'],
       'repeat_count': entries.length,
       'hash_match_count': entries
           .where((entry) => entry['hash_match'] == true)
@@ -381,6 +471,7 @@ List<String> _groupedSummaryCsvRow(Map<String, Object?> summary) {
     _csv(summary['target_platform']),
     _csv(summary['target_device']),
     _csv(summary['workload']),
+    _csv(summary['wire_format']),
     _csv(summary['repeat_count']),
     _csv(summary['hash_match_count']),
     _csv(_display(summary['frames_presented_avg'])),

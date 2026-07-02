@@ -57,6 +57,7 @@ void main() {
         NativePtyBackend.fromBindings(_ProtobufFramePtyBindings())
             as PtySessionProtobufFrameBackend;
 
+    expect(backend.supportsProtobufFrameDiffs, isTrue);
     final bytes = backend.takeFrameDiffProtobuf('1');
 
     expect(bytes, <int>[8, 1, 18, 4]);
@@ -224,6 +225,9 @@ final String? _workspaceCoreLibraryPath = _resolveWorkspaceCoreLibraryPath();
 
 class _NoopPtyBindings implements PtyBindings {
   @override
+  bool get supportsFrameDiffProtobuf => false;
+
+  @override
   int ping() => 42;
 
   @override
@@ -287,6 +291,9 @@ class _NoopDebugPtyBindings extends _NoopPtyBindings {
 }
 
 class _ProtobufFramePtyBindings extends _NoopPtyBindings {
+  @override
+  bool get supportsFrameDiffProtobuf => true;
+
   @override
   Uint8List? sessionTakeFrameDiffProtobuf(int sessionId) {
     return Uint8List.fromList(const <int>[8, 1, 18, 4]);

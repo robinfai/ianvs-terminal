@@ -92,6 +92,47 @@ By default this runs `burst_stdout_profile`, `scrollback_heavy_profile`, and
 also gets `flutter_render.ndjson`, `flutter_frame_timing.ndjson`,
 `metadata.json`, `correctness.json`, `summary.csv`, and `summary.md`.
 
+## End-to-End Frame Transport Profile
+
+To compare protobuf against a forced JSON wire path through the native runtime,
+FFI boundary, Dart decode/apply, polling, and Flutter render pipeline, run the
+transport profile harness:
+
+```bash
+cd example
+flutter drive \
+  --driver=test_driver/integration_test.dart \
+  --target=integration_test/terminal_transport_profile_test.dart \
+  -d macos \
+  --profile \
+  --dart-define=IANVS_BENCH_TRANSPORT_PROFILE_OUTPUT=/absolute/path/to/ianvs-terminal/build/bench-results-profile/<run>/macos-darwin \
+  --dart-define=IANVS_BENCH_TRANSPORT_PROFILE_TARGET_LABEL=macos-darwin \
+  --dart-define=IANVS_BENCH_TRANSPORT_PROFILE_WORKLOADS=burst_stdout_profile,scrollback_heavy_profile,resize_churn_profile \
+  --dart-define=IANVS_BENCH_TRANSPORT_PROFILE_WIRE_FORMATS=protobuf,json \
+  --dart-define=IANVS_BENCH_TRANSPORT_PROFILE_REPEATS=3 \
+  --dart-define=IANVS_BENCH_TRANSPORT_PROFILE_FRAME_COUNT=96
+```
+
+The output root gets `summary.csv`, `summary_by_workload.csv`, `summary.md`,
+and `paired_hashes.json`. Each run directory gets `flutter_render.ndjson`,
+`flutter_frame_timing.ndjson`, `dart_runtime.ndjson`, `metadata.json`,
+`correctness.json`, `summary.csv`, and `summary.md`. The runtime events include
+the selected `wire_format`, raw frame byte counts, Dart decode/apply timings,
+and native frame build / JSON encode / protobuf encode timings.
+
+The harness asserts that protobuf and forced JSON produce matching final
+viewport hashes for each workload/repeat pair. Run the formal audit over the
+six wire-prefixed workloads after collection:
+
+```bash
+dart run tools/bench/analysis/flutter_profile_audit.dart \
+  --input build/bench-results-profile/<run>/macos-darwin \
+  --output build/bench-results-profile/<run>/formal-audit \
+  --workloads protobuf_burst_stdout_profile,protobuf_scrollback_heavy_profile,protobuf_resize_churn_profile,json_burst_stdout_profile,json_scrollback_heavy_profile,json_resize_churn_profile \
+  --repeats 3 \
+  --require-target-count 1
+```
+
 Useful overrides:
 
 ```bash

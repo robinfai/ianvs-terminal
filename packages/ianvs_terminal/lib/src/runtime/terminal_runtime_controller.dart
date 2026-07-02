@@ -392,13 +392,17 @@ final class _DecodedFrameBenchmarkMetrics {
     required this.wireFormat,
     required this.jsonDecodeMicros,
     required this.protobufDecodeMicros,
+    required this.nativeFrameStats,
   });
 
   final int rawFrameBytes;
   final String wireFormat;
   final int jsonDecodeMicros;
   final int protobufDecodeMicros;
+  final Map<String, Object?> nativeFrameStats;
 }
+
+enum TerminalFrameWireFormatPreference { automatic, json }
 
 class TerminalRuntimeController {
   static const Duration _pollingFrameInterval = Duration(milliseconds: 33);
@@ -419,6 +423,8 @@ class TerminalRuntimeController {
     this.resizeWindowBy,
     this.enableSessionPolling = true,
     this.enableWarmUpRefresh = false,
+    this.frameWireFormatPreference =
+        TerminalFrameWireFormatPreference.automatic,
     this.benchmarkEventSink,
   }) : _backend = backend,
        allowClipboardCopy =
@@ -438,6 +444,7 @@ class TerminalRuntimeController {
   final TerminalWindowResizeCallback? resizeWindowBy;
   final bool enableSessionPolling;
   final bool enableWarmUpRefresh;
+  final TerminalFrameWireFormatPreference frameWireFormatPreference;
   final TerminalBenchmarkEventSink? benchmarkEventSink;
 
   final Map<String, TerminalViewportController> _viewportControllers =
@@ -1244,23 +1251,34 @@ class TerminalRuntimeController {
   }
 
   TerminalFrameDiff? _takeFrameDiff(String sessionId) {
+    if (frameWireFormatPreference == TerminalFrameWireFormatPreference.json) {
+      final rawFrame = _backend.takeFrameDiffJson(sessionId);
+      if (rawFrame == null || rawFrame.isEmpty) {
+        return null;
+      }
+      return _decodeJsonFrame(sessionId, rawFrame);
+    }
+
     final backend = _backend;
     final protobufBackend = backend is PtySessionProtobufFrameBackend
         ? backend as PtySessionProtobufFrameBackend
         : null;
-    final protobufBytes = protobufBackend?.takeFrameDiffProtobuf(sessionId);
-    if (protobufBytes != null && protobufBytes.isNotEmpty) {
-      return _decodeProtobufFrame(protobufBytes);
+    if (protobufBackend != null && protobufBackend.supportsProtobufFrameDiffs) {
+      final protobufBytes = protobufBackend.takeFrameDiffProtobuf(sessionId);
+      if (protobufBytes == null || protobufBytes.isEmpty) {
+        return null;
+      }
+      return _decodeProtobufFrame(sessionId, protobufBytes);
     }
 
     final rawFrame = _backend.takeFrameDiffJson(sessionId);
     if (rawFrame == null || rawFrame.isEmpty) {
       return null;
     }
-    return _decodeJsonFrame(rawFrame);
+    return _decodeJsonFrame(sessionId, rawFrame);
   }
 
-  TerminalFrameDiff? _decodeJsonFrame(String rawFrame) {
+  TerminalFrameDiff? _decodeJsonFrame(String sessionId, String rawFrame) {
     final decodeWatch = benchmarkEventSink == null
         ? null
         : (Stopwatch()..start());
@@ -1277,6 +1295,7 @@ class TerminalRuntimeController {
           wireFormat: 'json',
           jsonDecodeMicros: decodeWatch?.elapsedMicroseconds ?? 0,
           protobufDecodeMicros: 0,
+          nativeFrameStats: _takeNativeFrameDebugStats(sessionId),
         );
       }
       return frame;
@@ -1285,7 +1304,10 @@ class TerminalRuntimeController {
     }
   }
 
-  TerminalFrameDiff? _decodeProtobufFrame(Uint8List rawFrame) {
+  TerminalFrameDiff? _decodeProtobufFrame(
+    String sessionId,
+    Uint8List rawFrame,
+  ) {
     final decodeWatch = benchmarkEventSink == null
         ? null
         : (Stopwatch()..start());
@@ -1298,12 +1320,32 @@ class TerminalRuntimeController {
           wireFormat: 'protobuf',
           jsonDecodeMicros: 0,
           protobufDecodeMicros: decodeWatch?.elapsedMicroseconds ?? 0,
+          nativeFrameStats: _takeNativeFrameDebugStats(sessionId),
         );
       }
       return frame;
     } on Object {
       return null;
     }
+  }
+
+  Map<String, Object?> _takeNativeFrameDebugStats(String sessionId) {
+    final backend = _backend;
+    final diagnosticsBackend = backend is PtySessionDiagnosticsBackend
+        ? backend as PtySessionDiagnosticsBackend
+        : null;
+    if (diagnosticsBackend == null) {
+      return const <String, Object?>{};
+    }
+    final raw = diagnosticsBackend.takeDiagnosticsJson(sessionId, 'frame');
+    if (raw == null || raw.isEmpty) {
+      return const <String, Object?>{};
+    }
+    final decoded = _tryDecodeJsonObject(raw);
+    if (decoded == null) {
+      return const <String, Object?>{};
+    }
+    return decoded;
   }
 
   void _queuePendingFrame(
@@ -1355,6 +1397,25 @@ class TerminalRuntimeController {
       'frame_kind': frame.frameKind.name,
       'json_decode_micros': decodedMetrics?.jsonDecodeMicros ?? 0,
       'protobuf_decode_micros': decodedMetrics?.protobufDecodeMicros ?? 0,
+      'native_frame_build_micros':
+          _wholeIntValue(
+            decodedMetrics?.nativeFrameStats['frame_build_micros'],
+          ) ??
+          0,
+      'native_json_encode_micros':
+          _wholeIntValue(
+            decodedMetrics?.nativeFrameStats['json_encode_micros'],
+          ) ??
+          0,
+      'native_protobuf_encode_micros':
+          _wholeIntValue(
+            decodedMetrics?.nativeFrameStats['protobuf_encode_micros'],
+          ) ??
+          0,
+      'native_rows_scanned':
+          _wholeIntValue(decodedMetrics?.nativeFrameStats['rows_scanned']) ?? 0,
+      'native_rows_emitted':
+          _wholeIntValue(decodedMetrics?.nativeFrameStats['rows_emitted']) ?? 0,
       'apply_frame_micros': applyFrameMicros,
       'pending_frames_before': pendingFramesBefore,
       'pending_frames_after': pendingFramesAfter,
