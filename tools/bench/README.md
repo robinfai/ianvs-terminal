@@ -58,9 +58,16 @@ Optional defines:
 --dart-define=FRAME_DIFF_TRANSPORT_BENCH_FRAMES=120
 --dart-define=FRAME_DIFF_TRANSPORT_BENCH_ROWS=40
 --dart-define=FRAME_DIFF_TRANSPORT_BENCH_COLS=120
+--dart-define=FRAME_DIFF_TRANSPORT_BENCH_WORKLOAD=mixed
 ```
 
-The test is skipped unless `FRAME_DIFF_TRANSPORT_BENCH_OUT` is provided.
+The test is skipped unless `FRAME_DIFF_TRANSPORT_BENCH_OUT` is provided. The
+default `mixed` workload uses fixed viewport dimensions with periodic snapshot
+frames. Use `FRAME_DIFF_TRANSPORT_BENCH_WORKLOAD=resize_churn` to mirror the
+profile harness resize cadence: every eight frames the synthetic viewport rows
+and columns change, producing snapshot frames for resize transitions and delta
+frames between them. The metrics include aggregate transport numbers and a
+`by_frame_kind` breakdown for `snapshot` versus `delta` frames.
 
 ## Real Flutter Profile Matrix
 

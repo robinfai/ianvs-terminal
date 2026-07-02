@@ -26,99 +26,56 @@ const int _viewportCols = int.fromEnvironment(
   'FRAME_DIFF_TRANSPORT_BENCH_COLS',
   defaultValue: 120,
 );
+const String _workload = String.fromEnvironment(
+  'FRAME_DIFF_TRANSPORT_BENCH_WORKLOAD',
+  defaultValue: 'mixed',
+);
 
 void main() {
   test(
     'frame diff transport benchmark exports metrics',
     () {
+      expect(
+        _workload,
+        anyOf('mixed', 'resize_churn'),
+        reason:
+            'FRAME_DIFF_TRANSPORT_BENCH_WORKLOAD must be mixed or resize_churn',
+      );
       final fixtures = _buildFixtures(
         frameCount: _frameCount,
         viewportRows: _viewportRows,
         viewportCols: _viewportCols,
+        workload: _workload,
       );
       expect(fixtures, isNotEmpty);
 
       _warmUp(fixtures);
 
-      final jsonDecodeRounds = <int>[];
-      final protobufDecodeRounds = <int>[];
-      final jsonHashes = <String>[];
-      final protobufHashes = <String>[];
+      final jsonMeasurements = _measureJsonDecode(fixtures);
+      final protobufMeasurements = _measureProtobufDecode(fixtures);
 
-      for (var iteration = 0; iteration < _iterations; iteration += 1) {
-        final jsonWatch = Stopwatch()..start();
-        for (final fixture in fixtures) {
-          final frame = TerminalFrameDiff.fromJson(
-            (jsonDecode(fixture.jsonPayload) as Map).cast<String, Object?>(),
-          );
-          if (iteration == 0) {
-            jsonHashes.add(terminalBenchmarkViewportHash(frame));
-          }
-        }
-        jsonWatch.stop();
-        jsonDecodeRounds.add(jsonWatch.elapsedMicroseconds);
+      expect(protobufMeasurements.hashes, jsonMeasurements.hashes);
 
-        final protobufWatch = Stopwatch()..start();
-        for (final fixture in fixtures) {
-          final frame = TerminalFrameDiff.fromProtobufBytes(
-            fixture.protobufPayload,
-          );
-          if (iteration == 0) {
-            protobufHashes.add(terminalBenchmarkViewportHash(frame));
-          }
-        }
-        protobufWatch.stop();
-        protobufDecodeRounds.add(protobufWatch.elapsedMicroseconds);
-      }
-
-      expect(protobufHashes, jsonHashes);
-
-      final totalJsonBytes = fixtures.fold<int>(
-        0,
-        (sum, fixture) => sum + fixture.jsonPayloadBytes,
-      );
-      final totalProtobufBytes = fixtures.fold<int>(
-        0,
-        (sum, fixture) => sum + fixture.protobufPayload.length,
-      );
-      final jsonDecodeTotal = jsonDecodeRounds.fold<int>(
-        0,
-        (sum, value) => sum + value,
-      );
-      final protobufDecodeTotal = protobufDecodeRounds.fold<int>(
-        0,
-        (sum, value) => sum + value,
-      );
-      final sampleCount = fixtures.length * _iterations;
       final metrics = <String, Object?>{
         'schema_version': 'ianvs-frame-diff-transport-benchmark-v1',
         'mode': 'flutter_test_debug',
+        'workload': _workload,
         'iterations': _iterations,
         'frame_count': fixtures.length,
-        'sample_count': sampleCount,
+        'sample_count': fixtures.length * _iterations,
         'viewport_rows': _viewportRows,
         'viewport_cols': _viewportCols,
         'correctness': <String, Object?>{
           'frame_hashes_match': true,
-          'first_hash': jsonHashes.first,
-          'last_hash': jsonHashes.last,
+          'first_hash': jsonMeasurements.hashes.first,
+          'last_hash': jsonMeasurements.hashes.last,
         },
-        'json': <String, Object?>{
-          'total_bytes': totalJsonBytes,
-          'mean_bytes': totalJsonBytes / fixtures.length,
-          'decode_round_micros': _distributionSummary(jsonDecodeRounds),
-          'decode_mean_micros_per_frame': jsonDecodeTotal / sampleCount,
-        },
-        'protobuf': <String, Object?>{
-          'total_bytes': totalProtobufBytes,
-          'mean_bytes': totalProtobufBytes / fixtures.length,
-          'decode_round_micros': _distributionSummary(protobufDecodeRounds),
-          'decode_mean_micros_per_frame': protobufDecodeTotal / sampleCount,
-        },
-        'ratios': <String, Object?>{
-          'protobuf_bytes_to_json': totalProtobufBytes / totalJsonBytes,
-          'protobuf_decode_to_json': protobufDecodeTotal / jsonDecodeTotal,
-        },
+        ..._wireMetrics(
+          fixtures: fixtures,
+          jsonMeasurements: jsonMeasurements,
+          protobufMeasurements: protobufMeasurements,
+        ),
+        'by_frame_kind': _metricsByFrameKind(fixtures),
       };
 
       File(_configuredOutPath)
@@ -146,13 +103,52 @@ List<_FrameWireFixture> _buildFixtures({
   required int frameCount,
   required int viewportRows,
   required int viewportCols,
+  required String workload,
 }) {
   return List<_FrameWireFixture>.generate(frameCount, (frameIndex) {
-    final isSnapshot = frameIndex == 0 || frameIndex % 30 == 0;
-    final dirtyStart = isSnapshot ? 0 : (frameIndex * 7) % (viewportRows - 8);
-    final dirtyEnd = isSnapshot ? viewportRows : dirtyStart + 8;
+    final currentRows = _rowsForFrame(
+      workload: workload,
+      frameIndex: frameIndex,
+      baseRows: viewportRows,
+    );
+    final currentCols = _colsForFrame(
+      workload: workload,
+      frameIndex: frameIndex,
+      baseCols: viewportCols,
+    );
+    final previousRows = frameIndex == 0
+        ? currentRows
+        : _rowsForFrame(
+            workload: workload,
+            frameIndex: frameIndex - 1,
+            baseRows: viewportRows,
+          );
+    final previousCols = frameIndex == 0
+        ? currentCols
+        : _colsForFrame(
+            workload: workload,
+            frameIndex: frameIndex - 1,
+            baseCols: viewportCols,
+          );
+    final dimensionsChanged =
+        frameIndex == 0 ||
+        currentRows != previousRows ||
+        currentCols != previousCols;
+    final isSnapshot = workload == 'resize_churn'
+        ? dimensionsChanged
+        : frameIndex == 0 || frameIndex % 30 == 0;
+    final dirtyStart = isSnapshot
+        ? 0
+        : workload == 'resize_churn'
+        ? currentRows - 1
+        : (frameIndex * 7) % (currentRows - 8);
+    final dirtyEnd = isSnapshot
+        ? currentRows
+        : workload == 'resize_churn'
+        ? currentRows
+        : dirtyStart + 8;
     final rowIndexes = isSnapshot
-        ? List<int>.generate(viewportRows, (index) => index)
+        ? List<int>.generate(currentRows, (index) => index)
         : List<int>.generate(dirtyEnd - dirtyStart, (index) {
             return dirtyStart + index;
           });
@@ -161,7 +157,7 @@ List<_FrameWireFixture> _buildFixtures({
         _rowJson(
           frameIndex: frameIndex,
           rowIndex: rowIndex,
-          viewportCols: viewportCols,
+          viewportCols: currentCols,
         ),
     ];
     final protobufRows = [
@@ -169,11 +165,11 @@ List<_FrameWireFixture> _buildFixtures({
         _rowProtobuf(
           frameIndex: frameIndex,
           rowIndex: rowIndex,
-          viewportCols: viewportCols,
+          viewportCols: currentCols,
         ),
     ];
     final cursorRow = rowIndexes.last;
-    final cursorCol = (frameIndex * 11) % viewportCols;
+    final cursorCol = (frameIndex * 11) % currentCols;
     final includeGraphic = frameIndex % 13 == 0;
     final includeHyperlink = frameIndex % 5 == 0;
     final json = <String, Object?>{
@@ -185,8 +181,8 @@ List<_FrameWireFixture> _buildFixtures({
         'col': cursorCol,
         'visible': true,
       },
-      'viewport_rows': viewportRows,
-      'viewport_cols': viewportCols,
+      'viewport_rows': currentRows,
+      'viewport_cols': currentCols,
       'dirty_ranges': [
         <String, Object?>{'start': dirtyStart, 'end': dirtyEnd},
       ],
@@ -264,8 +260,8 @@ List<_FrameWireFixture> _buildFixtures({
         col: cursorCol,
         visible: true,
       ),
-      viewportRows: viewportRows,
-      viewportCols: viewportCols,
+      viewportRows: currentRows,
+      viewportCols: currentCols,
       dirtyRanges: [
         frame_pb.TerminalDirtyRange(start: dirtyStart, end: dirtyEnd),
       ],
@@ -328,8 +324,41 @@ List<_FrameWireFixture> _buildFixtures({
     return _FrameWireFixture(
       jsonPayload: jsonEncode(json),
       protobufPayload: Uint8List.fromList(protobuf.writeToBuffer()),
+      frameKind: isSnapshot ? 'snapshot' : 'delta',
     );
   }, growable: false);
+}
+
+int _rowsForFrame({
+  required String workload,
+  required int frameIndex,
+  required int baseRows,
+}) {
+  if (workload != 'resize_churn') {
+    return baseRows;
+  }
+  return switch ((frameIndex ~/ 8) % 4) {
+    0 => baseRows,
+    1 => (baseRows - 8).clamp(16, baseRows),
+    2 => baseRows + 8,
+    _ => (baseRows - 4).clamp(16, baseRows),
+  };
+}
+
+int _colsForFrame({
+  required String workload,
+  required int frameIndex,
+  required int baseCols,
+}) {
+  if (workload != 'resize_churn') {
+    return baseCols;
+  }
+  return switch ((frameIndex ~/ 8) % 4) {
+    0 => baseCols,
+    1 => (baseCols - 20).clamp(80, baseCols),
+    2 => baseCols + 16,
+    _ => (baseCols - 12).clamp(80, baseCols),
+  };
 }
 
 Map<String, Object?> _rowJson({
@@ -422,6 +451,105 @@ Map<String, Object?> _distributionSummary(List<int> values) {
   };
 }
 
+_DecodeMeasurements _measureJsonDecode(List<_FrameWireFixture> fixtures) {
+  final rounds = <int>[];
+  final hashes = <String>[];
+  for (var iteration = 0; iteration < _iterations; iteration += 1) {
+    final watch = Stopwatch()..start();
+    for (final fixture in fixtures) {
+      final frame = TerminalFrameDiff.fromJson(
+        (jsonDecode(fixture.jsonPayload) as Map).cast<String, Object?>(),
+      );
+      if (iteration == 0) {
+        hashes.add(terminalBenchmarkViewportHash(frame));
+      }
+    }
+    watch.stop();
+    rounds.add(watch.elapsedMicroseconds);
+  }
+  return _DecodeMeasurements(rounds: rounds, hashes: hashes);
+}
+
+_DecodeMeasurements _measureProtobufDecode(List<_FrameWireFixture> fixtures) {
+  final rounds = <int>[];
+  final hashes = <String>[];
+  for (var iteration = 0; iteration < _iterations; iteration += 1) {
+    final watch = Stopwatch()..start();
+    for (final fixture in fixtures) {
+      final frame = TerminalFrameDiff.fromProtobufBytes(
+        fixture.protobufPayload,
+      );
+      if (iteration == 0) {
+        hashes.add(terminalBenchmarkViewportHash(frame));
+      }
+    }
+    watch.stop();
+    rounds.add(watch.elapsedMicroseconds);
+  }
+  return _DecodeMeasurements(rounds: rounds, hashes: hashes);
+}
+
+Map<String, Object?> _wireMetrics({
+  required List<_FrameWireFixture> fixtures,
+  required _DecodeMeasurements jsonMeasurements,
+  required _DecodeMeasurements protobufMeasurements,
+}) {
+  final totalJsonBytes = fixtures.fold<int>(
+    0,
+    (sum, fixture) => sum + fixture.jsonPayloadBytes,
+  );
+  final totalProtobufBytes = fixtures.fold<int>(
+    0,
+    (sum, fixture) => sum + fixture.protobufPayload.length,
+  );
+  final jsonDecodeTotal = jsonMeasurements.totalMicros;
+  final protobufDecodeTotal = protobufMeasurements.totalMicros;
+  final sampleCount = fixtures.length * _iterations;
+  return <String, Object?>{
+    'json': <String, Object?>{
+      'total_bytes': totalJsonBytes,
+      'mean_bytes': totalJsonBytes / fixtures.length,
+      'decode_round_micros': _distributionSummary(jsonMeasurements.rounds),
+      'decode_mean_micros_per_frame': jsonDecodeTotal / sampleCount,
+    },
+    'protobuf': <String, Object?>{
+      'total_bytes': totalProtobufBytes,
+      'mean_bytes': totalProtobufBytes / fixtures.length,
+      'decode_round_micros': _distributionSummary(protobufMeasurements.rounds),
+      'decode_mean_micros_per_frame': protobufDecodeTotal / sampleCount,
+    },
+    'ratios': <String, Object?>{
+      'protobuf_bytes_to_json': totalProtobufBytes / totalJsonBytes,
+      'protobuf_decode_to_json': protobufDecodeTotal / jsonDecodeTotal,
+    },
+  };
+}
+
+Map<String, Object?> _metricsByFrameKind(List<_FrameWireFixture> fixtures) {
+  final result = <String, Object?>{};
+  for (final frameKind in const ['snapshot', 'delta']) {
+    final group = fixtures
+        .where((fixture) => fixture.frameKind == frameKind)
+        .toList(growable: false);
+    if (group.isEmpty) {
+      continue;
+    }
+    final jsonMeasurements = _measureJsonDecode(group);
+    final protobufMeasurements = _measureProtobufDecode(group);
+    expect(protobufMeasurements.hashes, jsonMeasurements.hashes);
+    result[frameKind] = <String, Object?>{
+      'frame_count': group.length,
+      'sample_count': group.length * _iterations,
+      ..._wireMetrics(
+        fixtures: group,
+        jsonMeasurements: jsonMeasurements,
+        protobufMeasurements: protobufMeasurements,
+      ),
+    };
+  }
+  return result;
+}
+
 int _percentile(List<int> sorted, double percentile) {
   if (sorted.length == 1) {
     return sorted.single;
@@ -434,10 +562,21 @@ final class _FrameWireFixture {
   const _FrameWireFixture({
     required this.jsonPayload,
     required this.protobufPayload,
+    required this.frameKind,
   });
 
   final String jsonPayload;
   final Uint8List protobufPayload;
+  final String frameKind;
 
   int get jsonPayloadBytes => utf8.encode(jsonPayload).length;
+}
+
+final class _DecodeMeasurements {
+  const _DecodeMeasurements({required this.rounds, required this.hashes});
+
+  final List<int> rounds;
+  final List<String> hashes;
+
+  int get totalMicros => rounds.fold<int>(0, (sum, value) => sum + value);
 }
