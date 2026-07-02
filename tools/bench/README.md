@@ -39,6 +39,29 @@ dart run tools/bench/runner/bench_runner.dart \
 dart run tools/bench/analysis/summarize.dart --input build/bench-results/<run>
 ```
 
+## Frame Diff Transport Microbenchmark
+
+To compare JSON and protobuf frame payload size plus Dart decode cost without
+launching the full app harness:
+
+```bash
+cd packages/ianvs_terminal
+flutter test test/benchmarks/frame_diff_transport_benchmark_test.dart \
+  --plain-name "frame diff transport benchmark exports metrics" \
+  --dart-define=FRAME_DIFF_TRANSPORT_BENCH_OUT=/absolute/path/metrics.json
+```
+
+Optional defines:
+
+```bash
+--dart-define=FRAME_DIFF_TRANSPORT_BENCH_ITERATIONS=120
+--dart-define=FRAME_DIFF_TRANSPORT_BENCH_FRAMES=120
+--dart-define=FRAME_DIFF_TRANSPORT_BENCH_ROWS=40
+--dart-define=FRAME_DIFF_TRANSPORT_BENCH_COLS=120
+```
+
+The test is skipped unless `FRAME_DIFF_TRANSPORT_BENCH_OUT` is provided.
+
 ## Real Flutter Profile Matrix
 
 The synthetic runner above is deterministic and fast, but it does not launch the
