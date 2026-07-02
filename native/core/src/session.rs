@@ -1,3 +1,4 @@
+use crate::frame_diff_proto;
 use crate::model::{
     TERMINAL_FRAME_SCHEMA_VERSION, TerminalCursor, TerminalDirtyRange, TerminalEmulation,
     TerminalEvent, TerminalFrameDiff, TerminalFrameKind, TerminalFrameModes,
@@ -239,6 +240,7 @@ struct FrameDebugStats {
     state_lock_wait_micros: u64,
     frame_extract_micros: u64,
     json_encode_micros: u64,
+    protobuf_encode_micros: u64,
     full_repaint: bool,
     snapshot_fallback_reason: Option<String>,
     viewport_row_shift: i32,
@@ -1735,6 +1737,7 @@ impl TerminalSession {
             state_lock_wait_micros,
             frame_extract_micros: frame_extract_started_at.elapsed().as_micros() as u64,
             json_encode_micros: 0,
+            protobuf_encode_micros: 0,
             full_repaint: frame_kind == TerminalFrameKind::Snapshot,
             snapshot_fallback_reason,
             viewport_row_shift,
@@ -2019,6 +2022,12 @@ impl TerminalSession {
     fn record_frame_json_encode_micros(&self, micros: u64) {
         if let Some(stats) = self.last_frame_debug_stats.lock().as_mut() {
             stats.json_encode_micros = micros;
+        }
+    }
+
+    fn record_frame_protobuf_encode_micros(&self, micros: u64) {
+        if let Some(stats) = self.last_frame_debug_stats.lock().as_mut() {
+            stats.protobuf_encode_micros = micros;
         }
     }
 
@@ -4624,6 +4633,18 @@ pub fn take_frame_diff(session_id: u64) -> Result<Option<String>, SessionError> 
         serde_json::to_string(&diff).map_err(|error| SessionError::Serialize(error.to_string()))?;
     session.record_frame_json_encode_micros(encode_started_at.elapsed().as_micros() as u64);
     Ok(Some(json))
+}
+
+pub fn take_frame_diff_protobuf(session_id: u64) -> Result<Option<Vec<u8>>, SessionError> {
+    let session = STORE.get(session_id)?;
+    let Some(diff) = session.take_frame_diff()? else {
+        return Ok(None);
+    };
+    let encode_started_at = Instant::now();
+    let bytes = frame_diff_proto::encode_frame_diff(&diff)
+        .map_err(|error| SessionError::Serialize(error.to_string()))?;
+    session.record_frame_protobuf_encode_micros(encode_started_at.elapsed().as_micros() as u64);
+    Ok(Some(bytes))
 }
 
 pub fn take_frame_debug_stats_json(session_id: u64) -> Result<Option<String>, SessionError> {
