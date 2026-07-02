@@ -389,11 +389,15 @@ List<Map<String, Object?>> _mapList(Object? value) {
 final class _DecodedFrameBenchmarkMetrics {
   const _DecodedFrameBenchmarkMetrics({
     required this.rawFrameBytes,
+    required this.wireFormat,
     required this.jsonDecodeMicros,
+    required this.protobufDecodeMicros,
   });
 
   final int rawFrameBytes;
+  final String wireFormat;
   final int jsonDecodeMicros;
+  final int protobufDecodeMicros;
 }
 
 class TerminalRuntimeController {
@@ -1070,13 +1074,10 @@ class TerminalRuntimeController {
       _queuedRefreshSessionIds.remove(sessionId);
       var receivedFrame = false;
 
-      final rawFrame = _backend.takeFrameDiffJson(sessionId);
-      if (rawFrame != null && rawFrame.isNotEmpty) {
-        final frame = _decodeFrame(rawFrame);
-        if (frame != null) {
-          receivedFrame = true;
-          _queuePendingFrame(pendingFrames, frame);
-        }
+      final frame = _takeFrameDiff(sessionId);
+      if (frame != null) {
+        receivedFrame = true;
+        _queuePendingFrame(pendingFrames, frame);
       }
 
       final events = _eventsForSession(
@@ -1127,12 +1128,9 @@ class TerminalRuntimeController {
         _queuedRefreshSessionIds.remove(sessionId);
         runAgain = false;
 
-        final rawFrame = _backend.takeFrameDiffJson(sessionId);
-        if (rawFrame != null && rawFrame.isNotEmpty) {
-          final frame = _decodeFrame(rawFrame);
-          if (frame != null) {
-            _queuePendingFrame(pendingFrames, frame);
-          }
+        final frame = _takeFrameDiff(sessionId);
+        if (frame != null) {
+          _queuePendingFrame(pendingFrames, frame);
         }
 
         final events = _eventsForSession(
@@ -1245,7 +1243,24 @@ class TerminalRuntimeController {
     _pollingIdleSkipTicks.remove(sessionId);
   }
 
-  TerminalFrameDiff? _decodeFrame(String rawFrame) {
+  TerminalFrameDiff? _takeFrameDiff(String sessionId) {
+    final backend = _backend;
+    final protobufBackend = backend is PtySessionProtobufFrameBackend
+        ? backend as PtySessionProtobufFrameBackend
+        : null;
+    final protobufBytes = protobufBackend?.takeFrameDiffProtobuf(sessionId);
+    if (protobufBytes != null && protobufBytes.isNotEmpty) {
+      return _decodeProtobufFrame(protobufBytes);
+    }
+
+    final rawFrame = _backend.takeFrameDiffJson(sessionId);
+    if (rawFrame == null || rawFrame.isEmpty) {
+      return null;
+    }
+    return _decodeJsonFrame(rawFrame);
+  }
+
+  TerminalFrameDiff? _decodeJsonFrame(String rawFrame) {
     final decodeWatch = benchmarkEventSink == null
         ? null
         : (Stopwatch()..start());
@@ -1259,7 +1274,30 @@ class TerminalRuntimeController {
       if (benchmarkEventSink != null) {
         _decodedFrameBenchmarkMetrics[frame] = _DecodedFrameBenchmarkMetrics(
           rawFrameBytes: utf8.encode(rawFrame).length,
+          wireFormat: 'json',
           jsonDecodeMicros: decodeWatch?.elapsedMicroseconds ?? 0,
+          protobufDecodeMicros: 0,
+        );
+      }
+      return frame;
+    } on Object {
+      return null;
+    }
+  }
+
+  TerminalFrameDiff? _decodeProtobufFrame(Uint8List rawFrame) {
+    final decodeWatch = benchmarkEventSink == null
+        ? null
+        : (Stopwatch()..start());
+    try {
+      final frame = TerminalFrameDiff.fromProtobufBytes(rawFrame);
+      decodeWatch?.stop();
+      if (benchmarkEventSink != null) {
+        _decodedFrameBenchmarkMetrics[frame] = _DecodedFrameBenchmarkMetrics(
+          rawFrameBytes: rawFrame.length,
+          wireFormat: 'protobuf',
+          jsonDecodeMicros: 0,
+          protobufDecodeMicros: decodeWatch?.elapsedMicroseconds ?? 0,
         );
       }
       return frame;
@@ -1313,8 +1351,10 @@ class TerminalRuntimeController {
       'session_id': sessionId,
       'frame_id': _benchmarkFrameId,
       'raw_frame_bytes': decodedMetrics?.rawFrameBytes ?? 0,
+      'wire_format': decodedMetrics?.wireFormat ?? 'unknown',
       'frame_kind': frame.frameKind.name,
       'json_decode_micros': decodedMetrics?.jsonDecodeMicros ?? 0,
+      'protobuf_decode_micros': decodedMetrics?.protobufDecodeMicros ?? 0,
       'apply_frame_micros': applyFrameMicros,
       'pending_frames_before': pendingFramesBefore,
       'pending_frames_after': pendingFramesAfter,
