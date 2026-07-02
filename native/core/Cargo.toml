@@ -2,9 +2,13 @@
 name = "ianvs_core"
 version = "0.1.0"
 edition = "2024"
+build = "build.rs"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+
+[features]
+regenerate-proto = ["prost-build"]
 
 [dependencies]
 anyhow = "1.0"
@@ -12,6 +16,7 @@ libc = "0.2"
 parking_lot = "0.12"
 portable-pty = "0.9.0"
 par-term-emu-core-rust = { path = "../vendor/par-term-emu-core-rust", default-features = false, features = ["rust-only"] }
+prost = "0.14.3"
 regex = "1.12.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -21,3 +26,7 @@ thiserror = "2.0"
 [dev-dependencies]
 cbindgen = "0.29.2"
 tempfile = "3.23.0"
+
+[build-dependencies.prost-build]
+version = "0.14.3"
+optional = true

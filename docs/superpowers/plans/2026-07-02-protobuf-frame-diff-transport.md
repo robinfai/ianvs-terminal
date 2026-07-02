@@ -89,6 +89,7 @@
 - Create: `native/core/src/proto/mod.rs`
 - Create generated: `native/core/src/proto/frame_diff.rs`
 - Create generated: `packages/ianvs_terminal/lib/src/proto/frame_diff.pb.dart`
+- Create generated: `packages/ianvs_terminal/lib/src/proto/frame_diff.pbenum.dart`
 - Create: `tools/gen_frame_diff_proto.sh`
 - Modify: `native/core/Cargo.toml`
 - Modify: `native/core/src/lib.rs`
@@ -325,9 +326,10 @@ Modify `packages/ianvs_terminal/pubspec.yaml`:
 dependencies:
   flutter:
     sdk: flutter
+  fixnum: ^1.1.1
   ianvs_pty:
     path: ../ianvs_pty
-  protobuf: ^4.2.0
+  protobuf: ^6.0.0
 ```
 
 Run:
@@ -336,7 +338,7 @@ Run:
 dart pub get
 ```
 
-Expected: `pubspec.lock` updates and `packages/ianvs_terminal` can resolve `package:protobuf/protobuf.dart`.
+Expected: `pubspec.lock` updates and `packages/ianvs_terminal` can resolve `package:fixnum/fixnum.dart` and `package:protobuf/protobuf.dart`.
 
 - [ ] **Step 6: Add generation script**
 
@@ -386,6 +388,7 @@ Expected generated files:
 ```text
 native/core/src/proto/frame_diff.rs
 packages/ianvs_terminal/lib/src/proto/frame_diff.pb.dart
+packages/ianvs_terminal/lib/src/proto/frame_diff.pbenum.dart
 ```
 
 - [ ] **Step 7: Verify generation artifacts compile**
@@ -403,15 +406,15 @@ Run:
 
 ```bash
 cd packages/ianvs_terminal
-flutter test --list-tests
+dart analyze lib/src/proto/frame_diff.pb.dart lib/src/proto/frame_diff.pbenum.dart
 ```
 
-Expected: tests are listed without import or dependency errors.
+Expected: generated Dart files analyze without import or dependency errors.
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add native/core/Cargo.toml native/core/build.rs native/core/proto/frame_diff.proto native/core/src/lib.rs native/core/src/proto/mod.rs native/core/src/proto/frame_diff.rs packages/ianvs_terminal/pubspec.yaml pubspec.lock packages/ianvs_terminal/lib/src/proto/frame_diff.pb.dart tools/gen_frame_diff_proto.sh
+git add native/core/Cargo.lock native/core/Cargo.toml native/core/build.rs native/core/proto/frame_diff.proto native/core/src/lib.rs native/core/src/proto/mod.rs native/core/src/proto/frame_diff.rs packages/ianvs_terminal/pubspec.yaml pubspec.lock packages/ianvs_terminal/lib/src/proto/frame_diff.pb.dart packages/ianvs_terminal/lib/src/proto/frame_diff.pbenum.dart tools/gen_frame_diff_proto.sh docs/superpowers/plans/2026-07-02-protobuf-frame-diff-transport.md
 git commit -m "build: add frame diff protobuf schema"
 ```
 
