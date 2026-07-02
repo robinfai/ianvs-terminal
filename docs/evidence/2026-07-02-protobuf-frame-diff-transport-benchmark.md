@@ -6,7 +6,7 @@
 cd packages/ianvs_terminal
 flutter test test/benchmarks/frame_diff_transport_benchmark_test.dart \
   --plain-name "frame diff transport benchmark exports metrics" \
-  --dart-define=FRAME_DIFF_TRANSPORT_BENCH_OUT=/tmp/ianvs-frame-diff-transport-benchmark-20260702/metrics.json \
+  --dart-define=FRAME_DIFF_TRANSPORT_BENCH_OUT=/tmp/ianvs-frame-diff-transport-benchmark-final.json \
   --dart-define=FRAME_DIFF_TRANSPORT_BENCH_ITERATIONS=120 \
   --dart-define=FRAME_DIFF_TRANSPORT_BENCH_FRAMES=120 \
   --dart-define=FRAME_DIFF_TRANSPORT_BENCH_ROWS=40 \
@@ -29,13 +29,13 @@ flutter test test/benchmarks/frame_diff_transport_benchmark_test.dart \
 | --- | ---: | ---: | ---: |
 | total bytes | 461,518 | 181,541 | 0.393x |
 | mean bytes/frame | 3,845.98 | 1,512.84 | 0.393x |
-| decode mean/frame | 21.46 us | 9.09 us | 0.423x |
-| decode p95/round | 2,925 us | 1,385 us | 0.474x |
+| decode mean/frame | 20.92 us | 8.61 us | 0.412x |
+| decode p95/round | 2,719 us | 1,411 us | 0.519x |
 
 解读：
 
 - protobuf payload 比 JSON 小约 60.7%。
-- protobuf Dart decode 平均耗时比 JSON 低约 57.7%，约 2.36x faster。
-- p95 round decode 也约为 JSON 的 47.4%，说明这批合成 frame 下 protobuf decode 的尾部耗时同样更低。
+- protobuf Dart decode 平均耗时比 JSON 低约 58.8%，约为 JSON 的 2.43 倍。
+- p95 round decode 也约为 JSON 的 51.9%，说明这批合成 frame 下 protobuf decode 的尾部耗时同样更低。
 
-原始输出：`/tmp/ianvs-frame-diff-transport-benchmark-20260702/metrics.json`
+原始输出：`/tmp/ianvs-frame-diff-transport-benchmark-final.json`
