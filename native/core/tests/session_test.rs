@@ -6496,6 +6496,61 @@ fn session_frame_diff_waits_for_synchronized_graphics_update_to_finish() {
 }
 
 #[test]
+fn session_frame_diff_graces_delayed_kitty_replacement_start() {
+    let profile = local_profile(
+        "kitty-delayed-replacement-frame-boundary",
+        "Kitty Delayed Replacement Frame Boundary",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b_Ga=T,f=32,s=1,v=1,i=49374,q=1;/wAA/w==\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.25)\nsys.stdout.write('\\x1b_Ga=d,d=I,i=49374,q=2;\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(1.0)\nsys.stdout.write('\\x1b_Ga=T,f=32,s=1,v=1,i=49374,q=2;AP8A/w==\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.15)\nPY"
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let first = wait_for_frame_where(session_id, |frame| {
+        frame.contains("\"graphics\":[{") && frame.contains("\"asset_id\":49374")
+    });
+    let first_parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
+    let first_graphics = first_parsed["graphics"]
+        .as_array()
+        .expect("expected first graphics placements");
+    assert_eq!(first_graphics.len(), 1, "expected initial graphic: {first}");
+    let first_asset_version = first_graphics[0]["asset_version"]
+        .as_u64()
+        .expect("expected first asset version");
+
+    thread::sleep(Duration::from_millis(450));
+    assert!(
+        session::take_frame_diff(session_id).unwrap().is_none(),
+        "first poll in the delayed replacement gap should defer the clear frame"
+    );
+    assert!(
+        session::take_frame_diff(session_id).unwrap().is_none(),
+        "second poll in the delayed replacement gap should still defer the clear frame"
+    );
+
+    let final_frame = wait_for_frame_where(session_id, |frame| {
+        frame.contains("\"graphics\":[{")
+            && !frame.contains(&format!("\"asset_version\":{first_asset_version}"))
+    });
+    let final_parsed: serde_json::Value = serde_json::from_str(&final_frame).unwrap();
+    let final_graphics = final_parsed["graphics"]
+        .as_array()
+        .expect("expected final graphics placements");
+    assert_eq!(
+        final_graphics.len(),
+        1,
+        "expected final replacement graphic: {final_frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn session_frame_diff_waits_for_incomplete_kitty_transfer_to_finish() {
     let chunks = RED_PIXEL_PNG_BASE64
         .as_bytes()

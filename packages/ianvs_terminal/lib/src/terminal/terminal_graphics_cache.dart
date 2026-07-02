@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import '../runtime/terminal_benchmarking.dart';
+import 'terminal_graphics_diagnostics.dart';
 import 'terminal_models.dart';
 
 typedef TerminalGraphicAssetLoader =
@@ -32,13 +34,19 @@ class TerminalGraphicsCache {
   TerminalGraphicsCache({
     required TerminalGraphicAssetLoader loadAsset,
     TerminalGraphicImageDecoder? decodeImage,
+    String? diagnosticSessionId,
+    TerminalBenchmarkEventSink? diagnosticEventSink,
   }) : _loadAsset = loadAsset,
-       _decodeImage = decodeImage ?? _decodeRgbaImage;
+       _decodeImage = decodeImage ?? _decodeRgbaImage,
+       _diagnosticSessionId = diagnosticSessionId,
+       _diagnosticEventSink = diagnosticEventSink;
 
   static const int _maxCachedImages = 128;
 
   final TerminalGraphicAssetLoader _loadAsset;
   final TerminalGraphicImageDecoder _decodeImage;
+  final String? _diagnosticSessionId;
+  final TerminalBenchmarkEventSink? _diagnosticEventSink;
   final Map<TerminalGraphicAssetKey, Future<ui.Image?>> _pending =
       <TerminalGraphicAssetKey, Future<ui.Image?>>{};
   final Map<TerminalGraphicAssetKey, ui.Image> _images =
@@ -52,15 +60,18 @@ class TerminalGraphicsCache {
 
   Future<ui.Image?> imageFor(TerminalGraphicAssetKey key) {
     if (_disposed) {
+      _emitDiagnostic('cache_disposed_request', assetKey: key);
       return Future<ui.Image?>.value();
     }
     _lastSeenGeneration[key] = _evictionGeneration;
     final cached = _images[key];
     if (cached != null) {
+      _emitDiagnostic('cache_hit', assetKey: key);
       return Future<ui.Image?>.value(cached);
     }
     final pending = _pending[key];
     if (pending != null) {
+      _emitDiagnostic('cache_pending_hit', assetKey: key);
       return pending;
     }
 
@@ -76,6 +87,7 @@ class TerminalGraphicsCache {
       }
     });
     _pending[key] = load;
+    _emitDiagnostic('cache_load_start', assetKey: key);
     return load;
   }
 
@@ -85,19 +97,48 @@ class TerminalGraphicsCache {
   ) async {
     final asset = await _loadAsset(key);
     if (asset == null || !asset.isValid) {
+      _emitDiagnostic(
+        asset == null ? 'cache_asset_missing' : 'cache_asset_invalid',
+        assetKey: key,
+        fields: asset == null
+            ? const <String, Object?>{}
+            : <String, Object?>{
+                'width': asset.width,
+                'height': asset.height,
+                'rgba_bytes': asset.rgba.length,
+              },
+      );
       return null;
     }
+    _emitDiagnostic(
+      'cache_decode_start',
+      assetKey: key,
+      fields: <String, Object?>{
+        'width': asset.width,
+        'height': asset.height,
+        'rgba_bytes': asset.rgba.length,
+      },
+    );
     final image = await _decodeImage(
       _premultiplyRgba(asset.rgba),
       asset.width,
       asset.height,
     );
     if (_isLoadStale(key, loadToken)) {
+      _emitDiagnostic('cache_stale_after_decode', assetKey: key);
       image.dispose();
       return null;
     }
     _images[key] = image;
     _lastSeenGeneration[key] = _evictionGeneration;
+    _emitDiagnostic(
+      'cache_store',
+      assetKey: key,
+      fields: <String, Object?>{
+        'cached_images': _images.length,
+        'pending_images': _pending.length,
+      },
+    );
     return image;
   }
 
@@ -108,10 +149,20 @@ class TerminalGraphicsCache {
   }
 
   void _invalidateKey(TerminalGraphicAssetKey key) {
+    final hadImage = _images.containsKey(key);
+    final hadPending = _pending.containsKey(key);
     _images.remove(key)?.dispose();
     _pending.remove(key);
     _activeLoadTokens.remove(key);
     _lastSeenGeneration.remove(key);
+    _emitDiagnostic(
+      'cache_evict',
+      assetKey: key,
+      fields: <String, Object?>{
+        'had_image': hadImage,
+        'had_pending': hadPending,
+      },
+    );
   }
 
   void evictExcept(Set<TerminalGraphicAssetKey> liveKeys) {
@@ -156,6 +207,21 @@ class TerminalGraphicsCache {
     _lastSeenGeneration.clear();
     _pending.clear();
     _activeLoadTokens.clear();
+  }
+
+  void _emitDiagnostic(
+    String event, {
+    TerminalGraphicAssetKey? assetKey,
+    Map<String, Object?> fields = const <String, Object?>{},
+  }) {
+    emitTerminalGraphicsDiagnostic(
+      _diagnosticEventSink,
+      layer: 'graphics_cache',
+      event: event,
+      sessionId: _diagnosticSessionId,
+      assetKey: assetKey,
+      fields: fields,
+    );
   }
 }
 

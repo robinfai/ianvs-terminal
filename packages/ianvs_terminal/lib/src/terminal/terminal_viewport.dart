@@ -12,6 +12,7 @@ import '../runtime/terminal_benchmarking.dart';
 import 'render_terminal_viewport.dart';
 import 'selection_controller.dart';
 import 'terminal_graphics_cache.dart';
+import 'terminal_graphics_diagnostics.dart';
 import 'terminal_input_controller.dart';
 import 'terminal_models.dart';
 import 'terminal_viewport_colors.dart';
@@ -127,6 +128,7 @@ class TerminalViewport extends StatefulWidget {
     this.searchHighlightStyle,
     this.graphicsCache,
     this.benchmarkEventSink,
+    this.graphicsDiagnosticSessionId,
   });
 
   final TerminalViewportController controller;
@@ -155,6 +157,7 @@ class TerminalViewport extends StatefulWidget {
   final TerminalSearchHighlightStyle? searchHighlightStyle;
   final TerminalGraphicsCache? graphicsCache;
   final TerminalBenchmarkEventSink? benchmarkEventSink;
+  final String? graphicsDiagnosticSessionId;
 
   @override
   State<TerminalViewport> createState() => _TerminalViewportState();
@@ -1958,35 +1961,65 @@ class _TerminalViewportState extends State<TerminalViewport>
     }
     final renderIdOccurrences = <int, int>{};
     return [
-      for (final graphic in visiblePlacements)
-        Positioned(
-          left:
-              contentPadding.left +
-              graphic.col * cellSize.width +
-              graphic.xOffsetPx / devicePixelRatio,
-          top:
-              contentPadding.top +
-              graphic.row * cellSize.height +
-              graphic.yOffsetPx / devicePixelRatio,
-          width: graphic.visibleWidthPx / devicePixelRatio,
-          height: graphic.visibleHeightPx / devicePixelRatio,
-          child: IgnorePointer(
-            child: _TerminalGraphicOverlay(
-              key: _terminalGraphicOverlayKey(
-                graphic,
-                renderIdCounts: renderIdCounts,
-                renderIdOccurrences: renderIdOccurrences,
-              ),
-              cache: graphicsCache,
-              placement: graphic,
-              displayWidth: graphic.widthPx / devicePixelRatio,
-              displayHeight: graphic.heightPx / devicePixelRatio,
-              sourceXOffset: graphic.sourceXOffsetPx / devicePixelRatio,
-              sourceYOffset: graphic.sourceYOffsetPx / devicePixelRatio,
-            ),
-          ),
+      for (var slot = 0; slot < visiblePlacements.length; slot += 1)
+        _buildGraphicOverlay(
+          visiblePlacements[slot],
+          contentPadding,
+          cellSize,
+          devicePixelRatio,
+          belowText: belowText,
+          slot: slot,
+          renderIdCounts: renderIdCounts,
+          renderIdOccurrences: renderIdOccurrences,
+          graphicsCache: graphicsCache,
         ),
     ];
+  }
+
+  Widget _buildGraphicOverlay(
+    TerminalGraphicPlacement graphic,
+    EdgeInsets contentPadding,
+    Size cellSize,
+    double devicePixelRatio, {
+    required bool belowText,
+    required int slot,
+    required Map<int, int> renderIdCounts,
+    required Map<int, int> renderIdOccurrences,
+    required TerminalGraphicsCache graphicsCache,
+  }) {
+    return Positioned(
+      left:
+          contentPadding.left +
+          graphic.col * cellSize.width +
+          graphic.xOffsetPx / devicePixelRatio,
+      top:
+          contentPadding.top +
+          graphic.row * cellSize.height +
+          graphic.yOffsetPx / devicePixelRatio,
+      width: graphic.visibleWidthPx / devicePixelRatio,
+      height: graphic.visibleHeightPx / devicePixelRatio,
+      child: IgnorePointer(
+        child: _TerminalGraphicOverlay(
+          key: _terminalGraphicOverlayStateKey(
+            belowText: belowText,
+            slot: slot,
+          ),
+          overlayKey: _terminalGraphicOverlayKey(
+            graphic,
+            renderIdCounts: renderIdCounts,
+            renderIdOccurrences: renderIdOccurrences,
+          ),
+          cache: graphicsCache,
+          placement: graphic,
+          displayWidth: graphic.widthPx / devicePixelRatio,
+          displayHeight: graphic.heightPx / devicePixelRatio,
+          sourceXOffset: graphic.sourceXOffsetPx / devicePixelRatio,
+          sourceYOffset: graphic.sourceYOffsetPx / devicePixelRatio,
+          diagnosticSessionId: widget.graphicsDiagnosticSessionId,
+          diagnosticEventSink: widget.benchmarkEventSink,
+        ),
+      ),
+    );
   }
 
   bool _graphicPlacementVisible(
@@ -2017,6 +2050,13 @@ class _TerminalViewportState extends State<TerminalViewport>
       'terminal-graphic-${graphic.renderId}-'
       '${graphic.sourceXOffsetPx}-${graphic.sourceYOffsetPx}-$occurrence',
     );
+  }
+
+  Key _terminalGraphicOverlayStateKey({
+    required bool belowText,
+    required int slot,
+  }) {
+    return Key('terminal-graphic-state-${belowText ? 'below' : 'above'}-$slot');
   }
 
   List<Widget> _buildTimestampOverlays(
@@ -2653,20 +2693,26 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
 class _TerminalGraphicOverlay extends StatefulWidget {
   const _TerminalGraphicOverlay({
     super.key,
+    required this.overlayKey,
     required this.cache,
     required this.placement,
     required this.displayWidth,
     required this.displayHeight,
     required this.sourceXOffset,
     required this.sourceYOffset,
+    this.diagnosticSessionId,
+    this.diagnosticEventSink,
   });
 
+  final Key overlayKey;
   final TerminalGraphicsCache cache;
   final TerminalGraphicPlacement placement;
   final double displayWidth;
   final double displayHeight;
   final double sourceXOffset;
   final double sourceYOffset;
+  final String? diagnosticSessionId;
+  final TerminalBenchmarkEventSink? diagnosticEventSink;
 
   @override
   State<_TerminalGraphicOverlay> createState() =>
@@ -2688,7 +2734,7 @@ class _TerminalGraphicOverlayState extends State<_TerminalGraphicOverlay> {
   void didUpdateWidget(covariant _TerminalGraphicOverlay oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.cache != widget.cache) {
-      _clearVisibleImage();
+      _clearVisibleImage(reason: 'cache_changed');
     }
     if (oldWidget.cache != widget.cache ||
         oldWidget.placement.assetKey != widget.placement.assetKey) {
@@ -2698,26 +2744,51 @@ class _TerminalGraphicOverlayState extends State<_TerminalGraphicOverlay> {
 
   @override
   void dispose() {
-    _clearVisibleImage();
+    _clearVisibleImage(reason: 'dispose');
     super.dispose();
   }
 
   void _syncImageFuture() {
     final assetKey = widget.placement.assetKey;
+    final previousAssetKey = _assetKey;
+    final hasVisibleImage = _visibleImage != null;
     _assetKey = assetKey;
     final future = widget.cache.imageFor(assetKey);
     _imageFuture = future;
+    _emitDiagnostic(
+      hasVisibleImage ? 'overlay_waiting_for_replacement' : 'overlay_waiting',
+      assetKey: assetKey,
+      fields: <String, Object?>{
+        'has_visible_image': hasVisibleImage,
+        if (previousAssetKey != null)
+          'previous_asset_key': terminalGraphicsAssetKeyJson(previousAssetKey),
+      },
+    );
     future.then(
       (image) {
-        if (!mounted || _assetKey != assetKey || image == null) {
+        if (!mounted) {
+          return;
+        }
+        if (_assetKey != assetKey) {
+          _emitDiagnostic('overlay_stale_load', assetKey: assetKey);
+          return;
+        }
+        if (image == null) {
+          _emitDiagnostic('overlay_load_null', assetKey: assetKey);
           return;
         }
         setState(() {
           _replaceVisibleImage(image.clone());
         });
+        _emitDiagnostic('overlay_visible', assetKey: assetKey);
       },
       onError: (Object error, StackTrace stackTrace) {
         // Keep the previous frame visible if a replacement image fails to load.
+        _emitDiagnostic(
+          'overlay_load_error',
+          assetKey: assetKey,
+          fields: <String, Object?>{'error': error.toString()},
+        );
       },
     );
   }
@@ -2728,35 +2799,70 @@ class _TerminalGraphicOverlayState extends State<_TerminalGraphicOverlay> {
     previous?.dispose();
   }
 
-  void _clearVisibleImage() {
+  void _clearVisibleImage({required String reason}) {
+    if (_visibleImage != null) {
+      _emitDiagnostic(
+        'overlay_clear',
+        assetKey: _assetKey,
+        fields: <String, Object?>{'reason': reason},
+      );
+    }
     _visibleImage?.dispose();
     _visibleImage = null;
+  }
+
+  void _emitDiagnostic(
+    String event, {
+    TerminalGraphicAssetKey? assetKey,
+    Map<String, Object?> fields = const <String, Object?>{},
+  }) {
+    emitTerminalGraphicsDiagnostic(
+      widget.diagnosticEventSink,
+      layer: 'viewport_overlay',
+      event: event,
+      sessionId: widget.diagnosticSessionId,
+      assetKey: assetKey ?? widget.placement.assetKey,
+      graphics: <TerminalGraphicPlacement>[widget.placement],
+      fields: <String, Object?>{
+        'render_id': widget.placement.renderId,
+        'placement_id': widget.placement.placementId,
+        'row': widget.placement.row,
+        'col': widget.placement.col,
+        ...fields,
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final image = _visibleImage;
     if (image == null || _imageFuture == null) {
-      return const SizedBox.shrink();
+      return KeyedSubtree(
+        key: widget.overlayKey,
+        child: const SizedBox.shrink(),
+      );
     }
-    return ClipRect(
-      child: Transform.translate(
-        offset: Offset(-widget.sourceXOffset, -widget.sourceYOffset),
-        child: OverflowBox(
-          alignment: Alignment.topLeft,
-          minWidth: widget.displayWidth,
-          maxWidth: widget.displayWidth,
-          minHeight: widget.displayHeight,
-          maxHeight: widget.displayHeight,
-          child: SizedBox(
-            width: widget.displayWidth,
-            height: widget.displayHeight,
-            child: RawImage(
-              image: image,
-              fit: widget.placement.preserveAspectRatio
-                  ? BoxFit.contain
-                  : BoxFit.fill,
-              filterQuality: FilterQuality.medium,
+    return KeyedSubtree(
+      key: widget.overlayKey,
+      child: ClipRect(
+        child: Transform.translate(
+          offset: Offset(-widget.sourceXOffset, -widget.sourceYOffset),
+          child: OverflowBox(
+            alignment: Alignment.topLeft,
+            minWidth: widget.displayWidth,
+            maxWidth: widget.displayWidth,
+            minHeight: widget.displayHeight,
+            maxHeight: widget.displayHeight,
+            child: SizedBox(
+              width: widget.displayWidth,
+              height: widget.displayHeight,
+              child: RawImage(
+                image: image,
+                fit: widget.placement.preserveAspectRatio
+                    ? BoxFit.contain
+                    : BoxFit.fill,
+                filterQuality: FilterQuality.medium,
+              ),
             ),
           ),
         ),

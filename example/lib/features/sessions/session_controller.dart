@@ -1,6 +1,6 @@
 import 'dart:async';
-import 'dart:convert' show utf8;
-import 'dart:io' show Platform;
+import 'dart:convert' show jsonEncode, utf8;
+import 'dart:io' show File, FileMode, IOSink, Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,6 +22,33 @@ import 'session_state.dart';
 final ptySessionBackendProvider = Provider<PtySessionBackend>((ref) {
   return loadDefaultPtySessionBackend();
 });
+
+final terminalGraphicsTraceSinkProvider = Provider<TerminalBenchmarkEventSink?>(
+  (ref) {
+    const dartDefinePath = String.fromEnvironment(
+      'IANVS_TERMINAL_GRAPHICS_TRACE',
+    );
+    final path = dartDefinePath.isNotEmpty
+        ? dartDefinePath
+        : Platform.environment['IANVS_TERMINAL_GRAPHICS_TRACE'];
+    if (path == null || path.trim().isEmpty) {
+      return null;
+    }
+    final output = File(path.trim());
+    output.parent.createSync(recursive: true);
+    final sink = output.openWrite(mode: FileMode.write);
+    ref.onDispose(() {
+      unawaited(sink.close());
+    });
+    _writeTerminalTraceEvent(sink, <String, Object?>{
+      'schema_version': 'ianvs-terminal-graphics-trace-meta-v1',
+      'timestamp_micros': DateTime.now().microsecondsSinceEpoch,
+      'event': 'trace_start',
+      'path': output.path,
+    });
+    return (event) => _writeTerminalTraceEvent(sink, event);
+  },
+);
 
 final terminalRuntimeControllerProvider = Provider<TerminalRuntimeController>((
   ref,
@@ -102,10 +129,19 @@ final terminalRuntimeControllerProvider = Provider<TerminalRuntimeController>((
     resizeWindowBy: ref.read(sessionWindowResizeProvider),
     enableSessionPolling: ref.read(sessionPollingEnabledProvider),
     enableWarmUpRefresh: ref.read(driverWarmUpRefreshEnabledProvider),
+    benchmarkEventSink: ref.watch(terminalGraphicsTraceSinkProvider),
   );
   ref.onDispose(controller.dispose);
   return controller;
 });
+
+void _writeTerminalTraceEvent(IOSink sink, Map<String, Object?> event) {
+  try {
+    sink.writeln(jsonEncode(event));
+  } on Object {
+    // Diagnostics must never affect terminal rendering.
+  }
+}
 
 final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
   return ProfileRepository();

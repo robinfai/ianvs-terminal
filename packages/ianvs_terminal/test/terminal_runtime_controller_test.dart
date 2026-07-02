@@ -1305,6 +1305,65 @@ void main() {
     expect(loadCount, 2);
   });
 
+  test('terminal graphics cache emits image lifecycle diagnostics', () async {
+    final diagnosticEvents = <Map<String, Object?>>[];
+    final cache = TerminalGraphicsCache(
+      diagnosticSessionId: 'session-a',
+      diagnosticEventSink: diagnosticEvents.add,
+      loadAsset: (key) async {
+        return TerminalGraphicAsset(
+          key: key,
+          width: 1,
+          height: 1,
+          rgba: Uint8List.fromList(const <int>[255, 0, 0, 255]),
+        );
+      },
+      decodeImage: (rgba, width, height) {
+        final completer = Completer<Image>();
+        decodeImageFromPixels(
+          rgba,
+          width,
+          height,
+          PixelFormat.rgba8888,
+          completer.complete,
+        );
+        return completer.future;
+      },
+    );
+    addTearDown(cache.dispose);
+
+    const key = TerminalGraphicAssetKey(id: 42, version: 2);
+    final first = await cache.imageFor(key);
+    final second = await cache.imageFor(key);
+    cache.evictExcept(const <TerminalGraphicAssetKey>{});
+
+    expect(first, isNotNull);
+    expect(second, same(first));
+    expect(
+      diagnosticEvents
+          .where(
+            (event) =>
+                event['schema_version'] ==
+                'ianvs-terminal-graphics-diagnostic-v1',
+          )
+          .map((event) => event['event'])
+          .toList(),
+      containsAllInOrder(<String>[
+        'cache_load_start',
+        'cache_store',
+        'cache_hit',
+        'cache_evict',
+      ]),
+    );
+    expect(
+      diagnosticEvents
+          .where((event) => event['event'] == 'cache_store')
+          .map((event) => event['asset_key'])
+          .single,
+      <String, Object?>{'id': 42, 'version': 2},
+    );
+  });
+
   test(
     'terminal graphics cache skips invalid assets without decoding',
     () async {
@@ -2065,6 +2124,104 @@ void main() {
         expect(viewport.frame.rows.first.text, 'sync final');
         expect(frameEvents, hasLength(1));
         expect(frameEvents.single.frame.rows.first.text, 'sync final');
+      } finally {
+        runtime.dispose();
+      }
+    },
+  );
+
+  testWidgets(
+    'terminal runtime keeps synchronized graphics clear frames hidden',
+    (tester) async {
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+      );
+      try {
+        final sessionId = runtime.createSession(
+          const TerminalSessionConfig(
+            launch: TerminalLaunchConfig(program: '/bin/sh'),
+          ),
+        );
+        final viewport = runtime.viewportFor(sessionId);
+        final frameEvents = <TerminalSessionFrameEvent>[];
+        final subscription = runtime.events
+            .where((event) => event is TerminalSessionFrameEvent)
+            .cast<TerminalSessionFrameEvent>()
+            .listen(frameEvents.add);
+        addTearDown(subscription.cancel);
+
+        runtimeBackend.setFrame(sessionId, <String, Object?>{
+          ..._singleRowSnapshot('pet'),
+          'graphics': <Object?>[
+            <String, Object?>{
+              'render_id': 101,
+              'placement_id': 101,
+              'asset_id': 7,
+              'asset_version': 3,
+              'protocol': 'kitty',
+              'row': 0,
+              'col': 2,
+              'width_px': 8,
+              'height_px': 4,
+              'width_cells': 4,
+              'height_cells': 2,
+            },
+          ],
+        });
+        runtime.refreshSession(sessionId);
+        await tester.pump();
+
+        expect(viewport.frame.graphics, hasLength(1));
+        frameEvents.clear();
+
+        runtimeBackend.setFrame(sessionId, <String, Object?>{
+          ..._singleRowSnapshot('pet'),
+          'frame_kind': 'delta',
+          'dirty_ranges': <Object?>[],
+          'modes': <String, Object?>{'synchronized_output': true},
+          'graphics': <Object?>[],
+        });
+        runtime.sendInput(sessionId, Uint8List.fromList(const [0x41]));
+        await tester.pump(const Duration(milliseconds: 34));
+
+        expect(viewport.frame.graphics, hasLength(1));
+        expect(frameEvents, isEmpty);
+
+        runtimeBackend.setFrame(sessionId, <String, Object?>{
+          ..._singleRowSnapshot('pet final'),
+          'frame_kind': 'delta',
+          'dirty_ranges': <Object?>[
+            <String, Object?>{'start': 0, 'end': 1},
+          ],
+          'modes': <String, Object?>{'synchronized_output': false},
+          'graphics': <Object?>[
+            <String, Object?>{
+              'render_id': 101,
+              'placement_id': 101,
+              'asset_id': 7,
+              'asset_version': 4,
+              'protocol': 'kitty',
+              'row': 0,
+              'col': 2,
+              'width_px': 8,
+              'height_px': 4,
+              'width_cells': 4,
+              'height_cells': 2,
+            },
+          ],
+        });
+        runtime.sendInput(sessionId, Uint8List.fromList(const [0x42]));
+        await tester.pump();
+
+        expect(viewport.frame.rows.first.text, 'pet final');
+        expect(
+          viewport.frame.graphics.single.assetKey,
+          const TerminalGraphicAssetKey(id: 7, version: 4),
+        );
+        expect(frameEvents, hasLength(1));
       } finally {
         runtime.dispose();
       }
@@ -4469,6 +4626,49 @@ void main() {
       expect(event['json_decode_micros'], isA<int>());
       expect(event['apply_frame_micros'], isA<int>());
       expect(event['viewport_hash_after_apply'], isA<String>());
+    },
+  );
+
+  test(
+    'terminal runtime emits graphics diagnostics for synchronized skipped frames',
+    () async {
+      final runtimeBackend = _FakePtyBackend();
+      final diagnosticEvents = <Map<String, Object?>>[];
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        benchmarkEventSink: diagnosticEvents.add,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      diagnosticEvents.clear();
+
+      runtimeBackend.setFrame(sessionId, <String, Object?>{
+        ..._singleRowSnapshot('sync pet'),
+        'frame_kind': 'delta',
+        'modes': <String, Object?>{'synchronized_output': true},
+        'graphics': <Object?>[],
+      });
+      runtime.refreshSession(sessionId);
+      await Future<void>.delayed(Duration.zero);
+
+      final graphicsEvent = diagnosticEvents.singleWhere(
+        (event) =>
+            event['schema_version'] ==
+                'ianvs-terminal-graphics-diagnostic-v1' &&
+            event['layer'] == 'runtime' &&
+            event['event'] == 'frame_skipped_synchronized',
+      );
+      expect(graphicsEvent['session_id'], sessionId);
+      expect(graphicsEvent['incoming_graphics_count'], 0);
+      expect(graphicsEvent['applied_graphics_count'], 0);
     },
   );
 }

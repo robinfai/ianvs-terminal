@@ -401,6 +401,10 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                               graphicsCache: sessionController.graphicsCacheFor(
                                 sessionId,
                               ),
+                              benchmarkEventSink: ref.watch(
+                                terminalGraphicsTraceSinkProvider,
+                              ),
+                              graphicsDiagnosticSessionId: sessionId,
                               onHostKeyEvent: onHostKeyEvent,
                               onScrollLines: (delta) {
                                 ref

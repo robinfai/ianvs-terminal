@@ -63,6 +63,8 @@ class TerminalViewport extends StatelessWidget {
     this.activeSearchMatchIndex = -1,
     this.searchHighlightStyle,
     this.graphicsCache,
+    this.benchmarkEventSink,
+    this.graphicsDiagnosticSessionId,
   });
 
   final TerminalViewportController controller;
@@ -90,6 +92,8 @@ class TerminalViewport extends StatelessWidget {
   final int activeSearchMatchIndex;
   final terminal.TerminalSearchHighlightStyle? searchHighlightStyle;
   final terminal.TerminalGraphicsCache? graphicsCache;
+  final terminal.TerminalBenchmarkEventSink? benchmarkEventSink;
+  final String? graphicsDiagnosticSessionId;
 
   @override
   Widget build(BuildContext context) {
@@ -119,6 +123,8 @@ class TerminalViewport extends StatelessWidget {
       activeSearchMatchIndex: activeSearchMatchIndex,
       searchHighlightStyle: searchHighlightStyle,
       graphicsCache: graphicsCache,
+      benchmarkEventSink: benchmarkEventSink,
+      graphicsDiagnosticSessionId: graphicsDiagnosticSessionId,
     );
   }
 }

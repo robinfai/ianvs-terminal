@@ -1212,7 +1212,10 @@ void main() {
         () => createTestImage(cache: false),
       ))!;
       final secondCompleter = Completer<ui.Image>();
+      final diagnosticEvents = <Map<String, Object?>>[];
       final cache = TerminalGraphicsCache(
+        diagnosticSessionId: '1',
+        diagnosticEventSink: diagnosticEvents.add,
         loadAsset: (key) async => TerminalGraphicAsset(
           key: key,
           width: 1,
@@ -1266,6 +1269,8 @@ void main() {
               onScrollLines: (_) {},
               onScrollToOffset: (_) {},
               graphicsCache: cache,
+              benchmarkEventSink: diagnosticEvents.add,
+              graphicsDiagnosticSessionId: '1',
             ),
           ),
         ),
@@ -1298,6 +1303,23 @@ void main() {
           .image;
       expect(secondVisibleImage, isNotNull);
       expect(secondVisibleImage, isNot(same(firstVisibleImage)));
+      expect(
+        diagnosticEvents
+            .where(
+              (event) =>
+                  event['schema_version'] ==
+                  'ianvs-terminal-graphics-diagnostic-v1',
+            )
+            .map((event) => (event['layer'], event['event']))
+            .toList(),
+        containsAllInOrder(<(Object?, Object?)>[
+          ('graphics_cache', 'cache_store'),
+          ('viewport_overlay', 'overlay_visible'),
+          ('viewport_overlay', 'overlay_waiting_for_replacement'),
+          ('graphics_cache', 'cache_store'),
+          ('viewport_overlay', 'overlay_visible'),
+        ]),
+      );
 
       runtime.dispose();
       controller.dispose();
@@ -1408,6 +1430,109 @@ void main() {
           .image;
       expect(secondVisibleImage, isNotNull);
       expect(secondVisibleImage, isNot(same(firstVisibleImage)));
+
+      runtime.dispose();
+      controller.dispose();
+    },
+  );
+
+  testWidgets(
+    'terminal viewport preserves graphic overlay when render id changes',
+    (tester) async {
+      final image = (await tester.runAsync(
+        () => createTestImage(cache: false),
+      ))!;
+      final diagnosticEvents = <Map<String, Object?>>[];
+      final cache = TerminalGraphicsCache(
+        diagnosticSessionId: '1',
+        diagnosticEventSink: diagnosticEvents.add,
+        loadAsset: (key) async => TerminalGraphicAsset(
+          key: key,
+          width: 1,
+          height: 1,
+          rgba: Uint8List.fromList(const <int>[255, 0, 0, 255]),
+        ),
+        decodeImage: (_, _, _) async => image,
+      );
+      addTearDown(cache.dispose);
+
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          _graphicFrame(
+            const TerminalGraphicAssetKey(id: 7, version: 1),
+            renderId: 11,
+            placementId: 11,
+            col: 1,
+          ),
+        );
+      final selectionController = SelectionController();
+      final runtime = TerminalRuntimeController(
+        backend: _NoopPtyBackend(),
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: runtime,
+        readFrame: () => controller.frame,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: SizedBox(
+            width: 160,
+            height: 48,
+            child: TerminalViewport(
+              controller: controller,
+              selectionController: selectionController,
+              inputController: inputController,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+              graphicsCache: cache,
+              benchmarkEventSink: diagnosticEvents.add,
+              graphicsDiagnosticSessionId: '1',
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      final firstVisibleImage = tester
+          .widget<RawImage>(find.byType(RawImage))
+          .image;
+      expect(firstVisibleImage, isNotNull);
+      diagnosticEvents.clear();
+
+      controller.updateFrame(
+        _graphicFrame(
+          const TerminalGraphicAssetKey(id: 7, version: 1),
+          renderId: 12,
+          placementId: 12,
+          col: 2,
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byKey(const Key('terminal-graphic-12')), findsOneWidget);
+      expect(
+        tester.widget<RawImage>(find.byType(RawImage)).image,
+        same(firstVisibleImage),
+      );
+      expect(
+        diagnosticEvents.where(
+          (event) =>
+              event['layer'] == 'viewport_overlay' &&
+              event['event'] == 'overlay_clear',
+        ),
+        isEmpty,
+      );
 
       runtime.dispose();
       controller.dispose();
@@ -1640,7 +1765,10 @@ void main() {
     tester,
   ) async {
     final image = (await tester.runAsync(() => createTestImage(cache: false)))!;
+    final diagnosticEvents = <Map<String, Object?>>[];
     final cache = TerminalGraphicsCache(
+      diagnosticSessionId: '1',
+      diagnosticEventSink: diagnosticEvents.add,
       loadAsset: (key) async => TerminalGraphicAsset(
         key: key,
         width: 1,
@@ -1684,6 +1812,8 @@ void main() {
             onScrollLines: (_) {},
             onScrollToOffset: (_) {},
             graphicsCache: cache,
+            benchmarkEventSink: diagnosticEvents.add,
+            graphicsDiagnosticSessionId: '1',
           ),
         ),
       ),
@@ -1698,6 +1828,31 @@ void main() {
     await tester.pump();
 
     expect(find.byType(RawImage), findsNothing);
+    expect(
+      diagnosticEvents
+          .where(
+            (event) =>
+                event['schema_version'] ==
+                'ianvs-terminal-graphics-diagnostic-v1',
+          )
+          .map((event) => (event['layer'], event['event']))
+          .toList(),
+      containsAllInOrder(<(Object?, Object?)>[
+        ('graphics_cache', 'cache_store'),
+        ('viewport_overlay', 'overlay_visible'),
+        ('viewport_overlay', 'overlay_clear'),
+      ]),
+    );
+    expect(
+      diagnosticEvents.where(
+        (event) =>
+            event['layer'] == 'viewport_overlay' &&
+            event['event'] == 'overlay_clear' &&
+            event['reason'] == 'dispose' &&
+            event['session_id'] == '1',
+      ),
+      isNotEmpty,
+    );
 
     runtime.dispose();
     controller.dispose();

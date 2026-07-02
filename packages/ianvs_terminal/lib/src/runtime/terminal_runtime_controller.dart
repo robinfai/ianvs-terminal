@@ -9,6 +9,7 @@ import 'package:ianvs_pty/ianvs_pty.dart';
 import '../config/terminal_config.dart';
 import '../terminal/selection_controller.dart';
 import '../terminal/terminal_graphics_cache.dart';
+import '../terminal/terminal_graphics_diagnostics.dart';
 import '../terminal/terminal_models.dart';
 import '../terminal/terminal_viewport.dart';
 import 'terminal_benchmarking.dart';
@@ -480,6 +481,8 @@ class TerminalRuntimeController {
       sessionId,
       () => TerminalGraphicsCache(
         loadAsset: (key) => loadGraphicAsset(sessionId, key),
+        diagnosticSessionId: sessionId,
+        diagnosticEventSink: benchmarkEventSink,
       ),
     );
   }
@@ -1075,7 +1078,7 @@ class TerminalRuntimeController {
         final frame = _decodeFrame(rawFrame);
         if (frame != null) {
           receivedFrame = true;
-          _queuePendingFrame(pendingFrames, frame);
+          _queuePendingFrame(sessionId, pendingFrames, frame);
         }
       }
 
@@ -1131,7 +1134,7 @@ class TerminalRuntimeController {
         if (rawFrame != null && rawFrame.isNotEmpty) {
           final frame = _decodeFrame(rawFrame);
           if (frame != null) {
-            _queuePendingFrame(pendingFrames, frame);
+            _queuePendingFrame(sessionId, pendingFrames, frame);
           }
         }
 
@@ -1198,6 +1201,19 @@ class TerminalRuntimeController {
     _lastFrameAppliedAt[sessionId] = DateTime.now();
     _startPollingCooldown(sessionId);
     _events.add(TerminalSessionFrameEvent(sessionId, frame));
+    _emitGraphicsDiagnostic(
+      sessionId,
+      event: 'frame_applied',
+      frame: frame,
+      fields: <String, Object?>{
+        'pending_frames_before': pendingFramesBefore,
+        'pending_frames_after': pendingFramesAfter,
+        'applied_graphics_count': viewport.frame.graphics.length,
+        'applied_graphics_signature': terminalGraphicsSignature(
+          viewport.frame.graphics,
+        ),
+      },
+    );
     _emitRuntimeBenchmarkEvent(
       sessionId: sessionId,
       frame: frame,
@@ -1269,13 +1285,55 @@ class TerminalRuntimeController {
   }
 
   void _queuePendingFrame(
+    String sessionId,
     List<TerminalFrameDiff> pendingFrames,
     TerminalFrameDiff frame,
   ) {
+    if (frame.modes.synchronizedOutput) {
+      _decodedFrameBenchmarkMetrics.remove(frame);
+      _emitGraphicsDiagnostic(
+        sessionId,
+        event: 'frame_skipped_synchronized',
+        frame: frame,
+        fields: <String, Object?>{
+          'applied_graphics_count': viewportFor(
+            sessionId,
+          ).frame.graphics.length,
+          'applied_graphics_signature': terminalGraphicsSignature(
+            viewportFor(sessionId).frame.graphics,
+          ),
+        },
+      );
+      return;
+    }
     if (frame.frameKind == TerminalFrameKind.snapshot) {
       pendingFrames.clear();
     }
     pendingFrames.add(frame);
+  }
+
+  void _emitGraphicsDiagnostic(
+    String sessionId, {
+    required String event,
+    required TerminalFrameDiff frame,
+    Map<String, Object?> fields = const <String, Object?>{},
+  }) {
+    emitTerminalGraphicsDiagnostic(
+      benchmarkEventSink,
+      layer: 'runtime',
+      event: event,
+      sessionId: sessionId,
+      graphics: frame.graphics,
+      fields: <String, Object?>{
+        'frame_kind': frame.frameKind.name,
+        'synchronized_output': frame.modes.synchronizedOutput,
+        'incoming_graphics_count': frame.graphics.length,
+        'incoming_graphics_signature': terminalGraphicsSignature(
+          frame.graphics,
+        ),
+        ...fields,
+      },
+    );
   }
 
   void _applyPendingFrames(

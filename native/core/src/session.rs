@@ -155,7 +155,7 @@ impl From<ScrollRegionDamage> for PendingScrollRegion {
 }
 
 #[derive(Clone, Debug)]
-struct DeferredInlineClearFrame {
+struct DeferredFrameGrace {
     damage_generation: u64,
     started_at: Instant,
 }
@@ -229,6 +229,30 @@ impl PendingFrameWork {
     fn bump_generation(&mut self) {
         self.damage_generation = self.damage_generation.saturating_add(1);
     }
+}
+
+fn should_defer_frame_with_grace(
+    deferred_frame: &Mutex<Option<DeferredFrameGrace>>,
+    damage_generation: u64,
+    grace: Duration,
+) -> bool {
+    let mut deferred = deferred_frame.lock();
+    if let Some(frame) = deferred
+        .as_ref()
+        .filter(|frame| frame.damage_generation == damage_generation)
+    {
+        if frame.started_at.elapsed() < grace {
+            return true;
+        }
+        *deferred = None;
+        return false;
+    }
+
+    *deferred = Some(DeferredFrameGrace {
+        damage_generation,
+        started_at: Instant::now(),
+    });
+    true
 }
 
 #[derive(Clone, Debug, serde::Serialize)]
@@ -1050,9 +1074,9 @@ pub struct TerminalSession {
     last_frame_meta: Mutex<Option<CachedFrameMeta>>,
     last_frame_debug_stats: Mutex<Option<FrameDebugStats>>,
     last_frame_had_graphics: Mutex<bool>,
-    deferred_clear_graphics_generation: Mutex<Option<u64>>,
-    deferred_kitty_delete_graphics_generation: Mutex<Option<u64>>,
-    deferred_inline_clear_frame: Mutex<Option<DeferredInlineClearFrame>>,
+    deferred_clear_graphics_frame: Mutex<Option<DeferredFrameGrace>>,
+    deferred_kitty_delete_graphics_frame: Mutex<Option<DeferredFrameGrace>>,
+    deferred_inline_clear_frame: Mutex<Option<DeferredFrameGrace>>,
     exited: AtomicBool,
 }
 
@@ -1127,8 +1151,8 @@ impl TerminalSession {
             last_frame_meta: Mutex::new(None),
             last_frame_debug_stats: Mutex::new(None),
             last_frame_had_graphics: Mutex::new(false),
-            deferred_clear_graphics_generation: Mutex::new(None),
-            deferred_kitty_delete_graphics_generation: Mutex::new(None),
+            deferred_clear_graphics_frame: Mutex::new(None),
+            deferred_kitty_delete_graphics_frame: Mutex::new(None),
             deferred_inline_clear_frame: Mutex::new(None),
             exited: AtomicBool::new(false),
         });
@@ -1745,11 +1769,11 @@ impl TerminalSession {
         });
         *self.last_frame_had_graphics.lock() = graphic_placements_count > 0;
         if graphic_placements_count > 0 {
-            *self.deferred_clear_graphics_generation.lock() = None;
-            *self.deferred_kitty_delete_graphics_generation.lock() = None;
+            *self.deferred_clear_graphics_frame.lock() = None;
+            *self.deferred_kitty_delete_graphics_frame.lock() = None;
         }
         if deferred_kitty_delete_count == 0 {
-            *self.deferred_kitty_delete_graphics_generation.lock() = None;
+            *self.deferred_kitty_delete_graphics_frame.lock() = None;
         }
         *self.deferred_inline_clear_frame.lock() = None;
 
@@ -1792,12 +1816,11 @@ impl TerminalSession {
             return false;
         }
 
-        let mut deferred_generation = self.deferred_clear_graphics_generation.lock();
-        if *deferred_generation == Some(pending_frame_work.damage_generation) {
-            return false;
-        }
-        *deferred_generation = Some(pending_frame_work.damage_generation);
-        true
+        should_defer_frame_with_grace(
+            &self.deferred_clear_graphics_frame,
+            pending_frame_work.damage_generation,
+            INLINE_CLEAR_REPAINT_GRACE,
+        )
     }
 
     fn should_defer_kitty_delete_graphics_frame(
@@ -1816,12 +1839,11 @@ impl TerminalSession {
             return false;
         }
 
-        let mut deferred_generation = self.deferred_kitty_delete_graphics_generation.lock();
-        if *deferred_generation == Some(pending_frame_work.damage_generation) {
-            return false;
-        }
-        *deferred_generation = Some(pending_frame_work.damage_generation);
-        true
+        should_defer_frame_with_grace(
+            &self.deferred_kitty_delete_graphics_frame,
+            pending_frame_work.damage_generation,
+            INLINE_CLEAR_REPAINT_GRACE,
+        )
     }
 
     fn should_defer_inline_clear_frame(
@@ -1867,7 +1889,7 @@ impl TerminalSession {
             return false;
         }
 
-        *deferred_frame = Some(DeferredInlineClearFrame {
+        *deferred_frame = Some(DeferredFrameGrace {
             damage_generation: pending_frame_work.damage_generation,
             started_at: Instant::now(),
         });
