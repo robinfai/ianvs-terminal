@@ -465,8 +465,8 @@ Create `native/core/src/frame_diff_proto.rs` with conversion helpers:
 ```rust
 use crate::model::{
     TerminalCursor, TerminalDirtyRange, TerminalFrameDiff, TerminalFrameKind,
-    TerminalFrameModes, TerminalGraphicAssetKey, TerminalGraphicPlacement,
-    TerminalHyperlinkRange, TerminalRow, TerminalSelection, TerminalStyleRun,
+    TerminalFrameModes, TerminalGraphicPlacement, TerminalHyperlinkRange, TerminalRow,
+    TerminalSelection, TerminalStyleRun,
 };
 use crate::proto::frame_diff as pb;
 use prost::Message;
@@ -595,11 +595,13 @@ fn to_proto_hyperlink(link: &TerminalHyperlinkRange) -> pb::TerminalHyperlinkRan
 }
 
 fn to_proto_graphic(graphic: &TerminalGraphicPlacement) -> pb::TerminalGraphicPlacement {
-    let asset_key = graphic.asset_key.as_ref().map(to_proto_asset_key);
     pb::TerminalGraphicPlacement {
         placement_id: graphic.placement_id as u32,
         render_id: graphic.render_id as u32,
-        asset_key,
+        asset_key: Some(pb::TerminalGraphicAssetKey {
+            asset_id: graphic.asset_id as u32,
+            asset_version: graphic.asset_version as u32,
+        }),
         protocol: graphic.protocol.clone(),
         row: graphic.row as u32,
         col: graphic.col as u32,
@@ -612,16 +614,9 @@ fn to_proto_graphic(graphic: &TerminalGraphicPlacement) -> pb::TerminalGraphicPl
         source_y_offset_px: graphic.source_y_offset_px as u32,
         visible_height_px: graphic.visible_height_px as u32,
         z_index: graphic.z_index,
-        x_offset_px: graphic.x_offset_px,
-        y_offset_px: graphic.y_offset_px,
+        x_offset_px: graphic.x_offset_px as i32,
+        y_offset_px: graphic.y_offset_px as i32,
         preserve_aspect_ratio: graphic.preserve_aspect_ratio,
-    }
-}
-
-fn to_proto_asset_key(key: &TerminalGraphicAssetKey) -> pb::TerminalGraphicAssetKey {
-    pb::TerminalGraphicAssetKey {
-        asset_id: key.id as u32,
-        asset_version: key.version as u32,
     }
 }
 
