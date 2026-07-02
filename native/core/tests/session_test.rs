@@ -1738,6 +1738,26 @@ fn session_frame_debug_stats_include_protobuf_encode_micros() {
 }
 
 #[test]
+fn ffi_take_frame_diff_protobuf_returns_bytes_and_len() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&test_profile()).unwrap()).unwrap();
+    thread::sleep(Duration::from_millis(250));
+
+    let mut len = 0usize;
+    let ptr =
+        unsafe { ianvs_core::ffi::ianvs_session_take_frame_diff_protobuf(session_id, &mut len) };
+    assert!(!ptr.is_null());
+    assert!(len > 0);
+
+    unsafe {
+        let bytes = std::slice::from_raw_parts(ptr, len);
+        assert!(!bytes.is_empty());
+        ianvs_core::ffi::ianvs_bytes_free(ptr, len);
+    }
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn session_frame_diff_omits_empty_optional_fields() {
     let session_id =
         session::create_session(&serde_json::to_string(&test_profile()).unwrap()).unwrap();

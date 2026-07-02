@@ -197,6 +197,36 @@ pub extern "C" fn ianvs_session_take_frame_diff_json(session_id: u64) -> *mut c_
 }
 
 #[unsafe(no_mangle)]
+/// # Safety
+///
+/// `out_len` must point to writable memory for one `usize`.
+pub unsafe extern "C" fn ianvs_session_take_frame_diff_protobuf(
+    session_id: u64,
+    out_len: *mut usize,
+) -> *mut u8 {
+    if out_len.is_null() {
+        return std::ptr::null_mut();
+    }
+    unsafe {
+        *out_len = 0;
+    }
+
+    match session::take_frame_diff_protobuf(session_id).ok().flatten() {
+        Some(bytes) => {
+            let mut boxed = bytes.into_boxed_slice();
+            let len = boxed.len();
+            let ptr = boxed.as_mut_ptr();
+            unsafe {
+                *out_len = len;
+            }
+            std::mem::forget(boxed);
+            ptr
+        }
+        None => std::ptr::null_mut(),
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn ianvs_session_take_frame_debug_stats_json(session_id: u64) -> *mut c_char {
     match session::take_frame_debug_stats_json(session_id)
         .ok()
@@ -295,5 +325,20 @@ pub unsafe extern "C" fn ianvs_string_free(value: *mut c_char) {
     }
     unsafe {
         let _ = CString::from_raw(value);
+    }
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+///
+/// `ptr` must be a pointer returned by `ianvs_session_take_frame_diff_protobuf`
+/// with the same `len`.
+pub unsafe extern "C" fn ianvs_bytes_free(ptr: *mut u8, len: usize) {
+    if ptr.is_null() {
+        return;
+    }
+    let slice = std::ptr::slice_from_raw_parts_mut(ptr, len);
+    unsafe {
+        drop(Box::from_raw(slice));
     }
 }
