@@ -1,96 +1,33 @@
 part of 'shell_screen.dart';
 
-class _ShellCommandMenuHotkeyStatus extends StatefulWidget {
-  const _ShellCommandMenuHotkeyStatus({
-    required this.statusFuture,
-    required this.builder,
-  });
-
-  final Future<HotkeyWindowStatus?> statusFuture;
-  final Widget Function(HotkeyWindowStatus? status) builder;
-
-  @override
-  State<_ShellCommandMenuHotkeyStatus> createState() =>
-      _ShellCommandMenuHotkeyStatusState();
-}
-
-class _ShellCommandMenuHotkeyStatusState
-    extends State<_ShellCommandMenuHotkeyStatus> {
-  HotkeyWindowStatus? _status;
-
-  @override
-  void initState() {
-    super.initState();
-    widget.statusFuture.then((status) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _status = status;
-      });
-    }, onError: (_) {});
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return widget.builder(_status);
-  }
-}
-
 class _ShellCommandMenu extends StatefulWidget {
   const _ShellCommandMenu({
     required this.launcherShortcutLabel,
     required this.newTabShortcutLabel,
-    required this.hotkeyWindowShortcutLabel,
-    required this.autocompleteShortcutLabel,
-    required this.copyModeShortcutLabel,
-    required this.sessionCopyShortcutLabel,
     required this.sessionPasteShortcutLabel,
-    required this.pasteHistoryShortcutLabel,
     required this.instantReplayShortcutLabel,
     required this.searchShortcutLabel,
     required this.hasDefaultProfile,
     required this.hasActiveSession,
-    required this.hasMultiplePanes,
-    required this.activePaneZoomed,
     required this.canReopenClosedTab,
-    required this.canReopenClosedPane,
-    required this.splitRightUnavailableReason,
-    required this.splitDownUnavailableReason,
-    required this.hotkeyWindowStatus,
     required this.isActiveSessionReadOnly,
     required this.notificationsBlockedBySystem,
     required this.commandFinishedNotificationsEnabled,
-    required this.bellNotificationsEnabled,
     required this.activityMonitorEnabled,
-    required this.canSelectCommandOutput,
   });
 
   final String launcherShortcutLabel;
   final String newTabShortcutLabel;
-  final String hotkeyWindowShortcutLabel;
-  final String autocompleteShortcutLabel;
-  final String copyModeShortcutLabel;
-  final String sessionCopyShortcutLabel;
   final String sessionPasteShortcutLabel;
-  final String pasteHistoryShortcutLabel;
   final String instantReplayShortcutLabel;
   final String searchShortcutLabel;
   final bool hasDefaultProfile;
   final bool hasActiveSession;
-  final bool hasMultiplePanes;
-  final bool activePaneZoomed;
   final bool canReopenClosedTab;
-  final bool canReopenClosedPane;
-  final String? splitRightUnavailableReason;
-  final String? splitDownUnavailableReason;
-  final HotkeyWindowStatus? hotkeyWindowStatus;
   final bool isActiveSessionReadOnly;
   final bool notificationsBlockedBySystem;
   final bool commandFinishedNotificationsEnabled;
-  final bool bellNotificationsEnabled;
   final bool activityMonitorEnabled;
-  final bool canSelectCommandOutput;
 
   @override
   State<_ShellCommandMenu> createState() => _ShellCommandMenuState();
@@ -107,30 +44,17 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
         .toDouble();
     final launcherShortcutLabel = widget.launcherShortcutLabel;
     final newTabShortcutLabel = widget.newTabShortcutLabel;
-    final hotkeyWindowShortcutLabel = widget.hotkeyWindowShortcutLabel;
-    final autocompleteShortcutLabel = widget.autocompleteShortcutLabel;
-    final copyModeShortcutLabel = widget.copyModeShortcutLabel;
-    final sessionCopyShortcutLabel = widget.sessionCopyShortcutLabel;
     final sessionPasteShortcutLabel = widget.sessionPasteShortcutLabel;
-    final pasteHistoryShortcutLabel = widget.pasteHistoryShortcutLabel;
     final instantReplayShortcutLabel = widget.instantReplayShortcutLabel;
     final searchShortcutLabel = widget.searchShortcutLabel;
     final hasDefaultProfile = widget.hasDefaultProfile;
     final hasActiveSession = widget.hasActiveSession;
-    final hasMultiplePanes = widget.hasMultiplePanes;
-    final activePaneZoomed = widget.activePaneZoomed;
     final canReopenClosedTab = widget.canReopenClosedTab;
-    final canReopenClosedPane = widget.canReopenClosedPane;
-    final splitRightUnavailableReason = widget.splitRightUnavailableReason;
-    final splitDownUnavailableReason = widget.splitDownUnavailableReason;
-    final hotkeyWindowStatus = widget.hotkeyWindowStatus;
     final isActiveSessionReadOnly = widget.isActiveSessionReadOnly;
     final notificationsBlockedBySystem = widget.notificationsBlockedBySystem;
     final commandFinishedNotificationsEnabled =
         widget.commandFinishedNotificationsEnabled;
-    final bellNotificationsEnabled = widget.bellNotificationsEnabled;
     final activityMonitorEnabled = widget.activityMonitorEnabled;
-    final canSelectCommandOutput = widget.canSelectCommandOutput;
 
     Widget sectionLabel(String text) {
       return Padding(
@@ -152,49 +76,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
     const activeSessionRequired = 'Open a terminal tab first.';
     const defaultProfileRequired = 'No default profile is configured.';
     const closedTabRequired = 'No recently closed tab is available.';
-    const closedPaneRequired =
-        'No recently closed pane is available for this tab.';
     const readOnlySendRequired = 'Disable read-only mode to send text.';
-
-    String? hotkeyWindowUnavailableReason() {
-      final status = hotkeyWindowStatus;
-      if (status == null || status.registered) {
-        return null;
-      }
-      final details = <String>[
-        'Hotkey window is unavailable.',
-        'Shortcut: ${status.shortcut}.',
-        if (status.errorCode != null) 'Error: ${status.errorCode}.',
-      ];
-      return details.join(' ');
-    }
-
-    String selectCommandOutputUnavailableReason() {
-      if (!hasActiveSession) {
-        return activeSessionRequired;
-      }
-      return 'No prompt-marked command output is available yet.';
-    }
-
-    String? paneFocusUnavailableReason() {
-      if (!hasActiveSession) {
-        return activeSessionRequired;
-      }
-      if (!hasMultiplePanes) {
-        return 'Add another pane to use this action.';
-      }
-      return null;
-    }
-
-    String? paneZoomUnavailableReason() {
-      if (!hasActiveSession) {
-        return activeSessionRequired;
-      }
-      if (!hasMultiplePanes) {
-        return 'Add another pane to use this action.';
-      }
-      return null;
-    }
 
     var commandTileTraversalOrder = 1.0;
 
@@ -375,52 +257,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         onTap: () =>
                             Navigator.of(context).pop(TerminalActionId.newTab),
                       ),
-                      commandTile(
-                        key: const Key('shell-top-split-right'),
-                        actionId: TerminalActionId.splitRight,
-                        icon: Icons.vertical_split_rounded,
-                        title: 'Split right',
-                        subtitle: 'Top action • Add a pane to the right.',
-                        enabled:
-                            hasDefaultProfile &&
-                            hasActiveSession &&
-                            splitRightUnavailableReason == null,
-                        disabledReason: !hasDefaultProfile
-                            ? defaultProfileRequired
-                            : !hasActiveSession
-                            ? activeSessionRequired
-                            : splitRightUnavailableReason,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.splitRight),
-                      ),
-                      commandTile(
-                        key: const Key('shell-top-toolbelt'),
-                        actionId: TerminalActionId.toolbelt,
-                        icon: Icons.view_sidebar_rounded,
-                        title: 'Toolbelt',
-                        subtitle:
-                            'Top action • Keep terminal tools in a sidebar.',
-                        enabled: hasActiveSession,
-                        disabledReason: activeSessionRequired,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.toolbelt),
-                      ),
                       sectionLabel('App actions'),
-                      commandTile(
-                        key: const Key('shell-new-tab'),
-                        actionId: TerminalActionId.newTab,
-                        icon: Icons.add_box_outlined,
-                        title: 'New tab',
-                        subtitle:
-                            'App action • Open the default shell profile.',
-                        shortcutLabel: newTabShortcutLabel,
-                        enabled: hasDefaultProfile,
-                        disabledReason: defaultProfileRequired,
-                        onTap: () =>
-                            Navigator.of(context).pop(TerminalActionId.newTab),
-                      ),
                       commandTile(
                         key: const Key('shell-command-defaults'),
                         actionId: TerminalActionId.defaults,
@@ -445,19 +282,6 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         onTap: () => Navigator.of(
                           context,
                         ).pop(TerminalActionId.reopenClosedTab),
-                      ),
-                      commandTile(
-                        key: const Key('shell-toolbelt'),
-                        actionId: TerminalActionId.toolbelt,
-                        icon: Icons.view_sidebar_rounded,
-                        title: 'Toolbelt',
-                        subtitle:
-                            'App action • Keep terminal tools in a sidebar.',
-                        enabled: hasActiveSession,
-                        disabledReason: activeSessionRequired,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.toolbelt),
                       ),
                       commandTile(
                         key: const Key('shell-theme-picker'),
@@ -485,21 +309,6 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         onTap: () => Navigator.of(
                           context,
                         ).pop(TerminalActionId.toggleCommandFinishedNotify),
-                      ),
-                      commandTile(
-                        key: const Key('shell-toggle-bell-notify'),
-                        actionId: TerminalActionId.toggleBellNotify,
-                        icon: Icons.notifications_rounded,
-                        title:
-                            '${bellNotificationsEnabled ? 'Disable' : 'Enable'} bell notifications',
-                        subtitle: notificationsBlockedBySystem
-                            ? 'App action • Toggle terminal bell alerts. macOS notifications are currently blocked in System Settings.'
-                            : 'App action • Toggle terminal bell alerts.',
-                        subtitleMaxLines: notificationsBlockedBySystem ? 2 : 1,
-                        enabled: true,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.toggleBellNotify),
                       ),
                       commandTile(
                         key: const Key('shell-toggle-activity-monitor'),
@@ -539,114 +348,6 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           context,
                         ).pop(TerminalActionId.dynamicProfiles),
                       ),
-                      commandTile(
-                        key: const Key('shell-hotkey-window'),
-                        actionId: TerminalActionId.hotkeyWindow,
-                        icon: Icons.keyboard_rounded,
-                        title: 'Hotkey window',
-                        subtitle:
-                            'App action • Hide this window. Reopen with $hotkeyWindowShortcutLabel.',
-                        shortcutLabel: hotkeyWindowShortcutLabel,
-                        enabled: hotkeyWindowUnavailableReason() == null,
-                        disabledReason: hotkeyWindowUnavailableReason(),
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.hotkeyWindow),
-                      ),
-                      sectionLabel('Pane actions'),
-                      commandTile(
-                        key: const Key('shell-reopen-closed-pane'),
-                        actionId: TerminalActionId.reopenClosedPane,
-                        icon: Icons.restore_page_rounded,
-                        title: 'Reopen closed pane',
-                        subtitle:
-                            'Pane action • Restore the most recently closed pane in this tab.',
-                        enabled: hasActiveSession && canReopenClosedPane,
-                        disabledReason: !hasActiveSession
-                            ? activeSessionRequired
-                            : closedPaneRequired,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.reopenClosedPane),
-                      ),
-                      commandTile(
-                        key: const Key('shell-split-right'),
-                        actionId: TerminalActionId.splitRight,
-                        icon: Icons.vertical_split_rounded,
-                        title: 'Split right',
-                        subtitle: 'Pane action • Add a pane to the right.',
-                        enabled:
-                            hasDefaultProfile &&
-                            hasActiveSession &&
-                            splitRightUnavailableReason == null,
-                        disabledReason: !hasDefaultProfile
-                            ? defaultProfileRequired
-                            : !hasActiveSession
-                            ? activeSessionRequired
-                            : splitRightUnavailableReason,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.splitRight),
-                      ),
-                      commandTile(
-                        key: const Key('shell-split-down'),
-                        actionId: TerminalActionId.splitDown,
-                        icon: Icons.horizontal_split_rounded,
-                        title: 'Split down',
-                        subtitle: 'Pane action • Add a pane below.',
-                        enabled:
-                            hasDefaultProfile &&
-                            hasActiveSession &&
-                            splitDownUnavailableReason == null,
-                        disabledReason: !hasDefaultProfile
-                            ? defaultProfileRequired
-                            : !hasActiveSession
-                            ? activeSessionRequired
-                            : splitDownUnavailableReason,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.splitDown),
-                      ),
-                      commandTile(
-                        key: const Key('shell-zoom-pane'),
-                        actionId: TerminalActionId.zoomPane,
-                        icon: Icons.zoom_out_map_rounded,
-                        title: activePaneZoomed
-                            ? 'Unzoom active pane'
-                            : 'Zoom active pane',
-                        subtitle: 'Pane action • Focus one pane temporarily.',
-                        enabled: paneZoomUnavailableReason() == null,
-                        disabledReason: paneZoomUnavailableReason(),
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.zoomPane),
-                      ),
-                      commandTile(
-                        key: const Key('shell-focus-next-pane'),
-                        actionId: TerminalActionId.focusNextPane,
-                        icon: Icons.keyboard_tab_rounded,
-                        title: 'Focus next pane',
-                        subtitle:
-                            'Pane action • Move keyboard focus to the next split pane.',
-                        enabled: paneFocusUnavailableReason() == null,
-                        disabledReason: paneFocusUnavailableReason(),
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.focusNextPane),
-                      ),
-                      commandTile(
-                        key: const Key('shell-focus-previous-pane'),
-                        actionId: TerminalActionId.focusPreviousPane,
-                        icon: Icons.keyboard_tab_rounded,
-                        title: 'Focus previous pane',
-                        subtitle:
-                            'Pane action • Move keyboard focus to the previous split pane.',
-                        enabled: paneFocusUnavailableReason() == null,
-                        disabledReason: paneFocusUnavailableReason(),
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.focusPreviousPane),
-                      ),
                       sectionLabel('Session actions'),
                       if (!hasActiveSession)
                         Padding(
@@ -660,32 +361,6 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                             ),
                           ),
                         ),
-                      commandTile(
-                        actionId: TerminalActionId.copy,
-                        icon: Icons.copy_rounded,
-                        title: 'Copy selection',
-                        subtitle:
-                            'Session action • Copy the current selection.',
-                        shortcutLabel: sessionCopyShortcutLabel,
-                        enabled: hasActiveSession,
-                        disabledReason: activeSessionRequired,
-                        onTap: () =>
-                            Navigator.of(context).pop(TerminalActionId.copy),
-                      ),
-                      commandTile(
-                        key: const Key('shell-copy-mode'),
-                        actionId: TerminalActionId.copyMode,
-                        icon: Icons.select_all_rounded,
-                        title: 'Copy mode',
-                        subtitle:
-                            'Session action • Select terminal text from the keyboard.',
-                        shortcutLabel: copyModeShortcutLabel,
-                        enabled: hasActiveSession,
-                        disabledReason: activeSessionRequired,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.copyMode),
-                      ),
                       commandTile(
                         key: const Key('shell-toggle-read-only'),
                         actionId: TerminalActionId.toggleReadOnly,
@@ -739,105 +414,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           context,
                         ).pop(TerminalActionId.exportDiagnostics),
                       ),
-                      commandTile(
-                        key: const Key('shell-annotations'),
-                        actionId: TerminalActionId.annotations,
-                        icon: Icons.sticky_note_2_rounded,
-                        title: 'Annotations',
-                        subtitle:
-                            'Session action • Attach notes to selected output.',
-                        enabled: hasActiveSession,
-                        disabledReason: activeSessionRequired,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.annotations),
-                      ),
-                      commandTile(
-                        key: const Key('shell-captured-output'),
-                        actionId: TerminalActionId.capturedOutput,
-                        icon: Icons.outbox_rounded,
-                        title: 'Captured output',
-                        subtitle:
-                            'Session action • Review lines matched by triggers.',
-                        enabled: hasActiveSession,
-                        disabledReason: activeSessionRequired,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.capturedOutput),
-                      ),
-                      commandTile(
-                        key: const Key('shell-paste-clipboard'),
-                        actionId: TerminalActionId.paste,
-                        icon: Icons.content_paste_rounded,
-                        title: 'Paste clipboard',
-                        subtitle:
-                            'Session action • Paste clipboard into the shell.',
-                        shortcutLabel: sessionPasteShortcutLabel,
-                        enabled: hasActiveSession && !isActiveSessionReadOnly,
-                        disabledReason: hasActiveSession
-                            ? readOnlySendRequired
-                            : activeSessionRequired,
-                        onTap: () =>
-                            Navigator.of(context).pop(TerminalActionId.paste),
-                      ),
-                      commandTile(
-                        key: const Key('shell-advanced-paste'),
-                        actionId: TerminalActionId.advancedPaste,
-                        icon: Icons.assignment_rounded,
-                        title: 'Advanced paste',
-                        subtitle:
-                            'Session action • Edit and transform text before pasting.',
-                        enabled: hasActiveSession && !isActiveSessionReadOnly,
-                        disabledReason: hasActiveSession
-                            ? readOnlySendRequired
-                            : activeSessionRequired,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.advancedPaste),
-                      ),
-                      commandTile(
-                        key: const Key('shell-paste-history'),
-                        actionId: TerminalActionId.pasteHistory,
-                        icon: Icons.history_rounded,
-                        title: 'Paste history',
-                        subtitle:
-                            'Session action • Revisit recently copied or pasted text.',
-                        shortcutLabel: pasteHistoryShortcutLabel,
-                        enabled: hasActiveSession && !isActiveSessionReadOnly,
-                        disabledReason: hasActiveSession
-                            ? readOnlySendRequired
-                            : activeSessionRequired,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.pasteHistory),
-                      ),
                       sectionLabel('Shell tools'),
-                      commandTile(
-                        key: const Key('shell-integration-utilities'),
-                        actionId: TerminalActionId.shellIntegrationUtilities,
-                        icon: Icons.integration_instructions_rounded,
-                        title: 'Shell integration',
-                        subtitle:
-                            'Shell tool • Command history, directories, and marks.',
-                        enabled: hasActiveSession,
-                        disabledReason: activeSessionRequired,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.shellIntegrationUtilities),
-                      ),
-                      commandTile(
-                        key: const Key('shell-select-command-output'),
-                        actionId: TerminalActionId.selectCommandOutput,
-                        icon: Icons.fact_check_rounded,
-                        title: 'Select command output',
-                        subtitle:
-                            'Shell tool • Select output between prompt marks.',
-                        enabled: hasActiveSession && canSelectCommandOutput,
-                        disabledReason: selectCommandOutputUnavailableReason(),
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.selectCommandOutput),
-                      ),
                       commandTile(
                         key: const Key('shell-tmux-integration'),
                         actionId: TerminalActionId.tmuxIntegration,
@@ -894,17 +471,6 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         ).pop(TerminalActionId.instantReplay),
                       ),
                       commandTile(
-                        actionId: TerminalActionId.search,
-                        icon: Icons.search_rounded,
-                        title: 'Search terminal output',
-                        subtitle: 'Shell tool • Find text in local output.',
-                        shortcutLabel: searchShortcutLabel,
-                        enabled: hasActiveSession,
-                        disabledReason: activeSessionRequired,
-                        onTap: () =>
-                            Navigator.of(context).pop(TerminalActionId.search),
-                      ),
-                      commandTile(
                         key: const Key('shell-global-search'),
                         actionId: TerminalActionId.globalSearch,
                         icon: Icons.manage_search_rounded,
@@ -915,35 +481,6 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         onTap: () => Navigator.of(
                           context,
                         ).pop(TerminalActionId.globalSearch),
-                      ),
-                      commandTile(
-                        key: const Key('shell-autocomplete'),
-                        actionId: TerminalActionId.autocomplete,
-                        icon: Icons.auto_fix_high_rounded,
-                        title: 'Autocomplete',
-                        subtitle:
-                            'Shell tool • Complete a word from visible output.',
-                        shortcutLabel: autocompleteShortcutLabel,
-                        enabled: hasActiveSession,
-                        disabledReason: activeSessionRequired,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.autocomplete),
-                      ),
-                      commandTile(
-                        key: const Key('shell-auto-composer'),
-                        actionId: TerminalActionId.autoComposer,
-                        icon: Icons.edit_note_rounded,
-                        title: 'Auto Composer',
-                        subtitle:
-                            'Shell tool • Native command editor with completions.',
-                        enabled: hasActiveSession && !isActiveSessionReadOnly,
-                        disabledReason: hasActiveSession
-                            ? readOnlySendRequired
-                            : activeSessionRequired,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.autoComposer),
                       ),
                       Padding(
                         padding: const EdgeInsets.fromLTRB(12, 4, 12, 2),
@@ -985,19 +522,6 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
   ),
   MapEntry('reopen closed tab restore tab', TerminalActionId.reopenClosedTab),
   MapEntry(
-    'reopen closed pane restore split pane',
-    TerminalActionId.reopenClosedPane,
-  ),
-  MapEntry('toolbelt sidebar terminal tools', TerminalActionId.toolbelt),
-  MapEntry('split right vertical pane', TerminalActionId.splitRight),
-  MapEntry('split down horizontal pane', TerminalActionId.splitDown),
-  MapEntry('zoom active pane unzoom focus', TerminalActionId.zoomPane),
-  MapEntry('focus next pane split keyboard', TerminalActionId.focusNextPane),
-  MapEntry(
-    'focus previous pane split keyboard',
-    TerminalActionId.focusPreviousPane,
-  ),
-  MapEntry(
     'theme picker terminal color presets appearance defaults',
     TerminalActionId.openThemePicker,
   ),
@@ -1011,10 +535,6 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
     TerminalActionId.toggleCommandFinishedNotify,
   ),
   MapEntry(
-    'bell notifications terminal bell alerts',
-    TerminalActionId.toggleBellNotify,
-  ),
-  MapEntry(
     'activity monitor inactive session alerts',
     TerminalActionId.toggleActivityMonitor,
   ),
@@ -1023,32 +543,12 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
     'dynamic profiles import json iterm profile',
     TerminalActionId.dynamicProfiles,
   ),
-  MapEntry('copy selection', TerminalActionId.copy),
-  MapEntry(
-    'copy mode select terminal text keyboard',
-    TerminalActionId.copyMode,
-  ),
   MapEntry(
     'read only readonly lock block input',
     TerminalActionId.toggleReadOnly,
   ),
   MapEntry('clear scrollback clear output', TerminalActionId.clearScrollback),
-  MapEntry('annotations notes selected output', TerminalActionId.annotations),
-  MapEntry('captured output trigger lines', TerminalActionId.capturedOutput),
   MapEntry('paste clipboard', TerminalActionId.paste),
-  MapEntry(
-    'advanced paste transform edit paste',
-    TerminalActionId.advancedPaste,
-  ),
-  MapEntry('paste history recent copied pasted', TerminalActionId.pasteHistory),
-  MapEntry(
-    'shell integration command history directories prompt marks',
-    TerminalActionId.shellIntegrationUtilities,
-  ),
-  MapEntry(
-    'select command output prompt marks',
-    TerminalActionId.selectCommandOutput,
-  ),
   MapEntry('tmux integration control mode', TerminalActionId.tmuxIntegration),
   MapEntry('coprocess automate replies output', TerminalActionId.coprocess),
   MapEntry(
@@ -1061,15 +561,6 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
   ),
   MapEntry('search scrollback find local output', TerminalActionId.search),
   MapEntry('global search workspace all tabs', TerminalActionId.globalSearch),
-  MapEntry(
-    'autocomplete complete word visible output',
-    TerminalActionId.autocomplete,
-  ),
-  MapEntry(
-    'auto composer command editor completions',
-    TerminalActionId.autoComposer,
-  ),
-  MapEntry('hotkey window summon hide shell', TerminalActionId.hotkeyWindow),
 ];
 
 TerminalActionId? _commandMenuActionForQuery(String query) {

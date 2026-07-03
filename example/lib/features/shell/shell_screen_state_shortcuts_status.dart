@@ -202,28 +202,8 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
     return _usesMetaShortcuts ? '⌘T' : 'Ctrl+T';
   }
 
-  String _hotkeyWindowShortcutLabel() {
-    return _usesMetaShortcuts ? '⌥⌘Space' : 'Alt+Ctrl+Space';
-  }
-
-  String _autocompleteShortcutLabel() {
-    return _usesMetaShortcuts ? '⌘;' : 'Ctrl+;';
-  }
-
-  String _sessionCopyShortcutLabel() {
-    return _usesMetaShortcuts ? '⌘C' : 'Ctrl+C';
-  }
-
-  String _copyModeShortcutLabel() {
-    return _usesMetaShortcuts ? '⌘⇧C' : 'Ctrl+Shift+C';
-  }
-
   String _sessionPasteShortcutLabel() {
     return _usesMetaShortcuts ? '⌘V' : 'Ctrl+V';
-  }
-
-  String _pasteHistoryShortcutLabel() {
-    return _usesMetaShortcuts ? '⌘⇧H' : 'Ctrl+Shift+H';
   }
 
   String _instantReplayShortcutLabel() {

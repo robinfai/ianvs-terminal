@@ -7,31 +7,16 @@ class ShellCommandMenuModel {
 
   static const List<TerminalActionId> defaultActionOrder = [
     TerminalActionId.newTab,
-    TerminalActionId.toolbelt,
     TerminalActionId.defaults,
     TerminalActionId.profiles,
     TerminalActionId.dynamicProfiles,
-    TerminalActionId.copy,
-    TerminalActionId.copyMode,
-    TerminalActionId.annotations,
-    TerminalActionId.capturedOutput,
     TerminalActionId.paste,
-    TerminalActionId.advancedPaste,
-    TerminalActionId.pasteHistory,
-    TerminalActionId.shellIntegrationUtilities,
-    TerminalActionId.selectCommandOutput,
     TerminalActionId.tmuxIntegration,
     TerminalActionId.coprocess,
     TerminalActionId.passwordManager,
     TerminalActionId.instantReplay,
     TerminalActionId.search,
     TerminalActionId.globalSearch,
-    TerminalActionId.autocomplete,
-    TerminalActionId.autoComposer,
-    TerminalActionId.splitRight,
-    TerminalActionId.splitDown,
-    TerminalActionId.reopenClosedPane,
-    TerminalActionId.hotkeyWindow,
   ];
 
   static List<ShellActionMenuItemViewModel> defaultItems({

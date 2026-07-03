@@ -73,11 +73,11 @@ void main() {
 
     expect(find.text('Top actions'), findsOneWidget);
     expect(find.byKey(const Key('shell-command-menu-overlay')), findsOneWidget);
-    expect(find.byKey(const Key('shell-new-tab')), findsOneWidget);
-    expect(find.text('Search terminal output'), findsWidgets);
+    expect(find.byKey(const Key('shell-top-new-tab')), findsOneWidget);
+    expect(find.text('Search terminal output'), findsOneWidget);
     expect(find.text('Search scrollback'), findsNothing);
-    expect(find.text('Copy selection'), findsOneWidget);
-    expect(find.byKey(const Key('shell-paste-clipboard')), findsOneWidget);
+    expect(find.text('Copy selection'), findsNothing);
+    expect(find.byKey(const Key('shell-top-paste-clipboard')), findsOneWidget);
     expect(find.text('Defaults & appearance'), findsOneWidget);
     expect(find.text('Profiles…'), findsOneWidget);
     expect(find.byKey(const Key('shell-command-defaults')), findsOneWidget);
@@ -118,27 +118,27 @@ void main() {
     await tester.tap(find.byKey(const Key('shell-chrome-menu')));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('shell-new-tab')), findsOneWidget);
-    expect(find.byKey(const Key('shell-paste-history')), findsOneWidget);
+    expect(find.byKey(const Key('shell-top-new-tab')), findsOneWidget);
+    expect(find.byKey(const Key('shell-global-search')), findsOneWidget);
 
     await tester.enterText(
       find.byKey(const Key('shell-command-search-field')),
-      'paste history',
+      'global search',
     );
     await tester.pump();
 
-    expect(find.text('Paste history'), findsOneWidget);
-    expect(find.byKey(const Key('shell-new-tab')), findsNothing);
+    expect(find.text('Global search'), findsOneWidget);
+    expect(find.byKey(const Key('shell-top-new-tab')), findsNothing);
     expect(find.text('Defaults & appearance'), findsNothing);
 
     await tester.enterText(
       find.byKey(const Key('shell-command-search-field')),
-      'history paste',
+      'search global',
     );
     await tester.pump();
 
-    expect(find.text('Paste history'), findsOneWidget);
-    expect(find.byKey(const Key('shell-new-tab')), findsNothing);
+    expect(find.text('Global search'), findsOneWidget);
+    expect(find.byKey(const Key('shell-top-new-tab')), findsNothing);
     expect(find.text('Defaults & appearance'), findsNothing);
 
     await tester.enterText(
@@ -147,8 +147,8 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.byKey(const Key('shell-new-tab')), findsOneWidget);
-    expect(find.byKey(const Key('shell-paste-history')), findsOneWidget);
+    expect(find.byKey(const Key('shell-top-new-tab')), findsOneWidget);
+    expect(find.byKey(const Key('shell-global-search')), findsOneWidget);
   });
 
   testWidgets('shell screen command menu can create another tab', (
@@ -167,7 +167,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('shell-chrome-menu')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('shell-new-tab')));
+    await tester.tap(find.byKey(const Key('shell-top-new-tab')));
     await tester.pumpAndSettle();
 
     expect(find.text('Top actions'), findsNothing);

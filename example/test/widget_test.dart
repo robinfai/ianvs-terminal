@@ -204,6 +204,19 @@ Future<void> _openTabContextMenu(
   await tester.pumpAndSettle();
 }
 
+Future<void> _tapTabContextMenuAction(
+  WidgetTester tester,
+  String label, {
+  String sessionId = '1',
+}) async {
+  await _openTabContextMenu(tester, sessionId: sessionId);
+  final action = find.text(label);
+  await tester.ensureVisible(action);
+  await tester.pumpAndSettle();
+  await tester.tap(action);
+  await tester.pumpAndSettle();
+}
+
 Future<void> _openTabCountWithShortcut(
   WidgetTester tester,
   int tabCount,
@@ -732,7 +745,7 @@ void main() {
     },
   );
 
-  testWidgets('command menu allows splitting down after splitting right', (
+  testWidgets('tab context menu allows splitting down after splitting right', (
     tester,
   ) async {
     final fakeBindings = FakePtyBackend();
@@ -751,8 +764,7 @@ void main() {
 
     expect(find.byType(TerminalViewport), findsNWidgets(2));
 
-    await _openCommandMenu(tester);
-
+    await _openTabContextMenu(tester);
     expect(find.text('Split down'), findsOneWidget);
     expect(
       find.textContaining('Mixed pane layouts are not supported yet.'),
@@ -782,6 +794,13 @@ void main() {
       );
 
       await _openTabContextMenu(tester);
+      expect(find.text('Reopen closed pane'), findsOneWidget);
+      expect(
+        find.textContaining(
+          'No recently closed pane is available for this tab.',
+        ),
+        findsOneWidget,
+      );
       expect(
         find.text('Unavailable: Add another pane to use this action.'),
         findsNWidgets(5),
@@ -867,7 +886,7 @@ void main() {
       await tester.pumpAndSettle();
 
       await _openTabContextMenu(tester);
-      await tester.tap(find.text('Zoom active pane'));
+      await tester.tap(find.byKey(const Key('shell-pane-action-zoom-2')));
       await tester.pumpAndSettle();
 
       await _openTabContextMenu(tester);
@@ -875,7 +894,8 @@ void main() {
         find.text('Unavailable: Unzoom the active pane to manage other panes.'),
         findsNWidgets(4),
       );
-      expect(find.text('Unzoom active pane'), findsOneWidget);
+      expect(find.text('Zoom active pane'), findsNothing);
+      expect(find.text('Unzoom active pane'), findsNothing);
     },
   );
 
@@ -3308,7 +3328,9 @@ void main() {
     await tester.pumpAndSettle();
 
     await _openCommandMenu(tester);
-    await tester.ensureVisible(find.byKey(const Key('shell-paste-clipboard')));
+    await tester.ensureVisible(
+      find.byKey(const Key('shell-top-paste-clipboard')),
+    );
     await tester.pumpAndSettle();
 
     expect(
@@ -3316,7 +3338,7 @@ void main() {
       findsAtLeastNWidgets(1),
     );
 
-    await tester.tap(find.byKey(const Key('shell-paste-clipboard')));
+    await tester.tap(find.byKey(const Key('shell-top-paste-clipboard')));
     await tester.pumpAndSettle();
 
     expect(fakeBindings.writes, isEmpty);
@@ -3327,8 +3349,10 @@ void main() {
     await tester.pumpAndSettle();
 
     await _openCommandMenu(tester);
-    await tester.ensureVisible(find.byKey(const Key('shell-paste-clipboard')));
-    await tester.tap(find.byKey(const Key('shell-paste-clipboard')));
+    await tester.ensureVisible(
+      find.byKey(const Key('shell-top-paste-clipboard')),
+    );
+    await tester.tap(find.byKey(const Key('shell-top-paste-clipboard')));
     await tester.pumpAndSettle();
 
     expect(fakeBindings.writes.last, utf8.encode(clipboardText));
@@ -4364,8 +4388,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 40));
 
     await _openCommandMenu(tester);
-    await tester.ensureVisible(find.byKey(const Key('shell-toolbelt')));
-    await tester.tap(find.byKey(const Key('shell-toolbelt')));
+    await tester.ensureVisible(find.byKey(const Key('shell-top-toolbelt')));
+    await tester.tap(find.byKey(const Key('shell-top-toolbelt')));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('shell-toolbelt-panel')), findsOneWidget);
@@ -4420,8 +4444,8 @@ void main() {
     );
 
     await _openCommandMenu(tester);
-    await tester.ensureVisible(find.byKey(const Key('shell-toolbelt')));
-    await tester.tap(find.byKey(const Key('shell-toolbelt')));
+    await tester.ensureVisible(find.byKey(const Key('shell-top-toolbelt')));
+    await tester.tap(find.byKey(const Key('shell-top-toolbelt')));
     await tester.pumpAndSettle();
 
     expect(find.bySemanticsIdentifier('toolbelt-panel'), findsOneWidget);
@@ -4521,8 +4545,8 @@ void main() {
     expect(fakeBindings.writes.last, utf8.encode(clipboardText));
 
     await _openCommandMenu(tester);
-    await tester.ensureVisible(find.byKey(const Key('shell-toolbelt')));
-    await tester.tap(find.byKey(const Key('shell-toolbelt')));
+    await tester.ensureVisible(find.byKey(const Key('shell-top-toolbelt')));
+    await tester.tap(find.byKey(const Key('shell-top-toolbelt')));
     await tester.pumpAndSettle();
 
     expect(
@@ -4538,8 +4562,8 @@ void main() {
     expect(fakeBindings.writes.last, utf8.encode('git status'));
 
     await _openCommandMenu(tester);
-    await tester.ensureVisible(find.byKey(const Key('shell-toolbelt')));
-    await tester.tap(find.byKey(const Key('shell-toolbelt')));
+    await tester.ensureVisible(find.byKey(const Key('shell-top-toolbelt')));
+    await tester.tap(find.byKey(const Key('shell-top-toolbelt')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('toolbelt-tab-recent-directories')));
     await tester.pumpAndSettle();
@@ -4558,8 +4582,8 @@ void main() {
     expect(fakeBindings.writes.last, utf8.encode('cd /tmp/project'));
 
     await _openCommandMenu(tester);
-    await tester.ensureVisible(find.byKey(const Key('shell-toolbelt')));
-    await tester.tap(find.byKey(const Key('shell-toolbelt')));
+    await tester.ensureVisible(find.byKey(const Key('shell-top-toolbelt')));
+    await tester.tap(find.byKey(const Key('shell-top-toolbelt')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('toolbelt-tab-paste-history')));
     await tester.pumpAndSettle();
@@ -4623,8 +4647,7 @@ void main() {
     await tester.tap(find.byKey(const Key('shell-pane-2')));
     await tester.pumpAndSettle();
 
-    await _openTabContextMenu(tester);
-    await tester.tap(find.text('Focus previous pane'));
+    await tester.tap(find.byKey(const Key('shell-pane-1')));
     await tester.pumpAndSettle();
 
     expect(find.text('Pane 1 of 2'), findsOneWidget);
@@ -6476,9 +6499,7 @@ void main() {
         ),
       );
 
-      await _openCommandMenu(tester);
-      await tester.tap(find.byKey(const Key('shell-split-right')));
-      await tester.pumpAndSettle();
+      await _tapTabContextMenuAction(tester, 'Split right');
 
       fakeBindings.setSearchMatches(1, 'needle', [
         {
@@ -6556,9 +6577,7 @@ void main() {
         ),
       );
 
-      await _openCommandMenu(tester);
-      await tester.tap(find.byKey(const Key('shell-split-right')));
-      await tester.pumpAndSettle();
+      await _tapTabContextMenuAction(tester, 'Split right');
 
       final container = ProviderScope.containerOf(
         tester.element(find.byType(ShellScreen)),
@@ -6670,9 +6689,7 @@ void main() {
         ),
       );
 
-      await _openCommandMenu(tester);
-      await tester.tap(find.byKey(const Key('shell-split-right')));
-      await tester.pumpAndSettle();
+      await _tapTabContextMenuAction(tester, 'Split right');
 
       fakeBindings.setSearchMatches(1, 'needle', [
         {
@@ -6732,9 +6749,7 @@ void main() {
         ),
       );
 
-      await _openCommandMenu(tester);
-      await tester.tap(find.byKey(const Key('shell-split-right')));
-      await tester.pumpAndSettle();
+      await _tapTabContextMenuAction(tester, 'Split right');
 
       fakeBindings.setSearchMatches(1, 'needle', [
         {
@@ -6815,7 +6830,7 @@ void main() {
       );
 
       await _openCommandMenu(tester);
-      await tester.tap(find.byKey(const Key('shell-new-tab')));
+      await tester.tap(find.byKey(const Key('shell-top-new-tab')));
       await tester.pumpAndSettle();
 
       fakeBindings.setSearchMatches(1, 'needle', [

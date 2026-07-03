@@ -52,70 +52,21 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     final isActiveSessionReadOnly =
         activeSessionIdBeforeOpen != null &&
         _isSessionReadOnly(activeSessionIdBeforeOpen);
-    final canSelectCommandOutput = activeSessionIdBeforeOpen != null
-        ? _effectivePromptMarksForSession(
-                activeSessionIdBeforeOpen,
-                sessionState: sessionState,
-              ).length >=
-              2
-        : false;
-    final activePaneZoomed =
-        activeSessionIdBeforeOpen != null &&
-        _zoomedPaneSessionId == activeSessionIdBeforeOpen;
-    final activeTabBeforeOpen = activeSessionIdBeforeOpen == null
-        ? null
-        : sessionState.tabs.cast<TerminalTab?>().firstWhere(
-            (tab) => tab!.containsSession(activeSessionIdBeforeOpen),
-            orElse: () => null,
-          );
-    final hasMultiplePanes =
-        (activeTabBeforeOpen?.effectivePanes.length ?? 0) > 1;
-    final paneManagementBlockedReason = activeTabBeforeOpen == null
-        ? null
-        : _zoomedPaneManagementUnavailableReason(activeTabBeforeOpen);
-    final splitRightUnavailableReason =
-        paneManagementBlockedReason ??
-        _splitAxisConflictReason(
-          sessionState,
-          activeSessionIdBeforeOpen,
-          TerminalSplitAxis.horizontal,
-        );
-    final splitDownUnavailableReason =
-        paneManagementBlockedReason ??
-        _splitAxisConflictReason(
-          sessionState,
-          activeSessionIdBeforeOpen,
-          TerminalSplitAxis.vertical,
-        );
-    final hotkeyWindowStatusFuture = WindowBridge.hotkeyStatus();
-    Widget commandMenu(HotkeyWindowStatus? hotkeyWindowStatus) {
+    Widget commandMenu() {
       return _ShellCommandMenu(
         launcherShortcutLabel: _launcherShortcutLabel(),
         newTabShortcutLabel: _newTabShortcutLabel(),
-        hotkeyWindowShortcutLabel: _hotkeyWindowShortcutLabel(),
-        autocompleteShortcutLabel: _autocompleteShortcutLabel(),
-        copyModeShortcutLabel: _copyModeShortcutLabel(),
-        sessionCopyShortcutLabel: _sessionCopyShortcutLabel(),
         sessionPasteShortcutLabel: _sessionPasteShortcutLabel(),
-        pasteHistoryShortcutLabel: _pasteHistoryShortcutLabel(),
         instantReplayShortcutLabel: _instantReplayShortcutLabel(),
         searchShortcutLabel: _searchShortcutLabel(),
         hasDefaultProfile: defaultProfile != null,
         hasActiveSession: hasActiveSession,
-        hasMultiplePanes: hasMultiplePanes,
-        activePaneZoomed: activePaneZoomed,
         canReopenClosedTab: sessionController.canReopenClosedTab,
-        canReopenClosedPane: sessionController.canReopenClosedPane,
-        splitRightUnavailableReason: splitRightUnavailableReason,
-        splitDownUnavailableReason: splitDownUnavailableReason,
-        hotkeyWindowStatus: hotkeyWindowStatus,
         isActiveSessionReadOnly: isActiveSessionReadOnly,
         notificationsBlockedBySystem: _notificationsBlockedBySystem,
         commandFinishedNotificationsEnabled:
             _commandFinishedNotificationsEnabled,
-        bellNotificationsEnabled: _bellNotificationsEnabled,
         activityMonitorEnabled: _activityNotificationsEnabled,
-        canSelectCommandOutput: canSelectCommandOutput,
       );
     }
 
@@ -132,10 +83,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
             alignment: Alignment.topRight,
             child: Padding(
               padding: const EdgeInsets.only(top: 10, right: 14),
-              child: _ShellCommandMenuHotkeyStatus(
-                statusFuture: hotkeyWindowStatusFuture,
-                builder: commandMenu,
-              ),
+              child: commandMenu(),
             ),
           ),
         );
@@ -1363,12 +1311,13 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         : _shellHostIsRemote(targetPane?.shellIntegration.hostname)
         ? 'Remote-reported current directories cannot be duplicated as local sessions.'
         : null;
-    final isTargetPaneZoomed =
-        _zoomedPaneSessionId == targetSessionId && targetPane != null;
     final growPaneBlockedReason = targetPane == null
         ? 'Add another pane to use this action.'
         : paneManagementBlockedReason ??
               _growActivePaneUnavailableReason(tab, targetSessionId);
+    final reopenClosedPaneBlockedReason = sessionController.canReopenClosedPane
+        ? null
+        : 'No recently closed pane is available for this tab.';
     final overlay = Overlay.of(context).context.findRenderObject();
     final overlaySize = overlay is RenderBox
         ? overlay.size
@@ -1442,6 +1391,13 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           disabledReason: splitDownBlockedReason,
         ),
         item(
+          action: TerminalActionId.reopenClosedPane,
+          icon: Icons.restore_page_rounded,
+          title: 'Reopen closed pane',
+          enabled: reopenClosedPaneBlockedReason == null,
+          disabledReason: reopenClosedPaneBlockedReason,
+        ),
+        item(
           action: TerminalActionId.applyLayoutTemplate,
           icon: Icons.dashboard_customize_rounded,
           title: 'Apply two-pane layout',
@@ -1451,24 +1407,6 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
               : null,
         ),
         const PopupMenuDivider(),
-        item(
-          action: TerminalActionId.focusNextPane,
-          icon: Icons.keyboard_tab_rounded,
-          title: 'Focus next pane',
-          enabled: hasMultiplePanes,
-          disabledReason: hasMultiplePanes
-              ? null
-              : 'Add another pane to use this action.',
-        ),
-        item(
-          action: TerminalActionId.focusPreviousPane,
-          icon: Icons.keyboard_tab_rounded,
-          title: 'Focus previous pane',
-          enabled: hasMultiplePanes,
-          disabledReason: hasMultiplePanes
-              ? null
-              : 'Add another pane to use this action.',
-        ),
         item(
           action: TerminalActionId.resizePane,
           icon: Icons.open_with_rounded,
@@ -1483,15 +1421,6 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           enabled: hasMultiplePanes && paneManagementBlockedReason == null,
           disabledReason: hasMultiplePanes
               ? paneManagementBlockedReason
-              : 'Add another pane to use this action.',
-        ),
-        item(
-          action: TerminalActionId.zoomPane,
-          icon: Icons.zoom_out_map_rounded,
-          title: '${isTargetPaneZoomed ? 'Unzoom' : 'Zoom'} active pane',
-          enabled: hasMultiplePanes,
-          disabledReason: hasMultiplePanes
-              ? null
               : 'Add another pane to use this action.',
         ),
         const PopupMenuDivider(),
@@ -1604,6 +1533,22 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           defaultProfile,
           TerminalSplitAxis.vertical,
         );
+        return;
+      case TerminalActionId.reopenClosedPane:
+        if (!sessionController.canReopenClosedPane) {
+          return;
+        }
+        final reopenedSessionId = sessionController.reopenClosedPane();
+        if (reopenedSessionId != null) {
+          _syncZoomedPaneForActivation(
+            _tabForSession(
+              ref.read(sessionControllerProvider),
+              reopenedSessionId,
+            ),
+            reopenedSessionId,
+          );
+          _focusSession(reopenedSessionId);
+        }
         return;
       case TerminalActionId.applyLayoutTemplate:
         if (defaultProfile == null) {

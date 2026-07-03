@@ -140,6 +140,31 @@ Future<void> _openTabContextMenu(
   await tester.pumpAndSettle();
 }
 
+Future<void> _tapTabContextMenuAction(
+  WidgetTester tester,
+  String label, {
+  String sessionId = '1',
+}) async {
+  await _openTabContextMenu(tester, sessionId: sessionId);
+  final action = find.text(label);
+  await tester.ensureVisible(action);
+  await tester.pumpAndSettle();
+  await tester.tap(action);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _tapActivePaneZoomAction(WidgetTester tester) async {
+  final container = ProviderScope.containerOf(
+    tester.element(find.byType(ShellScreen)),
+  );
+  final sessionId = container.read(sessionControllerProvider).activeSessionId!;
+  final action = find.byKey(Key('shell-pane-action-zoom-$sessionId'));
+  await tester.ensureVisible(action);
+  await tester.pumpAndSettle();
+  await tester.tap(action);
+  await tester.pumpAndSettle();
+}
+
 Future<void> _sendMetaShortcut(
   WidgetTester tester,
   LogicalKeyboardKey key,
@@ -355,7 +380,7 @@ void main() {
     final fakeBindings = FakePtyBackend();
 
     await _pumpShellScreen(tester, fakeBindings: fakeBindings);
-    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+    await _tapTabContextMenuAction(tester, 'Split right');
 
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ShellScreen)),
@@ -447,7 +472,7 @@ void main() {
     final fakeBindings = FakePtyBackend();
 
     await _pumpShellScreen(tester, fakeBindings: fakeBindings);
-    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+    await _tapTabContextMenuAction(tester, 'Split right');
 
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ShellScreen)),
@@ -503,7 +528,7 @@ void main() {
 
     expect(find.byKey(const Key('shell-status-link-target')), findsOneWidget);
 
-    await _tapCommandMenuAction(tester, const Key('shell-zoom-pane'));
+    await _tapActivePaneZoomAction(tester);
     await tester.pumpAndSettle();
 
     expect(find.byKey(Key('shell-pane-$activeSessionId')), findsOneWidget);
@@ -575,7 +600,7 @@ void main() {
     final fakeBindings = FakePtyBackend();
 
     await _pumpShellScreen(tester, fakeBindings: fakeBindings);
-    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+    await _tapTabContextMenuAction(tester, 'Split right');
 
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ShellScreen)),
@@ -747,7 +772,7 @@ void main() {
       ),
       clipboardPaste: () async => 'pane preview',
     );
-    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+    await _tapTabContextMenuAction(tester, 'Split right');
 
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ShellScreen)),
@@ -795,7 +820,7 @@ void main() {
         ),
       ),
     );
-    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+    await _tapTabContextMenuAction(tester, 'Split right');
 
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ShellScreen)),
@@ -866,7 +891,7 @@ void main() {
         ),
       ),
     );
-    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+    await _tapTabContextMenuAction(tester, 'Split right');
 
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ShellScreen)),
@@ -877,7 +902,7 @@ void main() {
         .firstWhere((pane) => pane.sessionId != activeSessionId)
         .sessionId;
 
-    await _tapCommandMenuAction(tester, const Key('shell-zoom-pane'));
+    await _tapActivePaneZoomAction(tester);
     expect(find.byKey(Key('shell-pane-$activeSessionId')), findsOneWidget);
     expect(find.byKey(Key('shell-pane-$inactiveSessionId')), findsNothing);
 
@@ -978,7 +1003,7 @@ void main() {
         ),
       ),
     );
-    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+    await _tapTabContextMenuAction(tester, 'Split right');
 
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ShellScreen)),
@@ -1024,7 +1049,7 @@ void main() {
     final fakeBindings = FakePtyBackend();
 
     await _pumpShellScreen(tester, fakeBindings: fakeBindings);
-    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+    await _tapTabContextMenuAction(tester, 'Split right');
 
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ShellScreen)),
@@ -1162,7 +1187,7 @@ void main() {
     final fakeBindings = FakePtyBackend();
 
     await _pumpShellScreen(tester, fakeBindings: fakeBindings);
-    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+    await _tapTabContextMenuAction(tester, 'Split right');
 
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ShellScreen)),
@@ -1288,7 +1313,7 @@ void main() {
     final fakeBindings = FakePtyBackend();
 
     await _pumpShellScreen(tester, fakeBindings: fakeBindings);
-    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+    await _tapTabContextMenuAction(tester, 'Split right');
 
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ShellScreen)),
@@ -1677,7 +1702,7 @@ void main() {
       final fakeBindings = FakePtyBackend();
 
       await _pumpShellScreen(tester, fakeBindings: fakeBindings);
-      await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+      await _tapTabContextMenuAction(tester, 'Split right');
 
       final container = ProviderScope.containerOf(
         tester.element(find.byType(ShellScreen)),
@@ -1858,7 +1883,7 @@ void main() {
     final fakeBindings = FakePtyBackend();
 
     await _pumpShellScreen(tester, fakeBindings: fakeBindings);
-    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+    await _tapTabContextMenuAction(tester, 'Split right');
 
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ShellScreen)),
@@ -3023,7 +3048,7 @@ void main() {
     final fakeBindings = FakePtyBackend();
 
     await _pumpShellScreen(tester, fakeBindings: fakeBindings);
-    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+    await _tapTabContextMenuAction(tester, 'Split right');
 
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ShellScreen)),
@@ -3034,7 +3059,7 @@ void main() {
         .firstWhere((pane) => pane.sessionId != activeSessionId)
         .sessionId;
 
-    fakeBindings.setFrame(inactiveSessionId, <String, Object?>{
+    final inactiveFrame = TerminalFrameDiff.fromJson(<String, Object?>{
       'rows': <Object?>[
         <String, Object?>{
           'index': 0,
@@ -3061,9 +3086,9 @@ void main() {
         'synchronized_output': true,
       },
     });
-    container
-        .read(terminalRuntimeControllerProvider)
-        .refreshSession(inactiveSessionId);
+    expect(inactiveFrame.modes.alternateScreen, isTrue);
+    final runtime = container.read(terminalRuntimeControllerProvider);
+    runtime.viewportFor(inactiveSessionId).updateFrame(inactiveFrame);
     await tester.pump();
 
     expect(
@@ -3212,7 +3237,7 @@ void main() {
       );
 
       await _pumpShellScreen(tester, fakeBindings: fakeBindings);
-      await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+      await _tapTabContextMenuAction(tester, 'Split right');
 
       final container = ProviderScope.containerOf(
         tester.element(find.byType(ShellScreen)),
@@ -3318,7 +3343,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(notifications, isEmpty);
 
-      await _tapCommandMenuAction(tester, const Key('shell-new-tab'));
+      await _tapCommandMenuAction(tester, const Key('shell-top-new-tab'));
       final container = ProviderScope.containerOf(
         tester.element(find.byType(ShellScreen)),
       );
@@ -3382,7 +3407,7 @@ void main() {
     final fakeBindings = FakePtyBackend();
 
     await _pumpShellScreen(tester, fakeBindings: fakeBindings);
-    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+    await _tapTabContextMenuAction(tester, 'Split right');
 
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ShellScreen)),
@@ -3444,7 +3469,7 @@ void main() {
       },
     );
 
-    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+    await _tapTabContextMenuAction(tester, 'Split right');
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ShellScreen)),
     );
@@ -3538,7 +3563,7 @@ void main() {
         },
       );
 
-      await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+      await _tapTabContextMenuAction(tester, 'Split right');
       final container = ProviderScope.containerOf(
         tester.element(find.byType(ShellScreen)),
       );
@@ -3650,7 +3675,7 @@ void main() {
       },
     );
 
-    await _tapCommandMenuAction(tester, const Key('shell-new-tab'));
+    await _tapCommandMenuAction(tester, const Key('shell-top-new-tab'));
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ShellScreen)),
     );
@@ -3704,8 +3729,8 @@ void main() {
         workspace: LocalTerminalWorkspaceConfig(restoreLayout: true),
         notifications: LocalTerminalNotificationsConfig(
           enabled: true,
-          commandFinished: true,
-          bell: false,
+          commandFinished: false,
+          bell: true,
           activity: true,
         ),
       ),
@@ -3720,16 +3745,21 @@ void main() {
 
     await _openCommandMenu(tester);
     await tester.ensureVisible(
-      find.byKey(const Key('shell-toggle-bell-notify')),
+      find.byKey(const Key('shell-toggle-command-finished-notify')),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Enable bell notifications'), findsOneWidget);
+    expect(find.text('Enable command-finished notifications'), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('shell-toggle-bell-notify')));
+    await tester.tap(
+      find.byKey(const Key('shell-toggle-command-finished-notify')),
+    );
     await tester.pumpAndSettle();
 
-    expect(find.text('Bell notifications enabled and saved.'), findsOneWidget);
+    expect(
+      find.text('Command-finished notifications enabled and saved.'),
+      findsOneWidget,
+    );
     expect(legacyPreferencesRepository.savedDocuments, isEmpty);
     expect(localConfigRepository.savedDocuments, hasLength(1));
     final savedConfig = localConfigRepository.savedDocuments.single;
@@ -3749,7 +3779,7 @@ void main() {
         defaultProfileId: 'initial',
         notifications: LocalTerminalNotificationsConfig(
           enabled: true,
-          commandFinished: true,
+          commandFinished: false,
           bell: false,
           activity: true,
         ),
@@ -3770,7 +3800,7 @@ void main() {
         ),
         notifications: LocalTerminalNotificationsConfig(
           enabled: true,
-          commandFinished: true,
+          commandFinished: false,
           bell: false,
           activity: true,
         ),
@@ -3778,7 +3808,10 @@ void main() {
     );
     localConfigRepository.savedDocuments.clear();
 
-    await _tapCommandMenuAction(tester, const Key('shell-toggle-bell-notify'));
+    await _tapCommandMenuAction(
+      tester,
+      const Key('shell-toggle-command-finished-notify'),
+    );
 
     expect(localConfigRepository.savedDocuments, hasLength(1));
     final savedConfig = localConfigRepository.savedDocuments.single;
@@ -3788,7 +3821,8 @@ void main() {
       LocalTerminalBracketedPastePolicy.force,
     );
     expect(savedConfig.paste.confirmLargePaste, isFalse);
-    expect(savedConfig.notifications.bell, isTrue);
+    expect(savedConfig.notifications.commandFinished, isTrue);
+    expect(savedConfig.notifications.bell, isFalse);
   });
 
   testWidgets('shell shortcuts honor local config keybinding overrides', (
@@ -3862,7 +3896,7 @@ void main() {
 
     await _pumpShellScreen(tester, fakeBindings: fakeBindings);
 
-    await _tapCommandMenuAction(tester, const Key('shell-paste-clipboard'));
+    await _tapCommandMenuAction(tester, const Key('shell-top-paste-clipboard'));
 
     expect(find.byKey(const Key('paste-confirmation-dialog')), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
@@ -3909,7 +3943,7 @@ void main() {
       ),
     );
 
-    await _tapCommandMenuAction(tester, const Key('shell-paste-clipboard'));
+    await _tapCommandMenuAction(tester, const Key('shell-top-paste-clipboard'));
 
     expect(find.byKey(const Key('paste-confirmation-dialog')), findsNothing);
     expect(fakeBindings.writes, hasLength(1));
@@ -3954,7 +3988,7 @@ void main() {
       ),
     );
 
-    await _tapCommandMenuAction(tester, const Key('shell-paste-clipboard'));
+    await _tapCommandMenuAction(tester, const Key('shell-top-paste-clipboard'));
 
     expect(
       fakeBindings.writes.single,
@@ -3998,7 +4032,7 @@ void main() {
       ),
     );
 
-    await _tapCommandMenuAction(tester, const Key('shell-paste-clipboard'));
+    await _tapCommandMenuAction(tester, const Key('shell-top-paste-clipboard'));
 
     expect(fakeBindings.writes, isEmpty);
     expect(fakeBindings.writesBySession, isEmpty);
@@ -4056,37 +4090,17 @@ void main() {
       container.read(terminalRuntimeControllerProvider).refreshSession('1');
       await tester.pump();
 
-      await _tapCommandMenuAction(tester, const Key('shell-paste-clipboard'));
+      await _tapCommandMenuAction(
+        tester,
+        const Key('shell-top-paste-clipboard'),
+      );
 
       expect(fakeBindings.writes.single, utf8.encode(clipboardText));
     },
   );
 
-  testWidgets('advanced paste honors forced bracketed paste wrapping', (
-    tester,
-  ) async {
-    const clipboardText =
-        'advanced\x1B[200~ bracket\x1B[201~\u{009B}200~ sanitized\u{009B}201~';
-    const sanitizedText = 'advanced bracket sanitized';
+  testWidgets('command menu hides advanced paste', (tester) async {
     final fakeBindings = FakePtyBackend();
-    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      SystemChannels.platform,
-      (methodCall) async {
-        if (methodCall.method == 'Clipboard.getData') {
-          return <String, dynamic>{'text': clipboardText};
-        }
-        if (methodCall.method == 'Clipboard.setData') {
-          return null;
-        }
-        return null;
-      },
-    );
-    addTearDown(
-      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        SystemChannels.platform,
-        null,
-      ),
-    );
 
     await _pumpShellScreen(
       tester,
@@ -4101,19 +4115,10 @@ void main() {
     );
 
     await _openCommandMenu(tester);
-    await tester.ensureVisible(find.byKey(const Key('shell-advanced-paste')));
-    await tester.tap(find.byKey(const Key('shell-advanced-paste')));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byKey(const Key('advanced-paste-send')));
-    await tester.tap(find.byKey(const Key('advanced-paste-send')));
-    await tester.pumpAndSettle();
 
-    expect(
-      fakeBindings.writes.single,
-      ascii.encode('\x1B[200~') +
-          utf8.encode(sanitizedText) +
-          ascii.encode('\x1B[201~'),
-    );
+    expect(find.byKey(const Key('shell-advanced-paste')), findsNothing);
+    expect(find.text('Advanced paste'), findsNothing);
+    expect(fakeBindings.writes, isEmpty);
   });
 
   testWidgets(
@@ -4284,32 +4289,34 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
-  testWidgets('command menu disables pane zoom until a split exists', (
+  testWidgets('tab context menu hides pane zoom actions', (tester) async {
+    await _pumpShellScreen(tester, fakeBindings: FakePtyBackend());
+
+    await _openTabContextMenu(tester);
+
+    expect(find.text('Zoom active pane'), findsNothing);
+    expect(find.text('Unzoom active pane'), findsNothing);
+  });
+
+  testWidgets('tab context menu hides focus pane actions while zoomed', (
     tester,
   ) async {
     await _pumpShellScreen(tester, fakeBindings: FakePtyBackend());
 
-    await _openCommandMenu(tester);
+    await _tapTabContextMenuAction(tester, 'Split right');
+    await _tapActivePaneZoomAction(tester);
 
-    final zoomAction = find.byKey(const Key('shell-zoom-pane'));
-    expect(zoomAction, findsOneWidget);
-    expect(find.text('Zoom active pane'), findsOneWidget);
+    await _openTabContextMenu(tester);
+
+    expect(find.text('Focus next pane'), findsNothing);
+    expect(find.text('Focus previous pane'), findsNothing);
+    expect(find.text('Zoom active pane'), findsNothing);
+    expect(find.text('Unzoom active pane'), findsNothing);
     expect(
-      find.descendant(
-        of: zoomAction,
-        matching: find.textContaining(
-          'Unavailable: Add another pane to use this action.',
-        ),
+      find.textContaining(
+        'Unavailable: Unzoom the active pane to manage other panes.',
       ),
-      findsOneWidget,
-    );
-    expect(
-      tester
-          .widget<ListTile>(
-            find.descendant(of: zoomAction, matching: find.byType(ListTile)),
-          )
-          .enabled,
-      isFalse,
+      findsNWidgets(4),
     );
   });
 
@@ -4408,147 +4415,97 @@ void main() {
   ) async {
     await _pumpShellScreen(tester, fakeBindings: FakePtyBackend());
 
-    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+    await _tapTabContextMenuAction(tester, 'Split right');
 
     expect(find.byType(TerminalViewport), findsNWidgets(2));
     expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
     expect(find.byKey(const Key('shell-status-bar')), findsOneWidget);
 
-    await _tapCommandMenuAction(tester, const Key('shell-zoom-pane'));
+    await _tapActivePaneZoomAction(tester);
 
     expect(find.byType(TerminalViewport), findsOneWidget);
     expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
     expect(find.byKey(const Key('shell-status-bar')), findsOneWidget);
 
-    await _tapCommandMenuAction(tester, const Key('shell-zoom-pane'));
+    await _tapActivePaneZoomAction(tester);
 
     expect(find.byType(TerminalViewport), findsNWidgets(2));
     expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
     expect(find.byKey(const Key('shell-status-bar')), findsOneWidget);
   });
 
-  testWidgets('command menu disables split actions while pane is zoomed', (
+  testWidgets('tab context menu disables split actions while pane is zoomed', (
     tester,
   ) async {
     await _pumpShellScreen(tester, fakeBindings: FakePtyBackend());
 
-    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
-    await _tapCommandMenuAction(tester, const Key('shell-zoom-pane'));
+    await _tapTabContextMenuAction(tester, 'Split right');
+    await _tapActivePaneZoomAction(tester);
 
-    await _openCommandMenu(tester);
+    await _openTabContextMenu(tester);
 
-    final splitRightAction = find.byKey(const Key('shell-split-right'));
-    final splitDownAction = find.byKey(const Key('shell-split-down'));
-    expect(splitRightAction, findsOneWidget);
-    expect(splitDownAction, findsOneWidget);
-    for (final action in <Finder>[splitRightAction, splitDownAction]) {
+    expect(find.text('Split right'), findsOneWidget);
+    expect(find.text('Split down'), findsOneWidget);
+    expect(
+      find.textContaining(
+        'Unavailable: Unzoom the active pane to manage other panes.',
+      ),
+      findsNWidgets(4),
+    );
+
+    expect(find.byType(TerminalViewport), findsOneWidget);
+  });
+
+  testWidgets(
+    'tab context menu can reopen the most recently closed split pane',
+    (tester) async {
+      await _pumpShellScreen(tester, fakeBindings: FakePtyBackend());
+
+      await _openTabContextMenu(tester);
+      expect(find.text('Reopen closed pane'), findsOneWidget);
       expect(
-        find.descendant(
-          of: action,
-          matching: find.textContaining(
-            'Unavailable: Unzoom the active pane to manage other panes.',
-          ),
+        find.textContaining(
+          'No recently closed pane is available for this tab.',
         ),
         findsOneWidget,
       );
-      expect(
-        tester
-            .widget<ListTile>(
-              find.descendant(of: action, matching: find.byType(ListTile)),
-            )
-            .enabled,
-        isFalse,
+      await tester.tapAt(const Offset(20, 20));
+      await tester.pumpAndSettle();
+
+      await _tapTabContextMenuAction(tester, 'Split right');
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
       );
-    }
+      final splitState = container.read(sessionControllerProvider);
+      final closedSessionId = splitState.activeSessionId!;
+      final retainedSessionId = splitState.tabs.single.effectivePanes
+          .firstWhere((pane) => pane.sessionId != closedSessionId)
+          .sessionId;
 
-    expect(find.byType(TerminalViewport), findsOneWidget);
-  });
+      await tester.tap(
+        find.byKey(Key('shell-pane-action-close-$closedSessionId')),
+      );
+      await tester.pumpAndSettle();
 
-  testWidgets('focus next and previous pane work while zoomed', (tester) async {
-    await _pumpShellScreen(tester, fakeBindings: FakePtyBackend());
+      expect(find.byType(TerminalViewport), findsOneWidget);
+      expect(
+        container.read(sessionControllerProvider).activeSessionId,
+        retainedSessionId,
+      );
 
-    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+      await _tapTabContextMenuAction(tester, 'Reopen closed pane');
 
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ShellScreen)),
-    );
-    final splitState = container.read(sessionControllerProvider);
-    final activeSessionId = splitState.activeSessionId!;
-    final inactiveSessionId = splitState.tabs.single.effectivePanes
-        .firstWhere((pane) => pane.sessionId != activeSessionId)
-        .sessionId;
-
-    await _tapCommandMenuAction(tester, const Key('shell-zoom-pane'));
-
-    expect(find.byKey(Key('shell-pane-$activeSessionId')), findsOneWidget);
-    expect(find.byKey(Key('shell-pane-$inactiveSessionId')), findsNothing);
-
-    await _tapCommandMenuAction(tester, const Key('shell-focus-next-pane'));
-
-    expect(
-      container.read(sessionControllerProvider).activeSessionId,
-      inactiveSessionId,
-    );
-    expect(find.byKey(Key('shell-pane-$inactiveSessionId')), findsOneWidget);
-    expect(find.byKey(Key('shell-pane-$activeSessionId')), findsNothing);
-
-    await _tapCommandMenuAction(tester, const Key('shell-focus-previous-pane'));
-
-    expect(
-      container.read(sessionControllerProvider).activeSessionId,
-      activeSessionId,
-    );
-    expect(find.byKey(Key('shell-pane-$activeSessionId')), findsOneWidget);
-    expect(find.byKey(Key('shell-pane-$inactiveSessionId')), findsNothing);
-  });
-
-  testWidgets('command menu can reopen the most recently closed split pane', (
-    tester,
-  ) async {
-    await _pumpShellScreen(tester, fakeBindings: FakePtyBackend());
-
-    await _openCommandMenu(tester);
-    expect(find.text('Reopen closed pane'), findsOneWidget);
-    expect(
-      find.textContaining('No recently closed pane is available for this tab.'),
-      findsOneWidget,
-    );
-    await tester.tapAt(const Offset(20, 20));
-    await tester.pumpAndSettle();
-
-    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
-
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ShellScreen)),
-    );
-    final splitState = container.read(sessionControllerProvider);
-    final closedSessionId = splitState.activeSessionId!;
-    final retainedSessionId = splitState.tabs.single.effectivePanes
-        .firstWhere((pane) => pane.sessionId != closedSessionId)
-        .sessionId;
-
-    await tester.tap(
-      find.byKey(Key('shell-pane-action-close-$closedSessionId')),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.byType(TerminalViewport), findsOneWidget);
-    expect(
-      container.read(sessionControllerProvider).activeSessionId,
-      retainedSessionId,
-    );
-
-    await _tapCommandMenuAction(tester, const Key('shell-reopen-closed-pane'));
-
-    final reopenedState = container.read(sessionControllerProvider);
-    final reopenedSessionId = reopenedState.activeSessionId!;
-    expect(reopenedSessionId, isNot(closedSessionId));
-    expect(reopenedState.tabs.single.effectivePanes, hasLength(2));
-    expect(find.byType(TerminalViewport), findsNWidgets(2));
-    expect(find.byKey(Key('shell-pane-$retainedSessionId')), findsOneWidget);
-    expect(find.byKey(Key('shell-pane-$reopenedSessionId')), findsOneWidget);
-    expect(find.byKey(Key('shell-pane-$closedSessionId')), findsNothing);
-  });
+      final reopenedState = container.read(sessionControllerProvider);
+      final reopenedSessionId = reopenedState.activeSessionId!;
+      expect(reopenedSessionId, isNot(closedSessionId));
+      expect(reopenedState.tabs.single.effectivePanes, hasLength(2));
+      expect(find.byType(TerminalViewport), findsNWidgets(2));
+      expect(find.byKey(Key('shell-pane-$retainedSessionId')), findsOneWidget);
+      expect(find.byKey(Key('shell-pane-$reopenedSessionId')), findsOneWidget);
+      expect(find.byKey(Key('shell-pane-$closedSessionId')), findsNothing);
+    },
+  );
 
   testWidgets('tab badge activation keeps zoomed pane visible for the target', (
     tester,
@@ -4556,7 +4513,7 @@ void main() {
     final fakeBindings = FakePtyBackend();
     await _pumpShellScreen(tester, fakeBindings: fakeBindings);
 
-    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+    await _tapTabContextMenuAction(tester, 'Split right');
 
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ShellScreen)),
@@ -4567,7 +4524,7 @@ void main() {
         .firstWhere((pane) => pane.sessionId != activeSessionId)
         .sessionId;
 
-    await _tapCommandMenuAction(tester, const Key('shell-zoom-pane'));
+    await _tapActivePaneZoomAction(tester);
 
     expect(find.byKey(Key('shell-pane-$activeSessionId')), findsOneWidget);
     expect(find.byKey(Key('shell-pane-$inactiveSessionId')), findsNothing);
@@ -4605,7 +4562,7 @@ void main() {
       final fakeBindings = FakePtyBackend();
       await _pumpShellScreen(tester, fakeBindings: fakeBindings);
 
-      await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+      await _tapTabContextMenuAction(tester, 'Split right');
 
       final container = ProviderScope.containerOf(
         tester.element(find.byType(ShellScreen)),
@@ -4616,7 +4573,7 @@ void main() {
           .firstWhere((pane) => pane.sessionId != activeSessionId)
           .sessionId;
 
-      await _tapCommandMenuAction(tester, const Key('shell-zoom-pane'));
+      await _tapActivePaneZoomAction(tester);
 
       expect(find.byKey(Key('shell-pane-$activeSessionId')), findsOneWidget);
       expect(find.byKey(Key('shell-pane-$inactiveSessionId')), findsNothing);
@@ -4697,7 +4654,7 @@ void main() {
       final fakeBindings = FakePtyBackend();
       await _pumpShellScreen(tester, fakeBindings: fakeBindings);
 
-      await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+      await _tapTabContextMenuAction(tester, 'Split right');
 
       final container = ProviderScope.containerOf(
         tester.element(find.byType(ShellScreen)),
@@ -4708,7 +4665,7 @@ void main() {
           .firstWhere((pane) => pane.sessionId != activeSessionId)
           .sessionId;
 
-      await _tapCommandMenuAction(tester, const Key('shell-zoom-pane'));
+      await _tapActivePaneZoomAction(tester);
 
       fakeBindings.enqueueEvent(
         activeSessionId,
@@ -4796,7 +4753,7 @@ void main() {
     final fakeBindings = FakePtyBackend();
     await _pumpShellScreen(tester, fakeBindings: fakeBindings);
 
-    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+    await _tapTabContextMenuAction(tester, 'Split right');
 
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ShellScreen)),
@@ -5096,7 +5053,7 @@ void main() {
         ),
       ),
     );
-    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
+    await _tapTabContextMenuAction(tester, 'Split right');
 
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ShellScreen)),
@@ -5106,7 +5063,7 @@ void main() {
       hasLength(2),
     );
 
-    await _tapCommandMenuAction(tester, const Key('shell-new-tab'));
+    await _tapCommandMenuAction(tester, const Key('shell-top-new-tab'));
     await tester.tap(find.byKey(const Key('shell-tab-1')));
     await tester.pumpAndSettle();
 
@@ -5152,7 +5109,7 @@ void main() {
     expect(find.textContaining('closing tab pane copy'), findsNothing);
   });
 
-  testWidgets('hotkey window failure is visible when registration is missing', (
+  testWidgets('command menu hides hotkey window registration failures', (
     tester,
   ) async {
     final windowBridgeCalls = <MethodCall>[];
@@ -5182,17 +5139,18 @@ void main() {
     await tester.tap(find.byKey(const Key('shell-chrome-menu')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 250));
-    await tester.ensureVisible(find.text('Hotkey window'));
 
-    expect(
-      find.textContaining('Hotkey window is unavailable.'),
-      findsOneWidget,
-    );
+    expect(find.text('Hotkey window'), findsNothing);
+    expect(find.textContaining('Hotkey window is unavailable.'), findsNothing);
     expect(
       find.textContaining('Shortcut: Option+Command+Space.'),
-      findsOneWidget,
+      findsNothing,
     );
-    expect(find.textContaining('Error: -9876.'), findsOneWidget);
+    expect(find.textContaining('Error: -9876.'), findsNothing);
+    expect(
+      windowBridgeCalls.map((call) => call.method),
+      isNot(contains('hotkeyStatus')),
+    );
     expect(
       windowBridgeCalls.map((call) => call.method),
       isNot(contains('toggleHotkeyWindow')),

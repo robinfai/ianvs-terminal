@@ -119,12 +119,13 @@ void main() {
       expect(find.text('Session actions'), findsOneWidget);
       expect(find.text('Defaults & appearance'), findsOneWidget);
       expect(find.text('Profiles…'), findsOneWidget);
-      expect(find.byKey(const Key('shell-new-tab')), findsOneWidget);
+      expect(find.byKey(const Key('shell-top-new-tab')), findsOneWidget);
+      expect(find.textContaining('Copy the current selection.'), findsNothing);
+      expect(find.byKey(const Key('shell-clear-scrollback')), findsOneWidget);
       expect(
-        find.textContaining('Copy the current selection.'),
+        find.byKey(const Key('shell-top-paste-clipboard')),
         findsOneWidget,
       );
-      expect(find.byKey(const Key('shell-paste-clipboard')), findsOneWidget);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
@@ -149,17 +150,84 @@ void main() {
     );
     expect(find.byKey(const Key('shell-top-paste-clipboard')), findsOneWidget);
     expect(find.byKey(const Key('shell-top-new-tab')), findsOneWidget);
-    expect(find.byKey(const Key('shell-top-split-right')), findsOneWidget);
-    expect(find.byKey(const Key('shell-top-toolbelt')), findsOneWidget);
+    expect(find.byKey(const Key('shell-top-toolbelt')), findsNothing);
+    expect(find.byKey(const Key('shell-split-right')), findsNothing);
+    expect(find.text('Pane actions'), findsNothing);
 
     final appTop = tester.getTopLeft(find.text('App actions')).dy;
-    final paneTop = tester.getTopLeft(find.text('Pane actions')).dy;
     final sessionTop = tester.getTopLeft(find.text('Session actions')).dy;
     final toolsTop = tester.getTopLeft(find.text('Shell tools')).dy;
 
-    expect(appTop, lessThan(paneTop));
-    expect(paneTop, lessThan(sessionTop));
+    expect(appTop, lessThan(sessionTop));
     expect(sessionTop, lessThan(toolsTop));
+  });
+
+  testWidgets('command menu does not repeat pinned top actions in sections', (
+    tester,
+  ) async {
+    await pumpShellScreen(
+      tester,
+      fakeBindings: FakePtyBackend(),
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('shell-search-scrollback-top')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('shell-top-paste-clipboard')), findsOneWidget);
+    expect(find.byKey(const Key('shell-top-new-tab')), findsOneWidget);
+    expect(find.byKey(const Key('shell-top-toolbelt')), findsNothing);
+    expect(find.byKey(const Key('shell-split-right')), findsNothing);
+
+    expect(find.text('Search terminal output'), findsOneWidget);
+    expect(find.byKey(const Key('shell-paste-clipboard')), findsNothing);
+    expect(find.byKey(const Key('shell-new-tab')), findsNothing);
+    expect(find.byKey(const Key('shell-toolbelt')), findsNothing);
+  });
+
+  testWidgets('command menu hides deferred and tab-context actions', (
+    tester,
+  ) async {
+    await pumpShellScreen(
+      tester,
+      fakeBindings: FakePtyBackend(),
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+    await tester.pumpAndSettle();
+
+    for (final hiddenLabel in <String>[
+      'Toolbelt',
+      'Enable bell notifications',
+      'Hotkey window',
+      'Zoom active pane',
+      'Focus next pane',
+      'Focus previous pane',
+      'Copy selection',
+      'Copy mode',
+      'Annotations',
+      'Captured output',
+      'Advanced paste',
+      'Paste history',
+      'Shell integration',
+      'Select command output',
+      'Autocomplete',
+      'Auto Composer',
+      'Reopen closed pane',
+      'Split right',
+      'Split down',
+    ]) {
+      expect(find.text(hiddenLabel), findsNothing);
+    }
   });
 
   testWidgets('launcher close restores terminal viewport focus', (
