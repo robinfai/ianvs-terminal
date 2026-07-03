@@ -336,18 +336,6 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           context,
                         ).pop(TerminalActionId.profiles),
                       ),
-                      commandTile(
-                        key: const Key('shell-dynamic-profiles'),
-                        actionId: TerminalActionId.dynamicProfiles,
-                        icon: Icons.data_object_rounded,
-                        title: 'Dynamic profiles',
-                        subtitle:
-                            'App action • Import iTerm-style JSON profiles.',
-                        enabled: true,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.dynamicProfiles),
-                      ),
                       sectionLabel('Session actions'),
                       if (!hasActiveSession)
                         Padding(
@@ -415,47 +403,6 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         ).pop(TerminalActionId.exportDiagnostics),
                       ),
                       sectionLabel('Shell tools'),
-                      commandTile(
-                        key: const Key('shell-tmux-integration'),
-                        actionId: TerminalActionId.tmuxIntegration,
-                        icon: Icons.account_tree_rounded,
-                        title: 'tmux integration',
-                        subtitle:
-                            'Shell tool • Start or drive tmux control mode.',
-                        enabled: hasActiveSession,
-                        disabledReason: activeSessionRequired,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.tmuxIntegration),
-                      ),
-                      commandTile(
-                        key: const Key('shell-coprocess'),
-                        actionId: TerminalActionId.coprocess,
-                        icon: Icons.hub_rounded,
-                        title: 'Coprocess',
-                        subtitle:
-                            'Shell tool • Automate replies from terminal output.',
-                        enabled: hasActiveSession,
-                        disabledReason: activeSessionRequired,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.coprocess),
-                      ),
-                      commandTile(
-                        key: const Key('shell-password-manager'),
-                        actionId: TerminalActionId.passwordManager,
-                        icon: Icons.password_rounded,
-                        title: 'Password manager',
-                        subtitle:
-                            'Shell tool • Send saved passwords at prompts.',
-                        enabled: hasActiveSession && !isActiveSessionReadOnly,
-                        disabledReason: hasActiveSession
-                            ? readOnlySendRequired
-                            : activeSessionRequired,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.passwordManager),
-                      ),
                       commandTile(
                         key: const Key('shell-instant-replay'),
                         actionId: TerminalActionId.instantReplay,
@@ -540,21 +487,11 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
   ),
   MapEntry('profiles edit shell profiles', TerminalActionId.profiles),
   MapEntry(
-    'dynamic profiles import json iterm profile',
-    TerminalActionId.dynamicProfiles,
-  ),
-  MapEntry(
     'read only readonly lock block input',
     TerminalActionId.toggleReadOnly,
   ),
   MapEntry('clear scrollback clear output', TerminalActionId.clearScrollback),
   MapEntry('paste clipboard', TerminalActionId.paste),
-  MapEntry('tmux integration control mode', TerminalActionId.tmuxIntegration),
-  MapEntry('coprocess automate replies output', TerminalActionId.coprocess),
-  MapEntry(
-    'password manager saved passwords prompts',
-    TerminalActionId.passwordManager,
-  ),
   MapEntry(
     'instant replay recent terminal frames',
     TerminalActionId.instantReplay,

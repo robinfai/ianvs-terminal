@@ -18,9 +18,8 @@ void main() {
         ShellCommandMenuModel.defaultActionOrder,
         containsAll([
           TerminalActionId.profiles,
-          TerminalActionId.dynamicProfiles,
-          TerminalActionId.tmuxIntegration,
           TerminalActionId.instantReplay,
+          TerminalActionId.globalSearch,
         ]),
       );
     });
