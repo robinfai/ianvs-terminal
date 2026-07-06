@@ -6,6 +6,9 @@ CORE_DIR="$ROOT_DIR/native/core"
 PTY_DIR="$ROOT_DIR/packages/ianvs_pty"
 TERMINAL_DIR="$ROOT_DIR/packages/ianvs_terminal"
 EXAMPLE_DIR="$ROOT_DIR/example"
+VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION="${VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION:-0}"
+VERIFY_FLUTTER_TERMINAL_RUN_EXAMPLE_WIDGET_TESTS="${VERIFY_FLUTTER_TERMINAL_RUN_EXAMPLE_WIDGET_TESTS:-0}"
+VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH="${VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH:-0}"
 
 "$ROOT_DIR/tools/build_core.sh"
 
@@ -13,6 +16,8 @@ EXAMPLE_DIR="$ROOT_DIR/example"
   cd "$CORE_DIR"
   cargo fmt --check
   cargo clippy --all-targets -- -D warnings
+  # Set IANVS_REQUIRE_POSIX_SHM_TESTS=1 on hosts where Kitty POSIX shared memory
+  # support must be verified instead of skipped when the OS blocks shm_open.
   cargo test -- --test-threads=1
 )
 
@@ -24,6 +29,21 @@ EXAMPLE_DIR="$ROOT_DIR/example"
 (
   cd "$TERMINAL_DIR"
   flutter test
+)
+
+(
+  cd "$ROOT_DIR"
+  dart test test/docs_contract_test.dart
+)
+
+(
+  cd "$ROOT_DIR"
+  dart run tools/bench/runner/bench_runner.dart --config tools/bench/configs/bench_ci_smoke.yaml
+  if [ "$VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH" = "1" ]; then
+    dart run tools/bench/runner/bench_runner.dart --config tools/bench/configs/bench_nightly_resource.yaml
+  else
+    echo "Skipping nightly resource benchmark because VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH!=1"
+  fi
 )
 
 if rg -n "Set as default" "$ROOT_DIR/example/lib"; then
@@ -41,8 +61,38 @@ fi
 
 (
   cd "$EXAMPLE_DIR"
+  EXAMPLE_CI_TEST_TARGETS=(
+    test/app
+    test/config
+    test/platform
+    test/policies
+    test/preferences
+    test/productivity
+    test/profiles
+    test/sessions
+    test/shell
+    test/terminal
+    test/terminal_input_controller_test.dart
+    test/ui
+    test/visual
+    test/workspace
+  )
   flutter analyze
-  flutter test
+  flutter test "${EXAMPLE_CI_TEST_TARGETS[@]}"
+  if [ "$VERIFY_FLUTTER_TERMINAL_RUN_EXAMPLE_WIDGET_TESTS" = "1" ]; then
+    flutter test test/widget_test.dart
+  else
+    echo "Skipping example/test/widget_test.dart because VERIFY_FLUTTER_TERMINAL_RUN_EXAMPLE_WIDGET_TESTS!=1"
+  fi
+)
+
+if [ "$VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION" = "1" ]; then
+  echo "Skipping macOS integration tests because VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION=1"
+  exit 0
+fi
+
+(
+  cd "$EXAMPLE_DIR"
   IANVS_CORE_LIB="$CORE_DIR/target/debug/libianvs_core.dylib" \
     flutter test -d macos integration_test/ianvs_terminal_smoke_test.dart
   IANVS_CORE_LIB="$CORE_DIR/target/debug/libianvs_core.dylib" \

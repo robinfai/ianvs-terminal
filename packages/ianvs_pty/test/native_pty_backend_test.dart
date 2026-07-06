@@ -111,6 +111,98 @@ void main() {
     },
   );
 
+  test('native pty backend throws typed exceptions for failed FFI calls', () {
+    final bindings = _FailingPtyBindings();
+    final backend = NativePtyBackend.fromBindings(bindings);
+
+    expect(
+      () => backend.closeSession('1'),
+      throwsA(
+        isA<PtyNativeCallException>()
+            .having((error) => error.operation, 'operation', 'closeSession')
+            .having((error) => error.sessionId, 'sessionId', '1')
+            .having((error) => error.statusCode, 'statusCode', -1),
+      ),
+    );
+    expect(
+      () => backend.resizeSession(
+        '1',
+        cols: 80,
+        rows: 24,
+        pixelWidth: 800,
+        pixelHeight: 600,
+      ),
+      throwsA(
+        isA<PtyNativeCallException>().having(
+          (error) => error.operation,
+          'operation',
+          'resizeSession',
+        ),
+      ),
+    );
+    expect(
+      () => backend.writeInput('1', const [0x41]),
+      throwsA(
+        isA<PtyNativeCallException>().having(
+          (error) => error.operation,
+          'operation',
+          'writeInput',
+        ),
+      ),
+    );
+    expect(
+      () => backend.scrollViewport('1', 1),
+      throwsA(
+        isA<PtyNativeCallException>().having(
+          (error) => error.operation,
+          'operation',
+          'scrollViewport',
+        ),
+      ),
+    );
+    expect(
+      () => backend.scrollViewportTo('1', 0),
+      throwsA(
+        isA<PtyNativeCallException>().having(
+          (error) => error.operation,
+          'operation',
+          'scrollViewportTo',
+        ),
+      ),
+    );
+  });
+
+  test(
+    'native pty library resolution ignores environment override in product',
+    () {
+      final tempDir = Directory.systemTemp.createTempSync(
+        'ianvs-pty-resolver-test-',
+      );
+      addTearDown(() {
+        if (tempDir.existsSync()) {
+          tempDir.deleteSync(recursive: true);
+        }
+      });
+      final explicitLib = File('${tempDir.path}/libianvs_core.dylib')
+        ..writeAsStringSync('not a real dylib');
+
+      expect(
+        () => resolveNativePtyLibraryPath(
+          environment: <String, String>{'IANVS_CORE_LIB': explicitLib.path},
+          executableDirectory: tempDir,
+          isProduct: true,
+        ),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            contains('IANVS_CORE_LIB is ignored in product builds'),
+          ),
+        ),
+      );
+    },
+  );
+
   test('native pty backend rejects invalid session ids before bindings', () {
     final bindings = _RequestRecordingPtyBindings();
     final backend = NativePtyBackend.fromBindings(bindings);
@@ -399,6 +491,31 @@ class _NoopDebugPtyBindings extends _NoopPtyBindings {
       _ => null,
     };
   }
+}
+
+class _FailingPtyBindings extends _NoopPtyBindings {
+  @override
+  int sessionClose(int sessionId) => -1;
+
+  @override
+  int sessionResize(
+    int sessionId,
+    int cols,
+    int rows,
+    int pixelWidth,
+    int pixelHeight, [
+    int cellWidth = 0,
+    int cellHeight = 0,
+  ]) => -1;
+
+  @override
+  int sessionWrite(int sessionId, List<int> bytes) => -1;
+
+  @override
+  int sessionScroll(int sessionId, int deltaLines) => -1;
+
+  @override
+  int sessionScrollTo(int sessionId, int offset) => -1;
 }
 
 class _RequestRecordingPtyBindings extends _NoopPtyBindings {

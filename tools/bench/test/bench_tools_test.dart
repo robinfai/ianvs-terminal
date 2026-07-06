@@ -14,7 +14,91 @@ import '../src/summary_analyzer.dart';
 import '../src/workloads.dart';
 
 void main() {
+  group('terminal verification script', () {
+    test('runs benchmark smoke and exposes a non-GUI mode', () {
+      final script = File(
+        'tools/verify_flutter_terminal.sh',
+      ).readAsStringSync();
+
+      expect(
+        script,
+        contains(
+          'dart run tools/bench/runner/bench_runner.dart --config '
+          'tools/bench/configs/bench_ci_smoke.yaml',
+        ),
+      );
+      expect(
+        script,
+        contains('VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION'),
+      );
+      expect(
+        script,
+        contains('VERIFY_FLUTTER_TERMINAL_RUN_EXAMPLE_WIDGET_TESTS'),
+      );
+      expect(script, contains('VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH'));
+      expect(
+        script,
+        contains(
+          'dart run tools/bench/runner/bench_runner.dart --config '
+          'tools/bench/configs/bench_nightly_resource.yaml',
+        ),
+      );
+      expect(script, contains('IANVS_REQUIRE_POSIX_SHM_TESTS'));
+      expect(script, contains('test/sessions'));
+      expect(script, contains('flutter test test/widget_test.dart'));
+    });
+
+    test('testing docs document the nightly resource benchmark gate', () {
+      final docs = File('docs/TESTING.md').readAsStringSync();
+
+      expect(docs, contains('VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH'));
+      expect(docs, contains('bench_nightly_resource.yaml'));
+      expect(docs, contains('idle.quiet'));
+      expect(docs, contains('max_p95_process_cpu_percent'));
+      expect(docs, contains('max_peak_process_rss_bytes'));
+    });
+
+    test('known issues distinguish shipped resource gates from baselines', () {
+      final docs = File('docs/KNOWN_ISSUES.md').readAsStringSync();
+
+      expect(docs, contains('bench_nightly_resource.yaml'));
+      expect(docs, contains('VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH'));
+      expect(docs, contains('quiet-host'));
+      expect(docs, contains('cross-machine'));
+      expect(docs, contains('对比基线'));
+    });
+  });
+
   group('BenchConfig', () {
+    test(
+      'ci smoke collects os resource samples for performance visibility',
+      () {
+        final config = BenchConfig.fromFile(
+          File('tools/bench/configs/bench_ci_smoke.yaml'),
+        );
+
+        expect(config.collectors.osResource, isTrue);
+        expect(config.gates.requireSchemaValid, isTrue);
+      },
+    );
+
+    test(
+      'nightly resource config enforces CPU and RSS gates on collected samples',
+      () {
+        final config = BenchConfig.fromFile(
+          File('tools/bench/configs/bench_nightly_resource.yaml'),
+        );
+
+        expect(config.collectors.osResource, isTrue);
+        expect(config.gates.requireSchemaValid, isTrue);
+        expect(config.gates.maxP95ProcessCpuPercent, isNotNull);
+        expect(config.gates.maxPeakProcessRssBytes, isNotNull);
+        expect(config.workloads, contains('idle.quiet'));
+        expect(config.workloads, contains('burst_stdout.seq_1000'));
+        expect(config.workloads, contains('scrollback_heavy.lines_1000'));
+      },
+    );
+
     test(
       'parses ci smoke yaml into policies, workloads, viewport, and gates',
       () {
@@ -41,9 +125,15 @@ collectors:
   dart_runtime: true
   flutter_render: false
   flutter_frame_timing: false
+  os_resource: true
 gates:
   require_hash_match: true
   require_schema_valid: true
+  max_p95_frame_build_micros: 250
+  max_p95_json_decode_micros: 125
+  max_p95_apply_frame_micros: 75
+  max_p95_process_cpu_percent: 80
+  max_peak_process_rss_bytes: 200000000
 ''');
 
         expect(config.suite, 'ianvs_terminal_bench_ci_smoke');
@@ -59,12 +149,30 @@ gates:
         expect(config.viewportCols, 80);
         expect(config.viewportRows, 24);
         expect(config.collectors.flutterRender, isFalse);
+        expect(config.collectors.osResource, isTrue);
         expect(config.gates.requireHashMatch, isTrue);
+        expect(config.gates.maxP95FrameBuildMicros, 250);
+        expect(config.gates.maxP95JsonDecodeMicros, 125);
+        expect(config.gates.maxP95ApplyFrameMicros, 75);
+        expect(config.gates.maxP95ProcessCpuPercent, 80);
+        expect(config.gates.maxPeakProcessRssBytes, 200000000);
       },
     );
   });
 
   group('BenchWorkloadCatalog', () {
+    test('resolves quiet idle workload for resource baselines', () {
+      final workload = BenchWorkloadCatalog().resolve('idle.quiet');
+
+      expect(workload.category, 'idle');
+      expect(workload.profile, 'quiet');
+      expect(workload.traceBytes, isEmpty);
+      expect(
+        workload.expectedMetadata['expects_idle_resource_baseline'],
+        isTrue,
+      );
+    });
+
     test('generates deterministic workload bytes and metadata', () {
       final catalog = BenchWorkloadCatalog();
       final first = catalog.resolve('burst_stdout.seq_1000');
@@ -221,7 +329,44 @@ gates:
           ].join('\n'),
         );
         File('${dir.path}/dart_runtime.ndjson').writeAsStringSync(
-          '${jsonEncode({'schema_version': 'ianvs-bench-dart-runtime-v1', 'frame_id': 1, 'apply_frame_micros': 50})}\n',
+          [
+            jsonEncode({
+              'schema_version': 'ianvs-bench-dart-runtime-v1',
+              'frame_id': 1,
+              'json_decode_micros': 25,
+              'apply_frame_micros': 50,
+            }),
+            jsonEncode({
+              'schema_version': 'ianvs-bench-dart-runtime-v1',
+              'frame_id': 2,
+              'json_decode_micros': 75,
+              'apply_frame_micros': 70,
+            }),
+          ].join('\n'),
+        );
+        File('${dir.path}/os_resource.ndjson').writeAsStringSync(
+          [
+            jsonEncode({
+              'schema_version': 'ianvs-bench-os-resource-v1',
+              'timestamp_micros': 1000,
+              'session_id': 'burst_stdout.seq_1000#delta_coalesced#1',
+              'sample_id': 1,
+              'source': 'test',
+              'process_id': 123,
+              'process_cpu_percent': 4.5,
+              'process_rss_bytes': 1000000,
+            }),
+            jsonEncode({
+              'schema_version': 'ianvs-bench-os-resource-v1',
+              'timestamp_micros': 2000,
+              'session_id': 'burst_stdout.seq_1000#delta_coalesced#1',
+              'sample_id': 2,
+              'source': 'test',
+              'process_id': 123,
+              'process_cpu_percent': 7.25,
+              'process_rss_bytes': 1500000,
+            }),
+          ].join('\n'),
         );
         File('${dir.path}/correctness.json').writeAsStringSync(
           jsonEncode({
@@ -242,9 +387,18 @@ gates:
         expect(summary['snapshot_count'], 1);
         expect(summary['delta_count'], 1);
         expect(summary['p95_frame_build_micros'], 200);
+        expect(summary['p95_json_decode_micros'], 75);
+        expect(summary['p95_apply_frame_micros'], 70);
+        expect(summary['os_resource_sample_count'], 2);
+        expect(summary['p95_process_cpu_percent'], 7.25);
+        expect(summary['peak_process_rss_bytes'], 1500000);
         expect(
           File('${dir.path}/summary.csv').readAsStringSync(),
           contains('workload,policy,repeat,hash_match,semantic_generations'),
+        );
+        expect(
+          File('${dir.path}/summary.csv').readAsStringSync(),
+          contains('p95_process_cpu_percent,peak_process_rss_bytes'),
         );
         expect(
           File('${dir.path}/summary.md').readAsStringSync(),
@@ -289,6 +443,7 @@ collectors:
   dart_runtime: true
   flutter_render: false
   flutter_frame_timing: false
+  os_resource: true
 gates:
   require_hash_match: true
   require_schema_valid: true
@@ -296,6 +451,21 @@ gates:
 
         final result = await BenchRunnerCore(
           clock: () => DateTime.utc(2026, 6, 29, 12),
+          osResourceSampler: ({required data}) {
+            return <Map<String, Object?>>[
+              <String, Object?>{
+                'schema_version': 'ianvs-bench-os-resource-v1',
+                'timestamp_micros': 1,
+                'session_id':
+                    '${data.workload}#${data.framePolicy.wireName}#${data.repeatIndex}',
+                'sample_id': 1,
+                'source': 'test',
+                'process_id': 42,
+                'process_cpu_percent': 3.5,
+                'process_rss_bytes': 64000000,
+              },
+            ];
+          },
         ).runConfig(config);
 
         expect(result.exitCode, 0);
@@ -309,6 +479,16 @@ gates:
           ).existsSync(),
           isTrue,
         );
+        expect(
+          File(
+            '${result.outputDirectory.path}/burst_stdout.seq_1000/delta_coalesced/repeat_1/os_resource.ndjson',
+          ).existsSync(),
+          isTrue,
+        );
+        expect(
+          File('${result.outputDirectory.path}/summary.csv').readAsStringSync(),
+          contains('3.5,64000000'),
+        );
         final correctness =
             jsonDecode(
                   File(
@@ -319,6 +499,241 @@ gates:
         expect(correctness['hash_match'], isTrue);
       },
     );
+
+    test('fails when configured p95 performance gates are exceeded', () async {
+      final outDir = await Directory.systemTemp.createTemp(
+        'ianvs-bench-runner-gate-',
+      );
+      addTearDown(() {
+        if (outDir.existsSync()) {
+          outDir.deleteSync(recursive: true);
+        }
+      });
+      final config = BenchConfig.fromYaml('''
+suite: ianvs_terminal_bench_ci_smoke
+version: 1
+policies:
+  frame:
+    - snapshot_only
+  render:
+    - headless_state_only
+workloads:
+  - burst_stdout.seq_1000
+viewport:
+  cols: 80
+  rows: 24
+repeat: 1
+warmup_runs: 0
+output_dir: ${outDir.path}
+collectors:
+  rust_frame: true
+  dart_runtime: true
+  flutter_render: false
+  flutter_frame_timing: false
+gates:
+  require_hash_match: true
+  require_schema_valid: true
+  max_p95_frame_build_micros: 1
+  max_p95_json_decode_micros: 1
+  max_p95_apply_frame_micros: 1
+''');
+
+      final result = await BenchRunnerCore(
+        clock: () => DateTime.utc(2026, 6, 29, 12),
+      ).runConfig(config);
+
+      expect(result.exitCode, 1);
+      expect(
+        result.failures,
+        contains(
+          contains('p95_frame_build_micros exceeds max_p95_frame_build_micros'),
+        ),
+      );
+      expect(
+        result.failures,
+        contains(
+          contains('p95_json_decode_micros exceeds max_p95_json_decode_micros'),
+        ),
+      );
+      expect(
+        result.failures,
+        contains(
+          contains('p95_apply_frame_micros exceeds max_p95_apply_frame_micros'),
+        ),
+      );
+    });
+
+    test('fails when configured os resource gates are exceeded', () async {
+      final outDir = await Directory.systemTemp.createTemp(
+        'ianvs-bench-runner-resource-gate-',
+      );
+      addTearDown(() {
+        if (outDir.existsSync()) {
+          outDir.deleteSync(recursive: true);
+        }
+      });
+      final config = BenchConfig.fromYaml('''
+suite: ianvs_terminal_bench_resource_gate
+version: 1
+policies:
+  frame:
+    - snapshot_only
+  render:
+    - headless_state_only
+workloads:
+  - burst_stdout.seq_1000
+viewport:
+  cols: 80
+  rows: 24
+repeat: 1
+warmup_runs: 0
+output_dir: ${outDir.path}
+collectors:
+  rust_frame: true
+  dart_runtime: true
+  flutter_render: false
+  flutter_frame_timing: false
+  os_resource: true
+gates:
+  require_hash_match: true
+  require_schema_valid: true
+  max_p95_process_cpu_percent: 5
+  max_peak_process_rss_bytes: 100
+''');
+
+      final result = await BenchRunnerCore(
+        clock: () => DateTime.utc(2026, 6, 29, 12),
+        osResourceSampler: ({required data}) {
+          return <Map<String, Object?>>[
+            <String, Object?>{
+              'schema_version': 'ianvs-bench-os-resource-v1',
+              'timestamp_micros': 1,
+              'session_id':
+                  '${data.workload}#${data.framePolicy.wireName}#${data.repeatIndex}',
+              'sample_id': 1,
+              'source': 'test',
+              'process_id': 42,
+              'process_cpu_percent': 12.5,
+              'process_rss_bytes': 64000000,
+            },
+          ];
+        },
+      ).runConfig(config);
+
+      expect(result.exitCode, 1);
+      expect(
+        result.failures,
+        contains(
+          contains(
+            'p95_process_cpu_percent exceeds max_p95_process_cpu_percent',
+          ),
+        ),
+      );
+      expect(
+        result.failures,
+        contains(
+          contains('peak_process_rss_bytes exceeds max_peak_process_rss_bytes'),
+        ),
+      );
+    });
+
+    test('fails when collected artifacts violate required schemas', () async {
+      final outDir = await Directory.systemTemp.createTemp(
+        'ianvs-bench-runner-schema-gate-',
+      );
+      addTearDown(() {
+        if (outDir.existsSync()) {
+          outDir.deleteSync(recursive: true);
+        }
+      });
+      final config = BenchConfig.fromYaml('''
+suite: ianvs_terminal_bench_ci_smoke
+version: 1
+policies:
+  frame:
+    - snapshot_only
+  render:
+    - headless_state_only
+workloads:
+  - burst_stdout.seq_1000
+viewport:
+  cols: 80
+  rows: 24
+repeat: 1
+warmup_runs: 0
+output_dir: ${outDir.path}
+collectors:
+  rust_frame: true
+  dart_runtime: true
+  flutter_render: false
+  flutter_frame_timing: false
+gates:
+  require_hash_match: true
+  require_schema_valid: true
+''');
+
+      final result = await BenchRunnerCore(
+        clock: () => DateTime.utc(2026, 6, 29, 12),
+        replayEngine: _InvalidSchemaReplayEngine(),
+      ).runConfig(config);
+
+      expect(result.exitCode, 1);
+      expect(result.failures, contains(contains('rust_frame.ndjson line 1')));
+      expect(result.failures, contains(contains('schema_version')));
+    });
+
+    test('fails when collected os resource samples violate schema', () async {
+      final outDir = await Directory.systemTemp.createTemp(
+        'ianvs-bench-runner-os-resource-schema-gate-',
+      );
+      addTearDown(() {
+        if (outDir.existsSync()) {
+          outDir.deleteSync(recursive: true);
+        }
+      });
+      final config = BenchConfig.fromYaml('''
+suite: ianvs_terminal_bench_ci_smoke
+version: 1
+policies:
+  frame:
+    - snapshot_only
+  render:
+    - headless_state_only
+workloads:
+  - burst_stdout.seq_1000
+viewport:
+  cols: 80
+  rows: 24
+repeat: 1
+warmup_runs: 0
+output_dir: ${outDir.path}
+collectors:
+  rust_frame: true
+  dart_runtime: true
+  flutter_render: false
+  flutter_frame_timing: false
+  os_resource: true
+gates:
+  require_hash_match: true
+  require_schema_valid: true
+''');
+
+      final result = await BenchRunnerCore(
+        clock: () => DateTime.utc(2026, 6, 29, 12),
+        osResourceSampler: ({required data}) {
+          return <Map<String, Object?>>[
+            <String, Object?>{
+              'schema_version': 'ianvs-bench-os-resource-v1',
+              'sample_id': 'invalid',
+            },
+          ];
+        },
+      ).runConfig(config);
+
+      expect(result.exitCode, 1);
+      expect(result.failures, contains(contains('os_resource.ndjson line 1')));
+      expect(result.failures, contains(contains('sample_id')));
+    });
   });
 
   group('FlutterProfileMatrix', () {
@@ -710,6 +1125,51 @@ gates:
       );
     });
   });
+}
+
+final class _InvalidSchemaReplayEngine extends ReplayTerminalEngine {
+  @override
+  BenchRunData run({
+    required BenchWorkload workload,
+    required BenchFramePolicy framePolicy,
+    required BenchRenderPolicy renderPolicy,
+    required int cols,
+    required int rows,
+    required int repeatIndex,
+  }) {
+    return BenchRunData(
+      workload: workload.name,
+      framePolicy: framePolicy,
+      renderPolicy: renderPolicy,
+      repeatIndex: repeatIndex,
+      viewportCols: cols,
+      viewportRows: rows,
+      traceBytes: workload.traceBytes,
+      finalViewportHash: 'same',
+      finalScrollbackHash: 'same',
+      semanticGenerations: 1,
+      rustFrameEvents: const [
+        <String, Object?>{
+          'schema_version': 'wrong-rust-frame-schema',
+          'timestamp_micros': 1,
+          'session_id': 'invalid-schema',
+          'frame_id': 1,
+          'frame_kind': 'snapshot',
+          'rows_scanned': 24,
+          'rows_emitted': 24,
+        },
+      ],
+      dartRuntimeEvents: const [
+        <String, Object?>{
+          'schema_version': 'ianvs-bench-dart-runtime-v1',
+          'timestamp_micros': 2,
+          'session_id': 'invalid-schema',
+          'frame_id': 1,
+          'apply_frame_micros': 1,
+        },
+      ],
+    );
+  }
 }
 
 void _writeSyntheticProfileMatrix(

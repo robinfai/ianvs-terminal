@@ -1,0 +1,123 @@
+import 'dart:convert';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_pty/ianvs_pty.dart';
+import 'package:ianvs_terminal/src/runtime/terminal_diagnostics.dart';
+
+void main() {
+  group('TerminalDiagnosticsClient', () {
+    test('exports diagnostics using private policy defaults', () {
+      final backend = _JsonRequestBackend(
+        jsonEncode(<String, Object?>{
+          'manifest': <String, Object?>{
+            'schema_version': 'terminal-diagnostics-session-v1',
+            'session_id': 7,
+          },
+          'resource_samples': <Object?>[
+            <String, Object?>{'timestamp_micros': 1, 'rss_bytes': 100},
+          ],
+          'terminal_stats': <String, Object?>{
+            'session': <String, Object?>{'bytes_read': 4},
+          },
+          'events': <Object?>[
+            <String, Object?>{'kind': 'started'},
+          ],
+          'summary': <String, Object?>{
+            'conclusion': 'insufficient-evidence',
+            'markdown': '# Terminal diagnostics',
+          },
+        }),
+      );
+      final client = TerminalDiagnosticsClient(backend);
+
+      final export = client.exportSession('session-a');
+
+      expect(export, isNotNull);
+      expect(export!.conclusion, 'insufficient-evidence');
+      expect(export.resourceSamples.single['rss_bytes'], 100);
+      expect(backend.requests.single, <String, Object?>{
+        'kind': 'terminal.export_diagnostics',
+        'maxSamples': 60,
+        'includeContent': false,
+        'redactionMode': 'basic',
+        'policy': <String, Object?>{
+          'includeScrollback': false,
+          'includeRawCommand': false,
+          'includeRawCwd': false,
+          'includeEnv': false,
+        },
+      });
+    });
+
+    test('returns null when backend response cannot be decoded', () {
+      final backend = _JsonRequestBackend('{');
+      final client = TerminalDiagnosticsClient(backend);
+
+      expect(client.exportSession('session-a'), isNull);
+
+      backend
+        ..response = ''
+        ..requests.clear();
+      expect(client.exportSession('session-a'), isNull);
+
+      backend.response = null;
+      expect(client.exportSession('session-a'), isNull);
+    });
+
+    test('reports backend request errors and returns null', () {
+      final backend = _JsonRequestBackend(null)
+        ..requestError = StateError('diagnostics request failed');
+      final errors = <_RequestError>[];
+      final client = TerminalDiagnosticsClient(
+        backend,
+        onRequestError: (sessionId, operation, error, stackTrace) {
+          errors.add(_RequestError(sessionId, operation, error, stackTrace));
+        },
+      );
+
+      expect(client.exportSession('session-a'), isNull);
+
+      expect(errors.map((error) => error.operation), <String>[
+        'terminal.export_diagnostics',
+      ]);
+      expect(errors.single.sessionId, 'session-a');
+      expect(
+        errors.single.error.toString(),
+        contains('diagnostics request failed'),
+      );
+      expect(errors.single.stackTrace, isNot(StackTrace.empty));
+    });
+  });
+}
+
+final class _JsonRequestBackend implements PtySessionJsonRequestBackend {
+  _JsonRequestBackend(this.response);
+
+  String? response;
+  Object? requestError;
+  final List<Map<String, Object?>> requests = <Map<String, Object?>>[];
+
+  @override
+  String? requestSessionJson(String sessionId, String requestJson) {
+    requests.add((jsonDecode(requestJson) as Map).cast<String, Object?>());
+    final error = requestError;
+    if (error != null) {
+      throw error;
+    }
+    return response;
+  }
+}
+
+final class _RequestError {
+  const _RequestError(
+    this.sessionId,
+    this.operation,
+    this.error,
+    this.stackTrace,
+  );
+
+  final String sessionId;
+  final String operation;
+  final Object error;
+  final StackTrace stackTrace;
+}

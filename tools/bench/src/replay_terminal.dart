@@ -38,7 +38,7 @@ final class BenchRunData {
   final List<Map<String, Object?>> flutterFrameTimingEvents;
 }
 
-final class ReplayTerminalEngine {
+class ReplayTerminalEngine {
   const ReplayTerminalEngine({this.coalesceEvery = 32});
 
   final int coalesceEvery;

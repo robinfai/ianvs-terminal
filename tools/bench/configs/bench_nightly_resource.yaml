@@ -1,0 +1,33 @@
+suite: ianvs_terminal_bench_nightly_resource
+version: 1
+policies:
+  frame:
+    - snapshot_only
+    - delta_coalesced
+  render:
+    - headless_state_only
+workloads:
+  - idle.quiet
+  - burst_stdout.seq_1000
+  - scrollback_heavy.lines_1000
+  - resize_churn.tiny
+viewport:
+  cols: 80
+  rows: 24
+repeat: 3
+warmup_runs: 1
+output_dir: build/bench-results-nightly
+collectors:
+  rust_frame: true
+  dart_runtime: true
+  flutter_render: false
+  flutter_frame_timing: false
+  os_resource: true
+gates:
+  require_hash_match: true
+  require_schema_valid: true
+  max_p95_frame_build_micros: 500
+  max_p95_json_decode_micros: 100
+  max_p95_apply_frame_micros: 100
+  max_p95_process_cpu_percent: 80
+  max_peak_process_rss_bytes: 512000000

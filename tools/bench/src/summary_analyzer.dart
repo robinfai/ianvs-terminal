@@ -20,6 +20,9 @@ final class SummaryAnalyzer {
     final timingEvents = _readNdjson(
       File('${directory.path}/flutter_frame_timing.ndjson'),
     );
+    final resourceEvents = _readNdjson(
+      File('${directory.path}/os_resource.ndjson'),
+    );
 
     final workload =
         _stringValue(metadata['workload']) ??
@@ -74,6 +77,18 @@ final class SummaryAnalyzer {
         _intValues(rustFrames, 'frame_build_micros'),
         99,
       ),
+      'p50_json_decode_micros': _percentile(
+        _intValues(dartEvents, 'json_decode_micros'),
+        50,
+      ),
+      'p95_json_decode_micros': _percentile(
+        _intValues(dartEvents, 'json_decode_micros'),
+        95,
+      ),
+      'p99_json_decode_micros': _percentile(
+        _intValues(dartEvents, 'json_decode_micros'),
+        99,
+      ),
       'p50_apply_frame_micros': _percentile(
         _intValues(dartEvents, 'apply_frame_micros'),
         50,
@@ -97,6 +112,15 @@ final class SummaryAnalyzer {
       'p99_raster_duration_micros': _percentile(
         _intValues(timingEvents, 'raster_duration_micros'),
         99,
+      ),
+      'os_resource_sample_count': resourceEvents.length,
+      'p95_process_cpu_percent': _percentileNum(
+        _numValues(resourceEvents, 'process_cpu_percent'),
+        95,
+      ),
+      'peak_process_rss_bytes': _maxNullableInt(
+        resourceEvents,
+        'process_rss_bytes',
       ),
       'row_cache_hit_rate': cacheHits + cacheMisses == 0
           ? 'N/A'
@@ -166,8 +190,12 @@ const _summaryCsvHeader = <String>[
   'delta_count',
   'avg_rows_emitted',
   'p95_frame_build_micros',
+  'p95_json_decode_micros',
   'p95_apply_frame_micros',
   'p95_raster_duration_micros',
+  'os_resource_sample_count',
+  'p95_process_cpu_percent',
+  'peak_process_rss_bytes',
   'row_cache_hit_rate',
 ];
 
@@ -185,8 +213,12 @@ List<String> _summaryCsvRow(Map<String, Object?> summary) {
     _csv(summary['delta_count']),
     _csv(_display(summary['avg_rows_emitted'])),
     _csv(summary['p95_frame_build_micros']),
+    _csv(summary['p95_json_decode_micros']),
     _csv(summary['p95_apply_frame_micros']),
     _csv(summary['p95_raster_duration_micros']),
+    _csv(summary['os_resource_sample_count']),
+    _csv(summary['p95_process_cpu_percent']),
+    _csv(summary['peak_process_rss_bytes']),
     _csv(_display(summary['row_cache_hit_rate'])),
   ];
 }
@@ -261,6 +293,14 @@ int _maxInt(List<Map<String, Object?>> events, String key) {
   return max;
 }
 
+Object _maxNullableInt(List<Map<String, Object?>> events, String key) {
+  final values = _intValues(events, key);
+  if (values.isEmpty) {
+    return 'N/A';
+  }
+  return values.reduce(math.max);
+}
+
 int _sumInt(List<Map<String, Object?>> events, String key) {
   var sum = 0;
   for (final event in events) {
@@ -276,6 +316,14 @@ List<int> _intValues(List<Map<String, Object?>> events, String key) {
       .toList(growable: false);
 }
 
+List<num> _numValues(List<Map<String, Object?>> events, String key) {
+  return events
+      .map((event) => event[key])
+      .whereType<num>()
+      .where((value) => value.isFinite)
+      .toList(growable: false);
+}
+
 double _average(List<int> values) {
   if (values.isEmpty) {
     return 0;
@@ -284,6 +332,15 @@ double _average(List<int> values) {
 }
 
 Object _percentile(List<int> values, int percentile) {
+  if (values.isEmpty) {
+    return 'N/A';
+  }
+  final sorted = values.toList()..sort();
+  final rank = ((percentile / 100) * sorted.length).ceil() - 1;
+  return sorted[rank.clamp(0, sorted.length - 1)];
+}
+
+Object _percentileNum(List<num> values, int percentile) {
   if (values.isEmpty) {
     return 'N/A';
   }

@@ -1078,7 +1078,14 @@ pub struct TerminalSession {
     deferred_clear_graphics_frame: Mutex<Option<DeferredFrameGrace>>,
     deferred_kitty_delete_graphics_frame: Mutex<Option<DeferredFrameGrace>>,
     deferred_inline_clear_frame: Mutex<Option<DeferredFrameGrace>>,
+    worker_handles: Mutex<SessionWorkerHandles>,
     exited: AtomicBool,
+}
+
+#[derive(Default)]
+struct SessionWorkerHandles {
+    reader: Option<thread::JoinHandle<()>>,
+    resource_sampler: Option<thread::JoinHandle<()>>,
 }
 
 impl TerminalSession {
@@ -1093,6 +1100,7 @@ impl TerminalSession {
         let child_pid = runtime.child_pid;
         let process_name = process_name_for_profile(&profile);
         let reader = runtime.reader;
+        let shell_integration_diagnostics = runtime.shell_integration.to_diagnostic_json();
         let shell_integration_proxy = runtime.shell_integration_proxy;
 
         let mut terminal = Terminal::with_scrollback(
@@ -1141,7 +1149,9 @@ impl TerminalSession {
                 timestamp_micros: unix_timestamp_micros(),
                 session_id,
                 kind: "started".to_string(),
-                payload: None,
+                payload: Some(serde_json::json!({
+                    "shell_integration": shell_integration_diagnostics,
+                })),
             }])),
             resource_samples: Mutex::new(VecDeque::new()),
             resource_sampler_state: Mutex::new(ResourceSamplerState::default()),
@@ -1155,11 +1165,12 @@ impl TerminalSession {
             deferred_clear_graphics_frame: Mutex::new(None),
             deferred_kitty_delete_graphics_frame: Mutex::new(None),
             deferred_inline_clear_frame: Mutex::new(None),
+            worker_handles: Mutex::new(SessionWorkerHandles::default()),
             exited: AtomicBool::new(false),
         });
 
         let reader_session = Arc::clone(&session);
-        thread::spawn(move || {
+        let reader_handle = thread::spawn(move || {
             let _shell_integration_proxy = shell_integration_proxy;
             let mut reader = reader;
             let mut buf = [0_u8; 4096];
@@ -1264,7 +1275,12 @@ impl TerminalSession {
                 }
             }
         });
-        Self::start_resource_sampler(&session);
+        let resource_sampler_handle = Self::start_resource_sampler(&session);
+        {
+            let mut worker_handles = session.worker_handles.lock();
+            worker_handles.reader = Some(reader_handle);
+            worker_handles.resource_sampler = Some(resource_sampler_handle);
+        }
 
         Ok(session)
     }
@@ -1276,10 +1292,29 @@ impl TerminalSession {
     pub fn close(&self) -> Result<(), SessionError> {
         self.exited.store(true, Ordering::SeqCst);
         let _ = self.child.lock().kill();
+        self.join_worker_threads();
         Ok(())
     }
 
-    fn start_resource_sampler(session: &Arc<Self>) {
+    fn join_worker_threads(&self) {
+        let (reader, resource_sampler) = {
+            let mut worker_handles = self.worker_handles.lock();
+            (
+                worker_handles.reader.take(),
+                worker_handles.resource_sampler.take(),
+            )
+        };
+
+        if let Some(handle) = resource_sampler {
+            handle.thread().unpark();
+            let _ = handle.join();
+        }
+        if let Some(handle) = reader {
+            let _ = handle.join();
+        }
+    }
+
+    fn start_resource_sampler(session: &Arc<Self>) -> thread::JoinHandle<()> {
         let resource_session = Arc::clone(session);
         thread::spawn(move || {
             loop {
@@ -1294,9 +1329,9 @@ impl TerminalSession {
                 if !keep_sampling && failures >= RESOURCE_SAMPLER_MAX_FAILURES {
                     break;
                 }
-                thread::sleep(RESOURCE_SAMPLE_INTERVAL);
+                thread::park_timeout(RESOURCE_SAMPLE_INTERVAL);
             }
-        });
+        })
     }
 
     fn record_resource_sample(&self) -> bool {
@@ -4749,11 +4784,14 @@ pub fn copy_graphic_asset_rgba(
 mod tests {
     use super::*;
     use crate::model::{
-        MAX_SCROLLBACK_LINES, TerminalProfileAnsiColors, TerminalProfileSpecialColors,
+        MAX_SCROLLBACK_LINES, TerminalProfileAnsiColors, TerminalProfileAppearance,
+        TerminalProfileInteraction, TerminalProfileLaunch, TerminalProfileSpecialColors,
+        TerminalProfileTerminal, TerminalShellIntegration,
     };
     use par_term_emu_core_rust::cell::Cell;
     use par_term_emu_core_rust::color::NamedColor;
     use par_term_emu_core_rust::terminal::Terminal;
+    use std::collections::BTreeMap;
 
     fn pending_full_screen_scroll(
         dirty_rows: &[usize],
@@ -4768,6 +4806,53 @@ mod tests {
             }),
             ..PendingFrameWork::default()
         }
+    }
+
+    fn long_running_lifecycle_profile() -> TerminalProfile {
+        TerminalProfile {
+            id: "lifecycle-close".to_string(),
+            name: "Lifecycle Close".to_string(),
+            launch: TerminalProfileLaunch {
+                program: "/bin/sh".to_string(),
+                args: vec!["-lc".to_string(), "sleep 30".to_string()],
+                env: BTreeMap::new(),
+                cwd: None,
+            },
+            terminal: TerminalProfileTerminal::default(),
+            shell_integration: TerminalShellIntegration { enabled: false },
+            appearance: TerminalProfileAppearance::default(),
+            interaction: TerminalProfileInteraction::default(),
+        }
+    }
+
+    #[test]
+    fn close_session_releases_background_worker_references_promptly() {
+        let store = SessionStore::default();
+        let session_id = store
+            .create_session(long_running_lifecycle_profile())
+            .unwrap();
+        let session = store.get(session_id).unwrap();
+
+        for _ in 0..20 {
+            if Arc::strong_count(&session) >= 4 {
+                break;
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+        assert!(
+            Arc::strong_count(&session) >= 4,
+            "expected store, test, reader, and sampler references before close"
+        );
+
+        store.close_session(session_id).unwrap();
+        thread::sleep(Duration::from_millis(100));
+
+        assert_eq!(
+            Arc::strong_count(&session),
+            1,
+            "close should release reader and sampler session references promptly"
+        );
+        assert!(store.get(session_id).is_err());
     }
 
     #[test]

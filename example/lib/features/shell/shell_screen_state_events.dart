@@ -75,6 +75,8 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         break;
       case terminal.TerminalSessionClipboardEvent():
         _handleOsc52ClipboardEvent(event);
+      case terminal.TerminalSessionBackendErrorEvent():
+        break;
     }
   }
 

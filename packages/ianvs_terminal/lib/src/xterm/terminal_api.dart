@@ -345,11 +345,14 @@ class Terminal implements TerminalDisposable {
       defaultTerminalColumns,
     );
     final boundedRows = _normalizeTerminalDimension(rows, defaultTerminalRows);
-    _runtime.resizeSessionCells(
+    final resized = _runtime.resizeSessionCells(
       _requireSessionId(),
       cols: boundedColumns,
       rows: boundedRows,
     );
+    if (!resized) {
+      return;
+    }
     _currentCols = boundedColumns;
     _currentRows = boundedRows;
   }
@@ -502,6 +505,8 @@ class Terminal implements TerminalDisposable {
       case TerminalSessionBadgeEvent():
         break;
       case TerminalSessionClipboardEvent():
+        break;
+      case TerminalSessionBackendErrorEvent():
         break;
     }
   }

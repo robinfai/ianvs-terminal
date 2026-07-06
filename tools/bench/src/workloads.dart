@@ -89,6 +89,7 @@ final class BenchWorkloadCatalog {
     final category = parts[0];
     final profile = parts[1];
     return switch (category) {
+      'idle' => _idle(profile),
       'burst_stdout' => _burstStdout(profile),
       'scrollback_heavy' => _scrollbackHeavy(profile),
       'resize_churn' => _resizeChurn(profile),
@@ -97,6 +98,7 @@ final class BenchWorkloadCatalog {
   }
 
   Iterable<String> get mvpWorkloadNames sync* {
+    yield 'idle.quiet';
     yield 'burst_stdout.seq_1000';
     yield 'burst_stdout.seq_100k';
     yield 'burst_stdout.repeated_payload_100k';
@@ -107,6 +109,25 @@ final class BenchWorkloadCatalog {
     yield 'resize_churn.basic';
     yield 'resize_churn.extended';
   }
+}
+
+BenchWorkload _idle(String profile) {
+  if (profile != 'quiet') {
+    throw FormatException('Unknown idle profile: $profile');
+  }
+  return const BenchWorkload(
+    name: 'idle.quiet',
+    category: 'idle',
+    profile: 'quiet',
+    traceBytes: <int>[],
+    defaultCols: 120,
+    defaultRows: 40,
+    durationLimitSeconds: 10,
+    expectedMetadata: <String, Object?>{
+      'requires_hash_match': true,
+      'expects_idle_resource_baseline': true,
+    },
+  );
 }
 
 BenchWorkload _burstStdout(String profile) {

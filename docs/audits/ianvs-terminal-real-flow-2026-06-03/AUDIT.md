@@ -84,8 +84,40 @@ Because of this, the report treats the Flutter Driver screenshots as accepted vi
 
 8. Paste history and multiline paste confirmation
    - Evidence: no accepted screenshot in this run.
-   - Health: not audited here.
-   - Notes: This is still an important flow for a terminal product because paste safety is user-facing trust work. It should be captured in the next pass.
+   - Health: superseded by later automated evidence.
+   - Notes: This was not captured in the original screenshot pass. Later
+     automated acceptance covers the paste-safety path, so it is no longer a
+     current app-level closure gap.
+
+## Automated Paste-Safety Closure
+
+Post-audit closure evidence:
+
+```bash
+cd example && flutter test test/shell/shell_screen_phase4_test.dart --plain-name "paste"
+```
+
+Relevant automated regressions include:
+
+- `paste clipboard confirms multiline text before sending`
+- `command-v uses paste confirmation before sending multiline text`
+- `local paste config can force bracketed paste wrapping`
+- `marker-only forced bracketed paste is ignored`
+- `command-v read-only paste does not read clipboard`
+
+## Automated Search Closure Proof
+
+Post-audit closure evidence:
+
+```bash
+cd example && flutter test test/widget_test.dart --plain-name "shell search closes on Escape without terminal input"
+```
+
+Relevant automated regressions include:
+
+- `shell search closes on Escape without terminal input`
+- `shell search opens and scrolls to matches`
+- `native find menu opens search without leaking input`
 
 ## Strengths
 
@@ -101,14 +133,17 @@ Because of this, the report treats the Flutter Driver screenshots as accepted vi
 - Foreground launch remains a user-facing reliability risk in this host session.
 - Real keyboard input could not be revalidated through Computer Use, so manual acceptance is still needed.
 - Search overlay placement is usable, but it can cover right-pane content in split mode.
-- Paste safety was not captured in this run, so trust-critical paste behavior remains outside this evidence set.
+- Paste safety was not captured in the original screenshot run, but later
+  automated regressions now cover the trust-critical app behavior.
 
 ## Accessibility Risks
 
 - Screenshots alone cannot prove full keyboard access, focus order, or screen-reader flow.
 - The icon-only chrome buttons depend on accurate accessible labels; Computer Use initially exposed `New tab` and `Open command menu`, which is a positive sign.
 - Command-menu disabled reasons are visible and likely helpful for assistive tech, but this run did not inspect spoken output.
-- Search overlay focus appears clear visually; keyboard escape/close behavior still needs manual or automated proof.
+- Search overlay focus appears clear visually; later automated regressions now
+  prove the search close button, Escape close behavior, and native find routing
+  without leaking input to the terminal.
 
 ## Recommendations
 
@@ -121,12 +156,20 @@ Because of this, the report treats the Flutter Driver screenshots as accepted vi
 3. Keep the full-width tab decision documented.
    - Do not treat wide tab cells as a polish bug unless future user evidence shows they hurt daily tab use.
 
-4. Capture paste safety in the next audit.
-   - Include paste history empty state, multiline paste preview, cancel behavior, and confirmed paste behavior.
+4. Keep paste safety in automated closure gates.
+   - Maintain coverage for paste history empty state, multiline paste preview,
+     cancel behavior, confirmed paste behavior, bracketed-paste sanitization,
+     and read-only paste blocking.
 
 5. Re-run with real keyboard access.
-   - Validate command entry, `Cmd+Shift+P`, `Cmd+F`, tab creation, split, search typing, and overlay close behavior from physical or reliable synthetic keyboard input.
+   - Validate command entry, `Cmd+Shift+P`, `Cmd+F`, tab creation, split, and
+     search typing from physical input. Search open/close behavior now has
+     reliable synthetic widget coverage.
 
 ## Current Conclusion
 
-The visible product flow is in good shape: startup, command menu, new tab, split pane, and search all present as credible desktop-terminal interactions. The strongest product risk is not the visual design; it is host-level foreground/input reliability and the missing current-run paste-safety capture.
+The visible product flow is in good shape: startup, command menu, new tab,
+split pane, and search all present as credible desktop-terminal interactions.
+The strongest remaining product risk in this historical audit thread is not
+the visual design or paste-safety closure; it is host-level foreground/input
+reliability.

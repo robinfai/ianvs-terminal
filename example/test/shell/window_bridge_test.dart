@@ -1,5 +1,3 @@
-import 'dart:ui' show Size;
-
 import 'package:app/features/shell/window_bridge.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';

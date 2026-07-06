@@ -1,0 +1,90 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_terminal/src/runtime/terminal_refresh_scheduler.dart';
+
+void main() {
+  group('TerminalRefreshScheduler', () {
+    test('queues refresh requests while a refresh is active', () {
+      final scheduler = TerminalRefreshScheduler();
+
+      scheduler.markRefreshing('session-a');
+      scheduler.queueRefresh('session-a');
+
+      expect(scheduler.isRefreshing('session-a'), isTrue);
+      expect(scheduler.hasQueuedRefresh('session-a'), isTrue);
+      expect(scheduler.consumeQueuedRefresh('session-a'), isTrue);
+      expect(scheduler.consumeQueuedRefresh('session-a'), isFalse);
+
+      scheduler.clearRefreshing('session-a');
+      expect(scheduler.isRefreshing('session-a'), isFalse);
+    });
+
+    test('deduplicates deferred refresh microtasks per session', () async {
+      final callbacks = <String>[];
+      final scheduler = TerminalRefreshScheduler();
+
+      expect(
+        scheduler.scheduleDeferredRefresh('session-a', () {
+          callbacks.add('session-a');
+        }),
+        isTrue,
+      );
+      expect(
+        scheduler.scheduleDeferredRefresh('session-a', () {
+          callbacks.add('duplicate');
+        }),
+        isFalse,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+
+      expect(callbacks, <String>['session-a']);
+    });
+
+    testWidgets('runs one queued refresh after cooldown expires', (
+      tester,
+    ) async {
+      final callbacks = <String>[];
+      final scheduler = TerminalRefreshScheduler();
+
+      scheduler.queueRefresh('session-a');
+      scheduler.startCooldown(
+        'session-a',
+        const Duration(milliseconds: 33),
+        () => callbacks.add('session-a'),
+      );
+
+      await tester.pump(const Duration(milliseconds: 32));
+      expect(callbacks, isEmpty);
+      expect(scheduler.hasQueuedRefresh('session-a'), isTrue);
+
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(callbacks, <String>['session-a']);
+      expect(scheduler.hasQueuedRefresh('session-a'), isFalse);
+
+      scheduler.dispose();
+    });
+
+    testWidgets('remove clears queued and cooldown state', (tester) async {
+      final callbacks = <String>[];
+      final scheduler = TerminalRefreshScheduler();
+
+      scheduler
+        ..markRefreshing('session-a')
+        ..queueRefresh('session-a')
+        ..startCooldown(
+          'session-a',
+          const Duration(milliseconds: 33),
+          () => callbacks.add('session-a'),
+        )
+        ..remove('session-a');
+
+      expect(scheduler.isRefreshing('session-a'), isFalse);
+      expect(scheduler.hasQueuedRefresh('session-a'), isFalse);
+
+      await tester.pump(const Duration(milliseconds: 33));
+
+      expect(callbacks, isEmpty);
+      scheduler.dispose();
+    });
+  });
+}

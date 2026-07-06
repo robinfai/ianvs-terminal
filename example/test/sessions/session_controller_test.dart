@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -80,6 +81,17 @@ class _TestLocalTerminalConfigRepository extends LocalTerminalConfigRepository {
     savedDocuments.add(document);
     _document = document;
   }
+}
+
+class _ThrowingLocalTerminalConfigRepository
+    extends LocalTerminalConfigRepository {
+  @override
+  Future<LocalTerminalConfigDocument?> load() async {
+    throw const FormatException('broken local terminal config');
+  }
+
+  @override
+  Future<void> save(LocalTerminalConfigDocument document) async {}
 }
 
 class _EventfulPtyBackend
@@ -298,6 +310,74 @@ void main() {
     final afterCloseSecond = container.read(sessionControllerProvider);
     expect(afterCloseSecond.tabs, isEmpty);
     expect(afterCloseSecond.activeSessionId, isNull);
+  });
+
+  test('backend write failures surface in session state', () async {
+    final coreClient = FakePtyBackend();
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(coreClient),
+        sessionControllerProvider.overrideWith(_TestSessionController.new),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+        sessionPollingEnabledProvider.overrideWithValue(false),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(sessionControllerProvider.notifier);
+    controller.createSession(defaultTerminalProfile().copyWith(id: 'shell-1'));
+    final sessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+
+    coreClient.failingOperations.add('writeInput');
+    container
+        .read(terminalRuntimeControllerProvider)
+        .sendInput(sessionId, Uint8List.fromList(const <int>[0x41]));
+    await Future<void>.delayed(Duration.zero);
+
+    final state = container.read(sessionControllerProvider);
+    expect(state.lastError, contains('writeInput'));
+    expect(state.lastError, contains(sessionId));
+    expect(state.lastError, contains('writeInput failed'));
+    expect(coreClient.writes, isEmpty);
+  });
+
+  test('session creation failures surface in session state', () {
+    final coreClient = FakePtyBackend()..failingOperations.add('createSession');
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(coreClient),
+        sessionControllerProvider.overrideWith(_TestSessionController.new),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(sessionControllerProvider.notifier);
+
+    expect(
+      () => controller.createSession(
+        defaultTerminalProfile().copyWith(id: 'shell-1'),
+      ),
+      returnsNormally,
+    );
+
+    final state = container.read(sessionControllerProvider);
+    expect(state.tabs, isEmpty);
+    expect(state.activeSessionId, isNull);
+    expect(state.lastError, contains('createSession'));
+    expect(state.lastError, contains('createSession failed'));
   });
 
   test('reorderTab moves tabs without changing the active session', () {
@@ -908,6 +988,53 @@ void main() {
     expect(reopenedState.activeSessionId, isNot(activeBeforeClose));
     expect(reopenedState.activeSessionId, reopenedLayout.second!.second!.id);
   });
+
+  test(
+    'reopenClosedTab keeps the closed tab queued when session creation fails',
+    () {
+      final coreClient = FakePtyBackend();
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(coreClient),
+          sessionControllerProvider.overrideWith(_TestSessionController.new),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final controller = container.read(sessionControllerProvider.notifier);
+      final profile = defaultTerminalProfile().copyWith(id: 'shell-1');
+
+      controller.createSession(profile);
+      final closedSessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      controller.closeTab(closedSessionId);
+      expect(container.read(sessionControllerProvider).tabs, isEmpty);
+      expect(controller.canReopenClosedTab, isTrue);
+
+      coreClient.failingOperations.add('createSession');
+      controller.reopenClosedTab();
+
+      expect(container.read(sessionControllerProvider).tabs, isEmpty);
+      expect(controller.canReopenClosedTab, isTrue);
+      expect(
+        container.read(sessionControllerProvider).lastError,
+        contains('createSession failed'),
+      );
+
+      coreClient.failingOperations.clear();
+      controller.reopenClosedTab();
+
+      expect(container.read(sessionControllerProvider).tabs, hasLength(1));
+      expect(controller.canReopenClosedTab, isFalse);
+    },
+  );
 
   test('resizeActiveSession dedupes identical size requests', () {
     final coreBindings = FakePtyBackend();
@@ -2435,6 +2562,70 @@ void main() {
 
     expect(copied, isEmpty);
   });
+
+  test(
+    'OSC 52 copy events fail closed when local config loading fails',
+    () async {
+      final bindings = _EventfulPtyBackend(FakePtyBackend());
+      final coreClient = bindings;
+      String copied = '';
+
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(coreClient),
+          sessionClipboardCopyProvider.overrideWithValue((text) async {
+            copied = text;
+          }),
+          sessionControllerProvider.overrideWith(_TestSessionController.new),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _ThrowingLocalTerminalConfigRepository(),
+          ),
+          sessionPollingEnabledProvider.overrideWithValue(false),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final clipboardEvents = <terminal.TerminalSessionClipboardEvent>[];
+      final subscription = container
+          .read(terminalRuntimeControllerProvider)
+          .events
+          .where((event) => event is terminal.TerminalSessionClipboardEvent)
+          .cast<terminal.TerminalSessionClipboardEvent>()
+          .listen(clipboardEvents.add);
+      addTearDown(subscription.cancel);
+
+      final controller = container.read(sessionControllerProvider.notifier);
+      controller.createSession(
+        defaultTerminalProfile().copyWith(id: 'shell-1'),
+      );
+      final sessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      bindings.enqueueEvent(sessionId, {
+        'kind': 'clipboard_copy',
+        'session_id': int.parse(sessionId),
+        'payload': {
+          'selection': 'c',
+          'data': base64.encode(utf8.encode('blocked by config failure')),
+        },
+      });
+
+      controller.resizeActiveSession(const Size(640, 480), 1.0);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(copied, isEmpty);
+      expect(
+        clipboardEvents.single.decision,
+        terminal.TerminalClipboardDecision.blocked,
+      );
+    },
+  );
 
   test('OSC 52 paste requests reply with UTF-8 clipboard content', () async {
     final fakeBindings = FakePtyBackend();

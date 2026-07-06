@@ -170,6 +170,24 @@ class PtyGraphicAsset {
   final Uint8List rgba;
 }
 
+class PtyNativeCallException implements Exception {
+  const PtyNativeCallException({
+    required this.operation,
+    required this.sessionId,
+    required this.statusCode,
+  });
+
+  final String operation;
+  final String sessionId;
+  final int statusCode;
+
+  @override
+  String toString() {
+    return 'PtyNativeCallException: $operation failed for session '
+        '$sessionId with status $statusCode';
+  }
+}
+
 class PtyEvent {
   const PtyEvent({required this.kind, required this.sessionId, this.payload});
 
@@ -370,7 +388,9 @@ class NativePtyBindings implements PtyBindings {
   final _FreeStringDart _stringFree;
 
   factory NativePtyBindings.load() {
-    return NativePtyBindings(ffi.DynamicLibrary.open(_resolveLibraryPath()));
+    return NativePtyBindings(
+      ffi.DynamicLibrary.open(resolveNativePtyLibraryPath()),
+    );
   }
 
   @override
@@ -622,7 +642,12 @@ class NativePtyBackend
 
   @override
   void closeSession(String sessionId) {
-    _bindings.sessionClose(_nativeSessionId(sessionId));
+    final nativeSessionId = _nativeSessionId(sessionId);
+    _checkNativeStatus(
+      'closeSession',
+      sessionId,
+      _bindings.sessionClose(nativeSessionId),
+    );
   }
 
   @override
@@ -642,14 +667,18 @@ class NativePtyBackend
     final nativePixelHeight = _nativeUint16('pixelHeight', pixelHeight);
     final nativeCellWidth = _nativeUint16('cellWidth', cellWidth);
     final nativeCellHeight = _nativeUint16('cellHeight', cellHeight);
-    _bindings.sessionResize(
-      nativeSessionId,
-      nativeCols,
-      nativeRows,
-      nativePixelWidth,
-      nativePixelHeight,
-      nativeCellWidth,
-      nativeCellHeight,
+    _checkNativeStatus(
+      'resizeSession',
+      sessionId,
+      _bindings.sessionResize(
+        nativeSessionId,
+        nativeCols,
+        nativeRows,
+        nativePixelWidth,
+        nativePixelHeight,
+        nativeCellWidth,
+        nativeCellHeight,
+      ),
     );
   }
 
@@ -657,22 +686,34 @@ class NativePtyBackend
   void writeInput(String sessionId, List<int> bytes) {
     final nativeSessionId = _nativeSessionId(sessionId);
     _validateNativeBytes(bytes);
-    _bindings.sessionWrite(nativeSessionId, bytes);
+    _checkNativeStatus(
+      'writeInput',
+      sessionId,
+      _bindings.sessionWrite(nativeSessionId, bytes),
+    );
   }
 
   @override
   void scrollViewport(String sessionId, int deltaLines) {
-    _bindings.sessionScroll(
-      _nativeSessionId(sessionId),
-      _nativeInt32('deltaLines', deltaLines),
+    _checkNativeStatus(
+      'scrollViewport',
+      sessionId,
+      _bindings.sessionScroll(
+        _nativeSessionId(sessionId),
+        _nativeInt32('deltaLines', deltaLines),
+      ),
     );
   }
 
   @override
   void scrollViewportTo(String sessionId, int offset) {
-    _bindings.sessionScrollTo(
-      _nativeSessionId(sessionId),
-      _nativeNonNegativeOffset(offset),
+    _checkNativeStatus(
+      'scrollViewportTo',
+      sessionId,
+      _bindings.sessionScrollTo(
+        _nativeSessionId(sessionId),
+        _nativeNonNegativeOffset(offset),
+      ),
     );
   }
 
@@ -779,17 +820,34 @@ int _nativeNonNegativeOffset(int offset) {
   return offset;
 }
 
-String _resolveLibraryPath() {
-  final explicit = Platform.environment['IANVS_CORE_LIB'];
-  if (explicit != null && File(explicit).existsSync()) {
+void _checkNativeStatus(String operation, String sessionId, int statusCode) {
+  if (statusCode != 0) {
+    throw PtyNativeCallException(
+      operation: operation,
+      sessionId: sessionId,
+      statusCode: statusCode,
+    );
+  }
+}
+
+String resolveNativePtyLibraryPath({
+  Map<String, String>? environment,
+  Directory? executableDirectory,
+  bool isProduct = const bool.fromEnvironment('dart.vm.product'),
+}) {
+  final env = environment ?? Platform.environment;
+  final executableDir =
+      executableDirectory ?? File(Platform.resolvedExecutable).parent;
+  final explicit = env['IANVS_CORE_LIB'];
+  if (!isProduct && explicit != null && File(explicit).existsSync()) {
     return explicit;
   }
 
   final candidates = <String>[
-    '${executableDirectory.path}/../Frameworks/libianvs_core.dylib',
-    '${executableDirectory.path}/../Resources/libianvs_core.dylib',
-    '../native/core/target/debug/libianvs_core.dylib',
-    '../../native/core/target/debug/libianvs_core.dylib',
+    '${executableDir.path}/../Frameworks/libianvs_core.dylib',
+    '${executableDir.path}/../Resources/libianvs_core.dylib',
+    if (!isProduct) '../native/core/target/debug/libianvs_core.dylib',
+    if (!isProduct) '../../native/core/target/debug/libianvs_core.dylib',
   ];
 
   for (final candidate in candidates) {
@@ -799,19 +857,28 @@ String _resolveLibraryPath() {
     }
   }
 
-  var directory = executableDirectory;
-  for (var index = 0; index < 10; index += 1) {
-    final candidate = File(
-      '${directory.path}/../../../../../../../../native/core/target/debug/libianvs_core.dylib',
-    );
-    if (candidate.existsSync()) {
-      return candidate.absolute.path;
+  if (!isProduct) {
+    var directory = executableDir;
+    for (var index = 0; index < 10; index += 1) {
+      final candidate = File(
+        '${directory.path}/../../../../../../../../native/core/target/debug/libianvs_core.dylib',
+      );
+      if (candidate.existsSync()) {
+        return candidate.absolute.path;
+      }
+      directory = directory.parent;
     }
-    directory = directory.parent;
   }
 
+  final productOverrideNote = isProduct && explicit != null
+      ? ' IANVS_CORE_LIB is ignored in product builds.'
+      : '';
+  final debugOverrideHint = isProduct
+      ? ''
+      : ' Set IANVS_CORE_LIB to an absolute path.';
   throw StateError(
-    'Unable to locate libianvs_core.dylib. Set IANVS_CORE_LIB to an absolute path.',
+    'Unable to locate libianvs_core.dylib.$productOverrideNote'
+    '$debugOverrideHint',
   );
 }
 

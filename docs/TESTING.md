@@ -11,6 +11,17 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 ```
 
+Shell integration 改动的最小聚焦验证：
+
+```bash
+cd native/core
+cargo test shell_hook_integration
+cargo test diagnostics_export_reports_shell_integration_gate_status
+```
+
+这些测试覆盖 hook 注入、禁用/降级 reason，以及 diagnostics export 中
+`started.payload.shell_integration` 的可见状态。
+
 ```bash
 cd packages/ianvs_pty
 dart test
@@ -19,6 +30,13 @@ dart test
 ```bash
 cd packages/ianvs_terminal
 flutter test
+```
+
+Terminal frame diff wire schema/corpus 的聚焦验证：
+
+```bash
+cd packages/ianvs_terminal
+flutter test test/terminal_frame_diff_corpus_test.dart
 ```
 
 ```bash
@@ -161,9 +179,34 @@ terminal frame/event 通道，覆盖：
 ./tools/verify_flutter_terminal.sh
 ```
 
-这个脚本会先构建并验证 `native/core`，再跑 `packages/ianvs_pty`、`packages/ianvs_terminal`、`example` 的默认验证链路，并用 `grep` 守住 Phase 3 的单一 defaults 写入口约束。
+这个脚本会先构建并验证 `native/core`，再跑 `packages/ianvs_pty`、`packages/ianvs_terminal`、`example` 的默认验证链路，并用 `grep` 守住 Phase 3 的单一 defaults 写入口约束。`example` 默认跑 analyze 和模块化测试目录；历史较长的 `example/test/widget_test.dart` 需显式设置 `VERIFY_FLUTTER_TERMINAL_RUN_EXAMPLE_WIDGET_TESTS=1` 才会纳入。脚本还会执行 `tools/bench/configs/bench_ci_smoke.yaml`，用确定性 workload 检查 frame diff hash、schema gate、`p95_frame_build_micros`、`p95_json_decode_micros` 和 `p95_apply_frame_micros` 上限，并写出 `os_resource.ndjson` / `p95_process_cpu_percent` / `peak_process_rss_bytes` 作为 CPU/RSS 可观测基线。资源阈值可通过 benchmark config 的 `max_p95_process_cpu_percent` 和 `max_peak_process_rss_bytes` 打开；普通 smoke 默认只采样，不把宿主负载波动作为失败条件。
 脚本末尾会顺序执行 macOS smoke 与 real PTY acceptance，覆盖启动级 UI
 路径和真实 `NativePtyBackend` / shell frame-event 路径。
+
+夜间或安静宿主资源门禁可以在同一脚本里显式打开：
+
+```bash
+VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH=1 ./tools/verify_flutter_terminal.sh
+```
+
+这会额外运行 `tools/bench/configs/bench_nightly_resource.yaml`。该配置覆盖
+`idle.quiet`、持续输出、scrollback-heavy 和 resize churn workload，并启用
+`max_p95_process_cpu_percent` / `max_peak_process_rss_bytes` 资源阈值。它适合作为
+nightly/quiet-host gate；跨机器可比的长期基线仍需要单独记录宿主信息和历史结果。
+
+需要在非 GUI CI 或快速本地验证中跳过 macOS integration 时：
+
+```bash
+VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION=1 ./tools/verify_flutter_terminal.sh
+```
+
+这个模式仍会跑 Rust、Dart/Flutter package、example 模块化单测/analyze、Phase 3 grep gate 和 benchmark CI smoke，只跳过 `flutter test -d macos integration_test/...` 两条真实 app integration gate。Kitty POSIX shared memory 专项 Rust 测试在受限宿主上会明确打印 skip；夜间或真机验证若必须证明该路径，请设置 `IANVS_REQUIRE_POSIX_SHM_TESTS=1`，让宿主不支持 `shm_open` 时直接失败。若要把 legacy example widget 长跑也纳入同一次本地验证，可以额外设置：
+
+```bash
+VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION=1 \
+VERIFY_FLUTTER_TERMINAL_RUN_EXAMPLE_WIDGET_TESTS=1 \
+./tools/verify_flutter_terminal.sh
+```
 
 ## 按边界挑命令
 

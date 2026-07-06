@@ -33,10 +33,20 @@ final class BenchGates {
   const BenchGates({
     this.requireHashMatch = false,
     this.requireSchemaValid = false,
+    this.maxP95FrameBuildMicros,
+    this.maxP95JsonDecodeMicros,
+    this.maxP95ApplyFrameMicros,
+    this.maxP95ProcessCpuPercent,
+    this.maxPeakProcessRssBytes,
   });
 
   final bool requireHashMatch;
   final bool requireSchemaValid;
+  final int? maxP95FrameBuildMicros;
+  final int? maxP95JsonDecodeMicros;
+  final int? maxP95ApplyFrameMicros;
+  final num? maxP95ProcessCpuPercent;
+  final int? maxPeakProcessRssBytes;
 }
 
 final class BenchConfig {
@@ -101,6 +111,21 @@ final class BenchConfig {
           gates['require_schema_valid'],
           fallback: false,
         ),
+        maxP95FrameBuildMicros: _positiveIntValue(
+          gates['max_p95_frame_build_micros'],
+        ),
+        maxP95JsonDecodeMicros: _positiveIntValue(
+          gates['max_p95_json_decode_micros'],
+        ),
+        maxP95ApplyFrameMicros: _positiveIntValue(
+          gates['max_p95_apply_frame_micros'],
+        ),
+        maxP95ProcessCpuPercent: _positiveNumValue(
+          gates['max_p95_process_cpu_percent'],
+        ),
+        maxPeakProcessRssBytes: _positiveIntValue(
+          gates['max_peak_process_rss_bytes'],
+        ),
       ),
     );
   }
@@ -135,6 +160,16 @@ final class BenchConfig {
       'gates': <String, Object?>{
         'require_hash_match': gates.requireHashMatch,
         'require_schema_valid': gates.requireSchemaValid,
+        if (gates.maxP95FrameBuildMicros != null)
+          'max_p95_frame_build_micros': gates.maxP95FrameBuildMicros,
+        if (gates.maxP95JsonDecodeMicros != null)
+          'max_p95_json_decode_micros': gates.maxP95JsonDecodeMicros,
+        if (gates.maxP95ApplyFrameMicros != null)
+          'max_p95_apply_frame_micros': gates.maxP95ApplyFrameMicros,
+        if (gates.maxP95ProcessCpuPercent != null)
+          'max_p95_process_cpu_percent': gates.maxP95ProcessCpuPercent,
+        if (gates.maxPeakProcessRssBytes != null)
+          'max_peak_process_rss_bytes': gates.maxPeakProcessRssBytes,
       },
     });
   }
@@ -168,6 +203,32 @@ int? _intValue(Object? value) {
   }
   if (value is String) {
     return int.tryParse(value);
+  }
+  return null;
+}
+
+int? _positiveIntValue(Object? value) {
+  final parsed = _intValue(value);
+  if (parsed == null || parsed <= 0) {
+    return null;
+  }
+  return parsed;
+}
+
+num? _positiveNumValue(Object? value) {
+  final parsed = _numValue(value);
+  if (parsed == null || parsed <= 0 || !parsed.isFinite) {
+    return null;
+  }
+  return parsed;
+}
+
+num? _numValue(Object? value) {
+  if (value is num) {
+    return value;
+  }
+  if (value is String) {
+    return num.tryParse(value);
   }
   return null;
 }

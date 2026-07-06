@@ -6244,6 +6244,43 @@ void main() {
   );
 
   testWidgets(
+    'shell search closes on Escape without terminal input',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openShellSearch(tester);
+      await tester.enterText(
+        find.byKey(const Key('terminal-search-field')),
+        'needle',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('terminal-search-bar')), findsOneWidget);
+      expect(fakeBindings.writes, isEmpty);
+
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.escape,
+        platform: 'macos',
+      );
+      await tester.pumpAndSettle();
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.escape, platform: 'macos');
+      await tester.pump();
+
+      expect(find.byKey(const Key('terminal-search-bar')), findsNothing);
+      expect(fakeBindings.writes, isEmpty);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
     'shell search keeps vertical padding balanced',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -6560,6 +6597,38 @@ void main() {
 
       expect(find.text('1/2'), findsOneWidget);
       expect(fakeBindings.scrollToCalls.last, [1, 3]);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'shell search overlay stays inside active split pane',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _tapTabContextMenuAction(tester, 'Split right');
+      final activePaneRect = tester.getRect(
+        find.byKey(const Key('shell-pane-2')),
+      );
+
+      await _openShellSearch(tester);
+      final searchRect = tester.getRect(
+        find.byKey(const Key('terminal-search-bar')),
+      );
+
+      expect(searchRect.left, greaterThanOrEqualTo(activePaneRect.left));
+      expect(searchRect.right, lessThanOrEqualTo(activePaneRect.right));
+      expect(searchRect.top, greaterThanOrEqualTo(activePaneRect.top));
+      expect(searchRect.bottom, lessThanOrEqualTo(activePaneRect.bottom));
+      expect(fakeBindings.writes, isEmpty);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );

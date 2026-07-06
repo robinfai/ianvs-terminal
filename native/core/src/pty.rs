@@ -16,6 +16,7 @@ pub struct PtyRuntime {
     pub writer: Box<dyn Write + Send>,
     pub child: Box<dyn portable_pty::Child + Send + Sync>,
     pub child_pid: Option<u32>,
+    pub(crate) shell_integration: ShellIntegrationPlanStatus,
     pub(crate) shell_integration_proxy: Option<ShellIntegrationProxy>,
 }
 
@@ -44,7 +45,64 @@ struct CommandPlan {
     args: Vec<String>,
     env: BTreeMap<String, String>,
     cwd: Option<String>,
+    shell_integration: ShellIntegrationPlanStatus,
     shell_integration_proxy: Option<ShellIntegrationProxy>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct ShellIntegrationPlanStatus {
+    pub status: String,
+    pub reason: String,
+    pub kind: Option<String>,
+    pub error: Option<String>,
+}
+
+impl ShellIntegrationPlanStatus {
+    fn applied(kind: ShellIntegrationKind) -> Self {
+        Self {
+            status: "enabled".to_string(),
+            reason: "applied".to_string(),
+            kind: Some(kind.as_str().to_string()),
+            error: None,
+        }
+    }
+
+    fn disabled(reason: &str) -> Self {
+        Self {
+            status: "disabled".to_string(),
+            reason: reason.to_string(),
+            kind: None,
+            error: None,
+        }
+    }
+
+    fn degraded(reason: &str, kind: Option<ShellIntegrationKind>, error: Option<String>) -> Self {
+        Self {
+            status: "degraded".to_string(),
+            reason: reason.to_string(),
+            kind: kind.map(|kind| kind.as_str().to_string()),
+            error,
+        }
+    }
+
+    pub(crate) fn to_diagnostic_json(&self) -> serde_json::Value {
+        let mut payload = serde_json::json!({
+            "status": self.status,
+            "reason": self.reason,
+        });
+        if let serde_json::Value::Object(fields) = &mut payload {
+            if let Some(kind) = &self.kind {
+                fields.insert("kind".to_string(), serde_json::Value::String(kind.clone()));
+            }
+            if let Some(error) = &self.error {
+                fields.insert(
+                    "error".to_string(),
+                    serde_json::Value::String(error.clone()),
+                );
+            }
+        }
+        payload
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -64,6 +122,14 @@ impl ShellIntegrationKind {
             Some("bash") => Some(Self::Bash),
             Some("fish") => Some(Self::Fish),
             _ => None,
+        }
+    }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Zsh => "zsh",
+            Self::Bash => "bash",
+            Self::Fish => "fish",
         }
     }
 
@@ -119,6 +185,7 @@ pub fn spawn_pty(profile: &TerminalProfile, rows: u16, cols: u16) -> anyhow::Res
         writer,
         child,
         child_pid,
+        shell_integration: plan.shell_integration,
         shell_integration_proxy: plan.shell_integration_proxy,
     })
 }
@@ -143,17 +210,29 @@ where
     let mut env = profile.launch.env.clone();
     let mut args = profile.launch.args.clone();
     let mut shell_integration_proxy = None;
-
-    if let Some(kind) = shell_integration_kind(profile, &program)
-        && let Ok(proxy) = create_proxy(kind, profile, &program)
-    {
-        match kind {
-            ShellIntegrationKind::Zsh => apply_zsh_shell_integration(&mut env, &proxy),
-            ShellIntegrationKind::Bash => apply_bash_shell_integration(&mut args, &mut env, &proxy),
-            ShellIntegrationKind::Fish => apply_fish_shell_integration(&mut args, &mut env, &proxy),
-        }
-        shell_integration_proxy = Some(proxy);
-    }
+    let shell_integration = match shell_integration_candidate(profile, &program) {
+        Ok(kind) => match create_proxy(kind, profile, &program) {
+            Ok(proxy) => {
+                match kind {
+                    ShellIntegrationKind::Zsh => apply_zsh_shell_integration(&mut env, &proxy),
+                    ShellIntegrationKind::Bash => {
+                        apply_bash_shell_integration(&mut args, &mut env, &proxy)
+                    }
+                    ShellIntegrationKind::Fish => {
+                        apply_fish_shell_integration(&mut args, &mut env, &proxy)
+                    }
+                }
+                shell_integration_proxy = Some(proxy);
+                ShellIntegrationPlanStatus::applied(kind)
+            }
+            Err(error) => ShellIntegrationPlanStatus::degraded(
+                "proxy_creation_failed",
+                Some(kind),
+                Some(error.to_string()),
+            ),
+        },
+        Err(status) => status,
+    };
     apply_graphics_advertisement(profile, &mut env);
 
     CommandPlan {
@@ -161,6 +240,7 @@ where
         args,
         env,
         cwd: profile.launch.cwd.clone(),
+        shell_integration,
         shell_integration_proxy,
     }
 }
@@ -185,22 +265,49 @@ fn should_advertise_kitty_graphics(advertise: &str) -> bool {
     )
 }
 
-fn shell_integration_kind(
+fn shell_integration_candidate(
     profile: &TerminalProfile,
     program: &str,
-) -> Option<ShellIntegrationKind> {
-    if !supports_unix_shell_integration()
-        || !profile.shell_integration.enabled
-        || profile.terminal.emulation != TerminalEmulation::Xterm256
-        || !shell_hook_helpers_available(&profile.launch.env)
-    {
-        return None;
+) -> Result<ShellIntegrationKind, ShellIntegrationPlanStatus> {
+    if !supports_unix_shell_integration() {
+        return Err(ShellIntegrationPlanStatus::degraded(
+            "unsupported_platform",
+            None,
+            None,
+        ));
     }
-    let kind = ShellIntegrationKind::from_program(program)?;
+    if !profile.shell_integration.enabled {
+        return Err(ShellIntegrationPlanStatus::disabled("disabled_by_profile"));
+    }
+    if profile.terminal.emulation != TerminalEmulation::Xterm256 {
+        return Err(ShellIntegrationPlanStatus::degraded(
+            "unsupported_emulation",
+            None,
+            None,
+        ));
+    }
+    let Some(kind) = ShellIntegrationKind::from_program(program) else {
+        return Err(ShellIntegrationPlanStatus::degraded(
+            "unsupported_shell",
+            None,
+            None,
+        ));
+    };
     if !shell_integration_args_supported(kind, &profile.launch.args) {
-        return None;
+        return Err(ShellIntegrationPlanStatus::degraded(
+            "unsupported_args",
+            Some(kind),
+            None,
+        ));
     }
-    Some(kind)
+    if !shell_hook_helpers_available(&profile.launch.env) {
+        return Err(ShellIntegrationPlanStatus::degraded(
+            "helpers_missing",
+            Some(kind),
+            None,
+        ));
+    }
+    Ok(kind)
 }
 
 fn shell_integration_args_supported(kind: ShellIntegrationKind, args: &[String]) -> bool {
@@ -1038,6 +1145,8 @@ mod tests {
             assert!(plan.args.is_empty());
             assert_eq!(plan.env, expected_launch_env_with_graphics(&profile));
             assert!(plan.shell_integration_proxy.is_none());
+            assert_eq!(plan.shell_integration.status, "disabled");
+            assert_eq!(plan.shell_integration.reason, "disabled_by_profile");
         }
     }
 
@@ -1094,6 +1203,11 @@ mod tests {
             assert_eq!(plan.args, profile.launch.args);
             assert_eq!(plan.env, expected_launch_env_with_graphics(&profile));
             assert!(plan.shell_integration_proxy.is_none());
+            assert_eq!(plan.shell_integration.status, "degraded");
+            assert!(matches!(
+                plan.shell_integration.reason.as_str(),
+                "unsupported_args" | "unsupported_emulation"
+            ));
         }
     }
 
@@ -1114,6 +1228,8 @@ mod tests {
             assert!(plan.args.is_empty());
             assert_eq!(plan.env, expected_launch_env_with_graphics(&profile));
             assert!(plan.shell_integration_proxy.is_none());
+            assert_eq!(plan.shell_integration.status, "degraded");
+            assert_eq!(plan.shell_integration.reason, "helpers_missing");
         }
     }
 
@@ -1134,6 +1250,12 @@ mod tests {
             assert!(plan.args.is_empty());
             assert_eq!(plan.env, expected_launch_env_with_graphics(&profile));
             assert!(plan.shell_integration_proxy.is_none());
+            assert_eq!(plan.shell_integration.status, "degraded");
+            assert_eq!(plan.shell_integration.reason, "proxy_creation_failed");
+            assert_eq!(
+                plan.shell_integration.error.as_deref(),
+                Some("forced proxy failure")
+            );
         }
     }
 }

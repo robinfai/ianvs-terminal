@@ -21,7 +21,10 @@ collectors:
   dart_runtime: true
   flutter_render: false
   flutter_frame_timing: false
-  os_resource: false
+  os_resource: true
 gates:
   require_hash_match: true
   require_schema_valid: true
+  max_p95_frame_build_micros: 500
+  max_p95_json_decode_micros: 100
+  max_p95_apply_frame_micros: 100

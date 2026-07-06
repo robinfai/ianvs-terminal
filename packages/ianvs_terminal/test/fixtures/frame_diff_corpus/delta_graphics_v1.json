@@ -1,0 +1,74 @@
+{
+  "description": "A delta frame carrying a row update and one Kitty graphic placement.",
+  "frame": {
+    "frame_schema_version": "terminal-frame-diff-v1",
+    "frame_kind": "delta",
+    "rows": [
+      {
+        "index": 2,
+        "text": "image ready",
+        "wrapped": false
+      }
+    ],
+    "cursor": {
+      "row": 2,
+      "col": 11,
+      "visible": true
+    },
+    "viewport_rows": 4,
+    "viewport_cols": 100,
+    "dirty_ranges": [
+      {
+        "start": 2,
+        "end": 3
+      }
+    ],
+    "scrollback_offset": 1,
+    "scrollback_max_offset": 2,
+    "viewport_start_row": 10,
+    "viewport_row_shift": -1,
+    "modes": {
+      "alternate_screen": true,
+      "bracketed_paste": true,
+      "mouse_mode": "sgr",
+      "mouse_encoding": "pixels",
+      "kitty_keyboard_flags": 7
+    },
+    "graphics": [
+      {
+        "render_id": 101,
+        "placement_id": 55,
+        "asset_id": 7,
+        "asset_version": 3,
+        "protocol": "kitty",
+        "row": 2,
+        "col": 4,
+        "width_px": 80,
+        "height_px": 40,
+        "width_cells": 8,
+        "height_cells": 2,
+        "source_x_offset_px": 0,
+        "source_y_offset_px": 0,
+        "visible_width_px": 80,
+        "visible_height_px": 40,
+        "z_index": 1
+      }
+    ]
+  },
+  "expected": {
+    "frame_schema_version": "terminal-frame-diff-v1",
+    "frame_kind": "delta",
+    "viewport_rows": 4,
+    "viewport_cols": 100,
+    "row_texts": [
+      "image ready"
+    ],
+    "dirty_ranges": [
+      [
+        2,
+        3
+      ]
+    ],
+    "graphics_count": 1
+  }
+}

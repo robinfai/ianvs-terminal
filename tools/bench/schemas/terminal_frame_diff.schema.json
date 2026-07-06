@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ianvs Terminal Frame Diff Wire Payload",
+  "type": "object",
+  "required": [
+    "frame_schema_version",
+    "frame_kind",
+    "rows",
+    "cursor",
+    "viewport_rows",
+    "viewport_cols",
+    "dirty_ranges",
+    "scrollback_offset",
+    "scrollback_max_offset"
+  ],
+  "properties": {
+    "frame_schema_version": {
+      "const": "terminal-frame-diff-v1"
+    },
+    "frame_kind": {
+      "enum": [
+        "snapshot",
+        "delta"
+      ]
+    },
+    "rows": {
+      "type": "array"
+    },
+    "cursor": {
+      "type": "object"
+    },
+    "viewport_rows": {
+      "type": "integer"
+    },
+    "viewport_cols": {
+      "type": "integer"
+    },
+    "dirty_ranges": {
+      "type": "array"
+    },
+    "scrollback_offset": {
+      "type": "integer"
+    },
+    "scrollback_max_offset": {
+      "type": "integer"
+    },
+    "viewport_start_row": {
+      "type": "integer"
+    },
+    "viewport_row_shift": {
+      "type": "integer"
+    },
+    "modes": {
+      "type": "object"
+    },
+    "hyperlinks": {
+      "type": "array"
+    },
+    "graphics": {
+      "type": "array"
+    }
+  },
+  "additionalProperties": true
+}

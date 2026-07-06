@@ -1993,6 +1993,49 @@ void main() {
     ]);
   });
 
+  test('terminal runtime reports graphic asset load failures', () async {
+    final runtimeBackend = _FakePtyBackend();
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+
+    final backendErrors = <TerminalSessionBackendErrorEvent>[];
+    final backendErrorSubscription = runtime.events
+        .where((event) => event is TerminalSessionBackendErrorEvent)
+        .cast<TerminalSessionBackendErrorEvent>()
+        .listen(backendErrors.add);
+    addTearDown(backendErrorSubscription.cancel);
+
+    runtimeBackend.failingOperations.add('loadGraphicAsset');
+
+    final asset = await runtime.loadGraphicAsset(
+      sessionId,
+      const TerminalGraphicAssetKey(id: 7, version: 3),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(asset, isNull);
+    expect(backendErrors.map((event) => event.operation), <String>[
+      'loadGraphicAsset',
+    ]);
+    expect(
+      backendErrors.single.error.toString(),
+      contains('loadGraphicAsset failed'),
+    );
+
+    runtimeBackend.failingOperations.clear();
+  });
+
   test(
     'terminal runtime keeps graphics caches isolated across panes',
     () async {
@@ -2509,6 +2552,48 @@ void main() {
   });
 
   testWidgets(
+    'terminal runtime controller expands idle polling backoff until activity',
+    (tester) async {
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+      );
+      try {
+        final sessionId = runtime.createSession(
+          const TerminalSessionConfig(
+            launch: TerminalLaunchConfig(program: '/bin/sh'),
+          ),
+        );
+        final viewport = runtime.viewportFor(sessionId);
+        runtimeBackend.clearFrame(sessionId);
+
+        await tester.pump(const Duration(milliseconds: 34));
+        await tester.pump(const Duration(milliseconds: 34));
+        expect(runtimeBackend.takeFrameDiffCalls, 3);
+
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(runtimeBackend.takeFrameDiffCalls, 3);
+
+        await tester.pump(const Duration(milliseconds: 34));
+        expect(runtimeBackend.takeFrameDiffCalls, 4);
+
+        await tester.pump(const Duration(milliseconds: 199));
+        expect(runtimeBackend.takeFrameDiffCalls, 4);
+
+        runtimeBackend.setFrame(sessionId, _singleRowSnapshot('wake'));
+        runtime.sendInput(sessionId, Uint8List.fromList(const [0x41]));
+
+        expect(runtimeBackend.takeFrameDiffCalls, 5);
+        expect(viewport.frame.rows.first.text, 'wake');
+      } finally {
+        runtime.dispose();
+      }
+    },
+  );
+
+  testWidgets(
     'terminal runtime keeps synchronized output null frames hidden until final polling frame',
     (tester) async {
       final runtimeBackend = _FakePtyBackend();
@@ -2856,6 +2941,228 @@ void main() {
     expect(inputEvents, isEmpty);
     expect(resizeEvents, isEmpty);
   });
+
+  testWidgets(
+    'terminal runtime controller emits backend error events instead of success signals',
+    (tester) async {
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+
+      final backendErrors = <TerminalSessionBackendErrorEvent>[];
+      final inputEvents = <TerminalSessionInputEvent>[];
+      final resizeEvents = <TerminalSessionResizeEvent>[];
+      final backendErrorSubscription = runtime.events
+          .where((event) => event is TerminalSessionBackendErrorEvent)
+          .cast<TerminalSessionBackendErrorEvent>()
+          .listen(backendErrors.add);
+      final inputSubscription = runtime.inputEvents.listen(inputEvents.add);
+      final resizeSubscription = runtime.resizeEvents.listen(resizeEvents.add);
+      addTearDown(backendErrorSubscription.cancel);
+      addTearDown(inputSubscription.cancel);
+      addTearDown(resizeSubscription.cancel);
+
+      runtimeBackend.failingOperations.addAll(<String>{
+        'writeInput',
+        'scrollViewport',
+        'scrollViewportTo',
+        'resizeSession',
+        'closeSession',
+      });
+
+      runtime.sendInput(sessionId, Uint8List.fromList(const <int>[0x41]));
+      runtime.scrollViewport(sessionId, 1);
+      runtime.scrollViewportTo(sessionId, 2);
+      runtime.resizeSession(sessionId, const Size(180, 144), 1);
+      runtime.closeSession(sessionId);
+      await tester.pump();
+
+      expect(backendErrors.map((event) => event.operation), <String>[
+        'writeInput',
+        'scrollViewport',
+        'scrollViewportTo',
+        'resizeSession',
+        'closeSession',
+      ]);
+      expect(inputEvents, isEmpty);
+      expect(resizeEvents, isEmpty);
+      expect(runtime.hasSession(sessionId), isTrue);
+      expect(
+        backendErrors.every(
+          (event) => event.error.toString().contains('failed'),
+        ),
+        isTrue,
+      );
+      runtimeBackend.failingOperations.clear();
+    },
+  );
+
+  testWidgets(
+    'terminal runtime controller reports close failures during dispose',
+    (tester) async {
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+
+      final backendErrors = <TerminalSessionBackendErrorEvent>[];
+      final backendErrorSubscription = runtime.events
+          .where((event) => event is TerminalSessionBackendErrorEvent)
+          .cast<TerminalSessionBackendErrorEvent>()
+          .listen(backendErrors.add);
+      addTearDown(backendErrorSubscription.cancel);
+
+      runtimeBackend.failingOperations.add('closeSession');
+
+      expect(runtime.dispose, returnsNormally);
+      await tester.pump();
+
+      expect(runtime.hasSession(sessionId), isFalse);
+      expect(backendErrors.map((event) => event.operation), <String>[
+        'closeSession',
+      ]);
+      expect(
+        backendErrors.single.error.toString(),
+        contains('closeSession failed'),
+      );
+
+      runtimeBackend.failingOperations.clear();
+    },
+  );
+
+  testWidgets(
+    'terminal runtime controller emits backend error events for JSON requests',
+    (tester) async {
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+
+      final backendErrors = <TerminalSessionBackendErrorEvent>[];
+      final backendErrorSubscription = runtime.events
+          .where((event) => event is TerminalSessionBackendErrorEvent)
+          .cast<TerminalSessionBackendErrorEvent>()
+          .listen(backendErrors.add);
+      addTearDown(backendErrorSubscription.cancel);
+
+      runtimeBackend.failingOperations.add('requestSessionJson');
+
+      final selectionText = runtime.selectionText(
+        sessionId,
+        const TerminalSelection(startRow: 0, startCol: 0, endRow: 0, endCol: 4),
+        block: false,
+      );
+      final searchResult = runtime.searchTextResult(sessionId, 'demo');
+      final clearResult = runtime.clearScrollback(sessionId);
+      final exportText = runtime.exportScrollbackText(sessionId);
+      final diagnostics = runtime.exportSessionDiagnostics(sessionId);
+      await tester.pump();
+
+      expect(selectionText, 'demo');
+      expect(searchResult.matches, isEmpty);
+      expect(clearResult, isFalse);
+      expect(exportText, isNull);
+      expect(diagnostics, isNull);
+      expect(backendErrors.map((event) => event.operation), <String>[
+        'terminal.selection_text',
+        'terminal.search_text',
+        'terminal.clear_scrollback',
+        'terminal.export_scrollback',
+        'terminal.export_diagnostics',
+      ]);
+      expect(
+        backendErrors.every(
+          (event) =>
+              event.error.toString().contains('requestSessionJson failed'),
+        ),
+        isTrue,
+      );
+
+      runtimeBackend.failingOperations.clear();
+    },
+  );
+
+  testWidgets(
+    'terminal runtime controller emits backend error events for refresh reads',
+    (tester) async {
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+
+      final backendErrors = <TerminalSessionBackendErrorEvent>[];
+      final backendErrorSubscription = runtime.events
+          .where((event) => event is TerminalSessionBackendErrorEvent)
+          .cast<TerminalSessionBackendErrorEvent>()
+          .listen(backendErrors.add);
+      addTearDown(backendErrorSubscription.cancel);
+
+      runtimeBackend.failingOperations.addAll(<String>{
+        'takeFrameDiffJson',
+        'pollEvents',
+      });
+
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+
+      expect(backendErrors.map((event) => event.operation), <String>[
+        'takeFrameDiffJson',
+        'pollEvents',
+      ]);
+      expect(
+        backendErrors.every(
+          (event) => event.error.toString().contains('failed'),
+        ),
+        isTrue,
+      );
+
+      runtimeBackend.failingOperations.clear();
+    },
+  );
 
   testWidgets('terminal runtime controller emits typed shell hook events', (
     tester,
@@ -4244,6 +4551,7 @@ void main() {
         backend: runtimeBackend,
         copyToClipboard: (_) => copyCompleter.future,
         readClipboard: () async => '',
+        allowClipboardCopy: () async => true,
         enableSessionPolling: false,
       );
       addTearDown(runtime.dispose);
@@ -4301,6 +4609,7 @@ void main() {
         backend: runtimeBackend,
         copyToClipboard: (_) => copyCompleter.future,
         readClipboard: () async => '',
+        allowClipboardCopy: () async => true,
         enableSessionPolling: false,
       );
       addTearDown(runtime.dispose);
@@ -4429,6 +4738,7 @@ void main() {
         backend: runtimeBackend,
         copyToClipboard: (_) => copyCompleter.future,
         readClipboard: () async => '',
+        allowClipboardCopy: () async => true,
         enableSessionPolling: false,
       );
       addTearDown(runtime.dispose);
@@ -4478,6 +4788,7 @@ void main() {
         backend: runtimeBackend,
         copyToClipboard: (_) async {},
         readClipboard: () => readClipboardCompleter.future,
+        allowClipboardPasteRequest: () async => true,
         enableSessionPolling: false,
       );
       addTearDown(runtime.dispose);
@@ -4611,6 +4922,7 @@ void main() {
           copiedTexts.add(text);
         },
         readClipboard: () async => '',
+        allowClipboardCopy: () async => true,
         enableSessionPolling: false,
       );
       addTearDown(runtime.dispose);
@@ -4721,6 +5033,122 @@ void main() {
     expect(clipboardEvent.textPreview, 'blocked');
   });
 
+  testWidgets(
+    'terminal runtime controller accepts an explicit clipboard policy adapter',
+    (tester) async {
+      final copiedTexts = <String>[];
+      final seenRequests = <TerminalClipboardAccessRequest>[];
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController.withClipboardPolicy(
+        backend: runtimeBackend,
+        copyToClipboard: (text) async {
+          copiedTexts.add(text);
+        },
+        readClipboard: () async => '',
+        clipboardPolicy: TerminalClipboardPolicyAdapter(
+          allowClipboardCopyWithContext: (request) async {
+            seenRequests.add(request);
+            return request.textPreview == 'adapter copy';
+          },
+        ),
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_copy',
+          sessionId: sessionId,
+          payload: <String, Object?>{
+            'data': base64.encode(utf8.encode('adapter copy')),
+          },
+        ),
+      );
+
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+
+      expect(copiedTexts, <String>['adapter copy']);
+      expect(seenRequests.single.operation, TerminalClipboardOperation.copy);
+      expect(seenRequests.single.sessionId, sessionId);
+    },
+  );
+
+  testWidgets(
+    'terminal runtime controller blocks OSC 52 access without an explicit policy',
+    (tester) async {
+      final copiedTexts = <String>[];
+      var readClipboardCount = 0;
+      final seenEvents = <TerminalSessionEvent>[];
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (text) async {
+          copiedTexts.add(text);
+        },
+        readClipboard: () async {
+          readClipboardCount += 1;
+          return 'paste me';
+        },
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final subscription = runtime.events.listen(seenEvents.add);
+      addTearDown(subscription.cancel);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_copy',
+          sessionId: sessionId,
+          payload: <String, Object?>{
+            'data': base64.encode(utf8.encode('implicit copy')),
+          },
+        ),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_paste_request',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'selection': 'c'},
+        ),
+      );
+
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+
+      expect(copiedTexts, isEmpty);
+      expect(readClipboardCount, 0);
+      final clipboardEvents = seenEvents
+          .whereType<TerminalSessionClipboardEvent>()
+          .toList();
+      expect(
+        clipboardEvents.map((event) => event.decision),
+        <TerminalClipboardDecision>[
+          TerminalClipboardDecision.blocked,
+          TerminalClipboardDecision.blocked,
+        ],
+      );
+      expect(clipboardEvents.first.operation, TerminalClipboardOperation.copy);
+      expect(
+        clipboardEvents.last.operation,
+        TerminalClipboardOperation.pasteRequest,
+      );
+    },
+  );
+
   testWidgets('terminal runtime controller reports malformed OSC 52 UTF-8', (
     tester,
   ) async {
@@ -4826,6 +5254,7 @@ void main() {
           readClipboardCount += 1;
           return ''.padRight(4 * 1024 * 1024 + 1, 'a');
         },
+        allowClipboardPasteRequest: () async => true,
         enableSessionPolling: false,
       );
       addTearDown(runtime.dispose);
@@ -4872,6 +5301,8 @@ void main() {
           copiedTexts.add(text);
         },
         readClipboard: () async => 'paste me',
+        allowClipboardCopy: () async => true,
+        allowClipboardPasteRequest: () async => true,
         enableSessionPolling: false,
       );
       addTearDown(runtime.dispose);
@@ -5274,6 +5705,8 @@ void main() {
           copiedText = text;
         },
         readClipboard: () async => 'paste me',
+        allowClipboardCopy: () async => true,
+        allowClipboardPasteRequest: () async => true,
         resizeWindowBy:
             ({required double widthDelta, required double heightDelta}) async {
               resizeWidthDelta = widthDelta;
@@ -5435,6 +5868,7 @@ class _FakePtyBackend
   final List<(String, int)> scrollToCalls = <(String, int)>[];
   final List<(String, int, int)> graphicAssetRequests = <(String, int, int)>[];
   final List<Map<String, Object?>> jsonRequests = <Map<String, Object?>>[];
+  final Set<String> failingOperations = <String>{};
   final Map<(int, int), PtyGraphicAsset> graphicAssets =
       <(int, int), PtyGraphicAsset>{};
   List<Map<String, Object?>> searchResponse = const <Map<String, Object?>>[];
@@ -5514,6 +5948,7 @@ class _FakePtyBackend
 
   @override
   void closeSession(String sessionId) {
+    _throwIfFailing('closeSession');
     closeCalls.add(sessionId);
     _frames.remove(sessionId);
     _queuedFrames.remove(sessionId);
@@ -5531,6 +5966,7 @@ class _FakePtyBackend
     int cellWidth = 0,
     int cellHeight = 0,
   }) {
+    _throwIfFailing('resizeSession');
     resizeCalls.add(<Object?>[
       sessionId,
       cols,
@@ -5549,16 +5985,19 @@ class _FakePtyBackend
 
   @override
   void writeInput(String sessionId, List<int> bytes) {
+    _throwIfFailing('writeInput');
     writeCalls.add(Uint8List.fromList(bytes));
   }
 
   @override
   void scrollViewport(String sessionId, int deltaLines) {
+    _throwIfFailing('scrollViewport');
     scrollCalls.add((sessionId, deltaLines));
   }
 
   @override
   void scrollViewportTo(String sessionId, int offset) {
+    _throwIfFailing('scrollViewportTo');
     scrollToCalls.add((sessionId, offset));
   }
 
@@ -5566,6 +6005,7 @@ class _FakePtyBackend
   String? requestSessionJson(String sessionId, String requestJson) {
     final request = (jsonDecode(requestJson) as Map).cast<String, Object?>();
     jsonRequests.add(request);
+    _throwIfFailing('requestSessionJson');
     if (returnNullJsonRequests) {
       return null;
     }
@@ -5593,6 +6033,7 @@ class _FakePtyBackend
 
   @override
   String? takeFrameDiffJson(String sessionId) {
+    _throwIfFailing('takeFrameDiffJson');
     takeFrameDiffCalls += 1;
     final queuedRawFrames = _queuedRawFrames[sessionId];
     if (queuedRawFrames != null && queuedRawFrames.isNotEmpty) {
@@ -5608,6 +6049,7 @@ class _FakePtyBackend
 
   @override
   List<PtyEvent> pollEvents(String sessionId) {
+    _throwIfFailing('pollEvents');
     pollEventsCalls += 1;
     return _queuedEvents.remove(sessionId) ?? const <PtyEvent>[];
   }
@@ -5618,8 +6060,15 @@ class _FakePtyBackend
     required int assetId,
     required int assetVersion,
   }) {
+    _throwIfFailing('loadGraphicAsset');
     graphicAssetRequests.add((sessionId, assetId, assetVersion));
     return graphicAssets[(assetId, assetVersion)];
+  }
+
+  void _throwIfFailing(String operation) {
+    if (failingOperations.contains(operation)) {
+      throw StateError('$operation failed');
+    }
   }
 }
 

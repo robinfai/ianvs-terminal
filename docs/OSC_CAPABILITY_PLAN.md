@@ -96,7 +96,8 @@ Acceptance:
 - Invalid base64 payloads are ignored.
 - Empty clipboard payloads preserve the intended empty-copy behavior.
 - Paste requests reply only when policy permits reading local clipboard data.
-- Manual acceptance must include a visible clipboard-copy and paste-request flow.
+- Flutter UI regression tests must cover visible clipboard-copy feedback and
+  paste-request prompts before any desktop smoke is treated as evidence.
 
 ## P2/P3 Implementation Baseline
 
@@ -371,7 +372,13 @@ cargo test --manifest-path native/core/Cargo.toml --test session_test clipboard
 cd packages/ianvs_terminal && flutter test test/terminal_runtime_controller_test.dart --plain-name "cursor"
 cd example && flutter test test/terminal/render_terminal_viewport_test.dart --plain-name "backend cursor color"
 cd example && flutter test test/terminal/render_terminal_viewport_test.dart --plain-name "OSC 8 hyperlink"
+cd example && flutter test test/shell/shell_screen_phase4_test.dart --plain-name "OSC 52"
 ```
+
+The OSC 52 UI gate includes named widget regressions:
+
+- `OSC 52 blocked copy shows visible status and feedback`
+- `OSC 52 ask policy prompts before paste read`
 
 P2/P3 implementation gates when promoted:
 
@@ -390,6 +397,10 @@ cd example && flutter test test/shell/shell_screen_phase4_test.dart --plain-name
 ```
 
 Manual/computer acceptance:
+
+Desktop smoke remains supplemental for host integration details that widget
+tests cannot prove, such as the real system clipboard bridge, OS-level focus,
+and native notification delivery.
 
 - Send OSC 12 in the app and verify the cursor visibly changes.
 - Send OSC 8 and verify tapping opens the expected URL only on deliberate tap.
@@ -413,8 +424,8 @@ P0/P1 implementation is done when:
 - This matrix matches current code and tests.
 - The implemented P0/P1 rows have automated evidence.
 - Deferred rows remain explicit and do not silently enter product scope.
-- Computer acceptance confirms the visible cursor-color path and the existing
-  OSC 8/OSC 52 user-actionable paths.
+- Supplemental desktop smoke may record real host clipboard, focus, and native
+  notification behavior, but it is not the primary P0/P1 closure gate.
 
 P2/P3 design is done when:
 

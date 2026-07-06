@@ -1,32 +1,33 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:ianvs_pty/ianvs_pty.dart';
 
 import '../config/terminal_config.dart';
-import '../config/terminal_defaults.dart';
 import '../terminal/selection_controller.dart';
 import '../terminal/terminal_graphics_cache.dart';
 import '../terminal/terminal_graphics_diagnostics.dart';
 import '../terminal/terminal_models.dart';
 import '../terminal/terminal_viewport.dart';
 import 'terminal_benchmarking.dart';
+import 'terminal_clipboard_policy.dart';
+import 'terminal_diagnostics.dart';
+import 'terminal_event_router.dart';
+import 'terminal_frame_decoder.dart';
+import 'terminal_frame_pump.dart';
+import 'terminal_json_request_client.dart';
+import 'terminal_refresh_scheduler.dart';
+import 'terminal_resize_coordinator.dart';
+import 'terminal_session_registry.dart';
+
+export 'terminal_clipboard_policy.dart';
+export 'terminal_diagnostics.dart';
 
 const int _maxOsc52ClipboardDecodedBytes = 4 * 1024 * 1024;
 const int _maxOsc52ClipboardEncodedLength =
     ((_maxOsc52ClipboardDecodedBytes + 2) ~/ 3) * 4;
-const int _maxSearchMatchesPerResponse = 1000;
-const int _maxDecodedCollectionScanMultiplier = 4;
-const int _maxDiagnosticsResourceSamples = 60;
-const int _maxDiagnosticsEvents = 200;
-const int _maxDiagnosticsSummaryEntries = 32;
-const int _maxDiagnosticsSummaryNestedEntries = 32;
-const int _maxDiagnosticsSummaryListEntries = 20;
-const int _maxDiagnosticsSummaryStringLength = 4096;
-const int _maxDiagnosticsSummaryListStringLength = 512;
 
 typedef TerminalWindowResizeCallback =
     Future<void> Function({
@@ -50,6 +51,19 @@ final class TerminalSessionExitEvent extends TerminalSessionEvent {
   const TerminalSessionExitEvent(super.sessionId, {this.exitCode});
 
   final int? exitCode;
+}
+
+final class TerminalSessionBackendErrorEvent extends TerminalSessionEvent {
+  const TerminalSessionBackendErrorEvent(
+    super.sessionId, {
+    required this.operation,
+    required this.error,
+    required this.stackTrace,
+  });
+
+  final String operation;
+  final Object error;
+  final StackTrace stackTrace;
 }
 
 final class TerminalSessionBellEvent extends TerminalSessionEvent {
@@ -209,32 +223,6 @@ final class TerminalSessionBadgeEvent extends TerminalSessionEvent {
   }
 }
 
-enum TerminalClipboardOperation { copy, pasteRequest }
-
-enum TerminalClipboardDecision { allowed, blocked, invalidPayload }
-
-final class TerminalClipboardAccessRequest {
-  const TerminalClipboardAccessRequest({
-    required this.sessionId,
-    required this.operation,
-    this.selection,
-    this.byteCount,
-    this.characterCount,
-    this.textPreview,
-    this.textPreviewTruncated = false,
-    this.resolveText,
-  });
-
-  final String sessionId;
-  final TerminalClipboardOperation operation;
-  final String? selection;
-  final int? byteCount;
-  final int? characterCount;
-  final String? textPreview;
-  final bool textPreviewTruncated;
-  final Future<String> Function()? resolveText;
-}
-
 final class TerminalSessionClipboardEvent extends TerminalSessionEvent {
   const TerminalSessionClipboardEvent(
     super.sessionId, {
@@ -303,283 +291,79 @@ final class TerminalSessionInputEvent {
   final Uint8List bytes;
 }
 
-final class TerminalDiagnosticsPolicy {
-  const TerminalDiagnosticsPolicy({
-    this.maxSamples = 60,
-    this.includeScrollback = false,
-    this.includeRawCommand = false,
-    this.includeRawCwd = false,
-    this.includeEnv = false,
-    this.redactionMode = 'basic',
-  });
-
-  final int maxSamples;
-  final bool includeScrollback;
-  final bool includeRawCommand;
-  final bool includeRawCwd;
-  final bool includeEnv;
-  final String redactionMode;
-
-  bool get includeContent =>
-      includeScrollback || includeRawCommand || includeRawCwd || includeEnv;
-
-  Map<String, Object?> toRequestJson() {
-    final effectiveMaxSamples = maxSamples.clamp(1, 60).toInt();
-    return <String, Object?>{
-      'kind': 'terminal.export_diagnostics',
-      'maxSamples': effectiveMaxSamples,
-      'includeContent': includeContent,
-      'redactionMode': redactionMode,
-      'policy': <String, Object?>{
-        'includeScrollback': includeScrollback,
-        'includeRawCommand': includeRawCommand,
-        'includeRawCwd': includeRawCwd,
-        'includeEnv': includeEnv,
-      },
-    };
-  }
-}
-
-final class TerminalDiagnosticsExport {
-  const TerminalDiagnosticsExport({
-    required this.manifest,
-    required this.resourceSamples,
-    required this.terminalStats,
-    required this.events,
-    required this.summary,
-  });
-
-  factory TerminalDiagnosticsExport.fromJson(Map<String, Object?> json) {
-    return TerminalDiagnosticsExport(
-      manifest: _mapValue(json['manifest']),
-      resourceSamples: _mapList(
-        json['resource_samples'] ?? json['resourceSamples'],
-        maxEntries: _maxDiagnosticsResourceSamples,
-      ),
-      terminalStats: _mapValue(json['terminal_stats'] ?? json['terminalStats']),
-      events: _mapList(json['events'], maxEntries: _maxDiagnosticsEvents),
-      summary: _diagnosticsSummaryValue(json['summary']),
-    );
-  }
-
-  final Map<String, Object?> manifest;
-  final List<Map<String, Object?>> resourceSamples;
-  final Map<String, Object?> terminalStats;
-  final List<Map<String, Object?>> events;
-  final Map<String, Object?> summary;
-
-  String? get conclusion =>
-      _nonEmptyTrimmedStringFromJsonValue(summary['conclusion']);
-  String? get summaryMarkdown =>
-      _nonEmptyTrimmedStringFromJsonValue(summary['markdown']);
-
-  Map<String, Object?> toJson() {
-    return <String, Object?>{
-      'manifest': manifest,
-      'resource_samples': resourceSamples,
-      'terminal_stats': terminalStats,
-      'events': events,
-      'summary': summary,
-    };
-  }
-}
-
-Map<String, Object?> _mapValue(Object? value) {
-  if (value is Map) {
-    return Map<String, Object?>.unmodifiable(_stringKeyedJsonMap(value));
-  }
-  return const <String, Object?>{};
-}
-
-Map<String, Object?> _diagnosticsSummaryValue(Object? value) {
-  if (value is! Map) {
-    return const <String, Object?>{};
-  }
-  final result = <String, Object?>{};
-  for (final entry in value.entries.take(
-    _maxDecodedCollectionEntriesToScan(_maxDiagnosticsSummaryEntries),
-  )) {
-    if (result.length >= _maxDiagnosticsSummaryEntries) {
-      break;
-    }
-    final key = entry.key;
-    if (key is! String) {
-      continue;
-    }
-    final boundedValue = _boundedDiagnosticsSummaryEntry(key, entry.value);
-    if (boundedValue != null) {
-      result[key] = boundedValue;
-    }
-  }
-  return Map<String, Object?>.unmodifiable(result);
-}
-
-Object? _boundedDiagnosticsSummaryEntry(String key, Object? value) {
-  return switch (key) {
-    'evidence' || 'next_steps' => _diagnosticsSummaryStringList(value),
-    _ => _boundedDiagnosticsSummaryJson(value, depth: 2),
-  };
-}
-
-List<String> _diagnosticsSummaryStringList(Object? value) {
-  if (value is! List) {
-    return const <String>[];
-  }
-  final strings = <String>[];
-  for (final entry in value.take(
-    _maxDecodedCollectionEntriesToScan(_maxDiagnosticsSummaryListEntries),
-  )) {
-    if (strings.length >= _maxDiagnosticsSummaryListEntries) {
-      break;
-    }
-    final text = _boundedNonEmptyTrimmedString(
-      entry,
-      maxLength: _maxDiagnosticsSummaryListStringLength,
-    );
-    if (text != null) {
-      strings.add(text);
-    }
-  }
-  return List<String>.unmodifiable(strings);
-}
-
-Object? _boundedDiagnosticsSummaryJson(Object? value, {required int depth}) {
-  if (value == null || value is bool) {
-    return value;
-  }
-  if (value is num) {
-    return value.isFinite ? value : null;
-  }
-  final text = _boundedNonEmptyTrimmedString(
-    value,
-    maxLength: _maxDiagnosticsSummaryStringLength,
-  );
-  if (text != null) {
-    return text;
-  }
-  if (depth <= 0) {
-    return null;
-  }
-  if (value is List) {
-    final result = <Object?>[];
-    for (final entry in value.take(
-      _maxDecodedCollectionEntriesToScan(_maxDiagnosticsSummaryListEntries),
-    )) {
-      if (result.length >= _maxDiagnosticsSummaryListEntries) {
-        break;
-      }
-      final boundedValue = _boundedDiagnosticsSummaryJson(
-        entry,
-        depth: depth - 1,
-      );
-      if (boundedValue != null) {
-        result.add(boundedValue);
-      }
-    }
-    return List<Object?>.unmodifiable(result);
-  }
-  if (value is Map) {
-    final result = <String, Object?>{};
-    for (final entry in value.entries.take(
-      _maxDecodedCollectionEntriesToScan(_maxDiagnosticsSummaryNestedEntries),
-    )) {
-      if (result.length >= _maxDiagnosticsSummaryNestedEntries) {
-        break;
-      }
-      final key = _boundedNonEmptyTrimmedString(
-        entry.key,
-        maxLength: _maxDiagnosticsSummaryListStringLength,
-      );
-      if (key == null) {
-        continue;
-      }
-      final boundedValue = _boundedDiagnosticsSummaryJson(
-        entry.value,
-        depth: depth - 1,
-      );
-      if (boundedValue != null) {
-        result[key] = boundedValue;
-      }
-    }
-    return Map<String, Object?>.unmodifiable(result);
-  }
-  return null;
-}
-
-String? _boundedNonEmptyTrimmedString(Object? value, {required int maxLength}) {
-  final text = _stringFromJsonValue(value)?.trim();
-  if (text == null || text.isEmpty) {
-    return null;
-  }
-  if (text.length <= maxLength) {
-    return text;
-  }
-  return text.substring(0, maxLength);
-}
-
-List<Map<String, Object?>> _mapList(Object? value, {int? maxEntries}) {
-  if (value is! List) {
-    return const <Map<String, Object?>>[];
-  }
-  final maps = <Map<String, Object?>>[];
-  final entries = maxEntries == null
-      ? value
-      : value.take(_maxDecodedCollectionEntriesToScan(maxEntries));
-  for (final entry in entries) {
-    if (entry is! Map) {
-      continue;
-    }
-    maps.add(Map<String, Object?>.unmodifiable(_stringKeyedJsonMap(entry)));
-    if (maxEntries != null && maps.length >= maxEntries) {
-      break;
-    }
-  }
-  return List<Map<String, Object?>>.unmodifiable(maps);
-}
-
-int _maxDecodedCollectionEntriesToScan(int maxEntries) {
-  return maxEntries * _maxDecodedCollectionScanMultiplier;
-}
-
-final class _DecodedFrameBenchmarkMetrics {
-  const _DecodedFrameBenchmarkMetrics({
-    required this.rawFrameBytes,
-    required this.jsonDecodeMicros,
-  });
-
-  final int rawFrameBytes;
-  final int jsonDecodeMicros;
-}
-
 class TerminalRuntimeController {
   static const Duration _pollingFrameInterval = Duration(milliseconds: 33);
   static const int _pollingIdleBackoffAfterEmptyRefreshes = 2;
-  static const int _pollingIdleBackoffTicks = 3;
+  static const int _pollingIdleBackoffInitialTicks = 3;
+  static const int _pollingIdleBackoffMaxTicks = 48;
   static const int _clipboardPreviewRunes = 120;
 
   TerminalRuntimeController({
     required PtySessionBackend backend,
-    required this.copyToClipboard,
-    required this.readClipboard,
+    required Future<void> Function(String text) copyToClipboard,
+    required Future<String> Function() readClipboard,
     Future<bool> Function()? allowClipboardCopy,
     Future<bool> Function()? allowClipboardPasteRequest,
     Future<bool> Function(TerminalClipboardAccessRequest request)?
     allowClipboardCopyWithContext,
     Future<bool> Function(TerminalClipboardAccessRequest request)?
     allowClipboardPasteRequestWithContext,
+    TerminalWindowResizeCallback? resizeWindowBy,
+    bool enableSessionPolling = true,
+    bool enableWarmUpRefresh = false,
+    TerminalBenchmarkEventSink? benchmarkEventSink,
+  }) : this.withClipboardPolicy(
+         backend: backend,
+         copyToClipboard: copyToClipboard,
+         readClipboard: readClipboard,
+         clipboardPolicy: TerminalClipboardPolicyAdapter(
+           allowClipboardCopy: allowClipboardCopy,
+           allowClipboardPasteRequest: allowClipboardPasteRequest,
+           allowClipboardCopyWithContext: allowClipboardCopyWithContext,
+           allowClipboardPasteRequestWithContext:
+               allowClipboardPasteRequestWithContext,
+         ),
+         resizeWindowBy: resizeWindowBy,
+         enableSessionPolling: enableSessionPolling,
+         enableWarmUpRefresh: enableWarmUpRefresh,
+         benchmarkEventSink: benchmarkEventSink,
+       );
+
+  TerminalRuntimeController.withClipboardPolicy({
+    required PtySessionBackend backend,
+    required this.copyToClipboard,
+    required this.readClipboard,
+    required TerminalClipboardPolicyAdapter clipboardPolicy,
     this.resizeWindowBy,
     this.enableSessionPolling = true,
     this.enableWarmUpRefresh = false,
     this.benchmarkEventSink,
   }) : _backend = backend,
-       allowClipboardCopy =
-           allowClipboardCopyWithContext ??
-           ((_) => (allowClipboardCopy ?? _allowClipboardAccess)()),
-       allowClipboardPasteRequest =
-           allowClipboardPasteRequestWithContext ??
-           ((_) => (allowClipboardPasteRequest ?? _allowClipboardAccess)());
+       allowClipboardCopy = clipboardPolicy.allowCopy,
+       allowClipboardPasteRequest = clipboardPolicy.allowPasteRequest {
+    _diagnosticsClient = TerminalDiagnosticsClient.fromBackend(
+      backend,
+      onRequestError: _emitBackendRequestError,
+    );
+    _jsonRequestClient = TerminalJsonRequestClient.fromBackend(
+      backend,
+      onRequestError: _emitBackendRequestError,
+    );
+    _sessions = TerminalSessionRegistry(
+      loadGraphicAsset: loadGraphicAsset,
+      diagnosticEventSink: benchmarkEventSink,
+    );
+    _frameDecoder = TerminalFrameDecoder(
+      collectMetrics: benchmarkEventSink != null,
+    );
+  }
 
   final PtySessionBackend _backend;
+  late final TerminalDiagnosticsClient _diagnosticsClient;
+  late final TerminalJsonRequestClient _jsonRequestClient;
+  final TerminalEventRouter _eventRouter = const TerminalEventRouter();
+  late final TerminalSessionRegistry _sessions;
+  late final TerminalFrameDecoder _frameDecoder;
   final Future<void> Function(String text) copyToClipboard;
   final Future<String> Function() readClipboard;
   final Future<bool> Function(TerminalClipboardAccessRequest request)
@@ -591,16 +375,15 @@ class TerminalRuntimeController {
   final bool enableWarmUpRefresh;
   final TerminalBenchmarkEventSink? benchmarkEventSink;
 
-  final Map<String, TerminalViewportController> _viewportControllers =
-      <String, TerminalViewportController>{};
-  final Map<String, TerminalGraphicsCache> _graphicsCaches =
-      <String, TerminalGraphicsCache>{};
-  final Map<String, _SessionResizeMetric> _lastResizeMetrics =
-      <String, _SessionResizeMetric>{};
+  final TerminalResizeCoordinator _resizeCoordinator =
+      TerminalResizeCoordinator();
+  final TerminalRefreshScheduler _refreshScheduler = TerminalRefreshScheduler();
   final Map<String, List<Timer>> _warmUpTimers = <String, List<Timer>>{};
-  final Map<String, Timer> _pollingCooldownTimers = <String, Timer>{};
-  final Map<String, int> _emptyPollingRefreshCounts = <String, int>{};
-  final Map<String, int> _pollingIdleSkipTicks = <String, int>{};
+  final TerminalFramePumpBackoff _framePumpBackoff = TerminalFramePumpBackoff(
+    emptyRefreshesBeforeBackoff: _pollingIdleBackoffAfterEmptyRefreshes,
+    initialSkipTicks: _pollingIdleBackoffInitialTicks,
+    maxSkipTicks: _pollingIdleBackoffMaxTicks,
+  );
   final Map<String, DateTime> _lastFrameAppliedAt = <String, DateTime>{};
   final StreamController<TerminalSessionEvent> _events =
       StreamController<TerminalSessionEvent>.broadcast();
@@ -608,13 +391,9 @@ class TerminalRuntimeController {
       StreamController<TerminalSessionInputEvent>.broadcast();
   final StreamController<TerminalSessionResizeEvent> _resizeEvents =
       StreamController<TerminalSessionResizeEvent>.broadcast();
-  final Set<String> _activeSessionIds = <String>{};
-  final Set<String> _refreshingSessionIds = <String>{};
-  final Set<String> _queuedRefreshSessionIds = <String>{};
-  final Set<String> _scheduledRefreshSessionIds = <String>{};
-  final Map<TerminalFrameDiff, _DecodedFrameBenchmarkMetrics>
+  final Map<TerminalFrameDiff, TerminalFrameDecodeMetrics>
   _decodedFrameBenchmarkMetrics =
-      <TerminalFrameDiff, _DecodedFrameBenchmarkMetrics>{};
+      <TerminalFrameDiff, TerminalFrameDecodeMetrics>{};
   Timer? _pollTimer;
   int _wireSessionSeed = 0;
   int _benchmarkFrameId = 0;
@@ -624,31 +403,20 @@ class TerminalRuntimeController {
   Stream<TerminalSessionResizeEvent> get resizeEvents => _resizeEvents.stream;
 
   TerminalViewportController viewportFor(String sessionId) {
-    return _viewportControllers.putIfAbsent(
-      sessionId,
-      TerminalViewportController.new,
-    );
+    return _sessions.viewportFor(sessionId);
   }
 
   TerminalGraphicsCache graphicsCacheFor(String sessionId) {
-    return _graphicsCaches.putIfAbsent(
-      sessionId,
-      () => TerminalGraphicsCache(
-        loadAsset: (key) => loadGraphicAsset(sessionId, key),
-        diagnosticSessionId: sessionId,
-        diagnosticEventSink: benchmarkEventSink,
-      ),
-    );
+    return _sessions.graphicsCacheFor(sessionId);
   }
 
-  bool hasSession(String sessionId) => _activeSessionIds.contains(sessionId);
+  bool hasSession(String sessionId) => _sessions.hasSession(sessionId);
 
   String createSession(TerminalSessionConfig config) {
     final sessionId = _backend.createSession(
       _encodeNativeSessionConfig(_resolveColorsForRuntime(config)),
     );
-    _activeSessionIds.add(sessionId);
-    viewportFor(sessionId);
+    _sessions.register(sessionId);
     _requestRefreshSession(sessionId, immediate: true);
     if (enableSessionPolling) {
       _startPolling();
@@ -662,37 +430,66 @@ class TerminalRuntimeController {
     if (!hasSession(sessionId)) {
       return;
     }
-    _backend.closeSession(sessionId);
+    if (!_runBackendOperation(
+      sessionId,
+      'closeSession',
+      () => _backend.closeSession(sessionId),
+    )) {
+      return;
+    }
     _removeSessionState(sessionId);
   }
 
   void sendInput(String sessionId, Uint8List bytes) {
+    _sendInput(sessionId, bytes);
+  }
+
+  bool _sendInput(String sessionId, Uint8List bytes) {
     if (!hasSession(sessionId)) {
-      return;
+      return false;
     }
     final copiedBytes = Uint8List.fromList(bytes);
     if (copiedBytes.isNotEmpty) {
-      _scrollToLiveCursorIfNeeded(sessionId);
+      if (!_scrollToLiveCursorIfNeeded(sessionId)) {
+        return false;
+      }
+    }
+    if (!_runBackendOperation(
+      sessionId,
+      'writeInput',
+      () => _backend.writeInput(sessionId, copiedBytes),
+    )) {
+      return false;
     }
     _inputEvents.add(TerminalSessionInputEvent(sessionId, copiedBytes));
-    _backend.writeInput(sessionId, copiedBytes);
     _resetPollingIdleBackoff(sessionId);
     _refreshSessionIfNeeded(sessionId);
+    return true;
   }
 
-  void _scrollToLiveCursorIfNeeded(String sessionId) {
+  bool _scrollToLiveCursorIfNeeded(String sessionId) {
     final frame = viewportFor(sessionId).frame;
     if (frame.scrollbackOffset <= 0) {
-      return;
+      return true;
     }
-    _backend.scrollViewportTo(sessionId, 0);
+    return _runBackendOperation(
+      sessionId,
+      'scrollViewportTo',
+      () => _backend.scrollViewportTo(sessionId, 0),
+    );
   }
 
   void scrollViewport(String sessionId, int deltaLines) {
     if (!hasSession(sessionId)) {
       return;
     }
-    _backend.scrollViewport(sessionId, deltaLines);
+    if (!_runBackendOperation(
+      sessionId,
+      'scrollViewport',
+      () => _backend.scrollViewport(sessionId, deltaLines),
+    )) {
+      return;
+    }
     _resetPollingIdleBackoff(sessionId);
     _refreshSessionIfNeeded(sessionId);
   }
@@ -701,7 +498,13 @@ class TerminalRuntimeController {
     if (!hasSession(sessionId)) {
       return;
     }
-    _backend.scrollViewportTo(sessionId, offset);
+    if (!_runBackendOperation(
+      sessionId,
+      'scrollViewportTo',
+      () => _backend.scrollViewportTo(sessionId, offset),
+    )) {
+      return;
+    }
     _resetPollingIdleBackoff(sessionId);
     _refreshSessionIfNeeded(sessionId);
   }
@@ -714,7 +517,13 @@ class TerminalRuntimeController {
     final scrollbackOffset = frame.scrollbackOffset
         .clamp(0, frame.scrollbackMaxOffset)
         .toInt();
-    _backend.scrollViewportTo(sessionId, scrollbackOffset);
+    if (!_runBackendOperation(
+      sessionId,
+      'scrollViewportTo',
+      () => _backend.scrollViewportTo(sessionId, scrollbackOffset),
+    )) {
+      return;
+    }
     _resetPollingIdleBackoff(sessionId);
     _requestRefreshSession(sessionId, immediate: true);
   }
@@ -733,11 +542,22 @@ class TerminalRuntimeController {
     if (graphicBackend == null) {
       return null;
     }
-    final nativeAsset = graphicBackend.loadGraphicAsset(
-      sessionId,
-      assetId: key.id,
-      assetVersion: key.version,
-    );
+    final PtyGraphicAsset? nativeAsset;
+    try {
+      nativeAsset = graphicBackend.loadGraphicAsset(
+        sessionId,
+        assetId: key.id,
+        assetVersion: key.version,
+      );
+    } on Object catch (error, stackTrace) {
+      _emitBackendRequestError(
+        sessionId,
+        'loadGraphicAsset',
+        error,
+        stackTrace,
+      );
+      return null;
+    }
     if (nativeAsset == null) {
       return null;
     }
@@ -757,28 +577,13 @@ class TerminalRuntimeController {
     if (!hasSession(sessionId)) {
       return '';
     }
-    final backend = _backend;
-    final requestBackend = backend is PtySessionJsonRequestBackend
-        ? backend as PtySessionJsonRequestBackend
-        : null;
-    if (requestBackend != null) {
-      final raw = requestBackend.requestSessionJson(
-        sessionId,
-        jsonEncode(<String, Object?>{
-          'kind': 'terminal.selection_text',
-          'selection': selection.toJson(),
-          'block': block,
-        }),
-      );
-      if (raw != null && raw.isNotEmpty) {
-        final decoded = _tryDecodeJsonObject(raw);
-        if (decoded != null) {
-          final text = _stringFromJsonValue(decoded['text']);
-          if (text != null) {
-            return text;
-          }
-        }
-      }
+    final text = _jsonRequestClient.selectionText(
+      sessionId,
+      selection,
+      block: block,
+    );
+    if (text != null) {
+      return text;
     }
     return _selectionTextFromViewport(sessionId, selection, block: block);
   }
@@ -791,28 +596,7 @@ class TerminalRuntimeController {
     if (!hasSession(sessionId)) {
       return TerminalSearchResult.empty;
     }
-    if (query.isEmpty) {
-      return TerminalSearchResult.empty;
-    }
-    final backend = _backend;
-    final requestBackend = backend is PtySessionJsonRequestBackend
-        ? backend as PtySessionJsonRequestBackend
-        : null;
-    if (requestBackend == null) {
-      return TerminalSearchResult.empty;
-    }
-    final raw = requestBackend.requestSessionJson(
-      sessionId,
-      jsonEncode(<String, Object?>{
-        'kind': 'terminal.search_text',
-        'query': query,
-        'mode': mode.wireName,
-      }),
-    );
-    if (raw == null || raw.isEmpty) {
-      return TerminalSearchResult.empty;
-    }
-    return _decodeSearchResult(_tryDecodeJsonObject(raw));
+    return _jsonRequestClient.searchTextResult(sessionId, query, mode: mode);
   }
 
   List<TerminalSearchMatch> searchText(
@@ -823,62 +607,11 @@ class TerminalRuntimeController {
     return searchTextResult(sessionId, query, mode: mode).matches;
   }
 
-  TerminalSearchResult _decodeSearchResult(Object? decoded) {
-    if (decoded is Map) {
-      final json = _stringKeyedJsonMap(decoded);
-      final rawMatches = json['matches'];
-      return TerminalSearchResult(
-        matches: rawMatches is List
-            ? _decodeSearchMatches(rawMatches)
-            : const <TerminalSearchMatch>[],
-        errorText: _nonEmptyTrimmedStringFromJsonValue(
-          json['error_text'] ?? json['errorText'],
-        ),
-      );
-    }
-    return TerminalSearchResult.empty;
-  }
-
-  List<TerminalSearchMatch> _decodeSearchMatches(List<dynamic> entries) {
-    final matches = <TerminalSearchMatch>[];
-    for (final entry in entries.take(
-      _maxDecodedCollectionEntriesToScan(_maxSearchMatchesPerResponse),
-    )) {
-      if (entry is! Map) {
-        continue;
-      }
-      try {
-        matches.add(TerminalSearchMatch.fromJson(_stringKeyedJsonMap(entry)));
-        if (matches.length >= _maxSearchMatchesPerResponse) {
-          break;
-        }
-      } on Object {
-        continue;
-      }
-    }
-    return matches;
-  }
-
   bool clearScrollback(String sessionId) {
     if (!hasSession(sessionId)) {
       return false;
     }
-    final backend = _backend;
-    final requestBackend = backend is PtySessionJsonRequestBackend
-        ? backend as PtySessionJsonRequestBackend
-        : null;
-    if (requestBackend == null) {
-      return false;
-    }
-    final raw = requestBackend.requestSessionJson(
-      sessionId,
-      jsonEncode(<String, Object?>{'kind': 'terminal.clear_scrollback'}),
-    );
-    if (raw == null || raw.isEmpty) {
-      return false;
-    }
-    final decoded = _tryDecodeJsonObject(raw);
-    if (decoded == null || decoded['cleared'] != true) {
+    if (!_jsonRequestClient.clearScrollback(sessionId)) {
       return false;
     }
 
@@ -905,28 +638,10 @@ class TerminalRuntimeController {
     if (!hasSession(sessionId)) {
       return null;
     }
-    final backend = _backend;
-    final requestBackend = backend is PtySessionJsonRequestBackend
-        ? backend as PtySessionJsonRequestBackend
-        : null;
-    if (requestBackend == null) {
-      return null;
-    }
-    final raw = requestBackend.requestSessionJson(
+    return _jsonRequestClient.exportScrollbackText(
       sessionId,
-      jsonEncode(<String, Object?>{
-        'kind': 'terminal.export_scrollback',
-        'maxLines': ?_boundedScrollbackExportMaxLines(maxLines),
-      }),
+      maxLines: maxLines,
     );
-    if (raw == null || raw.isEmpty) {
-      return null;
-    }
-    final decoded = _tryDecodeJsonObject(raw);
-    if (decoded == null) {
-      return null;
-    }
-    return _stringFromJsonValue(decoded['content']);
   }
 
   TerminalDiagnosticsExport? exportSessionDiagnostics(
@@ -936,32 +651,7 @@ class TerminalRuntimeController {
     if (!hasSession(sessionId)) {
       return null;
     }
-    final backend = _backend;
-    final requestBackend = backend is PtySessionJsonRequestBackend
-        ? backend as PtySessionJsonRequestBackend
-        : null;
-    if (requestBackend == null) {
-      return null;
-    }
-
-    try {
-      final raw = requestBackend.requestSessionJson(
-        sessionId,
-        jsonEncode(policy.toRequestJson()),
-      );
-      if (raw == null || raw.isEmpty) {
-        return null;
-      }
-      final decoded = jsonDecode(raw);
-      if (decoded is! Map) {
-        return null;
-      }
-      return TerminalDiagnosticsExport.fromJson(
-        decoded.cast<String, Object?>(),
-      );
-    } on Object {
-      return null;
-    }
+    return _diagnosticsClient.exportSession(sessionId, policy: policy);
   }
 
   String _selectionTextFromViewport(
@@ -981,90 +671,61 @@ class TerminalRuntimeController {
     }
   }
 
-  void resizeSession(
+  bool resizeSession(
     String sessionId,
     Size viewportSize,
     double devicePixelRatio,
   ) {
     if (!hasSession(sessionId)) {
-      return;
+      return false;
     }
-    if (!_isPositiveFiniteSize(viewportSize) ||
-        !_isPositiveFiniteDouble(devicePixelRatio)) {
-      return;
-    }
-    final measuredCellSize = _cellSizeFor(sessionId);
-    if (!_isPositiveFiniteSize(measuredCellSize)) {
-      return;
-    }
-    final cellWidth = measuredCellSize.width;
-    final cellHeight = measuredCellSize.height;
-    final cols = _boundedTerminalDimension(
-      math.max(20, (viewportSize.width / cellWidth).floor()),
-    );
-    final rows = _boundedTerminalDimension(
-      math.max(8, (viewportSize.height / cellHeight).floor()),
-    );
-    final pixelWidth = _boundedTerminalPixelDimension(
-      viewportSize.width * devicePixelRatio,
-    );
-    final pixelHeight = _boundedTerminalPixelDimension(
-      viewportSize.height * devicePixelRatio,
-    );
-    final cellPixelWidth = _boundedTerminalPixelDimension(
-      cellWidth * devicePixelRatio,
-    );
-    final cellPixelHeight = _boundedTerminalPixelDimension(
-      cellHeight * devicePixelRatio,
-    );
-    final nextMetric = _SessionResizeMetric(
-      cols: cols,
-      rows: rows,
-      pixelWidth: pixelWidth,
-      pixelHeight: pixelHeight,
-      cellWidth: cellPixelWidth,
-      cellHeight: cellPixelHeight,
-      logicalWidth: viewportSize.width,
-      logicalHeight: viewportSize.height,
-      devicePixelRatio: devicePixelRatio,
-    );
-    final previous = _lastResizeMetrics[sessionId];
-    if (previous != null &&
-        previous.cols == cols &&
-        previous.rows == rows &&
-        previous.pixelWidth == pixelWidth &&
-        previous.pixelHeight == pixelHeight &&
-        previous.cellWidth == cellPixelWidth &&
-        previous.cellHeight == cellPixelHeight) {
-      return;
-    }
-    _backend.resizeSession(
+    final plan = _resizeCoordinator.planViewportResize(
       sessionId,
-      cols: cols,
-      rows: rows,
-      pixelWidth: pixelWidth,
-      pixelHeight: pixelHeight,
-      cellWidth: cellPixelWidth,
-      cellHeight: cellPixelHeight,
+      viewportSize: viewportSize,
+      devicePixelRatio: devicePixelRatio,
+      cellSize: _cellSizeFor(sessionId),
     );
-    _lastResizeMetrics[sessionId] = nextMetric;
+    if (plan == null) {
+      return false;
+    }
+    if (plan.isDuplicate) {
+      return true;
+    }
+    final metric = plan.metric;
+    if (!_runBackendOperation(
+      sessionId,
+      'resizeSession',
+      () => _backend.resizeSession(
+        sessionId,
+        cols: metric.cols,
+        rows: metric.rows,
+        pixelWidth: metric.pixelWidth,
+        pixelHeight: metric.pixelHeight,
+        cellWidth: metric.cellWidth,
+        cellHeight: metric.cellHeight,
+      ),
+    )) {
+      return false;
+    }
+    _resizeCoordinator.commit(sessionId, metric);
     _resizeEvents.add(
       TerminalSessionResizeEvent(
         sessionId,
-        cols: cols,
-        rows: rows,
-        pixelWidth: pixelWidth,
-        pixelHeight: pixelHeight,
-        cellWidth: cellPixelWidth,
-        cellHeight: cellPixelHeight,
-        viewportSize: viewportSize,
-        devicePixelRatio: devicePixelRatio,
+        cols: metric.cols,
+        rows: metric.rows,
+        pixelWidth: metric.pixelWidth,
+        pixelHeight: metric.pixelHeight,
+        cellWidth: metric.cellWidth,
+        cellHeight: metric.cellHeight,
+        viewportSize: plan.viewportSize,
+        devicePixelRatio: metric.devicePixelRatio,
       ),
     );
     _requestRefreshAfterResize(sessionId);
+    return true;
   }
 
-  void resizeSessionCells(
+  bool resizeSessionCells(
     String sessionId, {
     required int cols,
     required int rows,
@@ -1072,96 +733,62 @@ class TerminalRuntimeController {
     Size? cellSize,
   }) {
     if (!hasSession(sessionId)) {
-      return;
+      return false;
     }
-    if (cols <= 0 || rows <= 0 || !_isPositiveFiniteDouble(devicePixelRatio)) {
-      throw RangeError(
-        'Terminal dimensions and devicePixelRatio must be positive.',
-      );
-    }
-    final boundedCols = _boundedTerminalDimension(cols);
-    final boundedRows = _boundedTerminalDimension(rows);
-    final measuredCellSize = cellSize ?? _cellSizeFor(sessionId);
-    if (!_isPositiveFiniteSize(measuredCellSize)) {
-      throw RangeError('Cell size must be positive and finite.');
-    }
-    final logicalWidth = boundedCols * measuredCellSize.width;
-    final logicalHeight = boundedRows * measuredCellSize.height;
-    final pixelWidth = _boundedTerminalPixelDimension(
-      logicalWidth * devicePixelRatio,
-    );
-    final pixelHeight = _boundedTerminalPixelDimension(
-      logicalHeight * devicePixelRatio,
-    );
-    final cellPixelWidth = _boundedTerminalPixelDimension(
-      measuredCellSize.width * devicePixelRatio,
-    );
-    final cellPixelHeight = _boundedTerminalPixelDimension(
-      measuredCellSize.height * devicePixelRatio,
-    );
-    final nextMetric = _SessionResizeMetric(
-      cols: boundedCols,
-      rows: boundedRows,
-      pixelWidth: pixelWidth,
-      pixelHeight: pixelHeight,
-      cellWidth: cellPixelWidth,
-      cellHeight: cellPixelHeight,
-      logicalWidth: logicalWidth,
-      logicalHeight: logicalHeight,
-      devicePixelRatio: devicePixelRatio,
-    );
-    final previous = _lastResizeMetrics[sessionId];
-    if (previous != null &&
-        previous.cols == boundedCols &&
-        previous.rows == boundedRows &&
-        previous.pixelWidth == pixelWidth &&
-        previous.pixelHeight == pixelHeight &&
-        previous.cellWidth == cellPixelWidth &&
-        previous.cellHeight == cellPixelHeight) {
-      return;
-    }
-    _backend.resizeSession(
+    final plan = _resizeCoordinator.planCellResize(
       sessionId,
-      cols: boundedCols,
-      rows: boundedRows,
-      pixelWidth: pixelWidth,
-      pixelHeight: pixelHeight,
-      cellWidth: cellPixelWidth,
-      cellHeight: cellPixelHeight,
+      cols: cols,
+      rows: rows,
+      devicePixelRatio: devicePixelRatio,
+      cellSize: cellSize ?? _cellSizeFor(sessionId),
     );
-    _lastResizeMetrics[sessionId] = nextMetric;
+    if (plan.isDuplicate) {
+      return true;
+    }
+    final metric = plan.metric;
+    if (!_runBackendOperation(
+      sessionId,
+      'resizeSession',
+      () => _backend.resizeSession(
+        sessionId,
+        cols: metric.cols,
+        rows: metric.rows,
+        pixelWidth: metric.pixelWidth,
+        pixelHeight: metric.pixelHeight,
+        cellWidth: metric.cellWidth,
+        cellHeight: metric.cellHeight,
+      ),
+    )) {
+      return false;
+    }
+    _resizeCoordinator.commit(sessionId, metric);
     _resizeEvents.add(
       TerminalSessionResizeEvent(
         sessionId,
-        cols: boundedCols,
-        rows: boundedRows,
-        pixelWidth: pixelWidth,
-        pixelHeight: pixelHeight,
-        cellWidth: cellPixelWidth,
-        cellHeight: cellPixelHeight,
-        viewportSize: Size(logicalWidth, logicalHeight),
-        devicePixelRatio: devicePixelRatio,
+        cols: metric.cols,
+        rows: metric.rows,
+        pixelWidth: metric.pixelWidth,
+        pixelHeight: metric.pixelHeight,
+        cellWidth: metric.cellWidth,
+        cellHeight: metric.cellHeight,
+        viewportSize: plan.viewportSize,
+        devicePixelRatio: metric.devicePixelRatio,
       ),
     );
     _requestRefreshAfterResize(sessionId);
+    return true;
   }
 
   void _startPolling() {
     _pollTimer ??= Timer.periodic(_pollingFrameInterval, (_) {
-      for (final sessionId in _activeSessionIds.toList(growable: false)) {
+      for (final sessionId in _sessions.sessionIds) {
         _requestPollingRefreshSession(sessionId);
       }
     });
   }
 
   void _requestPollingRefreshSession(String sessionId) {
-    final skipTicks = _pollingIdleSkipTicks[sessionId] ?? 0;
-    if (skipTicks > 0) {
-      if (skipTicks == 1) {
-        _pollingIdleSkipTicks.remove(sessionId);
-      } else {
-        _pollingIdleSkipTicks[sessionId] = skipTicks - 1;
-      }
+    if (_framePumpBackoff.shouldSkipPollingRefresh(sessionId)) {
       return;
     }
     _requestRefreshSession(sessionId);
@@ -1186,20 +813,18 @@ class TerminalRuntimeController {
       return;
     }
     if (immediate) {
-      _pollingCooldownTimers.remove(sessionId)?.cancel();
+      _refreshScheduler.cancelCooldown(sessionId);
     }
-    if (_refreshingSessionIds.contains(sessionId)) {
-      _queuedRefreshSessionIds.add(sessionId);
+    if (_refreshScheduler.isRefreshing(sessionId)) {
+      _refreshScheduler.queueRefresh(sessionId);
       return;
     }
     if (!immediate) {
-      if (!_scheduledRefreshSessionIds.add(sessionId)) {
+      if (!_refreshScheduler.scheduleDeferredRefresh(sessionId, () {
+        _requestRefreshSession(sessionId, immediate: true);
+      })) {
         return;
       }
-      scheduleMicrotask(() {
-        _scheduledRefreshSessionIds.remove(sessionId);
-        _requestRefreshSession(sessionId, immediate: true);
-      });
       return;
     }
     unawaited(_refreshSession(sessionId));
@@ -1209,12 +834,12 @@ class TerminalRuntimeController {
     if (!hasSession(sessionId)) {
       return;
     }
-    if (_refreshingSessionIds.contains(sessionId)) {
-      _queuedRefreshSessionIds.add(sessionId);
+    if (_refreshScheduler.isRefreshing(sessionId)) {
+      _refreshScheduler.queueRefresh(sessionId);
       return;
     }
-    if (_pollingCooldownTimers.containsKey(sessionId)) {
-      _queuedRefreshSessionIds.add(sessionId);
+    if (_refreshScheduler.hasCooldown(sessionId)) {
+      _refreshScheduler.queueRefresh(sessionId);
       return;
     }
     _requestUnthrottledRefreshSession(sessionId, immediate: true);
@@ -1233,13 +858,13 @@ class TerminalRuntimeController {
       return;
     }
 
-    _refreshingSessionIds.add(sessionId);
+    _refreshScheduler.markRefreshing(sessionId);
     try {
       final pendingFrames = <TerminalFrameDiff>[];
-      _queuedRefreshSessionIds.remove(sessionId);
+      _refreshScheduler.consumeQueuedRefresh(sessionId);
       var receivedFrame = false;
 
-      final rawFrame = _backend.takeFrameDiffJson(sessionId);
+      final rawFrame = _takeFrameDiffJson(sessionId);
       if (rawFrame != null && rawFrame.isNotEmpty) {
         final frame = _decodeFrame(rawFrame);
         if (frame != null) {
@@ -1250,7 +875,7 @@ class TerminalRuntimeController {
 
       final events = _eventsForSession(
         sessionId,
-        _backend.pollEvents(sessionId),
+        _pollBackendEvents(sessionId),
       );
       final shouldApplyBeforeEvents =
           pendingFrames.isNotEmpty &&
@@ -1275,8 +900,9 @@ class TerminalRuntimeController {
         hadActivity: receivedFrame || events.isNotEmpty,
       );
     } finally {
-      _refreshingSessionIds.remove(sessionId);
-      if (_queuedRefreshSessionIds.remove(sessionId) && hasSession(sessionId)) {
+      _refreshScheduler.clearRefreshing(sessionId);
+      if (_refreshScheduler.consumeQueuedRefresh(sessionId) &&
+          hasSession(sessionId)) {
         _requestRefreshSession(sessionId);
       }
     }
@@ -1287,16 +913,16 @@ class TerminalRuntimeController {
       return;
     }
 
-    _refreshingSessionIds.add(sessionId);
+    _refreshScheduler.markRefreshing(sessionId);
     try {
       var runAgain = true;
       final pendingFrames = <TerminalFrameDiff>[];
       var skippedQueuedFrames = 0;
       while (runAgain && hasSession(sessionId)) {
-        _queuedRefreshSessionIds.remove(sessionId);
+        _refreshScheduler.consumeQueuedRefresh(sessionId);
         runAgain = false;
 
-        final rawFrame = _backend.takeFrameDiffJson(sessionId);
+        final rawFrame = _takeFrameDiffJson(sessionId);
         if (rawFrame != null && rawFrame.isNotEmpty) {
           final frame = _decodeFrame(rawFrame);
           if (frame != null) {
@@ -1306,7 +932,7 @@ class TerminalRuntimeController {
 
         final events = _eventsForSession(
           sessionId,
-          _backend.pollEvents(sessionId),
+          _pollBackendEvents(sessionId),
         );
         final shouldApplyBeforeEvents =
             pendingFrames.isNotEmpty &&
@@ -1324,7 +950,7 @@ class TerminalRuntimeController {
           return;
         }
 
-        runAgain = _queuedRefreshSessionIds.remove(sessionId);
+        runAgain = _refreshScheduler.consumeQueuedRefresh(sessionId);
         final shouldApplyPendingFrame =
             pendingFrames.isNotEmpty && (!runAgain || skippedQueuedFrames >= 1);
         if (shouldApplyPendingFrame) {
@@ -1335,8 +961,9 @@ class TerminalRuntimeController {
         }
       }
     } finally {
-      _refreshingSessionIds.remove(sessionId);
-      if (_queuedRefreshSessionIds.remove(sessionId) && hasSession(sessionId)) {
+      _refreshScheduler.clearRefreshing(sessionId);
+      if (_refreshScheduler.consumeQueuedRefresh(sessionId) &&
+          hasSession(sessionId)) {
         _requestRefreshSession(sessionId);
       }
     }
@@ -1344,6 +971,66 @@ class TerminalRuntimeController {
 
   void _refreshSessionIfNeeded(String sessionId) {
     _requestRefreshSession(sessionId);
+  }
+
+  bool _runBackendOperation(
+    String sessionId,
+    String operation,
+    void Function() run,
+  ) {
+    try {
+      run();
+      return true;
+    } on Object catch (error, stackTrace) {
+      _events.add(
+        TerminalSessionBackendErrorEvent(
+          sessionId,
+          operation: operation,
+          error: error,
+          stackTrace: stackTrace,
+        ),
+      );
+      return false;
+    }
+  }
+
+  String? _takeFrameDiffJson(String sessionId) {
+    try {
+      return _backend.takeFrameDiffJson(sessionId);
+    } on Object catch (error, stackTrace) {
+      _emitBackendRequestError(
+        sessionId,
+        'takeFrameDiffJson',
+        error,
+        stackTrace,
+      );
+      return null;
+    }
+  }
+
+  List<PtyEvent> _pollBackendEvents(String sessionId) {
+    try {
+      return _backend.pollEvents(sessionId);
+    } on Object catch (error, stackTrace) {
+      _emitBackendRequestError(sessionId, 'pollEvents', error, stackTrace);
+      return const <PtyEvent>[];
+    }
+  }
+
+  void _emitBackendRequestError(
+    String sessionId,
+    String operation,
+    Object error,
+    StackTrace stackTrace,
+  ) {
+    _events.add(
+      TerminalSessionBackendErrorEvent(
+        sessionId,
+        operation: operation,
+        error: error,
+        stackTrace: stackTrace,
+      ),
+    );
   }
 
   void _requestRefreshAfterResize(String sessionId) {
@@ -1395,10 +1082,8 @@ class TerminalRuntimeController {
     if (!enableSessionPolling || !hasSession(sessionId)) {
       return;
     }
-    _pollingCooldownTimers.remove(sessionId)?.cancel();
-    _pollingCooldownTimers[sessionId] = Timer(_pollingFrameInterval, () {
-      _pollingCooldownTimers.remove(sessionId);
-      if (_queuedRefreshSessionIds.remove(sessionId) && hasSession(sessionId)) {
+    _refreshScheduler.startCooldown(sessionId, _pollingFrameInterval, () {
+      if (hasSession(sessionId)) {
         _requestThrottledRefreshSession(sessionId);
       }
     });
@@ -1415,39 +1100,23 @@ class TerminalRuntimeController {
       _resetPollingIdleBackoff(sessionId);
       return;
     }
-    final emptyRefreshCount = (_emptyPollingRefreshCounts[sessionId] ?? 0) + 1;
-    _emptyPollingRefreshCounts[sessionId] = emptyRefreshCount;
-    if (emptyRefreshCount >= _pollingIdleBackoffAfterEmptyRefreshes) {
-      _pollingIdleSkipTicks[sessionId] = _pollingIdleBackoffTicks;
-    }
+    _framePumpBackoff.recordRefreshResult(sessionId, hadActivity: false);
   }
 
   void _resetPollingIdleBackoff(String sessionId) {
-    _emptyPollingRefreshCounts.remove(sessionId);
-    _pollingIdleSkipTicks.remove(sessionId);
+    _framePumpBackoff.reset(sessionId);
   }
 
   TerminalFrameDiff? _decodeFrame(String rawFrame) {
-    final decodeWatch = benchmarkEventSink == null
-        ? null
-        : (Stopwatch()..start());
-    final json = _tryDecodeJsonObject(rawFrame);
-    if (json == null) {
+    final decoded = _frameDecoder.decode(rawFrame);
+    if (decoded == null) {
       return null;
     }
-    try {
-      final frame = TerminalFrameDiff.fromJson(json);
-      decodeWatch?.stop();
-      if (benchmarkEventSink != null) {
-        _decodedFrameBenchmarkMetrics[frame] = _DecodedFrameBenchmarkMetrics(
-          rawFrameBytes: utf8.encode(rawFrame).length,
-          jsonDecodeMicros: decodeWatch?.elapsedMicroseconds ?? 0,
-        );
-      }
-      return frame;
-    } on Object {
-      return null;
+    final metrics = decoded.metrics;
+    if (metrics != null) {
+      _decodedFrameBenchmarkMetrics[decoded.frame] = metrics;
     }
+    return decoded.frame;
   }
 
   void _queuePendingFrame(
@@ -1521,7 +1190,7 @@ class TerminalRuntimeController {
     required String sessionId,
     required TerminalFrameDiff frame,
     required TerminalFrameDiff appliedFrame,
-    required _DecodedFrameBenchmarkMetrics? decodedMetrics,
+    required TerminalFrameDecodeMetrics? decodedMetrics,
     required int applyFrameMicros,
     required int pendingFramesBefore,
     required int pendingFramesAfter,
@@ -1542,7 +1211,7 @@ class TerminalRuntimeController {
       'apply_frame_micros': applyFrameMicros,
       'pending_frames_before': pendingFramesBefore,
       'pending_frames_after': pendingFramesAfter,
-      'queued_refresh_count': _queuedRefreshSessionIds.contains(sessionId)
+      'queued_refresh_count': _refreshScheduler.hasQueuedRefresh(sessionId)
           ? 1
           : 0,
       'events_processed': 0,
@@ -1552,7 +1221,7 @@ class TerminalRuntimeController {
 
   bool _eventsContainExit(List<PtyEvent> events) {
     for (final event in events) {
-      if (event.kind == 'exit') {
+      if (_eventRouter.route(event) is TerminalExitEventRoute) {
         return true;
       }
     }
@@ -1567,11 +1236,10 @@ class TerminalRuntimeController {
 
   bool _eventsDelayFrame(List<PtyEvent> events) {
     for (final event in events) {
-      switch (event.kind) {
-        case 'resize':
-          return true;
-        default:
-          break;
+      final route = _eventRouter.route(event);
+      if (route is TerminalAsyncEventRoute &&
+          route.kind == TerminalAsyncEventKind.resize) {
+        return true;
       }
     }
     return false;
@@ -1580,95 +1248,102 @@ class TerminalRuntimeController {
   Future<void>? _processEvents(String sessionId, List<PtyEvent> events) {
     Future<void>? pendingAsyncWork;
     for (final event in events) {
-      switch (event.kind) {
-        case 'exit':
-          final exitCode = _intFromEventPayload(event.payload?['code']);
-          if (pendingAsyncWork == null) {
-            _removeSessionState(sessionId);
-            _events.add(
-              TerminalSessionExitEvent(sessionId, exitCode: exitCode),
-            );
-            return null;
-          }
-          return pendingAsyncWork.then((_) {
-            _removeSessionState(sessionId);
-            _events.add(
-              TerminalSessionExitEvent(sessionId, exitCode: exitCode),
-            );
-          });
-        case 'resize':
-          pendingAsyncWork = _chainAsyncEvent(
-            pendingAsyncWork,
-            () => _handleResizeEvent(sessionId, event.payload),
-          );
-          break;
-        case 'clipboard_copy':
-          pendingAsyncWork = _chainAsyncEvent(
-            pendingAsyncWork,
-            () => _handleClipboardCopyEvent(sessionId, event.payload),
-          );
-          break;
-        case 'clipboard_paste_request':
-          pendingAsyncWork = _chainAsyncEvent(
-            pendingAsyncWork,
-            () => _handleClipboardPasteRequestEvent(sessionId, event.payload),
-          );
-          break;
-        case 'bell':
-          _events.add(TerminalSessionBellEvent(sessionId));
-          break;
-        case 'shell_hook':
+      final route = _eventRouter.route(event);
+      if (route is TerminalExitEventRoute) {
+        if (pendingAsyncWork == null) {
+          _removeSessionState(sessionId);
           _events.add(
-            TerminalSessionShellHookEvent(sessionId, rawPayload: event.payload),
+            TerminalSessionExitEvent(sessionId, exitCode: route.exitCode),
           );
-          break;
-        case 'shell_context':
+          return null;
+        }
+        return pendingAsyncWork.then((_) {
+          _removeSessionState(sessionId);
           _events.add(
-            TerminalSessionShellContextEvent(
-              sessionId,
-              rawPayload: event.payload,
-            ),
+            TerminalSessionExitEvent(sessionId, exitCode: route.exitCode),
           );
-          break;
-        case 'shell_command':
-          _events.add(
-            TerminalSessionShellCommandEvent(
-              sessionId,
-              rawPayload: event.payload,
-            ),
-          );
-          break;
-        case 'shell_user_var':
-          _events.add(
-            TerminalSessionShellUserVarEvent(
-              sessionId,
-              rawPayload: event.payload,
-            ),
-          );
-          break;
-        case 'session_notification':
-          _events.add(
-            TerminalSessionNotificationEvent(
-              sessionId,
-              rawPayload: event.payload,
-            ),
-          );
-          break;
-        case 'session_progress':
-          _events.add(
-            TerminalSessionProgressEvent(sessionId, rawPayload: event.payload),
-          );
-          break;
-        case 'session_badge':
-          _events.add(
-            TerminalSessionBadgeEvent(sessionId, rawPayload: event.payload),
-          );
-          break;
-        default:
-          break;
+        });
+      }
+      if (route is TerminalAsyncEventRoute) {
+        pendingAsyncWork = _chainAsyncEvent(
+          pendingAsyncWork,
+          () => _handleAsyncEventRoute(sessionId, route),
+        );
+        continue;
+      }
+      if (route is TerminalImmediateEventRoute) {
+        _emitImmediateEventRoute(sessionId, route);
       }
     }
     return pendingAsyncWork;
+  }
+
+  Future<void> _handleAsyncEventRoute(
+    String sessionId,
+    TerminalAsyncEventRoute route,
+  ) {
+    return switch (route.kind) {
+      TerminalAsyncEventKind.resize => _handleResizeEvent(
+        sessionId,
+        route.payload,
+      ),
+      TerminalAsyncEventKind.clipboardCopy => _handleClipboardCopyEvent(
+        sessionId,
+        route.payload,
+      ),
+      TerminalAsyncEventKind.clipboardPasteRequest =>
+        _handleClipboardPasteRequestEvent(sessionId, route.payload),
+    };
+  }
+
+  void _emitImmediateEventRoute(
+    String sessionId,
+    TerminalImmediateEventRoute route,
+  ) {
+    switch (route.kind) {
+      case TerminalImmediateEventKind.bell:
+        _events.add(TerminalSessionBellEvent(sessionId));
+      case TerminalImmediateEventKind.shellHook:
+        _events.add(
+          TerminalSessionShellHookEvent(sessionId, rawPayload: route.payload),
+        );
+      case TerminalImmediateEventKind.shellContext:
+        _events.add(
+          TerminalSessionShellContextEvent(
+            sessionId,
+            rawPayload: route.payload,
+          ),
+        );
+      case TerminalImmediateEventKind.shellCommand:
+        _events.add(
+          TerminalSessionShellCommandEvent(
+            sessionId,
+            rawPayload: route.payload,
+          ),
+        );
+      case TerminalImmediateEventKind.shellUserVar:
+        _events.add(
+          TerminalSessionShellUserVarEvent(
+            sessionId,
+            rawPayload: route.payload,
+          ),
+        );
+      case TerminalImmediateEventKind.sessionNotification:
+        _events.add(
+          TerminalSessionNotificationEvent(
+            sessionId,
+            rawPayload: route.payload,
+          ),
+        );
+      case TerminalImmediateEventKind.sessionProgress:
+        _events.add(
+          TerminalSessionProgressEvent(sessionId, rawPayload: route.payload),
+        );
+      case TerminalImmediateEventKind.sessionBadge:
+        _events.add(
+          TerminalSessionBadgeEvent(sessionId, rawPayload: route.payload),
+        );
+    }
   }
 
   Future<void> _chainAsyncEvent(
@@ -1690,102 +1365,63 @@ class TerminalRuntimeController {
     }
     final cols = _intFromEventPayload(payload['cols']);
     final rows = _intFromEventPayload(payload['rows']);
-    final metric = _lastResizeMetrics[sessionId];
-    if (cols == null ||
-        rows == null ||
-        cols <= 0 ||
-        rows <= 0 ||
-        metric == null) {
+    if (cols == null || rows == null) {
+      return;
+    }
+    final plan = _resizeCoordinator.planNativeResizeEvent(
+      sessionId,
+      cols: cols,
+      rows: rows,
+      cellSize: _cellSizeFor(sessionId),
+    );
+    if (plan == null) {
       return;
     }
 
-    final boundedCols = _boundedTerminalDimension(cols);
-    final boundedRows = _boundedTerminalDimension(rows);
-    final measuredCellSize = _cellSizeFor(sessionId);
-    final targetWidth = boundedCols * measuredCellSize.width;
-    final targetHeight = boundedRows * measuredCellSize.height;
-    final widthDelta = targetWidth - metric.logicalWidth;
-    final heightDelta = targetHeight - metric.logicalHeight;
-    final targetPixelWidth = _boundedTerminalPixelDimension(
-      targetWidth * metric.devicePixelRatio,
-    );
-    final targetPixelHeight = _boundedTerminalPixelDimension(
-      targetHeight * metric.devicePixelRatio,
-    );
-    final targetCellPixelWidth = _boundedTerminalPixelDimension(
-      measuredCellSize.width * metric.devicePixelRatio,
-    );
-    final targetCellPixelHeight = _boundedTerminalPixelDimension(
-      measuredCellSize.height * metric.devicePixelRatio,
-    );
-
-    _backend.resizeSession(
+    final metric = plan.metric;
+    if (!_runBackendOperation(
       sessionId,
-      cols: boundedCols,
-      rows: boundedRows,
-      pixelWidth: targetPixelWidth,
-      pixelHeight: targetPixelHeight,
-      cellWidth: targetCellPixelWidth,
-      cellHeight: targetCellPixelHeight,
-    );
-    _lastResizeMetrics[sessionId] = _SessionResizeMetric(
-      cols: boundedCols,
-      rows: boundedRows,
-      pixelWidth: targetPixelWidth,
-      pixelHeight: targetPixelHeight,
-      cellWidth: targetCellPixelWidth,
-      cellHeight: targetCellPixelHeight,
-      logicalWidth: targetWidth,
-      logicalHeight: targetHeight,
-      devicePixelRatio: metric.devicePixelRatio,
-    );
+      'resizeSession',
+      () => _backend.resizeSession(
+        sessionId,
+        cols: metric.cols,
+        rows: metric.rows,
+        pixelWidth: metric.pixelWidth,
+        pixelHeight: metric.pixelHeight,
+        cellWidth: metric.cellWidth,
+        cellHeight: metric.cellHeight,
+      ),
+    )) {
+      return;
+    }
+    _resizeCoordinator.commit(sessionId, metric);
     _resizeEvents.add(
       TerminalSessionResizeEvent(
         sessionId,
-        cols: boundedCols,
-        rows: boundedRows,
-        pixelWidth: targetPixelWidth,
-        pixelHeight: targetPixelHeight,
-        cellWidth: targetCellPixelWidth,
-        cellHeight: targetCellPixelHeight,
-        viewportSize: Size(targetWidth, targetHeight),
+        cols: metric.cols,
+        rows: metric.rows,
+        pixelWidth: metric.pixelWidth,
+        pixelHeight: metric.pixelHeight,
+        cellWidth: metric.cellWidth,
+        cellHeight: metric.cellHeight,
+        viewportSize: plan.viewportSize,
         devicePixelRatio: metric.devicePixelRatio,
       ),
     );
     _requestRefreshAfterResize(sessionId);
 
-    if (widthDelta == 0 && heightDelta == 0) {
+    if (plan.widthDelta == 0 && plan.heightDelta == 0) {
       return;
     }
 
     await resizeWindowBy?.call(
-      widthDelta: widthDelta,
-      heightDelta: heightDelta,
+      widthDelta: plan.widthDelta,
+      heightDelta: plan.heightDelta,
     );
   }
 
   Size _cellSizeFor(String sessionId) {
     return viewportFor(sessionId).measuredCellSize ?? terminalFallbackCellSize;
-  }
-
-  bool _isPositiveFiniteSize(Size size) {
-    return _isPositiveFiniteDouble(size.width) &&
-        _isPositiveFiniteDouble(size.height);
-  }
-
-  bool _isPositiveFiniteDouble(double value) {
-    return value.isFinite && value > 0;
-  }
-
-  int _boundedTerminalDimension(int value) {
-    return value.clamp(1, maxTerminalDimension).toInt();
-  }
-
-  int _boundedTerminalPixelDimension(double value) {
-    if (!value.isFinite || value <= 0) {
-      return 1;
-    }
-    return value.round().clamp(1, maxTerminalDimension).toInt();
   }
 
   Future<void> _handleClipboardCopyEvent(
@@ -1977,7 +1613,9 @@ class TerminalRuntimeController {
     );
     final encoded = base64.encode(clipboardBytes);
     final response = '\x1B]52;$selection;$encoded\x07';
-    sendInput(sessionId, Uint8List.fromList(utf8.encode(response)));
+    if (!_sendInput(sessionId, Uint8List.fromList(utf8.encode(response)))) {
+      return;
+    }
     _events.add(
       TerminalSessionClipboardEvent(
         sessionId,
@@ -2041,7 +1679,7 @@ class TerminalRuntimeController {
           if (!hasSession(sessionId)) {
             return;
           }
-          final controller = _viewportControllers[sessionId];
+          final controller = _sessions.existingViewportFor(sessionId);
           final hasVisibleContent =
               controller != null &&
               controller.frame.rows.any((row) => row.text.trim().isNotEmpty);
@@ -2060,20 +1698,15 @@ class TerminalRuntimeController {
   }
 
   void _removeSessionState(String sessionId) {
-    _activeSessionIds.remove(sessionId);
-    _refreshingSessionIds.remove(sessionId);
-    _queuedRefreshSessionIds.remove(sessionId);
-    _scheduledRefreshSessionIds.remove(sessionId);
-    _pollingCooldownTimers.remove(sessionId)?.cancel();
-    _resetPollingIdleBackoff(sessionId);
+    _refreshScheduler.remove(sessionId);
+    _framePumpBackoff.remove(sessionId);
     _lastFrameAppliedAt.remove(sessionId);
     for (final timer in _warmUpTimers.remove(sessionId) ?? const <Timer>[]) {
       timer.cancel();
     }
-    _graphicsCaches.remove(sessionId)?.dispose();
-    _viewportControllers.remove(sessionId)?.dispose();
-    _lastResizeMetrics.remove(sessionId);
-    if (_activeSessionIds.isEmpty) {
+    _sessions.remove(sessionId);
+    _resizeCoordinator.remove(sessionId);
+    if (_sessions.isEmpty) {
       _pollTimer?.cancel();
       _pollTimer = null;
     }
@@ -2101,22 +1734,13 @@ class TerminalRuntimeController {
     );
   }
 
-  int? _boundedScrollbackExportMaxLines(int? value) {
-    if (value == null) {
-      return null;
-    }
-    if (value <= 0) {
-      return 0;
-    }
-    if (value > maxTerminalScrollbackLines) {
-      return maxTerminalScrollbackLines;
-    }
-    return value;
-  }
-
   void dispose() {
-    for (final sessionId in _activeSessionIds.toList(growable: false)) {
-      _backend.closeSession(sessionId);
+    for (final sessionId in _sessions.sessionIds) {
+      _runBackendOperation(
+        sessionId,
+        'closeSession',
+        () => _backend.closeSession(sessionId),
+      );
       _removeSessionState(sessionId);
     }
     _pollTimer?.cancel();
@@ -2125,38 +1749,12 @@ class TerminalRuntimeController {
         timer.cancel();
       }
     }
-    for (final controller in _viewportControllers.values) {
-      controller.dispose();
-    }
+    _refreshScheduler.dispose();
+    _sessions.dispose();
     _events.close();
     _inputEvents.close();
     _resizeEvents.close();
   }
-}
-
-Future<bool> _allowClipboardAccess() async => true;
-
-Map<String, Object?>? _tryDecodeJsonObject(String raw) {
-  try {
-    final decoded = jsonDecode(raw);
-    if (decoded is! Map) {
-      return null;
-    }
-    return _stringKeyedJsonMap(decoded);
-  } on Object {
-    return null;
-  }
-}
-
-Map<String, Object?> _stringKeyedJsonMap(Map<dynamic, dynamic> decoded) {
-  final json = <String, Object?>{};
-  for (final entry in decoded.entries) {
-    final key = entry.key;
-    if (key is String) {
-      json[key] = entry.value;
-    }
-  }
-  return json;
 }
 
 int? _intFromEventPayload(Object? value) {
@@ -2186,28 +1784,4 @@ String? _stringFromJsonValue(Object? value) {
 String? _nonEmptyTrimmedStringFromJsonValue(Object? value) {
   final text = _stringFromJsonValue(value)?.trim();
   return text == null || text.isEmpty ? null : text;
-}
-
-class _SessionResizeMetric {
-  _SessionResizeMetric({
-    required this.cols,
-    required this.rows,
-    required this.pixelWidth,
-    required this.pixelHeight,
-    required this.cellWidth,
-    required this.cellHeight,
-    required this.logicalWidth,
-    required this.logicalHeight,
-    required this.devicePixelRatio,
-  });
-
-  final int cols;
-  final int rows;
-  final int pixelWidth;
-  final int pixelHeight;
-  final int cellWidth;
-  final int cellHeight;
-  final double logicalWidth;
-  final double logicalHeight;
-  final double devicePixelRatio;
 }

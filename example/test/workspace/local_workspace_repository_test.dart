@@ -100,7 +100,7 @@ void main() {
                       'sessionIntent': {'profileId': 'default', 'cwd': 99},
                     },
                     {
-                      'id': 123,
+                      'id': 'pane-2',
                       'type': 'leaf',
                       'sessionIntent': {'profileId': 404, 'cwd': '/repo'},
                     },
@@ -127,7 +127,7 @@ void main() {
         expect(tab.root.ratio, 0.5);
         expect(tab.root.children.first.sessionIntent?.profileId, 'default');
         expect(tab.root.children.first.sessionIntent?.cwd, isNull);
-        expect(tab.root.children.last.id, '');
+        expect(tab.root.children.last.id, 'pane-2');
         expect(tab.root.children.last.sessionIntent?.profileId, '');
         expect(tab.root.children.last.sessionIntent?.cwd, '/repo');
         expect(

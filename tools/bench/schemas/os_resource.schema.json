@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ianvs Bench OS Resource Sample",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "timestamp_micros",
+    "session_id",
+    "sample_id",
+    "source",
+    "process_id",
+    "process_cpu_percent",
+    "process_rss_bytes"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "ianvs-bench-os-resource-v1"
+    },
+    "timestamp_micros": {
+      "type": "integer"
+    },
+    "session_id": {
+      "type": [
+        "integer",
+        "string"
+      ]
+    },
+    "sample_id": {
+      "type": "integer"
+    },
+    "source": {
+      "type": "string"
+    },
+    "process_id": {
+      "type": "integer"
+    },
+    "process_cpu_percent": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "process_rss_bytes": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

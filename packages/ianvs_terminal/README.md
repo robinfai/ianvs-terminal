@@ -28,6 +28,10 @@ inject shell hooks. It defaults to `true`, but unsupported shells, most custom
 shell arguments, VT220 emulation, or native proxy setup failures automatically
 fall back to the original shell launch path without emitting shell-hook events.
 The default zsh login shell arguments (`-l` or `--login`) remain eligible.
+Native diagnostics export records the launch decision in the initial `started`
+diagnostic event as `shell_integration.status`, `reason`, optional `kind`, and
+optional `error`, so support logs can tell disabled/degraded sessions apart from
+normal hook silence.
 
 Bash integration uses a `DEBUG` trap for `preexec` and wraps `PROMPT_COMMAND`
 for completion hooks. If a user already has a `DEBUG` trap, bash integration

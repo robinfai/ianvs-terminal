@@ -116,7 +116,7 @@ final terminalRuntimeControllerProvider = Provider<TerminalRuntimeController>((
         LocalTerminalOsc52Policy.allow => true,
       };
     } on Object {
-      return true;
+      return false;
     }
   }
 
@@ -439,9 +439,7 @@ class SessionController extends Notifier<SessionState> {
         initialProfile,
         environmentOverrides,
       );
-      initialSessionId = _runtime.createSession(
-        initialLaunchProfile.toSessionConfig(),
-      );
+      initialSessionId = _createRuntimeSession(initialLaunchProfile);
     }
 
     state = state.copyWith(
@@ -498,7 +496,10 @@ class SessionController extends Notifier<SessionState> {
       profile,
       environmentOverrides,
     );
-    final sessionId = _runtime.createSession(launchProfile.toSessionConfig());
+    final sessionId = _createRuntimeSession(launchProfile);
+    if (sessionId == null) {
+      return;
+    }
     state = state.copyWith(
       tabs: <TerminalTab>[
         ...state.tabs,
@@ -544,7 +545,10 @@ class SessionController extends Notifier<SessionState> {
       profile,
       environmentOverrides,
     );
-    final sessionId = _runtime.createSession(launchProfile.toSessionConfig());
+    final sessionId = _createRuntimeSession(launchProfile);
+    if (sessionId == null) {
+      return;
+    }
     final newPane = TerminalPane(
       sessionId: sessionId,
       title: launchProfile.name,
@@ -602,6 +606,20 @@ class SessionController extends Notifier<SessionState> {
       },
       TerminalEmulation.vt220 => const <String, String>{'TERM': 'vt220'},
     };
+  }
+
+  String? _createRuntimeSession(TerminalProfile launchProfile) {
+    try {
+      return _runtime.createSession(launchProfile.toSessionConfig());
+    } on Object catch (error) {
+      final detail = _boundedShellMetadata(error.toString(), 240);
+      state = state.copyWith(
+        lastError:
+            'Terminal backend createSession failed'
+            '${detail == null ? '' : ': $detail'}',
+      );
+      return null;
+    }
   }
 
   void activateSession(String sessionId) {
@@ -829,7 +847,10 @@ class SessionController extends Notifier<SessionState> {
         profile,
         environmentOverrides,
       );
-      final sessionId = _runtime.createSession(launchProfile.toSessionConfig());
+      final sessionId = _createRuntimeSession(launchProfile);
+      if (sessionId == null) {
+        continue;
+      }
       reopenedPanes.add(
         TerminalPane(
           sessionId: sessionId,
@@ -845,6 +866,7 @@ class SessionController extends Notifier<SessionState> {
     }
 
     if (reopenedPanes.isEmpty) {
+      _recentlyClosedTabs.insert(0, closedTab);
       return;
     }
     activeSessionId ??= reopenedPanes.first.sessionId;
@@ -908,7 +930,10 @@ class SessionController extends Notifier<SessionState> {
       profile,
       environmentOverrides,
     );
-    final sessionId = _runtime.createSession(launchProfile.toSessionConfig());
+    final sessionId = _createRuntimeSession(launchProfile);
+    if (sessionId == null) {
+      return null;
+    }
     final reopenedPane = TerminalPane(
       sessionId: sessionId,
       title: sourcePane.title,
@@ -1056,7 +1081,22 @@ class SessionController extends Notifier<SessionState> {
         break;
       case TerminalSessionClipboardEvent():
         break;
+      case TerminalSessionBackendErrorEvent():
+        _applyBackendError(event);
+        break;
     }
+  }
+
+  void _applyBackendError(TerminalSessionBackendErrorEvent event) {
+    final operation = _boundedShellMetadata(event.operation, 80) ?? 'operation';
+    final sessionId =
+        _boundedShellMetadata(event.sessionId, 80) ?? event.sessionId;
+    final detail = _boundedShellMetadata(event.error.toString(), 240);
+    state = state.copyWith(
+      lastError:
+          'Terminal backend $operation failed for session $sessionId'
+          '${detail == null ? '' : ': $detail'}',
+    );
   }
 
   void _applyFrame(String sessionId, TerminalFrameDiff frame) {

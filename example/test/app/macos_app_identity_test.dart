@@ -44,6 +44,27 @@ void main() {
     expect(schemeText, contains('BuildableName = "Ianvs Terminal Dev.app"'));
     expect(schemeText, isNot(contains('BuildableName = "app.app"')));
   });
+
+  test('example package metadata describes the Ianvs Terminal app', () {
+    final exampleRoot = _exampleRoot();
+    final pubspecText = File('${exampleRoot.path}/pubspec.yaml').readAsStringSync();
+
+    expect(pubspecText, contains('description:'));
+    expect(pubspecText, contains('Ianvs Terminal'));
+    expect(pubspecText, isNot(contains('A new Flutter project.')));
+  });
+
+  test('macOS release build keeps core dylib signing and hardening explicit', () {
+    final exampleRoot = _exampleRoot();
+    final projectText = File(
+      '${exampleRoot.path}/macos/Runner.xcodeproj/project.pbxproj',
+    ).readAsStringSync();
+
+    expect(projectText, contains('CODE_SIGN_ENTITLEMENTS = Runner/Release.entitlements;'));
+    expect(projectText, contains('ENABLE_HARDENED_RUNTIME = YES;'));
+    expect(projectText, contains('libianvs_core.dylib'));
+    expect(projectText, contains('codesign --force --sign'));
+  });
 }
 
 Directory _exampleRoot() {

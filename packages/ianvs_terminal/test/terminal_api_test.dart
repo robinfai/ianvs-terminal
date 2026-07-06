@@ -283,13 +283,23 @@ void main() {
     );
     addTearDown(terminal.dispose);
     terminal.open();
+    final backendErrors = <TerminalSessionBackendErrorEvent>[];
+    final subscription = runtime.events.listen((event) {
+      if (event is TerminalSessionBackendErrorEvent) {
+        backendErrors.add(event);
+      }
+    });
+    addTearDown(subscription.cancel);
     backend.resizeError = RangeError('native resize rejected');
 
-    expect(() => terminal.resize(120, 40), throwsRangeError);
+    terminal.resize(120, 40);
     await tester.pump();
 
     expect(terminal.cols, 80);
     expect(terminal.rows, 24);
+    expect(backendErrors, hasLength(1));
+    expect(backendErrors.single.operation, 'resizeSession');
+    expect(backendErrors.single.error, isA<RangeError>());
   });
 
   testWidgets('terminal facade paste ignores empty text', (tester) async {

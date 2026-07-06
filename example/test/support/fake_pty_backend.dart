@@ -24,6 +24,7 @@ class FakePtyBackend
   final List<List<int>> scrollToCalls = <List<int>>[];
   final List<List<Object?>> searchCalls = <List<Object?>>[];
   final List<List<Object?>> selectionTextCalls = <List<Object?>>[];
+  final Set<String> failingOperations = <String>{};
   Map<String, Object?>? lastCreatedSessionPayload;
   bool pingCalled = false;
 
@@ -61,6 +62,7 @@ class FakePtyBackend
 
   @override
   String createSession(String sessionConfigJson) {
+    _throwIfFailing('createSession');
     lastCreatedSessionPayload =
         jsonDecode(sessionConfigJson) as Map<String, Object?>;
     final sessionId = (++_nextSessionId).toString();
@@ -249,9 +251,16 @@ class FakePtyBackend
 
   @override
   void writeInput(String sessionId, List<int> bytes) {
+    _throwIfFailing('writeInput');
     final write = Uint8List.fromList(bytes);
     writes.add(write);
     writesBySession.add(MapEntry<String, Uint8List>(sessionId, write));
+  }
+
+  void _throwIfFailing(String operation) {
+    if (failingOperations.contains(operation)) {
+      throw StateError('$operation failed');
+    }
   }
 
   @override

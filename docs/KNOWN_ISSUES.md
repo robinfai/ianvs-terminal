@@ -22,8 +22,7 @@
 
 ## 当前缺少的非功能性保障
 
-- 已有首批本地性能基线 evidence（`docs/evidence/2026-05-29-benchmark/` 与 `TERMINAL_XTERM_RECENT_FIX_AUDIT.md` 里的 release snapshots），但还没有 quiet-host / cross-machine 对比基线
-- 还没有自动化性能回归检查
+- 已有首批本地性能基线 evidence（`docs/evidence/2026-05-29-benchmark/` 与 `TERMINAL_XTERM_RECENT_FIX_AUDIT.md` 里的 release snapshots），并且 `tools/bench/configs/bench_ci_smoke.yaml` 已覆盖轻量 p95 frame-build / JSON decode / apply 回归 gate，也会采集 `os_resource.ndjson` 的 CPU/RSS 样本。`tools/bench/configs/bench_nightly_resource.yaml` 可通过 `VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH=1` 接入 verify 脚本，在 quiet-host/nightly lane 对 `max_p95_process_cpu_percent` 与 `max_peak_process_rss_bytes` 做资源阈值门禁；但还没有 cross-machine 对比基线
 - 还没有跨平台验证
 - 还没有 SSH 兼容性验证
 - local-only terminal 手工矩阵已于 `2026-05-06` 在 `T-059` 实际执行；当时发现的真实失败项已拆到 `T-066`、`T-067`、`T-068` 并完成，`T-059` 仍作为历史矩阵入口保留

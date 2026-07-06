@@ -58,10 +58,19 @@ The biggest current weakness is not visual quality. It is confidence at the edge
 
 - foreground launch still reports a failure in the current host session;
 - real keyboard/input capture is not fully proven in this latest audit run;
-- paste safety was proven historically but not recaptured in the latest Product Design pass;
+- host-level physical shortcut, notification banner, and accessibility-tree
+  proof remain separate from app-level widget/runtime evidence;
 - `ShellScreen` is doing too much and will slow future product work.
 
 Post-evaluation update, 2026-06-28: app-level shortcut dispatch, `Cmd+F`, search scope/result count/regex/global search, paste safety/read-only behavior, profile section navigation, compact tab overflow, pane header/actions, Toolbelt IA, and DPR snapping have current automated acceptance evidence. See `../ianvs-iterm2-comparison-2026-06-25/AUTOMATED_ACCEPTANCE_STATUS_2026-06-28.md`. The foreground launch warning, physical/global host shortcut delivery, accessibility-tree stability, quiet-host performance, and cross-platform hardware checks remain separate host/platform proof work.
+
+Post-evaluation automated closure evidence:
+
+```bash
+cd example && flutter test test/widget_test.dart --plain-name "shell search overlay stays inside active split pane"
+cd example && flutter test test/widget_test.dart --plain-name "shell search closes on Escape without terminal input"
+cd example && flutter test test/shell/shell_screen_phase4_test.dart --plain-name "paste"
+```
 
 My overall assessment: keep investing. The project has a credible path to becoming a strong macOS local terminal, but it should stabilize proof and complexity before widening into SSH, sync, plugins, or cross-platform support.
 
@@ -73,8 +82,8 @@ My overall assessment: keep investing. The project has a credible path to becomi
 | First-use shell surface | Strong | The user lands on a usable terminal prompt, not a marketing or setup screen. |
 | Command discoverability | Strong | Command menu is searchable, categorized, shortcut-aware, and explains disabled actions. |
 | Tabs and panes | Good | New tab and split-right flow are captured and readable; full-width tab cells are an intentional interaction choice. |
-| Search | Good | Search opens cleanly and focuses the field; split-pane overlay placement needs more proof. |
-| Paste safety | Good but not current-run verified | Historical UX audit shows strong paste confirmation fixes; latest screenshots did not recapture it. |
+| Search | Good | Search opens cleanly and focuses the field; split-pane overlay placement is automated by focused geometry and close-behavior regressions. |
+| Paste safety | Good with current automated proof | Multiline confirmation, bracketed-paste sanitization, read-only blocking, and keyboard/native paste routing have automated regressions. |
 | Accessibility | Promising but incomplete | Tooltips, semantics, and visible focus exist; screen-reader order and physical keyboard flow need direct proof. |
 | macOS fit | Mixed | Menu bar exists and desktop shortcuts are considered; foreground launch and physical shortcut proof still need work. |
 | Architecture | Strong with one large risk | Package boundaries are clear; `ShellScreen` is too large for long-term maintainability. |
@@ -134,9 +143,13 @@ Search is credible. `08-search-scrollback.png` shows a compact overlay with fiel
 
 The foreground launch issue is the largest user-facing risk. `docs/KNOWN_ISSUES.md` already records `Failed to foreground app; open returned 1`, and this evaluation reproduced it. A terminal must feel ready immediately after launch.
 
-Search overlay placement in split mode needs another pass. It opens cleanly, but it overlays the right pane. That may be acceptable, but dense output could be hidden while searching.
+Search overlay placement in split mode now has an app-level geometry
+regression proving the overlay stays inside the active pane. Dense-output visual
+review can remain a supplemental product-design smoke, not the closure gate.
 
-Paste safety remains important enough to recapture. The historical UX audit shows multiline paste preview and paste-history policy were improved, but this evaluation did not capture those screens.
+Paste safety remains important enough to keep in regression gates. Later
+automated tests now cover multiline paste preview, paste routing, read-only
+blocking, and bracketed-paste sanitization.
 
 ## Accessibility Assessment
 
@@ -274,14 +287,15 @@ iTerm2’s docs reinforce the importance of tab bar behavior, status bar placeme
 
 1. Fix or isolate `Failed to foreground app; open returned 1`.
 2. Add a maintained Product Design capture helper based on the successful Flutter Driver screenshot flow.
-3. Recapture paste history and multiline paste confirmation.
+3. Keep paste history, multiline paste confirmation, read-only blocking, and
+   bracketed-paste sanitization in default automated gates.
 4. Re-run physical shortcut checks: `Cmd+F`, `Cmd+Shift+H`, `Option+Cmd+B`, `Option+Cmd+Space`.
 5. Run real notification banner proof once host settings allow it.
 
 ### P1: Product Polish
 
 1. Keep the full-width tab rationale documented so future design reviews do not treat it as accidental tab bloat.
-2. Recheck search overlay placement in split panes.
+2. Keep the split-pane search geometry regression in the automated gate.
 3. Add screenshot evidence for light mode, defaults, profiles, paste confirmation, empty state, and error states.
 4. Make command-menu action labels and docs line up. Completed after this audit by using `Search terminal output` consistently in the command menu and tests.
 5. Keep disabled reasons visible across every command surface, not only command menu.
@@ -307,7 +321,8 @@ The project should now focus less on adding breadth and more on making its stron
 
 - launch reliably;
 - accept real input reliably;
-- prove paste safety again;
+- keep paste safety and split-pane search placement in automated regression
+  gates;
 - preserve the intentional full-width tab model unless real user evidence argues against it;
 - reduce `ShellScreen` complexity;
 - finish xterm/runtime evidence before expanding scope.

@@ -9,6 +9,7 @@ semantic/render decoupling:
 - deterministic trace replay
 - final viewport hash correctness
 - Rust/Dart/Flutter-style NDJSON metrics
+- optional OS resource NDJSON metrics
 - `summary.csv` and `summary.md`
 
 ## CI Smoke
@@ -20,6 +21,46 @@ dart run tools/bench/runner/bench_runner.dart \
 
 The smoke config runs small deterministic workloads in `headless_state_only`
 mode and checks `snapshot_only` versus `delta_coalesced` final viewport hashes.
+It also enforces schema validation for collected `correctness.json` and
+`rust_frame.ndjson` artifacts. The smoke config also collects
+`os_resource.ndjson` for process CPU/RSS visibility and enforces the configured
+p95 frame-build, JSON-decode, and apply limits.
+
+The `schemas/rust_frame.schema.json` file documents benchmark metric events.
+The Rust/Dart terminal frame wire payload has its own compatibility corpus in
+`packages/ianvs_terminal/test/fixtures/frame_diff_corpus` and schema in
+`schemas/terminal_frame_diff.schema.json`; run
+`cd packages/ianvs_terminal && flutter test test/terminal_frame_diff_corpus_test.dart`
+after changing frame-diff JSON fields.
+
+## Nightly Resource Gate
+
+Use the quiet-host/nightly config when the runner machine has stable load and
+resource samples should be hard pass/fail inputs:
+
+```bash
+VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH=1 ./tools/verify_flutter_terminal.sh
+```
+
+Or run the resource gate directly:
+
+```bash
+dart run tools/bench/runner/bench_runner.dart \
+  --config tools/bench/configs/bench_nightly_resource.yaml
+```
+
+That config includes an idle baseline plus sustained output, scrollback, and
+resize workloads, and enforces CPU/RSS gates:
+
+```yaml
+gates:
+  max_p95_process_cpu_percent: 80
+  max_peak_process_rss_bytes: 512000000
+```
+
+Keep those thresholds out of ad-hoc developer smoke runs unless the host load is
+controlled; the default CI smoke records resource samples without using them as
+hard pass/fail limits.
 
 ## Single Workload
 
