@@ -24,11 +24,13 @@ cargo test diagnostics_export_reports_shell_integration_gate_status
 
 ```bash
 cd packages/ianvs_pty
+dart analyze --fatal-infos
 dart test
 ```
 
 ```bash
 cd packages/ianvs_terminal
+flutter analyze --fatal-infos
 flutter test
 ```
 
@@ -41,7 +43,7 @@ flutter test test/terminal_frame_diff_corpus_test.dart
 
 ```bash
 cd example
-flutter analyze
+flutter analyze --fatal-infos
 flutter test
 flutter test -d macos integration_test/ianvs_terminal_smoke_test.dart
 flutter test -d macos integration_test/real_pty_acceptance_test.dart
@@ -179,7 +181,7 @@ terminal frame/event 通道，覆盖：
 ./tools/verify_flutter_terminal.sh
 ```
 
-这个脚本会先构建并验证 `native/core`，再跑 `packages/ianvs_pty`、`packages/ianvs_terminal`、`example` 的默认验证链路，并用 `grep` 守住 Phase 3 的单一 defaults 写入口约束。`example` 默认跑 analyze 和模块化测试目录；历史较长的 `example/test/widget_test.dart` 需显式设置 `VERIFY_FLUTTER_TERMINAL_RUN_EXAMPLE_WIDGET_TESTS=1` 才会纳入。脚本还会执行 `tools/bench/configs/bench_ci_smoke.yaml`，用确定性 workload 检查 frame diff hash、schema gate、`p95_frame_build_micros`、`p95_json_decode_micros` 和 `p95_apply_frame_micros` 上限，并写出 `os_resource.ndjson` / `p95_process_cpu_percent` / `peak_process_rss_bytes` 作为 CPU/RSS 可观测基线。资源阈值可通过 benchmark config 的 `max_p95_process_cpu_percent` 和 `max_peak_process_rss_bytes` 打开；普通 smoke 默认只采样，不把宿主负载波动作为失败条件。
+这个脚本会先构建并验证 `native/core`，再跑 `packages/ianvs_pty`、`packages/ianvs_terminal`、`example` 的默认验证链路，并用 `grep` 守住 Phase 3 的单一 defaults 写入口约束。Dart/Flutter analyze gate 使用 `--fatal-infos`，因此 info 级诊断也会阻断 CI。`example` 默认跑 analyze 和模块化测试目录；历史较长的 `example/test/widget_test.dart` 需显式设置 `VERIFY_FLUTTER_TERMINAL_RUN_EXAMPLE_WIDGET_TESTS=1` 才会纳入。脚本还会执行 `tools/bench/configs/bench_ci_smoke.yaml`，用确定性 workload 检查 frame diff hash、schema gate、`p95_frame_build_micros`、`p95_json_decode_micros` 和 `p95_apply_frame_micros` 上限，并写出 `os_resource.ndjson` / `p95_process_cpu_percent` / `peak_process_rss_bytes` 作为 CPU/RSS 可观测基线。资源阈值可通过 benchmark config 的 `max_p95_process_cpu_percent` 和 `max_peak_process_rss_bytes` 打开；普通 smoke 默认只采样，不把宿主负载波动作为失败条件。
 脚本末尾会顺序执行 macOS smoke 与 real PTY acceptance，覆盖启动级 UI
 路径和真实 `NativePtyBackend` / shell frame-event 路径。
 
@@ -213,11 +215,13 @@ VERIFY_FLUTTER_TERMINAL_RUN_EXAMPLE_WIDGET_TESTS=1 \
 - 只改 `packages/ianvs_pty`
   - `cd native/core && cargo clippy --all-targets -- -D warnings`
   - `cd native/core && cargo test`
+  - `cd packages/ianvs_pty && dart analyze --fatal-infos`
   - `cd packages/ianvs_pty && dart test`
 - 只改 `packages/ianvs_terminal`
+  - `cd packages/ianvs_terminal && flutter analyze --fatal-infos`
   - `cd packages/ianvs_terminal && flutter test`
 - 只改 `example/`
-  - `cd example && flutter analyze`
+  - `cd example && flutter analyze --fatal-infos`
   - `cd example && flutter test`
 - 改动跨越 FFI、runtime、viewport 或 shell
   - 全部默认顺序都跑

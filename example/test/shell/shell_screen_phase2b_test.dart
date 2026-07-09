@@ -150,7 +150,7 @@ void main() {
     );
     expect(find.byKey(const Key('shell-top-paste-clipboard')), findsOneWidget);
     expect(find.byKey(const Key('shell-top-new-tab')), findsOneWidget);
-    expect(find.byKey(const Key('shell-top-toolbelt')), findsNothing);
+    expect(find.byKey(const Key('shell-top-toolbelt')), findsOneWidget);
     expect(find.byKey(const Key('shell-split-right')), findsNothing);
     expect(find.text('Pane actions'), findsNothing);
 
@@ -182,7 +182,7 @@ void main() {
     );
     expect(find.byKey(const Key('shell-top-paste-clipboard')), findsOneWidget);
     expect(find.byKey(const Key('shell-top-new-tab')), findsOneWidget);
-    expect(find.byKey(const Key('shell-top-toolbelt')), findsNothing);
+    expect(find.byKey(const Key('shell-top-toolbelt')), findsOneWidget);
     expect(find.byKey(const Key('shell-split-right')), findsNothing);
 
     expect(find.text('Search terminal output'), findsOneWidget);
@@ -206,7 +206,6 @@ void main() {
     await tester.pumpAndSettle();
 
     for (final hiddenLabel in <String>[
-      'Toolbelt',
       'Enable bell notifications',
       'Hotkey window',
       'Dynamic profiles',

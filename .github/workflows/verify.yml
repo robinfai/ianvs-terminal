@@ -1,0 +1,60 @@
+name: Verify
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter-terminal:
+    name: Flutter terminal (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            skip_macos_integration: "1"
+          - os: macos-latest
+            skip_macos_integration: "0"
+
+    env:
+      VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION: ${{ matrix.skip_macos_integration }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy,rustfmt
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.0"
+          channel: stable
+          cache: true
+
+      - name: Enable macOS desktop
+        if: runner.os == 'macOS'
+        run: flutter config --enable-macos-desktop
+
+      - name: Print tool versions
+        run: |
+          rustc --version
+          cargo --version
+          flutter --version
+          dart --version
+
+      - name: Resolve workspace dependencies
+        run: flutter pub get
+
+      - name: Run repository verification
+        run: ./tools/verify_flutter_terminal.sh

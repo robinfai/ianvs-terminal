@@ -283,6 +283,9 @@ class TerminalInputController {
         return kittyKeyboardBytes;
       }
     }
+    if (event is KeyUpEvent) {
+      return null;
+    }
 
     if (HardwareKeyboard.instance.isAltPressed &&
         !HardwareKeyboard.instance.isShiftPressed &&

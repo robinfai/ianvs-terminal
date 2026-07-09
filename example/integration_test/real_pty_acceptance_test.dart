@@ -127,11 +127,17 @@ sleep 5
       matches: (text) => text.contains('[sudo] password for dev:'),
     );
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.text('Password manager'));
-    await tester.tap(find.text('Password manager'));
-    await tester.pump(_pollStep);
-    expect(find.byKey(const Key('password-manager-sheet')), findsOneWidget);
+    await _openToolbelt(tester);
+    await tester.ensureVisible(
+      find.byKey(const Key('toolbelt-password-manager')),
+    );
+    await tester.tap(find.byKey(const Key('toolbelt-password-manager')));
+    await _waitFor(
+      tester,
+      description: 'password manager sheet',
+      condition: () =>
+          find.byKey(const Key('password-manager-sheet')).evaluate().isNotEmpty,
+    );
 
     _signal(goFile);
     await _waitForTerminalText(
@@ -200,6 +206,7 @@ sleep 1
       id: 'coprocess-repeat',
       name: 'Coprocess Repeat',
       script: r'''
+printf 'ready\n'
 while [ ! -f "$GO_FILE" ]; do sleep 0.05; done
 printf 'Are you there?'
 IFS= read a
@@ -213,11 +220,22 @@ sleep 1
     );
     final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.byKey(const Key('shell-coprocess')));
-    await tester.tap(find.byKey(const Key('shell-coprocess')));
-    await tester.pump(_pollStep);
-    expect(find.byKey(const Key('coprocess-sheet')), findsOneWidget);
+    await _waitForTerminalText(
+      tester,
+      harness.container,
+      description: 'coprocess real PTY pane ready',
+      matches: (text) => text.contains('ready'),
+    );
+
+    await _openToolbelt(tester);
+    await tester.ensureVisible(find.byKey(const Key('toolbelt-coprocess')));
+    await tester.tap(find.byKey(const Key('toolbelt-coprocess')));
+    await _waitFor(
+      tester,
+      description: 'coprocess sheet',
+      condition: () =>
+          find.byKey(const Key('coprocess-sheet')).evaluate().isNotEmpty,
+    );
     await tester.tap(find.byKey(const Key('coprocess-start')));
     await tester.pump(_pollStep);
 
@@ -286,12 +304,25 @@ sleep 5
         ),
       );
 
-      await _openCommandMenu(tester);
-      await tester.ensureVisible(
-        find.byKey(const Key('shell-captured-output')),
+      await _openToolbelt(tester);
+      await tester.tap(find.byKey(const Key('toolbelt-tab-captured-output')));
+      await _waitFor(
+        tester,
+        description: 'captured output toolbelt panel',
+        condition: () => find
+            .byKey(const Key('toolbelt-panel-captured-output'))
+            .evaluate()
+            .isNotEmpty,
       );
-      await tester.tap(find.byKey(const Key('shell-captured-output')));
-      await tester.pump(_pollStep);
+      await tester.tap(find.byKey(const Key('toolbelt-captured-output')));
+      await _waitFor(
+        tester,
+        description: 'captured output sheet',
+        condition: () => find
+            .byKey(const Key('captured-output-sheet'))
+            .evaluate()
+            .isNotEmpty,
+      );
 
       expect(find.byKey(const Key('captured-output-sheet')), findsOneWidget);
       expect(find.textContaining('ERROR 42 failed'), findsWidgets);
@@ -491,7 +522,26 @@ void _signal(File file) {
 
 Future<void> _openCommandMenu(WidgetTester tester) async {
   await tester.tap(find.byKey(const Key('shell-chrome-menu')));
-  await tester.pump(_pollStep);
+  await _waitFor(
+    tester,
+    description: 'command menu overlay',
+    condition: () => find
+        .byKey(const Key('shell-command-menu-overlay'))
+        .evaluate()
+        .isNotEmpty,
+  );
+}
+
+Future<void> _openToolbelt(WidgetTester tester) async {
+  await _openCommandMenu(tester);
+  await tester.ensureVisible(find.byKey(const Key('shell-top-toolbelt')));
+  await tester.tap(find.byKey(const Key('shell-top-toolbelt')));
+  await _waitFor(
+    tester,
+    description: 'toolbelt panel',
+    condition: () =>
+        find.byKey(const Key('shell-toolbelt-panel')).evaluate().isNotEmpty,
+  );
 }
 
 Future<void> _waitForActiveSession(

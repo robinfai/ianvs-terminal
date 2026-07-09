@@ -46,6 +46,53 @@ void main() {
     );
   });
 
+  testWidgets(
+    'terminal input controller ignores legacy C0 key releases in Kitty mode',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      final runtime = _runtimeFor(backend);
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final controller = TerminalInputController(
+        sessionId: sessionId,
+        runtime: runtime,
+        readFrame: () => const TerminalFrameDiff(
+          rows: [],
+          cursor: TerminalCursor(row: 0, col: 0, visible: true),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: [],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+          modes: TerminalFrameModes(kittyKeyboardFlags: 3),
+        ),
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        _KeyHandlerHarness(onKeyEvent: controller.handle),
+      );
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.backspace);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.backspace);
+
+      expect(
+        backend.writeCalls
+            .map((bytes) => bytes.toList())
+            .toList(growable: false),
+        <List<int>>[
+          <int>[0x7f],
+        ],
+      );
+    },
+  );
+
   testWidgets('terminal input controller maps Control ASCII keys', (
     tester,
   ) async {
@@ -3002,6 +3049,411 @@ void main() {
       debugDefaultTargetPlatformOverride = previousOverride;
     }
   });
+
+  testWidgets(
+    'terminal viewport suppresses backspace that clears final IME character',
+    (tester) async {
+      final previousOverride = debugDefaultTargetPlatformOverride;
+      try {
+        debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+
+        final backend = _FakePtyBackend();
+        final runtime = _runtimeFor(backend);
+        addTearDown(runtime.dispose);
+        final sessionId = runtime.createSession(
+          const TerminalSessionConfig(
+            launch: TerminalLaunchConfig(program: '/bin/sh'),
+          ),
+        );
+        final viewportController = TerminalViewportController()
+          ..applySnapshot(TerminalFrameDiff.fromJson(_singleRowSnapshot()));
+        var bubbledBackspaces = 0;
+        final inputController = TerminalInputController(
+          sessionId: sessionId,
+          runtime: runtime,
+          readFrame: () => viewportController.frame,
+          readSelection: () => '',
+          copySelection: (_) async {},
+          readClipboard: () async => '',
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Focus(
+                canRequestFocus: false,
+                onKeyEvent: (_, event) {
+                  if (event.logicalKey == LogicalKeyboardKey.backspace) {
+                    bubbledBackspaces += 1;
+                  }
+                  return KeyEventResult.ignored;
+                },
+                child: SizedBox(
+                  width: 640,
+                  height: 240,
+                  child: TerminalViewport(
+                    controller: viewportController,
+                    selectionController: SelectionController(),
+                    inputController: inputController,
+                    onScrollLines: (_) {},
+                    onScrollToOffset: (_) {},
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        tester.testTextInput.updateEditingValue(
+          const TextEditingValue(
+            text: 'n',
+            composing: TextRange(start: 0, end: 1),
+          ),
+        );
+        await tester.pump();
+
+        tester.testTextInput.updateEditingValue(TextEditingValue.empty);
+        await tester.pump();
+        await tester.sendKeyDownEvent(
+          LogicalKeyboardKey.backspace,
+          platform: 'macos',
+        );
+        await tester.pump();
+
+        expect(backend.writeCalls, isEmpty);
+        expect(bubbledBackspaces, 0);
+      } finally {
+        debugDefaultTargetPlatformOverride = previousOverride;
+      }
+    },
+  );
+
+  testWidgets(
+    'terminal viewport suppresses IME-clear backspace gesture in Kitty mode',
+    (tester) async {
+      final previousOverride = debugDefaultTargetPlatformOverride;
+      try {
+        debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+
+        final backend = _FakePtyBackend();
+        final runtime = _runtimeFor(backend);
+        addTearDown(runtime.dispose);
+        final sessionId = runtime.createSession(
+          const TerminalSessionConfig(
+            launch: TerminalLaunchConfig(program: '/bin/sh'),
+          ),
+        );
+        final viewportController = TerminalViewportController()
+          ..applySnapshot(
+            TerminalFrameDiff.fromJson(<String, Object?>{
+              ..._singleRowSnapshot(),
+              'modes': const <String, Object?>{'kitty_keyboard_flags': 10},
+            }),
+          );
+        final inputController = TerminalInputController(
+          sessionId: sessionId,
+          runtime: runtime,
+          readFrame: () => viewportController.frame,
+          readSelection: () => '',
+          copySelection: (_) async {},
+          readClipboard: () async => '',
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                width: 640,
+                height: 240,
+                child: TerminalViewport(
+                  controller: viewportController,
+                  selectionController: SelectionController(),
+                  inputController: inputController,
+                  onScrollLines: (_) {},
+                  onScrollToOffset: (_) {},
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        tester.testTextInput.updateEditingValue(
+          const TextEditingValue(
+            text: 'n',
+            composing: TextRange(start: 0, end: 1),
+          ),
+        );
+        await tester.pump();
+
+        tester.testTextInput.updateEditingValue(TextEditingValue.empty);
+        await tester.pump();
+        await tester.sendKeyDownEvent(
+          LogicalKeyboardKey.backspace,
+          platform: 'macos',
+        );
+        await tester.pump();
+        await tester.sendKeyRepeatEvent(
+          LogicalKeyboardKey.backspace,
+          platform: 'macos',
+        );
+        await tester.pump();
+        await tester.sendKeyUpEvent(
+          LogicalKeyboardKey.backspace,
+          platform: 'macos',
+        );
+        await tester.pump();
+
+        expect(backend.writeCalls, isEmpty);
+      } finally {
+        debugDefaultTargetPlatformOverride = previousOverride;
+      }
+    },
+  );
+
+  testWidgets(
+    'terminal viewport keeps later backspace after IME-handled deletion',
+    (tester) async {
+      final previousOverride = debugDefaultTargetPlatformOverride;
+      try {
+        debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+
+        final backend = _FakePtyBackend();
+        final runtime = _runtimeFor(backend);
+        addTearDown(runtime.dispose);
+        final sessionId = runtime.createSession(
+          const TerminalSessionConfig(
+            launch: TerminalLaunchConfig(program: '/bin/sh'),
+          ),
+        );
+        final viewportController = TerminalViewportController()
+          ..applySnapshot(TerminalFrameDiff.fromJson(_singleRowSnapshot()));
+        final inputController = TerminalInputController(
+          sessionId: sessionId,
+          runtime: runtime,
+          readFrame: () => viewportController.frame,
+          readSelection: () => '',
+          copySelection: (_) async {},
+          readClipboard: () async => '',
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                width: 640,
+                height: 240,
+                child: TerminalViewport(
+                  controller: viewportController,
+                  selectionController: SelectionController(),
+                  inputController: inputController,
+                  onScrollLines: (_) {},
+                  onScrollToOffset: (_) {},
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        tester.testTextInput.updateEditingValue(
+          const TextEditingValue(
+            text: 'n',
+            composing: TextRange(start: 0, end: 1),
+          ),
+        );
+        await tester.pump();
+
+        await tester.sendKeyDownEvent(
+          LogicalKeyboardKey.backspace,
+          platform: 'macos',
+        );
+        await tester.pump();
+        tester.testTextInput.updateEditingValue(TextEditingValue.empty);
+        await tester.pump();
+
+        expect(backend.writeCalls, isEmpty);
+
+        await tester.sendKeyDownEvent(
+          LogicalKeyboardKey.backspace,
+          platform: 'macos',
+        );
+        await tester.pump();
+
+        expect(
+          backend.writeCalls.map((bytes) => bytes.toList()).toList(),
+          <List<int>>[
+            <int>[0x7f],
+          ],
+        );
+      } finally {
+        debugDefaultTargetPlatformOverride = previousOverride;
+      }
+    },
+  );
+
+  testWidgets('terminal viewport handles plain macOS backspace once', (
+    tester,
+  ) async {
+    final previousOverride = debugDefaultTargetPlatformOverride;
+    try {
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+
+      final backend = _FakePtyBackend();
+      final runtime = _runtimeFor(backend);
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final viewportController = TerminalViewportController()
+        ..applySnapshot(TerminalFrameDiff.fromJson(_singleRowSnapshot()));
+      var bubbledBackspaces = 0;
+      final inputController = TerminalInputController(
+        sessionId: sessionId,
+        runtime: runtime,
+        readFrame: () => viewportController.frame,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Focus(
+              canRequestFocus: false,
+              onKeyEvent: (_, event) {
+                if (event.logicalKey == LogicalKeyboardKey.backspace) {
+                  bubbledBackspaces += 1;
+                }
+                return KeyEventResult.ignored;
+              },
+              child: SizedBox(
+                width: 640,
+                height: 240,
+                child: TerminalViewport(
+                  controller: viewportController,
+                  selectionController: SelectionController(),
+                  inputController: inputController,
+                  onScrollLines: (_) {},
+                  onScrollToOffset: (_) {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.backspace,
+        platform: 'macos',
+      );
+      await tester.pump();
+
+      expect(
+        backend.writeCalls.map((bytes) => bytes.toList()).toList(),
+        <List<int>>[
+          <int>[0x7f],
+        ],
+      );
+      expect(bubbledBackspaces, 0);
+    } finally {
+      debugDefaultTargetPlatformOverride = previousOverride;
+    }
+  });
+
+  testWidgets(
+    'terminal viewport keeps focus when tab is pressed during IME composition',
+    (tester) async {
+      final previousOverride = debugDefaultTargetPlatformOverride;
+      final terminalFocusNode = FocusNode(debugLabel: 'terminal-under-test');
+      final nextFocusNode = FocusNode(debugLabel: 'next-focus-target');
+      addTearDown(terminalFocusNode.dispose);
+      addTearDown(nextFocusNode.dispose);
+      try {
+        debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+
+        final backend = _FakePtyBackend();
+        final runtime = _runtimeFor(backend);
+        addTearDown(runtime.dispose);
+        final sessionId = runtime.createSession(
+          const TerminalSessionConfig(
+            launch: TerminalLaunchConfig(program: '/bin/sh'),
+          ),
+        );
+        final viewportController = TerminalViewportController()
+          ..applySnapshot(TerminalFrameDiff.fromJson(_singleRowSnapshot()));
+        final inputController = TerminalInputController(
+          sessionId: sessionId,
+          runtime: runtime,
+          readFrame: () => viewportController.frame,
+          readSelection: () => '',
+          copySelection: (_) async {},
+          readClipboard: () async => '',
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: FocusTraversalGroup(
+                policy: WidgetOrderTraversalPolicy(),
+                child: Column(
+                  children: <Widget>[
+                    SizedBox(
+                      width: 640,
+                      height: 240,
+                      child: TerminalViewport(
+                        focusNode: terminalFocusNode,
+                        controller: viewportController,
+                        selectionController: SelectionController(),
+                        inputController: inputController,
+                        onScrollLines: (_) {},
+                        onScrollToOffset: (_) {},
+                      ),
+                    ),
+                    TextButton(
+                      focusNode: nextFocusNode,
+                      onPressed: () {},
+                      child: const Text('Next focus target'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        terminalFocusNode.requestFocus();
+        await tester.pump();
+
+        expect(terminalFocusNode.hasFocus, isTrue);
+        expect(nextFocusNode.hasFocus, isFalse);
+
+        tester.testTextInput.updateEditingValue(
+          const TextEditingValue(
+            text: 'n',
+            composing: TextRange(start: 0, end: 1),
+          ),
+        );
+        await tester.pump();
+
+        await tester.sendKeyDownEvent(
+          LogicalKeyboardKey.tab,
+          platform: 'macos',
+        );
+        await tester.pump();
+
+        expect(terminalFocusNode.hasFocus, isTrue);
+        expect(nextFocusNode.hasFocus, isFalse);
+        expect(backend.writeCalls, isEmpty);
+      } finally {
+        debugDefaultTargetPlatformOverride = previousOverride;
+      }
+    },
+  );
 
   testWidgets(
     'terminal viewport ignores text-input commits for handled enter and tab',

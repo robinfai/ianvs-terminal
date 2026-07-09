@@ -17,7 +17,7 @@ dart pub get
 
 ```bash
 cd example
-flutter analyze
+flutter analyze --fatal-infos
 flutter test
 flutter run -d macos
 ```

@@ -206,6 +206,9 @@ class _TerminalViewportState extends State<TerminalViewport>
   bool _hadImeComposition = false;
   bool _awaitingSystemTextCommit = false;
   String _deferredImeRawText = '';
+  bool _deferredImeBackspaceHandled = false;
+  bool _suppressNextBackspaceAfterImeClear = false;
+  bool _suppressImeClearBackspaceUntilKeyUp = false;
   bool _textInputGeometrySyncScheduled = false;
   FocusNode get _focusNode =>
       widget.focusNode ??
@@ -413,6 +416,9 @@ class _TerminalViewportState extends State<TerminalViewport>
     _hadImeComposition = false;
     _awaitingSystemTextCommit = false;
     _deferredImeRawText = '';
+    _deferredImeBackspaceHandled = false;
+    _suppressNextBackspaceAfterImeClear = false;
+    _suppressImeClearBackspaceUntilKeyUp = false;
   }
 
   void _clearTextInputState() {
@@ -1472,6 +1478,12 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   KeyEventResult _handleTerminalKeyEvent(KeyEvent event) {
+    if (_consumeBackspaceAfterImeClear(event)) {
+      return KeyEventResult.handled;
+    }
+    if (_consumeTabTraversalDuringImeComposition(event)) {
+      return KeyEventResult.handled;
+    }
     if (!_isTerminalKeyEvent(event, widget.controller.frame.modes)) {
       return KeyEventResult.ignored;
     }
@@ -1488,6 +1500,47 @@ class _TerminalViewportState extends State<TerminalViewport>
       return KeyEventResult.handled;
     }
     return widget.inputController.handle(event);
+  }
+
+  bool _consumeBackspaceAfterImeClear(KeyEvent event) {
+    final isBackspace = event.logicalKey == LogicalKeyboardKey.backspace;
+    if (_suppressImeClearBackspaceUntilKeyUp && isBackspace) {
+      if (event is KeyUpEvent) {
+        _suppressImeClearBackspaceUntilKeyUp = false;
+        return true;
+      }
+      if (event is KeyRepeatEvent) {
+        return true;
+      }
+      if (event is KeyDownEvent) {
+        _suppressImeClearBackspaceUntilKeyUp = false;
+      }
+    }
+    if (!_suppressNextBackspaceAfterImeClear) {
+      return false;
+    }
+    if (isBackspace) {
+      _suppressNextBackspaceAfterImeClear = false;
+      if (event is KeyDownEvent || event is KeyRepeatEvent) {
+        _suppressImeClearBackspaceUntilKeyUp = true;
+        return true;
+      }
+      return event is KeyUpEvent;
+    }
+    if (event is KeyDownEvent || event is KeyRepeatEvent) {
+      _suppressNextBackspaceAfterImeClear = false;
+    }
+    return false;
+  }
+
+  bool _consumeTabTraversalDuringImeComposition(KeyEvent event) {
+    if (event.logicalKey != LogicalKeyboardKey.tab ||
+        (event is! KeyDownEvent && event is! KeyRepeatEvent) ||
+        !_hasActiveImeComposition(_textInputValue)) {
+      return false;
+    }
+    return !HardwareKeyboard.instance.isMetaPressed &&
+        !HardwareKeyboard.instance.isControlPressed;
   }
 
   bool _shouldDeferKeyPressToSystemTextInput(KeyEvent event) {
@@ -1518,6 +1571,9 @@ class _TerminalViewportState extends State<TerminalViewport>
 
   void _recordDeferredImeKey(KeyEvent event) {
     if (event.logicalKey == LogicalKeyboardKey.backspace) {
+      if (event is KeyDownEvent || event is KeyRepeatEvent) {
+        _deferredImeBackspaceHandled = true;
+      }
       if (_deferredImeRawText.isNotEmpty) {
         final runes = _deferredImeRawText.runes.toList(growable: false);
         _deferredImeRawText = String.fromCharCodes(
@@ -2129,10 +2185,20 @@ class _TerminalViewportState extends State<TerminalViewport>
     final previousValue = _textInputValue;
     final hadActiveComposition = _hasActiveImeComposition(previousValue);
     final hasActiveComposition = _hasActiveImeComposition(value);
+    final clearedActiveComposition =
+        hadActiveComposition &&
+        !hasActiveComposition &&
+        previousValue.text.isNotEmpty &&
+        value.text.isEmpty;
+    final shouldSuppressBackspaceAfterImeClear =
+        clearedActiveComposition && !_deferredImeBackspaceHandled;
     _updateTextInputState(() {
       _textInputValue = value;
       if (hasActiveComposition) {
         _hadImeComposition = true;
+        _deferredImeBackspaceHandled = false;
+        _suppressNextBackspaceAfterImeClear = false;
+        _suppressImeClearBackspaceUntilKeyUp = false;
       }
     });
     if (hasActiveComposition) {
@@ -2150,6 +2216,9 @@ class _TerminalViewportState extends State<TerminalViewport>
       widget.inputController.sendText(text);
     }
     _clearTextInputState();
+    if (shouldSuppressBackspaceAfterImeClear) {
+      _suppressNextBackspaceAfterImeClear = true;
+    }
   }
 
   String _committedTextFromEditingValue(

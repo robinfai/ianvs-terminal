@@ -257,6 +257,19 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         onTap: () =>
                             Navigator.of(context).pop(TerminalActionId.newTab),
                       ),
+                      commandTile(
+                        key: const Key('shell-top-toolbelt'),
+                        actionId: TerminalActionId.toolbelt,
+                        icon: Icons.view_sidebar_rounded,
+                        title: 'Toolbelt',
+                        subtitle:
+                            'Top action • Open terminal tools for this pane.',
+                        enabled: hasActiveSession,
+                        disabledReason: activeSessionRequired,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.toolbelt),
+                      ),
                       sectionLabel('App actions'),
                       commandTile(
                         key: const Key('shell-command-defaults'),
@@ -492,6 +505,7 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
   ),
   MapEntry('clear scrollback clear output', TerminalActionId.clearScrollback),
   MapEntry('paste clipboard', TerminalActionId.paste),
+  MapEntry('toolbelt terminal tools sidebar', TerminalActionId.toolbelt),
   MapEntry(
     'instant replay recent terminal frames',
     TerminalActionId.instantReplay,

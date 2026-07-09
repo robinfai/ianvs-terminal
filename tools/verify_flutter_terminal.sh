@@ -23,11 +23,13 @@ VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH="${VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY
 
 (
   cd "$PTY_DIR"
+  dart analyze --fatal-infos
   dart test
 )
 
 (
   cd "$TERMINAL_DIR"
+  flutter analyze --fatal-infos
   flutter test
 )
 
@@ -77,7 +79,7 @@ fi
     test/visual
     test/workspace
   )
-  flutter analyze
+  flutter analyze --fatal-infos
   flutter test "${EXAMPLE_CI_TEST_TARGETS[@]}"
   if [ "$VERIFY_FLUTTER_TERMINAL_RUN_EXAMPLE_WIDGET_TESTS" = "1" ]; then
     flutter test test/widget_test.dart
