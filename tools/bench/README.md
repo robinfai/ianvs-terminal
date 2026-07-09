@@ -80,6 +80,36 @@ dart run tools/bench/runner/bench_runner.dart \
 dart run tools/bench/analysis/summarize.dart --input build/bench-results/<run>
 ```
 
+## Frame Diff Transport Microbenchmark
+
+To compare JSON and protobuf frame payload size plus Dart decode cost without
+launching the full app harness:
+
+```bash
+cd packages/ianvs_terminal
+flutter test test/benchmarks/frame_diff_transport_benchmark_test.dart \
+  --plain-name "frame diff transport benchmark exports metrics" \
+  --dart-define=FRAME_DIFF_TRANSPORT_BENCH_OUT=/absolute/path/metrics.json
+```
+
+Optional defines:
+
+```bash
+--dart-define=FRAME_DIFF_TRANSPORT_BENCH_ITERATIONS=120
+--dart-define=FRAME_DIFF_TRANSPORT_BENCH_FRAMES=120
+--dart-define=FRAME_DIFF_TRANSPORT_BENCH_ROWS=40
+--dart-define=FRAME_DIFF_TRANSPORT_BENCH_COLS=120
+--dart-define=FRAME_DIFF_TRANSPORT_BENCH_WORKLOAD=mixed
+```
+
+The test is skipped unless `FRAME_DIFF_TRANSPORT_BENCH_OUT` is provided. The
+default `mixed` workload uses fixed viewport dimensions with periodic snapshot
+frames. Use `FRAME_DIFF_TRANSPORT_BENCH_WORKLOAD=resize_churn` to mirror the
+profile harness resize cadence: every eight frames the synthetic viewport rows
+and columns change, producing snapshot frames for resize transitions and delta
+frames between them. The metrics include aggregate transport numbers and a
+`by_frame_kind` breakdown for `snapshot` versus `delta` frames.
+
 ## Real Flutter Profile Matrix
 
 The synthetic runner above is deterministic and fast, but it does not launch the
@@ -102,6 +132,47 @@ By default this runs `burst_stdout_profile`, `scrollback_heavy_profile`, and
 `summary.csv`, `summary_by_workload.csv`, and `summary.md`. Each run directory
 also gets `flutter_render.ndjson`, `flutter_frame_timing.ndjson`,
 `metadata.json`, `correctness.json`, `summary.csv`, and `summary.md`.
+
+## End-to-End Frame Transport Profile
+
+To compare protobuf against a forced JSON wire path through the native runtime,
+FFI boundary, Dart decode/apply, polling, and Flutter render pipeline, run the
+transport profile harness:
+
+```bash
+cd example
+flutter drive \
+  --driver=test_driver/integration_test.dart \
+  --target=integration_test/terminal_transport_profile_test.dart \
+  -d macos \
+  --profile \
+  --dart-define=IANVS_BENCH_TRANSPORT_PROFILE_OUTPUT=/absolute/path/to/ianvs-terminal/build/bench-results-profile/<run>/macos-darwin \
+  --dart-define=IANVS_BENCH_TRANSPORT_PROFILE_TARGET_LABEL=macos-darwin \
+  --dart-define=IANVS_BENCH_TRANSPORT_PROFILE_WORKLOADS=burst_stdout_profile,scrollback_heavy_profile,resize_churn_profile \
+  --dart-define=IANVS_BENCH_TRANSPORT_PROFILE_WIRE_FORMATS=protobuf,json \
+  --dart-define=IANVS_BENCH_TRANSPORT_PROFILE_REPEATS=3 \
+  --dart-define=IANVS_BENCH_TRANSPORT_PROFILE_FRAME_COUNT=96
+```
+
+The output root gets `summary.csv`, `summary_by_workload.csv`, `summary.md`,
+and `paired_hashes.json`. Each run directory gets `flutter_render.ndjson`,
+`flutter_frame_timing.ndjson`, `dart_runtime.ndjson`, `metadata.json`,
+`correctness.json`, `summary.csv`, and `summary.md`. The runtime events include
+the selected `wire_format`, raw frame byte counts, Dart decode/apply timings,
+and native frame build / JSON encode / protobuf encode timings.
+
+The harness asserts that protobuf and forced JSON produce matching final
+viewport hashes for each workload/repeat pair. Run the formal audit over the
+six wire-prefixed workloads after collection:
+
+```bash
+dart run tools/bench/analysis/flutter_profile_audit.dart \
+  --input build/bench-results-profile/<run>/macos-darwin \
+  --output build/bench-results-profile/<run>/formal-audit \
+  --workloads protobuf_burst_stdout_profile,protobuf_scrollback_heavy_profile,protobuf_resize_churn_profile,json_burst_stdout_profile,json_scrollback_heavy_profile,json_resize_churn_profile \
+  --repeats 3 \
+  --require-target-count 1
+```
 
 Useful overrides:
 

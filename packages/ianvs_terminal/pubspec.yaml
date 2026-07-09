@@ -9,8 +9,10 @@ resolution: workspace
 dependencies:
   flutter:
     sdk: flutter
+  fixnum: ^1.1.1
   ianvs_pty:
     path: ../ianvs_pty
+  protobuf: ^6.0.0
 
 dev_dependencies:
   flutter_test:

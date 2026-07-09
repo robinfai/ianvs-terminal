@@ -47,6 +47,12 @@ typedef _StringReturningNative = ffi.Pointer<Utf8> Function(ffi.Uint64);
 typedef _StringReturningDart = ffi.Pointer<Utf8> Function(int);
 typedef _FreeStringNative = ffi.Void Function(ffi.Pointer<Utf8>);
 typedef _FreeStringDart = void Function(ffi.Pointer<Utf8>);
+typedef _BytesReturningNative =
+    ffi.Pointer<ffi.Uint8> Function(ffi.Uint64, ffi.Pointer<ffi.Size>);
+typedef _BytesReturningDart =
+    ffi.Pointer<ffi.Uint8> Function(int, ffi.Pointer<ffi.Size>);
+typedef _FreeBytesNative = ffi.Void Function(ffi.Pointer<ffi.Uint8>, ffi.Size);
+typedef _FreeBytesDart = void Function(ffi.Pointer<ffi.Uint8>, int);
 typedef _GraphicAssetMetaNative =
     ffi.Int32 Function(
       ffi.Uint64,
@@ -110,6 +116,30 @@ _RequestSessionDart? _lookupOptionalRequestSession(
     return library.lookupFunction<_RequestSessionNative, _RequestSessionDart>(
       symbolName,
     );
+  } on ArgumentError {
+    return null;
+  }
+}
+
+_BytesReturningDart? _lookupOptionalBytesReturning(
+  ffi.DynamicLibrary library,
+  String symbolName,
+) {
+  try {
+    return library.lookupFunction<_BytesReturningNative, _BytesReturningDart>(
+      symbolName,
+    );
+  } on ArgumentError {
+    return null;
+  }
+}
+
+_FreeBytesDart? _lookupOptionalFreeBytes(
+  ffi.DynamicLibrary library,
+  String symbolName,
+) {
+  try {
+    return library.lookupFunction<_FreeBytesNative, _FreeBytesDart>(symbolName);
   } on ArgumentError {
     return null;
   }
@@ -288,6 +318,7 @@ String? _sessionIdStringFromDigits(String value) {
 }
 
 abstract class PtyBindings {
+  bool get supportsFrameDiffProtobuf;
   int ping();
   int sessionCreateJson(String sessionConfigJson);
   int sessionClose(int sessionId);
@@ -306,6 +337,7 @@ abstract class PtyBindings {
   String? sessionRequestJson(int sessionId, String requestJson);
   String? sessionDiagnosticsJson(int sessionId, String kind);
   String? sessionTakeFrameDiffJson(int sessionId);
+  Uint8List? sessionTakeFrameDiffProtobuf(int sessionId);
   List<PtyEvent> sessionPollEvents(int sessionId);
   PtyGraphicAsset? sessionGraphicAsset(
     int sessionId,
@@ -352,6 +384,10 @@ class NativePtyBindings implements PtyBindings {
           .lookupFunction<_StringReturningNative, _StringReturningDart>(
             'ianvs_session_take_frame_diff_json',
           ),
+      _takeFrameDiffProtobuf = _lookupOptionalBytesReturning(
+        library,
+        'ianvs_session_take_frame_diff_protobuf',
+      ),
       _takeFrameDebugStatsJson = _lookupOptionalStringReturning(
         library,
         'ianvs_session_take_frame_debug_stats_json',
@@ -368,7 +404,8 @@ class NativePtyBindings implements PtyBindings {
       _graphicAssetRgbaCopy = _lookupOptionalGraphicAssetRgbaCopy(library),
       _stringFree = library.lookupFunction<_FreeStringNative, _FreeStringDart>(
         'ianvs_string_free',
-      );
+      ),
+      _bytesFree = _lookupOptionalFreeBytes(library, 'ianvs_bytes_free');
 
   final _PingDart _ping;
   final _CreateSessionDart _createSession;
@@ -380,12 +417,17 @@ class NativePtyBindings implements PtyBindings {
   final _ScrollToSessionDart _scrollToSession;
   final _RequestSessionDart? _requestSessionJson;
   final _StringReturningDart _takeFrameDiffJson;
+  final _BytesReturningDart? _takeFrameDiffProtobuf;
   final _StringReturningDart? _takeFrameDebugStatsJson;
   final _StringReturningDart? _takeSessionDebugStatsJson;
   final _StringReturningDart _pollEventsJson;
   final _GraphicAssetMetaDart? _graphicAssetMeta;
   final _GraphicAssetRgbaCopyDart? _graphicAssetRgbaCopy;
   final _FreeStringDart _stringFree;
+  final _FreeBytesDart? _bytesFree;
+
+  @override
+  bool get supportsFrameDiffProtobuf => _takeFrameDiffProtobuf != null;
 
   factory NativePtyBindings.load() {
     return NativePtyBindings(
@@ -478,6 +520,30 @@ class NativePtyBindings implements PtyBindings {
   @override
   String? sessionTakeFrameDiffJson(int sessionId) {
     return _callStringReturning(_takeFrameDiffJson, sessionId);
+  }
+
+  @override
+  Uint8List? sessionTakeFrameDiffProtobuf(int sessionId) {
+    final binding = _takeFrameDiffProtobuf;
+    final freeBytes = _bytesFree;
+    if (binding == null || freeBytes == null) {
+      return null;
+    }
+    final lenPointer = calloc<ffi.Size>();
+    ffi.Pointer<ffi.Uint8> resultPointer = ffi.nullptr;
+    try {
+      resultPointer = binding(sessionId, lenPointer);
+      final len = lenPointer.value;
+      if (resultPointer == ffi.nullptr || len <= 0) {
+        return null;
+      }
+      return Uint8List.fromList(resultPointer.asTypedList(len));
+    } finally {
+      if (resultPointer != ffi.nullptr) {
+        freeBytes(resultPointer, lenPointer.value);
+      }
+      calloc.free(lenPointer);
+    }
   }
 
   @override
@@ -613,12 +679,18 @@ abstract class PtySessionGraphicAssetBackend {
   });
 }
 
+abstract class PtySessionProtobufFrameBackend {
+  bool get supportsProtobufFrameDiffs;
+  Uint8List? takeFrameDiffProtobuf(String sessionId);
+}
+
 class NativePtyBackend
     implements
         PtySessionBackend,
         PtySessionJsonRequestBackend,
         PtySessionDiagnosticsBackend,
-        PtySessionGraphicAssetBackend {
+        PtySessionGraphicAssetBackend,
+        PtySessionProtobufFrameBackend {
   NativePtyBackend(this._bindings);
 
   final PtyBindings _bindings;
@@ -728,6 +800,14 @@ class NativePtyBackend
   @override
   String? takeFrameDiffJson(String sessionId) {
     return _bindings.sessionTakeFrameDiffJson(_nativeSessionId(sessionId));
+  }
+
+  @override
+  bool get supportsProtobufFrameDiffs => _bindings.supportsFrameDiffProtobuf;
+
+  @override
+  Uint8List? takeFrameDiffProtobuf(String sessionId) {
+    return _bindings.sessionTakeFrameDiffProtobuf(_nativeSessionId(sessionId));
   }
 
   @override

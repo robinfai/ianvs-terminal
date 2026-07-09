@@ -77,6 +77,7 @@
 - `decode_error`, `schema_mismatch`, and `missing_required_field` are experiment failures. Do not silently apply a stale frame.
 - `unsupported_backend` is the only fallback reason allowed for compatibility tests. It must not occur in a real protobuf release-gate run.
 - The existing render profile currently updates `TerminalViewportController` directly. The protobuf release-gate work must add a runtime-transport profile path instead of assuming the current render-only harness proves FFI transport.
+- Native baseline note from 2026-07-02 investigation: default-parallel `cargo test --test session_test` can flake in graphics + alternate-screen frame-diff tests because they depend on transient frames emitted by real child-process scripts with fixed sleeps. Focused tests and full serial `cargo test --test session_test -- --test-threads=1` passed on the clean worktree. Use the serial full `session_test` command as the native baseline gate unless the test synchronization is fixed separately.
 
 ---
 
@@ -88,6 +89,7 @@
 - Create: `native/core/src/proto/mod.rs`
 - Create generated: `native/core/src/proto/frame_diff.rs`
 - Create generated: `packages/ianvs_terminal/lib/src/proto/frame_diff.pb.dart`
+- Create generated: `packages/ianvs_terminal/lib/src/proto/frame_diff.pbenum.dart`
 - Create: `tools/gen_frame_diff_proto.sh`
 - Modify: `native/core/Cargo.toml`
 - Modify: `native/core/src/lib.rs`
@@ -324,9 +326,10 @@ Modify `packages/ianvs_terminal/pubspec.yaml`:
 dependencies:
   flutter:
     sdk: flutter
+  fixnum: ^1.1.1
   ianvs_pty:
     path: ../ianvs_pty
-  protobuf: ^4.2.0
+  protobuf: ^6.0.0
 ```
 
 Run:
@@ -335,7 +338,7 @@ Run:
 dart pub get
 ```
 
-Expected: `pubspec.lock` updates and `packages/ianvs_terminal` can resolve `package:protobuf/protobuf.dart`.
+Expected: `pubspec.lock` updates and `packages/ianvs_terminal` can resolve `package:fixnum/fixnum.dart` and `package:protobuf/protobuf.dart`.
 
 - [ ] **Step 6: Add generation script**
 
@@ -385,6 +388,7 @@ Expected generated files:
 ```text
 native/core/src/proto/frame_diff.rs
 packages/ianvs_terminal/lib/src/proto/frame_diff.pb.dart
+packages/ianvs_terminal/lib/src/proto/frame_diff.pbenum.dart
 ```
 
 - [ ] **Step 7: Verify generation artifacts compile**
@@ -402,15 +406,15 @@ Run:
 
 ```bash
 cd packages/ianvs_terminal
-flutter test --list-tests
+dart analyze lib/src/proto/frame_diff.pb.dart lib/src/proto/frame_diff.pbenum.dart
 ```
 
-Expected: tests are listed without import or dependency errors.
+Expected: generated Dart files analyze without import or dependency errors.
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add native/core/Cargo.toml native/core/build.rs native/core/proto/frame_diff.proto native/core/src/lib.rs native/core/src/proto/mod.rs native/core/src/proto/frame_diff.rs packages/ianvs_terminal/pubspec.yaml pubspec.lock packages/ianvs_terminal/lib/src/proto/frame_diff.pb.dart tools/gen_frame_diff_proto.sh
+git add native/core/Cargo.lock native/core/Cargo.toml native/core/build.rs native/core/proto/frame_diff.proto native/core/src/lib.rs native/core/src/proto/mod.rs native/core/src/proto/frame_diff.rs packages/ianvs_terminal/pubspec.yaml pubspec.lock packages/ianvs_terminal/lib/src/proto/frame_diff.pb.dart packages/ianvs_terminal/lib/src/proto/frame_diff.pbenum.dart tools/gen_frame_diff_proto.sh docs/superpowers/plans/2026-07-02-protobuf-frame-diff-transport.md
 git commit -m "build: add frame diff protobuf schema"
 ```
 
@@ -464,8 +468,8 @@ Create `native/core/src/frame_diff_proto.rs` with conversion helpers:
 ```rust
 use crate::model::{
     TerminalCursor, TerminalDirtyRange, TerminalFrameDiff, TerminalFrameKind,
-    TerminalFrameModes, TerminalGraphicAssetKey, TerminalGraphicPlacement,
-    TerminalHyperlinkRange, TerminalRow, TerminalSelection, TerminalStyleRun,
+    TerminalFrameModes, TerminalGraphicPlacement, TerminalHyperlinkRange, TerminalRow,
+    TerminalSelection, TerminalStyleRun,
 };
 use crate::proto::frame_diff as pb;
 use prost::Message;
@@ -594,11 +598,13 @@ fn to_proto_hyperlink(link: &TerminalHyperlinkRange) -> pb::TerminalHyperlinkRan
 }
 
 fn to_proto_graphic(graphic: &TerminalGraphicPlacement) -> pb::TerminalGraphicPlacement {
-    let asset_key = graphic.asset_key.as_ref().map(to_proto_asset_key);
     pb::TerminalGraphicPlacement {
         placement_id: graphic.placement_id as u32,
         render_id: graphic.render_id as u32,
-        asset_key,
+        asset_key: Some(pb::TerminalGraphicAssetKey {
+            asset_id: graphic.asset_id as u32,
+            asset_version: graphic.asset_version as u32,
+        }),
         protocol: graphic.protocol.clone(),
         row: graphic.row as u32,
         col: graphic.col as u32,
@@ -611,16 +617,9 @@ fn to_proto_graphic(graphic: &TerminalGraphicPlacement) -> pb::TerminalGraphicPl
         source_y_offset_px: graphic.source_y_offset_px as u32,
         visible_height_px: graphic.visible_height_px as u32,
         z_index: graphic.z_index,
-        x_offset_px: graphic.x_offset_px,
-        y_offset_px: graphic.y_offset_px,
+        x_offset_px: graphic.x_offset_px as i32,
+        y_offset_px: graphic.y_offset_px as i32,
         preserve_aspect_ratio: graphic.preserve_aspect_ratio,
-    }
-}
-
-fn to_proto_asset_key(key: &TerminalGraphicAssetKey) -> pb::TerminalGraphicAssetKey {
-    pb::TerminalGraphicAssetKey {
-        asset_id: key.id as u32,
-        asset_version: key.version as u32,
     }
 }
 
@@ -2183,6 +2182,7 @@ cd native/core
 cargo fmt --check
 cargo test session_frame_diff_protobuf --test session_test
 cargo test ffi_take_frame_diff_protobuf_returns_bytes_and_len --test session_test
+cargo test --test session_test -- --test-threads=1
 ```
 
 Expected: all pass.

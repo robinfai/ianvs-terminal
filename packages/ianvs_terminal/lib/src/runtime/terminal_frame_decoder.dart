@@ -13,10 +13,16 @@ final class TerminalFrameDecodeMetrics {
   const TerminalFrameDecodeMetrics({
     required this.rawFrameBytes,
     required this.jsonDecodeMicros,
+    this.wireFormat = 'json',
+    this.protobufDecodeMicros = 0,
+    this.nativeFrameStats = const <String, Object?>{},
   });
 
   final int rawFrameBytes;
+  final String wireFormat;
   final int jsonDecodeMicros;
+  final int protobufDecodeMicros;
+  final Map<String, Object?> nativeFrameStats;
 }
 
 final class TerminalFrameDecoder {

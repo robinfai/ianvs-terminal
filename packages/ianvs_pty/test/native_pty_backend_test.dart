@@ -52,6 +52,17 @@ void main() {
     },
   );
 
+  test('native pty backend forwards protobuf frame bytes when supported', () {
+    final backend =
+        NativePtyBackend.fromBindings(_ProtobufFramePtyBindings())
+            as PtySessionProtobufFrameBackend;
+
+    expect(backend.supportsProtobufFrameDiffs, isTrue);
+    final bytes = backend.takeFrameDiffProtobuf('1');
+
+    expect(bytes, <int>[8, 1, 18, 4]);
+  });
+
   test(
     'native pty backend forwards generic JSON requests through bindings',
     () {
@@ -434,6 +445,9 @@ final String? _workspaceCoreLibraryPath = _resolveWorkspaceCoreLibraryPath();
 
 class _NoopPtyBindings implements PtyBindings {
   @override
+  bool get supportsFrameDiffProtobuf => false;
+
+  @override
   int ping() => 42;
 
   @override
@@ -470,6 +484,9 @@ class _NoopPtyBindings implements PtyBindings {
 
   @override
   String? sessionTakeFrameDiffJson(int sessionId) => '{"rows":[]}';
+
+  @override
+  Uint8List? sessionTakeFrameDiffProtobuf(int sessionId) => null;
 
   @override
   List<PtyEvent> sessionPollEvents(int sessionId) => const [];
@@ -516,6 +533,16 @@ class _FailingPtyBindings extends _NoopPtyBindings {
 
   @override
   int sessionScrollTo(int sessionId, int offset) => -1;
+}
+
+class _ProtobufFramePtyBindings extends _NoopPtyBindings {
+  @override
+  bool get supportsFrameDiffProtobuf => true;
+
+  @override
+  Uint8List? sessionTakeFrameDiffProtobuf(int sessionId) {
+    return Uint8List.fromList(const <int>[8, 1, 18, 4]);
+  }
 }
 
 class _RequestRecordingPtyBindings extends _NoopPtyBindings {

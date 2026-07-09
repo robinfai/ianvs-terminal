@@ -1,0 +1,139 @@
+syntax = "proto3";
+
+package frame_diff;
+
+message TerminalFrameDiff {
+  string frame_schema_version = 1;
+  TerminalFrameKind frame_kind = 2;
+  repeated TerminalRow rows = 3;
+  TerminalCursor cursor = 4;
+  TerminalSelection selection = 5;
+  uint32 viewport_rows = 6;
+  uint32 viewport_cols = 7;
+  repeated TerminalDirtyRange dirty_ranges = 8;
+  uint32 scrollback_offset = 9;
+  uint32 scrollback_max_offset = 10;
+  uint32 viewport_start_row = 11;
+  int32 viewport_row_shift = 12;
+  ColorRgb default_foreground = 13;
+  ColorRgb default_background = 14;
+  ColorRgb cursor_color = 15;
+  TerminalFrameModes modes = 16;
+  string window_title = 17;
+  string window_icon_name = 18;
+  repeated TerminalHyperlinkRange hyperlinks = 19;
+  repeated TerminalInlineImage inline_images = 20;
+  repeated TerminalGraphicPlacement graphics = 21;
+}
+
+enum TerminalFrameKind {
+  TERMINAL_FRAME_KIND_UNSPECIFIED = 0;
+  TERMINAL_FRAME_KIND_SNAPSHOT = 1;
+  TERMINAL_FRAME_KIND_DELTA = 2;
+}
+
+message TerminalRow {
+  uint32 index = 1;
+  string text = 2;
+  bool wrapped = 3;
+  int64 modified_at_micros = 4;
+  repeated TerminalStyleRun style_runs = 5;
+}
+
+message TerminalStyleRun {
+  uint32 start = 1;
+  uint32 end = 2;
+  ColorRgb foreground = 3;
+  ColorRgb background = 4;
+  bool bold = 5;
+  bool dim = 6;
+  bool italic = 7;
+  bool underline = 8;
+  bool blink = 9;
+  bool inverse = 10;
+}
+
+message ColorRgb {
+  bool present = 1;
+  uint32 rgb = 2;
+}
+
+message TerminalCursor {
+  uint32 row = 1;
+  uint32 col = 2;
+  bool visible = 3;
+}
+
+message TerminalSelection {
+  bool present = 1;
+  uint32 start_row = 2;
+  uint32 start_col = 3;
+  uint32 end_row = 4;
+  uint32 end_col = 5;
+}
+
+message TerminalDirtyRange {
+  uint32 start = 1;
+  uint32 end = 2;
+}
+
+message TerminalFrameModes {
+  bool alternate_screen = 1;
+  bool alternate_scroll = 2;
+  bool application_cursor = 3;
+  bool application_keypad = 4;
+  bool insert_mode = 5;
+  bool origin_mode = 6;
+  bool line_feed_new_line_mode = 7;
+  bool hide_cursor = 8;
+  bool bracketed_paste = 9;
+  bool focus_tracking = 10;
+  bool char_protected = 11;
+  string mouse_mode = 12;
+  string mouse_encoding = 13;
+  uint32 kitty_keyboard_flags = 14;
+  bool synchronized_output = 15;
+}
+
+message TerminalHyperlinkRange {
+  uint32 row = 1;
+  uint32 start_col = 2;
+  uint32 end_col = 3;
+  string uri = 4;
+}
+
+message TerminalInlineImage {
+  string data = 1;
+  string mime_type = 2;
+  uint32 row = 3;
+  uint32 col = 4;
+  uint32 width_cells = 5;
+  uint32 height_cells = 6;
+  string alt_text = 7;
+}
+
+message TerminalGraphicAssetKey {
+  uint32 asset_id = 1;
+  uint32 asset_version = 2;
+}
+
+message TerminalGraphicPlacement {
+  uint32 placement_id = 1;
+  uint32 render_id = 2;
+  TerminalGraphicAssetKey asset_key = 3;
+  string protocol = 4;
+  uint32 row = 5;
+  uint32 col = 6;
+  uint32 width_px = 7;
+  uint32 height_px = 8;
+  uint32 width_cells = 9;
+  uint32 height_cells = 10;
+  uint32 source_x_offset_px = 11;
+  uint32 visible_width_px = 12;
+  uint32 source_y_offset_px = 13;
+  uint32 visible_height_px = 14;
+  int32 z_index = 15;
+  int32 x_offset_px = 16;
+  int32 y_offset_px = 17;
+  bool preserve_aspect_ratio = 18;
+}

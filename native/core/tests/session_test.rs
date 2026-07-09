@@ -1714,6 +1714,64 @@ fn session_frame_diff_declares_schema_version() {
 }
 
 #[test]
+fn session_frame_diff_protobuf_exposes_core_fields() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&test_profile()).unwrap()).unwrap();
+    thread::sleep(Duration::from_millis(250));
+
+    let bytes = session::take_frame_diff_protobuf(session_id)
+        .expect("protobuf result")
+        .expect("protobuf frame");
+    assert!(!bytes.is_empty(), "protobuf payload should not be empty");
+
+    let decoded = ianvs_core::frame_diff_proto::decode_frame_diff_for_test(&bytes)
+        .expect("decode protobuf frame");
+    assert_eq!(decoded.frame_schema_version, "terminal-frame-diff-v1");
+    assert!(decoded.viewport_rows > 0);
+    assert!(decoded.viewport_cols > 0);
+    assert!(!decoded.rows.is_empty());
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_debug_stats_include_protobuf_encode_micros() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&test_profile()).unwrap()).unwrap();
+    thread::sleep(Duration::from_millis(250));
+
+    let _ = session::take_frame_diff_protobuf(session_id)
+        .expect("protobuf result")
+        .expect("protobuf frame");
+    let debug_stats = session::take_frame_debug_stats_json(session_id)
+        .expect("debug stats result")
+        .expect("debug stats");
+    let parsed: serde_json::Value = serde_json::from_str(&debug_stats).unwrap();
+
+    assert!(parsed["protobuf_encode_micros"].as_u64().is_some());
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn ffi_take_frame_diff_protobuf_returns_bytes_and_len() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&test_profile()).unwrap()).unwrap();
+    thread::sleep(Duration::from_millis(250));
+
+    let mut len = 0usize;
+    let ptr =
+        unsafe { ianvs_core::ffi::ianvs_session_take_frame_diff_protobuf(session_id, &mut len) };
+    assert!(!ptr.is_null());
+    assert!(len > 0);
+
+    unsafe {
+        let bytes = std::slice::from_raw_parts(ptr, len);
+        assert!(!bytes.is_empty());
+        ianvs_core::ffi::ianvs_bytes_free(ptr, len);
+    }
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn session_frame_diff_omits_empty_optional_fields() {
     let session_id =
         session::create_session(&serde_json::to_string(&test_profile()).unwrap()).unwrap();

@@ -4,7 +4,9 @@ import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fixnum/fixnum.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
+import 'package:ianvs_terminal/src/proto/frame_diff.pb.dart' as frame_pb;
 import 'package:ianvs_pty/ianvs_pty.dart';
 
 void main() {
@@ -850,6 +852,157 @@ void main() {
 
     expect(explicit.frameSchemaVersion, 'terminal-frame-diff-v2');
     expect(legacy.frameSchemaVersion, 'terminal-frame-diff-v1');
+  });
+
+  test('terminal frames parse protobuf payloads', () {
+    final imageBytes = utf8.encode('fake-png');
+    final payload = frame_pb.TerminalFrameDiff(
+      frameSchemaVersion: 'terminal-frame-diff-v2',
+      frameKind: frame_pb.TerminalFrameKind.TERMINAL_FRAME_KIND_DELTA,
+      rows: [
+        frame_pb.TerminalRow(
+          index: 1,
+          text: 'styled',
+          wrapped: true,
+          modifiedAtMicros: Int64(1780000000123456),
+          styleRuns: [
+            frame_pb.TerminalStyleRun(
+              start: 0,
+              end: 6,
+              foreground: frame_pb.ColorRgb(present: true, rgb: 0x112233),
+              background: frame_pb.ColorRgb(present: true, rgb: 0x445566),
+              bold: true,
+            ),
+          ],
+        ),
+      ],
+      cursor: frame_pb.TerminalCursor(row: 1, col: 6, visible: true),
+      selection: frame_pb.TerminalSelection(
+        present: true,
+        startRow: 1,
+        startCol: 0,
+        endRow: 1,
+        endCol: 6,
+      ),
+      viewportRows: 3,
+      viewportCols: 80,
+      dirtyRanges: [frame_pb.TerminalDirtyRange(start: 1, end: 4)],
+      scrollbackOffset: 9,
+      scrollbackMaxOffset: 4,
+      viewportStartRow: 12,
+      viewportRowShift: -1,
+      defaultForeground: frame_pb.ColorRgb(present: true, rgb: 0xaaaaaa),
+      defaultBackground: frame_pb.ColorRgb(present: true, rgb: 0x101010),
+      cursorColor: frame_pb.ColorRgb(present: true, rgb: 0xff00aa),
+      modes: frame_pb.TerminalFrameModes(
+        alternateScreen: true,
+        mouseMode: ' Any_Event ',
+        mouseEncoding: ' SGR-Pixels ',
+        kittyKeyboardFlags: 7,
+        synchronizedOutput: true,
+      ),
+      windowTitle: 'title',
+      windowIconName: 'icon',
+      hyperlinks: [
+        frame_pb.TerminalHyperlinkRange(
+          row: 1,
+          startCol: 0,
+          endCol: 6,
+          uri: ' https://example.com ',
+        ),
+      ],
+      inlineImages: [
+        frame_pb.TerminalInlineImage(
+          row: 1,
+          col: 2,
+          widthCells: 4,
+          heightCells: 2,
+          data: base64.encode(imageBytes),
+          altText: 'preview',
+        ),
+      ],
+      graphics: [
+        frame_pb.TerminalGraphicPlacement(
+          placementId: 11,
+          renderId: 101,
+          assetKey: frame_pb.TerminalGraphicAssetKey(
+            assetId: 7,
+            assetVersion: 3,
+          ),
+          protocol: 'kitty',
+          row: 1,
+          col: 2,
+          widthPx: 8,
+          heightPx: 4,
+          widthCells: 4,
+          heightCells: 2,
+          sourceXOffsetPx: 2,
+          visibleWidthPx: 6,
+          sourceYOffsetPx: 1,
+          visibleHeightPx: 3,
+          zIndex: 1,
+          xOffsetPx: 2,
+          yOffsetPx: 1,
+          preserveAspectRatio: false,
+        ),
+      ],
+    );
+
+    final frame = TerminalFrameDiff.fromProtobufBytes(payload.writeToBuffer());
+
+    expect(frame.frameSchemaVersion, 'terminal-frame-diff-v2');
+    expect(frame.frameKind, TerminalFrameKind.delta);
+    expect(frame.rows.single.index, 1);
+    expect(frame.rows.single.text, 'styled');
+    expect(frame.rows.single.wrapped, isTrue);
+    expect(
+      frame.rows.single.modifiedAt,
+      DateTime.fromMicrosecondsSinceEpoch(1780000000123456, isUtc: true),
+    );
+    expect(
+      frame.rows.single.styleRuns.single.foreground,
+      const Color(0xFF112233),
+    );
+    expect(
+      frame.rows.single.styleRuns.single.background,
+      const Color(0xFF445566),
+    );
+    expect(frame.rows.single.styleRuns.single.bold, isTrue);
+    expect(frame.cursor.row, 1);
+    expect(frame.cursor.col, 6);
+    expect(frame.cursor.visible, isTrue);
+    expect(frame.selection, isNotNull);
+    expect(frame.selection!.startRow, 1);
+    expect(frame.viewportRows, 3);
+    expect(frame.viewportCols, 80);
+    expect(
+      frame.dirtyRanges.map((range) => (range.start, range.end)).toList(),
+      <(int, int)>[(1, 3)],
+    );
+    expect(frame.scrollbackOffset, 4);
+    expect(frame.scrollbackMaxOffset, 4);
+    expect(frame.viewportStartRow, 12);
+    expect(frame.viewportRowShift, -1);
+    expect(frame.defaultForeground, const Color(0xFFAAAAAA));
+    expect(frame.defaultBackground, const Color(0xFF101010));
+    expect(frame.cursorColor, const Color(0xFFFF00AA));
+    expect(frame.modes.alternateScreen, isTrue);
+    expect(frame.modes.mouseMode, 'any_event');
+    expect(frame.modes.mouseEncoding, 'sgr_pixels');
+    expect(frame.modes.kittyKeyboardFlags, 7);
+    expect(frame.modes.synchronizedOutput, isTrue);
+    expect(frame.windowTitle, 'title');
+    expect(frame.windowIconName, 'icon');
+    expect(frame.hyperlinks.single.uri, 'https://example.com');
+    expect(frame.inlineImages.single.bytes, imageBytes);
+    expect(frame.inlineImages.single.altText, 'preview');
+    expect(
+      frame.graphics.single.assetKey,
+      const TerminalGraphicAssetKey(id: 7, version: 3),
+    );
+    expect(frame.graphics.single.renderId, 101);
+    expect(frame.graphics.single.visibleWidthPx, 6);
+    expect(frame.graphics.single.preserveAspectRatio, isFalse);
   });
 
   test('terminal render intent describes sparse delta repaint work', () {
@@ -2366,6 +2519,166 @@ void main() {
       final colors = appearance['colors'] as Map<String, Object?>;
       final special = colors['special'] as Map<String, Object?>;
       expect(special['background'], '#000000');
+    },
+  );
+
+  testWidgets('terminal runtime prefers protobuf frame bytes when available', (
+    tester,
+  ) async {
+    final runtimeBackend = _ProtobufFramePtyBackend(
+      initialFrame: _singleRowProtobuf('protobuf demo'),
+    );
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      runtime.viewportFor(sessionId).frame.rows.first.text,
+      'protobuf demo',
+    );
+    expect(runtimeBackend.takeFrameDiffProtobufCalls, 1);
+    expect(runtimeBackend.takeFrameDiffCalls, 0);
+  });
+
+  testWidgets('terminal runtime can force JSON frame transport', (
+    tester,
+  ) async {
+    final runtimeBackend = _ProtobufFramePtyBackend(
+      initialFrame: _singleRowProtobuf('protobuf demo'),
+    );
+    final events = <Map<String, Object?>>[];
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+      frameWireFormatPreference: TerminalFrameWireFormatPreference.json,
+      benchmarkEventSink: events.add,
+    );
+    addTearDown(runtime.dispose);
+
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    await tester.pump();
+
+    expect(runtime.viewportFor(sessionId).frame.rows.first.text, 'demo');
+    expect(runtimeBackend.takeFrameDiffProtobufCalls, 0);
+    expect(runtimeBackend.takeFrameDiffCalls, 1);
+    final benchmarkEvent = events.singleWhere(
+      (event) =>
+          event['schema_version'] == 'ianvs-bench-dart-runtime-v1' &&
+          event['wire_format'] == 'json',
+    );
+    expect(benchmarkEvent['raw_frame_bytes'], greaterThan(0));
+    expect(benchmarkEvent['json_decode_micros'], isA<int>());
+    expect(benchmarkEvent['protobuf_decode_micros'], 0);
+  });
+
+  testWidgets(
+    'terminal runtime falls back to JSON when protobuf backend is unavailable',
+    (tester) async {
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+
+      expect(runtime.viewportFor(sessionId).frame.rows.first.text, 'demo');
+      expect(runtimeBackend.takeFrameDiffCalls, 1);
+
+      runtimeBackend.setFrame(sessionId, _singleRowSnapshot('json fallback'));
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+
+      expect(
+        runtime.viewportFor(sessionId).frame.rows.first.text,
+        'json fallback',
+      );
+      expect(runtimeBackend.takeFrameDiffCalls, 2);
+    },
+  );
+
+  testWidgets(
+    'terminal runtime does not JSON fallback while protobuf frame stream is idle',
+    (tester) async {
+      final runtimeBackend = _ProtobufFramePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+
+      expect(runtimeBackend.takeFrameDiffProtobufCalls, 1);
+      expect(runtimeBackend.takeFrameDiffCalls, 0);
+    },
+  );
+
+  testWidgets(
+    'terminal runtime skips malformed protobuf frames without reading JSON',
+    (tester) async {
+      final runtimeBackend = _ProtobufFramePtyBackend(
+        initialFrame: _singleRowProtobuf('demo'),
+      );
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+      expect(runtime.viewportFor(sessionId).frame.rows.first.text, 'demo');
+      runtimeBackend.takeFrameDiffProtobufCalls = 0;
+      runtimeBackend.takeFrameDiffCalls = 0;
+
+      runtimeBackend
+        ..enqueueRawProtobufFrame(sessionId, const <int>[0xff])
+        ..setFrame(sessionId, _singleRowSnapshot('should not apply'));
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+
+      expect(runtime.viewportFor(sessionId).frame.rows.first.text, 'demo');
+      expect(runtimeBackend.takeFrameDiffProtobufCalls, 1);
+      expect(runtimeBackend.takeFrameDiffCalls, 0);
     },
   );
 
@@ -5851,13 +6164,89 @@ void main() {
       expect(graphicsEvent['applied_graphics_count'], 0);
     },
   );
+
+  test('terminal runtime emits protobuf benchmark decode stats', () async {
+    final runtimeBackend = _ProtobufFramePtyBackend();
+    final benchmarkEvents = <Map<String, Object?>>[];
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+      benchmarkEventSink: benchmarkEvents.add,
+    );
+    addTearDown(runtime.dispose);
+
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+    benchmarkEvents.clear();
+
+    runtimeBackend.enqueueProtobufFrame(
+      sessionId,
+      _singleRowProtobuf('protobuf benchmark'),
+    );
+    runtime.refreshSession(sessionId);
+    await Future<void>.delayed(Duration.zero);
+
+    final event = benchmarkEvents.singleWhere(
+      (event) => event['schema_version'] == 'ianvs-bench-dart-runtime-v1',
+    );
+    expect(event['wire_format'], 'protobuf');
+    expect(event['raw_frame_bytes'], greaterThan(0));
+    expect(event['json_decode_micros'], 0);
+    expect(event['protobuf_decode_micros'], isA<int>());
+  });
+
+  test('terminal runtime emits native frame benchmark stats', () async {
+    final runtimeBackend =
+        _ProtobufFramePtyBackend(
+            initialFrame: _singleRowProtobuf('native stats'),
+          )
+          ..frameDiagnosticsRawResponse = jsonEncode(<String, Object?>{
+            'rows_scanned': 40,
+            'rows_emitted': 8,
+            'frame_build_micros': 321,
+            'json_encode_micros': 0,
+            'protobuf_encode_micros': 17,
+          });
+    final benchmarkEvents = <Map<String, Object?>>[];
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+      benchmarkEventSink: benchmarkEvents.add,
+    );
+    addTearDown(runtime.dispose);
+
+    runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    final event = benchmarkEvents.singleWhere(
+      (event) => event['schema_version'] == 'ianvs-bench-dart-runtime-v1',
+    );
+    expect(event['native_frame_build_micros'], 321);
+    expect(event['native_json_encode_micros'], 0);
+    expect(event['native_protobuf_encode_micros'], 17);
+    expect(event['native_rows_scanned'], 40);
+    expect(event['native_rows_emitted'], 8);
+  });
 }
 
 class _FakePtyBackend
     implements
         PtySessionBackend,
         PtySessionJsonRequestBackend,
-        PtySessionGraphicAssetBackend {
+        PtySessionGraphicAssetBackend,
+        PtySessionDiagnosticsBackend {
   String? lastCreateSessionJson;
   int takeFrameDiffCalls = 0;
   int pollEventsCalls = 0;
@@ -5880,6 +6269,8 @@ class _FakePtyBackend
   String? scrollbackRawResponse;
   Map<String, Object?>? diagnosticsResponse;
   String? diagnosticsRawResponse;
+  String? frameDiagnosticsRawResponse;
+  String? sessionDiagnosticsRawResponse;
   bool returnNullJsonRequests = false;
 
   final Map<String, Map<String, Object?>> _frames =
@@ -6065,10 +6456,68 @@ class _FakePtyBackend
     return graphicAssets[(assetId, assetVersion)];
   }
 
+  @override
+  String? takeDiagnosticsJson(String sessionId, String kind) {
+    return switch (kind) {
+      'frame' => frameDiagnosticsRawResponse,
+      'session' => sessionDiagnosticsRawResponse,
+      _ => null,
+    };
+  }
+
   void _throwIfFailing(String operation) {
     if (failingOperations.contains(operation)) {
       throw StateError('$operation failed');
     }
+  }
+}
+
+class _ProtobufFramePtyBackend extends _FakePtyBackend
+    implements PtySessionProtobufFrameBackend {
+  _ProtobufFramePtyBackend({frame_pb.TerminalFrameDiff? initialFrame})
+    : _initialFrame = initialFrame;
+
+  final frame_pb.TerminalFrameDiff? _initialFrame;
+  int takeFrameDiffProtobufCalls = 0;
+  final Map<String, List<Uint8List?>> _queuedProtobufFrames =
+      <String, List<Uint8List?>>{};
+
+  @override
+  bool get supportsProtobufFrameDiffs => true;
+
+  @override
+  String createSession(String sessionConfigJson) {
+    final sessionId = super.createSession(sessionConfigJson);
+    final initialFrame = _initialFrame;
+    if (initialFrame != null) {
+      enqueueProtobufFrame(sessionId, initialFrame);
+    }
+    return sessionId;
+  }
+
+  void enqueueProtobufFrame(
+    String sessionId,
+    frame_pb.TerminalFrameDiff frame,
+  ) {
+    _queuedProtobufFrames
+        .putIfAbsent(sessionId, () => <Uint8List?>[])
+        .add(Uint8List.fromList(frame.writeToBuffer()));
+  }
+
+  void enqueueRawProtobufFrame(String sessionId, List<int>? bytes) {
+    _queuedProtobufFrames
+        .putIfAbsent(sessionId, () => <Uint8List?>[])
+        .add(bytes == null ? null : Uint8List.fromList(bytes));
+  }
+
+  @override
+  Uint8List? takeFrameDiffProtobuf(String sessionId) {
+    takeFrameDiffProtobufCalls += 1;
+    final queuedFrames = _queuedProtobufFrames[sessionId];
+    if (queuedFrames != null && queuedFrames.isNotEmpty) {
+      return queuedFrames.removeAt(0);
+    }
+    return null;
   }
 }
 
@@ -6150,4 +6599,21 @@ Map<String, Object?> _singleRowSnapshot(
     'scrollback_offset': 0,
     'scrollback_max_offset': 0,
   };
+}
+
+frame_pb.TerminalFrameDiff _singleRowProtobuf(
+  String text, {
+  int viewportRows = 24,
+  int viewportCols = 80,
+}) {
+  return frame_pb.TerminalFrameDiff(
+    frameKind: frame_pb.TerminalFrameKind.TERMINAL_FRAME_KIND_SNAPSHOT,
+    rows: [frame_pb.TerminalRow(index: 0, text: text)],
+    cursor: frame_pb.TerminalCursor(row: 0, col: 0, visible: true),
+    viewportRows: viewportRows,
+    viewportCols: viewportCols,
+    dirtyRanges: [frame_pb.TerminalDirtyRange(start: 0, end: viewportRows)],
+    scrollbackOffset: 0,
+    scrollbackMaxOffset: 0,
+  );
 }
