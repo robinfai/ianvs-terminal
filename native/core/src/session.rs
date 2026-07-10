@@ -100,6 +100,8 @@ struct TerminalSearchLogicalSegment {
 
 static STORE: LazyLock<SessionStore> = LazyLock::new(SessionStore::default);
 
+pub const REFRESH_HINT_FRAME_DIRTY: u32 = 1 << 0;
+
 #[derive(Clone, Debug)]
 enum CallbackEvent {
     Resize { rows: u16, cols: u16 },
@@ -174,6 +176,16 @@ struct PendingFrameWork {
 }
 
 impl PendingFrameWork {
+    fn is_empty(&self) -> bool {
+        !self.full_repaint
+            && self.snapshot_fallback_reason.is_none()
+            && self.dirty_rows.is_empty()
+            && self.scroll_region.is_none()
+            && self.cursor_before.is_none()
+            && self.cursor_after.is_none()
+            && self.damage_generation == 0
+    }
+
     fn mark_full_repaint(&mut self, reason: &str) {
         self.full_repaint = true;
         self.dirty_rows.clear();
@@ -230,6 +242,97 @@ impl PendingFrameWork {
 
     fn bump_generation(&mut self) {
         self.damage_generation = self.damage_generation.saturating_add(1);
+    }
+}
+
+struct PendingFrameSignal {
+    dirty: AtomicBool,
+    refresh_hint_dirty: AtomicBool,
+    work: Mutex<PendingFrameWork>,
+}
+
+impl PendingFrameSignal {
+    fn new(initially_dirty: bool) -> Self {
+        Self {
+            dirty: AtomicBool::new(initially_dirty),
+            refresh_hint_dirty: AtomicBool::new(initially_dirty),
+            work: Mutex::new(PendingFrameWork::default()),
+        }
+    }
+
+    fn is_dirty(&self) -> bool {
+        self.dirty.load(Ordering::SeqCst)
+    }
+
+    fn mutate(&self, mutation: impl FnOnce(&mut PendingFrameWork)) {
+        self.mutate_inner(false, mutation);
+    }
+
+    fn mutate_reader(&self, mutation: impl FnOnce(&mut PendingFrameWork)) {
+        self.mutate_inner(true, mutation);
+    }
+
+    fn mutate_inner(&self, sets_refresh_hint: bool, mutation: impl FnOnce(&mut PendingFrameWork)) {
+        let mut work = self.work.lock();
+        mutation(&mut work);
+        self.dirty.store(true, Ordering::SeqCst);
+        if sets_refresh_hint {
+            self.refresh_hint_dirty.store(true, Ordering::SeqCst);
+        }
+    }
+
+    fn take(&self) -> (bool, bool, PendingFrameWork) {
+        let mut work = self.work.lock();
+        let was_dirty = self.dirty.swap(false, Ordering::SeqCst);
+        let refresh_hint_was_dirty = self.refresh_hint_dirty.swap(false, Ordering::SeqCst);
+        (
+            was_dirty,
+            refresh_hint_was_dirty,
+            std::mem::take(&mut *work),
+        )
+    }
+
+    fn restore(&self, deferred_work: PendingFrameWork, restore_refresh_hint: bool) {
+        let mut current_work = self.work.lock();
+        if current_work.is_empty() {
+            *current_work = deferred_work;
+        } else if !deferred_work.is_empty() {
+            let damage_generation = current_work
+                .damage_generation
+                .max(deferred_work.damage_generation)
+                .saturating_add(1);
+            let cursor_before = deferred_work
+                .cursor_before
+                .or_else(|| current_work.cursor_before.take());
+            let cursor_after = current_work
+                .cursor_after
+                .take()
+                .or(deferred_work.cursor_after);
+            let snapshot_fallback_reason = deferred_work
+                .snapshot_fallback_reason
+                .or_else(|| current_work.snapshot_fallback_reason.take())
+                .or_else(|| Some("concurrent_deferred_damage".to_string()));
+            *current_work = PendingFrameWork {
+                full_repaint: true,
+                snapshot_fallback_reason,
+                cursor_before,
+                cursor_after,
+                damage_generation,
+                ..PendingFrameWork::default()
+            };
+        }
+        self.dirty.store(true, Ordering::SeqCst);
+        if restore_refresh_hint {
+            self.refresh_hint_dirty.store(true, Ordering::SeqCst);
+        }
+    }
+
+    fn has_refresh_hint(&self) -> bool {
+        self.refresh_hint_dirty.load(Ordering::SeqCst)
+    }
+
+    fn snapshot(&self) -> PendingFrameWork {
+        self.work.lock().clone()
     }
 }
 
@@ -1070,8 +1173,7 @@ pub struct TerminalSession {
     diagnostic_events: Mutex<VecDeque<TerminalDiagnosticEvent>>,
     resource_samples: Mutex<VecDeque<ResourceSample>>,
     resource_sampler_state: Mutex<ResourceSamplerState>,
-    dirty: AtomicBool,
-    pending_frame_work: Mutex<PendingFrameWork>,
+    pending_frame_signal: PendingFrameSignal,
     session_debug_stats: Mutex<SessionDebugStats>,
     last_rows: Mutex<Vec<CachedRowState>>,
     last_frame_meta: Mutex<Option<CachedFrameMeta>>,
@@ -1157,8 +1259,7 @@ impl TerminalSession {
             }])),
             resource_samples: Mutex::new(VecDeque::new()),
             resource_sampler_state: Mutex::new(ResourceSamplerState::default()),
-            dirty: AtomicBool::new(true),
-            pending_frame_work: Mutex::new(PendingFrameWork::default()),
+            pending_frame_signal: PendingFrameSignal::new(true),
             session_debug_stats: Mutex::new(SessionDebugStats::default()),
             last_rows: Mutex::new(Vec::new()),
             last_frame_meta: Mutex::new(None),
@@ -1246,10 +1347,9 @@ impl TerminalSession {
                         };
 
                         let damage_merge_started_at = Instant::now();
-                        reader_session
-                            .pending_frame_work
-                            .lock()
-                            .merge_terminal_damage(damage, cursor_before, cursor_after);
+                        reader_session.pending_frame_signal.mutate_reader(|work| {
+                            work.merge_terminal_damage(damage, cursor_before, cursor_after);
+                        });
                         let damage_merge_micros =
                             damage_merge_started_at.elapsed().as_micros() as u64;
 
@@ -1270,8 +1370,6 @@ impl TerminalSession {
                             damage_merge_micros,
                             response_write_micros,
                         );
-
-                        reader_session.dirty.store(true, Ordering::SeqCst);
                     }
                     Err(_) => break,
                 }
@@ -1289,6 +1387,14 @@ impl TerminalSession {
 
     pub fn ping(&self) -> i32 {
         42
+    }
+
+    pub fn refresh_hint_flags(&self) -> u32 {
+        if self.pending_frame_signal.has_refresh_hint() {
+            REFRESH_HINT_FRAME_DIRTY
+        } else {
+            0
+        }
     }
 
     pub fn close(&self) -> Result<(), SessionError> {
@@ -1525,8 +1631,8 @@ impl TerminalSession {
 
         self.last_rows.lock().clear();
         *self.last_frame_meta.lock() = None;
-        self.pending_frame_work.lock().mark_full_repaint("resize");
-        self.dirty.store(true, Ordering::SeqCst);
+        self.pending_frame_signal
+            .mutate(|work| work.mark_full_repaint("resize"));
         Ok(())
     }
 
@@ -1546,10 +1652,8 @@ impl TerminalSession {
             state.scrollback_offset = next.max(0) as usize;
             state.scrollback_offset = state.scrollback_offset.min(current_scrollback_max(&state));
         }
-        self.pending_frame_work
-            .lock()
-            .mark_full_repaint("scrollback_navigation");
-        self.dirty.store(true, Ordering::SeqCst);
+        self.pending_frame_signal
+            .mutate(|work| work.mark_full_repaint("scrollback_navigation"));
     }
 
     pub fn scroll_to(&self, offset: usize) {
@@ -1559,10 +1663,8 @@ impl TerminalSession {
         } else {
             state.scrollback_offset = offset.min(current_scrollback_max(&state));
         }
-        self.pending_frame_work
-            .lock()
-            .mark_full_repaint("scrollback_navigation");
-        self.dirty.store(true, Ordering::SeqCst);
+        self.pending_frame_signal
+            .mutate(|work| work.mark_full_repaint("scrollback_navigation"));
     }
 
     pub fn clear_scrollback(&self) -> Result<bool, SessionError> {
@@ -1575,10 +1677,8 @@ impl TerminalSession {
 
         self.last_rows.lock().clear();
         *self.last_frame_meta.lock() = None;
-        self.pending_frame_work
-            .lock()
-            .mark_full_repaint("clear_scrollback");
-        self.dirty.store(true, Ordering::SeqCst);
+        self.pending_frame_signal
+            .mutate(|work| work.mark_full_repaint("clear_scrollback"));
         Ok(true)
     }
 
@@ -1590,7 +1690,7 @@ impl TerminalSession {
     }
 
     pub fn take_frame_diff(&self) -> Result<Option<TerminalFrameDiff>, SessionError> {
-        let mut had_dirty_work = self.dirty.swap(false, Ordering::SeqCst);
+        let mut had_dirty_work = self.pending_frame_signal.is_dirty();
 
         let frame_started_at = Instant::now();
 
@@ -1598,7 +1698,8 @@ impl TerminalSession {
         let mut state = self.state.lock();
         let state_lock_wait_micros = state_lock_started_at.elapsed().as_micros() as u64;
         let frame_extract_started_at = Instant::now();
-        if state.terminal.flush_synchronized_updates_if_timed_out() {
+        let synchronized_timeout_flushed = state.terminal.flush_synchronized_updates_if_timed_out();
+        if synchronized_timeout_flushed {
             had_dirty_work = true;
         }
         let graphics_animation_changed = if self.graphics_enabled
@@ -1617,7 +1718,6 @@ impl TerminalSession {
         if state.terminal.synchronized_updates()
             || state.terminal.kitty_graphics_transfer_in_progress()
         {
-            self.dirty.store(true, Ordering::SeqCst);
             return Ok(None);
         }
         if alt_screen_active {
@@ -1688,10 +1788,12 @@ impl TerminalSession {
             terminal.grid().scrollback_len()
         };
         let cursor_snapshot = terminal_cursor_snapshot(cursor);
-        let pending_frame_work = {
-            let mut pending_frame_work = self.pending_frame_work.lock();
-            std::mem::take(&mut *pending_frame_work)
-        };
+        let (signal_was_dirty, refresh_hint_was_dirty, pending_frame_work) =
+            self.pending_frame_signal.take();
+        had_dirty_work = signal_was_dirty || synchronized_timeout_flushed;
+        if !had_dirty_work && !graphics_animation_changed {
+            return Ok(None);
+        }
         let mut last_rows = self.last_rows.lock();
         let mut last_frame_meta = self.last_frame_meta.lock();
         let frame_meta = CachedFrameMeta {
@@ -1772,18 +1874,18 @@ impl TerminalSession {
             &pending_frame_work,
             graphic_placements_count,
         ) {
-            *self.pending_frame_work.lock() = pending_frame_work;
-            self.dirty.store(true, Ordering::SeqCst);
+            self.pending_frame_signal
+                .restore(pending_frame_work, refresh_hint_was_dirty);
             return Ok(None);
         }
         if self.should_defer_clear_graphics_frame(&pending_frame_work, graphic_placements_count) {
-            *self.pending_frame_work.lock() = pending_frame_work;
-            self.dirty.store(true, Ordering::SeqCst);
+            self.pending_frame_signal
+                .restore(pending_frame_work, refresh_hint_was_dirty);
             return Ok(None);
         }
         if self.should_defer_inline_clear_frame(&pending_frame_work, &rows, &last_rows) {
-            *self.pending_frame_work.lock() = pending_frame_work;
-            self.dirty.store(true, Ordering::SeqCst);
+            self.pending_frame_signal
+                .restore(pending_frame_work, refresh_hint_was_dirty);
             return Ok(None);
         }
         let deferred_kitty_delete_count = terminal.deferred_kitty_delete_count();
@@ -2104,7 +2206,7 @@ impl TerminalSession {
             stats.transcript_truncated = state.transcript_truncated;
         }
         {
-            let pending = self.pending_frame_work.lock();
+            let pending = self.pending_frame_signal.snapshot();
             stats.pending_dirty_rows = pending.dirty_rows.len();
             stats.pending_scroll_region =
                 pending
@@ -4530,6 +4632,10 @@ pub fn close_session(session_id: u64) -> Result<(), SessionError> {
     STORE.close_session(session_id)
 }
 
+pub fn refresh_hint_flags(session_id: u64) -> Result<u32, SessionError> {
+    Ok(STORE.get(session_id)?.refresh_hint_flags())
+}
+
 pub fn resize_session(
     session_id: u64,
     cols: u16,
@@ -4813,6 +4919,112 @@ mod tests {
     use par_term_emu_core_rust::color::NamedColor;
     use par_term_emu_core_rust::terminal::Terminal;
     use std::collections::BTreeMap;
+    use std::sync::Barrier;
+
+    #[test]
+    fn pending_frame_signal_clears_dirty_after_consuming_a_concurrent_mark() {
+        let signal = Arc::new(PendingFrameSignal::new(false));
+        let mutation_started = Arc::new(Barrier::new(2));
+        let allow_mutation_to_finish = Arc::new(Barrier::new(2));
+
+        let marker = {
+            let signal = Arc::clone(&signal);
+            let mutation_started = Arc::clone(&mutation_started);
+            let allow_mutation_to_finish = Arc::clone(&allow_mutation_to_finish);
+            thread::spawn(move || {
+                signal.mutate_reader(|work| {
+                    work.mark_full_repaint("concurrent_mark");
+                    mutation_started.wait();
+                    allow_mutation_to_finish.wait();
+                });
+            })
+        };
+
+        mutation_started.wait();
+        let taker = {
+            let signal = Arc::clone(&signal);
+            thread::spawn(move || signal.take())
+        };
+        allow_mutation_to_finish.wait();
+
+        marker.join().unwrap();
+        let (had_dirty_work, had_refresh_hint, pending_work) = taker.join().unwrap();
+        assert!(had_dirty_work);
+        assert!(had_refresh_hint);
+        assert!(pending_work.full_repaint);
+        assert!(!signal.is_dirty());
+        assert!(!signal.has_refresh_hint());
+    }
+
+    #[test]
+    fn pending_frame_signal_local_mutation_does_not_publish_a_refresh_hint() {
+        let signal = PendingFrameSignal::new(false);
+
+        signal.mutate(|work| work.mark_full_repaint("local_resize"));
+
+        assert!(signal.is_dirty());
+        assert!(!signal.has_refresh_hint());
+        let (had_dirty_work, had_refresh_hint, pending_work) = signal.take();
+        assert!(had_dirty_work);
+        assert!(!had_refresh_hint);
+        assert!(pending_work.full_repaint);
+    }
+
+    #[test]
+    fn pending_frame_signal_restore_preserves_deferred_and_concurrent_damage() {
+        let signal = PendingFrameSignal::new(false);
+        signal.mutate_reader(|work| work.mark_full_repaint("reader_damage"));
+        let (_, had_refresh_hint, deferred_work) = signal.take();
+
+        signal.mutate(|work| work.mark_full_repaint("local_resize"));
+        signal.restore(deferred_work, had_refresh_hint);
+
+        assert!(signal.is_dirty());
+        assert!(signal.has_refresh_hint());
+        let (had_dirty_work, had_refresh_hint, pending_work) = signal.take();
+        assert!(had_dirty_work);
+        assert!(had_refresh_hint);
+        assert!(pending_work.full_repaint);
+        assert_eq!(
+            pending_work.snapshot_fallback_reason.as_deref(),
+            Some("reader_damage")
+        );
+    }
+
+    #[test]
+    fn pending_frame_signal_allows_only_one_concurrent_taker_to_consume_work() {
+        let signal = Arc::new(PendingFrameSignal::new(false));
+        signal.mutate_reader(|work| work.mark_full_repaint("reader_damage"));
+        let start = Arc::new(Barrier::new(3));
+
+        let takers = (0..2)
+            .map(|_| {
+                let signal = Arc::clone(&signal);
+                let start = Arc::clone(&start);
+                thread::spawn(move || {
+                    start.wait();
+                    signal.take()
+                })
+            })
+            .collect::<Vec<_>>();
+        start.wait();
+        let results = takers
+            .into_iter()
+            .map(|taker| taker.join().unwrap())
+            .collect::<Vec<_>>();
+
+        assert_eq!(results.iter().filter(|(dirty, _, _)| *dirty).count(), 1);
+        assert_eq!(results.iter().filter(|(_, hint, _)| *hint).count(), 1);
+        assert_eq!(
+            results
+                .iter()
+                .filter(|(_, _, work)| work.full_repaint)
+                .count(),
+            1
+        );
+        assert!(!signal.is_dirty());
+        assert!(!signal.has_refresh_hint());
+    }
 
     fn pending_full_screen_scroll(
         dirty_rows: &[usize],

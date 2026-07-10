@@ -63,6 +63,65 @@ void main() {
     expect(bytes, <int>[8, 1, 18, 4]);
   });
 
+  test('native pty backend falls back when refresh hints are unavailable', () {
+    final backend =
+        NativePtyBackend.fromBindings(_NoopPtyBindings())
+            as PtySessionRefreshHintBackend;
+
+    expect(backend.supportsRefreshHints, isFalse);
+    expect(PtyRefreshHintFlags.none, 0);
+    expect(PtyRefreshHintFlags.frameDirty, 1);
+    expect(backend.refreshHintFlags('1'), PtyRefreshHintFlags.none);
+  });
+
+  test('native pty backend forwards the complete refresh hint bitmask', () {
+    final bindings = _RefreshHintPtyBindings(0x80000001);
+    final backend =
+        NativePtyBackend.fromBindings(bindings) as PtySessionRefreshHintBackend;
+
+    expect(backend.supportsRefreshHints, isTrue);
+    expect(backend.refreshHintFlags('7'), 0x80000001);
+    expect(bindings.lastSessionId, 7);
+  });
+
+  test('native pty backend validates refresh hint session ids', () {
+    final backend =
+        NativePtyBackend.fromBindings(_RefreshHintPtyBindings(1))
+            as PtySessionRefreshHintBackend;
+
+    expect(() => backend.refreshHintFlags('invalid'), throwsArgumentError);
+  });
+
+  test('native pty backend forwards hints for created session ids', () {
+    final bindings = _RefreshHintPtyBindings(1);
+    final backend = NativePtyBackend.fromBindings(bindings);
+    final refreshHints = backend as PtySessionRefreshHintBackend;
+
+    final sessionId = backend.createSession('{}');
+
+    expect(refreshHints.refreshHintFlags(sessionId), 1);
+    expect(refreshHints.refreshHintFlags(sessionId), 1);
+    expect(bindings.refreshHintCalls, 2);
+
+    backend.closeSession(sessionId);
+    expect(() => refreshHints.refreshHintFlags('invalid'), throwsArgumentError);
+  });
+
+  test('native pty backend releases cached ids when native close fails', () {
+    final bindings = _CloseFailingRefreshHintPtyBindings(1);
+    final backend = NativePtyBackend.fromBindings(bindings);
+    final refreshHints = backend as PtySessionRefreshHintBackend;
+    final sessionId = backend.createSession('{}');
+
+    expect(
+      () => backend.closeSession(sessionId),
+      throwsA(isA<PtyNativeCallException>()),
+    );
+
+    expect(refreshHints.refreshHintFlags(sessionId), 1);
+    expect(bindings.lastSessionId, 1);
+  });
+
   test(
     'native pty backend forwards generic JSON requests through bindings',
     () {
@@ -414,6 +473,9 @@ void main() {
 
       expect(File(libraryPath).existsSync(), isTrue);
       expect(backend.ping(), 42);
+      final refreshHintBackend = backend as PtySessionRefreshHintBackend;
+      expect(refreshHintBackend.supportsRefreshHints, isTrue);
+      expect(refreshHintBackend.refreshHintFlags('999999999'), 0);
     },
     skip: _workspaceCoreLibraryPath == null
         ? 'libianvs_core.dylib is unavailable for this test run.'
@@ -543,6 +605,32 @@ class _ProtobufFramePtyBindings extends _NoopPtyBindings {
   Uint8List? sessionTakeFrameDiffProtobuf(int sessionId) {
     return Uint8List.fromList(const <int>[8, 1, 18, 4]);
   }
+}
+
+class _RefreshHintPtyBindings extends _NoopPtyBindings
+    implements PtyRefreshHintBindings {
+  _RefreshHintPtyBindings(this.flags);
+
+  final int flags;
+  int? lastSessionId;
+  int refreshHintCalls = 0;
+
+  @override
+  bool get supportsRefreshHints => true;
+
+  @override
+  int sessionRefreshHintFlags(int sessionId) {
+    refreshHintCalls += 1;
+    lastSessionId = sessionId;
+    return flags;
+  }
+}
+
+class _CloseFailingRefreshHintPtyBindings extends _RefreshHintPtyBindings {
+  _CloseFailingRefreshHintPtyBindings(super.flags);
+
+  @override
+  int sessionClose(int sessionId) => -1;
 }
 
 class _RequestRecordingPtyBindings extends _NoopPtyBindings {

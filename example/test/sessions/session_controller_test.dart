@@ -19,6 +19,17 @@ import 'package:app/features/sessions/session_state.dart';
 
 import '../support/fake_pty_backend.dart';
 
+Future<void> _waitForCondition({
+  required bool Function() condition,
+  required String description,
+}) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 1));
+  while (!condition() && DateTime.now().isBefore(deadline)) {
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+  }
+  expect(condition(), isTrue, reason: 'Timed out waiting for $description.');
+}
+
 class _TestProfileRepository extends ProfileRepository {
   _TestProfileRepository(this._document);
 
@@ -311,6 +322,96 @@ void main() {
     expect(afterCloseSecond.tabs, isEmpty);
     expect(afterCloseSecond.activeSessionId, isNull);
   });
+
+  test('session activation updates runtime foreground refresh classes', () {
+    final coreClient = FakePtyBackend();
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(coreClient),
+        sessionControllerProvider.overrideWith(_TestSessionController.new),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+        sessionPollingEnabledProvider.overrideWithValue(false),
+      ],
+    );
+    addTearDown(container.dispose);
+    final controller = container.read(sessionControllerProvider.notifier);
+    final runtime = container.read(terminalRuntimeControllerProvider);
+
+    controller.createSession(defaultTerminalProfile().copyWith(id: 'one'));
+    final first = container.read(sessionControllerProvider).activeSessionId!;
+    controller.createSession(defaultTerminalProfile().copyWith(id: 'two'));
+    final second = container.read(sessionControllerProvider).activeSessionId!;
+
+    expect(
+      runtime.refreshPolicySnapshotFor(first).refreshClass,
+      terminal.TerminalRefreshClass.background,
+    );
+    expect(
+      runtime.refreshPolicySnapshotFor(second).refreshClass,
+      terminal.TerminalRefreshClass.interactive,
+    );
+
+    controller.activateSession(first);
+
+    expect(
+      runtime.refreshPolicySnapshotFor(first).refreshClass,
+      terminal.TerminalRefreshClass.interactive,
+    );
+    expect(
+      runtime.refreshPolicySnapshotFor(second).refreshClass,
+      terminal.TerminalRefreshClass.background,
+    );
+  });
+
+  test(
+    'activating a new session preserves existing background backoff',
+    () async {
+      final coreClient = FakePtyBackend();
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(coreClient),
+          sessionControllerProvider.overrideWith(_TestSessionController.new),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          sessionPollingEnabledProvider.overrideWithValue(false),
+        ],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(sessionControllerProvider.notifier);
+      final runtime = container.read(terminalRuntimeControllerProvider);
+
+      controller.createSession(defaultTerminalProfile().copyWith(id: 'one'));
+      final first = container.read(sessionControllerProvider).activeSessionId!;
+      controller.createSession(defaultTerminalProfile().copyWith(id: 'two'));
+      coreClient.clearFrame(first);
+
+      runtime.refreshSession(first);
+      await Future<void>.delayed(Duration.zero);
+      runtime.refreshSession(first);
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        runtime.refreshPolicySnapshotFor(first).pumpMetrics.currentDelay,
+        const Duration(milliseconds: 132),
+      );
+
+      controller.createSession(defaultTerminalProfile().copyWith(id: 'three'));
+
+      expect(
+        runtime.refreshPolicySnapshotFor(first).pumpMetrics.currentDelay,
+        const Duration(milliseconds: 132),
+        reason: 'unchanged background sessions must keep their backoff',
+      );
+    },
+  );
 
   test('backend write failures surface in session state', () async {
     final coreClient = FakePtyBackend();
@@ -987,6 +1088,55 @@ void main() {
     expect(reopenedLayout.second!.ratio, 0.65);
     expect(reopenedState.activeSessionId, isNot(activeBeforeClose));
     expect(reopenedState.activeSessionId, reopenedLayout.second!.second!.id);
+  });
+
+  test('reopenClosedTab backgrounds every unselected recreated pane', () {
+    final coreClient = FakePtyBackend();
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(coreClient),
+        sessionControllerProvider.overrideWith(_TestSessionController.new),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+        sessionPollingEnabledProvider.overrideWithValue(false),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(sessionControllerProvider.notifier);
+    final runtime = container.read(terminalRuntimeControllerProvider);
+    final profile = defaultTerminalProfile().copyWith(id: 'shell-1');
+
+    controller.createSession(profile);
+    controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+    controller.closeTab(
+      container.read(sessionControllerProvider).tabs.single.sessionId,
+    );
+
+    controller.reopenClosedTab();
+
+    final reopenedState = container.read(sessionControllerProvider);
+    final reopenedTab = reopenedState.tabs.single;
+    final activeSessionId = reopenedState.activeSessionId!;
+    final inactiveSessionIds = reopenedTab.effectivePanes
+        .map((pane) => pane.sessionId)
+        .where((sessionId) => sessionId != activeSessionId)
+        .toList(growable: false);
+    expect(inactiveSessionIds, hasLength(1));
+    expect(
+      runtime.refreshPolicySnapshotFor(activeSessionId).refreshClass,
+      terminal.TerminalRefreshClass.interactive,
+    );
+    for (final sessionId in inactiveSessionIds) {
+      expect(
+        runtime.refreshPolicySnapshotFor(sessionId).refreshClass,
+        terminal.TerminalRefreshClass.background,
+      );
+    }
   });
 
   test(
@@ -3754,7 +3904,13 @@ void main() {
       expect(second, isNot(first));
 
       bindings.enqueueExit(first, code: 0);
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await _waitForCondition(
+        description: 'inactive tab exit polling',
+        condition: () => !container
+            .read(sessionControllerProvider)
+            .tabs
+            .any((tab) => tab.sessionId == first),
+      );
 
       final state = container.read(sessionControllerProvider);
       expect(state.tabs.map((tab) => tab.sessionId), isNot(contains(first)));
@@ -3800,7 +3956,13 @@ void main() {
       final second = container.read(sessionControllerProvider).activeSessionId!;
 
       bindings.enqueueExit(second, code: 0);
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await _waitForCondition(
+        description: 'active tab exit polling',
+        condition: () => container
+            .read(sessionControllerProvider)
+            .tabs
+            .every((tab) => tab.sessionId != second),
+      );
 
       final state = container.read(sessionControllerProvider);
       expect(state.tabs.map((tab) => tab.sessionId), equals([first]));
@@ -3848,7 +4010,10 @@ void main() {
           .activeSessionId!;
 
       bindings.enqueueExit(sessionId, code: 0);
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await _waitForCondition(
+        description: 'last tab exit polling',
+        condition: () => container.read(sessionControllerProvider).tabs.isEmpty,
+      );
 
       final state = container.read(sessionControllerProvider);
       expect(state.tabs, isEmpty);

@@ -56,6 +56,21 @@ Future<void> pumpShellScreen(
   await tester.pumpAndSettle();
 }
 
+Future<void> _pumpUntilCondition(
+  WidgetTester tester, {
+  required bool Function() condition,
+  required String description,
+  int maxTicks = 20,
+}) async {
+  for (var tick = 0; tick < maxTicks; tick += 1) {
+    if (condition()) {
+      return;
+    }
+    await tester.pump(const Duration(milliseconds: 33));
+  }
+  expect(condition(), isTrue, reason: 'Timed out waiting for $description.');
+}
+
 Future<void> sendMetaShortcut(
   WidgetTester tester,
   LogicalKeyboardKey key,
@@ -362,7 +377,12 @@ void main() {
     expect(find.byTooltip('New output'), findsNothing);
 
     fakeBindings.setFrame(1, _terminalFrame('background build done'));
-    await tester.pump(const Duration(milliseconds: 40));
+    await _pumpUntilCondition(
+      tester,
+      description: 'inactive tab output marker',
+      condition: () =>
+          find.byKey(const Key('shell-tab-new-output-1')).evaluate().isNotEmpty,
+    );
 
     expect(find.byKey(const Key('shell-tab-new-output-1')), findsOneWidget);
 
@@ -408,7 +428,16 @@ void main() {
     );
 
     fakeBindings.setFrame(inactiveSessionId, _terminalFrame('pane output'));
-    await tester.pump(const Duration(milliseconds: 40));
+    await _pumpUntilCondition(
+      tester,
+      description: 'inactive pane output frame',
+      condition: () => container
+          .read(terminalRuntimeControllerProvider)
+          .viewportFor(inactiveSessionId)
+          .frame
+          .rows
+          .any((row) => row.text.contains('pane output')),
+    );
 
     expect(
       find.byKey(Key('shell-tab-new-output-${tab.sessionId}')),
@@ -479,9 +508,27 @@ void main() {
       expect(inactiveSessionIds, hasLength(2));
 
       fakeBindings.setFrame(inactiveSessionIds[0], _terminalFrame('pane one'));
-      await tester.pump(const Duration(milliseconds: 40));
+      await _pumpUntilCondition(
+        tester,
+        description: 'first inactive pane output frame',
+        condition: () => container
+            .read(terminalRuntimeControllerProvider)
+            .viewportFor(inactiveSessionIds[0])
+            .frame
+            .rows
+            .any((row) => row.text.contains('pane one')),
+      );
       fakeBindings.setFrame(inactiveSessionIds[1], _terminalFrame('pane two'));
-      await tester.pump(const Duration(milliseconds: 40));
+      await _pumpUntilCondition(
+        tester,
+        description: 'second inactive pane output frame',
+        condition: () => container
+            .read(terminalRuntimeControllerProvider)
+            .viewportFor(inactiveSessionIds[1])
+            .frame
+            .rows
+            .any((row) => row.text.contains('pane two')),
+      );
 
       final tabDot = find.byKey(Key('shell-tab-new-output-${tab.sessionId}'));
       expect(tabDot, findsOneWidget);
@@ -572,7 +619,16 @@ void main() {
         originalInactiveSessionId,
         _terminalFrame('active marker output'),
       );
-      await tester.pump(const Duration(milliseconds: 40));
+      await _pumpUntilCondition(
+        tester,
+        description: 'first split marker output frame',
+        condition: () => container
+            .read(terminalRuntimeControllerProvider)
+            .viewportFor(originalInactiveSessionId)
+            .frame
+            .rows
+            .any((row) => row.text.contains('active marker output')),
+      );
 
       controller.activateSession(originalInactiveSessionId);
       await tester.pumpAndSettle();
@@ -581,7 +637,16 @@ void main() {
         originalActiveSessionId,
         _terminalFrame('inactive marker output'),
       );
-      await tester.pump(const Duration(milliseconds: 40));
+      await _pumpUntilCondition(
+        tester,
+        description: 'second split marker output frame',
+        condition: () => container
+            .read(terminalRuntimeControllerProvider)
+            .viewportFor(originalActiveSessionId)
+            .frame
+            .rows
+            .any((row) => row.text.contains('inactive marker output')),
+      );
 
       final tabDot = find.byKey(Key('shell-tab-new-output-${tab.sessionId}'));
       expect(tabDot, findsOneWidget);

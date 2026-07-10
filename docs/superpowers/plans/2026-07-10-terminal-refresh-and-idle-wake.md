@@ -501,6 +501,7 @@ final class TerminalRefreshPolicy {
     required bool? hintReady,
   });
 
+  void recordFullPollRequest(String sessionId);
   void recordInput(String sessionId, {required Duration now});
   void recordFocus(String sessionId, {required Duration now, required bool focused});
   void recordResize(String sessionId, {required Duration now});
@@ -745,8 +746,8 @@ Wire existing methods:
 On every existing 33ms tick:
 
 1. when supported and enabled, read `refreshHintFlags(sessionId)` and pass a non-null `hintReady`; otherwise pass null;
-2. ask `TerminalRefreshPolicy.decisionForTick`, which increments `hint_poll_count` only for a non-null hint input and increments `full_poll_count` only when it returns a full-poll request;
-3. emit `poll_tick_skipped` or retain first `full_poll_requested` trace;
+2. ask `TerminalRefreshPolicy.decisionForTick`, which decides whether a full poll is needed and increments `hint_poll_count` only for a non-null hint input;
+3. emit `poll_tick_skipped` or retain the first accepted `full_poll_requested` trace; the deduplicated accepted-request boundary calls `recordFullPollRequest(sessionId)` exactly once, so creation, explicit requests, cooldown, and in-flight coalescing increment `full_poll_count` without double-counting queued work;
 4. call the existing `_requestRefreshSession` path unchanged.
 
 On first hint exception, emit one `TerminalSessionBackendErrorEvent(operation: 'refreshHintFlags')`, disable hint reads for that session, and continue deadline fallback.
@@ -904,6 +905,9 @@ Expected: both PASS with a recorded raw value, a ≤250ms hint hard ceiling, and
 
 **Files:**
 - All Phase 2 files listed above
+- Create: `tools/run_process_group_with_timeout.py`
+- Create: `tools/run_release_real_pty_refresh_gate.sh`
+- Modify: `test/docs_contract_test.dart`
 
 - [ ] **Step 1: Run full cross-layer verification**
 
@@ -1006,22 +1010,28 @@ Expected: the diff shows only additive optional interfaces and Native implementa
 - [ ] **Step 3: Commit Phase 2**
 
 ```bash
+git add docs/superpowers/plans/2026-07-10-terminal-refresh-and-idle-wake.md
 git add native/core/src/session.rs
 git add native/core/src/ffi.rs
 git add native/core/tests/session_test.rs
 git add packages/ianvs_pty/lib/src/native_pty_backend.dart
 git add packages/ianvs_pty/test/native_pty_backend_test.dart
-git add packages/ianvs_terminal/lib/src/runtime/terminal_frame_pump.dart
+git add packages/ianvs_terminal/lib/ianvs_terminal.dart
 git add packages/ianvs_terminal/lib/src/runtime/terminal_refresh_policy.dart
 git add packages/ianvs_terminal/lib/src/runtime/terminal_runtime_controller.dart
-git add packages/ianvs_terminal/test/terminal_frame_pump_test.dart
 git add packages/ianvs_terminal/test/terminal_refresh_policy_test.dart
 git add packages/ianvs_terminal/test/terminal_runtime_controller_test.dart
 git add example/lib/features/sessions/session_controller.dart
 git add example/lib/features/shell/shell_screen_state_sessions.dart
 git add example/test/sessions/session_controller_test.dart
+git add example/test/shell/shell_screen_phase1b_test.dart
+git add example/test/shell/shell_screen_phase4_test.dart
+git add example/test/support/fake_pty_backend.dart
 git add example/test/widget_test.dart
 git add example/integration_test/real_pty_acceptance_test.dart
+git add test/docs_contract_test.dart
+git add tools/run_process_group_with_timeout.py
+git add tools/run_release_real_pty_refresh_gate.sh
 git commit -m "feat: adapt terminal refreshes with optional native hints"
 ```
 

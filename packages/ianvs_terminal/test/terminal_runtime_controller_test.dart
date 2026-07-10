@@ -2805,6 +2805,9 @@ void main() {
           ),
         );
         final viewport = runtime.viewportFor(sessionId);
+        final fullPollCountBeforeBurst = runtime
+            .refreshPolicySnapshotFor(sessionId)
+            .fullPollCount;
         diagnosticEvents.clear();
         runtimeBackend.setFrame(sessionId, _singleRowSnapshot('coalesced'));
 
@@ -2820,6 +2823,14 @@ void main() {
               event['event'] == 'full_poll_requested',
         );
         expect(requestedEvents, hasLength(1));
+        expect(
+          requestedEvents.single['full_poll_count'],
+          fullPollCountBeforeBurst + 1,
+        );
+        expect(
+          runtime.refreshPolicySnapshotFor(sessionId).fullPollCount,
+          fullPollCountBeforeBurst + 1,
+        );
         final refreshId = requestedEvents.single['refresh_id'];
 
         await tester.pump(const Duration(milliseconds: 32));
@@ -3264,10 +3275,17 @@ void main() {
     tester,
   ) async {
     final runtimeBackend = _FakePtyBackend();
+    var monotonicNow = Duration.zero;
+    Future<void> pumpTick() {
+      monotonicNow += const Duration(milliseconds: 33);
+      return tester.pump(const Duration(milliseconds: 33));
+    }
+
     final runtime = TerminalRuntimeController(
       backend: runtimeBackend,
       copyToClipboard: (_) async {},
       readClipboard: () async => '',
+      monotonicNow: () => monotonicNow,
     );
     try {
       final sessionId = runtime.createSession(
@@ -3277,23 +3295,28 @@ void main() {
       );
       final viewport = runtime.viewportFor(sessionId);
       runtimeBackend.clearFrame(sessionId);
+      monotonicNow = const Duration(milliseconds: 500);
+      final callsBeforeIdle = runtimeBackend.takeFrameDiffCalls;
 
-      await tester.pump(const Duration(milliseconds: 34));
-      await tester.pump(const Duration(milliseconds: 34));
+      await pumpTick();
+      expect(runtimeBackend.takeFrameDiffCalls, callsBeforeIdle + 1);
+      expect(runtimeBackend.pollEventsCalls, callsBeforeIdle + 1);
 
-      expect(runtimeBackend.takeFrameDiffCalls, 3);
-      expect(runtimeBackend.pollEventsCalls, 3);
+      await pumpTick();
+      expect(runtimeBackend.takeFrameDiffCalls, callsBeforeIdle + 2);
+      expect(runtimeBackend.pollEventsCalls, callsBeforeIdle + 2);
 
-      await tester.pump(const Duration(milliseconds: 100));
-
-      expect(runtimeBackend.takeFrameDiffCalls, 3);
-      expect(runtimeBackend.pollEventsCalls, 3);
+      await pumpTick();
+      await pumpTick();
+      await pumpTick();
+      expect(runtimeBackend.takeFrameDiffCalls, callsBeforeIdle + 2);
+      expect(runtimeBackend.pollEventsCalls, callsBeforeIdle + 2);
 
       runtimeBackend.setFrame(sessionId, _singleRowSnapshot('wake'));
       runtime.sendInput(sessionId, Uint8List.fromList(const [0x41]));
 
-      expect(runtimeBackend.takeFrameDiffCalls, 4);
-      expect(runtimeBackend.pollEventsCalls, 4);
+      expect(runtimeBackend.takeFrameDiffCalls, callsBeforeIdle + 3);
+      expect(runtimeBackend.pollEventsCalls, callsBeforeIdle + 3);
       expect(viewport.frame.rows.first.text, 'wake');
     } finally {
       runtime.dispose();
@@ -3304,10 +3327,17 @@ void main() {
     'terminal runtime controller expands idle polling backoff until activity',
     (tester) async {
       final runtimeBackend = _FakePtyBackend();
+      var monotonicNow = Duration.zero;
+      Future<void> pumpTick() {
+        monotonicNow += const Duration(milliseconds: 33);
+        return tester.pump(const Duration(milliseconds: 33));
+      }
+
       final runtime = TerminalRuntimeController(
         backend: runtimeBackend,
         copyToClipboard: (_) async {},
         readClipboard: () async => '',
+        monotonicNow: () => monotonicNow,
       );
       try {
         final sessionId = runtime.createSession(
@@ -3317,28 +3347,124 @@ void main() {
         );
         final viewport = runtime.viewportFor(sessionId);
         runtimeBackend.clearFrame(sessionId);
+        monotonicNow = const Duration(milliseconds: 500);
+        final callsBeforeIdle = runtimeBackend.takeFrameDiffCalls;
 
-        await tester.pump(const Duration(milliseconds: 34));
-        await tester.pump(const Duration(milliseconds: 34));
-        expect(runtimeBackend.takeFrameDiffCalls, 3);
+        await pumpTick();
+        expect(runtimeBackend.takeFrameDiffCalls, callsBeforeIdle + 1);
+        expect(
+          runtime.refreshPolicySnapshotFor(sessionId).pumpMetrics.currentDelay,
+          const Duration(milliseconds: 33),
+        );
 
-        await tester.pump(const Duration(milliseconds: 100));
-        expect(runtimeBackend.takeFrameDiffCalls, 3);
+        await pumpTick();
+        expect(runtimeBackend.takeFrameDiffCalls, callsBeforeIdle + 2);
+        expect(
+          runtime.refreshPolicySnapshotFor(sessionId).pumpMetrics.currentDelay,
+          const Duration(milliseconds: 132),
+        );
 
-        await tester.pump(const Duration(milliseconds: 34));
-        expect(runtimeBackend.takeFrameDiffCalls, 4);
+        for (
+          var tick = 0;
+          tick < 5 &&
+              runtime
+                      .refreshPolicySnapshotFor(sessionId)
+                      .pumpMetrics
+                      .currentDelay !=
+                  const Duration(milliseconds: 264);
+          tick += 1
+        ) {
+          await pumpTick();
+        }
+        expect(runtimeBackend.takeFrameDiffCalls, callsBeforeIdle + 3);
 
-        await tester.pump(const Duration(milliseconds: 199));
-        expect(runtimeBackend.takeFrameDiffCalls, 4);
+        for (
+          var tick = 0;
+          tick < 9 &&
+              runtime
+                      .refreshPolicySnapshotFor(sessionId)
+                      .pumpMetrics
+                      .currentDelay !=
+                  const Duration(milliseconds: 396);
+          tick += 1
+        ) {
+          await pumpTick();
+        }
+        expect(runtimeBackend.takeFrameDiffCalls, callsBeforeIdle + 4);
 
         runtimeBackend.setFrame(sessionId, _singleRowSnapshot('wake'));
         runtime.sendInput(sessionId, Uint8List.fromList(const [0x41]));
 
-        expect(runtimeBackend.takeFrameDiffCalls, 5);
+        expect(runtimeBackend.takeFrameDiffCalls, callsBeforeIdle + 5);
         expect(viewport.frame.rows.first.text, 'wake');
       } finally {
         runtime.dispose();
       }
+    },
+  );
+
+  test('terminal runtime counts the creation full refresh request', () {
+    final runtimeBackend = _FakePtyBackend();
+    final diagnostics = <Map<String, Object?>>[];
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      benchmarkEventSink: diagnostics.add,
+    );
+    addTearDown(runtime.dispose);
+
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+
+    final requested = diagnostics.singleWhere(
+      (event) =>
+          event['schema_version'] == 'ianvs-terminal-refresh-policy-v1' &&
+          event['event'] == 'full_poll_requested',
+    );
+    expect(requested['full_poll_count'], 1);
+    expect(runtime.refreshPolicySnapshotFor(sessionId).fullPollCount, 1);
+  });
+
+  test(
+    'terminal runtime counts a new explicit full refresh request once',
+    () async {
+      final runtimeBackend = _FakePtyBackend();
+      final diagnostics = <Map<String, Object?>>[];
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        benchmarkEventSink: diagnostics.add,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      final fullPollCountBeforeRefresh = runtime
+          .refreshPolicySnapshotFor(sessionId)
+          .fullPollCount;
+      diagnostics.clear();
+
+      runtime.refreshSession(sessionId);
+
+      final requested = diagnostics.singleWhere(
+        (event) =>
+            event['schema_version'] == 'ianvs-terminal-refresh-policy-v1' &&
+            event['event'] == 'full_poll_requested',
+      );
+      expect(requested['full_poll_count'], fullPollCountBeforeRefresh + 1);
+      expect(
+        runtime.refreshPolicySnapshotFor(sessionId).fullPollCount,
+        fullPollCountBeforeRefresh + 1,
+      );
     },
   );
 
@@ -3516,6 +3642,708 @@ void main() {
       }
     },
   );
+
+  testWidgets(
+    'terminal runtime interactive modes keep full polling every 33ms',
+    (tester) async {
+      for (final scenario in <String, TerminalFrameModes>{
+        'focused': TerminalFrameModes.empty,
+        'alternate': const TerminalFrameModes(alternateScreen: true),
+        'mouse': const TerminalFrameModes(mouseMode: 'any_event'),
+      }.entries) {
+        final runtimeBackend = _FakePtyBackend();
+        final diagnostics = <Map<String, Object?>>[];
+        var monotonicNow = Duration.zero;
+        Future<void> pumpTick() {
+          monotonicNow += const Duration(milliseconds: 33);
+          return tester.pump(const Duration(milliseconds: 33));
+        }
+
+        final runtime = TerminalRuntimeController(
+          backend: runtimeBackend,
+          copyToClipboard: (_) async {},
+          readClipboard: () async => '',
+          benchmarkEventSink: diagnostics.add,
+          monotonicNow: () => monotonicNow,
+        );
+        final sessionId = runtime.createSession(
+          const TerminalSessionConfig(
+            launch: TerminalLaunchConfig(program: '/bin/sh'),
+          ),
+        );
+        await tester.pump();
+        runtimeBackend.clearFrame(sessionId);
+        runtime.setSessionActive(sessionId, active: true);
+        if (scenario.key == 'focused') {
+          runtime.setSessionFocused(sessionId, focused: true);
+        } else {
+          monotonicNow = const Duration(seconds: 1);
+          runtimeBackend.setFrame(sessionId, <String, Object?>{
+            ..._singleRowSnapshot('${scenario.key} mode'),
+            'modes': <String, Object?>{
+              'alternate_screen': scenario.value.alternateScreen,
+              'mouse_mode': scenario.value.mouseMode,
+            },
+          });
+          runtime.refreshSession(sessionId);
+          runtimeBackend.clearFrame(sessionId);
+        }
+        diagnostics.clear();
+        final callsBefore = runtimeBackend.takeFrameDiffCalls;
+
+        for (var tick = 0; tick < 8; tick += 1) {
+          await pumpTick();
+        }
+
+        expect(
+          runtimeBackend.takeFrameDiffCalls - callsBefore,
+          8,
+          reason: '${scenario.key} must full-poll on every 33ms tick',
+        );
+        final results = diagnostics
+            .where((event) => event['event'] == 'refresh_result')
+            .toList(growable: false);
+        expect(results, hasLength(8));
+        for (final result in results) {
+          expect(result['refresh_class'], 'interactive');
+          expect(result['current_delay_micros'], 33000);
+          expect(result['backoff_skip_ticks'], 0);
+        }
+        runtime.dispose();
+      }
+    },
+  );
+
+  testWidgets('terminal runtime streaming keeps full polling every 33ms', (
+    tester,
+  ) async {
+    final runtimeBackend = _FakePtyBackend();
+    final diagnostics = <Map<String, Object?>>[];
+    var monotonicNow = Duration.zero;
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      benchmarkEventSink: diagnostics.add,
+      monotonicNow: () => monotonicNow,
+    );
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    await tester.pump();
+    runtime.setSessionActive(sessionId, active: false);
+    monotonicNow = const Duration(seconds: 1);
+    runtimeBackend.setFrame(sessionId, _singleRowSnapshot('stream one'));
+    runtime.refreshSession(sessionId);
+    runtimeBackend.clearFrame(sessionId);
+    monotonicNow += const Duration(milliseconds: 50);
+    runtimeBackend.setFrame(sessionId, _singleRowSnapshot('stream two'));
+    runtime.refreshSession(sessionId);
+    runtimeBackend.clearFrame(sessionId);
+    expect(
+      runtime.refreshPolicySnapshotFor(sessionId).refreshClass,
+      TerminalRefreshClass.streaming,
+    );
+    diagnostics.clear();
+    final callsBefore = runtimeBackend.takeFrameDiffCalls;
+
+    for (var tick = 0; tick < 6; tick += 1) {
+      monotonicNow += const Duration(milliseconds: 33);
+      await tester.pump(const Duration(milliseconds: 33));
+    }
+
+    expect(runtimeBackend.takeFrameDiffCalls - callsBefore, 6);
+    final results = diagnostics
+        .where((event) => event['event'] == 'refresh_result')
+        .toList(growable: false);
+    expect(results, hasLength(6));
+    for (final result in results) {
+      expect(result['refresh_class'], 'streaming');
+      expect(result['current_delay_micros'], 33000);
+      expect(result['backoff_skip_ticks'], 0);
+    }
+    runtime.dispose();
+  });
+
+  testWidgets(
+    'terminal runtime native hint bypasses deadline with complete lifecycle',
+    (tester) async {
+      final runtimeBackend = _RefreshHintPtyBackend();
+      final diagnostics = <Map<String, Object?>>[];
+      var monotonicNow = Duration.zero;
+      Future<void> pump(Duration duration) {
+        monotonicNow += duration;
+        return tester.pump(duration);
+      }
+
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        benchmarkEventSink: diagnostics.add,
+        monotonicNow: () => monotonicNow,
+      );
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      runtimeBackend.clearFrame(sessionId);
+      runtime.setSessionActive(sessionId, active: false);
+      while (runtime
+              .refreshPolicySnapshotFor(sessionId)
+              .pumpMetrics
+              .currentDelay !=
+          const Duration(milliseconds: 132)) {
+        await pump(const Duration(milliseconds: 33));
+      }
+      final callsBeforeHint = runtimeBackend.takeFrameDiffCalls;
+      final fullPollBeforeHint =
+          diagnostics
+                  .where(
+                    (event) =>
+                        event['schema_version'] ==
+                            'ianvs-terminal-refresh-policy-v1' &&
+                        event['event'] == 'refresh_result',
+                  )
+                  .last['full_poll_count']
+              as int;
+      diagnostics.clear();
+
+      runtimeBackend
+        ..setFrame(sessionId, _singleRowSnapshot('hint wake'))
+        ..hintFlags = 1;
+      for (
+        var tick = 0;
+        tick < 2 && runtimeBackend.takeFrameDiffCalls == callsBeforeHint;
+        tick += 1
+      ) {
+        await pump(const Duration(milliseconds: 33));
+      }
+
+      expect(runtimeBackend.takeFrameDiffCalls, callsBeforeHint + 1);
+      expect(runtime.viewportFor(sessionId).frame.rows.first.text, 'hint wake');
+      final refreshEvents = diagnostics
+          .where(
+            (event) =>
+                event['schema_version'] == 'ianvs-terminal-refresh-policy-v1',
+          )
+          .toList(growable: false);
+      final requested = refreshEvents.singleWhere(
+        (event) => event['event'] == 'full_poll_requested',
+      );
+      final refreshId = requested['refresh_id'];
+      final lifecycle = refreshEvents
+          .where((event) => event['refresh_id'] == refreshId)
+          .toList(growable: false);
+      expect(lifecycle.map((event) => event['event']), <String>[
+        'full_poll_requested',
+        'refresh_started',
+        'frame_taken',
+        'frame_applied',
+        'refresh_result',
+      ]);
+      expect(requested['request_reason'], 'native_hint');
+      expect(requested['hint_poll_count'], greaterThan(0));
+      expect(requested['full_poll_count'], fullPollBeforeHint + 1);
+      final timestamps = lifecycle
+          .map((event) => event['monotonic_micros'] as int)
+          .toList(growable: false);
+      expect(timestamps, orderedEquals(timestamps.toList()..sort()));
+      runtime.dispose();
+    },
+  );
+
+  testWidgets(
+    'terminal runtime false and unknown hints preserve bounded deadline fallback',
+    (tester) async {
+      for (final flags in <int>[0, 0x80000000]) {
+        final runtimeBackend = _RefreshHintPtyBackend();
+        final diagnostics = <Map<String, Object?>>[];
+        final runtime = TerminalRuntimeController(
+          backend: runtimeBackend,
+          copyToClipboard: (_) async {},
+          readClipboard: () async => '',
+          benchmarkEventSink: diagnostics.add,
+        );
+        final sessionId = runtime.createSession(
+          const TerminalSessionConfig(
+            launch: TerminalLaunchConfig(program: '/bin/sh'),
+          ),
+        );
+        runtimeBackend.clearFrame(sessionId);
+        runtime.setSessionActive(sessionId, active: false);
+        while (runtime
+                .refreshPolicySnapshotFor(sessionId)
+                .pumpMetrics
+                .currentDelay !=
+            const Duration(milliseconds: 132)) {
+          await tester.pump(const Duration(milliseconds: 33));
+        }
+        final callsBeforeFallback = runtimeBackend.takeFrameDiffCalls;
+        diagnostics.clear();
+
+        runtimeBackend
+          ..setFrame(sessionId, _singleRowSnapshot('deadline fallback'))
+          ..hintFlags = flags;
+        for (
+          var tick = 0;
+          tick < 5 && runtimeBackend.takeFrameDiffCalls == callsBeforeFallback;
+          tick += 1
+        ) {
+          await tester.pump(const Duration(milliseconds: 33));
+        }
+        expect(runtimeBackend.takeFrameDiffCalls, callsBeforeFallback + 1);
+        expect(
+          runtime.viewportFor(sessionId).frame.rows.first.text,
+          'deadline fallback',
+        );
+        expect(runtimeBackend.refreshHintCalls, greaterThan(0));
+        expect(
+          diagnostics.any((event) => event['request_reason'] == 'native_hint'),
+          isFalse,
+        );
+        expect(
+          diagnostics.any((event) => event['request_reason'] == 'deadline'),
+          isTrue,
+        );
+        runtime.dispose();
+      }
+    },
+  );
+
+  testWidgets(
+    'terminal runtime labels maximum idle fallback as idle deadline',
+    (tester) async {
+      final runtimeBackend = _RefreshHintPtyBackend();
+      final diagnostics = <Map<String, Object?>>[];
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        benchmarkEventSink: diagnostics.add,
+      );
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      runtimeBackend.clearFrame(sessionId);
+      runtime.setSessionFocused(sessionId, focused: false);
+
+      for (var tick = 0; tick < 30; tick += 1) {
+        final snapshot = runtime.refreshPolicySnapshotFor(sessionId);
+        if (snapshot.refreshClass == TerminalRefreshClass.idle &&
+            snapshot.pumpMetrics.currentDelay ==
+                const Duration(milliseconds: 132)) {
+          break;
+        }
+        await tester.pump(const Duration(milliseconds: 33));
+      }
+      expect(
+        runtime.refreshPolicySnapshotFor(sessionId).refreshClass,
+        TerminalRefreshClass.idle,
+      );
+      final callsBeforeFallback = runtimeBackend.takeFrameDiffCalls;
+      diagnostics.clear();
+      runtimeBackend.setFrame(
+        sessionId,
+        _singleRowSnapshot('idle deadline fallback'),
+      );
+
+      for (
+        var tick = 0;
+        tick < 13 && runtimeBackend.takeFrameDiffCalls == callsBeforeFallback;
+        tick += 1
+      ) {
+        await tester.pump(const Duration(milliseconds: 33));
+      }
+
+      expect(runtimeBackend.takeFrameDiffCalls, callsBeforeFallback + 1);
+      expect(
+        diagnostics.any((event) => event['request_reason'] == 'idle_deadline'),
+        isTrue,
+      );
+      runtime.dispose();
+    },
+  );
+
+  testWidgets(
+    'terminal runtime disables throwing hints and falls back to full polling',
+    (tester) async {
+      final runtimeBackend = _RefreshHintPtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+      );
+      final errors = <TerminalSessionBackendErrorEvent>[];
+      final subscription = runtime.events
+          .where((event) => event is TerminalSessionBackendErrorEvent)
+          .cast<TerminalSessionBackendErrorEvent>()
+          .listen(errors.add);
+      addTearDown(subscription.cancel);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      runtimeBackend.clearFrame(sessionId);
+      runtime.setSessionActive(sessionId, active: false);
+      await tester.pump(const Duration(milliseconds: 34));
+      await tester.pump(const Duration(milliseconds: 34));
+      runtimeBackend.throwOnRefreshHint = true;
+
+      await tester.pump(const Duration(milliseconds: 34));
+      expect(errors.single.operation, 'refreshHintFlags');
+      final hintCallsAfterError = runtimeBackend.refreshHintCalls;
+
+      runtimeBackend
+        ..throwOnRefreshHint = false
+        ..setFrame(sessionId, _singleRowSnapshot('error fallback'));
+      for (
+        var tick = 0;
+        tick < 12 &&
+            runtime.viewportFor(sessionId).frame.rows.first.text !=
+                'error fallback';
+        tick += 1
+      ) {
+        await tester.pump(const Duration(milliseconds: 33));
+      }
+
+      expect(runtimeBackend.refreshHintCalls, hintCallsAfterError);
+      expect(
+        runtime.viewportFor(sessionId).frame.rows.first.text,
+        'error fallback',
+      );
+      runtime.dispose();
+    },
+  );
+
+  testWidgets(
+    'terminal runtime isolates throwing hints with exact per-session counters',
+    (tester) async {
+      final runtimeBackend = _RefreshHintPtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+      );
+      final errors = <TerminalSessionBackendErrorEvent>[];
+      final subscription = runtime.events
+          .where((event) => event is TerminalSessionBackendErrorEvent)
+          .cast<TerminalSessionBackendErrorEvent>()
+          .listen(errors.add);
+      addTearDown(subscription.cancel);
+
+      final first = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final second = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/zsh'),
+        ),
+      );
+      runtimeBackend
+        ..clearFrame(first)
+        ..clearFrame(second)
+        ..throwingSessions.add(first)
+        ..hintFlagsBySession[second] = 1;
+
+      await tester.pump(const Duration(milliseconds: 33));
+
+      expect(errors, hasLength(1));
+      expect(errors.single.sessionId, first);
+      expect(errors.single.operation, 'refreshHintFlags');
+      expect(runtimeBackend.refreshHintCallsBySession[first], 1);
+      expect(runtimeBackend.refreshHintCallsBySession[second], 1);
+      expect(runtime.refreshPolicySnapshotFor(first).hintPollCount, 0);
+      expect(runtime.refreshPolicySnapshotFor(first).fullPollCount, 2);
+      expect(runtime.refreshPolicySnapshotFor(second).hintPollCount, 1);
+      expect(runtime.refreshPolicySnapshotFor(second).fullPollCount, 2);
+
+      runtimeBackend.throwingSessions.clear();
+      await tester.pump(const Duration(milliseconds: 33));
+
+      expect(errors, hasLength(1), reason: 'the failing session emits once');
+      expect(runtimeBackend.refreshHintCallsBySession[first], 1);
+      expect(runtimeBackend.refreshHintCallsBySession[second], 2);
+      expect(runtime.refreshPolicySnapshotFor(first).hintPollCount, 0);
+      expect(runtime.refreshPolicySnapshotFor(first).fullPollCount, 3);
+      expect(runtime.refreshPolicySnapshotFor(second).hintPollCount, 2);
+      expect(runtime.refreshPolicySnapshotFor(second).fullPollCount, 3);
+      runtime.dispose();
+    },
+  );
+
+  testWidgets(
+    'terminal runtime native hint keeps protobuf frame transport preferred',
+    (tester) async {
+      final runtimeBackend = _RefreshHintProtobufPtyBackend(
+        initialFrame: _singleRowProtobuf('protobuf initial'),
+      );
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 34));
+      await tester.pump(const Duration(milliseconds: 34));
+      final protobufCallsBeforeHint = runtimeBackend.takeFrameDiffProtobufCalls;
+      runtimeBackend
+        ..enqueueProtobufFrame(sessionId, _singleRowProtobuf('protobuf hint'))
+        ..hintFlags = 1;
+
+      await tester.pump(const Duration(milliseconds: 34));
+
+      expect(
+        runtimeBackend.takeFrameDiffProtobufCalls,
+        protobufCallsBeforeHint + 1,
+      );
+      expect(runtimeBackend.takeFrameDiffCalls, 0);
+      expect(
+        runtime.viewportFor(sessionId).frame.rows.first.text,
+        'protobuf hint',
+      );
+      runtime.dispose();
+    },
+  );
+
+  testWidgets(
+    'terminal runtime prefers native hint when deadline is also due',
+    (tester) async {
+      final runtimeBackend = _RefreshHintPtyBackend();
+      final diagnostics = <Map<String, Object?>>[];
+      var monotonicNow = Duration.zero;
+      Future<void> pump(Duration duration) {
+        monotonicNow += duration;
+        return tester.pump(duration);
+      }
+
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        benchmarkEventSink: diagnostics.add,
+        monotonicNow: () => monotonicNow,
+      );
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      runtimeBackend.clearFrame(sessionId);
+      runtime.setSessionActive(sessionId, active: false);
+      while (runtime
+              .refreshPolicySnapshotFor(sessionId)
+              .pumpMetrics
+              .currentDelay !=
+          const Duration(milliseconds: 132)) {
+        await pump(const Duration(milliseconds: 33));
+      }
+      monotonicNow = const Duration(seconds: 1);
+      diagnostics.clear();
+      runtimeBackend
+        ..setFrame(sessionId, _singleRowSnapshot('simultaneous'))
+        ..hintFlags = 1;
+
+      await pump(const Duration(milliseconds: 33));
+
+      final requested = diagnostics.singleWhere(
+        (event) =>
+            event['schema_version'] == 'ianvs-terminal-refresh-policy-v1' &&
+            event['event'] == 'full_poll_requested',
+      );
+      expect(requested['request_reason'], 'native_hint');
+      runtime.dispose();
+    },
+  );
+
+  test('terminal runtime activation and focus update policy classes', () {
+    final runtimeBackend = _FakePtyBackend();
+    var monotonicNow = Duration.zero;
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+      monotonicNow: () => monotonicNow,
+    );
+    addTearDown(runtime.dispose);
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+
+    runtime.setSessionActive(sessionId, active: false);
+    expect(
+      runtime.refreshPolicySnapshotFor(sessionId).refreshClass,
+      TerminalRefreshClass.background,
+    );
+
+    runtime.setSessionActive(sessionId, active: true);
+    runtime.setSessionFocused(sessionId, focused: true);
+    expect(
+      runtime.refreshPolicySnapshotFor(sessionId).refreshClass,
+      TerminalRefreshClass.interactive,
+    );
+
+    runtime.setSessionFocused(sessionId, focused: false);
+    monotonicNow += const Duration(seconds: 1);
+    expect(
+      runtime.refreshPolicySnapshotFor(sessionId).refreshClass,
+      isNot(TerminalRefreshClass.background),
+    );
+  });
+
+  test('terminal runtime input and resize update interactive policy state', () {
+    final runtimeBackend = _FakePtyBackend();
+    var monotonicNow = Duration.zero;
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+      monotonicNow: () => monotonicNow,
+    );
+    addTearDown(runtime.dispose);
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    monotonicNow = const Duration(seconds: 1);
+    expect(
+      runtime.refreshPolicySnapshotFor(sessionId).refreshClass,
+      TerminalRefreshClass.idle,
+    );
+
+    runtime.sendInput(sessionId, Uint8List.fromList(const <int>[0x41]));
+    expect(
+      runtime.refreshPolicySnapshotFor(sessionId).refreshClass,
+      TerminalRefreshClass.interactive,
+    );
+
+    monotonicNow = const Duration(seconds: 2);
+    expect(runtime.resizeSessionCells(sessionId, cols: 90, rows: 24), isTrue);
+    expect(
+      runtime.refreshPolicySnapshotFor(sessionId).refreshClass,
+      TerminalRefreshClass.interactive,
+    );
+  });
+
+  test('terminal runtime applied frame updates alternate and mouse policy', () {
+    final runtimeBackend = _FakePtyBackend();
+    var monotonicNow = Duration.zero;
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+      monotonicNow: () => monotonicNow,
+    );
+    addTearDown(runtime.dispose);
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    monotonicNow = const Duration(seconds: 1);
+    runtimeBackend.setFrame(sessionId, <String, Object?>{
+      ..._singleRowSnapshot('interactive modes'),
+      'modes': <String, Object?>{
+        'alternate_screen': true,
+        'mouse_mode': 'any_event',
+      },
+    });
+
+    runtime.refreshSession(sessionId);
+
+    final snapshot = runtime.refreshPolicySnapshotFor(sessionId);
+    expect(snapshot.refreshClass, TerminalRefreshClass.interactive);
+  });
+
+  testWidgets(
+    'terminal runtime continuous frames transition policy to streaming',
+    (tester) async {
+      final runtimeBackend = _FakePtyBackend();
+      var monotonicNow = Duration.zero;
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        monotonicNow: () => monotonicNow,
+      );
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      runtimeBackend.clearFrame(sessionId);
+      await tester.pump(const Duration(milliseconds: 34));
+      monotonicNow = const Duration(seconds: 1);
+      runtimeBackend.setFrame(sessionId, _singleRowSnapshot('stream one'));
+      runtime.refreshSession(sessionId);
+      runtimeBackend.setFrame(sessionId, _singleRowSnapshot('stream two'));
+      monotonicNow += const Duration(milliseconds: 33);
+      await tester.pump(const Duration(milliseconds: 34));
+
+      expect(
+        runtime.refreshPolicySnapshotFor(sessionId).refreshClass,
+        TerminalRefreshClass.streaming,
+      );
+      runtime.dispose();
+    },
+  );
+
+  test('terminal runtime background diagnostics use 264ms policy cadence', () {
+    final runtimeBackend = _FakePtyBackend();
+    final diagnostics = <Map<String, Object?>>[];
+    var monotonicNow = Duration.zero;
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      benchmarkEventSink: diagnostics.add,
+      monotonicNow: () => monotonicNow,
+    );
+    addTearDown(runtime.dispose);
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    runtimeBackend.clearFrame(sessionId);
+    diagnostics.clear();
+
+    runtime.setSessionActive(sessionId, active: false);
+    runtime.refreshSession(sessionId);
+    runtime.refreshSession(sessionId);
+    runtime.refreshSession(sessionId);
+
+    final result = diagnostics.lastWhere(
+      (event) =>
+          event['schema_version'] == 'ianvs-terminal-refresh-policy-v1' &&
+          event['event'] == 'refresh_result',
+    );
+    expect(result['refresh_class'], 'background');
+    expect(result['current_delay_micros'], 264000);
+    expect(result['backoff_skip_ticks'], 7);
+  });
 
   testWidgets('terminal runtime resets deadline state after input and resize', (
     tester,
@@ -7211,6 +8039,64 @@ class _ProtobufFramePtyBackend extends _FakePtyBackend
       return queuedFrames.removeAt(0);
     }
     return null;
+  }
+}
+
+class _RefreshHintPtyBackend extends _FakePtyBackend
+    implements PtySessionRefreshHintBackend {
+  int hintFlags = 0;
+  int refreshHintCalls = 0;
+  bool throwOnRefreshHint = false;
+  final Map<String, int> hintFlagsBySession = <String, int>{};
+  final Map<String, int> refreshHintCallsBySession = <String, int>{};
+  final Set<String> throwingSessions = <String>{};
+
+  @override
+  bool get supportsRefreshHints => true;
+
+  @override
+  int refreshHintFlags(String sessionId) {
+    refreshHintCalls += 1;
+    refreshHintCallsBySession[sessionId] =
+        (refreshHintCallsBySession[sessionId] ?? 0) + 1;
+    if (throwOnRefreshHint || throwingSessions.contains(sessionId)) {
+      throw StateError('refreshHintFlags failed');
+    }
+    return hintFlagsBySession[sessionId] ?? hintFlags;
+  }
+
+  @override
+  String? takeFrameDiffJson(String sessionId) {
+    final frame = super.takeFrameDiffJson(sessionId);
+    hintFlags &= ~1;
+    if (hintFlagsBySession.containsKey(sessionId)) {
+      hintFlagsBySession[sessionId] = hintFlagsBySession[sessionId]! & ~1;
+    }
+    return frame;
+  }
+}
+
+class _RefreshHintProtobufPtyBackend extends _ProtobufFramePtyBackend
+    implements PtySessionRefreshHintBackend {
+  _RefreshHintProtobufPtyBackend({super.initialFrame});
+
+  int hintFlags = 0;
+  int refreshHintCalls = 0;
+
+  @override
+  bool get supportsRefreshHints => true;
+
+  @override
+  int refreshHintFlags(String sessionId) {
+    refreshHintCalls += 1;
+    return hintFlags;
+  }
+
+  @override
+  Uint8List? takeFrameDiffProtobuf(String sessionId) {
+    final frame = super.takeFrameDiffProtobuf(sessionId);
+    hintFlags &= ~1;
+    return frame;
   }
 }
 

@@ -40,6 +40,11 @@ pub extern "C" fn ianvs_session_close(session_id: u64) -> c_int {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn ianvs_session_refresh_hint(session_id: u64) -> u32 {
+    session::refresh_hint_flags(session_id).unwrap_or_default()
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn ianvs_session_resize(
     session_id: u64,
     cols: u16,

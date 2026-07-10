@@ -32,6 +32,10 @@ class FakePtyBackend
     _frames[_sessionKey(sessionId)] = frame;
   }
 
+  void clearFrame(Object sessionId) {
+    _frames.remove(_sessionKey(sessionId));
+  }
+
   void enqueueFrame(Object sessionId, Map<String, Object?> frame) {
     _queuedFrames
         .putIfAbsent(_sessionKey(sessionId), () => <Map<String, Object?>>[])

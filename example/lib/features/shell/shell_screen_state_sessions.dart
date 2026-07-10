@@ -184,11 +184,19 @@ extension _ShellScreenStateSessions on _ShellScreenState {
 
   void _handleTerminalFocusChanged(String sessionId, FocusNode focusNode) {
     final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
+    final hasFocus = focusNode.hasFocus;
     if (activeSessionId != sessionId) {
+      if (!hasFocus) {
+        ref
+            .read(terminalRuntimeControllerProvider)
+            .setSessionFocused(sessionId, focused: false);
+      }
       return;
     }
+    ref
+        .read(terminalRuntimeControllerProvider)
+        .setSessionFocused(sessionId, focused: hasFocus);
 
-    final hasFocus = focusNode.hasFocus;
     final shouldShowCue = hasFocus && _showReturningCueOnNextFocus;
     if (_activeTerminalHasFocus == hasFocus &&
         _showWorkspaceCue == shouldShowCue) {

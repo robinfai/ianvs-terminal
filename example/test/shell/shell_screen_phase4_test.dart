@@ -3059,7 +3059,7 @@ void main() {
         .firstWhere((pane) => pane.sessionId != activeSessionId)
         .sessionId;
 
-    final inactiveFrame = TerminalFrameDiff.fromJson(<String, Object?>{
+    final inactiveFrameJson = <String, Object?>{
       'rows': <Object?>[
         <String, Object?>{
           'index': 0,
@@ -3085,11 +3085,20 @@ void main() {
         'kitty_keyboard_flags': 10,
         'synchronized_output': true,
       },
-    });
+    };
+    final inactiveFrame = TerminalFrameDiff.fromJson(inactiveFrameJson);
     expect(inactiveFrame.modes.alternateScreen, isTrue);
     final runtime = container.read(terminalRuntimeControllerProvider);
+    // Keep background polling from replacing this header-only fixture with the
+    // backend's initial frame. Synchronized frames are intentionally skipped
+    // by the runtime until their visible flush arrives.
+    fakeBindings.setFrame(inactiveSessionId, inactiveFrameJson);
     runtime.viewportFor(inactiveSessionId).updateFrame(inactiveFrame);
     await tester.pump();
+    expect(
+      runtime.viewportFor(inactiveSessionId).frame.modes.alternateScreen,
+      isTrue,
+    );
 
     expect(
       find.byKey(Key('shell-pane-header-indicator-alt-$inactiveSessionId')),

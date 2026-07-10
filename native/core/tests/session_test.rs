@@ -1680,6 +1680,76 @@ fn ping_returns_expected_value() {
 }
 
 #[test]
+fn refresh_hint_clears_after_frame_is_consumed() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&test_profile()).unwrap()).unwrap();
+
+    assert_eq!(session::REFRESH_HINT_FRAME_DIRTY, 1);
+    assert_eq!(
+        session::refresh_hint_flags(session_id).unwrap(),
+        session::REFRESH_HINT_FRAME_DIRTY
+    );
+
+    let _ = wait_for_frame_containing(session_id, "hello");
+
+    assert_eq!(session::refresh_hint_flags(session_id).unwrap(), 0);
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn refresh_hint_ignores_resize_damage_without_consuming_it() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&test_profile()).unwrap()).unwrap();
+    let _ = wait_for_frame_containing(session_id, "hello");
+
+    session::resize_session(session_id, 90, 20, 0, 0).unwrap();
+
+    assert_eq!(session::refresh_hint_flags(session_id).unwrap(), 0);
+    assert_eq!(session::refresh_hint_flags(session_id).unwrap(), 0);
+    let resized = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("resize hint must leave frame damage available");
+    assert!(resized.contains("\"viewport_rows\":20"));
+    assert_eq!(
+        session::refresh_hint_flags(session_id).unwrap(),
+        0,
+        "resize damage must never publish a reader-driven refresh hint"
+    );
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn refresh_hint_reports_pty_output_damage() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&interactive_profile()).unwrap()).unwrap();
+    let _ = wait_for_frame_where(session_id, |_| true);
+
+    session::write_session(session_id, b"printf 'refresh-hint-output\\n'\n").unwrap();
+    for _ in 0..SESSION_WAIT_ATTEMPTS {
+        if session::refresh_hint_flags(session_id).unwrap() == 1 {
+            assert_eq!(session::refresh_hint_flags(session_id).unwrap(), 1);
+            session::close_session(session_id).unwrap();
+            return;
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+
+    session::close_session(session_id).unwrap();
+    panic!("timed out waiting for PTY output refresh hint");
+}
+
+#[test]
+fn ffi_refresh_hint_returns_zero_for_invalid_and_closed_sessions() {
+    assert_eq!(ianvs_core::ffi::ianvs_session_refresh_hint(u64::MAX), 0);
+
+    let session_id =
+        session::create_session(&serde_json::to_string(&interactive_profile()).unwrap()).unwrap();
+    session::close_session(session_id).unwrap();
+
+    assert_eq!(ianvs_core::ffi::ianvs_session_refresh_hint(session_id), 0);
+}
+
+#[test]
 fn session_emits_frame_diff_for_simple_command() {
     let session_id =
         session::create_session(&serde_json::to_string(&test_profile()).unwrap()).unwrap();

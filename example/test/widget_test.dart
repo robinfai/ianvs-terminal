@@ -49,6 +49,21 @@ class _EventfulPtyBackend extends FakePtyBackend {
   }
 }
 
+Future<void> _pumpUntilCondition(
+  WidgetTester tester, {
+  required bool Function() condition,
+  required String description,
+  int maxTicks = 20,
+}) async {
+  for (var tick = 0; tick < maxTicks; tick += 1) {
+    if (condition()) {
+      return;
+    }
+    await tester.pump(const Duration(milliseconds: 33));
+  }
+  expect(condition(), isTrue, reason: 'Timed out waiting for $description.');
+}
+
 class _DelayedNewTabPtyBackend extends FakePtyBackend {
   bool releaseNewTabFrame = false;
   bool emitPlaceholderFrame = false;
@@ -1071,6 +1086,53 @@ void main() {
             .map((entry) => '${entry.key}:${ascii.decode(entry.value)}')
             .toList(),
         ['2:\x1B[O', '1:\x1B[I'],
+      );
+    },
+  );
+
+  testWidgets(
+    'terminal focus updates refresh policy without backgrounding it',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final runtime = container.read(terminalRuntimeControllerProvider);
+
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('shell-pane-1')),
+          matching: find.byType(TerminalViewport),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        runtime.refreshPolicySnapshotFor('1').refreshClass,
+        TerminalRefreshClass.interactive,
+      );
+
+      await _openCommandMenu(tester);
+      await _pumpUntilCondition(
+        tester,
+        description: 'focus-loss interactive grace expiry',
+        maxTicks: 25,
+        condition: () =>
+            runtime.refreshPolicySnapshotFor('1').refreshClass !=
+            TerminalRefreshClass.interactive,
+      );
+
+      expect(
+        runtime.refreshPolicySnapshotFor('1').refreshClass,
+        isNot(TerminalRefreshClass.background),
+        reason: 'focus loss must not background the still-active session',
       );
     },
   );
@@ -3672,7 +3734,11 @@ void main() {
       'scrollback_offset': 0,
       'scrollback_max_offset': 0,
     });
-    await tester.pump(const Duration(milliseconds: 40));
+    await _pumpUntilCondition(
+      tester,
+      description: 'inactive session activity notification',
+      condition: () => notifications.isNotEmpty,
+    );
 
     expect(notifications, hasLength(1));
     expect(notifications.single['title'], startsWith('Activity in '));
@@ -3887,7 +3953,11 @@ void main() {
         'scrollback_offset': 0,
         'scrollback_max_offset': 0,
       });
-      await tester.pump(const Duration(milliseconds: 40));
+      await _pumpUntilCondition(
+        tester,
+        description: 'wrapped inactive session activity notification',
+        condition: () => notifications.isNotEmpty,
+      );
 
       expect(notifications, hasLength(1));
       expect(notifications.single['title'], startsWith('Activity in '));

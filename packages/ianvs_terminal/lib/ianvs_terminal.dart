@@ -1,6 +1,7 @@
 export 'src/config/terminal_config.dart';
 export 'src/config/terminal_defaults.dart';
 export 'src/runtime/terminal_runtime_controller.dart';
+export 'src/runtime/terminal_refresh_policy.dart';
 export 'src/runtime/terminal_benchmarking.dart';
 export 'src/runtime/terminal_clipboard_policy.dart';
 export 'src/runtime/terminal_diagnostics.dart';

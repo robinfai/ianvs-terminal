@@ -274,6 +274,7 @@ class SessionController extends Notifier<SessionState> {
       LocalTerminalConfigBootstrapSource.defaults;
   bool _preferencesLoadedFromDisk = false;
   StreamSubscription<TerminalSessionEvent>? _runtimeEventsSubscription;
+  final Map<String, bool> _runtimeSessionActivation = <String, bool>{};
   bool _progressFlushScheduled = false;
   int _progressEventOrder = 0;
 
@@ -463,6 +464,7 @@ class SessionController extends Notifier<SessionState> {
           _appPreferences.appearance.terminalViewportPadding,
       isReady: true,
     );
+    _syncRuntimeSessionActivation();
     if (initialLaunchProfile != null) {
       _setWindowTitle(initialLaunchProfile.name);
     }
@@ -512,6 +514,7 @@ class SessionController extends Notifier<SessionState> {
       ],
       activeSessionId: sessionId,
     );
+    _syncRuntimeSessionActivation();
     _setWindowTitle(launchProfile.name);
   }
 
@@ -569,6 +572,7 @@ class SessionController extends Notifier<SessionState> {
       splitAxis: axis,
     );
     state = state.copyWith(tabs: nextTabs, activeSessionId: sessionId);
+    _syncRuntimeSessionActivation();
     _setWindowTitle(launchProfile.name);
   }
 
@@ -640,6 +644,7 @@ class SessionController extends Notifier<SessionState> {
           : pane.sessionId,
     );
     state = state.copyWith(tabs: nextTabs, activeSessionId: pane.sessionId);
+    _syncRuntimeSessionActivation();
     _setWindowTitle(pane.title);
 
     final demoFixture = ref.read(sessionDemoFixtureProvider);
@@ -893,6 +898,7 @@ class SessionController extends Notifier<SessionState> {
       tabs: [...state.tabs, reopenedTab],
       activeSessionId: activeSessionId,
     );
+    _syncRuntimeSessionActivation();
     final activePane = reopenedTab.paneFor(activeSessionId);
     _setWindowTitle(activePane?.title ?? reopenedTab.title);
   }
@@ -959,6 +965,7 @@ class SessionController extends Notifier<SessionState> {
     }
 
     state = state.copyWith(tabs: nextTabs, activeSessionId: sessionId);
+    _syncRuntimeSessionActivation();
     _setWindowTitle(reopenedPane.title);
     return sessionId;
   }
@@ -2050,6 +2057,7 @@ class SessionController extends Notifier<SessionState> {
             ? nextActivePaneId
             : state.activeSessionId,
       );
+      _syncRuntimeSessionActivation();
     }
 
     final demoFixture = ref.read(sessionDemoFixtureProvider);
@@ -2114,6 +2122,39 @@ class SessionController extends Notifier<SessionState> {
       tabs: nextTabs,
       activeSessionId: nextActiveSessionId,
     );
+    _syncRuntimeSessionActivation();
+  }
+
+  void _syncRuntimeSessionActivation() {
+    if (ref.read(sessionDemoFixtureProvider) != null) {
+      return;
+    }
+    final nextSessionId = state.activeSessionId;
+    final desiredActivation = <String, bool>{};
+    for (final tab in state.tabs) {
+      for (final pane in tab.effectivePanes) {
+        final sessionId = pane.sessionId;
+        desiredActivation[sessionId] = sessionId == nextSessionId;
+      }
+    }
+    for (final sessionId
+        in _runtimeSessionActivation.keys
+            .where((sessionId) => !desiredActivation.containsKey(sessionId))
+            .toList(growable: false)) {
+      if (_runtimeSessionActivation[sessionId] == true &&
+          _runtime.hasSession(sessionId)) {
+        _runtime.setSessionActive(sessionId, active: false);
+      }
+      _runtimeSessionActivation.remove(sessionId);
+    }
+    for (final entry in desiredActivation.entries) {
+      if (_runtimeSessionActivation[entry.key] == entry.value ||
+          !_runtime.hasSession(entry.key)) {
+        continue;
+      }
+      _runtime.setSessionActive(entry.key, active: entry.value);
+      _runtimeSessionActivation[entry.key] = entry.value;
+    }
   }
 
   void _recordClosedPane(String tabSessionId, TerminalPane pane) {

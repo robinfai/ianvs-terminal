@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -5,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
+import 'package:ianvs_pty/ianvs_pty.dart';
 import 'package:integration_test/integration_test.dart';
 
 import 'package:app/app.dart';
@@ -19,9 +21,25 @@ import '../test/support/memory_profile_repository.dart';
 
 const _frameWait = Duration(seconds: 20);
 const _pollStep = Duration(milliseconds: 100);
+const _refreshHintTargetMs = 100;
+const _refreshHintLimitMs = int.fromEnvironment(
+  'IANVS_REFRESH_HINT_LIMIT_MS',
+  defaultValue: 250,
+);
+const _refreshFallbackLimitMs = int.fromEnvironment(
+  'IANVS_REFRESH_FALLBACK_LIMIT_MS',
+  defaultValue: 750,
+);
+const _standaloneReleaseTestGate = bool.fromEnvironment(
+  'IANVS_STANDALONE_RELEASE_TEST_GATE',
+);
+const _refreshPolicyGateOnly = bool.fromEnvironment(
+  'IANVS_REFRESH_POLICY_GATE_ONLY',
+);
 
 void main() {
-  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  _enableStandaloneReleaseTestGate(binding);
   _ignoreKnownDesktopKeyStateNoise();
 
   testWidgets(
@@ -43,7 +61,7 @@ void main() {
 
       expect(find.byKey(const Key('terminal-line-timestamp-0')), findsNothing);
     },
-    skip: _skipRealPtyTests,
+    skip: _skipNonRefreshPolicyGateTests,
   );
 
   testWidgets(
@@ -93,70 +111,74 @@ void main() {
             pane.shellIntegration.username == 'dev',
       );
     },
-    skip: _skipRealPtyTests,
+    skip: _skipNonRefreshPolicyGateTests,
   );
 
-  testWidgets('real PTY password manager blocks stale prompt sends', (
-    tester,
-  ) async {
-    final goFile = _tempSignalFile('password-stale');
-    final passwordStore = PasswordManagerStore()
-      ..add(label: 'staging sudo', password: 's3cr3t!');
-    final profile = _scriptProfile(
-      id: 'password-stale',
-      name: 'Password Stale',
-      script: r'''
+  testWidgets(
+    'real PTY password manager blocks stale prompt sends',
+    (tester) async {
+      final goFile = _tempSignalFile('password-stale');
+      final passwordStore = PasswordManagerStore()
+        ..add(label: 'staging sudo', password: 's3cr3t!');
+      final profile = _scriptProfile(
+        id: 'password-stale',
+        name: 'Password Stale',
+        script: r'''
 printf '[sudo] password for dev:'
 while [ ! -f "$GO_FILE" ]; do sleep 0.05; done
 printf '\r\033[2Kdev $ '
 sleep 5
 ''',
-      env: {'GO_FILE': goFile.path},
-    );
-    final harness = await _pumpRealPtyApp(
-      tester,
-      profiles: [profile],
-      passwordStore: passwordStore,
-    );
+        env: {'GO_FILE': goFile.path},
+      );
+      final harness = await _pumpRealPtyApp(
+        tester,
+        profiles: [profile],
+        passwordStore: passwordStore,
+      );
 
-    await _waitForTerminalText(
-      tester,
-      harness.container,
-      description: 'initial password prompt',
-      matches: (text) => text.contains('[sudo] password for dev:'),
-    );
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'initial password prompt',
+        matches: (text) => text.contains('[sudo] password for dev:'),
+      );
 
-    await _openToolbelt(tester);
-    await tester.ensureVisible(
-      find.byKey(const Key('toolbelt-password-manager')),
-    );
-    await tester.tap(find.byKey(const Key('toolbelt-password-manager')));
-    await _waitFor(
-      tester,
-      description: 'password manager sheet',
-      condition: () =>
-          find.byKey(const Key('password-manager-sheet')).evaluate().isNotEmpty,
-    );
+      await _openToolbelt(tester);
+      await tester.ensureVisible(
+        find.byKey(const Key('toolbelt-password-manager')),
+      );
+      await tester.tap(find.byKey(const Key('toolbelt-password-manager')));
+      await _waitFor(
+        tester,
+        description: 'password manager sheet',
+        condition: () => find
+            .byKey(const Key('password-manager-sheet'))
+            .evaluate()
+            .isNotEmpty,
+      );
 
-    _signal(goFile);
-    await _waitForTerminalText(
-      tester,
-      harness.container,
-      description: 'ordinary prompt after password prompt disappeared',
-      matches: (text) => !text.contains('[sudo] password for dev:'),
-    );
+      _signal(goFile);
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'ordinary prompt after password prompt disappeared',
+        matches: (text) => !text.contains('[sudo] password for dev:'),
+      );
 
-    await tester.tap(find.byKey(const Key('password-manager-send-0')));
-    await tester.pump(_pollStep);
-    await tester.pump(_pollStep);
+      await tester.tap(find.byKey(const Key('password-manager-send-0')));
+      await tester.pump(_pollStep);
+      await tester.pump(_pollStep);
 
-    await _waitForTerminalText(
-      tester,
-      harness.container,
-      description: 'terminal remains free of stale password text',
-      matches: (text) => !text.contains('s3cr3t!'),
-    );
-  }, skip: _skipRealPtyTests);
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'terminal remains free of stale password text',
+        matches: (text) => !text.contains('s3cr3t!'),
+      );
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
 
   testWidgets(
     'real PTY profile triggers respond to repeated prompts',
@@ -196,15 +218,17 @@ sleep 1
             text.contains('first:secret') && text.contains('second:secret'),
       );
     },
-    skip: _skipRealPtyTests,
+    skip: _skipNonRefreshPolicyGateTests,
   );
 
-  testWidgets('real PTY coprocess replies to repeated prompts', (tester) async {
-    final goFile = _tempSignalFile('coprocess-repeat');
-    final profile = _scriptProfile(
-      id: 'coprocess-repeat',
-      name: 'Coprocess Repeat',
-      script: r'''
+  testWidgets(
+    'real PTY coprocess replies to repeated prompts',
+    (tester) async {
+      final goFile = _tempSignalFile('coprocess-repeat');
+      final profile = _scriptProfile(
+        id: 'coprocess-repeat',
+        name: 'Coprocess Repeat',
+        script: r'''
 printf 'ready\n'
 while [ ! -f "$GO_FILE" ]; do sleep 0.05; done
 printf 'Are you there?'
@@ -215,39 +239,41 @@ IFS= read b
 printf 'second:%s\n' "$b"
 sleep 1
 ''',
-      env: {'GO_FILE': goFile.path},
-    );
-    final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
+        env: {'GO_FILE': goFile.path},
+      );
+      final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
 
-    await _waitForTerminalText(
-      tester,
-      harness.container,
-      description: 'coprocess real PTY pane ready',
-      matches: (text) => text.contains('ready'),
-    );
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'coprocess real PTY pane ready',
+        matches: (text) => text.contains('ready'),
+      );
 
-    await _openToolbelt(tester);
-    await tester.ensureVisible(find.byKey(const Key('toolbelt-coprocess')));
-    await tester.tap(find.byKey(const Key('toolbelt-coprocess')));
-    await _waitFor(
-      tester,
-      description: 'coprocess sheet',
-      condition: () =>
-          find.byKey(const Key('coprocess-sheet')).evaluate().isNotEmpty,
-    );
-    await tester.tap(find.byKey(const Key('coprocess-start')));
-    await tester.pump(_pollStep);
+      await _openToolbelt(tester);
+      await tester.ensureVisible(find.byKey(const Key('toolbelt-coprocess')));
+      await tester.tap(find.byKey(const Key('toolbelt-coprocess')));
+      await _waitFor(
+        tester,
+        description: 'coprocess sheet',
+        condition: () =>
+            find.byKey(const Key('coprocess-sheet')).evaluate().isNotEmpty,
+      );
+      await tester.tap(find.byKey(const Key('coprocess-start')));
+      await tester.pump(_pollStep);
 
-    _signal(goFile);
+      _signal(goFile);
 
-    await _waitForTerminalText(
-      tester,
-      harness.container,
-      description: 'two coprocess responses in a real PTY',
-      matches: (text) =>
-          text.contains('first:Yes') && text.contains('second:Yes'),
-    );
-  }, skip: _skipRealPtyTests);
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'two coprocess responses in a real PTY',
+        matches: (text) =>
+            text.contains('first:Yes') && text.contains('second:Yes'),
+      );
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
 
   testWidgets(
     'real PTY wrapped trigger output is captured as a logical row',
@@ -326,7 +352,7 @@ sleep 5
       expect(find.byKey(const Key('captured-output-sheet')), findsOneWidget);
       expect(find.textContaining('ERROR 42 failed'), findsWidgets);
     },
-    skip: _skipRealPtyTests,
+    skip: _skipNonRefreshPolicyGateTests,
   );
 
   testWidgets(
@@ -389,33 +415,118 @@ sleep 5
         onTimeout: () => 'Notifications: $notifications',
       );
     },
-    skip: _skipRealPtyTests,
+    skip: _skipNonRefreshPolicyGateTests,
   );
 
   testWidgets(
     'real PTY active wake baseline after four seconds child idle',
-    (tester) => _verifyIdleWakeBaseline(tester, state: _IdleWakeState.active),
-    skip: _skipRealPtyTests,
+    (tester) =>
+        _verifyIdleWakeBaseline(tester, state: _BaselineIdleWakeState.active),
+    skip: _skipNonRefreshPolicyGateTests,
   );
 
   testWidgets(
     'real PTY background deadline wake baseline after four seconds child idle',
     (tester) => _verifyIdleWakeBaseline(
       tester,
-      state: _IdleWakeState.backgroundDeadline,
+      state: _BaselineIdleWakeState.backgroundDeadline,
+    ),
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
+    'real PTY maximum backoff wake baseline after four seconds child idle',
+    (tester) => _verifyIdleWakeBaseline(
+      tester,
+      state: _BaselineIdleWakeState.maximumBackoff,
+    ),
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
+    'real PTY interactive hint path after four seconds idle',
+    (tester) => _verifyIdleWakePolicy(
+      tester,
+      state: _IdleWakeState.interactive,
+      path: _IdleWakePath.nativeHint,
+    ),
+    skip: _skipRealPtyTests || kReleaseMode,
+  );
+
+  testWidgets(
+    'real PTY background hint path after four seconds idle',
+    (tester) => _verifyIdleWakePolicy(
+      tester,
+      state: _IdleWakeState.background,
+      path: _IdleWakePath.nativeHint,
+    ),
+    skip: _skipRealPtyTests || kReleaseMode,
+  );
+
+  testWidgets(
+    'real PTY maximum idle hint path after four seconds idle',
+    (tester) => _verifyIdleWakePolicy(
+      tester,
+      state: _IdleWakeState.maximumIdle,
+      path: _IdleWakePath.nativeHint,
     ),
     skip: _skipRealPtyTests,
   );
 
   testWidgets(
-    'real PTY maximum backoff wake baseline after four seconds child idle',
-    (tester) =>
-        _verifyIdleWakeBaseline(tester, state: _IdleWakeState.maximumBackoff),
+    'real PTY interactive masked-hint path after four seconds idle',
+    (tester) => _verifyIdleWakePolicy(
+      tester,
+      state: _IdleWakeState.interactive,
+      path: _IdleWakePath.maskedHintFallback,
+    ),
+    skip: _skipRealPtyTests || kReleaseMode,
+  );
+
+  testWidgets(
+    'real PTY background masked-hint path after four seconds idle',
+    (tester) => _verifyIdleWakePolicy(
+      tester,
+      state: _IdleWakeState.background,
+      path: _IdleWakePath.maskedHintFallback,
+    ),
+    skip: _skipRealPtyTests,
+  );
+
+  testWidgets(
+    'real PTY maximum idle masked-hint path after four seconds idle',
+    (tester) => _verifyIdleWakePolicy(
+      tester,
+      state: _IdleWakeState.maximumIdle,
+      path: _IdleWakePath.maskedHintFallback,
+    ),
     skip: _skipRealPtyTests,
   );
 }
 
+void _enableStandaloneReleaseTestGate(
+  IntegrationTestWidgetsFlutterBinding binding,
+) {
+  if (!kReleaseMode || !_standaloneReleaseTestGate) {
+    return;
+  }
+  unawaited(
+    binding.allTestsPassed.future.then((passed) async {
+      stdout.writeln(
+        'IANVS_STANDALONE_RELEASE_TEST_RESULT='
+        '${passed ? 'passed' : 'failed'} '
+        'tests=${binding.results.length}',
+      );
+      await stdout.flush();
+      exit(passed ? 0 : 1);
+    }),
+  );
+}
+
 bool get _skipRealPtyTests => !Platform.isMacOS;
+
+bool get _skipNonRefreshPolicyGateTests =>
+    _skipRealPtyTests || _refreshPolicyGateOnly;
 
 void _ignoreKnownDesktopKeyStateNoise() {
   final previousOnError = FlutterError.onError;
@@ -441,9 +552,14 @@ Future<_RealPtyHarness> _pumpRealPtyApp(
   PasswordManagerStore? passwordStore,
   List<Map<String, String?>>? notifications,
   List<Map<String, Object?>>? runtimeEvents,
+  bool maskRefreshHints = false,
 }) async {
   final container = ProviderContainer(
     overrides: [
+      if (maskRefreshHints)
+        ptySessionBackendProvider.overrideWithValue(
+          _MaskedRefreshHintPtyBackend(NativePtyBackend.load()),
+        ),
       profileRepositoryProvider.overrideWithValue(
         MemoryProfileRepository(TerminalProfilesDocument(profiles: profiles)),
       ),
@@ -480,11 +596,15 @@ Future<_RealPtyHarness> _pumpRealPtyApp(
   return _RealPtyHarness(container);
 }
 
-enum _IdleWakeState { active, backgroundDeadline, maximumBackoff }
+enum _IdleWakeState { interactive, background, maximumIdle }
+
+enum _IdleWakePath { nativeHint, maskedHintFallback }
+
+enum _BaselineIdleWakeState { active, backgroundDeadline, maximumBackoff }
 
 Future<void> _verifyIdleWakeBaseline(
   WidgetTester tester, {
-  required _IdleWakeState state,
+  required _BaselineIdleWakeState state,
 }) async {
   final fixture = _createIdleWakeFixture(state.name);
   final runtimeEvents = <Map<String, Object?>>[];
@@ -508,6 +628,7 @@ sleep 1
     tester,
     profiles: <TerminalProfile>[profile],
     runtimeEvents: runtimeEvents,
+    maskRefreshHints: true,
   );
 
   await _waitFor(
@@ -524,6 +645,9 @@ sleep 1
   expect(sessionId, isNotNull);
   final historyRefreshId = _latestRefreshId(runtimeEvents, sessionId!);
   final runtime = harness.container.read(terminalRuntimeControllerProvider);
+  if (state != _BaselineIdleWakeState.active) {
+    runtime.setSessionFocused(sessionId, focused: false);
+  }
 
   final (
     :delayMicros,
@@ -532,21 +656,21 @@ sleep 1
     :nominal,
     :ceiling,
   ) = switch (state) {
-    _IdleWakeState.active => (
+    _BaselineIdleWakeState.active => (
       delayMicros: 33000,
       skipTicks: 0,
       resetBeforeSignal: true,
       nominal: const Duration(milliseconds: 33),
       ceiling: const Duration(milliseconds: 250),
     ),
-    _IdleWakeState.backgroundDeadline => (
+    _BaselineIdleWakeState.backgroundDeadline => (
       delayMicros: 264000,
       skipTicks: 7,
       resetBeforeSignal: true,
       nominal: const Duration(milliseconds: 264),
       ceiling: const Duration(milliseconds: 750),
     ),
-    _IdleWakeState.maximumBackoff => (
+    _BaselineIdleWakeState.maximumBackoff => (
       delayMicros: 396000,
       skipTicks: 11,
       resetBeforeSignal: false,
@@ -584,7 +708,7 @@ sleep 1
   );
 
   expect(preparedResult, isNotNull);
-  if (state == _IdleWakeState.maximumBackoff) {
+  if (state == _BaselineIdleWakeState.maximumBackoff) {
     expect(
       preparedResult!['current_delay_micros'],
       396000,
@@ -613,6 +737,257 @@ sleep 1
     'nominal_target_micros=${nominal.inMicroseconds} '
     'hard_ceiling_micros=${ceiling.inMicroseconds}',
   );
+  expect(
+    elapsedMicros,
+    lessThanOrEqualTo(ceiling.inMicroseconds),
+    reason:
+        '${state.name} idle wake elapsed_micros=$elapsedMicros exceeded '
+        'hard_ceiling_micros=${ceiling.inMicroseconds}; '
+        'nominal_target_micros=${nominal.inMicroseconds}',
+  );
+}
+
+Future<void> _verifyIdleWakePolicy(
+  WidgetTester tester, {
+  required _IdleWakeState state,
+  required _IdleWakePath path,
+}) async {
+  final fixture = _createIdleWakeFixture('${state.name}-${path.name}');
+  final runtimeEvents = <Map<String, Object?>>[];
+  final profile = _scriptProfile(
+    id: 'idle-wake-${state.name}-${path.name}',
+    name: 'Idle Wake ${state.name} ${path.name}',
+    script: r'''
+printf 'idle-ready\n'
+sleep 4
+: > "$IDLE_DONE_FILE"
+IFS= read -r token < "$WAKE_FIFO"
+printf 'idle-wake:%s\n' "$token"
+sleep 1
+''',
+    env: <String, String>{
+      'IDLE_DONE_FILE': fixture.idleDone.path,
+      'WAKE_FIFO': fixture.wakeFifo.path,
+    },
+  );
+  final harness = await _pumpRealPtyApp(
+    tester,
+    profiles: <TerminalProfile>[profile],
+    runtimeEvents: runtimeEvents,
+    maskRefreshHints: path == _IdleWakePath.maskedHintFallback,
+  );
+  final sessionId = harness.container
+      .read(sessionControllerProvider)
+      .activeSessionId;
+  expect(sessionId, isNotNull);
+  final runtime = harness.container.read(terminalRuntimeControllerProvider);
+
+  await _waitForTerminalText(
+    tester,
+    harness.container,
+    description: 'idle-ready before child idle marker (${state.name})',
+    matches: (text) => text.contains('idle-ready'),
+  );
+  expect(
+    fixture.idleDone.existsSync(),
+    isFalse,
+    reason: 'idle-ready must be observed before the child ends its 4s sleep',
+  );
+  await _waitFor(
+    tester,
+    description: 'four seconds of genuine child-process idle (${state.name})',
+    condition: fixture.idleDone.existsSync,
+    onTimeout: () =>
+        'Last terminal frame:\n${_terminalText(harness.container)}',
+  );
+
+  final historyRefreshId = _latestRefreshId(runtimeEvents, sessionId!);
+  switch (state) {
+    case _IdleWakeState.interactive:
+      runtime.setSessionFocused(sessionId, focused: true);
+      runtime.sendInput(sessionId, Uint8List(0));
+    case _IdleWakeState.background:
+      runtime.setSessionActive(sessionId, active: false);
+    case _IdleWakeState.maximumIdle:
+      runtime.setSessionFocused(sessionId, focused: false);
+  }
+
+  final expectedClass = switch (state) {
+    _IdleWakeState.interactive => terminal.TerminalRefreshClass.interactive,
+    _IdleWakeState.background => terminal.TerminalRefreshClass.background,
+    _IdleWakeState.maximumIdle => terminal.TerminalRefreshClass.idle,
+  };
+  final (:delayMicros, :skipTicks, :fallbackNominal) = switch (state) {
+    _IdleWakeState.interactive => (
+      delayMicros: 33000,
+      skipTicks: 0,
+      fallbackNominal: const Duration(milliseconds: 33),
+    ),
+    _IdleWakeState.background => (
+      delayMicros: 264000,
+      skipTicks: 7,
+      fallbackNominal: const Duration(milliseconds: 264),
+    ),
+    _IdleWakeState.maximumIdle => (
+      delayMicros: 396000,
+      skipTicks: 11,
+      fallbackNominal: const Duration(milliseconds: 396),
+    ),
+  };
+  final nominal = path == _IdleWakePath.nativeHint
+      ? const Duration(milliseconds: _refreshHintTargetMs)
+      : fallbackNominal;
+  final ceiling =
+      path == _IdleWakePath.nativeHint || state == _IdleWakeState.interactive
+      ? const Duration(milliseconds: _refreshHintLimitMs)
+      : const Duration(milliseconds: _refreshFallbackLimitMs);
+
+  Map<String, Object?>? preparedResult;
+  await _waitFor(
+    tester,
+    pollStep: const Duration(milliseconds: 5),
+    description: 'a current ${state.name} refresh result newer than history',
+    condition: () {
+      final latest = _latestRefreshEvent(runtimeEvents, sessionId);
+      if (latest == null ||
+          latest['event'] != 'refresh_result' ||
+          latest['refresh_id'] is! int ||
+          (latest['refresh_id'] as int) <= historyRefreshId ||
+          latest['refresh_class'] != expectedClass.name ||
+          latest['current_delay_micros'] != delayMicros ||
+          latest['backoff_skip_ticks'] != skipTicks) {
+        return false;
+      }
+      preparedResult = latest;
+      return true;
+    },
+    onTimeout: () {
+      final latest = _latestRefreshEvent(runtimeEvents, sessionId);
+      return 'History refresh_id: $historyRefreshId\nLatest event: $latest';
+    },
+  );
+
+  expect(preparedResult, isNotNull);
+  expect(
+    runtime.refreshPolicySnapshotFor(sessionId).refreshClass,
+    expectedClass,
+    reason: 'idle.done must precede the requested policy snapshot',
+  );
+  if (state == _IdleWakeState.maximumIdle) {
+    expect(
+      preparedResult!['current_delay_micros'],
+      396000,
+      reason: 'The deterministic fallback policy cap must remain 396ms.',
+    );
+  }
+  expect(
+    preparedResult!['hint_poll_count'],
+    path == _IdleWakePath.nativeHint ? greaterThan(0) : 0,
+  );
+  final preparedRefreshId = preparedResult!['refresh_id'] as int;
+  final preparedFullPollCount = preparedResult!['full_poll_count'] as int;
+
+  final token =
+      '${state.name}-${path.name}-${DateTime.now().microsecondsSinceEpoch}';
+  final stopwatch = Stopwatch()..start();
+  await fixture.wakeFifo.writeAsString('$token\n', flush: true);
+  await _waitFor(
+    tester,
+    pollStep: const Duration(milliseconds: 5),
+    description: '${state.name} FIFO wake token',
+    condition: () =>
+        _terminalText(harness.container).contains('idle-wake:$token'),
+    onTimeout: () =>
+        'Last terminal frame:\n${_terminalText(harness.container)}',
+  );
+  stopwatch.stop();
+
+  Map<String, Object?>? wakeResult;
+  await _waitFor(
+    tester,
+    pollStep: const Duration(milliseconds: 5),
+    description: '${state.name} ${path.name} wake refresh result',
+    condition: () {
+      wakeResult = _firstRefreshResultAfter(
+        runtimeEvents,
+        sessionId,
+        preparedRefreshId,
+      );
+      return wakeResult != null;
+    },
+    onTimeout: () =>
+        'Recent refresh events:\n${runtimeEvents.reversed.take(12)}',
+  );
+
+  final elapsedMicros = stopwatch.elapsedMicroseconds;
+  debugPrint(
+    'idle_wake_policy state=${state.name} path=${path.name} '
+    'raw_elapsed_micros=$elapsedMicros '
+    'nominal_target_met=${elapsedMicros <= nominal.inMicroseconds} '
+    'nominal_target_micros=${nominal.inMicroseconds} '
+    'hard_ceiling_micros=${ceiling.inMicroseconds}',
+  );
+  if (path == _IdleWakePath.nativeHint) {
+    expect(wakeResult!['request_reason'], 'native_hint');
+    expect(wakeResult!['hint_poll_count'], greaterThan(0));
+    expect(wakeResult!['full_poll_count'], preparedFullPollCount + 1);
+    final lifecycle = _refreshLifecycle(
+      runtimeEvents,
+      sessionId,
+      wakeResult!['refresh_id'] as int,
+    );
+    expect(
+      lifecycle.map((event) => event['event']),
+      containsAllInOrder(<String>[
+        'full_poll_requested',
+        'refresh_started',
+        'frame_taken',
+        'frame_applied',
+        'refresh_result',
+      ]),
+    );
+    final requested = lifecycle.firstWhere(
+      (event) => event['event'] == 'full_poll_requested',
+    );
+    expect(requested['refresh_class'], expectedClass.name);
+    final started = lifecycle.firstWhere(
+      (event) => event['event'] == 'refresh_started',
+    );
+    final taken = lifecycle.firstWhere(
+      (event) => event['event'] == 'frame_taken',
+    );
+    final applied = lifecycle.firstWhere(
+      (event) => event['event'] == 'frame_applied',
+    );
+    expect(
+      requested['refresh_requested_micros'] as int,
+      lessThanOrEqualTo(started['refresh_started_micros'] as int),
+    );
+    expect(
+      started['refresh_started_micros'] as int,
+      lessThanOrEqualTo(taken['frame_taken_micros'] as int),
+    );
+    expect(
+      taken['frame_taken_micros'] as int,
+      lessThanOrEqualTo(applied['frame_applied_micros'] as int),
+    );
+  } else {
+    expect(wakeResult!['hint_poll_count'], 0);
+    expect(
+      wakeResult!['request_reason'],
+      state == _IdleWakeState.maximumIdle ? 'idle_deadline' : 'deadline',
+    );
+    expect(
+      runtimeEvents
+          .where(
+            (event) =>
+                event['session_id'] == sessionId &&
+                (event['refresh_id'] as int? ?? 0) > preparedRefreshId,
+          )
+          .any((event) => event['request_reason'] == 'native_hint'),
+      isFalse,
+    );
+  }
   expect(
     elapsedMicros,
     lessThanOrEqualTo(ceiling.inMicroseconds),
@@ -672,6 +1047,38 @@ Map<String, Object?>? _latestRefreshEvent(
     }
   }
   return null;
+}
+
+Map<String, Object?>? _firstRefreshResultAfter(
+  List<Map<String, Object?>> events,
+  String sessionId,
+  int refreshId,
+) {
+  for (final event in events) {
+    if (event['schema_version'] == 'ianvs-terminal-refresh-policy-v1' &&
+        event['session_id'] == sessionId &&
+        event['event'] == 'refresh_result' &&
+        (event['refresh_id'] as int? ?? 0) > refreshId &&
+        event['received_frame'] == true) {
+      return event;
+    }
+  }
+  return null;
+}
+
+List<Map<String, Object?>> _refreshLifecycle(
+  List<Map<String, Object?>> events,
+  String sessionId,
+  int refreshId,
+) {
+  return events
+      .where(
+        (event) =>
+            event['schema_version'] == 'ianvs-terminal-refresh-policy-v1' &&
+            event['session_id'] == sessionId &&
+            event['refresh_id'] == refreshId,
+      )
+      .toList(growable: false);
 }
 
 TerminalProfile _scriptProfile({
@@ -918,6 +1325,106 @@ bool _frameHasWrappedOrReassembledLogicalRow(terminal.TerminalFrameDiff frame) {
         (frame.viewportCols > 0 &&
             row.text.trimRight().length > frame.viewportCols),
   );
+}
+
+class _MaskedRefreshHintPtyBackend
+    implements
+        PtySessionBackend,
+        PtySessionJsonRequestBackend,
+        PtySessionDiagnosticsBackend,
+        PtySessionGraphicAssetBackend,
+        PtySessionProtobufFrameBackend {
+  const _MaskedRefreshHintPtyBackend(this._delegate);
+
+  final NativePtyBackend _delegate;
+
+  @override
+  int ping() => _delegate.ping();
+
+  @override
+  String createSession(String sessionConfigJson) {
+    return _delegate.createSession(sessionConfigJson);
+  }
+
+  @override
+  void closeSession(String sessionId) => _delegate.closeSession(sessionId);
+
+  @override
+  void resizeSession(
+    String sessionId, {
+    required int cols,
+    required int rows,
+    required int pixelWidth,
+    required int pixelHeight,
+    int cellWidth = 0,
+    int cellHeight = 0,
+  }) {
+    _delegate.resizeSession(
+      sessionId,
+      cols: cols,
+      rows: rows,
+      pixelWidth: pixelWidth,
+      pixelHeight: pixelHeight,
+      cellWidth: cellWidth,
+      cellHeight: cellHeight,
+    );
+  }
+
+  @override
+  void writeInput(String sessionId, List<int> bytes) {
+    _delegate.writeInput(sessionId, bytes);
+  }
+
+  @override
+  void scrollViewport(String sessionId, int deltaLines) {
+    _delegate.scrollViewport(sessionId, deltaLines);
+  }
+
+  @override
+  void scrollViewportTo(String sessionId, int offset) {
+    _delegate.scrollViewportTo(sessionId, offset);
+  }
+
+  @override
+  String? takeFrameDiffJson(String sessionId) {
+    return _delegate.takeFrameDiffJson(sessionId);
+  }
+
+  @override
+  List<PtyEvent> pollEvents(String sessionId) {
+    return _delegate.pollEvents(sessionId);
+  }
+
+  @override
+  String? requestSessionJson(String sessionId, String requestJson) {
+    return _delegate.requestSessionJson(sessionId, requestJson);
+  }
+
+  @override
+  String? takeDiagnosticsJson(String sessionId, String kind) {
+    return _delegate.takeDiagnosticsJson(sessionId, kind);
+  }
+
+  @override
+  PtyGraphicAsset? loadGraphicAsset(
+    String sessionId, {
+    required int assetId,
+    required int assetVersion,
+  }) {
+    return _delegate.loadGraphicAsset(
+      sessionId,
+      assetId: assetId,
+      assetVersion: assetVersion,
+    );
+  }
+
+  @override
+  bool get supportsProtobufFrameDiffs => _delegate.supportsProtobufFrameDiffs;
+
+  @override
+  Uint8List? takeFrameDiffProtobuf(String sessionId) {
+    return _delegate.takeFrameDiffProtobuf(sessionId);
+  }
 }
 
 class _RealPtyHarness {

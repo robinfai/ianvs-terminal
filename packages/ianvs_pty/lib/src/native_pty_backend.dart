@@ -11,6 +11,8 @@ typedef _CreateSessionNative = ffi.Uint64 Function(ffi.Pointer<Utf8>);
 typedef _CreateSessionDart = int Function(ffi.Pointer<Utf8>);
 typedef _CloseSessionNative = ffi.Int32 Function(ffi.Uint64);
 typedef _CloseSessionDart = int Function(int);
+typedef _RefreshHintNative = ffi.Uint32 Function(ffi.Uint64);
+typedef _RefreshHintDart = int Function(int);
 typedef _ResizeSessionNative =
     ffi.Int32 Function(
       ffi.Uint64,
@@ -184,6 +186,16 @@ _GraphicAssetRgbaCopyDart? _lookupOptionalGraphicAssetRgbaCopy(
   }
 }
 
+_RefreshHintDart? _lookupOptionalRefreshHint(ffi.DynamicLibrary library) {
+  try {
+    return library.lookupFunction<_RefreshHintNative, _RefreshHintDart>(
+      'ianvs_session_refresh_hint',
+    );
+  } on ArgumentError {
+    return null;
+  }
+}
+
 class PtyGraphicAsset {
   const PtyGraphicAsset({
     required this.assetId,
@@ -346,7 +358,17 @@ abstract class PtyBindings {
   );
 }
 
-class NativePtyBindings implements PtyBindings {
+abstract interface class PtyRefreshHintBindings {
+  bool get supportsRefreshHints;
+  int sessionRefreshHintFlags(int sessionId);
+}
+
+abstract final class PtyRefreshHintFlags {
+  static const int none = 0;
+  static const int frameDirty = 1 << 0;
+}
+
+class NativePtyBindings implements PtyBindings, PtyRefreshHintBindings {
   NativePtyBindings(ffi.DynamicLibrary library)
     : _ping = library.lookupFunction<_PingNative, _PingDart>('ianvs_ping'),
       _createSession = library
@@ -357,6 +379,7 @@ class NativePtyBindings implements PtyBindings {
           .lookupFunction<_CloseSessionNative, _CloseSessionDart>(
             'ianvs_session_close',
           ),
+      _refreshHint = _lookupOptionalRefreshHint(library),
       _resizeSession = library
           .lookupFunction<_ResizeSessionNative, _ResizeSessionDart>(
             'ianvs_session_resize',
@@ -410,6 +433,7 @@ class NativePtyBindings implements PtyBindings {
   final _PingDart _ping;
   final _CreateSessionDart _createSession;
   final _CloseSessionDart _closeSession;
+  final _RefreshHintDart? _refreshHint;
   final _ResizeSessionDart _resizeSession;
   final _ResizeSessionWithCellSizeDart? _resizeSessionWithCellSize;
   final _WriteSessionDart _writeSession;
@@ -428,6 +452,9 @@ class NativePtyBindings implements PtyBindings {
 
   @override
   bool get supportsFrameDiffProtobuf => _takeFrameDiffProtobuf != null;
+
+  @override
+  bool get supportsRefreshHints => _refreshHint != null;
 
   factory NativePtyBindings.load() {
     return NativePtyBindings(
@@ -450,6 +477,10 @@ class NativePtyBindings implements PtyBindings {
 
   @override
   int sessionClose(int sessionId) => _closeSession(sessionId);
+
+  @override
+  int sessionRefreshHintFlags(int sessionId) =>
+      _refreshHint?.call(sessionId) ?? PtyRefreshHintFlags.none;
 
   @override
   int sessionResize(
@@ -684,16 +715,23 @@ abstract class PtySessionProtobufFrameBackend {
   Uint8List? takeFrameDiffProtobuf(String sessionId);
 }
 
+abstract interface class PtySessionRefreshHintBackend {
+  bool get supportsRefreshHints;
+  int refreshHintFlags(String sessionId);
+}
+
 class NativePtyBackend
     implements
         PtySessionBackend,
         PtySessionJsonRequestBackend,
         PtySessionDiagnosticsBackend,
         PtySessionGraphicAssetBackend,
-        PtySessionProtobufFrameBackend {
+        PtySessionProtobufFrameBackend,
+        PtySessionRefreshHintBackend {
   NativePtyBackend(this._bindings);
 
   final PtyBindings _bindings;
+  final Map<String, int> _nativeSessionIds = <String, int>{};
 
   factory NativePtyBackend.load() => NativePtyBackend(NativePtyBindings.load());
 
@@ -705,21 +743,29 @@ class NativePtyBackend
 
   @override
   String createSession(String sessionConfigJson) {
-    final sessionId = _bindings.sessionCreateJson(sessionConfigJson);
-    if (sessionId == 0) {
+    final createdSessionId = _bindings.sessionCreateJson(sessionConfigJson);
+    if (createdSessionId == 0) {
       throw StateError('Failed to create session');
     }
-    return sessionId.toString();
+    final sessionId = createdSessionId.toString();
+    _nativeSessionIds[sessionId] = createdSessionId;
+    return sessionId;
   }
 
   @override
   void closeSession(String sessionId) {
-    final nativeSessionId = _nativeSessionId(sessionId);
-    _checkNativeStatus(
-      'closeSession',
-      sessionId,
-      _bindings.sessionClose(nativeSessionId),
-    );
+    final nativeSessionId = _nativeSessionIdFor(sessionId);
+    try {
+      _checkNativeStatus(
+        'closeSession',
+        sessionId,
+        _bindings.sessionClose(nativeSessionId),
+      );
+    } finally {
+      _nativeSessionIds
+        ..remove(sessionId)
+        ..remove(nativeSessionId.toString());
+    }
   }
 
   @override
@@ -732,7 +778,7 @@ class NativePtyBackend
     int cellWidth = 0,
     int cellHeight = 0,
   }) {
-    final nativeSessionId = _nativeSessionId(sessionId);
+    final nativeSessionId = _nativeSessionIdFor(sessionId);
     final nativeCols = _nativeUint16('cols', cols, min: 1);
     final nativeRows = _nativeUint16('rows', rows, min: 1);
     final nativePixelWidth = _nativeUint16('pixelWidth', pixelWidth);
@@ -756,7 +802,7 @@ class NativePtyBackend
 
   @override
   void writeInput(String sessionId, List<int> bytes) {
-    final nativeSessionId = _nativeSessionId(sessionId);
+    final nativeSessionId = _nativeSessionIdFor(sessionId);
     _validateNativeBytes(bytes);
     _checkNativeStatus(
       'writeInput',
@@ -771,7 +817,7 @@ class NativePtyBackend
       'scrollViewport',
       sessionId,
       _bindings.sessionScroll(
-        _nativeSessionId(sessionId),
+        _nativeSessionIdFor(sessionId),
         _nativeInt32('deltaLines', deltaLines),
       ),
     );
@@ -783,7 +829,7 @@ class NativePtyBackend
       'scrollViewportTo',
       sessionId,
       _bindings.sessionScrollTo(
-        _nativeSessionId(sessionId),
+        _nativeSessionIdFor(sessionId),
         _nativeNonNegativeOffset(offset),
       ),
     );
@@ -792,32 +838,58 @@ class NativePtyBackend
   @override
   String? requestSessionJson(String sessionId, String requestJson) {
     return _bindings.sessionRequestJson(
-      _nativeSessionId(sessionId),
+      _nativeSessionIdFor(sessionId),
       requestJson,
     );
   }
 
   @override
   String? takeFrameDiffJson(String sessionId) {
-    return _bindings.sessionTakeFrameDiffJson(_nativeSessionId(sessionId));
+    return _bindings.sessionTakeFrameDiffJson(_nativeSessionIdFor(sessionId));
   }
 
   @override
   bool get supportsProtobufFrameDiffs => _bindings.supportsFrameDiffProtobuf;
 
   @override
+  bool get supportsRefreshHints {
+    final bindings = _bindings;
+    final hintBindings = bindings is PtyRefreshHintBindings
+        ? bindings as PtyRefreshHintBindings
+        : null;
+    return hintBindings?.supportsRefreshHints ?? false;
+  }
+
+  @override
+  int refreshHintFlags(String sessionId) {
+    final bindings = _bindings;
+    final hintBindings = bindings is PtyRefreshHintBindings
+        ? bindings as PtyRefreshHintBindings
+        : null;
+    if (hintBindings == null || !hintBindings.supportsRefreshHints) {
+      return PtyRefreshHintFlags.none;
+    }
+    return hintBindings.sessionRefreshHintFlags(_nativeSessionIdFor(sessionId));
+  }
+
+  @override
   Uint8List? takeFrameDiffProtobuf(String sessionId) {
-    return _bindings.sessionTakeFrameDiffProtobuf(_nativeSessionId(sessionId));
+    return _bindings.sessionTakeFrameDiffProtobuf(
+      _nativeSessionIdFor(sessionId),
+    );
   }
 
   @override
   String? takeDiagnosticsJson(String sessionId, String kind) {
-    return _bindings.sessionDiagnosticsJson(_nativeSessionId(sessionId), kind);
+    return _bindings.sessionDiagnosticsJson(
+      _nativeSessionIdFor(sessionId),
+      kind,
+    );
   }
 
   @override
   List<PtyEvent> pollEvents(String sessionId) {
-    return _bindings.sessionPollEvents(_nativeSessionId(sessionId));
+    return _bindings.sessionPollEvents(_nativeSessionIdFor(sessionId));
   }
 
   @override
@@ -837,10 +909,14 @@ class NativePtyBackend
       );
     }
     return _bindings.sessionGraphicAsset(
-      _nativeSessionId(sessionId),
+      _nativeSessionIdFor(sessionId),
       assetId,
       assetVersion,
     );
+  }
+
+  int _nativeSessionIdFor(String sessionId) {
+    return _nativeSessionIds[sessionId] ?? _nativeSessionId(sessionId);
   }
 }
 
