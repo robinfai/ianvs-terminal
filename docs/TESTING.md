@@ -41,6 +41,20 @@ cd packages/ianvs_terminal
 flutter test test/terminal_frame_diff_corpus_test.dart
 ```
 
+Terminal idle refresh 的单调 deadline 与诊断聚焦验证：
+
+```bash
+cd packages/ianvs_terminal
+flutter test test/terminal_frame_pump_test.dart
+flutter test test/terminal_runtime_controller_test.dart --plain-name "terminal runtime traces skipped ticks and full refresh lifecycle monotonically"
+flutter test test/terminal_runtime_controller_test.dart --plain-name "terminal runtime resets deadline state after input and resize"
+```
+
+刷新诊断使用 `ianvs-terminal-refresh-policy-v1`，只写入可选的 benchmark
+event sink，不进入 frame JSON/protobuf。它记录 skipped tick、full poll request、
+refresh start、frame take/apply 和 refresh result；deadline 固定为
+132/264/396ms，最大等待不会继续指数增长。
+
 ```bash
 cd example
 flutter analyze --fatal-infos
@@ -171,6 +185,9 @@ terminal frame/event 通道，覆盖：
 - coprocess 对真实重复 prompt 的 response
 - wrapped 输出下的 trigger notification 与 captured output 逻辑行拼接
 - inactive tab wrapped 输出下的 activity notification 逻辑行拼接
+- 子进程真实空闲四秒后，通过 FIFO 注入输出的 33ms active、264ms background
+  deadline 与 396ms maximum-backoff 唤醒基线；测试打印原始微秒值并分别守住
+  250/750/750ms 硬门槛
 
 仍保留人工 smoke 的项：真实 macOS 系统通知弹窗权限、Powerline 在实际字体/DPI
 组合下的观感、真实 trackpad/窗口拖拽/显示器切换等宿主 GUI 行为。

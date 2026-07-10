@@ -3,7 +3,7 @@ import 'dart:async';
 final class TerminalRefreshScheduler {
   final Set<String> _refreshingSessionIds = <String>{};
   final Set<String> _queuedRefreshSessionIds = <String>{};
-  final Set<String> _scheduledRefreshSessionIds = <String>{};
+  final Map<String, Object> _scheduledRefreshTokens = <String, Object>{};
   final Map<String, Timer> _cooldownTimers = <String, Timer>{};
 
   bool isRefreshing(String sessionId) {
@@ -35,11 +35,16 @@ final class TerminalRefreshScheduler {
   }
 
   bool scheduleDeferredRefresh(String sessionId, void Function() refresh) {
-    if (!_scheduledRefreshSessionIds.add(sessionId)) {
+    if (_scheduledRefreshTokens.containsKey(sessionId)) {
       return false;
     }
+    final token = Object();
+    _scheduledRefreshTokens[sessionId] = token;
     scheduleMicrotask(() {
-      _scheduledRefreshSessionIds.remove(sessionId);
+      if (!identical(_scheduledRefreshTokens[sessionId], token)) {
+        return;
+      }
+      _scheduledRefreshTokens.remove(sessionId);
       refresh();
     });
     return true;
@@ -66,7 +71,7 @@ final class TerminalRefreshScheduler {
   void remove(String sessionId) {
     clearRefreshing(sessionId);
     _queuedRefreshSessionIds.remove(sessionId);
-    _scheduledRefreshSessionIds.remove(sessionId);
+    _scheduledRefreshTokens.remove(sessionId);
     cancelCooldown(sessionId);
   }
 
@@ -76,7 +81,7 @@ final class TerminalRefreshScheduler {
     }
     _refreshingSessionIds.clear();
     _queuedRefreshSessionIds.clear();
-    _scheduledRefreshSessionIds.clear();
+    _scheduledRefreshTokens.clear();
     _cooldownTimers.clear();
   }
 }

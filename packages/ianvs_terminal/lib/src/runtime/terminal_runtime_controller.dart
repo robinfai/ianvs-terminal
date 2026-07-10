@@ -296,8 +296,11 @@ enum TerminalFrameWireFormatPreference { automatic, json }
 class TerminalRuntimeController {
   static const Duration _pollingFrameInterval = Duration(milliseconds: 33);
   static const int _pollingIdleBackoffAfterEmptyRefreshes = 2;
-  static const int _pollingIdleBackoffInitialTicks = 3;
-  static const int _pollingIdleBackoffMaxTicks = 48;
+  static const List<Duration> _pollingIdleIntervals = <Duration>[
+    Duration(milliseconds: 132),
+    Duration(milliseconds: 264),
+    Duration(milliseconds: 396),
+  ];
   static const int _clipboardPreviewRunes = 120;
 
   TerminalRuntimeController({
@@ -316,6 +319,7 @@ class TerminalRuntimeController {
     TerminalFrameWireFormatPreference frameWireFormatPreference =
         TerminalFrameWireFormatPreference.automatic,
     TerminalBenchmarkEventSink? benchmarkEventSink,
+    Duration Function()? monotonicNow,
   }) : this.withClipboardPolicy(
          backend: backend,
          copyToClipboard: copyToClipboard,
@@ -332,6 +336,7 @@ class TerminalRuntimeController {
          enableWarmUpRefresh: enableWarmUpRefresh,
          frameWireFormatPreference: frameWireFormatPreference,
          benchmarkEventSink: benchmarkEventSink,
+         monotonicNow: monotonicNow,
        );
 
   TerminalRuntimeController.withClipboardPolicy({
@@ -345,9 +350,11 @@ class TerminalRuntimeController {
     this.frameWireFormatPreference =
         TerminalFrameWireFormatPreference.automatic,
     this.benchmarkEventSink,
+    Duration Function()? monotonicNow,
   }) : _backend = backend,
        allowClipboardCopy = clipboardPolicy.allowCopy,
-       allowClipboardPasteRequest = clipboardPolicy.allowPasteRequest {
+       allowClipboardPasteRequest = clipboardPolicy.allowPasteRequest,
+       _readMonotonicNow = monotonicNow {
     _diagnosticsClient = TerminalDiagnosticsClient.fromBackend(
       backend,
       onRequestError: _emitBackendRequestError,
@@ -382,16 +389,28 @@ class TerminalRuntimeController {
   final bool enableWarmUpRefresh;
   final TerminalFrameWireFormatPreference frameWireFormatPreference;
   final TerminalBenchmarkEventSink? benchmarkEventSink;
+  final Duration Function()? _readMonotonicNow;
 
   final TerminalResizeCoordinator _resizeCoordinator =
       TerminalResizeCoordinator();
   final TerminalRefreshScheduler _refreshScheduler = TerminalRefreshScheduler();
   final Map<String, List<Timer>> _warmUpTimers = <String, List<Timer>>{};
-  final TerminalFramePumpBackoff _framePumpBackoff = TerminalFramePumpBackoff(
+  final Stopwatch _monotonicClock = Stopwatch()..start();
+  // Stopwatch remains authoritative in production. The floor lets FakeAsync
+  // advance the same monotonic deadline when it fires scheduled polling ticks.
+  Duration _scheduledPollingFloor = Duration.zero;
+  final TerminalFramePumpPolicy _framePumpPolicy = TerminalFramePumpPolicy(
+    activeInterval: _pollingFrameInterval,
     emptyRefreshesBeforeBackoff: _pollingIdleBackoffAfterEmptyRefreshes,
-    initialSkipTicks: _pollingIdleBackoffInitialTicks,
-    maxSkipTicks: _pollingIdleBackoffMaxTicks,
+    idleIntervals: _pollingIdleIntervals,
   );
+  final Map<String, _TerminalRefreshTrace> _pendingRefreshTraces =
+      <String, _TerminalRefreshTrace>{};
+  final Map<String, _TerminalRefreshTrace> _activeRefreshTraces =
+      <String, _TerminalRefreshTrace>{};
+  final Map<String, int> _refreshIdSeeds = <String, int>{};
+  final Map<String, int> _fullPollCounts = <String, int>{};
+  final Map<String, int> _sessionEpochs = <String, int>{};
   final Map<String, DateTime> _lastFrameAppliedAt = <String, DateTime>{};
   final StreamController<TerminalSessionEvent> _events =
       StreamController<TerminalSessionEvent>.broadcast();
@@ -405,10 +424,22 @@ class TerminalRuntimeController {
   Timer? _pollTimer;
   int _wireSessionSeed = 0;
   int _benchmarkFrameId = 0;
+  int _sessionEpochSeed = 0;
 
   Stream<TerminalSessionEvent> get events => _events.stream;
   Stream<TerminalSessionInputEvent> get inputEvents => _inputEvents.stream;
   Stream<TerminalSessionResizeEvent> get resizeEvents => _resizeEvents.stream;
+
+  Duration get _rawMonotonicNow =>
+      _readMonotonicNow?.call() ?? _monotonicClock.elapsed;
+
+  Duration get _monotonicNow {
+    final rawNow = _rawMonotonicNow;
+    if (_readMonotonicNow != null || rawNow >= _scheduledPollingFloor) {
+      return rawNow;
+    }
+    return _scheduledPollingFloor;
+  }
 
   TerminalViewportController viewportFor(String sessionId) {
     return _sessions.viewportFor(sessionId);
@@ -425,6 +456,8 @@ class TerminalRuntimeController {
       _encodeNativeSessionConfig(_resolveColorsForRuntime(config)),
     );
     _sessions.register(sessionId);
+    _sessionEpochSeed += 1;
+    _sessionEpochs[sessionId] = _sessionEpochSeed;
     _requestRefreshSession(sessionId, immediate: true);
     if (enableSessionPolling) {
       _startPolling();
@@ -452,7 +485,10 @@ class TerminalRuntimeController {
     _sendInput(sessionId, bytes);
   }
 
-  bool _sendInput(String sessionId, Uint8List bytes) {
+  bool _sendInput(String sessionId, Uint8List bytes, {int? sessionEpoch}) {
+    if (sessionEpoch != null && !_isCurrentSession(sessionId, sessionEpoch)) {
+      return false;
+    }
     if (!hasSession(sessionId)) {
       return false;
     }
@@ -467,6 +503,9 @@ class TerminalRuntimeController {
       'writeInput',
       () => _backend.writeInput(sessionId, copiedBytes),
     )) {
+      return false;
+    }
+    if (sessionEpoch != null && !_isCurrentSession(sessionId, sessionEpoch)) {
       return false;
     }
     _inputEvents.add(TerminalSessionInputEvent(sessionId, copiedBytes));
@@ -788,7 +827,23 @@ class TerminalRuntimeController {
   }
 
   void _startPolling() {
-    _pollTimer ??= Timer.periodic(_pollingFrameInterval, (_) {
+    if (_pollTimer != null) {
+      return;
+    }
+    var scheduledTick = _monotonicNow + _pollingFrameInterval;
+    _pollTimer = Timer.periodic(_pollingFrameInterval, (_) {
+      final rawNow = _rawMonotonicNow;
+      if (_readMonotonicNow == null) {
+        final scheduledNow = rawNow >= scheduledTick ? rawNow : scheduledTick;
+        if (scheduledNow > _scheduledPollingFloor) {
+          _scheduledPollingFloor = scheduledNow;
+        }
+      }
+      if (rawNow - scheduledTick >= _pollingFrameInterval) {
+        scheduledTick = rawNow + _pollingFrameInterval;
+      } else {
+        scheduledTick += _pollingFrameInterval;
+      }
       for (final sessionId in _sessions.sessionIds) {
         _requestPollingRefreshSession(sessionId);
       }
@@ -796,16 +851,25 @@ class TerminalRuntimeController {
   }
 
   void _requestPollingRefreshSession(String sessionId) {
-    if (_framePumpBackoff.shouldSkipPollingRefresh(sessionId)) {
+    if (_framePumpPolicy.shouldSkipPollingRefresh(
+      sessionId,
+      now: _monotonicNow,
+    )) {
+      _emitSkippedPollingTick(sessionId);
       return;
     }
-    _requestRefreshSession(sessionId);
+    _requestRefreshSession(sessionId, requestReason: 'deadline');
   }
 
-  void _requestRefreshSession(String sessionId, {bool immediate = false}) {
+  void _requestRefreshSession(
+    String sessionId, {
+    bool immediate = false,
+    String requestReason = 'runtime',
+  }) {
     if (!hasSession(sessionId)) {
       return;
     }
+    _prepareRefreshTrace(sessionId, requestReason: requestReason);
     if (enableSessionPolling && !immediate) {
       _requestThrottledRefreshSession(sessionId);
       return;
@@ -820,6 +884,10 @@ class TerminalRuntimeController {
     if (!hasSession(sessionId)) {
       return;
     }
+    final sessionEpoch = _sessionEpochs[sessionId];
+    if (sessionEpoch == null) {
+      return;
+    }
     if (immediate) {
       _refreshScheduler.cancelCooldown(sessionId);
     }
@@ -829,13 +897,15 @@ class TerminalRuntimeController {
     }
     if (!immediate) {
       if (!_refreshScheduler.scheduleDeferredRefresh(sessionId, () {
-        _requestRefreshSession(sessionId, immediate: true);
+        if (_isCurrentSession(sessionId, sessionEpoch)) {
+          _requestRefreshSession(sessionId, immediate: true);
+        }
       })) {
         return;
       }
       return;
     }
-    unawaited(_refreshSession(sessionId));
+    unawaited(_refreshSession(sessionId, sessionEpoch));
   }
 
   void _requestThrottledRefreshSession(String sessionId) {
@@ -853,26 +923,32 @@ class TerminalRuntimeController {
     _requestUnthrottledRefreshSession(sessionId, immediate: true);
   }
 
-  Future<void> _refreshSession(String sessionId) async {
-    if (enableSessionPolling) {
-      await _refreshSessionOnce(sessionId);
-      return;
-    }
-    await _refreshSessionDraining(sessionId);
+  bool _isCurrentSession(String sessionId, int sessionEpoch) {
+    return _sessionEpochs[sessionId] == sessionEpoch && hasSession(sessionId);
   }
 
-  Future<void> _refreshSessionOnce(String sessionId) async {
-    if (!hasSession(sessionId)) {
+  Future<void> _refreshSession(String sessionId, int sessionEpoch) async {
+    if (enableSessionPolling) {
+      await _refreshSessionOnce(sessionId, sessionEpoch);
+      return;
+    }
+    await _refreshSessionDraining(sessionId, sessionEpoch);
+  }
+
+  Future<void> _refreshSessionOnce(String sessionId, int sessionEpoch) async {
+    if (!_isCurrentSession(sessionId, sessionEpoch)) {
       return;
     }
 
     _refreshScheduler.markRefreshing(sessionId);
     try {
+      _startRefreshTrace(sessionId);
       final pendingFrames = <TerminalFrameDiff>[];
       _refreshScheduler.consumeQueuedRefresh(sessionId);
       var receivedFrame = false;
 
       final frame = _takeFrameDiff(sessionId);
+      _recordFrameTaken(sessionId);
       if (frame != null) {
         receivedFrame = true;
         _queuePendingFrame(sessionId, pendingFrames, frame);
@@ -889,11 +965,11 @@ class TerminalRuntimeController {
         _applyPendingFrames(sessionId, pendingFrames);
       }
 
-      final eventProcessing = _processEvents(sessionId, events);
+      final eventProcessing = _processEvents(sessionId, sessionEpoch, events);
       if (eventProcessing != null) {
         await eventProcessing;
       }
-      if (!hasSession(sessionId)) {
+      if (!_isCurrentSession(sessionId, sessionEpoch)) {
         return;
       }
 
@@ -903,18 +979,25 @@ class TerminalRuntimeController {
       _recordPollingRefreshResult(
         sessionId,
         hadActivity: receivedFrame || events.isNotEmpty,
+        receivedFrame: receivedFrame,
+        eventCount: events.length,
       );
     } finally {
-      _refreshScheduler.clearRefreshing(sessionId);
-      if (_refreshScheduler.consumeQueuedRefresh(sessionId) &&
-          hasSession(sessionId)) {
-        _requestRefreshSession(sessionId);
+      if (_isCurrentSession(sessionId, sessionEpoch)) {
+        _activeRefreshTraces.remove(sessionId);
+        _refreshScheduler.clearRefreshing(sessionId);
+        if (_refreshScheduler.consumeQueuedRefresh(sessionId)) {
+          _requestRefreshSession(sessionId);
+        }
       }
     }
   }
 
-  Future<void> _refreshSessionDraining(String sessionId) async {
-    if (!hasSession(sessionId)) {
+  Future<void> _refreshSessionDraining(
+    String sessionId,
+    int sessionEpoch,
+  ) async {
+    if (!_isCurrentSession(sessionId, sessionEpoch)) {
       return;
     }
 
@@ -923,7 +1006,7 @@ class TerminalRuntimeController {
       var runAgain = true;
       final pendingFrames = <TerminalFrameDiff>[];
       var skippedQueuedFrames = 0;
-      while (runAgain && hasSession(sessionId)) {
+      while (runAgain && _isCurrentSession(sessionId, sessionEpoch)) {
         _refreshScheduler.consumeQueuedRefresh(sessionId);
         runAgain = false;
 
@@ -944,11 +1027,11 @@ class TerminalRuntimeController {
           skippedQueuedFrames = 0;
         }
 
-        final eventProcessing = _processEvents(sessionId, events);
+        final eventProcessing = _processEvents(sessionId, sessionEpoch, events);
         if (eventProcessing != null) {
           await eventProcessing;
         }
-        if (!hasSession(sessionId)) {
+        if (!_isCurrentSession(sessionId, sessionEpoch)) {
           return;
         }
 
@@ -963,10 +1046,11 @@ class TerminalRuntimeController {
         }
       }
     } finally {
-      _refreshScheduler.clearRefreshing(sessionId);
-      if (_refreshScheduler.consumeQueuedRefresh(sessionId) &&
-          hasSession(sessionId)) {
-        _requestRefreshSession(sessionId);
+      if (_isCurrentSession(sessionId, sessionEpoch)) {
+        _refreshScheduler.clearRefreshing(sessionId);
+        if (_refreshScheduler.consumeQueuedRefresh(sessionId)) {
+          _requestRefreshSession(sessionId);
+        }
       }
     }
   }
@@ -1055,6 +1139,7 @@ class TerminalRuntimeController {
     applyWatch?.stop();
     _lastFrameAppliedAt[sessionId] = DateTime.now();
     _startPollingCooldown(sessionId);
+    _recordFrameApplied(sessionId);
     _events.add(TerminalSessionFrameEvent(sessionId, frame));
     _emitGraphicsDiagnostic(
       sessionId,
@@ -1086,7 +1171,7 @@ class TerminalRuntimeController {
     }
     _refreshScheduler.startCooldown(sessionId, _pollingFrameInterval, () {
       if (hasSession(sessionId)) {
-        _requestThrottledRefreshSession(sessionId);
+        _requestRefreshSession(sessionId, requestReason: 'frame_cooldown');
       }
     });
   }
@@ -1094,19 +1179,196 @@ class TerminalRuntimeController {
   void _recordPollingRefreshResult(
     String sessionId, {
     required bool hadActivity,
+    required bool receivedFrame,
+    required int eventCount,
   }) {
     if (!enableSessionPolling || !hasSession(sessionId)) {
       return;
     }
-    if (hadActivity) {
-      _resetPollingIdleBackoff(sessionId);
-      return;
-    }
-    _framePumpBackoff.recordRefreshResult(sessionId, hadActivity: false);
+    final now = _monotonicNow;
+    _framePumpPolicy.recordRefreshResult(
+      sessionId,
+      now: now,
+      hadActivity: hadActivity,
+    );
+    _finishRefreshTrace(
+      sessionId,
+      now: now,
+      hadActivity: hadActivity,
+      receivedFrame: receivedFrame,
+      eventCount: eventCount,
+    );
   }
 
   void _resetPollingIdleBackoff(String sessionId) {
-    _framePumpBackoff.reset(sessionId);
+    _framePumpPolicy.reset(sessionId, now: _monotonicNow);
+  }
+
+  void _emitSkippedPollingTick(String sessionId) {
+    if (benchmarkEventSink == null) {
+      return;
+    }
+    _emitRefreshDiagnostic(
+      sessionId,
+      event: 'poll_tick_skipped',
+      now: _monotonicNow,
+    );
+  }
+
+  void _prepareRefreshTrace(String sessionId, {required String requestReason}) {
+    if (!enableSessionPolling ||
+        benchmarkEventSink == null ||
+        _pendingRefreshTraces.containsKey(sessionId)) {
+      return;
+    }
+    final now = _monotonicNow;
+    final refreshId = (_refreshIdSeeds[sessionId] ?? 0) + 1;
+    final fullPollCount = (_fullPollCounts[sessionId] ?? 0) + 1;
+    _refreshIdSeeds[sessionId] = refreshId;
+    _fullPollCounts[sessionId] = fullPollCount;
+    final trace = _TerminalRefreshTrace(
+      refreshId: refreshId,
+      fullPollCount: fullPollCount,
+      requestReason: requestReason,
+      refreshRequestedMicros: now.inMicroseconds,
+    );
+    _pendingRefreshTraces[sessionId] = trace;
+    _emitRefreshDiagnostic(
+      sessionId,
+      event: 'full_poll_requested',
+      now: now,
+      trace: trace,
+    );
+  }
+
+  void _startRefreshTrace(String sessionId) {
+    if (!enableSessionPolling || benchmarkEventSink == null) {
+      return;
+    }
+    if (!_pendingRefreshTraces.containsKey(sessionId)) {
+      _prepareRefreshTrace(sessionId, requestReason: 'scheduler');
+    }
+    final trace = _pendingRefreshTraces.remove(sessionId);
+    if (trace == null) {
+      return;
+    }
+    final now = _monotonicNow;
+    trace.refreshStartedMicros = now.inMicroseconds;
+    _activeRefreshTraces[sessionId] = trace;
+    _emitRefreshDiagnostic(
+      sessionId,
+      event: 'refresh_started',
+      now: now,
+      trace: trace,
+    );
+  }
+
+  void _recordFrameTaken(String sessionId) {
+    final trace = _activeRefreshTraces[sessionId];
+    if (trace == null) {
+      return;
+    }
+    final now = _monotonicNow;
+    trace.frameTakenMicros = now.inMicroseconds;
+    _emitRefreshDiagnostic(
+      sessionId,
+      event: 'frame_taken',
+      now: now,
+      trace: trace,
+    );
+  }
+
+  void _recordFrameApplied(String sessionId) {
+    final trace = _activeRefreshTraces[sessionId];
+    if (trace == null) {
+      return;
+    }
+    final now = _monotonicNow;
+    trace.frameAppliedMicros = now.inMicroseconds;
+    _emitRefreshDiagnostic(
+      sessionId,
+      event: 'frame_applied',
+      now: now,
+      trace: trace,
+    );
+  }
+
+  void _finishRefreshTrace(
+    String sessionId, {
+    required Duration now,
+    required bool hadActivity,
+    required bool receivedFrame,
+    required int eventCount,
+  }) {
+    final trace = _activeRefreshTraces.remove(sessionId);
+    if (trace == null) {
+      return;
+    }
+    final metrics = _framePumpPolicy.metricsFor(sessionId);
+    _emitRefreshDiagnostic(
+      sessionId,
+      event: 'refresh_result',
+      now: now,
+      trace: trace,
+      metrics: metrics,
+      fields: <String, Object?>{
+        'had_activity': hadActivity,
+        'received_frame': receivedFrame,
+        'event_count': eventCount,
+        'next_deadline_micros':
+            now.inMicroseconds + metrics.currentDelay.inMicroseconds,
+      },
+    );
+  }
+
+  void _emitRefreshDiagnostic(
+    String sessionId, {
+    required String event,
+    required Duration now,
+    _TerminalRefreshTrace? trace,
+    TerminalFramePumpMetrics? metrics,
+    Map<String, Object?> fields = const <String, Object?>{},
+  }) {
+    final sink = benchmarkEventSink;
+    if (sink == null) {
+      return;
+    }
+    final snapshot = metrics ?? _framePumpPolicy.metricsFor(sessionId);
+    try {
+      sink(<String, Object?>{
+        'schema_version': 'ianvs-terminal-refresh-policy-v1',
+        'event': event,
+        'monotonic_micros': now.inMicroseconds,
+        'session_id': sessionId,
+        'refresh_id': trace?.refreshId,
+        'refresh_class': _phaseOneRefreshClass(snapshot),
+        'empty_refresh_count': snapshot.emptyRefreshCount,
+        'backoff_skip_ticks': snapshot.backoffSkipTicks,
+        'current_delay_micros': snapshot.currentDelay.inMicroseconds,
+        'hint_poll_count': 0,
+        'full_poll_count':
+            trace?.fullPollCount ?? (_fullPollCounts[sessionId] ?? 0),
+        'refresh_requested_micros': trace?.refreshRequestedMicros,
+        'refresh_started_micros': trace?.refreshStartedMicros,
+        'frame_taken_micros': trace?.frameTakenMicros,
+        'frame_applied_micros': trace?.frameAppliedMicros,
+        if (trace != null) 'request_reason': trace.requestReason,
+        ...fields,
+      });
+    } on Object {
+      // Diagnostics are observational and must never interrupt refreshes.
+    }
+  }
+
+  String _phaseOneRefreshClass(TerminalFramePumpMetrics metrics) {
+    final delayMicros = metrics.currentDelay.inMicroseconds;
+    if (delayMicros <= _pollingFrameInterval.inMicroseconds) {
+      return 'interactive';
+    }
+    if (delayMicros == const Duration(milliseconds: 264).inMicroseconds) {
+      return 'background';
+    }
+    return 'idle';
   }
 
   TerminalFrameDiff? _takeFrameDiff(String sessionId) {
@@ -1363,122 +1625,183 @@ class TerminalRuntimeController {
     return false;
   }
 
-  Future<void>? _processEvents(String sessionId, List<PtyEvent> events) {
+  Future<void>? _processEvents(
+    String sessionId,
+    int sessionEpoch,
+    List<PtyEvent> events,
+  ) {
     Future<void>? pendingAsyncWork;
     for (final event in events) {
+      if (!_isCurrentSession(sessionId, sessionEpoch)) {
+        return pendingAsyncWork;
+      }
       final route = _eventRouter.route(event);
       if (route is TerminalExitEventRoute) {
         if (pendingAsyncWork == null) {
-          _removeSessionState(sessionId);
-          _events.add(
-            TerminalSessionExitEvent(sessionId, exitCode: route.exitCode),
-          );
+          _emitExitIfCurrent(sessionId, sessionEpoch, route.exitCode);
           return null;
         }
         return pendingAsyncWork.then((_) {
-          _removeSessionState(sessionId);
-          _events.add(
-            TerminalSessionExitEvent(sessionId, exitCode: route.exitCode),
-          );
+          _emitExitIfCurrent(sessionId, sessionEpoch, route.exitCode);
         });
       }
       if (route is TerminalAsyncEventRoute) {
         pendingAsyncWork = _chainAsyncEvent(
           pendingAsyncWork,
-          () => _handleAsyncEventRoute(sessionId, route),
+          sessionId,
+          sessionEpoch,
+          () => _handleAsyncEventRoute(sessionId, sessionEpoch, route),
         );
         continue;
       }
       if (route is TerminalImmediateEventRoute) {
-        _emitImmediateEventRoute(sessionId, route);
+        _emitImmediateEventRoute(sessionId, sessionEpoch, route);
       }
     }
     return pendingAsyncWork;
   }
 
+  void _emitExitIfCurrent(String sessionId, int sessionEpoch, int? exitCode) {
+    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+      return;
+    }
+    _removeSessionState(sessionId);
+    _events.add(TerminalSessionExitEvent(sessionId, exitCode: exitCode));
+  }
+
   Future<void> _handleAsyncEventRoute(
     String sessionId,
+    int sessionEpoch,
     TerminalAsyncEventRoute route,
   ) {
+    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+      return Future<void>.value();
+    }
     return switch (route.kind) {
       TerminalAsyncEventKind.resize => _handleResizeEvent(
         sessionId,
+        sessionEpoch,
         route.payload,
       ),
       TerminalAsyncEventKind.clipboardCopy => _handleClipboardCopyEvent(
         sessionId,
+        sessionEpoch,
         route.payload,
       ),
       TerminalAsyncEventKind.clipboardPasteRequest =>
-        _handleClipboardPasteRequestEvent(sessionId, route.payload),
+        _handleClipboardPasteRequestEvent(
+          sessionId,
+          sessionEpoch,
+          route.payload,
+        ),
     };
   }
 
   void _emitImmediateEventRoute(
     String sessionId,
+    int sessionEpoch,
     TerminalImmediateEventRoute route,
   ) {
     switch (route.kind) {
       case TerminalImmediateEventKind.bell:
-        _events.add(TerminalSessionBellEvent(sessionId));
+        _emitEventIfCurrent(
+          sessionId,
+          sessionEpoch,
+          TerminalSessionBellEvent(sessionId),
+        );
       case TerminalImmediateEventKind.shellHook:
-        _events.add(
+        _emitEventIfCurrent(
+          sessionId,
+          sessionEpoch,
           TerminalSessionShellHookEvent(sessionId, rawPayload: route.payload),
         );
       case TerminalImmediateEventKind.shellContext:
-        _events.add(
+        _emitEventIfCurrent(
+          sessionId,
+          sessionEpoch,
           TerminalSessionShellContextEvent(
             sessionId,
             rawPayload: route.payload,
           ),
         );
       case TerminalImmediateEventKind.shellCommand:
-        _events.add(
+        _emitEventIfCurrent(
+          sessionId,
+          sessionEpoch,
           TerminalSessionShellCommandEvent(
             sessionId,
             rawPayload: route.payload,
           ),
         );
       case TerminalImmediateEventKind.shellUserVar:
-        _events.add(
+        _emitEventIfCurrent(
+          sessionId,
+          sessionEpoch,
           TerminalSessionShellUserVarEvent(
             sessionId,
             rawPayload: route.payload,
           ),
         );
       case TerminalImmediateEventKind.sessionNotification:
-        _events.add(
+        _emitEventIfCurrent(
+          sessionId,
+          sessionEpoch,
           TerminalSessionNotificationEvent(
             sessionId,
             rawPayload: route.payload,
           ),
         );
       case TerminalImmediateEventKind.sessionProgress:
-        _events.add(
+        _emitEventIfCurrent(
+          sessionId,
+          sessionEpoch,
           TerminalSessionProgressEvent(sessionId, rawPayload: route.payload),
         );
       case TerminalImmediateEventKind.sessionBadge:
-        _events.add(
+        _emitEventIfCurrent(
+          sessionId,
+          sessionEpoch,
           TerminalSessionBadgeEvent(sessionId, rawPayload: route.payload),
         );
     }
   }
 
+  void _emitEventIfCurrent(
+    String sessionId,
+    int sessionEpoch,
+    TerminalSessionEvent event,
+  ) {
+    if (_isCurrentSession(sessionId, sessionEpoch)) {
+      _events.add(event);
+    }
+  }
+
   Future<void> _chainAsyncEvent(
     Future<void>? pendingAsyncWork,
+    String sessionId,
+    int sessionEpoch,
     Future<void> Function() process,
   ) {
+    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+      return Future<void>.value();
+    }
     if (pendingAsyncWork == null) {
       return process();
     }
-    return pendingAsyncWork.then((_) => process());
+    return pendingAsyncWork.then((_) async {
+      if (!_isCurrentSession(sessionId, sessionEpoch)) {
+        return;
+      }
+      await process();
+    });
   }
 
   Future<void> _handleResizeEvent(
     String sessionId,
+    int sessionEpoch,
     Map<String, Object?>? payload,
   ) async {
-    if (payload == null) {
+    if (!_isCurrentSession(sessionId, sessionEpoch) || payload == null) {
       return;
     }
     final cols = _intFromEventPayload(payload['cols']);
@@ -1512,6 +1835,9 @@ class TerminalRuntimeController {
     )) {
       return;
     }
+    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+      return;
+    }
     _resizeCoordinator.commit(sessionId, metric);
     _resizeEvents.add(
       TerminalSessionResizeEvent(
@@ -1536,6 +1862,9 @@ class TerminalRuntimeController {
       widthDelta: plan.widthDelta,
       heightDelta: plan.heightDelta,
     );
+    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+      return;
+    }
   }
 
   Size _cellSizeFor(String sessionId) {
@@ -1544,13 +1873,19 @@ class TerminalRuntimeController {
 
   Future<void> _handleClipboardCopyEvent(
     String sessionId,
+    int sessionEpoch,
     Map<String, Object?>? payload,
   ) async {
+    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+      return;
+    }
     final selection = _nonEmptyTrimmedStringFromJsonValue(
       payload?['selection'],
     );
     if (payload == null) {
-      _events.add(
+      _emitEventIfCurrent(
+        sessionId,
+        sessionEpoch,
         TerminalSessionClipboardEvent(
           sessionId,
           operation: TerminalClipboardOperation.copy,
@@ -1562,7 +1897,9 @@ class TerminalRuntimeController {
     }
     final raw = _stringFromJsonValue(payload['data']);
     if (raw == null) {
-      _events.add(
+      _emitEventIfCurrent(
+        sessionId,
+        sessionEpoch,
         TerminalSessionClipboardEvent(
           sessionId,
           operation: TerminalClipboardOperation.copy,
@@ -1574,7 +1911,9 @@ class TerminalRuntimeController {
     }
     final bytes = _decodeOsc52ClipboardPayload(raw);
     if (bytes == null) {
-      _events.add(
+      _emitEventIfCurrent(
+        sessionId,
+        sessionEpoch,
         TerminalSessionClipboardEvent(
           sessionId,
           operation: TerminalClipboardOperation.copy,
@@ -1588,7 +1927,9 @@ class TerminalRuntimeController {
     try {
       decoded = utf8.decode(bytes);
     } on FormatException {
-      _events.add(
+      _emitEventIfCurrent(
+        sessionId,
+        sessionEpoch,
         TerminalSessionClipboardEvent(
           sessionId,
           operation: TerminalClipboardOperation.copy,
@@ -1608,8 +1949,14 @@ class TerminalRuntimeController {
       textPreview: summary.preview,
       textPreviewTruncated: summary.previewTruncated,
     );
-    if (!await allowClipboardCopy(request)) {
-      _events.add(
+    final allowed = await allowClipboardCopy(request);
+    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+      return;
+    }
+    if (!allowed) {
+      _emitEventIfCurrent(
+        sessionId,
+        sessionEpoch,
         TerminalSessionClipboardEvent(
           sessionId,
           operation: TerminalClipboardOperation.copy,
@@ -1624,7 +1971,12 @@ class TerminalRuntimeController {
       return;
     }
     await copyToClipboard(decoded);
-    _events.add(
+    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+      return;
+    }
+    _emitEventIfCurrent(
+      sessionId,
+      sessionEpoch,
       TerminalSessionClipboardEvent(
         sessionId,
         operation: TerminalClipboardOperation.copy,
@@ -1677,8 +2029,12 @@ class TerminalRuntimeController {
 
   Future<void> _handleClipboardPasteRequestEvent(
     String sessionId,
+    int sessionEpoch,
     Map<String, Object?>? payload,
   ) async {
+    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+      return;
+    }
     final selection =
         _nonEmptyTrimmedStringFromJsonValue(payload?['selection']) ?? 'c';
     String? resolvedClipboardText;
@@ -1698,8 +2054,14 @@ class TerminalRuntimeController {
       selection: selection,
       resolveText: resolveClipboardText,
     );
-    if (!await allowClipboardPasteRequest(request)) {
-      _events.add(
+    final allowed = await allowClipboardPasteRequest(request);
+    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+      return;
+    }
+    if (!allowed) {
+      _emitEventIfCurrent(
+        sessionId,
+        sessionEpoch,
         TerminalSessionClipboardEvent(
           sessionId,
           operation: TerminalClipboardOperation.pasteRequest,
@@ -1710,12 +2072,17 @@ class TerminalRuntimeController {
       return;
     }
     final clipboardText = await resolveClipboardText();
+    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+      return;
+    }
     final clipboardBytes = _boundedUtf8Encode(
       clipboardText,
       _maxOsc52ClipboardDecodedBytes,
     );
     if (clipboardBytes == null) {
-      _events.add(
+      _emitEventIfCurrent(
+        sessionId,
+        sessionEpoch,
         TerminalSessionClipboardEvent(
           sessionId,
           operation: TerminalClipboardOperation.pasteRequest,
@@ -1731,10 +2098,16 @@ class TerminalRuntimeController {
     );
     final encoded = base64.encode(clipboardBytes);
     final response = '\x1B]52;$selection;$encoded\x07';
-    if (!_sendInput(sessionId, Uint8List.fromList(utf8.encode(response)))) {
+    if (!_sendInput(
+      sessionId,
+      Uint8List.fromList(utf8.encode(response)),
+      sessionEpoch: sessionEpoch,
+    )) {
       return;
     }
-    _events.add(
+    _emitEventIfCurrent(
+      sessionId,
+      sessionEpoch,
       TerminalSessionClipboardEvent(
         sessionId,
         operation: TerminalClipboardOperation.pasteRequest,
@@ -1817,7 +2190,12 @@ class TerminalRuntimeController {
 
   void _removeSessionState(String sessionId) {
     _refreshScheduler.remove(sessionId);
-    _framePumpBackoff.remove(sessionId);
+    _framePumpPolicy.remove(sessionId);
+    _pendingRefreshTraces.remove(sessionId);
+    _activeRefreshTraces.remove(sessionId);
+    _refreshIdSeeds.remove(sessionId);
+    _fullPollCounts.remove(sessionId);
+    _sessionEpochs.remove(sessionId);
     _lastFrameAppliedAt.remove(sessionId);
     for (final timer in _warmUpTimers.remove(sessionId) ?? const <Timer>[]) {
       timer.cancel();
@@ -1873,6 +2251,23 @@ class TerminalRuntimeController {
     _inputEvents.close();
     _resizeEvents.close();
   }
+}
+
+final class _TerminalRefreshTrace {
+  _TerminalRefreshTrace({
+    required this.refreshId,
+    required this.fullPollCount,
+    required this.requestReason,
+    required this.refreshRequestedMicros,
+  });
+
+  final int refreshId;
+  final int fullPollCount;
+  final String requestReason;
+  final int refreshRequestedMicros;
+  int? refreshStartedMicros;
+  int? frameTakenMicros;
+  int? frameAppliedMicros;
 }
 
 int? _intFromEventPayload(Object? value) {

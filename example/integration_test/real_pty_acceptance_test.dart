@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
@@ -392,6 +391,28 @@ sleep 5
     },
     skip: _skipRealPtyTests,
   );
+
+  testWidgets(
+    'real PTY active wake baseline after four seconds child idle',
+    (tester) => _verifyIdleWakeBaseline(tester, state: _IdleWakeState.active),
+    skip: _skipRealPtyTests,
+  );
+
+  testWidgets(
+    'real PTY background deadline wake baseline after four seconds child idle',
+    (tester) => _verifyIdleWakeBaseline(
+      tester,
+      state: _IdleWakeState.backgroundDeadline,
+    ),
+    skip: _skipRealPtyTests,
+  );
+
+  testWidgets(
+    'real PTY maximum backoff wake baseline after four seconds child idle',
+    (tester) =>
+        _verifyIdleWakeBaseline(tester, state: _IdleWakeState.maximumBackoff),
+    skip: _skipRealPtyTests,
+  );
 }
 
 bool get _skipRealPtyTests => !Platform.isMacOS;
@@ -419,6 +440,7 @@ Future<_RealPtyHarness> _pumpRealPtyApp(
   required List<TerminalProfile> profiles,
   PasswordManagerStore? passwordStore,
   List<Map<String, String?>>? notifications,
+  List<Map<String, Object?>>? runtimeEvents,
 }) async {
   final container = ProviderContainer(
     overrides: [
@@ -429,6 +451,8 @@ Future<_RealPtyHarness> _pumpRealPtyApp(
         MemoryAppPreferencesRepository(null),
       ),
       shellAnimationsEnabledProvider.overrideWithValue(false),
+      if (runtimeEvents != null)
+        terminalGraphicsTraceSinkProvider.overrideWithValue(runtimeEvents.add),
       shellNotificationSenderProvider.overrideWithValue(({
         required title,
         body,
@@ -454,6 +478,200 @@ Future<_RealPtyHarness> _pumpRealPtyApp(
   );
   await _waitForActiveSession(tester, container);
   return _RealPtyHarness(container);
+}
+
+enum _IdleWakeState { active, backgroundDeadline, maximumBackoff }
+
+Future<void> _verifyIdleWakeBaseline(
+  WidgetTester tester, {
+  required _IdleWakeState state,
+}) async {
+  final fixture = _createIdleWakeFixture(state.name);
+  final runtimeEvents = <Map<String, Object?>>[];
+  final profile = _scriptProfile(
+    id: 'idle-wake-${state.name}',
+    name: 'Idle Wake ${state.name}',
+    script: r'''
+printf 'idle-ready\n'
+sleep 4
+: > "$IDLE_DONE_FILE"
+IFS= read -r token < "$WAKE_FIFO"
+printf 'idle-wake:%s\n' "$token"
+sleep 1
+''',
+    env: <String, String>{
+      'IDLE_DONE_FILE': fixture.idleDone.path,
+      'WAKE_FIFO': fixture.wakeFifo.path,
+    },
+  );
+  final harness = await _pumpRealPtyApp(
+    tester,
+    profiles: <TerminalProfile>[profile],
+    runtimeEvents: runtimeEvents,
+  );
+
+  await _waitFor(
+    tester,
+    description: 'four seconds of genuine child-process idle (${state.name})',
+    condition: fixture.idleDone.existsSync,
+    onTimeout: () =>
+        'Last terminal frame:\n${_terminalText(harness.container)}',
+  );
+
+  final sessionId = harness.container
+      .read(sessionControllerProvider)
+      .activeSessionId;
+  expect(sessionId, isNotNull);
+  final historyRefreshId = _latestRefreshId(runtimeEvents, sessionId!);
+  final runtime = harness.container.read(terminalRuntimeControllerProvider);
+
+  final (
+    :delayMicros,
+    :skipTicks,
+    :resetBeforeSignal,
+    :nominal,
+    :ceiling,
+  ) = switch (state) {
+    _IdleWakeState.active => (
+      delayMicros: 33000,
+      skipTicks: 0,
+      resetBeforeSignal: true,
+      nominal: const Duration(milliseconds: 33),
+      ceiling: const Duration(milliseconds: 250),
+    ),
+    _IdleWakeState.backgroundDeadline => (
+      delayMicros: 264000,
+      skipTicks: 7,
+      resetBeforeSignal: true,
+      nominal: const Duration(milliseconds: 264),
+      ceiling: const Duration(milliseconds: 750),
+    ),
+    _IdleWakeState.maximumBackoff => (
+      delayMicros: 396000,
+      skipTicks: 11,
+      resetBeforeSignal: false,
+      nominal: const Duration(milliseconds: 396),
+      ceiling: const Duration(milliseconds: 750),
+    ),
+  };
+
+  if (resetBeforeSignal) {
+    runtime.sendInput(sessionId, Uint8List(0));
+  }
+
+  Map<String, Object?>? preparedResult;
+  await _waitFor(
+    tester,
+    pollStep: const Duration(milliseconds: 5),
+    description: 'a current ${state.name} refresh result newer than history',
+    condition: () {
+      final latest = _latestRefreshEvent(runtimeEvents, sessionId);
+      if (latest == null ||
+          latest['event'] != 'refresh_result' ||
+          latest['refresh_id'] is! int ||
+          (latest['refresh_id'] as int) <= historyRefreshId ||
+          latest['current_delay_micros'] != delayMicros ||
+          latest['backoff_skip_ticks'] != skipTicks) {
+        return false;
+      }
+      preparedResult = latest;
+      return true;
+    },
+    onTimeout: () {
+      final latest = _latestRefreshEvent(runtimeEvents, sessionId);
+      return 'History refresh_id: $historyRefreshId\nLatest event: $latest';
+    },
+  );
+
+  expect(preparedResult, isNotNull);
+  if (state == _IdleWakeState.maximumBackoff) {
+    expect(
+      preparedResult!['current_delay_micros'],
+      396000,
+      reason: 'The deterministic fallback policy cap must remain 396ms.',
+    );
+  }
+
+  final token = '${state.name}-${DateTime.now().microsecondsSinceEpoch}';
+  final stopwatch = Stopwatch()..start();
+  await fixture.wakeFifo.writeAsString('$token\n', flush: true);
+  await _waitFor(
+    tester,
+    pollStep: const Duration(milliseconds: 5),
+    description: '${state.name} FIFO wake token',
+    condition: () =>
+        _terminalText(harness.container).contains('idle-wake:$token'),
+    onTimeout: () =>
+        'Last terminal frame:\n${_terminalText(harness.container)}',
+  );
+  stopwatch.stop();
+
+  final elapsedMicros = stopwatch.elapsedMicroseconds;
+  debugPrint(
+    'idle_wake_baseline state=${state.name} '
+    'elapsed_micros=$elapsedMicros '
+    'nominal_target_micros=${nominal.inMicroseconds} '
+    'hard_ceiling_micros=${ceiling.inMicroseconds}',
+  );
+  expect(
+    elapsedMicros,
+    lessThanOrEqualTo(ceiling.inMicroseconds),
+    reason:
+        '${state.name} idle wake elapsed_micros=$elapsedMicros exceeded '
+        'hard_ceiling_micros=${ceiling.inMicroseconds}; '
+        'nominal_target_micros=${nominal.inMicroseconds}',
+  );
+}
+
+_IdleWakeFixture _createIdleWakeFixture(String name) {
+  final directory = Directory.systemTemp.createTempSync(
+    'ianvs-terminal-idle-wake-$name-',
+  );
+  addTearDown(() {
+    if (directory.existsSync()) {
+      directory.deleteSync(recursive: true);
+    }
+  });
+  final wakeFifo = File('${directory.path}/wake.fifo');
+  final result = Process.runSync('/usr/bin/mkfifo', <String>[wakeFifo.path]);
+  expect(
+    result.exitCode,
+    0,
+    reason: 'mkfifo failed: stdout=${result.stdout} stderr=${result.stderr}',
+  );
+  return _IdleWakeFixture(
+    idleDone: File('${directory.path}/idle.done'),
+    wakeFifo: wakeFifo,
+  );
+}
+
+int _latestRefreshId(List<Map<String, Object?>> events, String sessionId) {
+  var latest = 0;
+  for (final event in events) {
+    if (event['schema_version'] != 'ianvs-terminal-refresh-policy-v1' ||
+        event['session_id'] != sessionId ||
+        event['refresh_id'] is! int) {
+      continue;
+    }
+    final refreshId = event['refresh_id'] as int;
+    if (refreshId > latest) {
+      latest = refreshId;
+    }
+  }
+  return latest;
+}
+
+Map<String, Object?>? _latestRefreshEvent(
+  List<Map<String, Object?>> events,
+  String sessionId,
+) {
+  for (final event in events.reversed) {
+    if (event['schema_version'] == 'ianvs-terminal-refresh-policy-v1' &&
+        event['session_id'] == sessionId) {
+      return event;
+    }
+  }
+  return null;
 }
 
 TerminalProfile _scriptProfile({
@@ -626,13 +844,14 @@ Future<void> _waitFor(
   required String description,
   required bool Function() condition,
   String Function()? onTimeout,
+  Duration pollStep = _pollStep,
 }) async {
   final deadline = DateTime.now().add(_frameWait);
   while (DateTime.now().isBefore(deadline)) {
-    await tester.pump(_pollStep);
     if (condition()) {
       return;
     }
+    await tester.pump(pollStep);
   }
   fail(
     'Timed out waiting for $description.${onTimeout == null ? '' : '\n${onTimeout()}'}',
@@ -705,4 +924,11 @@ class _RealPtyHarness {
   const _RealPtyHarness(this.container);
 
   final ProviderContainer container;
+}
+
+class _IdleWakeFixture {
+  const _IdleWakeFixture({required this.idleDone, required this.wakeFifo});
+
+  final File idleDone;
+  final File wakeFifo;
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/src/runtime/terminal_refresh_scheduler.dart';
 
@@ -38,6 +40,45 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(callbacks, <String>['session-a']);
+    });
+
+    test('stale deferred microtask cannot clear a replacement token', () async {
+      final callbacks = <String>[];
+      final scheduler = TerminalRefreshScheduler();
+      var duplicateScheduled = false;
+
+      expect(
+        scheduler.scheduleDeferredRefresh(
+          'session-a',
+          () => callbacks.add('stale'),
+        ),
+        isTrue,
+      );
+      scheduler.remove('session-a');
+      scheduleMicrotask(() {
+        duplicateScheduled = scheduler.scheduleDeferredRefresh(
+          'session-a',
+          () => callbacks.add('duplicate'),
+        );
+      });
+      expect(
+        scheduler.scheduleDeferredRefresh(
+          'session-a',
+          () => callbacks.add('replacement'),
+        ),
+        isTrue,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        <Object?>[duplicateScheduled, callbacks],
+        <Object?>[
+          false,
+          <String>['replacement'],
+        ],
+      );
     });
 
     testWidgets('runs one queued refresh after cooldown expires', (
