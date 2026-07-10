@@ -67,6 +67,30 @@ flutter test -d macos integration_test/real_pty_acceptance_test.dart
 device 时，Flutter 可能先进入 Android `adb devices` discovery 并卡住；
 这不是 ianvs terminal 产品回归。
 
+## 本地 macOS Release 签名与启动
+
+无有效 codesigning identity 的开发机上，`flutter build macos --release`
+会生成 ad-hoc 签名的 app 和嵌入 framework。启用 hardened runtime 后，这些
+签名没有共同 Team ID，直接启动会被 macOS library validation 拒绝。构建正式
+Release 主应用后，运行：
+
+```bash
+cd example
+flutter build macos --release
+cd ..
+./tools/sign_local_macos_release.sh \
+  "example/build/macos/Build/Products/Release/Ianvs Terminal.app"
+```
+
+该脚本只在检测到 ad-hoc app 时加入本地 library-validation 例外，同时保留
+hardened runtime 并执行深度验签。若 app 已有证书签名，脚本不会重签。
+`Runner/Release.entitlements` 不包含这个本地例外，因此分发签名的 Release
+仍保留 library validation。Release 真实 PTY 刷新门禁会自动执行同一处理：
+
+```bash
+./tools/run_release_real_pty_refresh_gate.sh
+```
+
 ## 运行 demo
 
 ```bash

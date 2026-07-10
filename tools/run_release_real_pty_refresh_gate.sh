@@ -35,9 +35,9 @@ flutter build macos \
   --dart-define=IANVS_REFRESH_HINT_LIMIT_MS=250 \
   --dart-define=IANVS_REFRESH_FALLBACK_LIMIT_MS=750
 
-# Local AOT gates use an ad-hoc signature so the app and embedded frameworks
-# share one identity when launched through macOS LaunchServices.
-codesign --force --deep --sign - "$APP_PATH"
+# Preserve hardened runtime while making the no-certificate local build
+# launchable. Certificate-signed builds keep their existing signature.
+"$ROOT_DIR/tools/sign_local_macos_release.sh" "$APP_PATH"
 
 runner_status=0
 if python3 "$ROOT_DIR/tools/run_process_group_with_timeout.py" \
