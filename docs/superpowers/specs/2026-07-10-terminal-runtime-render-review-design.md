@@ -133,8 +133,9 @@ benchmark 增加 `rows_visited`、`picture_draw_count`、`row_cache_hits`、
 权威完整列表，空列表表示清除。初次挂载、controller/cache 替换必须强制同步；文字、
 cursor 或 placement geometry-only 变化不得触发 asset eviction。
 
-graphics sync 状态封装进纯对象 `TerminalGraphicsSync`，复用 live-key scratch set，避免
-每帧 `map().toSet()`。
+Phase 4 先在 viewport state 内用 controller/cache identity 与 asset revision 做私有同步，
+直接消费 controller 缓存的 live asset key，避免每帧 `map().toSet()`；Phase 6 再把这段
+已验证行为等价提取为纯对象 `TerminalGraphicsSync`，并复用 live-key scratch set。
 
 ### 5. Cursor overlay 实验
 
@@ -182,8 +183,12 @@ protobuf codec 理解。现有 `TerminalFrameDiff.fromJson` / `fromProtobufBytes
 兼容入口，不能在小版本中删除；若移除 models 对生成代码的直接依赖会引入循环依赖或
 破坏工厂 API，本轮允许把该工厂保留为明确标注的 compatibility seam，并在最终报告
 记录 major 版本迁移方案。JSON 与 protobuf 共用 validation limits、枚举 fallback 与
-归一化规则，corpus/parity 测试逐字段验证最终 frame 等价；只比较 viewport hash 不足以
-证明 cursor、style、modes 与 graphics 等价。
+可无损统一的归一化规则，corpus/parity 测试逐字段验证最终 frame 等价；只比较 viewport
+hash 不足以证明 cursor、style、modes 与 graphics 等价。既有
+`preserve_aspect_ratio` 是非 optional proto3 bool：Rust/prost 会省略真实 false，无法靠
+Dart presence 区分 false 与缺失。本轮保留 JSON 缺失默认 true、protobuf 缺失默认 false
+的旧兼容语义，paired fixture 显式提供该字段，并用独立 characterization 测试和文档记录
+这个 schema migration 才能消除的默认值接缝。
 
 ## 错误处理与兼容
 
@@ -207,9 +212,11 @@ protobuf codec 理解。现有 `TerminalFrameDiff.fromJson` / `fromProtobufBytes
 - 跨 FFI/runtime/viewport：`VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION=1
   ./tools/verify_flutter_terminal.sh`。
 
-最终必须额外运行完整 `./tools/verify_flutter_terminal.sh`、真实 macOS PTY acceptance、
-profile/correctness/hash parity，并使用电脑操作 release app 验收创建 session、输入、
-idle 异步输出、resize/focus/tab activation、cursor blink 与关闭流程。
+最终必须额外连续两次运行完整 `./tools/verify_flutter_terminal.sh`、真实 macOS PTY
+acceptance、profile/correctness/hash parity，并使用电脑操作 release app 验收创建
+session、输入、idle 异步输出、resize/focus/tab activation、cursor blink 与关闭流程。
+电脑验收发现任何问题都使门禁失效：红测修复后重新连续跑两次总门禁、重建 Release，
+再完整重复电脑验收。
 
 ## 提交与停止条件
 
