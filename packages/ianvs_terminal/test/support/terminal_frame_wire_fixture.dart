@@ -1,0 +1,365 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:fixnum/fixnum.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart';
+import 'package:ianvs_terminal/src/proto/frame_diff.pb.dart' as frame_pb;
+
+final class TerminalFrameWireFixture {
+  const TerminalFrameWireFixture({required this.json, required this.protobuf});
+
+  final Map<String, Object?> json;
+  final frame_pb.TerminalFrameDiff protobuf;
+
+  String get jsonString => jsonEncode(json);
+
+  Uint8List get protobufBytes => Uint8List.fromList(protobuf.writeToBuffer());
+}
+
+TerminalFrameWireFixture completeTerminalFrameWireFixture({
+  bool preserveAspectRatio = false,
+}) {
+  final modifiedAt = DateTime.parse('2026-07-10T12:34:56.123456Z');
+  final imageBytes = Uint8List.fromList(const <int>[0, 1, 2, 127, 255]);
+  final imageData = base64Encode(imageBytes);
+  return TerminalFrameWireFixture(
+    json: <String, Object?>{
+      'frame_schema_version': 'terminal-frame-diff-v1',
+      'frame_kind': 'delta',
+      'rows': <Object?>[
+        <String, Object?>{
+          'index': 1,
+          'text': 'A界z',
+          'wrapped': true,
+          'modified_at': modifiedAt.toIso8601String(),
+          'style_runs': <Object?>[
+            <String, Object?>{
+              'start': 0,
+              'end': 3,
+              'foreground': '#123456',
+              'background': '#ABCDEF',
+              'bold': true,
+              'dim': true,
+              'italic': true,
+              'underline': true,
+              'blink': true,
+              'inverse': true,
+            },
+          ],
+        },
+      ],
+      'cursor': <String, Object?>{'row': 1, 'col': 3, 'visible': true},
+      'selection': <String, Object?>{
+        'start_row': 1,
+        'start_col': 0,
+        'end_row': 1,
+        'end_col': 3,
+      },
+      'viewport_rows': 4,
+      'viewport_cols': 12,
+      'dirty_ranges': <Object?>[
+        <String, Object?>{'start': 1, 'end': 3},
+      ],
+      'scrollback_offset': 7,
+      'scrollback_max_offset': 11,
+      'viewport_start_row': 23,
+      'viewport_row_shift': -2,
+      'default_foreground': '#010203',
+      'default_background': '#F0E0D0',
+      'cursor_color': '#00FF7F',
+      'modes': <String, Object?>{
+        'alternate_screen': true,
+        'alternate_scroll': true,
+        'application_cursor': true,
+        'application_keypad': true,
+        'insert_mode': true,
+        'origin_mode': true,
+        'line_feed_new_line_mode': true,
+        'hide_cursor': true,
+        'bracketed_paste': true,
+        'focus_tracking': true,
+        'char_protected': true,
+        'mouse_mode': 'any_event',
+        'mouse_encoding': 'sgr_pixels',
+        'kitty_keyboard_flags': 37,
+        'synchronized_output': true,
+      },
+      'window_title': 'wire title',
+      'window_icon_name': 'wire icon',
+      'hyperlinks': <Object?>[
+        <String, Object?>{
+          'row': 1,
+          'start_col': 0,
+          'end_col': 3,
+          'uri': 'https://example.test/full',
+        },
+      ],
+      'inline_images': <Object?>[
+        <String, Object?>{
+          'data': imageData,
+          'row': 1,
+          'col': 2,
+          'width_cells': 4,
+          'height_cells': 2,
+          'alt_text': 'wire image',
+        },
+      ],
+      'graphics': <Object?>[
+        <String, Object?>{
+          'placement_id': 41,
+          'render_id': 401,
+          'asset_id': 17,
+          'asset_version': 5,
+          'protocol': 'kitty',
+          'row': 1,
+          'col': 2,
+          'width_px': 24,
+          'height_px': 18,
+          'width_cells': 6,
+          'height_cells': 3,
+          'source_x_offset_px': 3,
+          'visible_width_px': 19,
+          'source_y_offset_px': 2,
+          'visible_height_px': 13,
+          'z_index': -4,
+          'x_offset_px': 2,
+          'y_offset_px': 1,
+          'preserve_aspect_ratio': preserveAspectRatio,
+        },
+      ],
+    },
+    protobuf: frame_pb.TerminalFrameDiff(
+      frameSchemaVersion: 'terminal-frame-diff-v1',
+      frameKind: frame_pb.TerminalFrameKind.TERMINAL_FRAME_KIND_DELTA,
+      rows: <frame_pb.TerminalRow>[
+        frame_pb.TerminalRow(
+          index: 1,
+          text: 'A界z',
+          wrapped: true,
+          modifiedAtMicros: Int64(modifiedAt.microsecondsSinceEpoch),
+          styleRuns: <frame_pb.TerminalStyleRun>[
+            frame_pb.TerminalStyleRun(
+              start: 0,
+              end: 3,
+              foreground: _protobufColor(0x123456),
+              background: _protobufColor(0xABCDEF),
+              bold: true,
+              dim: true,
+              italic: true,
+              underline: true,
+              blink: true,
+              inverse: true,
+            ),
+          ],
+        ),
+      ],
+      cursor: frame_pb.TerminalCursor(row: 1, col: 3, visible: true),
+      selection: frame_pb.TerminalSelection(
+        present: true,
+        startRow: 1,
+        startCol: 0,
+        endRow: 1,
+        endCol: 3,
+      ),
+      viewportRows: 4,
+      viewportCols: 12,
+      dirtyRanges: <frame_pb.TerminalDirtyRange>[
+        frame_pb.TerminalDirtyRange(start: 1, end: 3),
+      ],
+      scrollbackOffset: 7,
+      scrollbackMaxOffset: 11,
+      viewportStartRow: 23,
+      viewportRowShift: -2,
+      defaultForeground: _protobufColor(0x010203),
+      defaultBackground: _protobufColor(0xF0E0D0),
+      cursorColor: _protobufColor(0x00FF7F),
+      modes: frame_pb.TerminalFrameModes(
+        alternateScreen: true,
+        alternateScroll: true,
+        applicationCursor: true,
+        applicationKeypad: true,
+        insertMode: true,
+        originMode: true,
+        lineFeedNewLineMode: true,
+        hideCursor: true,
+        bracketedPaste: true,
+        focusTracking: true,
+        charProtected: true,
+        mouseMode: 'any_event',
+        mouseEncoding: 'sgr_pixels',
+        kittyKeyboardFlags: 37,
+        synchronizedOutput: true,
+      ),
+      windowTitle: 'wire title',
+      windowIconName: 'wire icon',
+      hyperlinks: <frame_pb.TerminalHyperlinkRange>[
+        frame_pb.TerminalHyperlinkRange(
+          row: 1,
+          startCol: 0,
+          endCol: 3,
+          uri: 'https://example.test/full',
+        ),
+      ],
+      inlineImages: <frame_pb.TerminalInlineImage>[
+        frame_pb.TerminalInlineImage(
+          data: imageData,
+          row: 1,
+          col: 2,
+          widthCells: 4,
+          heightCells: 2,
+          altText: 'wire image',
+        ),
+      ],
+      graphics: <frame_pb.TerminalGraphicPlacement>[
+        frame_pb.TerminalGraphicPlacement(
+          placementId: 41,
+          renderId: 401,
+          assetKey: frame_pb.TerminalGraphicAssetKey(
+            assetId: 17,
+            assetVersion: 5,
+          ),
+          protocol: 'kitty',
+          row: 1,
+          col: 2,
+          widthPx: 24,
+          heightPx: 18,
+          widthCells: 6,
+          heightCells: 3,
+          sourceXOffsetPx: 3,
+          visibleWidthPx: 19,
+          sourceYOffsetPx: 2,
+          visibleHeightPx: 13,
+          zIndex: -4,
+          xOffsetPx: 2,
+          yOffsetPx: 1,
+          preserveAspectRatio: preserveAspectRatio,
+        ),
+      ],
+    ),
+  );
+}
+
+Map<String, Object?> terminalFrameProjection(TerminalFrameDiff frame) {
+  final selection = frame.selection;
+  return <String, Object?>{
+    'frameSchemaVersion': frame.frameSchemaVersion,
+    'frameKind': frame.frameKind.name,
+    'rows': <Object?>[
+      for (final row in frame.rows)
+        <String, Object?>{
+          'index': row.index,
+          'text': row.text,
+          'wrapped': row.wrapped,
+          'modifiedAtMicros': row.modifiedAt?.toUtc().microsecondsSinceEpoch,
+          'styleRuns': <Object?>[
+            for (final run in row.styleRuns)
+              <String, Object?>{
+                'start': run.start,
+                'end': run.end,
+                'foreground': run.foreground?.toARGB32(),
+                'background': run.background?.toARGB32(),
+                'bold': run.bold,
+                'dim': run.dim,
+                'italic': run.italic,
+                'underline': run.underline,
+                'blink': run.blink,
+                'inverse': run.inverse,
+              },
+          ],
+        },
+    ],
+    'cursor': <String, Object?>{
+      'row': frame.cursor.row,
+      'col': frame.cursor.col,
+      'visible': frame.cursor.visible,
+    },
+    'selection': selection == null
+        ? null
+        : <String, Object?>{
+            'startRow': selection.startRow,
+            'startCol': selection.startCol,
+            'endRow': selection.endRow,
+            'endCol': selection.endCol,
+          },
+    'viewportRows': frame.viewportRows,
+    'viewportCols': frame.viewportCols,
+    'dirtyRanges': <Object?>[
+      for (final range in frame.dirtyRanges)
+        <String, Object?>{'start': range.start, 'end': range.end},
+    ],
+    'scrollbackOffset': frame.scrollbackOffset,
+    'scrollbackMaxOffset': frame.scrollbackMaxOffset,
+    'viewportStartRow': frame.viewportStartRow,
+    'viewportRowShift': frame.viewportRowShift,
+    'defaultForeground': frame.defaultForeground?.toARGB32(),
+    'defaultBackground': frame.defaultBackground?.toARGB32(),
+    'cursorColor': frame.cursorColor?.toARGB32(),
+    'modes': <String, Object?>{
+      'alternateScreen': frame.modes.alternateScreen,
+      'alternateScroll': frame.modes.alternateScroll,
+      'applicationCursor': frame.modes.applicationCursor,
+      'applicationKeypad': frame.modes.applicationKeypad,
+      'insertMode': frame.modes.insertMode,
+      'originMode': frame.modes.originMode,
+      'lineFeedNewLineMode': frame.modes.lineFeedNewLineMode,
+      'hideCursor': frame.modes.hideCursor,
+      'bracketedPaste': frame.modes.bracketedPaste,
+      'focusTracking': frame.modes.focusTracking,
+      'charProtected': frame.modes.charProtected,
+      'mouseMode': frame.modes.mouseMode,
+      'mouseEncoding': frame.modes.mouseEncoding,
+      'kittyKeyboardFlags': frame.modes.kittyKeyboardFlags,
+      'synchronizedOutput': frame.modes.synchronizedOutput,
+    },
+    'windowTitle': frame.windowTitle,
+    'windowIconName': frame.windowIconName,
+    'hyperlinks': <Object?>[
+      for (final hyperlink in frame.hyperlinks)
+        <String, Object?>{
+          'row': hyperlink.row,
+          'startCol': hyperlink.startCol,
+          'endCol': hyperlink.endCol,
+          'uri': hyperlink.uri,
+        },
+    ],
+    'inlineImages': <Object?>[
+      for (final image in frame.inlineImages)
+        <String, Object?>{
+          'row': image.row,
+          'col': image.col,
+          'widthCells': image.widthCells,
+          'heightCells': image.heightCells,
+          'bytes': image.bytes.toList(growable: false),
+          'altText': image.altText,
+        },
+    ],
+    'graphics': <Object?>[
+      for (final graphic in frame.graphics)
+        <String, Object?>{
+          'renderId': graphic.renderId,
+          'placementId': graphic.placementId,
+          'assetId': graphic.assetKey.id,
+          'assetVersion': graphic.assetKey.version,
+          'protocol': graphic.protocol,
+          'row': graphic.row,
+          'col': graphic.col,
+          'widthPx': graphic.widthPx,
+          'heightPx': graphic.heightPx,
+          'widthCells': graphic.widthCells,
+          'heightCells': graphic.heightCells,
+          'sourceXOffsetPx': graphic.sourceXOffsetPx,
+          'visibleWidthPx': graphic.visibleWidthPx,
+          'sourceYOffsetPx': graphic.sourceYOffsetPx,
+          'visibleHeightPx': graphic.visibleHeightPx,
+          'zIndex': graphic.zIndex,
+          'xOffsetPx': graphic.xOffsetPx,
+          'yOffsetPx': graphic.yOffsetPx,
+          'preserveAspectRatio': graphic.preserveAspectRatio,
+        },
+    ],
+  };
+}
+
+frame_pb.ColorRgb _protobufColor(int rgb) {
+  return frame_pb.ColorRgb(present: true, rgb: rgb);
+}

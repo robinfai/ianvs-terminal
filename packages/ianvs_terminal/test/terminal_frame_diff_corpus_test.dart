@@ -3,10 +3,14 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
+import 'package:ianvs_terminal/src/runtime/terminal_frame_decoder.dart';
+
+import 'support/terminal_frame_wire_fixture.dart';
 
 void main() {
   group('terminal frame diff wire corpus', () {
     test('fixtures match the documented schema and Dart parser', () {
+      const decoder = TerminalFrameDecoder();
       final schema = _jsonObjectFromRepoFile(
         'tools/bench/schemas/terminal_frame_diff.schema.json',
       );
@@ -67,6 +71,13 @@ void main() {
           expected['graphics_count'],
           reason: fixture.path,
         );
+        expect(
+          terminalFrameProjection(
+            decoder.decodeJson(jsonEncode(frameJson))!.frame,
+          ),
+          terminalFrameProjection(frame),
+          reason: '${fixture.path} public factory/facade mismatch',
+        );
       }
     });
 
@@ -86,6 +97,22 @@ void main() {
         _schemaCompatibilityFailures(schema, invalidFrame),
         contains('viewport_rows must be integer'),
       );
+    });
+
+    test('public terminal surface retains compatibility entry points', () {
+      final fromJson = TerminalFrameDiff.fromJson(const <String, Object?>{});
+      final fromProtobuf = TerminalFrameDiff.fromProtobufBytes(const <int>[]);
+      const preference = TerminalFrameWireFormatPreference.automatic;
+      const viewport = TerminalViewportState.empty;
+      const renderIntent = TerminalRenderIntent.none;
+      final runtimeType = TerminalRuntimeController;
+
+      expect(fromJson.frameSchemaVersion, 'terminal-frame-diff-v1');
+      expect(fromProtobuf.frameSchemaVersion, 'terminal-frame-diff-v1');
+      expect(preference, TerminalFrameWireFormatPreference.automatic);
+      expect(viewport.frame, same(TerminalFrameDiff.empty));
+      expect(renderIntent, same(TerminalRenderIntent.none));
+      expect(runtimeType, TerminalRuntimeController);
     });
   });
 }

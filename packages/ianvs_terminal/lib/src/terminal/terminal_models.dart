@@ -3,18 +3,13 @@ import 'dart:typed_data';
 import 'dart:ui';
 
 import '../proto/frame_diff.pb.dart' as frame_pb;
+import '../transport/terminal_frame_validation_limits.dart';
+import '../transport/terminal_wire_compatibility.dart';
 
 enum TerminalFrameKind { snapshot, delta }
 
-const int _maxInlineImageDecodedBytes = 4 * 1024 * 1024;
 const int _maxInlineImageEncodedLength =
-    ((_maxInlineImageDecodedBytes + 2) ~/ 3) * 4;
-const int _maxInlineImagesPerFrame = 32;
-const int _maxHyperlinksPerFrame = 4096;
-const int _maxStyleRunsPerRow = 1024;
-const int _maxMalformedFrameCollectionSlack = 64;
-const int _maxMalformedFrameCollectionScanMultiplier = 4;
-const int _maxNativeTerminalDimension = 0xffff;
+    ((TerminalFrameValidationLimits.maxInlineImageDecodedBytes + 2) ~/ 3) * 4;
 
 class TerminalStyleRun {
   const TerminalStyleRun({
@@ -182,7 +177,7 @@ class TerminalRow {
       styleRuns: _jsonListFromJson(
         json['style_runs'],
         TerminalStyleRun.tryFromJson,
-        maxEntries: _maxStyleRunsPerRow,
+        maxEntries: TerminalFrameValidationLimits.maxStyleRunsPerRow,
       ),
     );
   }
@@ -386,7 +381,9 @@ class TerminalInlineImage {
     } on FormatException {
       return null;
     }
-    if (bytes.isEmpty || bytes.length > _maxInlineImageDecodedBytes) {
+    if (bytes.isEmpty ||
+        bytes.length >
+            TerminalFrameValidationLimits.maxInlineImageDecodedBytes) {
       return null;
     }
     final row = _optionalIntFromJson(json['row'], fallback: 0);
@@ -718,7 +715,8 @@ class TerminalSearchMatch {
 }
 
 class TerminalFrameDiff {
-  static const currentFrameSchemaVersion = 'terminal-frame-diff-v1';
+  static const currentFrameSchemaVersion =
+      TerminalWireCompatibility.currentFrameSchemaVersion;
 
   const TerminalFrameDiff({
     this.frameSchemaVersion = currentFrameSchemaVersion,
@@ -793,12 +791,10 @@ class TerminalFrameDiff {
       json['scrollback_offset'],
     ).clamp(0, scrollbackMaxOffset).toInt();
     return TerminalFrameDiff(
-      frameSchemaVersion:
-          _nonEmptyTrimmedStringFromJson(json['frame_schema_version']) ??
-          currentFrameSchemaVersion,
-      frameKind: _terminalFrameKindFromWire(
-        _stringFromJson(json['frame_kind']),
+      frameSchemaVersion: TerminalWireCompatibility.frameSchemaVersion(
+        json['frame_schema_version'],
       ),
+      frameKind: _terminalFrameKindFromWire(json['frame_kind']),
       rows: _rowsFromJson(json['rows'], viewportRows, viewportCols),
       cursor: cursorJson == null
           ? const TerminalCursor(row: 0, col: 0, visible: false)
@@ -827,10 +823,10 @@ class TerminalFrameDiff {
       windowTitle: _stringFromJson(json['window_title']),
       windowIconName: _stringFromJson(json['window_icon_name']),
       hyperlinks: _hyperlinksFromJson(json['hyperlinks'], viewportRows),
-      inlineImages: _normalizeInlineImages(
-        images: _inlineImagesFromJson(json['inline_images']),
-        viewportRows: viewportRows,
-        viewportCols: viewportCols,
+      inlineImages: _inlineImagesFromJson(
+        json['inline_images'],
+        viewportRows,
+        viewportCols,
       ),
       graphics: _normalizeGraphics(
         graphics: _graphicsFromJson(json['graphics']),
@@ -858,16 +854,30 @@ List<TerminalRow> _rowsFromJson(
   int viewportRows,
   int viewportCols,
 ) {
-  if (viewportRows <= 0) {
+  if (viewportRows <= 0 || value is! List) {
     return const <TerminalRow>[];
   }
+  final maxEntries = TerminalFrameValidationLimits.maxViewportBoundedEntries(
+    viewportRows,
+  );
+  final scanLimit = TerminalFrameValidationLimits.maxEntriesToScan(maxEntries);
   final rowsByIndex = <int, TerminalRow>{};
-  for (final row in _jsonListFromJson(
-    value,
-    TerminalRow.tryFromJson,
-    maxEntries: _maxViewportBoundedEntries(viewportRows),
-  )) {
-    if (row.index < 0 || row.index >= viewportRows) {
+  var entriesScanned = 0;
+  for (final entry in value) {
+    if (entriesScanned >= scanLimit) {
+      break;
+    }
+    entriesScanned += 1;
+    final json = _jsonMapFromJson(entry);
+    if (json == null) {
+      continue;
+    }
+    final row = TerminalRow.tryFromJson(json);
+    if (row == null || row.index < 0 || row.index >= viewportRows) {
+      continue;
+    }
+    final replacesExisting = rowsByIndex.containsKey(row.index);
+    if (!replacesExisting && rowsByIndex.length >= maxEntries) {
       continue;
     }
     rowsByIndex[row.index] = _rowBoundedToViewportCols(row, viewportCols);
@@ -921,8 +931,21 @@ List<TerminalDirtyRange> _dirtyRangesFromJson(Object? value, int viewportRows) {
   return _normalizeDirtyRanges(
     _jsonListFromJson(
       value,
-      TerminalDirtyRange.tryFromJson,
-      maxEntries: _maxViewportBoundedEntries(viewportRows),
+      (json) {
+        final range = TerminalDirtyRange.tryFromJson(json);
+        if (range == null) {
+          return null;
+        }
+        final start = range.start.clamp(0, viewportRows).toInt();
+        final end = range.end.clamp(start, viewportRows).toInt();
+        if (start >= end) {
+          return null;
+        }
+        return TerminalDirtyRange(start: start, end: end);
+      },
+      maxEntries: TerminalFrameValidationLimits.maxViewportBoundedEntries(
+        viewportRows,
+      ),
     ),
     viewportRows,
   );
@@ -935,21 +958,63 @@ List<TerminalHyperlinkRange> _hyperlinksFromJson(
   if (viewportRows <= 0) {
     return const <TerminalHyperlinkRange>[];
   }
-  return _boundedHyperlinks(
-    _jsonListFromJson(
-      value,
-      TerminalHyperlinkRange.tryFromJson,
-      maxEntries: _maxHyperlinksPerFrame,
-    ).where((range) => range.row >= 0 && range.row < viewportRows),
-  );
+  return _jsonListFromJson(value, (json) {
+    final range = TerminalHyperlinkRange.tryFromJson(json);
+    if (range == null || range.row >= viewportRows) {
+      return null;
+    }
+    return range;
+  }, maxEntries: TerminalFrameValidationLimits.maxHyperlinksPerFrame);
 }
 
-List<TerminalInlineImage> _inlineImagesFromJson(Object? value) {
-  return _jsonListFromJson(
-    value,
-    TerminalInlineImage.tryFromJson,
-    maxEntries: _maxInlineImagesPerFrame,
-  );
+List<TerminalInlineImage> _inlineImagesFromJson(
+  Object? value,
+  int viewportRows,
+  int viewportCols,
+) {
+  return _jsonListFromJson(value, (json) {
+    final row = _optionalIntFromJson(json['row'], fallback: 0);
+    final col = _optionalIntFromJson(
+      json['col'] ?? json['column'],
+      fallback: 0,
+    );
+    final widthCells = _optionalIntFromJson(
+      json['width_cells'] ?? json['widthCells'],
+      fallback: 1,
+    );
+    final heightCells = _optionalIntFromJson(
+      json['height_cells'] ?? json['heightCells'],
+      fallback: 1,
+    );
+    if (row == null ||
+        col == null ||
+        widthCells == null ||
+        heightCells == null) {
+      return null;
+    }
+    return TerminalFrameValidationLimits.decodeViewportBounded(
+      row: row,
+      col: col,
+      widthCells: widthCells,
+      heightCells: heightCells,
+      viewportRows: viewportRows,
+      viewportCols: viewportCols,
+      decode: ({required widthCells, required heightCells}) {
+        final image = TerminalInlineImage.tryFromJson(json);
+        if (image == null) {
+          return null;
+        }
+        return TerminalInlineImage(
+          row: image.row,
+          col: image.col,
+          widthCells: widthCells,
+          heightCells: heightCells,
+          bytes: image.bytes,
+          altText: image.altText,
+        );
+      },
+    );
+  }, maxEntries: TerminalFrameValidationLimits.maxInlineImagesPerFrame);
 }
 
 List<TerminalGraphicPlacement> _graphicsFromJson(Object? value) {
@@ -959,21 +1024,18 @@ List<TerminalGraphicPlacement> _graphicsFromJson(Object? value) {
 TerminalFrameDiff _terminalFrameDiffFromProtobuf(
   frame_pb.TerminalFrameDiff proto,
 ) {
-  final viewportRows = proto.viewportRows;
-  final viewportCols = proto.viewportCols;
+  final viewportRows = _clampedNativeDimension(proto.viewportRows);
+  final viewportCols = _clampedNativeDimension(proto.viewportCols);
   final scrollbackMaxOffset = proto.scrollbackMaxOffset;
   final scrollbackOffset = proto.scrollbackOffset
       .clamp(0, scrollbackMaxOffset)
       .toInt();
   return TerminalFrameDiff(
-    frameSchemaVersion:
-        _nonEmptyTrimmedProtoString(
-          hasValue: proto.hasFrameSchemaVersion(),
-          value: proto.frameSchemaVersion,
-        ) ??
-        TerminalFrameDiff.currentFrameSchemaVersion,
+    frameSchemaVersion: TerminalWireCompatibility.frameSchemaVersion(
+      proto.hasFrameSchemaVersion() ? proto.frameSchemaVersion : null,
+    ),
     frameKind: _terminalFrameKindFromProtobuf(proto.frameKind),
-    rows: [for (final row in proto.rows) ?_terminalRowFromProtobuf(row)],
+    rows: _rowsFromProtobuf(proto.rows, viewportRows, viewportCols),
     cursor: proto.hasCursor()
         ? _terminalCursorFromProtobuf(proto.cursor)
         : const TerminalCursor(row: 0, col: 0, visible: false),
@@ -982,10 +1044,7 @@ TerminalFrameDiff _terminalFrameDiffFromProtobuf(
         : null,
     viewportRows: viewportRows,
     viewportCols: viewportCols,
-    dirtyRanges: _normalizeDirtyRanges([
-      for (final range in proto.dirtyRanges)
-        TerminalDirtyRange(start: range.start, end: range.end),
-    ], viewportRows),
+    dirtyRanges: _dirtyRangesFromProtobuf(proto.dirtyRanges, viewportRows),
     scrollbackOffset: scrollbackOffset,
     scrollbackMaxOffset: scrollbackMaxOffset,
     viewportStartRow: proto.viewportStartRow,
@@ -1007,23 +1066,14 @@ TerminalFrameDiff _terminalFrameDiffFromProtobuf(
         : TerminalFrameModes.empty,
     windowTitle: proto.hasWindowTitle() ? proto.windowTitle : null,
     windowIconName: proto.hasWindowIconName() ? proto.windowIconName : null,
-    hyperlinks: [
-      for (final hyperlink in proto.hyperlinks)
-        ?_terminalHyperlinkFromProtobuf(hyperlink),
-    ],
-    inlineImages: _normalizeInlineImages(
-      images: [
-        for (final image in proto.inlineImages)
-          ?_terminalInlineImageFromProtobuf(image),
-      ],
-      viewportRows: viewportRows,
-      viewportCols: viewportCols,
+    hyperlinks: _hyperlinksFromProtobuf(proto.hyperlinks, viewportRows),
+    inlineImages: _inlineImagesFromProtobuf(
+      proto.inlineImages,
+      viewportRows,
+      viewportCols,
     ),
     graphics: _normalizeGraphics(
-      graphics: [
-        for (final graphic in proto.graphics)
-          ?_terminalGraphicFromProtobuf(graphic),
-      ],
+      graphics: proto.graphics.map(_terminalGraphicFromProtobuf),
       viewportRows: viewportRows,
       viewportCols: viewportCols,
     ),
@@ -1033,22 +1083,58 @@ TerminalFrameDiff _terminalFrameDiffFromProtobuf(
 TerminalFrameKind _terminalFrameKindFromProtobuf(
   frame_pb.TerminalFrameKind value,
 ) {
-  return switch (value) {
-    frame_pb.TerminalFrameKind.TERMINAL_FRAME_KIND_DELTA =>
-      TerminalFrameKind.delta,
-    _ => TerminalFrameKind.snapshot,
+  return switch (TerminalWireCompatibility.frameKindFromProtobuf(value.value)) {
+    TerminalWireFrameKind.delta => TerminalFrameKind.delta,
+    TerminalWireFrameKind.snapshot => TerminalFrameKind.snapshot,
   };
 }
 
-TerminalRow? _terminalRowFromProtobuf(frame_pb.TerminalRow row) {
+List<TerminalRow> _rowsFromProtobuf(
+  Iterable<frame_pb.TerminalRow> rows,
+  int viewportRows,
+  int viewportCols,
+) {
+  if (viewportRows <= 0) {
+    return const <TerminalRow>[];
+  }
+  final maxEntries = TerminalFrameValidationLimits.maxViewportBoundedEntries(
+    viewportRows,
+  );
+  final scanLimit = TerminalFrameValidationLimits.maxEntriesToScan(maxEntries);
+  final rowsByIndex = <int, TerminalRow>{};
+  var entriesScanned = 0;
+  for (final row in rows) {
+    if (entriesScanned >= scanLimit) {
+      break;
+    }
+    entriesScanned += 1;
+    if (row.index >= viewportRows) {
+      continue;
+    }
+    final replacesExisting = rowsByIndex.containsKey(row.index);
+    if (!replacesExisting && rowsByIndex.length >= maxEntries) {
+      continue;
+    }
+    rowsByIndex[row.index] = _rowBoundedToViewportCols(
+      _terminalRowFromProtobuf(row),
+      viewportCols,
+    );
+  }
+  final sortedIndexes = rowsByIndex.keys.toList(growable: false)..sort();
+  return <TerminalRow>[for (final index in sortedIndexes) rowsByIndex[index]!];
+}
+
+TerminalRow _terminalRowFromProtobuf(frame_pb.TerminalRow row) {
   return TerminalRow(
     index: row.index,
     text: row.text,
     wrapped: row.wrapped,
     modifiedAt: _dateTimeFromProtobufMicros(row),
-    styleRuns: [
-      for (final run in row.styleRuns) ?_terminalStyleRunFromProtobuf(run),
-    ],
+    styleRuns: _boundedProtobufItems(
+      row.styleRuns,
+      _terminalStyleRunFromProtobuf,
+      maxEntries: TerminalFrameValidationLimits.maxStyleRunsPerRow,
+    ),
   );
 }
 
@@ -1153,6 +1239,22 @@ TerminalHyperlinkRange? _terminalHyperlinkFromProtobuf(
   );
 }
 
+List<TerminalHyperlinkRange> _hyperlinksFromProtobuf(
+  Iterable<frame_pb.TerminalHyperlinkRange> hyperlinks,
+  int viewportRows,
+) {
+  if (viewportRows <= 0) {
+    return const <TerminalHyperlinkRange>[];
+  }
+  return _boundedProtobufItems(hyperlinks, (hyperlink) {
+    final decoded = _terminalHyperlinkFromProtobuf(hyperlink);
+    if (decoded == null || decoded.row >= viewportRows) {
+      return null;
+    }
+    return decoded;
+  }, maxEntries: TerminalFrameValidationLimits.maxHyperlinksPerFrame);
+}
+
 TerminalInlineImage? _terminalInlineImageFromProtobuf(
   frame_pb.TerminalInlineImage image,
 ) {
@@ -1166,7 +1268,8 @@ TerminalInlineImage? _terminalInlineImageFromProtobuf(
   } on FormatException {
     return null;
   }
-  if (bytes.isEmpty || bytes.length > _maxInlineImageDecodedBytes) {
+  if (bytes.isEmpty ||
+      bytes.length > TerminalFrameValidationLimits.maxInlineImageDecodedBytes) {
     return null;
   }
   final widthCells = image.hasWidthCells() ? image.widthCells : 1;
@@ -1182,6 +1285,41 @@ TerminalInlineImage? _terminalInlineImageFromProtobuf(
     bytes: bytes,
     altText: image.hasAltText() ? image.altText : null,
   );
+}
+
+List<TerminalInlineImage> _inlineImagesFromProtobuf(
+  Iterable<frame_pb.TerminalInlineImage> images,
+  int viewportRows,
+  int viewportCols,
+) {
+  return _boundedProtobufItems(images, (image) {
+    final row = image.hasRow() ? image.row : 0;
+    final col = image.hasCol() ? image.col : 0;
+    final widthCells = image.hasWidthCells() ? image.widthCells : 1;
+    final heightCells = image.hasHeightCells() ? image.heightCells : 1;
+    return TerminalFrameValidationLimits.decodeViewportBounded(
+      row: row,
+      col: col,
+      widthCells: widthCells,
+      heightCells: heightCells,
+      viewportRows: viewportRows,
+      viewportCols: viewportCols,
+      decode: ({required widthCells, required heightCells}) {
+        final decoded = _terminalInlineImageFromProtobuf(image);
+        if (decoded == null) {
+          return null;
+        }
+        return TerminalInlineImage(
+          row: decoded.row,
+          col: decoded.col,
+          widthCells: widthCells,
+          heightCells: heightCells,
+          bytes: decoded.bytes,
+          altText: decoded.altText,
+        );
+      },
+    );
+  }, maxEntries: TerminalFrameValidationLimits.maxInlineImagesPerFrame);
 }
 
 TerminalGraphicPlacement? _terminalGraphicFromProtobuf(
@@ -1314,13 +1452,57 @@ List<TerminalDirtyRange> _normalizeDirtyRanges(
   return merged;
 }
 
-int _maxViewportBoundedEntries(int viewportRows) {
+List<TerminalDirtyRange> _dirtyRangesFromProtobuf(
+  Iterable<frame_pb.TerminalDirtyRange> ranges,
+  int viewportRows,
+) {
   if (viewportRows <= 0) {
-    return _maxMalformedFrameCollectionSlack;
+    return const <TerminalDirtyRange>[];
   }
-  return (viewportRows + _maxMalformedFrameCollectionSlack)
-      .clamp(0, _maxNativeTerminalDimension)
-      .toInt();
+  return _normalizeDirtyRanges(
+    _boundedProtobufItems(
+      ranges,
+      (range) {
+        final start = range.start.clamp(0, viewportRows).toInt();
+        final end = range.end.clamp(start, viewportRows).toInt();
+        if (start >= end) {
+          return null;
+        }
+        return TerminalDirtyRange(start: start, end: end);
+      },
+      maxEntries: TerminalFrameValidationLimits.maxViewportBoundedEntries(
+        viewportRows,
+      ),
+    ),
+    viewportRows,
+  );
+}
+
+List<TOutput> _boundedProtobufItems<TInput, TOutput>(
+  Iterable<TInput> values,
+  TOutput? Function(TInput value) decode, {
+  required int maxEntries,
+}) {
+  final decoded = <TOutput>[];
+  final maxEntriesToScan = TerminalFrameValidationLimits.maxEntriesToScan(
+    maxEntries,
+  );
+  var entriesScanned = 0;
+  for (final value in values) {
+    if (entriesScanned >= maxEntriesToScan) {
+      break;
+    }
+    entriesScanned += 1;
+    final item = decode(value);
+    if (item == null) {
+      continue;
+    }
+    decoded.add(item);
+    if (decoded.length >= maxEntries) {
+      break;
+    }
+  }
+  return decoded;
 }
 
 List<T> _jsonListFromJson<T>(
@@ -1334,7 +1516,7 @@ List<T> _jsonListFromJson<T>(
   final items = <T>[];
   final entries = maxEntries == null
       ? value
-      : value.take(_maxFrameCollectionEntriesToScan(maxEntries));
+      : value.take(TerminalFrameValidationLimits.maxEntriesToScan(maxEntries));
   for (final entry in entries) {
     final json = _jsonMapFromJson(entry);
     if (json == null) {
@@ -1349,12 +1531,6 @@ List<T> _jsonListFromJson<T>(
     }
   }
   return items;
-}
-
-int _maxFrameCollectionEntriesToScan(int maxEntries) {
-  return (maxEntries * _maxMalformedFrameCollectionScanMultiplier)
-      .clamp(0, _maxNativeTerminalDimension)
-      .toInt();
 }
 
 Map<String, Object?>? _jsonMapFromJson(Object? value) {
@@ -1696,11 +1872,13 @@ int _nonNegativeIntFromJson(Object? value) {
 int _nativeDimensionFromJson(Object? value) {
   return _nonNegativeIntFromJson(
     value,
-  ).clamp(0, _maxNativeTerminalDimension).toInt();
+  ).clamp(0, TerminalFrameValidationLimits.maxNativeDimension).toInt();
 }
 
 int _clampedNativeDimension(int value) {
-  return value.clamp(0, _maxNativeTerminalDimension).toInt();
+  return value
+      .clamp(0, TerminalFrameValidationLimits.maxNativeDimension)
+      .toInt();
 }
 
 int _nonNegativeFrameScalar(int value) {
@@ -1786,10 +1964,10 @@ DateTime? _dateTimeFromJson(Object? value) {
   return null;
 }
 
-TerminalFrameKind _terminalFrameKindFromWire(String? value) {
-  return switch (value?.trim().toLowerCase()) {
-    'delta' => TerminalFrameKind.delta,
-    _ => TerminalFrameKind.snapshot,
+TerminalFrameKind _terminalFrameKindFromWire(Object? value) {
+  return switch (TerminalWireCompatibility.frameKindFromJson(value)) {
+    TerminalWireFrameKind.delta => TerminalFrameKind.delta,
+    TerminalWireFrameKind.snapshot => TerminalFrameKind.snapshot,
   };
 }
 
@@ -2148,7 +2326,7 @@ List<TerminalHyperlinkRange> _shiftHyperlinks({
     if (nextRow < 0 || nextRow >= viewportRows) {
       continue;
     }
-    if (shifted.length >= _maxHyperlinksPerFrame) {
+    if (shifted.length >= TerminalFrameValidationLimits.maxHyperlinksPerFrame) {
       break;
     }
     shifted.add(
@@ -2166,7 +2344,9 @@ List<TerminalHyperlinkRange> _shiftHyperlinks({
 List<TerminalHyperlinkRange> _boundedHyperlinks(
   Iterable<TerminalHyperlinkRange> ranges,
 ) {
-  return ranges.take(_maxHyperlinksPerFrame).toList(growable: false);
+  return ranges
+      .take(TerminalFrameValidationLimits.maxHyperlinksPerFrame)
+      .toList(growable: false);
 }
 
 bool _isValidHyperlinkInViewport(
@@ -2255,7 +2435,8 @@ List<TerminalInlineImage> _shiftInlineImages({
       viewportCols: viewportCols,
     );
     if (clampedImage != null) {
-      if (shifted.length >= _maxInlineImagesPerFrame) {
+      if (shifted.length >=
+          TerminalFrameValidationLimits.maxInlineImagesPerFrame) {
         break;
       }
       shifted.add(clampedImage);
@@ -2282,7 +2463,9 @@ List<TerminalInlineImage> _normalizeInlineImages({
 List<TerminalInlineImage> _boundedInlineImages(
   Iterable<TerminalInlineImage> images,
 ) {
-  return images.take(_maxInlineImagesPerFrame).toList(growable: false);
+  return images
+      .take(TerminalFrameValidationLimits.maxInlineImagesPerFrame)
+      .toList(growable: false);
 }
 
 TerminalInlineImage? _clampInlineImageToViewport(
@@ -2320,14 +2503,18 @@ TerminalInlineImage? _clampInlineImageToViewport(
 }
 
 List<TerminalGraphicPlacement> _normalizeGraphics({
-  required List<TerminalGraphicPlacement> graphics,
+  required Iterable<TerminalGraphicPlacement?> graphics,
   required int viewportRows,
   required int viewportCols,
 }) {
-  final normalized = <TerminalGraphicPlacement>[
-    for (final graphic in graphics)
-      if (!_graphicInvalid(graphic, viewportRows, viewportCols)) graphic,
-  ];
+  final normalized = <TerminalGraphicPlacement>[];
+  for (final graphic in graphics) {
+    if (graphic == null ||
+        _graphicInvalid(graphic, viewportRows, viewportCols)) {
+      continue;
+    }
+    normalized.add(graphic);
+  }
   normalized.sort((left, right) {
     final byZ = left.zIndex.compareTo(right.zIndex);
     if (byZ != 0) {

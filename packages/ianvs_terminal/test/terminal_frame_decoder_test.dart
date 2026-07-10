@@ -1,56 +1,102 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/src/runtime/terminal_frame_decoder.dart';
-import 'package:ianvs_terminal/src/terminal/terminal_models.dart';
+
+import 'support/terminal_frame_wire_fixture.dart';
 
 void main() {
-  group('TerminalFrameDecoder', () {
-    test('decodes valid frame JSON and records decode metrics', () {
-      final decoder = TerminalFrameDecoder(collectMetrics: true);
+  group(TerminalFrameDecoder, () {
+    test('decode remains an exact JSON compatibility alias', () {
+      final fixture = completeTerminalFrameWireFixture();
+      const decoder = TerminalFrameDecoder();
 
-      final decoded = decoder.decode(jsonEncode(_singleRowSnapshot('ready')));
+      final legacy = decoder.decode(fixture.jsonString);
+      final explicit = decoder.decodeJson(fixture.jsonString);
+
+      expect(legacy, isNotNull);
+      expect(explicit, isNotNull);
+      expect(
+        terminalFrameProjection(legacy!.frame),
+        terminalFrameProjection(explicit!.frame),
+      );
+    });
+
+    test('decodeJson and decodeProtobuf project a complete valid frame', () {
+      final fixture = completeTerminalFrameWireFixture();
+      const decoder = TerminalFrameDecoder();
+
+      final json = decoder.decodeJson(fixture.jsonString);
+      final protobuf = decoder.decodeProtobuf(fixture.protobufBytes);
+
+      expect(json, isNotNull);
+      expect(protobuf, isNotNull);
+      expect(
+        terminalFrameProjection(json!.frame),
+        terminalFrameProjection(protobuf!.frame),
+      );
+    });
+
+    test('returns null for malformed JSON and a JSON array', () {
+      const decoder = TerminalFrameDecoder(collectMetrics: true);
+
+      expect(decoder.decodeJson('{'), isNull);
+      expect(
+        decoder.decodeJson(jsonEncode(<Object?>['not', 'an', 'object'])),
+        isNull,
+      );
+    });
+
+    test('returns null for malformed protobuf', () {
+      const decoder = TerminalFrameDecoder(collectMetrics: true);
+
+      expect(
+        decoder.decodeProtobuf(Uint8List.fromList(const <int>[0xff])),
+        isNull,
+      );
+    });
+
+    test('JSON metrics use UTF-8 bytes and only JSON decode time', () {
+      final fixture = completeTerminalFrameWireFixture();
+      const decoder = TerminalFrameDecoder(collectMetrics: true);
+
+      final decoded = decoder.decodeJson(fixture.jsonString);
 
       expect(decoded, isNotNull);
-      expect(decoded!.frame.frameKind, TerminalFrameKind.snapshot);
-      expect(decoded.frame.rows.single.text, 'ready');
-      expect(decoded.metrics, isNotNull);
-      expect(decoded.metrics!.rawFrameBytes, greaterThan(0));
+      expect(decoded!.metrics, isNotNull);
+      expect(decoded.metrics!.wireFormat, 'json');
+      expect(
+        decoded.metrics!.rawFrameBytes,
+        utf8.encode(fixture.jsonString).length,
+      );
       expect(decoded.metrics!.jsonDecodeMicros, greaterThanOrEqualTo(0));
+      expect(decoded.metrics!.protobufDecodeMicros, 0);
     });
 
-    test('omits metrics when collection is disabled', () {
-      final decoder = TerminalFrameDecoder();
+    test(
+      'protobuf metrics use payload bytes and only protobuf decode time',
+      () {
+        final fixture = completeTerminalFrameWireFixture();
+        const decoder = TerminalFrameDecoder(collectMetrics: true);
 
-      final decoded = decoder.decode(jsonEncode(_singleRowSnapshot('quiet')));
+        final decoded = decoder.decodeProtobuf(fixture.protobufBytes);
 
-      expect(decoded, isNotNull);
-      expect(decoded!.frame.rows.single.text, 'quiet');
-      expect(decoded.metrics, isNull);
-    });
+        expect(decoded, isNotNull);
+        expect(decoded!.metrics, isNotNull);
+        expect(decoded.metrics!.wireFormat, 'protobuf');
+        expect(decoded.metrics!.rawFrameBytes, fixture.protobufBytes.length);
+        expect(decoded.metrics!.jsonDecodeMicros, 0);
+        expect(decoded.metrics!.protobufDecodeMicros, greaterThanOrEqualTo(0));
+      },
+    );
 
-    test('returns null for malformed JSON and non-object payloads', () {
-      final decoder = TerminalFrameDecoder(collectMetrics: true);
+    test('metrics are null for both formats when collection is disabled', () {
+      final fixture = completeTerminalFrameWireFixture();
+      const decoder = TerminalFrameDecoder();
 
-      expect(decoder.decode('{'), isNull);
-      expect(decoder.decode(jsonEncode(<Object?>['not', 'a', 'map'])), isNull);
+      expect(decoder.decodeJson(fixture.jsonString)!.metrics, isNull);
+      expect(decoder.decodeProtobuf(fixture.protobufBytes)!.metrics, isNull);
     });
   });
-}
-
-Map<String, Object?> _singleRowSnapshot(String text) {
-  return <String, Object?>{
-    'frame_kind': 'snapshot',
-    'rows': <Object?>[
-      <String, Object?>{'index': 0, 'text': text, 'style_runs': const []},
-    ],
-    'cursor': <String, Object?>{'row': 0, 'col': 0, 'visible': true},
-    'viewport_rows': 24,
-    'viewport_cols': 80,
-    'dirty_ranges': <Object?>[
-      <String, Object?>{'start': 0, 'end': 1},
-    ],
-    'scrollback_offset': 0,
-    'scrollback_max_offset': 0,
-  };
 }

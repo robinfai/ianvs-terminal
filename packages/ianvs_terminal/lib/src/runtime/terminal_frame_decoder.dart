@@ -1,6 +1,9 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import '../terminal/terminal_models.dart';
+import '../transport/terminal_json_frame_decoder.dart';
+import '../transport/terminal_protobuf_frame_decoder.dart';
 
 final class TerminalDecodedFrame {
   const TerminalDecodedFrame({required this.frame, required this.metrics});
@@ -26,53 +29,53 @@ final class TerminalFrameDecodeMetrics {
 }
 
 final class TerminalFrameDecoder {
-  const TerminalFrameDecoder({this.collectMetrics = false});
+  const TerminalFrameDecoder({
+    this.collectMetrics = false,
+    this.jsonDecoder = const TerminalJsonFrameDecoder(),
+    this.protobufDecoder = const TerminalProtobufFrameDecoder(),
+  });
 
   final bool collectMetrics;
+  final TerminalJsonFrameDecoder jsonDecoder;
+  final TerminalProtobufFrameDecoder protobufDecoder;
 
-  TerminalDecodedFrame? decode(String rawFrame) {
+  TerminalDecodedFrame? decode(String rawFrame) => decodeJson(rawFrame);
+
+  TerminalDecodedFrame? decodeJson(String rawFrame) {
     final decodeWatch = collectMetrics ? (Stopwatch()..start()) : null;
-    final json = _tryDecodeJsonObject(rawFrame);
-    if (json == null) {
+    final frame = jsonDecoder.decode(rawFrame);
+    if (frame == null) {
       return null;
     }
-    try {
-      final frame = TerminalFrameDiff.fromJson(json);
-      decodeWatch?.stop();
-      return TerminalDecodedFrame(
-        frame: frame,
-        metrics: collectMetrics
-            ? TerminalFrameDecodeMetrics(
-                rawFrameBytes: utf8.encode(rawFrame).length,
-                jsonDecodeMicros: decodeWatch?.elapsedMicroseconds ?? 0,
-              )
-            : null,
-      );
-    } on Object {
-      return null;
-    }
+    decodeWatch?.stop();
+    return TerminalDecodedFrame(
+      frame: frame,
+      metrics: collectMetrics
+          ? TerminalFrameDecodeMetrics(
+              rawFrameBytes: utf8.encode(rawFrame).length,
+              jsonDecodeMicros: decodeWatch?.elapsedMicroseconds ?? 0,
+            )
+          : null,
+    );
   }
-}
 
-Map<String, Object?>? _tryDecodeJsonObject(String raw) {
-  try {
-    final decoded = jsonDecode(raw);
-    if (decoded is! Map) {
+  TerminalDecodedFrame? decodeProtobuf(Uint8List rawFrame) {
+    final decodeWatch = collectMetrics ? (Stopwatch()..start()) : null;
+    final frame = protobufDecoder.decode(rawFrame);
+    if (frame == null) {
       return null;
     }
-    return _stringKeyedJsonMap(decoded);
-  } on Object {
-    return null;
+    decodeWatch?.stop();
+    return TerminalDecodedFrame(
+      frame: frame,
+      metrics: collectMetrics
+          ? TerminalFrameDecodeMetrics(
+              rawFrameBytes: rawFrame.length,
+              wireFormat: 'protobuf',
+              jsonDecodeMicros: 0,
+              protobufDecodeMicros: decodeWatch?.elapsedMicroseconds ?? 0,
+            )
+          : null,
+    );
   }
-}
-
-Map<String, Object?> _stringKeyedJsonMap(Map<dynamic, dynamic> decoded) {
-  final json = <String, Object?>{};
-  for (final entry in decoded.entries) {
-    final key = entry.key;
-    if (key is String) {
-      json[key] = entry.value;
-    }
-  }
-  return json;
 }

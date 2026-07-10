@@ -18,6 +18,7 @@ import 'terminal_event_router.dart';
 import 'terminal_frame_decoder.dart';
 import 'terminal_frame_pump.dart';
 import 'terminal_frame_pump_controller.dart';
+import 'terminal_frame_transport_coordinator.dart';
 import 'terminal_json_request_client.dart';
 import 'terminal_refresh_policy.dart';
 import 'terminal_refresh_scheduler.dart';
@@ -26,6 +27,8 @@ import 'terminal_session_registry.dart';
 
 export 'terminal_clipboard_policy.dart';
 export 'terminal_diagnostics.dart';
+export 'terminal_frame_transport_coordinator.dart'
+    show TerminalFrameWireFormatPreference;
 
 const int _maxOsc52ClipboardDecodedBytes = 4 * 1024 * 1024;
 const int _maxOsc52ClipboardEncodedLength =
@@ -293,8 +296,6 @@ final class TerminalSessionInputEvent {
   final Uint8List bytes;
 }
 
-enum TerminalFrameWireFormatPreference { automatic, json }
-
 class TerminalRuntimeController {
   static const Duration _pollingFrameInterval = Duration(milliseconds: 33);
   static const int _clipboardPreviewRunes = 120;
@@ -370,6 +371,12 @@ class TerminalRuntimeController {
     _frameDecoder = TerminalFrameDecoder(
       collectMetrics: benchmarkEventSink != null,
     );
+    _frameTransportCoordinator = TerminalFrameTransportCoordinator(
+      backend: backend,
+      decoder: _frameDecoder,
+      preference: frameWireFormatPreference,
+      onRequestError: _emitBackendRequestError,
+    );
   }
 
   final PtySessionBackend _backend;
@@ -380,6 +387,7 @@ class TerminalRuntimeController {
   final TerminalEventRouter _eventRouter = const TerminalEventRouter();
   late final TerminalSessionRegistry _sessions;
   late final TerminalFrameDecoder _frameDecoder;
+  late final TerminalFrameTransportCoordinator _frameTransportCoordinator;
   final Future<void> Function(String text) copyToClipboard;
   final Future<String> Function() readClipboard;
   final Future<bool> Function(TerminalClipboardAccessRequest request)
@@ -1162,20 +1170,6 @@ class TerminalRuntimeController {
     }
   }
 
-  String? _takeFrameDiffJson(String sessionId) {
-    try {
-      return _backend.takeFrameDiffJson(sessionId);
-    } on Object catch (error, stackTrace) {
-      _emitBackendRequestError(
-        sessionId,
-        'takeFrameDiffJson',
-        error,
-        stackTrace,
-      );
-      return null;
-    }
-  }
-
   List<PtyEvent> _pollBackendEvents(String sessionId) {
     try {
       return _backend.pollEvents(sessionId);
@@ -1453,52 +1447,7 @@ class TerminalRuntimeController {
   }
 
   TerminalFrameDiff? _takeFrameDiff(String sessionId) {
-    if (frameWireFormatPreference == TerminalFrameWireFormatPreference.json) {
-      final rawFrame = _takeFrameDiffJson(sessionId);
-      if (rawFrame == null || rawFrame.isEmpty) {
-        return null;
-      }
-      return _decodeJsonFrame(sessionId, rawFrame);
-    }
-
-    final backend = _backend;
-    final protobufBackend = backend is PtySessionProtobufFrameBackend
-        ? backend as PtySessionProtobufFrameBackend
-        : null;
-    if (protobufBackend != null && protobufBackend.supportsProtobufFrameDiffs) {
-      final protobufBytes = _takeFrameDiffProtobuf(sessionId, protobufBackend);
-      if (protobufBytes == null || protobufBytes.isEmpty) {
-        return null;
-      }
-      return _decodeProtobufFrame(sessionId, protobufBytes);
-    }
-
-    final rawFrame = _takeFrameDiffJson(sessionId);
-    if (rawFrame == null || rawFrame.isEmpty) {
-      return null;
-    }
-    return _decodeJsonFrame(sessionId, rawFrame);
-  }
-
-  Uint8List? _takeFrameDiffProtobuf(
-    String sessionId,
-    PtySessionProtobufFrameBackend backend,
-  ) {
-    try {
-      return backend.takeFrameDiffProtobuf(sessionId);
-    } on Object catch (error, stackTrace) {
-      _emitBackendRequestError(
-        sessionId,
-        'takeFrameDiffProtobuf',
-        error,
-        stackTrace,
-      );
-      return null;
-    }
-  }
-
-  TerminalFrameDiff? _decodeJsonFrame(String sessionId, String rawFrame) {
-    final decoded = _frameDecoder.decode(rawFrame);
+    final decoded = _frameTransportCoordinator.take(sessionId);
     if (decoded == null) {
       return null;
     }
@@ -1506,38 +1455,13 @@ class TerminalRuntimeController {
     if (metrics != null) {
       _decodedFrameBenchmarkMetrics[decoded.frame] = TerminalFrameDecodeMetrics(
         rawFrameBytes: metrics.rawFrameBytes,
-        wireFormat: 'json',
+        wireFormat: metrics.wireFormat,
         jsonDecodeMicros: metrics.jsonDecodeMicros,
-        protobufDecodeMicros: 0,
+        protobufDecodeMicros: metrics.protobufDecodeMicros,
         nativeFrameStats: _takeNativeFrameDebugStats(sessionId),
       );
     }
     return decoded.frame;
-  }
-
-  TerminalFrameDiff? _decodeProtobufFrame(
-    String sessionId,
-    Uint8List rawFrame,
-  ) {
-    final decodeWatch = benchmarkEventSink == null
-        ? null
-        : (Stopwatch()..start());
-    try {
-      final frame = TerminalFrameDiff.fromProtobufBytes(rawFrame);
-      decodeWatch?.stop();
-      if (benchmarkEventSink != null) {
-        _decodedFrameBenchmarkMetrics[frame] = TerminalFrameDecodeMetrics(
-          rawFrameBytes: rawFrame.length,
-          wireFormat: 'protobuf',
-          jsonDecodeMicros: 0,
-          protobufDecodeMicros: decodeWatch?.elapsedMicroseconds ?? 0,
-          nativeFrameStats: _takeNativeFrameDebugStats(sessionId),
-        );
-      }
-      return frame;
-    } on Object {
-      return null;
-    }
   }
 
   Map<String, Object?> _takeNativeFrameDebugStats(String sessionId) {

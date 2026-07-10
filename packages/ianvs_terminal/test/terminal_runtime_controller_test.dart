@@ -7,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 import 'package:ianvs_terminal/src/proto/frame_diff.pb.dart' as frame_pb;
+import 'package:ianvs_terminal/src/runtime/terminal_frame_decoder.dart';
+import 'package:ianvs_terminal/src/runtime/terminal_frame_transport_coordinator.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
 
 void main() {
@@ -2987,6 +2989,149 @@ void main() {
       expect(runtimeBackend.takeFrameDiffCalls, 0);
     },
   );
+
+  group(TerminalFrameTransportCoordinator, () {
+    test('forced JSON never reads an implemented protobuf backend', () {
+      final backend = _ProtobufFramePtyBackend(
+        initialFrame: _singleRowProtobuf('protobuf ignored'),
+      );
+      final sessionId = backend.createSession('{}');
+      final coordinator = TerminalFrameTransportCoordinator(
+        backend: backend,
+        decoder: const TerminalFrameDecoder(),
+        preference: TerminalFrameWireFormatPreference.json,
+      );
+
+      final decoded = coordinator.take(sessionId);
+
+      expect(decoded!.frame.rows.single.text, 'demo');
+      expect(backend.takeFrameDiffCalls, 1);
+      expect(backend.takeFrameDiffProtobufCalls, 0);
+    });
+
+    test('automatic uses protobuf only when implemented and supported', () {
+      final supported = _ProtobufFramePtyBackend(
+        initialFrame: _singleRowProtobuf('protobuf selected'),
+      );
+      final supportedSession = supported.createSession('{}');
+      final supportedCoordinator = TerminalFrameTransportCoordinator(
+        backend: supported,
+        decoder: const TerminalFrameDecoder(),
+        preference: TerminalFrameWireFormatPreference.automatic,
+      );
+      final unsupported = _UnsupportedProtobufFramePtyBackend();
+      final unsupportedSession = unsupported.createSession('{}');
+      final unsupportedCoordinator = TerminalFrameTransportCoordinator(
+        backend: unsupported,
+        decoder: const TerminalFrameDecoder(),
+        preference: TerminalFrameWireFormatPreference.automatic,
+      );
+      final jsonOnly = _FakePtyBackend();
+      final jsonOnlySession = jsonOnly.createSession('{}');
+      final jsonOnlyCoordinator = TerminalFrameTransportCoordinator(
+        backend: jsonOnly,
+        decoder: const TerminalFrameDecoder(),
+        preference: TerminalFrameWireFormatPreference.automatic,
+      );
+
+      expect(
+        supportedCoordinator.take(supportedSession)!.frame.rows.single.text,
+        'protobuf selected',
+      );
+      expect(supported.takeFrameDiffProtobufCalls, 1);
+      expect(supported.takeFrameDiffCalls, 0);
+      expect(
+        unsupportedCoordinator.take(unsupportedSession)!.frame.rows.single.text,
+        'demo',
+      );
+      expect(unsupported.takeFrameDiffProtobufCalls, 0);
+      expect(unsupported.takeFrameDiffCalls, 1);
+      expect(
+        jsonOnlyCoordinator.take(jsonOnlySession)!.frame.rows.single.text,
+        'demo',
+      );
+      expect(jsonOnly.takeFrameDiffCalls, 1);
+    });
+
+    test(
+      'supported protobuf null and empty payloads are idle without JSON',
+      () {
+        final backend = _ProtobufFramePtyBackend();
+        final sessionId = backend.createSession('{}');
+        final coordinator = TerminalFrameTransportCoordinator(
+          backend: backend,
+          decoder: const TerminalFrameDecoder(),
+          preference: TerminalFrameWireFormatPreference.automatic,
+        );
+
+        expect(coordinator.take(sessionId), isNull);
+        backend.enqueueRawProtobufFrame(sessionId, const <int>[]);
+        expect(coordinator.take(sessionId), isNull);
+        expect(backend.takeFrameDiffProtobufCalls, 2);
+        expect(backend.takeFrameDiffCalls, 0);
+      },
+    );
+
+    test('malformed protobuf is dropped without consuming JSON', () {
+      final backend = _ProtobufFramePtyBackend();
+      final sessionId = backend.createSession('{}');
+      backend.enqueueRawProtobufFrame(sessionId, const <int>[0xff]);
+      final coordinator = TerminalFrameTransportCoordinator(
+        backend: backend,
+        decoder: const TerminalFrameDecoder(),
+        preference: TerminalFrameWireFormatPreference.automatic,
+      );
+
+      expect(coordinator.take(sessionId), isNull);
+      expect(backend.takeFrameDiffProtobufCalls, 1);
+      expect(backend.takeFrameDiffCalls, 0);
+    });
+
+    test('JSON backend exceptions report the exact existing operation', () {
+      final backend = _ThrowingJsonFramePtyBackend();
+      final sessionId = backend.createSession('{}');
+      final errors = <(String, String, Object)>[];
+      final coordinator = TerminalFrameTransportCoordinator(
+        backend: backend,
+        decoder: const TerminalFrameDecoder(),
+        preference: TerminalFrameWireFormatPreference.json,
+        onRequestError: (sessionId, operation, error, stackTrace) {
+          errors.add((sessionId, operation, error));
+        },
+      );
+
+      expect(coordinator.take(sessionId), isNull);
+      expect(backend.takeFrameDiffJsonAttempts, 1);
+      expect(backend.takeFrameDiffJsonSessions, <String>[sessionId]);
+      expect(errors, hasLength(1));
+      expect(errors.single.$1, sessionId);
+      expect(errors.single.$2, 'takeFrameDiffJson');
+      expect(errors.single.$3, isA<StateError>());
+    });
+
+    test('protobuf backend exceptions report the exact existing operation', () {
+      final backend = _ThrowingProtobufFramePtyBackend();
+      final sessionId = backend.createSession('{}');
+      final errors = <(String, String, Object)>[];
+      final coordinator = TerminalFrameTransportCoordinator(
+        backend: backend,
+        decoder: const TerminalFrameDecoder(),
+        preference: TerminalFrameWireFormatPreference.automatic,
+        onRequestError: (sessionId, operation, error, stackTrace) {
+          errors.add((sessionId, operation, error));
+        },
+      );
+
+      expect(coordinator.take(sessionId), isNull);
+      expect(backend.takeFrameDiffProtobufAttempts, 1);
+      expect(backend.takeFrameDiffProtobufSessions, <String>[sessionId]);
+      expect(errors, hasLength(1));
+      expect(errors.single.$1, sessionId);
+      expect(errors.single.$2, 'takeFrameDiffProtobuf');
+      expect(errors.single.$3, isA<StateError>());
+      expect(backend.takeFrameDiffCalls, 0);
+    });
+  });
 
   testWidgets(
     'terminal runtime controller refreshes after input and scrolling when polling is disabled',
@@ -8345,6 +8490,36 @@ class _ProtobufFramePtyBackend extends _FakePtyBackend
       return queuedFrames.removeAt(0);
     }
     return null;
+  }
+}
+
+class _UnsupportedProtobufFramePtyBackend extends _ProtobufFramePtyBackend {
+  @override
+  bool get supportsProtobufFrameDiffs => false;
+}
+
+class _ThrowingJsonFramePtyBackend extends _FakePtyBackend {
+  int takeFrameDiffJsonAttempts = 0;
+  final List<String> takeFrameDiffJsonSessions = <String>[];
+
+  @override
+  String? takeFrameDiffJson(String sessionId) {
+    takeFrameDiffJsonAttempts += 1;
+    takeFrameDiffJsonSessions.add(sessionId);
+    throw StateError('takeFrameDiffJson failed');
+  }
+}
+
+class _ThrowingProtobufFramePtyBackend extends _ProtobufFramePtyBackend {
+  int takeFrameDiffProtobufAttempts = 0;
+  final List<String> takeFrameDiffProtobufSessions = <String>[];
+
+  @override
+  Uint8List? takeFrameDiffProtobuf(String sessionId) {
+    takeFrameDiffProtobufAttempts += 1;
+    takeFrameDiffProtobufSessions.add(sessionId);
+    takeFrameDiffProtobufCalls += 1;
+    throw StateError('takeFrameDiffProtobuf failed');
   }
 }
 
