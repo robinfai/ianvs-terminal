@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
@@ -135,6 +136,35 @@ Future<void> _pumpShellScreen(
 
 Future<void> _openCommandMenu(WidgetTester tester) async {
   await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _openToolbelt(WidgetTester tester) async {
+  await _openCommandMenu(tester);
+  await tester.tap(find.byKey(const Key('shell-top-toolbelt')));
+  await tester.pumpAndSettle();
+  expect(find.byKey(const Key('shell-toolbelt-panel')), findsOneWidget);
+}
+
+Future<void> _tapToolbeltAction(WidgetTester tester, Key actionKey) async {
+  await _openToolbelt(tester);
+  final action = find.byKey(actionKey);
+  await tester.ensureVisible(action);
+  await tester.tap(action);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _openToolbeltSource(
+  WidgetTester tester, {
+  required Key tabKey,
+  required Key actionKey,
+}) async {
+  await _openToolbelt(tester);
+  await tester.tap(find.byKey(tabKey));
+  await tester.pumpAndSettle();
+  final action = find.byKey(actionKey);
+  await tester.ensureVisible(action);
+  await tester.tap(action);
   await tester.pumpAndSettle();
 }
 
@@ -725,11 +755,6 @@ void main() {
       expect(find.bySemanticsIdentifier('shell-tab-2'), findsNothing);
       expect(find.byType(TerminalViewport), findsOneWidget);
 
-      await _openCommandMenu(tester);
-      expect(find.text('Split right'), findsOneWidget);
-      await tester.tap(find.byTooltip('Close actions'));
-      await tester.pumpAndSettle();
-
       await _openTabContextMenu(tester);
       await tester.tap(find.text('Split right'));
       await tester.pumpAndSettle();
@@ -803,7 +828,7 @@ void main() {
       );
       expect(
         find.text('Unavailable: Add another pane to use this action.'),
-        findsNWidgets(5),
+        findsNWidgets(2),
       );
       await tester.tapAt(const Offset(20, 20));
       await tester.pumpAndSettle();
@@ -885,7 +910,6 @@ void main() {
       await tester.tap(find.text('Split right'));
       await tester.pumpAndSettle();
 
-      await _openTabContextMenu(tester);
       await tester.tap(find.byKey(const Key('shell-pane-action-zoom-2')));
       await tester.pumpAndSettle();
 
@@ -1539,95 +1563,23 @@ void main() {
     expect(fakeBindings.writes.last, utf8.encode(clipboardText));
   });
 
-  testWidgets(
-    'advanced paste transforms edited clipboard text before sending',
-    (tester) async {
-      const clipboardText = 'line 1\nline 2\t✓';
-      const editedText = 'deploy\npath\t✓';
-      const escapedText = r'deploy\npath\t✓';
-      final expectedText = '${base64.encode(utf8.encode(escapedText))}\n';
-      final fakeBindings = FakePtyBackend();
+  testWidgets('command menu keeps advanced paste hidden', (tester) async {
+    final fakeBindings = FakePtyBackend();
 
-      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        SystemChannels.platform,
-        (methodCall) async {
-          if (methodCall.method == 'Clipboard.getData') {
-            return <String, dynamic>{'text': clipboardText};
-          }
-          if (methodCall.method == 'Clipboard.setData') {
-            return null;
-          }
-          return null;
-        },
-      );
-      addTearDown(
-        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-          SystemChannels.platform,
-          null,
-        ),
-      );
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
 
-      await _pumpShellScreen(
-        tester,
-        bindings: fakeBindings,
-        repository: MemoryProfileRepository(
-          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-        ),
-      );
+    await _openCommandMenu(tester);
 
-      await _openCommandMenu(tester);
-      await tester.ensureVisible(find.byKey(const Key('shell-advanced-paste')));
-      await tester.tap(find.byKey(const Key('shell-advanced-paste')));
-      await tester.pumpAndSettle();
-
-      expect(find.byKey(const Key('advanced-paste-sheet')), findsOneWidget);
-      expect(find.bySemanticsLabel('Paste text'), findsOneWidget);
-      final field = tester.widget<TextField>(
-        find.byKey(const Key('advanced-paste-text-field')),
-      );
-      expect(field.controller?.text, clipboardText);
-      expect(
-        tester.getSize(find.byTooltip('Close advanced paste')),
-        const Size.square(28),
-      );
-      final escapeToggle = tester.widget<SwitchListTile>(
-        find.byKey(const Key('advanced-paste-escape')),
-      );
-      expect(escapeToggle.contentPadding, EdgeInsets.zero);
-      expect(
-        tester
-            .widget<Text>(find.text('Escape special characters'))
-            .style
-            ?.fontWeight,
-        FontWeight.w600,
-      );
-
-      await tester.enterText(
-        find.byKey(const Key('advanced-paste-text-field')),
-        editedText,
-      );
-      await tester.ensureVisible(
-        find.byKey(const Key('advanced-paste-escape')),
-      );
-      await tester.tap(find.byKey(const Key('advanced-paste-escape')));
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(
-        find.byKey(const Key('advanced-paste-base64')),
-      );
-      await tester.tap(find.byKey(const Key('advanced-paste-base64')));
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(
-        find.byKey(const Key('advanced-paste-newline')),
-      );
-      await tester.tap(find.byKey(const Key('advanced-paste-newline')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('advanced-paste-send')));
-      await tester.pumpAndSettle();
-
-      expect(fakeBindings.writes, hasLength(1));
-      expect(fakeBindings.writes.single, utf8.encode(expectedText));
-    },
-  );
+    expect(find.byKey(const Key('shell-advanced-paste')), findsNothing);
+    expect(find.text('Advanced paste'), findsNothing);
+    expect(fakeBindings.writes, isEmpty);
+  });
 
   testWidgets('middle click pastes the clipboard when mouse reporting is off', (
     tester,
@@ -1718,10 +1670,11 @@ void main() {
       expect(fakeBindings.writes.last, utf8.encode(clipboardText));
       expect(pasteHistoryRepository.document, isNull);
 
-      await _openCommandMenu(tester);
-      await tester.ensureVisible(find.text('Paste history'));
-      await tester.tap(find.text('Paste history'));
-      await tester.pumpAndSettle();
+      await _openToolbeltSource(
+        tester,
+        tabKey: const Key('toolbelt-tab-paste-history'),
+        actionKey: const Key('toolbelt-paste-history'),
+      );
 
       expect(find.byKey(const Key('paste-history-sheet')), findsOneWidget);
       expect(find.text(clipboardText), findsOneWidget);
@@ -1766,10 +1719,11 @@ void main() {
       pasteHistoryRepository: MemoryPasteHistoryRepository(),
     );
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.text('Paste history'));
-    await tester.tap(find.text('Paste history'));
-    await tester.pumpAndSettle();
+    await _openToolbeltSource(
+      tester,
+      tabKey: const Key('toolbelt-tab-paste-history'),
+      actionKey: const Key('toolbelt-paste-history'),
+    );
 
     expect(find.text('0 recent items'), findsOneWidget);
     expect(find.text('No copied or pasted text yet.'), findsOneWidget);
@@ -1905,10 +1859,11 @@ void main() {
       pasteHistoryRepository: pasteHistoryRepository,
     );
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.text('Paste history'));
-    await tester.tap(find.text('Paste history'));
-    await tester.pumpAndSettle();
+    await _openToolbeltSource(
+      tester,
+      tabKey: const Key('toolbelt-tab-paste-history'),
+      actionKey: const Key('toolbelt-paste-history'),
+    );
 
     await tester.tap(find.byKey(const Key('paste-history-entry-0')));
     await tester.pumpAndSettle();
@@ -2249,10 +2204,7 @@ void main() {
       ),
     );
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.text('Password manager'));
-    await tester.tap(find.text('Password manager'));
-    await tester.pumpAndSettle();
+    await _tapToolbeltAction(tester, const Key('toolbelt-password-manager'));
 
     expect(find.byKey(const Key('password-manager-sheet')), findsOneWidget);
     await tester.enterText(
@@ -2312,10 +2264,7 @@ void main() {
     });
     await tester.pump(const Duration(milliseconds: 40));
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.text('Password manager'));
-    await tester.tap(find.text('Password manager'));
-    await tester.pumpAndSettle();
+    await _tapToolbeltAction(tester, const Key('toolbelt-password-manager'));
 
     await tester.tap(find.byKey(const Key('password-manager-send-0')));
     await tester.pumpAndSettle();
@@ -2336,10 +2285,7 @@ void main() {
       ),
     );
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.text('Password manager'));
-    await tester.tap(find.text('Password manager'));
-    await tester.pumpAndSettle();
+    await _tapToolbeltAction(tester, const Key('toolbelt-password-manager'));
 
     await tester.enterText(
       find.byKey(const Key('password-manager-label-field')),
@@ -2381,10 +2327,7 @@ void main() {
       ),
     );
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.text('Password manager'));
-    await tester.tap(find.text('Password manager'));
-    await tester.pumpAndSettle();
+    await _tapToolbeltAction(tester, const Key('toolbelt-password-manager'));
 
     expect(
       tester
@@ -2433,10 +2376,7 @@ void main() {
       ),
     );
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.text('Password manager'));
-    await tester.tap(find.text('Password manager'));
-    await tester.pumpAndSettle();
+    await _tapToolbeltAction(tester, const Key('toolbelt-password-manager'));
 
     await tester.enterText(
       find.byKey(const Key('password-manager-label-field')),
@@ -2472,10 +2412,7 @@ void main() {
     });
     await tester.pump(const Duration(milliseconds: 40));
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.text('Password manager'));
-    await tester.tap(find.text('Password manager'));
-    await tester.pumpAndSettle();
+    await _tapToolbeltAction(tester, const Key('toolbelt-password-manager'));
 
     fakeBindings.setFrame(1, {
       'rows': [
@@ -2516,10 +2453,7 @@ void main() {
         ),
       );
 
-      await _openCommandMenu(tester);
-      await tester.ensureVisible(find.text('Password manager'));
-      await tester.tap(find.text('Password manager'));
-      await tester.pumpAndSettle();
+      await _tapToolbeltAction(tester, const Key('toolbelt-password-manager'));
 
       await tester.enterText(
         find.byKey(const Key('password-manager-label-field')),
@@ -2551,10 +2485,7 @@ void main() {
       });
       await tester.pump(const Duration(milliseconds: 40));
 
-      await _openCommandMenu(tester);
-      await tester.ensureVisible(find.text('Password manager'));
-      await tester.tap(find.text('Password manager'));
-      await tester.pumpAndSettle();
+      await _tapToolbeltAction(tester, const Key('toolbelt-password-manager'));
 
       await tester.tap(find.byKey(const Key('password-manager-send-0')));
       await tester.pumpAndSettle();
@@ -2576,10 +2507,7 @@ void main() {
         ),
       );
 
-      await _openCommandMenu(tester);
-      await tester.ensureVisible(find.text('Password manager'));
-      await tester.tap(find.text('Password manager'));
-      await tester.pumpAndSettle();
+      await _tapToolbeltAction(tester, const Key('toolbelt-password-manager'));
 
       await tester.enterText(
         find.byKey(const Key('password-manager-label-field')),
@@ -2617,10 +2545,7 @@ void main() {
       });
       await tester.pump(const Duration(milliseconds: 40));
 
-      await _openCommandMenu(tester);
-      await tester.ensureVisible(find.text('Password manager'));
-      await tester.tap(find.text('Password manager'));
-      await tester.pumpAndSettle();
+      await _tapToolbeltAction(tester, const Key('toolbelt-password-manager'));
 
       await tester.tap(find.byKey(const Key('password-manager-send-0')));
       await tester.pumpAndSettle();
@@ -2629,7 +2554,7 @@ void main() {
     },
   );
 
-  testWidgets('command menu copy writes the selection to the clipboard', (
+  testWidgets('copy shortcut writes the selection to the clipboard', (
     tester,
   ) async {
     final fakeBindings = FakePtyBackend();
@@ -2671,21 +2596,9 @@ void main() {
     await tester.dragFrom(selectionStart, const Offset(300, 0));
     await tester.pump();
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.text('Copy selection'));
-    await tester.tap(find.text('Copy selection'));
-    await tester.pumpAndSettle();
+    await _sendMetaShortcut(tester, LogicalKeyboardKey.keyC);
 
     expect(copiedText, 'ianvs terminal ready');
-    expect(fakeBindings.writes, isEmpty);
-
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.text('Paste history'));
-    await tester.tap(find.text('Paste history'));
-    await tester.pumpAndSettle();
-
-    expect(find.byKey(const Key('paste-history-sheet')), findsOneWidget);
-    expect(find.text('ianvs terminal ready'), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
   });
 
@@ -2702,10 +2615,7 @@ void main() {
       ),
     );
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.byKey(const Key('shell-annotations')));
-    await tester.tap(find.byKey(const Key('shell-annotations')));
-    await tester.pumpAndSettle();
+    await _tapToolbeltAction(tester, const Key('toolbelt-annotations'));
 
     expect(find.byKey(const Key('annotations-sheet')), findsOneWidget);
     expect(find.byKey(const Key('annotations-empty-state')), findsOneWidget);
@@ -2742,10 +2652,7 @@ void main() {
     await tester.dragFrom(selectionStart, const Offset(300, 0));
     await tester.pump();
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.byKey(const Key('shell-annotations')));
-    await tester.tap(find.byKey(const Key('shell-annotations')));
-    await tester.pumpAndSettle();
+    await _tapToolbeltAction(tester, const Key('toolbelt-annotations'));
 
     expect(find.byKey(const Key('annotations-sheet')), findsOneWidget);
     expect(find.text('ianvs terminal ready'), findsOneWidget);
@@ -3187,15 +3094,7 @@ void main() {
       findsOneWidget,
     );
 
-    await tester.ensureVisible(
-      find.byKey(const Key('shell-select-command-output')),
-    );
-    await tester.pumpAndSettle();
-
-    expect(
-      find.textContaining('No prompt-marked command output is available yet'),
-      findsOneWidget,
-    );
+    expect(find.byKey(const Key('shell-select-command-output')), findsNothing);
   });
 
   testWidgets('export diagnostics explains when no bundle is available', (
@@ -3246,13 +3145,6 @@ void main() {
         disabledFeedback: 'Command-finished notifications disabled and saved.',
         enableLabel: 'Enable command-finished notifications',
         enabledFeedback: 'Command-finished notifications enabled and saved.',
-      ),
-      (
-        key: const Key('shell-toggle-bell-notify'),
-        disableLabel: 'Disable bell notifications',
-        disabledFeedback: 'Bell notifications disabled and saved.',
-        enableLabel: 'Enable bell notifications',
-        enabledFeedback: 'Bell notifications enabled and saved.',
       ),
       (
         key: const Key('shell-toggle-activity-monitor'),
@@ -3870,7 +3762,7 @@ void main() {
         find.textContaining(
           'macOS notifications are currently blocked in System Settings.',
         ),
-        findsNWidgets(3),
+        findsNWidgets(2),
       );
       await tester.tap(find.byTooltip('Close actions'));
       await tester.pumpAndSettle();
@@ -3930,7 +3822,7 @@ void main() {
         find.textContaining(
           'macOS notifications are currently blocked in System Settings.',
         ),
-        findsNWidgets(3),
+        findsNWidgets(2),
       );
       await tester.tap(find.byTooltip('Close actions'));
       await tester.pumpAndSettle();
@@ -3979,11 +3871,11 @@ void main() {
         'rows': [
           {
             'index': 0,
-            'text': 'background build ',
+            'text': 'background build',
             'wrapped': true,
             'style_runs': const [],
           },
-          {'index': 1, 'text': 'done', 'style_runs': const []},
+          {'index': 1, 'text': ' done', 'style_runs': const []},
         ],
         'cursor': {'row': 1, 'col': 4, 'visible': true},
         'selection': null,
@@ -4207,10 +4099,11 @@ void main() {
       notificationSender: ({required title, body, identifier}) async {},
     );
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.byKey(const Key('shell-captured-output')));
-    await tester.tap(find.byKey(const Key('shell-captured-output')));
-    await tester.pumpAndSettle();
+    await _openToolbeltSource(
+      tester,
+      tabKey: const Key('toolbelt-tab-captured-output'),
+      actionKey: const Key('toolbelt-captured-output'),
+    );
 
     expect(find.byKey(const Key('captured-output-sheet')), findsOneWidget);
     expect(
@@ -4280,10 +4173,11 @@ void main() {
     });
     await tester.pump(const Duration(milliseconds: 40));
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.byKey(const Key('shell-captured-output')));
-    await tester.tap(find.byKey(const Key('shell-captured-output')));
-    await tester.pumpAndSettle();
+    await _openToolbeltSource(
+      tester,
+      tabKey: const Key('toolbelt-tab-captured-output'),
+      actionKey: const Key('toolbelt-captured-output'),
+    );
 
     expect(find.byKey(const Key('captured-output-sheet')), findsOneWidget);
     expect(find.byKey(const Key('captured-output-entry-0')), findsOneWidget);
@@ -4344,10 +4238,11 @@ void main() {
     });
     await tester.pump(const Duration(milliseconds: 40));
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.byKey(const Key('shell-captured-output')));
-    await tester.tap(find.byKey(const Key('shell-captured-output')));
-    await tester.pumpAndSettle();
+    await _openToolbeltSource(
+      tester,
+      tabKey: const Key('toolbelt-tab-captured-output'),
+      actionKey: const Key('toolbelt-captured-output'),
+    );
 
     expect(find.byKey(const Key('captured-output-sheet')), findsOneWidget);
     expect(find.text('ERROR 42 failed'), findsOneWidget);
@@ -4627,7 +4522,7 @@ void main() {
     expect(find.text('Back in shell'), findsNothing);
   });
 
-  testWidgets('focusing another pane shows a pane position cue', (
+  testWidgets('clicking another pane updates focus without a legacy cue', (
     tester,
   ) async {
     final fakeBindings = FakePtyBackend();
@@ -4650,13 +4545,13 @@ void main() {
     await tester.tap(find.byKey(const Key('shell-pane-1')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Pane 1 of 2'), findsOneWidget);
+    expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
+    expect(find.byKey(const Key('shell-pane-dim-2')), findsOneWidget);
+    expect(find.text('Pane 1 of 2'), findsNothing);
     expect(find.text('Back in shell'), findsNothing);
   });
 
-  testWidgets('pane focus can move through keyboard-only command traversal', (
-    tester,
-  ) async {
+  testWidgets('command menu keeps pane focus traversal hidden', (tester) async {
     final fakeBindings = FakePtyBackend();
 
     await _pumpShellScreen(
@@ -4677,19 +4572,10 @@ void main() {
     expect(find.byKey(const Key('shell-pane-dim-2')), findsOneWidget);
 
     await _openCommandMenu(tester);
-    await tester.enterText(
-      find.byKey(const Key('shell-command-search-field')),
-      'focus next pane',
-    );
-    await tester.pumpAndSettle();
-    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-    await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
-
-    expect(find.text('Pane 2 of 2'), findsOneWidget);
-    expect(find.byKey(const Key('shell-pane-dim-1')), findsOneWidget);
-    expect(find.byKey(const Key('shell-pane-dim-2')), findsNothing);
+    expect(find.text('Focus next pane'), findsNothing);
+    expect(find.text('Focus previous pane'), findsNothing);
+    expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
+    expect(find.byKey(const Key('shell-pane-dim-2')), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
   });
 
@@ -4878,9 +4764,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets('auto composer edits a command with shell history completion', (
-    tester,
-  ) async {
+  testWidgets('command menu keeps auto composer hidden', (tester) async {
     final fakeBindings = FakePtyBackend();
 
     await _pumpShellScreen(
@@ -4891,130 +4775,32 @@ void main() {
       ),
     );
 
-    fakeBindings.enqueueEvent(
-      1,
-      PtyEvent(
-        kind: 'shell_hook',
-        sessionId: '1',
-        payload: const <String, Object?>{
-          'hook': 'command_finished',
-          'command': 'git checkout feature/login',
-          'pwd': '/Users/dev/project',
-        },
-      ),
-    );
-    await tester.pump(const Duration(milliseconds: 40));
-
     await _openCommandMenu(tester);
-    await tester.ensureVisible(find.byKey(const Key('shell-auto-composer')));
-    await tester.tap(find.byKey(const Key('shell-auto-composer')));
-    await tester.pumpAndSettle();
-
-    expect(find.byKey(const Key('terminal-auto-composer')), findsOneWidget);
-
-    await tester.enterText(
-      find.byKey(const Key('terminal-auto-composer-field')),
-      'git checkout f',
-    );
-    await tester.pump();
-
-    expect(
-      tester.getSemantics(
-        find.byKey(
-          const Key('terminal-auto-composer-suggestion-feature/login'),
-        ),
-      ),
-      matchesSemantics(
-        label: 'feature/login',
-        isButton: true,
-        hasTapAction: true,
-        hasSelectedState: true,
-        isSelected: true,
-      ),
-    );
-    await tester.tap(
-      find.byKey(const Key('terminal-auto-composer-suggestion-feature/login')),
-    );
-    await tester.pump();
-
-    final composerField = tester.widget<TextField>(
-      find.byKey(const Key('terminal-auto-composer-field')),
-    );
-    expect(composerField.controller?.text, 'git checkout feature/login');
-    expect(
-      tester.getSize(find.byKey(const Key('terminal-auto-composer-close'))),
-      const Size(28, 20),
-    );
-
-    await tester.tap(find.byKey(const Key('terminal-auto-composer-send')));
-    await tester.pumpAndSettle();
-
-    expect(
-      fakeBindings.writes.last,
-      utf8.encode('git checkout feature/login\n'),
-    );
+    expect(find.byKey(const Key('shell-auto-composer')), findsNothing);
     expect(find.byKey(const Key('terminal-auto-composer')), findsNothing);
+    expect(fakeBindings.writes, isEmpty);
   });
 
-  testWidgets(
-    'switching split panes closes auto composer for the previous pane',
-    (tester) async {
-      final fakeBindings = FakePtyBackend();
+  testWidgets('split panes keep auto composer hidden', (tester) async {
+    final fakeBindings = FakePtyBackend();
 
-      await _pumpShellScreen(
-        tester,
-        bindings: fakeBindings,
-        repository: MemoryProfileRepository(
-          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-        ),
-      );
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
 
-      await _openTabContextMenu(tester);
-      await tester.tap(find.text('Split right'));
-      await tester.pumpAndSettle();
+    await _openTabContextMenu(tester);
+    await tester.tap(find.text('Split right'));
+    await tester.pumpAndSettle();
 
-      fakeBindings.enqueueEvent(
-        2,
-        PtyEvent(
-          kind: 'shell_hook',
-          sessionId: '2',
-          payload: const <String, Object?>{
-            'hook': 'command_finished',
-            'command': 'git checkout feature/login',
-            'pwd': '/Users/dev/project',
-          },
-        ),
-      );
-      await tester.pump(const Duration(milliseconds: 40));
-
-      await _openCommandMenu(tester);
-      await tester.ensureVisible(find.byKey(const Key('shell-auto-composer')));
-      await tester.tap(find.byKey(const Key('shell-auto-composer')));
-      await tester.pumpAndSettle();
-
-      expect(find.byKey(const Key('terminal-auto-composer')), findsOneWidget);
-
-      await tester.enterText(
-        find.byKey(const Key('terminal-auto-composer-field')),
-        'git checkout f',
-      );
-      await tester.pump();
-      expect(
-        find.byKey(
-          const Key('terminal-auto-composer-suggestion-feature/login'),
-        ),
-        findsOneWidget,
-      );
-
-      await tester.tap(find.byKey(const Key('shell-pane-1')));
-      await tester.pumpAndSettle();
-
-      expect(find.byKey(const Key('terminal-auto-composer')), findsNothing);
-      expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
-      expect(find.byKey(const Key('shell-pane-dim-2')), findsOneWidget);
-      expect(fakeBindings.writes, isEmpty);
-    },
-  );
+    await _openCommandMenu(tester);
+    expect(find.byKey(const Key('shell-auto-composer')), findsNothing);
+    expect(find.byKey(const Key('terminal-auto-composer')), findsNothing);
+    expect(fakeBindings.writes, isEmpty);
+  });
 
   testWidgets('shell status bar shows current shell integration context', (
     tester,
@@ -5146,7 +4932,7 @@ void main() {
       ),
     );
 
-    fakeBindings.setFrame(1, {
+    final modeFrame = terminal.TerminalFrameDiff.fromJson({
       'rows': [
         {'index': 0, 'text': 'vim README.md', 'style_runs': const []},
       ],
@@ -5170,7 +4956,14 @@ void main() {
         'synchronized_output': true,
       },
     });
-    await tester.pump(const Duration(milliseconds: 40));
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    container
+        .read(terminalRuntimeControllerProvider)
+        .viewportFor('1')
+        .updateFrame(modeFrame);
+    await tester.pump();
 
     expect(find.byKey(const Key('shell-status-mode-alt')), findsOneWidget);
     expect(find.byKey(const Key('shell-status-mode-mouse')), findsOneWidget);
@@ -5391,12 +5184,7 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 40));
 
-      await _openCommandMenu(tester);
-      await tester.ensureVisible(
-        find.byKey(const Key('shell-integration-utilities')),
-      );
-      await tester.tap(find.byKey(const Key('shell-integration-utilities')));
-      await tester.pumpAndSettle();
+      await _tapToolbeltAction(tester, const Key('toolbelt-prompt-marks'));
 
       expect(find.text('Prompt Marks'), findsOneWidget);
       expect(find.text('1 mark'), findsOneWidget);
@@ -5449,12 +5237,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 40));
 
       Future<void> openUtilities() async {
-        await _openCommandMenu(tester);
-        await tester.ensureVisible(
-          find.byKey(const Key('shell-integration-utilities')),
-        );
-        await tester.tap(find.byKey(const Key('shell-integration-utilities')));
-        await tester.pumpAndSettle();
+        await _tapToolbeltAction(tester, const Key('toolbelt-prompt-marks'));
       }
 
       await openUtilities();
@@ -5493,31 +5276,8 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets('command selection selects the last command output', (
-    tester,
-  ) async {
+  testWidgets('command menu keeps command selection hidden', (tester) async {
     final fakeBindings = FakePtyBackend();
-    String? copiedText;
-
-    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      SystemChannels.platform,
-      (methodCall) async {
-        if (methodCall.method == 'Clipboard.getData') {
-          return <String, dynamic>{'text': copiedText};
-        }
-        if (methodCall.method == 'Clipboard.setData') {
-          copiedText = (methodCall.arguments as Map)['text'] as String?;
-          return null;
-        }
-        return null;
-      },
-    );
-    addTearDown(
-      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        SystemChannels.platform,
-        null,
-      ),
-    );
 
     await _pumpShellScreen(
       tester,
@@ -5527,63 +5287,9 @@ void main() {
       ),
     );
 
-    fakeBindings.setFrame(1, {
-      'rows': [
-        {'index': 10, 'text': r'$ make', 'style_runs': const []},
-        {'index': 11, 'text': 'warning: one', 'style_runs': const []},
-        {'index': 12, 'text': 'error: two', 'style_runs': const []},
-        {'index': 13, 'text': r'$ ', 'style_runs': const []},
-      ],
-      'cursor': {'row': 13, 'col': 2, 'visible': true},
-      'selection': null,
-      'viewport_rows': 24,
-      'viewport_cols': 80,
-      'dirty_ranges': [
-        {'start': 10, 'end': 14},
-      ],
-      'viewport_start_row': 10,
-      'scrollback_offset': 0,
-      'scrollback_max_offset': 20,
-    });
-    fakeBindings.enqueueEvent(
-      1,
-      PtyEvent(
-        kind: 'shell_hook',
-        sessionId: '1',
-        payload: const <String, Object?>{
-          'hook': 'prompt_started',
-          'prompt_scrollback_offset': 10,
-          'pwd': '/tmp/project',
-        },
-      ),
-    );
-    fakeBindings.enqueueEvent(
-      1,
-      PtyEvent(
-        kind: 'shell_hook',
-        sessionId: '1',
-        payload: const <String, Object?>{
-          'hook': 'prompt_started',
-          'prompt_scrollback_offset': 13,
-          'pwd': '/tmp/project',
-        },
-      ),
-    );
-    await tester.pump(const Duration(milliseconds: 40));
-
     await _openCommandMenu(tester);
-    await tester.ensureVisible(
-      find.byKey(const Key('shell-select-command-output')),
-    );
-    await tester.tap(find.byKey(const Key('shell-select-command-output')));
-    await tester.pumpAndSettle();
-
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.text('Copy selection'));
-    await tester.tap(find.text('Copy selection'));
-    await tester.pumpAndSettle();
-
-    expect(copiedText, 'warning: one\nerror: two');
+    expect(find.byKey(const Key('shell-select-command-output')), findsNothing);
+    expect(find.text('Select command output'), findsNothing);
     expect(fakeBindings.writes, isEmpty);
   });
 
@@ -5601,12 +5307,7 @@ void main() {
     );
 
     Future<void> openTmuxIntegration() async {
-      await _openCommandMenu(tester);
-      await tester.ensureVisible(
-        find.byKey(const Key('shell-tmux-integration')),
-      );
-      await tester.tap(find.byKey(const Key('shell-tmux-integration')));
-      await tester.pumpAndSettle();
+      await _tapToolbeltAction(tester, const Key('toolbelt-tmux-integration'));
     }
 
     await openTmuxIntegration();
@@ -5689,10 +5390,7 @@ void main() {
     );
 
     Future<void> openCoprocess() async {
-      await _openCommandMenu(tester);
-      await tester.ensureVisible(find.byKey(const Key('shell-coprocess')));
-      await tester.tap(find.byKey(const Key('shell-coprocess')));
-      await tester.pumpAndSettle();
+      await _tapToolbeltAction(tester, const Key('toolbelt-coprocess'));
     }
 
     await openCoprocess();
@@ -5762,10 +5460,7 @@ void main() {
       ),
     );
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.byKey(const Key('shell-coprocess')));
-    await tester.tap(find.byKey(const Key('shell-coprocess')));
-    await tester.pumpAndSettle();
+    await _tapToolbeltAction(tester, const Key('toolbelt-coprocess'));
 
     await tester.enterText(
       find.byKey(const Key('coprocess-command-field')),
@@ -5811,10 +5506,7 @@ void main() {
       ),
     );
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.byKey(const Key('shell-coprocess')));
-    await tester.tap(find.byKey(const Key('shell-coprocess')));
-    await tester.pumpAndSettle();
+    await _tapToolbeltAction(tester, const Key('toolbelt-coprocess'));
 
     await tester.enterText(
       find.byKey(const Key('coprocess-command-field')),
@@ -5848,65 +5540,25 @@ void main() {
     expect(fakeBindings.writes.last, utf8.encode('Yes\n'));
   });
 
-  testWidgets('dynamic profiles imports iTerm profile JSON', (tester) async {
+  testWidgets('command menu keeps dynamic profiles hidden', (tester) async {
     final fakeBindings = FakePtyBackend();
-    final repository = MemoryProfileRepository(
-      TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-    );
 
     await _pumpShellScreen(
       tester,
       bindings: fakeBindings,
-      repository: repository,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
     );
 
     await _openCommandMenu(tester);
-    await tester.ensureVisible(find.byKey(const Key('shell-dynamic-profiles')));
-    await tester.tap(find.byKey(const Key('shell-dynamic-profiles')));
-    await tester.pumpAndSettle();
-
-    expect(find.byKey(const Key('dynamic-profiles-sheet')), findsOneWidget);
-
-    await tester.enterText(
-      find.byKey(const Key('dynamic-profiles-json-field')),
-      jsonEncode({
-        'Profiles': [
-          {
-            'Name': 'prod.example.com',
-            'Guid': 'prod-host',
-            'Custom Command': 'Yes',
-            'Command': 'ssh prod.example.com',
-            'Tags': ['ssh'],
-          },
-        ],
-      }),
-    );
-    await tester.tap(find.byKey(const Key('dynamic-profiles-preview-action')));
-    await tester.pumpAndSettle();
-
-    expect(
-      find.text('1 profile ready • 1 new • 0 replacements'),
-      findsOneWidget,
-    );
-
-    await tester.tap(find.byKey(const Key('dynamic-profiles-import')));
-    await tester.pumpAndSettle();
-
-    final document = await repository.load();
-    final imported = document.profiles.singleWhere(
-      (profile) => profile.id == 'prod-host',
-    );
-
-    expect(find.text('Imported 1 dynamic profile'), findsOneWidget);
-    expect(imported.name, 'prod.example.com');
-    expect(imported.tags, const ['ssh', 'Dynamic']);
-    expect(imported.shell, '/bin/sh');
-    expect(imported.args, const ['-lc', 'ssh prod.example.com']);
+    expect(find.byKey(const Key('shell-dynamic-profiles')), findsNothing);
+    expect(find.text('Dynamic profiles'), findsNothing);
+    expect(find.byKey(const Key('dynamic-profiles-sheet')), findsNothing);
+    expect(fakeBindings.writes, isEmpty);
   });
 
-  testWidgets('command menu hotkey window invokes the window bridge', (
-    tester,
-  ) async {
+  testWidgets('command menu keeps hotkey window hidden', (tester) async {
     final fakeBindings = FakePtyBackend();
     final windowBridgeCalls = <MethodCall>[];
     const channel = MethodChannel('app/window_bridge');
@@ -5932,18 +5584,9 @@ void main() {
     );
 
     await _openCommandMenu(tester);
-    await tester.ensureVisible(find.text('Hotkey window'));
-    expect(
-      find.textContaining('Hide this window. Reopen with'),
-      findsOneWidget,
-    );
-    await tester.tap(find.text('Hotkey window'));
-    await tester.pumpAndSettle();
-
-    expect(
-      windowBridgeCalls.map((call) => call.method),
-      contains('toggleHotkeyWindow'),
-    );
+    expect(find.text('Hotkey window'), findsNothing);
+    expect(find.textContaining('Hide this window. Reopen with'), findsNothing);
+    expect(windowBridgeCalls, isEmpty);
     expect(fakeBindings.writes, isEmpty);
   });
 
