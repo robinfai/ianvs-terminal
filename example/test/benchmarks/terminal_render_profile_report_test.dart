@@ -439,6 +439,70 @@ void main() {
     expect(markdown, contains('burst_stdout_profile'));
     expect(markdown, contains('resize_churn_profile'));
   });
+
+  test('filters refresh diagnostics out of transport frame metrics', () {
+    final outputDir = Directory.systemTemp.createTempSync(
+      'ianvs_flutter_profile_runtime_filter_test_',
+    );
+    addTearDown(() => outputDir.deleteSync(recursive: true));
+
+    final summary = writeTerminalRenderProfileReport(
+      outputDir: outputDir,
+      workload: 'protobuf_burst_stdout_profile',
+      policy: 'native_runtime_profile',
+      repeatIndex: 1,
+      targetPlatform: 'macos',
+      targetDevice: 'macos-darwin',
+      semanticGenerations: 1,
+      flutterRenderEvents: const <Map<String, Object?>>[],
+      flutterFrameTimingEvents: const <Map<String, Object?>>[],
+      dartRuntimeEvents: const <Map<String, Object?>>[
+        <String, Object?>{
+          'schema_version': 'ianvs-terminal-refresh-policy-v1',
+          'event': 'refresh_requested',
+        },
+        <String, Object?>{
+          'schema_version': 'ianvs-bench-dart-runtime-v1',
+          'wire_format': 'protobuf',
+          'raw_frame_bytes': 42,
+          'json_decode_micros': 0,
+          'protobuf_decode_micros': 7,
+          'native_frame_build_micros': 11,
+          'native_json_encode_micros': 0,
+          'native_protobuf_encode_micros': 5,
+          'native_rows_scanned': 2,
+          'native_rows_emitted': 1,
+          'apply_frame_micros': 13,
+        },
+        <String, Object?>{
+          'schema_version': 'ianvs-terminal-graphics-diagnostic-v1',
+          'event': 'frame_applied',
+        },
+      ],
+      expectedViewportHash: 'same',
+      actualViewportHash: 'same',
+    );
+
+    final runtimeEvents = File(
+      '${outputDir.path}/dart_runtime.ndjson',
+    ).readAsLinesSync();
+    expect(runtimeEvents, hasLength(1));
+    expect(
+      jsonDecode(runtimeEvents.single),
+      containsPair('schema_version', 'ianvs-bench-dart-runtime-v1'),
+    );
+
+    final metadata = _readJson(outputDir, 'metadata.json');
+    expect(
+      (metadata['mode'] as Map<String, Object?>)['wire_format'],
+      'protobuf',
+    );
+    expect(summary['wire_format'], 'protobuf');
+    expect(summary['runtime_frame_count'], 1);
+    expect(summary['runtime_raw_frame_bytes_total'], 42);
+    expect(summary['p95_protobuf_decode_micros'], 7);
+    expect(summary['p95_apply_frame_micros'], 13);
+  });
 }
 
 Map<String, Object?> _readJson(Directory dir, String name) {

@@ -248,11 +248,12 @@ Future<Map<String, Object?>> _runTransportProfileCase({
     final timingEvents = frameTimings
         .map(terminal.terminalBenchmarkFrameTimingEvent)
         .toList(growable: false);
+    final runtimeFrameEvents = terminalRuntimeFrameEvents(dartRuntimeEvents);
 
     expect(flutterRenderEvents, isNotEmpty);
-    expect(dartRuntimeEvents, isNotEmpty);
+    expect(runtimeFrameEvents, isNotEmpty);
     expect(
-      dartRuntimeEvents.map((event) => event['wire_format']).toSet(),
+      runtimeFrameEvents.map((event) => event['wire_format']).toSet(),
       <String>{wireFormat.runtimeWireName},
     );
     expect(
@@ -271,7 +272,7 @@ Future<Map<String, Object?>> _runTransportProfileCase({
       semanticGenerations: _frameCount,
       flutterRenderEvents: flutterRenderEvents,
       flutterFrameTimingEvents: timingEvents,
-      dartRuntimeEvents: dartRuntimeEvents,
+      dartRuntimeEvents: runtimeFrameEvents,
       expectedViewportHash: finalHash,
       actualViewportHash: finalHash,
       startedAt: startedAt,

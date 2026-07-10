@@ -2,6 +2,16 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
+List<Map<String, Object?>> terminalRuntimeFrameEvents(
+  Iterable<Map<String, Object?>> events,
+) {
+  return events
+      .where(
+        (event) => event['schema_version'] == 'ianvs-bench-dart-runtime-v1',
+      )
+      .toList(growable: false);
+}
+
 Map<String, Object?> writeTerminalRenderProfileReport({
   required Directory outputDir,
   required String workload,
@@ -22,6 +32,7 @@ Map<String, Object?> writeTerminalRenderProfileReport({
   final started = startedAt ?? DateTime.now().toUtc();
   final completed = completedAt ?? DateTime.now().toUtc();
   final hashMatch = expectedViewportHash == actualViewportHash;
+  final runtimeFrameEvents = terminalRuntimeFrameEvents(dartRuntimeEvents);
 
   _writeJson(File('${outputDir.path}/metadata.json'), <String, Object?>{
     'schema_version': 'ianvs-bench-metadata-v1',
@@ -39,7 +50,7 @@ Map<String, Object?> writeTerminalRenderProfileReport({
       'frame_policy': policy,
       'renderer': 'flutter',
       'engine': 'real',
-      'wire_format': _wireFormatFor(dartRuntimeEvents),
+      'wire_format': _wireFormatFor(runtimeFrameEvents),
     },
   });
   _writeJson(File('${outputDir.path}/correctness.json'), <String, Object?>{
@@ -61,7 +72,7 @@ Map<String, Object?> writeTerminalRenderProfileReport({
   );
   _writeNdjson(
     File('${outputDir.path}/dart_runtime.ndjson'),
-    dartRuntimeEvents,
+    runtimeFrameEvents,
   );
 
   final summary = _summarize(
@@ -74,7 +85,7 @@ Map<String, Object?> writeTerminalRenderProfileReport({
     hashMatch: hashMatch,
     flutterRenderEvents: flutterRenderEvents,
     flutterFrameTimingEvents: flutterFrameTimingEvents,
-    dartRuntimeEvents: dartRuntimeEvents,
+    dartRuntimeEvents: runtimeFrameEvents,
   );
   _writeSummary(outputDir, summary);
   return summary;
