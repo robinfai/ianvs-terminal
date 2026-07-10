@@ -17,6 +17,23 @@ Future<void> _pumpSmokeApp(
   WidgetTester tester, {
   required TerminalProfilesDocument profiles,
 }) async {
+  // The macOS integration-test runner can attach while LaunchServices still
+  // reports the app as hidden. Hidden bindings disable frames, so pumpWidget
+  // would otherwise wait forever for a frame that cannot be scheduled.
+  final binding = tester.binding;
+  if (binding.lifecycleState == AppLifecycleState.hidden) {
+    binding
+      ..handleAppLifecycleStateChanged(AppLifecycleState.inactive)
+      ..handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+  }
+  expect(
+    binding.framesEnabled,
+    isTrue,
+    reason:
+        'The smoke-test binding must be able to schedule frames; '
+        'lifecycle=${binding.lifecycleState}.',
+  );
+
   final fakeBindings = FakePtyBackend();
   final repository = MemoryProfileRepository(profiles);
 
