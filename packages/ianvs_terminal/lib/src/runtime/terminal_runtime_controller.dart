@@ -17,6 +17,7 @@ import 'terminal_diagnostics.dart';
 import 'terminal_event_router.dart';
 import 'terminal_frame_decoder.dart';
 import 'terminal_frame_pump.dart';
+import 'terminal_frame_pump_controller.dart';
 import 'terminal_json_request_client.dart';
 import 'terminal_refresh_policy.dart';
 import 'terminal_refresh_scheduler.dart';
@@ -395,7 +396,8 @@ class TerminalRuntimeController {
   final TerminalResizeCoordinator _resizeCoordinator =
       TerminalResizeCoordinator();
   final TerminalRefreshScheduler _refreshScheduler = TerminalRefreshScheduler();
-  final TerminalRefreshPolicy _refreshPolicy = TerminalRefreshPolicy.standard();
+  final TerminalFramePumpController _framePumpController =
+      TerminalFramePumpController.standard();
   final Map<String, List<Timer>> _warmUpTimers = <String, List<Timer>>{};
   final Stopwatch _monotonicClock = Stopwatch()..start();
   // Stopwatch remains authoritative in production. The floor lets FakeAsync
@@ -455,9 +457,10 @@ class TerminalRuntimeController {
     _sessions.register(sessionId);
     _sessionEpochSeed += 1;
     _sessionEpochs[sessionId] = _sessionEpochSeed;
-    _refreshPolicy.recordActivation(
+    _framePumpController.reset(
       sessionId,
       now: _monotonicNow,
+      reason: TerminalFramePumpResetReason.activation,
       active: true,
     );
     _requestRefreshSession(sessionId, immediate: true);
@@ -473,9 +476,10 @@ class TerminalRuntimeController {
     if (!hasSession(sessionId)) {
       return;
     }
-    _refreshPolicy.recordActivation(
+    _framePumpController.reset(
       sessionId,
       now: _monotonicNow,
+      reason: TerminalFramePumpResetReason.activation,
       active: active,
     );
   }
@@ -484,11 +488,19 @@ class TerminalRuntimeController {
     if (!hasSession(sessionId)) {
       return;
     }
-    _refreshPolicy.recordFocus(sessionId, now: _monotonicNow, focused: focused);
+    if (focused) {
+      _framePumpController.reset(
+        sessionId,
+        now: _monotonicNow,
+        reason: TerminalFramePumpResetReason.focusGain,
+      );
+    } else {
+      _framePumpController.recordFocusLoss(sessionId, now: _monotonicNow);
+    }
   }
 
   TerminalRefreshSnapshot refreshPolicySnapshotFor(String sessionId) {
-    return _refreshPolicy.snapshot(sessionId, now: _monotonicNow);
+    return _framePumpController.snapshot(sessionId, now: _monotonicNow);
   }
 
   void closeSession(String sessionId) {
@@ -533,7 +545,11 @@ class TerminalRuntimeController {
       return false;
     }
     _inputEvents.add(TerminalSessionInputEvent(sessionId, copiedBytes));
-    _refreshPolicy.recordInput(sessionId, now: _monotonicNow);
+    _framePumpController.reset(
+      sessionId,
+      now: _monotonicNow,
+      reason: TerminalFramePumpResetReason.input,
+    );
     _refreshSessionIfNeeded(sessionId);
     return true;
   }
@@ -561,7 +577,11 @@ class TerminalRuntimeController {
     )) {
       return;
     }
-    _refreshPolicy.recordInput(sessionId, now: _monotonicNow);
+    _framePumpController.reset(
+      sessionId,
+      now: _monotonicNow,
+      reason: TerminalFramePumpResetReason.input,
+    );
     _refreshSessionIfNeeded(sessionId);
   }
 
@@ -576,7 +596,11 @@ class TerminalRuntimeController {
     )) {
       return;
     }
-    _refreshPolicy.recordInput(sessionId, now: _monotonicNow);
+    _framePumpController.reset(
+      sessionId,
+      now: _monotonicNow,
+      reason: TerminalFramePumpResetReason.input,
+    );
     _refreshSessionIfNeeded(sessionId);
   }
 
@@ -875,7 +899,7 @@ class TerminalRuntimeController {
 
   void _requestPollingRefreshSession(String sessionId) {
     final now = _monotonicNow;
-    final decision = _refreshPolicy.decisionForTick(
+    final decision = _framePumpController.decisionForTick(
       sessionId,
       now: now,
       hintReady: _nativeRefreshHintReady(sessionId),
@@ -1095,7 +1119,7 @@ class TerminalRuntimeController {
         } else if (runAgain && pendingFrames.isNotEmpty) {
           skippedQueuedFrames += 1;
         }
-        _refreshPolicy.recordRefreshResult(
+        _framePumpController.recordRefreshResult(
           sessionId,
           now: _monotonicNow,
           receivedFrame: frame != null,
@@ -1178,7 +1202,11 @@ class TerminalRuntimeController {
   }
 
   void _requestRefreshAfterResize(String sessionId) {
-    _refreshPolicy.recordResize(sessionId, now: _monotonicNow);
+    _framePumpController.reset(
+      sessionId,
+      now: _monotonicNow,
+      reason: TerminalFramePumpResetReason.resize,
+    );
     _requestRefreshSession(sessionId, immediate: !enableSessionPolling);
   }
 
@@ -1244,7 +1272,7 @@ class TerminalRuntimeController {
       return;
     }
     final now = _monotonicNow;
-    _refreshPolicy.recordRefreshResult(
+    _framePumpController.recordRefreshResult(
       sessionId,
       now: now,
       receivedFrame: receivedFrame,
@@ -1278,7 +1306,7 @@ class TerminalRuntimeController {
     if (!enableSessionPolling || !_pendingFullPollRequests.add(sessionId)) {
       return;
     }
-    _refreshPolicy.recordFullPollRequest(sessionId);
+    _framePumpController.recordFullPollRequest(sessionId);
     if (benchmarkEventSink == null) {
       return;
     }
@@ -1366,7 +1394,9 @@ class TerminalRuntimeController {
     if (trace == null) {
       return;
     }
-    final metrics = _refreshPolicy.snapshot(sessionId, now: now).pumpMetrics;
+    final metrics = _framePumpController
+        .snapshot(sessionId, now: now)
+        .pumpMetrics;
     _emitRefreshDiagnostic(
       sessionId,
       event: 'refresh_result',
@@ -1395,7 +1425,7 @@ class TerminalRuntimeController {
     if (sink == null) {
       return;
     }
-    final policySnapshot = _refreshPolicy.snapshot(sessionId, now: now);
+    final policySnapshot = _framePumpController.snapshot(sessionId, now: now);
     final snapshot = metrics ?? policySnapshot.pumpMetrics;
     try {
       sink(<String, Object?>{
@@ -2241,7 +2271,7 @@ class TerminalRuntimeController {
 
   void _removeSessionState(String sessionId) {
     _refreshScheduler.remove(sessionId);
-    _refreshPolicy.remove(sessionId);
+    _framePumpController.remove(sessionId);
     _refreshHintDisabledSessions.remove(sessionId);
     _pendingRefreshTraces.remove(sessionId);
     _activeRefreshTraces.remove(sessionId);

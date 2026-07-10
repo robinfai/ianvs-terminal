@@ -12,8 +12,10 @@ import '../runtime/terminal_benchmarking.dart';
 import 'render_terminal_cursor_overlay.dart';
 import 'render_terminal_viewport.dart';
 import 'selection_controller.dart';
+import 'terminal_focus_reporter.dart';
 import 'terminal_graphics_cache.dart';
 import 'terminal_graphics_diagnostics.dart';
+import 'terminal_graphics_sync.dart';
 import 'terminal_input_controller.dart';
 import 'terminal_models.dart';
 import 'terminal_cursor_overlay_experiment.dart';
@@ -211,7 +213,7 @@ class _TerminalViewportState extends State<TerminalViewport>
   Duration? _lastPanZoomUpdateTimeStamp;
   Size? _lastReportedCellSize;
   int? _activeMouseButton;
-  bool? _lastReportedFocusTrackingFocus;
+  final TerminalFocusReporter _focusReporter = TerminalFocusReporter();
   bool _isLocalSelectionActive = false;
   Offset? _selectionPointerGlobalPosition;
   Offset? _selectionPointerDownGlobalPosition;
@@ -234,9 +236,7 @@ class _TerminalViewportState extends State<TerminalViewport>
   bool _suppressNextBackspaceAfterImeClear = false;
   bool _suppressImeClearBackspaceUntilKeyUp = false;
   bool _textInputGeometrySyncScheduled = false;
-  TerminalViewportController? _lastGraphicsSyncController;
-  TerminalGraphicsCache? _lastGraphicsSyncCache;
-  int _lastGraphicsAssetRevision = -1;
+  final TerminalGraphicsSync _graphicsSync = TerminalGraphicsSync();
   FocusNode get _focusNode =>
       widget.focusNode ??
       (_ownedFocusNode ??= FocusNode(debugLabel: 'terminal-viewport'));
@@ -247,7 +247,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     widget.controller.addListener(_handleFrameUpdate);
     _bindFocusNodeListener();
     _syncCursorBlinkTimer();
-    _syncGraphicsCache(force: true);
+    _syncGraphicsCache();
     if (_focusNode.hasFocus) {
       _syncFocusTrackingReport();
     }
@@ -263,7 +263,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     }
     if (!identical(oldWidget.controller, widget.controller) ||
         !identical(oldWidget.graphicsCache, widget.graphicsCache)) {
-      _syncGraphicsCache(force: true);
+      _syncGraphicsCache();
     }
     final focusNodeChanged = !identical(oldWidget.focusNode, widget.focusNode);
     final focusReportOwnerChanged =
@@ -281,7 +281,7 @@ class _TerminalViewportState extends State<TerminalViewport>
         inputController: oldWidget.inputController,
       );
       if (focusReportOwnerChanged) {
-        _lastReportedFocusTrackingFocus = null;
+        _focusReporter.reset();
       }
     }
     if (focusNodeChanged) {
@@ -297,6 +297,7 @@ class _TerminalViewportState extends State<TerminalViewport>
   void dispose() {
     widget.onLinkHoverChanged?.call(null);
     widget.controller.removeListener(_handleFrameUpdate);
+    _graphicsSync.reset();
     _reportFocusTrackingLossOnUnmount();
     _unbindFocusNodeListener();
     _closeTextInputConnection(notify: false);
@@ -332,17 +333,15 @@ class _TerminalViewportState extends State<TerminalViewport>
     required TerminalFrameModes modes,
     TerminalInputController? inputController,
   }) {
-    if (!modes.focusTracking) {
-      _lastReportedFocusTrackingFocus = null;
+    final decision = _focusReporter.detach(
+      focusTrackingEnabled: modes.focusTracking,
+      focusNodeHasFocus: focusNode?.hasFocus ?? false,
+    );
+    if (decision == null) {
       return;
     }
-    if (_lastReportedFocusTrackingFocus != true &&
-        focusNode?.hasFocus != true) {
-      return;
-    }
-    _lastReportedFocusTrackingFocus = false;
     (inputController ?? widget.inputController).sendFocusReport(
-      focused: false,
+      focused: decision.focused,
       modes: modes,
     );
   }
@@ -377,26 +376,14 @@ class _TerminalViewportState extends State<TerminalViewport>
     }
   }
 
-  void _syncGraphicsCache({bool force = false}) {
-    final graphicsCache = widget.graphicsCache;
-    if (graphicsCache == null) {
-      _lastGraphicsSyncController = null;
-      _lastGraphicsSyncCache = null;
-      _lastGraphicsAssetRevision = -1;
-      return;
-    }
+  void _syncGraphicsCache() {
     final controller = widget.controller;
-    final assetRevision = controller.graphicsAssetRevision;
-    if (!force &&
-        identical(_lastGraphicsSyncController, controller) &&
-        identical(_lastGraphicsSyncCache, graphicsCache) &&
-        _lastGraphicsAssetRevision == assetRevision) {
-      return;
-    }
-    graphicsCache.evictExcept(controller.graphicsAssetKeys);
-    _lastGraphicsSyncController = controller;
-    _lastGraphicsSyncCache = graphicsCache;
-    _lastGraphicsAssetRevision = assetRevision;
+    _graphicsSync.synchronize(
+      controllerIdentity: controller,
+      cache: widget.graphicsCache,
+      assetRevision: controller.graphicsAssetRevision,
+      liveAssetKeys: controller.graphicsAssetKeys,
+    );
   }
 
   void _handleFocusChange() {
@@ -520,16 +507,17 @@ class _TerminalViewportState extends State<TerminalViewport>
 
   void _syncFocusTrackingReport() {
     final modes = widget.controller.frame.modes;
-    if (!modes.focusTracking) {
-      _lastReportedFocusTrackingFocus = null;
+    final decision = _focusReporter.synchronize(
+      focusTrackingEnabled: modes.focusTracking,
+      hasFocus: _focusNode.hasFocus,
+    );
+    if (decision == null) {
       return;
     }
-    final focused = _focusNode.hasFocus;
-    if (_lastReportedFocusTrackingFocus == focused) {
-      return;
-    }
-    _lastReportedFocusTrackingFocus = focused;
-    widget.inputController.sendFocusReport(focused: focused, modes: modes);
+    widget.inputController.sendFocusReport(
+      focused: decision.focused,
+      modes: modes,
+    );
   }
 
   void _scheduleMeasuredCellSizeReport() {
