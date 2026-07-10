@@ -594,6 +594,51 @@ class TerminalGraphicPlacement {
       ),
     );
   }
+
+  @override
+  bool operator ==(Object other) {
+    return other is TerminalGraphicPlacement &&
+        other.renderId == renderId &&
+        other.placementId == placementId &&
+        other.assetKey == assetKey &&
+        other.protocol == protocol &&
+        other.row == row &&
+        other.col == col &&
+        other.widthPx == widthPx &&
+        other.heightPx == heightPx &&
+        other.widthCells == widthCells &&
+        other.heightCells == heightCells &&
+        other.sourceXOffsetPx == sourceXOffsetPx &&
+        other.visibleWidthPx == visibleWidthPx &&
+        other.sourceYOffsetPx == sourceYOffsetPx &&
+        other.visibleHeightPx == visibleHeightPx &&
+        other.zIndex == zIndex &&
+        other.xOffsetPx == xOffsetPx &&
+        other.yOffsetPx == yOffsetPx &&
+        other.preserveAspectRatio == preserveAspectRatio;
+  }
+
+  @override
+  int get hashCode => Object.hashAll(<Object?>[
+    renderId,
+    placementId,
+    assetKey,
+    protocol,
+    row,
+    col,
+    widthPx,
+    heightPx,
+    widthCells,
+    heightCells,
+    sourceXOffsetPx,
+    visibleWidthPx,
+    sourceYOffsetPx,
+    visibleHeightPx,
+    zIndex,
+    xOffsetPx,
+    yOffsetPx,
+    preserveAspectRatio,
+  ]);
 }
 
 enum TerminalSearchMode {
@@ -2294,7 +2339,7 @@ List<TerminalGraphicPlacement> _normalizeGraphics({
     }
     return left.col.compareTo(right.col);
   });
-  return normalized;
+  return List<TerminalGraphicPlacement>.unmodifiable(normalized);
 }
 
 bool _graphicInvalid(

@@ -86,6 +86,20 @@ void main() {
           dirtyRanges: [TerminalDirtyRange(start: 0, end: 2)],
           scrollbackOffset: 0,
           scrollbackMaxOffset: 0,
+          graphics: [
+            TerminalGraphicPlacement(
+              renderId: 11,
+              placementId: 11,
+              assetKey: TerminalGraphicAssetKey(id: 7, version: 1),
+              protocol: 'kitty',
+              row: 0,
+              col: 1,
+              widthPx: 1,
+              heightPx: 1,
+              widthCells: 1,
+              heightCells: 1,
+            ),
+          ],
         ),
       );
 
@@ -99,6 +113,8 @@ void main() {
       expect(event['row_visual_rebuild_count'], 2);
       expect(event['row_cache_misses'], 2);
       expect(event['paint_micros'], isA<int>());
+      expect(event['graphics_revision'], 1);
+      expect(event['graphics_asset_revision'], 1);
     },
   );
 
@@ -2314,6 +2330,159 @@ void main() {
     },
   );
 
+  testWidgets(
+    'terminal viewport synchronizes graphics cache only for live asset revisions',
+    (tester) async {
+      const assetV1 = TerminalGraphicAssetKey(id: 7, version: 1);
+      const assetV2 = TerminalGraphicAssetKey(id: 7, version: 2);
+      final cache = _RecordingTerminalGraphicsCache();
+      final controller = TerminalViewportController()
+        ..updateFrame(_graphicFrame(assetV1));
+      final selectionController = SelectionController();
+      final runtime = TerminalRuntimeController(
+        backend: _NoopPtyBackend(),
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: runtime,
+        readFrame: () => controller.frame,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+      addTearDown(cache.dispose);
+      addTearDown(controller.dispose);
+      addTearDown(runtime.dispose);
+
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: SizedBox(
+            width: 160,
+            height: 48,
+            child: TerminalViewport(
+              controller: controller,
+              selectionController: selectionController,
+              inputController: inputController,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+              graphicsCache: cache,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(cache.liveKeySets, hasLength(1));
+      expect(cache.liveKeySets.last, {assetV1});
+
+      controller.updateFrame(
+        _graphicFrame(
+          assetV1,
+          frameKind: TerminalFrameKind.delta,
+          text: 'updated image',
+        ),
+      );
+      await tester.pump();
+      expect(cache.liveKeySets, hasLength(1));
+
+      controller.updateFrame(
+        _graphicFrame(assetV1, frameKind: TerminalFrameKind.delta, col: 2),
+      );
+      await tester.pump();
+      expect(cache.liveKeySets, hasLength(1));
+
+      controller.updateFrame(
+        _graphicFrame(assetV2, frameKind: TerminalFrameKind.delta, col: 2),
+      );
+      await tester.pump();
+      expect(cache.liveKeySets, hasLength(2));
+      expect(cache.liveKeySets.last, {assetV2});
+
+      controller.updateFrame(
+        _emptyGraphicFrame(frameKind: TerminalFrameKind.delta),
+      );
+      await tester.pump();
+      expect(cache.liveKeySets, hasLength(3));
+      expect(cache.liveKeySets.last, isEmpty);
+    },
+  );
+
+  testWidgets(
+    'terminal viewport forces graphics cache sync after cache or controller replacement',
+    (tester) async {
+      final firstCache = _RecordingTerminalGraphicsCache();
+      final secondCache = _RecordingTerminalGraphicsCache();
+      final firstController = TerminalViewportController();
+      final secondController = TerminalViewportController();
+      final selectionController = SelectionController();
+      final runtime = TerminalRuntimeController(
+        backend: _NoopPtyBackend(),
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(firstCache.dispose);
+      addTearDown(secondCache.dispose);
+      addTearDown(firstController.dispose);
+      addTearDown(secondController.dispose);
+      addTearDown(runtime.dispose);
+
+      Widget viewport(
+        TerminalViewportController controller,
+        TerminalGraphicsCache cache,
+      ) {
+        return Directionality(
+          textDirection: TextDirection.ltr,
+          child: SizedBox(
+            width: 160,
+            height: 48,
+            child: TerminalViewport(
+              controller: controller,
+              selectionController: selectionController,
+              inputController: TerminalInputController(
+                sessionId: '1',
+                runtime: runtime,
+                readFrame: () => controller.frame,
+                readSelection: () => '',
+                copySelection: (_) async {},
+                readClipboard: () async => '',
+              ),
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+              graphicsCache: cache,
+            ),
+          ),
+        );
+      }
+
+      expect(firstController.graphicsAssetRevision, 0);
+      expect(secondController.graphicsAssetRevision, 0);
+
+      await tester.pumpWidget(viewport(firstController, firstCache));
+      await tester.pump();
+      expect(firstCache.liveKeySets, [<TerminalGraphicAssetKey>{}]);
+
+      await tester.pumpWidget(viewport(firstController, secondCache));
+      await tester.pump();
+      expect(firstCache.liveKeySets, hasLength(1));
+      expect(secondCache.liveKeySets, [<TerminalGraphicAssetKey>{}]);
+
+      await tester.pumpWidget(viewport(secondController, secondCache));
+      await tester.pump();
+      expect(secondCache.liveKeySets, [
+        <TerminalGraphicAssetKey>{},
+        <TerminalGraphicAssetKey>{},
+      ]);
+
+      await tester.pumpWidget(viewport(secondController, secondCache));
+      await tester.pump();
+      expect(secondCache.liveKeySets, hasLength(2));
+    },
+  );
+
   testWidgets('terminal viewport evicts stale graphics on initial mount', (
     tester,
   ) async {
@@ -2470,8 +2639,11 @@ void main() {
   });
 }
 
-TerminalFrameDiff _emptyGraphicFrame() {
-  return const TerminalFrameDiff(
+TerminalFrameDiff _emptyGraphicFrame({
+  TerminalFrameKind frameKind = TerminalFrameKind.snapshot,
+}) {
+  return TerminalFrameDiff(
+    frameKind: frameKind,
     rows: [TerminalRow(index: 0, text: 'image')],
     cursor: TerminalCursor(row: 0, col: 0, visible: false),
     viewportRows: 2,
@@ -2487,9 +2659,12 @@ TerminalFrameDiff _graphicFrame(
   int col = 1,
   int renderId = 11,
   int placementId = 11,
+  TerminalFrameKind frameKind = TerminalFrameKind.snapshot,
+  String text = 'image',
 }) {
   return TerminalFrameDiff(
-    rows: const [TerminalRow(index: 0, text: 'image')],
+    frameKind: frameKind,
+    rows: [TerminalRow(index: 0, text: text)],
     cursor: const TerminalCursor(row: 0, col: 0, visible: false),
     viewportRows: 2,
     viewportCols: 8,
@@ -2511,6 +2686,23 @@ TerminalFrameDiff _graphicFrame(
       ),
     ],
   );
+}
+
+class _RecordingTerminalGraphicsCache extends TerminalGraphicsCache {
+  _RecordingTerminalGraphicsCache() : super(loadAsset: (_) async => null);
+
+  final List<Set<TerminalGraphicAssetKey>> liveKeySets =
+      <Set<TerminalGraphicAssetKey>>[];
+
+  @override
+  void evictExcept(Set<TerminalGraphicAssetKey> liveKeys) {
+    liveKeySets.add(
+      Set<TerminalGraphicAssetKey>.unmodifiable(
+        Set<TerminalGraphicAssetKey>.of(liveKeys),
+      ),
+    );
+    super.evictExcept(liveKeys);
+  }
 }
 
 Future<RenderTerminalViewport> _pumpRenderViewport(

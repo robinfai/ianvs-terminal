@@ -166,6 +166,16 @@ class TerminalGraphicsCache {
   }
 
   void evictExcept(Set<TerminalGraphicAssetKey> liveKeys) {
+    if (_diagnosticEventSink != null) {
+      _emitDiagnostic(
+        'cache_sync',
+        fields: <String, Object?>{
+          'live_asset_count': liveKeys.length,
+          'cached_images_before': _images.length,
+          'pending_images_before': _pending.length,
+        },
+      );
+    }
     _evictionGeneration += 1;
     for (final key in liveKeys) {
       _lastSeenGeneration[key] = _evictionGeneration;

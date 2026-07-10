@@ -64,26 +64,46 @@ class TerminalViewportController extends ChangeNotifier {
   final DateTime Function() _now;
   Size? _measuredCellSize;
   int _frameVersion = 0;
+  int _graphicsRevision = 0;
+  int _graphicsAssetRevision = 0;
+  Set<TerminalGraphicAssetKey> _graphicsAssetKeys =
+      const <TerminalGraphicAssetKey>{};
 
   TerminalViewportState get state => _state;
   TerminalFrameDiff get frame => _state.frame;
   int get frameVersion => _frameVersion;
+  int get graphicsRevision => _graphicsRevision;
+  int get graphicsAssetRevision => _graphicsAssetRevision;
+  Set<TerminalGraphicAssetKey> get graphicsAssetKeys => _graphicsAssetKeys;
   Size? get measuredCellSize => _measuredCellSize;
 
   void updateFrame(TerminalFrameDiff value) {
-    _state = _state.applyFrame(value, capturedAt: _now());
-    _frameVersion += 1;
-    notifyListeners();
+    _replaceState(_state.applyFrame(value, capturedAt: _now()));
   }
 
   void applySnapshot(TerminalFrameDiff value) {
-    _state = _state.applySnapshot(value, capturedAt: _now());
-    _frameVersion += 1;
-    notifyListeners();
+    _replaceState(_state.applySnapshot(value, capturedAt: _now()));
   }
 
   void applyDelta(TerminalFrameDiff value) {
-    _state = _state.applyDelta(value, capturedAt: _now());
+    _replaceState(_state.applyDelta(value, capturedAt: _now()));
+  }
+
+  void _replaceState(TerminalViewportState nextState) {
+    final nextGraphics = nextState.frame.graphics;
+    if (!listEquals(_state.frame.graphics, nextGraphics)) {
+      _graphicsRevision += 1;
+      final nextAssetKeys = nextGraphics.isEmpty
+          ? const <TerminalGraphicAssetKey>{}
+          : Set<TerminalGraphicAssetKey>.unmodifiable(
+              nextGraphics.map((graphic) => graphic.assetKey),
+            );
+      if (!setEquals(_graphicsAssetKeys, nextAssetKeys)) {
+        _graphicsAssetRevision += 1;
+        _graphicsAssetKeys = nextAssetKeys;
+      }
+    }
+    _state = nextState;
     _frameVersion += 1;
     notifyListeners();
   }
@@ -210,6 +230,9 @@ class _TerminalViewportState extends State<TerminalViewport>
   bool _suppressNextBackspaceAfterImeClear = false;
   bool _suppressImeClearBackspaceUntilKeyUp = false;
   bool _textInputGeometrySyncScheduled = false;
+  TerminalViewportController? _lastGraphicsSyncController;
+  TerminalGraphicsCache? _lastGraphicsSyncCache;
+  int _lastGraphicsAssetRevision = -1;
   FocusNode get _focusNode =>
       widget.focusNode ??
       (_ownedFocusNode ??= FocusNode(debugLabel: 'terminal-viewport'));
@@ -220,7 +243,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     widget.controller.addListener(_handleFrameUpdate);
     _bindFocusNodeListener();
     _syncCursorBlinkTimer();
-    _syncGraphicsCache();
+    _syncGraphicsCache(force: true);
     if (_focusNode.hasFocus) {
       _syncFocusTrackingReport();
     }
@@ -235,7 +258,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     }
     if (!identical(oldWidget.controller, widget.controller) ||
         !identical(oldWidget.graphicsCache, widget.graphicsCache)) {
-      _syncGraphicsCache();
+      _syncGraphicsCache(force: true);
     }
     final focusNodeChanged = !identical(oldWidget.focusNode, widget.focusNode);
     final focusReportOwnerChanged =
@@ -348,16 +371,26 @@ class _TerminalViewportState extends State<TerminalViewport>
     }
   }
 
-  void _syncGraphicsCache() {
+  void _syncGraphicsCache({bool force = false}) {
     final graphicsCache = widget.graphicsCache;
     if (graphicsCache == null) {
+      _lastGraphicsSyncController = null;
+      _lastGraphicsSyncCache = null;
+      _lastGraphicsAssetRevision = -1;
       return;
     }
-    graphicsCache.evictExcept(
-      widget.controller.frame.graphics
-          .map((graphic) => graphic.assetKey)
-          .toSet(),
-    );
+    final controller = widget.controller;
+    final assetRevision = controller.graphicsAssetRevision;
+    if (!force &&
+        identical(_lastGraphicsSyncController, controller) &&
+        identical(_lastGraphicsSyncCache, graphicsCache) &&
+        _lastGraphicsAssetRevision == assetRevision) {
+      return;
+    }
+    graphicsCache.evictExcept(controller.graphicsAssetKeys);
+    _lastGraphicsSyncController = controller;
+    _lastGraphicsSyncCache = graphicsCache;
+    _lastGraphicsAssetRevision = assetRevision;
   }
 
   void _handleFocusChange() {

@@ -490,6 +490,8 @@ class RenderTerminalViewport extends RenderBox {
       'timestamp_micros': DateTime.now().microsecondsSinceEpoch,
       'session_id': 'render',
       'frame_version': _controller.frameVersion,
+      'graphics_revision': _controller.graphicsRevision,
+      'graphics_asset_revision': _controller.graphicsAssetRevision,
       'frame_kind': frame.frameKind.name,
       'paint_kind': hasNewFrame ? 'frame' : 'non_frame',
       'has_new_frame': hasNewFrame,

@@ -150,6 +150,305 @@ void main() {
     },
   );
 
+  test(
+    'terminal viewport controller tracks graphics and asset revisions independently',
+    () {
+      final controller = TerminalViewportController();
+      const assetV1 = TerminalGraphicAssetKey(id: 7, version: 1);
+      const assetV2 = TerminalGraphicAssetKey(id: 7, version: 2);
+      const baseGraphic = TerminalGraphicPlacement(
+        renderId: 101,
+        placementId: 101,
+        assetKey: assetV1,
+        protocol: 'kitty',
+        row: 0,
+        col: 1,
+        widthPx: 8,
+        heightPx: 4,
+        widthCells: 4,
+        heightCells: 2,
+      );
+
+      TerminalFrameDiff frame({
+        TerminalFrameKind kind = TerminalFrameKind.snapshot,
+        String text = 'image',
+        int cursorCol = 0,
+        List<TerminalGraphicPlacement> graphics = const [],
+      }) {
+        return TerminalFrameDiff(
+          frameKind: kind,
+          rows: [TerminalRow(index: 0, text: text)],
+          cursor: TerminalCursor(row: 0, col: cursorCol, visible: true),
+          viewportRows: 2,
+          viewportCols: 80,
+          dirtyRanges: const [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+          graphics: graphics,
+        );
+      }
+
+      expect(controller.graphicsRevision, 0);
+      expect(controller.graphicsAssetRevision, 0);
+      expect(controller.graphicsAssetKeys, isEmpty);
+
+      controller.applySnapshot(frame(graphics: const [baseGraphic]));
+      expect(controller.graphicsRevision, 1);
+      expect(controller.graphicsAssetRevision, 1);
+      expect(controller.graphicsAssetKeys, {assetV1});
+
+      controller.applyDelta(
+        frame(
+          kind: TerminalFrameKind.delta,
+          text: 'updated image',
+          cursorCol: 2,
+          graphics: const [baseGraphic],
+        ),
+      );
+      expect(controller.graphicsRevision, 1);
+      expect(controller.graphicsAssetRevision, 1);
+
+      const movedGraphic = TerminalGraphicPlacement(
+        renderId: 101,
+        placementId: 101,
+        assetKey: assetV1,
+        protocol: 'kitty',
+        row: 0,
+        col: 2,
+        widthPx: 8,
+        heightPx: 4,
+        widthCells: 4,
+        heightCells: 2,
+      );
+      controller.applyDelta(
+        frame(kind: TerminalFrameKind.delta, graphics: const [movedGraphic]),
+      );
+      expect(controller.graphicsRevision, 2);
+      expect(controller.graphicsAssetRevision, 1);
+
+      const versionedGraphic = TerminalGraphicPlacement(
+        renderId: 101,
+        placementId: 101,
+        assetKey: assetV2,
+        protocol: 'kitty',
+        row: 0,
+        col: 2,
+        widthPx: 8,
+        heightPx: 4,
+        widthCells: 4,
+        heightCells: 2,
+      );
+      controller.applyDelta(
+        frame(
+          kind: TerminalFrameKind.delta,
+          graphics: const [versionedGraphic],
+        ),
+      );
+      expect(controller.graphicsRevision, 3);
+      expect(controller.graphicsAssetRevision, 2);
+      expect(controller.graphicsAssetKeys, {assetV2});
+
+      const duplicateGraphic = TerminalGraphicPlacement(
+        renderId: 102,
+        placementId: 102,
+        assetKey: assetV2,
+        protocol: 'kitty',
+        row: 0,
+        col: 4,
+        widthPx: 8,
+        heightPx: 4,
+        widthCells: 4,
+        heightCells: 2,
+      );
+      controller.applyDelta(
+        frame(
+          kind: TerminalFrameKind.delta,
+          graphics: const [versionedGraphic, duplicateGraphic],
+        ),
+      );
+      expect(controller.graphicsRevision, 4);
+      expect(controller.graphicsAssetRevision, 2);
+      expect(controller.graphicsAssetKeys, {assetV2});
+
+      controller.applyDelta(frame(kind: TerminalFrameKind.delta));
+      expect(controller.graphicsRevision, 5);
+      expect(controller.graphicsAssetRevision, 3);
+      expect(controller.graphicsAssetKeys, isEmpty);
+    },
+  );
+
+  test(
+    'terminal viewport controller rejects external graphics mutation without revision drift',
+    () {
+      const assetKey = TerminalGraphicAssetKey(id: 7, version: 1);
+      final snapshot = TerminalFrameDiff.fromJson(const <String, Object?>{
+        'rows': [
+          {'index': 0, 'text': 'image', 'style_runs': <Object?>[]},
+        ],
+        'cursor': {'row': 0, 'col': 0, 'visible': false},
+        'viewport_rows': 2,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 0, 'end': 2},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+        'graphics': [
+          {
+            'render_id': 101,
+            'placement_id': 101,
+            'asset_id': 7,
+            'asset_version': 1,
+            'protocol': 'kitty',
+            'row': 0,
+            'col': 1,
+            'width_px': 8,
+            'height_px': 4,
+            'width_cells': 4,
+            'height_cells': 2,
+          },
+        ],
+      });
+      final controller = TerminalViewportController();
+      addTearDown(controller.dispose);
+
+      controller.applySnapshot(snapshot);
+      expect(controller.graphicsRevision, 1);
+      expect(controller.graphicsAssetRevision, 1);
+      expect(controller.graphicsAssetKeys, {assetKey});
+
+      Object? parsedMutationError;
+      Object? publishedMutationError;
+      try {
+        snapshot.graphics.clear();
+      } on Object catch (error) {
+        parsedMutationError = error;
+      }
+      try {
+        controller.frame.graphics.clear();
+      } on Object catch (error) {
+        publishedMutationError = error;
+      }
+
+      controller.applyDelta(
+        const TerminalFrameDiff(
+          frameKind: TerminalFrameKind.delta,
+          rows: [TerminalRow(index: 0, text: 'image')],
+          cursor: TerminalCursor(row: 0, col: 0, visible: false),
+          viewportRows: 2,
+          viewportCols: 80,
+          dirtyRanges: [],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+
+      expect(controller.graphicsRevision, 2);
+      expect(controller.graphicsAssetRevision, 2);
+      expect(controller.graphicsAssetKeys, isEmpty);
+      expect(parsedMutationError, isA<UnsupportedError>());
+      expect(publishedMutationError, isA<UnsupportedError>());
+      expect(controller.frame.graphics.clear, throwsUnsupportedError);
+    },
+  );
+
+  test('terminal graphic placement equality covers every render field', () {
+    TerminalGraphicPlacement placement({
+      int renderId = 11,
+      int placementId = 12,
+      int assetId = 7,
+      int assetVersion = 1,
+      String protocol = 'kitty',
+      int row = 0,
+      int col = 2,
+      int widthPx = 8,
+      int heightPx = 6,
+      int widthCells = 4,
+      int heightCells = 2,
+      int sourceXOffsetPx = 1,
+      int visibleWidthPx = 6,
+      int sourceYOffsetPx = 1,
+      int visibleHeightPx = 4,
+      int zIndex = 0,
+      int xOffsetPx = 0,
+      int yOffsetPx = 0,
+      bool preserveAspectRatio = true,
+    }) {
+      return TerminalGraphicPlacement(
+        renderId: renderId,
+        placementId: placementId,
+        assetKey: TerminalGraphicAssetKey(id: assetId, version: assetVersion),
+        protocol: protocol,
+        row: row,
+        col: col,
+        widthPx: widthPx,
+        heightPx: heightPx,
+        widthCells: widthCells,
+        heightCells: heightCells,
+        sourceXOffsetPx: sourceXOffsetPx,
+        visibleWidthPx: visibleWidthPx,
+        sourceYOffsetPx: sourceYOffsetPx,
+        visibleHeightPx: visibleHeightPx,
+        zIndex: zIndex,
+        xOffsetPx: xOffsetPx,
+        yOffsetPx: yOffsetPx,
+        preserveAspectRatio: preserveAspectRatio,
+      );
+    }
+
+    TerminalFrameDiff frame(TerminalGraphicPlacement graphic) {
+      return TerminalFrameDiff(
+        rows: const [TerminalRow(index: 0, text: 'image')],
+        cursor: const TerminalCursor(row: 0, col: 0, visible: false),
+        viewportRows: 3,
+        viewportCols: 80,
+        dirtyRanges: const [TerminalDirtyRange(start: 0, end: 3)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+        graphics: [graphic],
+      );
+    }
+
+    final base = placement();
+    final equal = placement();
+    final variants = <(String, TerminalGraphicPlacement)>[
+      ('renderId', placement(renderId: 13)),
+      ('placementId', placement(placementId: 13)),
+      ('assetKey.id', placement(assetId: 8)),
+      ('assetKey.version', placement(assetVersion: 2)),
+      ('protocol', placement(protocol: 'sixel')),
+      ('row', placement(row: 1)),
+      ('col', placement(col: 3)),
+      ('widthPx', placement(widthPx: 9)),
+      ('heightPx', placement(heightPx: 7)),
+      ('widthCells', placement(widthCells: 5)),
+      ('heightCells', placement(heightCells: 3)),
+      ('sourceXOffsetPx', placement(sourceXOffsetPx: 2)),
+      ('visibleWidthPx', placement(visibleWidthPx: 5)),
+      ('sourceYOffsetPx', placement(sourceYOffsetPx: 2)),
+      ('visibleHeightPx', placement(visibleHeightPx: 3)),
+      ('zIndex', placement(zIndex: 1)),
+      ('xOffsetPx', placement(xOffsetPx: 1)),
+      ('yOffsetPx', placement(yOffsetPx: 1)),
+      ('preserveAspectRatio', placement(preserveAspectRatio: false)),
+    ];
+
+    expect(equal, base);
+    expect(equal.hashCode, base.hashCode);
+    for (final (field, variant) in variants) {
+      expect(variant, isNot(base), reason: field);
+      final controller = TerminalViewportController();
+      try {
+        controller.applySnapshot(frame(base));
+        expect(controller.graphicsRevision, 1, reason: field);
+        controller.applyDelta(frame(variant));
+        expect(controller.graphicsRevision, 2, reason: field);
+      } finally {
+        controller.dispose();
+      }
+    }
+  });
+
   test('terminal viewport controller timestamps changed rows', () {
     final firstModifiedAt = DateTime.utc(2026, 5, 13, 1, 2, 3);
     final secondModifiedAt = DateTime.utc(2026, 5, 13, 1, 2, 9);
@@ -1827,6 +2126,7 @@ void main() {
         'cache_load_start',
         'cache_store',
         'cache_hit',
+        'cache_sync',
         'cache_evict',
       ]),
     );
@@ -1837,6 +2137,12 @@ void main() {
           .single,
       <String, Object?>{'id': 42, 'version': 2},
     );
+    final syncEvent = diagnosticEvents.singleWhere(
+      (event) => event['event'] == 'cache_sync',
+    );
+    expect(syncEvent['live_asset_count'], 0);
+    expect(syncEvent['cached_images_before'], 1);
+    expect(syncEvent['pending_images_before'], 0);
   });
 
   test(
