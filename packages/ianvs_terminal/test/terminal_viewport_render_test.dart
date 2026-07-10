@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -100,6 +101,241 @@ void main() {
       expect(event['paint_micros'], isA<int>());
     },
   );
+
+  testWidgets(
+    'render viewport reports non-frame paints without stale dirty rows',
+    (tester) async {
+      final benchmarkEvents = <Map<String, Object?>>[];
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [
+              TerminalRow(index: 0, text: 'alpha'),
+              TerminalRow(index: 1, text: 'beta'),
+            ],
+            cursor: TerminalCursor(row: 0, col: 0, visible: true),
+            viewportRows: 2,
+            viewportCols: 20,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 2)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+      final selectionController = SelectionController();
+      addTearDown(controller.dispose);
+
+      Widget viewport({required bool cursorVisible}) {
+        return Directionality(
+          textDirection: TextDirection.ltr,
+          child: Center(
+            child: SizedBox(
+              width: 320,
+              height: 96,
+              child: _RenderViewportHarness(
+                controller: controller,
+                selectionController: selectionController,
+                colors: const TerminalViewportColors(
+                  canvasBackground: Color(0xFF10141A),
+                  foreground: Color(0xFFE5E7EB),
+                  cursor: Color(0xFFE5E7EB),
+                  selection: Color(0x663B82F6),
+                  scrollbarTrack: Color(0x00000000),
+                  scrollbarThumb: Color(0x00000000),
+                ),
+                cursorVisible: cursorVisible,
+                benchmarkEventSink: benchmarkEvents.add,
+              ),
+            ),
+          ),
+        );
+      }
+
+      await tester.pumpWidget(viewport(cursorVisible: false));
+      await tester.pump();
+      benchmarkEvents.clear();
+
+      await tester.pumpWidget(viewport(cursorVisible: true));
+      await tester.pump();
+
+      final renderEvents = benchmarkEvents
+          .where(
+            (event) =>
+                event['schema_version'] == 'ianvs-bench-flutter-render-v1',
+          )
+          .toList(growable: false);
+      expect(renderEvents, hasLength(1));
+      final event = renderEvents.single;
+      expect(event['paint_kind'], 'non_frame');
+      expect(event['has_new_frame'], isFalse);
+      expect(event['dirty_row_count'], 0);
+      expect(event['rows_visited'], 2);
+      expect(event['picture_draw_count'], 2);
+      expect(event['row_visual_rebuild_count'], 0);
+      expect(event['row_cache_hits'], 2);
+      expect(event['row_cache_misses'], 0);
+      expect(event['debug_collection_enabled'], isTrue);
+
+      final renderObject = tester.renderObject<RenderTerminalViewport>(
+        find.byType(_RenderViewportHarness),
+      );
+      expect(renderObject.debugLastPaintedRowTexts, ['alpha', 'beta']);
+      expect(renderObject.debugLastRebuiltRowIndexes, isEmpty);
+    },
+  );
+
+  testWidgets(
+    'block cursor repaints custom geometry without rebuilding its row',
+    (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final benchmarkEvents = <Map<String, Object?>>[];
+      final boundaryKey = GlobalKey();
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: '─')],
+            cursor: TerminalCursor(row: 0, col: 0, visible: true),
+            viewportRows: 1,
+            viewportCols: 2,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+      final selectionController = SelectionController();
+      addTearDown(controller.dispose);
+
+      Widget viewport({required bool cursorVisible}) {
+        return Directionality(
+          textDirection: TextDirection.ltr,
+          child: Center(
+            child: RepaintBoundary(
+              key: boundaryKey,
+              child: SizedBox(
+                width: 320,
+                height: 96,
+                child: _RenderViewportHarness(
+                  controller: controller,
+                  selectionController: selectionController,
+                  colors: const TerminalViewportColors(
+                    canvasBackground: Color(0xFF10141A),
+                    foreground: Color(0xFFE5E7EB),
+                    cursor: Color(0xFFE5E7EB),
+                    selection: Color(0x663B82F6),
+                    scrollbarTrack: Color(0x00000000),
+                    scrollbarThumb: Color(0x00000000),
+                  ),
+                  cursorVisible: cursorVisible,
+                  benchmarkEventSink: benchmarkEvents.add,
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+
+      await tester.pumpWidget(viewport(cursorVisible: false));
+      await tester.pump();
+      benchmarkEvents.clear();
+
+      await tester.pumpWidget(viewport(cursorVisible: true));
+      await tester.pump();
+
+      final renderObject = tester.renderObject<RenderTerminalViewport>(
+        find.byType(_RenderViewportHarness),
+      );
+      final cell = renderObject.debugResolvedCellsForRow(0).single;
+      expect(cell.text, '─');
+      expect(cell.usesCustomGeometry, isTrue);
+      expect(cell.glyphClass, TerminalGlyphClass.boxDrawingCustom);
+      expect(renderObject.debugLastRebuiltRowIndexes, isEmpty);
+
+      final renderEvent = benchmarkEvents.singleWhere(
+        (event) => event['schema_version'] == 'ianvs-bench-flutter-render-v1',
+      );
+      expect(renderEvent['paint_kind'], 'non_frame');
+      expect(renderEvent['has_new_frame'], isFalse);
+      expect(renderEvent['dirty_row_count'], 0);
+      expect(renderEvent['rows_visited'], 1);
+      expect(renderEvent['picture_draw_count'], 1);
+      expect(renderEvent['row_visual_rebuild_count'], 0);
+      expect(renderEvent['row_cache_hits'], 1);
+      expect(renderEvent['row_cache_misses'], 0);
+
+      final cursorRect = renderObject.debugCursorRect;
+      final cursorColor = renderObject.debugCursorColor;
+      expect(cursorRect, isNotNull);
+      expect(cursorColor, isNotNull);
+      final boundary = tester.renderObject<RenderRepaintBoundary>(
+        find.byKey(boundaryKey),
+      );
+      final image = await _runUiAsync(tester, () => boundary.toImage());
+      try {
+        final byteData = await _runUiAsync(
+          tester,
+          () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
+        );
+        if (byteData == null) {
+          throw StateError('Failed to read custom cursor image bytes.');
+        }
+        expect(
+          _countPixelsDifferentFrom(
+            byteData.buffer.asUint8List(),
+            imageWidth: image.width,
+            sampleRect: cursorRect!,
+            color: cursorColor!,
+          ),
+          greaterThan(0),
+        );
+      } finally {
+        image.dispose();
+      }
+    },
+  );
+
+  test('custom geometry rendering does not construct Paint per call', () {
+    final source = _renderTerminalViewportSource();
+    final methodStart = source.indexOf('  void _paintCustomGeometry(');
+    final methodEnd = source.indexOf(
+      '  double _boxDrawingStrokeWidth()',
+      methodStart,
+    );
+
+    expect(methodStart, greaterThanOrEqualTo(0));
+    expect(methodEnd, greaterThan(methodStart));
+    expect(
+      source.substring(methodStart, methodEnd),
+      isNot(contains('Paint()')),
+    );
+  });
+
+  test('painted cursor rect remains available outside debug collection', () {
+    final source = _renderTerminalViewportSource();
+    final paintStart = source.indexOf(
+      '  void paint(PaintingContext context, Offset offset)',
+    );
+    final paintEnd = source.indexOf(
+      '  void _emitBenchmarkPaintEvent(',
+      paintStart,
+    );
+
+    expect(paintStart, greaterThanOrEqualTo(0));
+    expect(paintEnd, greaterThan(paintStart));
+    expect(source, contains('Rect? _paintedCursorRect;'));
+    expect(
+      source,
+      contains('Rect? get debugCursorRect => _paintedCursorRect;'),
+    );
+    final paintSource = source.substring(paintStart, paintEnd);
+    expect(
+      paintSource,
+      contains('_paintedCursorRect = cursorRect;\n      if (kDebugMode)'),
+    );
+    expect(
+      paintSource,
+      contains('_paintedCursorRect = null;\n      if (kDebugMode)'),
+    );
+  });
 
   testWidgets('subtle Codex panel backgrounds still render', (tester) async {
     final renderObject = await _pumpRenderViewport(
@@ -2550,6 +2786,18 @@ Future<T> _runUiAsync<T>(
 ) async {
   final result = await tester.runAsync(operation);
   return result as T;
+}
+
+String _renderTerminalViewportSource() {
+  final candidates = <File>[
+    File('lib/src/terminal/render_terminal_viewport.dart'),
+    File(
+      'packages/ianvs_terminal/lib/src/terminal/render_terminal_viewport.dart',
+    ),
+  ];
+  return candidates
+      .singleWhere((candidate) => candidate.existsSync())
+      .readAsStringSync();
 }
 
 class _NoopPtyBackend implements PtySessionBackend {

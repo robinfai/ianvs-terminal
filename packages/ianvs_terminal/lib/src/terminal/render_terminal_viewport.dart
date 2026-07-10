@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 
 import '../config/terminal_config.dart';
@@ -159,6 +160,24 @@ class RenderTerminalViewport extends RenderBox {
   final Map<int, _CachedRowLayout> _rowLayoutCache = {};
   final Map<int, _CachedGlyphParagraph> _glyphParagraphCache = {};
   final Map<int, _CachedRowVisual> _rowVisualCache = {};
+  final Paint _canvasPaint = Paint()..isAntiAlias = false;
+  final Paint _rowBackgroundPaint = Paint()..isAntiAlias = false;
+  final Paint _selectionPaint = Paint()..isAntiAlias = false;
+  final Paint _cursorPaint = Paint()..isAntiAlias = false;
+  final Paint _searchFillPaint = Paint()..isAntiAlias = true;
+  final Paint _searchBorderPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..isAntiAlias = true;
+  final Paint _hyperlinkPaint = Paint()..isAntiAlias = true;
+  final Paint _customGeometryFillPaint = Paint()..isAntiAlias = false;
+  final Paint _customGeometryStrokePaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.butt
+    ..strokeJoin = StrokeJoin.round
+    ..isAntiAlias = true;
+  final Set<int> _activeRowIndexesScratch = <int>{};
+  final List<String> _debugPaintedRowTextsScratch = <String>[];
+  final List<int> _debugRebuiltRowIndexesScratch = <int>[];
   final Map<int, List<TerminalResolvedStyle>> _debugResolvedStyles = {};
   final Map<int, List<TerminalResolvedCell>> _debugResolvedCells = {};
   final Map<int, List<TerminalResolvedBackgroundSpan>> _debugBackgroundSpans =
@@ -169,16 +188,15 @@ class RenderTerminalViewport extends RenderBox {
   Size _cellSize = terminalFallbackCellSize;
   double _cellBaseline = terminalFallbackCellSize.height;
   TerminalRowTextMetrics _rowTextMetrics = terminalFallbackRowTextMetrics;
-  List<String> _debugLastPaintedRowTexts = const [];
-  List<int> _debugLastRebuiltRowIndexes = const [];
   final List<Rect> _debugSearchHighlightRects = <Rect>[];
-  Rect? _debugCursorRect;
+  Rect? _paintedCursorRect;
   Color? _debugCursorColor;
   _MeasuredCellMetrics? _cachedCellMetrics;
   TerminalRowTextMetrics? _cachedMeasuredRowTextMetrics;
   int? _textMetricsSignature;
   int _lastPaintedFrameVersion = -1;
   bool _needsFullRowVisualRebuild = true;
+  Rect _localPaintBounds = Rect.zero;
 
   set controller(TerminalViewportController value) {
     if (identical(value, _controller)) {
@@ -233,6 +251,9 @@ class RenderTerminalViewport extends RenderBox {
   }
 
   set cursorVisible(bool value) {
+    if (_cursorVisible == value) {
+      return;
+    }
     _cursorVisible = value;
     markNeedsPaint();
   }
@@ -283,30 +304,40 @@ class RenderTerminalViewport extends RenderBox {
     size = constraints.biggest.isFinite
         ? constraints.biggest
         : const Size(640, 480);
+    _localPaintBounds = Offset.zero & size;
   }
 
   @override
   void paint(PaintingContext context, Offset offset) {
-    final paintWatch = _benchmarkEventSink == null
-        ? null
-        : (Stopwatch()..start());
-    final paragraphBuildsBefore = _paragraphBuilds;
+    final benchmarkEnabled = _benchmarkEventSink != null;
+    final hasNewFrame = _lastPaintedFrameVersion != _controller.frameVersion;
+    final paintWatch = benchmarkEnabled ? (Stopwatch()..start()) : null;
+    final paragraphBuildsBefore = benchmarkEnabled ? _paragraphBuilds : 0;
+    if (hasNewFrame) {
+      _activeRowIndexesScratch.clear();
+    }
+    if (kDebugMode) {
+      _debugPaintedRowTextsScratch.clear();
+      _debugRebuiltRowIndexesScratch.clear();
+      _debugSearchHighlightRects.clear();
+      _debugHyperlinkUnderlineRects.clear();
+    }
     final canvas = context.canvas;
     canvas.save();
     canvas.translate(offset.dx, offset.dy);
-    canvas.clipRect(Offset.zero & size);
+    canvas.clipRect(_localPaintBounds);
     final frame = _controller.frame;
     final canvasBackground = _canvasBackgroundFor(frame);
-    canvas.drawRect(Offset.zero & size, Paint()..color = canvasBackground);
+    _canvasPaint.color = canvasBackground;
+    canvas.drawRect(_localPaintBounds, _canvasPaint);
 
     _syncTextMetrics();
     _controller.updateMeasuredCellSize(_cellSize);
     final selection = _selectionController.selectionForFrame(frame);
-    final paintedRowTexts = <String>[];
-    final activeRowIndexes = <int>{};
-    final rebuiltRowIndexes = <int>[];
+    var rowsVisited = 0;
+    var pictureDrawCount = 0;
     var rowCacheHits = 0;
-    final hasNewFrame = _lastPaintedFrameVersion != _controller.frameVersion;
+    var rowCacheMisses = 0;
     final renderIntent = TerminalRenderIntent.fromFrame(
       frame,
       hasNewFrame: hasNewFrame,
@@ -318,12 +349,17 @@ class RenderTerminalViewport extends RenderBox {
     final shouldRebuildAllRows = renderIntent.rebuildAllRows;
     final dirtyRowIndexes = renderIntent.dirtyRowIndexes;
     final searchHighlightsByRow = _searchHighlightsByRow(frame);
-    _debugSearchHighlightRects.clear();
-    _debugHyperlinkUnderlineRects.clear();
 
     for (final row in frame.rows) {
-      activeRowIndexes.add(row.index);
-      paintedRowTexts.add(row.text);
+      if (benchmarkEnabled) {
+        rowsVisited += 1;
+      }
+      if (hasNewFrame) {
+        _activeRowIndexesScratch.add(row.index);
+      }
+      if (kDebugMode) {
+        _debugPaintedRowTextsScratch.add(row.text);
+      }
       final rowNeedsRebuild =
           shouldRebuildAllRows ||
           dirtyRowIndexes.contains(row.index) ||
@@ -337,13 +373,14 @@ class RenderTerminalViewport extends RenderBox {
           ? _rowLayoutFor(row, frame)
           : null;
       if (rowNeedsRebuild) {
-        _rebuildRowVisual(
-          row: row,
-          rowLayout: rowLayout!,
-          rebuiltRowIndexes: rebuiltRowIndexes,
-        );
+        _rebuildRowVisual(row: row, rowLayout: rowLayout!);
+        if (benchmarkEnabled) {
+          rowCacheMisses += 1;
+        }
       } else {
-        rowCacheHits += 1;
+        if (benchmarkEnabled) {
+          rowCacheHits += 1;
+        }
       }
       final rowVisual = _rowVisualCache[row.index];
       final y = row.index * _cellSize.height;
@@ -351,12 +388,8 @@ class RenderTerminalViewport extends RenderBox {
           rowVisual?.backgroundSpans ??
           const <TerminalResolvedBackgroundSpan>[];
       for (final span in backgroundSpans) {
-        canvas.drawRect(
-          span.rect.shift(Offset(0, y)),
-          Paint()
-            ..color = span.background
-            ..isAntiAlias = false,
-        );
+        _rowBackgroundPaint.color = span.background;
+        canvas.drawRect(span.rect.shift(Offset(0, y)), _rowBackgroundPaint);
       }
       _paintSearchHighlightsForRow(
         canvas,
@@ -376,6 +409,7 @@ class RenderTerminalViewport extends RenderBox {
                   : rowCellCount);
         final clampedStart = selectedStart.clamp(0, rowCellCount);
         final clampedEnd = selectedEnd.clamp(clampedStart, rowCellCount);
+        _selectionPaint.color = _colors.selection;
         canvas.drawRect(
           Rect.fromLTWH(
             clampedStart * _cellSize.width,
@@ -383,7 +417,7 @@ class RenderTerminalViewport extends RenderBox {
             (clampedEnd - clampedStart) * _cellSize.width,
             _cellSize.height,
           ),
-          Paint()..color = _colors.selection,
+          _selectionPaint,
         );
       }
       if (rowVisual != null) {
@@ -391,13 +425,14 @@ class RenderTerminalViewport extends RenderBox {
         canvas.translate(0, y);
         canvas.drawPicture(rowVisual.picture);
         canvas.restore();
+        if (benchmarkEnabled) {
+          pictureDrawCount += 1;
+        }
       }
       _paintHyperlinkUnderlinesForRow(canvas, frame, row.index, y);
     }
-    _pruneInactiveRowCaches(activeRowIndexes);
-    _debugLastPaintedRowTexts = paintedRowTexts;
-    _debugLastRebuiltRowIndexes = List<int>.unmodifiable(rebuiltRowIndexes);
     if (hasNewFrame) {
+      _pruneInactiveRowCaches(_activeRowIndexesScratch);
       _lastPaintedFrameVersion = _controller.frameVersion;
     }
     _needsFullRowVisualRebuild = false;
@@ -405,28 +440,31 @@ class RenderTerminalViewport extends RenderBox {
     if (frame.cursor.visible && _cursorVisible) {
       final cursorRect = _cursorRect(frame.cursor);
       final cursorColor = _cursorPaintColorFor(frame);
-      _debugCursorRect = cursorRect;
-      _debugCursorColor = cursorColor;
-      canvas.drawRect(
-        cursorRect,
-        Paint()
-          ..color = cursorColor
-          ..isAntiAlias = false,
-      );
+      _paintedCursorRect = cursorRect;
+      if (kDebugMode) {
+        _debugCursorColor = cursorColor;
+      }
+      _cursorPaint.color = cursorColor;
+      canvas.drawRect(cursorRect, _cursorPaint);
       if (_cursor.shape == TerminalCursorShape.block) {
         _paintCursorText(canvas, frame, frame.cursor, cursorColor);
       }
     } else {
-      _debugCursorRect = null;
-      _debugCursorColor = null;
+      _paintedCursorRect = null;
+      if (kDebugMode) {
+        _debugCursorColor = null;
+      }
     }
     canvas.restore();
     paintWatch?.stop();
     _emitBenchmarkPaintEvent(
       frame: frame,
       renderIntent: renderIntent,
+      hasNewFrame: hasNewFrame,
+      rowsVisited: rowsVisited,
+      pictureDrawCount: pictureDrawCount,
       rowCacheHits: rowCacheHits,
-      rowCacheMisses: rebuiltRowIndexes.length,
+      rowCacheMisses: rowCacheMisses,
       paragraphBuildCount: _paragraphBuilds - paragraphBuildsBefore,
       paintMicros: paintWatch?.elapsedMicroseconds ?? 0,
     );
@@ -435,6 +473,9 @@ class RenderTerminalViewport extends RenderBox {
   void _emitBenchmarkPaintEvent({
     required TerminalFrameDiff frame,
     required TerminalRenderIntent renderIntent,
+    required bool hasNewFrame,
+    required int rowsVisited,
+    required int pictureDrawCount,
     required int rowCacheHits,
     required int rowCacheMisses,
     required int paragraphBuildCount,
@@ -450,14 +491,23 @@ class RenderTerminalViewport extends RenderBox {
       'session_id': 'render',
       'frame_version': _controller.frameVersion,
       'frame_kind': frame.frameKind.name,
+      'paint_kind': hasNewFrame ? 'frame' : 'non_frame',
+      'has_new_frame': hasNewFrame,
       'viewport_row_shift': frame.viewportRowShift,
       'viewport_rows': frame.viewportRows,
-      'dirty_row_count': _benchmarkDirtyRowCount(frame, renderIntent),
+      'dirty_row_count': _benchmarkDirtyRowCount(
+        frame,
+        renderIntent,
+        hasNewFrame: hasNewFrame,
+      ),
+      'rows_visited': rowsVisited,
+      'picture_draw_count': pictureDrawCount,
       'row_visual_rebuild_count': rowCacheMisses,
       'row_cache_hits': rowCacheHits,
       'row_cache_misses': rowCacheMisses,
       'paragraph_build_count': paragraphBuildCount,
       'paint_micros': paintMicros,
+      'debug_collection_enabled': kDebugMode,
     });
   }
 
@@ -469,9 +519,9 @@ class RenderTerminalViewport extends RenderBox {
   int get debugParagraphBuilds => _paragraphBuilds;
   int get debugGlyphParagraphCacheSize => _glyphParagraphCache.length;
   List<String> get debugLastPaintedRowTexts =>
-      List<String>.unmodifiable(_debugLastPaintedRowTexts);
+      List<String>.unmodifiable(_debugPaintedRowTextsScratch);
   List<int> get debugLastRebuiltRowIndexes =>
-      List<int>.unmodifiable(_debugLastRebuiltRowIndexes);
+      List<int>.unmodifiable(_debugRebuiltRowIndexesScratch);
   List<Rect> get debugSearchHighlightRects =>
       List<Rect>.unmodifiable(_debugSearchHighlightRects);
   List<Rect> get debugHyperlinkUnderlineRects =>
@@ -510,7 +560,7 @@ class RenderTerminalViewport extends RenderBox {
             ),
       );
 
-  Rect? get debugCursorRect => _debugCursorRect;
+  Rect? get debugCursorRect => _paintedCursorRect;
   Rect? get debugCaretCellRect {
     final frame = _controller.frame;
     final cursor = frame.cursor;
@@ -534,10 +584,13 @@ class RenderTerminalViewport extends RenderBox {
     }
     _rowVisualCache.clear();
     _rowLayoutCache.clear();
-    _debugResolvedStyles.clear();
-    _debugResolvedCells.clear();
-    _debugBackgroundSpans.clear();
-    _debugLastRebuiltRowIndexes = const [];
+    if (kDebugMode) {
+      _debugResolvedStyles.clear();
+      _debugResolvedCells.clear();
+      _debugBackgroundSpans.clear();
+      _debugRebuiltRowIndexesScratch.clear();
+      _rowPictureBuildCounts.clear();
+    }
     _needsFullRowVisualRebuild = true;
   }
 
@@ -556,22 +609,24 @@ class RenderTerminalViewport extends RenderBox {
       rowShift,
       viewportRows,
     );
-    _shiftIndexedCache<List<TerminalResolvedStyle>>(
-      _debugResolvedStyles,
-      rowShift,
-      viewportRows,
-    );
-    _shiftIndexedCache<List<TerminalResolvedCell>>(
-      _debugResolvedCells,
-      rowShift,
-      viewportRows,
-    );
-    _shiftIndexedCache<List<TerminalResolvedBackgroundSpan>>(
-      _debugBackgroundSpans,
-      rowShift,
-      viewportRows,
-    );
-    _shiftIndexedCache<int>(_rowPictureBuildCounts, rowShift, viewportRows);
+    if (kDebugMode) {
+      _shiftIndexedCache<List<TerminalResolvedStyle>>(
+        _debugResolvedStyles,
+        rowShift,
+        viewportRows,
+      );
+      _shiftIndexedCache<List<TerminalResolvedCell>>(
+        _debugResolvedCells,
+        rowShift,
+        viewportRows,
+      );
+      _shiftIndexedCache<List<TerminalResolvedBackgroundSpan>>(
+        _debugBackgroundSpans,
+        rowShift,
+        viewportRows,
+      );
+      _shiftIndexedCache<int>(_rowPictureBuildCounts, rowShift, viewportRows);
+    }
   }
 
   Map<int, List<_SearchHighlightSpan>> _searchHighlightsByRow(
@@ -637,22 +692,16 @@ class RenderTerminalViewport extends RenderBox {
     for (final highlight in highlights) {
       final isActive = highlight.index == _activeSearchMatchIndex;
       final rrect = RRect.fromRectAndRadius(highlight.rect, radius);
-      _debugSearchHighlightRects.add(highlight.rect);
-      canvas.drawRRect(
-        rrect,
-        Paint()
-          ..color = isActive ? style.activeFill : style.inactiveFill
-          ..isAntiAlias = true,
-      );
+      if (kDebugMode) {
+        _debugSearchHighlightRects.add(highlight.rect);
+      }
+      _searchFillPaint.color = isActive ? style.activeFill : style.inactiveFill;
+      canvas.drawRRect(rrect, _searchFillPaint);
       if (isActive) {
-        canvas.drawRRect(
-          rrect,
-          Paint()
-            ..color = style.activeBorder
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = _snapLogical(1)
-            ..isAntiAlias = true,
-        );
+        _searchBorderPaint
+          ..color = style.activeBorder
+          ..strokeWidth = _snapLogical(1);
+        canvas.drawRRect(rrect, _searchBorderPaint);
       }
     }
   }
@@ -687,11 +736,10 @@ class RenderTerminalViewport extends RenderBox {
     );
     final dashLength = math.max(2.0, _cellSize.width * 0.48);
     final gapLength = math.max(2.0, _cellSize.width * 0.28);
-    final paint = Paint()
+    _hyperlinkPaint
       ..color = color
       ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round
-      ..isAntiAlias = true;
+      ..strokeCap = StrokeCap.round;
     for (final hyperlink in frame.hyperlinks) {
       if (hyperlink.row != rowIndex) {
         continue;
@@ -705,21 +753,23 @@ class RenderTerminalViewport extends RenderBox {
       }
       final left = _snapLogicalX(startCol * _cellSize.width);
       final right = _snapLogicalX(endCol * _cellSize.width);
-      _debugHyperlinkUnderlineRects.add(
-        Rect.fromLTRB(
-          left,
-          underlineY - strokeWidth / 2,
-          right,
-          underlineY + strokeWidth / 2,
-        ),
-      );
+      if (kDebugMode) {
+        _debugHyperlinkUnderlineRects.add(
+          Rect.fromLTRB(
+            left,
+            underlineY - strokeWidth / 2,
+            right,
+            underlineY + strokeWidth / 2,
+          ),
+        );
+      }
       var x = left;
       while (x < right) {
         final dashEnd = math.min(right, x + dashLength);
         canvas.drawLine(
           Offset(x, underlineY),
           Offset(dashEnd, underlineY),
-          paint,
+          _hyperlinkPaint,
         );
         x += dashLength + gapLength;
       }
@@ -771,7 +821,7 @@ class RenderTerminalViewport extends RenderBox {
         decoration: TextDecoration.none,
       ),
     );
-    final resolvedStyles = <TerminalResolvedStyle>[];
+    final resolvedStyles = kDebugMode ? <TerminalResolvedStyle>[] : null;
     for (final run in row.styleRuns) {
       if (run.start < 0 || run.end <= run.start) {
         continue;
@@ -787,7 +837,7 @@ class RenderTerminalViewport extends RenderBox {
         defaultBackground: frame.defaultBackground,
         canvasBackground: canvasBackground,
       );
-      resolvedStyles.add(
+      resolvedStyles?.add(
         TerminalResolvedStyle(
           start: start,
           end: end,
@@ -848,7 +898,9 @@ class RenderTerminalViewport extends RenderBox {
       cells: cells,
     );
     _rowLayoutCache[row.index] = rowLayout;
-    _debugResolvedStyles[row.index] = resolvedStyles;
+    if (kDebugMode) {
+      _debugResolvedStyles[row.index] = resolvedStyles!;
+    }
     _paragraphBuilds += 1;
     return rowLayout;
   }
@@ -876,11 +928,10 @@ class RenderTerminalViewport extends RenderBox {
   void _rebuildRowVisual({
     required TerminalRow row,
     required _CachedRowLayout rowLayout,
-    required List<int> rebuiltRowIndexes,
   }) {
     const rowY = 0.0;
     final backgroundSpans = _backgroundSpansForCells(rowLayout.cells, rowY);
-    final debugCells = <TerminalResolvedCell>[];
+    final debugCells = kDebugMode ? <TerminalResolvedCell>[] : null;
     final recorder = ui.PictureRecorder();
     final pictureCanvas = Canvas(recorder);
 
@@ -904,7 +955,7 @@ class RenderTerminalViewport extends RenderBox {
         pictureCanvas.drawParagraph(paragraph, Offset.zero);
         pictureCanvas.restore();
       }
-      debugCells.add(
+      debugCells?.add(
         TerminalResolvedCell(
           column: cell.column,
           text: cell.text,
@@ -931,11 +982,13 @@ class RenderTerminalViewport extends RenderBox {
       cellCount: rowLayout.cellCount,
       backgroundSpans: backgroundSpans,
     );
-    _debugResolvedCells[row.index] = debugCells;
-    _debugBackgroundSpans[row.index] = backgroundSpans;
-    _rowPictureBuildCounts[row.index] =
-        (_rowPictureBuildCounts[row.index] ?? 0) + 1;
-    rebuiltRowIndexes.add(row.index);
+    if (kDebugMode) {
+      _debugResolvedCells[row.index] = debugCells!;
+      _debugBackgroundSpans[row.index] = backgroundSpans;
+      _rowPictureBuildCounts[row.index] =
+          (_rowPictureBuildCounts[row.index] ?? 0) + 1;
+      _debugRebuiltRowIndexesScratch.add(row.index);
+    }
   }
 
   TerminalResolvedCell _resolvedCellWithAbsoluteRowOffset(
@@ -973,22 +1026,28 @@ class RenderTerminalViewport extends RenderBox {
   }
 
   void _pruneInactiveRowCaches(Set<int> activeRowIndexes) {
-    final inactiveVisualRows = _rowVisualCache.keys
-        .where((rowIndex) => !activeRowIndexes.contains(rowIndex))
-        .toList(growable: false);
-    for (final rowIndex in inactiveVisualRows) {
-      _rowVisualCache.remove(rowIndex)?.picture.dispose();
-    }
+    _rowVisualCache.removeWhere((key, rowVisual) {
+      if (activeRowIndexes.contains(key)) {
+        return false;
+      }
+      rowVisual.picture.dispose();
+      return true;
+    });
     _rowLayoutCache.removeWhere((key, _) => !activeRowIndexes.contains(key));
-    _debugResolvedStyles.removeWhere(
-      (key, _) => !activeRowIndexes.contains(key),
-    );
-    _debugResolvedCells.removeWhere(
-      (key, _) => !activeRowIndexes.contains(key),
-    );
-    _debugBackgroundSpans.removeWhere(
-      (key, _) => !activeRowIndexes.contains(key),
-    );
+    if (kDebugMode) {
+      _debugResolvedStyles.removeWhere(
+        (key, _) => !activeRowIndexes.contains(key),
+      );
+      _debugResolvedCells.removeWhere(
+        (key, _) => !activeRowIndexes.contains(key),
+      );
+      _debugBackgroundSpans.removeWhere(
+        (key, _) => !activeRowIndexes.contains(key),
+      );
+      _rowPictureBuildCounts.removeWhere(
+        (key, _) => !activeRowIndexes.contains(key),
+      );
+    }
   }
 
   void _shiftIndexedCache<T>(
@@ -1622,16 +1681,10 @@ class RenderTerminalViewport extends RenderBox {
     Color? foreground,
   }) {
     final color = foreground ?? cell.foreground;
-    final fillPaint = Paint()
+    final fillPaint = _customGeometryFillPaint..color = color;
+    final strokePaint = _customGeometryStrokePaint
       ..color = color
-      ..isAntiAlias = false;
-    final strokePaint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = _boxDrawingStrokeWidth()
-      ..strokeCap = StrokeCap.butt
-      ..strokeJoin = StrokeJoin.round
-      ..isAntiAlias = true;
+      ..strokeWidth = _boxDrawingStrokeWidth();
     final capRadius = Radius.circular(rect.height / 2);
     final midX = _snapLogicalX(rect.center.dx);
     final midY = _snapLogicalY(rect.center.dy);
@@ -1785,8 +1838,12 @@ class RenderTerminalViewport extends RenderBox {
 
 int _benchmarkDirtyRowCount(
   TerminalFrameDiff frame,
-  TerminalRenderIntent renderIntent,
-) {
+  TerminalRenderIntent renderIntent, {
+  required bool hasNewFrame,
+}) {
+  if (!hasNewFrame) {
+    return 0;
+  }
   if (renderIntent.rebuildAllRows) {
     return frame.viewportRows;
   }
