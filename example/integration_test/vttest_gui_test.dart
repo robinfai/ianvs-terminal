@@ -11,6 +11,7 @@ import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/terminal/terminal_viewport.dart';
 
 import '../test/support/memory_app_preferences_repository.dart';
+import '../test/support/macos_integration_test_lifecycle.dart';
 import '../test/support/memory_profile_repository.dart';
 
 const _frameWait = Duration(seconds: 20);
@@ -22,6 +23,7 @@ void main() {
   testWidgets('real VT220 profile can drive vttest through the GUI', (
     tester,
   ) async {
+    ensureMacosIntegrationTestFramesEnabled(tester.binding);
     final vttestBin = Platform.environment['IANVS_VTTEST_BIN'] ?? 'vttest';
     final profile = TerminalProfile(
       id: 'vttest-vt220',

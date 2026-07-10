@@ -12,6 +12,8 @@ import 'package:integration_test/integration_test.dart';
 
 import 'package:app/benchmarks/terminal_render_profile_report.dart';
 
+import '../test/support/macos_integration_test_lifecycle.dart';
+
 const String _configuredOutputDir = String.fromEnvironment(
   'IANVS_BENCH_TRANSPORT_PROFILE_OUTPUT',
   defaultValue: '',
@@ -119,6 +121,7 @@ Future<Map<String, Object?>> _runTransportProfileCase({
   required String targetPlatform,
   required String targetDevice,
 }) async {
+  ensureMacosIntegrationTestFramesEnabled(tester.binding);
   final flutterRenderEvents = <Map<String, Object?>>[];
   final dartRuntimeEvents = <Map<String, Object?>>[];
   final frameTimings = <FrameTiming>[];

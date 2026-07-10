@@ -14,6 +14,7 @@ import 'package:app/benchmarks/terminal_cursor_overlay_gate.dart';
 import 'package:app/benchmarks/terminal_render_profile_report.dart';
 
 import '../test/support/fake_pty_backend.dart';
+import '../test/support/macos_integration_test_lifecycle.dart';
 import '../test/support/test_runtime.dart';
 
 const String _configuredOutputDir = String.fromEnvironment(
@@ -109,6 +110,7 @@ Future<Map<String, Object?>> _runProfileCase({
   required String targetPlatform,
   required String targetDevice,
 }) async {
+  ensureMacosIntegrationTestFramesEnabled(tester.binding);
   final flutterRenderEvents = <Map<String, Object?>>[];
   final frameTimings = <FrameTiming>[];
   void handleTimings(List<FrameTiming> timings) {

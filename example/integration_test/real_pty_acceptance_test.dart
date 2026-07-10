@@ -17,6 +17,7 @@ import 'package:app/features/shell/password_manager_store.dart';
 import 'package:app/features/shell/shell_screen.dart';
 
 import '../test/support/memory_app_preferences_repository.dart';
+import '../test/support/macos_integration_test_lifecycle.dart';
 import '../test/support/memory_profile_repository.dart';
 
 const _frameWait = Duration(seconds: 20);
@@ -554,6 +555,7 @@ Future<_RealPtyHarness> _pumpRealPtyApp(
   List<Map<String, Object?>>? runtimeEvents,
   bool maskRefreshHints = false,
 }) async {
+  ensureMacosIntegrationTestFramesEnabled(tester.binding);
   final container = ProviderContainer(
     overrides: [
       if (maskRefreshHints)
