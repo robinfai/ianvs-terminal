@@ -8,6 +8,12 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart' as core;
+// ignore: implementation_imports
+import 'package:ianvs_terminal/src/terminal/render_terminal_cursor_overlay.dart'
+    as cursor_overlay;
+// ignore: implementation_imports
+import 'package:ianvs_terminal/src/terminal/terminal_cursor_overlay_experiment.dart'
+    as cursor_experiment;
 
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/terminal/selection_controller.dart';
@@ -6790,6 +6796,179 @@ void main() {
       expect(scrollToOffsets.last, greaterThan(0));
       expect(scrollLines, isEmpty);
       expect(selectionController.selection, isNull);
+    },
+  );
+
+  testWidgets(
+    'terminal overlay cursor preserves lifecycle and repaint isolation',
+    (tester) async {
+      final focusNode = FocusNode(debugLabel: 'overlay-cursor-focus');
+      final nextFocusNode = FocusNode(debugLabel: 'overlay-cursor-next-focus');
+      addTearDown(focusNode.dispose);
+      addTearDown(nextFocusNode.dispose);
+
+      TerminalFrameDiff frame({required int col, int scrollbackOffset = 0}) {
+        return TerminalFrameDiff(
+          rows: const [TerminalRow(index: 0, text: 'ready')],
+          cursor: TerminalCursor(row: 0, col: col, visible: true),
+          viewportRows: 4,
+          viewportCols: 8,
+          dirtyRanges: const [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: scrollbackOffset,
+          scrollbackMaxOffset: 10,
+        );
+      }
+
+      final controllerA = TerminalViewportController()
+        ..updateFrame(frame(col: 1));
+      final controllerB = TerminalViewportController()
+        ..updateFrame(frame(col: 3));
+      addTearDown(controllerA.dispose);
+      addTearDown(controllerB.dispose);
+      final benchmarkEvents = <Map<String, Object?>>[];
+      final runtime = testRuntime(FakePtyBackend());
+      addTearDown(runtime.dispose);
+      final inputController = TerminalInputController(
+        sessionId: 'overlay-lifecycle',
+        runtime: runtime,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+      final selectionController = SelectionController();
+
+      Future<void> pumpViewport(TerminalViewportController controller) {
+        return tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Column(
+                children: [
+                  SizedBox(
+                    width: 400,
+                    height: 160,
+                    child: cursor_experiment.TerminalCursorExperimentScope(
+                      mode: cursor_experiment
+                          .TerminalCursorExperimentMode
+                          .overlay,
+                      child: TerminalViewport(
+                        controller: controller,
+                        selectionController: selectionController,
+                        inputController: inputController,
+                        focusNode: focusNode,
+                        benchmarkEventSink: benchmarkEvents.add,
+                        onScrollLines: (_) {},
+                        onScrollToOffset: (_) {},
+                      ),
+                    ),
+                  ),
+                  Focus(
+                    focusNode: nextFocusNode,
+                    child: const SizedBox(width: 1, height: 1),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
+
+      await pumpViewport(controllerA);
+      focusNode.requestFocus();
+      await tester.pump();
+
+      var surface = _terminalRenderObject(tester);
+      var overlay = tester.allRenderObjects
+          .whereType<cursor_overlay.RenderTerminalCursorOverlay>()
+          .single;
+      final initialRect = surface.debugCursorRect;
+      final initialSnapshot = cursor_overlay.terminalCursorVisualSnapshotFor(
+        surface,
+      );
+      expect(initialRect, isNotNull);
+      expect(initialSnapshot, isNotNull);
+      benchmarkEvents.clear();
+
+      await tester.pump(const Duration(milliseconds: 700));
+
+      expect(surface.debugCursorVisible, isFalse);
+      expect(
+        cursor_overlay.terminalCursorVisualSnapshotFor(surface)?.picture,
+        same(initialSnapshot!.picture),
+      );
+      expect(
+        benchmarkEvents.where(
+          (event) => event['schema_version'] == 'ianvs-bench-flutter-cursor-v1',
+        ),
+        hasLength(1),
+      );
+      expect(
+        benchmarkEvents.where(
+          (event) => event['schema_version'] == 'ianvs-bench-flutter-render-v1',
+        ),
+        isEmpty,
+      );
+
+      await tester.pump(const Duration(milliseconds: 700));
+      expect(surface.debugCursorVisible, isTrue);
+
+      await pumpViewport(controllerB);
+      await tester.pump();
+      surface = _terminalRenderObject(tester);
+      overlay = tester.allRenderObjects
+          .whereType<cursor_overlay.RenderTerminalCursorOverlay>()
+          .single;
+      final replacementRect = surface.debugCursorRect;
+      expect(replacementRect, isNotNull);
+      expect(replacementRect!.left, greaterThan(initialRect!.left));
+
+      controllerA.updateFrame(frame(col: 6));
+      await tester.pump();
+      expect(surface.debugCursorRect, replacementRect);
+
+      controllerB.updateFrame(frame(col: 3, scrollbackOffset: 4));
+      await tester.pump();
+      expect(surface.debugCursorRect, isNull);
+      benchmarkEvents.clear();
+      await tester.pump(const Duration(milliseconds: 700));
+      expect(
+        benchmarkEvents.where(
+          (event) => event['schema_version'] == 'ianvs-bench-flutter-cursor-v1',
+        ),
+        isEmpty,
+      );
+
+      controllerB.updateFrame(frame(col: 3));
+      await tester.pump();
+      expect(surface.debugCursorRect, isNotNull);
+
+      controllerB.updateFrame(frame(col: 8));
+      await tester.pump();
+      expect(surface.debugCursorRect, isNull);
+
+      controllerB.updateFrame(frame(col: 3));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 700));
+      expect(surface.debugCursorVisible, isFalse);
+      nextFocusNode.requestFocus();
+      await tester.pump();
+      await tester.pump();
+      expect(surface.debugCursorVisible, isTrue);
+      await tester.pump(const Duration(milliseconds: 700));
+      expect(surface.debugCursorVisible, isTrue);
+
+      final pictureBeforeUnmount = cursor_overlay
+          .terminalCursorVisualSnapshotFor(surface)!
+          .picture;
+      expect(overlay.attached, isTrue);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+      expect(pictureBeforeUnmount.debugDisposed, isTrue);
+      expect(
+        cursor_overlay.terminalCursorVisualSnapshotFor(surface),
+        isNull,
+      );
+      await tester.pump(const Duration(milliseconds: 1400));
+      expect(tester.takeException(), isNull);
     },
   );
 }

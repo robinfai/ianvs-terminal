@@ -147,10 +147,103 @@ Map<String, Object?> _summarize({
   required List<Map<String, Object?>> flutterFrameTimingEvents,
   required List<Map<String, Object?>> dartRuntimeEvents,
 }) {
-  final frameCount = flutterRenderEvents.length;
-  final cacheHits = _sumInt(flutterRenderEvents, 'row_cache_hits');
-  final cacheMisses = _sumInt(flutterRenderEvents, 'row_cache_misses');
+  final surfacePaintEvents = flutterRenderEvents
+      .where(
+        (event) => event['schema_version'] == 'ianvs-bench-flutter-render-v1',
+      )
+      .toList(growable: false);
+  final cursorPaintEvents = flutterRenderEvents
+      .where(
+        (event) => event['schema_version'] == 'ianvs-bench-flutter-cursor-v1',
+      )
+      .toList(growable: false);
+  final surfaceNonFramePaintEvents = surfacePaintEvents
+      .where((event) => event['paint_kind'] == 'non_frame')
+      .toList(growable: false);
+  final frameCount = surfacePaintEvents.length;
+  final cacheHits = _sumInt(surfacePaintEvents, 'row_cache_hits');
+  final cacheMisses = _sumInt(surfacePaintEvents, 'row_cache_misses');
   final runtimeFrameCount = dartRuntimeEvents.length;
+  final frameBuildDurations = _completeNonNegativeIntValues(
+    flutterFrameTimingEvents,
+    'build_duration_micros',
+  );
+  final frameRasterDurations = _completeNonNegativeIntValues(
+    flutterFrameTimingEvents,
+    'raster_duration_micros',
+  );
+  final frameTotalSpans = _completeNonNegativeIntValues(
+    flutterFrameTimingEvents,
+    'total_span_micros',
+  );
+  final surfacePaintDurations = _completeNonNegativeIntValues(
+    surfacePaintEvents,
+    'paint_micros',
+  );
+  final surfaceNonFramePaintDurations = _completeNonNegativeIntValues(
+    surfaceNonFramePaintEvents,
+    'paint_micros',
+  );
+  final cursorPaintDurations = _completeNonNegativeIntValues(
+    cursorPaintEvents,
+    'paint_micros',
+  );
+  final overlayLayerEvents = cursorPaintEvents.isNotEmpty
+      ? cursorPaintEvents
+      : surfacePaintEvents;
+  final missedVsyncMetricValid =
+      flutterFrameTimingEvents.isNotEmpty &&
+      flutterFrameTimingEvents.every((event) => event['missed_vsync'] is bool);
+  final surfaceWorkloadHasNoOverlay =
+      cursorPaintEvents.isEmpty &&
+      (workload == 'cursor_blink_idle_profile' ||
+          workload == 'cursor_blink_idle_surface_profile');
+  final overlayLayerCountMetricValid =
+      surfaceWorkloadHasNoOverlay ||
+      _allFiniteNumbers(
+        overlayLayerEvents,
+        'overlay_layer_count',
+        nonNegative: true,
+        integer: true,
+      );
+  final cursorPaintBoundsMetricValid = _allFiniteNumbers(
+    cursorPaintEvents,
+    'paint_bounds_area',
+    nonNegative: true,
+  );
+  final cursorCellWidthMetricValid = _allFiniteNumbers(
+    cursorPaintEvents,
+    'cell_width_px',
+    positive: true,
+  );
+  final cursorCellHeightMetricValid = _allFiniteNumbers(
+    cursorPaintEvents,
+    'cell_height_px',
+    positive: true,
+  );
+  final cursorDevicePixelRatioMetricValid = _allFiniteNumbers(
+    cursorPaintEvents,
+    'device_pixel_ratio',
+    positive: true,
+  );
+  final cursorPictureLiveCountMetricValid = _allFiniteNumbers(
+    cursorPaintEvents,
+    'cursor_picture_live_count',
+    nonNegative: true,
+    integer: true,
+  );
+  final cursorPictureEstimatedBytesMetricValid = _allFiniteNumbers(
+    cursorPaintEvents,
+    'cursor_picture_estimated_bytes',
+    nonNegative: true,
+  );
+  final sampledBlinkTransitions =
+      workload == 'cursor_blink_idle_overlay_profile'
+      ? cursorPaintEvents.length
+      : workload == 'cursor_blink_idle_profile' ||
+            workload == 'cursor_blink_idle_surface_profile'
+      ? surfaceNonFramePaintEvents.length
+      : 0;
   return <String, Object?>{
     'workload': workload,
     'policy': policy,
@@ -167,10 +260,10 @@ Map<String, Object?> _summarize({
     'coalescing_ratio': frameCount == 0
         ? 'N/A'
         : semanticGenerations / frameCount,
-    'snapshot_count': flutterRenderEvents
+    'snapshot_count': surfacePaintEvents
         .where((event) => event['frame_kind'] == 'snapshot')
         .length,
-    'delta_count': flutterRenderEvents
+    'delta_count': surfacePaintEvents
         .where((event) => event['frame_kind'] == 'delta')
         .length,
     'avg_rows_emitted': _averageIntValues(
@@ -206,30 +299,64 @@ Map<String, Object?> _summarize({
       _intValues(dartRuntimeEvents, 'native_protobuf_encode_micros'),
       95,
     ),
-    'p95_build_duration_micros': _percentile(
-      _intValues(flutterFrameTimingEvents, 'build_duration_micros'),
-      95,
+    'p50_build_duration_micros': _percentile(frameBuildDurations, 50),
+    'p95_build_duration_micros': _percentile(frameBuildDurations, 95),
+    'p50_raster_duration_micros': _percentile(frameRasterDurations, 50),
+    'p95_raster_duration_micros': _percentile(frameRasterDurations, 95),
+    'p99_raster_duration_micros': _percentile(frameRasterDurations, 99),
+    'p50_total_span_micros': _percentile(frameTotalSpans, 50),
+    'p95_total_span_micros': _percentile(frameTotalSpans, 95),
+    'p95_paint_micros': _percentile(surfacePaintDurations, 95),
+    'p50_surface_paint_micros': _percentile(surfaceNonFramePaintDurations, 50),
+    'p95_surface_paint_micros': _percentile(surfaceNonFramePaintDurations, 95),
+    'p50_cursor_paint_micros': _percentile(cursorPaintDurations, 50),
+    'p95_cursor_paint_micros': _percentile(cursorPaintDurations, 95),
+    'sampled_blink_transitions': sampledBlinkTransitions,
+    'surface_non_frame_paint_count': surfaceNonFramePaintEvents.length,
+    'cursor_paint_count': cursorPaintEvents.length,
+    'max_cursor_paint_bounds_area': _maxNumOrZero(
+      cursorPaintEvents,
+      'paint_bounds_area',
     ),
-    'p50_raster_duration_micros': _percentile(
-      _intValues(flutterFrameTimingEvents, 'raster_duration_micros'),
-      50,
+    'max_cursor_cell_width_px': _maxNumOrZero(
+      cursorPaintEvents,
+      'cell_width_px',
     ),
-    'p95_raster_duration_micros': _percentile(
-      _intValues(flutterFrameTimingEvents, 'raster_duration_micros'),
-      95,
+    'max_cursor_cell_height_px': _maxNumOrZero(
+      cursorPaintEvents,
+      'cell_height_px',
     ),
-    'p99_raster_duration_micros': _percentile(
-      _intValues(flutterFrameTimingEvents, 'raster_duration_micros'),
-      99,
+    'max_cursor_device_pixel_ratio': _maxNumOrZero(
+      cursorPaintEvents,
+      'device_pixel_ratio',
     ),
-    'p95_total_span_micros': _percentile(
-      _intValues(flutterFrameTimingEvents, 'total_span_micros'),
-      95,
+    'max_cursor_picture_live_count': _maxNumOrZero(
+      cursorPaintEvents,
+      'cursor_picture_live_count',
     ),
-    'p95_paint_micros': _percentile(
-      _intValues(flutterRenderEvents, 'paint_micros'),
-      95,
+    'max_cursor_picture_estimated_bytes': _maxNumOrZero(
+      cursorPaintEvents,
+      'cursor_picture_estimated_bytes',
     ),
+    'max_overlay_layer_count': _maxNumOrZero(
+      flutterRenderEvents,
+      'overlay_layer_count',
+    ),
+    'missed_vsync_metric_valid': missedVsyncMetricValid,
+    'overlay_layer_count_metric_valid': overlayLayerCountMetricValid,
+    'cursor_paint_bounds_metric_valid': cursorPaintBoundsMetricValid,
+    'cursor_cell_width_metric_valid': cursorCellWidthMetricValid,
+    'cursor_cell_height_metric_valid': cursorCellHeightMetricValid,
+    'cursor_device_pixel_ratio_metric_valid': cursorDevicePixelRatioMetricValid,
+    'cursor_picture_live_count_metric_valid': cursorPictureLiveCountMetricValid,
+    'cursor_picture_estimated_bytes_metric_valid':
+        cursorPictureEstimatedBytesMetricValid,
+    'cursor_paint_bounds_violation_count': cursorPaintEvents
+        .where(_cursorPaintBoundsExceeded)
+        .length,
+    'cursor_picture_estimated_bytes_violation_count': cursorPaintEvents
+        .where(_cursorPictureEstimatedBytesExceeded)
+        .length,
     'missed_vsync_count': flutterFrameTimingEvents
         .where((event) => event['missed_vsync'] == true)
         .length,
@@ -237,6 +364,88 @@ Map<String, Object?> _summarize({
         ? 'N/A'
         : cacheHits / (cacheHits + cacheMisses),
   };
+}
+
+num _maxNumOrZero(List<Map<String, Object?>> events, String key) {
+  num maximum = 0;
+  for (final event in events) {
+    final value = event[key];
+    if (value is num && value.isFinite && value > maximum) {
+      maximum = value;
+    }
+  }
+  return maximum;
+}
+
+bool _allFiniteNumbers(
+  List<Map<String, Object?>> events,
+  String key, {
+  bool positive = false,
+  bool nonNegative = false,
+  bool integer = false,
+}) {
+  if (events.isEmpty) {
+    return false;
+  }
+  return events.every((event) {
+    final value = event[key];
+    if (value is! num || !value.isFinite) {
+      return false;
+    }
+    final number = value.toDouble();
+    if (positive && number <= 0) {
+      return false;
+    }
+    if (nonNegative && number < 0) {
+      return false;
+    }
+    return !integer || number == number.truncateToDouble();
+  });
+}
+
+double? _finiteEventNumber(Map<String, Object?> event, String key) {
+  final value = event[key];
+  return value is num && value.isFinite ? value.toDouble() : null;
+}
+
+bool _cursorPaintBoundsExceeded(Map<String, Object?> event) {
+  final bounds = _finiteEventNumber(event, 'paint_bounds_area');
+  final width = _finiteEventNumber(event, 'cell_width_px');
+  final height = _finiteEventNumber(event, 'cell_height_px');
+  if (bounds == null ||
+      bounds < 0 ||
+      width == null ||
+      width <= 0 ||
+      height == null ||
+      height <= 0) {
+    return false;
+  }
+  final limit = 2 * width * height;
+  return !limit.isFinite || bounds > limit;
+}
+
+bool _cursorPictureEstimatedBytesExceeded(Map<String, Object?> event) {
+  final bytes = _finiteEventNumber(event, 'cursor_picture_estimated_bytes');
+  final width = _finiteEventNumber(event, 'cell_width_px');
+  final height = _finiteEventNumber(event, 'cell_height_px');
+  final dpr = _finiteEventNumber(event, 'device_pixel_ratio');
+  if (bytes == null ||
+      bytes < 0 ||
+      width == null ||
+      width <= 0 ||
+      height == null ||
+      height <= 0 ||
+      dpr == null ||
+      dpr <= 0) {
+    return false;
+  }
+  final physicalWidth = 2 * width * dpr;
+  final physicalHeight = height * dpr;
+  if (!physicalWidth.isFinite || !physicalHeight.isFinite) {
+    return true;
+  }
+  final limit = physicalWidth.ceil() * physicalHeight.ceil() * 4;
+  return bytes > limit;
 }
 
 void _writeJson(File file, Map<String, Object?> value) {
@@ -298,8 +507,27 @@ List<int> _intValues(List<Map<String, Object?>> events, String key) {
   return events
       .map((event) => event[key])
       .whereType<num>()
+      .where((value) => value.isFinite)
       .map((value) => value.toInt())
       .toList(growable: false);
+}
+
+List<int> _completeNonNegativeIntValues(
+  List<Map<String, Object?>> events,
+  String key,
+) {
+  final values = <int>[];
+  for (final event in events) {
+    final value = event[key];
+    if (value is! num ||
+        !value.isFinite ||
+        value < 0 ||
+        value.toDouble() != value.truncateToDouble()) {
+      return const <int>[];
+    }
+    values.add(value.toInt());
+  }
+  return values;
 }
 
 Object _averageIntValues(List<Map<String, Object?>> events, String key) {
@@ -358,10 +586,37 @@ const _summaryCsvHeader = <String>[
   'p95_protobuf_decode_micros',
   'p95_native_json_encode_micros',
   'p95_native_protobuf_encode_micros',
+  'p50_build_duration_micros',
   'p95_build_duration_micros',
+  'p50_raster_duration_micros',
   'p95_raster_duration_micros',
+  'p50_total_span_micros',
   'p95_total_span_micros',
   'p95_paint_micros',
+  'p50_surface_paint_micros',
+  'p95_surface_paint_micros',
+  'p50_cursor_paint_micros',
+  'p95_cursor_paint_micros',
+  'sampled_blink_transitions',
+  'surface_non_frame_paint_count',
+  'cursor_paint_count',
+  'max_cursor_paint_bounds_area',
+  'max_cursor_cell_width_px',
+  'max_cursor_cell_height_px',
+  'max_cursor_device_pixel_ratio',
+  'max_cursor_picture_live_count',
+  'max_cursor_picture_estimated_bytes',
+  'max_overlay_layer_count',
+  'missed_vsync_metric_valid',
+  'overlay_layer_count_metric_valid',
+  'cursor_paint_bounds_metric_valid',
+  'cursor_cell_width_metric_valid',
+  'cursor_cell_height_metric_valid',
+  'cursor_device_pixel_ratio_metric_valid',
+  'cursor_picture_live_count_metric_valid',
+  'cursor_picture_estimated_bytes_metric_valid',
+  'cursor_paint_bounds_violation_count',
+  'cursor_picture_estimated_bytes_violation_count',
   'missed_vsync_count',
   'row_cache_hit_rate',
 ];
@@ -404,10 +659,37 @@ List<String> _summaryCsvRow(Map<String, Object?> summary) {
     _csv(summary['p95_protobuf_decode_micros']),
     _csv(summary['p95_native_json_encode_micros']),
     _csv(summary['p95_native_protobuf_encode_micros']),
+    _csv(summary['p50_build_duration_micros']),
     _csv(summary['p95_build_duration_micros']),
+    _csv(summary['p50_raster_duration_micros']),
     _csv(summary['p95_raster_duration_micros']),
+    _csv(summary['p50_total_span_micros']),
     _csv(summary['p95_total_span_micros']),
     _csv(summary['p95_paint_micros']),
+    _csv(summary['p50_surface_paint_micros']),
+    _csv(summary['p95_surface_paint_micros']),
+    _csv(summary['p50_cursor_paint_micros']),
+    _csv(summary['p95_cursor_paint_micros']),
+    _csv(summary['sampled_blink_transitions']),
+    _csv(summary['surface_non_frame_paint_count']),
+    _csv(summary['cursor_paint_count']),
+    _csv(summary['max_cursor_paint_bounds_area']),
+    _csv(summary['max_cursor_cell_width_px']),
+    _csv(summary['max_cursor_cell_height_px']),
+    _csv(summary['max_cursor_device_pixel_ratio']),
+    _csv(summary['max_cursor_picture_live_count']),
+    _csv(summary['max_cursor_picture_estimated_bytes']),
+    _csv(summary['max_overlay_layer_count']),
+    _csv(summary['missed_vsync_metric_valid']),
+    _csv(summary['overlay_layer_count_metric_valid']),
+    _csv(summary['cursor_paint_bounds_metric_valid']),
+    _csv(summary['cursor_cell_width_metric_valid']),
+    _csv(summary['cursor_cell_height_metric_valid']),
+    _csv(summary['cursor_device_pixel_ratio_metric_valid']),
+    _csv(summary['cursor_picture_live_count_metric_valid']),
+    _csv(summary['cursor_picture_estimated_bytes_metric_valid']),
+    _csv(summary['cursor_paint_bounds_violation_count']),
+    _csv(summary['cursor_picture_estimated_bytes_violation_count']),
     _csv(summary['missed_vsync_count']),
     _csv(_display(summary['row_cache_hit_rate'])),
   ];

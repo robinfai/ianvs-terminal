@@ -6,6 +6,7 @@ import 'package:flutter/rendering.dart';
 
 import '../config/terminal_config.dart';
 import '../runtime/terminal_benchmarking.dart';
+import 'render_terminal_cursor_overlay.dart';
 import 'selection_controller.dart';
 import 'terminal_models.dart';
 import 'terminal_viewport.dart';
@@ -444,16 +445,32 @@ class RenderTerminalViewport extends RenderBox {
       if (kDebugMode) {
         _debugCursorColor = cursorColor;
       }
-      _cursorPaint.color = cursorColor;
-      canvas.drawRect(cursorRect, _cursorPaint);
-      if (_cursor.shape == TerminalCursorShape.block) {
-        _paintCursorText(canvas, frame, frame.cursor, cursorColor);
+      final cursorSnapshotCache = terminalCursorSnapshotCacheFor(this);
+      if (terminalCursorPaintsOnSurface(this)) {
+        _paintCursorVisual(canvas, frame, frame.cursor, cursorColor);
+        cursorSnapshotCache.clear();
+      } else {
+        final key = _cursorVisualKey(
+          frame: frame,
+          cursorRect: cursorRect,
+          cursorColor: cursorColor,
+        );
+        cursorSnapshotCache.resolve(
+          key: key,
+          build: (key) => _recordCursorVisualSnapshot(
+            key: key,
+            frame: frame,
+            cursorRect: cursorRect,
+            cursorColor: cursorColor,
+          ),
+        );
       }
     } else {
       _paintedCursorRect = null;
       if (kDebugMode) {
         _debugCursorColor = null;
       }
+      terminalCursorSnapshotCacheFor(this).clear();
     }
     canvas.restore();
     paintWatch?.stop();
@@ -530,7 +547,10 @@ class RenderTerminalViewport extends RenderBox {
       List<Rect>.unmodifiable(_debugHyperlinkUnderlineRects);
   bool get debugCursorVisible {
     final frame = _controller.frame;
-    return frame.cursor.visible && _cursorVisible;
+    return frame.cursor.visible &&
+        _cursorVisible &&
+        (terminalCursorPaintsOnSurface(this) ||
+            terminalCursorBlinkIsVisible(this));
   }
 
   Color? get debugCursorColor => _debugCursorColor;
@@ -1212,6 +1232,80 @@ class RenderTerminalViewport extends RenderBox {
     );
   }
 
+  void _paintCursorVisual(
+    Canvas canvas,
+    TerminalFrameDiff frame,
+    TerminalCursor cursor,
+    Color cursorColor,
+  ) {
+    _cursorPaint.color = cursorColor;
+    canvas.drawRect(_cursorRect(cursor), _cursorPaint);
+    if (_cursor.shape == TerminalCursorShape.block) {
+      _paintCursorText(canvas, frame, cursor, cursorColor);
+    }
+  }
+
+  TerminalCursorVisualKey _cursorVisualKey({
+    required TerminalFrameDiff frame,
+    required Rect cursorRect,
+    required Color cursorColor,
+  }) {
+    final cell = _cursorCellFor(frame.cursor);
+    final placement = cell == null
+        ? null
+        : _placementForCell(cell, frame.cursor.row * _cellSize.height);
+    return TerminalCursorVisualKey(
+      frameVersion: _controller.frameVersion,
+      cursorRow: frame.cursor.row,
+      cursorCol: frame.cursor.col,
+      cursorVisible: frame.cursor.visible,
+      cursorShape: _cursor.shape,
+      resolvedForeground: _cursorTextColorFor(frame, cursorColor),
+      resolvedBackground: _cursorBackgroundFor(frame),
+      resolvedCursor: cursorColor,
+      cellSize: _cellSize,
+      devicePixelRatio: _devicePixelRatio,
+      fontFamily: _font.family,
+      fontFallback: _font.fallback,
+      fontSize: _font.size,
+      lineHeight: _font.lineHeight,
+      glyphText: cell?.text ?? '',
+      glyphUsesCustomGeometry: cell?.usesCustomGeometry ?? false,
+      glyphCustomGeometryKind: cell?.usesCustomGeometry == true
+          ? cell!.placementPolicy.name
+          : 'none',
+      glyphColumn: cell?.column ?? frame.cursor.col,
+      glyphColumnSpan: cell?.columnSpan ?? 1,
+      glyphPlacementRect: placement?.rect ?? cursorRect,
+      glyphDrawOffset: placement?.drawOffset ?? cursorRect.topLeft,
+      glyphScaleX: placement?.scaleX ?? 1,
+      glyphScaleY: placement?.scaleY ?? 1,
+      glyphFontWeight: cell?.fontWeight ?? FontWeight.w400,
+      glyphFontStyle: cell?.fontStyle ?? FontStyle.normal,
+      glyphDecoration: cell?.decoration ?? TextDecoration.none,
+      glyphIsContinuation: cell?.isContinuation ?? false,
+      cursorEnabled: _cursorVisible,
+      cursorBlinkEnabled: _cursor.blink,
+    );
+  }
+
+  TerminalCursorVisualSnapshot _recordCursorVisualSnapshot({
+    required TerminalCursorVisualKey key,
+    required TerminalFrameDiff frame,
+    required Rect cursorRect,
+    required Color cursorColor,
+  }) {
+    final recorder = ui.PictureRecorder();
+    final pictureCanvas = Canvas(recorder, cursorRect);
+    _paintCursorVisual(pictureCanvas, frame, frame.cursor, cursorColor);
+    return TerminalCursorVisualSnapshot(
+      key: key,
+      picture: recorder.endRecording(),
+      rect: cursorRect,
+      color: cursorColor,
+    );
+  }
+
   void _paintCursorText(
     Canvas canvas,
     TerminalFrameDiff frame,
@@ -1831,6 +1925,7 @@ class RenderTerminalViewport extends RenderBox {
   void dispose() {
     _controller.removeListener(markNeedsPaint);
     _selectionController.removeListener(markNeedsPaint);
+    disposeTerminalCursorSurface(this);
     for (final rowVisual in _rowVisualCache.values) {
       rowVisual.picture.dispose();
     }

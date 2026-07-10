@@ -821,6 +821,92 @@ gates:
         args,
         contains('--dart-define=IANVS_BENCH_PROFILE_FRAME_COUNT=96'),
       );
+      expect(
+        args,
+        contains('--dart-define=IANVS_BENCH_CORRECTNESS_SUITES_PASSED=false'),
+      );
+    });
+
+    test('binds cursor overlay profiling to the exact Step 6 preflight', () {
+      const workloads = <String>[
+        'cursor_blink_idle_surface_profile',
+        'cursor_blink_idle_overlay_profile',
+      ];
+
+      expect(requiresCursorOverlayCorrectnessSuites(workloads), isTrue);
+      expect(
+        requiresCursorOverlayCorrectnessSuites(const <String>[
+          'cursor_blink_idle_profile',
+        ]),
+        isFalse,
+      );
+      expect(
+        requiresCursorOverlayCorrectnessSuites(const <String>[
+          'cursor_blink_idle_overlay_profile',
+        ]),
+        isFalse,
+      );
+      final commands = cursorOverlayCorrectnessSuiteCommands(workloads);
+      expect(commands, hasLength(3));
+      expect(commands[0].workingDirectory, 'packages/ianvs_terminal');
+      expect(commands[0].arguments, <String>[
+        'test',
+        'test/terminal_viewport_render_test.dart',
+        '--name',
+        'cursor|graphic',
+      ]);
+      expect(commands[1].workingDirectory, 'example');
+      expect(commands[1].arguments, <String>[
+        'test',
+        'test/terminal/render_terminal_viewport_test.dart',
+        '--name',
+        'cursor',
+      ]);
+      expect(commands[2].workingDirectory, 'example');
+      expect(commands[2].arguments, <String>[
+        'test',
+        'test/terminal_input_controller_test.dart',
+        '--plain-name',
+        'terminal viewport keeps composing text visible across cursor blink frames',
+      ]);
+
+      final device = FlutterProfileDevice.parseMachineJson(
+        devicesJson,
+      ).firstWhere((device) => device.id == 'macos');
+      final args = FlutterProfileMatrixCommand(
+        device: device,
+        outputRoot: 'build/profile-matrix',
+        workloads: workloads,
+        repeats: 5,
+        frameCount: 24,
+        correctnessSuitesPassed: true,
+      ).flutterDriveArgs;
+      expect(
+        args,
+        contains('--dart-define=IANVS_BENCH_CORRECTNESS_SUITES_PASSED=true'),
+      );
+    });
+
+    test('dry-run never claims the cursor overlay preflight passed', () {
+      final runner = File(
+        'tools/bench/runner/flutter_profile_matrix_runner.dart',
+      ).readAsStringSync();
+
+      expect(
+        runner,
+        contains(
+          'correctnessSuitesPassed: false,\n'
+          '      );',
+        ),
+      );
+      expect(
+        runner,
+        isNot(
+          contains(
+            'correctnessSuitesPassed: correctnessCommands.isNotEmpty,',
+          ),
+        ),
+      );
     });
 
     test('reports a clear shortage when two native targets are required', () {

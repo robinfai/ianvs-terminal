@@ -31,7 +31,8 @@ void main() {
           'viewport_rows': 2,
           'row_cache_hits': 0,
           'row_cache_misses': 2,
-          'paint_micros': 100,
+          'paint_kind': 'non_frame',
+          'paint_micros': 60,
         },
         {
           'schema_version': 'ianvs-bench-flutter-render-v1',
@@ -40,7 +41,30 @@ void main() {
           'viewport_rows': 2,
           'row_cache_hits': 1,
           'row_cache_misses': 1,
-          'paint_micros': 75,
+          'paint_kind': 'non_frame',
+          'paint_micros': 100,
+        },
+        {
+          'schema_version': 'ianvs-bench-flutter-cursor-v1',
+          'paint_micros': 12,
+          'paint_bounds_area': 120,
+          'cell_width_px': 10,
+          'cell_height_px': 20,
+          'device_pixel_ratio': 2,
+          'cursor_picture_live_count': 1,
+          'cursor_picture_estimated_bytes': 6400,
+          'overlay_layer_count': 1,
+        },
+        {
+          'schema_version': 'ianvs-bench-flutter-cursor-v1',
+          'paint_micros': 20,
+          'paint_bounds_area': 200,
+          'cell_width_px': 10,
+          'cell_height_px': 20,
+          'device_pixel_ratio': 2,
+          'cursor_picture_live_count': 1,
+          'cursor_picture_estimated_bytes': 6400,
+          'overlay_layer_count': 1,
         },
       ],
       flutterFrameTimingEvents: const [
@@ -70,6 +94,30 @@ void main() {
     expect(summary['p95_total_span_micros'], 3700);
     expect(summary['p95_raster_duration_micros'], 2500);
     expect(summary['p95_paint_micros'], 100);
+    expect(summary['p50_surface_paint_micros'], 60);
+    expect(summary['p95_surface_paint_micros'], 100);
+    expect(summary['p50_cursor_paint_micros'], 12);
+    expect(summary['p95_cursor_paint_micros'], 20);
+    expect(summary['p50_build_duration_micros'], isA<num>());
+    expect(summary['p95_build_duration_micros'], isA<num>());
+    expect(summary['p50_raster_duration_micros'], isA<num>());
+    expect(summary['p95_raster_duration_micros'], isA<num>());
+    expect(summary['p50_total_span_micros'], isA<num>());
+    expect(summary['p95_total_span_micros'], isA<num>());
+    expect(summary['max_cursor_paint_bounds_area'], 200);
+    expect(summary['max_cursor_picture_live_count'], 1);
+    expect(summary['max_cursor_picture_estimated_bytes'], 6400);
+    expect(summary['max_overlay_layer_count'], 1);
+    expect(summary['missed_vsync_metric_valid'], isTrue);
+    expect(summary['overlay_layer_count_metric_valid'], isTrue);
+    expect(summary['cursor_paint_bounds_metric_valid'], isTrue);
+    expect(summary['cursor_cell_width_metric_valid'], isTrue);
+    expect(summary['cursor_cell_height_metric_valid'], isTrue);
+    expect(summary['cursor_device_pixel_ratio_metric_valid'], isTrue);
+    expect(summary['cursor_picture_live_count_metric_valid'], isTrue);
+    expect(summary['cursor_picture_estimated_bytes_metric_valid'], isTrue);
+    expect(summary['cursor_paint_bounds_violation_count'], 0);
+    expect(summary['cursor_picture_estimated_bytes_violation_count'], 0);
     expect(summary['missed_vsync_count'], 0);
     expect(summary['row_cache_hit_rate'], 1 / 4);
 
@@ -86,10 +134,240 @@ void main() {
     expect(correctness['schema_version'], 'ianvs-bench-correctness-v1');
     expect(correctness['hash_match'], isTrue);
 
-    expect(_readLines(outputDir, 'flutter_render.ndjson'), hasLength(2));
+    expect(_readLines(outputDir, 'flutter_render.ndjson'), hasLength(4));
     expect(_readLines(outputDir, 'flutter_frame_timing.ndjson'), hasLength(2));
-    expect(File('${outputDir.path}/summary.csv').existsSync(), isTrue);
+    final summaryCsv = _readLines(outputDir, 'summary.csv');
+    expect(summaryCsv, hasLength(2));
+    final headerColumns = summaryCsv.first.split(',');
+    final valueColumns = summaryCsv.last.split(',');
+    expect(valueColumns, hasLength(headerColumns.length));
+    expect(
+      headerColumns,
+      containsAllInOrder(<String>[
+        'p50_surface_paint_micros',
+        'p95_surface_paint_micros',
+        'p50_cursor_paint_micros',
+        'p95_cursor_paint_micros',
+        'missed_vsync_metric_valid',
+        'cursor_paint_bounds_violation_count',
+        'cursor_picture_estimated_bytes_violation_count',
+      ]),
+    );
     expect(File('${outputDir.path}/summary.md').existsSync(), isTrue);
+  });
+
+  test(
+    'marks incomplete frame timing samples instead of using partial data',
+    () {
+      final outputDir = Directory.systemTemp.createTempSync(
+        'ianvs_flutter_profile_incomplete_timing_test_',
+      );
+      addTearDown(() => outputDir.deleteSync(recursive: true));
+
+      final summary = writeTerminalRenderProfileReport(
+        outputDir: outputDir,
+        workload: 'cursor_blink_idle_surface_profile',
+        policy: 'real_flutter_profile',
+        repeatIndex: 1,
+        targetPlatform: 'macos',
+        targetDevice: 'macos-darwin',
+        semanticGenerations: 1,
+        flutterRenderEvents: const <Map<String, Object?>>[],
+        flutterFrameTimingEvents: const <Map<String, Object?>>[
+          <String, Object?>{
+            'build_duration_micros': 10,
+            'raster_duration_micros': 20,
+            'total_span_micros': 30,
+            'missed_vsync': false,
+          },
+          <String, Object?>{
+            'build_duration_micros': 11,
+            'total_span_micros': 31,
+          },
+        ],
+        expectedViewportHash: 'same',
+        actualViewportHash: 'same',
+      );
+
+      expect(summary['p95_build_duration_micros'], 11);
+      expect(summary['p95_raster_duration_micros'], 'N/A');
+      expect(summary['p50_raster_duration_micros'], 'N/A');
+      expect(summary['p95_total_span_micros'], 31);
+      expect(summary['missed_vsync_metric_valid'], isFalse);
+    },
+  );
+
+  test(
+    'surface cursor workload records the known overlay layer count as zero',
+    () {
+      final outputDir = Directory.systemTemp.createTempSync(
+        'ianvs_flutter_profile_surface_layer_test_',
+      );
+      addTearDown(() => outputDir.deleteSync(recursive: true));
+
+      final summary = writeTerminalRenderProfileReport(
+        outputDir: outputDir,
+        workload: 'cursor_blink_idle_surface_profile',
+        policy: 'real_flutter_profile',
+        repeatIndex: 1,
+        targetPlatform: 'macos',
+        targetDevice: 'macos-darwin',
+        semanticGenerations: 1,
+        flutterRenderEvents: const <Map<String, Object?>>[
+          <String, Object?>{
+            'schema_version': 'ianvs-bench-flutter-render-v1',
+            'frame_version': 1,
+            'frame_kind': 'snapshot',
+            'viewport_rows': 2,
+            'row_cache_hits': 0,
+            'row_cache_misses': 2,
+            'paint_kind': 'non_frame',
+            'paint_micros': 60,
+          },
+        ],
+        flutterFrameTimingEvents: const <Map<String, Object?>>[
+          <String, Object?>{
+            'build_duration_micros': 10,
+            'raster_duration_micros': 20,
+            'total_span_micros': 30,
+            'missed_vsync': false,
+          },
+        ],
+        expectedViewportHash: 'same',
+        actualViewportHash: 'same',
+      );
+
+      expect(summary['max_overlay_layer_count'], 0);
+      expect(summary['overlay_layer_count_metric_valid'], isTrue);
+    },
+  );
+
+  test('marks incomplete or negative paint timing samples invalid', () {
+    final outputDir = Directory.systemTemp.createTempSync(
+      'ianvs_flutter_profile_invalid_paint_timing_test_',
+    );
+    addTearDown(() => outputDir.deleteSync(recursive: true));
+
+    final summary = writeTerminalRenderProfileReport(
+      outputDir: outputDir,
+      workload: 'cursor_blink_idle_overlay_profile',
+      policy: 'real_flutter_profile',
+      repeatIndex: 1,
+      targetPlatform: 'macos',
+      targetDevice: 'macos-darwin',
+      semanticGenerations: 1,
+      flutterRenderEvents: const <Map<String, Object?>>[
+        <String, Object?>{
+          'schema_version': 'ianvs-bench-flutter-render-v1',
+          'paint_kind': 'non_frame',
+          'paint_micros': 10,
+        },
+        <String, Object?>{
+          'schema_version': 'ianvs-bench-flutter-render-v1',
+          'paint_kind': 'non_frame',
+        },
+        <String, Object?>{
+          'schema_version': 'ianvs-bench-flutter-cursor-v1',
+          'paint_micros': 5,
+        },
+        <String, Object?>{
+          'schema_version': 'ianvs-bench-flutter-cursor-v1',
+          'paint_micros': -1,
+        },
+      ],
+      flutterFrameTimingEvents: const <Map<String, Object?>>[],
+      expectedViewportHash: 'same',
+      actualViewportHash: 'same',
+    );
+
+    expect(summary['p95_paint_micros'], 'N/A');
+    expect(summary['p50_surface_paint_micros'], 'N/A');
+    expect(summary['p95_surface_paint_micros'], 'N/A');
+    expect(summary['p50_cursor_paint_micros'], 'N/A');
+    expect(summary['p95_cursor_paint_micros'], 'N/A');
+  });
+
+  test('summarizes cursor bounds and memory violations per event', () {
+    final outputDir = Directory.systemTemp.createTempSync(
+      'ianvs_flutter_profile_cursor_constraint_test_',
+    );
+    addTearDown(() => outputDir.deleteSync(recursive: true));
+
+    final summary = writeTerminalRenderProfileReport(
+      outputDir: outputDir,
+      workload: 'cursor_blink_idle_overlay_profile',
+      policy: 'real_flutter_profile',
+      repeatIndex: 1,
+      targetPlatform: 'macos',
+      targetDevice: 'macos-darwin',
+      semanticGenerations: 1,
+      flutterRenderEvents: const <Map<String, Object?>>[
+        <String, Object?>{
+          'schema_version': 'ianvs-bench-flutter-cursor-v1',
+          'paint_micros': 1,
+          'paint_bounds_area': 300,
+          'cell_width_px': 10,
+          'cell_height_px': 10,
+          'device_pixel_ratio': 1,
+          'cursor_picture_live_count': 1,
+          'cursor_picture_estimated_bytes': 1000,
+          'overlay_layer_count': 1,
+        },
+        <String, Object?>{
+          'schema_version': 'ianvs-bench-flutter-cursor-v1',
+          'paint_micros': 2,
+          'paint_bounds_area': 100,
+          'cell_width_px': 20,
+          'cell_height_px': 20,
+          'device_pixel_ratio': 2,
+          'cursor_picture_live_count': 1,
+          'cursor_picture_estimated_bytes': 100,
+          'overlay_layer_count': 1,
+        },
+      ],
+      flutterFrameTimingEvents: const <Map<String, Object?>>[],
+      expectedViewportHash: 'same',
+      actualViewportHash: 'same',
+    );
+
+    expect(summary['cursor_paint_bounds_violation_count'], 1);
+    expect(summary['cursor_picture_estimated_bytes_violation_count'], 1);
+    expect(summary['cursor_paint_bounds_metric_valid'], isTrue);
+    expect(summary['cursor_picture_estimated_bytes_metric_valid'], isTrue);
+  });
+
+  test('marks missing cursor observation fields invalid', () {
+    final outputDir = Directory.systemTemp.createTempSync(
+      'ianvs_flutter_profile_cursor_missing_test_',
+    );
+    addTearDown(() => outputDir.deleteSync(recursive: true));
+
+    final summary = writeTerminalRenderProfileReport(
+      outputDir: outputDir,
+      workload: 'cursor_blink_idle_overlay_profile',
+      policy: 'real_flutter_profile',
+      repeatIndex: 1,
+      targetPlatform: 'macos',
+      targetDevice: 'macos-darwin',
+      semanticGenerations: 1,
+      flutterRenderEvents: const <Map<String, Object?>>[
+        <String, Object?>{
+          'schema_version': 'ianvs-bench-flutter-cursor-v1',
+          'paint_micros': 1,
+          'overlay_layer_count': 1,
+        },
+      ],
+      flutterFrameTimingEvents: const <Map<String, Object?>>[],
+      expectedViewportHash: 'same',
+      actualViewportHash: 'same',
+    );
+
+    expect(summary['cursor_paint_bounds_metric_valid'], isFalse);
+    expect(summary['cursor_cell_width_metric_valid'], isFalse);
+    expect(summary['cursor_cell_height_metric_valid'], isFalse);
+    expect(summary['cursor_device_pixel_ratio_metric_valid'], isFalse);
+    expect(summary['cursor_picture_live_count_metric_valid'], isFalse);
+    expect(summary['cursor_picture_estimated_bytes_metric_valid'], isFalse);
   });
 
   test('writes aggregate summary for multiple profile runs', () {

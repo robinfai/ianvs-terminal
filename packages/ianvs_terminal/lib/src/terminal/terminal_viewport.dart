@@ -9,12 +9,14 @@ import 'package:flutter/services.dart';
 
 import '../config/terminal_config.dart';
 import '../runtime/terminal_benchmarking.dart';
+import 'render_terminal_cursor_overlay.dart';
 import 'render_terminal_viewport.dart';
 import 'selection_controller.dart';
 import 'terminal_graphics_cache.dart';
 import 'terminal_graphics_diagnostics.dart';
 import 'terminal_input_controller.dart';
 import 'terminal_models.dart';
+import 'terminal_cursor_overlay_experiment.dart';
 import 'terminal_viewport_colors.dart';
 
 const Key terminalScrollbarTrackKey = Key('terminal-scrollbar-track');
@@ -198,7 +200,9 @@ class _TerminalViewportState extends State<TerminalViewport>
   Timer? _selectionAutoScrollTimer;
   Timer? _scrollMomentumTimer;
   Timer? _pendingLinkOpenTimer;
-  bool _cursorVisible = true;
+  final ValueNotifier<bool> _cursorBlinkVisibility = ValueNotifier<bool>(true);
+  TerminalCursorExperimentMode _cursorExperimentMode =
+      TerminalCursorExperimentMode.surface;
   FocusNode? _ownedFocusNode;
   FocusNode? _listenedFocusNode;
   final GlobalKey _surfaceKey = GlobalKey();
@@ -255,6 +259,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     if (!identical(oldWidget.controller, widget.controller)) {
       oldWidget.controller.removeListener(_handleFrameUpdate);
       widget.controller.addListener(_handleFrameUpdate);
+      _cursorBlinkVisibility.value = true;
     }
     if (!identical(oldWidget.controller, widget.controller) ||
         !identical(oldWidget.graphicsCache, widget.graphicsCache)) {
@@ -299,6 +304,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     _selectionAutoScrollTimer?.cancel();
     _scrollMomentumTimer?.cancel();
     _pendingLinkOpenTimer?.cancel();
+    _cursorBlinkVisibility.dispose();
     _ownedFocusNode?.dispose();
     super.dispose();
   }
@@ -505,6 +511,13 @@ class _TerminalViewportState extends State<TerminalViewport>
     connection.setComposingRect(caretCellRect);
   }
 
+  TerminalCursorVisualSnapshot? _cursorVisualSnapshot() {
+    final renderObject = _surfaceKey.currentContext?.findRenderObject();
+    return renderObject is RenderTerminalViewport
+        ? terminalCursorVisualSnapshotFor(renderObject)
+        : null;
+  }
+
   void _syncFocusTrackingReport() {
     final modes = widget.controller.frame.modes;
     if (!modes.focusTracking) {
@@ -566,19 +579,26 @@ class _TerminalViewportState extends State<TerminalViewport>
         if (!mounted || !_shouldBlinkCursor) {
           return;
         }
-        setState(() {
-          _cursorVisible = !_cursorVisible;
-        });
+        _setCursorBlinkVisibility(!_cursorBlinkVisibility.value);
       });
       return;
     }
 
     _cursorBlinkTimer?.cancel();
     _cursorBlinkTimer = null;
-    if (!_cursorVisible) {
-      setState(() {
-        _cursorVisible = true;
-      });
+    if (!_cursorBlinkVisibility.value) {
+      _setCursorBlinkVisibility(true);
+    }
+  }
+
+  void _setCursorBlinkVisibility(bool value) {
+    if (_cursorBlinkVisibility.value == value) {
+      return;
+    }
+    _cursorBlinkVisibility.value = value;
+    if (_cursorExperimentMode == TerminalCursorExperimentMode.surface &&
+        mounted) {
+      setState(() {});
     }
   }
 
@@ -1718,6 +1738,9 @@ class _TerminalViewportState extends State<TerminalViewport>
   Widget build(BuildContext context) {
     _scheduleMeasuredCellSizeReport();
     _scheduleTextInputGeometrySync();
+    _cursorExperimentMode = TerminalCursorExperimentScope.modeOf(context);
+    final usesCursorOverlay =
+        _cursorExperimentMode == TerminalCursorExperimentMode.overlay;
     final colors = _resolvedColors(context);
     return Focus(
       autofocus: true,
@@ -1778,7 +1801,9 @@ class _TerminalViewportState extends State<TerminalViewport>
                                 controller: widget.controller,
                                 selectionController: widget.selectionController,
                                 cursorVisible:
-                                    _canDisplayFrameCursor && _cursorVisible,
+                                    _canDisplayFrameCursor &&
+                                    (usesCursorOverlay ||
+                                        _cursorBlinkVisibility.value),
                                 font: widget.font,
                                 cursor: widget.cursor,
                                 colors: effectiveColors,
@@ -1789,9 +1814,30 @@ class _TerminalViewportState extends State<TerminalViewport>
                                     widget.searchHighlightStyle ??
                                     const TerminalSearchHighlightStyle(),
                                 benchmarkEventSink: widget.benchmarkEventSink,
+                                paintCursorOnSurface: !usesCursorOverlay,
+                                cursorBlinkVisibility: () =>
+                                    _cursorBlinkVisibility.value,
                               ),
                             ),
                           ),
+                          if (usesCursorOverlay)
+                            Positioned.fill(
+                              child: Padding(
+                                padding: contentPadding,
+                                child: IgnorePointer(
+                                  child: TerminalCursorOverlay(
+                                    key: terminalCursorOverlayKey,
+                                    visualChanges: widget.controller,
+                                    frameVersion: () =>
+                                        widget.controller.frameVersion,
+                                    blinkVisibility: _cursorBlinkVisibility,
+                                    snapshotProvider: _cursorVisualSnapshot,
+                                    benchmarkEventSink:
+                                        widget.benchmarkEventSink,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ..._buildInlineImageOverlays(
                             frame,
                             contentPadding,
@@ -2742,6 +2788,8 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
     required this.activeSearchMatchIndex,
     required this.searchHighlightStyle,
     this.benchmarkEventSink,
+    this.paintCursorOnSurface = true,
+    this.cursorBlinkVisibility,
   });
 
   final TerminalViewportController controller;
@@ -2754,10 +2802,12 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
   final int activeSearchMatchIndex;
   final TerminalSearchHighlightStyle searchHighlightStyle;
   final TerminalBenchmarkEventSink? benchmarkEventSink;
+  final bool paintCursorOnSurface;
+  final ValueGetter<bool>? cursorBlinkVisibility;
 
   @override
   RenderTerminalViewport createRenderObject(BuildContext context) {
-    return RenderTerminalViewport(
+    final renderObject = RenderTerminalViewport(
       controller: controller,
       selectionController: selectionController,
       cursorVisible: cursorVisible,
@@ -2770,6 +2820,12 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
       searchHighlightStyle: searchHighlightStyle,
       benchmarkEventSink: benchmarkEventSink,
     );
+    configureTerminalCursorSurface(
+      renderObject,
+      paintCursorOnSurface: paintCursorOnSurface,
+      blinkVisibility: cursorBlinkVisibility,
+    );
+    return renderObject;
   }
 
   @override
@@ -2789,6 +2845,11 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
       ..searchHighlightStyle = searchHighlightStyle
       ..devicePixelRatio = MediaQuery.devicePixelRatioOf(context)
       ..benchmarkEventSink = benchmarkEventSink;
+    configureTerminalCursorSurface(
+      renderObject,
+      paintCursorOnSurface: paintCursorOnSurface,
+      blinkVisibility: cursorBlinkVisibility,
+    );
   }
 }
 

@@ -1,0 +1,69 @@
+{
+  "schema_version": "ianvs-cursor-overlay-gate-v1",
+  "eligible": true,
+  "reason_codes": [],
+  "correctness_suites_passed": true,
+  "thresholds": {
+    "min_repeats_per_variant": 5,
+    "min_blink_transitions_per_repeat": 20,
+    "max_cursor_paint_p95_ratio": 0.8,
+    "max_frame_timing_p95_ratio": 1.05,
+    "max_additional_overlay_layers": 1,
+    "max_live_cursor_pictures": 1
+  },
+  "observed": {
+    "surface": {
+      "repeat_count": 5,
+      "min_blink_transitions": 24.0,
+      "p50_surface_paint_micros_median": 382.0,
+      "p95_surface_paint_micros_median": 596.0,
+      "p50_cursor_paint_micros_median": null,
+      "p95_cursor_paint_micros_median": null,
+      "p50_build_duration_micros_median": 967.0,
+      "p95_build_duration_micros_median": 1545.0,
+      "p50_raster_duration_micros_median": 0.0,
+      "p95_raster_duration_micros_median": 1.0,
+      "p50_total_span_micros_median": 1407.0,
+      "p95_total_span_micros_median": 2456.0,
+      "surface_non_frame_paint_count_total": 120.0,
+      "cursor_paint_count_total": 0.0,
+      "max_overlay_layer_count": 0.0,
+      "max_cursor_picture_live_count": 0.0,
+      "max_cursor_picture_estimated_bytes": 0.0
+    },
+    "overlay": {
+      "repeat_count": 5,
+      "min_blink_transitions": 24.0,
+      "p50_surface_paint_micros_median": null,
+      "p95_surface_paint_micros_median": null,
+      "p50_cursor_paint_micros_median": 0.0,
+      "p95_cursor_paint_micros_median": 48.0,
+      "p50_build_duration_micros_median": 330.0,
+      "p95_build_duration_micros_median": 471.0,
+      "p50_raster_duration_micros_median": 0.0,
+      "p95_raster_duration_micros_median": 1.0,
+      "p50_total_span_micros_median": 943.0,
+      "p95_total_span_micros_median": 1754.0,
+      "surface_non_frame_paint_count_total": 0.0,
+      "cursor_paint_count_total": 120.0,
+      "max_overlay_layer_count": 1.0,
+      "max_cursor_picture_live_count": 1.0,
+      "max_cursor_picture_estimated_bytes": 2992.0
+    },
+    "ratios": {
+      "cursor_paint_p95": 0.08053691275167785,
+      "build_p95": 0.3048543689320388,
+      "raster_p95": 1.0,
+      "total_span_p95": 0.7141693811074918
+    },
+    "surface_missed_vsync_total": 0.0,
+    "overlay_missed_vsync_total": 0.0,
+    "additional_overlay_layers": 1.0,
+    "max_cursor_picture_live_count": 1.0,
+    "max_cursor_paint_bounds_area": 187.0,
+    "max_cursor_picture_estimated_bytes": 2992.0,
+    "max_cursor_picture_estimated_byte_limit": 5984.0,
+    "cursor_paint_bounds_violation_count_total": 0.0,
+    "cursor_picture_estimated_bytes_violation_count_total": 0.0
+  }
+}

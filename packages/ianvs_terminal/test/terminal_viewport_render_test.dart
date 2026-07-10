@@ -1,14 +1,18 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
+import 'package:ianvs_terminal/src/terminal/render_terminal_cursor_overlay.dart';
 import 'package:ianvs_terminal/src/terminal/render_terminal_viewport.dart';
+import 'package:ianvs_terminal/src/terminal/terminal_cursor_overlay_experiment.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
 
 void main() {
@@ -2637,6 +2641,770 @@ void main() {
       ),
     );
   });
+
+  test(
+    'terminal cursor visual key compares every rendering input by value',
+    () {
+      final key = _terminalCursorVisualKey();
+      final equalKey = key.copyWith(
+        fontFallback: List<String>.of(key.fontFallback),
+      );
+
+      expect(key, equalKey);
+      expect(key.hashCode, equalKey.hashCode);
+      for (final change in _terminalCursorVisualKeyChanges(key)) {
+        expect(change.key, isNot(key), reason: change.field);
+      }
+    },
+  );
+
+  test('terminal cursor overlay does not expand the debug renderer API', () {
+    final source = _renderTerminalViewportSource();
+
+    expect(source, isNot(contains('bool paintCursorOnSurface = true')));
+    expect(source, isNot(contains('ValueGetter<bool>? cursorBlinkVisibility')));
+    expect(
+      source,
+      isNot(contains('TerminalCursorVisualSnapshot? get cursorVisualSnapshot')),
+    );
+  });
+
+  test(
+    'terminal cursor snapshot cache rebuilds and disposes for every key field while reusing an equal key',
+    () {
+      final key = _terminalCursorVisualKey();
+      for (final change in _terminalCursorVisualKeyChanges(key)) {
+        final cache = TerminalCursorVisualSnapshotCache();
+        var builds = 0;
+
+        TerminalCursorVisualSnapshot build(TerminalCursorVisualKey value) {
+          builds += 1;
+          final recorder = ui.PictureRecorder();
+          Canvas(recorder).drawRect(
+            const Rect.fromLTWH(0, 0, 1, 1),
+            Paint()..color = Colors.white,
+          );
+          return TerminalCursorVisualSnapshot(
+            key: value,
+            picture: recorder.endRecording(),
+            rect: const Rect.fromLTWH(30, 40, 20, 20),
+            color: Colors.white,
+          );
+        }
+
+        final initial = cache.resolve(key: key, build: build);
+        final initialPicture = initial.picture;
+        final equal = cache.resolve(
+          key: key.copyWith(fontFallback: List<String>.of(key.fontFallback)),
+          build: build,
+        );
+        expect(equal, same(initial), reason: change.field);
+        expect(builds, 1, reason: change.field);
+        expect(initialPicture.debugDisposed, isFalse, reason: change.field);
+
+        final rebuilt = cache.resolve(key: change.key, build: build);
+        expect(rebuilt, isNot(same(initial)), reason: change.field);
+        expect(builds, 2, reason: change.field);
+        expect(initialPicture.debugDisposed, isTrue, reason: change.field);
+        expect(cache.livePictureCount, 1, reason: change.field);
+
+        final rebuiltPicture = rebuilt.picture;
+        cache.dispose();
+        expect(rebuiltPicture.debugDisposed, isTrue, reason: change.field);
+        expect(cache.livePictureCount, 0, reason: change.field);
+      }
+    },
+  );
+
+  testWidgets(
+    'terminal cursor overlay pixels and device alignment match surface block beam and underline at DPR 1 and 2 for ASCII and wide CJK',
+    (tester) async {
+      for (final devicePixelRatio in const <double>[1, 2]) {
+        for (final shape in TerminalCursorShape.values) {
+          for (final text in const <String>['A', '界']) {
+            final surface = await _captureTerminalCursorPixels(
+              tester,
+              mode: TerminalCursorExperimentMode.surface,
+              devicePixelRatio: devicePixelRatio,
+              shape: shape,
+              text: text,
+            );
+            final overlay = await _captureTerminalCursorPixels(
+              tester,
+              mode: TerminalCursorExperimentMode.overlay,
+              devicePixelRatio: devicePixelRatio,
+              shape: shape,
+              text: text,
+            );
+            final caseName =
+                '${shape.name} cursor over $text at DPR $devicePixelRatio';
+
+            expect(
+              overlay.bytes,
+              orderedEquals(surface.bytes),
+              reason: caseName,
+            );
+            _expectRectClose(overlay.cursorRect, surface.cursorRect);
+            _expectRectDeviceAligned(
+              overlay.cursorRect,
+              devicePixelRatio,
+              reason: caseName,
+            );
+            if (shape == TerminalCursorShape.block && text == '界') {
+              expect(
+                overlay.cursorRect.width,
+                moreOrLessEquals(overlay.cellSize.width * 2, epsilon: 0.001),
+                reason: caseName,
+              );
+            }
+          }
+        }
+      }
+    },
+  );
+
+  testWidgets(
+    'terminal cursor overlay block pixels match surface inverse glyph custom geometry and smart contrast',
+    (tester) async {
+      final cases =
+          <
+            ({
+              String name,
+              String text,
+              List<TerminalStyleRun> styleRuns,
+              TerminalViewportColors colors,
+            })
+          >[
+            (
+              name: 'inverse glyph',
+              text: 'A',
+              styleRuns: const <TerminalStyleRun>[
+                TerminalStyleRun(
+                  start: 0,
+                  end: 1,
+                  foreground: Color(0xFFEF4444),
+                  background: Color(0xFF22C55E),
+                  inverse: true,
+                ),
+              ],
+              colors: TerminalViewportColors.dark.copyWith(
+                cursor: const Color(0xFF2563EB),
+                smartCursorColor: false,
+              ),
+            ),
+            (
+              name: 'custom geometry',
+              text: '─',
+              styleRuns: const <TerminalStyleRun>[
+                TerminalStyleRun(
+                  start: 0,
+                  end: 1,
+                  foreground: Color(0xFFE5E7EB),
+                  background: Color(0xFF10141A),
+                ),
+              ],
+              colors: TerminalViewportColors.dark.copyWith(
+                cursor: const Color(0xFF2563EB),
+                smartCursorColor: false,
+              ),
+            ),
+            (
+              name: 'smart contrast',
+              text: 'A',
+              styleRuns: const <TerminalStyleRun>[
+                TerminalStyleRun(
+                  start: 0,
+                  end: 1,
+                  foreground: Color(0xFFE5E7EB),
+                  background: Color(0xFF10141A),
+                ),
+              ],
+              colors: TerminalViewportColors.dark.copyWith(
+                cursor: const Color(0xFF10141A),
+                smartCursorColor: true,
+                minimumContrastRatio: 4.5,
+              ),
+            ),
+          ];
+
+      for (final testCase in cases) {
+        final surface = await _captureTerminalCursorPixels(
+          tester,
+          mode: TerminalCursorExperimentMode.surface,
+          devicePixelRatio: 2,
+          shape: TerminalCursorShape.block,
+          text: testCase.text,
+          styleRuns: testCase.styleRuns,
+          colors: testCase.colors,
+        );
+        final overlay = await _captureTerminalCursorPixels(
+          tester,
+          mode: TerminalCursorExperimentMode.overlay,
+          devicePixelRatio: 2,
+          shape: TerminalCursorShape.block,
+          text: testCase.text,
+          styleRuns: testCase.styleRuns,
+          colors: testCase.colors,
+        );
+
+        expect(
+          overlay.bytes,
+          orderedEquals(surface.bytes),
+          reason: testCase.name,
+        );
+        expect(overlay.cursorColor, surface.cursorColor, reason: testCase.name);
+        if (testCase.name == 'smart contrast') {
+          expect(
+            overlay.cursorColor?.toARGB32(),
+            isNot(const Color(0xFF10141A).toARGB32()),
+          );
+        }
+      }
+    },
+  );
+
+  testWidgets(
+    'terminal cursor overlay blink emits one bounded cursor event without surface repaint and reuses its picture',
+    (tester) async {
+      final events = <Map<String, Object?>>[];
+      final focusNode = FocusNode(debugLabel: 'terminal-overlay-test');
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: <TerminalRow>[TerminalRow(index: 0, text: 'ready')],
+            cursor: TerminalCursor(row: 0, col: 2, visible: true),
+            viewportRows: 1,
+            viewportCols: 20,
+            dirtyRanges: <TerminalDirtyRange>[
+              TerminalDirtyRange(start: 0, end: 1),
+            ],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+      final selectionController = SelectionController();
+      final runtime = TerminalRuntimeController(
+        backend: _NoopPtyBackend(),
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      final inputController = TerminalInputController(
+        sessionId: 'cursor-overlay',
+        runtime: runtime,
+        readFrame: () => controller.frame,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+      addTearDown(focusNode.dispose);
+      addTearDown(controller.dispose);
+      addTearDown(selectionController.dispose);
+      addTearDown(runtime.dispose);
+
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: SizedBox(
+            width: 320,
+            height: 96,
+            child: TerminalViewport(
+              controller: controller,
+              selectionController: selectionController,
+              inputController: inputController,
+              focusNode: focusNode,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+              benchmarkEventSink: events.add,
+            ),
+          ),
+        ),
+      );
+      focusNode.requestFocus();
+      await tester.pump();
+      final renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .last;
+      final pictureBeforeBlink = terminalCursorVisualSnapshotFor(
+        renderObject,
+      )!.picture;
+      events.clear();
+
+      await tester.pump(const Duration(milliseconds: 700));
+
+      final cursorEvents = events
+          .where(
+            (event) =>
+                event['schema_version'] == 'ianvs-bench-flutter-cursor-v1',
+          )
+          .toList(growable: false);
+      expect(cursorEvents, hasLength(1));
+      expect(
+        events.where(
+          (event) => event['schema_version'] == 'ianvs-bench-flutter-render-v1',
+        ),
+        isEmpty,
+      );
+      expect(
+        terminalCursorVisualSnapshotFor(renderObject)!.picture,
+        same(pictureBeforeBlink),
+      );
+      final event = cursorEvents.single;
+      final paintArea = (event['paint_bounds_area']! as num).toDouble();
+      final cellWidth = (event['cell_width_px']! as num).toDouble();
+      final cellHeight = (event['cell_height_px']! as num).toDouble();
+      final dpr = (event['device_pixel_ratio']! as num).toDouble();
+      final byteLimit =
+          (2 * cellWidth * dpr).ceil() * (cellHeight * dpr).ceil() * 4;
+      expect(paintArea, greaterThan(0));
+      expect(paintArea, lessThanOrEqualTo(2 * cellWidth * cellHeight));
+      expect(event['cursor_picture_live_count'], 1);
+      expect(event['overlay_layer_count'], 1);
+      expect(
+        event['cursor_picture_estimated_bytes'],
+        lessThanOrEqualTo(byteLimit),
+      );
+      expect(find.byKey(terminalCursorOverlayKey), findsOneWidget);
+    },
+  );
+
+  testWidgets('terminal cursor overlay preserves exact nine-layer stack order', (
+    tester,
+  ) async {
+    final imageBytes = base64.decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mP8z8BQDwAFgwJ/lWnU2wAAAABJRU5ErkJggg==',
+    );
+    final focusNode = FocusNode(debugLabel: 'terminal-overlay-stack');
+    final controller = TerminalViewportController()
+      ..updateFrame(
+        TerminalFrameDiff(
+          rows: <TerminalRow>[
+            TerminalRow(
+              index: 0,
+              text: 'link layer',
+              modifiedAt: DateTime(2026, 7, 10, 12),
+            ),
+          ],
+          cursor: const TerminalCursor(row: 0, col: 0, visible: true),
+          viewportRows: 2,
+          viewportCols: 12,
+          dirtyRanges: const <TerminalDirtyRange>[
+            TerminalDirtyRange(start: 0, end: 1),
+          ],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 4,
+          hyperlinks: const <TerminalHyperlinkRange>[
+            TerminalHyperlinkRange(
+              row: 0,
+              startCol: 0,
+              endCol: 4,
+              uri: 'https://example.com/docs',
+            ),
+          ],
+          inlineImages: <TerminalInlineImage>[
+            TerminalInlineImage(
+              row: 0,
+              col: 5,
+              widthCells: 1,
+              heightCells: 1,
+              bytes: imageBytes,
+              altText: 'pixel',
+            ),
+          ],
+          graphics: const <TerminalGraphicPlacement>[
+            TerminalGraphicPlacement(
+              renderId: 901,
+              placementId: 901,
+              assetKey: TerminalGraphicAssetKey(id: 91, version: 1),
+              protocol: 'kitty',
+              row: 0,
+              col: 6,
+              widthPx: 8,
+              heightPx: 16,
+              widthCells: 1,
+              heightCells: 1,
+              zIndex: -1,
+            ),
+            TerminalGraphicPlacement(
+              renderId: 902,
+              placementId: 902,
+              assetKey: TerminalGraphicAssetKey(id: 92, version: 1),
+              protocol: 'kitty',
+              row: 0,
+              col: 7,
+              widthPx: 8,
+              heightPx: 16,
+              widthCells: 1,
+              heightCells: 1,
+              zIndex: 1,
+            ),
+          ],
+        ),
+      );
+    final selectionController = SelectionController();
+    final cache = TerminalGraphicsCache(loadAsset: (_) async => null);
+    final runtime = TerminalRuntimeController(
+      backend: _NoopPtyBackend(),
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    final inputController = TerminalInputController(
+      sessionId: 'cursor-overlay-stack',
+      runtime: runtime,
+      readFrame: () => controller.frame,
+      readSelection: () => '',
+      copySelection: (_) async {},
+      readClipboard: () async => '',
+    );
+    addTearDown(focusNode.dispose);
+    addTearDown(controller.dispose);
+    addTearDown(selectionController.dispose);
+    addTearDown(cache.dispose);
+    addTearDown(runtime.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TerminalCursorExperimentScope(
+            mode: TerminalCursorExperimentMode.overlay,
+            child: SizedBox(
+              width: 400,
+              height: 160,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: inputController,
+                focusNode: focusNode,
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+                graphicsCache: cache,
+                showLineTimestamps: true,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    focusNode.requestFocus();
+    await tester.pump();
+    await tester.pump();
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: 'ni',
+        selection: TextSelection.collapsed(offset: 2),
+        composing: TextRange(start: 0, end: 2),
+      ),
+    );
+    await tester.pump();
+    final surface = tester.allRenderObjects
+        .whereType<RenderTerminalViewport>()
+        .last;
+    final pointer = TestPointer(77, PointerDeviceKind.mouse);
+    await tester.sendEventToBinding(
+      pointer.hover(
+        surface.localToGlobal(
+          Offset(surface.debugCellSize.width, surface.debugCellSize.height / 2),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    const belowGraphicKey = Key('terminal-graphic-901');
+    const inlineImageKey = Key('terminal-inline-image-0-5');
+    const aboveGraphicKey = Key('terminal-graphic-902');
+    const timestampKey = Key('terminal-line-timestamp-0');
+    const composingKey = Key('terminal-composing-overlay');
+    final stackElement = tester
+        .elementList(find.byType(Stack))
+        .singleWhere(
+          (element) =>
+              _elementSubtreeContainsKey(element, belowGraphicKey) &&
+              _elementSubtreeContainsKey(element, terminalCursorOverlayKey) &&
+              _elementSubtreeContainsKey(element, inlineImageKey) &&
+              _elementSubtreeContainsKey(element, aboveGraphicKey) &&
+              _elementSubtreeContainsKey(element, timestampKey) &&
+              _elementSubtreeContainsKey(element, terminalScrollbarTrackKey) &&
+              _elementSubtreeContainsKey(element, composingKey) &&
+              _elementSubtreeContainsKey(element, terminalLinkTooltipKey),
+        );
+    final indexes = <int>[
+      _directChildIndexContainingKey(stackElement, belowGraphicKey),
+      _directChildIndexContainingWidgetTypeName(
+        stackElement,
+        '_TerminalViewportSurface',
+      ),
+      _directChildIndexContainingKey(stackElement, terminalCursorOverlayKey),
+      _directChildIndexContainingKey(stackElement, inlineImageKey),
+      _directChildIndexContainingKey(stackElement, aboveGraphicKey),
+      _directChildIndexContainingKey(stackElement, timestampKey),
+      _directChildIndexContainingKey(stackElement, terminalScrollbarTrackKey),
+      _directChildIndexContainingKey(stackElement, composingKey),
+      _directChildIndexContainingKey(stackElement, terminalLinkTooltipKey),
+    ];
+    expect(indexes, orderedEquals(List<int>.generate(9, (index) => index)));
+    expect(_directChildCount(stackElement), 9);
+  });
+}
+
+TerminalCursorVisualKey _terminalCursorVisualKey() {
+  return TerminalCursorVisualKey(
+    frameVersion: 7,
+    cursorRow: 2,
+    cursorCol: 3,
+    cursorVisible: true,
+    cursorShape: TerminalCursorShape.block,
+    resolvedForeground: const Color(0xFFE5E7EB),
+    resolvedBackground: const Color(0xFF10141A),
+    resolvedCursor: const Color(0xFFFFFFFF),
+    cellSize: const Size(10, 20),
+    devicePixelRatio: 2,
+    fontFamily: 'monospace',
+    fontFallback: const <String>['Menlo'],
+    fontSize: 14,
+    lineHeight: 1.2,
+    glyphText: '界',
+    glyphUsesCustomGeometry: false,
+    glyphCustomGeometryKind: 'none',
+    glyphColumn: 3,
+    glyphColumnSpan: 2,
+    glyphPlacementRect: const Rect.fromLTWH(30, 40, 20, 20),
+    glyphDrawOffset: const Offset(30, 40),
+    glyphScaleX: 1,
+    glyphScaleY: 1,
+    glyphFontWeight: FontWeight.w700,
+    glyphFontStyle: FontStyle.italic,
+    glyphDecoration: TextDecoration.underline,
+    glyphIsContinuation: false,
+    cursorEnabled: true,
+    cursorBlinkEnabled: true,
+  );
+}
+
+List<({String field, TerminalCursorVisualKey key})>
+_terminalCursorVisualKeyChanges(TerminalCursorVisualKey key) {
+  return <({String field, TerminalCursorVisualKey key})>[
+    (field: 'frameVersion', key: key.copyWith(frameVersion: 8)),
+    (field: 'cursorRow', key: key.copyWith(cursorRow: 4)),
+    (field: 'cursorCol', key: key.copyWith(cursorCol: 5)),
+    (field: 'cursorVisible', key: key.copyWith(cursorVisible: false)),
+    (
+      field: 'cursorShape',
+      key: key.copyWith(cursorShape: TerminalCursorShape.beam),
+    ),
+    (
+      field: 'resolvedForeground',
+      key: key.copyWith(resolvedForeground: Colors.red),
+    ),
+    (
+      field: 'resolvedBackground',
+      key: key.copyWith(resolvedBackground: Colors.blue),
+    ),
+    (field: 'resolvedCursor', key: key.copyWith(resolvedCursor: Colors.green)),
+    (field: 'cellSize', key: key.copyWith(cellSize: const Size(11, 20))),
+    (field: 'devicePixelRatio', key: key.copyWith(devicePixelRatio: 1)),
+    (field: 'fontFamily', key: key.copyWith(fontFamily: 'Menlo')),
+    (
+      field: 'fontFallback',
+      key: key.copyWith(fontFallback: const <String>['Monaco']),
+    ),
+    (field: 'fontSize', key: key.copyWith(fontSize: 15)),
+    (field: 'lineHeight', key: key.copyWith(lineHeight: 1.4)),
+    (field: 'glyphText', key: key.copyWith(glyphText: 'A')),
+    (
+      field: 'glyphUsesCustomGeometry',
+      key: key.copyWith(glyphUsesCustomGeometry: true),
+    ),
+    (
+      field: 'glyphCustomGeometryKind',
+      key: key.copyWith(glyphCustomGeometryKind: 'boxDrawingHorizontal'),
+    ),
+    (field: 'glyphColumn', key: key.copyWith(glyphColumn: 2)),
+    (field: 'glyphColumnSpan', key: key.copyWith(glyphColumnSpan: 1)),
+    (
+      field: 'glyphPlacementRect',
+      key: key.copyWith(
+        glyphPlacementRect: const Rect.fromLTWH(20, 40, 10, 20),
+      ),
+    ),
+    (
+      field: 'glyphDrawOffset',
+      key: key.copyWith(glyphDrawOffset: const Offset(20, 40)),
+    ),
+    (field: 'glyphScaleX', key: key.copyWith(glyphScaleX: 2)),
+    (field: 'glyphScaleY', key: key.copyWith(glyphScaleY: 2)),
+    (
+      field: 'glyphFontWeight',
+      key: key.copyWith(glyphFontWeight: FontWeight.w400),
+    ),
+    (
+      field: 'glyphFontStyle',
+      key: key.copyWith(glyphFontStyle: FontStyle.normal),
+    ),
+    (
+      field: 'glyphDecoration',
+      key: key.copyWith(glyphDecoration: TextDecoration.lineThrough),
+    ),
+    (
+      field: 'glyphIsContinuation',
+      key: key.copyWith(glyphIsContinuation: true),
+    ),
+    (field: 'cursorEnabled', key: key.copyWith(cursorEnabled: false)),
+    (field: 'cursorBlinkEnabled', key: key.copyWith(cursorBlinkEnabled: false)),
+  ];
+}
+
+Future<({Uint8List bytes, Rect cursorRect, Size cellSize, Color? cursorColor})>
+_captureTerminalCursorPixels(
+  WidgetTester tester, {
+  required TerminalCursorExperimentMode mode,
+  required double devicePixelRatio,
+  required TerminalCursorShape shape,
+  required String text,
+  List<TerminalStyleRun>? styleRuns,
+  TerminalViewportColors colors = TerminalViewportColors.dark,
+}) async {
+  tester.view.devicePixelRatio = devicePixelRatio;
+  tester.view.physicalSize = Size(
+    320 * devicePixelRatio,
+    96 * devicePixelRatio,
+  );
+  final boundaryKey = GlobalKey();
+  final focusNode = FocusNode(debugLabel: 'terminal-cursor-pixel-test');
+  final selectionController = SelectionController();
+  final controller = TerminalViewportController()
+    ..updateFrame(
+      TerminalFrameDiff(
+        rows: <TerminalRow>[
+          TerminalRow(
+            index: 0,
+            text: text,
+            styleRuns:
+                styleRuns ??
+                <TerminalStyleRun>[
+                  TerminalStyleRun(
+                    start: 0,
+                    end: text == '界' ? 2 : 1,
+                    foreground: const Color(0xFFE5E7EB),
+                    background: const Color(0xFF10141A),
+                  ),
+                ],
+          ),
+        ],
+        cursor: const TerminalCursor(row: 0, col: 0, visible: true),
+        viewportRows: 1,
+        viewportCols: 8,
+        dirtyRanges: const <TerminalDirtyRange>[
+          TerminalDirtyRange(start: 0, end: 1),
+        ],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+        defaultForeground: const Color(0xFFE5E7EB),
+        defaultBackground: const Color(0xFF10141A),
+      ),
+    );
+  final runtime = TerminalRuntimeController(
+    backend: _NoopPtyBackend(),
+    copyToClipboard: (_) async {},
+    readClipboard: () async => '',
+    enableSessionPolling: false,
+  );
+  final inputController = TerminalInputController(
+    sessionId: 'cursor-pixel-${mode.name}-${shape.name}',
+    runtime: runtime,
+    readFrame: () => controller.frame,
+    readSelection: () => '',
+    copySelection: (_) async {},
+    readClipboard: () async => '',
+  );
+
+  try {
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: TerminalCursorExperimentScope(
+          mode: mode,
+          child: Center(
+            child: RepaintBoundary(
+              key: boundaryKey,
+              child: SizedBox(
+                width: 160,
+                height: 48,
+                child: TerminalViewport(
+                  controller: controller,
+                  selectionController: selectionController,
+                  inputController: inputController,
+                  focusNode: focusNode,
+                  onScrollLines: (_) {},
+                  onScrollToOffset: (_) {},
+                  colors: colors,
+                  cursor: TerminalCursorConfig(shape: shape, blink: false),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    final renderObject = tester.allRenderObjects
+        .whereType<RenderTerminalViewport>()
+        .last;
+    final boundary =
+        boundaryKey.currentContext!.findRenderObject()!
+            as RenderRepaintBoundary;
+    final image = await _runUiAsync(
+      tester,
+      () => boundary.toImage(pixelRatio: devicePixelRatio),
+    );
+    try {
+      final byteData = await _runUiAsync(
+        tester,
+        () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
+      );
+      if (byteData == null) {
+        throw StateError('Failed to read terminal cursor image bytes.');
+      }
+      return (
+        bytes: Uint8List.fromList(byteData.buffer.asUint8List()),
+        cursorRect: renderObject.debugCursorRect!,
+        cellSize: renderObject.debugCellSize,
+        cursorColor: renderObject.debugCursorColor,
+      );
+    } finally {
+      image.dispose();
+    }
+  } finally {
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    focusNode.dispose();
+    selectionController.dispose();
+    runtime.dispose();
+    controller.dispose();
+    tester.view.resetDevicePixelRatio();
+    tester.view.resetPhysicalSize();
+  }
+}
+
+void _expectRectDeviceAligned(
+  Rect rect,
+  double devicePixelRatio, {
+  required String reason,
+}) {
+  for (final edge in <double>[rect.left, rect.top, rect.right, rect.bottom]) {
+    final physical = edge * devicePixelRatio;
+    expect(
+      physical,
+      moreOrLessEquals(physical.roundToDouble(), epsilon: 0.001),
+      reason: reason,
+    );
+  }
+}
+
+int _directChildCount(Element parent) {
+  var count = 0;
+  parent.visitChildElements((_) => count += 1);
+  return count;
 }
 
 TerminalFrameDiff _emptyGraphicFrame({

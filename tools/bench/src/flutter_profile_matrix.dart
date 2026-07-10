@@ -77,6 +77,7 @@ final class FlutterProfileMatrixCommand {
     required this.workloads,
     required this.repeats,
     required this.frameCount,
+    this.correctnessSuitesPassed = false,
   });
 
   final FlutterProfileDevice device;
@@ -84,6 +85,7 @@ final class FlutterProfileMatrixCommand {
   final List<String> workloads;
   final int repeats;
   final int frameCount;
+  final bool correctnessSuitesPassed;
 
   List<String> get flutterDriveArgs {
     final outputPath = '$outputRoot/${device.targetLabel}';
@@ -99,8 +101,67 @@ final class FlutterProfileMatrixCommand {
       '--dart-define=IANVS_BENCH_PROFILE_WORKLOADS=${workloads.join(',')}',
       '--dart-define=IANVS_BENCH_PROFILE_REPEATS=$repeats',
       '--dart-define=IANVS_BENCH_PROFILE_FRAME_COUNT=$frameCount',
+      '--dart-define=IANVS_BENCH_CORRECTNESS_SUITES_PASSED=$correctnessSuitesPassed',
     ];
   }
+}
+
+final class FlutterProfileProcessCommand {
+  const FlutterProfileProcessCommand({
+    required this.executable,
+    required this.arguments,
+    required this.workingDirectory,
+  });
+
+  final String executable;
+  final List<String> arguments;
+  final String workingDirectory;
+}
+
+bool requiresCursorOverlayCorrectnessSuites(List<String> workloads) {
+  final workloadSet = workloads.toSet();
+  return workloadSet.contains('cursor_blink_idle_surface_profile') &&
+      workloadSet.contains('cursor_blink_idle_overlay_profile');
+}
+
+List<FlutterProfileProcessCommand> cursorOverlayCorrectnessSuiteCommands(
+  List<String> workloads,
+) {
+  if (!requiresCursorOverlayCorrectnessSuites(workloads)) {
+    return const <FlutterProfileProcessCommand>[];
+  }
+  return const <FlutterProfileProcessCommand>[
+    FlutterProfileProcessCommand(
+      executable: 'flutter',
+      arguments: <String>[
+        'test',
+        'test/terminal_viewport_render_test.dart',
+        '--name',
+        'cursor|graphic',
+      ],
+      workingDirectory: 'packages/ianvs_terminal',
+    ),
+    FlutterProfileProcessCommand(
+      executable: 'flutter',
+      arguments: <String>[
+        'test',
+        'test/terminal/render_terminal_viewport_test.dart',
+        '--name',
+        'cursor',
+      ],
+      workingDirectory: 'example',
+    ),
+    FlutterProfileProcessCommand(
+      executable: 'flutter',
+      arguments: <String>[
+        'test',
+        'test/terminal_input_controller_test.dart',
+        '--plain-name',
+        'terminal viewport keeps composing text visible across cursor blink frames',
+      ],
+      workingDirectory: 'example',
+    ),
+  ];
 }
 
 final class FlutterProfileMatrixOptions {

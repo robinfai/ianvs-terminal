@@ -39,26 +39,46 @@ Future<void> main(List<String> args) async {
       requiredCount: options.requiredTargetCount,
     );
 
-    final commands = selectedDevices
-        .where((device) => device.isSupported)
-        .map(
-          (device) => FlutterProfileMatrixCommand(
-            device: device,
-            outputRoot: options.outputRoot,
-            workloads: options.workloads,
-            repeats: options.repeats,
-            frameCount: options.frameCount,
-          ),
-        )
-        .toList(growable: false);
+    final correctnessCommands = cursorOverlayCorrectnessSuiteCommands(
+      options.workloads,
+    );
 
     if (options.dryRun) {
+      for (final command in correctnessCommands) {
+        stdout.writeln(
+          '${command.workingDirectory}: ${command.executable} '
+          '${jsonEncode(command.arguments)}',
+        );
+      }
+      final commands = _profileCommands(
+        selectedDevices,
+        options,
+        correctnessSuitesPassed: false,
+      );
       for (final command in commands) {
         stdout.writeln('flutter ${jsonEncode(command.flutterDriveArgs)}');
       }
       return;
     }
 
+    var correctnessSuitesPassed = false;
+    for (final command in correctnessCommands) {
+      final exitCode = await _runProcessCommand(command);
+      if (exitCode != 0) {
+        stderr.writeln(
+          'cursor overlay correctness suite failed with exit code $exitCode',
+        );
+        ioExitCode = exitCode;
+        return;
+      }
+      correctnessSuitesPassed = true;
+    }
+
+    final commands = _profileCommands(
+      selectedDevices,
+      options,
+      correctnessSuitesPassed: correctnessSuitesPassed,
+    );
     for (final command in commands) {
       final exitCode = await _runFlutterDrive(command.flutterDriveArgs);
       if (exitCode != 0) {
@@ -78,6 +98,26 @@ Future<void> main(List<String> args) async {
     stderr.writeln('Flutter profile matrix failed: $error');
     ioExitCode = 1;
   }
+}
+
+List<FlutterProfileMatrixCommand> _profileCommands(
+  List<FlutterProfileDevice> selectedDevices,
+  FlutterProfileMatrixOptions options, {
+  required bool correctnessSuitesPassed,
+}) {
+  return selectedDevices
+      .where((device) => device.isSupported)
+      .map(
+        (device) => FlutterProfileMatrixCommand(
+          device: device,
+          outputRoot: options.outputRoot,
+          workloads: options.workloads,
+          repeats: options.repeats,
+          frameCount: options.frameCount,
+          correctnessSuitesPassed: correctnessSuitesPassed,
+        ),
+      )
+      .toList(growable: false);
 }
 
 set ioExitCode(int value) {
@@ -131,6 +171,16 @@ Future<int> _runFlutterDrive(List<String> args) async {
     'flutter',
     args,
     workingDirectory: 'example',
+    mode: ProcessStartMode.inheritStdio,
+  );
+  return process.exitCode;
+}
+
+Future<int> _runProcessCommand(FlutterProfileProcessCommand command) async {
+  final process = await Process.start(
+    command.executable,
+    command.arguments,
+    workingDirectory: command.workingDirectory,
     mode: ProcessStartMode.inheritStdio,
   );
   return process.exitCode;
