@@ -314,8 +314,12 @@ String _formalMarkdown(FlutterProfileReportAuditResult result) {
       )
       ..writeln('|---|---|---:|---:|---:|---:|---:|---:|');
     for (final row in _performanceSummaryRows(result.rows)) {
+      final wireFormat = row.wireFormat.trim();
+      final workloadLabel = wireFormat.isEmpty
+          ? row.workload
+          : '${row.workload} ($wireFormat)';
       buffer.writeln(
-        '| ${_markdownCell(row.target)} | ${_markdownCell(row.workload)} (${_markdownCell(row.wireFormat)}) | '
+        '| ${_markdownCell(row.target)} | ${_markdownCell(workloadLabel)} | '
         '${row.repeatCount} | ${row.hashMatchCount} | '
         '${_formatDouble(row.p95TotalSpanAverage)} | '
         '${_formatDouble(row.p95TotalSpanMax)} | '
