@@ -10,6 +10,14 @@ class RunnerTests: XCTestCase {
     // See https://developer.apple.com/documentation/xctest for more information about using XCTest.
   }
 
+  func testApplicationDidFinishLaunchingDoesNotCallMissingSuperclassSelector() {
+    let delegate = AppDelegate()
+
+    delegate.applicationDidFinishLaunching(
+      Notification(name: NSApplication.didFinishLaunchingNotification)
+    )
+  }
+
   func testNotificationAuthorizationFailureUsesExpectedErrorCode() {
     let window = MainFlutterWindow()
 

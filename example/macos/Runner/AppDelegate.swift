@@ -6,7 +6,6 @@ class AppDelegate: FlutterAppDelegate {
   static var suppressNextLastWindowTerminate = false
 
   override func applicationDidFinishLaunching(_ notification: Notification) {
-    super.applicationDidFinishLaunching(notification)
     scheduleForegroundMainWindow(for: NSApp)
   }
 
