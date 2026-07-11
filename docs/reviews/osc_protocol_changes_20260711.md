@@ -1,4 +1,4 @@
-# OSC protocol changes and phase evidence — 2026-07-11
+# OSC protocol changes and phase evidence — 2026-07-11–12
 
 Branch: `codex/osc-capability-completion-20260711`
 
@@ -11,6 +11,7 @@ Branch: `codex/osc-capability-completion-20260711`
 | `189dee9` | Phases 3–7 Dart/Flutter product integration, render/UI tests and verification gate |
 | `1bb2f3b` | Phase 8 Kitty OSC 99 safe notification subset and end-to-end evidence |
 | `9972758` | Phase 9 UAPI OSC 3008 bounded typed context hierarchy and end-to-end evidence |
+| `f7d48bb` | Phase 10 Kitty OSC 21 bounded color control and OSC 23 title-side-effect removal |
 | documentation commit containing this file | final matrix, protocol specification and evidence record |
 
 The second pass uses two logical commits (native protocol engine and product
@@ -194,25 +195,49 @@ independently identified below with a scoped rollback path.
   smoke 4/4, real PTY 18/18 and RunnerTests 10/10.
 - **Rollback:** revert Phase 9; OSC 3008 returns to a bounded unsupported no-op.
 
+## Phase 10 report — Kitty OSC 21 color control and OSC 23 correction
+
+- **Start SHA:** `a418f51ad85e0f8d6762bc261236490539af3a07`.
+- **End SHA:** `f7d48bbda8dbffab0fe637c0b1a306bbd9c4a761`.
+- **Modified files:** dedicated color-control state, color/OSC dispatch,
+  snapshot/RIS state, native real-PTY tests, mirrored corpus, semantic probe,
+  macOS real-PTY acceptance and protocol evidence.
+- **Confirmed issues:** published Kitty OSC 21 color control was discarded, and
+  the unrelated OSC 23 opcode incorrectly popped the CSI title stack.
+- **Fixes:** ordered palette 0–255 and core-color set/query/reset; special-slot,
+  dynamic and alpha state; profile baselines; 4 KiB replies; malformed-field
+  isolation; OSC 23 bounded no-op.
+- **Unfixed by design:** selection text recoloring, cursor-text rendering,
+  visual-bell tint and transparent-background compositing remain non-visual;
+  OSC 22 pointer-shape state is the next protocol phase.
+- **Security:** appearance-only gate, VT220 denial, bounded keys/fields/replies,
+  payload-free diagnostics and no host authority.
+- **Tests/results:** corpus 18 cases/20 edge classes, probes 14; vendored 1,598
+  passed/1 ignored; native lib 73/73, corpus 1/1, session 453/453, vttest 3/3;
+  terminal package 441 passed, example grouped 913/913, Widget 125/125, macOS
+  smoke 4/4, real PTY 19/19 and RunnerTests 10/10.
+- **Rollback:** revert `f7d48bb`; OSC 21 returns to bounded unsupported behavior.
+
 ## Deferred phases
 
 Phase 8 Kitty OSC 99 is implemented as the safe subset recorded in
 `osc99_phase8_20260711.md`. Phase 9 OSC 3008 is implemented as typed metadata in
-`osc3008_phase9_20260711.md`. Kitty OSC 66/72, unsafe iTerm2 upload/download/actions, arbitrary
-URL/profile/command actions, notification buttons/sounds/icons and
-shell-provided execution are also deferred. Unknown/deferred sequences remain
-bounded and cannot gain host authority.
+`osc3008_phase9_20260711.md`. Phase 10 OSC 21 is implemented as the bounded
+subset recorded in `osc21_phase10_20260712.md`. Kitty OSC 22/66/72, unsafe
+iTerm2 upload/download/actions, arbitrary URL/profile/command actions,
+notification buttons/sounds/icons and shell-provided execution are deferred.
+Unknown/deferred sequences remain bounded and cannot gain host authority.
 
 ## Final verification record
 
-The Phase 9 repository gate is green:
+The Phase 10 repository gate is green:
 
-- vendored fmt, strict Clippy and tests: 1,592 passed, 1 ignored; doc tests 11
+- vendored fmt, strict Clippy and tests: 1,598 passed, 1 ignored; doc tests 11
   passed, 1 ignored;
-- native fmt/Clippy; lib 73/73, corpus 1/1, session 451/451, vttest 3/3;
-- corpus validator 17/17 (18 edge classes) and semantic probe self-test 12/12;
+- native fmt/Clippy; lib 73/73, corpus 1/1, session 453/453, vttest 3/3;
+- corpus validator 18 cases (20 edge classes) and semantic probe self-test 14/14;
 - Dart/Flutter analysis and protocol/runtime/controller/widget focused suites;
-- macOS smoke 4/4, real PTY 18/18 and native RunnerTests 10/10.
+- macOS smoke 4/4, real PTY 19/19 and native RunnerTests 10/10.
 
 Final committed-tree command:
 
@@ -224,7 +249,7 @@ VERIFY_FLUTTER_TERMINAL_RUN_EXAMPLE_WIDGET_TESTS=1 \
 Result: passed with exit code 0. This includes vendored/core format, strict
 Clippy and tests; PTY/Dart/Flutter analysis and tests; docs contract; CI smoke
 benchmark; 913 example grouped tests; complete example Widget tests 125/125;
-macOS smoke 4/4; and macOS real PTY acceptance 18/18. The optional nightly
+macOS smoke 4/4; and macOS real PTY acceptance 19/19. The optional nightly
 resource benchmark was not enabled because it is not a release gate. The
 verifier also rebuilds the standalone macOS app after Flutter integration tests
 and runs native RunnerTests 10/10.
@@ -237,8 +262,8 @@ gate and isolates its test host from Flutter integration targets. The final
 repository verifier passed again after both fixes.
 
 The final Ianvs GUI Computer Use gate passed on a clean standalone cold launch:
-the shell rendered, command-menu filtering worked, Profiles opened and closed,
-a second tab opened, and a real `printf` command produced `SHELL ACTIVE` in both
-the terminal and accessibility semantics. Reference-terminal evidence remains
-separately unproven for the safety-policy reason documented in
+the shell rendered, the command menu and Profiles opened, a second tab opened,
+and a real `echo GATEOK` command displayed `GATEOK` and produced `SHELL ACTIVE`
+accessibility semantics. Reference-terminal evidence remains separately
+unproven for the safety-policy reason documented in
 `osc_cross_terminal_probe_20260711.md`.

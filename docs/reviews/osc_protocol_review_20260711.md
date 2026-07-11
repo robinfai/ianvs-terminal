@@ -1,4 +1,4 @@
-# OSC protocol completion review — 2026-07-11
+# OSC protocol completion review — 2026-07-11–12
 
 ## Outcome
 
@@ -9,16 +9,19 @@
 - Dart/Flutter product integration commit: `189dee9`.
 - Kitty OSC 99 safe-subset commit: `1bb2f3b`.
 - UAPI OSC 3008 typed-context commit: `9972758`.
+- Kitty OSC 21 color-control commit: `f7d48bb`.
 
-Phases 0–9 are implemented. Phase 9 adds bounded UAPI OSC 3008 typed context
-metadata without visual UI or host authority. No unsupported opcode or host
-action is advertised as a product capability.
+Phases 0–10 are implemented. Phase 10 adds bounded Kitty OSC 21 color control
+and removes the invalid OSC 23 title-stack behavior. No unsupported opcode or
+host action is advertised as a product capability.
 
 ## Final classification
 
 | Classification | Finding | Resolution |
 |---|---|---|
-| confirmed defect | OSC 21/22 mutated title-stack state | fixed in `6303515`; both are bounded safe no-ops with no host action |
+| confirmed defect | OSC 21/22 mutated title-stack state | side effect fixed in `6303515`; OSC 22 remains a bounded safe no-op |
+| confirmed compatibility gap | Kitty OSC 21 color control was absent | bounded ordered palette/core-color set/query/reset implemented in `f7d48bb`; non-rendered special slots remain explicit state only |
+| confirmed defect | OSC 23 popped the CSI title stack | removed in `f7d48bb`; OSC 23 is a bounded no-op and CSI 22/23 t remains authoritative |
 | confirmed compatibility gap | OSC 8 lost `id=` identity | fixed end to end in `6303515` with additive JSON/protobuf fields |
 | confirmed defect | OSC 110/111/112 restored hard-coded colors | fixed in `6303515`; reset restores immutable profile/session baselines |
 | confirmed compatibility gap | OSC 4/104 stopped at 16 colors | fixed in `66016b4`; indices 0–255 set/query/reset and render |
@@ -51,11 +54,11 @@ history, file-transfer bytes, title stack, recordings and debug output.
 ## Evidence status
 
 Strict Rust gates, corpus validation, Dart/Flutter analysis, docs, benchmark and
-all test suites are green. The Phase 9 repository-wide verifier passed with
+all test suites are green. The Phase 10 repository-wide verifier passed with
 complete example Widget tests enabled; macOS smoke is 4/4 and real PTY
-acceptance is 18/18. A standalone rebuild and native RunnerTests 10/10 protect
-the macOS cold-launch path. The Phase 9 Ianvs GUI Computer Use gate passed on a
-clean cold launch, including the command menu, Profiles, second-tab creation,
+acceptance is 19/19. A standalone rebuild and native RunnerTests 10/10 protect
+the macOS cold-launch path. The Phase 10 Ianvs GUI Computer Use gate passed on
+a clean cold launch, including the command menu, Profiles, second-tab creation,
 real shell `echo GATEOK` input/output and `SHELL ACTIVE` semantics.
 
 The reference-terminal comparison is deliberately not marked passed. Computer
