@@ -7,6 +7,7 @@
 pub mod clipboard;
 mod colors;
 pub mod compliance;
+pub mod context;
 pub mod event;
 pub mod file_transfer;
 mod graphics;
@@ -35,6 +36,11 @@ pub use clipboard::{
     ClipboardTarget,
 };
 pub use compliance::{ComplianceLevel, ComplianceReport, ComplianceTest};
+pub use context::{
+    TerminalContext, TerminalContextAction, TerminalContextEndMetadata, TerminalContextEvent,
+    TerminalContextExit, TerminalContextMetadata, TerminalContextStack, TerminalContextType,
+    MAX_TERMINAL_CONTEXT_DEPTH, MAX_TERMINAL_CONTEXT_ID_BYTES, MAX_TERMINAL_CONTEXT_TEXT_BYTES,
+};
 pub use event::{
     BellEvent, CwdChange, CwdChangeSource, ShellEvent, TerminalEvent, TerminalEventKind,
 };
@@ -917,6 +923,8 @@ pub struct Terminal {
     pub(crate) notifications: Vec<Notification>,
     /// Bounded in-flight and active Kitty OSC 99 notification lifecycle state.
     pub(crate) kitty_notification_state: notification::KittyNotificationState,
+    /// Bounded UAPI OSC 3008 hierarchical context state.
+    pub(crate) terminal_context_stack: context::TerminalContextStack,
     /// Progress bar state from OSC 9;4 sequences (ConEmu/Windows Terminal style)
     pub(crate) progress_bar: ProgressBar,
     /// Named progress bars from OSC 934 sequences (keyed by ID)
@@ -1390,6 +1398,7 @@ impl Terminal {
             last_silence_check: now,
             max_notifications: DEFAULT_MAX_NOTIFICATIONS,
             kitty_notification_state: notification::KittyNotificationState::default(),
+            terminal_context_stack: context::TerminalContextStack::default(),
             custom_triggers: HashMap::new(),
             // Replay/Recording
             recording_session: None,
@@ -3716,6 +3725,8 @@ impl Terminal {
         let input_buffer_diagnostics = self.input_buffer_diagnostics;
         let response_buffer_overflow_count = self.response_buffer_overflow_count;
         let terminal_event_dropped_count = self.terminal_event_dropped_count;
+        // UAPI OSC 3008 explicitly defines terminal reset as context-neutral.
+        let terminal_context_stack = self.terminal_context_stack.clone();
 
         *self = Self::with_scrollback(cols, rows, scrollback);
         self.suppress_synchronized_update_enable = suppress_synchronized_update_enable;
@@ -3728,6 +3739,7 @@ impl Terminal {
         self.input_buffer_diagnostics = input_buffer_diagnostics;
         self.response_buffer_overflow_count = response_buffer_overflow_count;
         self.terminal_event_dropped_count = terminal_event_dropped_count;
+        self.terminal_context_stack = terminal_context_stack;
         self.graphics_store = GraphicsStore::with_limits(graphics_limits);
         self.sixel_limits = sixel_limits;
         self.cell_dimensions = cell_dimensions;

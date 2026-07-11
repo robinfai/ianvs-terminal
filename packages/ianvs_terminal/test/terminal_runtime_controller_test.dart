@@ -5732,6 +5732,28 @@ void main() {
       runtimeBackend.enqueueEvent(
         sessionId,
         PtyEvent(
+          kind: 'terminal_context',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'osc3008',
+            'action': 'update',
+            'id': 'command-1',
+            'depth': 2,
+            'active': true,
+            'type': 'command',
+            'user': 'dev',
+            'hostname': 'workstation.local',
+            'pid': 42,
+            'cwd': '/tmp/project',
+            'commandLine': 'dart test',
+            'exit': null,
+            'implicitClosedCount': 1,
+          },
+        ),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
           kind: 'shell_command',
           sessionId: sessionId,
           payload: const <String, Object?>{
@@ -5840,6 +5862,18 @@ void main() {
         events.whereType<TerminalSessionBadgeEvent>().single.text,
         'Build',
       );
+      final context = events.whereType<TerminalSessionContextEvent>().single;
+      expect(context.source, 'osc3008');
+      expect(context.action, 'update');
+      expect(context.identifier, 'command-1');
+      expect(context.depth, 2);
+      expect(context.active, isTrue);
+      expect(context.contextType, 'command');
+      expect(context.user, 'dev');
+      expect(context.pid, 42);
+      expect(context.cwd, '/tmp/project');
+      expect(context.commandLine, 'dart test');
+      expect(context.implicitClosedCount, 1);
       expect(
         events.whereType<TerminalSessionResetEvent>().single.sessionId,
         sessionId,

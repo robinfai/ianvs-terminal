@@ -2,6 +2,7 @@
 
 mod clipboard;
 mod color;
+mod context;
 mod iterm;
 mod notify;
 mod shell;
@@ -170,6 +171,7 @@ impl Terminal {
                     self.handle_osc_color(command, params)
                 }
                 "1337" => self.handle_osc_iterm(command, params),
+                "3008" => self.handle_osc3008(params),
                 _ => {
                     debug::log(
                         debug::DebugLevel::Debug,

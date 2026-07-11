@@ -172,25 +172,46 @@ independently identified below with a scoped rollback path.
 - **Rollback:** revert the Phase 8 commit; OSC 99 returns to bounded unsupported
   behavior without affecting OSC 9/777.
 
+## Phase 9 report — UAPI OSC 3008 typed contexts
+
+- **Start SHA:** `f9965084d91a74a55a05c575d5325684067f818a`.
+- **Modified files:** context parser/state/event/snapshot/streaming policy;
+  native typed bridge and diagnostics; Dart typed runtime route; corpus/probe,
+  real-PTY acceptance and protocol evidence.
+- **Confirmed issue:** OSC 3008 was only a generic unknown-OSC no-op, so UAPI
+  hierarchy and lifecycle metadata were unavailable.
+- **Fixes:** all v1.0 context types/fields, bounded nesting, repeat-start return
+  semantics, descendant closure, malformed-close recovery, textual escapes,
+  snapshot/RIS persistence and additive typed events.
+- **Unfixed by design:** no context-driven UI, navigation, profile switching,
+  privilege decision, execution, or other host action.
+- **Security:** metadata capability gate, 16 KiB ingress, depth 32, ID 64 bytes,
+  field 255 bytes, bounded queues and raw-text-free diagnostics.
+- **Tests/results:** corpus 17/17 and semantic probes 12/12; vendored 1,592
+  passed/1 ignored; native lib 73/73, corpus 1/1, session 451/451, vttest 3/3;
+  terminal package 441 passed, example grouped 913/913, Widget 125/125, macOS
+  smoke 4/4, real PTY 18/18 and RunnerTests 10/10.
+- **Rollback:** revert Phase 9; OSC 3008 returns to a bounded unsupported no-op.
+
 ## Deferred phases
 
 Phase 8 Kitty OSC 99 is implemented as the safe subset recorded in
-`osc99_phase8_20260711.md`. Phase 9 OSC 3008 remains a product-decision
-deferral. Kitty OSC 66/72, unsafe iTerm2 upload/download/actions, arbitrary
+`osc99_phase8_20260711.md`. Phase 9 OSC 3008 is implemented as typed metadata in
+`osc3008_phase9_20260711.md`. Kitty OSC 66/72, unsafe iTerm2 upload/download/actions, arbitrary
 URL/profile/command actions, notification buttons/sounds/icons and
 shell-provided execution are also deferred. Unknown/deferred sequences remain
 bounded and cannot gain host authority.
 
 ## Final verification record
 
-Before the final repository gate, focused evidence is green:
+The Phase 9 repository gate is green:
 
-- vendored fmt, strict Clippy and tests: 1,583 passed, 1 ignored; doc tests 11
+- vendored fmt, strict Clippy and tests: 1,592 passed, 1 ignored; doc tests 11
   passed, 1 ignored;
-- native fmt/Clippy; lib 72/72, corpus 1/1, session 449/449, vttest 3/3;
-- corpus validator 16/16 and semantic probe self-test 11/11;
+- native fmt/Clippy; lib 73/73, corpus 1/1, session 451/451, vttest 3/3;
+- corpus validator 17/17 (18 edge classes) and semantic probe self-test 12/12;
 - Dart/Flutter analysis and protocol/runtime/controller/widget focused suites;
-- macOS smoke 4/4, real PTY 17/17 and native RunnerTests 10/10.
+- macOS smoke 4/4, real PTY 18/18 and native RunnerTests 10/10.
 
 Final committed-tree command:
 
@@ -202,7 +223,7 @@ VERIFY_FLUTTER_TERMINAL_RUN_EXAMPLE_WIDGET_TESTS=1 \
 Result: passed with exit code 0. This includes vendored/core format, strict
 Clippy and tests; PTY/Dart/Flutter analysis and tests; docs contract; CI smoke
 benchmark; 913 example grouped tests; complete example Widget tests 125/125;
-macOS smoke 4/4; and macOS real PTY acceptance 17/17. The optional nightly
+macOS smoke 4/4; and macOS real PTY acceptance 18/18. The optional nightly
 resource benchmark was not enabled because it is not a release gate. The
 verifier also rebuilds the standalone macOS app after Flutter integration tests
 and runs native RunnerTests 10/10.

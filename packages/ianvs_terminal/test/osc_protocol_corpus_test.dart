@@ -18,6 +18,8 @@ const Set<String> _requiredCoverage = <String>{
   'unknown key',
   'mixed supported/unsupported sequence',
   'OSC 99 chunk assembly',
+  'OSC 3008 hierarchy',
+  'OSC 3008 malformed close recovery',
   'tmux passthrough fixture',
   'screen passthrough fixture',
 };
@@ -121,6 +123,10 @@ void _validateFixture(String id, Map<String, Object?> fixture) {
       isTrue,
       reason: 'UTF-8 fixture must split inside a scalar',
     );
+  } else if (id == 'osc3008_malformed_close_recovery') {
+    final text = latin1.decode(stream);
+    expect(RegExp(r'\x1b]3008;').allMatches(text), hasLength(4));
+    expect(text, contains('end=missing'));
   }
 }
 

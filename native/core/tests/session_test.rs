@@ -1409,6 +1409,21 @@ fn osc99_query_profile() -> TerminalProfile {
     )
 }
 
+fn osc3008_context_profile(emulation: TerminalEmulation) -> TerminalProfile {
+    local_profile(
+        "osc3008-context",
+        "OSC 3008 Context",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import os; os.write(1,b"\x1b]3008;start=root;type=shell;user=dev\\x3bops;cwd=/work\\x5cdir;pid=42\x1b\\\x1b]3008;start=child;type=command;cwd=/work;cmdline=dart test\x1b\\\x1b]3008;start=root;type=shell;user=new\x1b\\\x1b]3008;end=missing;exit=failure\x1b\\\x1b]3008;end=root;exit=success;status=0\x1b\\")'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        emulation,
+    )
+}
+
 fn osc12_cursor_color_profile() -> TerminalProfile {
     local_profile(
         "osc12-cursor-color",
@@ -17680,6 +17695,69 @@ fn session_emits_typed_osc99_show_update_and_close_events() {
         .expect("expected OSC 99 close event");
     assert_eq!(close["payload"]["id"].as_str(), Some("build"));
     assert_eq!(close["payload"]["title"].as_str(), Some(""));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_emits_typed_osc3008_hierarchy_and_recovers_malformed_close() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc3008_context_profile(TerminalEmulation::Xterm256)).unwrap(),
+    )
+    .unwrap();
+
+    let events = collect_events_until(session_id, |events| {
+        events
+            .iter()
+            .filter(|event| event["kind"] == "terminal_context")
+            .count()
+            >= 4
+    });
+    let contexts = events
+        .iter()
+        .filter(|event| event["kind"] == "terminal_context")
+        .collect::<Vec<_>>();
+    assert_eq!(contexts.len(), 4, "unknown end must not emit an event");
+
+    assert_eq!(contexts[0]["payload"]["source"].as_str(), Some("osc3008"));
+    assert_eq!(contexts[0]["payload"]["action"].as_str(), Some("start"));
+    assert_eq!(contexts[0]["payload"]["id"].as_str(), Some("root"));
+    assert_eq!(contexts[0]["payload"]["depth"].as_u64(), Some(1));
+    assert_eq!(contexts[0]["payload"]["user"].as_str(), Some("dev;ops"));
+    assert_eq!(contexts[0]["payload"]["cwd"].as_str(), Some("/work\\dir"));
+    assert_eq!(contexts[0]["payload"]["pid"].as_u64(), Some(42));
+
+    assert_eq!(contexts[1]["payload"]["id"].as_str(), Some("child"));
+    assert_eq!(contexts[1]["payload"]["depth"].as_u64(), Some(2));
+    assert_eq!(
+        contexts[1]["payload"]["commandLine"].as_str(),
+        Some("dart test")
+    );
+
+    assert_eq!(contexts[2]["payload"]["action"].as_str(), Some("update"));
+    assert_eq!(
+        contexts[2]["payload"]["implicitClosedCount"].as_u64(),
+        Some(1)
+    );
+    assert!(contexts[2]["payload"]["cwd"].is_null());
+
+    assert_eq!(contexts[3]["payload"]["action"].as_str(), Some("end"));
+    assert_eq!(contexts[3]["payload"]["depth"].as_u64(), Some(0));
+    assert_eq!(contexts[3]["payload"]["active"].as_bool(), Some(false));
+    assert_eq!(contexts[3]["payload"]["exit"].as_str(), Some("success"));
+    assert_eq!(contexts[3]["payload"]["status"].as_u64(), Some(0));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_sessions_gate_osc3008_context_events() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc3008_context_profile(TerminalEmulation::Vt220)).unwrap(),
+    )
+    .unwrap();
+
+    assert_event_kind_never_arrives(session_id, "terminal_context");
 
     session::close_session(session_id).unwrap();
 }

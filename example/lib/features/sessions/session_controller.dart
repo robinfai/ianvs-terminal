@@ -1091,6 +1091,9 @@ class SessionController extends Notifier<SessionState> {
       case TerminalSessionBadgeEvent():
         _applySessionBadge(event);
         break;
+      case TerminalSessionContextEvent():
+        // OSC 3008 remains typed metadata only; it does not drive product UI.
+        break;
       case TerminalSessionResetEvent():
         _applySessionReset(event);
         break;

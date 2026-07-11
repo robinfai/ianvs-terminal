@@ -73,6 +73,8 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         break;
       case terminal.TerminalSessionBadgeEvent():
         break;
+      case terminal.TerminalSessionContextEvent():
+        break;
       case terminal.TerminalSessionResetEvent():
         _clearPresentationStateForSession(event.sessionId);
       case terminal.TerminalSessionClipboardEvent():

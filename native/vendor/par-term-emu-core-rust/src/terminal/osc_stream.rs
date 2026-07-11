@@ -698,6 +698,7 @@ fn classify_osc(
             Classification::new(OscIntent::Clipboard, capability)
         }
         b"133" => Classification::new(OscIntent::ShellIntegration, OscCapability::Metadata),
+        b"3008" => Classification::new(OscIntent::ShellIntegration, OscCapability::Metadata),
         b"633" => {
             if payload.starts_with(b"P;Cwd=") {
                 Classification::new(OscIntent::CurrentDirectory, OscCapability::Metadata)
@@ -953,6 +954,32 @@ mod tests {
                 "{capability:?} did not report a category-only denial"
             );
         }
+    }
+
+    #[test]
+    fn osc3008_uses_metadata_policy_and_shell_integration_budget() {
+        let context = OscClassificationContext::default();
+        let classification = classify_osc(b"3008;start=root;type=shell", true, context);
+        assert_eq!(classification.intent, OscIntent::ShellIntegration);
+        assert_eq!(classification.capability, OscCapability::Metadata);
+        assert_eq!(classification.intent.payload_limit(), 16 * KIB);
+
+        let mut policy = OscCapabilityPolicy::default();
+        policy.set(OscCapability::Metadata, false);
+        let mut gate = OscStreamGate::default();
+        assert!(filter_owned(
+            &mut gate,
+            b"\x1b]3008;start=root;type=shell\x1b\\",
+            policy,
+            context,
+        )
+        .is_empty());
+        assert_eq!(
+            gate.diagnostics()
+                .for_intent(OscIntent::ShellIntegration)
+                .policy_denied,
+            1
+        );
     }
 
     #[test]

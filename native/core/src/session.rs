@@ -148,6 +148,9 @@ enum CallbackEvent {
     SessionBadge {
         text: Option<String>,
     },
+    TerminalContext {
+        payload: serde_json::Value,
+    },
     SessionReset,
     Bell,
 }
@@ -1197,6 +1200,38 @@ fn callback_event_from_parser_event(
         ParserTerminalEvent::BadgeChanged(text) => Some(CallbackEvent::SessionBadge {
             text: text.and_then(|value| sanitize_protocol_text_option(Some(&value), 80)),
         }),
+        ParserTerminalEvent::TerminalContextChanged(event) => {
+            let event = *event;
+            let end_metadata = event.end_metadata.as_ref();
+            Some(CallbackEvent::TerminalContext {
+                payload: serde_json::json!({
+                    "source": "osc3008",
+                    "action": event.action.as_str(),
+                    "id": event.id,
+                    "depth": event.depth,
+                    "active": event.active,
+                    "type": event.metadata.context_type.map(|value| value.as_str()),
+                    "user": event.metadata.user,
+                    "hostname": event.metadata.hostname,
+                    "machineId": event.metadata.machine_id,
+                    "bootId": event.metadata.boot_id,
+                    "pid": event.metadata.pid,
+                    "pidfdId": event.metadata.pidfd_id,
+                    "commandName": event.metadata.command_name,
+                    "cwd": event.metadata.cwd,
+                    "commandLine": event.metadata.command_line,
+                    "vm": event.metadata.vm,
+                    "container": event.metadata.container,
+                    "targetUser": event.metadata.target_user,
+                    "targetHost": event.metadata.target_host,
+                    "contextSessionId": event.metadata.session_id,
+                    "exit": end_metadata.and_then(|value| value.exit.map(|exit| exit.as_str())),
+                    "status": end_metadata.and_then(|value| value.status),
+                    "signal": end_metadata.and_then(|value| value.signal.as_deref()),
+                    "implicitClosedCount": event.implicit_closed_count,
+                }),
+            })
+        }
         ParserTerminalEvent::TerminalReset => Some(CallbackEvent::SessionReset),
         _ => None,
     }
@@ -2663,6 +2698,9 @@ impl TerminalSession {
                     "text": text,
                 })),
             ),
+            CallbackEvent::TerminalContext { payload } => {
+                self.push_event("terminal_context", Some(payload))
+            }
             CallbackEvent::SessionReset => self.push_event("session_reset", None),
             CallbackEvent::Bell => self.push_event("bell", None),
         }
@@ -2960,8 +2998,51 @@ fn sanitize_diagnostic_event_payload(
                 .and_then(serde_json::Value::as_str)
                 .map(diagnostic_hash),
         })),
+        "terminal_context" => Some(sanitize_terminal_context_payload(payload)),
         _ => None,
     }
+}
+
+fn sanitize_terminal_context_payload(payload: &serde_json::Value) -> serde_json::Value {
+    let string_summary = |key: &str| {
+        payload
+            .get(key)
+            .and_then(serde_json::Value::as_str)
+            .map(|value| {
+                serde_json::json!({
+                    "chars": value.chars().count(),
+                    "hash": diagnostic_hash(value),
+                })
+            })
+    };
+    serde_json::json!({
+        "source": payload.get("source").and_then(serde_json::Value::as_str),
+        "action": payload.get("action").and_then(serde_json::Value::as_str),
+        "depth": payload.get("depth").and_then(serde_json::Value::as_u64),
+        "active": payload.get("active").and_then(serde_json::Value::as_bool),
+        "type": payload.get("type").and_then(serde_json::Value::as_str),
+        "pid": payload.get("pid").and_then(serde_json::Value::as_u64),
+        "pidfd_id": payload.get("pidfdId").and_then(serde_json::Value::as_u64),
+        "status": payload.get("status").and_then(serde_json::Value::as_u64),
+        "exit": payload.get("exit").and_then(serde_json::Value::as_str),
+        "implicit_closed_count": payload
+            .get("implicitClosedCount")
+            .and_then(serde_json::Value::as_u64),
+        "id": string_summary("id"),
+        "user": string_summary("user"),
+        "hostname": string_summary("hostname"),
+        "machine_id": string_summary("machineId"),
+        "boot_id": string_summary("bootId"),
+        "command_name": string_summary("commandName"),
+        "cwd": string_summary("cwd"),
+        "command_line": string_summary("commandLine"),
+        "vm": string_summary("vm"),
+        "container": string_summary("container"),
+        "target_user": string_summary("targetUser"),
+        "target_host": string_summary("targetHost"),
+        "context_session_id": string_summary("contextSessionId"),
+        "signal": string_summary("signal"),
+    })
 }
 
 fn sanitize_shell_context_payload(payload: &serde_json::Value) -> Option<serde_json::Value> {
@@ -6840,6 +6921,44 @@ mod tests {
         assert!(sanitized["application_hash"].as_str().is_some());
         let serialized = sanitized.to_string();
         for secret in [identifier, title, message, application, "deploy", "private"] {
+            assert!(!serialized.contains(secret));
+        }
+    }
+
+    #[test]
+    fn diagnostic_terminal_context_payload_redacts_all_private_text() {
+        let payload = serde_json::json!({
+            "source": "osc3008",
+            "action": "start",
+            "id": "private-context-id",
+            "depth": 2,
+            "active": true,
+            "type": "command",
+            "user": "alice-secret",
+            "hostname": "private-host.local",
+            "cwd": "/Users/alice/private-project",
+            "commandLine": "deploy --token=secret",
+            "pid": 42,
+            "implicitClosedCount": 0,
+        });
+
+        let sanitized = sanitize_diagnostic_event_payload("terminal_context", Some(&payload))
+            .expect("expected sanitized terminal context event");
+
+        assert_eq!(sanitized["source"].as_str(), Some("osc3008"));
+        assert_eq!(sanitized["action"].as_str(), Some("start"));
+        assert_eq!(sanitized["depth"].as_u64(), Some(2));
+        assert_eq!(sanitized["type"].as_str(), Some("command"));
+        assert!(sanitized["id"]["hash"].as_str().is_some());
+        assert!(sanitized["command_line"]["hash"].as_str().is_some());
+        let serialized = sanitized.to_string();
+        for secret in [
+            "private-context-id",
+            "alice-secret",
+            "private-host.local",
+            "/Users/alice/private-project",
+            "deploy --token=secret",
+        ] {
             assert!(!serialized.contains(secret));
         }
     }

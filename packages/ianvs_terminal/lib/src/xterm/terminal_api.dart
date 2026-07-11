@@ -504,6 +504,8 @@ class Terminal implements TerminalDisposable {
         break;
       case TerminalSessionBadgeEvent():
         break;
+      case TerminalSessionContextEvent():
+        break;
       case TerminalSessionResetEvent():
         break;
       case TerminalSessionClipboardEvent():

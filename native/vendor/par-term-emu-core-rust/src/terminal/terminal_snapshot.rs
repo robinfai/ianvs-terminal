@@ -18,6 +18,7 @@ use crate::terminal::{
 };
 use crate::zone::Zone;
 
+use super::context::TerminalContextStack;
 use super::graphics::GraphicsPassthroughState;
 use super::notification::KittyNotificationState;
 use super::osc_stream::OscStreamGate;
@@ -118,6 +119,8 @@ pub struct TerminalSnapshot {
     pub(crate) named_progress_bars: HashMap<String, NamedProgressBar>,
     /// Bounded OSC 99 chunk assembly and active identifier state.
     pub(crate) kitty_notification_state: KittyNotificationState,
+    /// Bounded UAPI OSC 3008 hierarchy. Contexts survive terminal reset.
+    pub(crate) terminal_context_stack: TerminalContextStack,
     /// Bounded ingress parser state retained across split OSC chunks.
     pub(crate) osc_stream_gate: OscStreamGate,
     /// Incremental tmux/screen passthrough decoder state.
@@ -330,6 +333,14 @@ impl std::fmt::Debug for TerminalSnapshot {
                 &self.kitty_notification_state.retained_bytes(),
             )
             .field(
+                "terminal_context_count",
+                &self.terminal_context_stack.contexts().len(),
+            )
+            .field(
+                "terminal_context_retained_bytes",
+                &self.terminal_context_stack.retained_bytes(),
+            )
+            .field(
                 "osc_ingress_retained_bytes",
                 &self.osc_stream_gate.retained_bytes(),
             )
@@ -449,6 +460,7 @@ impl TerminalSnapshot {
             .map(|progress| progress.id.len() + progress.label.as_ref().map_or(0, String::len))
             .sum::<usize>();
         let kitty_notification_size = self.kitty_notification_state.retained_bytes();
+        let terminal_context_size = self.terminal_context_stack.retained_bytes();
         let session_variable_size = self
             .session_variables
             .custom
@@ -497,6 +509,7 @@ impl TerminalSnapshot {
             + hyperlink_size
             + named_progress_size
             + kitty_notification_size
+            + terminal_context_size
             + session_variable_size
             + badge_identity_size
             + osc_ingress_size
@@ -585,6 +598,7 @@ impl Terminal {
             progress_bar: self.progress_bar,
             named_progress_bars: self.named_progress_bars.clone(),
             kitty_notification_state: self.kitty_notification_state.clone(),
+            terminal_context_stack: self.terminal_context_stack.clone(),
             osc_stream_gate: self.osc_stream_gate.clone(),
             graphics_passthrough_state: self.graphics_passthrough_state,
             badge_format: self.badge_format.clone(),
@@ -726,6 +740,7 @@ impl Terminal {
         self.progress_bar = snap.progress_bar;
         self.named_progress_bars = snap.named_progress_bars;
         self.kitty_notification_state = snap.kitty_notification_state;
+        self.terminal_context_stack = snap.terminal_context_stack;
         self.osc_stream_gate = snap.osc_stream_gate;
         self.graphics_passthrough_state = snap.graphics_passthrough_state;
         self.badge_format = snap.badge_format;
@@ -856,6 +871,7 @@ mod tests {
             progress_bar: ProgressBar::default(),
             named_progress_bars: HashMap::new(),
             kitty_notification_state: KittyNotificationState::default(),
+            terminal_context_stack: TerminalContextStack::default(),
             osc_stream_gate: OscStreamGate::default(),
             graphics_passthrough_state: GraphicsPassthroughState::default(),
             badge_format: None,

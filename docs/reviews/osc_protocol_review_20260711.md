@@ -9,9 +9,9 @@
 - Dart/Flutter product integration commit: `189dee9`.
 - Kitty OSC 99 safe-subset commit: `1bb2f3b`.
 
-Phases 0–8 are implemented. Phase 8 adds only the Kitty OSC 99 safe subset;
-Phase 9 (OSC 3008) remains deferred. No unsupported opcode or host action is
-advertised as a product capability.
+Phases 0–9 are implemented. Phase 9 adds bounded UAPI OSC 3008 typed context
+metadata without visual UI or host authority. No unsupported opcode or host
+action is advertised as a product capability.
 
 ## Final classification
 
@@ -26,7 +26,8 @@ advertised as a product capability.
 | confirmed macOS launch defect | standalone cold launch called an absent `NSApplicationDelegate` superclass selector | fixed in `8a89afd`; native regression and isolated CI ordering added in `d2758a5` |
 | documented private extension | OSC 934 identity/version/query were implicit | governed as `ianvs-osc934/1`; bounded query and canonical source implemented |
 | confirmed compatibility gap | Kitty OSC 99 rich notification lifecycle absent | safe ID/title/body/Base64/update/close/application/type/query/expiry subset implemented; actions, buttons, sound, icons and commands remain denied |
-| deferred by product decision | OSC 3008, unsafe iTerm2 actions, Kitty OSC 66/72 | still deferred; bounded no-op/no product authorization |
+| confirmed compatibility gap | UAPI OSC 3008 hierarchical context metadata absent | bounded v1.0 hierarchy, lifecycle recovery, snapshot/RIS and typed events implemented; no UI/authority |
+| deferred by product decision | unsafe iTerm2 actions, Kitty OSC 66/72 | still deferred; bounded no-op/no product authorization |
 | hypothesis requiring manual evidence | reference-terminal semantic consumption/echo/reply | not proven: Computer Use denies terminal-emulator UI control; see `osc_cross_terminal_probe_20260711.md` |
 
 ## Architecture and security result
@@ -49,12 +50,12 @@ history, file-transfer bytes, title stack, recordings and debug output.
 ## Evidence status
 
 Strict Rust gates, corpus validation, Dart/Flutter analysis, docs, benchmark and
-all test suites are green. The final repository-wide verifier passed on the
-committed tree with complete example Widget tests enabled; macOS smoke is 4/4
-and real PTY acceptance is 17/17. A standalone rebuild and native RunnerTests
-10/10 protect the macOS cold-launch path. The final Ianvs GUI Computer Use gate
-passed on a clean cold launch, including command-menu filtering, Profiles,
-second-tab creation, real shell input/output and `SHELL ACTIVE` semantics.
+all test suites are green. The Phase 9 repository-wide verifier passed with
+complete example Widget tests enabled; macOS smoke is 4/4 and real PTY
+acceptance is 18/18. A standalone rebuild and native RunnerTests 10/10 protect
+the macOS cold-launch path. The Phase 9 Ianvs GUI Computer Use gate passed on a
+clean cold launch, including the command menu, Profiles, second-tab creation,
+real shell `echo GATEOK` input/output and `SHELL ACTIVE` semantics.
 
 The reference-terminal comparison is deliberately not marked passed. Computer
 Use rejected both iTerm2 3.6.11 and Ghostty 1.2.3 as protected terminal apps.

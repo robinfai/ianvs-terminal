@@ -553,6 +553,69 @@ sleep 1
   );
 
   testWidgets(
+    'real PTY OSC 3008 emits bounded typed hierarchy and ignores unknown close',
+    (tester) async {
+      final goFile = _tempSignalFile('osc3008-context');
+      final profile = _scriptProfile(
+        id: 'osc3008-real-pty',
+        name: 'OSC 3008 Real PTY',
+        script: r'''
+printf 'osc3008-ready\n'
+while [ ! -f "$GO_FILE" ]; do sleep 0.05; done
+printf '\033]3008;start=real-root;type=shell;user=dev\\x3bops;cwd=/work\\x5cdir\033\\'
+printf '\033]3008;start=real-child;type=command;cmdline=dart test\033\\'
+printf '\033]3008;end=missing;exit=failure\033\\'
+printf '\033]3008;end=real-root;exit=success;status=0\033\\'
+sleep 1
+''',
+        env: {'GO_FILE': goFile.path},
+      );
+      final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
+
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'OSC 3008 real PTY ready marker',
+        matches: (text) => text.contains('osc3008-ready'),
+      );
+
+      final contexts = <terminal.TerminalSessionContextEvent>[];
+      final runtime = harness.container.read(terminalRuntimeControllerProvider);
+      final subscription = runtime.events
+          .where((event) => event is terminal.TerminalSessionContextEvent)
+          .cast<terminal.TerminalSessionContextEvent>()
+          .listen(contexts.add);
+      addTearDown(subscription.cancel);
+
+      _signal(goFile);
+      await _waitFor(
+        tester,
+        description: 'typed OSC 3008 real PTY lifecycle',
+        condition: () => contexts.length >= 3,
+        onTimeout: () =>
+            'Contexts: ${contexts.map((event) => event.rawPayload)}',
+      );
+
+      expect(contexts, hasLength(3), reason: 'unknown end must be ignored');
+      expect(contexts[0].action, 'start');
+      expect(contexts[0].identifier, 'real-root');
+      expect(contexts[0].depth, 1);
+      expect(contexts[0].user, 'dev;ops');
+      expect(contexts[0].cwd, r'/work\dir');
+      expect(contexts[1].identifier, 'real-child');
+      expect(contexts[1].commandLine, 'dart test');
+      expect(contexts[1].depth, 2);
+      expect(contexts[2].action, 'end');
+      expect(contexts[2].identifier, 'real-root');
+      expect(contexts[2].implicitClosedCount, 1);
+      expect(contexts[2].depth, 0);
+      expect(contexts[2].exit, 'success');
+      expect(contexts[2].status, 0);
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
     'real PTY active wake baseline after four seconds child idle',
     (tester) =>
         _verifyIdleWakeBaseline(tester, state: _BaselineIdleWakeState.active),

@@ -241,6 +241,46 @@ final class TerminalSessionBadgeEvent extends TerminalSessionEvent {
   }
 }
 
+/// Untrusted UAPI OSC 3008 hierarchy metadata emitted by the child process.
+final class TerminalSessionContextEvent extends TerminalSessionEvent {
+  TerminalSessionContextEvent(
+    super.sessionId, {
+    Map<String, Object?>? rawPayload,
+  }) : rawPayload = Map.unmodifiable(rawPayload ?? const <String, Object?>{});
+
+  final Map<String, Object?> rawPayload;
+
+  String? get source => _stringValue(rawPayload['source']);
+  String? get action => _stringValue(rawPayload['action']);
+  String? get identifier => _stringValue(rawPayload['id']);
+  int? get depth => _wholeIntValue(rawPayload['depth']);
+  bool get active => rawPayload['active'] == true;
+  String? get contextType => _stringValue(rawPayload['type']);
+  String? get user => _stringValue(rawPayload['user']);
+  String? get hostname => _stringValue(rawPayload['hostname']);
+  String? get machineId => _stringValue(rawPayload['machineId']);
+  String? get bootId => _stringValue(rawPayload['bootId']);
+  int? get pid => _wholeIntValue(rawPayload['pid']);
+  int? get pidfdId => _wholeIntValue(rawPayload['pidfdId']);
+  String? get commandName => _stringValue(rawPayload['commandName']);
+  String? get cwd => _stringValue(rawPayload['cwd']);
+  String? get commandLine => _stringValue(rawPayload['commandLine']);
+  String? get vm => _stringValue(rawPayload['vm']);
+  String? get container => _stringValue(rawPayload['container']);
+  String? get targetUser => _stringValue(rawPayload['targetUser']);
+  String? get targetHost => _stringValue(rawPayload['targetHost']);
+  String? get contextSessionId => _stringValue(rawPayload['contextSessionId']);
+  String? get exit => _stringValue(rawPayload['exit']);
+  int? get status => _wholeIntValue(rawPayload['status']);
+  String? get signal => _stringValue(rawPayload['signal']);
+  int get implicitClosedCount =>
+      _wholeIntValue(rawPayload['implicitClosedCount']) ?? 0;
+
+  static String? _stringValue(Object? value) {
+    return value is String ? value : null;
+  }
+}
+
 /// The parser received RIS (`ESC c`) and reset terminal semantic state.
 final class TerminalSessionResetEvent extends TerminalSessionEvent {
   const TerminalSessionResetEvent(super.sessionId);
@@ -1785,6 +1825,12 @@ class TerminalRuntimeController {
           sessionId,
           sessionEpoch,
           TerminalSessionBadgeEvent(sessionId, rawPayload: route.payload),
+        );
+      case TerminalImmediateEventKind.terminalContext:
+        _emitEventIfCurrent(
+          sessionId,
+          sessionEpoch,
+          TerminalSessionContextEvent(sessionId, rawPayload: route.payload),
         );
       case TerminalImmediateEventKind.sessionReset:
         _emitEventIfCurrent(

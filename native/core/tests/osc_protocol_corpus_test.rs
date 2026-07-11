@@ -1,4 +1,4 @@
-use par_term_emu_core_rust::terminal::Terminal;
+use par_term_emu_core_rust::terminal::{Terminal, TerminalContextAction, TerminalEvent};
 use serde_json::Value;
 
 const CORPUS: &str = include_str!("fixtures/osc/osc_protocol_corpus_v1.json");
@@ -124,6 +124,23 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
                 assert_eq!(notification.identifier.as_deref(), Some("corpus"));
                 assert_eq!(notification.title, "Title");
                 assert_eq!(notification.message, "Body");
+            }
+            "osc3008_malformed_close_recovery" => {
+                let contexts = terminal
+                    .poll_events()
+                    .into_iter()
+                    .filter_map(|event| match event {
+                        TerminalEvent::TerminalContextChanged(event) => Some(event),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(contexts.len(), 3, "unknown end must be ignored");
+                assert_eq!(contexts[0].action, TerminalContextAction::Start);
+                assert_eq!(contexts[0].metadata.user.as_deref(), Some("dev;ops"));
+                assert_eq!(contexts[1].depth, 2);
+                assert_eq!(contexts[2].action, TerminalContextAction::End);
+                assert_eq!(contexts[2].implicit_closed_count, 1);
+                assert_eq!(contexts[2].end_metadata.as_ref().unwrap().status, Some(0));
             }
             "tmux_passthrough" => assert_eq!(
                 write_hyperlink_probe(&mut terminal),

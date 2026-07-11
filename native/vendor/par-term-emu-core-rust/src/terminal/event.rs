@@ -3,6 +3,7 @@
 //! This module defines the various events that can be emitted by the terminal
 //! to notify observers of state changes, user interactions, or protocol-specific actions.
 
+use crate::terminal::context::TerminalContextEvent;
 use crate::terminal::file_transfer::TransferDirection;
 use crate::terminal::progress::{ProgressBarAction, ProgressState};
 use crate::terminal::trigger::TriggerMatch;
@@ -137,6 +138,8 @@ pub enum TerminalEvent {
     },
     /// Badge text changed (from OSC 1337 SetBadgeFormat)
     BadgeChanged(Option<String>),
+    /// UAPI OSC 3008 hierarchical terminal context changed.
+    TerminalContextChanged(Box<TerminalContextEvent>),
     /// Shell integration event (FinalTerm sequences)
     ShellIntegrationEvent {
         /// Protocol source normalized into this event.
@@ -283,6 +286,7 @@ impl TerminalEvent {
             TerminalEvent::UserVarChanged { .. } => TerminalEventKind::UserVarChanged,
             TerminalEvent::ProgressBarChanged { .. } => TerminalEventKind::ProgressBarChanged,
             TerminalEvent::BadgeChanged(_) => TerminalEventKind::BadgeChanged,
+            TerminalEvent::TerminalContextChanged(_) => TerminalEventKind::TerminalContextChanged,
             TerminalEvent::ShellIntegrationEvent { .. } => TerminalEventKind::ShellIntegrationEvent,
             TerminalEvent::ZoneOpened { .. } => TerminalEventKind::ZoneOpened,
             TerminalEvent::ZoneClosed { .. } => TerminalEventKind::ZoneClosed,
@@ -332,6 +336,7 @@ impl TerminalEvent {
                 id.len().saturating_add(option_len(label))
             }
             Self::BadgeChanged(badge) => option_len(badge),
+            Self::TerminalContextChanged(event) => event.retained_bytes(),
             Self::ShellIntegrationEvent {
                 event_type,
                 command,
@@ -390,6 +395,7 @@ pub enum TerminalEventKind {
     UserVarChanged,
     ProgressBarChanged,
     BadgeChanged,
+    TerminalContextChanged,
     ShellIntegrationEvent,
     ZoneOpened,
     ZoneClosed,

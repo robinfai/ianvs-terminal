@@ -234,6 +234,27 @@
       }
     },
     {
+      "id": "osc3008_malformed_close_recovery",
+      "coverage": [
+        "OSC 3008 hierarchy",
+        "OSC 3008 malformed close recovery"
+      ],
+      "protocol": "UAPI OSC 3008",
+      "wire": {
+        "chunks_hex": [
+          "1b5d333030383b73746172743d726f6f743b747970653d7368656c6c3b757365723d6465765c7833626f70731b5c",
+          "1b5d333030383b73746172743d6368696c643b747970653d636f6d6d616e643b636d646c696e653d6461727420746573741b5c1b5d333030383b656e643d6d697373696e673b657869743d6661696c7572651b5c1b5d333030383b656e643d726f6f743b657869743d737563636573733b7374617475733d301b5c"
+        ]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "terminal_context_lifecycle",
+        "state_effect": "unknown end is ignored, root end closes child, and decoded metadata is retained",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
       "id": "tmux_passthrough",
       "coverage": ["tmux passthrough fixture"],
       "protocol": "tmux DCS passthrough carrying OSC 8",

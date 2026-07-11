@@ -108,6 +108,17 @@ PROBES = {
         "none; response must not grant buttons, callbacks, sound, icons, or commands",
         osc("99;i=ianvs-query:p=?;"),
     ),
+    "terminal_context": Probe(
+        "terminal_context",
+        "UAPI OSC 3008",
+        "Emit a nested shell/command hierarchy, an unknown close, then close the root.",
+        "Three start/end lifecycle events are retained; the unknown close is ignored.",
+        "metadata only; must never authorize execution, identity, or privilege changes",
+        osc("3008;start=ianvs-root;type=shell;cwd=/tmp/ianvs-osc-probe")
+        + osc("3008;start=ianvs-command;type=command;cmdline=probe-command")
+        + osc("3008;end=unknown;exit=failure")
+        + osc("3008;end=ianvs-root;exit=success;status=0"),
+    ),
     "progress": Probe(
         "progress",
         "OSC 9;4",
@@ -168,6 +179,7 @@ def self_test() -> None:
         "prompt_command_output",
         "notification",
         "notification_query",
+        "terminal_context",
         "progress",
         "badge",
         "user_var",
@@ -185,6 +197,8 @@ def self_test() -> None:
         raise ValueError("hyperlink probe lost its protocol id")
     if b"52;c;?" not in PROBES["clipboard_query"].payload:
         raise ValueError("clipboard query fixture is malformed")
+    if PROBES["terminal_context"].payload.count(b"\x1b]3008;") != 4:
+        raise ValueError("terminal context lifecycle fixture is malformed")
 
 
 def parser() -> argparse.ArgumentParser:
