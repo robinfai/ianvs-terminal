@@ -7,10 +7,11 @@
 - Branch: `codex/osc-capability-completion-20260711`.
 - Native/protocol implementation commit: `66016b4`.
 - Dart/Flutter product integration commit: `189dee9`.
+- Kitty OSC 99 safe-subset commit: `1bb2f3b`.
 
-Phases 0–7 are implemented. Phase 8 (Kitty OSC 99) and Phase 9 (OSC
-3008) remain deferred exactly as allowed by the handoff. No unsupported opcode
-is advertised as a product capability.
+Phases 0–8 are implemented. Phase 8 adds only the Kitty OSC 99 safe subset;
+Phase 9 (OSC 3008) remains deferred. No unsupported opcode or host action is
+advertised as a product capability.
 
 ## Final classification
 
@@ -24,7 +25,8 @@ is advertised as a product capability.
 | confirmed compatibility gap | OSC 9;9 and OSC 633 absent | adapters completed in `66016b4`/`189dee9` |
 | confirmed macOS launch defect | standalone cold launch called an absent `NSApplicationDelegate` superclass selector | fixed in `8a89afd`; native regression and isolated CI ordering added in `d2758a5` |
 | documented private extension | OSC 934 identity/version/query were implicit | governed as `ianvs-osc934/1`; bounded query and canonical source implemented |
-| deferred by product decision | Kitty OSC 99, OSC 3008, unsafe iTerm2 actions, Kitty OSC 66/72 | still deferred; bounded no-op/no product authorization |
+| confirmed compatibility gap | Kitty OSC 99 rich notification lifecycle absent | safe ID/title/body/Base64/update/close/application/type/query/expiry subset implemented; actions, buttons, sound, icons and commands remain denied |
+| deferred by product decision | OSC 3008, unsafe iTerm2 actions, Kitty OSC 66/72 | still deferred; bounded no-op/no product authorization |
 | hypothesis requiring manual evidence | reference-terminal semantic consumption/echo/reply | not proven: Computer Use denies terminal-emulator UI control; see `osc_cross_terminal_probe_20260711.md` |
 
 ## Architecture and security result
@@ -49,7 +51,7 @@ history, file-transfer bytes, title stack, recordings and debug output.
 Strict Rust gates, corpus validation, Dart/Flutter analysis, docs, benchmark and
 all test suites are green. The final repository-wide verifier passed on the
 committed tree with complete example Widget tests enabled; macOS smoke is 4/4
-and real PTY acceptance is 16/16. A standalone rebuild and native RunnerTests
+and real PTY acceptance is 17/17. A standalone rebuild and native RunnerTests
 10/10 protect the macOS cold-launch path. The final Ianvs GUI Computer Use gate
 passed on a clean cold launch, including command-menu filtering, Profiles,
 second-tab creation, real shell input/output and `SHELL ACTIVE` semantics.

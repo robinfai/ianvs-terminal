@@ -9,6 +9,7 @@ Branch: `codex/osc-capability-completion-20260711`
 | `6303515` | Phases 0–2: preflight, OSC 21/22 side effects, OSC 8 identity, dynamic baseline reset |
 | `66016b4` | Phases 3–7 native/vendor engine, security bounds, shared corpus and semantic probe |
 | `189dee9` | Phases 3–7 Dart/Flutter product integration, render/UI tests and verification gate |
+| `1bb2f3b` | Phase 8 Kitty OSC 99 safe notification subset and end-to-end evidence |
 | documentation commit containing this file | final matrix, protocol specification and evidence record |
 
 The second pass uses two logical commits (native protocol engine and product
@@ -147,24 +148,49 @@ independently identified below with a scoped rollback path.
 - **Security:** presentation-only; query is static and leaks no session state.
 - **Rollback:** revert Phase 7 hunks in `66016b4`/`189dee9` and the protocol doc.
 
+## Phase 8 report — Kitty OSC 99 safe subset
+
+- **Start SHA:** `a4925b27215ce3454e7e3413d53d219cf6e90de5`.
+- **End SHA:** `1bb2f3b6c27a7095024ce339af033d80bbcec85a`.
+- **Modified files:** notification parser/state/snapshot/streaming policy; native
+  session event bridge and diagnostics; Dart runtime and product state; macOS
+  delivery bridge; corpus/probe/docs and layered tests.
+- **Confirmed issue:** OSC 99 was only a generic unknown-OSC no-op, so Kitty
+  notification identity, chunking and lifecycle were unavailable.
+- **Fixes:** safe ID/title/body/Base64 chunks, application/type metadata,
+  update/close, static query, expiry, stable macOS identity and explicit close.
+- **Unfixed by design:** buttons, activation/focus callbacks, close reports,
+  sound selection, icons, urgency and commands remain unsupported.
+- **Tests/results:** focused parser, native real-PTY, corpus, Dart runtime,
+  controller, ShellScreen and macOS real-PTY tests pass. Full repository gate is
+  recorded after it runs on the final tree.
+- **Compatibility:** OSC 9/777 remain source compatible; typed JSON event fields
+  are additive and no protobuf tag changes are required.
+- **Security:** 8 KiB streaming admission, 1/2/4 KiB metadata/plain/Base64 chunk
+  bounds, 64 pending/active IDs, payload-free diagnostics and no new execution
+  authority.
+- **Rollback:** revert the Phase 8 commit; OSC 99 returns to bounded unsupported
+  behavior without affecting OSC 9/777.
+
 ## Deferred phases
 
-Phase 8 Kitty OSC 99 and Phase 9 OSC 3008 remain product-decision deferrals.
-Kitty OSC 66/72, unsafe iTerm2 upload/download/actions, arbitrary URL/profile/
-command actions, notification buttons/sounds/icons and shell-provided execution
-are also deferred. Unknown/deferred sequences remain bounded and cannot gain
-host authority.
+Phase 8 Kitty OSC 99 is implemented as the safe subset recorded in
+`osc99_phase8_20260711.md`. Phase 9 OSC 3008 remains a product-decision
+deferral. Kitty OSC 66/72, unsafe iTerm2 upload/download/actions, arbitrary
+URL/profile/command actions, notification buttons/sounds/icons and
+shell-provided execution are also deferred. Unknown/deferred sequences remain
+bounded and cannot gain host authority.
 
 ## Final verification record
 
 Before the final repository gate, focused evidence is green:
 
-- vendored fmt, strict Clippy and tests: 1,573 passed, 1 ignored; doc tests 11
+- vendored fmt, strict Clippy and tests: 1,583 passed, 1 ignored; doc tests 11
   passed, 1 ignored;
-- native fmt/Clippy; lib 71/71, corpus 1/1, session 447/447, vttest 3/3;
-- corpus validator 15/15 and semantic probe self-test 10/10;
+- native fmt/Clippy; lib 72/72, corpus 1/1, session 449/449, vttest 3/3;
+- corpus validator 16/16 and semantic probe self-test 11/11;
 - Dart/Flutter analysis and protocol/runtime/controller/widget focused suites;
-- macOS smoke 4/4, real PTY 16/16 and native RunnerTests 10/10.
+- macOS smoke 4/4, real PTY 17/17 and native RunnerTests 10/10.
 
 Final committed-tree command:
 
@@ -175,8 +201,8 @@ VERIFY_FLUTTER_TERMINAL_RUN_EXAMPLE_WIDGET_TESTS=1 \
 
 Result: passed with exit code 0. This includes vendored/core format, strict
 Clippy and tests; PTY/Dart/Flutter analysis and tests; docs contract; CI smoke
-benchmark; 910 example grouped tests; complete example Widget tests 125/125;
-macOS smoke 4/4; and macOS real PTY acceptance 16/16. The optional nightly
+benchmark; 913 example grouped tests; complete example Widget tests 125/125;
+macOS smoke 4/4; and macOS real PTY acceptance 17/17. The optional nightly
 resource benchmark was not enabled because it is not a release gate. The
 verifier also rebuilds the standalone macOS app after Flutter integration tests
 and runs native RunnerTests 10/10.
