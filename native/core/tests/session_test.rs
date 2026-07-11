@@ -1804,6 +1804,64 @@ fn session_frame_diff_protobuf_exposes_core_fields() {
 }
 
 #[test]
+fn session_frame_diff_protobuf_preserves_graphic_asset_version_for_loading() {
+    let profile = local_profile(
+        "protobuf-kitty-asset-version",
+        "Protobuf Kitty Asset Version",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b_Ga=T,t=d,f=100,c=1,r=1,q=2,i=49374;{}\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.4)\nPY",
+                RED_PIXEL_PNG_BASE64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(3);
+    let asset_key = loop {
+        if let Some(bytes) = session::take_frame_diff_protobuf(session_id).unwrap() {
+            let decoded = ianvs_core::frame_diff_proto::decode_frame_diff_for_test(&bytes)
+                .expect("decode protobuf frame");
+            if let Some(asset_key) = decoded
+                .graphics
+                .into_iter()
+                .find_map(|graphic| graphic.asset_key)
+            {
+                break asset_key;
+            }
+        }
+        assert!(
+            Instant::now() < deadline,
+            "timed out waiting for Kitty graphic in protobuf frame"
+        );
+        thread::sleep(Duration::from_millis(10));
+    };
+
+    assert_eq!(asset_key.asset_id, 49374);
+    assert!(
+        asset_key.asset_version > u64::from(u32::MAX),
+        "test fixture must exercise the former uint32 truncation"
+    );
+    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
+            session_id,
+            asset_key.asset_id,
+            asset_key.asset_version,
+            &mut meta,
+        )
+    };
+    assert_eq!(status, 0);
+    assert_eq!(meta.version, asset_key.asset_version);
+    assert_eq!(meta.rgba_len, 4);
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn session_frame_debug_stats_include_protobuf_encode_micros() {
     let session_id =
         session::create_session(&serde_json::to_string(&test_profile()).unwrap()).unwrap();

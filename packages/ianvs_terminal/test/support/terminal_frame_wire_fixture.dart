@@ -212,11 +212,11 @@ TerminalFrameWireFixture completeTerminalFrameWireFixture({
       ],
       graphics: <frame_pb.TerminalGraphicPlacement>[
         frame_pb.TerminalGraphicPlacement(
-          placementId: 41,
-          renderId: 401,
+          placementId: Int64(41),
+          renderId: Int64(401),
           assetKey: frame_pb.TerminalGraphicAssetKey(
-            assetId: 17,
-            assetVersion: 5,
+            assetId: Int64(17),
+            assetVersion: Int64(5),
           ),
           protocol: 'kitty',
           row: 1,

@@ -133,11 +133,11 @@ fn to_proto_hyperlink(link: &TerminalHyperlinkRange) -> pb::TerminalHyperlinkRan
 
 fn to_proto_graphic(graphic: &TerminalGraphicPlacement) -> pb::TerminalGraphicPlacement {
     pb::TerminalGraphicPlacement {
-        placement_id: u64_to_u32(graphic.placement_id),
-        render_id: u64_to_u32(graphic.render_id),
+        placement_id: graphic.placement_id,
+        render_id: graphic.render_id,
         asset_key: Some(pb::TerminalGraphicAssetKey {
-            asset_id: u64_to_u32(graphic.asset_id),
-            asset_version: u64_to_u32(graphic.asset_version),
+            asset_id: graphic.asset_id,
+            asset_version: graphic.asset_version,
         }),
         protocol: graphic.protocol.clone(),
         row: usize_to_u32(graphic.row),
@@ -175,10 +175,44 @@ fn usize_to_u32(value: usize) -> u32 {
     value.min(u32::MAX as usize) as u32
 }
 
-fn u64_to_u32(value: u64) -> u32 {
-    value.min(u64::from(u32::MAX)) as u32
-}
-
 fn u32_to_i32(value: u32) -> i32 {
     value.min(i32::MAX as u32) as i32
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn graphic_identities_preserve_values_above_u32_range() {
+        let graphic = TerminalGraphicPlacement {
+            render_id: 4_294_967_303,
+            placement_id: 4_294_967_301,
+            asset_id: 4_294_967_307,
+            asset_version: 3_205_628_038_470_320,
+            protocol: "kitty".to_string(),
+            row: 1,
+            col: 2,
+            width_px: 192,
+            height_px: 208,
+            width_cells: 9,
+            height_cells: 5,
+            source_x_offset_px: 0,
+            visible_width_px: 192,
+            source_y_offset_px: 0,
+            visible_height_px: 208,
+            z_index: 0,
+            x_offset_px: 0,
+            y_offset_px: 0,
+            preserve_aspect_ratio: true,
+        };
+
+        let encoded = to_proto_graphic(&graphic);
+
+        assert_eq!(encoded.render_id, graphic.render_id);
+        assert_eq!(encoded.placement_id, graphic.placement_id);
+        let asset_key = encoded.asset_key.expect("graphic asset key");
+        assert_eq!(asset_key.asset_id, graphic.asset_id);
+        assert_eq!(asset_key.asset_version, graphic.asset_version);
+    }
 }

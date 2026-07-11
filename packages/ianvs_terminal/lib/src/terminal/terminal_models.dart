@@ -1333,10 +1333,13 @@ TerminalGraphicPlacement? _terminalGraphicFromProtobuf(
     hasValue: graphic.hasProtocol(),
     value: graphic.protocol,
   );
-  final placementId = graphic.placementId;
-  final renderId = graphic.hasRenderId() && graphic.renderId > 0
-      ? graphic.renderId
+  final placementId = graphic.placementId.toInt();
+  final decodedRenderId = graphic.renderId.toInt();
+  final renderId = graphic.hasRenderId() && decodedRenderId > 0
+      ? decodedRenderId
       : placementId;
+  final assetId = assetKey.assetId.toInt();
+  final assetVersion = assetKey.assetVersion.toInt();
   final widthPx = graphic.widthPx;
   final heightPx = graphic.heightPx;
   final widthCells = graphic.widthCells;
@@ -1349,8 +1352,8 @@ TerminalGraphicPlacement? _terminalGraphicFromProtobuf(
   final visibleHeightPx = graphic.hasVisibleHeightPx()
       ? graphic.visibleHeightPx
       : heightPx - sourceYOffsetPx;
-  if (assetKey.assetId <= 0 ||
-      assetKey.assetVersion <= 0 ||
+  if (assetId <= 0 ||
+      assetVersion <= 0 ||
       protocol == null ||
       widthPx <= 0 ||
       heightPx <= 0 ||
@@ -1367,10 +1370,7 @@ TerminalGraphicPlacement? _terminalGraphicFromProtobuf(
   return TerminalGraphicPlacement(
     renderId: renderId,
     placementId: placementId,
-    assetKey: TerminalGraphicAssetKey(
-      id: assetKey.assetId,
-      version: assetKey.assetVersion,
-    ),
+    assetKey: TerminalGraphicAssetKey(id: assetId, version: assetVersion),
     protocol: protocol,
     row: graphic.row,
     col: graphic.col,

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:fixnum/fixnum.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 import 'package:ianvs_terminal/src/proto/frame_diff.pb.dart' as frame_pb;
@@ -26,6 +27,46 @@ void main() {
         terminalBenchmarkViewportHash(jsonFrame),
         terminalBenchmarkViewportHash(protobufFrame),
       );
+    });
+
+    test('graphics identities preserve values above uint32 range', () {
+      const placementId = 4294967301;
+      const renderId = 4294967303;
+      const assetId = 4294967307;
+      const assetVersion = 3205628038470320;
+      final jsonFrame = TerminalFrameDiff.fromJson(
+        _jsonFrame(
+          graphics: <Object?>[
+            <String, Object?>{
+              ..._jsonGraphic(),
+              'placement_id': placementId,
+              'render_id': renderId,
+              'asset_id': assetId,
+              'asset_version': assetVersion,
+            },
+          ],
+        ),
+      );
+      final protobufAssetKey = frame_pb.TerminalGraphicAssetKey()
+        ..setField(1, Int64(assetId))
+        ..setField(2, Int64(assetVersion));
+      final protobufGraphic = _protobufGraphic()
+        ..setField(1, Int64(placementId))
+        ..setField(2, Int64(renderId))
+        ..assetKey = protobufAssetKey;
+      final protobufFrame = TerminalFrameDiff.fromProtobufBytes(
+        frame_pb.TerminalFrameDiff(
+          viewportRows: 1,
+          viewportCols: 80,
+          graphics: <frame_pb.TerminalGraphicPlacement>[protobufGraphic],
+        ).writeToBuffer(),
+      );
+
+      expect(
+        terminalFrameProjection(protobufFrame),
+        terminalFrameProjection(jsonFrame),
+      );
+      expect(protobufFrame.graphics.single.assetKey.version, assetVersion);
     });
 
     test('dimensions above uint16 range clamp equally', () {
@@ -1028,9 +1069,12 @@ Map<String, Object?> _jsonGraphic() {
 
 frame_pb.TerminalGraphicPlacement _protobufGraphic() {
   return frame_pb.TerminalGraphicPlacement(
-    placementId: 1,
-    renderId: 2,
-    assetKey: frame_pb.TerminalGraphicAssetKey(assetId: 3, assetVersion: 4),
+    placementId: Int64(1),
+    renderId: Int64(2),
+    assetKey: frame_pb.TerminalGraphicAssetKey(
+      assetId: Int64(3),
+      assetVersion: Int64(4),
+    ),
     protocol: 'kitty',
     row: 0,
     col: 0,

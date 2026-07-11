@@ -113,13 +113,13 @@ message TerminalInlineImage {
 }
 
 message TerminalGraphicAssetKey {
-  uint32 asset_id = 1;
-  uint32 asset_version = 2;
+  uint64 asset_id = 1;
+  uint64 asset_version = 2;
 }
 
 message TerminalGraphicPlacement {
-  uint32 placement_id = 1;
-  uint32 render_id = 2;
+  uint64 placement_id = 1;
+  uint64 render_id = 2;
   TerminalGraphicAssetKey asset_key = 3;
   string protocol = 4;
   uint32 row = 5;

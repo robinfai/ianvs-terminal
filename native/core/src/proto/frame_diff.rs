@@ -179,17 +179,17 @@ pub struct TerminalInlineImage {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct TerminalGraphicAssetKey {
-    #[prost(uint32, tag = "1")]
-    pub asset_id: u32,
-    #[prost(uint32, tag = "2")]
-    pub asset_version: u32,
+    #[prost(uint64, tag = "1")]
+    pub asset_id: u64,
+    #[prost(uint64, tag = "2")]
+    pub asset_version: u64,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct TerminalGraphicPlacement {
-    #[prost(uint32, tag = "1")]
-    pub placement_id: u32,
-    #[prost(uint32, tag = "2")]
-    pub render_id: u32,
+    #[prost(uint64, tag = "1")]
+    pub placement_id: u64,
+    #[prost(uint64, tag = "2")]
+    pub render_id: u64,
     #[prost(message, optional, tag = "3")]
     pub asset_key: ::core::option::Option<TerminalGraphicAssetKey>,
     #[prost(string, tag = "4")]

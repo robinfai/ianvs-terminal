@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:fixnum/fixnum.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 import 'package:ianvs_terminal/src/proto/frame_diff.pb.dart' as frame_pb;
@@ -297,11 +298,11 @@ List<_FrameWireFixture> _buildFixtures({
       graphics: includeGraphic
           ? [
               frame_pb.TerminalGraphicPlacement(
-                placementId: frameIndex + 1,
-                renderId: frameIndex + 1001,
+                placementId: Int64(frameIndex + 1),
+                renderId: Int64(frameIndex + 1001),
                 assetKey: frame_pb.TerminalGraphicAssetKey(
-                  assetId: 7,
-                  assetVersion: frameIndex + 1,
+                  assetId: Int64(7),
+                  assetVersion: Int64(frameIndex + 1),
                 ),
                 protocol: 'kitty',
                 row: 2,

@@ -1338,8 +1338,8 @@ class TerminalInlineImage extends $pb.GeneratedMessage {
 
 class TerminalGraphicAssetKey extends $pb.GeneratedMessage {
   factory TerminalGraphicAssetKey({
-    $core.int? assetId,
-    $core.int? assetVersion,
+    $fixnum.Int64? assetId,
+    $fixnum.Int64? assetVersion,
   }) {
     final result = create();
     if (assetId != null) result.assetId = assetId;
@@ -1360,9 +1360,11 @@ class TerminalGraphicAssetKey extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'TerminalGraphicAssetKey',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'frame_diff'),
       createEmptyInstance: create)
-    ..aI(1, _omitFieldNames ? '' : 'assetId', fieldType: $pb.PbFieldType.OU3)
-    ..aI(2, _omitFieldNames ? '' : 'assetVersion',
-        fieldType: $pb.PbFieldType.OU3)
+    ..a<$fixnum.Int64>(1, _omitFieldNames ? '' : 'assetId', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..a<$fixnum.Int64>(
+        2, _omitFieldNames ? '' : 'assetVersion', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1386,18 +1388,18 @@ class TerminalGraphicAssetKey extends $pb.GeneratedMessage {
   static TerminalGraphicAssetKey? _defaultInstance;
 
   @$pb.TagNumber(1)
-  $core.int get assetId => $_getIZ(0);
+  $fixnum.Int64 get assetId => $_getI64(0);
   @$pb.TagNumber(1)
-  set assetId($core.int value) => $_setUnsignedInt32(0, value);
+  set assetId($fixnum.Int64 value) => $_setInt64(0, value);
   @$pb.TagNumber(1)
   $core.bool hasAssetId() => $_has(0);
   @$pb.TagNumber(1)
   void clearAssetId() => $_clearField(1);
 
   @$pb.TagNumber(2)
-  $core.int get assetVersion => $_getIZ(1);
+  $fixnum.Int64 get assetVersion => $_getI64(1);
   @$pb.TagNumber(2)
-  set assetVersion($core.int value) => $_setUnsignedInt32(1, value);
+  set assetVersion($fixnum.Int64 value) => $_setInt64(1, value);
   @$pb.TagNumber(2)
   $core.bool hasAssetVersion() => $_has(1);
   @$pb.TagNumber(2)
@@ -1406,8 +1408,8 @@ class TerminalGraphicAssetKey extends $pb.GeneratedMessage {
 
 class TerminalGraphicPlacement extends $pb.GeneratedMessage {
   factory TerminalGraphicPlacement({
-    $core.int? placementId,
-    $core.int? renderId,
+    $fixnum.Int64? placementId,
+    $fixnum.Int64? renderId,
     TerminalGraphicAssetKey? assetKey,
     $core.String? protocol,
     $core.int? row,
@@ -1461,9 +1463,12 @@ class TerminalGraphicPlacement extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'TerminalGraphicPlacement',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'frame_diff'),
       createEmptyInstance: create)
-    ..aI(1, _omitFieldNames ? '' : 'placementId',
-        fieldType: $pb.PbFieldType.OU3)
-    ..aI(2, _omitFieldNames ? '' : 'renderId', fieldType: $pb.PbFieldType.OU3)
+    ..a<$fixnum.Int64>(
+        1, _omitFieldNames ? '' : 'placementId', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..a<$fixnum.Int64>(
+        2, _omitFieldNames ? '' : 'renderId', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOM<TerminalGraphicAssetKey>(3, _omitFieldNames ? '' : 'assetKey',
         subBuilder: TerminalGraphicAssetKey.create)
     ..aOS(4, _omitFieldNames ? '' : 'protocol')
@@ -1509,18 +1514,18 @@ class TerminalGraphicPlacement extends $pb.GeneratedMessage {
   static TerminalGraphicPlacement? _defaultInstance;
 
   @$pb.TagNumber(1)
-  $core.int get placementId => $_getIZ(0);
+  $fixnum.Int64 get placementId => $_getI64(0);
   @$pb.TagNumber(1)
-  set placementId($core.int value) => $_setUnsignedInt32(0, value);
+  set placementId($fixnum.Int64 value) => $_setInt64(0, value);
   @$pb.TagNumber(1)
   $core.bool hasPlacementId() => $_has(0);
   @$pb.TagNumber(1)
   void clearPlacementId() => $_clearField(1);
 
   @$pb.TagNumber(2)
-  $core.int get renderId => $_getIZ(1);
+  $fixnum.Int64 get renderId => $_getI64(1);
   @$pb.TagNumber(2)
-  set renderId($core.int value) => $_setUnsignedInt32(1, value);
+  set renderId($fixnum.Int64 value) => $_setInt64(1, value);
   @$pb.TagNumber(2)
   $core.bool hasRenderId() => $_has(1);
   @$pb.TagNumber(2)

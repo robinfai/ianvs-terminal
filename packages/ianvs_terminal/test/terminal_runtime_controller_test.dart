@@ -1224,11 +1224,11 @@ void main() {
       ],
       graphics: [
         frame_pb.TerminalGraphicPlacement(
-          placementId: 11,
-          renderId: 101,
+          placementId: Int64(11),
+          renderId: Int64(101),
           assetKey: frame_pb.TerminalGraphicAssetKey(
-            assetId: 7,
-            assetVersion: 3,
+            assetId: Int64(7),
+            assetVersion: Int64(3),
           ),
           protocol: 'kitty',
           row: 1,
