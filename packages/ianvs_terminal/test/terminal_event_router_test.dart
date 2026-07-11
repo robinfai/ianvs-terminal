@@ -73,6 +73,7 @@ void main() {
         'session_notification': TerminalImmediateEventKind.sessionNotification,
         'session_progress': TerminalImmediateEventKind.sessionProgress,
         'session_badge': TerminalImmediateEventKind.sessionBadge,
+        'session_reset': TerminalImmediateEventKind.sessionReset,
       };
 
       for (final entry in cases.entries) {

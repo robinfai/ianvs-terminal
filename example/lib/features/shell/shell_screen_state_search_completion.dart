@@ -723,12 +723,20 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     }
     final startMark = promptMarks[promptMarks.length - 2];
     final endMark = promptMarks.last;
-    final startRow = startMark.scrollbackOffset + 1;
-    final endRow = endMark.scrollbackOffset - 1;
+    final frame = sessionController.viewportFor(sessionId).frame;
+    final startPromptRow = _viewportRowForGlobalLine(
+      frame,
+      startMark.globalLine,
+    );
+    final endPromptRow = _viewportRowForGlobalLine(frame, endMark.globalLine);
+    if (startPromptRow == null || endPromptRow == null) {
+      return false;
+    }
+    final startRow = startPromptRow + 1;
+    final endRow = endPromptRow - 1;
     if (endRow < startRow) {
       return false;
     }
-    final frame = sessionController.viewportFor(sessionId).frame;
     selectionController.setSelection(
       terminal.TerminalSelection(
         startRow: startRow,
@@ -903,18 +911,19 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
         .read(sessionControllerProvider.notifier)
         .viewportFor(sessionId)
         .frame;
-    final target = _shellPromptNavigationTarget(
+    final targetOffset = _shellPromptNavigationOffset(
       promptMarks,
+      frame,
       frame.scrollbackOffset,
       direction: direction,
     );
-    if (target == null) {
+    if (targetOffset == null) {
       return;
     }
 
     ref
         .read(terminalRuntimeControllerProvider)
-        .scrollViewportTo(sessionId, target.scrollbackOffset);
+        .scrollViewportTo(sessionId, targetOffset);
     _focusSession(sessionId);
   }
 
@@ -957,12 +966,12 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
       return integration.promptMarks;
     }
     if (integration.promptMarks.any(
-      (mark) => mark.scrollbackOffset == fallback.scrollbackOffset,
+      (mark) => mark.globalLine == fallback.globalLine,
     )) {
       return integration.promptMarks;
     }
     final merged = [...integration.promptMarks, fallback];
-    merged.sort((a, b) => a.scrollbackOffset.compareTo(b.scrollbackOffset));
+    merged.sort(_comparePromptMarksForDisplay);
     return merged;
   }
 
@@ -997,35 +1006,111 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
       return null;
     }
 
+    final globalLine = _globalLineForViewportRow(frame, anchorRow.index);
+    if (globalLine == null) {
+      return null;
+    }
     return TerminalShellPromptMark(
-      scrollbackOffset: (frame.scrollbackMaxOffset - anchorRow.index).clamp(
-        0,
-        frame.scrollbackMaxOffset,
-      ),
+      globalLine: globalLine,
       command: integration.lastCommand,
       cwd: integration.currentDirectory,
     );
   }
 
-  TerminalShellPromptMark? _shellPromptNavigationTarget(
+  int? _shellPromptNavigationOffset(
     List<TerminalShellPromptMark> marks,
+    terminal.TerminalFrameDiff frame,
     int currentOffset, {
     required int direction,
   }) {
+    final offsets =
+        marks
+            .map((mark) => _promptMarkOffsetForFrame(mark, frame))
+            .whereType<int>()
+            .toSet()
+            .toList(growable: false)
+          ..sort();
+    if (offsets.isEmpty) {
+      return null;
+    }
     if (direction < 0) {
-      for (final mark in marks) {
-        if (mark.scrollbackOffset > currentOffset) {
-          return mark;
+      for (final offset in offsets) {
+        if (offset > currentOffset) {
+          return offset;
         }
       }
-      return marks.last;
+      return offsets.last;
     }
 
-    for (final mark in marks.reversed) {
-      if (mark.scrollbackOffset < currentOffset) {
-        return mark;
+    for (final offset in offsets.reversed) {
+      if (offset < currentOffset) {
+        return offset;
       }
     }
-    return marks.first;
+    return offsets.first;
   }
+}
+
+int? _promptMarkOffsetForFrame(
+  TerminalShellPromptMark mark,
+  terminal.TerminalFrameDiff frame,
+) {
+  return terminalPromptMarkScrollbackOffset(
+    mark,
+    globalBottomRow: frame.globalBottomRow,
+    scrollbackMaxOffset: frame.scrollbackMaxOffset,
+  );
+}
+
+int? _globalLineForViewportRow(terminal.TerminalFrameDiff frame, int rowIndex) {
+  final globalBottomRow = frame.globalBottomRow;
+  if (globalBottomRow == null ||
+      globalBottomRow < 0 ||
+      frame.viewportRows <= 0 ||
+      rowIndex < 0 ||
+      rowIndex >= frame.viewportRows) {
+    return null;
+  }
+  final displayedBottom = globalBottomRow - frame.scrollbackOffset;
+  final displayedTop = displayedBottom - (frame.viewportRows - 1);
+  final globalLine = displayedTop + rowIndex;
+  return globalLine < 0 ? null : globalLine;
+}
+
+int? _viewportRowForGlobalLine(
+  terminal.TerminalFrameDiff frame,
+  int? globalLine,
+) {
+  final globalBottomRow = frame.globalBottomRow;
+  if (globalBottomRow == null ||
+      globalBottomRow < 0 ||
+      frame.viewportRows <= 0 ||
+      globalLine == null ||
+      globalLine < 0) {
+    return null;
+  }
+  final displayedBottom = globalBottomRow - frame.scrollbackOffset;
+  final displayedTop = displayedBottom - (frame.viewportRows - 1);
+  final row = globalLine - displayedTop;
+  return row >= 0 && row < frame.viewportRows ? row : null;
+}
+
+int _comparePromptMarksForDisplay(
+  TerminalShellPromptMark left,
+  TerminalShellPromptMark right,
+) {
+  final leftGlobal = left.globalLine;
+  final rightGlobal = right.globalLine;
+  if (leftGlobal != null && rightGlobal != null) {
+    return leftGlobal.compareTo(rightGlobal);
+  }
+  if (leftGlobal != null) {
+    return -1;
+  }
+  if (rightGlobal != null) {
+    return 1;
+  }
+  return (left.legacyScrollbackOffset ?? 0).compareTo(
+    right.legacyScrollbackOffset ?? 0,
+  );
 }

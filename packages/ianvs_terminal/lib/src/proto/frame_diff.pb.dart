@@ -44,6 +44,7 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
     $core.Iterable<TerminalHyperlinkRange>? hyperlinks,
     $core.Iterable<TerminalInlineImage>? inlineImages,
     $core.Iterable<TerminalGraphicPlacement>? graphics,
+    $fixnum.Int64? globalBottomRow,
   }) {
     final result = create();
     if (frameSchemaVersion != null)
@@ -69,6 +70,7 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
     if (hyperlinks != null) result.hyperlinks.addAll(hyperlinks);
     if (inlineImages != null) result.inlineImages.addAll(inlineImages);
     if (graphics != null) result.graphics.addAll(graphics);
+    if (globalBottomRow != null) result.globalBottomRow = globalBottomRow;
     return result;
   }
 
@@ -123,6 +125,9 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
         subBuilder: TerminalInlineImage.create)
     ..pPM<TerminalGraphicPlacement>(21, _omitFieldNames ? '' : 'graphics',
         subBuilder: TerminalGraphicPlacement.create)
+    ..a<$fixnum.Int64>(
+        22, _omitFieldNames ? '' : 'globalBottomRow', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -314,6 +319,15 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(21)
   $pb.PbList<TerminalGraphicPlacement> get graphics => $_getList(20);
+
+  @$pb.TagNumber(22)
+  $fixnum.Int64 get globalBottomRow => $_getI64(21);
+  @$pb.TagNumber(22)
+  set globalBottomRow($fixnum.Int64 value) => $_setInt64(21, value);
+  @$pb.TagNumber(22)
+  $core.bool hasGlobalBottomRow() => $_has(21);
+  @$pb.TagNumber(22)
+  void clearGlobalBottomRow() => $_clearField(22);
 }
 
 class TerminalRow extends $pb.GeneratedMessage {

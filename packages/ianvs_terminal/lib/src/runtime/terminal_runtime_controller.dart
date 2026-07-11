@@ -228,6 +228,11 @@ final class TerminalSessionBadgeEvent extends TerminalSessionEvent {
   }
 }
 
+/// The parser received RIS (`ESC c`) and reset terminal semantic state.
+final class TerminalSessionResetEvent extends TerminalSessionEvent {
+  const TerminalSessionResetEvent(super.sessionId);
+}
+
 final class TerminalSessionClipboardEvent extends TerminalSessionEvent {
   const TerminalSessionClipboardEvent(
     super.sessionId, {
@@ -1767,6 +1772,12 @@ class TerminalRuntimeController {
           sessionId,
           sessionEpoch,
           TerminalSessionBadgeEvent(sessionId, rawPayload: route.payload),
+        );
+      case TerminalImmediateEventKind.sessionReset:
+        _emitEventIfCurrent(
+          sessionId,
+          sessionEpoch,
+          TerminalSessionResetEvent(sessionId),
         );
     }
   }

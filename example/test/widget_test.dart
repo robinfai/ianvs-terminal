@@ -3935,20 +3935,21 @@ void main() {
 
       fakeBindings.setFrame(1, {
         'rows': [
+          {'index': 0, 'text': 'ianvs terminal ready', 'style_runs': const []},
           {
-            'index': 0,
+            'index': 1,
             'text': 'background build',
             'wrapped': true,
             'style_runs': const [],
           },
-          {'index': 1, 'text': ' done', 'style_runs': const []},
+          {'index': 2, 'text': ' done', 'style_runs': const []},
         ],
-        'cursor': {'row': 1, 'col': 4, 'visible': true},
+        'cursor': {'row': 2, 'col': 4, 'visible': true},
         'selection': null,
         'viewport_rows': 24,
         'viewport_cols': 16,
         'dirty_ranges': [
-          {'start': 0, 'end': 2},
+          {'start': 1, 'end': 3},
         ],
         'scrollback_offset': 0,
         'scrollback_max_offset': 0,
@@ -3963,6 +3964,34 @@ void main() {
       expect(notifications.single['title'], startsWith('Activity in '));
       expect(notifications.single['body'], 'background build done');
       expect(notifications.single['identifier'], 'ianvs-terminal.activity.1');
+
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {'index': 0, 'text': 'ianvs terminal ready', 'style_runs': const []},
+          {
+            'index': 1,
+            'text': 'background build done: ERROR 42 failed',
+            'style_runs': const [],
+          },
+        ],
+        'cursor': {'row': 1, 'col': 38, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 1, 'end': 2},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+      });
+      await _pumpUntilCondition(
+        tester,
+        description: 'trailing inactive session activity notification',
+        condition: () => notifications.length == 2,
+      );
+
+      expect(notifications.last['body'], contains('ERROR 42 failed'));
+      expect(notifications.last['identifier'], 'ianvs-terminal.activity.1');
     },
   );
 
@@ -5156,7 +5185,7 @@ void main() {
   );
 
   testWidgets(
-    'shift-command arrows navigate shell integration prompt marks',
+    'shift-command arrows track global prompt marks through new output and caps',
     (tester) async {
       final fakeBindings = FakePtyBackend();
 
@@ -5168,27 +5197,37 @@ void main() {
         ),
       );
 
+      fakeBindings.setFrame(1, {
+        'rows': const <Object?>[],
+        'cursor': const {'row': 0, 'col': 0, 'visible': true},
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': const <Object?>[],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 40,
+        'global_bottom_row': 100,
+      });
       fakeBindings.enqueueEvent(
         1,
         PtyEvent(
-          kind: 'shell_hook',
+          kind: 'shell_command',
           sessionId: '1',
           payload: const <String, Object?>{
-            'hook': 'prompt_started',
-            'prompt_scrollback_offset': 9,
-            'pwd': '/Users/dev/project',
+            'source': 'osc133',
+            'eventType': 'prompt_start',
+            'cursorLine': 91,
           },
         ),
       );
       fakeBindings.enqueueEvent(
         1,
         PtyEvent(
-          kind: 'shell_hook',
+          kind: 'shell_command',
           sessionId: '1',
           payload: const <String, Object?>{
-            'hook': 'prompt_started',
-            'prompt_scrollback_offset': 27,
-            'pwd': '/Users/dev/project',
+            'source': 'osc133',
+            'eventType': 'prompt_start',
+            'cursorLine': 73,
           },
         ),
       );
@@ -5211,14 +5250,77 @@ void main() {
         'dirty_ranges': [
           {'start': 0, 'end': 1},
         ],
-        'scrollback_offset': 27,
+        'scrollback_offset': 40,
         'scrollback_max_offset': 40,
+        'global_bottom_row': 120,
       });
       await tester.pump(const Duration(milliseconds: 40));
 
       await _sendMetaShiftShortcut(tester, LogicalKeyboardKey.arrowDown);
 
-      expect(fakeBindings.scrollToCalls.last, [1, 9]);
+      expect(fakeBindings.scrollToCalls.last, [1, 29]);
+
+      fakeBindings.setFrame(1, {
+        'rows': const <Object?>[],
+        'cursor': const {'row': 0, 'col': 0, 'visible': true},
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': const <Object?>[],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 40,
+        'global_bottom_row': 200,
+      });
+      await tester.pump(const Duration(milliseconds: 40));
+
+      await _sendMetaShiftShortcut(tester, LogicalKeyboardKey.arrowUp);
+
+      expect(fakeBindings.scrollToCalls.last, [1, 40]);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'global row zero prompt mark jumps in a one-row terminal',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      fakeBindings.setFrame(1, {
+        'rows': const <Object?>[],
+        'cursor': const {'row': 0, 'col': 0, 'visible': true},
+        'viewport_rows': 1,
+        'viewport_cols': 1,
+        'dirty_ranges': const <Object?>[],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+        'global_bottom_row': 0,
+      });
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_command',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'source': 'osc133',
+            'eventType': 'prompt_start',
+            'cursorLine': 0,
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+      await _sendMetaShiftShortcut(tester, LogicalKeyboardKey.arrowUp);
+
+      expect(fakeBindings.scrollToCalls.last, [1, 0]);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
@@ -5236,6 +5338,24 @@ void main() {
         ),
       );
 
+      fakeBindings.setFrame(1, {
+        'rows': const <Object?>[
+          <String, Object?>{
+            'index': 0,
+            'text': 'ianvs terminal ready',
+            'style_runs': <Object?>[],
+          },
+        ],
+        'cursor': const {'row': 0, 'col': 4, 'visible': true},
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': const <Object?>[
+          <String, Object?>{'start': 0, 'end': 1},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+        'global_bottom_row': 23,
+      });
       fakeBindings.enqueueEvent(
         1,
         PtyEvent(
@@ -5264,7 +5384,7 @@ void main() {
   );
 
   testWidgets(
-    'shell integration utilities expose history directories and prompt marks',
+    'shell integration utilities jump prompt marks using the latest frame',
     (tester) async {
       final fakeBindings = FakePtyBackend();
 
@@ -5276,6 +5396,16 @@ void main() {
         ),
       );
 
+      fakeBindings.setFrame(1, {
+        'rows': const <Object?>[],
+        'cursor': const {'row': 0, 'col': 0, 'visible': true},
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': const <Object?>[],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 40,
+        'global_bottom_row': 100,
+      });
       fakeBindings.enqueueEvent(
         1,
         PtyEvent(
@@ -5337,11 +5467,22 @@ void main() {
       expect(fakeBindings.writes.last, utf8.encode('cd /tmp/project'));
 
       await openUtilities();
+      fakeBindings.setFrame(1, {
+        'rows': const <Object?>[],
+        'cursor': const {'row': 0, 'col': 0, 'visible': true},
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': const <Object?>[],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 40,
+        'global_bottom_row': 120,
+      });
+      await tester.pump(const Duration(milliseconds: 40));
       await tester.ensureVisible(find.byKey(const Key('shell-prompt-mark-0')));
       await tester.tap(find.byKey(const Key('shell-prompt-mark-0')));
       await tester.pumpAndSettle();
 
-      expect(fakeBindings.scrollToCalls.last, [1, 12]);
+      expect(fakeBindings.scrollToCalls.last, [1, 32]);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );

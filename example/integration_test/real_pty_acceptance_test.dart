@@ -19,6 +19,7 @@ import 'package:app/features/shell/shell_screen.dart';
 import '../test/support/memory_app_preferences_repository.dart';
 import '../test/support/macos_integration_test_lifecycle.dart';
 import '../test/support/memory_profile_repository.dart';
+import '../test/support/memory_local_terminal_config_repository.dart';
 
 const _frameWait = Duration(seconds: 20);
 const _pollStep = Duration(milliseconds: 100);
@@ -390,15 +391,23 @@ sleep 5
         description: 'first real PTY tab ready',
         matches: (text) => text.contains('ready'),
       );
+      final firstSessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
 
       await _openCommandMenu(tester);
       await tester.tap(find.text('New tab'));
       await _waitFor(
         tester,
         description: 'second real PTY tab',
-        condition: () =>
-            harness.container.read(sessionControllerProvider).tabs.length == 2,
+        condition: () {
+          final state = harness.container.read(sessionControllerProvider);
+          return state.tabs.length == 2 &&
+              state.activeSessionId != null &&
+              state.activeSessionId != firstSessionId;
+        },
       );
+      await tester.pump();
 
       final cols = await _waitForViewportColumns(tester, harness.container);
       prefixLengthFile.writeAsStringSync('${cols + 400}');
@@ -567,6 +576,9 @@ Future<_RealPtyHarness> _pumpRealPtyApp(
       ),
       appPreferencesRepositoryProvider.overrideWithValue(
         MemoryAppPreferencesRepository(null),
+      ),
+      localTerminalConfigRepositoryProvider.overrideWithValue(
+        MemoryLocalTerminalConfigRepository(null),
       ),
       shellAnimationsEnabledProvider.overrideWithValue(false),
       if (runtimeEvents != null)

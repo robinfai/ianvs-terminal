@@ -287,10 +287,14 @@ extension _ShellScreenStateCoprocesses on _ShellScreenState {
   }
 
   String? _framePreview(terminal.TerminalFrameDiff frame) {
-    for (final logicalRow in _logicalRows(frame.rows)) {
+    for (final logicalRow in _logicalRows(frame.rows).reversed) {
       final text = logicalRow.text.trim();
       if (text.isNotEmpty) {
-        return text;
+        return text.length <= _ShellScreenState._activityPreviewMaxCharacters
+            ? text
+            : text.substring(
+                text.length - _ShellScreenState._activityPreviewMaxCharacters,
+              );
       }
     }
     return null;

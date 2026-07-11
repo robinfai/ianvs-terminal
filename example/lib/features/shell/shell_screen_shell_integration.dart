@@ -556,12 +556,16 @@ class _TmuxActionTile extends StatelessWidget {
 class _ShellIntegrationUtilitiesSheet extends StatelessWidget {
   const _ShellIntegrationUtilitiesSheet({
     required this.integration,
+    required this.globalBottomRow,
+    required this.scrollbackMaxOffset,
     required this.onInsertCommand,
     required this.onChangeDirectory,
     required this.onJumpToMark,
   });
 
   final TerminalShellIntegrationSnapshot integration;
+  final int? globalBottomRow;
+  final int scrollbackMaxOffset;
   final ValueChanged<String> onInsertCommand;
   final ValueChanged<String> onChangeDirectory;
   final ValueChanged<TerminalShellPromptMark> onJumpToMark;
@@ -711,6 +715,14 @@ class _ShellIntegrationUtilitiesSheet extends StatelessWidget {
                               mark: integration.promptMarks.reversed.elementAt(
                                 index,
                               ),
+                              scrollbackOffset:
+                                  terminalPromptMarkScrollbackOffset(
+                                    integration.promptMarks.reversed.elementAt(
+                                      index,
+                                    ),
+                                    globalBottomRow: globalBottomRow,
+                                    scrollbackMaxOffset: scrollbackMaxOffset,
+                                  ),
                               palette: palette,
                               onTap: () {
                                 Navigator.of(context).pop();
@@ -930,11 +942,13 @@ class _ShellPromptMarkTile extends StatelessWidget {
   const _ShellPromptMarkTile({
     super.key,
     required this.mark,
+    required this.scrollbackOffset,
     required this.palette,
     required this.onTap,
   });
 
   final TerminalShellPromptMark mark;
+  final int? scrollbackOffset;
   final AppThemeTokens palette;
   final VoidCallback onTap;
 
@@ -952,7 +966,11 @@ class _ShellPromptMarkTile extends StatelessWidget {
         color: palette.textMuted,
         size: 20,
       ),
-      title: 'Offset ${mark.scrollbackOffset}',
+      title: scrollbackOffset == null
+          ? mark.globalLine == null
+                ? 'Prompt mark'
+                : 'Global line ${mark.globalLine}'
+          : 'Offset $scrollbackOffset',
       subtitle: subtitle.isEmpty ? 'Shell prompt mark' : subtitle,
       subtitleMaxLines: 1,
       onTap: onTap,

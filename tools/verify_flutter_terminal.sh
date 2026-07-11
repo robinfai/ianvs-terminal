@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CORE_DIR="$ROOT_DIR/native/core"
+VENDORED_TERMINAL_CORE_DIR="$ROOT_DIR/native/vendor/par-term-emu-core-rust"
 PTY_DIR="$ROOT_DIR/packages/ianvs_pty"
 TERMINAL_DIR="$ROOT_DIR/packages/ianvs_terminal"
 EXAMPLE_DIR="$ROOT_DIR/example"
@@ -11,6 +12,16 @@ VERIFY_FLUTTER_TERMINAL_RUN_EXAMPLE_WIDGET_TESTS="${VERIFY_FLUTTER_TERMINAL_RUN_
 VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH="${VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH:-0}"
 
 "$ROOT_DIR/tools/build_core.sh"
+
+python3 "$ROOT_DIR/tools/validate_osc_protocol_corpus.py"
+python3 "$ROOT_DIR/tools/osc_semantic_probe.py" --self-test
+
+(
+  cd "$VENDORED_TERMINAL_CORE_DIR"
+  cargo fmt --check
+  cargo clippy --all-targets -- -D warnings
+  cargo test -- --test-threads=1
+)
 
 (
   cd "$CORE_DIR"

@@ -9,6 +9,10 @@ extension _ShellScreenStateIntegrations on _ShellScreenState {
     if (pane == null) {
       return;
     }
+    final frame = ref
+        .read(sessionControllerProvider.notifier)
+        .viewportFor(sessionId)
+        .frame;
     final integration = _integrationWithEffectivePromptMarks(
       sessionId,
       pane.shellIntegration,
@@ -24,6 +28,8 @@ extension _ShellScreenStateIntegrations on _ShellScreenState {
       builder: (sheetContext) {
         return _ShellIntegrationUtilitiesSheet(
           integration: integration,
+          globalBottomRow: frame.globalBottomRow,
+          scrollbackMaxOffset: frame.scrollbackMaxOffset,
           onInsertCommand: (command) {
             _sendPlainTextToSession(sessionId, command);
           },
@@ -34,9 +40,21 @@ extension _ShellScreenStateIntegrations on _ShellScreenState {
             );
           },
           onJumpToMark: (mark) {
+            final currentFrame = ref
+                .read(sessionControllerProvider.notifier)
+                .viewportFor(sessionId)
+                .frame;
+            final offset = terminalPromptMarkScrollbackOffset(
+              mark,
+              globalBottomRow: currentFrame.globalBottomRow,
+              scrollbackMaxOffset: currentFrame.scrollbackMaxOffset,
+            );
+            if (offset == null) {
+              return;
+            }
             ref
                 .read(terminalRuntimeControllerProvider)
-                .scrollViewportTo(sessionId, mark.scrollbackOffset);
+                .scrollViewportTo(sessionId, offset);
             _focusSession(sessionId);
           },
         );

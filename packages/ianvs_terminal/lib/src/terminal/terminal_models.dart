@@ -731,6 +731,7 @@ class TerminalFrameDiff {
     required this.dirtyRanges,
     required this.scrollbackOffset,
     required this.scrollbackMaxOffset,
+    this.globalBottomRow,
     this.viewportStartRow = 0,
     this.viewportRowShift = 0,
     this.defaultForeground,
@@ -755,6 +756,11 @@ class TerminalFrameDiff {
   final List<TerminalDirtyRange> dirtyRanges;
   final int scrollbackOffset;
   final int scrollbackMaxOffset;
+
+  /// Absolute row of the bottom of the terminal history, when supplied by the
+  /// native producer. `null` identifies legacy frames that predate this field;
+  /// zero is a valid value for a one-row terminal with no history.
+  final int? globalBottomRow;
   final int viewportStartRow;
   final int viewportRowShift;
   final Color? defaultForeground;
@@ -811,6 +817,9 @@ class TerminalFrameDiff {
       dirtyRanges: _dirtyRangesFromJson(json['dirty_ranges'], viewportRows),
       scrollbackOffset: scrollbackOffset,
       scrollbackMaxOffset: scrollbackMaxOffset,
+      globalBottomRow: _optionalNonNegativeIntFromJson(
+        json['global_bottom_row'],
+      ),
       viewportStartRow: _nonNegativeIntFromJson(json['viewport_start_row']),
       viewportRowShift: _intFromJson(json['viewport_row_shift'], fallback: 0),
       defaultForeground: _colorFromHex(
@@ -1050,6 +1059,9 @@ TerminalFrameDiff _terminalFrameDiffFromProtobuf(
     dirtyRanges: _dirtyRangesFromProtobuf(proto.dirtyRanges, viewportRows),
     scrollbackOffset: scrollbackOffset,
     scrollbackMaxOffset: scrollbackMaxOffset,
+    globalBottomRow: proto.hasGlobalBottomRow()
+        ? _optionalNonNegativeFrameScalar(proto.globalBottomRow.toInt())
+        : null,
     viewportStartRow: proto.viewportStartRow,
     viewportRowShift: proto.viewportRowShift,
     defaultForeground: _colorFromProtobuf(
@@ -1724,6 +1736,9 @@ class TerminalViewportState {
         dirtyRanges: dirtyRanges,
         scrollbackOffset: scrollbackOffset,
         scrollbackMaxOffset: scrollbackMaxOffset,
+        globalBottomRow: _optionalNonNegativeFrameScalar(
+          nextFrame.globalBottomRow,
+        ),
         viewportStartRow: _nonNegativeFrameScalar(nextFrame.viewportStartRow),
         viewportRowShift: nextFrame.viewportRowShift,
         defaultForeground:
@@ -1876,6 +1891,11 @@ int _nonNegativeIntFromJson(Object? value) {
   return parsed < 0 ? 0 : parsed;
 }
 
+int? _optionalNonNegativeIntFromJson(Object? value) {
+  final parsed = _wholeIntFromJson(value);
+  return parsed == null || parsed < 0 ? null : parsed;
+}
+
 int _nativeDimensionFromJson(Object? value) {
   return _nonNegativeIntFromJson(
     value,
@@ -1890,6 +1910,10 @@ int _clampedNativeDimension(int value) {
 
 int _nonNegativeFrameScalar(int value) {
   return value < 0 ? 0 : value;
+}
+
+int? _optionalNonNegativeFrameScalar(int? value) {
+  return value == null || value < 0 ? null : value;
 }
 
 int? _intOrNullFromJson(Object? value) {
@@ -2005,6 +2029,7 @@ TerminalFrameDiff _normalizeSnapshotFrame(
     dirtyRanges: _fullViewportDirtyRanges(viewportRows),
     scrollbackOffset: scrollbackOffset,
     scrollbackMaxOffset: scrollbackMaxOffset,
+    globalBottomRow: _optionalNonNegativeFrameScalar(frame.globalBottomRow),
     viewportStartRow: _nonNegativeFrameScalar(frame.viewportStartRow),
     viewportRowShift: 0,
     defaultForeground: frame.defaultForeground,

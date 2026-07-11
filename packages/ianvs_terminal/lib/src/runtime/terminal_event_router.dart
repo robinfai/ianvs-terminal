@@ -11,6 +11,7 @@ enum TerminalImmediateEventKind {
   sessionNotification,
   sessionProgress,
   sessionBadge,
+  sessionReset,
 }
 
 sealed class TerminalEventRoute {
@@ -91,6 +92,10 @@ final class TerminalEventRouter {
       ),
       'session_badge' => TerminalImmediateEventRoute(
         kind: TerminalImmediateEventKind.sessionBadge,
+        payload: event.payload,
+      ),
+      'session_reset' => TerminalImmediateEventRoute(
+        kind: TerminalImmediateEventKind.sessionReset,
         payload: event.payload,
       ),
       _ => const TerminalIgnoredEventRoute(),

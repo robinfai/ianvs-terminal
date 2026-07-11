@@ -90,6 +90,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   static const _paneDividerDragThickness = 8.0;
   static const _profileTriggerRegexCacheLimit = maxTerminalProfileTriggers * 4;
   static const _triggerMatchHistoryLimit = 512;
+  static const _activityPreviewMaxCharacters = 512;
+  static const _activityNotificationTrailingDelay = Duration(milliseconds: 200);
 
   final Map<String, SelectionController> _selectionControllers = {};
   final Map<String, FocusNode> _terminalFocusNodes = {};
@@ -100,6 +102,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, double> _terminalViewportDevicePixelRatios = {};
   final Set<String> _readOnlySessionIds = {};
   final Map<String, DateTime> _lastActivityNotificationAt = {};
+  final Map<String, Timer> _activityNotificationTrailingTimers = {};
   final Map<String, String?> _lastActivityFramePreviews = {};
   final Map<String, String?> _lastNewOutputFramePreviews = {};
   final Map<String, Set<String>> _triggerMatchesBySession = {};
@@ -148,6 +151,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _notificationsBlockedBySystem = false;
   final Set<String> _notificationFailureCodesShown = <String>{};
   int _lastObservedTabCount = 0;
+  String? _lastObservedActiveSessionId;
   String? _zoomedPaneSessionId;
   String? _lastRenderableSessionId;
   String _searchQuery = '';
@@ -225,6 +229,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       timer.cancel();
     }
     _viewportResizeTimers.clear();
+    for (final timer in _activityNotificationTrailingTimers.values) {
+      timer.cancel();
+    }
+    _activityNotificationTrailingTimers.clear();
     _osc52StatusClearTimer?.cancel();
     _notificationFailureStatusClearTimer?.cancel();
     for (final selectionController in _selectionControllers.values) {

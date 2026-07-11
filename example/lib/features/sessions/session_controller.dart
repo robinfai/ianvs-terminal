@@ -1086,6 +1086,9 @@ class SessionController extends Notifier<SessionState> {
       case TerminalSessionBadgeEvent():
         _applySessionBadge(event);
         break;
+      case TerminalSessionResetEvent():
+        _applySessionReset(event);
+        break;
       case TerminalSessionClipboardEvent():
         break;
       case TerminalSessionBackendErrorEvent():
@@ -1148,6 +1151,7 @@ class SessionController extends Notifier<SessionState> {
     final nextIntegration = _shellIntegrationForHook(
       currentPane.shellIntegration,
       event,
+      frame: _runtime.viewportFor(event.sessionId).frame,
     );
     final nextTabs = <TerminalTab>[...state.tabs];
     if (currentTab.panes.isEmpty && currentTab.sessionId == event.sessionId) {
@@ -1171,8 +1175,12 @@ class SessionController extends Notifier<SessionState> {
     final cwd = _boundedShellMetadata(event.cwd, 1024);
     final hostname = _boundedShellMetadata(event.hostname, 255);
     final username = _boundedShellMetadata(event.username, 255);
+    final hostnameIsAuthoritative = event.rawPayload.containsKey('hostname');
+    final usernameIsAuthoritative = event.rawPayload.containsKey('username');
     if (cwd == null && hostname == null && username == null) {
-      return;
+      if (!hostnameIsAuthoritative && !usernameIsAuthoritative) {
+        return;
+      }
     }
     final nextDirectories = _prependRecentShellValue(
       currentPane.shellIntegration.recentDirectories,
@@ -1181,8 +1189,12 @@ class SessionController extends Notifier<SessionState> {
     );
     final nextIntegration = currentPane.shellIntegration.copyWith(
       currentDirectory: cwd ?? currentPane.shellIntegration.currentDirectory,
-      hostname: hostname ?? currentPane.shellIntegration.hostname,
-      username: username ?? currentPane.shellIntegration.username,
+      hostname: hostnameIsAuthoritative
+          ? hostname
+          : currentPane.shellIntegration.hostname,
+      username: usernameIsAuthoritative
+          ? username
+          : currentPane.shellIntegration.username,
       recentDirectories: nextDirectories,
     );
     _replaceSessionPane(
@@ -1205,28 +1217,45 @@ class SessionController extends Notifier<SessionState> {
     final command =
         _boundedShellMetadata(event.command, 512) ?? current.lastCommand;
     if (eventType == 'zone_scrolled_out') {
-      if (current.promptMarks.isEmpty) {
+      final zoneId = event.zoneId;
+      if (zoneId == null || current.promptMarks.isEmpty) {
+        return;
+      }
+      final retainedMarks = current.promptMarks
+          .where((mark) => mark.zoneId != zoneId)
+          .toList(growable: false);
+      if (retainedMarks.length == current.promptMarks.length) {
         return;
       }
       _replaceSessionPane(
         event.sessionId,
         currentPane.copyWith(
-          shellIntegration: current.copyWith(
-            promptMarks: const <TerminalShellPromptMark>[],
-          ),
+          shellIntegration: current.copyWith(promptMarks: retainedMarks),
         ),
       );
       return;
     }
-    final promptOffset = event.cursorLine;
-    final nextPromptMarks = eventType == 'prompt_start' && promptOffset != null
+    final globalLine = event.cursorLine;
+    var nextPromptMarks = eventType == 'prompt_start' && globalLine != null
         ? _promptMarksForValues(
             current.promptMarks,
-            promptOffset: promptOffset,
+            globalLine: globalLine,
             command: command,
             cwd: current.currentDirectory,
           )
         : current.promptMarks;
+    if (eventType == 'zone_opened' &&
+        event.zoneType == 'prompt' &&
+        event.zoneId != null &&
+        event.absRowStart != null) {
+      nextPromptMarks = _bindPromptZone(
+        nextPromptMarks,
+        zoneId: event.zoneId!,
+        globalLine: event.absRowStart!,
+        command: command,
+        cwd: current.currentDirectory,
+      );
+    }
     final shouldTrackCommand =
         eventType == 'command_start' ||
         eventType == 'command_executed' ||
@@ -1328,6 +1357,49 @@ class SessionController extends Notifier<SessionState> {
     _replaceSessionPane(event.sessionId, currentPane.copyWith(oscBadge: text));
   }
 
+  void _applySessionReset(TerminalSessionResetEvent event) {
+    final progressKeyPrefix = '${event.sessionId}:';
+    _pendingProgressEvents.removeWhere(
+      (key, _) => key.startsWith(progressKeyPrefix),
+    );
+    final graceKeys = _progressGraceTimers.keys
+        .where((key) => key.startsWith(progressKeyPrefix))
+        .toList(growable: false);
+    for (final key in graceKeys) {
+      _progressGraceTimers.remove(key)?.cancel();
+    }
+
+    final currentPane = _paneForSession(event.sessionId);
+    if (currentPane == null) {
+      return;
+    }
+    final nextIntegration = currentPane.shellIntegration.copyWith(
+      currentDirectory: null,
+      hostname: null,
+      username: null,
+      lastCommand: null,
+      lastExitCode: null,
+      recentCommands: const <String>[],
+      recentDirectories: const <String>[],
+      promptMarks: const <TerminalShellPromptMark>[],
+      userVariables: const <String, String>{},
+    );
+    _replaceSessionPane(
+      event.sessionId,
+      currentPane.copyWith(
+        shellIntegration: nextIntegration,
+        oscBadge: null,
+        progress: null,
+        namedProgress: const <String, TerminalPaneProgressState>{},
+        recentNotifications: const <TerminalPaneNotificationState>[],
+      ),
+    );
+    _applyAutomaticProfileSwitch(event.sessionId, nextIntegration);
+    // A reset frame carries no OSC title/icon. Resolve that absence back to
+    // the active profile/process baseline instead of retaining the last OSC 2.
+    _updateTabTitleFromFrame(event.sessionId);
+  }
+
   void _applySessionProgress(TerminalSessionProgressEvent event) {
     final currentPane = _paneForSession(event.sessionId);
     if (currentPane == null) {
@@ -1377,7 +1449,7 @@ class SessionController extends Notifier<SessionState> {
       return;
     }
 
-    final id = _boundedShellMetadata(event.id, 80);
+    final id = _osc934ProgressId(event.id);
     if (id == null) {
       return;
     }
@@ -1490,7 +1562,7 @@ class SessionController extends Notifier<SessionState> {
     if (action == 'remove_all') {
       return '${event.sessionId}:named:*';
     }
-    return '${event.sessionId}:named:${event.id ?? action}';
+    return '${event.sessionId}:named:${_osc934ProgressId(event.id) ?? action}';
   }
 
   String _progressGraceKey(String sessionId, [String? id]) {
@@ -1507,7 +1579,7 @@ class SessionController extends Notifier<SessionState> {
       source: _boundedShellMetadata(event.source, 48) ?? 'osc',
       named: event.named,
       action: _boundedShellMetadata(event.action, 32) ?? 'set',
-      id: _boundedShellMetadata(event.id, 80),
+      id: _osc934ProgressId(event.id),
       state: _boundedShellMetadata(event.state, 32),
       percent: event.percent?.clamp(0, 100).toInt(),
       label: _boundedShellMetadata(event.label, 160),
@@ -1516,8 +1588,9 @@ class SessionController extends Notifier<SessionState> {
 
   TerminalShellIntegrationSnapshot _shellIntegrationForHook(
     TerminalShellIntegrationSnapshot current,
-    TerminalSessionShellHookEvent event,
-  ) {
+    TerminalSessionShellHookEvent event, {
+    required TerminalFrameDiff frame,
+  }) {
     final command = _boundedShellMetadata(event.command, 512);
     final cwd = _boundedShellMetadata(event.cwd, 1024);
     final hostname = _boundedShellMetadata(event.hostname, 255);
@@ -1537,6 +1610,7 @@ class SessionController extends Notifier<SessionState> {
     final nextPromptMarks = _promptMarksForHook(
       current.promptMarks,
       event,
+      frame: frame,
       command: command ?? current.lastCommand,
       cwd: nextCurrentDirectory,
     );
@@ -1557,6 +1631,7 @@ class SessionController extends Notifier<SessionState> {
   List<TerminalShellPromptMark> _promptMarksForHook(
     List<TerminalShellPromptMark> current,
     TerminalSessionShellHookEvent event, {
+    required TerminalFrameDiff frame,
     required String? command,
     required String? cwd,
   }) {
@@ -1564,9 +1639,22 @@ class SessionController extends Notifier<SessionState> {
     if (promptOffset == null || promptOffset < 0) {
       return current;
     }
+    final globalLine = terminalPromptGlobalLineFromScrollbackOffset(
+      globalBottomRow: frame.globalBottomRow,
+      scrollbackMaxOffset: frame.scrollbackMaxOffset,
+      scrollbackOffset: promptOffset,
+    );
+    if (globalLine == null) {
+      return _promptMarksForLegacyOffset(
+        current,
+        scrollbackOffset: promptOffset,
+        command: command,
+        cwd: cwd,
+      );
+    }
     return _promptMarksForValues(
       current,
-      promptOffset: promptOffset,
+      globalLine: globalLine,
       command: command,
       cwd: cwd,
     );
@@ -1574,18 +1662,24 @@ class SessionController extends Notifier<SessionState> {
 
   List<TerminalShellPromptMark> _promptMarksForValues(
     List<TerminalShellPromptMark> current, {
-    required int promptOffset,
+    required int globalLine,
+    int? zoneId,
     required String? command,
     required String? cwd,
   }) {
-    if (promptOffset < 0) {
+    if (globalLine < 0 || (zoneId != null && zoneId < 0)) {
       return current;
     }
     final nextMarks = <TerminalShellPromptMark>[
       for (final mark in current)
-        if (mark.scrollbackOffset != promptOffset) mark,
+        if (zoneId != null
+            ? mark.zoneId != zoneId &&
+                  !(mark.zoneId == null && mark.globalLine == globalLine)
+            : !(mark.zoneId == null && mark.globalLine == globalLine))
+          mark,
       TerminalShellPromptMark(
-        scrollbackOffset: promptOffset,
+        globalLine: globalLine,
+        zoneId: zoneId,
         command: command,
         cwd: cwd,
       ),
@@ -1593,10 +1687,86 @@ class SessionController extends Notifier<SessionState> {
     final boundedMarks = nextMarks.length > 100
         ? nextMarks.sublist(nextMarks.length - 100)
         : nextMarks;
-    boundedMarks.sort(
-      (a, b) => a.scrollbackOffset.compareTo(b.scrollbackOffset),
-    );
+    boundedMarks.sort(_comparePromptMarks);
     return boundedMarks;
+  }
+
+  List<TerminalShellPromptMark> _promptMarksForLegacyOffset(
+    List<TerminalShellPromptMark> current, {
+    required int scrollbackOffset,
+    required String? command,
+    required String? cwd,
+  }) {
+    if (scrollbackOffset < 0) {
+      return current;
+    }
+    final nextMarks = <TerminalShellPromptMark>[
+      for (final mark in current)
+        if (mark.legacyScrollbackOffset != scrollbackOffset) mark,
+      TerminalShellPromptMark(
+        legacyScrollbackOffset: scrollbackOffset,
+        command: command,
+        cwd: cwd,
+      ),
+    ];
+    final boundedMarks = nextMarks.length > 100
+        ? nextMarks.sublist(nextMarks.length - 100)
+        : nextMarks;
+    boundedMarks.sort(_comparePromptMarks);
+    return boundedMarks;
+  }
+
+  int _comparePromptMarks(
+    TerminalShellPromptMark left,
+    TerminalShellPromptMark right,
+  ) {
+    final leftGlobal = left.globalLine;
+    final rightGlobal = right.globalLine;
+    if (leftGlobal != null && rightGlobal != null) {
+      return leftGlobal.compareTo(rightGlobal);
+    }
+    if (leftGlobal != null) {
+      return -1;
+    }
+    if (rightGlobal != null) {
+      return 1;
+    }
+    return (left.legacyScrollbackOffset ?? 0).compareTo(
+      right.legacyScrollbackOffset ?? 0,
+    );
+  }
+
+  List<TerminalShellPromptMark> _bindPromptZone(
+    List<TerminalShellPromptMark> current, {
+    required int zoneId,
+    required int globalLine,
+    required String? command,
+    required String? cwd,
+  }) {
+    if (zoneId < 0 || globalLine < 0) {
+      return current;
+    }
+    final matchingIndex = current.lastIndexWhere(
+      (mark) => mark.zoneId == null && mark.globalLine == globalLine,
+    );
+    if (matchingIndex == -1) {
+      return _promptMarksForValues(
+        current,
+        globalLine: globalLine,
+        zoneId: zoneId,
+        command: command,
+        cwd: cwd,
+      );
+    }
+    final matched = current[matchingIndex];
+    final next = <TerminalShellPromptMark>[...current];
+    next[matchingIndex] = TerminalShellPromptMark(
+      globalLine: globalLine,
+      zoneId: zoneId,
+      command: matched.command,
+      cwd: matched.cwd,
+    );
+    return next;
   }
 
   void _replaceSessionPane(String sessionId, TerminalPane replacement) {
@@ -1673,6 +1843,14 @@ class SessionController extends Notifier<SessionState> {
       return trimmed;
     }
     return String.fromCharCodes(runes.take(maxRunes));
+  }
+
+  String? _osc934ProgressId(String? value) {
+    final trimmed = _trimShellHookValue(value);
+    if (trimmed == null || utf8.encode(trimmed).length > 128) {
+      return null;
+    }
+    return trimmed;
   }
 
   void _applyAutomaticProfileSwitch(

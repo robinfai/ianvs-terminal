@@ -130,6 +130,10 @@ class _EventfulPtyBackend
     });
   }
 
+  void setFrame(String sessionId, Map<String, Object?> frame) {
+    _delegate.setFrame(sessionId, frame);
+  }
+
   @override
   int ping() => _delegate.ping();
 
@@ -1660,6 +1664,17 @@ void main() {
           .activeSessionId!;
       await tester.pump();
 
+      bindings.setFrame(sessionId, <String, Object?>{
+        'rows': <Object?>[],
+        'cursor': <String, Object?>{'row': 0, 'col': 0, 'visible': true},
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': <Object?>[],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 40,
+        'global_bottom_row': 100,
+      });
+
       bindings.enqueueEvent(sessionId, {
         'kind': 'shell_hook',
         'payload': const <String, Object?>{
@@ -1686,7 +1701,7 @@ void main() {
       container
           .read(terminalRuntimeControllerProvider)
           .refreshSession(sessionId);
-      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 40));
 
       final shellIntegration = container
           .read(sessionControllerProvider)
@@ -1706,13 +1721,73 @@ void main() {
       ]);
       expect(shellIntegration.recentDirectories, <String>['/tmp/project']);
       expect(
-        shellIntegration.promptMarks
-            .map((mark) => mark.scrollbackOffset)
-            .toList(),
-        <int>[12, 36],
+        shellIntegration.promptMarks.map((mark) => mark.globalLine).toList(),
+        <int>[64, 88],
       );
     },
   );
+
+  testWidgets('legacy frames retain shell-hook prompt offsets', (tester) async {
+    final bindings = _EventfulPtyBackend(FakePtyBackend());
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(bindings),
+        sessionControllerProvider.overrideWith(_TestSessionController.new),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+        sessionPollingEnabledProvider.overrideWithValue(false),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(sessionControllerProvider.notifier);
+    controller.createSession(defaultTerminalProfile().copyWith(id: 'legacy'));
+    final sessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+    bindings.setFrame(sessionId, <String, Object?>{
+      'rows': <Object?>[],
+      'cursor': <String, Object?>{'row': 0, 'col': 0, 'visible': true},
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': <Object?>[],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 40,
+    });
+
+    bindings.enqueueEvent(sessionId, {
+      'kind': 'shell_hook',
+      'payload': const <String, Object?>{
+        'hook': 'prompt_started',
+        'prompt_scrollback_offset': 12,
+      },
+    });
+    container.read(terminalRuntimeControllerProvider).refreshSession(sessionId);
+    await tester.pump(const Duration(milliseconds: 40));
+
+    final mark = container
+        .read(sessionControllerProvider)
+        .tabs
+        .single
+        .activePane
+        .shellIntegration
+        .promptMarks
+        .single;
+    expect(mark.globalLine, isNull);
+    expect(mark.legacyScrollbackOffset, 12);
+    expect(
+      terminalPromptMarkScrollbackOffset(
+        mark,
+        globalBottomRow: null,
+        scrollbackMaxOffset: 40,
+      ),
+      12,
+    );
+  });
 
   testWidgets('shell hook metadata switches to a matching profile', (
     tester,
@@ -2042,7 +2117,7 @@ void main() {
       container
           .read(terminalRuntimeControllerProvider)
           .refreshSession(sessionId);
-      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 40));
 
       final pane = container
           .read(sessionControllerProvider)
@@ -2112,7 +2187,7 @@ void main() {
       container
           .read(terminalRuntimeControllerProvider)
           .refreshSession(sessionId);
-      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 40));
 
       var pane = container
           .read(sessionControllerProvider)
@@ -2128,8 +2203,8 @@ void main() {
         'payload': const <String, Object?>{
           'source': 'osc7',
           'cwd': '/srv/app',
-          'hostname': 'localhost',
-          'username': 'dev',
+          'hostname': null,
+          'username': null,
         },
       });
       container
@@ -2139,7 +2214,8 @@ void main() {
 
       pane = container.read(sessionControllerProvider).tabs.single.activePane;
       expect(pane.profileId, 'project');
-      expect(pane.shellIntegration.hostname, 'localhost');
+      expect(pane.shellIntegration.hostname, isNull);
+      expect(pane.shellIntegration.username, isNull);
     },
   );
 
@@ -2189,19 +2265,48 @@ void main() {
       'command': 'echo ok',
     });
     await tester.pump();
+    enqueueShellCommand(const <String, Object?>{
+      'source': 'osc133',
+      'eventType': 'zone_opened',
+      'zoneId': 7,
+      'zoneType': 'prompt',
+      'absRowStart': 42,
+    });
+    await tester.pump();
+    enqueueShellCommand(const <String, Object?>{
+      'source': 'osc133',
+      'eventType': 'prompt_start',
+      'cursorLine': 84,
+      'command': 'echo next',
+    });
+    await tester.pump();
+    enqueueShellCommand(const <String, Object?>{
+      'source': 'osc133',
+      'eventType': 'zone_opened',
+      'zoneId': 8,
+      'zoneType': 'prompt',
+      'absRowStart': 84,
+    });
+    await tester.pump();
 
     var pane = container.read(sessionControllerProvider).tabs.single.activePane;
-    expect(pane.shellIntegration.promptMarks, hasLength(1));
+    expect(pane.shellIntegration.promptMarks.map((mark) => mark.zoneId), <int?>[
+      7,
+      8,
+    ]);
 
     enqueueShellCommand(const <String, Object?>{
       'source': 'osc133',
       'eventType': 'zone_scrolled_out',
-      'zoneType': 'output',
+      'zoneId': 7,
+      'zoneType': 'prompt',
     });
     await tester.pump();
 
     pane = container.read(sessionControllerProvider).tabs.single.activePane;
-    expect(pane.shellIntegration.promptMarks, isEmpty);
+    expect(pane.shellIntegration.promptMarks, hasLength(1));
+    expect(pane.shellIntegration.promptMarks.single.zoneId, 8);
+    expect(pane.shellIntegration.promptMarks.single.globalLine, 84);
   });
 
   testWidgets('shell context user variables are allowlisted and capped', (
@@ -2320,6 +2425,188 @@ void main() {
     },
   );
 
+  testWidgets('RIS clears protocol session state and restores profile baseline', (
+    tester,
+  ) async {
+    final localProfile = defaultTerminalProfile().copyWith(
+      id: 'local',
+      name: 'Local Profile',
+    );
+    final remoteProfile = defaultTerminalProfile().copyWith(
+      id: 'remote',
+      name: 'Remote Profile',
+      switchRules: const <TerminalProfileSwitchRule>[
+        TerminalProfileSwitchRule(
+          kind: TerminalProfileSwitchRuleKind.hostname,
+          pattern: 'remote.example',
+        ),
+      ],
+    );
+    final bindings = _EventfulPtyBackend(FakePtyBackend());
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(bindings),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(
+            TerminalProfilesDocument(profiles: [localProfile, remoteProfile]),
+          ),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalConfigRepository(null),
+        ),
+        sessionPollingEnabledProvider.overrideWithValue(false),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container.read(sessionControllerProvider);
+    await tester.pump(const Duration(milliseconds: 50));
+    final sessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+
+    void enqueue(String kind, [Map<String, Object?>? payload]) {
+      bindings.enqueueEvent(sessionId, {'kind': kind, 'payload': ?payload});
+    }
+
+    Map<String, Object?> frameWithTitle(String? title) => <String, Object?>{
+      'rows': <Map<String, Object?>>[
+        <String, Object?>{
+          'index': 0,
+          'text': 'ready',
+          'style_runs': const <Object?>[],
+        },
+      ],
+      'cursor': <String, Object?>{'row': 0, 'col': 0, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': <Map<String, Object?>>[
+        <String, Object?>{'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+      'window_title': title,
+      'window_icon_name': null,
+    };
+
+    Future<void> flush() async {
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(sessionId);
+      await tester.pump();
+    }
+
+    bindings.setFrame(sessionId, frameWithTitle('Remote build'));
+    enqueue('shell_hook', const <String, Object?>{
+      'hook': 'command_finished',
+      'command': 'dart test',
+      'pwd': '/srv/project',
+      'hostname': 'remote.example',
+      'username': 'deploy',
+      'shell': '/bin/zsh',
+      'exitCode': 0,
+    });
+    enqueue('shell_command', const <String, Object?>{
+      'source': 'osc133',
+      'eventType': 'prompt_start',
+      'cursorLine': 12,
+    });
+    enqueue('shell_user_var', const <String, Object?>{
+      'name': 'IANVS_ENV',
+      'value': 'staging',
+    });
+    enqueue('session_badge', const <String, Object?>{'text': 'Deploy'});
+    enqueue('session_progress', const <String, Object?>{
+      'source': 'osc9;4',
+      'action': 'set',
+      'state': 'normal',
+      'percent': 30,
+    });
+    enqueue('session_progress', const <String, Object?>{
+      'source': 'ianvs_osc934',
+      'named': true,
+      'action': 'set',
+      'id': 'build',
+      'state': 'normal',
+      'percent': 80,
+    });
+    enqueue('session_notification', const <String, Object?>{
+      'source': 'osc777',
+      'title': 'Deploy',
+      'message': 'Done',
+    });
+    await flush();
+    // Profile switching can intentionally set its own title in the same batch;
+    // a subsequent OSC 2 frame remains authoritative until RIS.
+    await flush();
+
+    var pane = container.read(sessionControllerProvider).tabs.single.activePane;
+    expect(pane.profileId, 'remote');
+    expect(pane.title, 'Remote build');
+    expect(pane.shellIntegration.currentDirectory, '/srv/project');
+    expect(pane.shellIntegration.hostname, 'remote.example');
+    expect(pane.shellIntegration.username, 'deploy');
+    expect(pane.shellIntegration.shell, '/bin/zsh');
+    expect(pane.shellIntegration.lastCommand, 'dart test');
+    expect(pane.shellIntegration.recentCommands, isNotEmpty);
+    expect(pane.shellIntegration.recentDirectories, isNotEmpty);
+    expect(pane.shellIntegration.promptMarks, isNotEmpty);
+    expect(pane.shellIntegration.userVariables['IANVS_ENV'], 'staging');
+    expect(pane.oscBadge, 'Deploy');
+    expect(pane.progress, isNotNull);
+    expect(pane.namedProgress, contains('build'));
+    expect(pane.recentNotifications, isNotEmpty);
+
+    // Create live grace timers, then prove RIS cancels them and also discards a
+    // same-batch progress update queued before the reset event.
+    enqueue('session_progress', const <String, Object?>{
+      'source': 'osc9;4',
+      'action': 'clear',
+      'state': 'hidden',
+    });
+    enqueue('session_progress', const <String, Object?>{
+      'source': 'ianvs_osc934',
+      'named': true,
+      'action': 'remove',
+      'id': 'build',
+    });
+    await flush();
+
+    bindings.setFrame(sessionId, frameWithTitle(null));
+    enqueue('session_progress', const <String, Object?>{
+      'source': 'osc9;4',
+      'action': 'set',
+      'state': 'normal',
+      'percent': 99,
+    });
+    enqueue('session_reset');
+    await flush();
+    await tester.pump(const Duration(milliseconds: 1500));
+
+    pane = container.read(sessionControllerProvider).tabs.single.activePane;
+    expect(pane.profileId, 'local');
+    expect(pane.profileSnapshot?.id, 'local');
+    expect(pane.title, 'Local Profile');
+    expect(pane.shellIntegration.currentDirectory, isNull);
+    expect(pane.shellIntegration.hostname, isNull);
+    expect(pane.shellIntegration.username, isNull);
+    expect(pane.shellIntegration.shell, '/bin/zsh');
+    expect(pane.shellIntegration.lastCommand, isNull);
+    expect(pane.shellIntegration.lastExitCode, isNull);
+    expect(pane.shellIntegration.recentCommands, isEmpty);
+    expect(pane.shellIntegration.recentDirectories, isEmpty);
+    expect(pane.shellIntegration.promptMarks, isEmpty);
+    expect(pane.shellIntegration.userVariables, isEmpty);
+    expect(pane.oscBadge, isNull);
+    expect(pane.progress, isNull);
+    expect(pane.namedProgress, isEmpty);
+    expect(pane.recentNotifications, isEmpty);
+  });
+
   testWidgets('OSC progress and badge metadata update pane state', (
     tester,
   ) async {
@@ -2387,6 +2674,43 @@ void main() {
     expect(pane.namedProgress['build']!.label, 'Compile');
     expect(pane.oscBadge!.runes, hasLength(80));
     expect(pane.oscBadge, isNot(contains('\u0007')));
+
+    final sharedPrefix = List.filled(80, 'x').join();
+    final firstLongId = '${sharedPrefix}first';
+    final secondLongId = '${sharedPrefix}second';
+    enqueue('session_progress', <String, Object?>{
+      'source': 'ianvs_osc934',
+      'named': true,
+      'action': 'set',
+      'id': firstLongId,
+      'state': 'normal',
+      'percent': 10,
+    });
+    enqueue('session_progress', <String, Object?>{
+      'source': 'ianvs_osc934',
+      'named': true,
+      'action': 'set',
+      'id': secondLongId,
+      'state': 'normal',
+      'percent': 20,
+    });
+    await flush();
+
+    pane = container.read(sessionControllerProvider).tabs.single.activePane;
+    expect(pane.namedProgress[firstLongId]?.percent, 10);
+    expect(pane.namedProgress[secondLongId]?.percent, 20);
+
+    enqueue('session_progress', <String, Object?>{
+      'source': 'ianvs_osc934',
+      'named': true,
+      'action': 'remove',
+      'id': firstLongId,
+    });
+    await flush();
+
+    pane = container.read(sessionControllerProvider).tabs.single.activePane;
+    expect(pane.namedProgress[firstLongId]?.action, 'complete');
+    expect(pane.namedProgress[secondLongId]?.percent, 20);
 
     enqueue('session_progress', const <String, Object?>{
       'source': 'osc934',

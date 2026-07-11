@@ -87,6 +87,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     _mutateState(() {
       _readOnlySessionIds.remove(sessionId);
       _lastActivityNotificationAt.remove(sessionId);
+      _activityNotificationTrailingTimers.remove(sessionId)?.cancel();
       _lastActivityFramePreviews.remove(sessionId);
       _lastNewOutputFramePreviews.remove(sessionId);
       _triggerMatchesBySession.remove(sessionId);
@@ -259,6 +260,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
 
   void _syncPresentationState(SessionState sessionState) {
     final currentTabCount = sessionState.tabs.length;
+    _seedInactiveSessionFrameBaselines(sessionState);
     _syncZoomedPaneState(sessionState);
     _syncHoveredTerminalLinkVisibility(sessionState);
     if (currentTabCount == 0 && _lastObservedTabCount > 0) {
@@ -318,6 +320,29 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       _syncSearchResultsForSessionScope(sessionState);
     }
     _lastObservedTabCount = currentTabCount;
+  }
+
+  void _seedInactiveSessionFrameBaselines(SessionState sessionState) {
+    final previousActiveSessionId = _lastObservedActiveSessionId;
+    final activeSessionId = sessionState.activeSessionId;
+    _lastObservedActiveSessionId = activeSessionId;
+    if (previousActiveSessionId == null ||
+        previousActiveSessionId == activeSessionId ||
+        !sessionState.tabs.any(
+          (tab) => tab.containsSession(previousActiveSessionId),
+        )) {
+      return;
+    }
+
+    final frame = ref
+        .read(sessionControllerProvider.notifier)
+        .viewportFor(previousActiveSessionId)
+        .frame;
+    final preview = _framePreview(frame);
+    _sessionsSeenForActivityNotifications.add(previousActiveSessionId);
+    _lastActivityFramePreviews[previousActiveSessionId] = preview;
+    _sessionsSeenForNewOutputBadges.add(previousActiveSessionId);
+    _lastNewOutputFramePreviews[previousActiveSessionId] = preview;
   }
 
   void _syncHoveredTerminalLinkVisibility(SessionState sessionState) {

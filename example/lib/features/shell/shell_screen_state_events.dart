@@ -73,6 +73,8 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         break;
       case terminal.TerminalSessionBadgeEvent():
         break;
+      case terminal.TerminalSessionResetEvent():
+        _clearPresentationStateForSession(event.sessionId);
       case terminal.TerminalSessionClipboardEvent():
         _handleOsc52ClipboardEvent(event);
       case terminal.TerminalSessionBackendErrorEvent():
@@ -407,14 +409,44 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (hasSeenSession &&
         previousPreview != preview &&
         _notificationSessionIsInactive(sessionId) &&
-        preview != null &&
-        _activityNotificationAllowed(sessionId)) {
+        preview != null) {
+      _sendOrScheduleActivityNotification(sessionId, preview);
+    }
+  }
+
+  void _sendOrScheduleActivityNotification(String sessionId, String preview) {
+    if (_activityNotificationAllowed(sessionId)) {
+      _activityNotificationTrailingTimers.remove(sessionId)?.cancel();
       _sendShellNotification(
         title: 'Activity in ${_sessionTitleForNotification(sessionId)}',
         body: preview,
         identifier: 'ianvs-terminal.activity.$sessionId',
       );
+      return;
     }
+
+    _activityNotificationTrailingTimers.remove(sessionId)?.cancel();
+    _activityNotificationTrailingTimers[sessionId] = Timer(
+      _ShellScreenState._activityNotificationTrailingDelay,
+      () {
+        _activityNotificationTrailingTimers.remove(sessionId);
+        if (!mounted ||
+            !_activityNotificationsEnabled ||
+            !_notificationSessionIsInactive(sessionId)) {
+          return;
+        }
+        final latestPreview = _lastActivityFramePreviews[sessionId];
+        if (latestPreview == null) {
+          return;
+        }
+        _lastActivityNotificationAt[sessionId] = DateTime.now();
+        _sendShellNotification(
+          title: 'Activity in ${_sessionTitleForNotification(sessionId)}',
+          body: latestPreview,
+          identifier: 'ianvs-terminal.activity.$sessionId',
+        );
+      },
+    );
   }
 
   void _markNewOutputBadge(String sessionId, terminal.TerminalFrameDiff frame) {

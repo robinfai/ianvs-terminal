@@ -49,6 +49,57 @@ void main() {
   );
 
   test(
+    'terminal viewport controller treats global bottom as frame-authoritative',
+    () {
+      final controller = TerminalViewportController();
+      addTearDown(controller.dispose);
+
+      controller.updateFrame(
+        const TerminalFrameDiff(
+          rows: [TerminalRow(index: 0, text: 'prompt')],
+          cursor: TerminalCursor(row: 0, col: 6, visible: true),
+          viewportRows: 1,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 100,
+          globalBottomRow: 100,
+        ),
+      );
+      expect(controller.frame.globalBottomRow, 100);
+
+      controller.updateFrame(
+        const TerminalFrameDiff(
+          frameKind: TerminalFrameKind.delta,
+          rows: [],
+          cursor: TerminalCursor(row: 0, col: 6, visible: true),
+          viewportRows: 1,
+          viewportCols: 80,
+          dirtyRanges: [],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 100,
+        ),
+      );
+      expect(controller.frame.globalBottomRow, isNull);
+
+      controller.updateFrame(
+        const TerminalFrameDiff(
+          frameKind: TerminalFrameKind.delta,
+          rows: [],
+          cursor: TerminalCursor(row: 0, col: 0, visible: true),
+          viewportRows: 1,
+          viewportCols: 80,
+          dirtyRanges: [],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+          globalBottomRow: 0,
+        ),
+      );
+      expect(controller.frame.globalBottomRow, 0);
+    },
+  );
+
+  test(
     'terminal viewport controller treats incoming delta rows as dirty ranges',
     () {
       final controller = TerminalViewportController();
@@ -5671,7 +5722,7 @@ void main() {
           kind: 'shell_context',
           sessionId: sessionId,
           payload: const <String, Object?>{
-            'source': 'osc7',
+            'source': 'osc9;9',
             'cwd': '/tmp/project',
             'hostname': 'workstation.local',
             'username': 'dev',
@@ -5684,7 +5735,7 @@ void main() {
           kind: 'shell_command',
           sessionId: sessionId,
           payload: const <String, Object?>{
-            'source': 'osc133',
+            'source': 'osc633',
             'eventType': 'command_finished',
             'command': 'dart test',
             'exitCode': 0,
@@ -5721,7 +5772,7 @@ void main() {
           kind: 'session_progress',
           sessionId: sessionId,
           payload: const <String, Object?>{
-            'source': 'osc934',
+            'source': 'ianvs_osc934',
             'named': true,
             'action': 'set',
             'id': 'build',
@@ -5742,14 +5793,20 @@ void main() {
           },
         ),
       );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(kind: 'session_reset', sessionId: sessionId),
+      );
 
       runtime.sendInput(sessionId, Uint8List(0));
       await tester.pump();
 
       final shellContext = events.whereType<TerminalSessionShellContextEvent>();
+      expect(shellContext.single.source, 'osc9;9');
       expect(shellContext.single.cwd, '/tmp/project');
       expect(shellContext.single.hostname, 'workstation.local');
       final shellCommand = events.whereType<TerminalSessionShellCommandEvent>();
+      expect(shellCommand.single.source, 'osc633');
       expect(shellCommand.single.eventType, 'command_finished');
       expect(shellCommand.single.exitCode, 0);
       expect(
@@ -5765,8 +5822,16 @@ void main() {
         'build',
       );
       expect(
+        events.whereType<TerminalSessionProgressEvent>().single.source,
+        'ianvs_osc934',
+      );
+      expect(
         events.whereType<TerminalSessionBadgeEvent>().single.text,
         'Build',
+      );
+      expect(
+        events.whereType<TerminalSessionResetEvent>().single.sessionId,
+        sessionId,
       );
     },
   );
@@ -7801,7 +7866,7 @@ void main() {
           kind: 'session_progress',
           sessionId: deploySessionId,
           payload: const <String, Object?>{
-            'source': 'osc934',
+            'source': 'ianvs_osc934',
             'id': 'deploy',
             'state': 'normal',
             'percent': 42,
@@ -7826,7 +7891,7 @@ void main() {
           kind: 'session_progress',
           sessionId: testSessionId,
           payload: const <String, Object?>{
-            'source': 'osc934',
+            'source': 'ianvs_osc934',
             'id': 'test',
             'state': 'normal',
             'percent': 7,

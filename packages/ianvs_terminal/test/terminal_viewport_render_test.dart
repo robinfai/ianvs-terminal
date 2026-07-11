@@ -12,6 +12,109 @@ import 'package:ianvs_terminal/src/terminal/render_terminal_viewport.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
 
 void main() {
+  testWidgets('explicit hyperlink tap preserves its OSC 8 protocol id', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final openedTargets = <TerminalLinkTarget>[];
+    final controller = TerminalViewportController()
+      ..updateMeasuredCellSize(const Size(10, 18))
+      ..updateFrame(
+        const TerminalFrameDiff(
+          rows: [TerminalRow(index: 0, text: 'Alpha Beta')],
+          cursor: TerminalCursor(row: 0, col: 0, visible: false),
+          viewportRows: 1,
+          viewportCols: 10,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+          hyperlinks: [
+            TerminalHyperlinkRange(
+              row: 0,
+              startCol: 0,
+              endCol: 5,
+              uri: 'https://example.com/docs',
+              protocolId: 'first',
+            ),
+            TerminalHyperlinkRange(
+              row: 0,
+              startCol: 6,
+              endCol: 10,
+              uri: 'https://example.com/docs',
+              protocolId: 'second',
+            ),
+          ],
+        ),
+      );
+    final selectionController = SelectionController();
+    final runtime = TerminalRuntimeController(
+      backend: _NoopPtyBackend(),
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    final inputController = TerminalInputController(
+      sessionId: '1',
+      runtime: runtime,
+      readFrame: () => controller.frame,
+      readSelection: () => '',
+      copySelection: (_) async {},
+      readClipboard: () async => '',
+    );
+    addTearDown(controller.dispose);
+    addTearDown(runtime.dispose);
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 100,
+            height: 18,
+            child: TerminalViewport(
+              controller: controller,
+              selectionController: selectionController,
+              inputController: inputController,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+              onOpenLinkTarget: openedTargets.add,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final surfaceFinder = find.byWidgetPredicate(
+      (widget) => widget.runtimeType.toString() == '_TerminalViewportSurface',
+    );
+    final renderObject = tester.renderObject<RenderTerminalViewport>(
+      surfaceFinder,
+    );
+    final secondLinkPosition = renderObject.localToGlobal(
+      Offset(
+        renderObject.debugCellSize.width * 6.5,
+        renderObject.debugCellSize.height / 2,
+      ),
+    );
+    expect(controller.frame.hyperlinks, hasLength(2));
+    final targetCell = renderObject.debugCellForOffset(
+      renderObject.globalToLocal(secondLinkPosition),
+    );
+    expect((targetCell.row, targetCell.col), (0, 6));
+    await tester.tapAt(secondLinkPosition);
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(openedTargets, hasLength(1));
+    expect(openedTargets.single.uri, 'https://example.com/docs');
+    expect(openedTargets.single.visibleText, 'Beta');
+    expect(openedTargets.single.explicitHyperlink, isTrue);
+    expect(openedTargets.single.protocolId, 'second');
+  });
+
   testWidgets('exact-canvas run backgrounds do not create row blocks', (
     tester,
   ) async {
@@ -421,6 +524,96 @@ void main() {
     expect(spans.single.endColumn, 3);
     expect(spans.single.background, const Color(0xFF0000FF));
   });
+
+  testWidgets(
+    'OSC 4 index 196 set and OSC 104 reset colors are visible after frame updates',
+    (tester) async {
+      const osc4Index196Color = Color(0xFF12EF56);
+      const index196ProfileBaseline = Color(0xFFFF0000);
+      const osc4SetFrame = TerminalFrameDiff(
+        rows: [
+          TerminalRow(
+            index: 0,
+            text: 'X',
+            styleRuns: [
+              TerminalStyleRun(start: 0, end: 1, foreground: osc4Index196Color),
+            ],
+          ),
+        ],
+        cursor: TerminalCursor(row: 0, col: 0, visible: false),
+        viewportRows: 1,
+        viewportCols: 1,
+        dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+      );
+      const osc104ResetFrame = TerminalFrameDiff(
+        rows: [
+          TerminalRow(
+            index: 0,
+            text: 'X',
+            styleRuns: [
+              TerminalStyleRun(
+                start: 0,
+                end: 1,
+                foreground: index196ProfileBaseline,
+              ),
+            ],
+          ),
+        ],
+        cursor: TerminalCursor(row: 0, col: 0, visible: false),
+        viewportRows: 1,
+        viewportCols: 1,
+        dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+      );
+      final controller = TerminalViewportController()
+        ..updateFrame(osc4SetFrame);
+      final selectionController = SelectionController();
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: SizedBox(
+            width: 32,
+            height: 32,
+            child: _RenderViewportHarness(
+              controller: controller,
+              selectionController: selectionController,
+              colors: const TerminalViewportColors(
+                canvasBackground: Color(0xFF000000),
+                foreground: Color(0xFFFFFFFF),
+                cursor: Color(0xFFFFFFFF),
+                selection: Color(0x663B82F6),
+                scrollbarTrack: Color(0x00000000),
+                scrollbarThumb: Color(0x00000000),
+                minimumContrastRatio: 1,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final renderObject = tester.renderObject<RenderTerminalViewport>(
+        find.byType(_RenderViewportHarness),
+      );
+      expect(
+        renderObject.debugResolvedStylesForRow(0).single.foreground,
+        osc4Index196Color,
+      );
+
+      controller.updateFrame(osc104ResetFrame);
+      await tester.pump();
+
+      expect(
+        renderObject.debugResolvedStylesForRow(0).single.foreground,
+        index196ProfileBaseline,
+      );
+    },
+  );
 
   testWidgets('autosuggestion foreground renders as a visible ghost run', (
     tester,

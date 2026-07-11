@@ -29,6 +29,37 @@ void main() {
       );
     });
 
+    test('global bottom row preserves missing-field and zero semantics', () {
+      final legacyJson = TerminalFrameDiff.fromJson(_jsonFrame());
+      final zeroJson = TerminalFrameDiff.fromJson(<String, Object?>{
+        ..._jsonFrame(),
+        'global_bottom_row': 0,
+      });
+      final malformedJson = TerminalFrameDiff.fromJson(<String, Object?>{
+        ..._jsonFrame(),
+        'global_bottom_row': -1,
+      });
+      final legacyProtobuf = TerminalFrameDiff.fromProtobufBytes(
+        frame_pb.TerminalFrameDiff(
+          viewportRows: 1,
+          viewportCols: 1,
+        ).writeToBuffer(),
+      );
+      final zeroProtobuf = TerminalFrameDiff.fromProtobufBytes(
+        frame_pb.TerminalFrameDiff(
+          viewportRows: 1,
+          viewportCols: 1,
+          globalBottomRow: Int64.ZERO,
+        ).writeToBuffer(),
+      );
+
+      expect(legacyJson.globalBottomRow, isNull);
+      expect(legacyProtobuf.globalBottomRow, isNull);
+      expect(malformedJson.globalBottomRow, isNull);
+      expect(zeroJson.globalBottomRow, 0);
+      expect(zeroProtobuf.globalBottomRow, 0);
+    });
+
     test('OSC 8 protocol identifiers survive JSON and protobuf decoding', () {
       final jsonFrame = TerminalFrameDiff.fromJson(
         _jsonFrame(
