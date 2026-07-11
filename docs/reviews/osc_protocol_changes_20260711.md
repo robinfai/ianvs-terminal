@@ -166,6 +166,19 @@ Before the final repository gate, focused evidence is green:
 - Dart/Flutter analysis and protocol/runtime/controller/widget focused suites;
 - macOS smoke 4/4 and real PTY 16/16.
 
-The final `VERIFY_FLUTTER_TERMINAL_RUN_EXAMPLE_WIDGET_TESTS=1
-./tools/verify_flutter_terminal.sh` result and final Computer Use result are
-filled in only after those gates execute on the committed tree.
+Final committed-tree command:
+
+```bash
+VERIFY_FLUTTER_TERMINAL_RUN_EXAMPLE_WIDGET_TESTS=1 \
+  ./tools/verify_flutter_terminal.sh
+```
+
+Result: passed with exit code 0. This includes vendored/core format, strict
+Clippy and tests; PTY/Dart/Flutter analysis and tests; docs contract; CI smoke
+benchmark; 910 example grouped tests; complete example Widget tests 125/125;
+macOS smoke 4/4; and macOS real PTY acceptance 16/16. The optional nightly
+resource benchmark was not enabled because it is not a release gate.
+
+The final Ianvs GUI Computer Use result is recorded only after that last gate
+executes. Reference-terminal evidence remains separately unproven for the
+safety-policy reason documented in `osc_cross_terminal_probe_20260711.md`.

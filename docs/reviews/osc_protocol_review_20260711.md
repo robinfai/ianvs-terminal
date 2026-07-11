@@ -45,10 +45,11 @@ history, file-transfer bytes, title stack, recordings and debug output.
 
 ## Evidence status
 
-Strict Rust gates, corpus validation, Dart/Flutter analysis and focused suites
-are green. macOS smoke is 4/4 and real PTY acceptance is 16/16. The final
-repository-wide verifier and final Ianvs GUI Computer Use gate are recorded in
-`osc_protocol_changes_20260711.md` after execution.
+Strict Rust gates, corpus validation, Dart/Flutter analysis, docs, benchmark and
+all test suites are green. The final repository-wide verifier passed on the
+committed tree with complete example Widget tests enabled; macOS smoke is 4/4
+and real PTY acceptance is 16/16. The final Ianvs GUI Computer Use gate remains
+the last product acceptance step.
 
 The reference-terminal comparison is deliberately not marked passed. Computer
 Use rejected both iTerm2 3.6.11 and Ghostty 1.2.3 as protected terminal apps.
