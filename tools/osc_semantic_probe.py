@@ -119,6 +119,25 @@ PROBES = {
         + osc("3008;end=unknown;exit=failure")
         + osc("3008;end=ianvs-root;exit=success;status=0"),
     ),
+    "color_control": Probe(
+        "color_control",
+        "Kitty OSC 21",
+        "Set and query foreground, background, cursor, and palette index 196 in one batch.",
+        "Colors change and one OSC 21 response reports all four resulting RGB values.",
+        "appearance only; no host action",
+        osc(
+            "21;foreground=#123456;background=#234567;cursor=#345678;"
+            "196=#456789;foreground=?;background=?;cursor=?;196=?"
+        ),
+    ),
+    "osc23_noop": Probe(
+        "osc23_noop",
+        "OSC 2 + unsupported OSC 23",
+        "Set a stable title, then send the non-standard legacy OSC 23 payload.",
+        "The title remains Ianvs OSC 23 stable; the CSI title stack is untouched.",
+        "none",
+        osc("2;Ianvs OSC 23 stable") + osc("23;legacy-payload"),
+    ),
     "progress": Probe(
         "progress",
         "OSC 9;4",
@@ -180,6 +199,8 @@ def self_test() -> None:
         "notification",
         "notification_query",
         "terminal_context",
+        "color_control",
+        "osc23_noop",
         "progress",
         "badge",
         "user_var",
@@ -199,6 +220,10 @@ def self_test() -> None:
         raise ValueError("clipboard query fixture is malformed")
     if PROBES["terminal_context"].payload.count(b"\x1b]3008;") != 4:
         raise ValueError("terminal context lifecycle fixture is malformed")
+    if PROBES["color_control"].payload.count(b"=?") != 4:
+        raise ValueError("color-control query fixture is malformed")
+    if PROBES["osc23_noop"].payload.count(b"\x1b]") != 2:
+        raise ValueError("OSC 23 no-op fixture is malformed")
 
 
 def parser() -> argparse.ArgumentParser:

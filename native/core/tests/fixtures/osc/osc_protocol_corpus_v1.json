@@ -234,6 +234,27 @@
       }
     },
     {
+      "id": "osc21_batch_and_osc23_noop",
+      "coverage": [
+        "OSC 21 batch color control",
+        "OSC 23 title no-op"
+      ],
+      "protocol": "OSC 0 + Kitty OSC 21 + OSC 23",
+      "wire": {
+        "chunks_hex": [
+          "1b5d303b737461626c652d7469746c651b5c1b5d32313b666f726567726f756e643d233132333435363b3139363d236162636465663b6675747572653d3f1b5c1b5d32333b6c65676163791b5c"
+        ],
+        "sequence_count": 3
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "color_control_and_safe_unknown",
+        "state_effect": "OSC 21 applies colors and replies to an unknown query while OSC 23 leaves the title unchanged",
+        "reply": "OSC 21 future=?",
+        "must_not_crash": true
+      }
+    },
+    {
       "id": "osc3008_malformed_close_recovery",
       "coverage": [
         "OSC 3008 hierarchy",

@@ -1339,6 +1339,21 @@ fn osc4_query_profile() -> TerminalProfile {
     )
 }
 
+fn osc21_color_control_profile(emulation: TerminalEmulation) -> TerminalProfile {
+    local_profile(
+        "osc21-color-control",
+        "OSC 21 Color Control",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import os,select,sys,termios,time,tty; old=termios.tcgetattr(0); tty.setraw(0); time.sleep(0.2); os.write(1,b"\x1b]21;foreground=#123456;background=#234567;cursor=#345678;196=#456789;foreground=?;background=?;cursor=?;196=?;future=?\x1b\\"); sys.stdout.flush(); ready,_,_=select.select([0],[],[],2.0); data=os.read(0,512) if ready else b"TIMEOUT"; termios.tcsetattr(0, termios.TCSANOW, old); os.write(1,b"OSC21-RESPONSE:"+repr(data).encode()+b"\n\x1b[38;5;196mP\x1b[0m OSC21-SET\n")'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        emulation,
+    )
+}
+
 fn osc_palette_product_profile() -> TerminalProfile {
     let mut profile = local_profile(
         "osc-palette-product",
@@ -1837,10 +1852,10 @@ fn frame_row_with_text<'a>(frame: &'a serde_json::Value, needle: &str) -> &'a se
         .expect("expected matching frame row")
 }
 
-fn assert_frame_json_protobuf_foreground_parity(
+fn assert_frame_json_protobuf_foreground_parity<const N: usize>(
     frame: &str,
     marker: &str,
-    expected_foregrounds: [&str; 4],
+    expected_foregrounds: [&str; N],
 ) {
     let parsed: serde_json::Value = serde_json::from_str(frame).unwrap();
     let json_row = frame_row_with_text(&parsed, marker);
@@ -16942,6 +16957,47 @@ fn session_osc4_query_reports_rgb_for_alpha_color_specs() {
     assert!(
         frame.contains(r"OSC4-RESPONSE:b'\\x1b]4;1;rgb:1212/3434/5656\\x1b\\\\'"),
         "expected OSC 4 query to report the RGB portion of an alpha color spec: {frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_osc21_query_and_frame_colors_cross_the_real_pty() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc21_color_control_profile(TerminalEmulation::Xterm256)).unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "OSC21-SET");
+    let visible = logical_rows_from_frame(&frame).join("\n");
+    assert!(
+        visible.contains(
+            r"OSC21-RESPONSE:b'\x1b]21;foreground=rgb:12/34/56;background=rgb:23/45/67;cursor=rgb:34/56/78;196=rgb:45/67/89;future=?\x1b\\'"
+        ),
+        "expected OSC 21 combined query response: {visible}"
+    );
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    assert_eq!(parsed["default_foreground"].as_str(), Some("#123456"));
+    assert_eq!(parsed["default_background"].as_str(), Some("#234567"));
+    assert_eq!(parsed["cursor_color"].as_str(), Some("#345678"));
+    assert_frame_json_protobuf_foreground_parity(&frame, "OSC21-SET", ["#456789"]);
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_sessions_gate_osc21_color_control_and_queries() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc21_color_control_profile(TerminalEmulation::Vt220)).unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "OSC21-SET");
+    let visible = logical_rows_from_frame(&frame).join("\n");
+    assert!(
+        visible.contains("OSC21-RESPONSE:b'TIMEOUT'"),
+        "VT220 must not expose OSC 21 query support: {visible}"
     );
 
     session::close_session(session_id).unwrap();

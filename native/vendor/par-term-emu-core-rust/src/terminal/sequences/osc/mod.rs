@@ -158,16 +158,15 @@ impl Terminal {
             }
 
             match command {
-                // OSC 21 and 22 are used by modern terminals for dynamic
-                // colors and pointer shapes. Until those protocols are
-                // implemented, consume them through the unsupported path;
-                // they must never mutate the title stack.
-                "0" | "2" | "23" => self.handle_osc_title(command, params),
+                // OSC 22 is a pointer-shape protocol and remains isolated from
+                // title handling until its dedicated state model is applied.
+                // OSC 23 has no title-stack meaning; title push/pop is CSI 22/23 t.
+                "0" | "2" => self.handle_osc_title(command, params),
                 "7" | "133" | "633" => self.handle_osc_shell(command, params),
                 "8" => self.handle_osc_hyperlink(params),
                 "9" | "99" | "777" | "934" => self.handle_osc_notify(command, params),
                 "52" => self.handle_osc_clipboard(command, params),
-                "4" | "104" | "10" | "11" | "12" | "110" | "111" | "112" => {
+                "4" | "21" | "104" | "10" | "11" | "12" | "110" | "111" | "112" => {
                     self.handle_osc_color(command, params)
                 }
                 "1337" => self.handle_osc_iterm(command, params),

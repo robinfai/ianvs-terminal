@@ -20,11 +20,6 @@ impl Terminal {
                     }
                 }
             }
-            "23" => {
-                if let Some(title) = self.title_stack.pop() {
-                    self.title = title;
-                }
-            }
             _ => {}
         }
     }

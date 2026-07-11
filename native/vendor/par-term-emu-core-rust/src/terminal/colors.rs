@@ -10,6 +10,7 @@
 //! - Color mode flags
 
 use crate::color::Color;
+use crate::terminal::color_control::{Osc21ColorValue, Osc21SpecialColor};
 use crate::terminal::Terminal;
 
 impl Terminal {
@@ -56,10 +57,18 @@ impl Terminal {
     /// Set default foreground color (OSC 10)
     pub fn set_default_fg(&mut self, color: Color) {
         self.baseline_default_fg = color;
+        self.osc21_color_state.set_baseline(
+            Osc21SpecialColor::Foreground,
+            Osc21ColorValue::opaque(color),
+        );
         self.set_dynamic_default_fg(color);
     }
 
     pub(crate) fn set_dynamic_default_fg(&mut self, color: Color) {
+        self.osc21_color_state.set_current(
+            Osc21SpecialColor::Foreground,
+            Some(Osc21ColorValue::opaque(color)),
+        );
         let previous = self.default_fg;
         if previous == color {
             return;
@@ -84,10 +93,18 @@ impl Terminal {
     /// Set default background color (OSC 11)
     pub fn set_default_bg(&mut self, color: Color) {
         self.baseline_default_bg = color;
+        self.osc21_color_state.set_baseline(
+            Osc21SpecialColor::Background,
+            Osc21ColorValue::opaque(color),
+        );
         self.set_dynamic_default_bg(color);
     }
 
     pub(crate) fn set_dynamic_default_bg(&mut self, color: Color) {
+        self.osc21_color_state.set_current(
+            Osc21SpecialColor::Background,
+            Some(Osc21ColorValue::opaque(color)),
+        );
         let previous = self.default_bg;
         if previous == color {
             return;
@@ -122,10 +139,16 @@ impl Terminal {
     /// Set cursor color (OSC 12)
     pub fn set_cursor_color(&mut self, color: Color) {
         self.baseline_cursor_color = color;
+        self.osc21_color_state
+            .set_baseline(Osc21SpecialColor::Cursor, Osc21ColorValue::opaque(color));
         self.set_dynamic_cursor_color(color);
     }
 
     pub(crate) fn set_dynamic_cursor_color(&mut self, color: Color) {
+        self.osc21_color_state.set_current(
+            Osc21SpecialColor::Cursor,
+            Some(Osc21ColorValue::opaque(color)),
+        );
         if self.cursor_color == color {
             return;
         }
@@ -190,7 +213,23 @@ impl Terminal {
 
     /// Set selection background color
     pub fn set_selection_bg_color(&mut self, color: Color) {
+        self.osc21_color_state.set_baseline(
+            Osc21SpecialColor::SelectionBackground,
+            Osc21ColorValue::opaque(color),
+        );
+        self.set_dynamic_selection_bg_color(color);
+    }
+
+    pub(crate) fn set_dynamic_selection_bg_color(&mut self, color: Color) {
+        self.osc21_color_state.set_current(
+            Osc21SpecialColor::SelectionBackground,
+            Some(Osc21ColorValue::opaque(color)),
+        );
+        if self.selection_bg_color == color {
+            return;
+        }
         self.selection_bg_color = color;
+        self.mark_full_repaint("selection_color_changed");
     }
 
     /// Get selection foreground/text color
@@ -200,7 +239,23 @@ impl Terminal {
 
     /// Set selection foreground/text color
     pub fn set_selection_fg_color(&mut self, color: Color) {
+        self.osc21_color_state.set_baseline(
+            Osc21SpecialColor::SelectionForeground,
+            Osc21ColorValue::opaque(color),
+        );
+        self.set_dynamic_selection_fg_color(color);
+    }
+
+    pub(crate) fn set_dynamic_selection_fg_color(&mut self, color: Color) {
+        self.osc21_color_state.set_current(
+            Osc21SpecialColor::SelectionForeground,
+            Some(Osc21ColorValue::opaque(color)),
+        );
+        if self.selection_fg_color == color {
+            return;
+        }
         self.selection_fg_color = color;
+        self.mark_full_repaint("selection_color_changed");
     }
 
     /// Get whether to use custom bold color
@@ -274,6 +329,7 @@ impl Terminal {
             self.extended_ansi_palette[index - 16] = color;
             self.baseline_extended_ansi_palette[index - 16] = color;
         }
+        self.osc21_color_state.set_palette_alpha(index, None);
         if changed {
             self.mark_full_repaint("ansi_palette_changed");
         }
@@ -283,6 +339,7 @@ impl Terminal {
     /// Set the runtime palette value without changing the session/profile
     /// baseline used by OSC 104.
     pub(crate) fn set_dynamic_ansi_palette_color(&mut self, index: usize, color: Color) {
+        self.osc21_color_state.set_palette_alpha(index, None);
         if self.get_ansi_color(index) == Some(color) {
             return;
         }
@@ -303,10 +360,12 @@ impl Terminal {
             _ => return,
         };
         self.set_dynamic_ansi_palette_color(index, baseline);
+        self.osc21_color_state.set_palette_alpha(index, None);
     }
 
     /// Restore all runtime palette values to their session/profile baseline.
     pub(crate) fn reset_dynamic_ansi_palette(&mut self) {
+        self.osc21_color_state.reset_palette_alpha();
         if self.ansi_palette == self.baseline_ansi_palette
             && self.extended_ansi_palette == self.baseline_extended_ansi_palette
         {

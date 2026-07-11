@@ -18,6 +18,8 @@ const Set<String> _requiredCoverage = <String>{
   'unknown key',
   'mixed supported/unsupported sequence',
   'OSC 99 chunk assembly',
+  'OSC 21 batch color control',
+  'OSC 23 title no-op',
   'OSC 3008 hierarchy',
   'OSC 3008 malformed close recovery',
   'tmux passthrough fixture',
@@ -127,6 +129,10 @@ void _validateFixture(String id, Map<String, Object?> fixture) {
     final text = latin1.decode(stream);
     expect(RegExp(r'\x1b]3008;').allMatches(text), hasLength(4));
     expect(text, contains('end=missing'));
+  } else if (id == 'osc21_batch_and_osc23_noop') {
+    final text = latin1.decode(stream);
+    expect(RegExp(r'\x1b]').allMatches(text), hasLength(3));
+    expect(text, contains('future=?'));
   }
 }
 

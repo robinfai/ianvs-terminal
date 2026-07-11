@@ -1,3 +1,4 @@
+use par_term_emu_core_rust::color::Color;
 use par_term_emu_core_rust::terminal::{Terminal, TerminalContextAction, TerminalEvent};
 use serde_json::Value;
 
@@ -124,6 +125,15 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
                 assert_eq!(notification.identifier.as_deref(), Some("corpus"));
                 assert_eq!(notification.title, "Title");
                 assert_eq!(notification.message, "Body");
+            }
+            "osc21_batch_and_osc23_noop" => {
+                assert_eq!(terminal.title(), "stable-title");
+                assert_eq!(terminal.default_fg(), Color::Rgb(0x12, 0x34, 0x56));
+                assert_eq!(
+                    terminal.get_ansi_color(196),
+                    Some(Color::Rgb(0xab, 0xcd, 0xef))
+                );
+                assert_eq!(terminal.drain_responses(), b"\x1b]21;future=?\x1b\\");
             }
             "osc3008_malformed_close_recovery" => {
                 let contexts = terminal

@@ -616,6 +616,73 @@ sleep 1
   );
 
   testWidgets(
+    'real PTY OSC 21 updates frame colors while OSC 23 preserves title',
+    (tester) async {
+      final goFile = _tempSignalFile('osc21-color-control');
+      final profile = _scriptProfile(
+        id: 'osc21-real-pty',
+        name: 'OSC 21 Real PTY',
+        script: r'''
+printf 'osc21-ready\n'
+while [ ! -f "$GO_FILE" ]; do sleep 0.05; done
+printf '\033]0;stable-osc21-title\033\\'
+printf '\033]21;foreground=#123456;background=#234567;cursor=#345678;196=#456789\033\\'
+printf '\033]23;legacy-payload\033\\'
+printf '\033[38;5;196mP\033[0m OSC21-SET\n'
+sleep 1
+''',
+        env: {'GO_FILE': goFile.path},
+      );
+      final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
+
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'OSC 21 real PTY ready marker',
+        matches: (text) => text.contains('osc21-ready'),
+      );
+      _signal(goFile);
+
+      await _waitFor(
+        tester,
+        description: 'OSC 21 frame colors and OSC 23 stable title',
+        condition: () {
+          final frame = _activeFrame(harness.container);
+          final pane = _activePane(harness.container);
+          if (frame == null || pane?.title != 'stable-osc21-title') {
+            return false;
+          }
+          final matchingRows = frame.rows
+              .where((row) => row.text.contains('P OSC21-SET'))
+              .toList(growable: false);
+          if (matchingRows.isEmpty) {
+            return false;
+          }
+          final row = matchingRows.first;
+          final column = row.text.indexOf('P OSC21-SET');
+          final paletteRuns = row.styleRuns
+              .where(
+                (run) =>
+                    run.start <= column &&
+                    run.end > column &&
+                    run.foreground?.toARGB32() == 0xff456789,
+              )
+              .toList(growable: false);
+          return frame.defaultForeground?.toARGB32() == 0xff123456 &&
+              frame.defaultBackground?.toARGB32() == 0xff234567 &&
+              frame.cursorColor?.toARGB32() == 0xff345678 &&
+              paletteRuns.isNotEmpty;
+        },
+        onTimeout: () {
+          final frame = _activeFrame(harness.container);
+          return 'Pane: ${_activePane(harness.container)}\nFrame: $frame';
+        },
+      );
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
     'real PTY active wake baseline after four seconds child idle',
     (tester) =>
         _verifyIdleWakeBaseline(tester, state: _BaselineIdleWakeState.active),

@@ -99,15 +99,17 @@ fn test_set_window_title() {
 }
 
 #[test]
-fn osc_21_and_22_do_not_mutate_title_or_title_stack() {
+fn osc_21_color_control_and_osc22_do_not_mutate_title_or_title_stack() {
     let mut term = Terminal::new(80, 24);
 
     term.process(b"\x1b]0;Original Title\x1b\\");
     term.title_stack.push("Saved Title".to_string());
 
-    // Kitty dynamic-color and pointer-shape payloads are currently ignored.
+    // Kitty color control is handled independently from title state. Pointer
+    // shapes remain isolated from title handling.
     term.process(b"\x1b]21;foreground=#123456\x1b\\");
     term.process(b"\x1b]22;pointer\x07");
+    assert_eq!(term.default_fg(), Color::Rgb(0x12, 0x34, 0x56));
     assert_eq!(term.title(), "Original Title");
     assert_eq!(term.title_stack, vec!["Saved Title"]);
 }
@@ -124,6 +126,18 @@ fn split_and_malformed_osc_21_and_22_do_not_mutate_title() {
 
     assert_eq!(term.title(), "Stable");
     assert!(term.title_stack.is_empty());
+}
+
+#[test]
+fn osc23_is_not_a_title_stack_pop() {
+    let mut term = Terminal::new(80, 24);
+    term.process(b"\x1b]0;Current\x1b\\");
+    term.title_stack.push("Saved".to_string());
+
+    term.process(b"\x1b]23;legacy-payload\x1b\\");
+
+    assert_eq!(term.title(), "Current");
+    assert_eq!(term.title_stack, vec!["Saved"]);
 }
 
 #[test]

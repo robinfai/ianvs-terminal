@@ -18,6 +18,7 @@ use crate::terminal::{
 };
 use crate::zone::Zone;
 
+use super::color_control::Osc21ColorControlState;
 use super::context::TerminalContextStack;
 use super::graphics::GraphicsPassthroughState;
 use super::notification::KittyNotificationState;
@@ -180,6 +181,8 @@ pub struct TerminalSnapshot {
     /// Current 16-255 palette and its session/profile reset baseline.
     pub extended_ansi_palette: [Color; 240],
     pub baseline_extended_ansi_palette: [Color; 240],
+    /// Kitty OSC 21 special colors, dynamic values and alpha metadata.
+    pub(crate) osc21_color_state: Osc21ColorControlState,
 
     // --- Saved colors and attributes ---
     /// Saved foreground color
@@ -633,6 +636,7 @@ impl Terminal {
             baseline_ansi_palette: self.baseline_ansi_palette,
             extended_ansi_palette: self.extended_ansi_palette,
             baseline_extended_ansi_palette: self.baseline_extended_ansi_palette,
+            osc21_color_state: self.osc21_color_state.clone(),
             saved_fg: self.saved_fg,
             saved_bg: self.saved_bg,
             saved_underline_color: self.saved_underline_color,
@@ -776,6 +780,7 @@ impl Terminal {
         self.baseline_ansi_palette = snap.baseline_ansi_palette;
         self.extended_ansi_palette = snap.extended_ansi_palette;
         self.baseline_extended_ansi_palette = snap.baseline_extended_ansi_palette;
+        self.osc21_color_state = snap.osc21_color_state;
         self.sync_grid_blank_style();
         self.saved_fg = snap.saved_fg;
         self.saved_bg = snap.saved_bg;
@@ -902,6 +907,7 @@ mod tests {
             baseline_ansi_palette: Terminal::default_ansi_palette(),
             extended_ansi_palette: Terminal::default_extended_ansi_palette(),
             baseline_extended_ansi_palette: Terminal::default_extended_ansi_palette(),
+            osc21_color_state: Osc21ColorControlState::default(),
             saved_fg: Color::Named(NamedColor::White),
             saved_bg: Color::Named(NamedColor::Black),
             saved_underline_color: None,

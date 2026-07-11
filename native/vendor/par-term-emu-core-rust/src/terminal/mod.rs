@@ -5,6 +5,7 @@
 
 // Submodules
 pub mod clipboard;
+mod color_control;
 mod colors;
 pub mod compliance;
 pub mod context;
@@ -917,6 +918,8 @@ pub struct Terminal {
     /// `get_ansi_palette() -> &[Color; 16]` API stays source compatible.
     pub(crate) extended_ansi_palette: [Color; 240],
     pub(crate) baseline_extended_ansi_palette: [Color; 240],
+    /// Kitty OSC 21 special-color, dynamic-value, alpha and reset state.
+    pub(crate) osc21_color_state: color_control::Osc21ColorControlState,
     /// Color stack for XTPUSHCOLORS/XTPOPCOLORS (fg, bg, underline)
     pub(crate) color_stack: Vec<(Color, Color, Option<Color>)>,
     /// Notifications from OSC 9 / OSC 777 sequences
@@ -1291,6 +1294,7 @@ impl Terminal {
             baseline_ansi_palette: Self::default_ansi_palette(),
             extended_ansi_palette: Self::default_extended_ansi_palette(),
             baseline_extended_ansi_palette: Self::default_extended_ansi_palette(),
+            osc21_color_state: color_control::Osc21ColorControlState::default(),
             color_stack: Vec::new(),
             notifications: Vec::new(),
             progress_bar: ProgressBar::default(),
@@ -3727,6 +3731,8 @@ impl Terminal {
         let terminal_event_dropped_count = self.terminal_event_dropped_count;
         // UAPI OSC 3008 explicitly defines terminal reset as context-neutral.
         let terminal_context_stack = self.terminal_context_stack.clone();
+        let mut osc21_color_state = self.osc21_color_state.clone();
+        osc21_color_state.reset_runtime_to_baselines();
 
         *self = Self::with_scrollback(cols, rows, scrollback);
         self.suppress_synchronized_update_enable = suppress_synchronized_update_enable;
@@ -3740,6 +3746,7 @@ impl Terminal {
         self.response_buffer_overflow_count = response_buffer_overflow_count;
         self.terminal_event_dropped_count = terminal_event_dropped_count;
         self.terminal_context_stack = terminal_context_stack;
+        self.osc21_color_state = osc21_color_state;
         self.graphics_store = GraphicsStore::with_limits(graphics_limits);
         self.sixel_limits = sixel_limits;
         self.cell_dimensions = cell_dimensions;
