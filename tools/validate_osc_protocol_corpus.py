@@ -34,6 +34,8 @@ REQUIRED_COVERAGE = {
     "OSC 99 chunk assembly",
     "OSC 21 batch color control",
     "OSC 23 title no-op",
+    "OSC 22 pointer shape stack",
+    "OSC 22 screen-local state",
     "OSC 3008 hierarchy",
     "OSC 3008 malformed close recovery",
     "tmux passthrough fixture",
@@ -153,6 +155,10 @@ def validate_case(case: Any) -> set[str]:
     elif case_id == "osc21_batch_and_osc23_noop":
         require(stream.count(b"\x1b]") == 3, f"{case_id}: sequence count")
         require(b"future=?" in stream, f"{case_id}: unknown query missing")
+    elif case_id == "osc22_pointer_shape_stack":
+        require(stream.count(b"\x1b]22;") == 6, f"{case_id}: OSC 22 sequence count")
+        require(stream.count(b"\x1b[?1049") == 2, f"{case_id}: screen switch count")
+        require(b"__current__" in stream, f"{case_id}: current query missing")
     elif case_id == "tmux_passthrough":
         require(stream.startswith(b"\x1bPtmux;\x1b\x1b]"), f"{case_id}: bad wrapper")
     elif case_id == "screen_passthrough":

@@ -276,6 +276,27 @@
       }
     },
     {
+      "id": "osc22_pointer_shape_stack",
+      "coverage": [
+        "OSC 22 pointer shape stack",
+        "OSC 22 screen-local state"
+      ],
+      "protocol": "Kitty OSC 22",
+      "wire": {
+        "chunks_hex": [
+          "1b5d32323b706f696e7465721b5c1b5d32323b3e776169742c63726f7373686169721b5c1b5d32323b3f5f5f63757272656e745f5f2c5f5f64656661756c745f5f2c5f5f677261626265645f5f2c706f696e7465722c6e6f2d737563682d6e616d651b5c1b5b3f31303439681b5d32323b68656c701b5c1b5d32323b3f5f5f63757272656e745f5f1b5c1b5b3f313034396c1b5d32323b3f5f5f63757272656e745f5f1b5c"
+        ],
+        "sequence_count": 6
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "pointer_shape_lifecycle",
+        "state_effect": "push/query and screen-local stacks preserve crosshair on primary while help is active on alternate",
+        "reply": "three OSC 22 responses",
+        "must_not_crash": true
+      }
+    },
+    {
       "id": "tmux_passthrough",
       "coverage": ["tmux passthrough fixture"],
       "protocol": "tmux DCS passthrough carrying OSC 8",

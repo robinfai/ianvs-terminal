@@ -347,6 +347,7 @@ struct CachedFrameMeta {
     default_foreground_rgb: (u8, u8, u8),
     default_background_rgb: (u8, u8, u8),
     cursor_color_rgb: (u8, u8, u8),
+    pointer_shape: Option<String>,
     ansi_palette: [Color; 256],
     modes: TerminalFrameModes,
     window_title: Option<String>,
@@ -2093,6 +2094,11 @@ impl TerminalSession {
         } else {
             None
         };
+        let pointer_shape = if self.emulation == TerminalEmulation::Xterm256 {
+            terminal.pointer_shape_name().map(str::to_string)
+        } else {
+            None
+        };
         let viewport_start_row = if alt_screen_active {
             0
         } else {
@@ -2121,6 +2127,7 @@ impl TerminalSession {
             default_foreground_rgb: resolve_color_rgb(theme.default_fg, &theme.ansi_palette),
             default_background_rgb: resolve_color_rgb(theme.default_bg, &theme.ansi_palette),
             cursor_color_rgb: resolve_color_rgb(theme.cursor_color, &theme.ansi_palette),
+            pointer_shape: pointer_shape.clone(),
             ansi_palette: theme.ansi_palette,
             modes: modes.clone(),
             window_title: window_title.clone(),
@@ -2252,6 +2259,7 @@ impl TerminalSession {
             default_foreground: color_to_hex(theme.default_fg, &theme.ansi_palette),
             default_background: color_to_hex(theme.default_bg, &theme.ansi_palette),
             cursor_color: color_to_hex(theme.cursor_color, &theme.ansi_palette),
+            pointer_shape,
             modes,
             window_title,
             window_icon_name,
@@ -4925,6 +4933,9 @@ fn frame_meta_delta_break_reason(
     }
     if previous_frame_meta.cursor_color_rgb != frame_meta.cursor_color_rgb {
         return Some("terminal_cursor_color_changed");
+    }
+    if previous_frame_meta.pointer_shape != frame_meta.pointer_shape {
+        return Some("terminal_pointer_shape_changed");
     }
     if previous_frame_meta.ansi_palette != frame_meta.ansi_palette {
         return Some("terminal_palette_changed");

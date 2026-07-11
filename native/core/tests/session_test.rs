@@ -1354,6 +1354,21 @@ fn osc21_color_control_profile(emulation: TerminalEmulation) -> TerminalProfile 
     )
 }
 
+fn osc22_pointer_shape_profile(emulation: TerminalEmulation) -> TerminalProfile {
+    local_profile(
+        "osc22-pointer-shape",
+        "OSC 22 Pointer Shape",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import os,select,sys,termios,time,tty; old=termios.tcgetattr(0); tty.setraw(0); time.sleep(0.2); os.write(1,b"\x1b]22;pointer\x1b\\\x1b]22;?__current__,__default__,__grabbed__,pointer,no-such-name\x1b\\"); sys.stdout.flush(); ready,_,_=select.select([0],[],[],2.0); data=os.read(0,512) if ready else b"TIMEOUT"; termios.tcsetattr(0, termios.TCSANOW, old); os.write(1,b"OSC22-RESPONSE:"+repr(data).encode()+b"\nOSC22-SET\n")'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        emulation,
+    )
+}
+
 fn osc_palette_product_profile() -> TerminalProfile {
     let mut profile = local_profile(
         "osc-palette-product",
@@ -1900,6 +1915,17 @@ fn assert_frame_json_protobuf_foreground_parity<const N: usize>(
             "protobuf column {column}"
         );
     }
+}
+
+fn assert_frame_json_protobuf_pointer_shape_parity(frame: &str, expected: &str) {
+    let parsed: serde_json::Value = serde_json::from_str(frame).unwrap();
+    assert_eq!(parsed["pointer_shape"].as_str(), Some(expected));
+    let frame_model: ianvs_core::model::TerminalFrameDiff = serde_json::from_str(frame).unwrap();
+    let protobuf_bytes = ianvs_core::frame_diff_proto::encode_frame_diff(&frame_model)
+        .expect("encode the same pointer-shape frame as protobuf");
+    let protobuf = ianvs_core::frame_diff_proto::decode_frame_diff_for_test(&protobuf_bytes)
+        .expect("decode the same pointer-shape protobuf frame");
+    assert_eq!(protobuf.pointer_shape, expected);
 }
 
 fn frame_row_at_index(frame: &serde_json::Value, index: u64) -> &serde_json::Value {
@@ -16999,6 +17025,43 @@ fn vt220_sessions_gate_osc21_color_control_and_queries() {
         visible.contains("OSC21-RESPONSE:b'TIMEOUT'"),
         "VT220 must not expose OSC 21 query support: {visible}"
     );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_osc22_query_and_pointer_shape_cross_the_real_pty() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc22_pointer_shape_profile(TerminalEmulation::Xterm256)).unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "OSC22-SET");
+    let visible = logical_rows_from_frame(&frame).join("\n");
+    assert!(
+        visible.contains(r"OSC22-RESPONSE:b'\x1b]22;pointer,text,default,1,0\x1b\\'"),
+        "expected OSC 22 combined query response: {visible}"
+    );
+    assert_frame_json_protobuf_pointer_shape_parity(&frame, "pointer");
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_sessions_gate_osc22_pointer_shape_and_queries() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc22_pointer_shape_profile(TerminalEmulation::Vt220)).unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "OSC22-SET");
+    let visible = logical_rows_from_frame(&frame).join("\n");
+    assert!(
+        visible.contains("OSC22-RESPONSE:b'TIMEOUT'"),
+        "VT220 must not expose OSC 22 query support: {visible}"
+    );
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    assert!(parsed.get("pointer_shape").is_none());
 
     session::close_session(session_id).unwrap();
 }

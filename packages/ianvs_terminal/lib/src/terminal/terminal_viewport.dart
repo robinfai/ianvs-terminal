@@ -35,6 +35,43 @@ const String _smartSelectionLeadingTrim = "([<{\"'";
 const String _smartSelectionTrailingTrim = ".,;:!?)]}>\"'";
 const String _xtermWordSeparators = " ()[]{}',\"`";
 
+MouseCursor _mouseCursorForPointerShape(TerminalPointerShape shape) {
+  return switch (shape) {
+    TerminalPointerShape.alias => SystemMouseCursors.alias,
+    TerminalPointerShape.cell => SystemMouseCursors.cell,
+    TerminalPointerShape.copy => SystemMouseCursors.copy,
+    TerminalPointerShape.crosshair => SystemMouseCursors.precise,
+    TerminalPointerShape.basic => SystemMouseCursors.basic,
+    TerminalPointerShape.eastResize => SystemMouseCursors.resizeRight,
+    TerminalPointerShape.eastWestResize => SystemMouseCursors.resizeLeftRight,
+    TerminalPointerShape.grab => SystemMouseCursors.grab,
+    TerminalPointerShape.grabbing => SystemMouseCursors.grabbing,
+    TerminalPointerShape.help => SystemMouseCursors.help,
+    TerminalPointerShape.move => SystemMouseCursors.move,
+    TerminalPointerShape.northResize => SystemMouseCursors.resizeUp,
+    TerminalPointerShape.northEastResize => SystemMouseCursors.resizeUpRight,
+    TerminalPointerShape.northEastSouthWestResize =>
+      SystemMouseCursors.resizeUpRightDownLeft,
+    TerminalPointerShape.noDrop => SystemMouseCursors.noDrop,
+    TerminalPointerShape.notAllowed => SystemMouseCursors.forbidden,
+    TerminalPointerShape.northSouthResize => SystemMouseCursors.resizeUpDown,
+    TerminalPointerShape.northWestResize => SystemMouseCursors.resizeUpLeft,
+    TerminalPointerShape.northWestSouthEastResize =>
+      SystemMouseCursors.resizeUpLeftDownRight,
+    TerminalPointerShape.pointer => SystemMouseCursors.click,
+    TerminalPointerShape.progress => SystemMouseCursors.progress,
+    TerminalPointerShape.southResize => SystemMouseCursors.resizeDown,
+    TerminalPointerShape.southEastResize => SystemMouseCursors.resizeDownRight,
+    TerminalPointerShape.southWestResize => SystemMouseCursors.resizeDownLeft,
+    TerminalPointerShape.text => SystemMouseCursors.text,
+    TerminalPointerShape.verticalText => SystemMouseCursors.verticalText,
+    TerminalPointerShape.westResize => SystemMouseCursors.resizeLeft,
+    TerminalPointerShape.wait => SystemMouseCursors.wait,
+    TerminalPointerShape.zoomIn => SystemMouseCursors.zoomIn,
+    TerminalPointerShape.zoomOut => SystemMouseCursors.zoomOut,
+  };
+}
+
 class TerminalLinkTarget {
   const TerminalLinkTarget({
     required this.uri,
@@ -235,6 +272,7 @@ class _TerminalViewportState extends State<TerminalViewport>
   bool _suppressImeClearBackspaceUntilKeyUp = false;
   bool _textInputGeometrySyncScheduled = false;
   final TerminalGraphicsSync _graphicsSync = TerminalGraphicsSync();
+  late MouseCursor _lastTerminalPointerCursor;
   FocusNode get _focusNode =>
       widget.focusNode ??
       (_ownedFocusNode ??= FocusNode(debugLabel: 'terminal-viewport'));
@@ -242,6 +280,7 @@ class _TerminalViewportState extends State<TerminalViewport>
   @override
   void initState() {
     super.initState();
+    _lastTerminalPointerCursor = _terminalPointerCursor;
     widget.controller.addListener(_handleFrameUpdate);
     _bindFocusNodeListener();
     _syncCursorBlinkTimer();
@@ -257,6 +296,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     if (!identical(oldWidget.controller, widget.controller)) {
       oldWidget.controller.removeListener(_handleFrameUpdate);
       widget.controller.addListener(_handleFrameUpdate);
+      _lastTerminalPointerCursor = _terminalPointerCursor;
     }
     if (!identical(oldWidget.controller, widget.controller) ||
         !identical(oldWidget.graphicsCache, widget.graphicsCache)) {
@@ -351,6 +391,11 @@ class _TerminalViewportState extends State<TerminalViewport>
     _syncCursorBlinkTimer();
     _scheduleMeasuredCellSizeReport();
     _syncGraphicsCache();
+    final pointerCursor = _terminalPointerCursor;
+    if (pointerCursor != _lastTerminalPointerCursor) {
+      _lastTerminalPointerCursor = pointerCursor;
+      setState(() {});
+    }
     if (_isLocalSelectionActive &&
         !_terminalMouseEnabled &&
         _selectionPointerGlobalPosition != null) {
@@ -740,6 +785,21 @@ class _TerminalViewportState extends State<TerminalViewport>
 
   bool get _terminalMouseEnabled =>
       widget.controller.frame.modes.mouseMode != 'off';
+
+  MouseCursor get _terminalPointerCursor {
+    final frame = widget.controller.frame;
+    final shape = frame.pointerShape;
+    if (shape != null) {
+      return _mouseCursorForPointerShape(shape);
+    }
+    return frame.modes.mouseMode == 'off'
+        ? SystemMouseCursors.text
+        : SystemMouseCursors.basic;
+  }
+
+  MouseCursor get _effectivePointerCursor => _hoveredLinkTarget == null
+      ? _terminalPointerCursor
+      : SystemMouseCursors.click;
 
   bool get _terminalAlternateScrollEnabled {
     final modes = widget.controller.frame.modes;
@@ -1718,9 +1778,7 @@ class _TerminalViewportState extends State<TerminalViewport>
         behavior: HitTestBehavior.opaque,
         onTap: () => _focusNode.requestFocus(),
         child: MouseRegion(
-          cursor: _hoveredLinkTarget == null
-              ? SystemMouseCursors.text
-              : SystemMouseCursors.click,
+          cursor: _effectivePointerCursor,
           onExit: (_) {
             _lastHoverGlobalPosition = null;
             _setHoveredLinkTarget(null);

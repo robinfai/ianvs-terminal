@@ -138,6 +138,16 @@ PROBES = {
         "none",
         osc("2;Ianvs OSC 23 stable") + osc("23;legacy-payload"),
     ),
+    "pointer_shape": Probe(
+        "pointer_shape",
+        "Kitty OSC 22",
+        "Set a pointing hand, push wait and crosshair, then query current and supported shapes.",
+        "The pointer is crosshair and the terminal replies crosshair,1,1,0.",
+        "appearance only; no host action",
+        osc("22;pointer")
+        + osc("22;>wait,crosshair")
+        + osc("22;?__current__,pointer,wait,no-such-name"),
+    ),
     "progress": Probe(
         "progress",
         "OSC 9;4",
@@ -201,6 +211,7 @@ def self_test() -> None:
         "terminal_context",
         "color_control",
         "osc23_noop",
+        "pointer_shape",
         "progress",
         "badge",
         "user_var",
@@ -224,6 +235,8 @@ def self_test() -> None:
         raise ValueError("color-control query fixture is malformed")
     if PROBES["osc23_noop"].payload.count(b"\x1b]") != 2:
         raise ValueError("OSC 23 no-op fixture is malformed")
+    if PROBES["pointer_shape"].payload.count(b"\x1b]22;") != 3:
+        raise ValueError("pointer-shape lifecycle fixture is malformed")
 
 
 def parser() -> argparse.ArgumentParser:

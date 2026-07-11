@@ -8,6 +8,55 @@ import '../transport/terminal_wire_compatibility.dart';
 
 enum TerminalFrameKind { snapshot, delta }
 
+enum TerminalPointerShape {
+  alias('alias'),
+  cell('cell'),
+  copy('copy'),
+  crosshair('crosshair'),
+  basic('default'),
+  eastResize('e-resize'),
+  eastWestResize('ew-resize'),
+  grab('grab'),
+  grabbing('grabbing'),
+  help('help'),
+  move('move'),
+  northResize('n-resize'),
+  northEastResize('ne-resize'),
+  northEastSouthWestResize('nesw-resize'),
+  noDrop('no-drop'),
+  notAllowed('not-allowed'),
+  northSouthResize('ns-resize'),
+  northWestResize('nw-resize'),
+  northWestSouthEastResize('nwse-resize'),
+  pointer('pointer'),
+  progress('progress'),
+  southResize('s-resize'),
+  southEastResize('se-resize'),
+  southWestResize('sw-resize'),
+  text('text'),
+  verticalText('vertical-text'),
+  westResize('w-resize'),
+  wait('wait'),
+  zoomIn('zoom-in'),
+  zoomOut('zoom-out');
+
+  const TerminalPointerShape(this.wireName);
+
+  final String wireName;
+
+  static TerminalPointerShape? fromWire(Object? value) {
+    if (value is! String || value.isEmpty) {
+      return null;
+    }
+    for (final shape in values) {
+      if (shape.wireName == value) {
+        return shape;
+      }
+    }
+    return null;
+  }
+}
+
 const int _maxInlineImageEncodedLength =
     ((TerminalFrameValidationLimits.maxInlineImageDecodedBytes + 2) ~/ 3) * 4;
 
@@ -737,6 +786,7 @@ class TerminalFrameDiff {
     this.defaultForeground,
     this.defaultBackground,
     this.cursorColor,
+    this.pointerShape,
     this.modes = TerminalFrameModes.empty,
     this.selection,
     this.windowTitle,
@@ -766,6 +816,7 @@ class TerminalFrameDiff {
   final Color? defaultForeground;
   final Color? defaultBackground;
   final Color? cursorColor;
+  final TerminalPointerShape? pointerShape;
   final TerminalFrameModes modes;
   final String? windowTitle;
   final String? windowIconName;
@@ -829,6 +880,7 @@ class TerminalFrameDiff {
         _stringFromJson(json['default_background']),
       ),
       cursorColor: _colorFromHex(_stringFromJson(json['cursor_color'])),
+      pointerShape: TerminalPointerShape.fromWire(json['pointer_shape']),
       modes: modesJson == null
           ? TerminalFrameModes.empty
           : TerminalFrameModes.fromJson(modesJson),
@@ -1076,6 +1128,9 @@ TerminalFrameDiff _terminalFrameDiffFromProtobuf(
       hasValue: proto.hasCursorColor(),
       value: proto.cursorColor,
     ),
+    pointerShape: proto.hasPointerShape()
+        ? TerminalPointerShape.fromWire(proto.pointerShape)
+        : null,
     modes: proto.hasModes()
         ? _terminalFrameModesFromProtobuf(proto.modes)
         : TerminalFrameModes.empty,
@@ -1746,6 +1801,7 @@ class TerminalViewportState {
         defaultBackground:
             nextFrame.defaultBackground ?? frame.defaultBackground,
         cursorColor: nextFrame.cursorColor ?? frame.cursorColor,
+        pointerShape: nextFrame.pointerShape,
         modes: nextFrame.modes,
         windowTitle: nextFrame.windowTitle,
         windowIconName: nextFrame.windowIconName,
@@ -2035,6 +2091,7 @@ TerminalFrameDiff _normalizeSnapshotFrame(
     defaultForeground: frame.defaultForeground,
     defaultBackground: frame.defaultBackground,
     cursorColor: frame.cursorColor,
+    pointerShape: frame.pointerShape,
     modes: frame.modes,
     windowTitle: frame.windowTitle,
     windowIconName: frame.windowIconName,

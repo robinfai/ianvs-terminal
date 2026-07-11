@@ -18,6 +18,7 @@ pub mod metrics;
 pub mod multiplexing;
 pub mod notification;
 mod osc_stream;
+mod pointer_shape;
 pub mod progress;
 pub mod recording;
 pub mod replay;
@@ -763,6 +764,8 @@ pub struct Terminal {
     pub(crate) alt_grid: Grid,
     /// Whether we're using the alternate screen
     pub(crate) alt_screen_active: bool,
+    /// Kitty OSC 22 pointer-shape stacks, kept separately per screen.
+    pub(crate) pointer_shape_state: pointer_shape::PointerShapeState,
     /// Cursor position and state
     pub(crate) cursor: Cursor,
     /// Saved cursor for alternate screen
@@ -1216,6 +1219,7 @@ impl Terminal {
             grid: Grid::new(cols, rows, scrollback),
             alt_grid: Grid::new(cols, rows, 0), // Alt screen has no scrollback
             alt_screen_active: false,
+            pointer_shape_state: pointer_shape::PointerShapeState::default(),
             cursor: Cursor::new(),
             alt_cursor: Cursor::new(),
             fg: Color::Named(NamedColor::White),

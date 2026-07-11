@@ -45,6 +45,7 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
     $core.Iterable<TerminalInlineImage>? inlineImages,
     $core.Iterable<TerminalGraphicPlacement>? graphics,
     $fixnum.Int64? globalBottomRow,
+    $core.String? pointerShape,
   }) {
     final result = create();
     if (frameSchemaVersion != null)
@@ -71,6 +72,7 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
     if (inlineImages != null) result.inlineImages.addAll(inlineImages);
     if (graphics != null) result.graphics.addAll(graphics);
     if (globalBottomRow != null) result.globalBottomRow = globalBottomRow;
+    if (pointerShape != null) result.pointerShape = pointerShape;
     return result;
   }
 
@@ -128,6 +130,7 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
     ..a<$fixnum.Int64>(
         22, _omitFieldNames ? '' : 'globalBottomRow', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
+    ..aOS(23, _omitFieldNames ? '' : 'pointerShape')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -328,6 +331,15 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
   $core.bool hasGlobalBottomRow() => $_has(21);
   @$pb.TagNumber(22)
   void clearGlobalBottomRow() => $_clearField(22);
+
+  @$pb.TagNumber(23)
+  $core.String get pointerShape => $_getSZ(22);
+  @$pb.TagNumber(23)
+  set pointerShape($core.String value) => $_setString(22, value);
+  @$pb.TagNumber(23)
+  $core.bool hasPointerShape() => $_has(22);
+  @$pb.TagNumber(23)
+  void clearPointerShape() => $_clearField(23);
 }
 
 class TerminalRow extends $pb.GeneratedMessage {

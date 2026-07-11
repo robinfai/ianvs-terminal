@@ -45,6 +45,8 @@ pub struct TerminalFrameDiff {
     pub graphics: ::prost::alloc::vec::Vec<TerminalGraphicPlacement>,
     #[prost(uint64, optional, tag = "22")]
     pub global_bottom_row: ::core::option::Option<u64>,
+    #[prost(string, tag = "23")]
+    pub pointer_shape: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TerminalRow {

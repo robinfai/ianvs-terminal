@@ -797,6 +797,34 @@ void main() {
     expect(frame.rows.map((row) => row.modifiedAt), everyElement(isNull));
   });
 
+  test('terminal pointer shapes decode only canonical wire names', () {
+    for (final shape in TerminalPointerShape.values) {
+      final frame = TerminalFrameDiff.fromJson(<String, Object?>{
+        'rows': const <Object?>[],
+        'cursor': const <String, Object?>{'row': 0, 'col': 0, 'visible': false},
+        'viewport_rows': 1,
+        'viewport_cols': 1,
+        'dirty_ranges': const <Object?>[],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+        'pointer_shape': shape.wireName,
+      });
+      expect(frame.pointerShape, shape);
+    }
+
+    final invalid = TerminalFrameDiff.fromJson(const <String, Object?>{
+      'rows': <Object?>[],
+      'cursor': <String, Object?>{'row': 0, 'col': 0, 'visible': false},
+      'viewport_rows': 1,
+      'viewport_cols': 1,
+      'dirty_ranges': <Object?>[],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+      'pointer_shape': 'xterm',
+    });
+    expect(invalid.pointerShape, isNull);
+  });
+
   test('terminal style runs normalize color strings', () {
     final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
       'rows': [
@@ -1246,6 +1274,7 @@ void main() {
       defaultForeground: frame_pb.ColorRgb(present: true, rgb: 0xaaaaaa),
       defaultBackground: frame_pb.ColorRgb(present: true, rgb: 0x101010),
       cursorColor: frame_pb.ColorRgb(present: true, rgb: 0xff00aa),
+      pointerShape: 'zoom-in',
       modes: frame_pb.TerminalFrameModes(
         alternateScreen: true,
         mouseMode: ' Any_Event ',
@@ -1338,6 +1367,7 @@ void main() {
     expect(frame.defaultForeground, const Color(0xFFAAAAAA));
     expect(frame.defaultBackground, const Color(0xFF101010));
     expect(frame.cursorColor, const Color(0xFFFF00AA));
+    expect(frame.pointerShape, TerminalPointerShape.zoomIn);
     expect(frame.modes.alternateScreen, isTrue);
     expect(frame.modes.mouseMode, 'any_event');
     expect(frame.modes.mouseEncoding, 'sgr_pixels');

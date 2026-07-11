@@ -20,6 +20,8 @@ const Set<String> _requiredCoverage = <String>{
   'OSC 99 chunk assembly',
   'OSC 21 batch color control',
   'OSC 23 title no-op',
+  'OSC 22 pointer shape stack',
+  'OSC 22 screen-local state',
   'OSC 3008 hierarchy',
   'OSC 3008 malformed close recovery',
   'tmux passthrough fixture',
@@ -133,6 +135,11 @@ void _validateFixture(String id, Map<String, Object?> fixture) {
     final text = latin1.decode(stream);
     expect(RegExp(r'\x1b]').allMatches(text), hasLength(3));
     expect(text, contains('future=?'));
+  } else if (id == 'osc22_pointer_shape_stack') {
+    final text = latin1.decode(stream);
+    expect(RegExp(r'\x1b]22;').allMatches(text), hasLength(6));
+    expect(RegExp(r'\x1b\[\?1049').allMatches(text), hasLength(2));
+    expect(text, contains('__current__'));
   }
 }
 

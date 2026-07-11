@@ -23,6 +23,7 @@ use super::context::TerminalContextStack;
 use super::graphics::GraphicsPassthroughState;
 use super::notification::KittyNotificationState;
 use super::osc_stream::OscStreamGate;
+use super::pointer_shape::PointerShapeState;
 use super::{ITermMultipartState, NamedProgressBar, OscCapabilityPolicy, ProgressBar};
 
 /// Snapshot of a single Grid's state (primary or alternate screen).
@@ -94,6 +95,8 @@ pub struct TerminalSnapshot {
     pub alt_grid: GridSnapshot,
     /// Whether the alternate screen is currently active
     pub alt_screen_active: bool,
+    /// Kitty OSC 22 pointer-shape stacks for both screens.
+    pub(crate) pointer_shape_state: PointerShapeState,
 
     // --- Shell integration lifecycle ---
     /// Validated shell-integration state, including suspended nested lifecycles.
@@ -590,6 +593,7 @@ impl Terminal {
             grid,
             alt_grid,
             alt_screen_active: self.alt_screen_active,
+            pointer_shape_state: self.pointer_shape_state.clone(),
             shell_integration: self.shell_integration.clone(),
             next_zone_id: self.next_zone_id,
             shell_depth: self.shell_depth,
@@ -718,6 +722,7 @@ impl Terminal {
         self.grid.restore_from_snapshot(&snap.grid);
         self.alt_grid.restore_from_snapshot(&snap.alt_grid);
         self.alt_screen_active = snap.alt_screen_active;
+        self.pointer_shape_state = snap.pointer_shape_state;
         self.shell_integration = snap.shell_integration;
         let minimum_next_zone_id = self
             .grid
@@ -865,6 +870,7 @@ mod tests {
             grid,
             alt_grid,
             alt_screen_active: false,
+            pointer_shape_state: PointerShapeState::default(),
             shell_integration: ShellIntegration::new(),
             next_zone_id: 0,
             shell_depth: 0,

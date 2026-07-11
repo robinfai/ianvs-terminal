@@ -68,6 +68,7 @@ TerminalFrameWireFixture completeTerminalFrameWireFixture({
       'default_foreground': '#010203',
       'default_background': '#F0E0D0',
       'cursor_color': '#00FF7F',
+      'pointer_shape': 'zoom-in',
       'modes': <String, Object?>{
         'alternate_screen': true,
         'alternate_scroll': true,
@@ -175,6 +176,7 @@ TerminalFrameWireFixture completeTerminalFrameWireFixture({
       defaultForeground: _protobufColor(0x010203),
       defaultBackground: _protobufColor(0xF0E0D0),
       cursorColor: _protobufColor(0x00FF7F),
+      pointerShape: 'zoom-in',
       modes: frame_pb.TerminalFrameModes(
         alternateScreen: true,
         alternateScroll: true,
@@ -297,6 +299,7 @@ Map<String, Object?> terminalFrameProjection(TerminalFrameDiff frame) {
     'defaultForeground': frame.defaultForeground?.toARGB32(),
     'defaultBackground': frame.defaultBackground?.toARGB32(),
     'cursorColor': frame.cursorColor?.toARGB32(),
+    'pointerShape': frame.pointerShape?.wireName,
     'modes': <String, Object?>{
       'alternateScreen': frame.modes.alternateScreen,
       'alternateScroll': frame.modes.alternateScroll,

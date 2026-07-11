@@ -683,6 +683,48 @@ sleep 1
   );
 
   testWidgets(
+    'real PTY OSC 22 updates pointer shape independently of mouse reporting',
+    (tester) async {
+      final goFile = _tempSignalFile('osc22-pointer-shape');
+      final profile = _scriptProfile(
+        id: 'osc22-real-pty',
+        name: 'OSC 22 Real PTY',
+        script: r'''
+printf 'osc22-ready\n'
+while [ ! -f "$GO_FILE" ]; do sleep 0.05; done
+printf '\033[?1003h'
+printf '\033]22;zoom-in\033\\'
+printf 'OSC22-SET\n'
+sleep 1
+''',
+        env: {'GO_FILE': goFile.path},
+      );
+      final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
+
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'OSC 22 real PTY ready marker',
+        matches: (text) => text.contains('osc22-ready'),
+      );
+      _signal(goFile);
+
+      await _waitFor(
+        tester,
+        description: 'OSC 22 pointer frame and mouse-reporting independence',
+        condition: () {
+          final frame = _activeFrame(harness.container);
+          return frame?.pointerShape == terminal.TerminalPointerShape.zoomIn &&
+              frame?.modes.mouseMode == 'any_event' &&
+              frame?.rows.any((row) => row.text.contains('OSC22-SET')) == true;
+        },
+        onTimeout: () => 'Frame: ${_activeFrame(harness.container)}',
+      );
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
     'real PTY active wake baseline after four seconds child idle',
     (tester) =>
         _verifyIdleWakeBaseline(tester, state: _BaselineIdleWakeState.active),

@@ -25,6 +25,7 @@ message TerminalFrameDiff {
   repeated TerminalInlineImage inline_images = 20;
   repeated TerminalGraphicPlacement graphics = 21;
   optional uint64 global_bottom_row = 22;
+  string pointer_shape = 23;
 }
 
 enum TerminalFrameKind {

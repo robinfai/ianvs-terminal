@@ -488,6 +488,8 @@ pub struct TerminalFrameDiff {
     pub default_background: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cursor_color: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pointer_shape: Option<String>,
     #[serde(default)]
     pub modes: TerminalFrameModes,
     #[serde(default, skip_serializing_if = "Option::is_none")]

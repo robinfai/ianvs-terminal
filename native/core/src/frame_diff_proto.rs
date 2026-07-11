@@ -44,6 +44,7 @@ fn to_proto_frame(frame: &TerminalFrameDiff) -> pb::TerminalFrameDiff {
         default_foreground: color_to_proto(frame.default_foreground.as_deref()),
         default_background: color_to_proto(frame.default_background.as_deref()),
         cursor_color: color_to_proto(frame.cursor_color.as_deref()),
+        pointer_shape: frame.pointer_shape.clone().unwrap_or_default(),
         modes: Some(to_proto_modes(&frame.modes)),
         window_title: frame.window_title.clone().unwrap_or_default(),
         window_icon_name: frame.window_icon_name.clone().unwrap_or_default(),

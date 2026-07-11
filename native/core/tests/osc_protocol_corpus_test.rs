@@ -135,6 +135,13 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
                 );
                 assert_eq!(terminal.drain_responses(), b"\x1b]21;future=?\x1b\\");
             }
+            "osc22_pointer_shape_stack" => {
+                assert_eq!(terminal.pointer_shape_name(), Some("crosshair"));
+                assert_eq!(
+                    terminal.drain_responses(),
+                    b"\x1b]22;crosshair,text,default,1,0\x1b\\\x1b]22;help\x1b\\\x1b]22;crosshair\x1b\\"
+                );
+            }
             "osc3008_malformed_close_recovery" => {
                 let contexts = terminal
                     .poll_events()

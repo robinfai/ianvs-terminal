@@ -786,6 +786,7 @@ class TerminalRuntimeController {
         dirtyRanges: [TerminalDirtyRange(start: 0, end: current.viewportRows)],
         scrollbackOffset: 0,
         scrollbackMaxOffset: 0,
+        pointerShape: current.pointerShape,
         modes: current.modes,
         windowTitle: current.windowTitle,
         windowIconName: current.windowIconName,

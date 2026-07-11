@@ -3404,6 +3404,105 @@ void main() {
     expect(opened, ['https://example.com/docs']);
   });
 
+  testWidgets('terminal viewport maps all OSC 22 shapes to system cursors', (
+    tester,
+  ) async {
+    TerminalFrameDiff frame({
+      TerminalPointerShape? pointerShape,
+      String mouseMode = 'off',
+    }) {
+      return TerminalFrameDiff(
+        rows: const [TerminalRow(index: 0, text: 'pointer shape')],
+        cursor: const TerminalCursor(row: 0, col: 0, visible: true),
+        viewportRows: 2,
+        viewportCols: 80,
+        dirtyRanges: const [TerminalDirtyRange(start: 0, end: 1)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+        pointerShape: pointerShape,
+        modes: TerminalFrameModes(mouseMode: mouseMode),
+      );
+    }
+
+    const expected = <TerminalPointerShape, MouseCursor>{
+      TerminalPointerShape.alias: SystemMouseCursors.alias,
+      TerminalPointerShape.cell: SystemMouseCursors.cell,
+      TerminalPointerShape.copy: SystemMouseCursors.copy,
+      TerminalPointerShape.crosshair: SystemMouseCursors.precise,
+      TerminalPointerShape.basic: SystemMouseCursors.basic,
+      TerminalPointerShape.eastResize: SystemMouseCursors.resizeRight,
+      TerminalPointerShape.eastWestResize: SystemMouseCursors.resizeLeftRight,
+      TerminalPointerShape.grab: SystemMouseCursors.grab,
+      TerminalPointerShape.grabbing: SystemMouseCursors.grabbing,
+      TerminalPointerShape.help: SystemMouseCursors.help,
+      TerminalPointerShape.move: SystemMouseCursors.move,
+      TerminalPointerShape.northResize: SystemMouseCursors.resizeUp,
+      TerminalPointerShape.northEastResize: SystemMouseCursors.resizeUpRight,
+      TerminalPointerShape.northEastSouthWestResize:
+          SystemMouseCursors.resizeUpRightDownLeft,
+      TerminalPointerShape.noDrop: SystemMouseCursors.noDrop,
+      TerminalPointerShape.notAllowed: SystemMouseCursors.forbidden,
+      TerminalPointerShape.northSouthResize: SystemMouseCursors.resizeUpDown,
+      TerminalPointerShape.northWestResize: SystemMouseCursors.resizeUpLeft,
+      TerminalPointerShape.northWestSouthEastResize:
+          SystemMouseCursors.resizeUpLeftDownRight,
+      TerminalPointerShape.pointer: SystemMouseCursors.click,
+      TerminalPointerShape.progress: SystemMouseCursors.progress,
+      TerminalPointerShape.southResize: SystemMouseCursors.resizeDown,
+      TerminalPointerShape.southEastResize: SystemMouseCursors.resizeDownRight,
+      TerminalPointerShape.southWestResize: SystemMouseCursors.resizeDownLeft,
+      TerminalPointerShape.text: SystemMouseCursors.text,
+      TerminalPointerShape.verticalText: SystemMouseCursors.verticalText,
+      TerminalPointerShape.westResize: SystemMouseCursors.resizeLeft,
+      TerminalPointerShape.wait: SystemMouseCursors.wait,
+      TerminalPointerShape.zoomIn: SystemMouseCursors.zoomIn,
+      TerminalPointerShape.zoomOut: SystemMouseCursors.zoomOut,
+    };
+    expect(expected.keys.toSet(), TerminalPointerShape.values.toSet());
+    final controller = TerminalViewportController()..updateFrame(frame());
+    await _pumpTerminalViewportWithController(
+      tester,
+      controller: controller,
+      themeMode: ThemeMode.light,
+    );
+
+    final renderObject = _terminalRenderObject(tester);
+    final pointer = TestPointer(1, PointerDeviceKind.mouse);
+    await tester.sendEventToBinding(
+      pointer.hover(renderObject.localToGlobal(const Offset(20, 10))),
+    );
+    await tester.pump();
+    expect(
+      RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+      SystemMouseCursors.text,
+    );
+
+    for (final entry in expected.entries) {
+      controller.updateFrame(frame(pointerShape: entry.key));
+      await tester.pump();
+      expect(
+        RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+        entry.value,
+        reason: entry.key.wireName,
+      );
+    }
+
+    controller.updateFrame(frame(mouseMode: 'any_event'));
+    await tester.pump();
+    expect(
+      RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+      SystemMouseCursors.basic,
+    );
+    controller.updateFrame(
+      frame(pointerShape: TerminalPointerShape.pointer, mouseMode: 'any_event'),
+    );
+    await tester.pump();
+    expect(
+      RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+      SystemMouseCursors.click,
+    );
+  });
+
   testWidgets('terminal viewport reports OSC 8 hover targets', (tester) async {
     final hovered = <TerminalLinkTarget?>[];
     final controller = TerminalViewportController()

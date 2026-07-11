@@ -5,6 +5,7 @@ mod color;
 mod context;
 mod iterm;
 mod notify;
+mod pointer;
 mod shell;
 mod title;
 
@@ -158,14 +159,13 @@ impl Terminal {
             }
 
             match command {
-                // OSC 22 is a pointer-shape protocol and remains isolated from
-                // title handling until its dedicated state model is applied.
                 // OSC 23 has no title-stack meaning; title push/pop is CSI 22/23 t.
                 "0" | "2" => self.handle_osc_title(command, params),
                 "7" | "133" | "633" => self.handle_osc_shell(command, params),
                 "8" => self.handle_osc_hyperlink(params),
                 "9" | "99" | "777" | "934" => self.handle_osc_notify(command, params),
                 "52" => self.handle_osc_clipboard(command, params),
+                "22" => self.handle_osc_pointer_shape(params),
                 "4" | "21" | "104" | "10" | "11" | "12" | "110" | "111" | "112" => {
                     self.handle_osc_color(command, params)
                 }
