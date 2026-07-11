@@ -10,6 +10,7 @@ Branch: `codex/osc-capability-completion-20260711`
 | `66016b4` | Phases 3–7 native/vendor engine, security bounds, shared corpus and semantic probe |
 | `189dee9` | Phases 3–7 Dart/Flutter product integration, render/UI tests and verification gate |
 | `1bb2f3b` | Phase 8 Kitty OSC 99 safe notification subset and end-to-end evidence |
+| `9972758` | Phase 9 UAPI OSC 3008 bounded typed context hierarchy and end-to-end evidence |
 | documentation commit containing this file | final matrix, protocol specification and evidence record |
 
 The second pass uses two logical commits (native protocol engine and product

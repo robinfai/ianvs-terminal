@@ -8,6 +8,7 @@
 - Native/protocol implementation commit: `66016b4`.
 - Dart/Flutter product integration commit: `189dee9`.
 - Kitty OSC 99 safe-subset commit: `1bb2f3b`.
+- UAPI OSC 3008 typed-context commit: `9972758`.
 
 Phases 0–9 are implemented. Phase 9 adds bounded UAPI OSC 3008 typed context
 metadata without visual UI or host authority. No unsupported opcode or host
