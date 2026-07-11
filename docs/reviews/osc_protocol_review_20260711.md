@@ -22,6 +22,7 @@ is advertised as a product capability.
 | confirmed compatibility gap | OSC 4/104 stopped at 16 colors | fixed in `66016b4`; indices 0–255 set/query/reset and render |
 | implemented but incomplete | OSC 133 ordering, abort and nested-shell recovery | completed for the Phase 4 contract in `66016b4`/`189dee9` |
 | confirmed compatibility gap | OSC 9;9 and OSC 633 absent | adapters completed in `66016b4`/`189dee9` |
+| confirmed macOS launch defect | standalone cold launch called an absent `NSApplicationDelegate` superclass selector | fixed in `8a89afd`; native regression and isolated CI ordering added in `d2758a5` |
 | documented private extension | OSC 934 identity/version/query were implicit | governed as `ianvs-osc934/1`; bounded query and canonical source implemented |
 | deferred by product decision | Kitty OSC 99, OSC 3008, unsafe iTerm2 actions, Kitty OSC 66/72 | still deferred; bounded no-op/no product authorization |
 | hypothesis requiring manual evidence | reference-terminal semantic consumption/echo/reply | not proven: Computer Use denies terminal-emulator UI control; see `osc_cross_terminal_probe_20260711.md` |
@@ -48,8 +49,10 @@ history, file-transfer bytes, title stack, recordings and debug output.
 Strict Rust gates, corpus validation, Dart/Flutter analysis, docs, benchmark and
 all test suites are green. The final repository-wide verifier passed on the
 committed tree with complete example Widget tests enabled; macOS smoke is 4/4
-and real PTY acceptance is 16/16. The final Ianvs GUI Computer Use gate remains
-the last product acceptance step.
+and real PTY acceptance is 16/16. A standalone rebuild and native RunnerTests
+10/10 protect the macOS cold-launch path. The final Ianvs GUI Computer Use gate
+passed on a clean cold launch, including command-menu filtering, Profiles,
+second-tab creation, real shell input/output and `SHELL ACTIVE` semantics.
 
 The reference-terminal comparison is deliberately not marked passed. Computer
 Use rejected both iTerm2 3.6.11 and Ghostty 1.2.3 as protected terminal apps.

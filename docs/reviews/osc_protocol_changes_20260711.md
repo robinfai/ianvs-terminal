@@ -164,7 +164,7 @@ Before the final repository gate, focused evidence is green:
 - native fmt/Clippy; lib 71/71, corpus 1/1, session 447/447, vttest 3/3;
 - corpus validator 15/15 and semantic probe self-test 10/10;
 - Dart/Flutter analysis and protocol/runtime/controller/widget focused suites;
-- macOS smoke 4/4 and real PTY 16/16.
+- macOS smoke 4/4, real PTY 16/16 and native RunnerTests 10/10.
 
 Final committed-tree command:
 
@@ -177,8 +177,20 @@ Result: passed with exit code 0. This includes vendored/core format, strict
 Clippy and tests; PTY/Dart/Flutter analysis and tests; docs contract; CI smoke
 benchmark; 910 example grouped tests; complete example Widget tests 125/125;
 macOS smoke 4/4; and macOS real PTY acceptance 16/16. The optional nightly
-resource benchmark was not enabled because it is not a release gate.
+resource benchmark was not enabled because it is not a release gate. The
+verifier also rebuilds the standalone macOS app after Flutter integration tests
+and runs native RunnerTests 10/10.
 
-The final Ianvs GUI Computer Use result is recorded only after that last gate
-executes. Reference-terminal evidence remains separately unproven for the
-safety-policy reason documented in `osc_cross_terminal_probe_20260711.md`.
+Computer Use exposed one additional cold-launch defect after the first green
+automation pass: `AppDelegate.applicationDidFinishLaunching` called an absent
+superclass selector and the standalone app rendered a black window. The
+superclass call was removed in `8a89afd`; `d2758a5` adds the native regression
+gate and isolates its test host from Flutter integration targets. The final
+repository verifier passed again after both fixes.
+
+The final Ianvs GUI Computer Use gate passed on a clean standalone cold launch:
+the shell rendered, command-menu filtering worked, Profiles opened and closed,
+a second tab opened, and a real `printf` command produced `SHELL ACTIVE` in both
+the terminal and accessibility semantics. Reference-terminal evidence remains
+separately unproven for the safety-policy reason documented in
+`osc_cross_terminal_probe_20260711.md`.
