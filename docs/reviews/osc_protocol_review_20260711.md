@@ -10,17 +10,20 @@
 - Kitty OSC 99 safe-subset commit: `1bb2f3b`.
 - UAPI OSC 3008 typed-context commit: `9972758`.
 - Kitty OSC 21 color-control commit: `f7d48bb`.
+- Kitty OSC 22 pointer-shape commit: `fbf9a37`.
 
-Phases 0–10 are implemented. Phase 10 adds bounded Kitty OSC 21 color control
-and removes the invalid OSC 23 title-stack behavior. No unsupported opcode or
-host action is advertised as a product capability.
+Phases 0–11 are implemented. Phase 11 adds full canonical Kitty OSC 22 pointer
+shapes, bounded screen-local stacks, queries and actual Flutter system-cursor
+integration. No unsupported opcode or host action is advertised as a product
+capability.
 
 ## Final classification
 
 | Classification | Finding | Resolution |
 |---|---|---|
-| confirmed defect | OSC 21/22 mutated title-stack state | side effect fixed in `6303515`; OSC 22 remains a bounded safe no-op |
+| confirmed defect | OSC 21/22 mutated title-stack state | side effect fixed in `6303515`; neither opcode owns title state |
 | confirmed compatibility gap | Kitty OSC 21 color control was absent | bounded ordered palette/core-color set/query/reset implemented in `f7d48bb`; non-rendered special slots remain explicit state only |
+| confirmed compatibility gap | Kitty OSC 22 pointer shapes were absent | all 30 canonical shapes, bounded stacks, queries, frame transport and product cursor mapping implemented in `fbf9a37` |
 | confirmed defect | OSC 23 popped the CSI title stack | removed in `f7d48bb`; OSC 23 is a bounded no-op and CSI 22/23 t remains authoritative |
 | confirmed compatibility gap | OSC 8 lost `id=` identity | fixed end to end in `6303515` with additive JSON/protobuf fields |
 | confirmed defect | OSC 110/111/112 restored hard-coded colors | fixed in `6303515`; reset restores immutable profile/session baselines |
@@ -54,12 +57,18 @@ history, file-transfer bytes, title stack, recordings and debug output.
 ## Evidence status
 
 Strict Rust gates, corpus validation, Dart/Flutter analysis, docs, benchmark and
-all test suites are green. The Phase 10 repository-wide verifier passed with
-complete example Widget tests enabled; macOS smoke is 4/4 and real PTY
-acceptance is 19/19. A standalone rebuild and native RunnerTests 10/10 protect
-the macOS cold-launch path. The Phase 10 Ianvs GUI Computer Use gate passed on
-a clean cold launch, including the command menu, Profiles, second-tab creation,
-real shell `echo GATEOK` input/output and `SHELL ACTIVE` semantics.
+all test suites are green. The Phase 11 repository-wide verifier passed with
+complete example Widget tests enabled: corpus 19 cases/22 edge classes, probes
+15, vendored 1,606 passed/1 ignored, native session 455/455, example grouped
+914/914, Widget 125/125, macOS smoke 4/4 and real PTY 20/20. A standalone
+rebuild and native RunnerTests 10/10 protect the macOS cold-launch path.
+
+The Phase 11 Ianvs GUI Computer Use gate passed on a clean cold launch. Real
+PTY OSC 22 `wait` set and empty reset sequences were consumed with visible
+markers and an interactive prompt; the command menu, Profiles, second-tab
+creation/input and `SHELL ACTIVE` semantics also passed. Automated frame and
+mouse-tracker tests provide the authoritative system-cursor selection evidence
+because Computer Use screenshots omit the host cursor bitmap.
 
 The reference-terminal comparison is deliberately not marked passed. Computer
 Use rejected both iTerm2 3.6.11 and Ghostty 1.2.3 as protected terminal apps.

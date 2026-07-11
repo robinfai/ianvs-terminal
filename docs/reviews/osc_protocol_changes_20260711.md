@@ -12,6 +12,7 @@ Branch: `codex/osc-capability-completion-20260711`
 | `1bb2f3b` | Phase 8 Kitty OSC 99 safe notification subset and end-to-end evidence |
 | `9972758` | Phase 9 UAPI OSC 3008 bounded typed context hierarchy and end-to-end evidence |
 | `f7d48bb` | Phase 10 Kitty OSC 21 bounded color control and OSC 23 title-side-effect removal |
+| `fbf9a37` | Phase 11 Kitty OSC 22 pointer-shape stacks, frame transport and system-cursor integration |
 | documentation commit containing this file | final matrix, protocol specification and evidence record |
 
 The second pass uses two logical commits (native protocol engine and product
@@ -218,26 +219,54 @@ independently identified below with a scoped rollback path.
   smoke 4/4, real PTY 19/19 and RunnerTests 10/10.
 - **Rollback:** revert `f7d48bb`; OSC 21 returns to bounded unsupported behavior.
 
+## Phase 11 report — Kitty OSC 22 pointer shapes
+
+- **Start SHA:** `b2527e5f331ac3c60204e11cfcb59caa88e1b1c6`.
+- **End SHA:** `fbf9a37f2010035fb0e2a2c59e45f5cff6ac47d7`.
+- **Modified files:** pointer parser/state/snapshot and OSC dispatch; native
+  frame model/protobuf/session bridge; Dart frame model and viewport; mirrored
+  corpus, semantic probe, real-PTY, widget and protocol evidence.
+- **Confirmed issue:** published Kitty OSC 22 was discarded, so applications
+  could neither control nor query the terminal-surface pointer shape.
+- **Fixes:** all 30 canonical shapes plus practical Kitty aliases; direct
+  set/reset; bounded push/pop; current/default/grabbed/support queries;
+  independent primary/alternate stacks; snapshot/RIS behavior; additive
+  JSON/protobuf transport and exhaustive Flutter system-cursor mapping.
+- **Unfixed by design:** link hover may temporarily override the requested
+  shape; OSC 22 cannot move the host pointer, capture input or authorize a host
+  action. Kitty reference-terminal comparison remains pending.
+- **Security:** appearance-only gate, VT220 denial, 4 KiB ingress/reply bounds,
+  64-byte ASCII names, 32-entry screen-local stacks and payload-free rejection.
+- **Tests/results:** corpus 19 cases/22 edge classes, probes 15; vendored 1,606
+  passed/1 ignored; native lib 73/73, corpus 1/1, session 455/455, vttest 3/3;
+  terminal package 442 passed/1 skipped, example grouped 914/914, Widget
+  125/125, macOS smoke 4/4, real PTY 20/20 and RunnerTests 10/10.
+- **Computer Use:** standalone Debug app cold launch passed; real-PTY `wait`
+  set and empty reset markers rendered, command menu and Profiles opened, a
+  second shell tab accepted input, and accessibility returned `SHELL ACTIVE`.
+- **Rollback:** revert `fbf9a37`; OSC 22 returns to bounded unsupported behavior.
+
 ## Deferred phases
 
 Phase 8 Kitty OSC 99 is implemented as the safe subset recorded in
 `osc99_phase8_20260711.md`. Phase 9 OSC 3008 is implemented as typed metadata in
-`osc3008_phase9_20260711.md`. Phase 10 OSC 21 is implemented as the bounded
-subset recorded in `osc21_phase10_20260712.md`. Kitty OSC 22/66/72, unsafe
-iTerm2 upload/download/actions, arbitrary URL/profile/command actions,
+`osc3008_phase9_20260711.md`. Phase 10 OSC 21 and Phase 11 OSC 22 are implemented
+as recorded in `osc21_phase10_20260712.md` and `osc22_phase11_20260712.md`.
+Kitty OSC 66/72, unsafe iTerm2 upload/download/actions, arbitrary
+URL/profile/command actions,
 notification buttons/sounds/icons and shell-provided execution are deferred.
 Unknown/deferred sequences remain bounded and cannot gain host authority.
 
 ## Final verification record
 
-The Phase 10 repository gate is green:
+The Phase 11 repository gate is green:
 
-- vendored fmt, strict Clippy and tests: 1,598 passed, 1 ignored; doc tests 11
+- vendored fmt, strict Clippy and tests: 1,606 passed, 1 ignored; doc tests 11
   passed, 1 ignored;
-- native fmt/Clippy; lib 73/73, corpus 1/1, session 453/453, vttest 3/3;
-- corpus validator 18 cases (20 edge classes) and semantic probe self-test 14/14;
+- native fmt/Clippy; lib 73/73, corpus 1/1, session 455/455, vttest 3/3;
+- corpus validator 19 cases (22 edge classes) and semantic probe self-test 15/15;
 - Dart/Flutter analysis and protocol/runtime/controller/widget focused suites;
-- macOS smoke 4/4, real PTY 19/19 and native RunnerTests 10/10.
+- macOS smoke 4/4, real PTY 20/20 and native RunnerTests 10/10.
 
 Final committed-tree command:
 
@@ -248,8 +277,8 @@ VERIFY_FLUTTER_TERMINAL_RUN_EXAMPLE_WIDGET_TESTS=1 \
 
 Result: passed with exit code 0. This includes vendored/core format, strict
 Clippy and tests; PTY/Dart/Flutter analysis and tests; docs contract; CI smoke
-benchmark; 913 example grouped tests; complete example Widget tests 125/125;
-macOS smoke 4/4; and macOS real PTY acceptance 19/19. The optional nightly
+benchmark; 914 example grouped tests; complete example Widget tests 125/125;
+macOS smoke 4/4; and macOS real PTY acceptance 20/20. The optional nightly
 resource benchmark was not enabled because it is not a release gate. The
 verifier also rebuilds the standalone macOS app after Flutter integration tests
 and runs native RunnerTests 10/10.
@@ -261,9 +290,9 @@ superclass call was removed in `8a89afd`; `d2758a5` adds the native regression
 gate and isolates its test host from Flutter integration targets. The final
 repository verifier passed again after both fixes.
 
-The final Ianvs GUI Computer Use gate passed on a clean standalone cold launch:
-the shell rendered, the command menu and Profiles opened, a second tab opened,
-and a real `echo GATEOK` command displayed `GATEOK` and produced `SHELL ACTIVE`
-accessibility semantics. Reference-terminal evidence remains separately
-unproven for the safety-policy reason documented in
-`osc_cross_terminal_probe_20260711.md`.
+The final Phase 11 Ianvs GUI Computer Use gate passed on a clean standalone cold
+launch: the shell rendered, OSC 22 `wait` set and empty reset probes produced
+their markers without control debris, the command menu and Profiles opened, a
+second tab accepted real shell input, and accessibility produced `SHELL ACTIVE`
+semantics. Reference-terminal evidence remains separately unproven for the
+safety-policy reason documented in `osc_cross_terminal_probe_20260711.md`.
