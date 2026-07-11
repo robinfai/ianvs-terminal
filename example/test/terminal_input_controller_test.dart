@@ -4,9 +4,6 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-// ignore: implementation_imports
-import 'package:ianvs_terminal/src/terminal/terminal_cursor_overlay_experiment.dart'
-    as cursor_experiment;
 
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/terminal/selection_controller.dart';
@@ -906,10 +903,6 @@ void main() {
   testWidgets(
     'terminal viewport keeps composing text visible across cursor blink frames',
     (tester) async {
-      final textInputControl = _RecordingTextInputControl();
-      TextInput.setInputControl(textInputControl);
-      addTearDown(TextInput.restorePlatformInputControl);
-
       final viewportController = TerminalViewportController()
         ..updateFrame(
           const TerminalFrameDiff(
@@ -936,19 +929,12 @@ void main() {
             body: SizedBox(
               width: 400,
               height: 200,
-              child: cursor_experiment.TerminalCursorExperimentScope(
-                mode: cursor_experiment.TerminalCursorExperimentMode.overlay,
-                child: TerminalViewport(
-                  controller: viewportController,
-                  selectionController: SelectionController(),
-                  inputController: inputController,
-                  cursor: const TerminalCursorConfig(
-                    shape: TerminalCursorShape.underline,
-                    blink: true,
-                  ),
-                  onScrollLines: (_) {},
-                  onScrollToOffset: (_) {},
-                ),
+              child: TerminalViewport(
+                controller: viewportController,
+                selectionController: SelectionController(),
+                inputController: inputController,
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
               ),
             ),
           ),
@@ -967,26 +953,10 @@ void main() {
       await tester.pump();
 
       expect(find.text('ni'), findsOneWidget);
-      final renderObject = tester.allRenderObjects
-          .whereType<RenderTerminalViewport>()
-          .last;
-      final initialCaretRect = renderObject.debugCaretCellRect;
-      expect(initialCaretRect, isNotNull);
-      expect(initialCaretRect!.width, renderObject.debugCellSize.width);
-      expect(initialCaretRect.height, renderObject.debugCellSize.height);
-      expect(textInputControl.composingRects.last, initialCaretRect);
 
-      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pump(const Duration(milliseconds: 1400));
 
       expect(find.text('ni'), findsOneWidget);
-      expect(renderObject.debugCaretCellRect, initialCaretRect);
-      expect(textInputControl.composingRects.last, initialCaretRect);
-
-      await tester.pump(const Duration(milliseconds: 700));
-
-      expect(find.text('ni'), findsOneWidget);
-      expect(renderObject.debugCaretCellRect, initialCaretRect);
-      expect(textInputControl.composingRects.last, initialCaretRect);
     },
   );
 

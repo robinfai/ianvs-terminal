@@ -5,12 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
-// ignore: implementation_imports
-import 'package:ianvs_terminal/src/terminal/terminal_cursor_overlay_experiment.dart'
-    as cursor_experiment;
 import 'package:integration_test/integration_test.dart';
 
-import 'package:app/benchmarks/terminal_cursor_overlay_gate.dart';
 import 'package:app/benchmarks/terminal_render_profile_report.dart';
 
 import '../test/support/fake_pty_backend.dart';
@@ -50,11 +46,6 @@ const int _viewportCols = int.fromEnvironment(
   'IANVS_BENCH_PROFILE_COLS',
   defaultValue: 120,
 );
-const bool _correctnessSuitesPassed = bool.fromEnvironment(
-  'IANVS_BENCH_CORRECTNESS_SUITES_PASSED',
-  defaultValue: false,
-);
-
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -91,13 +82,6 @@ void main() {
     }
 
     writeTerminalRenderProfileAggregateSummary(outputRoot, summaries);
-    if (workloads.any((workload) => workload.cursorExperimentMode != null)) {
-      writeTerminalCursorOverlayGate(
-        outputDir: outputRoot,
-        summaries: summaries,
-        correctnessSuitesPassed: _correctnessSuitesPassed,
-      );
-    }
   });
 }
 
@@ -155,29 +139,20 @@ Future<Map<String, Object?>> _runProfileCase({
             child: StatefulBuilder(
               builder: (context, setState) {
                 setHarnessState = setState;
-                Widget terminalViewport = terminal.TerminalViewport(
-                  controller: viewportController,
-                  selectionController: selectionController,
-                  inputController: inputController,
-                  focusNode: focusNode,
-                  onScrollLines: (_) {},
-                  onScrollToOffset: (_) {},
-                  backgroundColor: const Color(0xFF05070A),
-                  foregroundColor: const Color(0xFFE5E7EB),
-                  benchmarkEventSink: flutterRenderEvents.add,
-                );
-                final cursorExperimentMode = workload.cursorExperimentMode;
-                if (cursorExperimentMode != null) {
-                  terminalViewport =
-                      cursor_experiment.TerminalCursorExperimentScope(
-                        mode: cursorExperimentMode,
-                        child: terminalViewport,
-                      );
-                }
                 return SizedBox(
                   width: viewportSize.width,
                   height: viewportSize.height,
-                  child: terminalViewport,
+                  child: terminal.TerminalViewport(
+                    controller: viewportController,
+                    selectionController: selectionController,
+                    inputController: inputController,
+                    focusNode: focusNode,
+                    onScrollLines: (_) {},
+                    onScrollToOffset: (_) {},
+                    backgroundColor: const Color(0xFF05070A),
+                    foregroundColor: const Color(0xFFE5E7EB),
+                    benchmarkEventSink: flutterRenderEvents.add,
+                  ),
                 );
               },
             ),
@@ -232,6 +207,7 @@ Future<Map<String, Object?>> _runProfileCase({
     final sampledFlutterRenderEvents = idleCursorFrame == null
         ? flutterRenderEvents
         : List<Map<String, Object?>>.of(flutterRenderEvents);
+    final sampledFrameTimings = List<FrameTiming>.of(frameTimings);
     await tester.runAsync(() async {
       await Future<void>.delayed(const Duration(milliseconds: 500));
     });
@@ -241,13 +217,14 @@ Future<Map<String, Object?>> _runProfileCase({
     final actualHash = terminal.terminalBenchmarkViewportHash(
       viewportController.frame,
     );
-    final timingEvents = frameTimings
+    final timingEvents = sampledFrameTimings
         .map(terminal.terminalBenchmarkFrameTimingEvent)
         .toList(growable: false);
 
     expect(sampledFlutterRenderEvents, isNotEmpty);
     if (idleCursorFrame != null) {
       expect(sampledFlutterRenderEvents, hasLength(_frameCount));
+      expect(timingEvents, hasLength(_frameCount));
     }
     expect(
       timingEvents,
@@ -521,18 +498,6 @@ class _ProfileWorkload {
         baseRows: _viewportRows,
         baseCols: _viewportCols,
       ),
-      'cursor_blink_idle_surface_profile' => const _ProfileWorkload(
-        name: 'cursor_blink_idle_surface_profile',
-        kind: _ProfileWorkloadKind.cursorBlinkIdle,
-        baseRows: _viewportRows,
-        baseCols: _viewportCols,
-      ),
-      'cursor_blink_idle_overlay_profile' => const _ProfileWorkload(
-        name: 'cursor_blink_idle_overlay_profile',
-        kind: _ProfileWorkloadKind.cursorBlinkIdle,
-        baseRows: _viewportRows,
-        baseCols: _viewportCols,
-      ),
       _ => throw ArgumentError.value(name, 'name', 'Unknown profile workload'),
     };
   }
@@ -541,16 +506,6 @@ class _ProfileWorkload {
   final _ProfileWorkloadKind kind;
   final int baseRows;
   final int baseCols;
-
-  cursor_experiment.TerminalCursorExperimentMode? get cursorExperimentMode {
-    return switch (name) {
-      'cursor_blink_idle_surface_profile' =>
-        cursor_experiment.TerminalCursorExperimentMode.surface,
-      'cursor_blink_idle_overlay_profile' =>
-        cursor_experiment.TerminalCursorExperimentMode.overlay,
-      _ => null,
-    };
-  }
 
   int rowsForFrame(int frameIndex) {
     if (kind != _ProfileWorkloadKind.resize) {
