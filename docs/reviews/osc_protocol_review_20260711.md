@@ -1,36 +1,55 @@
-# OSC protocol review — 2026-07-11
+# OSC protocol completion review — 2026-07-11
 
 ## Outcome
 
-Starting SHA: `7635bac099dd6121af1405562ff42db933379b1c`.
+- Handoff review baseline: `7635bac099dd6121af1405562ff42db933379b1c`.
+- Capability-completion branch baseline: `63035153d41703f78487a994feb8014cd52e6a76`.
+- Branch: `codex/osc-capability-completion-20260711`.
+- Native/protocol implementation commit: `66016b4`.
+- Dart/Flutter product integration commit: `189dee9`.
 
-Confirmed defects fixed in this pass:
+Phases 0–7 are implemented. Phase 8 (Kitty OSC 99) and Phase 9 (OSC
+3008) remain deferred exactly as allowed by the handoff. No unsupported opcode
+is advertised as a product capability.
 
-1. OSC 21/22 no longer have title-stack side effects. Unknown Kitty payloads
-   are safely ignored until their semantics are implemented.
-2. OSC 8 `id=` is preserved from parser state through native JSON/protobuf and
-   Dart models. Equal URIs with different IDs retain different identities.
-3. OSC 104 and OSC 110/111/112 restore the configured session/profile baseline
-   instead of built-in colors.
-4. The strict vendored Rust `clippy --all-targets -- -D warnings` gate is clean.
+## Final classification
 
-## Classification
+| Classification | Finding | Resolution |
+|---|---|---|
+| confirmed defect | OSC 21/22 mutated title-stack state | fixed in `6303515`; both are bounded safe no-ops with no host action |
+| confirmed compatibility gap | OSC 8 lost `id=` identity | fixed end to end in `6303515` with additive JSON/protobuf fields |
+| confirmed defect | OSC 110/111/112 restored hard-coded colors | fixed in `6303515`; reset restores immutable profile/session baselines |
+| confirmed compatibility gap | OSC 4/104 stopped at 16 colors | fixed in `66016b4`; indices 0–255 set/query/reset and render |
+| implemented but incomplete | OSC 133 ordering, abort and nested-shell recovery | completed for the Phase 4 contract in `66016b4`/`189dee9` |
+| confirmed compatibility gap | OSC 9;9 and OSC 633 absent | adapters completed in `66016b4`/`189dee9` |
+| documented private extension | OSC 934 identity/version/query were implicit | governed as `ianvs-osc934/1`; bounded query and canonical source implemented |
+| deferred by product decision | Kitty OSC 99, OSC 3008, unsafe iTerm2 actions, Kitty OSC 66/72 | still deferred; bounded no-op/no product authorization |
+| hypothesis requiring manual evidence | reference-terminal semantic consumption/echo/reply | not proven: Computer Use denies terminal-emulator UI control; see `osc_cross_terminal_probe_20260711.md` |
 
-- confirmed defect: OSC 21/22 title mutation; dynamic reset to hard-coded colors
-- confirmed compatibility gap: OSC 8 ID loss — fixed
-- implemented but incomplete: OSC 4/104 still exposes the 16 configurable ANSI
-  entries; 16–255 requires a wider palette model and renderer/wire review
-- documented private extension: OSC 934
-- deferred by product decision: Kitty OSC 22 pointer host integration, Kitty
-  OSC 99, OSC 3008, unsafe iTerm2 file/action protocols
-- hypothesis requiring benchmark/manual evidence: cross-terminal query terminator
-  parity and 256-entry palette damage cost
+## Architecture and security result
 
-## Compatibility and security
+The production path is now tested across parser, native session, JSON/protobuf,
+Dart runtime, session controller, widget/render and real PTY layers. Streaming
+OSC admission applies protocol-specific capability and size limits before
+unbounded allocation. tmux and screen wrapping is decoded incrementally.
 
-The protobuf change appends field 5 to `TerminalHyperlinkRange`; existing tags
-are unchanged. JSON omits `protocol_id` when absent. OSC 8 IDs reject control
-characters and values above 1024 bytes. No new host action is authorized.
+Host actions remain explicit requests. Clipboard read/write, notification,
+media and file-transfer policies are independent; VT220 disables modern OSC.
+Remote cwd is metadata only. Rejection and overflow diagnostics contain counts,
+reason codes and sizes, never OSC bodies, progress labels, recording output,
+nonce values or terminal contents.
 
-Rollback is a normal revert of this review's changes. Old JSON/protobuf readers
-ignore the additive field; no migration is required.
+Additional resource bounds cover synchronized updates, non-sixel DCS, response
+buffers, native/vendor event queues, tmux lines and notifications, trigger
+history, file-transfer bytes, title stack, recordings and debug output.
+
+## Evidence status
+
+Strict Rust gates, corpus validation, Dart/Flutter analysis and focused suites
+are green. macOS smoke is 4/4 and real PTY acceptance is 16/16. The final
+repository-wide verifier and final Ianvs GUI Computer Use gate are recorded in
+`osc_protocol_changes_20260711.md` after execution.
+
+The reference-terminal comparison is deliberately not marked passed. Computer
+Use rejected both iTerm2 3.6.11 and Ghostty 1.2.3 as protected terminal apps.
+No alternate UI automation was used to bypass that safety boundary.
