@@ -1379,6 +1379,36 @@ fn osc934_query_profile() -> TerminalProfile {
     )
 }
 
+fn osc99_notification_lifecycle_profile() -> TerminalProfile {
+    local_profile(
+        "osc99-notification-lifecycle",
+        "OSC 99 Notification Lifecycle",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import os; os.write(1,b"\x1b]99;i=build:d=0:e=1:f=YnVpbGRjdGw=:t=ZGVwbG95;VGl0bGU=\x1b\\\x1b]99;i=build:p=body:e=1:w=250;Qm9keQ==\x1b\\\x1b]99;i=build;Updated\x1b\\\x1b]99;i=build:p=close;\x1b\\")'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn osc99_query_profile() -> TerminalProfile {
+    local_profile(
+        "osc99-query",
+        "OSC 99 Query",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import os,select,sys,termios,time,tty; old=termios.tcgetattr(0); tty.setraw(0); time.sleep(0.2); os.write(1,b"\x1b]99;i=probe:p=?;\x1b\\"); sys.stdout.flush(); ready,_,_=select.select([0],[],[],2.0); data=os.read(0,512) if ready else b"TIMEOUT"; termios.tcsetattr(0, termios.TCSANOW, old); os.write(1,b"OSC99-RESPONSE:"+repr(data).encode()+b"\n")'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
 fn osc12_cursor_color_profile() -> TerminalProfile {
     local_profile(
         "osc12-cursor-color",
@@ -16946,6 +16976,23 @@ fn session_osc934_query_reports_static_versioned_capability() {
 }
 
 #[test]
+fn session_osc99_query_reports_safe_notification_capability() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&osc99_query_profile()).unwrap()).unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "OSC99-RESPONSE");
+    let visible = logical_rows_from_frame(&frame).join("\n");
+    assert!(
+        visible.contains(
+            r"OSC99-RESPONSE:b'\x1b]99;i=probe:p=?;o=always:p=title,body,close:w=1\x1b\\'"
+        ),
+        "expected OSC 99 query to report only the safe subset: {visible}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn session_frame_diff_exposes_osc12_cursor_color() {
     let session_id =
         session::create_session(&serde_json::to_string(&osc12_cursor_color_profile()).unwrap())
@@ -17580,6 +17627,59 @@ fn session_emits_osc9_osc777_osc934_notification_progress_and_badge_events() {
         .find(|event| event["kind"] == "session_badge")
         .expect("expected badge event");
     assert_eq!(badge["payload"]["text"].as_str(), Some("Build"));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_emits_typed_osc99_show_update_and_close_events() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc99_notification_lifecycle_profile()).unwrap(),
+    )
+    .unwrap();
+
+    let events = collect_events_until(session_id, |events| {
+        events
+            .iter()
+            .filter(|event| {
+                event["kind"] == "session_notification"
+                    && event["payload"]["source"].as_str() == Some("osc99")
+            })
+            .count()
+            >= 3
+    });
+    let notifications = events
+        .iter()
+        .filter(|event| {
+            event["kind"] == "session_notification"
+                && event["payload"]["source"].as_str() == Some("osc99")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(notifications.len(), 3);
+
+    let show = notifications
+        .iter()
+        .find(|event| event["payload"]["action"].as_str() == Some("show"))
+        .expect("expected OSC 99 show event");
+    assert_eq!(show["payload"]["id"].as_str(), Some("build"));
+    assert_eq!(show["payload"]["title"].as_str(), Some("Title"));
+    assert_eq!(show["payload"]["message"].as_str(), Some("Body"));
+    assert_eq!(show["payload"]["application"].as_str(), Some("buildctl"));
+    assert_eq!(show["payload"]["types"][0].as_str(), Some("deploy"));
+    assert_eq!(show["payload"]["expiresAfterMs"].as_u64(), Some(250));
+
+    let update = notifications
+        .iter()
+        .find(|event| event["payload"]["action"].as_str() == Some("update"))
+        .expect("expected OSC 99 update event");
+    assert_eq!(update["payload"]["title"].as_str(), Some("Updated"));
+
+    let close = notifications
+        .iter()
+        .find(|event| event["payload"]["action"].as_str() == Some("close"))
+        .expect("expected OSC 99 close event");
+    assert_eq!(close["payload"]["id"].as_str(), Some("build"));
+    assert_eq!(close["payload"]["title"].as_str(), Some(""));
 
     session::close_session(session_id).unwrap();
 }

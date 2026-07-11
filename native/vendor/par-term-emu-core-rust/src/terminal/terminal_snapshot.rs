@@ -19,6 +19,7 @@ use crate::terminal::{
 use crate::zone::Zone;
 
 use super::graphics::GraphicsPassthroughState;
+use super::notification::KittyNotificationState;
 use super::osc_stream::OscStreamGate;
 use super::{ITermMultipartState, NamedProgressBar, OscCapabilityPolicy, ProgressBar};
 
@@ -115,6 +116,8 @@ pub struct TerminalSnapshot {
     pub(crate) progress_bar: ProgressBar,
     /// Named OSC 934 progress state.
     pub(crate) named_progress_bars: HashMap<String, NamedProgressBar>,
+    /// Bounded OSC 99 chunk assembly and active identifier state.
+    pub(crate) kitty_notification_state: KittyNotificationState,
     /// Bounded ingress parser state retained across split OSC chunks.
     pub(crate) osc_stream_gate: OscStreamGate,
     /// Incremental tmux/screen passthrough decoder state.
@@ -323,6 +326,10 @@ impl std::fmt::Debug for TerminalSnapshot {
             .field("progress_percent", &self.progress_bar.progress)
             .field("named_progress_count", &self.named_progress_bars.len())
             .field(
+                "kitty_notification_retained_bytes",
+                &self.kitty_notification_state.retained_bytes(),
+            )
+            .field(
                 "osc_ingress_retained_bytes",
                 &self.osc_stream_gate.retained_bytes(),
             )
@@ -441,6 +448,7 @@ impl TerminalSnapshot {
             .values()
             .map(|progress| progress.id.len() + progress.label.as_ref().map_or(0, String::len))
             .sum::<usize>();
+        let kitty_notification_size = self.kitty_notification_state.retained_bytes();
         let session_variable_size = self
             .session_variables
             .custom
@@ -488,6 +496,7 @@ impl TerminalSnapshot {
             + sync_update_size
             + hyperlink_size
             + named_progress_size
+            + kitty_notification_size
             + session_variable_size
             + badge_identity_size
             + osc_ingress_size
@@ -575,6 +584,7 @@ impl Terminal {
             next_hyperlink_id: self.next_hyperlink_id,
             progress_bar: self.progress_bar,
             named_progress_bars: self.named_progress_bars.clone(),
+            kitty_notification_state: self.kitty_notification_state.clone(),
             osc_stream_gate: self.osc_stream_gate.clone(),
             graphics_passthrough_state: self.graphics_passthrough_state,
             badge_format: self.badge_format.clone(),
@@ -715,6 +725,7 @@ impl Terminal {
         self.next_hyperlink_id = snap.next_hyperlink_id.max(minimum_next_hyperlink_id);
         self.progress_bar = snap.progress_bar;
         self.named_progress_bars = snap.named_progress_bars;
+        self.kitty_notification_state = snap.kitty_notification_state;
         self.osc_stream_gate = snap.osc_stream_gate;
         self.graphics_passthrough_state = snap.graphics_passthrough_state;
         self.badge_format = snap.badge_format;
@@ -844,6 +855,7 @@ mod tests {
             next_hyperlink_id: 0,
             progress_bar: ProgressBar::default(),
             named_progress_bars: HashMap::new(),
+            kitty_notification_state: KittyNotificationState::default(),
             osc_stream_gate: OscStreamGate::default(),
             graphics_passthrough_state: GraphicsPassthroughState::default(),
             badge_format: None,

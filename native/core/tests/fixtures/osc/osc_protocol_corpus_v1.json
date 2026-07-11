@@ -216,6 +216,24 @@
       }
     },
     {
+      "id": "osc99_chunked_base64",
+      "coverage": ["OSC 99 chunk assembly"],
+      "protocol": "Kitty OSC 99",
+      "wire": {
+        "chunks_hex": [
+          "1b5d39393b693d636f727075733a643d303a653d313b56476c306247553d1b5c",
+          "1b5d39393b693d636f727075733a703d626f64793a653d313b516d396b65513d3d1b5c"
+        ]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "notification_show",
+        "state_effect": "Base64 title/body chunks assemble under id=corpus",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
       "id": "tmux_passthrough",
       "coverage": ["tmux passthrough fixture"],
       "protocol": "tmux DCS passthrough carrying OSC 8",

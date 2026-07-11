@@ -159,6 +159,7 @@ class MainFlutterWindow: NSWindow {
   private var windowBridgeChannel: FlutterMethodChannel?
   private var hotkeyWindowController: HotkeyWindowController?
   private var trafficLightCenteringWorkItem: DispatchWorkItem?
+  private var notificationExpiryWorkItems: [String: DispatchWorkItem] = [:]
   private var nativeWindowDragState: NativeWindowDragState?
 
   static func shouldStartNativeWindowDrag(
@@ -357,6 +358,8 @@ class MainFlutterWindow: NSWindow {
         result(nil)
       case "showNotification":
         self.showNotification(arguments: call.arguments, result: result)
+      case "closeNotification":
+        self.closeNotification(arguments: call.arguments, result: result)
       default:
         result(FlutterMethodNotImplemented)
       }
@@ -368,6 +371,10 @@ class MainFlutterWindow: NSWindow {
 
   deinit {
     trafficLightCenteringWorkItem?.cancel()
+    for workItem in notificationExpiryWorkItems.values {
+      workItem.cancel()
+    }
+    notificationExpiryWorkItems.removeAll()
     NotificationCenter.default.removeObserver(self)
   }
 
@@ -556,6 +563,7 @@ class MainFlutterWindow: NSWindow {
 
     let body = arguments["body"] as? String
     let identifier = arguments["identifier"] as? String ?? UUID().uuidString
+    let expiresAfterMs = arguments["expiresAfterMs"] as? Int
     let center = UNUserNotificationCenter.current()
     center.requestAuthorization(options: [.alert, .sound]) { granted, error in
       if let error {
@@ -599,10 +607,45 @@ class MainFlutterWindow: NSWindow {
             )
             return
           }
+          self.notificationExpiryWorkItems.removeValue(forKey: identifier)?.cancel()
+          if let expiresAfterMs, expiresAfterMs > 0 {
+            let expiryWorkItem = DispatchWorkItem { [weak self] in
+              center.removePendingNotificationRequests(withIdentifiers: [identifier])
+              center.removeDeliveredNotifications(withIdentifiers: [identifier])
+              self?.notificationExpiryWorkItems.removeValue(forKey: identifier)
+            }
+            self.notificationExpiryWorkItems[identifier] = expiryWorkItem
+            DispatchQueue.main.asyncAfter(
+              deadline: .now() + .milliseconds(expiresAfterMs),
+              execute: expiryWorkItem
+            )
+          }
           result(nil)
         }
       }
     }
+  }
+
+  private func closeNotification(arguments: Any?, result: @escaping FlutterResult) {
+    guard
+      let arguments = arguments as? [String: Any],
+      let identifier = arguments["identifier"] as? String,
+      !identifier.isEmpty
+    else {
+      result(
+        FlutterError(
+          code: "invalid_notification",
+          message: "Notification identifier is required",
+          details: nil
+        )
+      )
+      return
+    }
+    notificationExpiryWorkItems.removeValue(forKey: identifier)?.cancel()
+    let center = UNUserNotificationCenter.current()
+    center.removePendingNotificationRequests(withIdentifiers: [identifier])
+    center.removeDeliveredNotifications(withIdentifiers: [identifier])
+    result(nil)
   }
 
   func notificationAuthorizationFailedError(message: String) -> FlutterError {

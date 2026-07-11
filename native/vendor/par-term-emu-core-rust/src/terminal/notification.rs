@@ -1,18 +1,182 @@
-//! Notification support for OSC 9 and OSC 777 sequences
+//! Notification support for OSC 9, OSC 99 and OSC 777 sequences.
+
+use std::collections::HashMap;
+
+pub(crate) const MAX_KITTY_NOTIFICATION_IDS: usize = 64;
+pub(crate) const MAX_KITTY_NOTIFICATION_ID_BYTES: usize = 128;
+pub(crate) const MAX_KITTY_NOTIFICATION_TITLE_CHARS: usize = 160;
+pub(crate) const MAX_KITTY_NOTIFICATION_BODY_CHARS: usize = 512;
+pub(crate) const MAX_KITTY_NOTIFICATION_APPLICATION_CHARS: usize = 160;
+pub(crate) const MAX_KITTY_NOTIFICATION_TYPE_CHARS: usize = 64;
+pub(crate) const MAX_KITTY_NOTIFICATION_TYPES: usize = 8;
+
+/// Lifecycle action represented by a terminal notification event.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NotificationAction {
+    /// Display a newly created notification.
+    Show,
+    /// Replace a still-active notification with the same identifier.
+    Update,
+    /// Close a still-active notification.
+    Close,
+}
+
+impl NotificationAction {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Show => "show",
+            Self::Update => "update",
+            Self::Close => "close",
+        }
+    }
+}
 
 /// Notification data from OSC 9 or OSC 777 sequences
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Notification {
+    /// Canonical protocol source (`osc` for legacy OSC 9/777 or `osc99`).
+    pub source: &'static str,
+    /// Notification lifecycle action.
+    pub action: NotificationAction,
+    /// Protocol identifier used for update and close correlation.
+    pub identifier: Option<String>,
     /// Notification title (may be empty for OSC 9)
     pub title: String,
     /// Notification message/body
     pub message: String,
+    /// Optional Base64-decoded application name from Kitty's `f` metadata.
+    pub application_name: Option<String>,
+    /// Bounded Base64-decoded Kitty notification types.
+    pub notification_types: Vec<String>,
+    /// `None` uses platform policy, `Some(0)` requests no automatic expiry,
+    /// and a positive value is a bounded expiry duration in milliseconds.
+    pub expires_after_ms: Option<u32>,
 }
 
 impl Notification {
     /// Create a new notification
     pub fn new(title: String, message: String) -> Self {
-        Self { title, message }
+        Self {
+            source: "osc",
+            action: NotificationAction::Show,
+            identifier: None,
+            title,
+            message,
+            application_name: None,
+            notification_types: Vec::new(),
+            expires_after_ms: None,
+        }
+    }
+
+    pub(crate) fn kitty(
+        action: NotificationAction,
+        identifier: Option<String>,
+        assembly: KittyNotificationAssembly,
+    ) -> Self {
+        Self {
+            source: "osc99",
+            action,
+            identifier,
+            title: assembly.title,
+            message: assembly.body,
+            application_name: assembly.application_name,
+            notification_types: assembly.notification_types,
+            expires_after_ms: assembly.expires_after_ms,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct KittyNotificationAssembly {
+    pub(crate) title: String,
+    pub(crate) body: String,
+    pub(crate) application_name: Option<String>,
+    pub(crate) notification_types: Vec<String>,
+    pub(crate) expires_after_ms: Option<u32>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct KittyActiveNotification {
+    pub(crate) expires_at_unix_ms: Option<u64>,
+}
+
+/// Bounded OSC 99 chunk and lifecycle state retained per terminal session.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct KittyNotificationState {
+    pending: HashMap<String, KittyNotificationAssembly>,
+    active: HashMap<String, KittyActiveNotification>,
+}
+
+impl KittyNotificationState {
+    pub(crate) fn pending_mut(
+        &mut self,
+        identifier: &str,
+    ) -> Option<&mut KittyNotificationAssembly> {
+        if !self.pending.contains_key(identifier)
+            && self.pending.len() >= MAX_KITTY_NOTIFICATION_IDS
+        {
+            return None;
+        }
+        Some(self.pending.entry(identifier.to_string()).or_default())
+    }
+
+    pub(crate) fn take_pending(&mut self, identifier: &str) -> Option<KittyNotificationAssembly> {
+        self.pending.remove(identifier)
+    }
+
+    pub(crate) fn discard_pending(&mut self, identifier: &str) {
+        self.pending.remove(identifier);
+    }
+
+    pub(crate) fn expire(&mut self, now_unix_ms: u64) {
+        self.active.retain(|_, notification| {
+            notification
+                .expires_at_unix_ms
+                .is_none_or(|expires_at| expires_at > now_unix_ms)
+        });
+    }
+
+    pub(crate) fn is_active(&self, identifier: &str) -> bool {
+        self.active.contains_key(identifier)
+    }
+
+    pub(crate) fn activate(&mut self, identifier: String, expires_at_unix_ms: Option<u64>) -> bool {
+        let was_active = self.active.contains_key(&identifier);
+        if !was_active && self.active.len() >= MAX_KITTY_NOTIFICATION_IDS {
+            return false;
+        }
+        self.active
+            .insert(identifier, KittyActiveNotification { expires_at_unix_ms });
+        true
+    }
+
+    pub(crate) fn close(&mut self, identifier: &str) -> bool {
+        self.pending.remove(identifier);
+        self.active.remove(identifier).is_some()
+    }
+
+    pub(crate) fn retained_bytes(&self) -> usize {
+        let pending = self
+            .pending
+            .iter()
+            .map(|(identifier, assembly)| {
+                identifier.len()
+                    + assembly.title.len()
+                    + assembly.body.len()
+                    + assembly.application_name.as_ref().map_or(0, String::len)
+                    + assembly
+                        .notification_types
+                        .iter()
+                        .map(String::len)
+                        .sum::<usize>()
+            })
+            .sum::<usize>();
+        pending + self.active.keys().map(String::len).sum::<usize>()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn retained_counts(&self) -> (usize, usize) {
+        (self.pending.len(), self.active.len())
     }
 }
 

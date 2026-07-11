@@ -10,6 +10,8 @@ validation can consume the same byte-level cases:
 prefix/repeated-byte/suffix recipe so validation does not allocate a large
 payload. Every case records its terminator, semantic intent, expected state
 effect, reply behavior, and the invariant that malformed input must not crash.
+The corpus also carries Kitty OSC 99 Base64 title/body chunks so the shared
+streaming parser continuously proves notification assembly across OSC frames.
 
 Validate the corpus and its Dart mirror:
 

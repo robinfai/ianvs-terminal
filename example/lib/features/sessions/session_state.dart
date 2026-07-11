@@ -131,6 +131,10 @@ class TerminalPaneNotificationState {
     required this.source,
     required this.title,
     required this.message,
+    this.identifier,
+    this.applicationName,
+    this.notificationTypes = const <String>[],
+    this.expiresAfterMs,
     this.remoteHost,
     this.remoteUser,
     this.count = 1,
@@ -139,6 +143,10 @@ class TerminalPaneNotificationState {
   final String source;
   final String title;
   final String message;
+  final String? identifier;
+  final String? applicationName;
+  final List<String> notificationTypes;
+  final int? expiresAfterMs;
   final String? remoteHost;
   final String? remoteUser;
   final int count;
@@ -148,6 +156,10 @@ class TerminalPaneNotificationState {
       source: source,
       title: title,
       message: message,
+      identifier: identifier,
+      applicationName: applicationName,
+      notificationTypes: notificationTypes,
+      expiresAfterMs: expiresAfterMs,
       remoteHost: remoteHost,
       remoteUser: remoteUser,
       count: count ?? this.count,

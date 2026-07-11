@@ -5760,9 +5760,14 @@ void main() {
           kind: 'session_notification',
           sessionId: sessionId,
           payload: const <String, Object?>{
-            'source': 'osc777',
+            'source': 'osc99',
+            'action': 'update',
+            'id': 'build-1',
             'title': 'Build',
             'message': 'Done',
+            'application': 'buildctl',
+            'types': <String>['deploy', 'ci'],
+            'expiresAfterMs': 250,
           },
         ),
       );
@@ -5813,10 +5818,16 @@ void main() {
         events.whereType<TerminalSessionShellUserVarEvent>().single.name,
         'IANVS_TEST',
       );
-      expect(
-        events.whereType<TerminalSessionNotificationEvent>().single.message,
-        'Done',
-      );
+      final notification = events
+          .whereType<TerminalSessionNotificationEvent>()
+          .single;
+      expect(notification.source, 'osc99');
+      expect(notification.action, 'update');
+      expect(notification.identifier, 'build-1');
+      expect(notification.message, 'Done');
+      expect(notification.applicationName, 'buildctl');
+      expect(notification.notificationTypes, <String>['deploy', 'ci']);
+      expect(notification.expiresAfterMs, 250);
       expect(
         events.whereType<TerminalSessionProgressEvent>().single.id,
         'build',

@@ -33,6 +33,7 @@ Future<void> _pumpShellScreen(
   LocalTerminalConfigRepository? localConfigRepository,
   Future<String> Function()? clipboardPaste,
   ShellNotificationSender? notificationSender,
+  ShellNotificationCloser? notificationCloser,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -56,6 +57,8 @@ Future<void> _pumpShellScreen(
           sessionClipboardPasteProvider.overrideWithValue(clipboardPaste),
         if (notificationSender != null)
           shellNotificationSenderProvider.overrideWithValue(notificationSender),
+        if (notificationCloser != null)
+          shellNotificationCloserProvider.overrideWithValue(notificationCloser),
       ],
       child: MaterialApp(
         theme: ThemeData.light().copyWith(
@@ -3315,13 +3318,14 @@ void main() {
       await _pumpShellScreen(
         tester,
         fakeBindings: fakeBindings,
-        notificationSender: ({required title, body, identifier}) async {
-          notifications.add({
-            'title': title,
-            'body': body,
-            'identifier': identifier,
-          });
-        },
+        notificationSender:
+            ({required title, body, identifier, expiresAfterMs}) async {
+              notifications.add({
+                'title': title,
+                'body': body,
+                'identifier': identifier,
+              });
+            },
       );
 
       fakeBindings.enqueueEvent(
@@ -3460,6 +3464,103 @@ void main() {
     );
   });
 
+  testWidgets('OSC 99 system notification keeps stable ID, expiry and close', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    final delivered = <Map<String, Object?>>[];
+    final closed = <String>[];
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      notificationSender:
+          ({required title, body, identifier, expiresAfterMs}) async {
+            delivered.add({
+              'title': title,
+              'body': body,
+              'identifier': identifier,
+              'expiresAfterMs': expiresAfterMs,
+            });
+          },
+      notificationCloser: (identifier) async {
+        closed.add(identifier);
+      },
+    );
+    await _tapCommandMenuAction(tester, const Key('shell-top-new-tab'));
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+
+    for (final event in <PtyEvent>[
+      const PtyEvent(
+        kind: 'session_notification',
+        sessionId: '1',
+        payload: <String, Object?>{
+          'source': 'osc99',
+          'action': 'show',
+          'id': 'build',
+          'title': 'Build',
+          'message': 'Started',
+          'expiresAfterMs': 250,
+        },
+      ),
+      const PtyEvent(
+        kind: 'session_notification',
+        sessionId: '1',
+        payload: <String, Object?>{
+          'source': 'osc99',
+          'action': 'update',
+          'id': 'build',
+          'title': 'Build',
+          'message': 'Complete',
+          'expiresAfterMs': 500,
+        },
+      ),
+    ]) {
+      fakeBindings.enqueueEvent('1', event);
+      container.read(terminalRuntimeControllerProvider).refreshSession('1');
+      await tester.pump();
+    }
+
+    expect(delivered, hasLength(2));
+    expect(
+      delivered.map((notification) => notification['identifier']).toSet(),
+      <Object?>{'ianvs-terminal.osc.1.build'},
+    );
+    expect(delivered.first['expiresAfterMs'], 250);
+    expect(delivered.last['expiresAfterMs'], 500);
+    expect(delivered.last['body'], 'Complete');
+
+    fakeBindings.enqueueEvent(
+      '1',
+      const PtyEvent(
+        kind: 'session_notification',
+        sessionId: '1',
+        payload: <String, Object?>{
+          'source': 'osc99',
+          'action': 'close',
+          'id': 'build',
+          'title': '',
+          'message': '',
+        },
+      ),
+    );
+    container.read(terminalRuntimeControllerProvider).refreshSession('1');
+    await tester.pump();
+
+    expect(closed, <String>['ianvs-terminal.osc.1.build']);
+    expect(
+      container
+          .read(sessionControllerProvider)
+          .tabs
+          .first
+          .paneFor('1')!
+          .recentNotifications,
+      isEmpty,
+    );
+  });
+
   testWidgets('command finished notification identifies inactive split pane', (
     tester,
   ) async {
@@ -3469,13 +3570,14 @@ void main() {
     await _pumpShellScreen(
       tester,
       fakeBindings: fakeBindings,
-      notificationSender: ({required title, body, identifier}) async {
-        notifications.add({
-          'title': title,
-          'body': body,
-          'identifier': identifier,
-        });
-      },
+      notificationSender:
+          ({required title, body, identifier, expiresAfterMs}) async {
+            notifications.add({
+              'title': title,
+              'body': body,
+              'identifier': identifier,
+            });
+          },
     );
 
     await _tapTabContextMenuAction(tester, 'Split right');
@@ -3563,13 +3665,14 @@ void main() {
       await _pumpShellScreen(
         tester,
         fakeBindings: fakeBindings,
-        notificationSender: ({required title, body, identifier}) async {
-          notifications.add({
-            'title': title,
-            'body': body,
-            'identifier': identifier,
-          });
-        },
+        notificationSender:
+            ({required title, body, identifier, expiresAfterMs}) async {
+              notifications.add({
+                'title': title,
+                'body': body,
+                'identifier': identifier,
+              });
+            },
       );
 
       await _tapTabContextMenuAction(tester, 'Split right');
@@ -3676,12 +3779,13 @@ void main() {
     await _pumpShellScreen(
       tester,
       fakeBindings: fakeBindings,
-      notificationSender: ({required title, body, identifier}) async {
-        throw PlatformException(
-          code: 'notification_authorization_failed',
-          message: 'denied',
-        );
-      },
+      notificationSender:
+          ({required title, body, identifier, expiresAfterMs}) async {
+            throw PlatformException(
+              code: 'notification_authorization_failed',
+              message: 'denied',
+            );
+          },
     );
 
     await _tapCommandMenuAction(tester, const Key('shell-top-new-tab'));

@@ -17,6 +17,7 @@ const Set<String> _requiredCoverage = <String>{
   'malformed percent encoding',
   'unknown key',
   'mixed supported/unsupported sequence',
+  'OSC 99 chunk assembly',
   'tmux passthrough fixture',
   'screen passthrough fixture',
 };

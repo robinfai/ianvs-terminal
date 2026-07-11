@@ -2425,6 +2425,162 @@ void main() {
     },
   );
 
+  testWidgets('OSC 99 updates and closes a correlated notification', (
+    tester,
+  ) async {
+    final bindings = _EventfulPtyBackend(FakePtyBackend());
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(bindings),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(
+            TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+          ),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalConfigRepository(null),
+        ),
+        sessionPollingEnabledProvider.overrideWithValue(false),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container.read(sessionControllerProvider);
+    await tester.pump(const Duration(milliseconds: 50));
+    final sessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+
+    bindings.enqueueEvent(sessionId, {
+      'kind': 'session_notification',
+      'payload': <String, Object?>{
+        'source': 'osc99',
+        'action': 'show',
+        'id': 'build',
+        'title': 'Building',
+        'message': 'Started',
+        'application': 'buildctl',
+        'types': <String>['deploy'],
+        'expiresAfterMs': 500,
+      },
+    });
+    bindings.enqueueEvent(sessionId, {
+      'kind': 'session_notification',
+      'payload': <String, Object?>{
+        'source': 'osc99',
+        'action': 'update',
+        'id': 'build',
+        'title': 'Building',
+        'message': 'Complete',
+        'application': 'buildctl',
+        'types': <String>['deploy'],
+        'expiresAfterMs': 1000,
+      },
+    });
+    container.read(terminalRuntimeControllerProvider).refreshSession(sessionId);
+    await tester.pump();
+
+    var notifications = container
+        .read(sessionControllerProvider)
+        .tabs
+        .single
+        .activePane
+        .recentNotifications;
+    expect(notifications, hasLength(1));
+    expect(notifications.single.identifier, 'build');
+    expect(notifications.single.message, 'Complete');
+    expect(notifications.single.applicationName, 'buildctl');
+    expect(notifications.single.notificationTypes, <String>['deploy']);
+    expect(notifications.single.expiresAfterMs, 1000);
+
+    bindings.enqueueEvent(sessionId, {
+      'kind': 'session_notification',
+      'payload': <String, Object?>{
+        'source': 'osc99',
+        'action': 'close',
+        'id': 'build',
+        'title': '',
+        'message': '',
+      },
+    });
+    container.read(terminalRuntimeControllerProvider).refreshSession(sessionId);
+    await tester.pump();
+
+    notifications = container
+        .read(sessionControllerProvider)
+        .tabs
+        .single
+        .activePane
+        .recentNotifications;
+    expect(notifications, isEmpty);
+  });
+
+  testWidgets('OSC 99 positive expiry removes product notification state', (
+    tester,
+  ) async {
+    final bindings = _EventfulPtyBackend(FakePtyBackend());
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(bindings),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(
+            TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+          ),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalConfigRepository(null),
+        ),
+        sessionPollingEnabledProvider.overrideWithValue(false),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container.read(sessionControllerProvider);
+    await tester.pump(const Duration(milliseconds: 50));
+    final sessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+    bindings.enqueueEvent(sessionId, {
+      'kind': 'session_notification',
+      'payload': <String, Object?>{
+        'source': 'osc99',
+        'action': 'show',
+        'id': 'short',
+        'title': 'Short lived',
+        'message': '',
+        'expiresAfterMs': 20,
+      },
+    });
+    container.read(terminalRuntimeControllerProvider).refreshSession(sessionId);
+    await tester.pump();
+    expect(
+      container
+          .read(sessionControllerProvider)
+          .tabs
+          .single
+          .activePane
+          .recentNotifications,
+      hasLength(1),
+    );
+
+    await tester.pump(const Duration(milliseconds: 25));
+    expect(
+      container
+          .read(sessionControllerProvider)
+          .tabs
+          .single
+          .activePane
+          .recentNotifications,
+      isEmpty,
+    );
+  });
+
   testWidgets('RIS clears protocol session state and restores profile baseline', (
     tester,
   ) async {

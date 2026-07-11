@@ -49,7 +49,8 @@ pub use metrics::{
 };
 pub use multiplexing::{LayoutDirection, PaneState, SessionState, WindowLayout};
 pub use notification::{
-    Notification, NotificationAlert, NotificationConfig, NotificationEvent, NotificationTrigger,
+    Notification, NotificationAction, NotificationAlert, NotificationConfig, NotificationEvent,
+    NotificationTrigger,
 };
 pub use osc_stream::{
     OscCapability, OscCapabilityPolicy, OscIngressDiagnostics, OscIntent, OscIntentDiagnostics,
@@ -914,6 +915,8 @@ pub struct Terminal {
     pub(crate) color_stack: Vec<(Color, Color, Option<Color>)>,
     /// Notifications from OSC 9 / OSC 777 sequences
     pub(crate) notifications: Vec<Notification>,
+    /// Bounded in-flight and active Kitty OSC 99 notification lifecycle state.
+    pub(crate) kitty_notification_state: notification::KittyNotificationState,
     /// Progress bar state from OSC 9;4 sequences (ConEmu/Windows Terminal style)
     pub(crate) progress_bar: ProgressBar,
     /// Named progress bars from OSC 934 sequences (keyed by ID)
@@ -1386,6 +1389,7 @@ impl Terminal {
             last_activity_time: now,
             last_silence_check: now,
             max_notifications: DEFAULT_MAX_NOTIFICATIONS,
+            kitty_notification_state: notification::KittyNotificationState::default(),
             custom_triggers: HashMap::new(),
             // Replay/Recording
             recording_session: None,

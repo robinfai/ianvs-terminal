@@ -429,6 +429,130 @@ sleep 5
   );
 
   testWidgets(
+    'real PTY OSC 99 assembles, updates, expires and closes by stable ID',
+    (tester) async {
+      final showFile = _tempSignalFile('osc99-show');
+      final updateFile = _tempSignalFile('osc99-update');
+      final closeFile = _tempSignalFile('osc99-close');
+      final notifications = <Map<String, String?>>[];
+      final notificationExpiries = <int?>[];
+      final closedNotifications = <String>[];
+      final profile = _scriptProfile(
+        id: 'osc99-real-pty',
+        name: 'OSC 99 Real PTY',
+        script: r'''
+printf 'osc99-ready\n'
+while [ ! -f "$SHOW_FILE" ]; do sleep 0.05; done
+printf '\033]99;i=real-build:d=0:e=1:f=YnVpbGRjdGw=:t=ZGVwbG95;UmVhbCBCdWlsZA==\033\\'
+printf '\033]99;i=real-build:p=body:e=1:w=5000;U3RhcnRlZA==\033\\'
+while [ ! -f "$UPDATE_FILE" ]; do sleep 0.05; done
+printf '\033]99;i=real-build:w=3000;Updated\033\\'
+while [ ! -f "$CLOSE_FILE" ]; do sleep 0.05; done
+printf '\033]99;i=real-build:p=close;\033\\'
+sleep 1
+''',
+        env: {
+          'SHOW_FILE': showFile.path,
+          'UPDATE_FILE': updateFile.path,
+          'CLOSE_FILE': closeFile.path,
+        },
+      );
+      final harness = await _pumpRealPtyApp(
+        tester,
+        profiles: [profile],
+        notifications: notifications,
+        notificationExpiries: notificationExpiries,
+        closedNotifications: closedNotifications,
+      );
+
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'OSC 99 real PTY ready marker',
+        matches: (text) => text.contains('osc99-ready'),
+      );
+      final sourceSessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      await _openCommandMenu(tester);
+      await tester.tap(find.text('New tab'));
+      await _waitFor(
+        tester,
+        description: 'inactive OSC 99 source tab',
+        condition: () {
+          final state = harness.container.read(sessionControllerProvider);
+          return state.tabs.length == 2 &&
+              state.activeSessionId != sourceSessionId;
+        },
+      );
+
+      _signal(showFile);
+      await _waitFor(
+        tester,
+        description: 'assembled OSC 99 notification',
+        condition: () {
+          final pane = harness.container
+              .read(sessionControllerProvider)
+              .tabs
+              .first
+              .paneFor(sourceSessionId);
+          final recent = pane?.recentNotifications;
+          if (recent == null || recent.length != 1) {
+            return false;
+          }
+          final notification = recent.single;
+          return notification.identifier == 'real-build' &&
+              notification.title == 'Real Build' &&
+              notification.message == 'Started' &&
+              notification.applicationName == 'buildctl' &&
+              notification.notificationTypes.contains('deploy');
+        },
+      );
+      await _waitFor(
+        tester,
+        description: 'first stable-ID OSC 99 system notification',
+        condition: () => notifications.length == 1,
+      );
+      expect(
+        notifications.single['identifier'],
+        'ianvs-terminal.osc.$sourceSessionId.real-build',
+      );
+      expect(notificationExpiries, <int?>[5000]);
+
+      _signal(updateFile);
+      await _waitFor(
+        tester,
+        description: 'updated OSC 99 notification',
+        condition: () => notifications.length == 2,
+      );
+      expect(
+        notifications.map((event) => event['identifier']).toSet(),
+        <String?>{'ianvs-terminal.osc.$sourceSessionId.real-build'},
+      );
+      expect(notificationExpiries, <int?>[5000, 3000]);
+
+      _signal(closeFile);
+      await _waitFor(
+        tester,
+        description: 'closed OSC 99 notification',
+        condition: () => closedNotifications.contains(
+          'ianvs-terminal.osc.$sourceSessionId.real-build',
+        ),
+      );
+      expect(
+        harness.container
+            .read(sessionControllerProvider)
+            .tabs
+            .first
+            .paneFor(sourceSessionId)!
+            .recentNotifications,
+        isEmpty,
+      );
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
     'real PTY active wake baseline after four seconds child idle',
     (tester) =>
         _verifyIdleWakeBaseline(tester, state: _BaselineIdleWakeState.active),
@@ -561,6 +685,8 @@ Future<_RealPtyHarness> _pumpRealPtyApp(
   required List<TerminalProfile> profiles,
   PasswordManagerStore? passwordStore,
   List<Map<String, String?>>? notifications,
+  List<int?>? notificationExpiries,
+  List<String>? closedNotifications,
   List<Map<String, Object?>>? runtimeEvents,
   bool maskRefreshHints = false,
 }) async {
@@ -587,12 +713,17 @@ Future<_RealPtyHarness> _pumpRealPtyApp(
         required title,
         body,
         identifier,
+        expiresAfterMs,
       }) async {
         notifications?.add({
           'title': title,
           'body': body,
           'identifier': identifier,
         });
+        notificationExpiries?.add(expiresAfterMs);
+      }),
+      shellNotificationCloserProvider.overrideWithValue((identifier) async {
+        closedNotifications?.add(identifier);
       }),
       if (passwordStore != null)
         passwordManagerStoreProvider.overrideWithValue(passwordStore),

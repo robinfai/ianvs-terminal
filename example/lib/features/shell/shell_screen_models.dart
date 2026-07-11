@@ -31,12 +31,21 @@ typedef ShellNotificationSender =
       required String title,
       String? body,
       String? identifier,
+      int? expiresAfterMs,
     });
+
+typedef ShellNotificationCloser = Future<void> Function(String identifier);
 
 final shellNotificationSenderProvider = Provider<ShellNotificationSender>((
   ref,
 ) {
   return WindowBridge.showNotification;
+});
+
+final shellNotificationCloserProvider = Provider<ShellNotificationCloser>((
+  ref,
+) {
+  return WindowBridge.closeNotification;
 });
 
 sealed class _PasteHistorySheetResult {

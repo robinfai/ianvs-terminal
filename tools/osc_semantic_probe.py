@@ -93,11 +93,20 @@ PROBES = {
     ),
     "notification": Probe(
         "notification",
-        "OSC 9",
-        "Request a deterministic terminal notification.",
-        "Allowed terminals surface one notification; denied terminals do not.",
+        "Kitty OSC 99",
+        "Request a deterministic chunked title/body notification.",
+        "Allowed terminals assemble and surface one notification with id=ianvs-probe.",
         "system notification request; policy/rate-limit applies",
-        osc("9;Ianvs OSC notification probe"),
+        osc("99;i=ianvs-probe:d=0;Ianvs OSC notification probe")
+        + osc("99;i=ianvs-probe:p=body;Safe subset"),
+    ),
+    "notification_query": Probe(
+        "notification_query",
+        "Kitty OSC 99",
+        "Query the supported OSC 99 notification subset.",
+        "Supporting terminals reply with notification capability metadata.",
+        "none; response must not grant buttons, callbacks, sound, icons, or commands",
+        osc("99;i=ianvs-query:p=?;"),
     ),
     "progress": Probe(
         "progress",
@@ -158,6 +167,7 @@ def self_test() -> None:
         "clipboard_query",
         "prompt_command_output",
         "notification",
+        "notification_query",
         "progress",
         "badge",
         "user_var",

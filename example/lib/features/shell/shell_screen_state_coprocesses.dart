@@ -324,12 +324,14 @@ extension _ShellScreenStateCoprocesses on _ShellScreenState {
     required String title,
     String? body,
     required String identifier,
+    int? expiresAfterMs,
   }) {
     unawaited(
       _dispatchShellNotification(
         title: title,
         body: body,
         identifier: identifier,
+        expiresAfterMs: expiresAfterMs,
       ),
     );
   }

@@ -163,6 +163,7 @@ class WindowBridge {
     required String title,
     String? body,
     String? identifier,
+    int? expiresAfterMs,
   }) async {
     if (BindingBase.debugBindingType() == null) {
       return;
@@ -174,6 +175,9 @@ class WindowBridge {
       }
       if (identifier != null) {
         arguments['identifier'] = identifier;
+      }
+      if (expiresAfterMs != null) {
+        arguments['expiresAfterMs'] = expiresAfterMs;
       }
       await _channel.invokeMethod<void>('showNotification', arguments);
     } on PlatformException catch (error) {
@@ -188,6 +192,19 @@ class WindowBridge {
           '[${error.code}] ${error.message ?? ''}',
         );
       }
+    } on MissingPluginException {
+      return;
+    }
+  }
+
+  static Future<void> closeNotification(String identifier) async {
+    if (BindingBase.debugBindingType() == null || identifier.isEmpty) {
+      return;
+    }
+    try {
+      await _channel.invokeMethod<void>('closeNotification', {
+        'identifier': identifier,
+      });
     } on MissingPluginException {
       return;
     }

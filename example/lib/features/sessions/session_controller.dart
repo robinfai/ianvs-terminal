@@ -260,6 +260,7 @@ class SessionController extends Notifier<SessionState> {
   final Map<String, _AutomaticProfileBaseline> _automaticProfileBaselines =
       <String, _AutomaticProfileBaseline>{};
   final Map<String, Timer> _progressGraceTimers = <String, Timer>{};
+  final Map<String, Timer> _notificationExpiryTimers = <String, Timer>{};
   final Map<String, ({int order, TerminalSessionProgressEvent event})>
   _pendingProgressEvents =
       <String, ({int order, TerminalSessionProgressEvent event})>{};
@@ -323,6 +324,10 @@ class SessionController extends Notifier<SessionState> {
         timer.cancel();
       }
       _progressGraceTimers.clear();
+      for (final timer in _notificationExpiryTimers.values) {
+        timer.cancel();
+      }
+      _notificationExpiryTimers.clear();
       _pendingProgressEvents.clear();
       for (final controller in _demoViewports.values) {
         controller.dispose();
@@ -1310,10 +1315,41 @@ class SessionController extends Notifier<SessionState> {
     if (currentPane == null) {
       return;
     }
+    final identifier = _boundedShellMetadata(event.identifier, 128);
+    if (event.isClose) {
+      if (identifier == null) {
+        return;
+      }
+      _notificationExpiryTimers
+          .remove(_notificationExpiryKey(event.sessionId, identifier))
+          ?.cancel();
+      final nextNotifications = currentPane.recentNotifications
+          .where(
+            (notification) =>
+                notification.identifier != identifier ||
+                notification.source != 'osc99',
+          )
+          .toList(growable: false);
+      if (nextNotifications.length == currentPane.recentNotifications.length) {
+        return;
+      }
+      _replaceSessionPane(
+        event.sessionId,
+        currentPane.copyWith(recentNotifications: nextNotifications),
+      );
+      return;
+    }
     final title =
         _boundedShellMetadata(event.title, 160) ?? 'Terminal notification';
     final message = _boundedShellMetadata(event.message, 512) ?? '';
     final source = _boundedShellMetadata(event.source, 48) ?? 'osc';
+    final applicationName = _boundedShellMetadata(event.applicationName, 160);
+    final notificationTypes = event.notificationTypes
+        .map((value) => _boundedShellMetadata(value, 64))
+        .whereType<String>()
+        .take(8)
+        .toList(growable: false);
+    final expiresAfterMs = event.expiresAfterMs?.clamp(0, 0xFFFFFFFF);
     final remoteHost = _isRemoteShellHost(currentPane.shellIntegration.hostname)
         ? _boundedShellMetadata(currentPane.shellIntegration.hostname, 255)
         : null;
@@ -1322,31 +1358,100 @@ class SessionController extends Notifier<SessionState> {
         : _boundedShellMetadata(currentPane.shellIntegration.username, 255);
     final recent = currentPane.recentNotifications;
     final isDuplicate =
+        identifier == null &&
+        source != 'osc99' &&
         recent.isNotEmpty &&
         recent.first.source == source &&
+        recent.first.identifier == identifier &&
         recent.first.title == title &&
         recent.first.message == message &&
+        recent.first.applicationName == applicationName &&
+        _sameNotificationTypes(
+          recent.first.notificationTypes,
+          notificationTypes,
+        ) &&
         recent.first.remoteHost == remoteHost &&
         recent.first.remoteUser == remoteUser;
+    final correlatedIndex = identifier == null
+        ? -1
+        : recent.indexWhere(
+            (notification) =>
+                notification.source == source &&
+                notification.identifier == identifier,
+          );
+    final correlated = correlatedIndex == -1 ? null : recent[correlatedIndex];
+    final nextNotification = TerminalPaneNotificationState(
+      source: source,
+      identifier: identifier,
+      title: title,
+      message: message,
+      applicationName: applicationName,
+      notificationTypes: notificationTypes,
+      expiresAfterMs: expiresAfterMs,
+      remoteHost: remoteHost,
+      remoteUser: remoteUser,
+      count: correlated?.count ?? 1,
+    );
     final nextNotifications = <TerminalPaneNotificationState>[
       if (isDuplicate)
         recent.first.copyWith(count: recent.first.count + 1)
       else
-        TerminalPaneNotificationState(
-          source: source,
-          title: title,
-          message: message,
-          remoteHost: remoteHost,
-          remoteUser: remoteUser,
-        ),
+        nextNotification,
       for (var index = isDuplicate ? 1 : 0; index < recent.length; index += 1)
-        recent[index],
+        if (index != correlatedIndex) recent[index],
     ].take(20).toList(growable: false);
     _replaceSessionPane(
       event.sessionId,
       currentPane.copyWith(recentNotifications: nextNotifications),
     );
+    if (identifier != null) {
+      final expiryKey = _notificationExpiryKey(event.sessionId, identifier);
+      _notificationExpiryTimers.remove(expiryKey)?.cancel();
+      if (expiresAfterMs != null && expiresAfterMs > 0) {
+        _notificationExpiryTimers[expiryKey] = Timer(
+          Duration(milliseconds: expiresAfterMs),
+          () {
+            _notificationExpiryTimers.remove(expiryKey);
+            if (!ref.mounted) {
+              return;
+            }
+            final pane = _paneForSession(event.sessionId);
+            if (pane == null) {
+              return;
+            }
+            final retained = pane.recentNotifications
+                .where(
+                  (notification) =>
+                      notification.identifier != identifier ||
+                      notification.source != source,
+                )
+                .toList(growable: false);
+            if (retained.length != pane.recentNotifications.length) {
+              _replaceSessionPane(
+                event.sessionId,
+                pane.copyWith(recentNotifications: retained),
+              );
+            }
+          },
+        );
+      }
+    }
   }
+
+  bool _sameNotificationTypes(List<String> left, List<String> right) {
+    if (left.length != right.length) {
+      return false;
+    }
+    for (var index = 0; index < left.length; index += 1) {
+      if (left[index] != right[index]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  String _notificationExpiryKey(String sessionId, String identifier) =>
+      '$sessionId:$identifier';
 
   void _applySessionBadge(TerminalSessionBadgeEvent event) {
     final currentPane = _paneForSession(event.sessionId);
@@ -1358,6 +1463,7 @@ class SessionController extends Notifier<SessionState> {
   }
 
   void _applySessionReset(TerminalSessionResetEvent event) {
+    _clearNotificationTrackingForSession(event.sessionId);
     final progressKeyPrefix = '${event.sessionId}:';
     _pendingProgressEvents.removeWhere(
       (key, _) => key.startsWith(progressKeyPrefix),
@@ -2284,6 +2390,7 @@ class SessionController extends Notifier<SessionState> {
     for (final pane in closingTab.effectivePanes) {
       _automaticProfileBaselines.remove(pane.sessionId);
       _clearProgressTrackingForSession(pane.sessionId);
+      _clearNotificationTrackingForSession(pane.sessionId);
     }
     final nextTabs = <TerminalTab>[
       ...state.tabs.take(tabIndex),
@@ -2373,6 +2480,16 @@ class SessionController extends Notifier<SessionState> {
             .where((key) => key.startsWith(prefix))
             .toList(growable: false)) {
       _pendingProgressEvents.remove(key);
+    }
+  }
+
+  void _clearNotificationTrackingForSession(String sessionId) {
+    final prefix = '$sessionId:';
+    for (final key
+        in _notificationExpiryTimers.keys
+            .where((key) => key.startsWith(prefix))
+            .toList(growable: false)) {
+      _notificationExpiryTimers.remove(key)?.cancel();
     }
   }
 

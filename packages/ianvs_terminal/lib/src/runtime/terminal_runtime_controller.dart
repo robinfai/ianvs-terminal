@@ -184,8 +184,21 @@ final class TerminalSessionNotificationEvent extends TerminalSessionEvent {
   final Map<String, Object?> rawPayload;
 
   String? get source => _stringValue(rawPayload['source']);
+  String get action => _stringValue(rawPayload['action']) ?? 'show';
+  String? get identifier => _stringValue(rawPayload['id']);
   String get title => _stringValue(rawPayload['title']) ?? '';
   String get message => _stringValue(rawPayload['message']) ?? '';
+  String? get applicationName => _stringValue(rawPayload['application']);
+  List<String> get notificationTypes {
+    final values = rawPayload['types'];
+    if (values is! List<Object?>) {
+      return const <String>[];
+    }
+    return List<String>.unmodifiable(values.whereType<String>().take(8));
+  }
+
+  int? get expiresAfterMs => _wholeIntValue(rawPayload['expiresAfterMs']);
+  bool get isClose => action == 'close';
 
   static String? _stringValue(Object? value) {
     return value is String ? value : null;

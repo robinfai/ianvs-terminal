@@ -108,16 +108,46 @@ pub const REFRESH_HINT_FRAME_DIRTY: u32 = 1 << 0;
 
 #[derive(Clone, Debug)]
 enum CallbackEvent {
-    Resize { rows: u16, cols: u16 },
-    ClipboardCopy { selection: String, data: String },
-    ClipboardPasteRequest { selection: String },
-    ShellHook { payload: serde_json::Value },
-    ShellContext { payload: serde_json::Value },
-    ShellCommand { payload: serde_json::Value },
-    ShellUserVar { name: String, value: String },
-    SessionNotification { title: String, message: String },
-    SessionProgress { payload: serde_json::Value },
-    SessionBadge { text: Option<String> },
+    Resize {
+        rows: u16,
+        cols: u16,
+    },
+    ClipboardCopy {
+        selection: String,
+        data: String,
+    },
+    ClipboardPasteRequest {
+        selection: String,
+    },
+    ShellHook {
+        payload: serde_json::Value,
+    },
+    ShellContext {
+        payload: serde_json::Value,
+    },
+    ShellCommand {
+        payload: serde_json::Value,
+    },
+    ShellUserVar {
+        name: String,
+        value: String,
+    },
+    SessionNotification {
+        source: String,
+        action: String,
+        identifier: Option<String>,
+        title: String,
+        message: String,
+        application_name: Option<String>,
+        notification_types: Vec<String>,
+        expires_after_ms: Option<u32>,
+    },
+    SessionProgress {
+        payload: serde_json::Value,
+    },
+    SessionBadge {
+        text: Option<String>,
+    },
     SessionReset,
     Bell,
 }
@@ -1530,9 +1560,33 @@ impl TerminalSession {
                                     },
                                 ));
                                 callback_events.extend(notifications.into_iter().map(
-                                    |notification| CallbackEvent::SessionNotification {
-                                        title: sanitize_protocol_text(&notification.title, 160),
-                                        message: sanitize_protocol_text(&notification.message, 512),
+                                    |notification| {
+                                        CallbackEvent::SessionNotification {
+                                            source: notification.source.to_string(),
+                                            action: notification.action.as_str().to_string(),
+                                            identifier: notification.identifier.map(|identifier| {
+                                                sanitize_protocol_text(&identifier, 128)
+                                            }),
+                                            title: sanitize_protocol_text(&notification.title, 160),
+                                            message: sanitize_protocol_text(
+                                                &notification.message,
+                                                512,
+                                            ),
+                                            application_name: notification.application_name.map(
+                                                |application_name| {
+                                                    sanitize_protocol_text(&application_name, 160)
+                                                },
+                                            ),
+                                            notification_types: notification
+                                                .notification_types
+                                                .into_iter()
+                                                .take(8)
+                                                .map(|notification_type| {
+                                                    sanitize_protocol_text(&notification_type, 64)
+                                                })
+                                                .collect(),
+                                            expires_after_ms: notification.expires_after_ms,
+                                        }
                                     },
                                 ));
                             }
@@ -2577,12 +2631,26 @@ impl TerminalSession {
                     "value": value,
                 })),
             ),
-            CallbackEvent::SessionNotification { title, message } => self.push_event(
+            CallbackEvent::SessionNotification {
+                source,
+                action,
+                identifier,
+                title,
+                message,
+                application_name,
+                notification_types,
+                expires_after_ms,
+            } => self.push_event(
                 "session_notification",
                 Some(serde_json::json!({
-                    "source": "osc",
+                    "source": source,
+                    "action": action,
+                    "id": identifier,
                     "title": title,
                     "message": message,
+                    "application": application_name,
+                    "types": notification_types,
+                    "expiresAfterMs": expires_after_ms,
                 })),
             ),
             CallbackEvent::SessionProgress { payload } => {
@@ -2821,6 +2889,15 @@ fn sanitize_diagnostic_event_payload(
         })),
         "session_notification" => Some(serde_json::json!({
             "source": payload.get("source").and_then(serde_json::Value::as_str),
+            "action": payload.get("action").and_then(serde_json::Value::as_str),
+            "id_chars": payload
+                .get("id")
+                .and_then(serde_json::Value::as_str)
+                .map(|value| value.chars().count()),
+            "id_hash": payload
+                .get("id")
+                .and_then(serde_json::Value::as_str)
+                .map(diagnostic_hash),
             "title_chars": payload
                 .get("title")
                 .and_then(serde_json::Value::as_str)
@@ -2837,6 +2914,21 @@ fn sanitize_diagnostic_event_payload(
                 .get("message")
                 .and_then(serde_json::Value::as_str)
                 .map(diagnostic_hash),
+            "application_chars": payload
+                .get("application")
+                .and_then(serde_json::Value::as_str)
+                .map(|value| value.chars().count()),
+            "application_hash": payload
+                .get("application")
+                .and_then(serde_json::Value::as_str)
+                .map(diagnostic_hash),
+            "type_count": payload
+                .get("types")
+                .and_then(serde_json::Value::as_array)
+                .map(Vec::len),
+            "expires_after_ms": payload
+                .get("expiresAfterMs")
+                .and_then(serde_json::Value::as_u64),
         })),
         "session_progress" => Some(serde_json::json!({
             "source": payload.get("source").and_then(serde_json::Value::as_str),
@@ -6716,5 +6808,39 @@ mod tests {
         let serialized = sanitized.to_string();
         assert!(!serialized.contains(secret_id));
         assert!(!serialized.contains(secret_label));
+    }
+
+    #[test]
+    fn diagnostic_notification_payload_redacts_osc99_identity_and_text() {
+        let identifier = "private-notification-id";
+        let title = "secret deploy title";
+        let message = "secret deploy body";
+        let application = "private-build-tool";
+        let payload = serde_json::json!({
+            "source": "osc99",
+            "action": "update",
+            "id": identifier,
+            "title": title,
+            "message": message,
+            "application": application,
+            "types": ["deploy", "private"],
+            "expiresAfterMs": 250,
+        });
+
+        let sanitized = sanitize_diagnostic_event_payload("session_notification", Some(&payload))
+            .expect("expected sanitized notification event");
+
+        assert_eq!(sanitized["source"].as_str(), Some("osc99"));
+        assert_eq!(sanitized["action"].as_str(), Some("update"));
+        assert_eq!(sanitized["type_count"].as_u64(), Some(2));
+        assert_eq!(sanitized["expires_after_ms"].as_u64(), Some(250));
+        assert!(sanitized["id_hash"].as_str().is_some());
+        assert!(sanitized["title_hash"].as_str().is_some());
+        assert!(sanitized["message_hash"].as_str().is_some());
+        assert!(sanitized["application_hash"].as_str().is_some());
+        let serialized = sanitized.to_string();
+        for secret in [identifier, title, message, application, "deploy", "private"] {
+            assert!(!serialized.contains(secret));
+        }
     }
 }

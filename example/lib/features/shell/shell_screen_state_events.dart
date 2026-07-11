@@ -340,6 +340,17 @@ extension _ShellScreenStateEvents on _ShellScreenState {
   }
 
   void _handleOscNotification(terminal.TerminalSessionNotificationEvent event) {
+    final protocolIdentifier = event.identifier?.trim();
+    final systemIdentifier =
+        protocolIdentifier == null || protocolIdentifier.isEmpty
+        ? null
+        : 'ianvs-terminal.osc.${event.sessionId}.$protocolIdentifier';
+    if (event.isClose) {
+      if (systemIdentifier != null) {
+        unawaited(ref.read(shellNotificationCloserProvider)(systemIdentifier));
+      }
+      return;
+    }
     final title = event.title.trim();
     final message = event.message.trim();
     final visibleTitle = title.isEmpty ? 'Terminal notification' : title;
@@ -353,7 +364,8 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     );
     if (!_activityNotificationsEnabled ||
         !_notificationSessionIsInactive(event.sessionId) ||
-        !_activityNotificationAllowed(event.sessionId)) {
+        (event.action != 'update' &&
+            !_activityNotificationAllowed(event.sessionId))) {
       return;
     }
     final remoteContext = _oscNotificationRemoteContext(event.sessionId);
@@ -363,7 +375,9 @@ extension _ShellScreenStateEvents on _ShellScreenState {
           : '$visibleTitle on $remoteContext in ${_sessionTitleForNotification(event.sessionId)}',
       body: visibleMessage,
       identifier:
+          systemIdentifier ??
           'ianvs-terminal.osc.${event.sessionId}.${DateTime.now().microsecondsSinceEpoch}',
+      expiresAfterMs: event.expiresAfterMs,
     );
   }
 

@@ -118,6 +118,13 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
                     )),
                 );
             }
+            "osc99_chunked_base64" => {
+                let notification = terminal.take_notifications().pop().unwrap();
+                assert_eq!(notification.source, "osc99");
+                assert_eq!(notification.identifier.as_deref(), Some("corpus"));
+                assert_eq!(notification.title, "Title");
+                assert_eq!(notification.message, "Body");
+            }
             "tmux_passthrough" => assert_eq!(
                 write_hyperlink_probe(&mut terminal),
                 Some((

@@ -3665,13 +3665,14 @@ void main() {
       repository: MemoryProfileRepository(
         TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       ),
-      notificationSender: ({required title, body, identifier}) async {
-        notifications.add({
-          'title': title,
-          'body': body,
-          'identifier': identifier,
-        });
-      },
+      notificationSender:
+          ({required title, body, identifier, expiresAfterMs}) async {
+            notifications.add({
+              'title': title,
+              'body': body,
+              'identifier': identifier,
+            });
+          },
     );
 
     fakeBindings.enqueueEvent(
@@ -3707,13 +3708,14 @@ void main() {
       repository: MemoryProfileRepository(
         TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       ),
-      notificationSender: ({required title, body, identifier}) async {
-        notifications.add({
-          'title': title,
-          'body': body,
-          'identifier': identifier,
-        });
-      },
+      notificationSender:
+          ({required title, body, identifier, expiresAfterMs}) async {
+            notifications.add({
+              'title': title,
+              'body': body,
+              'identifier': identifier,
+            });
+          },
     );
 
     await _openCommandMenu(tester);
@@ -3757,12 +3759,13 @@ void main() {
         repository: MemoryProfileRepository(
           TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
         ),
-        notificationSender: ({required title, body, identifier}) async {
-          throw PlatformException(
-            code: 'notification_authorization_failed',
-            message: 'Denied by system',
-          );
-        },
+        notificationSender:
+            ({required title, body, identifier, expiresAfterMs}) async {
+              throw PlatformException(
+                code: 'notification_authorization_failed',
+                message: 'Denied by system',
+              );
+            },
       );
 
       fakeBindings.setFrame(1, <String, Object?>{
@@ -3858,14 +3861,15 @@ void main() {
         repository: MemoryProfileRepository(
           TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
         ),
-        notificationSender: ({required title, body, identifier}) async {
-          if (shouldFail) {
-            throw PlatformException(
-              code: 'notification_authorization_failed',
-              message: 'Denied by system',
-            );
-          }
-        },
+        notificationSender:
+            ({required title, body, identifier, expiresAfterMs}) async {
+              if (shouldFail) {
+                throw PlatformException(
+                  code: 'notification_authorization_failed',
+                  message: 'Denied by system',
+                );
+              }
+            },
       );
 
       fakeBindings.enqueueEvent(
@@ -3920,13 +3924,14 @@ void main() {
         repository: MemoryProfileRepository(
           TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
         ),
-        notificationSender: ({required title, body, identifier}) async {
-          notifications.add({
-            'title': title,
-            'body': body,
-            'identifier': identifier,
-          });
-        },
+        notificationSender:
+            ({required title, body, identifier, expiresAfterMs}) async {
+              notifications.add({
+                'title': title,
+                'body': body,
+                'identifier': identifier,
+              });
+            },
       );
 
       await _openCommandMenu(tester);
@@ -4017,13 +4022,14 @@ void main() {
       repository: MemoryProfileRepository(
         TerminalProfilesDocument(profiles: [profile]),
       ),
-      notificationSender: ({required title, body, identifier}) async {
-        notifications.add({
-          'title': title,
-          'body': body,
-          'identifier': identifier,
-        });
-      },
+      notificationSender:
+          ({required title, body, identifier, expiresAfterMs}) async {
+            notifications.add({
+              'title': title,
+              'body': body,
+              'identifier': identifier,
+            });
+          },
     );
 
     fakeBindings.setFrame(1, {
@@ -4143,13 +4149,14 @@ void main() {
         repository: MemoryProfileRepository(
           TerminalProfilesDocument(profiles: [profile]),
         ),
-        notificationSender: ({required title, body, identifier}) async {
-          notifications.add({
-            'title': title,
-            'body': body,
-            'identifier': identifier,
-          });
-        },
+        notificationSender:
+            ({required title, body, identifier, expiresAfterMs}) async {
+              notifications.add({
+                'title': title,
+                'body': body,
+                'identifier': identifier,
+              });
+            },
       );
 
       fakeBindings.setFrame(1, {
@@ -4195,7 +4202,8 @@ void main() {
       repository: MemoryProfileRepository(
         TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       ),
-      notificationSender: ({required title, body, identifier}) async {},
+      notificationSender:
+          ({required title, body, identifier, expiresAfterMs}) async {},
     );
 
     await _openToolbeltSource(
@@ -4252,7 +4260,8 @@ void main() {
       repository: MemoryProfileRepository(
         TerminalProfilesDocument(profiles: [profile]),
       ),
-      notificationSender: ({required title, body, identifier}) async {},
+      notificationSender:
+          ({required title, body, identifier, expiresAfterMs}) async {},
     );
 
     fakeBindings.setFrame(1, {
@@ -4311,7 +4320,8 @@ void main() {
       repository: MemoryProfileRepository(
         TerminalProfilesDocument(profiles: [profile]),
       ),
-      notificationSender: ({required title, body, identifier}) async {},
+      notificationSender:
+          ({required title, body, identifier, expiresAfterMs}) async {},
     );
 
     fakeBindings.setFrame(1, {
@@ -4362,7 +4372,8 @@ void main() {
       repository: MemoryProfileRepository(
         TerminalProfilesDocument(profiles: [profile]),
       ),
-      notificationSender: ({required title, body, identifier}) async {},
+      notificationSender:
+          ({required title, body, identifier, expiresAfterMs}) async {},
     );
 
     fakeBindings.setFrame(1, {

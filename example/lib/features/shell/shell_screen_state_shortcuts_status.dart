@@ -19,12 +19,14 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
     required String title,
     String? body,
     required String identifier,
+    int? expiresAfterMs,
   }) async {
     try {
       await ref.read(shellNotificationSenderProvider)(
         title: title,
         body: body,
         identifier: identifier,
+        expiresAfterMs: expiresAfterMs,
       );
       if (mounted && _notificationsBlockedBySystem) {
         _mutateState(() {
