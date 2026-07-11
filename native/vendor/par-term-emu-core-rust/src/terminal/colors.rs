@@ -1,7 +1,7 @@
 //! Terminal color configuration and management
 //!
 //! Handles terminal color settings including:
-//! - ANSI palette (16 colors)
+//! - ANSI/xterm palette (256 colors)
 //! - Default foreground/background colors
 //! - Cursor color
 //! - Selection colors
@@ -37,7 +37,12 @@ impl Terminal {
         ]
     }
 
-    fn sync_grid_blank_style(&mut self) {
+    /// Get the default extended xterm color palette (indices 16-255).
+    pub(super) fn default_extended_ansi_palette() -> [Color; 240] {
+        std::array::from_fn(|offset| Color::Indexed((offset + 16) as u8))
+    }
+
+    pub(crate) fn sync_grid_blank_style(&mut self) {
         self.grid.set_blank_style(self.default_fg, self.default_bg);
         self.alt_grid
             .set_blank_style(self.default_fg, self.default_bg);
@@ -51,16 +56,24 @@ impl Terminal {
     /// Set default foreground color (OSC 10)
     pub fn set_default_fg(&mut self, color: Color) {
         self.baseline_default_fg = color;
+        self.set_dynamic_default_fg(color);
+    }
+
+    pub(crate) fn set_dynamic_default_fg(&mut self, color: Color) {
         let previous = self.default_fg;
+        if previous == color {
+            return;
+        }
         self.default_fg = color;
-        if self.fg == previous {
+        if self.flags.fg_is_default() {
             self.fg = color;
         }
-        if self.saved_fg == previous {
+        if self.saved_flags.fg_is_default() {
             self.saved_fg = color;
         }
-        self.replace_default_fg_in_cells(previous, color);
+        self.replace_default_fg_in_cells(color);
         self.sync_grid_blank_style();
+        self.mark_full_repaint("default_color_changed");
     }
 
     /// Get default background color (OSC 11)
@@ -71,58 +84,34 @@ impl Terminal {
     /// Set default background color (OSC 11)
     pub fn set_default_bg(&mut self, color: Color) {
         self.baseline_default_bg = color;
+        self.set_dynamic_default_bg(color);
+    }
+
+    pub(crate) fn set_dynamic_default_bg(&mut self, color: Color) {
         let previous = self.default_bg;
+        if previous == color {
+            return;
+        }
         self.default_bg = color;
-        if self.bg == previous {
+        if self.flags.bg_is_default() {
             self.bg = color;
         }
-        if self.saved_bg == previous {
+        if self.saved_flags.bg_is_default() {
             self.saved_bg = color;
         }
-        self.replace_default_bg_in_cells(previous, color);
+        self.replace_default_bg_in_cells(color);
         self.sync_grid_blank_style();
+        self.mark_full_repaint("default_color_changed");
     }
 
-    fn replace_default_fg_in_cells(&mut self, previous: Color, color: Color) {
-        for row in 0..self.grid.rows() {
-            if let Some(cells) = self.grid.row_mut(row) {
-                for cell in cells {
-                    if cell.is_empty() && cell.fg == previous && cell.bg == self.default_bg {
-                        cell.fg = color;
-                    }
-                }
-            }
-        }
-        for row in 0..self.alt_grid.rows() {
-            if let Some(cells) = self.alt_grid.row_mut(row) {
-                for cell in cells {
-                    if cell.is_empty() && cell.fg == previous && cell.bg == self.default_bg {
-                        cell.fg = color;
-                    }
-                }
-            }
-        }
+    fn replace_default_fg_in_cells(&mut self, color: Color) {
+        self.grid.replace_default_foreground(color);
+        self.alt_grid.replace_default_foreground(color);
     }
 
-    fn replace_default_bg_in_cells(&mut self, previous: Color, color: Color) {
-        for row in 0..self.grid.rows() {
-            if let Some(cells) = self.grid.row_mut(row) {
-                for cell in cells {
-                    if cell.is_empty() && cell.bg == previous && cell.fg == self.default_fg {
-                        cell.bg = color;
-                    }
-                }
-            }
-        }
-        for row in 0..self.alt_grid.rows() {
-            if let Some(cells) = self.alt_grid.row_mut(row) {
-                for cell in cells {
-                    if cell.is_empty() && cell.bg == previous && cell.fg == self.default_fg {
-                        cell.bg = color;
-                    }
-                }
-            }
-        }
+    fn replace_default_bg_in_cells(&mut self, color: Color) {
+        self.grid.replace_default_background(color);
+        self.alt_grid.replace_default_background(color);
     }
 
     /// Get cursor color (OSC 12)
@@ -133,7 +122,15 @@ impl Terminal {
     /// Set cursor color (OSC 12)
     pub fn set_cursor_color(&mut self, color: Color) {
         self.baseline_cursor_color = color;
+        self.set_dynamic_cursor_color(color);
+    }
+
+    pub(crate) fn set_dynamic_cursor_color(&mut self, color: Color) {
+        if self.cursor_color == color {
+            return;
+        }
         self.cursor_color = color;
+        self.mark_full_repaint("cursor_color_changed");
     }
 
     /// Get link/hyperlink color
@@ -256,21 +253,81 @@ impl Terminal {
         self.smart_cursor_color = smart_cursor;
     }
 
-    /// Set ANSI palette color (0-15)
+    /// Set ANSI/xterm palette color (0-255) and establish its reset baseline.
     ///
     /// # Arguments
-    /// * `index` - Palette index (0-15)
+    /// * `index` - Palette index (0-255)
     /// * `color` - RGB color
     ///
     /// # Returns
-    /// Ok(()) if index is valid, Err if index >= 16
+    /// Ok(()) if index is valid, Err if index >= 256
     pub fn set_ansi_palette_color(&mut self, index: usize, color: Color) -> Result<(), String> {
-        if index >= 16 {
-            return Err(format!("Invalid palette index: {} (must be 0-15)", index));
+        if index >= 256 {
+            return Err(format!("Invalid palette index: {} (must be 0-255)", index));
         }
-        self.ansi_palette[index] = color;
-        self.baseline_ansi_palette[index] = color;
+
+        let changed = self.get_ansi_color(index) != Some(color);
+        if index < 16 {
+            self.ansi_palette[index] = color;
+            self.baseline_ansi_palette[index] = color;
+        } else {
+            self.extended_ansi_palette[index - 16] = color;
+            self.baseline_extended_ansi_palette[index - 16] = color;
+        }
+        if changed {
+            self.mark_full_repaint("ansi_palette_changed");
+        }
         Ok(())
+    }
+
+    /// Set the runtime palette value without changing the session/profile
+    /// baseline used by OSC 104.
+    pub(crate) fn set_dynamic_ansi_palette_color(&mut self, index: usize, color: Color) {
+        if self.get_ansi_color(index) == Some(color) {
+            return;
+        }
+
+        match index {
+            0..=15 => self.ansi_palette[index] = color,
+            16..=255 => self.extended_ansi_palette[index - 16] = color,
+            _ => return,
+        }
+        self.mark_full_repaint("ansi_palette_changed");
+    }
+
+    /// Restore one runtime palette value to its session/profile baseline.
+    pub(crate) fn reset_dynamic_ansi_palette_color(&mut self, index: usize) {
+        let baseline = match index {
+            0..=15 => self.baseline_ansi_palette[index],
+            16..=255 => self.baseline_extended_ansi_palette[index - 16],
+            _ => return,
+        };
+        self.set_dynamic_ansi_palette_color(index, baseline);
+    }
+
+    /// Restore all runtime palette values to their session/profile baseline.
+    pub(crate) fn reset_dynamic_ansi_palette(&mut self) {
+        if self.ansi_palette == self.baseline_ansi_palette
+            && self.extended_ansi_palette == self.baseline_extended_ansi_palette
+        {
+            return;
+        }
+
+        self.ansi_palette = self.baseline_ansi_palette;
+        self.extended_ansi_palette = self.baseline_extended_ansi_palette;
+        self.mark_full_repaint("ansi_palette_changed");
+    }
+
+    /// Resolve named and indexed colors through the current mutable palette.
+    pub fn resolve_color_rgb(&self, color: Color) -> (u8, u8, u8) {
+        match color {
+            Color::Named(named) => self.ansi_palette[named as usize].to_rgb(),
+            Color::Indexed(index) => self
+                .get_ansi_color(index as usize)
+                .unwrap_or(color)
+                .to_rgb(),
+            Color::Rgb(red, green, blue) => (red, green, blue),
+        }
     }
 
     /// Set the faint/dim text alpha multiplier
@@ -283,9 +340,19 @@ impl Terminal {
         self.faint_text_alpha
     }
 
-    /// Get current ANSI palette (0-15)
+    /// Get the legacy 16-color ANSI palette view (indices 0-15).
+    ///
+    /// Use [`Terminal::get_ansi_color`] to read any index through 255.
     pub fn get_ansi_palette(&self) -> &[Color; 16] {
         &self.ansi_palette
+    }
+
+    /// Snapshot the complete current ANSI/xterm palette (indices 0-255).
+    pub fn get_ansi_palette_256(&self) -> [Color; 256] {
+        std::array::from_fn(|index| {
+            self.get_ansi_color(index)
+                .unwrap_or(Color::Indexed(index as u8))
+        })
     }
 
     /// Get current cursor color
@@ -526,6 +593,141 @@ mod tests {
     }
 
     #[test]
+    fn dynamic_defaults_recolor_existing_default_glyphs_but_not_explicit_same_rgb() {
+        let mut term = create_test_terminal();
+        let profile_fg = Color::Rgb(1, 2, 3);
+        let profile_bg = Color::Rgb(4, 5, 6);
+        term.set_default_fg(profile_fg);
+        term.set_default_bg(profile_bg);
+
+        term.process(b"A\x1b[38;2;1;2;3;48;2;4;5;6mB\x1b[0m");
+        term.process(b"\x1b]10;#112233\x1b\\\x1b]11;#445566\x1b\\");
+
+        let row = term.active_grid().row(0).unwrap();
+        assert_eq!(row[0].fg, Color::Rgb(0x11, 0x22, 0x33));
+        assert_eq!(row[0].bg, Color::Rgb(0x44, 0x55, 0x66));
+        assert_eq!(row[1].fg, profile_fg);
+        assert_eq!(row[1].bg, profile_bg);
+
+        term.process(b"\x1b]110\x1b\\\x1b]111\x1b\\");
+        term.process(b"\x1b]10;#778899\x1b\\\x1b]11;#aabbcc\x1b\\");
+        let row = term.active_grid().row(0).unwrap();
+        assert_eq!(row[0].fg, Color::Rgb(0x77, 0x88, 0x99));
+        assert_eq!(row[0].bg, Color::Rgb(0xaa, 0xbb, 0xcc));
+        assert_eq!(row[1].fg, profile_fg);
+        assert_eq!(row[1].bg, profile_bg);
+    }
+
+    #[test]
+    fn dynamic_defaults_recolor_scrollback_and_scrollback_export_by_provenance() {
+        let mut term = Terminal::with_scrollback(4, 2, 8);
+        let profile_fg = Color::Rgb(1, 2, 3);
+        let profile_bg = Color::Rgb(4, 5, 6);
+        term.set_default_fg(profile_fg);
+        term.set_default_bg(profile_bg);
+        term.process(b"A\x1b[38;2;1;2;3;48;2;4;5;6mB\x1b[0m\r\nC\r\nD");
+        assert_eq!(term.grid().scrollback_len(), 1);
+
+        term.process(b"\x1b]10;#112233\x1b\\\x1b]11;#445566\x1b\\");
+
+        let scrollback = term.grid().scrollback_line(0).unwrap();
+        assert_eq!(scrollback[0].fg, Color::Rgb(0x11, 0x22, 0x33));
+        assert_eq!(scrollback[0].bg, Color::Rgb(0x44, 0x55, 0x66));
+        assert_eq!(scrollback[1].fg, profile_fg);
+        assert_eq!(scrollback[1].bg, profile_bg);
+
+        let svg = term
+            .screenshot(
+                crate::screenshot::ScreenshotConfig {
+                    format: crate::screenshot::ImageFormat::Svg,
+                    ..Default::default()
+                },
+                1,
+            )
+            .expect("scrollback SVG");
+        let svg = String::from_utf8(svg).unwrap();
+        assert!(svg.contains("fill=\"rgb(17,34,51)\""), "{svg}");
+        assert!(svg.contains("fill=\"rgb(1,2,3)\""), "{svg}");
+    }
+
+    #[test]
+    fn ris_restores_and_preserves_profile_color_baselines() {
+        let mut term = create_test_terminal();
+        let profile_fg = Color::Rgb(1, 2, 3);
+        let profile_bg = Color::Rgb(4, 5, 6);
+        let profile_cursor = Color::Rgb(7, 8, 9);
+        let profile_0 = Color::Rgb(10, 11, 12);
+        let profile_16 = Color::Rgb(13, 14, 15);
+        let profile_255 = Color::Rgb(16, 17, 18);
+        term.set_default_fg(profile_fg);
+        term.set_default_bg(profile_bg);
+        term.set_cursor_color(profile_cursor);
+        term.set_ansi_palette_color(0, profile_0).unwrap();
+        term.set_ansi_palette_color(16, profile_16).unwrap();
+        term.set_ansi_palette_color(255, profile_255).unwrap();
+
+        term.process(b"\x1b]10;#202122\x1b\\\x1b]11;#303132\x1b\\");
+        term.process(b"\x1b]12;#404142\x1b\\");
+        term.process(b"\x1b]4;0;#505152;16;#606162;255;#707172\x1b\\");
+        term.process(b"\x1bc");
+
+        assert_eq!(term.default_fg(), profile_fg);
+        assert_eq!(term.default_bg(), profile_bg);
+        assert_eq!(term.cursor_color(), profile_cursor);
+        assert_eq!(term.get_ansi_color(0), Some(profile_0));
+        assert_eq!(term.get_ansi_color(16), Some(profile_16));
+        assert_eq!(term.get_ansi_color(255), Some(profile_255));
+
+        term.process(b"\x1b]10;#808182\x1b\\\x1b]11;#909192\x1b\\");
+        term.process(b"\x1b]12;#a0a1a2\x1b\\");
+        term.process(b"\x1b]4;0;#b0b1b2;16;#c0c1c2;255;#d0d1d2\x1b\\");
+        term.process(b"\x1b]104\x1b\\\x1b]110\x1b\\\x1b]111\x1b\\\x1b]112\x1b\\");
+
+        assert_eq!(term.default_fg(), profile_fg);
+        assert_eq!(term.default_bg(), profile_bg);
+        assert_eq!(term.cursor_color(), profile_cursor);
+        assert_eq!(term.get_ansi_color(0), Some(profile_0));
+        assert_eq!(term.get_ansi_color(16), Some(profile_16));
+        assert_eq!(term.get_ansi_color(255), Some(profile_255));
+    }
+
+    #[test]
+    fn ris_reseeds_blank_cells_for_profile_baseline_after_scroll_and_erase() {
+        let mut term = Terminal::with_scrollback(4, 2, 8);
+        let profile_fg = Color::Rgb(1, 2, 3);
+        let profile_bg = Color::Rgb(4, 5, 6);
+        term.set_default_fg(profile_fg);
+        term.set_default_bg(profile_bg);
+        term.process(b"\x1b]10;#112233\x1b\\\x1b]11;#445566\x1b\\\x1bc");
+
+        term.process(b"X\r\nY\r\nZ");
+        let row = term.active_grid().row(1).unwrap();
+        assert_eq!(row[1].fg, profile_fg);
+        assert_eq!(row[1].bg, profile_bg);
+
+        term.process(b"\r\x1b[2K");
+        let row = term.active_grid().row(1).unwrap();
+        assert!(row.iter().all(|cell| cell.fg == profile_fg));
+        assert!(row.iter().all(|cell| cell.bg == profile_bg));
+    }
+
+    #[test]
+    fn dynamic_color_queries_resolve_indexed_values_through_current_palette() {
+        let mut term = create_test_terminal();
+        term.set_default_fg(Color::Indexed(196));
+        term.set_default_bg(Color::Indexed(196));
+        term.set_cursor_color(Color::Indexed(196));
+        term.process(b"\x1b]4;196;#123456\x1b\\");
+
+        term.process(b"\x1b]10;?\x1b\\\x1b]11;?\x1b\\\x1b]12;?\x1b\\");
+
+        assert_eq!(
+            term.drain_responses(),
+            b"\x1b]10;rgb:1212/3434/5656\x1b\\\x1b]11;rgb:1212/3434/5656\x1b\\\x1b]12;rgb:1212/3434/5656\x1b\\"
+        );
+    }
+
+    #[test]
     fn test_cursor_color_get_set() {
         let mut term = create_test_terminal();
         let original = term.cursor_color();
@@ -709,8 +911,8 @@ mod tests {
     fn test_set_ansi_palette_color_valid_indices() {
         let mut term = create_test_terminal();
 
-        // Test all valid indices (0-15)
-        for i in 0..16 {
+        // Cover both the legacy ANSI palette and the extended xterm palette.
+        for i in [0, 15, 16, 255] {
             let color = Color::Rgb(
                 (i as u8).wrapping_mul(10),
                 (i as u8).wrapping_mul(12),
@@ -718,7 +920,7 @@ mod tests {
             );
             let result = term.set_ansi_palette_color(i, color);
             assert!(result.is_ok());
-            assert_eq!(term.ansi_palette[i], color);
+            assert_eq!(term.get_ansi_color(i), Some(color));
         }
     }
 
@@ -729,18 +931,11 @@ mod tests {
         // Test invalid indices
         let color = Color::Rgb(255, 0, 0);
 
-        let result = term.set_ansi_palette_color(16, color);
+        let result = term.set_ansi_palette_color(256, color);
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err(),
-            "Invalid palette index: 16 (must be 0-15)"
-        );
-
-        let result = term.set_ansi_palette_color(100, color);
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err(),
-            "Invalid palette index: 100 (must be 0-15)"
+            "Invalid palette index: 256 (must be 0-255)"
         );
 
         let result = term.set_ansi_palette_color(1000, color);
@@ -760,8 +955,12 @@ mod tests {
         // Index 15 should work
         assert!(term.set_ansi_palette_color(15, color).is_ok());
 
-        // Index 16 should fail
-        assert!(term.set_ansi_palette_color(16, color).is_err());
+        // Extended palette boundaries should work.
+        assert!(term.set_ansi_palette_color(16, color).is_ok());
+        assert!(term.set_ansi_palette_color(255, color).is_ok());
+
+        // Index 256 is outside the xterm palette.
+        assert!(term.set_ansi_palette_color(256, color).is_err());
     }
 
     #[test]
@@ -850,5 +1049,107 @@ mod tests {
         for (i, expected_color) in test_colors.iter().enumerate() {
             assert_eq!(term.ansi_palette[i], *expected_color);
         }
+    }
+
+    #[test]
+    fn osc4_extended_palette_set_query_and_profile_baseline_reset() {
+        let mut term = create_test_terminal();
+        let profile_baseline = Color::Rgb(0x12, 0x34, 0x56);
+        term.set_ansi_palette_color(196, profile_baseline).unwrap();
+        let _ = term.drain_active_screen_damage();
+
+        term.process(b"\x1b]4;196;#abcdef\x1b\\");
+        assert_eq!(term.get_ansi_color(196), Some(Color::Rgb(0xab, 0xcd, 0xef)));
+        let damage = term.drain_active_screen_damage();
+        assert!(damage.full_repaint);
+        assert_eq!(
+            damage.snapshot_fallback_reason.as_deref(),
+            Some("ansi_palette_changed")
+        );
+
+        term.process(b"\x1b]4;196;?\x1b\\");
+        assert_eq!(
+            term.drain_responses(),
+            b"\x1b]4;196;rgb:abab/cdcd/efef\x1b\\"
+        );
+        assert!(!term.drain_active_screen_damage().full_repaint);
+
+        term.process(b"\x1b]104;196\x1b\\");
+        assert_eq!(term.get_ansi_color(196), Some(profile_baseline));
+    }
+
+    #[test]
+    fn osc4_multi_pair_and_osc104_multi_index_cover_palette_boundaries() {
+        let mut term = create_test_terminal();
+        let baselines = [
+            (0, Color::Rgb(1, 2, 3)),
+            (15, Color::Rgb(4, 5, 6)),
+            (16, Color::Rgb(7, 8, 9)),
+            (255, Color::Rgb(10, 11, 12)),
+        ];
+        for (index, color) in baselines {
+            term.set_ansi_palette_color(index, color).unwrap();
+        }
+
+        term.process(b"\x1b]4;0;#101112;15;#202122;16;#303132;255;#404142\x1b\\");
+        assert_eq!(term.get_ansi_color(0), Some(Color::Rgb(0x10, 0x11, 0x12)));
+        assert_eq!(term.get_ansi_color(15), Some(Color::Rgb(0x20, 0x21, 0x22)));
+        assert_eq!(term.get_ansi_color(16), Some(Color::Rgb(0x30, 0x31, 0x32)));
+        assert_eq!(term.get_ansi_color(255), Some(Color::Rgb(0x40, 0x41, 0x42)));
+
+        term.process(b"\x1b]104;0;16;255\x1b\\");
+        assert_eq!(term.get_ansi_color(0), Some(baselines[0].1));
+        assert_eq!(term.get_ansi_color(15), Some(Color::Rgb(0x20, 0x21, 0x22)));
+        assert_eq!(term.get_ansi_color(16), Some(baselines[2].1));
+        assert_eq!(term.get_ansi_color(255), Some(baselines[3].1));
+
+        term.process(b"\x1b]104\x1b\\");
+        assert_eq!(term.get_ansi_color(15), Some(baselines[1].1));
+    }
+
+    #[test]
+    fn osc4_ignores_invalid_indices_without_mutating_or_responding() {
+        let mut term = create_test_terminal();
+        let before = term.get_ansi_color(255);
+        let _ = term.drain_active_screen_damage();
+
+        term.process(b"\x1b]4;256;#abcdef;999;?\x1b\\");
+
+        assert_eq!(term.get_ansi_color(255), before);
+        assert!(term.drain_responses().is_empty());
+        assert!(!term.drain_active_screen_damage().full_repaint);
+    }
+
+    #[test]
+    fn resolve_color_rgb_uses_runtime_extended_palette() {
+        let mut term = create_test_terminal();
+        term.process(b"\x1b]4;196;#123456\x1b\\");
+
+        assert_eq!(
+            term.resolve_color_rgb(Color::Indexed(196)),
+            (0x12, 0x34, 0x56)
+        );
+    }
+
+    #[test]
+    fn terminal_svg_and_html_exports_use_runtime_extended_palette() {
+        let mut term = Terminal::new(4, 2);
+        term.process(b"\x1b[38;5;196mX\x1b[0m");
+        term.process(b"\x1b]4;196;#123456\x1b\\");
+
+        let svg = term
+            .screenshot(
+                crate::screenshot::ScreenshotConfig {
+                    format: crate::screenshot::ImageFormat::Svg,
+                    ..Default::default()
+                },
+                0,
+            )
+            .expect("SVG screenshot");
+        let svg = String::from_utf8(svg).unwrap();
+        assert!(svg.contains("fill=\"rgb(18,52,86)\""), "{svg}");
+
+        let html = term.export_html(false);
+        assert!(html.contains("color: rgb(18, 52, 86)"), "{html}");
     }
 }

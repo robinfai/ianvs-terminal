@@ -15,6 +15,8 @@
 //!
 //! - [Tmux Control Mode Wiki](https://github.com/tmux/tmux/wiki/Control-Mode)
 
+const MAX_CONTROL_LINE_BYTES: usize = 64 * 1024;
+
 /// Tmux control protocol notification types
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TmuxNotification {
@@ -196,6 +198,8 @@ impl TmuxNotification {
 pub struct TmuxControlParser {
     /// Buffer for accumulating incomplete lines
     line_buffer: Vec<u8>,
+    /// Whether an overlong line is being discarded until its terminating newline
+    discarding_overlong_line: bool,
     /// Whether we're currently in control mode
     control_mode: bool,
     /// Whether to auto-detect control mode when we see %begin
@@ -209,6 +213,7 @@ impl TmuxControlParser {
     pub fn new(control_mode: bool) -> Self {
         Self {
             line_buffer: Vec::new(),
+            discarding_overlong_line: false,
             control_mode,
             auto_detect: false,
         }
@@ -320,28 +325,57 @@ impl TmuxControlParser {
     }
 
     /// Parse data as tmux control protocol
-    fn parse_control_data(&mut self, data: &[u8]) -> Vec<TmuxNotification> {
+    fn parse_control_data(&mut self, mut data: &[u8]) -> Vec<TmuxNotification> {
         let mut notifications = Vec::new();
 
-        // Append new data to the line buffer
-        self.line_buffer.extend_from_slice(data);
+        while !data.is_empty() {
+            if self.discarding_overlong_line {
+                let Some(newline_pos) = data.iter().position(|&byte| byte == b'\n') else {
+                    return notifications;
+                };
 
-        // Process complete lines
-        while let Some(newline_pos) = self.line_buffer.iter().position(|&b| b == b'\n') {
-            // Extract the line (without the newline)
-            let line_bytes = self.line_buffer.drain(..=newline_pos).collect::<Vec<u8>>();
-
-            // Strip trailing \n and also \r if present (tmux sends \r\n line endings)
-            let mut end = line_bytes.len() - 1; // Skip \n
-            if end > 0 && line_bytes[end - 1] == b'\r' {
-                end -= 1; // Also skip \r
+                self.discarding_overlong_line = false;
+                data = &data[newline_pos + 1..];
+                continue;
             }
-            let line = String::from_utf8_lossy(&line_bytes[..end]).to_string();
 
-            // Parse the line
-            if let Some(notification) = Self::parse_line(&line) {
-                notifications.push(notification);
+            if let Some(newline_pos) = data.iter().position(|&byte| byte == b'\n') {
+                let line_part = &data[..newline_pos];
+                let remaining_capacity =
+                    MAX_CONTROL_LINE_BYTES.saturating_sub(self.line_buffer.len());
+
+                if line_part.len() > remaining_capacity {
+                    self.line_buffer.clear();
+                } else {
+                    self.line_buffer.extend_from_slice(line_part);
+
+                    // Strip a trailing \r (tmux may send \r\n line endings).
+                    let end = self
+                        .line_buffer
+                        .len()
+                        .checked_sub(1)
+                        .filter(|&index| self.line_buffer[index] == b'\r')
+                        .unwrap_or(self.line_buffer.len());
+                    let line = String::from_utf8_lossy(&self.line_buffer[..end]).to_string();
+                    self.line_buffer.clear();
+
+                    if let Some(notification) = Self::parse_line(&line) {
+                        notifications.push(notification);
+                    }
+                }
+
+                data = &data[newline_pos + 1..];
+                continue;
             }
+
+            let remaining_capacity = MAX_CONTROL_LINE_BYTES.saturating_sub(self.line_buffer.len());
+            if data.len() <= remaining_capacity {
+                self.line_buffer.extend_from_slice(data);
+            } else {
+                self.line_buffer.clear();
+                self.discarding_overlong_line = true;
+            }
+            break;
         }
 
         notifications
@@ -688,6 +722,7 @@ impl TmuxControlParser {
     /// Clear the internal line buffer
     pub fn clear_buffer(&mut self) {
         self.line_buffer.clear();
+        self.discarding_overlong_line = false;
     }
 
     /// Get the current size of the internal line buffer
@@ -955,6 +990,60 @@ mod tests {
             TmuxNotification::SessionsChanged
         ));
         assert_eq!(parser.buffer_len(), 0);
+    }
+
+    #[test]
+    fn test_control_line_limit_discards_single_chunk_and_recovers_same_chunk() {
+        let mut parser = TmuxControlParser::new(true);
+        let mut data = vec![b'x'; MAX_CONTROL_LINE_BYTES + 1];
+        data.extend_from_slice(b"\n%sessions-changed\n");
+
+        let notifications = parser.parse(&data);
+
+        assert_eq!(notifications, vec![TmuxNotification::SessionsChanged]);
+        assert_eq!(parser.buffer_len(), 0);
+        assert!(!parser.discarding_overlong_line);
+    }
+
+    #[test]
+    fn test_control_line_limit_discards_split_line_without_retaining_prefix() {
+        let mut parser = TmuxControlParser::new(true);
+        let prefix = vec![b'a'; MAX_CONTROL_LINE_BYTES - 2];
+
+        assert!(parser.parse(&prefix).is_empty());
+        assert_eq!(parser.buffer_len(), MAX_CONTROL_LINE_BYTES - 2);
+        assert!(parser.parse(b"abc").is_empty());
+        assert_eq!(parser.buffer_len(), 0);
+        assert!(parser.discarding_overlong_line);
+        assert!(parser.parse(b"discarded suffix").is_empty());
+        assert_eq!(parser.buffer_len(), 0);
+    }
+
+    #[test]
+    fn test_control_line_limit_stays_bounded_while_discarding_without_newline() {
+        let mut parser = TmuxControlParser::new(true);
+        let overlong_line = vec![b'z'; MAX_CONTROL_LINE_BYTES + 1];
+        let more_data = vec![b'y'; MAX_CONTROL_LINE_BYTES * 4];
+
+        assert!(parser.parse(&overlong_line).is_empty());
+        assert_eq!(parser.buffer_len(), 0);
+        assert!(parser.discarding_overlong_line);
+        assert!(parser.parse(&more_data).is_empty());
+        assert_eq!(parser.buffer_len(), 0);
+        assert!(parser.discarding_overlong_line);
+    }
+
+    #[test]
+    fn test_control_line_limit_recovers_after_discard_terminator() {
+        let mut parser = TmuxControlParser::new(true);
+        let overlong_line = vec![b'q'; MAX_CONTROL_LINE_BYTES + 1];
+
+        assert!(parser.parse(&overlong_line).is_empty());
+        let notifications = parser.parse(b"discarded tail\n%exit\n");
+
+        assert_eq!(notifications, vec![TmuxNotification::Exit]);
+        assert_eq!(parser.buffer_len(), 0);
+        assert!(!parser.discarding_overlong_line);
     }
 
     #[test]

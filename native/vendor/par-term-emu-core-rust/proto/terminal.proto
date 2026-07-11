@@ -261,7 +261,7 @@ message ShellIntegrationEvent {
   optional string command = 2;          // The command text (for command_start)
   optional int32 exit_code = 3;         // Exit code (for command_finished)
   optional uint64 timestamp = 4;
-  optional uint64 cursor_line = 5;     // Absolute cursor line (scrollback_len + cursor_row) at marker time
+  optional uint64 cursor_line = 5;     // Global cursor line (total_lines_scrolled + cursor_row) at marker time
 }
 
 // CPU statistics
@@ -332,15 +332,15 @@ message SystemStats {
 message ZoneOpened {
   uint64 zone_id = 1;
   string zone_type = 2;    // "prompt", "command", "output"
-  uint64 abs_row_start = 3;
+  uint64 abs_row_start = 3; // Global absolute row (total_lines_scrolled + visible_row)
 }
 
 // Zone closed (prompt, command, or output block ended)
 message ZoneClosed {
   uint64 zone_id = 1;
   string zone_type = 2;
-  uint64 abs_row_start = 3;
-  uint64 abs_row_end = 4;
+  uint64 abs_row_start = 3; // Global absolute row (total_lines_scrolled + visible_row)
+  uint64 abs_row_end = 4;   // Inclusive global absolute row
   optional int32 exit_code = 5;
 }
 

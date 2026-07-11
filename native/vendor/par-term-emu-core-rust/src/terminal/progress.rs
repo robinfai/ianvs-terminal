@@ -161,6 +161,35 @@ pub enum ProgressBarAction {
     RemoveAll,
 }
 
+/// Stable capability/version token for the Ianvs private OSC 934 protocol.
+pub const OSC934_PROTOCOL_VERSION: &str = "ianvs-osc934/1";
+
+/// Maximum OSC 934 payload size, excluding the OSC introducer and terminator.
+///
+/// The streaming OSC prefilter should enforce this before allocating an entire
+/// sequence. This parser also checks the reconstructed payload length as a
+/// defense-in-depth boundary for direct callers.
+pub const MAX_OSC934_PAYLOAD_BYTES: usize = 8 * 1024;
+
+/// Maximum UTF-8 byte length of a named progress identifier.
+pub const MAX_OSC934_ID_BYTES: usize = 128;
+
+/// Maximum UTF-8 byte length of a named progress label.
+pub const MAX_OSC934_LABEL_BYTES: usize = 1024;
+
+/// Maximum number of active named progress bars retained per terminal session.
+///
+/// State owners must reject creation of a new ID at this boundary while still
+/// allowing updates and removals of existing IDs.
+pub const MAX_OSC934_ACTIVE_BARS: usize = 64;
+
+/// Canonical response to `OSC 934;query ST`.
+///
+/// This response intentionally contains only static protocol metadata. It must
+/// never include session state, progress identifiers, labels, or other terminal
+/// contents.
+pub const OSC934_CAPABILITY_RESPONSE: &[u8] = b"\x1b]934;capability;ianvs-osc934/1;actions=set,remove,remove_all;states=normal,indeterminate,warning,error,hidden\x1b\\";
+
 /// A named progress bar from OSC 934 sequences
 ///
 /// OSC 934 supports multiple concurrent progress bars, each identified by a
@@ -168,12 +197,13 @@ pub enum ProgressBarAction {
 ///
 /// ## Protocol Format
 ///
-/// `OSC 934 ; action ; id [; key=value ...] ST`
+/// `OSC 934 ; action [; id] [; key=value ...] ST`
 ///
 /// Actions:
 /// - `set` — create or update a progress bar
 /// - `remove` — remove a specific progress bar
 /// - `remove_all` — remove all progress bars
+/// - `query` — request the static [`OSC934_CAPABILITY_RESPONSE`]
 ///
 /// Key-value parameters (for `set`):
 /// - `percent=N` — progress percentage (0-100, clamped)
@@ -189,6 +219,7 @@ pub enum ProgressBarAction {
 /// \x1b]934;set;build;state=error;label=Build failed\x1b\\
 /// \x1b]934;remove;dl-1\x1b\\
 /// \x1b]934;remove_all\x1b\\
+/// \x1b]934;query\x1b\\
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NamedProgressBar {
@@ -223,9 +254,41 @@ pub enum ProgressBarCommand {
     Remove(String),
     /// Remove all progress bars
     RemoveAll,
+    /// Request the terminal's static OSC 934 capability descriptor.
+    Query,
 }
 
 impl ProgressBarCommand {
+    fn payload_len(params: &[&[u8]]) -> Option<usize> {
+        params
+            .iter()
+            .try_fold(params.len().saturating_sub(1), |length, param| {
+                length.checked_add(param.len())
+            })
+    }
+
+    fn parse_identifier(value: &[u8]) -> Option<String> {
+        let value = std::str::from_utf8(value).ok()?.trim();
+        if value.is_empty()
+            || value.len() > MAX_OSC934_ID_BYTES
+            || value.chars().any(char::is_control)
+        {
+            return None;
+        }
+        Some(value.to_string())
+    }
+
+    fn parse_label(value: &str) -> Option<String> {
+        let value = value.trim();
+        if value.is_empty()
+            || value.len() > MAX_OSC934_LABEL_BYTES
+            || value.chars().any(char::is_control)
+        {
+            return None;
+        }
+        Some(value.to_string())
+    }
+
     /// Parse an OSC 934 parameter list into a ProgressBarCommand
     ///
     /// Expected format after the "934" prefix:
@@ -233,9 +296,17 @@ impl ProgressBarCommand {
     /// params[1] = action ("set", "remove", "remove_all")
     /// params[2] = id (for "set" and "remove")
     /// params[3..] = key=value pairs (for "set")
+    ///
+    /// `query` has no ID or properties. The caller is responsible for writing
+    /// [`OSC934_CAPABILITY_RESPONSE`] to the device response channel without
+    /// mutating progress state.
     pub fn parse(params: &[&[u8]]) -> Option<Self> {
+        if Self::payload_len(params)? > MAX_OSC934_PAYLOAD_BYTES {
+            return None;
+        }
+
         // params[0] is "934", params[1] is the action
-        if params.len() < 2 {
+        if params.first().copied() != Some(b"934") || params.len() < 2 {
             return None;
         }
 
@@ -247,10 +318,7 @@ impl ProgressBarCommand {
                 if params.len() < 3 {
                     return None;
                 }
-                let id = std::str::from_utf8(params[2]).ok()?.trim().to_string();
-                if id.is_empty() {
-                    return None;
-                }
+                let id = Self::parse_identifier(params[2])?;
 
                 let mut state = ProgressState::Normal;
                 let mut percent: u8 = 0;
@@ -263,14 +331,18 @@ impl ProgressBarCommand {
                         if let Some((key, value)) = kv.split_once('=') {
                             match key.trim() {
                                 "percent" => {
-                                    if let Ok(p) = value.trim().parse::<u16>() {
-                                        percent = (p.min(100)) as u8;
+                                    let value = value.trim();
+                                    if !value.is_empty()
+                                        && value.bytes().all(|byte| byte.is_ascii_digit())
+                                    {
+                                        if let Ok(value) = value.parse::<u16>() {
+                                            percent = (value.min(100)) as u8;
+                                        }
                                     }
                                 }
                                 "label" => {
-                                    let v = value.trim();
-                                    if !v.is_empty() {
-                                        label = Some(v.to_string());
+                                    if let Some(value) = Self::parse_label(value) {
+                                        label = Some(value);
                                     }
                                 }
                                 "state" => match value.trim() {
@@ -293,13 +365,11 @@ impl ProgressBarCommand {
                 if params.len() < 3 {
                     return None;
                 }
-                let id = std::str::from_utf8(params[2]).ok()?.trim().to_string();
-                if id.is_empty() {
-                    return None;
-                }
+                let id = Self::parse_identifier(params[2])?;
                 Some(Self::Remove(id))
             }
             "remove_all" => Some(Self::RemoveAll),
+            "query" if params.len() == 2 => Some(Self::Query),
             _ => None,
         }
     }
@@ -464,6 +534,53 @@ mod tests {
     }
 
     #[test]
+    fn test_named_progress_storage_is_bounded_but_existing_ids_can_update() {
+        let mut terminal = crate::terminal::Terminal::new(80, 24);
+        for index in 0..MAX_OSC934_ACTIVE_BARS {
+            terminal.set_named_progress_bar(NamedProgressBar::new(
+                format!("job-{index}"),
+                ProgressState::Normal,
+                index as u8,
+                None,
+            ));
+        }
+        let _ = terminal.poll_events();
+
+        terminal.set_named_progress_bar(NamedProgressBar::new(
+            "rejected-at-cap".to_string(),
+            ProgressState::Normal,
+            50,
+            None,
+        ));
+        assert_eq!(terminal.named_progress_bars().len(), MAX_OSC934_ACTIVE_BARS);
+        assert!(terminal.get_named_progress_bar("rejected-at-cap").is_none());
+        assert!(terminal.poll_events().is_empty());
+
+        terminal.set_named_progress_bar(NamedProgressBar::new(
+            "job-0".to_string(),
+            ProgressState::Error,
+            99,
+            Some("updated".to_string()),
+        ));
+        assert_eq!(terminal.named_progress_bars().len(), MAX_OSC934_ACTIVE_BARS);
+        assert_eq!(
+            terminal.get_named_progress_bar("job-0").unwrap().percent,
+            99
+        );
+        assert_eq!(terminal.poll_events().len(), 1);
+
+        assert!(terminal.remove_named_progress_bar("job-1"));
+        terminal.set_named_progress_bar(NamedProgressBar::new(
+            "replacement".to_string(),
+            ProgressState::Indeterminate,
+            0,
+            None,
+        ));
+        assert_eq!(terminal.named_progress_bars().len(), MAX_OSC934_ACTIVE_BARS);
+        assert!(terminal.get_named_progress_bar("replacement").is_some());
+    }
+
+    #[test]
     fn test_parse_osc934_set_basic() {
         let params: Vec<&[u8]> = vec![b"934", b"set", b"dl-1", b"percent=50", b"label=Downloading"];
         let cmd = ProgressBarCommand::parse(&params).unwrap();
@@ -609,13 +726,142 @@ mod tests {
 
     #[test]
     fn test_parse_osc934_invalid_percent_ignored() {
-        let params: Vec<&[u8]> = vec![b"934", b"set", b"x", b"percent=abc"];
-        let cmd = ProgressBarCommand::parse(&params).unwrap();
-        match cmd {
+        for invalid_percent in [
+            b"percent=abc".as_slice(),
+            b"percent=+1".as_slice(),
+            b"percent=-1".as_slice(),
+            b"percent=65536".as_slice(),
+        ] {
+            let params: Vec<&[u8]> = vec![b"934", b"set", b"x", invalid_percent];
+            let cmd = ProgressBarCommand::parse(&params).unwrap();
+            match cmd {
+                ProgressBarCommand::Set(bar) => {
+                    assert_eq!(bar.percent, 0); // Stays at default
+                }
+                _ => panic!("Expected Set command"),
+            }
+        }
+    }
+
+    #[test]
+    fn test_parse_osc934_requires_private_protocol_prefix() {
+        let params: Vec<&[u8]> = vec![b"933", b"set", b"x"];
+        assert!(ProgressBarCommand::parse(&params).is_none());
+    }
+
+    #[test]
+    fn test_parse_osc934_rejects_oversized_payload() {
+        let oversized = "x".repeat(MAX_OSC934_PAYLOAD_BYTES);
+        let params: Vec<&[u8]> = vec![b"934", b"set", b"x", oversized.as_bytes()];
+        assert!(ProgressBarCommand::parse(&params).is_none());
+    }
+
+    #[test]
+    fn test_parse_osc934_accepts_payload_at_exact_limit() {
+        let fixed_length = b"934".len() + b"set".len() + b"x".len() + 3;
+        let filler = "z".repeat(MAX_OSC934_PAYLOAD_BYTES - fixed_length);
+        let params: Vec<&[u8]> = vec![b"934", b"set", b"x", filler.as_bytes()];
+        assert_eq!(
+            ProgressBarCommand::payload_len(&params),
+            Some(MAX_OSC934_PAYLOAD_BYTES)
+        );
+        assert!(matches!(
+            ProgressBarCommand::parse(&params),
+            Some(ProgressBarCommand::Set(_))
+        ));
+    }
+
+    #[test]
+    fn test_parse_osc934_rejects_oversized_or_control_character_id() {
+        let oversized = "x".repeat(MAX_OSC934_ID_BYTES + 1);
+        let oversized_params: Vec<&[u8]> = vec![b"934", b"set", oversized.as_bytes()];
+        assert!(ProgressBarCommand::parse(&oversized_params).is_none());
+
+        let control_params: Vec<&[u8]> = vec![b"934", b"set", b"unsafe\nidentifier"];
+        assert!(ProgressBarCommand::parse(&control_params).is_none());
+    }
+
+    #[test]
+    fn test_parse_osc934_accepts_id_and_label_at_exact_limits() {
+        let id = "i".repeat(MAX_OSC934_ID_BYTES);
+        let label = format!("label={}", "l".repeat(MAX_OSC934_LABEL_BYTES));
+        let params: Vec<&[u8]> = vec![b"934", b"set", id.as_bytes(), label.as_bytes()];
+        let command = ProgressBarCommand::parse(&params).unwrap();
+        match command {
             ProgressBarCommand::Set(bar) => {
-                assert_eq!(bar.percent, 0); // Stays at default
+                assert_eq!(bar.id.len(), MAX_OSC934_ID_BYTES);
+                assert_eq!(
+                    bar.label.as_ref().map(String::len),
+                    Some(MAX_OSC934_LABEL_BYTES)
+                );
             }
             _ => panic!("Expected Set command"),
         }
+    }
+
+    #[test]
+    fn test_parse_osc934_ignores_invalid_label_without_storing_it() {
+        let oversized = "x".repeat(MAX_OSC934_LABEL_BYTES + 1);
+        let oversized_label = format!("label={oversized}");
+        let params: Vec<&[u8]> = vec![
+            b"934",
+            b"set",
+            b"safe-id",
+            b"label=valid",
+            b"label=unsafe\nlabel",
+            oversized_label.as_bytes(),
+        ];
+        let command = ProgressBarCommand::parse(&params).unwrap();
+        match command {
+            ProgressBarCommand::Set(bar) => assert_eq!(bar.label.as_deref(), Some("valid")),
+            _ => panic!("Expected Set command"),
+        }
+    }
+
+    #[test]
+    fn test_parse_osc934_last_valid_duplicate_field_wins() {
+        let params: Vec<&[u8]> = vec![
+            b"934",
+            b"set",
+            b"build",
+            b"percent=10",
+            b"state=normal",
+            b"percent=80",
+            b"state=warning",
+        ];
+        let command = ProgressBarCommand::parse(&params).unwrap();
+        match command {
+            ProgressBarCommand::Set(bar) => {
+                assert_eq!(bar.percent, 80);
+                assert_eq!(bar.state, ProgressState::Warning);
+            }
+            _ => panic!("Expected Set command"),
+        }
+    }
+
+    #[test]
+    fn test_parse_osc934_query_has_static_non_sensitive_response() {
+        let params: Vec<&[u8]> = vec![b"934", b"query"];
+        assert_eq!(
+            ProgressBarCommand::parse(&params),
+            Some(ProgressBarCommand::Query)
+        );
+
+        let response = std::str::from_utf8(OSC934_CAPABILITY_RESPONSE).unwrap();
+        assert!(response.starts_with("\u{1b}]934;capability;ianvs-osc934/1;"));
+        assert!(response.contains(OSC934_PROTOCOL_VERSION));
+        assert!(response.ends_with("\u{1b}\\"));
+        assert!(response.contains("actions=set,remove,remove_all"));
+        assert!(response.contains("states=normal,indeterminate,warning,error,hidden"));
+    }
+
+    #[test]
+    fn test_parse_osc934_query_rejects_extensions_and_response_does_not_loop() {
+        let extended_query: Vec<&[u8]> = vec![b"934", b"query", b"session-state"];
+        assert!(ProgressBarCommand::parse(&extended_query).is_none());
+
+        let capability_response: Vec<&[u8]> =
+            vec![b"934", b"capability", OSC934_PROTOCOL_VERSION.as_bytes()];
+        assert!(ProgressBarCommand::parse(&capability_response).is_none());
     }
 }

@@ -1,6 +1,7 @@
 use image::{Rgba, RgbaImage};
 
 use crate::cell::{Cell, UnderlineStyle};
+use crate::color::Color;
 use crate::cursor::{Cursor, CursorStyle};
 use crate::graphics::{ImageDimension, ImageSizeUnit, TerminalGraphic};
 use crate::grid::Grid;
@@ -21,6 +22,7 @@ pub struct Renderer {
     canvas_height: u32,
     /// Text shaper for handling multi-codepoint emoji (like flags)
     shaper: Option<TextShaper>,
+    palette: Option<[Color; 256]>,
 }
 
 fn screenshot_graphic_dimension_px(
@@ -45,6 +47,24 @@ fn screenshot_graphic_dimension_px(
 impl Renderer {
     /// Create a new renderer
     pub fn new(rows: usize, cols: usize, config: ScreenshotConfig) -> ScreenshotResult<Self> {
+        Self::new_with_optional_palette(rows, cols, config, None)
+    }
+
+    pub(crate) fn new_with_palette(
+        rows: usize,
+        cols: usize,
+        config: ScreenshotConfig,
+        palette: [Color; 256],
+    ) -> ScreenshotResult<Self> {
+        Self::new_with_optional_palette(rows, cols, config, Some(palette))
+    }
+
+    fn new_with_optional_palette(
+        rows: usize,
+        cols: usize,
+        config: ScreenshotConfig,
+        palette: Option<[Color; 256]>,
+    ) -> ScreenshotResult<Self> {
         let mut font_cache = FontCache::new(config.font_path.as_deref(), config.font_size)?;
         let (base_width, base_height) = font_cache.cell_dimensions();
 
@@ -66,6 +86,7 @@ impl Renderer {
             canvas_width,
             canvas_height,
             shaper,
+            palette,
         })
     }
 
@@ -202,7 +223,10 @@ impl Renderer {
 
         // Render text decorations
         if cell.flags.underline() {
-            let underline_color = cell.underline_color.map(|c| c.to_rgb()).unwrap_or(fg);
+            let underline_color = cell
+                .underline_color
+                .map(|color| self.resolve_color(color))
+                .unwrap_or(fg);
             self.render_underline(image, x, y, cell.flags.underline_style, underline_color);
         }
 
@@ -220,7 +244,7 @@ impl Renderer {
     /// Resolve effective foreground and background colors
     fn resolve_colors(&self, cell: &Cell) -> ((u8, u8, u8), (u8, u8, u8)) {
         let mut fg = cell.fg;
-        let mut bg = cell.bg.to_rgb();
+        let mut bg = self.resolve_color(cell.bg);
 
         // Apply bold brightening: if bold and color is ANSI 0-7, use bright variant 8-15
         if self.config.bold_brightening && cell.flags.bold() {
@@ -235,7 +259,7 @@ impl Renderer {
         }
 
         // Convert fg to RGB after bold brightening
-        let mut fg_rgb = fg.to_rgb();
+        let mut fg_rgb = self.resolve_color(fg);
 
         // Apply theme colors AFTER bold brightening but BEFORE reverse/dim transformations
         // This ensures theme colors work correctly with reverse video and dim
@@ -299,6 +323,17 @@ impl Renderer {
         }
 
         (fg_rgb, bg)
+    }
+
+    fn resolve_color(&self, color: Color) -> (u8, u8, u8) {
+        let Some(palette) = self.palette.as_ref() else {
+            return color.to_rgb();
+        };
+        match color {
+            Color::Named(named) => palette[named as usize].to_rgb(),
+            Color::Indexed(index) => palette[index as usize].to_rgb(),
+            Color::Rgb(red, green, blue) => (red, green, blue),
+        }
     }
 
     /// Render block element characters as filled rectangles for pixel-perfect rendering
@@ -608,7 +643,10 @@ impl Renderer {
 
                 // Render text decorations (underline, strikethrough, overline)
                 if cell.flags.underline() {
-                    let underline_color = cell.underline_color.map(|c| c.to_rgb()).unwrap_or(fg);
+                    let underline_color = cell
+                        .underline_color
+                        .map(|color| self.resolve_color(color))
+                        .unwrap_or(fg);
                     self.render_underline(image, x, y, cell.flags.underline_style, underline_color);
                 }
 
@@ -1334,6 +1372,19 @@ mod tests {
         // Test that colors are returned as-is for normal cell
         // This would require creating a Renderer instance
         assert_eq!(cell.fg, Color::Rgb(255, 0, 0));
+    }
+
+    #[test]
+    fn renderer_resolves_extended_index_through_runtime_palette() {
+        let mut palette: [Color; 256] = std::array::from_fn(|index| Color::Indexed(index as u8));
+        palette[196] = Color::Rgb(0x12, 0x34, 0x56);
+        let renderer =
+            Renderer::new_with_palette(1, 1, create_test_config(), palette).expect("test renderer");
+
+        assert_eq!(
+            renderer.resolve_color(Color::Indexed(196)),
+            (0x12, 0x34, 0x56)
+        );
     }
 
     #[test]

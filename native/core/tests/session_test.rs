@@ -574,6 +574,36 @@ fn osc7_shell_context_profile(emulation: TerminalEmulation) -> TerminalProfile {
     )
 }
 
+fn osc9_9_shell_context_profile(emulation: TerminalEmulation) -> TerminalProfile {
+    local_profile(
+        "osc9-9-shell-context",
+        "OSC9;9 Shell Context",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import sys; sys.stdout.buffer.write(b"\x1b]7;file://alice@remote.example/tmp/before\x07\x1b]9;9;/tmp/ianvs-osc9-9\x07")'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        emulation,
+    )
+}
+
+fn invalid_osc9_9_shell_context_profile() -> TerminalProfile {
+    local_profile(
+        "invalid-osc9-9-shell-context",
+        "Invalid OSC9;9 Shell Context",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import sys; sys.stdout.buffer.write(b"\x1b]9;9;relative/path\x07\x1b]9;9;/tmp/bad\xc2\x85path\x1b\\")'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
 fn osc1337_current_dir_profile() -> TerminalProfile {
     local_profile(
         "osc1337-current-dir",
@@ -600,6 +630,55 @@ fn osc133_shell_command_profile() -> TerminalProfile {
                 .to_string(),
         ],
         BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn osc133_resize_replay_profile() -> TerminalProfile {
+    local_profile(
+        "osc133-resize-replay",
+        "OSC133 Resize Replay",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            "printf '\\033]133;A\\a\\033]133;B\\a\\033]133;C;echo ready\\aREADY\\n\\033]133;D;0\\a'; read line; printf 'AFTER-RESIZE\\n'"
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn osc633_shell_command_profile(emulation: TerminalEmulation) -> TerminalProfile {
+    let mut env = BTreeMap::new();
+    env.insert("VSCODE_NONCE".to_string(), "private-nonce-633".to_string());
+    local_profile(
+        "osc633-shell-command",
+        "OSC633 Shell Command",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import sys; sys.stdout.buffer.write(b"\x1b]7;file://alice@remote.example/tmp/before\x07\x1b]633;A\x07\x1b]633;B\x07\x1b]633;E;printf\\x3bvalue;private-nonce-633\x1b\\\x1b]633;C\x07\x1b]633;P;Cwd=/tmp/ianvs-osc633\x1b\\\x1b]633;D;7\x07")'"#
+                .to_string(),
+        ],
+        env,
+        emulation,
+    )
+}
+
+fn osc633_resize_nonce_profile() -> TerminalProfile {
+    let mut env = BTreeMap::new();
+    env.insert("VSCODE_NONCE".to_string(), "private-nonce-633".to_string());
+    local_profile(
+        "osc633-resize-nonce",
+        "OSC633 Resize Nonce",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import sys; sys.stdout.buffer.write(b"\x1b]633;A\x07\x1b]633;B\x07\x1b]633;E;after-resize;private-nonce-633\x07WAITING\n"); sys.stdout.flush(); sys.stdin.readline(); sys.stdout.buffer.write(b"\x1b]633;C\x07DONE\n\x1b]633;D;0\x07"); sys.stdout.flush()'"#
+                .to_string(),
+        ],
+        env,
         TerminalEmulation::Xterm256,
     )
 }
@@ -699,6 +778,20 @@ fn hyperlink_profile() -> TerminalProfile {
         vec![
             "-lc".to_string(),
             "printf '\\033]8;;https://example.com/docs\\aDocs\\033]8;;\\a\\n'".to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn hyperlink_protocol_id_profile() -> TerminalProfile {
+    local_profile(
+        "hyperlink-protocol-id",
+        "Hyperlink Protocol ID",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r"printf '\033]8;id=first;https://example.com/docs\aOne\033]8;;\a \033]8;id=second;https://example.com/docs\aTwo\033]8;;\a\n'".to_string(),
         ],
         BTreeMap::new(),
         TerminalEmulation::Xterm256,
@@ -1246,6 +1339,46 @@ fn osc4_query_profile() -> TerminalProfile {
     )
 }
 
+fn osc_palette_product_profile() -> TerminalProfile {
+    let mut profile = local_profile(
+        "osc-palette-product",
+        "OSC Palette Product",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"printf 'PALETTE-READY\n'
+IFS= read -r _
+printf '\033]4;0;#112233;15;#445566;16;#778899;255;#aabbcc\033\\'
+printf '\033[38;5;0mA\033[38;5;15mB\033[38;5;16mC\033[38;5;255mD\033[0m PALETTE-SET\n'
+IFS= read -r _
+printf '\033]104\033\\'
+printf '\033[38;5;0ma\033[38;5;15mb\033[38;5;16mc\033[38;5;255md\033[0m PALETTE-RESET\n'
+sleep 0.2"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    profile.appearance.colors.normal.black = Some("#010203".to_string());
+    profile.appearance.colors.bright.white = Some("#f1f2f3".to_string());
+    profile
+}
+
+fn osc934_query_profile() -> TerminalProfile {
+    local_profile(
+        "osc934-query",
+        "OSC 934 Query",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import os,select,sys,termios,time,tty; old=termios.tcgetattr(0); tty.setraw(0); time.sleep(0.2); os.write(1,b"\x1b]934;query\x1b\\"); sys.stdout.flush(); ready,_,_=select.select([0],[],[],2.0); data=os.read(0,512) if ready else b"TIMEOUT"; termios.tcsetattr(0, termios.TCSANOW, old); os.write(1,b"OSC934-RESPONSE:"+repr(data).encode()+b"\n")'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
 fn osc12_cursor_color_profile() -> TerminalProfile {
     local_profile(
         "osc12-cursor-color",
@@ -1659,6 +1792,56 @@ fn frame_row_with_text<'a>(frame: &'a serde_json::Value, needle: &str) -> &'a se
         .expect("expected matching frame row")
 }
 
+fn assert_frame_json_protobuf_foreground_parity(
+    frame: &str,
+    marker: &str,
+    expected_foregrounds: [&str; 4],
+) {
+    let parsed: serde_json::Value = serde_json::from_str(frame).unwrap();
+    let json_row = frame_row_with_text(&parsed, marker);
+    let frame_model: ianvs_core::model::TerminalFrameDiff = serde_json::from_str(frame).unwrap();
+    // `take_frame_diff_protobuf` delegates to this encoder. Encoding the PTY-produced
+    // JSON model proves parity for the exact frame, without introducing PTY timing skew.
+    let protobuf_bytes = ianvs_core::frame_diff_proto::encode_frame_diff(&frame_model)
+        .expect("encode the same frame as protobuf");
+    let protobuf = ianvs_core::frame_diff_proto::decode_frame_diff_for_test(&protobuf_bytes)
+        .expect("decode the same protobuf frame");
+    let protobuf_row = protobuf
+        .rows
+        .iter()
+        .find(|row| row.text.contains(marker))
+        .expect("expected matching protobuf frame row");
+
+    for (column, expected) in expected_foregrounds.into_iter().enumerate() {
+        let json_foreground = json_row["style_runs"]
+            .as_array()
+            .and_then(|runs| {
+                runs.iter().find(|run| {
+                    run["start"]
+                        .as_u64()
+                        .is_some_and(|start| start <= column as u64)
+                        && run["end"].as_u64().is_some_and(|end| end > column as u64)
+                })
+            })
+            .and_then(|run| run["foreground"].as_str())
+            .expect("expected JSON foreground for indexed-color cell");
+        assert_eq!(json_foreground, expected, "JSON column {column}");
+
+        let protobuf_foreground = protobuf_row
+            .style_runs
+            .iter()
+            .find(|run| run.start <= column as u32 && run.end > column as u32)
+            .and_then(|run| run.foreground)
+            .expect("expected protobuf foreground for indexed-color cell");
+        assert!(protobuf_foreground.present);
+        assert_eq!(
+            protobuf_foreground.rgb,
+            u32::from_str_radix(expected.trim_start_matches('#'), 16).unwrap(),
+            "protobuf column {column}"
+        );
+    }
+}
+
 fn frame_row_at_index(frame: &serde_json::Value, index: u64) -> &serde_json::Value {
     frame["rows"]
         .as_array()
@@ -1780,6 +1963,36 @@ fn session_frame_diff_declares_schema_version() {
         "frame diffs must carry an explicit schema version: {}",
         serde_json::to_string_pretty(&parsed).unwrap()
     );
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_global_bottom_row_has_json_protobuf_parity() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&test_profile()).unwrap()).unwrap();
+    thread::sleep(Duration::from_millis(250));
+
+    let frame_json = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("expected frame diff");
+    let parsed: serde_json::Value = serde_json::from_str(&frame_json).unwrap();
+    let frame_model: ianvs_core::model::TerminalFrameDiff =
+        serde_json::from_str(&frame_json).unwrap();
+    let protobuf_bytes = ianvs_core::frame_diff_proto::encode_frame_diff(&frame_model)
+        .expect("encode protobuf frame");
+    let protobuf = ianvs_core::frame_diff_proto::decode_frame_diff_for_test(&protobuf_bytes)
+        .expect("decode protobuf frame");
+
+    let json_global_bottom = parsed["global_bottom_row"]
+        .as_u64()
+        .expect("JSON frame global bottom row");
+    assert_eq!(json_global_bottom, frame_model.global_bottom_row);
+    assert_eq!(protobuf.global_bottom_row, Some(json_global_bottom));
+    assert!(
+        json_global_bottom >= u64::from(frame_model.viewport_rows.saturating_sub(1)),
+        "global bottom must cover the live viewport"
+    );
+
     session::close_session(session_id).unwrap();
 }
 
@@ -2526,6 +2739,54 @@ fn session_frame_diff_recomputes_percent_graphic_placements_after_resize() {
     assert_eq!(placement["height_px"].as_u64(), Some(12));
 
     session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_resize_replay_preserves_profile_graphics_memory_limits() {
+    for (case_name, max_image_bytes, max_total_bytes) in
+        [("per-image", 3, 1024), ("total", 1024, 3)]
+    {
+        let profile_id = format!("resize-graphics-limit-{case_name}");
+        let mut profile = local_profile(
+            &profile_id,
+            "Resize Graphics Limit",
+            "/bin/sh",
+            vec![
+                "-lc".to_string(),
+                format!(
+                    "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b]1337;File=inline=1;doNotMoveCursor=1:{}\\x1b\\\\')\nsys.stdout.write('WAITING\\n')\nsys.stdout.flush()\ntime.sleep(2)\nPY",
+                    RED_PIXEL_PNG_BASE64
+                ),
+            ],
+            BTreeMap::new(),
+            TerminalEmulation::Xterm256,
+        );
+        profile.terminal.graphics.max_image_bytes = max_image_bytes;
+        profile.terminal.graphics.max_total_bytes = max_total_bytes;
+        let session_id =
+            session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+        let initial_frame = wait_for_frame_containing(session_id, "WAITING");
+        let initial: serde_json::Value = serde_json::from_str(&initial_frame).unwrap();
+        assert_eq!(
+            initial["graphics"].as_array().map(Vec::len),
+            Some(0),
+            "{case_name} limit must reject the image before resize: {initial_frame}"
+        );
+
+        session::resize_session(session_id, 100, 30, 1000, 600).unwrap();
+        let resized_frame = wait_for_frame_where(session_id, |frame| {
+            frame.contains("\"viewport_cols\":100") && frame.contains("\"viewport_rows\":30")
+        });
+        let resized: serde_json::Value = serde_json::from_str(&resized_frame).unwrap();
+        assert_eq!(
+            resized["graphics"].as_array().map(Vec::len),
+            Some(0),
+            "{case_name} limit must survive transcript replay: {resized_frame}"
+        );
+
+        session::close_session(session_id).unwrap();
+    }
 }
 
 #[test]
@@ -7672,7 +7933,7 @@ fn parser_terminal_handles_tmux_wrapped_sixel_graphics() {
 }
 
 #[test]
-fn parser_terminal_buffers_split_tmux_wrapped_sixel_graphics() {
+fn parser_terminal_streams_split_tmux_wrapped_sixel_before_outer_terminator() {
     let mut terminal = ParserTerminal::new(80, 24);
 
     let inner = "\x1bPq#1;2;100;0;0@\x1b\\";
@@ -7688,7 +7949,9 @@ fn parser_terminal_buffers_split_tmux_wrapped_sixel_graphics() {
 
     terminal.process(head);
 
-    assert_eq!(terminal.graphics_count(), 0);
+    // The doubled inner ST is complete, so the decoded Sixel reaches its
+    // parser without waiting for the outer tmux wrapper's ST.
+    assert_eq!(terminal.graphics_count(), 1);
 
     terminal.process(tail);
 
@@ -16640,6 +16903,49 @@ fn session_osc4_query_reports_rgb_for_alpha_color_specs() {
 }
 
 #[test]
+fn session_osc4_palette_boundaries_profile_reset_and_same_frame_json_protobuf_rgb_parity() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&osc_palette_product_profile()).unwrap())
+            .unwrap();
+
+    let _ = wait_for_frame_containing(session_id, "PALETTE-READY");
+    session::write_session(session_id, b"\n").unwrap();
+    let set_frame = wait_for_frame_containing(session_id, "PALETTE-SET");
+    assert_frame_json_protobuf_foreground_parity(
+        &set_frame,
+        "PALETTE-SET",
+        ["#112233", "#445566", "#778899", "#aabbcc"],
+    );
+
+    session::write_session(session_id, b"\n").unwrap();
+    let reset_frame = wait_for_frame_containing(session_id, "PALETTE-RESET");
+    assert_frame_json_protobuf_foreground_parity(
+        &reset_frame,
+        "PALETTE-RESET",
+        ["#010203", "#f1f2f3", "#000000", "#eeeeee"],
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_osc934_query_reports_static_versioned_capability() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&osc934_query_profile()).unwrap()).unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "OSC934-RESPONSE");
+    let visible = logical_rows_from_frame(&frame).join("\n");
+    assert!(
+        visible.contains(
+            r"OSC934-RESPONSE:b'\x1b]934;capability;ianvs-osc934/1;actions=set,remove,remove_all;states=normal,indeterminate,warning,error,hidden\x1b\\'"
+        ),
+        "expected OSC 934 query to report only the static versioned capability: {visible}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn session_frame_diff_exposes_osc12_cursor_color() {
     let session_id =
         session::create_session(&serde_json::to_string(&osc12_cursor_color_profile()).unwrap())
@@ -16800,6 +17106,81 @@ fn vt220_sessions_do_not_emit_shell_context_from_osc7() {
 }
 
 #[test]
+fn session_emits_osc9_9_shell_context_without_notification_side_effect() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc9_9_shell_context_profile(TerminalEmulation::Xterm256)).unwrap(),
+    )
+    .unwrap();
+
+    let events = collect_events_until(session_id, |events| {
+        events.iter().any(|event| {
+            event["kind"] == "shell_context"
+                && event["payload"]["source"].as_str() == Some("osc9;9")
+        })
+    });
+    let event = events
+        .iter()
+        .find(|event| {
+            event["kind"] == "shell_context"
+                && event["payload"]["source"].as_str() == Some("osc9;9")
+        })
+        .expect("expected OSC 9;9 context");
+    assert_eq!(event["payload"]["source"].as_str(), Some("osc9;9"));
+    assert_eq!(event["payload"]["cwd"].as_str(), Some("/tmp/ianvs-osc9-9"));
+    assert_eq!(
+        event["payload"]["hostname"].as_str(),
+        Some("remote.example")
+    );
+    assert_eq!(event["payload"]["username"].as_str(), Some("alice"));
+    assert!(
+        events
+            .iter()
+            .all(|event| event["kind"] != "session_notification")
+    );
+    assert_event_kind_never_arrives(session_id, "session_notification");
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn invalid_osc9_9_paths_emit_neither_context_nor_notification() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&invalid_osc9_9_shell_context_profile()).unwrap(),
+    )
+    .unwrap();
+
+    for _ in 0..10 {
+        let events = session::poll_events(session_id).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&events).unwrap();
+        assert!(parsed.as_array().unwrap().iter().all(|event| {
+            event["kind"] != "shell_context" && event["kind"] != "session_notification"
+        }));
+        thread::sleep(Duration::from_millis(50));
+    }
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_sessions_gate_osc9_9_shell_context_and_notifications() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc9_9_shell_context_profile(TerminalEmulation::Vt220)).unwrap(),
+    )
+    .unwrap();
+
+    for _ in 0..10 {
+        let events = session::poll_events(session_id).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&events).unwrap();
+        assert!(parsed.as_array().unwrap().iter().all(|event| {
+            event["kind"] != "shell_context" && event["kind"] != "session_notification"
+        }));
+        thread::sleep(Duration::from_millis(50));
+    }
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn session_emits_shell_context_from_osc1337_current_dir() {
     let session_id =
         session::create_session(&serde_json::to_string(&osc1337_current_dir_profile()).unwrap())
@@ -16861,6 +17242,217 @@ fn session_emits_shell_command_events_from_osc133() {
         })
         .expect("expected output zone_closed event");
     assert_eq!(zone["payload"]["exitCode"].as_i64(), Some(7));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn resize_transcript_replay_does_not_redeliver_shell_events() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&osc133_resize_replay_profile()).unwrap())
+            .unwrap();
+
+    let initial = collect_events_until(session_id, |events| {
+        events.iter().any(|event| {
+            event["kind"] == "shell_command"
+                && event["payload"]["eventType"].as_str() == Some("command_finished")
+        })
+    });
+    assert!(initial.iter().any(|event| {
+        event["kind"] == "shell_command"
+            && event["payload"]["eventType"].as_str() == Some("command_finished")
+    }));
+
+    session::resize_session(session_id, 100, 30, 1000, 600).unwrap();
+    session::write_session(session_id, b"continue\n").unwrap();
+    let _ = wait_for_frame_containing(session_id, "AFTER-RESIZE");
+
+    for _ in 0..10 {
+        let payload = session::poll_events(session_id).unwrap();
+        let events: serde_json::Value = serde_json::from_str(&payload).unwrap();
+        assert!(
+            events.as_array().unwrap().iter().all(|event| {
+                event["kind"] != "shell_command"
+                    && event["kind"] != "shell_context"
+                    && event["kind"] != "session_notification"
+            }),
+            "resize replay redelivered historical host events: {events}"
+        );
+        thread::sleep(Duration::from_millis(20));
+    }
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_emits_normalized_osc633_context_and_command_events() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc633_shell_command_profile(TerminalEmulation::Xterm256)).unwrap(),
+    )
+    .unwrap();
+
+    let events = collect_events_until(session_id, |events| {
+        events.iter().any(|event| {
+            event["kind"] == "shell_context"
+                && event["payload"]["source"].as_str() == Some("osc633")
+        }) && events.iter().any(|event| {
+            event["kind"] == "shell_command"
+                && event["payload"]["source"].as_str() == Some("osc633")
+                && event["payload"]["eventType"].as_str() == Some("command_finished")
+        })
+    });
+
+    let context = events
+        .iter()
+        .find(|event| {
+            event["kind"] == "shell_context"
+                && event["payload"]["source"].as_str() == Some("osc633")
+        })
+        .expect("expected OSC 633 cwd context");
+    assert_eq!(
+        context["payload"]["cwd"].as_str(),
+        Some("/tmp/ianvs-osc633")
+    );
+    assert_eq!(
+        context["payload"]["hostname"].as_str(),
+        Some("remote.example")
+    );
+    assert_eq!(context["payload"]["username"].as_str(), Some("alice"));
+
+    let executed = events
+        .iter()
+        .find(|event| {
+            event["kind"] == "shell_command"
+                && event["payload"]["source"].as_str() == Some("osc633")
+                && event["payload"]["eventType"].as_str() == Some("command_executed")
+        })
+        .expect("expected OSC 633 command_executed event");
+    assert_eq!(
+        executed["payload"]["command"].as_str(),
+        Some("printf;value")
+    );
+
+    let finished = events
+        .iter()
+        .find(|event| {
+            event["kind"] == "shell_command"
+                && event["payload"]["source"].as_str() == Some("osc633")
+                && event["payload"]["eventType"].as_str() == Some("command_finished")
+        })
+        .expect("expected OSC 633 command_finished event");
+    assert_eq!(finished["payload"]["exitCode"].as_i64(), Some(7));
+
+    let serialized = serde_json::to_string(&events).unwrap();
+    assert!(!serialized.contains("private-nonce-633"));
+    assert!(
+        events
+            .iter()
+            .all(|event| event["kind"] != "session_notification")
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_rejects_osc633_command_metadata_with_mismatched_profile_nonce() {
+    let mut profile = osc633_shell_command_profile(TerminalEmulation::Xterm256);
+    profile.launch.env.insert(
+        "VSCODE_NONCE".to_string(),
+        "different-expected-nonce".to_string(),
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let events = collect_events_until(session_id, |events| {
+        events.iter().any(|event| {
+            event["kind"] == "shell_command"
+                && event["payload"]["source"].as_str() == Some("osc633")
+                && event["payload"]["eventType"].as_str() == Some("command_finished")
+        })
+    });
+    let executed = events
+        .iter()
+        .find(|event| {
+            event["kind"] == "shell_command"
+                && event["payload"]["source"].as_str() == Some("osc633")
+                && event["payload"]["eventType"].as_str() == Some("command_executed")
+        })
+        .expect("expected lifecycle event without unverified command metadata");
+    assert!(executed["payload"]["command"].is_null());
+    let serialized = serde_json::to_string(&events).unwrap();
+    assert!(!serialized.contains("private-nonce-633"));
+    assert!(!serialized.contains("different-expected-nonce"));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_preserves_osc633_nonce_validation_across_resize_replay() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&osc633_resize_nonce_profile()).unwrap())
+            .unwrap();
+    let _ = wait_for_frame_containing(session_id, "WAITING");
+
+    session::resize_session(session_id, 100, 30, 1000, 600).unwrap();
+    session::write_session(session_id, b"continue\n").unwrap();
+    let events = collect_events_until(session_id, |events| {
+        events.iter().any(|event| {
+            event["kind"] == "shell_command"
+                && event["payload"]["source"].as_str() == Some("osc633")
+                && event["payload"]["eventType"].as_str() == Some("command_finished")
+        })
+    });
+    let executed = events
+        .iter()
+        .find(|event| {
+            event["kind"] == "shell_command"
+                && event["payload"]["source"].as_str() == Some("osc633")
+                && event["payload"]["eventType"].as_str() == Some("command_executed")
+        })
+        .expect("expected post-resize OSC 633 lifecycle");
+    assert_eq!(
+        executed["payload"]["command"].as_str(),
+        Some("after-resize")
+    );
+    assert!(
+        !serde_json::to_string(&events)
+            .unwrap()
+            .contains("private-nonce-633")
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_rejects_invalid_profile_osc633_nonce_without_echoing_it() {
+    let mut profile = osc633_shell_command_profile(TerminalEmulation::Xterm256);
+    profile.launch.env.insert(
+        "VSCODE_NONCE".to_string(),
+        "private;invalid;nonce".to_string(),
+    );
+    let error = session::create_session(&serde_json::to_string(&profile).unwrap())
+        .expect_err("invalid nonce must fail before spawning the PTY");
+    let message = error.to_string();
+    assert!(message.contains("VSCODE_NONCE"));
+    assert!(!message.contains("private;invalid;nonce"));
+}
+
+#[test]
+fn vt220_sessions_gate_osc633_context_and_command_events() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc633_shell_command_profile(TerminalEmulation::Vt220)).unwrap(),
+    )
+    .unwrap();
+
+    for _ in 0..10 {
+        let events = session::poll_events(session_id).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&events).unwrap();
+        assert!(
+            parsed.as_array().unwrap().iter().all(|event| {
+                event["kind"] != "shell_context" && event["kind"] != "shell_command"
+            })
+        );
+        thread::sleep(Duration::from_millis(50));
+    }
 
     session::close_session(session_id).unwrap();
 }
@@ -16932,7 +17524,7 @@ fn session_emits_osc9_osc777_osc934_notification_progress_and_badge_events() {
                 && event["payload"]["source"].as_str() == Some("osc9;4")
         }) && events.iter().any(|event| {
             event["kind"] == "session_progress"
-                && event["payload"]["source"].as_str() == Some("osc934")
+                && event["payload"]["source"].as_str() == Some("ianvs_osc934")
         }) && events.iter().any(|event| event["kind"] == "session_badge")
     });
     let osc9_notification = events
@@ -16973,7 +17565,7 @@ fn session_emits_osc9_osc777_osc934_notification_progress_and_badge_events() {
         .iter()
         .find(|event| {
             event["kind"] == "session_progress"
-                && event["payload"]["source"].as_str() == Some("osc934")
+                && event["payload"]["source"].as_str() == Some("ianvs_osc934")
         })
         .expect("expected OSC 934 named progress");
     assert_eq!(named_progress["payload"]["id"].as_str(), Some("build"));
@@ -17197,6 +17789,48 @@ fn xterm_sessions_surface_osc8_hyperlink_ranges() {
     );
 
     session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn xterm_sessions_preserve_distinct_osc8_protocol_ids_in_json_and_protobuf() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&hyperlink_protocol_id_profile()).unwrap())
+            .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "One Two");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let hyperlinks = parsed["hyperlinks"]
+        .as_array()
+        .expect("expected hyperlink ranges");
+    assert_eq!(hyperlinks.len(), 2);
+    assert_eq!(hyperlinks[0]["uri"], "https://example.com/docs");
+    assert_eq!(hyperlinks[0]["protocol_id"], "first");
+    assert_eq!(hyperlinks[1]["uri"], "https://example.com/docs");
+    assert_eq!(hyperlinks[1]["protocol_id"], "second");
+
+    session::close_session(session_id).unwrap();
+
+    let protobuf_session_id =
+        session::create_session(&serde_json::to_string(&hyperlink_protocol_id_profile()).unwrap())
+            .unwrap();
+    let deadline = Instant::now() + Duration::from_secs(3);
+    let decoded = loop {
+        if let Some(bytes) = session::take_frame_diff_protobuf(protobuf_session_id).unwrap() {
+            let decoded = ianvs_core::frame_diff_proto::decode_frame_diff_for_test(&bytes)
+                .expect("valid protobuf frame");
+            if decoded.hyperlinks.len() == 2 {
+                break decoded;
+            }
+        }
+        assert!(
+            Instant::now() < deadline,
+            "timed out waiting for OSC 8 protocol IDs in protobuf frame"
+        );
+        thread::sleep(Duration::from_millis(10));
+    };
+    assert_eq!(decoded.hyperlinks[0].protocol_id, "first");
+    assert_eq!(decoded.hyperlinks[1].protocol_id, "second");
+    session::close_session(protobuf_session_id).unwrap();
 }
 
 #[test]
@@ -17634,6 +18268,19 @@ fn session_debug_stats_accumulate_input_processing_costs() {
     assert!(parsed["host_protocol_micros"].as_u64().is_some());
     assert!(parsed["damage_merge_micros"].as_u64().is_some());
     assert!(parsed["pending_dirty_rows"].as_u64().is_some());
+    for key in [
+        "osc_ingress_accepted",
+        "osc_ingress_oversized",
+        "osc_ingress_policy_denied",
+        "synchronized_update_discards",
+        "non_sixel_dcs_discards",
+        "response_buffer_overflows",
+        "vendor_terminal_event_drops",
+        "tmux_notification_drops",
+        "recording_dropped_events",
+    ] {
+        assert!(parsed[key].as_u64().is_some(), "missing {key}: {parsed}");
+    }
     let breakdown = &parsed["terminal_process_breakdown"];
     assert!(
         breakdown.is_object(),
@@ -17758,6 +18405,82 @@ fn diagnostics_export_after_session_close_fails_stably() {
     });
 
     assert!(session::request_session_json(session_id, &request.to_string()).is_err());
+}
+
+#[test]
+fn pending_event_queue_reports_overflow_and_retains_critical_events_under_bell_spam() {
+    let profile = local_profile(
+        "pending-event-bell-spam",
+        "Pending Event Bell Spam",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 - <<'PY'
+import sys
+sys.stdout.write('\x1b]52;c;?\x1b\\' + '\a' * 5000 + 'DONE\n')
+sys.stdout.flush()
+PY"#
+            .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+    let _ = wait_for_frame_containing(session_id, "DONE");
+
+    let stats = loop {
+        let stats = session::take_session_debug_stats_json(session_id)
+            .unwrap()
+            .expect("expected session debug stats");
+        let parsed: serde_json::Value = serde_json::from_str(&stats).unwrap();
+        if parsed["pending_event_overflowed"].as_bool() == Some(true) {
+            break parsed;
+        }
+        thread::sleep(Duration::from_millis(10));
+    };
+    assert!(stats["pending_event_count"].as_u64().unwrap_or_default() <= 1024);
+    assert!(stats["pending_event_bytes"].as_u64().unwrap_or_default() <= 8 * 1024 * 1024);
+    assert!(
+        stats["pending_event_dropped_count"]
+            .as_u64()
+            .unwrap_or_default()
+            > 0
+    );
+
+    let diagnostics_request = serde_json::json!({
+        "kind": "terminal.export_diagnostics",
+        "maxSamples": 1,
+    });
+    let diagnostics = session::request_session_json(session_id, &diagnostics_request.to_string())
+        .unwrap()
+        .expect("expected diagnostics response");
+    let diagnostics: serde_json::Value = serde_json::from_str(&diagnostics).unwrap();
+    let overflow_diagnostics = diagnostics["events"]
+        .as_array()
+        .expect("expected diagnostic events")
+        .iter()
+        .filter(|event| event["kind"] == "event_queue_overflow")
+        .collect::<Vec<_>>();
+    assert_eq!(overflow_diagnostics.len(), 1);
+    assert!(overflow_diagnostics[0]["payload"].is_null());
+
+    let deadline = Instant::now() + Duration::from_secs(3);
+    let mut events = Vec::new();
+    while Instant::now() < deadline {
+        events.extend(session::take_events(session_id).unwrap());
+        if events.iter().any(|event| event.kind == "exit") {
+            break;
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+    assert!(
+        events
+            .iter()
+            .any(|event| event.kind == "clipboard_paste_request")
+    );
+    assert!(events.iter().any(|event| event.kind == "exit"));
+
+    session::close_session(session_id).unwrap();
 }
 
 #[test]

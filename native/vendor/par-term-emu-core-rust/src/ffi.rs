@@ -151,8 +151,8 @@ impl SharedState {
                         let encoded = cell.c.encode_utf8(&mut text);
                         let text_len = encoded.len() as u8;
 
-                        let (fg_r, fg_g, fg_b) = cell.fg.to_rgb();
-                        let (bg_r, bg_g, bg_b) = cell.bg.to_rgb();
+                        let (fg_r, fg_g, fg_b) = term.resolve_color_rgb(cell.fg);
+                        let (bg_r, bg_g, bg_b) = term.resolve_color_rgb(cell.bg);
                         let attrs = cell.flags.to_bitflags();
 
                         cells_vec.push(SharedCell {

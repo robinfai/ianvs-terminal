@@ -8,6 +8,8 @@ use crate::debug;
 use crate::terminal::{BellEvent, Terminal, TerminalEvent};
 use vte::{Params, Perform};
 
+const BELL_EVENT_LIMIT: usize = 256;
+
 impl Perform for Terminal {
     fn print(&mut self, c: char) {
         self.record_print_debug_stats();
@@ -38,9 +40,9 @@ impl Perform for Terminal {
             b'\x08' => self.write_char('\x08'),
             b'\x05' => {
                 // ENQ (Enquiry) - send answerback string if configured
-                if let Some(ref answerback) = self.answerback_string {
-                    self.response_buffer
-                        .extend_from_slice(answerback.as_bytes());
+                if let Some(answerback) = self.answerback_string.take() {
+                    self.push_response(answerback.as_bytes());
+                    self.answerback_string = Some(answerback);
                 }
             }
             b'\x07' => {
@@ -54,6 +56,9 @@ impl Perform for Terminal {
                 } else {
                     BellEvent::VisualBell
                 };
+                if self.bell_events.len() >= BELL_EVENT_LIMIT {
+                    self.bell_events.remove(0);
+                }
                 self.bell_events.push(event.clone());
                 self.terminal_events.push(TerminalEvent::BellRang(event));
             }
@@ -91,5 +96,21 @@ impl Perform for Terminal {
 
     fn esc_dispatch(&mut self, intermediates: &[u8], ignore: bool, byte: u8) {
         self.esc_dispatch_impl(intermediates, ignore, byte);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Terminal, BELL_EVENT_LIMIT};
+
+    #[test]
+    fn bell_event_history_is_bounded_without_a_consumer() {
+        let mut terminal = Terminal::new(80, 24);
+
+        terminal.process(&vec![b'\x07'; BELL_EVENT_LIMIT + 32]);
+
+        assert_eq!(terminal.bell_events.len(), BELL_EVENT_LIMIT);
+        assert_eq!(terminal.drain_bell_events().len(), BELL_EVENT_LIMIT);
+        assert!(terminal.bell_events.is_empty());
     }
 }

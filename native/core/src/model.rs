@@ -477,6 +477,8 @@ pub struct TerminalFrameDiff {
     #[serde(default)]
     pub scrollback_max_offset: usize,
     #[serde(default)]
+    pub global_bottom_row: u64,
+    #[serde(default)]
     pub viewport_start_row: usize,
     #[serde(default)]
     pub viewport_row_shift: i32,

@@ -68,6 +68,7 @@ pub(crate) fn event_to_dict(event: &TerminalEvent) -> HashMap<String, String> {
         }
         TerminalEvent::CwdChanged(change) => {
             map.insert("type".to_string(), "cwd_changed".to_string());
+            map.insert("source".to_string(), change.source.as_str().to_string());
             if let Some(old) = &change.old_cwd {
                 map.insert("old_cwd".to_string(), old.clone());
             }
@@ -141,6 +142,7 @@ pub(crate) fn event_to_dict(event: &TerminalEvent) -> HashMap<String, String> {
             exit_code,
             timestamp,
             cursor_line,
+            ..
         } => {
             map.insert("type".to_string(), "shell_integration".to_string());
             map.insert("event_type".to_string(), event_type.clone());
@@ -283,6 +285,9 @@ pub(crate) fn event_to_dict(event: &TerminalEvent) -> HashMap<String, String> {
                 "include_scrollback".to_string(),
                 include_scrollback.to_string(),
             );
+        }
+        TerminalEvent::TerminalReset => {
+            map.insert("type".to_string(), "terminal_reset".to_string());
         }
     }
     map

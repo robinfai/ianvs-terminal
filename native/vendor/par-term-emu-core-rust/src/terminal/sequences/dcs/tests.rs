@@ -716,3 +716,57 @@ fn test_dcs_non_sixel_action_ignored() {
     term.dcs_unhook();
     assert!(!term.dcs_active);
 }
+
+#[test]
+fn test_non_sixel_dcs_unterminated_fragments_are_bounded_and_recover() {
+    let mut term = create_test_terminal();
+
+    term.process(b"\x1bPx");
+    for _ in 0..MAX_NON_SIXEL_DCS_BYTES {
+        term.process(b"A");
+    }
+    assert_eq!(term.dcs_buffer.len(), MAX_NON_SIXEL_DCS_BYTES);
+
+    term.process(b"overflow");
+    assert!(term.dcs_buffer.is_empty());
+    assert_eq!(
+        term.input_buffer_diagnostics()
+            .count(TerminalInputBufferDiscardReason::NonSixelDcsLimit),
+        1
+    );
+    term.process(&vec![b'B'; MAX_NON_SIXEL_DCS_BYTES * 2]);
+    assert!(term.dcs_buffer.is_empty());
+    assert_eq!(
+        term.input_buffer_diagnostics()
+            .count(TerminalInputBufferDiscardReason::NonSixelDcsLimit),
+        1
+    );
+
+    term.process(b"\x1b\\recovered");
+    assert!(!term.dcs_active);
+    assert_eq!(term.active_grid().row_text(0).trim_end(), "recovered");
+
+    term.process(b"\x1bPx");
+    term.process(&vec![b'C'; MAX_NON_SIXEL_DCS_BYTES + 1]);
+    let clean_snapshot = Terminal::new(80, 24).capture_snapshot();
+    term.restore_from_snapshot(clean_snapshot);
+    assert!(!term.dcs_active);
+    assert!(!term.dcs_discarding);
+    assert!(term.dcs_buffer.is_empty());
+    term.process(b"after-snapshot");
+    assert_eq!(term.active_grid().row_text(0).trim_end(), "after-snapshot");
+
+    term.process(b"\x1bPx");
+    term.process(&vec![b'D'; MAX_NON_SIXEL_DCS_BYTES + 1]);
+    term.reset();
+    assert!(!term.dcs_active);
+    assert!(!term.dcs_discarding);
+    assert!(term.dcs_buffer.is_empty());
+    assert_eq!(
+        term.input_buffer_diagnostics()
+            .count(TerminalInputBufferDiscardReason::NonSixelDcsLimit),
+        3
+    );
+    term.process(b"after-ris");
+    assert_eq!(term.active_grid().row_text(0).trim_end(), "after-ris");
+}

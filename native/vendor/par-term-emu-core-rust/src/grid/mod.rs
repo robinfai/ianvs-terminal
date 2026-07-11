@@ -17,6 +17,8 @@ mod scroll;
 mod zone;
 
 pub use damage::{GridDamage, ScrollRegionDamage};
+#[cfg(test)]
+pub(crate) use zone::MAX_SEMANTIC_ZONES;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct GridScrollDebugStats {
@@ -31,7 +33,7 @@ pub struct GridScrollDebugStats {
 }
 
 /// A 2D grid of terminal cells
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Grid {
     /// Number of columns
     pub(crate) cols: usize,
@@ -67,6 +69,33 @@ pub struct Grid {
     pub(crate) scroll_debug_stats: GridScrollDebugStats,
 }
 
+impl std::fmt::Debug for Grid {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let wrapped_rows = self.wrapped.iter().filter(|wrapped| **wrapped).count();
+        let scrollback_wrapped_rows = self
+            .scrollback_wrapped
+            .iter()
+            .filter(|wrapped| **wrapped)
+            .count();
+        formatter
+            .debug_struct("Grid")
+            .field("cols", &self.cols)
+            .field("rows", &self.rows)
+            .field("visible_cell_count", &self.cells.len())
+            .field("screen_row_start", &self.screen_row_start)
+            .field("scrollback_cell_count", &self.scrollback_cells.len())
+            .field("scrollback_start", &self.scrollback_start)
+            .field("scrollback_lines", &self.scrollback_lines)
+            .field("max_scrollback", &self.max_scrollback)
+            .field("wrapped_rows", &wrapped_rows)
+            .field("scrollback_wrapped_rows", &scrollback_wrapped_rows)
+            .field("zone_count", &self.zones.len())
+            .field("evicted_zone_count", &self.evicted_zones.len())
+            .field("total_lines_scrolled", &self.total_lines_scrolled)
+            .finish()
+    }
+}
+
 impl Grid {
     /// Create a new grid with the specified dimensions
     pub fn new(cols: usize, rows: usize, max_scrollback: usize) -> Self {
@@ -93,11 +122,38 @@ impl Grid {
     }
 
     pub fn set_blank_style(&mut self, fg: Color, bg: Color) {
-        self.blank_cell = Cell::with_colors(' ', fg, bg);
+        let mut blank_cell = Cell::with_colors(' ', fg, bg);
+        blank_cell.flags.set_fg_is_default(true);
+        blank_cell.flags.set_bg_is_default(true);
+        self.blank_cell = blank_cell;
     }
 
     pub(crate) fn blank_cell(&self) -> Cell {
         self.blank_cell.clone()
+    }
+
+    pub(crate) fn replace_default_foreground(&mut self, color: Color) {
+        for cell in self
+            .cells
+            .iter_mut()
+            .chain(self.scrollback_cells.iter_mut())
+        {
+            if cell.flags.fg_is_default() {
+                cell.fg = color;
+            }
+        }
+    }
+
+    pub(crate) fn replace_default_background(&mut self, color: Color) {
+        for cell in self
+            .cells
+            .iter_mut()
+            .chain(self.scrollback_cells.iter_mut())
+        {
+            if cell.flags.bg_is_default() {
+                cell.bg = color;
+            }
+        }
     }
 
     /// Get the number of columns
@@ -371,6 +427,7 @@ impl Grid {
         self.scrollback_wrapped = snap.scrollback_wrapped.clone();
         self.zones = snap.zones.clone();
         self.evicted_zones.clear();
+        self.enforce_zone_capacity();
         self.total_lines_scrolled = snap.total_lines_scrolled;
         self.damage = GridDamage::default();
         self.scroll_debug_stats = GridScrollDebugStats::default();

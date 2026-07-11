@@ -183,25 +183,10 @@ macro_rules! debug_trace {
 /// VT sequence logging
 pub fn log_vt_input(bytes: &[u8]) {
     if is_enabled(DebugLevel::Debug) {
-        let hex: String = bytes
-            .iter()
-            .map(|b| format!("{:02x}", b))
-            .collect::<Vec<_>>()
-            .join(" ");
-        let printable: String = bytes
-            .iter()
-            .map(|&b| {
-                if (32..127).contains(&b) {
-                    b as char
-                } else {
-                    '.'
-                }
-            })
-            .collect();
         log(
             DebugLevel::Debug,
             "VT_INPUT",
-            &format!("len={} hex=[{}] ascii=[{}]", bytes.len(), hex, printable),
+            &format!("input_bytes={}", bytes.len()),
         );
     }
 }
@@ -224,15 +209,10 @@ pub fn log_screen_switch(to_alt: bool, reason: &str) {
 /// Device query logging
 pub fn log_device_query(query: &str, response: &[u8]) {
     if is_enabled(DebugLevel::Info) {
-        let hex: String = response
-            .iter()
-            .map(|b| format!("{:02x}", b))
-            .collect::<Vec<_>>()
-            .join(" ");
         log(
             DebugLevel::Info,
             "DEVICE_QUERY",
-            &format!("query='{}' response=[{}]", query, hex),
+            &format!("query_class={query} response_bytes={}", response.len()),
         );
     }
 }
@@ -242,10 +222,25 @@ pub fn log_buffer_snapshot(label: &str, rows: usize, cols: usize, content: &str)
     if is_enabled(DebugLevel::Trace) {
         let mut logger = get_logger().lock();
         logger.write_raw(&format!(
-            "\n{:-<80}\nBUFFER SNAPSHOT: {} ({}x{})\n{:-<80}\n{}\n{:-<80}\n",
-            "", label, rows, cols, "", content, ""
+            "{}\n",
+            buffer_snapshot_log_message(label, rows, cols, content)
         ));
     }
+}
+
+fn buffer_snapshot_log_message(label: &str, rows: usize, cols: usize, content: &str) -> String {
+    let non_empty_cells = content
+        .chars()
+        .filter(|character| !matches!(character, ' ' | '\r' | '\n'))
+        .count();
+    format!(
+        "BUFFER SNAPSHOT: label_bytes={} rows={} cols={} content_bytes={} non_empty_cells={}",
+        label.len(),
+        rows,
+        cols,
+        content.len(),
+        non_empty_cells
+    )
 }
 
 /// Generation counter logging
@@ -285,13 +280,27 @@ pub fn log_csi_dispatch(params: &[i64], intermediates: &[u8], final_byte: char) 
 /// OSC dispatch logging
 pub fn log_osc_dispatch(params: &[&[u8]]) {
     if is_enabled(DebugLevel::Debug) {
-        let params_str: String = params
-            .iter()
-            .map(|p| String::from_utf8_lossy(p).to_string())
-            .collect::<Vec<_>>()
-            .join(";");
-        log(DebugLevel::Debug, "OSC", &format!("OSC {}", params_str));
+        log(DebugLevel::Debug, "OSC", &osc_dispatch_log_message(params));
     }
+}
+
+fn osc_dispatch_log_message(params: &[&[u8]]) -> String {
+    let command = params
+        .first()
+        .and_then(|value| std::str::from_utf8(value).ok())
+        .filter(|value| value.bytes().all(|byte| byte.is_ascii_digit()))
+        .unwrap_or("invalid");
+    let payload_bytes = params
+        .iter()
+        .skip(1)
+        .map(|parameter| parameter.len())
+        .sum::<usize>();
+    format!(
+        "OSC command={} params={} payload_bytes={}",
+        command,
+        params.len().saturating_sub(1),
+        payload_bytes
+    )
 }
 
 /// ESC dispatch logging
@@ -309,12 +318,25 @@ pub fn log_esc_dispatch(intermediates: &[u8], final_byte: char) {
 /// Print character logging
 pub fn log_print(c: char, col: usize, row: usize) {
     if is_enabled(DebugLevel::Trace) {
-        log(
-            DebugLevel::Trace,
-            "PRINT",
-            &format!("char='{}' (U+{:04X}) at ({},{})", c, c as u32, col, row),
-        );
+        log(DebugLevel::Trace, "PRINT", &print_log_message(c, col, row));
     }
+}
+
+fn print_log_message(c: char, col: usize, row: usize) -> String {
+    let category = if c.is_ascii_whitespace() {
+        "ascii_whitespace"
+    } else if c.is_ascii() {
+        "ascii"
+    } else if c.is_whitespace() {
+        "unicode_whitespace"
+    } else {
+        "unicode"
+    };
+    let display_width = unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
+    format!(
+        "char_class={} display_width={} at ({},{})",
+        category, display_width, col, row
+    )
 }
 
 /// Execute control code logging
@@ -398,15 +420,10 @@ pub fn log_pty_read(bytes_read: usize) {
 
 pub fn log_pty_write(bytes: &[u8]) {
     if is_enabled(DebugLevel::Debug) {
-        let hex: String = bytes
-            .iter()
-            .map(|b| format!("{:02x}", b))
-            .collect::<Vec<_>>()
-            .join(" ");
         log(
             DebugLevel::Debug,
             "PTY_WRITE",
-            &format!("wrote {} bytes: [{}]", bytes.len(), hex),
+            &format!("written_bytes={}", bytes.len()),
         );
     }
 }
@@ -436,5 +453,50 @@ mod tests {
 
         std::env::remove_var("DEBUG_LEVEL");
         assert_eq!(DebugLevel::from_env(), DebugLevel::Off);
+    }
+
+    #[test]
+    fn osc_dispatch_log_message_never_contains_payload() {
+        let secret = b"token=super-secret-value";
+        let message = osc_dispatch_log_message(&[b"633", b"E", secret]);
+
+        assert_eq!(
+            message,
+            format!(
+                "OSC command=633 params=2 payload_bytes={}",
+                b"E".len() + secret.len()
+            )
+        );
+        assert!(!message.contains("super-secret-value"));
+
+        let invalid_command = osc_dispatch_log_message(&[secret]);
+        assert_eq!(
+            invalid_command,
+            "OSC command=invalid params=0 payload_bytes=0"
+        );
+        assert!(!invalid_command.contains("super-secret-value"));
+    }
+
+    #[test]
+    fn trace_print_log_message_never_contains_character_or_codepoint() {
+        let secret = '🕵';
+        let message = print_log_message(secret, 4, 2);
+
+        assert!(!message.contains(secret));
+        assert!(!message.contains("1F575"));
+        assert_eq!(message, "char_class=unicode display_width=1 at (4,2)");
+    }
+
+    #[test]
+    fn buffer_snapshot_log_message_never_contains_label_or_content() {
+        let label = "label-secret-canary";
+        let content = "screen-secret-canary\n  next";
+        let message = buffer_snapshot_log_message(label, 2, 20, content);
+
+        assert!(!message.contains(label));
+        assert!(!message.contains("screen-secret-canary"));
+        assert!(!message.contains("next"));
+        assert!(message.contains(&format!("label_bytes={}", label.len())));
+        assert!(message.contains(&format!("content_bytes={}", content.len())));
     }
 }

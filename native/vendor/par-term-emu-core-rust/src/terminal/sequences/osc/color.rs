@@ -17,6 +17,20 @@ impl Terminal {
         u8::from_str_radix(&normalized, 16).ok()
     }
 
+    fn parse_rgb_color_component(component: &str) -> Option<u8> {
+        let component = component.trim();
+        if component.is_empty()
+            || component.len() > 4
+            || !component.bytes().all(|byte| byte.is_ascii_hexdigit())
+        {
+            return None;
+        }
+
+        let value = u32::from_str_radix(component, 16).ok()?;
+        let source_max = (1_u32 << (component.len() * 4)) - 1;
+        Some(((value * 255 + source_max / 2) / source_max) as u8)
+    }
+
     fn parse_hash_color_spec(spec: &str) -> Option<(u8, u8, u8)> {
         let hex = spec.strip_prefix('#')?;
         if !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
@@ -43,8 +57,8 @@ impl Terminal {
         Some((r, g, b))
     }
 
-    fn format_color_response(command: &str, color: Color) -> String {
-        let (r, g, b) = color.to_rgb();
+    fn format_color_response(&self, command: &str, color: Color) -> String {
+        let (r, g, b) = self.resolve_color_rgb(color);
         let r16 = (r as u16) * 257;
         let g16 = (g as u16) * 257;
         let b16 = (b as u16) * 257;
@@ -70,11 +84,11 @@ impl Terminal {
                 return None;
             }
 
-            let r = Self::parse_color_component(parts[0])?;
-            let g = Self::parse_color_component(parts[1])?;
-            let b = Self::parse_color_component(parts[2])?;
+            let r = Self::parse_rgb_color_component(parts[0])?;
+            let g = Self::parse_rgb_color_component(parts[1])?;
+            let b = Self::parse_rgb_color_component(parts[2])?;
             if parts.len() == 4 {
-                Self::parse_color_component(parts[3])?;
+                Self::parse_rgb_color_component(parts[3])?;
             }
             return Some((r, g, b));
         }
@@ -93,22 +107,20 @@ impl Terminal {
                 for pair in params[1..].chunks_exact(2) {
                     if let Ok(index_data) = std::str::from_utf8(pair[0]) {
                         if let Ok(index) = index_data.trim().parse::<usize>() {
-                            if index >= 16 {
-                                continue;
-                            }
-
                             if let Ok(colorspec) = std::str::from_utf8(pair[1]) {
                                 let colorspec = colorspec.trim();
                                 if colorspec == "?" {
-                                    let command = format!("4;{index}");
-                                    let response = Self::format_color_response(
-                                        &command,
-                                        self.ansi_palette[index],
-                                    );
-                                    self.push_response(response.as_bytes());
+                                    if let Some(color) = self.get_ansi_color(index) {
+                                        let command = format!("4;{index}");
+                                        let response = self.format_color_response(&command, color);
+                                        self.push_response(response.as_bytes());
+                                    }
                                 } else if !self.disable_insecure_sequences {
                                     if let Some((r, g, b)) = Self::parse_color_spec(colorspec) {
-                                        self.ansi_palette[index] = Color::Rgb(r, g, b);
+                                        self.set_dynamic_ansi_palette_color(
+                                            index,
+                                            Color::Rgb(r, g, b),
+                                        );
                                     }
                                 }
                             }
@@ -119,13 +131,16 @@ impl Terminal {
             "104" => {
                 // Reset ANSI color palette (OSC 104)
                 if !self.disable_insecure_sequences {
-                    if params.len() == 1 || (params.len() >= 2 && params[1].is_empty()) {
-                        self.ansi_palette = self.baseline_ansi_palette;
-                    } else if params.len() >= 2 {
-                        if let Ok(data) = std::str::from_utf8(params[1]) {
-                            if let Ok(index) = data.trim().parse::<usize>() {
-                                if index < 16 {
-                                    self.ansi_palette[index] = self.baseline_ansi_palette[index];
+                    let indices = &params[1..];
+                    if indices.is_empty() || indices.iter().all(|index| index.is_empty()) {
+                        self.reset_dynamic_ansi_palette();
+                    } else {
+                        // xterm accepts a list of palette indices for OSC 104.
+                        // Invalid and empty entries are ignored independently.
+                        for data in indices {
+                            if let Ok(data) = std::str::from_utf8(data) {
+                                if let Ok(index) = data.trim().parse::<usize>() {
+                                    self.reset_dynamic_ansi_palette_color(index);
                                 }
                             }
                         }
@@ -144,14 +159,14 @@ impl Terminal {
                                 "12" => self.cursor_color,
                                 _ => unreachable!(),
                             };
-                            let response = Self::format_color_response(command, color);
+                            let response = self.format_color_response(command, color);
                             self.push_response(response.as_bytes());
                         } else if !self.disable_insecure_sequences {
                             if let Some((r, g, b)) = Self::parse_color_spec(data) {
                                 match command {
-                                    "10" => self.default_fg = Color::Rgb(r, g, b),
-                                    "11" => self.default_bg = Color::Rgb(r, g, b),
-                                    "12" => self.cursor_color = Color::Rgb(r, g, b),
+                                    "10" => self.set_dynamic_default_fg(Color::Rgb(r, g, b)),
+                                    "11" => self.set_dynamic_default_bg(Color::Rgb(r, g, b)),
+                                    "12" => self.set_dynamic_cursor_color(Color::Rgb(r, g, b)),
                                     _ => unreachable!(),
                                 }
                             }
@@ -161,17 +176,17 @@ impl Terminal {
             }
             "110" => {
                 if !self.disable_insecure_sequences {
-                    self.default_fg = self.baseline_default_fg;
+                    self.set_dynamic_default_fg(self.baseline_default_fg);
                 }
             }
             "111" => {
                 if !self.disable_insecure_sequences {
-                    self.default_bg = self.baseline_default_bg;
+                    self.set_dynamic_default_bg(self.baseline_default_bg);
                 }
             }
             "112" => {
                 if !self.disable_insecure_sequences {
-                    self.cursor_color = self.baseline_cursor_color;
+                    self.set_dynamic_cursor_color(self.baseline_cursor_color);
                 }
             }
             _ => {}

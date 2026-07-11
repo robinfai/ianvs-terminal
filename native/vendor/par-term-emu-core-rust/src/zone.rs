@@ -35,11 +35,19 @@ pub struct Zone {
     pub id: usize,
     /// Type of this zone
     pub zone_type: ZoneType,
-    /// Absolute row where this zone starts (scrollback_len + cursor.row at creation)
+    /// Global absolute row where this zone starts.
+    ///
+    /// This is `total_lines_scrolled + cursor.row` at creation, so the value
+    /// remains monotonic even after the bounded scrollback ring evicts rows.
     pub abs_row_start: usize,
     /// Absolute row where this zone ends (inclusive). Updated as zone grows.
     /// Equal to abs_row_start when zone is first created; updated when zone is closed.
     pub abs_row_end: usize,
+    /// Whether the zone has received its closing shell-integration marker.
+    ///
+    /// Open zones are retained while scrollback advances so a long-running
+    /// command cannot lose its output zone before the final `D` marker.
+    pub closed: bool,
     /// Command text (from OSC 133;B parameter), set on Command and Output zones
     pub command: Option<String>,
     /// Exit code (from OSC 133;D parameter), set on Output zones when command finishes
@@ -56,6 +64,7 @@ impl Zone {
             zone_type,
             abs_row_start: abs_row,
             abs_row_end: abs_row,
+            closed: false,
             command: None,
             exit_code: None,
             timestamp,
@@ -65,11 +74,27 @@ impl Zone {
     /// Close this zone at the given absolute row
     pub fn close(&mut self, abs_row: usize) {
         self.abs_row_end = abs_row.max(self.abs_row_start);
+        self.closed = true;
+    }
+
+    /// Extend the retained range of an open zone without closing it.
+    pub(crate) fn extend_to(&mut self, abs_row: usize) {
+        self.abs_row_end = self.abs_row_end.max(abs_row).max(self.abs_row_start);
+    }
+
+    /// Whether this zone is still awaiting its closing marker.
+    pub fn is_open(&self) -> bool {
+        !self.closed
+    }
+
+    /// Whether this zone has received its closing marker.
+    pub fn is_closed(&self) -> bool {
+        self.closed
     }
 
     /// Check if a given absolute row falls within this zone
     pub fn contains_row(&self, abs_row: usize) -> bool {
-        abs_row >= self.abs_row_start && abs_row <= self.abs_row_end
+        abs_row >= self.abs_row_start && (self.is_open() || abs_row <= self.abs_row_end)
     }
 }
 
@@ -84,6 +109,7 @@ mod tests {
         assert_eq!(zone.zone_type, ZoneType::Prompt);
         assert_eq!(zone.abs_row_start, 10);
         assert_eq!(zone.abs_row_end, 10);
+        assert!(zone.is_open());
         assert!(zone.command.is_none());
         assert!(zone.exit_code.is_none());
         assert_eq!(zone.timestamp, Some(1000));
@@ -94,6 +120,7 @@ mod tests {
         let mut zone = Zone::new(1, ZoneType::Output, 5, None);
         zone.close(15);
         assert_eq!(zone.abs_row_end, 15);
+        assert!(zone.is_closed());
     }
 
     #[test]
@@ -113,6 +140,7 @@ mod tests {
     #[test]
     fn test_zone_contains_row() {
         let mut zone = Zone::new(4, ZoneType::Output, 5, None);
+        assert!(zone.contains_row(50));
         zone.close(15);
         assert!(!zone.contains_row(4));
         assert!(zone.contains_row(5));

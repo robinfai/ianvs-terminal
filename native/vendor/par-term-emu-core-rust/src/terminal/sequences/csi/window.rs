@@ -3,6 +3,8 @@
 use crate::terminal::Terminal;
 use vte::Params;
 
+const TITLE_STACK_LIMIT: usize = 32;
+
 impl Terminal {
     pub(crate) fn handle_xtsmgraphics(&mut self, params: &Params) {
         let values = params
@@ -94,6 +96,12 @@ impl Terminal {
                     let mut fill_cell = crate::cell::Cell::new(pc);
                     fill_cell.fg = self.fg;
                     fill_cell.bg = self.bg;
+                    fill_cell
+                        .flags
+                        .set_fg_is_default(self.flags.fg_is_default());
+                    fill_cell
+                        .flags
+                        .set_bg_is_default(self.flags.bg_is_default());
                     fill_cell.flags = self.flags;
 
                     self.active_grid_mut()
@@ -305,6 +313,9 @@ impl Terminal {
                     }
                     22 => {
                         // Push icon name and window title to stack
+                        if self.title_stack.len() >= TITLE_STACK_LIMIT {
+                            self.title_stack.remove(0);
+                        }
                         self.title_stack.push(self.title.clone());
                     }
                     23 => {

@@ -3,7 +3,7 @@
 //! Provides types for tracking command execution and shell integration statistics.
 
 /// Information about a command execution
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct CommandExecution {
     /// Command that was executed
     pub command: String,
@@ -25,8 +25,25 @@ pub struct CommandExecution {
     pub output_end_row: Option<usize>,
 }
 
+impl std::fmt::Debug for CommandExecution {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("CommandExecution")
+            .field("command_bytes", &self.command.len())
+            .field("cwd_bytes", &self.cwd.as_ref().map_or(0, String::len))
+            .field("start_time", &self.start_time)
+            .field("end_time", &self.end_time)
+            .field("exit_code", &self.exit_code)
+            .field("duration_ms", &self.duration_ms)
+            .field("success", &self.success)
+            .field("output_start_row", &self.output_start_row)
+            .field("output_end_row", &self.output_end_row)
+            .finish()
+    }
+}
+
 /// Command output record combining execution metadata with extracted output text
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct CommandOutput {
     /// Command that was executed
     pub command: String,
@@ -36,6 +53,18 @@ pub struct CommandOutput {
     pub exit_code: Option<i32>,
     /// Extracted output text
     pub output: String,
+}
+
+impl std::fmt::Debug for CommandOutput {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("CommandOutput")
+            .field("command_bytes", &self.command.len())
+            .field("cwd_bytes", &self.cwd.as_ref().map_or(0, String::len))
+            .field("exit_code", &self.exit_code)
+            .field("output_bytes", &self.output.len())
+            .finish()
+    }
 }
 
 /// Shell integration statistics
@@ -283,7 +312,7 @@ impl Terminal {
         let floor = self
             .grid
             .total_lines_scrolled()
-            .saturating_sub(self.grid.max_scrollback());
+            .saturating_sub(self.grid.scrollback_len());
         if start < floor {
             return None; // Output partially or fully evicted
         }
@@ -305,5 +334,44 @@ impl Terminal {
         (0..self.command_history.len())
             .filter_map(|i| self.get_command_output(i))
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn command_debug_output_reports_only_metadata() {
+        let execution = CommandExecution {
+            command: "command-secret-canary".to_string(),
+            cwd: Some("/cwd-secret-canary".to_string()),
+            start_time: 1,
+            end_time: Some(2),
+            exit_code: Some(0),
+            duration_ms: Some(1),
+            success: Some(true),
+            output_start_row: Some(3),
+            output_end_row: Some(4),
+        };
+        let output = CommandOutput {
+            command: execution.command.clone(),
+            cwd: execution.cwd.clone(),
+            exit_code: execution.exit_code,
+            output: "output-secret-canary".to_string(),
+        };
+
+        let execution_debug = format!("{execution:?}");
+        let output_debug = format!("{output:?}");
+        for secret in [
+            "command-secret-canary",
+            "/cwd-secret-canary",
+            "output-secret-canary",
+        ] {
+            assert!(!execution_debug.contains(secret), "Debug leaked {secret}");
+            assert!(!output_debug.contains(secret), "Debug leaked {secret}");
+        }
+        assert!(execution_debug.contains("command_bytes: 21"));
+        assert!(output_debug.contains("output_bytes: 20"));
     }
 }

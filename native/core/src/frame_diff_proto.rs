@@ -38,6 +38,7 @@ fn to_proto_frame(frame: &TerminalFrameDiff) -> pb::TerminalFrameDiff {
             .collect(),
         scrollback_offset: usize_to_u32(frame.scrollback_offset),
         scrollback_max_offset: usize_to_u32(frame.scrollback_max_offset),
+        global_bottom_row: Some(frame.global_bottom_row),
         viewport_start_row: usize_to_u32(frame.viewport_start_row),
         viewport_row_shift: frame.viewport_row_shift,
         default_foreground: color_to_proto(frame.default_foreground.as_deref()),

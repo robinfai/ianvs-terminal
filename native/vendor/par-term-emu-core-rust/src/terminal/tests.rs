@@ -1,4 +1,8 @@
-use super::{sanitize_bracketed_paste_content, Terminal};
+use super::{
+    sanitize_bracketed_paste_content, Terminal, TerminalEvent, MAX_PENDING_TERMINAL_EVENTS,
+    MAX_PENDING_TERMINAL_EVENT_BYTES, MAX_PENDING_TMUX_NOTIFICATIONS,
+};
+use crate::color::Color;
 use crate::graphics::{GraphicProtocol, TerminalGraphic};
 
 #[test]
@@ -226,4 +230,151 @@ fn plain_ascii_fast_path_does_not_consume_split_osc_payload() {
     assert_eq!(term.title(), "hello");
     assert_eq!(term.active_grid().row_text(0).trim_end(), "visible");
     assert_eq!(stats.plain_ascii_fast_path_calls, 0);
+}
+
+#[test]
+fn enq_answerback_uses_the_atomic_response_budget() {
+    const ANSWERBACK: &str = "configured";
+    let mut term = Terminal::new(20, 2);
+    term.set_answerback_string(Some(ANSWERBACK.to_string()));
+    let filler = vec![b'x'; crate::terminal::MAX_RESPONSE_BUFFER_BYTES - ANSWERBACK.len() + 1];
+    term.push_response(&filler);
+    drop(filler);
+
+    term.process(b"\x05");
+    assert_eq!(
+        term.response_buffer.len(),
+        crate::terminal::MAX_RESPONSE_BUFFER_BYTES - ANSWERBACK.len() + 1
+    );
+    assert_eq!(term.response_buffer_overflow_count(), 1);
+    let buffered = term.drain_responses();
+    assert!(buffered.iter().all(|byte| *byte == b'x'));
+    drop(buffered);
+
+    term.process(b"\x05");
+    assert_eq!(term.drain_responses(), ANSWERBACK.as_bytes());
+}
+
+#[test]
+fn ris_preserves_host_policy_profile_and_resource_configuration() {
+    let mut term = Terminal::new(20, 4);
+    term.set_default_fg(Color::Rgb(1, 2, 3));
+    term.set_graphics_memory_limits(7, 11);
+    term.set_max_sixel_graphics(3);
+    term.set_sixel_limits(4, 5, 6);
+    term.set_cell_dimensions(7, 9);
+    term.set_pixel_size(700, 900);
+    term.set_max_transfer_size(1_234);
+    term.set_max_inline_images(4);
+    term.set_max_clipboard_sync_events(5);
+    term.set_max_clipboard_event_bytes(6);
+    term.set_max_clipboard_sync_history(7);
+    term.set_max_command_history(8);
+    term.set_max_cwd_history(9);
+    term.set_max_notifications(10);
+    term.set_allow_clipboard_read(true);
+    term.set_accept_osc7(false);
+    term.set_answerback_string(Some("configured".to_string()));
+    term.set_width_config(crate::unicode_width_config::WidthConfig::cjk());
+    term.set_normalization_form(crate::unicode_normalization_config::NormalizationForm::NFD);
+    term.set_remote_session_id(Some("remote-session".to_string()));
+
+    // Mutate protocol-owned semantic state, then reset through RIS.
+    term.process(b"\x1b]10;#aabbcc\x07\x1b]1337;SetBadgeFormat=RGVwbG95\x07\x1bc");
+
+    let graphics_limits = term.graphics_store.limits();
+    assert_eq!(graphics_limits.max_image_bytes, 7);
+    assert_eq!(graphics_limits.max_total_memory, 11);
+    assert_eq!(graphics_limits.max_graphics_count, 3);
+    assert_eq!(term.sixel_limits().max_width, 4);
+    assert_eq!(term.sixel_limits().max_height, 5);
+    assert_eq!(term.sixel_limits().max_repeat, 6);
+    assert_eq!(term.cell_dimensions(), (7, 9));
+    assert_eq!((term.pixel_width, term.pixel_height), (700, 900));
+    assert_eq!(term.get_max_transfer_size(), 1_234);
+    assert_eq!(term.max_inline_images, 4);
+    assert_eq!(term.max_clipboard_sync_events(), 5);
+    assert_eq!(term.max_clipboard_event_bytes(), 6);
+    assert_eq!(term.max_clipboard_sync_history, 7);
+    assert_eq!(term.max_command_history, 8);
+    assert_eq!(term.max_cwd_history, 9);
+    assert_eq!(term.max_notifications(), 10);
+    assert!(term.allow_clipboard_read());
+    assert!(!term.accept_osc7());
+    assert_eq!(term.answerback_string(), Some("configured"));
+    assert_eq!(
+        term.width_config(),
+        &crate::unicode_width_config::WidthConfig::cjk()
+    );
+    assert_eq!(
+        term.normalization_form(),
+        crate::unicode_normalization_config::NormalizationForm::NFD
+    );
+    assert_eq!(term.remote_session_id(), Some("remote-session"));
+    assert_eq!(term.default_fg(), Color::Rgb(1, 2, 3));
+    assert!(term.badge_format().is_none());
+}
+
+#[test]
+fn ris_restores_default_tab_stops_instead_of_session_customization() {
+    let mut term = Terminal::new(20, 4);
+    term.clear_all_tab_stops();
+    term.set_tab_stop(3);
+    assert_eq!(term.get_tab_stops(), vec![3]);
+
+    term.process(b"\x1bc");
+
+    assert_eq!(term.get_tab_stops(), vec![0, 8, 16]);
+}
+
+#[test]
+fn pending_terminal_event_count_is_bounded_without_polling() {
+    let mut term = Terminal::new(20, 4);
+
+    for _ in 0..(MAX_PENDING_TERMINAL_EVENTS + 176) {
+        term.process(b"\x07");
+    }
+
+    let (pending_count, pending_bytes, dropped_count) = term.terminal_event_queue_diagnostics();
+    assert_eq!(pending_count, MAX_PENDING_TERMINAL_EVENTS);
+    assert!(pending_bytes <= MAX_PENDING_TERMINAL_EVENT_BYTES);
+    assert_eq!(dropped_count, 176);
+    assert_eq!(term.poll_events().len(), MAX_PENDING_TERMINAL_EVENTS);
+    assert_eq!(term.terminal_event_queue_diagnostics(), (0, 0, 176));
+}
+
+#[test]
+fn pending_terminal_event_payload_bytes_are_bounded_without_logging_content() {
+    let mut term = Terminal::new(20, 4);
+    let canary = "terminal-event-secret-canary".repeat(40_000);
+
+    for _ in 0..24 {
+        term.terminal_events
+            .push(TerminalEvent::TitleChanged(canary.clone()));
+    }
+    term.enforce_terminal_event_queue_limits();
+
+    let (pending_count, pending_bytes, dropped_count) = term.terminal_event_queue_diagnostics();
+    assert!(pending_count < 24);
+    assert!(pending_bytes <= MAX_PENDING_TERMINAL_EVENT_BYTES);
+    assert!(dropped_count > 0);
+}
+
+#[test]
+fn pending_tmux_notifications_are_bounded_without_a_consumer() {
+    let mut term = Terminal::new(20, 4);
+    term.set_tmux_control_mode(true);
+    let input = "%sessions-changed\n".repeat(MAX_PENDING_TMUX_NOTIFICATIONS + 44);
+
+    term.process(input.as_bytes());
+
+    assert_eq!(
+        term.tmux_notification_queue_diagnostics(),
+        (MAX_PENDING_TMUX_NOTIFICATIONS, 44)
+    );
+    assert_eq!(
+        term.drain_tmux_notifications().len(),
+        MAX_PENDING_TMUX_NOTIFICATIONS
+    );
+    assert_eq!(term.tmux_notification_queue_diagnostics(), (0, 44));
 }

@@ -8,6 +8,18 @@ fn process_osc1337(term: &mut Terminal, payload: &str) {
     term.process(sequence.as_bytes());
 }
 
+#[test]
+fn unsupported_osc_log_message_never_contains_command_or_payload() {
+    let command = "command-secret-canary";
+    let payload = b"payload-secret-canary";
+    let message = super::unsupported_osc_log_message(command, &[command.as_bytes(), payload]);
+
+    assert!(!message.contains(command));
+    assert!(!message.contains("payload-secret-canary"));
+    assert!(message.contains(&format!("command_bytes={}", command.len())));
+    assert!(message.contains(&format!("payload_bytes={}", payload.len())));
+}
+
 fn tiny_png_base64() -> String {
     let image = image::RgbaImage::from_pixel(1, 1, image::Rgba([255, 0, 0, 255]));
     let mut png_data = Vec::new();
@@ -36,8 +48,20 @@ fn test_parse_color_spec_rgb_format() {
         Some((18, 52, 86))
     );
 
-    // Single hex digit (should be padded)
-    assert_eq!(Terminal::parse_color_spec("rgb:F/0/A"), Some((240, 0, 160)));
+    // rgb: components are scaled from their declared 4/8/12/16-bit width.
+    assert_eq!(Terminal::parse_color_spec("rgb:F/8/0"), Some((255, 136, 0)));
+    assert_eq!(
+        Terminal::parse_color_spec("rgb:FF/80/00"),
+        Some((255, 128, 0))
+    );
+    assert_eq!(
+        Terminal::parse_color_spec("rgb:FFF/800/000"),
+        Some((255, 128, 0))
+    );
+    assert_eq!(
+        Terminal::parse_color_spec("rgb:FFFF/8000/0000"),
+        Some((255, 128, 0))
+    );
 }
 
 #[test]
@@ -47,6 +71,7 @@ fn test_parse_color_spec_hex_format() {
     assert_eq!(Terminal::parse_color_spec("#ff00aa"), Some((255, 0, 170)));
     assert_eq!(Terminal::parse_color_spec("#123456"), Some((18, 52, 86)));
     assert_eq!(Terminal::parse_color_spec("#FFF"), Some((240, 240, 240)));
+    assert_eq!(Terminal::parse_color_spec("#ABC"), Some((160, 176, 192)));
     assert_eq!(Terminal::parse_color_spec("#FF00AA00"), Some((255, 0, 170)));
 }
 
@@ -188,6 +213,102 @@ fn osc_8_protocol_id_preserves_distinct_link_identity() {
 }
 
 #[test]
+fn osc_8_reclaims_identities_after_referenced_cells_scroll_out() {
+    let mut term = Terminal::with_scrollback(2, 1, 1);
+    let mut first_id = None;
+    let mut last_id = None;
+
+    for index in 0..super::MAX_HYPERLINK_ENTRIES + 3 {
+        let sequence = format!("\x1b]8;id=scroll-{index};https://example.test/{index}\x1b\\");
+        term.process(sequence.as_bytes());
+        let id = term.current_hyperlink_id.expect("hyperlink should open");
+        first_id.get_or_insert(id);
+        last_id = Some(id);
+        term.process(b"x\x1b]8;;\x1b\\\r\n");
+        term.poll_events();
+    }
+
+    assert!(term.hyperlinks.len() <= super::MAX_HYPERLINK_ENTRIES);
+    assert_eq!(term.hyperlinks.len(), term.hyperlink_protocol_ids.len());
+    assert!(term.get_hyperlink_url(first_id.unwrap()).is_none());
+    let expected_last_url = format!("https://example.test/{}", super::MAX_HYPERLINK_ENTRIES + 2);
+    assert_eq!(
+        term.get_hyperlink_url(last_id.unwrap()).as_deref(),
+        Some(expected_last_url.as_str())
+    );
+}
+
+#[test]
+fn osc_8_preserves_active_identities_and_rejects_only_new_identity_at_limit() {
+    let mut term = Terminal::with_scrollback(super::MAX_HYPERLINK_ENTRIES, 1, 0);
+    let mut first_id = None;
+
+    for index in 0..super::MAX_HYPERLINK_ENTRIES {
+        let sequence = format!("\x1b]8;id=active-{index};https://active.test/{index}\x1b\\");
+        term.process(sequence.as_bytes());
+        first_id.get_or_insert(
+            term.current_hyperlink_id
+                .expect("active hyperlink should open"),
+        );
+        term.process(b"x");
+        term.poll_events();
+    }
+    term.process(b"\x1b]8;;\x1b\\");
+
+    assert_eq!(term.hyperlinks.len(), super::MAX_HYPERLINK_ENTRIES);
+    assert_eq!(
+        term.hyperlink_protocol_ids.len(),
+        super::MAX_HYPERLINK_ENTRIES
+    );
+
+    term.process(b"\x1b]8;id=overflow;https://active.test/overflow\x1b\\");
+    assert!(term.current_hyperlink_id.is_none());
+    assert_eq!(term.hyperlinks.len(), super::MAX_HYPERLINK_ENTRIES);
+    assert!(!term
+        .hyperlinks
+        .values()
+        .any(|url| url == "https://active.test/overflow"));
+
+    term.process(b"\x1b]8;id=active-0;https://active.test/0\x1b\\");
+    assert_eq!(term.current_hyperlink_id, first_id);
+    assert_eq!(
+        term.get_hyperlink_protocol_id(first_id.unwrap()).as_deref(),
+        Some("active-0")
+    );
+}
+
+#[test]
+fn osc_8_reclamation_preserves_links_referenced_by_alternate_grid() {
+    let mut term = Terminal::with_scrollback(2, 1, 1);
+    term.use_alt_screen();
+    term.process(b"\x1b]8;id=alt-live;https://alt.test/live\x1b\\x\x1b]8;;\x1b\\");
+    let alt_id = term
+        .alt_grid
+        .cells
+        .iter()
+        .find_map(|cell| cell.flags.hyperlink_id)
+        .expect("alternate grid should retain its hyperlink");
+    term.use_primary_screen();
+
+    for index in 0..super::MAX_HYPERLINK_ENTRIES + 1 {
+        let sequence = format!("\x1b]8;id=primary-{index};https://primary.test/{index}\x1b\\");
+        term.process(sequence.as_bytes());
+        term.process(b"x\x1b]8;;\x1b\\\r\n");
+        term.poll_events();
+    }
+
+    assert!(term.hyperlinks.len() <= super::MAX_HYPERLINK_ENTRIES);
+    assert_eq!(
+        term.get_hyperlink_url(alt_id).as_deref(),
+        Some("https://alt.test/live")
+    );
+    assert_eq!(
+        term.get_hyperlink_protocol_id(alt_id).as_deref(),
+        Some("alt-live")
+    );
+}
+
+#[test]
 fn test_osc7_set_directory() {
     let mut term = Terminal::new(80, 24);
 
@@ -206,6 +327,115 @@ fn test_osc7_set_directory() {
         term.session_variables().hostname,
         Some("hostname".to_string())
     );
+}
+
+#[test]
+fn osc_9_9_updates_absolute_cwd_without_notification_side_effect() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"\x1b]7;file://alice@remote.example/tmp/before\x1b\\");
+    let _ = term.poll_events();
+    term.process(b"\x1b]9;9;/Users/example/project\x1b\\");
+
+    assert_eq!(term.shell_integration.cwd(), Some("/Users/example/project"));
+    assert_eq!(term.shell_integration.hostname(), Some("remote.example"));
+    assert_eq!(term.shell_integration.username(), Some("alice"));
+    assert!(term.notifications().is_empty());
+    assert!(term.poll_events().iter().any(|event| matches!(
+        event,
+        crate::terminal::TerminalEvent::CwdChanged(change)
+            if change.source == crate::terminal::CwdChangeSource::Osc9_9
+                && change.source.as_str() == "osc9;9"
+                && change.new_cwd == "/Users/example/project"
+                && change.hostname.as_deref() == Some("remote.example")
+                && change.username.as_deref() == Some("alice")
+    )));
+}
+
+#[test]
+fn osc_9_9_rejects_relative_or_control_character_cwd() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"\x1b]9;9;relative/path\x07");
+    term.process(b"\x1b]9;9;/tmp/otherwise-valid;unexpected\x07");
+    // Exercise the semantic handler directly because ECMA-48 parsers are
+    // allowed to consume C0 bytes before OSC dispatch.
+    term.handle_osc_notify("9", &[b"9", b"9", b"/tmp/bad\x01path"]);
+    term.process(b"\x1b]9;9;/tmp/bad\xc2\x85path\x1b\\");
+
+    assert!(term.shell_integration.cwd().is_none());
+    assert!(term.notifications().is_empty());
+}
+
+#[test]
+fn osc_633_shell_markers_and_properties_share_semantic_state() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"\x1b]7;file://alice@remote.example/tmp/before\x1b\\");
+    let _ = term.poll_events();
+    term.process(b"\x1b]633;A\x1b\\");
+    term.process(b"\x1b]633;B\x07");
+    term.process(b"\x1b]633;E;printf\\x3bvalue;nonce-123\x1b\\");
+    term.process(b"\x1b]633;C\x1b\\");
+    term.process(b"\x1b]633;P;Cwd=/Users/example/project\x1b\\");
+    term.process(b"\x1b]633;D;7\x1b\\");
+
+    assert_eq!(term.shell_integration.cwd(), Some("/Users/example/project"));
+    assert_eq!(term.shell_integration.hostname(), Some("remote.example"));
+    assert_eq!(term.shell_integration.username(), Some("alice"));
+    assert_eq!(term.shell_integration.command(), Some("printf;value"));
+    assert_eq!(term.shell_integration.exit_code(), Some(7));
+    assert!(term.notifications().is_empty());
+
+    let events = term.poll_events();
+    assert!(events.iter().any(|event| matches!(
+        event,
+        crate::terminal::TerminalEvent::CwdChanged(change)
+            if change.source == crate::terminal::CwdChangeSource::Osc633
+                && change.new_cwd == "/Users/example/project"
+                && change.hostname.as_deref() == Some("remote.example")
+                && change.username.as_deref() == Some("alice")
+    )));
+    let shell_events: Vec<_> = events
+        .iter()
+        .filter_map(|event| match event {
+            crate::terminal::TerminalEvent::ShellIntegrationEvent {
+                source,
+                event_type,
+                command,
+                exit_code,
+                ..
+            } => Some((*source, event_type.as_str(), command.as_deref(), *exit_code)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(shell_events.len(), 4);
+    assert!(shell_events.iter().all(|(source, ..)| {
+        *source == crate::terminal::event::ShellIntegrationSource::Osc633
+            && source.as_str() == "osc633"
+    }));
+    assert!(shell_events.iter().any(|(_, event_type, command, _)| {
+        *event_type == "command_executed" && *command == Some("printf;value")
+    }));
+    assert!(shell_events.iter().any(|(_, event_type, _, exit_code)| {
+        *event_type == "command_finished" && *exit_code == Some(7)
+    }));
+}
+
+#[test]
+fn osc_633_ignores_malformed_properties_and_redacts_nonce_from_state() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"\x1b]633;P;Cwd=relative\x07");
+    term.process(b"\x1b]633;P;Malformed\x1b\\");
+    term.process(b"\x1b]633;P;Cwd=/tmp/otherwise-valid;Unexpected=true\x1b\\");
+    term.process(b"\x1b]633;P;Cwd=/tmp/bad\xc2\x85path\x1b\\");
+    term.process(b"\x1b]633;E;bad\\xGGcommand;ignored-nonce\x1b\\");
+    term.process(b"\x1b]633;E;echo ok;secret-nonce\x1b\\");
+
+    assert!(term.shell_integration.cwd().is_none());
+    assert_eq!(term.shell_integration.command(), Some("echo ok"));
+    assert!(!format!("{:?}", term.shell_integration).contains("secret-nonce"));
 }
 
 #[test]
@@ -993,6 +1223,45 @@ fn test_set_user_var_multiple_variables() {
 }
 
 #[test]
+fn set_user_var_rejects_new_key_at_limit_but_updates_existing_key() {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+
+    let mut term = Terminal::new(80, 24);
+    for index in 0..crate::badge::MAX_CUSTOM_SESSION_VARIABLES {
+        term.set_user_var(format!("key-{index}"), "initial".to_string());
+    }
+    term.poll_events();
+
+    process_osc1337(
+        &mut term,
+        &format!("SetUserVar=overflow={}", STANDARD.encode("rejected")),
+    );
+    assert_eq!(
+        term.get_user_vars().len(),
+        crate::badge::MAX_CUSTOM_SESSION_VARIABLES
+    );
+    assert!(term.get_user_var("overflow").is_none());
+    assert!(term
+        .poll_events()
+        .into_iter()
+        .all(|event| !matches!(event, crate::terminal::TerminalEvent::UserVarChanged { .. })));
+
+    process_osc1337(
+        &mut term,
+        &format!("SetUserVar=key-0={}", STANDARD.encode("updated")),
+    );
+    assert_eq!(term.get_user_var("key-0"), Some("updated"));
+    assert!(term.poll_events().into_iter().any(|event| matches!(
+        event,
+        crate::terminal::TerminalEvent::UserVarChanged {
+            name,
+            value,
+            old_value: Some(old_value),
+        } if name == "key-0" && value == "updated" && old_value == "initial"
+    )));
+}
+
+#[test]
 fn test_iterm_multipart_inline_without_size_waits_for_file_end() {
     let mut term = Terminal::new(80, 24);
     let name = base64::engine::general_purpose::STANDARD.encode("pixel.png");
@@ -1017,6 +1286,54 @@ fn test_iterm_multipart_inline_without_size_waits_for_file_end() {
     assert_eq!(graphic.protocol.as_str(), "iterm");
     assert_eq!(graphic.width, 1);
     assert_eq!(graphic.height, 1);
+}
+
+#[test]
+fn iterm_multipart_inline_without_size_rejects_decoded_total_over_graphics_limit() {
+    let mut term = Terminal::new(80, 24);
+    term.set_graphics_memory_limits(8, 8192);
+    process_osc1337(&mut term, "MultipartFile=inline=1");
+
+    // Each valid four-byte Base64 part decodes to three bytes. The third part
+    // would take the aggregate decoded payload from six to nine bytes.
+    process_osc1337(&mut term, "FilePart=AAAA");
+    process_osc1337(&mut term, "FilePart=AAAA");
+    assert_eq!(
+        term.iterm_multipart_buffer
+            .as_ref()
+            .map(|state| state.accumulated_size),
+        Some(6)
+    );
+    process_osc1337(&mut term, "FilePart=AAAA");
+
+    assert!(term.iterm_multipart_buffer.is_none());
+    process_osc1337(&mut term, "FileEnd");
+    assert_eq!(term.graphics_count(), 0);
+}
+
+#[test]
+fn iterm_multipart_inline_bounds_retained_encoded_parts_without_declared_size() {
+    let mut term = Terminal::new(80, 24);
+    term.set_graphics_memory_limits(8, 8192);
+    process_osc1337(&mut term, "MultipartFile=inline=1");
+    let whitespace_part = format!("FilePart={}", " ".repeat(1024));
+
+    // Whitespace is legal around Base64 and decodes to no bytes, so decoded
+    // accounting alone cannot bound the retained raw multipart payload.
+    for _ in 0..4 {
+        process_osc1337(&mut term, &whitespace_part);
+    }
+    assert_eq!(
+        term.iterm_multipart_buffer
+            .as_ref()
+            .map(|state| state.encoded_data.len()),
+        Some(4096)
+    );
+
+    process_osc1337(&mut term, &whitespace_part);
+    assert!(term.iterm_multipart_buffer.is_none());
+    process_osc1337(&mut term, "FileEnd");
+    assert_eq!(term.graphics_count(), 0);
 }
 
 #[test]
@@ -1678,6 +1995,27 @@ fn test_osc934_invalid_sequence_ignored() {
 }
 
 #[test]
+fn test_osc934_query_returns_static_capability_without_state_or_loop() {
+    let mut term = Terminal::new(80, 24);
+    term.process(b"\x1b]934;set;private-id;percent=42;label=private-label\x1b\\");
+    let _ = term.poll_events();
+
+    term.process(b"\x1b]934;query\x1b\\");
+    let response = term.drain_responses();
+    assert_eq!(
+        response,
+        crate::terminal::progress::OSC934_CAPABILITY_RESPONSE
+    );
+    assert!(!String::from_utf8_lossy(&response).contains("private-id"));
+    assert!(!String::from_utf8_lossy(&response).contains("private-label"));
+    assert!(term.poll_events().is_empty());
+
+    term.process(crate::terminal::progress::OSC934_CAPABILITY_RESPONSE);
+    assert!(term.drain_responses().is_empty());
+    assert!(term.poll_events().is_empty());
+}
+
+#[test]
 fn test_osc934_bell_terminated() {
     let mut term = Terminal::new(80, 24);
 
@@ -2029,7 +2367,11 @@ fn test_zones_evicted_on_scrollback_wrap() {
     let floor = term
         .active_grid()
         .total_lines_scrolled()
-        .saturating_sub(term.active_grid().max_scrollback());
+        .saturating_sub(term.active_grid().scrollback_len());
+    assert!(
+        !zones.is_empty(),
+        "the active output zone must survive until its D marker"
+    );
     for zone in zones {
         assert!(
             zone.abs_row_end >= floor,
@@ -2040,6 +2382,12 @@ fn test_zones_evicted_on_scrollback_wrap() {
             floor
         );
     }
+    let output = zones
+        .iter()
+        .find(|zone| zone.zone_type == crate::zone::ZoneType::Output)
+        .expect("retained output zone");
+    assert!(output.is_closed());
+    assert_eq!(output.exit_code, Some(0));
 }
 
 #[test]

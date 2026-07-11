@@ -9,13 +9,106 @@ mod title;
 
 use crate::debug;
 use crate::terminal::Terminal;
+use std::collections::HashSet;
+
+/// Maximum number of OSC 8 identities retained by one terminal.
+///
+/// At this high-water mark, identities no longer referenced by either grid or
+/// by the currently open hyperlink are reclaimed. If every entry is still
+/// active, a new identity is rejected until one becomes reclaimable.
+pub(crate) const MAX_HYPERLINK_ENTRIES: usize = 1024;
+
+pub(super) fn sanitize_osc_text(value: &str, max_chars: usize) -> String {
+    value
+        .chars()
+        .filter(|character| !character.is_control())
+        .take(max_chars)
+        .collect()
+}
 
 /// Maximum total OSC data length in bytes (128 MB)
 /// Must be large enough for inline images (iTerm2/Kitty protocols send
 /// base64-encoded image data inside a single OSC sequence).
 const MAX_OSC_DATA_LENGTH: usize = 128 * 1024 * 1024;
 
+fn unsupported_osc_log_message(command: &str, params: &[&[u8]]) -> String {
+    let payload_bytes = params
+        .iter()
+        .skip(1)
+        .map(|parameter| parameter.len())
+        .sum::<usize>();
+    format!(
+        "Unsupported OSC command: command_bytes={} params={} payload_bytes={}",
+        command.len(),
+        params.len().saturating_sub(1),
+        payload_bytes
+    )
+}
+
 impl Terminal {
+    fn referenced_hyperlink_ids(&self) -> HashSet<u32> {
+        let mut referenced = HashSet::new();
+        referenced.extend(self.current_hyperlink_id);
+        for cell in self
+            .grid
+            .cells
+            .iter()
+            .chain(self.grid.scrollback_cells.iter())
+            .chain(self.alt_grid.cells.iter())
+            .chain(self.alt_grid.scrollback_cells.iter())
+        {
+            referenced.extend(cell.flags.hyperlink_id);
+        }
+        referenced
+    }
+
+    fn reclaim_unreferenced_hyperlinks(&mut self) {
+        let referenced = self.referenced_hyperlink_ids();
+        self.hyperlinks.retain(|id, _| referenced.contains(id));
+        self.hyperlink_protocol_ids
+            .retain(|id, _| self.hyperlinks.contains_key(id));
+    }
+
+    fn allocate_hyperlink_id(&mut self) -> Option<u32> {
+        if self.hyperlinks.len() >= MAX_HYPERLINK_ENTRIES {
+            self.reclaim_unreferenced_hyperlinks();
+        }
+        if self.hyperlinks.len() >= MAX_HYPERLINK_ENTRIES {
+            return None;
+        }
+
+        // The map has at most MAX_HYPERLINK_ENTRIES entries, so one of these
+        // consecutive wrapping IDs is guaranteed to be free even after a
+        // long-running session wraps the u32 counter.
+        let id = (0..=MAX_HYPERLINK_ENTRIES)
+            .map(|offset| self.next_hyperlink_id.wrapping_add(offset as u32))
+            .find(|candidate| !self.hyperlinks.contains_key(candidate))?;
+        self.next_hyperlink_id = id.wrapping_add(1);
+        Some(id)
+    }
+
+    fn get_or_insert_hyperlink_id(&mut self, url: &str, protocol_id: Option<&str>) -> Option<u32> {
+        if let Some(id) = self
+            .hyperlinks
+            .iter()
+            .find(|(id, value)| {
+                value.as_str() == url
+                    && self.hyperlink_protocol_ids.get(id).map(String::as_str) == protocol_id
+            })
+            .map(|(id, _)| *id)
+        {
+            return Some(id);
+        }
+
+        let id = self.allocate_hyperlink_id()?;
+        self.hyperlinks.insert(id, url.to_string());
+        if let Some(protocol_id) = protocol_id {
+            self.hyperlink_protocol_ids
+                .insert(id, protocol_id.to_string());
+        }
+        Some(id)
+    }
+
     /// Check if an OSC command should be filtered due to security settings
     pub(crate) fn is_insecure_osc(&self, command: &str) -> bool {
         if !self.disable_insecure_sequences {
@@ -69,7 +162,7 @@ impl Terminal {
                 // implemented, consume them through the unsupported path;
                 // they must never mutate the title stack.
                 "0" | "2" | "23" => self.handle_osc_title(command, params),
-                "7" | "133" => self.handle_osc_shell(command, params),
+                "7" | "133" | "633" => self.handle_osc_shell(command, params),
                 "8" => self.handle_osc_hyperlink(params),
                 "9" | "777" | "934" => self.handle_osc_notify(command, params),
                 "52" => self.handle_osc_clipboard(command, params),
@@ -81,7 +174,7 @@ impl Terminal {
                     debug::log(
                         debug::DebugLevel::Debug,
                         "OSC",
-                        &format!("Unsupported OSC command: {}", command),
+                        &unsupported_osc_log_message(command, params),
                     );
                 }
             }
@@ -108,23 +201,13 @@ impl Terminal {
                 if url.is_empty() {
                     self.current_hyperlink_id = None;
                 } else {
-                    let id = self
-                        .hyperlinks
-                        .iter()
-                        .find(|(id, value)| {
-                            value.as_str() == url
-                                && self.hyperlink_protocol_ids.get(id) == protocol_id.as_ref()
-                        })
-                        .map(|(k, _)| *k)
-                        .unwrap_or_else(|| {
-                            let id = self.next_hyperlink_id;
-                            self.hyperlinks.insert(id, url.to_string());
-                            if let Some(protocol_id) = protocol_id.clone() {
-                                self.hyperlink_protocol_ids.insert(id, protocol_id);
-                            }
-                            self.next_hyperlink_id += 1;
-                            id
-                        });
+                    let Some(id) = self.get_or_insert_hyperlink_id(url, protocol_id.as_deref())
+                    else {
+                        // Do not accidentally continue the previous identity
+                        // when a distinct new link cannot be retained.
+                        self.current_hyperlink_id = None;
+                        return;
+                    };
 
                     self.current_hyperlink_id = Some(id);
 

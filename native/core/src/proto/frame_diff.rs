@@ -43,6 +43,8 @@ pub struct TerminalFrameDiff {
     pub inline_images: ::prost::alloc::vec::Vec<TerminalInlineImage>,
     #[prost(message, repeated, tag = "21")]
     pub graphics: ::prost::alloc::vec::Vec<TerminalGraphicPlacement>,
+    #[prost(uint64, optional, tag = "22")]
+    pub global_bottom_row: ::core::option::Option<u64>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TerminalRow {

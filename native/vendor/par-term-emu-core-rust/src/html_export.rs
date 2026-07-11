@@ -6,6 +6,32 @@ use crate::grid::Grid;
 
 /// Generate HTML from terminal grid
 pub fn export_html(grid: &Grid, include_styles: bool) -> String {
+    export_html_impl(grid, include_styles, true, None)
+}
+
+/// Generate HTML while resolving named/indexed colors through a runtime palette.
+pub fn export_html_with_palette(
+    grid: &Grid,
+    include_styles: bool,
+    palette: &[Color; 256],
+) -> String {
+    export_html_impl(grid, include_styles, true, Some(palette))
+}
+
+pub(crate) fn export_visible_html_with_palette(
+    grid: &Grid,
+    include_styles: bool,
+    palette: &[Color; 256],
+) -> String {
+    export_html_impl(grid, include_styles, false, Some(palette))
+}
+
+fn export_html_impl(
+    grid: &Grid,
+    include_styles: bool,
+    include_scrollback: bool,
+    palette: Option<&[Color; 256]>,
+) -> String {
     let mut html = String::new();
 
     if include_styles {
@@ -23,17 +49,19 @@ pub fn export_html(grid: &Grid, include_styles: bool) -> String {
     }
 
     // Export scrollback
-    for i in 0..grid.scrollback_len() {
-        if let Some(line) = grid.scrollback_line(i) {
-            export_line_to_html(line, &mut html);
-            html.push('\n');
+    if include_scrollback {
+        for i in 0..grid.scrollback_len() {
+            if let Some(line) = grid.scrollback_line(i) {
+                export_line_to_html(line, &mut html, palette);
+                html.push('\n');
+            }
         }
     }
 
     // Export current screen
     for row in 0..grid.rows() {
         if let Some(line) = grid.row(row) {
-            export_line_to_html(line, &mut html);
+            export_line_to_html(line, &mut html, palette);
             html.push('\n');
         }
     }
@@ -45,12 +73,12 @@ pub fn export_html(grid: &Grid, include_styles: bool) -> String {
     html
 }
 
-fn export_line_to_html(cells: &[Cell], html: &mut String) {
+fn export_line_to_html(cells: &[Cell], html: &mut String, palette: Option<&[Color; 256]>) {
     let mut current_style: Option<String> = None;
     let mut span_open = false;
 
     for cell in cells {
-        let cell_style = build_style_string(cell);
+        let cell_style = build_style_string(cell, palette);
 
         // Close previous span if style changed
         if current_style.as_ref() != Some(&cell_style) {
@@ -97,18 +125,16 @@ fn export_line_to_html(cells: &[Cell], html: &mut String) {
     }
 }
 
-fn build_style_string(cell: &Cell) -> String {
+fn build_style_string(cell: &Cell, palette: Option<&[Color; 256]>) -> String {
     let mut styles = Vec::new();
 
     // Foreground color
-    if let Some((r, g, b)) = cell.fg.to_rgb_opt() {
-        styles.push(format!("color: rgb({}, {}, {})", r, g, b));
-    }
+    let (r, g, b) = resolve_color(cell.fg, palette);
+    styles.push(format!("color: rgb({}, {}, {})", r, g, b));
 
     // Background color
-    if let Some((r, g, b)) = cell.bg.to_rgb_opt() {
-        styles.push(format!("background-color: rgb({}, {}, {})", r, g, b));
-    }
+    let (r, g, b) = resolve_color(cell.bg, palette);
+    styles.push(format!("background-color: rgb({}, {}, {})", r, g, b));
 
     // Text decoration
     let mut decorations = Vec::new();
@@ -143,16 +169,14 @@ fn build_style_string(cell: &Cell) -> String {
 
     if cell.flags.reverse() {
         // Swap fg and bg
-        if let (Some((fg_r, fg_g, fg_b)), Some((bg_r, bg_g, bg_b))) =
-            (cell.fg.to_rgb_opt(), cell.bg.to_rgb_opt())
-        {
-            styles.retain(|s| !s.starts_with("color:") && !s.starts_with("background-color:"));
-            styles.push(format!("color: rgb({}, {}, {})", bg_r, bg_g, bg_b));
-            styles.push(format!(
-                "background-color: rgb({}, {}, {})",
-                fg_r, fg_g, fg_b
-            ));
-        }
+        let (fg_r, fg_g, fg_b) = resolve_color(cell.fg, palette);
+        let (bg_r, bg_g, bg_b) = resolve_color(cell.bg, palette);
+        styles.retain(|s| !s.starts_with("color:") && !s.starts_with("background-color:"));
+        styles.push(format!("color: rgb({}, {}, {})", bg_r, bg_g, bg_b));
+        styles.push(format!(
+            "background-color: rgb({}, {}, {})",
+            fg_r, fg_g, fg_b
+        ));
     }
 
     if cell.flags.hidden() {
@@ -162,15 +186,14 @@ fn build_style_string(cell: &Cell) -> String {
     styles.join("; ")
 }
 
-impl Color {
-    /// Convert color to RGB tuple, returning None for default colors
-    #[allow(clippy::wrong_self_convention)]
-    fn to_rgb_opt(&self) -> Option<(u8, u8, u8)> {
-        match self {
-            Color::Named(_) => Some(self.to_rgb()),
-            Color::Indexed(_) => Some(self.to_rgb()),
-            Color::Rgb(r, g, b) => Some((*r, *g, *b)),
-        }
+fn resolve_color(color: Color, palette: Option<&[Color; 256]>) -> (u8, u8, u8) {
+    let Some(palette) = palette else {
+        return color.to_rgb();
+    };
+    match color {
+        Color::Named(named) => palette[named as usize].to_rgb(),
+        Color::Indexed(index) => palette[index as usize].to_rgb(),
+        Color::Rgb(red, green, blue) => (red, green, blue),
     }
 }
 
@@ -306,6 +329,22 @@ mod tests {
         let html = export_html(&grid, false);
         assert!(html.contains("color: rgb(255, 0, 0)"));
         assert!(html.contains("background-color: rgb(0, 0, 255)"));
+    }
+
+    #[test]
+    fn runtime_palette_resolves_extended_index_for_html() {
+        let mut grid = Grid::new(2, 1, 0);
+        grid.set(
+            0,
+            0,
+            Cell::with_colors('X', Color::Indexed(196), Color::Rgb(0, 0, 0)),
+        );
+        let mut palette: [Color; 256] = std::array::from_fn(|index| Color::Indexed(index as u8));
+        palette[196] = Color::Rgb(0x12, 0x34, 0x56);
+
+        let html = export_html_with_palette(&grid, false, &palette);
+
+        assert!(html.contains("color: rgb(18, 52, 86)"), "{html}");
     }
 
     #[test]

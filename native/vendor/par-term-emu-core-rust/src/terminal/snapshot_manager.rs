@@ -20,12 +20,25 @@ pub const DEFAULT_SNAPSHOT_INTERVAL_SECS: u64 = 30;
 ///
 /// Contains a terminal snapshot and the input bytes that were fed to
 /// `Terminal::process()` after this snapshot was captured.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct SnapshotEntry {
     /// The captured terminal state.
     pub snapshot: TerminalSnapshot,
     /// Bytes fed to `Terminal::process()` after this snapshot was taken.
     pub input_bytes: Vec<u8>,
+}
+
+impl std::fmt::Debug for SnapshotEntry {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("SnapshotEntry")
+            .field("timestamp", &self.snapshot.timestamp)
+            .field("cols", &self.snapshot.cols)
+            .field("rows", &self.snapshot.rows)
+            .field("estimated_size_bytes", &self.snapshot.estimated_size_bytes)
+            .field("input_bytes_len", &self.input_bytes.len())
+            .finish()
+    }
 }
 
 impl SnapshotEntry {
@@ -209,6 +222,15 @@ impl SnapshotManager {
 
         let mut terminal =
             Terminal::with_scrollback(snap.cols, snap.rows, snap.grid.max_scrollback);
+        // This terminal is an isolated historical reconstruction, so seed its
+        // parser policy from the snapshot.  `Terminal::restore_from_snapshot`
+        // itself intentionally preserves the destination terminal's current
+        // security configuration.
+        terminal.set_accept_osc7(snap.accept_osc7);
+        terminal.set_disable_insecure_sequences(snap.disable_insecure_sequences);
+        terminal.set_allow_clipboard_read(snap.allow_clipboard_read);
+        terminal.set_osc_capability_policy(snap.osc_capability_policy);
+        terminal.osc633_expected_nonce = snap.osc633_expected_nonce.clone();
         terminal.restore_from_snapshot(snap.clone());
 
         let clamped = byte_offset.min(entry.input_bytes.len());
@@ -503,6 +525,44 @@ mod tests {
         let grid = reconstructed.grid();
         let cell = grid.get(0, 0).unwrap();
         assert_eq!(cell.c, 'H');
+    }
+
+    #[test]
+    fn isolated_reconstruction_uses_historical_policy_for_split_osc() {
+        let mut term = make_terminal();
+        term.set_accept_osc7(false);
+        term.set_disable_insecure_sequences(true);
+        term.set_allow_clipboard_read(true);
+        term.set_osc_capability_allowed(crate::terminal::OscCapability::Appearance, false);
+        term.process(b"\x1b]2;blocked");
+
+        let mut mgr = SnapshotManager::new(1024 * 1024, Duration::from_secs(0));
+        mgr.take_snapshot(&term);
+        mgr.record_input(b" title\x1b\\");
+
+        let reconstructed = mgr
+            .reconstruct_at(0, b" title\x1b\\".len())
+            .expect("historical terminal");
+        assert_eq!(reconstructed.title(), "");
+        assert!(!reconstructed.accept_osc7());
+        assert!(reconstructed.disable_insecure_sequences());
+        assert!(reconstructed.allow_clipboard_read());
+        assert!(!reconstructed.osc_capability_allowed(crate::terminal::OscCapability::Appearance));
+    }
+
+    #[test]
+    fn isolated_reconstruction_uses_historical_osc633_nonce_without_exposing_it() {
+        let mut term = make_terminal();
+        assert!(term.set_osc633_expected_nonce(Some("history-only-nonce".to_string())));
+        let mut mgr = SnapshotManager::new(1024 * 1024, Duration::from_secs(0));
+        mgr.take_snapshot(&term);
+        let input = b"\x1b]633;E;replayed;history-only-nonce\x1b\\";
+        mgr.record_input(input);
+
+        let reconstructed = mgr.reconstruct_at(0, input.len()).expect("reconstruction");
+        assert_eq!(reconstructed.shell_integration.command(), Some("replayed"));
+        assert!(!format!("{:?}", mgr.get_entry(0).unwrap()).contains("history-only-nonce"));
+        assert!(!format!("{mgr:?}").contains("history-only-nonce"));
     }
 
     #[test]

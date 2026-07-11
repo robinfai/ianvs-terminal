@@ -7,6 +7,15 @@ use crate::screenshot::ScreenshotResult;
 /// SVG encoder for terminal screenshots that generates clean, scalable vector graphics
 /// that preserve text as actual SVG text elements (not rasterized).
 pub fn encode(grid: &Grid, font_size: f32, padding: u32) -> ScreenshotResult<Vec<u8>> {
+    encode_with_palette(grid, font_size, padding, None)
+}
+
+pub(crate) fn encode_with_palette(
+    grid: &Grid,
+    font_size: f32,
+    padding: u32,
+    palette: Option<&[Color; 256]>,
+) -> ScreenshotResult<Vec<u8>> {
     let rows = grid.rows();
     let cols = grid.cols();
 
@@ -49,7 +58,7 @@ pub fn encode(grid: &Grid, font_size: f32, padding: u32) -> ScreenshotResult<Vec
     // Background - use default black
     let bg_color = grid
         .get(0, 0)
-        .map(|cell| cell.bg.to_rgb())
+        .map(|cell| resolve_color(cell.bg, palette))
         .unwrap_or((0, 0, 0));
 
     svg.push_str(&format!(
@@ -88,7 +97,7 @@ pub fn encode(grid: &Grid, font_size: f32, padding: u32) -> ScreenshotResult<Vec
 
             // Collect run of cells with same attributes
             let mut run_text = String::new();
-            let fg = cell.fg.to_rgb();
+            let fg = resolve_color(cell.fg, palette);
             let start_col = col;
             let bold = cell.flags.bold();
             let italic = cell.flags.italic();
@@ -103,7 +112,7 @@ pub fn encode(grid: &Grid, font_size: f32, padding: u32) -> ScreenshotResult<Vec
                 };
 
                 // Check if attributes match
-                let current_fg = current.fg.to_rgb();
+                let current_fg = resolve_color(current.fg, palette);
                 if current_fg != fg
                     || current.flags.bold() != bold
                     || current.flags.italic() != italic
@@ -170,6 +179,17 @@ pub fn encode(grid: &Grid, font_size: f32, padding: u32) -> ScreenshotResult<Vec
     Ok(svg.into_bytes())
 }
 
+fn resolve_color(color: Color, palette: Option<&[Color; 256]>) -> (u8, u8, u8) {
+    let Some(palette) = palette else {
+        return color.to_rgb();
+    };
+    match color {
+        Color::Named(named) => palette[named as usize].to_rgb(),
+        Color::Indexed(index) => palette[index as usize].to_rgb(),
+        Color::Rgb(red, green, blue) => (red, green, blue),
+    }
+}
+
 /// Check if color is default foreground (white)
 fn is_default_color(color: &Color) -> bool {
     matches!(color, Color::Named(NamedColor::White))
@@ -208,6 +228,25 @@ mod tests {
         assert!(svg.contains("<svg"));
         assert!(svg.contains("</svg>"));
         assert!(svg.contains("HHHHH"));
+    }
+
+    #[test]
+    fn svg_resolves_extended_index_through_runtime_palette() {
+        let mut grid = Grid::new(2, 1, 0);
+        grid.set(
+            0,
+            0,
+            Cell::with_colors('X', Color::Indexed(196), Color::Rgb(0, 0, 0)),
+        );
+        let mut palette: [Color; 256] = std::array::from_fn(|index| Color::Indexed(index as u8));
+        palette[196] = Color::Rgb(0x12, 0x34, 0x56);
+
+        let svg = String::from_utf8(
+            encode_with_palette(&grid, 14.0, 0, Some(&palette)).expect("SVG output"),
+        )
+        .unwrap();
+
+        assert!(svg.contains("fill=\"rgb(18,52,86)\""), "{svg}");
     }
 
     #[test]

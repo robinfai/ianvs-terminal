@@ -524,7 +524,7 @@ Extended shell integration features beyond basic OSC 133:
 - `record_cwd_change(cwd: str, hostname: str | None = None, username: str | None = None)`: Record working directory change
 - `poll_events()`: Now also returns `cwd_changed` events with `old_cwd`, `new_cwd`, `hostname`, `username`, `timestamp`
 - `poll_events()`: Now also returns `user_var_changed` events with `name`, `value`, `old_value` (optional) when OSC 1337 SetUserVar sequences are received
-- `poll_shell_integration_events() -> list[dict]`: Drain only shell integration events (keeping other events queued). Returns dicts with `event_type`, `command`, `exit_code`, `timestamp`, `cursor_line`. The `cursor_line` is the absolute cursor line (`scrollback_len + cursor_row`) captured at the exact moment each OSC 133 marker was parsed
+- `poll_shell_integration_events() -> list[dict]`: Drain only shell integration events (keeping other events queued). Returns dicts with `event_type`, `command`, `exit_code`, `timestamp`, `cursor_line`. The `cursor_line` is the global cursor line (`total_lines_scrolled + cursor_row`) captured at the exact moment each OSC 133 marker was parsed; it does not move backward when bounded scrollback evicts rows
 - `poll_events()` and `poll_subscribed_events()`: Shell integration events now include `cursor_line` field
 
 ### Semantic Zones
@@ -535,8 +535,8 @@ Semantic buffer zoning powered by OSC 133 FinalTerm shell integration markers. Z
 
 - `get_zones() -> list[dict]`: Returns all semantic zones as a list of dictionaries. Each dict contains:
   - `zone_type` (str): `"prompt"`, `"command"`, or `"output"`
-  - `abs_row_start` (int): Absolute row where zone starts
-  - `abs_row_end` (int): Absolute row where zone ends (inclusive)
+  - `abs_row_start` (int): Global absolute row where zone starts
+  - `abs_row_end` (int): Global absolute row where zone ends (inclusive)
   - `command` (str | None): Command text (present for command and output zones)
   - `exit_code` (int | None): Exit code (present for output zones after command finishes)
   - `timestamp` (int | None): Unix milliseconds when zone was created
@@ -546,8 +546,10 @@ Semantic buffer zoning powered by OSC 133 FinalTerm shell integration markers. Z
 - `get_zone_text(abs_row: int) -> str | None`: Extracts text content from the zone containing the given absolute row. Returns `None` if no zone covers that row. Text is extracted from the grid rows spanned by the zone.
 
 **Notes:**
+- Zone row coordinates use the same global origin as `cursor_line`: visible row `n` is `total_lines_scrolled + n`. Retained scrollback occupies the preceding global row range.
 - Zones are only created on the primary screen buffer; alternate screen (e.g., vim, less) does not generate zones.
-- Zones are automatically evicted when their rows scroll out of the scrollback buffer.
+- Completed zones are automatically evicted when their rows scroll out of the scrollback buffer. An active zone remains open until its closing marker, even if its earliest text has already been evicted.
+- Clearing scrollback or reflowing to a new width invalidates zones because their retained physical row mapping changes.
 - Zones are cleared on terminal reset.
 
 **Example:**

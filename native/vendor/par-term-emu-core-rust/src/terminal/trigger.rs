@@ -6,6 +6,8 @@
 
 use std::collections::HashMap;
 
+const MAX_TRIGGER_HIGHLIGHTS: usize = 1000;
+
 /// Unique trigger identifier
 pub type TriggerId = u64;
 
@@ -245,6 +247,10 @@ impl Terminal {
                     } else {
                         now.saturating_add(*duration_ms)
                     };
+                    self.clear_expired_highlights();
+                    if self.trigger_highlights.len() >= MAX_TRIGGER_HIGHLIGHTS {
+                        self.trigger_highlights.remove(0);
+                    }
                     self.trigger_highlights.push(TriggerHighlight {
                         row: trigger_match.row,
                         col_start: trigger_match.col,
@@ -257,7 +263,7 @@ impl Terminal {
                 TriggerAction::Notify { title, message } => {
                     let title = substitute_captures(title, &trigger_match.captures);
                     let message = substitute_captures(message, &trigger_match.captures);
-                    self.trigger_action_results.push(ActionResult::Notify {
+                    self.push_trigger_action_result(ActionResult::Notify {
                         trigger_id: trigger_match.trigger_id,
                         title,
                         message,
@@ -267,7 +273,7 @@ impl Terminal {
                     let label = label
                         .as_ref()
                         .map(|l| substitute_captures(l, &trigger_match.captures));
-                    self.trigger_action_results.push(ActionResult::MarkLine {
+                    self.push_trigger_action_result(ActionResult::MarkLine {
                         trigger_id: trigger_match.trigger_id,
                         row: trigger_match.row,
                         label,
@@ -277,7 +283,7 @@ impl Terminal {
                 TriggerAction::SetVariable { name, value } => {
                     let name = substitute_captures(name, &trigger_match.captures);
                     let value = substitute_captures(value, &trigger_match.captures);
-                    self.session_variables.custom.insert(name, value);
+                    self.session_variables.set_custom(name, value);
                 }
                 TriggerAction::RunCommand { command, args } => {
                     let command = substitute_captures(command, &trigger_match.captures);
@@ -285,33 +291,27 @@ impl Terminal {
                         .iter()
                         .map(|a| substitute_captures(a, &trigger_match.captures))
                         .collect();
-                    if self.trigger_action_results.len() < self.max_action_results {
-                        self.trigger_action_results.push(ActionResult::RunCommand {
-                            trigger_id,
-                            command,
-                            args,
-                        });
-                    }
+                    self.push_trigger_action_result(ActionResult::RunCommand {
+                        trigger_id,
+                        command,
+                        args,
+                    });
                 }
                 TriggerAction::PlaySound { sound_id, volume } => {
                     let sound_id = substitute_captures(sound_id, &trigger_match.captures);
-                    if self.trigger_action_results.len() < self.max_action_results {
-                        self.trigger_action_results.push(ActionResult::PlaySound {
-                            trigger_id,
-                            sound_id,
-                            volume: *volume,
-                        });
-                    }
+                    self.push_trigger_action_result(ActionResult::PlaySound {
+                        trigger_id,
+                        sound_id,
+                        volume: *volume,
+                    });
                 }
                 TriggerAction::SendText { text, delay_ms } => {
                     let text = substitute_captures(text, &trigger_match.captures);
-                    if self.trigger_action_results.len() < self.max_action_results {
-                        self.trigger_action_results.push(ActionResult::SendText {
-                            trigger_id,
-                            text,
-                            delay_ms: *delay_ms,
-                        });
-                    }
+                    self.push_trigger_action_result(ActionResult::SendText {
+                        trigger_id,
+                        text,
+                        delay_ms: *delay_ms,
+                    });
                 }
                 TriggerAction::SplitPane {
                     direction,
@@ -319,7 +319,7 @@ impl Terminal {
                     focus_new_pane,
                     target,
                 } => {
-                    self.trigger_action_results.push(ActionResult::SplitPane {
+                    self.push_trigger_action_result(ActionResult::SplitPane {
                         trigger_id,
                         direction: direction.clone(),
                         command: command.clone(),
@@ -332,6 +332,12 @@ impl Terminal {
                     break;
                 }
             }
+        }
+    }
+
+    fn push_trigger_action_result(&mut self, result: ActionResult) {
+        if self.trigger_action_results.len() < self.max_action_results {
+            self.trigger_action_results.push(result);
         }
     }
 
@@ -802,6 +808,7 @@ pub fn substitute_captures(template: &str, captures: &[String]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::terminal::Terminal;
 
     #[test]
     fn test_trigger_add_remove() {
@@ -946,6 +953,80 @@ mod tests {
         assert_eq!(matches.len(), 2);
         assert_eq!(matches[0].row, 1);
         assert_eq!(matches[1].row, 2);
+    }
+
+    #[test]
+    fn all_frontend_action_variants_share_the_configured_queue_limit() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.max_action_results = 3;
+        let trigger_id = terminal
+            .add_trigger(
+                "bounded-actions".into(),
+                "MATCH".into(),
+                vec![
+                    TriggerAction::Notify {
+                        title: "title".into(),
+                        message: "message".into(),
+                    },
+                    TriggerAction::MarkLine {
+                        label: Some("mark".into()),
+                        color: None,
+                    },
+                    TriggerAction::SplitPane {
+                        direction: TriggerSplitDirection::Horizontal,
+                        command: None,
+                        focus_new_pane: false,
+                        target: TriggerSplitTarget::Active,
+                    },
+                ],
+            )
+            .unwrap();
+        let trigger_match = TriggerMatch {
+            trigger_id,
+            row: 1,
+            col: 0,
+            end_col: 5,
+            text: "MATCH".into(),
+            captures: vec!["MATCH".into()],
+            timestamp: 0,
+        };
+
+        for _ in 0..20 {
+            terminal.execute_trigger_actions(&trigger_match);
+        }
+
+        assert_eq!(terminal.poll_action_results().len(), 3);
+    }
+
+    #[test]
+    fn permanent_trigger_highlights_are_bounded() {
+        let mut terminal = Terminal::new(80, 24);
+        let trigger_id = terminal
+            .add_trigger(
+                "bounded-highlights".into(),
+                "MATCH".into(),
+                vec![TriggerAction::Highlight {
+                    fg: None,
+                    bg: Some((1, 2, 3)),
+                    duration_ms: 0,
+                }],
+            )
+            .unwrap();
+
+        for row in 0..(MAX_TRIGGER_HIGHLIGHTS + 25) {
+            terminal.execute_trigger_actions(&TriggerMatch {
+                trigger_id,
+                row,
+                col: 0,
+                end_col: 5,
+                text: "MATCH".into(),
+                captures: vec!["MATCH".into()],
+                timestamp: 0,
+            });
+        }
+
+        assert_eq!(terminal.trigger_highlights.len(), MAX_TRIGGER_HIGHLIGHTS);
+        assert_eq!(terminal.trigger_highlights[0].row, 25);
     }
 
     #[test]

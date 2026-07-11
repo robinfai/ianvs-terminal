@@ -111,8 +111,8 @@ impl From<crate::terminal::terminal_snapshot::TerminalSnapshot> for PyScreenSnap
             let mut line = Vec::with_capacity(snap.cols);
             for col in 0..snap.cols {
                 if let Some(cell) = active_grid.cells.get(row * snap.cols + col) {
-                    let fg = cell.fg.to_rgb();
-                    let bg = cell.bg.to_rgb();
+                    let fg = snap.resolve_color_rgb(cell.fg);
+                    let bg = snap.resolve_color_rgb(cell.bg);
                     line.push((cell.get_grapheme(), fg, bg, cell.into()));
                 }
             }
@@ -2690,6 +2690,8 @@ impl From<&crate::terminal::ShellIntegrationStats> for PyShellIntegrationStats {
 #[derive(Clone)]
 pub struct PyCwdChange {
     #[pyo3(get)]
+    pub source: String,
+    #[pyo3(get)]
     pub old_cwd: Option<String>,
     #[pyo3(get)]
     pub new_cwd: String,
@@ -2705,8 +2707,8 @@ pub struct PyCwdChange {
 impl PyCwdChange {
     fn __repr__(&self) -> String {
         format!(
-            "CwdChange(old={:?}, new={:?}, host={:?}, user={:?})",
-            self.old_cwd, self.new_cwd, self.hostname, self.username
+            "CwdChange(source={:?}, old={:?}, new={:?}, host={:?}, user={:?})",
+            self.source, self.old_cwd, self.new_cwd, self.hostname, self.username
         )
     }
 }
@@ -2714,6 +2716,7 @@ impl PyCwdChange {
 impl From<&crate::terminal::CwdChange> for PyCwdChange {
     fn from(change: &crate::terminal::CwdChange) -> Self {
         PyCwdChange {
+            source: change.source.as_str().to_string(),
             old_cwd: change.old_cwd.clone(),
             new_cwd: change.new_cwd.clone(),
             hostname: change.hostname.clone(),
@@ -4123,6 +4126,16 @@ mod tests {
         assert_eq!(snapshot.wrapped_lines.len(), 2);
         assert!(snapshot.wrapped_lines[0]);
         assert!(!snapshot.wrapped_lines[1]);
+    }
+
+    #[test]
+    fn pyscreen_snapshot_resolves_extended_runtime_palette() {
+        let mut terminal = crate::terminal::Terminal::new(4, 2);
+        terminal.process(b"\x1b[38;5;196mX\x1b[0m\x1b]4;196;#123456\x1b\\");
+
+        let snapshot = PyScreenSnapshot::from(terminal.capture_snapshot());
+
+        assert_eq!(snapshot.lines[0][0].1, (0x12, 0x34, 0x56));
     }
 
     #[test]

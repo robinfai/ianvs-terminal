@@ -756,6 +756,7 @@ impl ServerState {
                         exit_code,
                         timestamp,
                         cursor_line,
+                        ..
                     } => {
                         self.streaming_server.broadcast(
                             par_term_emu_core_rust::streaming::protocol::ServerMessage::shell_integration_event(
@@ -899,6 +900,10 @@ impl ServerState {
                             ),
                         );
                     }
+                    // RIS is a semantic reset, not an ED screen clear. The
+                    // current streaming schema has no reset message, so do not
+                    // mislabel it as `screen_cleared`.
+                    TerminalEvent::TerminalReset => {}
                 }
             }
         }
@@ -1366,6 +1371,7 @@ impl SessionFactory for BinarySessionFactory {
                             exit_code,
                             timestamp,
                             cursor_line,
+                            ..
                         } => {
                             server.send_to_session(
                                 &session_id_clone,
@@ -1522,6 +1528,9 @@ impl SessionFactory for BinarySessionFactory {
                                 ),
                             );
                         }
+                        // Keep RIS distinct from ED 2/3 until the streaming
+                        // protocol gains a dedicated terminal-reset message.
+                        TerminalEvent::TerminalReset => {}
                     }
                 }
             }

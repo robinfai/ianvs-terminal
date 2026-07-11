@@ -348,16 +348,22 @@ ConEmu/Windows Terminal style progress indicator:
 
 ### Named Progress Bars (OSC 934)
 
-Multiple concurrent progress bars with IDs and labels:
+Ianvs private `ianvs-osc934/1` protocol for multiple concurrent progress bars
+with IDs and labels:
 
 - `OSC 934;set;ID;percent=N;label=TEXT;state=STATE ST` - Create/update a progress bar
 - `OSC 934;remove;ID ST` - Remove a specific progress bar
 - `OSC 934;remove_all ST` - Remove all progress bars
+- `OSC 934;query ST` - Request the static version/capability response
 
 Parameters for `set`:
 - `percent=N` - progress percentage (0-100, clamped)
 - `label=TEXT` - descriptive label
 - `state=STATE` - one of: `normal`, `indeterminate`, `warning`, `error`, `hidden`
+
+The payload is limited to 8 KiB, IDs to 128 UTF-8 bytes, labels to 1,024 UTF-8
+bytes, and retained state to 64 active IDs per terminal session. See the
+[normative protocol and security contract](../../../../docs/protocols/ianvs_osc934.md).
 
 ### iTerm2 Inline Images and File Transfer
 

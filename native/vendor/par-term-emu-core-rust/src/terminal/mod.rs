@@ -15,6 +15,7 @@ pub mod macros;
 pub mod metrics;
 pub mod multiplexing;
 pub mod notification;
+mod osc_stream;
 pub mod progress;
 pub mod recording;
 pub mod replay;
@@ -34,7 +35,9 @@ pub use clipboard::{
     ClipboardTarget,
 };
 pub use compliance::{ComplianceLevel, ComplianceReport, ComplianceTest};
-pub use event::{BellEvent, CwdChange, ShellEvent, TerminalEvent, TerminalEventKind};
+pub use event::{
+    BellEvent, CwdChange, CwdChangeSource, ShellEvent, TerminalEvent, TerminalEventKind,
+};
 pub use file_transfer::{
     FileTransfer, FileTransferManager, TransferDirection, TransferId, TransferStatus,
 };
@@ -47,6 +50,9 @@ pub use metrics::{
 pub use multiplexing::{LayoutDirection, PaneState, SessionState, WindowLayout};
 pub use notification::{
     Notification, NotificationAlert, NotificationConfig, NotificationEvent, NotificationTrigger,
+};
+pub use osc_stream::{
+    OscCapability, OscCapabilityPolicy, OscIngressDiagnostics, OscIntent, OscIntentDiagnostics,
 };
 pub use progress::{
     NamedProgressBar, ProgressBar, ProgressBarAction, ProgressBarCommand, ProgressState,
@@ -78,6 +84,7 @@ use crate::debug;
 use crate::graphics::{GraphicsLimits, GraphicsStore, TerminalGraphic};
 use crate::grid::Grid;
 use crate::mouse::{MouseEncoding, MouseEvent, MouseEventRecord, MouseMode, MousePosition};
+use crate::shell_integration::Osc633ExpectedNonce;
 use crate::shell_integration::ShellIntegration;
 use crate::sixel;
 use std::borrow::Cow;
@@ -124,6 +131,14 @@ pub(crate) enum SyncUpdateScanState {
 
 const SYNCHRONIZED_UPDATE_TIMEOUT: Duration = Duration::from_secs(1);
 const SYNCHRONIZED_UPDATE_CSI_SCAN_LIMIT: usize = 512;
+/// Hard ceiling for one DEC 2026 batch. Normal text redraws are far smaller,
+/// while 16 MiB still leaves ample room for unusually large atomic frames.
+pub(crate) const MAX_SYNCHRONIZED_UPDATE_BYTES: usize = 16 * 1024 * 1024;
+/// Hard ceiling for queued terminal replies awaiting a host-side PTY drain.
+pub(crate) const MAX_RESPONSE_BUFFER_BYTES: usize = 16 * 1024 * 1024;
+const MAX_PENDING_TERMINAL_EVENTS: usize = 1024;
+const MAX_PENDING_TERMINAL_EVENT_BYTES: usize = 16 * 1024 * 1024;
+const MAX_PENDING_TMUX_NOTIFICATIONS: usize = 256;
 const KEYBOARD_PROTOCOL_STACK_LIMIT: usize = 32;
 
 impl Charset {
@@ -696,6 +711,42 @@ impl TerminalProcessDebugStats {
     }
 }
 
+/// Payload-free reasons for discarding attacker-controlled terminal input.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TerminalInputBufferDiscardReason {
+    SynchronizedUpdateLimit,
+    NonSixelDcsLimit,
+}
+
+/// Payload-free counters for input batches discarded at hard memory limits.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize)]
+pub struct TerminalInputBufferDiagnostics {
+    pub synchronized_update_limit: u64,
+    pub non_sixel_dcs_limit: u64,
+}
+
+impl TerminalInputBufferDiagnostics {
+    pub fn count(&self, reason: TerminalInputBufferDiscardReason) -> u64 {
+        match reason {
+            TerminalInputBufferDiscardReason::SynchronizedUpdateLimit => {
+                self.synchronized_update_limit
+            }
+            TerminalInputBufferDiscardReason::NonSixelDcsLimit => self.non_sixel_dcs_limit,
+        }
+    }
+
+    fn record(&mut self, reason: TerminalInputBufferDiscardReason) {
+        let counter = match reason {
+            TerminalInputBufferDiscardReason::SynchronizedUpdateLimit => {
+                &mut self.synchronized_update_limit
+            }
+            TerminalInputBufferDiscardReason::NonSixelDcsLimit => &mut self.non_sixel_dcs_limit,
+        };
+        *counter = counter.saturating_add(1);
+    }
+}
+
 // Terminal struct definition
 pub struct Terminal {
     /// The primary terminal grid
@@ -749,6 +800,8 @@ pub struct Terminal {
     pub(crate) sync_update_started_at: Option<Instant>,
     /// Buffer for batched updates (when synchronized mode is active)
     pub(crate) update_buffer: Vec<u8>,
+    /// Payload-free counters for terminal input discarded at hard limits.
+    pub(crate) input_buffer_diagnostics: TerminalInputBufferDiagnostics,
     /// Possible split DEC 2026 CSI parameters from the previous chunk.
     pub(crate) sync_update_scan_tail: Vec<u8>,
     /// Parser state for DEC 2026 raw scanning outside control string payloads.
@@ -761,6 +814,9 @@ pub struct Terminal {
     pub(crate) sync_update_report_override: Option<bool>,
     /// Shell integration state
     pub(crate) shell_integration: ShellIntegration,
+    /// Optional VS Code OSC 633 command metadata correlation nonce.
+    /// This is validation-only and is never emitted in events or diagnostics.
+    pub(crate) osc633_expected_nonce: Option<Osc633ExpectedNonce>,
     /// Scroll region top (0-indexed)
     pub(crate) scroll_region_top: usize,
     /// Scroll region bottom (0-indexed)
@@ -794,6 +850,8 @@ pub struct Terminal {
     pub(crate) modify_other_keys_mode_alt: u8,
     /// Response buffer for device queries (DA/DSR/etc)
     pub(crate) response_buffer: Vec<u8>,
+    /// Number of complete responses dropped because the response queue was full.
+    pub(crate) response_buffer_overflow_count: u64,
     /// Hyperlink storage: ID -> URL mapping (for deduplication)
     pub(crate) hyperlinks: HashMap<u32, String>,
     /// Hyperlink storage: internal ID -> OSC 8 protocol `id` parameter.
@@ -814,14 +872,16 @@ pub struct Terminal {
     pub(crate) sixel_parser: Option<sixel::SixelParser>,
     /// Buffer for DCS data accumulation
     pub(crate) dcs_buffer: Vec<u8>,
+    /// Discard non-Sixel DCS bytes until ST after the hard limit is exceeded.
+    pub(crate) dcs_discarding: bool,
     /// DCS active flag
     pub(crate) dcs_active: bool,
     /// DCS action character ('q' for Sixel)
     pub(crate) dcs_action: Option<char>,
     /// Buffer for incomplete APC graphics sequences (Kitty protocol)
     pub(crate) kitty_apc_buffer: Vec<u8>,
-    /// Buffer for incomplete tmux/screen DCS passthrough wrappers around graphics sequences
-    pub(crate) graphics_passthrough_buffer: Vec<u8>,
+    /// Fixed-size incremental tmux/screen DCS passthrough decoder state.
+    pub(crate) graphics_passthrough_state: graphics::GraphicsPassthroughState,
     /// Current Kitty parser for chunked transfers
     pub(crate) kitty_parser: Option<crate::graphics::kitty::KittyParser>,
     /// iTerm2 multi-part image transfer state (MultipartFile/FilePart protocol)
@@ -844,6 +904,12 @@ pub struct Terminal {
     /// ANSI color palette (0-15) - modified by OSC 4/104
     pub(crate) ansi_palette: [Color; 16],
     pub(crate) baseline_ansi_palette: [Color; 16],
+    /// Extended xterm color palette (16-255) - modified by OSC 4/104.
+    ///
+    /// The first 16 entries remain in `ansi_palette` so the long-standing
+    /// `get_ansi_palette() -> &[Color; 16]` API stays source compatible.
+    pub(crate) extended_ansi_palette: [Color; 240],
+    pub(crate) baseline_extended_ansi_palette: [Color; 240],
     /// Color stack for XTPUSHCOLORS/XTPOPCOLORS (fg, bg, underline)
     pub(crate) color_stack: Vec<(Color, Color, Option<Color>)>,
     /// Notifications from OSC 9 / OSC 777 sequences
@@ -856,6 +922,8 @@ pub struct Terminal {
     pub(crate) bell_count: u64,
     /// VTE parser instance (maintains state across process() calls)
     pub(crate) parser: vte::Parser,
+    /// Bounded OSC ingress state for the raw PTY stream.
+    pub(crate) osc_stream_gate: osc_stream::OscStreamGate,
     /// DECAWM delayed wrap: set after printing in last column
     pub(crate) pending_wrap: bool,
     /// Pixel width of the text area (XTWINOPS 14)
@@ -878,6 +946,8 @@ pub struct Terminal {
     pub(crate) accept_osc7: bool,
     /// Disable potentially insecure escape sequences
     pub(crate) disable_insecure_sequences: bool,
+    /// Fine-grained parser capability policy for OSC semantic intents.
+    pub(crate) osc_capability_policy: OscCapabilityPolicy,
     /// Link/hyperlink color (iTerm2 default: blue #0645ad)
     pub(crate) link_color: Color,
     /// Bold text custom color (iTerm2 default: white #ffffff)
@@ -915,12 +985,16 @@ pub struct Terminal {
     pub(crate) tmux_parser: crate::tmux_control::TmuxControlParser,
     /// Tmux control protocol notifications buffer
     pub(crate) tmux_notifications: Vec<crate::tmux_control::TmuxNotification>,
+    /// Number of tmux notifications discarded at the bounded queue boundary.
+    pub(crate) tmux_notification_dropped_count: u64,
     /// Dirty rows tracking (0-indexed row numbers that have changed)
     pub(crate) dirty_rows: HashSet<usize>,
     /// Bell events buffer
     pub(crate) bell_events: Vec<BellEvent>,
     /// Terminal events buffer
     pub(crate) terminal_events: Vec<TerminalEvent>,
+    /// Number of terminal events discarded at the bounded queue boundary.
+    pub(crate) terminal_event_dropped_count: u64,
     /// Index of the next event to dispatch to observers (prevents duplicate dispatch)
     pub(crate) events_dispatched_up_to: usize,
     /// Registered observers for push-based event delivery
@@ -1025,6 +1099,10 @@ pub struct Terminal {
     pub(crate) is_recording: bool,
     /// Recording start timestamp (for relative timing)
     pub(crate) recording_start_time: u64,
+    /// Bytes retained by the in-memory recording event list.
+    pub(crate) recording_retained_bytes: usize,
+    /// Recording events dropped at the in-memory resource boundary.
+    pub(crate) recording_dropped_events: u64,
 
     // === Feature 38: Macro Recording and Playback ===
     /// Macro library (name -> macro)
@@ -1086,11 +1164,19 @@ pub struct Terminal {
 impl std::fmt::Debug for Terminal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Terminal")
-            .field("grid", &self.grid)
-            .field("alt_grid", &self.alt_grid)
+            .field("cols", &self.grid.cols())
+            .field("rows", &self.grid.rows())
+            .field("scrollback_lines", &self.grid.scrollback_len())
+            .field("alt_scrollback_lines", &self.alt_grid.scrollback_len())
             .field("alt_screen_active", &self.alt_screen_active)
-            .field("cursor", &self.cursor)
+            .field("cursor_row", &self.cursor.row)
+            .field("cursor_col", &self.cursor.col)
             .field("pending_wrap", &self.pending_wrap)
+            .field("synchronized_updates", &self.synchronized_updates)
+            .field("update_buffer_bytes", &self.update_buffer.len())
+            .field("hyperlink_count", &self.hyperlinks.len())
+            .field("graphics_count", &self.graphics_store.graphics_count())
+            .field("terminal_event_count", &self.terminal_events.len())
             .field("parser", &"<Parser>")
             .finish()
     }
@@ -1140,12 +1226,14 @@ impl Terminal {
             synchronized_updates: false,
             sync_update_started_at: None,
             update_buffer: Vec::new(),
+            input_buffer_diagnostics: TerminalInputBufferDiagnostics::default(),
             sync_update_scan_tail: Vec::new(),
             sync_update_scan_state: SyncUpdateScanState::Ground,
             sync_update_explicitly_disabled: false,
             suppress_synchronized_update_enable: false,
             sync_update_report_override: None,
             shell_integration: ShellIntegration::new(),
+            osc633_expected_nonce: None,
             scroll_region_top: 0,
             scroll_region_bottom: rows.saturating_sub(1),
             use_lr_margins: false,
@@ -1162,6 +1250,7 @@ impl Terminal {
             modify_other_keys_mode: 0,
             modify_other_keys_mode_alt: 0,
             response_buffer: Vec::new(),
+            response_buffer_overflow_count: 0,
             hyperlinks: HashMap::new(),
             hyperlink_protocol_ids: HashMap::new(),
             current_hyperlink_id: None,
@@ -1171,10 +1260,11 @@ impl Terminal {
             cell_dimensions: (1, 2), // Default for TUI half-block rendering
             sixel_parser: None,
             dcs_buffer: Vec::new(),
+            dcs_discarding: false,
             dcs_active: false,
             dcs_action: None,
             kitty_apc_buffer: Vec::new(),
-            graphics_passthrough_buffer: Vec::new(),
+            graphics_passthrough_state: graphics::GraphicsPassthroughState::default(),
             kitty_parser: None,
             iterm_multipart_buffer: None,
             file_transfer_manager: FileTransferManager::default(),
@@ -1188,12 +1278,15 @@ impl Terminal {
             baseline_cursor_color: Color::Named(NamedColor::White),
             ansi_palette: Self::default_ansi_palette(),
             baseline_ansi_palette: Self::default_ansi_palette(),
+            extended_ansi_palette: Self::default_extended_ansi_palette(),
+            baseline_extended_ansi_palette: Self::default_extended_ansi_palette(),
             color_stack: Vec::new(),
             notifications: Vec::new(),
             progress_bar: ProgressBar::default(),
             named_progress_bars: HashMap::new(),
             bell_count: 0,
             parser: vte::Parser::new(),
+            osc_stream_gate: osc_stream::OscStreamGate::default(),
             pending_wrap: false,
             // Initialize pixel dimensions with reasonable defaults (10x20 per cell)
             // This ensures CSI 14 t queries return valid pixel dimensions after resize
@@ -1207,6 +1300,7 @@ impl Terminal {
             title_stack: Vec::new(),
             accept_osc7: true,
             disable_insecure_sequences: false,
+            osc_capability_policy: OscCapabilityPolicy::default(),
             // iTerm2 default colors (matching Python implementation)
             link_color: Color::Rgb(0x06, 0x45, 0xad), // RGB(0.023, 0.270, 0.678)
             bold_color: Color::Rgb(0xff, 0xff, 0xff), // RGB(1.0, 1.0, 1.0)
@@ -1230,10 +1324,12 @@ impl Terminal {
             // Tmux control protocol - default to disabled
             tmux_parser: crate::tmux_control::TmuxControlParser::new(false),
             tmux_notifications: Vec::new(),
+            tmux_notification_dropped_count: 0,
             // Event tracking
             dirty_rows: HashSet::new(),
             bell_events: Vec::new(),
             terminal_events: Vec::new(),
+            terminal_event_dropped_count: 0,
             events_dispatched_up_to: 0,
             observers: Vec::new(),
             next_observer_id: 1,
@@ -1295,6 +1391,8 @@ impl Terminal {
             recording_session: None,
             is_recording: false,
             recording_start_time: 0,
+            recording_retained_bytes: 0,
+            recording_dropped_events: 0,
             // Macros
             macro_library: HashMap::new(),
             macro_playback: None,
@@ -1610,9 +1708,12 @@ impl Terminal {
     pub fn set_user_var(&mut self, name: String, value: String) {
         let old_value = self.session_variables.custom.get(&name).cloned();
         let changed = old_value.as_deref() != Some(&value);
-        self.session_variables
-            .custom
-            .insert(name.clone(), value.clone());
+        if !self
+            .session_variables
+            .set_custom(name.clone(), value.clone())
+        {
+            return;
+        }
         if changed {
             self.terminal_events.push(TerminalEvent::UserVarChanged {
                 name,
@@ -1996,7 +2097,11 @@ impl Terminal {
 
     /// Get ANSI color by index
     pub fn get_ansi_color(&self, index: usize) -> Option<Color> {
-        self.ansi_palette.get(index).cloned()
+        match index {
+            0..=15 => self.ansi_palette.get(index).copied(),
+            16..=255 => self.extended_ansi_palette.get(index - 16).copied(),
+            _ => None,
+        }
     }
 
     /// Get shell integration state
@@ -2016,16 +2121,23 @@ impl Terminal {
         self.grid.zones()
     }
 
-    /// Get the zone containing the given absolute row
+    /// Get the zone containing the given global absolute row.
+    ///
+    /// Visible row `n` is addressed as `total_lines_scrolled + n`.
     pub fn get_zone_at(&self, abs_row: usize) -> Option<&crate::zone::Zone> {
         self.grid.zone_at(abs_row)
     }
 
-    /// Extract the text content of the zone containing the given absolute row.
+    /// Extract the text content of the zone containing the given global row.
     /// Returns None if no zone contains this row.
     pub fn get_zone_text(&self, abs_row: usize) -> Option<String> {
         let zone = self.grid.zone_at(abs_row)?;
-        self.extract_text_from_row_range(zone.abs_row_start, zone.abs_row_end)
+        let abs_row_end = if zone.is_open() {
+            self.grid.total_lines_scrolled() + self.cursor.row
+        } else {
+            zone.abs_row_end
+        };
+        self.extract_text_from_row_range(zone.abs_row_start, abs_row_end)
     }
 
     /// Extract text from an absolute row range (inclusive).
@@ -2033,24 +2145,26 @@ impl Terminal {
     /// Handles wrapped lines by omitting newlines between them.
     fn extract_text_from_row_range(&self, abs_start: usize, abs_end: usize) -> Option<String> {
         let scrollback_len = self.grid.scrollback_len();
-
-        // Check if the range is entirely evicted from the scrollback buffer
         let total_scrolled = self.grid.total_lines_scrolled();
-        let max_sb = self.grid.max_scrollback();
-        if total_scrolled > max_sb {
-            let floor = total_scrolled - max_sb;
-            if abs_end < floor {
-                return None;
-            }
+        let retained_floor = total_scrolled.saturating_sub(scrollback_len);
+        let retained_end = total_scrolled
+            .saturating_add(self.grid.rows())
+            .saturating_sub(1);
+        let range_start = abs_start.max(retained_floor);
+        let range_end = abs_end.min(retained_end);
+        if range_start > range_end {
+            return None;
         }
 
         let mut text = String::new();
         let mut found_any = false;
 
-        for row in abs_start..=abs_end {
-            if row < scrollback_len {
-                // Row is in scrollback
-                if let Some(line) = self.grid.scrollback_line(row) {
+        for abs_row in range_start..=range_end {
+            if abs_row < total_scrolled {
+                // Retained scrollback occupies the global range
+                // [retained_floor, total_scrolled).
+                let scrollback_row = abs_row - retained_floor;
+                if let Some(line) = self.grid.scrollback_line(scrollback_row) {
                     found_any = true;
                     let line_text: String = line
                         .iter()
@@ -2067,7 +2181,11 @@ impl Terminal {
                     let trimmed = line_text.trim_end();
                     if !text.is_empty() {
                         // Check if previous line was wrapped
-                        if row > abs_start && self.grid.is_scrollback_wrapped(row - 1) {
+                        if abs_row > range_start
+                            && self
+                                .grid
+                                .is_scrollback_wrapped(scrollback_row.saturating_sub(1))
+                        {
                             // Wrapped line - no newline
                         } else {
                             text.push('\n');
@@ -2076,8 +2194,8 @@ impl Terminal {
                     text.push_str(trimmed);
                 }
             } else {
-                // Row is in main grid
-                let grid_row = row - scrollback_len;
+                // The visible grid starts at global row total_scrolled.
+                let grid_row = abs_row - total_scrolled;
                 if let Some(line) = self.grid.row(grid_row) {
                     found_any = true;
                     let line_text: String = line
@@ -2093,15 +2211,16 @@ impl Terminal {
                         })
                         .collect();
                     let trimmed = line_text.trim_end();
-                    if !text.is_empty() && row > abs_start {
-                        let prev_row = row - 1;
-                        if prev_row < scrollback_len {
-                            if !self.grid.is_scrollback_wrapped(prev_row) {
+                    if !text.is_empty() && abs_row > range_start {
+                        let previous_abs_row = abs_row - 1;
+                        if previous_abs_row < total_scrolled {
+                            let previous_scrollback_row = previous_abs_row - retained_floor;
+                            if !self.grid.is_scrollback_wrapped(previous_scrollback_row) {
                                 text.push('\n');
                             }
                         } else {
-                            let prev_grid_row = prev_row - scrollback_len;
-                            if !self.grid.is_line_wrapped(prev_grid_row) {
+                            let previous_grid_row = previous_abs_row - total_scrolled;
+                            if !self.grid.is_line_wrapped(previous_grid_row) {
                                 text.push('\n');
                             }
                         }
@@ -2253,7 +2372,10 @@ impl Terminal {
             self.sync_update_explicitly_disabled = false;
             self.synchronized_updates = false;
             self.sync_update_report_override = Some(report_state);
-            self.process(&buffer);
+            // `update_buffer` already passed through the bounded OSC ingress
+            // gate when it first arrived.  Replaying it must not filter or
+            // count the same control strings a second time.
+            self.process_osc_filtered(&buffer);
             self.sync_update_report_override = saved_report_override;
 
             // Restore only if it was originally enabled and not explicitly disabled
@@ -2468,6 +2590,7 @@ impl Terminal {
     /// When enabled, terminals can query clipboard contents, which has security implications.
     pub fn set_allow_clipboard_read(&mut self, allow: bool) {
         self.allow_clipboard_read = allow;
+        self.osc_capability_policy.clipboard_read = allow;
     }
 
     /// Get default foreground color (OSC 10)
@@ -2490,6 +2613,81 @@ impl Terminal {
     /// When enabled (default), allows shell to report current working directory.
     pub fn set_accept_osc7(&mut self, accept: bool) {
         self.accept_osc7 = accept;
+    }
+
+    /// Return the configured fine-grained OSC parser policy.
+    ///
+    /// This is the explicitly configured policy.  Use
+    /// [`Self::effective_osc_capability_policy`] when the legacy
+    /// `disable_insecure_sequences` compatibility switch must also be applied.
+    pub fn osc_capability_policy(&self) -> OscCapabilityPolicy {
+        self.osc_capability_policy
+    }
+
+    /// Replace the fine-grained OSC parser policy.
+    pub fn set_osc_capability_policy(&mut self, policy: OscCapabilityPolicy) {
+        self.osc_capability_policy = policy;
+    }
+
+    /// Enable or disable one OSC parser capability.
+    pub fn set_osc_capability_allowed(&mut self, capability: OscCapability, allowed: bool) {
+        self.osc_capability_policy.set(capability, allowed);
+    }
+
+    /// Policy after applying the legacy insecure-sequence compatibility flag.
+    pub fn effective_osc_capability_policy(&self) -> OscCapabilityPolicy {
+        let mut policy = self.osc_capability_policy;
+        if self.disable_insecure_sequences {
+            // Match the historical `is_insecure_osc` surface exactly: OSC 8,
+            // OSC 52, and notification OSC 9/777 are disabled.  Media and
+            // file-transfer parsing were historically unaffected.
+            policy.hyperlink = false;
+            policy.clipboard_write = false;
+            policy.clipboard_read = false;
+            policy.notification = false;
+            policy.host_action = false;
+        }
+        policy
+    }
+
+    /// Check whether a semantic OSC capability may be parsed.
+    pub fn osc_capability_allowed(&self, capability: OscCapability) -> bool {
+        self.effective_osc_capability_policy().allows(capability)
+    }
+
+    /// Check whether the embedding host may execute an external side effect.
+    ///
+    /// Parsing and emitting a typed request never implies this permission.
+    pub fn osc_host_action_allowed(&self, capability: OscCapability) -> bool {
+        self.effective_osc_capability_policy()
+            .allows_host_action(capability)
+    }
+
+    /// Return payload-free counters from the OSC ingress gate.
+    pub fn osc_ingress_diagnostics(&self) -> OscIngressDiagnostics {
+        self.osc_stream_gate.diagnostics()
+    }
+
+    /// Drain payload-free OSC ingress counters.
+    pub fn take_osc_ingress_diagnostics(&mut self) -> OscIngressDiagnostics {
+        self.osc_stream_gate.take_diagnostics()
+    }
+
+    /// Return payload-free counters for hard-limit input discards.
+    pub fn input_buffer_diagnostics(&self) -> TerminalInputBufferDiagnostics {
+        self.input_buffer_diagnostics
+    }
+
+    /// Drain payload-free hard-limit input discard counters.
+    pub fn take_input_buffer_diagnostics(&mut self) -> TerminalInputBufferDiagnostics {
+        std::mem::take(&mut self.input_buffer_diagnostics)
+    }
+
+    pub(in crate::terminal) fn record_input_buffer_discard(
+        &mut self,
+        reason: TerminalInputBufferDiscardReason,
+    ) {
+        self.input_buffer_diagnostics.record(reason);
     }
 
     /// Check if insecure sequence filtering is enabled
@@ -2751,6 +2949,11 @@ impl Terminal {
 
     /// Set or update a named progress bar and emit an event
     pub fn set_named_progress_bar(&mut self, bar: NamedProgressBar) {
+        if !self.named_progress_bars.contains_key(&bar.id)
+            && self.named_progress_bars.len() >= progress::MAX_OSC934_ACTIVE_BARS
+        {
+            return;
+        }
         let id = bar.id.clone();
         let state = bar.state;
         let percent = bar.percent;
@@ -2859,10 +3062,10 @@ impl Terminal {
     ) -> crate::screenshot::ScreenshotResult<Vec<u8>> {
         // Populate theme colors if not already set
         if config.link_color.is_none() {
-            config.link_color = Some(self.link_color.to_rgb());
+            config.link_color = Some(self.resolve_color_rgb(self.link_color));
         }
         if config.bold_color.is_none() {
-            config.bold_color = Some(self.bold_color.to_rgb());
+            config.bold_color = Some(self.resolve_color_rgb(self.bold_color));
         }
         config.use_bold_color = self.use_bold_color;
         config.bold_brightening = self.bold_brightening;
@@ -2870,7 +3073,7 @@ impl Terminal {
 
         // Use terminal's default background if not specified
         if config.background_color.is_none() {
-            config.background_color = Some(self.default_bg.to_rgb());
+            config.background_color = Some(self.resolve_color_rgb(self.default_bg));
         }
 
         let grid = self.grid_with_scrollback(scrollback_offset);
@@ -2890,7 +3093,13 @@ impl Terminal {
         } else {
             &[]
         };
-        crate::screenshot::render_grid(&grid, cursor, graphics, config)
+        crate::screenshot::render_grid_with_palette(
+            &grid,
+            cursor,
+            graphics,
+            config,
+            self.get_ansi_palette_256(),
+        )
     }
 
     /// Take a screenshot and save to file
@@ -2902,10 +3111,10 @@ impl Terminal {
     ) -> crate::screenshot::ScreenshotResult<()> {
         // Populate theme colors if not already set
         if config.link_color.is_none() {
-            config.link_color = Some(self.link_color.to_rgb());
+            config.link_color = Some(self.resolve_color_rgb(self.link_color));
         }
         if config.bold_color.is_none() {
-            config.bold_color = Some(self.bold_color.to_rgb());
+            config.bold_color = Some(self.resolve_color_rgb(self.bold_color));
         }
         config.use_bold_color = self.use_bold_color;
         config.bold_brightening = self.bold_brightening;
@@ -2913,7 +3122,7 @@ impl Terminal {
 
         // Use terminal's default background if not specified
         if config.background_color.is_none() {
-            config.background_color = Some(self.default_bg.to_rgb());
+            config.background_color = Some(self.resolve_color_rgb(self.default_bg));
         }
 
         let grid = self.grid_with_scrollback(scrollback_offset);
@@ -2933,7 +3142,14 @@ impl Terminal {
         } else {
             &[]
         };
-        crate::screenshot::save_grid(&grid, cursor, graphics, path, config)
+        crate::screenshot::save_grid_with_palette(
+            &grid,
+            cursor,
+            graphics,
+            path,
+            config,
+            self.get_ansi_palette_256(),
+        )
     }
 
     fn graphics_for_screenshot_view(&self, scrollback_offset: usize) -> Vec<TerminalGraphic> {
@@ -3030,6 +3246,16 @@ impl Terminal {
         std::mem::take(&mut self.response_buffer)
     }
 
+    /// Return the payload-free count of complete responses dropped at the queue limit.
+    pub fn response_buffer_overflow_count(&self) -> u64 {
+        self.response_buffer_overflow_count
+    }
+
+    /// Drain the payload-free count of complete responses dropped at the queue limit.
+    pub fn take_response_buffer_overflow_count(&mut self) -> u64 {
+        std::mem::take(&mut self.response_buffer_overflow_count)
+    }
+
     /// Check if there are pending responses
     pub fn has_pending_responses(&self) -> bool {
         !self.response_buffer.is_empty()
@@ -3070,6 +3296,14 @@ impl Terminal {
         &self.tmux_notifications
     }
 
+    /// Return payload-free tmux notification queue diagnostics.
+    pub fn tmux_notification_queue_diagnostics(&self) -> (usize, u64) {
+        (
+            self.tmux_notifications.len(),
+            self.tmux_notification_dropped_count,
+        )
+    }
+
     /// Drain and return tmux control protocol notifications
     pub fn drain_tmux_notifications(&mut self) -> Vec<crate::tmux_control::TmuxNotification> {
         std::mem::take(&mut self.tmux_notifications)
@@ -3087,11 +3321,55 @@ impl Terminal {
 
     /// Process incoming data from the PTY
     pub fn process(&mut self, data: &[u8]) {
+        self.process_with_filtered_input(data, |_| {});
+    }
+
+    /// Process PTY data while exposing the single bounded, policy-filtered
+    /// byte stream to a semantic host observer before VTE consumes it.
+    ///
+    /// The observer must still require explicit authorization before any host
+    /// action. This hook prevents native bridges from reparsing the raw,
+    /// pre-policy stream with a second unbounded OSC implementation.
+    pub fn process_with_filtered_input<F>(&mut self, data: &[u8], observer: F)
+    where
+        F: FnOnce(&[u8]),
+    {
         self.record_process_input_debug_stats(data);
 
         if self.is_recording {
-            self.record_event(RecordingEventType::Output, data.to_vec());
+            self.record_output(data);
         }
+
+        // Tmux/screen DCS passthrough creates a new decoded byte stream.  It
+        // must be unwrapped before OSC capability and size enforcement; doing
+        // this here also ensures each semantic OSC crosses the gate once.
+        let has_wrapped_graphics =
+            !self.graphics_passthrough_state.is_ground() || data.contains(&b'\x1b');
+        let passthrough_processed = if has_wrapped_graphics {
+            Some(self.handle_graphics_passthrough_sequences(data))
+        } else {
+            None
+        };
+        let data = passthrough_processed.as_deref().unwrap_or(data);
+
+        let policy = self.effective_osc_capability_policy();
+        let context = osc_stream::OscClassificationContext {
+            multipart_is_file_transfer: self
+                .iterm_multipart_buffer
+                .as_ref()
+                .map(|state| state.is_file_transfer),
+        };
+        let bounded = self.osc_stream_gate.filter(data, policy, context);
+        observer(bounded.as_ref());
+        self.process_osc_filtered(bounded.as_ref());
+    }
+
+    /// Process input that has already passed through the bounded OSC gate.
+    fn process_osc_filtered(&mut self, data: &[u8]) {
+        // Enforce the existing DEC 2026 deadline on the PTY input hot path so
+        // a producer cannot retain a batch indefinitely merely by avoiding a
+        // frame/readback boundary.
+        let _ = self.flush_synchronized_updates_if_timed_out();
 
         if self.synchronized_updates {
             self.buffer_synchronized_update(data);
@@ -3124,20 +3402,33 @@ impl Terminal {
     }
 
     fn buffer_synchronized_update(&mut self, data: &[u8]) {
-        // Buffer data instead of processing it immediately.
-        self.update_buffer.extend_from_slice(data);
-
-        if synchronized_update_mode_end_with_state(
+        let mode_end = synchronized_update_mode_end_with_state(
             data,
             b'l',
             &mut self.sync_update_scan_state,
             &mut self.sync_update_scan_tail,
-        )
-        .is_some()
-        {
+        );
+
+        // Only the bytes through DECRST 2026 belong to this synchronized
+        // batch. Processing a large suffix directly avoids a transient buffer
+        // spike and preserves legitimate long writes that end the batch early.
+        let synchronized_prefix_end = mode_end.unwrap_or(data.len());
+        let (synchronized_prefix, suffix) = data.split_at(synchronized_prefix_end);
+        if !self.try_extend_synchronized_update(synchronized_prefix) {
+            self.discard_oversized_synchronized_update();
+            if mode_end.is_some() && !suffix.is_empty() {
+                self.process_osc_filtered(suffix);
+            }
+            return;
+        }
+
+        if mode_end.is_some() {
             self.sync_update_scan_tail.clear();
             self.sync_update_scan_state = SyncUpdateScanState::Ground;
             self.flush_synchronized_updates();
+            if !suffix.is_empty() {
+                self.process_osc_filtered(suffix);
+            }
             return;
         }
         if terminal_reset_end(&self.update_buffer).is_some() {
@@ -3151,21 +3442,42 @@ impl Terminal {
         }
     }
 
+    fn try_extend_synchronized_update(&mut self, data: &[u8]) -> bool {
+        let within_limit = self
+            .update_buffer
+            .len()
+            .checked_add(data.len())
+            .is_some_and(|total| total <= MAX_SYNCHRONIZED_UPDATE_BYTES);
+        if within_limit {
+            self.update_buffer.extend_from_slice(data);
+        }
+        within_limit
+    }
+
+    fn discard_oversized_synchronized_update(&mut self) {
+        let was_enabled = self.synchronized_updates;
+        self.update_buffer = Vec::new();
+        self.sync_update_scan_tail.clear();
+        self.sync_update_scan_state = SyncUpdateScanState::Ground;
+        self.synchronized_updates = false;
+        self.sync_update_started_at = None;
+        self.sync_update_explicitly_disabled = true;
+        self.sync_update_report_override = None;
+        self.record_input_buffer_discard(TerminalInputBufferDiscardReason::SynchronizedUpdateLimit);
+        if was_enabled {
+            self.terminal_events.push(TerminalEvent::ModeChanged(
+                "synchronized_updates".to_string(),
+                false,
+            ));
+        }
+    }
+
     fn process_unsynchronized(&mut self, data: &[u8]) {
         if data.is_empty() {
             return;
         }
 
-        let has_wrapped_graphics = !self.graphics_passthrough_buffer.is_empty()
-            || contains_bytes(data, b"\x1bPtmux;")
-            || contains_bytes(data, b"\x1bP\x1b");
-        let passthrough_processed = if has_wrapped_graphics {
-            Some(self.handle_graphics_passthrough_sequences(data))
-        } else {
-            None
-        };
-        let current_data = passthrough_processed.as_deref().unwrap_or(data);
-        let normalized_c1_data = normalize_c1_controls(current_data);
+        let normalized_c1_data = normalize_c1_controls(data);
         let current_data = normalized_c1_data.as_ref();
         let kitty_processed =
             if !self.kitty_apc_buffer.is_empty() || contains_bytes(current_data, b"\x1b_") {
@@ -3192,6 +3504,9 @@ impl Terminal {
             for notification in notifications {
                 match notification {
                     crate::tmux_control::TmuxNotification::TerminalOutput { data } => {
+                        // `TerminalOutput` is a slice of the raw stream from
+                        // tmux auto-detection; it already passed through the
+                        // ingress gate before reaching the control parser.
                         let normalized_data = normalize_c1_controls(&data);
                         // Feed non-control data back to standard VTE parser
                         let mut parser = std::mem::replace(&mut self.parser, vte::Parser::new());
@@ -3205,7 +3520,7 @@ impl Terminal {
                     }
                     _ => {
                         // Store tmux notification
-                        self.tmux_notifications.push(notification);
+                        self.push_tmux_notification(notification);
                     }
                 }
             }
@@ -3222,10 +3537,22 @@ impl Terminal {
         self.dispatch_events();
     }
 
+    fn push_tmux_notification(&mut self, notification: crate::tmux_control::TmuxNotification) {
+        if self.tmux_notifications.len() >= MAX_PENDING_TMUX_NOTIFICATIONS {
+            self.tmux_notifications.remove(0);
+            self.tmux_notification_dropped_count =
+                self.tmux_notification_dropped_count.saturating_add(1);
+        }
+        self.tmux_notifications.push(notification);
+    }
+
     /// Dispatch pending events to all registered observers.
     /// Uses `events_dispatched_up_to` index to avoid sending duplicate events
     /// when `process()` is called multiple times before `poll_events()`.
     fn dispatch_events(&mut self) {
+        self.enqueue_evicted_zone_events();
+        self.enforce_terminal_event_queue_limits();
+
         if self.observers.is_empty() || self.terminal_events.is_empty() {
             return;
         }
@@ -3263,20 +3590,212 @@ impl Terminal {
         self.events_dispatched_up_to = self.terminal_events.len();
     }
 
+    fn enforce_terminal_event_queue_limits(&mut self) {
+        let mut retained_bytes = 0usize;
+        let mut keep_from = self.terminal_events.len();
+
+        for (index, event) in self
+            .terminal_events
+            .iter()
+            .enumerate()
+            .rev()
+            .take(MAX_PENDING_TERMINAL_EVENTS)
+        {
+            let event_bytes = event.retained_size_bytes();
+            if retained_bytes
+                .checked_add(event_bytes)
+                .is_none_or(|bytes| bytes > MAX_PENDING_TERMINAL_EVENT_BYTES)
+            {
+                break;
+            }
+            retained_bytes += event_bytes;
+            keep_from = index;
+        }
+
+        if keep_from == 0 {
+            return;
+        }
+        self.terminal_events.drain(0..keep_from);
+        self.events_dispatched_up_to = self.events_dispatched_up_to.saturating_sub(keep_from);
+        self.terminal_event_dropped_count = self
+            .terminal_event_dropped_count
+            .saturating_add(keep_from as u64);
+    }
+
+    /// Return payload-free terminal event queue diagnostics.
+    pub fn terminal_event_queue_diagnostics(&self) -> (usize, usize, u64) {
+        let pending_bytes = self.terminal_events.iter().fold(0usize, |total, event| {
+            total.saturating_add(event.retained_size_bytes())
+        });
+        (
+            self.terminal_events.len(),
+            pending_bytes,
+            self.terminal_event_dropped_count,
+        )
+    }
+
     /// Reset the terminal to its initial state (RIS)
     pub fn reset(&mut self) {
         let (cols, rows) = self.size();
         let scrollback = self.grid.max_scrollback();
 
-        // Save current tab stops
-        let tab_stops = self.tab_stops.clone();
         let suppress_synchronized_update_enable = self.suppress_synchronized_update_enable;
+        let osc_capability_policy = self.osc_capability_policy;
+        let disable_insecure_sequences = self.disable_insecure_sequences;
+        let allow_clipboard_read = self.allow_clipboard_read;
+        let accept_osc7 = self.accept_osc7;
+        let osc633_expected_nonce = self.osc633_expected_nonce.clone();
+        let baseline_default_fg = self.baseline_default_fg;
+        let baseline_default_bg = self.baseline_default_bg;
+        let baseline_cursor_color = self.baseline_cursor_color;
+        let baseline_ansi_palette = self.baseline_ansi_palette;
+        let baseline_extended_ansi_palette = self.baseline_extended_ansi_palette;
+        // RIS resets terminal/protocol state, but it must not silently replace
+        // host configuration or detach API observers. In particular, resource
+        // limits are security boundaries and must not be reset to permissive
+        // defaults by untrusted PTY output.
+        let graphics_limits = *self.graphics_store.limits();
+        let sixel_limits = self.sixel_limits;
+        let cell_dimensions = self.cell_dimensions;
+        let pixel_size = (self.pixel_width, self.pixel_height);
+        let max_transfer_size = self.file_transfer_manager.max_transfer_size();
+        let observers = std::mem::take(&mut self.observers);
+        let next_observer_id = self.next_observer_id;
+        let event_subscription = self.event_subscription.take();
+        let answerback_string = self.answerback_string.take();
+        let width_config = self.width_config;
+        let normalization_form = self.normalization_form;
+        let conformance_level = self.conformance_level;
+        let tmux_control_mode = self.tmux_parser.is_control_mode();
+        let tmux_auto_detect = self.tmux_parser.is_auto_detect();
+        let tmux_notification_dropped_count = self.tmux_notification_dropped_count;
+        let max_frame_timings = self.max_frame_timings;
+        let max_clipboard_history = self.max_clipboard_history;
+        let max_mouse_history = self.max_mouse_history;
+        let max_inline_images = self.max_inline_images;
+        let max_clipboard_sync_history = self.max_clipboard_sync_history;
+        let max_clipboard_sync_events = self.max_clipboard_sync_events;
+        let max_clipboard_event_bytes = self.max_clipboard_event_bytes;
+        let remote_session_id = self.remote_session_id.take();
+        let max_command_history = self.max_command_history;
+        let max_cwd_history = self.max_cwd_history;
+        let notification_config = self.notification_config.clone();
+        let max_notifications = self.max_notifications;
+        let custom_triggers = std::mem::take(&mut self.custom_triggers);
+        let profiling_enabled = self.profiling_enabled;
+        let recording_session = self.recording_session.take();
+        let is_recording = self.is_recording;
+        let recording_start_time = self.recording_start_time;
+        let recording_retained_bytes = self.recording_retained_bytes;
+        let recording_dropped_events = self.recording_dropped_events;
+        let macro_library = std::mem::take(&mut self.macro_library);
+        let trigger_registry = std::mem::take(&mut self.trigger_registry);
+        let max_action_results = self.max_action_results;
+        let bold_brightening = self.bold_brightening;
+        let profile_rendering = (
+            self.link_color,
+            self.bold_color,
+            self.cursor_guide_color,
+            self.badge_color,
+            self.match_color,
+            self.selection_bg_color,
+            self.selection_fg_color,
+            self.use_bold_color,
+            self.use_underline_color,
+            self.use_cursor_guide,
+            self.use_selected_text_color,
+            self.smart_cursor_color,
+            self.faint_text_alpha,
+        );
+        let mut osc_stream_gate = std::mem::take(&mut self.osc_stream_gate);
+        osc_stream_gate.reset_in_flight();
+        let input_buffer_diagnostics = self.input_buffer_diagnostics;
+        let response_buffer_overflow_count = self.response_buffer_overflow_count;
+        let terminal_event_dropped_count = self.terminal_event_dropped_count;
 
         *self = Self::with_scrollback(cols, rows, scrollback);
         self.suppress_synchronized_update_enable = suppress_synchronized_update_enable;
+        self.osc_capability_policy = osc_capability_policy;
+        self.disable_insecure_sequences = disable_insecure_sequences;
+        self.allow_clipboard_read = allow_clipboard_read;
+        self.accept_osc7 = accept_osc7;
+        self.osc633_expected_nonce = osc633_expected_nonce;
+        self.osc_stream_gate = osc_stream_gate;
+        self.input_buffer_diagnostics = input_buffer_diagnostics;
+        self.response_buffer_overflow_count = response_buffer_overflow_count;
+        self.terminal_event_dropped_count = terminal_event_dropped_count;
+        self.graphics_store = GraphicsStore::with_limits(graphics_limits);
+        self.sixel_limits = sixel_limits;
+        self.cell_dimensions = cell_dimensions;
+        (self.pixel_width, self.pixel_height) = pixel_size;
+        self.file_transfer_manager
+            .set_max_transfer_size(max_transfer_size);
+        self.observers = observers;
+        self.next_observer_id = next_observer_id;
+        self.event_subscription = event_subscription;
+        self.answerback_string = answerback_string;
+        self.width_config = width_config;
+        self.normalization_form = normalization_form;
+        self.conformance_level = conformance_level;
+        self.tmux_parser.set_control_mode(tmux_control_mode);
+        self.tmux_parser.set_auto_detect(tmux_auto_detect);
+        self.tmux_notification_dropped_count = tmux_notification_dropped_count;
+        self.max_frame_timings = max_frame_timings;
+        self.max_clipboard_history = max_clipboard_history;
+        self.max_mouse_history = max_mouse_history;
+        self.max_inline_images = max_inline_images;
+        self.max_clipboard_sync_history = max_clipboard_sync_history;
+        self.max_clipboard_sync_events = max_clipboard_sync_events;
+        self.max_clipboard_event_bytes = max_clipboard_event_bytes;
+        self.remote_session_id = remote_session_id;
+        self.max_command_history = max_command_history;
+        self.max_cwd_history = max_cwd_history;
+        self.notification_config = notification_config;
+        self.max_notifications = max_notifications;
+        self.custom_triggers = custom_triggers;
+        self.profiling_enabled = profiling_enabled;
+        self.recording_session = recording_session;
+        self.is_recording = is_recording;
+        self.recording_start_time = recording_start_time;
+        self.recording_retained_bytes = recording_retained_bytes;
+        self.recording_dropped_events = recording_dropped_events;
+        self.macro_library = macro_library;
+        self.trigger_registry = trigger_registry;
+        self.max_action_results = max_action_results;
+        self.bold_brightening = bold_brightening;
+        (
+            self.link_color,
+            self.bold_color,
+            self.cursor_guide_color,
+            self.badge_color,
+            self.match_color,
+            self.selection_bg_color,
+            self.selection_fg_color,
+            self.use_bold_color,
+            self.use_underline_color,
+            self.use_cursor_guide,
+            self.use_selected_text_color,
+            self.smart_cursor_color,
+            self.faint_text_alpha,
+        ) = profile_rendering;
+        self.baseline_default_fg = baseline_default_fg;
+        self.baseline_default_bg = baseline_default_bg;
+        self.baseline_cursor_color = baseline_cursor_color;
+        self.baseline_ansi_palette = baseline_ansi_palette;
+        self.baseline_extended_ansi_palette = baseline_extended_ansi_palette;
+        self.default_fg = baseline_default_fg;
+        self.default_bg = baseline_default_bg;
+        self.cursor_color = baseline_cursor_color;
+        self.ansi_palette = baseline_ansi_palette;
+        self.extended_ansi_palette = baseline_extended_ansi_palette;
+        self.fg = baseline_default_fg;
+        self.bg = baseline_default_bg;
+        self.saved_fg = baseline_default_fg;
+        self.saved_bg = baseline_default_bg;
+        self.sync_grid_blank_style();
+        self.mark_full_repaint("reset");
 
-        // Restore tab stops
-        self.tab_stops = tab_stops;
+        self.terminal_events.push(TerminalEvent::TerminalReset);
     }
 
     /// Mark a row as dirty (needs redrawing)
@@ -3359,7 +3878,18 @@ impl Terminal {
 
     /// Poll for pending events
     pub fn poll_events(&mut self) -> Vec<TerminalEvent> {
-        // Drain evicted zones and emit ZoneScrolledOut events
+        self.enqueue_evicted_zone_events();
+        self.enforce_terminal_event_queue_limits();
+        self.events_dispatched_up_to = 0;
+        std::mem::take(&mut self.terminal_events)
+    }
+
+    /// Move pending zone evictions into the common terminal event queue.
+    ///
+    /// Zone invalidation can happen outside `process()` (for example during a
+    /// direct resize), so every general delivery path calls this before it
+    /// reads or dispatches terminal events.
+    fn enqueue_evicted_zone_events(&mut self) {
         let evicted = self.grid.drain_evicted_zones();
         for zone in evicted {
             self.terminal_events.push(TerminalEvent::ZoneScrolledOut {
@@ -3375,8 +3905,6 @@ impl Terminal {
                 zone_type: zone.zone_type,
             });
         }
-        self.events_dispatched_up_to = 0;
-        std::mem::take(&mut self.terminal_events)
     }
 
     /// Drain pending bell events
@@ -3398,122 +3926,98 @@ impl Terminal {
 
     /// Poll for events that match the current subscription filter
     pub fn poll_subscribed_events(&mut self) -> Vec<TerminalEvent> {
+        self.enqueue_evicted_zone_events();
+        self.enforce_terminal_event_queue_limits();
+
         if let Some(ref filter) = self.event_subscription {
+            let dispatched_count = self.events_dispatched_up_to.min(self.terminal_events.len());
             let events = std::mem::take(&mut self.terminal_events);
-            let (matched, remaining): (Vec<_>, Vec<_>) = events.into_iter().partition(|e| {
-                let kind = match e {
-                    TerminalEvent::BellRang(_) => TerminalEventKind::BellRang,
-                    TerminalEvent::TitleChanged(_) => TerminalEventKind::TitleChanged,
-                    TerminalEvent::SizeChanged(_, _) => TerminalEventKind::SizeChanged,
-                    TerminalEvent::ModeChanged(_, _) => TerminalEventKind::ModeChanged,
-                    TerminalEvent::GraphicsAdded(_) => TerminalEventKind::GraphicsAdded,
-                    TerminalEvent::HyperlinkAdded { .. } => TerminalEventKind::HyperlinkAdded,
-                    TerminalEvent::DirtyRegion(_, _) => TerminalEventKind::DirtyRegion,
-                    TerminalEvent::CwdChanged(_) => TerminalEventKind::CwdChanged,
-                    TerminalEvent::TriggerMatched(_) => TerminalEventKind::TriggerMatched,
-                    TerminalEvent::UserVarChanged { .. } => TerminalEventKind::UserVarChanged,
-                    TerminalEvent::ProgressBarChanged { .. } => {
-                        TerminalEventKind::ProgressBarChanged
+            let mut matched = Vec::new();
+            let mut remaining = Vec::new();
+            let mut remaining_dispatched_count = 0;
+
+            for (index, event) in events.into_iter().enumerate() {
+                if filter.contains(&event.kind()) {
+                    matched.push(event);
+                } else {
+                    if index < dispatched_count {
+                        remaining_dispatched_count += 1;
                     }
-                    TerminalEvent::BadgeChanged(_) => TerminalEventKind::BadgeChanged,
-                    TerminalEvent::ShellIntegrationEvent { .. } => {
-                        TerminalEventKind::ShellIntegrationEvent
-                    }
-                    TerminalEvent::ZoneOpened { .. } => TerminalEventKind::ZoneOpened,
-                    TerminalEvent::ZoneClosed { .. } => TerminalEventKind::ZoneClosed,
-                    TerminalEvent::ZoneScrolledOut { .. } => TerminalEventKind::ZoneScrolledOut,
-                    TerminalEvent::EnvironmentChanged { .. } => {
-                        TerminalEventKind::EnvironmentChanged
-                    }
-                    TerminalEvent::RemoteHostTransition { .. } => {
-                        TerminalEventKind::RemoteHostTransition
-                    }
-                    TerminalEvent::SubShellDetected { .. } => TerminalEventKind::SubShellDetected,
-                    TerminalEvent::FileTransferStarted { .. } => {
-                        TerminalEventKind::FileTransferStarted
-                    }
-                    TerminalEvent::FileTransferProgress { .. } => {
-                        TerminalEventKind::FileTransferProgress
-                    }
-                    TerminalEvent::FileTransferCompleted { .. } => {
-                        TerminalEventKind::FileTransferCompleted
-                    }
-                    TerminalEvent::FileTransferFailed { .. } => {
-                        TerminalEventKind::FileTransferFailed
-                    }
-                    TerminalEvent::UploadRequested { .. } => TerminalEventKind::UploadRequested,
-                    TerminalEvent::ScreenCleared { .. } => TerminalEventKind::ScreenCleared,
-                };
-                filter.contains(&kind)
-            });
+                    remaining.push(event);
+                }
+            }
+
             self.terminal_events = remaining;
+            self.events_dispatched_up_to = remaining_dispatched_count;
             matched
         } else {
             self.poll_events()
         }
     }
 
-    /// Poll for CWD change events
-    pub fn poll_cwd_events(&mut self) -> Vec<CwdChange> {
+    fn drain_terminal_events<T>(
+        &mut self,
+        mut extract: impl FnMut(TerminalEvent) -> Result<T, TerminalEvent>,
+    ) -> Vec<T> {
+        self.enforce_terminal_event_queue_limits();
+        let dispatched_count = self.events_dispatched_up_to.min(self.terminal_events.len());
         let events = std::mem::take(&mut self.terminal_events);
-        let mut cwd_changes = Vec::new();
+        let mut matched = Vec::new();
         let mut remaining = Vec::new();
+        let mut remaining_dispatched_count = 0;
 
-        for event in events {
-            if let TerminalEvent::CwdChanged(change) = event {
-                cwd_changes.push(change);
-            } else {
-                remaining.push(event);
+        for (index, event) in events.into_iter().enumerate() {
+            match extract(event) {
+                Ok(value) => matched.push(value),
+                Err(event) => {
+                    if index < dispatched_count {
+                        remaining_dispatched_count += 1;
+                    }
+                    remaining.push(event);
+                }
             }
         }
 
         self.terminal_events = remaining;
-        cwd_changes
+        self.events_dispatched_up_to = remaining_dispatched_count;
+        matched
+    }
+
+    /// Poll for CWD change events
+    pub fn poll_cwd_events(&mut self) -> Vec<CwdChange> {
+        self.drain_terminal_events(|event| match event {
+            TerminalEvent::CwdChanged(change) => Ok(change),
+            event => Err(event),
+        })
     }
 
     /// Poll for upload request events
     ///
     /// Returns all pending UploadRequested events and removes them from the queue.
     pub fn poll_upload_requests(&mut self) -> Vec<String> {
-        let events = std::mem::take(&mut self.terminal_events);
-        let mut upload_formats = Vec::new();
-        let mut remaining = Vec::new();
-
-        for event in events {
-            if let TerminalEvent::UploadRequested { format } = event {
-                upload_formats.push(format);
-            } else {
-                remaining.push(event);
-            }
-        }
-
-        self.terminal_events = remaining;
-        upload_formats
+        self.drain_terminal_events(|event| match event {
+            TerminalEvent::UploadRequested { format } => Ok(format),
+            event => Err(event),
+        })
     }
 
     /// Poll for shell integration events
     pub fn poll_shell_integration_events(&mut self) -> Vec<ShellEvent> {
-        let events = std::mem::take(&mut self.terminal_events);
-        let mut shell_events = Vec::new();
-        let mut remaining = Vec::new();
-
-        for event in events {
+        self.drain_terminal_events(|event| {
             if let TerminalEvent::ShellIntegrationEvent {
                 event_type,
                 command,
                 exit_code,
                 timestamp,
                 cursor_line,
+                ..
             } = event
             {
-                shell_events.push((event_type, command, exit_code, timestamp, cursor_line));
+                Ok((event_type, command, exit_code, timestamp, cursor_line))
             } else {
-                remaining.push(event);
+                Err(event)
             }
-        }
-
-        self.terminal_events = remaining;
-        shell_events
+        })
     }
 
     /// Drain any pending `ScreenCleared` events.
@@ -3522,20 +4026,10 @@ impl Terminal {
     /// `true` means the scrollback was also cleared (ESC[3J), `false` means
     /// only the visible screen was cleared (ESC[2J).
     pub fn poll_screen_cleared_events(&mut self) -> Vec<bool> {
-        let events = std::mem::take(&mut self.terminal_events);
-        let mut cleared_events = Vec::new();
-        let mut remaining = Vec::new();
-
-        for event in events {
-            if let TerminalEvent::ScreenCleared { include_scrollback } = event {
-                cleared_events.push(include_scrollback);
-            } else {
-                remaining.push(event);
-            }
-        }
-
-        self.terminal_events = remaining;
-        cleared_events
+        self.drain_terminal_events(|event| match event {
+            TerminalEvent::ScreenCleared { include_scrollback } => Ok(include_scrollback),
+            event => Err(event),
+        })
     }
 
     /// Calculate a checksum for a rectangular region of cells
@@ -3589,8 +4083,23 @@ impl Terminal {
         rows
     }
 
-    /// Push bytes to the response buffer (to be sent back to PTY)
+    /// Atomically push one complete response to the buffer sent back to the PTY.
+    ///
+    /// If the response would exceed the hard queue budget, the new response is
+    /// dropped in full and the payload-free overflow counter is incremented.
     pub fn push_response(&mut self, bytes: &[u8]) {
+        let Some(next_len) = self.response_buffer.len().checked_add(bytes.len()) else {
+            self.response_buffer_overflow_count =
+                self.response_buffer_overflow_count.saturating_add(1);
+            return;
+        };
+        if next_len > MAX_RESPONSE_BUFFER_BYTES
+            || self.response_buffer.try_reserve_exact(bytes.len()).is_err()
+        {
+            self.response_buffer_overflow_count =
+                self.response_buffer_overflow_count.saturating_add(1);
+            return;
+        }
         self.response_buffer.extend_from_slice(bytes);
     }
 
@@ -3606,6 +4115,8 @@ impl Terminal {
         let mut cell = Cell::new(ch);
         cell.fg = self.fg;
         cell.bg = self.bg;
+        cell.flags.set_fg_is_default(self.flags.fg_is_default());
+        cell.flags.set_bg_is_default(self.flags.bg_is_default());
 
         for row in top..=bottom {
             for col in left..=right {

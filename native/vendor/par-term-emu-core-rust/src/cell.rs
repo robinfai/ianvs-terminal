@@ -36,6 +36,10 @@ bitflags! {
         const GUARDED = 1 << 9;
         const WIDE_CHAR = 1 << 10;
         const WIDE_CHAR_SPACER = 1 << 11;
+        // Internal provenance bits. These are deliberately masked out by
+        // `CellFlags::to_bitflags` so the public/FFI attribute ABI is stable.
+        const DEFAULT_FG_SOURCE = 1 << 12;
+        const DEFAULT_BG_SOURCE = 1 << 13;
     }
 }
 
@@ -53,7 +57,7 @@ pub struct CellFlags {
 impl Default for CellFlags {
     fn default() -> Self {
         Self {
-            bits: CellBitflags::empty(),
+            bits: CellBitflags::DEFAULT_FG_SOURCE | CellBitflags::DEFAULT_BG_SOURCE,
             underline_style: UnderlineStyle::None,
             hyperlink_id: None,
         }
@@ -183,13 +187,33 @@ impl CellFlags {
         self.bits.set(CellBitflags::WIDE_CHAR_SPACER, value);
     }
 
+    #[inline]
+    pub(crate) fn fg_is_default(&self) -> bool {
+        self.bits.contains(CellBitflags::DEFAULT_FG_SOURCE)
+    }
+
+    #[inline]
+    pub(crate) fn bg_is_default(&self) -> bool {
+        self.bits.contains(CellBitflags::DEFAULT_BG_SOURCE)
+    }
+
+    #[inline]
+    pub(crate) fn set_fg_is_default(&mut self, value: bool) {
+        self.bits.set(CellBitflags::DEFAULT_FG_SOURCE, value);
+    }
+
+    #[inline]
+    pub(crate) fn set_bg_is_default(&mut self, value: bool) {
+        self.bits.set(CellBitflags::DEFAULT_BG_SOURCE, value);
+    }
+
     /// Get the underlying bitflags value as a u16
     ///
     /// Returns the raw bits representation of the cell's boolean attributes,
     /// suitable for FFI or serialization.
     #[inline]
     pub fn to_bitflags(&self) -> u16 {
-        self.bits.bits()
+        self.bits.bits() & 0x0fff
     }
 }
 
@@ -263,13 +287,16 @@ impl Cell {
     /// Uses the default width configuration. For configurable width, use `with_colors_and_config`.
     pub fn with_colors(c: char, fg: Color, bg: Color) -> Self {
         let width = char_width(c, &WidthConfig::default()) as u8;
+        let mut flags = CellFlags::default();
+        flags.set_fg_is_default(false);
+        flags.set_bg_is_default(false);
         Self {
             c,
             combining: Vec::new(),
             fg,
             bg,
             underline_color: None,
-            flags: CellFlags::default(),
+            flags,
             width,
         }
     }
@@ -277,13 +304,16 @@ impl Cell {
     /// Create a new cell with character, colors, and width configuration
     pub fn with_colors_and_config(c: char, fg: Color, bg: Color, config: &WidthConfig) -> Self {
         let width = char_width(c, config) as u8;
+        let mut flags = CellFlags::default();
+        flags.set_fg_is_default(false);
+        flags.set_bg_is_default(false);
         Self {
             c,
             combining: Vec::new(),
             fg,
             bg,
             underline_color: None,
-            flags: CellFlags::default(),
+            flags,
             width,
         }
     }
@@ -303,10 +333,15 @@ impl Cell {
     /// Erase operations reset attributes, but xterm-style semantics keep the
     /// current background color for the resulting blank cell.
     pub fn erase_with_bg(&mut self, bg: Color) {
+        self.erase_with_bg_source(bg, false);
+    }
+
+    pub(crate) fn erase_with_bg_source(&mut self, bg: Color, bg_is_default: bool) {
         *self = Self {
             bg,
             ..Self::default()
         };
+        self.flags.set_bg_is_default(bg_is_default);
     }
 
     /// Get the display width of the character (cached value)
@@ -451,9 +486,15 @@ mod tests {
     fn test_cell_flags() {
         let mut flags = CellFlags::default();
         assert!(!flags.bold());
+        assert!(flags.fg_is_default());
+        assert!(flags.bg_is_default());
+        assert_eq!(flags.to_bitflags(), 0);
 
         flags.set_bold(true);
         assert!(flags.bold());
+        flags.set_fg_is_default(false);
+        flags.set_bg_is_default(false);
+        assert_eq!(flags.to_bitflags(), CellBitflags::BOLD.bits());
     }
 
     #[test]

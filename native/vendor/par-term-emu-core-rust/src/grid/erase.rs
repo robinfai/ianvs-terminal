@@ -4,6 +4,13 @@ use crate::color::Color;
 use crate::grid::Grid;
 
 impl Grid {
+    fn blank_cell_with_bg_source(&self, bg: Color, bg_is_default: bool) -> crate::cell::Cell {
+        let mut blank = self.blank_cell();
+        blank.bg = bg;
+        blank.flags.set_bg_is_default(bg_is_default);
+        blank
+    }
+
     /// Clear the entire grid
     pub fn clear(&mut self) {
         let blank_cell = self.blank_cell();
@@ -24,9 +31,14 @@ impl Grid {
 
     /// Clear a specific row using the active background color.
     pub fn clear_row_with_bg(&mut self, row: usize, bg: Color) {
+        self.clear_row_with_bg_source(row, bg, false);
+    }
+
+    pub(crate) fn clear_row_with_bg_source(&mut self, row: usize, bg: Color, bg_is_default: bool) {
+        let blank = self.blank_cell_with_bg_source(bg, bg_is_default);
         if let Some(row_cells) = self.row_mut(row) {
             for cell in row_cells {
-                cell.erase_with_bg(bg);
+                *cell = blank.clone();
             }
         }
     }
@@ -45,10 +57,21 @@ impl Grid {
 
     /// Clear from cursor to end of line using the active background color.
     pub fn clear_line_right_with_bg(&mut self, col: usize, row: usize, bg: Color) {
+        self.clear_line_right_with_bg_source(col, row, bg, false);
+    }
+
+    pub(crate) fn clear_line_right_with_bg_source(
+        &mut self,
+        col: usize,
+        row: usize,
+        bg: Color,
+        bg_is_default: bool,
+    ) {
+        let blank = self.blank_cell_with_bg_source(bg, bg_is_default);
         if let Some(range) = self.wide_safe_range(col, row, self.cols.saturating_sub(col)) {
             for c in range {
                 if let Some(cell) = self.get_mut(c, row) {
-                    cell.erase_with_bg(bg);
+                    *cell = blank.clone();
                 }
             }
         }
@@ -68,10 +91,21 @@ impl Grid {
 
     /// Clear from beginning of line to cursor using the active background color.
     pub fn clear_line_left_with_bg(&mut self, col: usize, row: usize, bg: Color) {
+        self.clear_line_left_with_bg_source(col, row, bg, false);
+    }
+
+    pub(crate) fn clear_line_left_with_bg_source(
+        &mut self,
+        col: usize,
+        row: usize,
+        bg: Color,
+        bg_is_default: bool,
+    ) {
+        let blank = self.blank_cell_with_bg_source(bg, bg_is_default);
         if let Some(range) = self.wide_safe_range(0, row, col.saturating_add(1)) {
             for c in range {
                 if let Some(cell) = self.get_mut(c, row) {
-                    cell.erase_with_bg(bg);
+                    *cell = blank.clone();
                 }
             }
         }
@@ -87,9 +121,19 @@ impl Grid {
 
     /// Clear from cursor to end of screen using the active background color.
     pub fn clear_screen_below_with_bg(&mut self, col: usize, row: usize, bg: Color) {
-        self.clear_line_right_with_bg(col, row, bg);
+        self.clear_screen_below_with_bg_source(col, row, bg, false);
+    }
+
+    pub(crate) fn clear_screen_below_with_bg_source(
+        &mut self,
+        col: usize,
+        row: usize,
+        bg: Color,
+        bg_is_default: bool,
+    ) {
+        self.clear_line_right_with_bg_source(col, row, bg, bg_is_default);
         for r in (row + 1)..self.rows {
-            self.clear_row_with_bg(r, bg);
+            self.clear_row_with_bg_source(r, bg, bg_is_default);
         }
     }
 
@@ -103,10 +147,20 @@ impl Grid {
 
     /// Clear from beginning of screen to cursor using the active background color.
     pub fn clear_screen_above_with_bg(&mut self, col: usize, row: usize, bg: Color) {
+        self.clear_screen_above_with_bg_source(col, row, bg, false);
+    }
+
+    pub(crate) fn clear_screen_above_with_bg_source(
+        &mut self,
+        col: usize,
+        row: usize,
+        bg: Color,
+        bg_is_default: bool,
+    ) {
         for r in 0..row {
-            self.clear_row_with_bg(r, bg);
+            self.clear_row_with_bg_source(r, bg, bg_is_default);
         }
-        self.clear_line_left_with_bg(col, row, bg);
+        self.clear_line_left_with_bg_source(col, row, bg, bg_is_default);
     }
 
     /// Erase characters at (col, row)
@@ -123,10 +177,22 @@ impl Grid {
 
     /// Erase characters at (col, row) using the active background color.
     pub fn erase_characters_with_bg(&mut self, col: usize, row: usize, n: usize, bg: Color) {
+        self.erase_characters_with_bg_source(col, row, n, bg, false);
+    }
+
+    pub(crate) fn erase_characters_with_bg_source(
+        &mut self,
+        col: usize,
+        row: usize,
+        n: usize,
+        bg: Color,
+        bg_is_default: bool,
+    ) {
+        let blank = self.blank_cell_with_bg_source(bg, bg_is_default);
         if let Some(range) = self.wide_safe_range(col, row, n) {
             for c in range {
                 if let Some(cell) = self.get_mut(c, row) {
-                    cell.erase_with_bg(bg);
+                    *cell = blank.clone();
                 }
             }
         }
@@ -139,14 +205,15 @@ impl Grid {
 
     /// Clear the scrollback buffer
     pub fn clear_scrollback(&mut self) {
+        // Absolute row mappings are invalid once the retained history and its
+        // origin are discarded. Queue every zone for a typed eviction event
+        // rather than leaving stale marks pointing into the new row epoch.
+        self.invalidate_zones();
         self.scrollback_cells.clear();
         self.scrollback_start = 0;
         self.scrollback_lines = 0;
         self.scrollback_wrapped.clear();
-        // Reset floor for zones
         self.total_lines_scrolled = 0;
-        // Re-evict zones (effectively clears all zones that started in scrollback)
-        self.evict_zones(0);
         self.damage.mark_full_repaint("clear_scrollback");
     }
 }

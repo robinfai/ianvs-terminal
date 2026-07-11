@@ -1,4 +1,19 @@
 use super::*;
+
+#[test]
+fn grid_debug_output_never_contains_cell_or_zone_content() {
+    let mut grid = Grid::new(4, 2, 8);
+    grid.set(0, 0, Cell::new('🕵'));
+    let mut zone = Zone::new(7, crate::zone::ZoneType::Command, 0, None);
+    zone.command = Some("zone-command-secret-canary".to_string());
+    grid.zones.push(zone);
+
+    let debug = format!("{grid:?}");
+    assert!(!debug.contains('🕵'));
+    assert!(!debug.contains("zone-command-secret-canary"));
+    assert!(debug.contains("visible_cell_count: 8"));
+    assert!(debug.contains("zone_count: 1"));
+}
 use crate::cell::Cell;
 use crate::grid::damage::ScrollRegionDamage;
 
@@ -1435,7 +1450,7 @@ mod zone_tests {
 
         grid.evict_zones(10);
         assert_eq!(grid.zones().len(), 1);
-        assert_eq!(grid.zones()[0].abs_row_start, 10);
+        assert_eq!(grid.zones()[0].abs_row_start, 0);
     }
 
     #[test]

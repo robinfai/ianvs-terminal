@@ -8,13 +8,19 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Maximum number of custom session variables retained at once.
+///
+/// Values for existing keys may still be updated after the map reaches this
+/// limit. This bounds state created by repeated OSC 1337 `SetUserVar` inputs.
+pub const MAX_CUSTOM_SESSION_VARIABLES: usize = 128;
+
 /// Session variables that can be interpolated into badge format strings.
 ///
 /// Badge format strings can reference these variables using the syntax:
 /// `\(session.variable_name)` or `\(variable_name)`
 ///
 /// Example format: `\(session.username)@\(session.hostname):\(session.path)`
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct SessionVariables {
     /// The hostname of the current session
     pub hostname: Option<String>,
@@ -46,6 +52,71 @@ pub struct SessionVariables {
     pub title: Option<String>,
     /// Custom user-defined variables (key-value pairs)
     pub custom: std::collections::HashMap<String, String>,
+}
+
+impl std::fmt::Debug for SessionVariables {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let built_in_present_count = [
+            self.hostname.as_ref(),
+            self.username.as_ref(),
+            self.path.as_ref(),
+            self.job.as_ref(),
+            self.last_command.as_ref(),
+            self.profile_name.as_ref(),
+            self.tty.as_ref(),
+            self.selection.as_ref(),
+            self.tmux_pane_title.as_ref(),
+            self.session_name.as_ref(),
+            self.title.as_ref(),
+        ]
+        .into_iter()
+        .flatten()
+        .count();
+        let custom_key_bytes = self.custom.keys().map(String::len).sum::<usize>();
+        let custom_value_bytes = self.custom.values().map(String::len).sum::<usize>();
+        formatter
+            .debug_struct("SessionVariables")
+            .field("columns", &self.columns)
+            .field("rows", &self.rows)
+            .field("bell_count", &self.bell_count)
+            .field("built_in_present_count", &built_in_present_count)
+            .field(
+                "hostname_bytes",
+                &self.hostname.as_ref().map_or(0, String::len),
+            )
+            .field(
+                "username_bytes",
+                &self.username.as_ref().map_or(0, String::len),
+            )
+            .field("path_bytes", &self.path.as_ref().map_or(0, String::len))
+            .field("job_bytes", &self.job.as_ref().map_or(0, String::len))
+            .field(
+                "last_command_bytes",
+                &self.last_command.as_ref().map_or(0, String::len),
+            )
+            .field(
+                "profile_name_bytes",
+                &self.profile_name.as_ref().map_or(0, String::len),
+            )
+            .field("tty_bytes", &self.tty.as_ref().map_or(0, String::len))
+            .field(
+                "selection_bytes",
+                &self.selection.as_ref().map_or(0, String::len),
+            )
+            .field(
+                "tmux_pane_title_bytes",
+                &self.tmux_pane_title.as_ref().map_or(0, String::len),
+            )
+            .field(
+                "session_name_bytes",
+                &self.session_name.as_ref().map_or(0, String::len),
+            )
+            .field("title_bytes", &self.title.as_ref().map_or(0, String::len))
+            .field("custom_count", &self.custom.len())
+            .field("custom_key_bytes", &custom_key_bytes)
+            .field("custom_value_bytes", &custom_value_bytes)
+            .finish()
+    }
 }
 
 impl SessionVariables {
@@ -124,9 +195,25 @@ impl SessionVariables {
         self.tmux_pane_title = Some(title.into());
     }
 
-    /// Set a custom variable
-    pub fn set_custom(&mut self, key: impl Into<String>, value: impl Into<String>) {
-        self.custom.insert(key.into(), value.into());
+    /// Set a custom variable.
+    ///
+    /// Returns `false` when a new key would exceed
+    /// [`MAX_CUSTOM_SESSION_VARIABLES`]. Existing keys remain updateable at
+    /// the limit.
+    pub fn set_custom(&mut self, key: impl Into<String>, value: impl Into<String>) -> bool {
+        let key = key.into();
+        let at_capacity = self.custom.len() >= MAX_CUSTOM_SESSION_VARIABLES;
+        match self.custom.entry(key) {
+            std::collections::hash_map::Entry::Occupied(mut entry) => {
+                entry.insert(value.into());
+                true
+            }
+            std::collections::hash_map::Entry::Vacant(entry) if !at_capacity => {
+                entry.insert(value.into());
+                true
+            }
+            std::collections::hash_map::Entry::Vacant(_) => false,
+        }
     }
 
     /// Get a variable value by name
@@ -234,6 +321,12 @@ pub fn decode_badge_format(encoded: &str) -> Result<String, BadgeFormatError> {
 /// - Escape sequences that could be malicious
 /// - Nested parentheses that could indicate complex expressions
 fn validate_badge_format(format: &str) -> Result<(), BadgeFormatError> {
+    if format.chars().any(char::is_control) {
+        return Err(BadgeFormatError::UnsafeContent(
+            "Contains a control character".to_string(),
+        ));
+    }
+
     // Check for shell command injection patterns
     let dangerous_patterns = [
         "`",    // Backtick command substitution
@@ -438,11 +531,27 @@ mod tests {
     #[test]
     fn test_session_variables_custom() {
         let mut vars = SessionVariables::new();
-        vars.set_custom("myvar", "myvalue");
-        vars.set_custom("another", "test");
+        assert!(vars.set_custom("myvar", "myvalue"));
+        assert!(vars.set_custom("another", "test"));
 
         assert_eq!(vars.get("myvar"), Some("myvalue".to_string()));
         assert_eq!(vars.get("another"), Some("test".to_string()));
+    }
+
+    #[test]
+    fn custom_session_variables_reject_new_keys_at_limit_but_allow_updates() {
+        let mut vars = SessionVariables::new();
+        for index in 0..MAX_CUSTOM_SESSION_VARIABLES {
+            assert!(vars.set_custom(format!("key-{index}"), "initial"));
+        }
+
+        assert!(!vars.set_custom("overflow", "rejected"));
+        assert_eq!(vars.custom.len(), MAX_CUSTOM_SESSION_VARIABLES);
+        assert!(vars.set_custom("key-0", "updated"));
+        assert_eq!(
+            vars.custom.get("key-0").map(String::as_str),
+            Some("updated")
+        );
     }
 
     #[test]
@@ -495,6 +604,11 @@ mod tests {
 
         // Escape sequence
         let encoded = STANDARD.encode("\x1b[31mred\x1b[0m");
+        let result = decode_badge_format(&encoded);
+        assert!(matches!(result, Err(BadgeFormatError::UnsafeContent(_))));
+
+        // All C0/C1 controls are rejected, not only ESC/BEL/NUL.
+        let encoded = STANDARD.encode("line\nnext\u{0085}");
         let result = decode_badge_format(&encoded);
         assert!(matches!(result, Err(BadgeFormatError::UnsafeContent(_))));
     }

@@ -5,6 +5,11 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// Aggregate payload bytes retained by one in-memory recording.
+pub(crate) const MAX_RECORDING_BYTES: usize = 64 * 1024 * 1024;
+/// Bound metadata-only events so resize/marker floods cannot grow forever.
+pub(crate) const MAX_RECORDING_EVENTS: usize = 65_536;
+
 /// Recording format type
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RecordingFormat {
@@ -32,7 +37,7 @@ pub enum RecordingEventType {
 }
 
 /// A single event in a recording
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct RecordingEvent {
     /// Timestamp relative to recording start (microseconds)
     pub timestamp: u64,
@@ -44,8 +49,20 @@ pub struct RecordingEvent {
     pub metadata: Option<(usize, usize)>,
 }
 
+impl std::fmt::Debug for RecordingEvent {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("RecordingEvent")
+            .field("timestamp", &self.timestamp)
+            .field("event_type", &self.event_type)
+            .field("data_bytes", &self.data.len())
+            .field("metadata", &self.metadata)
+            .finish()
+    }
+}
+
 /// A complete recording session
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct RecordingSession {
     /// Unique recording identifier
     pub id: String,
@@ -61,6 +78,21 @@ pub struct RecordingSession {
     pub duration: u64,
     /// Creation timestamp
     pub created_at: u64,
+}
+
+impl std::fmt::Debug for RecordingSession {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("RecordingSession")
+            .field("id_bytes", &self.id.len())
+            .field("title_bytes", &self.title.len())
+            .field("initial_size", &self.initial_size)
+            .field("event_count", &self.events.len())
+            .field("environment_entry_count", &self.env.len())
+            .field("duration", &self.duration)
+            .field("created_at", &self.created_at)
+            .finish()
+    }
 }
 
 /// Export format for recordings
@@ -102,6 +134,8 @@ impl Terminal {
         });
         self.is_recording = true;
         self.recording_start_time = crate::terminal::unix_millis();
+        self.recording_retained_bytes = 0;
+        self.recording_dropped_events = 0;
     }
 
     /// Stop recording terminal session
@@ -109,24 +143,74 @@ impl Terminal {
         self.is_recording = false;
         let mut session = self.recording_session.take()?;
         session.duration = crate::terminal::unix_millis() - self.recording_start_time;
+        if self.recording_dropped_events > 0 {
+            session
+                .env
+                .insert("PAR_TERM_RECORDING_TRUNCATED".to_string(), "1".to_string());
+            session.env.insert(
+                "PAR_TERM_RECORDING_DROPPED_EVENTS".to_string(),
+                self.recording_dropped_events.to_string(),
+            );
+        }
+        self.recording_retained_bytes = 0;
+        self.recording_dropped_events = 0;
         Some(session)
     }
 
     /// Record an event
     pub fn record_event(&mut self, event_type: RecordingEventType, data: Vec<u8>) {
-        if !self.is_recording {
+        if !self.reserve_recording_event(data.len()) {
             return;
         }
+        self.push_reserved_recording_event(event_type, data, None);
+    }
 
+    fn reserve_recording_event(&mut self, data_bytes: usize) -> bool {
+        let event_count = self
+            .recording_session
+            .as_ref()
+            .map_or(0, |session| session.events.len());
+        let allowed = self.is_recording
+            && self.recording_session.is_some()
+            && event_count < MAX_RECORDING_EVENTS
+            && self
+                .recording_retained_bytes
+                .checked_add(data_bytes)
+                .is_some_and(|bytes| bytes <= MAX_RECORDING_BYTES);
+        if allowed {
+            self.recording_retained_bytes += data_bytes;
+        } else if self.is_recording {
+            self.recording_dropped_events = self.recording_dropped_events.saturating_add(1);
+        }
+        allowed
+    }
+
+    fn push_reserved_recording_event(
+        &mut self,
+        event_type: RecordingEventType,
+        data: Vec<u8>,
+        metadata: Option<(usize, usize)>,
+    ) {
         if let Some(ref mut session) = self.recording_session {
             let timestamp = crate::terminal::unix_millis() - self.recording_start_time;
             session.events.push(RecordingEvent {
                 timestamp,
                 event_type,
                 data,
-                metadata: None,
+                metadata,
             });
         }
+    }
+
+    /// Return payload-free recording resource diagnostics.
+    pub fn recording_resource_diagnostics(&self) -> (usize, usize, u64) {
+        (
+            self.recording_session
+                .as_ref()
+                .map_or(0, |session| session.events.len()),
+            self.recording_retained_bytes,
+            self.recording_dropped_events,
+        )
     }
 
     /// Check if recording is active
@@ -192,29 +276,28 @@ impl Terminal {
 
     /// Record input to the terminal
     pub fn record_input(&mut self, data: &[u8]) {
-        self.record_event(RecordingEventType::Input, data.to_vec());
+        if self.reserve_recording_event(data.len()) {
+            self.push_reserved_recording_event(RecordingEventType::Input, data.to_vec(), None);
+        }
     }
 
     /// Record output from the terminal
     pub fn record_output(&mut self, data: &[u8]) {
-        self.record_event(RecordingEventType::Output, data.to_vec());
+        if self.reserve_recording_event(data.len()) {
+            self.push_reserved_recording_event(RecordingEventType::Output, data.to_vec(), None);
+        }
     }
 
     /// Record a resize event
     pub fn record_resize(&mut self, cols: usize, rows: usize) {
-        if !self.is_recording {
+        if !self.reserve_recording_event(0) {
             return;
         }
-
-        if let Some(ref mut session) = self.recording_session {
-            let timestamp = crate::terminal::unix_millis() - self.recording_start_time;
-            session.events.push(RecordingEvent {
-                timestamp,
-                event_type: RecordingEventType::Resize,
-                data: Vec::new(),
-                metadata: Some((cols, rows)),
-            });
-        }
+        self.push_reserved_recording_event(
+            RecordingEventType::Resize,
+            Vec::new(),
+            Some((cols, rows)),
+        );
     }
 
     /// Record a marker/bookmark
@@ -528,5 +611,84 @@ mod tests {
 
         // Should have header + 2 events (input + output, marker ignored)
         assert_eq!(lines.len(), 3);
+    }
+
+    #[test]
+    fn recording_payload_budget_drops_whole_events_and_reports_truncation() {
+        let mut term = Terminal::new(80, 24);
+        term.start_recording(None);
+        term.recording_retained_bytes = MAX_RECORDING_BYTES - 2;
+
+        term.record_output(b"abc");
+
+        assert_eq!(
+            term.recording_resource_diagnostics(),
+            (0, MAX_RECORDING_BYTES - 2, 1)
+        );
+        let session = term.stop_recording().unwrap();
+        assert!(session.events.is_empty());
+        assert_eq!(
+            session
+                .env
+                .get("PAR_TERM_RECORDING_TRUNCATED")
+                .map(String::as_str),
+            Some("1")
+        );
+        assert_eq!(
+            session
+                .env
+                .get("PAR_TERM_RECORDING_DROPPED_EVENTS")
+                .map(String::as_str),
+            Some("1")
+        );
+    }
+
+    #[test]
+    fn recording_metadata_event_count_is_bounded() {
+        let mut term = Terminal::new(80, 24);
+        term.start_recording(None);
+        let placeholder = RecordingEvent {
+            timestamp: 0,
+            event_type: RecordingEventType::Resize,
+            data: Vec::new(),
+            metadata: Some((80, 24)),
+        };
+        term.recording_session
+            .as_mut()
+            .unwrap()
+            .events
+            .resize(MAX_RECORDING_EVENTS, placeholder);
+
+        term.record_resize(100, 30);
+
+        assert_eq!(
+            term.recording_resource_diagnostics(),
+            (MAX_RECORDING_EVENTS, 0, 1)
+        );
+    }
+
+    #[test]
+    fn recording_debug_never_contains_payload_title_or_environment_values() {
+        let canary = "recording-secret-canary";
+        let event = RecordingEvent {
+            timestamp: 1,
+            event_type: RecordingEventType::Output,
+            data: canary.as_bytes().to_vec(),
+            metadata: None,
+        };
+        let mut env = HashMap::new();
+        env.insert("TOKEN".to_string(), canary.to_string());
+        let session = RecordingSession {
+            id: canary.to_string(),
+            title: canary.to_string(),
+            initial_size: (80, 24),
+            events: vec![event.clone()],
+            env,
+            duration: 1,
+            created_at: 2,
+        };
+
+        assert!(!format!("{event:?}").contains(canary));
+        assert!(!format!("{session:?}").contains(canary));
     }
 }

@@ -162,22 +162,36 @@ impl Terminal {
                             // But some tests might use it in SGR. Let's add it to be safe if needed.
                             // Actually, standard xterm is DECSET 1004.
                         }
-                        30..=37 => self.fg = Color::Named(NamedColor::from_u8((param - 30) as u8)),
+                        30..=37 => {
+                            self.fg = Color::Named(NamedColor::from_u8((param - 30) as u8));
+                            self.flags.set_fg_is_default(false);
+                        }
                         38 => {
                             if let Some(color) = Self::color_from_sgr_params(param_slice, &mut iter)
                             {
                                 self.fg = color;
+                                self.flags.set_fg_is_default(false);
                             }
                         }
-                        39 => self.fg = self.default_fg,
-                        40..=47 => self.bg = Color::Named(NamedColor::from_u8((param - 40) as u8)),
+                        39 => {
+                            self.fg = self.default_fg;
+                            self.flags.set_fg_is_default(true);
+                        }
+                        40..=47 => {
+                            self.bg = Color::Named(NamedColor::from_u8((param - 40) as u8));
+                            self.flags.set_bg_is_default(false);
+                        }
                         48 => {
                             if let Some(color) = Self::color_from_sgr_params(param_slice, &mut iter)
                             {
                                 self.bg = color;
+                                self.flags.set_bg_is_default(false);
                             }
                         }
-                        49 => self.bg = self.default_bg,
+                        49 => {
+                            self.bg = self.default_bg;
+                            self.flags.set_bg_is_default(true);
+                        }
                         58 => {
                             if let Some(color) = Self::color_from_sgr_params(param_slice, &mut iter)
                             {
@@ -185,8 +199,14 @@ impl Terminal {
                             }
                         }
                         59 => self.underline_color = None,
-                        90..=97 => self.fg = Color::from_ansi_code((param - 90 + 8) as u8),
-                        100..=107 => self.bg = Color::from_ansi_code((param - 100 + 8) as u8),
+                        90..=97 => {
+                            self.fg = Color::from_ansi_code((param - 90 + 8) as u8);
+                            self.flags.set_fg_is_default(false);
+                        }
+                        100..=107 => {
+                            self.bg = Color::from_ansi_code((param - 100 + 8) as u8);
+                            self.flags.set_bg_is_default(false);
+                        }
                         _ => {}
                     }
                 }

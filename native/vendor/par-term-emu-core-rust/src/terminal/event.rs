@@ -8,6 +8,53 @@ use crate::terminal::progress::{ProgressBarAction, ProgressState};
 use crate::terminal::trigger::TriggerMatch;
 use crate::zone::ZoneType;
 
+/// Protocol that produced a normalized shell-integration event.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShellIntegrationSource {
+    /// FinalTerm/iTerm2 OSC 133 marker.
+    Osc133,
+    /// VS Code OSC 633 marker.
+    Osc633,
+}
+
+impl ShellIntegrationSource {
+    /// Stable wire/debug name for the protocol source.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Osc133 => "osc133",
+            Self::Osc633 => "osc633",
+        }
+    }
+}
+
+/// Protocol or API that produced a working-directory change.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CwdChangeSource {
+    /// Standard OSC 7 `file://` working-directory report.
+    Osc7,
+    /// Windows Terminal OSC 9;9 working-directory report.
+    Osc9_9,
+    /// VS Code OSC 633 `P;Cwd=...` property.
+    Osc633,
+    /// iTerm2 OSC 1337 shell metadata.
+    Osc1337,
+    /// Direct host/API update rather than a parsed escape sequence.
+    Manual,
+}
+
+impl CwdChangeSource {
+    /// Stable wire/debug name for the protocol source.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Osc7 => "osc7",
+            Self::Osc9_9 => "osc9;9",
+            Self::Osc633 => "osc633",
+            Self::Osc1337 => "osc1337",
+            Self::Manual => "manual",
+        }
+    }
+}
+
 /// Bell event type
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BellEvent {
@@ -22,6 +69,8 @@ pub enum BellEvent {
 /// Current working directory change information
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CwdChange {
+    /// Protocol or API that produced this change.
+    pub source: CwdChangeSource,
     /// Previous working directory
     pub old_cwd: Option<String>,
     /// New working directory
@@ -90,6 +139,8 @@ pub enum TerminalEvent {
     BadgeChanged(Option<String>),
     /// Shell integration event (FinalTerm sequences)
     ShellIntegrationEvent {
+        /// Protocol source normalized into this event.
+        source: ShellIntegrationSource,
         /// Event type: "prompt_start", "command_start", "command_executed", "command_finished"
         event_type: String,
         /// The command text (for command_start)
@@ -98,7 +149,7 @@ pub enum TerminalEvent {
         exit_code: Option<i32>,
         /// Timestamp (Unix epoch milliseconds)
         timestamp: Option<u64>,
-        /// Absolute cursor line (scrollback_len + cursor_row) at the time the marker was emitted.
+        /// Global cursor line (`total_lines_scrolled + cursor_row`) when the marker was emitted.
         cursor_line: Option<usize>,
     },
     /// A zone was opened (prompt, command, or output block started)
@@ -107,7 +158,7 @@ pub enum TerminalEvent {
         zone_id: usize,
         /// Type of zone
         zone_type: ZoneType,
-        /// Absolute row where zone starts
+        /// Global absolute row where the zone starts
         abs_row_start: usize,
     },
     /// A zone was closed (prompt, command, or output block ended)
@@ -116,9 +167,9 @@ pub enum TerminalEvent {
         zone_id: usize,
         /// Type of zone
         zone_type: ZoneType,
-        /// Absolute row where zone starts
+        /// Global absolute row where the zone starts
         abs_row_start: usize,
-        /// Absolute row where zone ends
+        /// Global absolute row where the zone ends
         abs_row_end: usize,
         /// Exit code (for output zones only)
         exit_code: Option<i32>,
@@ -208,6 +259,12 @@ pub enum TerminalEvent {
         /// Whether the scrollback buffer was also cleared (ESC[3J vs ESC[2J).
         include_scrollback: bool,
     },
+    /// The terminal was reset to its initial state by RIS (`ESC c`).
+    ///
+    /// This is intentionally distinct from [`TerminalEvent::ScreenCleared`]:
+    /// ED 2/3 clears screen content, while RIS also resets protocol semantic
+    /// state such as shell metadata, badges, progress, and notifications.
+    TerminalReset,
 }
 
 impl TerminalEvent {
@@ -239,7 +296,82 @@ impl TerminalEvent {
             TerminalEvent::FileTransferFailed { .. } => TerminalEventKind::FileTransferFailed,
             TerminalEvent::UploadRequested { .. } => TerminalEventKind::UploadRequested,
             TerminalEvent::ScreenCleared { .. } => TerminalEventKind::ScreenCleared,
+            TerminalEvent::TerminalReset => TerminalEventKind::TerminalReset,
         }
+    }
+
+    /// Conservative retained-byte estimate used by the bounded event queue.
+    ///
+    /// This intentionally inspects lengths only. It must never format or log
+    /// attacker-controlled event text while enforcing a memory budget.
+    pub(crate) fn retained_size_bytes(&self) -> usize {
+        const EVENT_BASE_BYTES: usize = 128;
+        let option_len = |value: &Option<String>| value.as_ref().map_or(0, String::len);
+        let string_bytes = match self {
+            Self::TitleChanged(title) | Self::ModeChanged(title, _) => title.len(),
+            Self::HyperlinkAdded { url, .. } => url.len(),
+            Self::CwdChanged(change) => option_len(&change.old_cwd)
+                .saturating_add(change.new_cwd.len())
+                .saturating_add(option_len(&change.hostname))
+                .saturating_add(option_len(&change.username)),
+            Self::TriggerMatched(trigger_match) => trigger_match
+                .captures
+                .iter()
+                .fold(trigger_match.text.len(), |total, capture| {
+                    total.saturating_add(capture.len())
+                }),
+            Self::UserVarChanged {
+                name,
+                value,
+                old_value,
+            } => name
+                .len()
+                .saturating_add(value.len())
+                .saturating_add(option_len(old_value)),
+            Self::ProgressBarChanged { id, label, .. } => {
+                id.len().saturating_add(option_len(label))
+            }
+            Self::BadgeChanged(badge) => option_len(badge),
+            Self::ShellIntegrationEvent {
+                event_type,
+                command,
+                ..
+            } => event_type.len().saturating_add(option_len(command)),
+            Self::EnvironmentChanged {
+                key,
+                value,
+                old_value,
+            } => key
+                .len()
+                .saturating_add(value.len())
+                .saturating_add(option_len(old_value)),
+            Self::RemoteHostTransition {
+                hostname,
+                username,
+                old_hostname,
+                old_username,
+            } => hostname
+                .len()
+                .saturating_add(option_len(username))
+                .saturating_add(option_len(old_hostname))
+                .saturating_add(option_len(old_username)),
+            Self::SubShellDetected { shell_type, .. } => option_len(shell_type),
+            Self::FileTransferStarted { filename, .. }
+            | Self::FileTransferCompleted { filename, .. } => option_len(filename),
+            Self::FileTransferFailed { reason, .. } => reason.len(),
+            Self::UploadRequested { format } => format.len(),
+            Self::BellRang(_)
+            | Self::SizeChanged(_, _)
+            | Self::GraphicsAdded(_)
+            | Self::DirtyRegion(_, _)
+            | Self::ZoneOpened { .. }
+            | Self::ZoneClosed { .. }
+            | Self::ZoneScrolledOut { .. }
+            | Self::FileTransferProgress { .. }
+            | Self::ScreenCleared { .. }
+            | Self::TerminalReset => 0,
+        };
+        EVENT_BASE_BYTES.saturating_add(string_bytes)
     }
 }
 
@@ -271,6 +403,7 @@ pub enum TerminalEventKind {
     FileTransferFailed,
     UploadRequested,
     ScreenCleared,
+    TerminalReset,
 }
 
 /// A drained shell integration event: (event_type, command, exit_code, timestamp, cursor_line).
@@ -343,6 +476,7 @@ mod tests {
     #[test]
     fn test_event_kind_cwd_changed() {
         let event = TerminalEvent::CwdChanged(CwdChange {
+            source: CwdChangeSource::Osc7,
             old_cwd: Some("/old/path".to_string()),
             new_cwd: "/new/path".to_string(),
             hostname: None,
@@ -397,6 +531,7 @@ mod tests {
     #[test]
     fn test_event_kind_shell_integration_event() {
         let event = TerminalEvent::ShellIntegrationEvent {
+            source: ShellIntegrationSource::Osc133,
             event_type: "prompt_start".to_string(),
             command: None,
             exit_code: None,
@@ -516,6 +651,62 @@ mod tests {
     }
 
     #[test]
+    fn ris_emits_terminal_reset_without_reusing_screen_cleared() {
+        let mut terminal = Terminal::new(80, 24);
+
+        terminal.process(b"\x1b[2J\x1b[3J");
+        let clear_events = terminal.poll_events();
+        assert_eq!(
+            clear_events
+                .iter()
+                .filter(|event| matches!(event, TerminalEvent::ScreenCleared { .. }))
+                .count(),
+            2
+        );
+        assert!(!clear_events
+            .iter()
+            .any(|event| matches!(event, TerminalEvent::TerminalReset)));
+
+        terminal.process(b"\x1bc");
+        let reset_events = terminal.poll_events();
+        assert_eq!(
+            reset_events
+                .iter()
+                .filter(|event| matches!(event, TerminalEvent::TerminalReset))
+                .count(),
+            1
+        );
+        assert!(!reset_events
+            .iter()
+            .any(|event| matches!(event, TerminalEvent::ScreenCleared { .. })));
+        assert_eq!(
+            TerminalEvent::TerminalReset.kind(),
+            TerminalEventKind::TerminalReset
+        );
+    }
+
+    #[test]
+    fn event_subscription_filter_survives_ris() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.set_event_subscription(std::collections::HashSet::from([
+            TerminalEventKind::TerminalReset,
+        ]));
+
+        terminal.process(b"\x1bc");
+        assert_eq!(
+            terminal.poll_subscribed_events(),
+            vec![TerminalEvent::TerminalReset]
+        );
+
+        terminal.process(b"\x1b]2;after reset\x07");
+        assert!(terminal.poll_subscribed_events().is_empty());
+        assert!(terminal
+            .poll_events()
+            .iter()
+            .any(|event| matches!(event, TerminalEvent::TitleChanged(_))));
+    }
+
+    #[test]
     fn test_event_queuing_through_process() {
         let mut term = Terminal::new(80, 24);
 
@@ -608,6 +799,7 @@ mod tests {
     #[test]
     fn test_cwd_change_struct() {
         let cwd_change = CwdChange {
+            source: CwdChangeSource::Manual,
             old_cwd: Some("/home/user".to_string()),
             new_cwd: "/home/user/projects".to_string(),
             hostname: Some("server".to_string()),
@@ -615,10 +807,30 @@ mod tests {
             timestamp: 1234567890,
         };
 
+        assert_eq!(cwd_change.source, CwdChangeSource::Manual);
+        assert_eq!(cwd_change.source.as_str(), "manual");
         assert_eq!(cwd_change.old_cwd, Some("/home/user".to_string()));
         assert_eq!(cwd_change.new_cwd, "/home/user/projects");
         assert_eq!(cwd_change.hostname, Some("server".to_string()));
         assert_eq!(cwd_change.username, Some("user".to_string()));
         assert_eq!(cwd_change.timestamp, 1234567890);
+    }
+
+    #[test]
+    fn cwd_change_sources_have_stable_wire_names() {
+        assert_eq!(CwdChangeSource::Osc7.as_str(), "osc7");
+        assert_eq!(CwdChangeSource::Osc9_9.as_str(), "osc9;9");
+        assert_eq!(CwdChangeSource::Osc633.as_str(), "osc633");
+        assert_eq!(CwdChangeSource::Osc1337.as_str(), "osc1337");
+        assert_eq!(CwdChangeSource::Manual.as_str(), "manual");
+    }
+
+    #[test]
+    fn retained_size_estimate_counts_payload_without_formatting_it() {
+        let short = TerminalEvent::TitleChanged("x".into());
+        let long = TerminalEvent::TitleChanged("secret-canary".repeat(20));
+
+        assert!(long.retained_size_bytes() > short.retained_size_bytes());
+        assert_eq!(long.retained_size_bytes(), 128 + "secret-canary".len() * 20);
     }
 }

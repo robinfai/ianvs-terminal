@@ -80,3 +80,62 @@ pub(crate) fn event_category(event: &TerminalEvent) -> EventCategory {
         _ => EventCategory::Screen,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::terminal::Terminal;
+    use std::sync::Mutex;
+
+    #[derive(Default)]
+    struct RecordingObserver {
+        kinds: Mutex<Vec<TerminalEventKind>>,
+    }
+
+    impl TerminalObserver for RecordingObserver {
+        fn on_event(&self, event: &TerminalEvent) {
+            self.kinds.lock().unwrap().push(event.kind());
+        }
+    }
+
+    #[test]
+    fn specialized_polling_preserves_push_observer_dispatch_cursor() {
+        let observer = Arc::new(RecordingObserver::default());
+        let mut terminal = Terminal::new(80, 24);
+        terminal.add_observer(observer.clone());
+
+        terminal.process(b"\x1b]7;file:///tmp/one\x07\x1b]2;first\x07");
+        assert_eq!(terminal.poll_cwd_events().len(), 1);
+        terminal.process(b"\x1b]2;second\x07");
+
+        assert_eq!(
+            *observer.kinds.lock().unwrap(),
+            vec![
+                TerminalEventKind::CwdChanged,
+                TerminalEventKind::EnvironmentChanged,
+                TerminalEventKind::TitleChanged,
+                TerminalEventKind::TitleChanged,
+            ],
+        );
+    }
+
+    #[test]
+    fn observer_registration_survives_ris_and_receives_reset() {
+        let observer = Arc::new(RecordingObserver::default());
+        let mut terminal = Terminal::new(80, 24);
+        let observer_id = terminal.add_observer(observer.clone());
+
+        terminal.process(b"\x1bc");
+        terminal.process(b"\x1b]2;after reset\x07");
+
+        assert_eq!(terminal.observer_count(), 1);
+        assert!(terminal.remove_observer(observer_id));
+        assert_eq!(
+            *observer.kinds.lock().unwrap(),
+            vec![
+                TerminalEventKind::TerminalReset,
+                TerminalEventKind::TitleChanged,
+            ],
+        );
+    }
+}

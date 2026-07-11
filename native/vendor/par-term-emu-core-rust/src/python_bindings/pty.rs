@@ -364,7 +364,10 @@ impl PyPtyTerminal {
         let terminal = self.inner.terminal();
         let (term_bold_brightening, term_bg_color) = if let Ok(term) = Ok::<_, ()>(terminal.lock())
         {
-            (term.bold_brightening(), term.default_bg().to_rgb())
+            (
+                term.bold_brightening(),
+                term.resolve_color_rgb(term.default_bg()),
+            )
         } else {
             (false, (0, 0, 0))
         };
@@ -551,8 +554,8 @@ impl PyPtyTerminal {
                 .map(|cell| {
                     (
                         cell.get_grapheme(),
-                        cell.fg.to_rgb(),
-                        cell.bg.to_rgb(),
+                        term.resolve_color_rgb(cell.fg),
+                        term.resolve_color_rgb(cell.bg),
                         PyAttributes {
                             bold: cell.flags.bold(),
                             dim: cell.flags.dim(),
@@ -635,7 +638,7 @@ impl PyPtyTerminal {
         let result = if let Ok(term) = Ok::<_, ()>(terminal.lock()) {
             term.active_grid()
                 .get(col, row)
-                .map(|cell| cell.fg.to_rgb())
+                .map(|cell| term.resolve_color_rgb(cell.fg))
         } else {
             None
         };
@@ -655,7 +658,7 @@ impl PyPtyTerminal {
         let result = if let Ok(term) = Ok::<_, ()>(terminal.lock()) {
             term.active_grid()
                 .get(col, row)
-                .map(|cell| cell.bg.to_rgb())
+                .map(|cell| term.resolve_color_rgb(cell.bg))
         } else {
             None
         };
@@ -673,9 +676,10 @@ impl PyPtyTerminal {
     fn get_underline_color(&self, col: usize, row: usize) -> PyResult<Option<(u8, u8, u8)>> {
         let terminal = self.inner.terminal();
         let result = if let Ok(term) = Ok::<_, ()>(terminal.lock()) {
-            term.active_grid()
-                .get(col, row)
-                .and_then(|cell| cell.underline_color.map(|c| c.to_rgb()))
+            term.active_grid().get(col, row).and_then(|cell| {
+                cell.underline_color
+                    .map(|color| term.resolve_color_rgb(color))
+            })
         } else {
             None
         };
@@ -769,8 +773,8 @@ impl PyPtyTerminal {
                         grid.get(col, row).map(|cell| {
                             (
                                 cell.get_grapheme(),
-                                cell.fg.to_rgb(),
-                                cell.bg.to_rgb(),
+                                term.resolve_color_rgb(cell.fg),
+                                term.resolve_color_rgb(cell.bg),
                                 PyAttributes {
                                     bold: cell.flags.bold(),
                                     dim: cell.flags.dim(),
@@ -816,48 +820,7 @@ impl PyPtyTerminal {
         // Get bold brightening setting
         let bold_brightening = term.bold_brightening();
 
-        // Get ANSI palette for color resolution
-        let ansi_palette = term.get_ansi_palette();
-
-        // Helper function to resolve foreground color using the palette
-        let resolve_fg_color = |color: crate::color::Color| -> (u8, u8, u8) {
-            match color {
-                crate::color::Color::Named(named) => {
-                    // Use palette color instead of hardcoded ANSI color
-                    let palette_idx = named as usize;
-                    if palette_idx < 16 {
-                        ansi_palette[palette_idx].to_rgb()
-                    } else {
-                        color.to_rgb() // Fallback to hardcoded (shouldn't happen)
-                    }
-                }
-                crate::color::Color::Indexed(idx) if (idx as usize) < 16 => {
-                    // Indexed colors 0-15 also use palette
-                    ansi_palette[idx as usize].to_rgb()
-                }
-                _ => color.to_rgb(), // RGB and indexed 16-255 use their own values
-            }
-        };
-
-        // Helper function to resolve background color using the palette
-        let resolve_bg_color = |color: crate::color::Color| -> (u8, u8, u8) {
-            match color {
-                crate::color::Color::Named(named) => {
-                    // Use palette color instead of hardcoded ANSI color
-                    let palette_idx = named as usize;
-                    if palette_idx < 16 {
-                        ansi_palette[palette_idx].to_rgb()
-                    } else {
-                        color.to_rgb() // Fallback to hardcoded (shouldn't happen)
-                    }
-                }
-                crate::color::Color::Indexed(idx) if (idx as usize) < 16 => {
-                    // Indexed colors 0-15 also use palette
-                    ansi_palette[idx as usize].to_rgb()
-                }
-                _ => color.to_rgb(), // RGB and indexed 16-255 use their own values
-            }
-        };
+        let resolve_color = |color| term.resolve_color_rgb(color);
 
         // Capture all lines while holding terminal lock
         let mut lines = Vec::with_capacity(rows);
@@ -881,8 +844,8 @@ impl PyPtyTerminal {
 
                     line.push((
                         cell.get_grapheme(),
-                        resolve_fg_color(fg),
-                        resolve_bg_color(cell.bg),
+                        resolve_color(fg),
+                        resolve_color(cell.bg),
                         PyAttributes {
                             bold: cell.flags.bold(),
                             dim: cell.flags.dim(),
@@ -1277,7 +1240,7 @@ impl PyPtyTerminal {
     fn default_fg(&self) -> PyResult<(u8, u8, u8)> {
         let terminal = self.inner.terminal();
         let color = if let Ok(term) = Ok::<_, ()>(terminal.lock()) {
-            term.default_fg().to_rgb()
+            term.resolve_color_rgb(term.default_fg())
         } else {
             (192, 192, 192) // Default white if lock fails
         };
@@ -1316,7 +1279,7 @@ impl PyPtyTerminal {
     fn default_bg(&self) -> PyResult<(u8, u8, u8)> {
         let terminal = self.inner.terminal();
         let color = if let Ok(term) = Ok::<_, ()>(terminal.lock()) {
-            term.default_bg().to_rgb()
+            term.resolve_color_rgb(term.default_bg())
         } else {
             (0, 0, 0) // Default black if lock fails
         };
@@ -1355,7 +1318,7 @@ impl PyPtyTerminal {
     fn cursor_color(&self) -> PyResult<(u8, u8, u8)> {
         let terminal = self.inner.terminal();
         let color = if let Ok(term) = Ok::<_, ()>(terminal.lock()) {
-            term.cursor_color().to_rgb()
+            term.resolve_color_rgb(term.cursor_color())
         } else {
             (192, 192, 192) // Default white if lock fails
         };
@@ -1385,16 +1348,16 @@ impl PyPtyTerminal {
         Ok(())
     }
 
-    /// Set ANSI palette color (0-15)
+    /// Set ANSI/xterm palette color (0-255)
     ///
     /// Args:
-    ///     index: Palette index (0-15)
+    ///     index: Palette index (0-255)
     ///     r: Red component (0-255)
     ///     g: Green component (0-255)
     ///     b: Blue component (0-255)
     ///
     /// Raises:
-    ///     ValueError: If index is not in range 0-15
+    ///     ValueError: If index is not in range 0-255
     fn set_ansi_palette_color(&mut self, index: usize, r: u8, g: u8, b: u8) -> PyResult<()> {
         let terminal = self.inner.terminal();
         if let Ok(mut term) = Ok::<_, ()>(terminal.lock()) {

@@ -23,15 +23,24 @@ impl Terminal {
                 let cursor_col = self.cursor.col;
                 let cursor_row = self.cursor.row;
                 let erase_bg = self.bg;
+                let erase_bg_is_default = self.flags.bg_is_default();
                 match n {
                     0 => {
-                        self.active_grid_mut()
-                            .clear_screen_below_with_bg(cursor_col, cursor_row, erase_bg);
+                        self.active_grid_mut().clear_screen_below_with_bg_source(
+                            cursor_col,
+                            cursor_row,
+                            erase_bg,
+                            erase_bg_is_default,
+                        );
                         self.delete_graphics_below_cursor(cursor_col, cursor_row);
                     }
                     1 => {
-                        self.active_grid_mut()
-                            .clear_screen_above_with_bg(cursor_col, cursor_row, erase_bg);
+                        self.active_grid_mut().clear_screen_above_with_bg_source(
+                            cursor_col,
+                            cursor_row,
+                            erase_bg,
+                            erase_bg_is_default,
+                        );
                         self.delete_graphics_above_cursor(cursor_col, cursor_row);
                     }
                     2 => {
@@ -76,10 +85,15 @@ impl Terminal {
                 let cursor_col = self.cursor.col;
                 let cursor_row = self.cursor.row;
                 let erase_bg = self.bg;
+                let erase_bg_is_default = self.flags.bg_is_default();
                 match n {
                     0 => {
-                        self.active_grid_mut()
-                            .clear_line_right_with_bg(cursor_col, cursor_row, erase_bg);
+                        self.active_grid_mut().clear_line_right_with_bg_source(
+                            cursor_col,
+                            cursor_row,
+                            erase_bg,
+                            erase_bg_is_default,
+                        );
                         self.delete_graphics_in_rect(
                             cursor_col,
                             cursor_row,
@@ -88,8 +102,12 @@ impl Terminal {
                         );
                     }
                     1 => {
-                        self.active_grid_mut()
-                            .clear_line_left_with_bg(cursor_col, cursor_row, erase_bg);
+                        self.active_grid_mut().clear_line_left_with_bg_source(
+                            cursor_col,
+                            cursor_row,
+                            erase_bg,
+                            erase_bg_is_default,
+                        );
                         self.delete_graphics_in_rect(
                             0,
                             cursor_row,
@@ -98,8 +116,11 @@ impl Terminal {
                         );
                     }
                     2 => {
-                        self.active_grid_mut()
-                            .clear_row_with_bg(cursor_row, erase_bg);
+                        self.active_grid_mut().clear_row_with_bg_source(
+                            cursor_row,
+                            erase_bg,
+                            erase_bg_is_default,
+                        );
                         self.delete_graphics_in_rect(
                             0,
                             cursor_row,
@@ -122,8 +143,14 @@ impl Terminal {
                 let cursor_col = self.cursor.col;
                 let cursor_row = self.cursor.row;
                 let erase_bg = self.bg;
-                self.active_grid_mut()
-                    .erase_characters_with_bg(cursor_col, cursor_row, n, erase_bg);
+                let erase_bg_is_default = self.flags.bg_is_default();
+                self.active_grid_mut().erase_characters_with_bg_source(
+                    cursor_col,
+                    cursor_row,
+                    n,
+                    erase_bg,
+                    erase_bg_is_default,
+                );
                 self.delete_graphics_in_rect(
                     cursor_col,
                     cursor_row,

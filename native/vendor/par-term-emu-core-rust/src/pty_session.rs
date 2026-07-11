@@ -23,6 +23,10 @@ use std::thread::{self, JoinHandle};
 /// * `data` - The raw bytes read from the PTY
 pub type OutputCallback = Arc<dyn Fn(&[u8]) + Send + Sync>;
 
+fn pty_spawn_log_message(command: &str, args: &[&str]) -> String {
+    format!("Spawning process: {command} arg_count={}", args.len())
+}
+
 /// A PTY session that manages a shell process and terminal state
 pub struct PtySession {
     terminal: Arc<Mutex<Terminal>>,
@@ -374,7 +378,7 @@ impl PtySession {
         debug::log(
             debug::DebugLevel::Info,
             "PTY_SPAWN",
-            &format!("Spawning process: {} {:?}", command, args),
+            &pty_spawn_log_message(command, args),
         );
 
         // Create the PTY system
@@ -1309,6 +1313,16 @@ mod tests {
     fn test_get_default_shell() {
         let shell = PtySession::get_default_shell();
         assert!(!shell.is_empty());
+    }
+
+    #[test]
+    fn spawn_log_message_never_contains_arguments() {
+        let secret_arg = "argument-secret-canary";
+        let message = pty_spawn_log_message("/bin/example", &["--token", secret_arg]);
+
+        assert!(!message.contains("--token"));
+        assert!(!message.contains(secret_arg));
+        assert!(message.contains("arg_count=2"));
     }
 
     #[test]

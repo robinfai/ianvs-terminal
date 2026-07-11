@@ -16,8 +16,8 @@ use par_term_emu_core_rust::graphics::{
 use par_term_emu_core_rust::grid::{Grid, ScrollRegionDamage};
 use par_term_emu_core_rust::mouse::{MouseEncoding, MouseMode};
 use par_term_emu_core_rust::terminal::{
-    Terminal, TerminalDamage, TerminalEvent as ParserTerminalEvent, TerminalProcessDebugStats,
-    snapshot::ExportFormat,
+    OscCapability, Terminal, TerminalDamage, TerminalEvent as ParserTerminalEvent,
+    TerminalProcessDebugStats, snapshot::ExportFormat,
 };
 use parking_lot::Mutex;
 use regex::RegexBuilder;
@@ -35,6 +35,10 @@ const DEFAULT_ROWS: u16 = 32;
 const DEFAULT_COLS: u16 = 120;
 const MAX_TRANSCRIPT_BYTES: usize = 256 * 1024;
 const RESOURCE_SAMPLE_CAPACITY: usize = 60;
+const MAX_PENDING_SESSION_EVENTS: usize = 1024;
+const MAX_PENDING_SESSION_EVENT_BYTES: usize = 8 * 1024 * 1024;
+const MAX_DIAGNOSTIC_EVENTS: usize = 256;
+const EVENT_QUEUE_OVERFLOW_DIAGNOSTIC_KIND: &str = "event_queue_overflow";
 const RESOURCE_SAMPLE_INTERVAL: Duration = Duration::from_secs(1);
 const INLINE_CLEAR_REPAINT_GRACE: Duration = Duration::from_millis(180);
 const RESOURCE_SAMPLER_MAX_FAILURES: u64 = 5;
@@ -114,7 +118,181 @@ enum CallbackEvent {
     SessionNotification { title: String, message: String },
     SessionProgress { payload: serde_json::Value },
     SessionBadge { text: Option<String> },
+    SessionReset,
     Bell,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct PendingEventLimits {
+    max_count: usize,
+    max_bytes: usize,
+}
+
+impl Default for PendingEventLimits {
+    fn default() -> Self {
+        Self {
+            max_count: MAX_PENDING_SESSION_EVENTS,
+            max_bytes: MAX_PENDING_SESSION_EVENT_BYTES,
+        }
+    }
+}
+
+#[derive(Debug)]
+struct QueuedTerminalEvent {
+    event: TerminalEvent,
+    wire_bytes: usize,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct PendingEventPushResult {
+    emit_overflow_diagnostic: bool,
+}
+
+#[derive(Debug, Default)]
+struct PendingEventQueue {
+    entries: VecDeque<QueuedTerminalEvent>,
+    aggregate_bytes: usize,
+    dropped_count: u64,
+    overflow_diagnostic_emitted: bool,
+    limits: PendingEventLimits,
+}
+
+impl PendingEventQueue {
+    fn with_initial(event: TerminalEvent) -> Self {
+        let mut queue = Self::default();
+        let _ = queue.push(event);
+        queue
+    }
+
+    #[cfg(test)]
+    fn with_limits(max_count: usize, max_bytes: usize) -> Self {
+        Self {
+            limits: PendingEventLimits {
+                max_count,
+                max_bytes,
+            },
+            ..Self::default()
+        }
+    }
+
+    fn push(&mut self, event: TerminalEvent) -> PendingEventPushResult {
+        let wire_bytes = terminal_event_wire_size(&event);
+        if self.limits.max_count == 0
+            || self.limits.max_bytes == 0
+            || wire_bytes > self.limits.max_bytes
+        {
+            return self.record_drop();
+        }
+
+        self.aggregate_bytes = self.aggregate_bytes.saturating_add(wire_bytes);
+        self.entries
+            .push_back(QueuedTerminalEvent { event, wire_bytes });
+
+        let mut result = PendingEventPushResult::default();
+        while self.entries.len() > self.limits.max_count
+            || self.aggregate_bytes > self.limits.max_bytes
+        {
+            let index = self.eviction_index();
+            if let Some(removed) = self.entries.remove(index) {
+                self.aggregate_bytes = self.aggregate_bytes.saturating_sub(removed.wire_bytes);
+                let dropped = self.record_drop();
+                result.emit_overflow_diagnostic |= dropped.emit_overflow_diagnostic;
+            } else {
+                break;
+            }
+        }
+        result
+    }
+
+    fn eviction_index(&self) -> usize {
+        self.entries
+            .iter()
+            .position(|entry| pending_event_is_coalescible(&entry.event.kind))
+            .or_else(|| {
+                self.entries
+                    .iter()
+                    .position(|entry| !pending_event_is_critical(&entry.event.kind))
+            })
+            // A critical-only flood cannot be both lossless and hard-bounded.
+            // Prefer retaining `exit`; otherwise discard the oldest clipboard
+            // request only after every non-critical event is gone.
+            .or_else(|| {
+                self.entries
+                    .iter()
+                    .position(|entry| entry.event.kind != "exit")
+            })
+            .unwrap_or(0)
+    }
+
+    fn record_drop(&mut self) -> PendingEventPushResult {
+        self.dropped_count = self.dropped_count.saturating_add(1);
+        let emit_overflow_diagnostic = !self.overflow_diagnostic_emitted;
+        self.overflow_diagnostic_emitted = true;
+        PendingEventPushResult {
+            emit_overflow_diagnostic,
+        }
+    }
+
+    fn drain(&mut self) -> Vec<TerminalEvent> {
+        self.aggregate_bytes = 0;
+        self.entries.drain(..).map(|entry| entry.event).collect()
+    }
+
+    fn len(&self) -> usize {
+        self.entries.len()
+    }
+}
+
+fn pending_event_is_coalescible(kind: &str) -> bool {
+    matches!(
+        kind,
+        "bell" | "resize" | "shell_context" | "session_progress" | "session_badge"
+    )
+}
+
+fn pending_event_is_critical(kind: &str) -> bool {
+    matches!(
+        kind,
+        "exit" | "clipboard_copy" | "clipboard_paste_request" | "session_reset"
+    )
+}
+
+fn terminal_event_wire_size(event: &TerminalEvent) -> usize {
+    // Fixed JSON object keys/punctuation plus the largest u64 session id.
+    64usize
+        .saturating_add(json_string_wire_size(&event.kind))
+        .saturating_add(event.payload.as_ref().map_or(4, json_value_wire_size))
+}
+
+fn json_value_wire_size(value: &serde_json::Value) -> usize {
+    match value {
+        serde_json::Value::Null => 4,
+        serde_json::Value::Bool(true) => 4,
+        serde_json::Value::Bool(false) => 5,
+        serde_json::Value::Number(number) => number.to_string().len(),
+        serde_json::Value::String(value) => json_string_wire_size(value),
+        serde_json::Value::Array(values) => values.iter().fold(2usize, |size, value| {
+            size.saturating_add(json_value_wire_size(value))
+                .saturating_add(1)
+        }),
+        serde_json::Value::Object(values) => values.iter().fold(2usize, |size, (key, value)| {
+            size.saturating_add(json_string_wire_size(key))
+                .saturating_add(1)
+                .saturating_add(json_value_wire_size(value))
+                .saturating_add(1)
+        }),
+    }
+}
+
+fn json_string_wire_size(value: &str) -> usize {
+    value.chars().fold(2usize, |size, character| {
+        let encoded = match character {
+            '"' | '\\' | '\u{0008}' | '\u{000c}' | '\n' | '\r' | '\t' => 2,
+            character if character <= '\u{001f}' => 6,
+            character => character.len_utf8(),
+        };
+        size.saturating_add(encoded)
+    })
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -136,6 +314,7 @@ struct CachedFrameMeta {
     default_foreground_rgb: (u8, u8, u8),
     default_background_rgb: (u8, u8, u8),
     cursor_color_rgb: (u8, u8, u8),
+    ansi_palette: [Color; 256],
     modes: TerminalFrameModes,
     window_title: Option<String>,
     window_icon_name: Option<String>,
@@ -389,8 +568,21 @@ struct SessionDebugStats {
     response_write_micros: u64,
     transcript_bytes: usize,
     transcript_truncated: bool,
+    osc_ingress_accepted: u64,
+    osc_ingress_oversized: u64,
+    osc_ingress_policy_denied: u64,
+    synchronized_update_discards: u64,
+    non_sixel_dcs_discards: u64,
+    response_buffer_overflows: u64,
+    vendor_terminal_event_drops: u64,
+    tmux_notification_drops: u64,
+    recording_dropped_events: u64,
     pending_dirty_rows: usize,
     pending_scroll_region: Option<SessionDebugScrollRegion>,
+    pending_event_count: usize,
+    pending_event_bytes: usize,
+    pending_event_dropped_count: u64,
+    pending_event_overflowed: bool,
 }
 
 #[derive(Clone, Debug, serde::Serialize)]
@@ -578,6 +770,15 @@ impl HostProtocolState {
                     index += 2;
                 }
                 b'>' => {
+                    self.application_keypad = false;
+                    index += 2;
+                }
+                b'c' => {
+                    // Mirror RIS for the small native-side observer state.
+                    // The parser owns the typed TerminalReset event; this
+                    // prevents a previously reported OSC 1 icon from being
+                    // copied back into frames after that reset.
+                    self.window_icon_name = None;
                     self.application_keypad = false;
                     index += 2;
                 }
@@ -807,21 +1008,37 @@ fn callback_event_from_parser_event(
     match event {
         ParserTerminalEvent::BellRang(_) => Some(CallbackEvent::Bell),
         ParserTerminalEvent::CwdChanged(change) => {
+            let source = if change.source
+                == par_term_emu_core_rust::terminal::CwdChangeSource::Osc1337
+                && change.old_cwd.as_deref() == Some(change.new_cwd.as_str())
+            {
+                // OSC 1337 RemoteHost updates identity while retaining cwd.
+                // Keep the established product source without emitting the
+                // supplemental EnvironmentChanged/RemoteHostTransition events
+                // as duplicate shell_context callbacks.
+                "osc1337_remote_host"
+            } else {
+                change.source.as_str()
+            };
             let mut payload = serde_json::Map::new();
             payload.insert(
                 "source".to_string(),
-                serde_json::Value::String("osc7".to_string()),
+                serde_json::Value::String(source.to_string()),
             );
             payload.insert(
                 "cwd".to_string(),
                 serde_json::Value::String(sanitize_protocol_text(&change.new_cwd, 1024)),
             );
-            if let Some(hostname) = sanitize_protocol_text_option(change.hostname.as_deref(), 255) {
-                payload.insert("hostname".to_string(), serde_json::Value::String(hostname));
-            }
-            if let Some(username) = sanitize_protocol_text_option(change.username.as_deref(), 255) {
-                payload.insert("username".to_string(), serde_json::Value::String(username));
-            }
+            payload.insert(
+                "hostname".to_string(),
+                sanitize_protocol_text_option(change.hostname.as_deref(), 255)
+                    .map_or(serde_json::Value::Null, serde_json::Value::String),
+            );
+            payload.insert(
+                "username".to_string(),
+                sanitize_protocol_text_option(change.username.as_deref(), 255)
+                    .map_or(serde_json::Value::Null, serde_json::Value::String),
+            );
             payload.insert(
                 "timestamp".to_string(),
                 serde_json::Value::from(change.timestamp),
@@ -831,6 +1048,7 @@ fn callback_event_from_parser_event(
             })
         }
         ParserTerminalEvent::ShellIntegrationEvent {
+            source,
             event_type,
             command,
             exit_code,
@@ -842,7 +1060,7 @@ fn callback_event_from_parser_event(
             }
             Some(CallbackEvent::ShellCommand {
                 payload: serde_json::json!({
-                    "source": "osc133",
+                    "source": source.as_str(),
                     "eventType": sanitize_protocol_text(&event_type, 80),
                     "command": command
                         .as_deref()
@@ -906,47 +1124,11 @@ fn callback_event_from_parser_event(
                 }),
             })
         }
-        ParserTerminalEvent::EnvironmentChanged {
-            key,
-            value,
-            old_value: _,
-        } => {
-            let mut payload = serde_json::Map::new();
-            payload.insert(
-                "source".to_string(),
-                serde_json::Value::String("osc1337_environment".to_string()),
-            );
-            let value = sanitize_protocol_text(&value, 1024);
-            match key.as_str() {
-                "cwd" => {
-                    payload.insert("cwd".to_string(), serde_json::Value::String(value));
-                }
-                "hostname" => {
-                    payload.insert("hostname".to_string(), serde_json::Value::String(value));
-                }
-                "username" => {
-                    payload.insert("username".to_string(), serde_json::Value::String(value));
-                }
-                _ => return None,
-            }
-            Some(CallbackEvent::ShellContext {
-                payload: serde_json::Value::Object(payload),
-            })
-        }
-        ParserTerminalEvent::RemoteHostTransition {
-            hostname,
-            username,
-            old_hostname: _,
-            old_username: _,
-        } => Some(CallbackEvent::ShellContext {
-            payload: serde_json::json!({
-                "source": "osc1337_remote_host",
-                "hostname": sanitize_protocol_text(&hostname, 255),
-                "username": username
-                    .as_deref()
-                    .and_then(|value| sanitize_protocol_text_option(Some(value), 255)),
-            }),
-        }),
+        // These detailed library events accompany one authoritative
+        // CwdChanged event. The native product bridge emits only that complete
+        // context so profile switching/UI work runs once per protocol input.
+        ParserTerminalEvent::EnvironmentChanged { .. }
+        | ParserTerminalEvent::RemoteHostTransition { .. } => None,
         ParserTerminalEvent::UserVarChanged { name, value, .. } => {
             Some(CallbackEvent::ShellUserVar {
                 name: sanitize_protocol_text(&name, 80),
@@ -967,10 +1149,13 @@ fn callback_event_from_parser_event(
             };
             Some(CallbackEvent::SessionProgress {
                 payload: serde_json::json!({
-                    "source": "osc934",
+                    "source": "ianvs_osc934",
                     "named": true,
                     "action": action,
-                    "id": sanitize_protocol_text(&id, 80),
+                    // The parser already validates the 128-byte identity. It
+                    // must remain exact because Dart uses it as the lifecycle
+                    // key; display truncation belongs only in the UI.
+                    "id": id,
                     "state": state.map(|value| value.description()),
                     "percent": percent,
                     "label": label
@@ -982,6 +1167,7 @@ fn callback_event_from_parser_event(
         ParserTerminalEvent::BadgeChanged(text) => Some(CallbackEvent::SessionBadge {
             text: text.and_then(|value| sanitize_protocol_text_option(Some(&value), 80)),
         }),
+        ParserTerminalEvent::TerminalReset => Some(CallbackEvent::SessionReset),
         _ => None,
     }
 }
@@ -1064,11 +1250,11 @@ fn shell_context_payload_from_current_dir(data: &str) -> Option<serde_json::Valu
     let (cwd, hostname, username) = if raw.starts_with("file://") {
         parse_file_url_context(raw)?
     } else if raw.starts_with('/') {
-        (percent_decode_lossy(raw), None, None)
+        (percent_decode_strict(raw)?, None, None)
     } else {
         return None;
     };
-    if !cwd.starts_with('/') {
+    if !cwd.starts_with('/') || cwd.chars().any(char::is_control) {
         return None;
     }
     let mut payload = serde_json::Map::new();
@@ -1099,13 +1285,13 @@ fn parse_file_url_context(raw: &str) -> Option<(String, Option<String>, Option<S
         remainder = &remainder[..index];
     }
     if remainder.starts_with('/') {
-        return Some((percent_decode_lossy(remainder), None, None));
+        return Some((percent_decode_strict(remainder)?, None, None));
     }
     let slash = remainder.find('/')?;
     let authority = &remainder[..slash];
-    let path = percent_decode_lossy(&remainder[slash..]);
+    let path = percent_decode_strict(&remainder[slash..])?;
     let (username, host_part) = match authority.rsplit_once('@') {
-        Some((username, host)) => (Some(percent_decode_lossy(username)), host),
+        Some((username, host)) => (Some(percent_decode_strict(username)?), host),
         None => (None, authority),
     };
     let host = host_part.split(':').next().unwrap_or_default();
@@ -1116,22 +1302,20 @@ fn parse_file_url_context(raw: &str) -> Option<(String, Option<String>, Option<S
     {
         None
     } else {
-        Some(percent_decode_lossy(host))
+        Some(percent_decode_strict(host)?)
     };
     let username = username.and_then(|value| if value.is_empty() { None } else { Some(value) });
     Some((path, hostname, username))
 }
 
-fn percent_decode_lossy(value: &str) -> String {
+fn percent_decode_strict(value: &str) -> Option<String> {
     let bytes = value.as_bytes();
     let mut decoded = Vec::with_capacity(bytes.len());
     let mut index = 0usize;
     while index < bytes.len() {
-        if bytes[index] == b'%'
-            && index + 2 < bytes.len()
-            && let (Some(high), Some(low)) =
-                (hex_nibble(bytes[index + 1]), hex_nibble(bytes[index + 2]))
-        {
+        if bytes[index] == b'%' {
+            let high = bytes.get(index + 1).copied().and_then(hex_nibble)?;
+            let low = bytes.get(index + 2).copied().and_then(hex_nibble)?;
             decoded.push((high << 4) | low);
             index += 3;
             continue;
@@ -1139,7 +1323,8 @@ fn percent_decode_lossy(value: &str) -> String {
         decoded.push(bytes[index]);
         index += 1;
     }
-    String::from_utf8_lossy(&decoded).to_string()
+    let decoded = String::from_utf8(decoded).ok()?;
+    (!decoded.chars().any(char::is_control)).then_some(decoded)
 }
 
 fn sanitize_protocol_text(value: &str, max_chars: usize) -> String {
@@ -1162,14 +1347,16 @@ pub struct TerminalSession {
     emulation: TerminalEmulation,
     scrollback_lines: usize,
     graphics_enabled: bool,
+    graphics_memory_limits: Option<TerminalGraphicsMemoryLimits>,
     profile_colors: TerminalProfileColors,
+    osc633_expected_nonce: Option<String>,
     state: Mutex<TerminalState>,
     writer: Mutex<Box<dyn Write + Send>>,
     master: Mutex<Box<dyn portable_pty::MasterPty + Send>>,
     child: Mutex<Box<dyn portable_pty::Child + Send + Sync>>,
     child_pid: Option<u32>,
     process_name: String,
-    events: Mutex<VecDeque<TerminalEvent>>,
+    events: Mutex<PendingEventQueue>,
     diagnostic_events: Mutex<VecDeque<TerminalDiagnosticEvent>>,
     resource_samples: Mutex<VecDeque<ResourceSample>>,
     resource_sampler_state: Mutex<ResourceSamplerState>,
@@ -1186,6 +1373,12 @@ pub struct TerminalSession {
     exited: AtomicBool,
 }
 
+#[derive(Clone, Copy, Debug)]
+struct TerminalGraphicsMemoryLimits {
+    max_image_bytes: usize,
+    max_total_bytes: usize,
+}
+
 #[derive(Default)]
 struct SessionWorkerHandles {
     reader: Option<thread::JoinHandle<()>>,
@@ -1198,7 +1391,21 @@ impl TerminalSession {
         let scrollback_lines = normalize_scrollback_lines(profile.terminal.scrollback_lines);
         let graphics_enabled =
             emulation == TerminalEmulation::Xterm256 && profile.terminal.graphics.enabled;
+        let graphics_memory_limits = graphics_enabled.then_some(TerminalGraphicsMemoryLimits {
+            max_image_bytes: profile.terminal.graphics.max_image_bytes,
+            max_total_bytes: profile.terminal.graphics.max_total_bytes,
+        });
         let profile_colors = profile.appearance.colors.clone();
+        let osc633_expected_nonce = match profile.launch.env.get("VSCODE_NONCE") {
+            Some(nonce) if Terminal::is_valid_osc633_nonce(nonce) => Some(nonce.clone()),
+            Some(_) => {
+                return Err(SessionError::InvalidProfile(
+                    "VSCODE_NONCE must be 1-256 UTF-8 bytes without controls or semicolons"
+                        .to_string(),
+                ));
+            }
+            None => None,
+        };
         let runtime = spawn_pty(&profile, DEFAULT_ROWS, DEFAULT_COLS)
             .map_err(|error: anyhow::Error| SessionError::Pty(error.to_string()))?;
         let child_pid = runtime.child_pid;
@@ -1212,23 +1419,22 @@ impl TerminalSession {
             DEFAULT_ROWS as usize,
             scrollback_lines,
         );
-        if graphics_enabled {
-            terminal.set_graphics_memory_limits(
-                profile.terminal.graphics.max_image_bytes,
-                profile.terminal.graphics.max_total_bytes,
-            );
-        }
-        apply_profile_colors(&mut terminal, &profile_colors);
-        if emulation == TerminalEmulation::Vt220 {
-            terminal.process(b"\x1b[62;1\"p");
-        }
+        configure_session_terminal(
+            &mut terminal,
+            emulation,
+            graphics_memory_limits,
+            &profile_colors,
+            osc633_expected_nonce.as_deref(),
+        );
 
         let session = Arc::new(Self {
             session_id,
             emulation,
             scrollback_lines,
             graphics_enabled,
+            graphics_memory_limits,
             profile_colors,
+            osc633_expected_nonce,
             state: Mutex::new(TerminalState {
                 terminal,
                 transcript: Vec::new(),
@@ -1244,11 +1450,11 @@ impl TerminalSession {
             child: Mutex::new(runtime.child),
             child_pid,
             process_name,
-            events: Mutex::new(VecDeque::from([TerminalEvent {
+            events: Mutex::new(PendingEventQueue::with_initial(TerminalEvent {
                 kind: "started".to_string(),
                 session_id,
                 payload: None,
-            }])),
+            })),
             diagnostic_events: Mutex::new(VecDeque::from([TerminalDiagnosticEvent {
                 timestamp_micros: unix_timestamp_micros(),
                 session_id,
@@ -1293,15 +1499,22 @@ impl TerminalSession {
                         ) = {
                             let mut state = reader_session.state.lock();
                             let cursor_before = terminal_cursor_snapshot(state.terminal.cursor());
-                            let host_started_at = Instant::now();
-                            let mut callback_events = state
-                                .host_protocol
-                                .observe(&buf[..read], reader_session.emulation);
-                            let host_protocol_micros = host_started_at.elapsed().as_micros() as u64;
                             let process_started_at = Instant::now();
                             let was_alt_screen_active = state.terminal.is_alt_screen_active();
                             let input_enters_alt_screen = input_sets_alt_screen(&buf[..read]);
-                            state.terminal.process(&buf[..read]);
+                            let mut callback_events = Vec::new();
+                            let mut host_protocol_micros = 0_u64;
+                            let TerminalState {
+                                terminal,
+                                host_protocol,
+                                ..
+                            } = &mut *state;
+                            terminal.process_with_filtered_input(&buf[..read], |filtered| {
+                                let host_started_at = Instant::now();
+                                callback_events =
+                                    host_protocol.observe(filtered, reader_session.emulation);
+                                host_protocol_micros = host_started_at.elapsed().as_micros() as u64;
+                            });
                             let parser_events = state.terminal.poll_events();
                             let notifications = state.terminal.take_notifications();
                             if reader_session.emulation == TerminalEmulation::Xterm256 {
@@ -1323,8 +1536,9 @@ impl TerminalSession {
                                     },
                                 ));
                             }
-                            let terminal_process_micros =
-                                process_started_at.elapsed().as_micros() as u64;
+                            let terminal_process_micros = (process_started_at.elapsed().as_micros()
+                                as u64)
+                                .saturating_sub(host_protocol_micros);
                             let terminal_process_breakdown =
                                 state.terminal.take_process_debug_stats();
                             append_transcript(&mut state, &buf[..read]);
@@ -1592,10 +1806,13 @@ impl TerminalSession {
             let transcript = state.transcript.clone();
             let mut terminal =
                 Terminal::with_scrollback(cols as usize, rows as usize, self.scrollback_lines);
-            apply_profile_colors(&mut terminal, &self.profile_colors);
-            if self.emulation == TerminalEmulation::Vt220 {
-                terminal.process(b"\x1b[62;1\"p");
-            }
+            configure_session_terminal(
+                &mut terminal,
+                self.emulation,
+                self.graphics_memory_limits,
+                &self.profile_colors,
+                self.osc633_expected_nonce.as_deref(),
+            );
             if pixel_width > 0 && pixel_height > 0 {
                 apply_terminal_pixel_metrics(
                     &mut terminal,
@@ -1608,6 +1825,13 @@ impl TerminalSession {
                 );
             }
             terminal.process(&transcript);
+            // Replaying the transcript rebuilds terminal state only. Historical
+            // host-facing effects must not be delivered again on the next PTY
+            // read after resize.
+            let _ = terminal.poll_events();
+            let _ = terminal.take_notifications();
+            let _ = terminal.drain_responses();
+            let _ = terminal.take_process_debug_stats();
             state.terminal = terminal;
         } else {
             state.terminal.resize(cols as usize, rows as usize);
@@ -1728,6 +1952,9 @@ impl TerminalSession {
         let terminal = &state.terminal;
         let theme = terminal_theme_snapshot(terminal);
         let (viewport_cols, viewport_rows) = terminal.size();
+        let global_bottom_row = u64::try_from(terminal.grid().total_lines_scrolled())
+            .unwrap_or(u64::MAX)
+            .saturating_add(u64::try_from(viewport_rows.saturating_sub(1)).unwrap_or(u64::MAX));
 
         let cursor = terminal.cursor();
         let modes = TerminalFrameModes {
@@ -1805,6 +2032,7 @@ impl TerminalSession {
             default_foreground_rgb: resolve_color_rgb(theme.default_fg, &theme.ansi_palette),
             default_background_rgb: resolve_color_rgb(theme.default_bg, &theme.ansi_palette),
             cursor_color_rgb: resolve_color_rgb(theme.cursor_color, &theme.ansi_palette),
+            ansi_palette: theme.ansi_palette,
             modes: modes.clone(),
             window_title: window_title.clone(),
             window_icon_name: window_icon_name.clone(),
@@ -1929,6 +2157,7 @@ impl TerminalSession {
             dirty_ranges,
             scrollback_offset: state.scrollback_offset,
             scrollback_max_offset,
+            global_bottom_row,
             viewport_start_row,
             viewport_row_shift,
             default_foreground: color_to_hex(theme.default_fg, &theme.ansi_palette),
@@ -2165,7 +2394,7 @@ impl TerminalSession {
             }
         }
 
-        Ok(self.events.lock().drain(..).collect())
+        Ok(self.events.lock().drain())
     }
 
     pub fn take_frame_debug_stats_json(&self) -> Result<Option<String>, SessionError> {
@@ -2204,6 +2433,17 @@ impl TerminalSession {
             let state = self.state.lock();
             stats.transcript_bytes = state.transcript.len();
             stats.transcript_truncated = state.transcript_truncated;
+            let osc_ingress = state.terminal.osc_ingress_diagnostics();
+            stats.osc_ingress_accepted = osc_ingress.accepted_total();
+            stats.osc_ingress_oversized = osc_ingress.oversized_total();
+            stats.osc_ingress_policy_denied = osc_ingress.policy_denied_total();
+            let input_buffers = state.terminal.input_buffer_diagnostics();
+            stats.synchronized_update_discards = input_buffers.synchronized_update_limit;
+            stats.non_sixel_dcs_discards = input_buffers.non_sixel_dcs_limit;
+            stats.response_buffer_overflows = state.terminal.response_buffer_overflow_count();
+            stats.vendor_terminal_event_drops = state.terminal.terminal_event_queue_diagnostics().2;
+            stats.tmux_notification_drops = state.terminal.tmux_notification_queue_diagnostics().1;
+            stats.recording_dropped_events = state.terminal.recording_resource_diagnostics().2;
         }
         {
             let pending = self.pending_frame_signal.snapshot();
@@ -2218,6 +2458,13 @@ impl TerminalSession {
                         delta_rows: scroll_region.delta_rows,
                     });
         }
+        {
+            let pending_events = self.events.lock();
+            stats.pending_event_count = pending_events.len();
+            stats.pending_event_bytes = pending_events.aggregate_bytes;
+            stats.pending_event_dropped_count = pending_events.dropped_count;
+            stats.pending_event_overflowed = pending_events.overflow_diagnostic_emitted;
+        }
         stats
     }
 
@@ -2230,7 +2477,7 @@ impl TerminalSession {
         let samples = tail_vec(&self.resource_samples.lock(), max_samples);
         let terminal_stats = self.session_debug_stats_snapshot();
         let frame_stats = self.last_frame_debug_stats.lock().clone();
-        let events = tail_vec(&self.diagnostic_events.lock(), 256);
+        let events = tail_vec(&self.diagnostic_events.lock(), MAX_DIAGNOSTIC_EVENTS);
         let summary = diagnostics_summary(
             self.child_pid,
             &samples,
@@ -2348,27 +2595,48 @@ impl TerminalSession {
                     "text": text,
                 })),
             ),
+            CallbackEvent::SessionReset => self.push_event("session_reset", None),
             CallbackEvent::Bell => self.push_event("bell", None),
         }
     }
 
     fn push_event(&self, kind: &str, payload: Option<serde_json::Value>) {
         let diagnostic_payload = sanitize_diagnostic_event_payload(kind, payload.as_ref());
-        self.events.lock().push_back(TerminalEvent {
+        let result = self.events.lock().push(TerminalEvent {
             kind: kind.to_string(),
             session_id: self.session_id,
             payload,
         });
-        let mut events = self.diagnostic_events.lock();
-        events.push_back(TerminalDiagnosticEvent {
+        self.push_diagnostic_event(TerminalDiagnosticEvent {
             timestamp_micros: unix_timestamp_micros(),
             session_id: self.session_id,
             kind: kind.to_string(),
             payload: diagnostic_payload,
         });
-        while events.len() > 256 {
-            events.pop_front();
+        if result.emit_overflow_diagnostic {
+            self.push_diagnostic_event(event_queue_overflow_diagnostic(self.session_id));
         }
+    }
+
+    fn push_diagnostic_event(&self, event: TerminalDiagnosticEvent) {
+        let mut events = self.diagnostic_events.lock();
+        events.push_back(event);
+        while events.len() > MAX_DIAGNOSTIC_EVENTS {
+            let index = events
+                .iter()
+                .position(|event| event.kind != EVENT_QUEUE_OVERFLOW_DIAGNOSTIC_KIND)
+                .unwrap_or(0);
+            let _ = events.remove(index);
+        }
+    }
+}
+
+fn event_queue_overflow_diagnostic(session_id: u64) -> TerminalDiagnosticEvent {
+    TerminalDiagnosticEvent {
+        timestamp_micros: unix_timestamp_micros(),
+        session_id,
+        kind: EVENT_QUEUE_OVERFLOW_DIAGNOSTIC_KIND.to_string(),
+        payload: None,
     }
 }
 
@@ -2576,7 +2844,14 @@ fn sanitize_diagnostic_event_payload(
             "action": payload.get("action").and_then(serde_json::Value::as_str),
             "state": payload.get("state").and_then(serde_json::Value::as_str),
             "percent": payload.get("percent").and_then(serde_json::Value::as_u64),
-            "id": payload.get("id").and_then(serde_json::Value::as_str),
+            "id_chars": payload
+                .get("id")
+                .and_then(serde_json::Value::as_str)
+                .map(|value| value.chars().count()),
+            "id_hash": payload
+                .get("id")
+                .and_then(serde_json::Value::as_str)
+                .map(diagnostic_hash),
             "label_hash": payload
                 .get("label")
                 .and_then(serde_json::Value::as_str)
@@ -3925,7 +4200,7 @@ struct TerminalThemeSnapshot {
     default_fg: Color,
     default_bg: Color,
     cursor_color: Color,
-    ansi_palette: [Color; 16],
+    ansi_palette: [Color; 256],
 }
 
 fn terminal_theme_snapshot(terminal: &Terminal) -> TerminalThemeSnapshot {
@@ -3933,7 +4208,11 @@ fn terminal_theme_snapshot(terminal: &Terminal) -> TerminalThemeSnapshot {
         default_fg: terminal.default_fg(),
         default_bg: terminal.default_bg(),
         cursor_color: terminal.cursor_color(),
-        ansi_palette: *terminal.get_ansi_palette(),
+        ansi_palette: std::array::from_fn(|index| {
+            terminal
+                .get_ansi_color(index)
+                .unwrap_or(Color::Indexed(index as u8))
+        }),
     }
 }
 
@@ -4474,6 +4753,9 @@ fn frame_meta_delta_break_reason(
     if previous_frame_meta.cursor_color_rgb != frame_meta.cursor_color_rgb {
         return Some("terminal_cursor_color_changed");
     }
+    if previous_frame_meta.ansi_palette != frame_meta.ansi_palette {
+        return Some("terminal_palette_changed");
+    }
     if previous_frame_meta.modes != frame_meta.modes {
         return Some("terminal_modes_changed");
     }
@@ -4522,6 +4804,53 @@ fn parse_hex_color(value: &str) -> Option<Color> {
     let green = u8::from_str_radix(&normalized[2..4], 16).ok()?;
     let blue = u8::from_str_radix(&normalized[4..6], 16).ok()?;
     Some(Color::Rgb(red, green, blue))
+}
+
+fn configure_session_terminal(
+    terminal: &mut Terminal,
+    emulation: TerminalEmulation,
+    graphics_memory_limits: Option<TerminalGraphicsMemoryLimits>,
+    profile_colors: &TerminalProfileColors,
+    osc633_expected_nonce: Option<&str>,
+) {
+    if let Some(limits) = graphics_memory_limits {
+        terminal.set_graphics_memory_limits(limits.max_image_bytes, limits.max_total_bytes);
+    }
+    apply_profile_colors(terminal, profile_colors);
+    configure_terminal_protocol_policy(terminal, emulation);
+    if let Some(nonce) = osc633_expected_nonce {
+        let configured = terminal.set_osc633_expected_nonce(Some(nonce.to_string()));
+        debug_assert!(configured, "VSCODE_NONCE was prevalidated");
+    }
+    if emulation == TerminalEmulation::Vt220 {
+        terminal.process(b"\x1b[62;1\"p");
+    }
+}
+
+fn configure_terminal_protocol_policy(terminal: &mut Terminal, emulation: TerminalEmulation) {
+    if emulation == TerminalEmulation::Vt220 {
+        for capability in [
+            OscCapability::Appearance,
+            OscCapability::Metadata,
+            OscCapability::Hyperlink,
+            OscCapability::ClipboardWrite,
+            OscCapability::ClipboardRead,
+            OscCapability::Notification,
+            OscCapability::Media,
+            OscCapability::HostAction,
+            OscCapability::FileTransfer,
+            OscCapability::CustomProtocol,
+        ] {
+            terminal.set_osc_capability_allowed(capability, false);
+        }
+        terminal.set_accept_osc7(false);
+        return;
+    }
+
+    // Parse OSC 52 reads as typed requests for the Dart policy layer. This
+    // does not enable the terminal's direct clipboard response flag, so the
+    // host action remains deny-by-default until Dart authorizes it.
+    terminal.set_osc_capability_allowed(OscCapability::ClipboardRead, true);
 }
 
 fn apply_profile_colors(terminal: &mut Terminal, colors: &TerminalProfileColors) {
@@ -4582,20 +4911,20 @@ fn apply_profile_ansi_colors(
     }
 }
 
-fn resolve_color_rgb(color: Color, ansi_palette: &[Color; 16]) -> (u8, u8, u8) {
+fn resolve_color_rgb(color: Color, ansi_palette: &[Color; 256]) -> (u8, u8, u8) {
     match color {
         Color::Named(named) => ansi_palette[named as usize].to_rgb(),
-        Color::Indexed(index) if index < 16 => ansi_palette[index as usize].to_rgb(),
-        _ => color.to_rgb(),
+        Color::Indexed(index) => ansi_palette[index as usize].to_rgb(),
+        Color::Rgb(red, green, blue) => (red, green, blue),
     }
 }
 
-fn color_to_hex(color: Color, ansi_palette: &[Color; 16]) -> Option<String> {
+fn color_to_hex(color: Color, ansi_palette: &[Color; 256]) -> Option<String> {
     let (red, green, blue) = resolve_color_rgb(color, ansi_palette);
     Some(format!("#{red:02x}{green:02x}{blue:02x}"))
 }
 
-fn color_to_hex_delta(color: Color, default: Color, ansi_palette: &[Color; 16]) -> Option<String> {
+fn color_to_hex_delta(color: Color, default: Color, ansi_palette: &[Color; 256]) -> Option<String> {
     if resolve_color_rgb(color, ansi_palette) == resolve_color_rgb(default, ansi_palette) {
         return None;
     }
@@ -4925,6 +5254,125 @@ mod tests {
     use std::collections::BTreeMap;
     use std::sync::Barrier;
 
+    fn pending_test_event(kind: &str, payload: Option<serde_json::Value>) -> TerminalEvent {
+        TerminalEvent {
+            kind: kind.to_string(),
+            session_id: 42,
+            payload,
+        }
+    }
+
+    #[test]
+    fn pending_event_queue_enforces_count_and_retains_critical_events() {
+        let mut queue = PendingEventQueue::with_limits(4, usize::MAX);
+        let mut overflow_diagnostics = 0;
+        for event in [
+            pending_test_event("exit", None),
+            pending_test_event(
+                "clipboard_paste_request",
+                Some(serde_json::json!({"selection": "c"})),
+            ),
+        ] {
+            overflow_diagnostics += usize::from(queue.push(event).emit_overflow_diagnostic);
+        }
+        for _ in 0..10 {
+            overflow_diagnostics += usize::from(
+                queue
+                    .push(pending_test_event("bell", None))
+                    .emit_overflow_diagnostic,
+            );
+        }
+
+        assert_eq!(queue.len(), 4);
+        assert_eq!(queue.dropped_count, 8);
+        assert_eq!(overflow_diagnostics, 1);
+        assert!(queue.entries.iter().any(|entry| entry.event.kind == "exit"));
+        assert!(
+            queue
+                .entries
+                .iter()
+                .any(|entry| entry.event.kind == "clipboard_paste_request")
+        );
+    }
+
+    #[test]
+    fn pending_event_queue_enforces_aggregate_bytes_by_evicting_oldest_coalescible() {
+        let bell = pending_test_event("bell", None);
+        let clipboard = pending_test_event(
+            "clipboard_copy",
+            Some(serde_json::json!({"selection": "c", "data": "safe"})),
+        );
+        let command = pending_test_event(
+            "shell_command",
+            Some(serde_json::json!({"command": "x".repeat(128)})),
+        );
+        let retained_bytes =
+            terminal_event_wire_size(&clipboard).saturating_add(terminal_event_wire_size(&command));
+        let mut queue = PendingEventQueue::with_limits(10, retained_bytes);
+
+        let _ = queue.push(bell);
+        let _ = queue.push(clipboard);
+        let result = queue.push(command);
+
+        assert!(result.emit_overflow_diagnostic);
+        assert_eq!(queue.len(), 2);
+        assert!(queue.aggregate_bytes <= retained_bytes);
+        assert!(queue.entries.iter().all(|entry| entry.event.kind != "bell"));
+        assert!(
+            queue
+                .entries
+                .iter()
+                .any(|entry| entry.event.kind == "clipboard_copy")
+        );
+        let drained = queue.drain();
+        assert_eq!(drained.len(), 2);
+        assert_eq!(queue.aggregate_bytes, 0);
+    }
+
+    #[test]
+    fn pending_event_queue_bounds_bell_spam_and_emits_one_bodyless_diagnostic() {
+        let mut queue = PendingEventQueue::default();
+        let mut overflow_diagnostics = 0;
+        for event in [
+            pending_test_event("exit", None),
+            pending_test_event(
+                "clipboard_copy",
+                Some(serde_json::json!({"selection": "c", "data": "copy"})),
+            ),
+            pending_test_event(
+                "clipboard_paste_request",
+                Some(serde_json::json!({"selection": "c"})),
+            ),
+        ] {
+            overflow_diagnostics += usize::from(queue.push(event).emit_overflow_diagnostic);
+        }
+        for _ in 0..5000 {
+            overflow_diagnostics += usize::from(
+                queue
+                    .push(pending_test_event("bell", None))
+                    .emit_overflow_diagnostic,
+            );
+        }
+
+        assert_eq!(queue.len(), MAX_PENDING_SESSION_EVENTS);
+        assert!(queue.aggregate_bytes <= MAX_PENDING_SESSION_EVENT_BYTES);
+        assert_eq!(
+            queue.dropped_count,
+            5003 - MAX_PENDING_SESSION_EVENTS as u64
+        );
+        assert_eq!(overflow_diagnostics, 1);
+        for kind in ["exit", "clipboard_copy", "clipboard_paste_request"] {
+            assert!(
+                queue.entries.iter().any(|entry| entry.event.kind == kind),
+                "critical {kind} event must survive BEL pressure"
+            );
+        }
+
+        let diagnostic = event_queue_overflow_diagnostic(42);
+        assert_eq!(diagnostic.kind, EVENT_QUEUE_OVERFLOW_DIAGNOSTIC_KIND);
+        assert!(diagnostic.payload.is_none());
+    }
+
     #[test]
     fn pending_frame_signal_clears_dirty_after_consuming_a_concurrent_mark() {
         let signal = Arc::new(PendingFrameSignal::new(false));
@@ -5163,7 +5611,7 @@ mod tests {
         terminal
             .set_ansi_palette_color(1, Color::Rgb(0x12, 0x34, 0x56))
             .unwrap();
-        let ansi_palette = *terminal.get_ansi_palette();
+        let ansi_palette = terminal_theme_snapshot(&terminal).ansi_palette;
 
         assert_eq!(
             color_to_hex(Color::Rgb(255, 0, 0), &ansi_palette),
@@ -5192,12 +5640,61 @@ mod tests {
     }
 
     #[test]
+    fn extended_osc_palette_updates_renderer_visible_indexed_color() {
+        let mut terminal = Terminal::with_scrollback(4, 4, 16);
+        terminal.process(b"\x1b[38;5;196mX");
+        let before_theme = terminal_theme_snapshot(&terminal);
+        let before = extract_row(terminal.grid().row(0), false, &before_theme);
+        assert_eq!(before.style_runs[0].foreground, Some("#ff0000".to_string()));
+        let _ = terminal.drain_active_screen_damage();
+
+        terminal.process(b"\x1b]4;196;#123456\x1b\\");
+        let palette_damage = terminal.drain_active_screen_damage();
+        assert!(palette_damage.full_repaint);
+        assert_eq!(
+            palette_damage.snapshot_fallback_reason.as_deref(),
+            Some("ansi_palette_changed")
+        );
+
+        let after_theme = terminal_theme_snapshot(&terminal);
+        let after = extract_row(terminal.grid().row(0), false, &after_theme);
+        assert_eq!(after.style_runs[0].foreground, Some("#123456".to_string()));
+    }
+
+    #[test]
+    fn dynamic_defaults_repaint_existing_default_glyphs_without_recoloring_explicit_same_rgb() {
+        let mut terminal = Terminal::with_scrollback(4, 2, 16);
+        terminal.set_default_fg(Color::Rgb(1, 2, 3));
+        terminal.set_default_bg(Color::Rgb(4, 5, 6));
+        terminal.process(b"A\x1b[38;2;1;2;3;48;2;4;5;6mB\x1b[0m");
+
+        terminal.process(b"\x1b]10;#112233\x1b\\\x1b]11;#445566\x1b\\");
+        let theme = terminal_theme_snapshot(&terminal);
+        let extracted = extract_row(terminal.grid().row(0), false, &theme);
+
+        let default_glyph = extracted
+            .style_runs
+            .iter()
+            .find(|run| run.start == 0)
+            .expect("default-colored glyph style");
+        assert_eq!(default_glyph.foreground, None);
+        assert_eq!(default_glyph.background, None);
+        let explicit_same_rgb = extracted
+            .style_runs
+            .iter()
+            .find(|run| run.start == 1)
+            .expect("explicit same-RGB glyph style");
+        assert_eq!(explicit_same_rgb.foreground.as_deref(), Some("#010203"));
+        assert_eq!(explicit_same_rgb.background.as_deref(), Some("#040506"));
+    }
+
+    #[test]
     fn extract_row_tracks_style_runs_in_terminal_columns() {
         let mut terminal = Terminal::with_scrollback(4, 4, 16);
         terminal
             .set_ansi_palette_color(1, Color::Rgb(0x12, 0x34, 0x56))
             .unwrap();
-        let ansi_palette = *terminal.get_ansi_palette();
+        let ansi_palette = terminal_theme_snapshot(&terminal).ansi_palette;
         let wide = Cell::with_colors(
             '你',
             Color::Named(NamedColor::White),
@@ -5238,7 +5735,7 @@ mod tests {
     #[test]
     fn extract_row_omits_default_colors_from_style_runs() {
         let terminal = Terminal::with_scrollback(4, 4, 16);
-        let ansi_palette = *terminal.get_ansi_palette();
+        let ansi_palette = terminal_theme_snapshot(&terminal).ansi_palette;
         let default_fg = Color::Rgb(0xAB, 0xCD, 0xEF);
         let default_bg = Color::Rgb(0x12, 0x34, 0x56);
         let theme = TerminalThemeSnapshot {
@@ -5819,7 +6316,7 @@ mod tests {
     #[test]
     fn extract_row_hides_kitty_placeholder_cells() {
         let terminal = Terminal::with_scrollback(4, 4, 16);
-        let ansi_palette = *terminal.get_ansi_palette();
+        let ansi_palette = terminal_theme_snapshot(&terminal).ansi_palette;
         let theme = TerminalThemeSnapshot {
             default_fg: Color::Named(NamedColor::White),
             default_bg: Color::Named(NamedColor::Black),
@@ -5886,6 +6383,191 @@ mod tests {
         assert!(events.is_empty());
         assert_eq!(state.window_icon_name.as_deref(), Some("build icon"));
         assert!(state.buffer.is_empty());
+    }
+
+    #[test]
+    fn host_protocol_ris_clears_native_icon_and_keypad_state() {
+        let mut state = HostProtocolState::default();
+        state.observe(b"\x1b]1;build icon\x07\x1b=", TerminalEmulation::Xterm256);
+        assert_eq!(state.window_icon_name.as_deref(), Some("build icon"));
+        assert!(state.application_keypad);
+
+        let events = state.observe(b"\x1bc", TerminalEmulation::Xterm256);
+
+        assert!(events.is_empty(), "the parser emits the typed reset event");
+        assert!(state.window_icon_name.is_none());
+        assert!(!state.application_keypad);
+        assert!(state.buffer.is_empty());
+    }
+
+    #[test]
+    fn osc1337_current_dir_rejects_malformed_percent_utf8_and_controls() {
+        assert!(shell_context_payload_from_current_dir("CurrentDir=/tmp/%ZZ").is_none());
+        assert!(shell_context_payload_from_current_dir("CurrentDir=/tmp/%01bad").is_none());
+        assert!(shell_context_payload_from_current_dir("CurrentDir=/tmp/%FFbad").is_none());
+
+        let valid = shell_context_payload_from_current_dir("CurrentDir=/tmp/ianvs%20terminal")
+            .expect("valid encoded absolute cwd");
+        assert_eq!(valid["cwd"], "/tmp/ianvs terminal");
+    }
+
+    #[test]
+    fn cwd_protocol_inputs_emit_one_authoritative_product_context_each() {
+        let cases: &[(&[u8], &str)] = &[
+            (b"\x1b]7;file://alice@remote.example/tmp/osc7\x07", "osc7"),
+            (b"\x1b]9;9;/tmp/osc9\x07", "osc9;9"),
+            (b"\x1b]633;P;Cwd=/tmp/osc633\x07", "osc633"),
+            (
+                b"\x1b]1337;RemoteHost=deploy@example.internal\x07",
+                "osc1337_remote_host",
+            ),
+        ];
+
+        for (sequence, expected_source) in cases {
+            let mut terminal = Terminal::new(80, 24);
+            terminal.process(sequence);
+            let contexts = terminal
+                .poll_events()
+                .into_iter()
+                .filter_map(|event| callback_event_from_parser_event(event, false))
+                .filter_map(|event| match event {
+                    CallbackEvent::ShellContext { payload } => Some(payload),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+
+            assert_eq!(
+                contexts.len(),
+                1,
+                "duplicate contexts for {expected_source}"
+            );
+            assert_eq!(contexts[0]["source"], *expected_source);
+        }
+    }
+
+    #[test]
+    fn local_cwd_context_explicitly_clears_remote_identity() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.process(b"\x1b]7;file://alice@remote.example/tmp/remote\x07");
+        let _ = terminal.poll_events();
+
+        terminal.process(b"\x1b]7;file:///tmp/local\x07");
+        let contexts = terminal
+            .poll_events()
+            .into_iter()
+            .filter_map(|event| callback_event_from_parser_event(event, false))
+            .filter_map(|event| match event {
+                CallbackEvent::ShellContext { payload } => Some(payload),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(contexts.len(), 1);
+        assert_eq!(contexts[0]["source"], "osc7");
+        assert_eq!(contexts[0]["cwd"], "/tmp/local");
+        assert_eq!(contexts[0].get("hostname"), Some(&serde_json::Value::Null));
+        assert_eq!(contexts[0].get("username"), Some(&serde_json::Value::Null));
+    }
+
+    #[test]
+    fn ris_maps_to_one_dedicated_product_reset_event() {
+        let mut terminal = Terminal::new(80, 24);
+
+        terminal.process(b"\x1b[2J\x1b[3J");
+        let clears = terminal
+            .poll_events()
+            .into_iter()
+            .filter_map(|event| callback_event_from_parser_event(event, false))
+            .collect::<Vec<_>>();
+        assert!(clears.is_empty(), "ED screen clears are not session resets");
+
+        terminal.process(b"\x1bc");
+        let resets = terminal
+            .poll_events()
+            .into_iter()
+            .filter_map(|event| callback_event_from_parser_event(event, false))
+            .collect::<Vec<_>>();
+        assert_eq!(resets.len(), 1);
+        assert!(matches!(resets[0], CallbackEvent::SessionReset));
+    }
+
+    #[test]
+    fn osc934_product_events_preserve_full_distinct_protocol_ids() {
+        let shared_prefix = "x".repeat(80);
+        let first = format!("{shared_prefix}-first");
+        let second = format!("{shared_prefix}-second");
+        let mut terminal = Terminal::new(80, 24);
+        terminal.process(
+            format!("\x1b]934;set;{first};percent=10\x1b\\\x1b]934;set;{second};percent=20\x1b\\")
+                .as_bytes(),
+        );
+
+        let ids = terminal
+            .poll_events()
+            .into_iter()
+            .filter_map(|event| callback_event_from_parser_event(event, false))
+            .filter_map(|event| match event {
+                CallbackEvent::SessionProgress { payload } => {
+                    payload["id"].as_str().map(str::to_string)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(ids, vec![first, second]);
+    }
+
+    #[test]
+    fn terminal_filtered_bridge_reassembles_bounded_osc52_for_host_policy() {
+        let mut terminal = Terminal::new(80, 24);
+        let mut host = HostProtocolState::default();
+        let encoded = "A".repeat(16 * 1024);
+        let sequence = format!("\x1b]52;c;{encoded}\x1b\\");
+        let mut events = Vec::new();
+
+        for chunk in sequence.as_bytes().chunks(777) {
+            terminal.process_with_filtered_input(chunk, |filtered| {
+                events.extend(host.observe(filtered, TerminalEmulation::Xterm256));
+            });
+        }
+
+        assert_eq!(events.len(), 1);
+        assert!(matches!(
+            &events[0],
+            CallbackEvent::ClipboardCopy { selection, data }
+                if selection == "c" && data.len() == encoded.len()
+        ));
+        assert!(host.buffer.is_empty());
+    }
+
+    #[test]
+    fn terminal_filtered_bridge_applies_policy_and_size_before_host_observer() {
+        let mut denied_terminal = Terminal::new(80, 24);
+        denied_terminal.set_osc_capability_allowed(OscCapability::Appearance, false);
+        let mut denied_host = HostProtocolState::default();
+        denied_terminal.process_with_filtered_input(b"\x1b]1;secret-icon\x07", |filtered| {
+            assert!(
+                denied_host
+                    .observe(filtered, TerminalEmulation::Xterm256)
+                    .is_empty()
+            );
+        });
+        assert!(denied_host.window_icon_name.is_none());
+
+        let mut oversized_terminal = Terminal::new(80, 24);
+        let mut oversized_host = HostProtocolState::default();
+        let mut oversized = b"\x1b]1;".to_vec();
+        oversized.extend(std::iter::repeat_n(b'x', 4097));
+        oversized.extend_from_slice(b"\x07visible");
+        oversized_terminal.process_with_filtered_input(&oversized, |filtered| {
+            assert_eq!(filtered, b"visible");
+            assert!(
+                oversized_host
+                    .observe(filtered, TerminalEmulation::Xterm256)
+                    .is_empty()
+            );
+        });
+        assert!(oversized_host.window_icon_name.is_none());
     }
 
     #[test]
@@ -6005,5 +6687,34 @@ mod tests {
         assert!(!sanitized.to_string().contains("alice"));
         assert!(!sanitized.to_string().contains("/Users/alice"));
         assert!(!sanitized.to_string().contains("status --short"));
+    }
+
+    #[test]
+    fn diagnostic_progress_payload_hashes_private_identity() {
+        let secret_id = "private-build-id-123";
+        let secret_label = "private deployment label";
+        let payload = serde_json::json!({
+            "source": "ianvs_osc934",
+            "named": true,
+            "action": "set",
+            "id": secret_id,
+            "state": "normal",
+            "percent": 42,
+            "label": secret_label,
+        });
+
+        let sanitized = sanitize_diagnostic_event_payload("session_progress", Some(&payload))
+            .expect("expected sanitized progress event");
+
+        assert_eq!(
+            sanitized["id_chars"].as_u64(),
+            Some(secret_id.chars().count() as u64)
+        );
+        assert!(sanitized["id_hash"].as_str().is_some());
+        assert!(sanitized["label_hash"].as_str().is_some());
+        assert!(sanitized.get("id").is_none());
+        let serialized = sanitized.to_string();
+        assert!(!serialized.contains(secret_id));
+        assert!(!serialized.contains(secret_label));
     }
 }

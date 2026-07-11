@@ -261,6 +261,12 @@ impl Grid {
         }
 
         if self.cols == cols {
+            if rows < self.rows {
+                // Shrinking can discard physical rows without a stable mapping
+                // for semantic zones. Native transcript replay reconstructs
+                // them; direct Grid consumers receive eviction events.
+                self.invalidate_zones();
+            }
             self.normalize_screen_rows();
             // Width unchanged: Optimized path using simple Vec resizing
             // This implicitly handles growing (padding with default) and shrinking (truncating)
@@ -281,11 +287,20 @@ impl Grid {
         let old_cols = self.cols;
         let old_rows = self.rows;
 
+        // A Zone stores physical row boundaries, not logical character
+        // offsets. Reflow can split or join every boundary, so retaining the
+        // old coordinates would be worse than invalidating them. Native core
+        // transcript replay reconstructs zones after a resize.
+        self.invalidate_zones();
+
         if self.max_scrollback > 0 && self.scrollback_lines > 0 {
             self.reflow_scrollback(old_cols, cols);
         }
 
         self.reflow_main_grid(old_cols, old_rows, cols, rows);
+        // Preserve the global-row invariant even when narrower reflow creates
+        // more retained physical rows than have previously scrolled.
+        self.total_lines_scrolled = self.total_lines_scrolled.max(self.scrollback_lines);
         self.damage.mark_full_repaint("resize");
     }
 

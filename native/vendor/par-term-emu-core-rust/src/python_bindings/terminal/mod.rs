@@ -631,7 +631,7 @@ impl PyTerminal {
     /// Returns:
     ///     Tuple of (r, g, b) integers
     fn default_fg(&self) -> PyResult<(u8, u8, u8)> {
-        Ok(self.inner.default_fg().to_rgb())
+        Ok(self.inner.resolve_color_rgb(self.inner.default_fg()))
     }
 
     /// Set default foreground color (OSC 10)
@@ -661,7 +661,7 @@ impl PyTerminal {
     /// Returns:
     ///     Tuple of (r, g, b) integers
     fn default_bg(&self) -> PyResult<(u8, u8, u8)> {
-        Ok(self.inner.default_bg().to_rgb())
+        Ok(self.inner.resolve_color_rgb(self.inner.default_bg()))
     }
 
     /// Set default background color (OSC 11)
@@ -691,7 +691,7 @@ impl PyTerminal {
     /// Returns:
     ///     Tuple of (r, g, b) integers
     fn cursor_color(&self) -> PyResult<(u8, u8, u8)> {
-        Ok(self.inner.cursor_color().to_rgb())
+        Ok(self.inner.resolve_color_rgb(self.inner.cursor_color()))
     }
 
     /// Set cursor color (OSC 12)
@@ -714,16 +714,16 @@ impl PyTerminal {
         Ok(())
     }
 
-    /// Set ANSI palette color (0-15)
+    /// Set ANSI/xterm palette color (0-255)
     ///
     /// Args:
-    ///     index: Palette index (0-15)
+    ///     index: Palette index (0-255)
     ///     r: Red component (0-255)
     ///     g: Green component (0-255)
     ///     b: Blue component (0-255)
     ///
     /// Raises:
-    ///     ValueError: If index is not in range 0-15
+    ///     ValueError: If index is not in range 0-255
     fn set_ansi_palette_color(&mut self, index: usize, r: u8, g: u8, b: u8) -> PyResult<()> {
         self.inner
             .set_ansi_palette_color(index, Color::Rgb(r, g, b))
@@ -835,7 +835,7 @@ impl PyTerminal {
     /// Returns:
     ///     Tuple of (r, g, b) integers (0-255)
     fn link_color(&self) -> PyResult<(u8, u8, u8)> {
-        Ok(self.inner.link_color().to_rgb())
+        Ok(self.inner.resolve_color_rgb(self.inner.link_color()))
     }
 
     /// Get bold text color
@@ -843,7 +843,7 @@ impl PyTerminal {
     /// Returns:
     ///     Tuple of (r, g, b) integers (0-255)
     fn bold_color(&self) -> PyResult<(u8, u8, u8)> {
-        Ok(self.inner.bold_color().to_rgb())
+        Ok(self.inner.resolve_color_rgb(self.inner.bold_color()))
     }
 
     /// Get cursor guide color
@@ -851,7 +851,9 @@ impl PyTerminal {
     /// Returns:
     ///     Tuple of (r, g, b) integers (0-255)
     fn cursor_guide_color(&self) -> PyResult<(u8, u8, u8)> {
-        Ok(self.inner.cursor_guide_color().to_rgb())
+        Ok(self
+            .inner
+            .resolve_color_rgb(self.inner.cursor_guide_color()))
     }
 
     /// Get badge color
@@ -859,7 +861,7 @@ impl PyTerminal {
     /// Returns:
     ///     Tuple of (r, g, b) integers (0-255)
     fn badge_color(&self) -> PyResult<(u8, u8, u8)> {
-        Ok(self.inner.badge_color().to_rgb())
+        Ok(self.inner.resolve_color_rgb(self.inner.badge_color()))
     }
 
     /// Get match/search highlight color
@@ -867,7 +869,7 @@ impl PyTerminal {
     /// Returns:
     ///     Tuple of (r, g, b) integers (0-255)
     fn match_color(&self) -> PyResult<(u8, u8, u8)> {
-        Ok(self.inner.match_color().to_rgb())
+        Ok(self.inner.resolve_color_rgb(self.inner.match_color()))
     }
 
     /// Get selection background color
@@ -875,7 +877,9 @@ impl PyTerminal {
     /// Returns:
     ///     Tuple of (r, g, b) integers (0-255)
     fn selection_bg_color(&self) -> PyResult<(u8, u8, u8)> {
-        Ok(self.inner.selection_bg_color().to_rgb())
+        Ok(self
+            .inner
+            .resolve_color_rgb(self.inner.selection_bg_color()))
     }
 
     /// Get selection foreground/text color
@@ -883,7 +887,9 @@ impl PyTerminal {
     /// Returns:
     ///     Tuple of (r, g, b) integers (0-255)
     fn selection_fg_color(&self) -> PyResult<(u8, u8, u8)> {
-        Ok(self.inner.selection_fg_color().to_rgb())
+        Ok(self
+            .inner
+            .resolve_color_rgb(self.inner.selection_fg_color()))
     }
 
     /// Check if custom bold color is enabled
@@ -1017,8 +1023,8 @@ impl PyTerminal {
                 .map(|cell| {
                     (
                         cell.get_grapheme(),
-                        cell.fg.to_rgb(),
-                        cell.bg.to_rgb(),
+                        self.inner.resolve_color_rgb(cell.fg),
+                        self.inner.resolve_color_rgb(cell.bg),
                         PyAttributes {
                             bold: cell.flags.bold(),
                             dim: cell.flags.dim(),
@@ -1100,7 +1106,7 @@ impl PyTerminal {
     ///     Tuple of (r, g, b) values, or None if out of bounds
     fn get_fg_color(&self, col: usize, row: usize) -> PyResult<Option<(u8, u8, u8)>> {
         if let Some(cell) = self.inner.active_grid().get(col, row) {
-            Ok(Some(cell.fg.to_rgb()))
+            Ok(Some(self.inner.resolve_color_rgb(cell.fg)))
         } else {
             Ok(None)
         }
@@ -1116,7 +1122,7 @@ impl PyTerminal {
     ///     Tuple of (r, g, b) values, or None if out of bounds
     fn get_bg_color(&self, col: usize, row: usize) -> PyResult<Option<(u8, u8, u8)>> {
         if let Some(cell) = self.inner.active_grid().get(col, row) {
-            Ok(Some(cell.bg.to_rgb()))
+            Ok(Some(self.inner.resolve_color_rgb(cell.bg)))
         } else {
             Ok(None)
         }
@@ -1132,7 +1138,9 @@ impl PyTerminal {
     ///     Tuple of (r, g, b) values, or None if no underline color set or out of bounds
     fn get_underline_color(&self, col: usize, row: usize) -> PyResult<Option<(u8, u8, u8)>> {
         if let Some(cell) = self.inner.active_grid().get(col, row) {
-            Ok(cell.underline_color.map(|c| c.to_rgb()))
+            Ok(cell
+                .underline_color
+                .map(|color| self.inner.resolve_color_rgb(color)))
         } else {
             Ok(None)
         }
@@ -1209,8 +1217,8 @@ impl PyTerminal {
                 grid.get(col, row).map(|cell| {
                     (
                         cell.get_grapheme(),
-                        cell.fg.to_rgb(),
-                        cell.bg.to_rgb(),
+                        self.inner.resolve_color_rgb(cell.fg),
+                        self.inner.resolve_color_rgb(cell.bg),
                         PyAttributes {
                             bold: cell.flags.bold(),
                             dim: cell.flags.dim(),
@@ -1256,8 +1264,8 @@ impl PyTerminal {
                 if let Some(cell) = grid.get(col, row) {
                     line.push((
                         cell.get_grapheme(),
-                        cell.fg.to_rgb(),
-                        cell.bg.to_rgb(),
+                        self.inner.resolve_color_rgb(cell.fg),
+                        self.inner.resolve_color_rgb(cell.bg),
                         PyAttributes {
                             bold: cell.flags.bold(),
                             dim: cell.flags.dim(),
@@ -2782,8 +2790,8 @@ impl PyTerminal {
     /// Drain only shell integration events, keeping other events queued
     ///
     /// Returns events with their captured cursor_line so callers can process
-    /// each marker at the correct absolute line (scrollback_len + cursor_row
-    /// at the time the OSC 133 sequence was parsed).
+    /// each marker at the correct global line (total_lines_scrolled +
+    /// cursor_row at the time the OSC 133 sequence was parsed).
     ///
     /// Returns:
     ///     List of dicts with keys: event_type, command, exit_code, timestamp, cursor_line
@@ -2850,18 +2858,12 @@ impl PyTerminal {
         Ok(Some(self.inner.left_right_margins()))
     }
 
-    /// Get an ANSI palette color by index (0-15)
+    /// Get an ANSI/xterm palette color by index (0-255)
     fn get_ansi_color(&self, index: u8) -> PyResult<Option<(u8, u8, u8)>> {
-        use crate::color::Color;
-        if let Some(color) = self.inner.get_ansi_color(index as usize) {
-            match color {
-                Color::Rgb(r, g, b) => Ok(Some((r, g, b))),
-                Color::Named(_) => Ok(None), // Named colors don't have RGB values
-                Color::Indexed(_) => Ok(None),
-            }
-        } else {
-            Ok(None)
-        }
+        Ok(self
+            .inner
+            .get_ansi_color(index as usize)
+            .map(|color| self.inner.resolve_color_rgb(color)))
     }
 
     /// Get the entire ANSI color palette (colors 0-15)
@@ -4677,8 +4679,9 @@ impl PyTerminal {
         hostname: Option<String>,
         username: Option<String>,
     ) -> PyResult<()> {
-        use crate::terminal::CwdChange;
+        use crate::terminal::{CwdChange, CwdChangeSource};
         self.inner.record_cwd_change(CwdChange {
+            source: CwdChangeSource::Manual,
             old_cwd: None,
             new_cwd,
             hostname,
@@ -5484,11 +5487,13 @@ impl PyTerminal {
     ///
     /// Returns a list of zone dictionaries, each containing:
     /// - zone_type: str - "prompt", "command", or "output"
-    /// - abs_row_start: int - Absolute row where zone starts
-    /// - abs_row_end: int - Absolute row where zone ends (inclusive)
+    /// - abs_row_start: int - Global absolute row where zone starts
+    /// - abs_row_end: int - Global absolute row where zone ends (inclusive)
     /// - command: str | None - Command text (for command/output zones)
     /// - exit_code: int | None - Exit code (for output zones after command finishes)
     /// - timestamp: int | None - Unix milliseconds when zone was created
+    ///
+    /// Visible row `n` uses coordinate `total_lines_scrolled() + n`.
     ///
     /// Returns:
     ///     List of zone dictionaries sorted by row position
@@ -5522,14 +5527,14 @@ impl PyTerminal {
     /// Get the semantic zone containing the given absolute row
     ///
     /// Args:
-    ///     abs_row: Absolute row number (scrollback_len + visible_row)
+    ///     abs_row: Global row number (total_lines_scrolled + visible_row)
     ///
     /// Returns:
     ///     Zone dictionary or None if no zone contains this row
     ///
     /// Example:
     ///     ```python
-    ///     zone = term.get_zone_at(term.scrollback_len() + 0)
+    ///     zone = term.get_zone_at(term.total_lines_scrolled() + 0)
     ///     if zone:
     ///         print(f"Row 0 is in a {zone['zone_type']} zone")
     ///     ```
@@ -5557,7 +5562,7 @@ impl PyTerminal {
     /// trimming trailing whitespace. Returns None if no zone contains this row.
     ///
     /// Args:
-    ///     abs_row: Absolute row number (scrollback_len + visible_row)
+    ///     abs_row: Global row number (total_lines_scrolled + visible_row)
     ///
     /// Returns:
     ///     Zone text content as a string, or None
@@ -5925,6 +5930,7 @@ impl PyTerminal {
             "file_transfer_completed" => Some(TerminalEventKind::FileTransferCompleted),
             "file_transfer_failed" => Some(TerminalEventKind::FileTransferFailed),
             "upload_requested" => Some(TerminalEventKind::UploadRequested),
+            "terminal_reset" => Some(TerminalEventKind::TerminalReset),
             _ => None,
         }
     }

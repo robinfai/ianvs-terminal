@@ -32,16 +32,47 @@ pub fn render_grid(
     graphics: &[TerminalGraphic],
     config: ScreenshotConfig,
 ) -> ScreenshotResult<Vec<u8>> {
+    render_grid_impl(grid, cursor, graphics, config, None)
+}
+
+pub(crate) fn render_grid_with_palette(
+    grid: &Grid,
+    cursor: Option<&Cursor>,
+    graphics: &[TerminalGraphic],
+    config: ScreenshotConfig,
+    palette: [crate::color::Color; 256],
+) -> ScreenshotResult<Vec<u8>> {
+    render_grid_impl(grid, cursor, graphics, config, Some(palette))
+}
+
+fn render_grid_impl(
+    grid: &Grid,
+    cursor: Option<&Cursor>,
+    graphics: &[TerminalGraphic],
+    config: ScreenshotConfig,
+    palette: Option<[crate::color::Color; 256]>,
+) -> ScreenshotResult<Vec<u8>> {
     // SVG doesn't support cursor or sixel rendering yet
     if config.format == ImageFormat::Svg {
-        return formats::svg::encode(grid, config.font_size, config.padding_px);
+        return match palette.as_ref() {
+            Some(palette) => formats::svg::encode_with_palette(
+                grid,
+                config.font_size,
+                config.padding_px,
+                Some(palette),
+            ),
+            None => formats::svg::encode(grid, config.font_size, config.padding_px),
+        };
     }
 
     // Raster formats (PNG, JPEG, BMP)
     let rows = grid.rows();
     let cols = grid.cols();
 
-    let mut renderer = Renderer::new(rows, cols, config.clone())?;
+    let mut renderer = match palette {
+        Some(palette) => Renderer::new_with_palette(rows, cols, config.clone(), palette)?,
+        None => Renderer::new(rows, cols, config.clone())?,
+    };
     let image = renderer.render_grid(grid, cursor, graphics)?;
 
     // Encode based on format
@@ -62,6 +93,19 @@ pub fn save_grid(
     config: ScreenshotConfig,
 ) -> ScreenshotResult<()> {
     let bytes = render_grid(grid, cursor, graphics, config)?;
+    std::fs::write(path, bytes)?;
+    Ok(())
+}
+
+pub(crate) fn save_grid_with_palette(
+    grid: &Grid,
+    cursor: Option<&Cursor>,
+    graphics: &[TerminalGraphic],
+    path: &Path,
+    config: ScreenshotConfig,
+    palette: [crate::color::Color; 256],
+) -> ScreenshotResult<()> {
+    let bytes = render_grid_with_palette(grid, cursor, graphics, config, palette)?;
     std::fs::write(path, bytes)?;
     Ok(())
 }

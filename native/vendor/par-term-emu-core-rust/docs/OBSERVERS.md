@@ -403,6 +403,8 @@ All observer events are delivered as Python dicts with a `"type"` key identifyin
 
 #### Shell Integration
 
+`cursor_line` and the zone `abs_row_*` fields below use global row coordinates: visible row `n` is `total_lines_scrolled + n`. They do not move backward when bounded scrollback evicts rows.
+
 ```python
 {
     "type": "shell_integration",

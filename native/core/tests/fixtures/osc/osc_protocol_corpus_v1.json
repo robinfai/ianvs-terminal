@@ -1,0 +1,253 @@
+{
+  "schema_version": "ianvs-osc-corpus-v1",
+  "encoding": "lowercase-hex",
+  "description": "Shared byte-level OSC edge corpus. The Dart mirror must remain byte-for-byte equivalent.",
+  "cases": [
+    {
+      "id": "bel_terminator",
+      "coverage": ["BEL terminator"],
+      "protocol": "OSC 8",
+      "wire": {
+        "chunks_hex": [
+          "1b5d383b69643d62656c3b68747470733a2f2f6578616d706c652e746573742f62656c07"
+        ]
+      },
+      "terminator": "BEL",
+      "expected": {
+        "semantic_intent": "hyperlink_open",
+        "state_effect": "hyperlink id=bel opens",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "st_terminator",
+      "coverage": ["ST terminator"],
+      "protocol": "OSC 8",
+      "wire": {
+        "chunks_hex": [
+          "1b5d383b69643d73743b68747470733a2f2f6578616d706c652e746573742f73741b5c"
+        ]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "hyperlink_open",
+        "state_effect": "hyperlink id=st opens",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "split_escape_introducer",
+      "coverage": ["split ESC"],
+      "protocol": "OSC 2",
+      "wire": {
+        "chunks_hex": ["1b", "5d323b73706c69742d696e74726f64756365721b5c"]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "title",
+        "state_effect": "title becomes split-introducer",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "split_st_terminator",
+      "coverage": ["split ST"],
+      "protocol": "OSC 2",
+      "wire": {
+        "chunks_hex": ["1b5d323b73706c69742d7465726d696e61746f721b", "5c"]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "title",
+        "state_effect": "title becomes split-terminator",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "split_utf8_scalar",
+      "coverage": ["split UTF-8"],
+      "protocol": "OSC 2",
+      "wire": {
+        "chunks_hex": ["1b5d323b757466382d", "e4", "bda0e5", "a5bd1b5c"]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "title",
+        "state_effect": "title becomes utf8-你好",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "empty_parameter",
+      "coverage": ["empty parameter"],
+      "protocol": "OSC 8",
+      "wire": {
+        "chunks_hex": [
+          "1b5d383b3b68747470733a2f2f6578616d706c652e746573742f656d7074791b5c"
+        ]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "hyperlink_open",
+        "state_effect": "hyperlink opens without a protocol id",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "missing_parameter",
+      "coverage": ["missing parameter"],
+      "protocol": "OSC 8",
+      "wire": {
+        "chunks_hex": ["1b5d383b69643d6d697373696e671b5c"]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "malformed_hyperlink",
+        "state_effect": "ignored without hyperlink mutation",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "duplicate_parameter",
+      "coverage": ["duplicate parameter"],
+      "protocol": "OSC 8",
+      "wire": {
+        "chunks_hex": [
+          "1b5d383b69643d66697273743a69643d7365636f6e643b68747470733a2f2f6578616d706c652e746573742f6475706c69636174651b5c"
+        ]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "hyperlink_open",
+        "state_effect": "duplicate id handling is deterministic",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "oversized_payload",
+      "coverage": ["oversized payload"],
+      "protocol": "OSC 0",
+      "wire": {
+        "prefix_hex": "1b5d303b",
+        "repeat_hex": "41",
+        "repeat_count": 4097,
+        "suffix_hex": "07",
+        "declared_payload_limit_bytes": 4096
+      },
+      "terminator": "BEL",
+      "expected": {
+        "semantic_intent": "oversized_title",
+        "state_effect": "discarded at the declared corpus limit",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "malformed_base64",
+      "coverage": ["malformed Base64"],
+      "protocol": "OSC 52",
+      "wire": {
+        "chunks_hex": ["1b5d35323b633b2525256e6f742d6261736536342525251b5c"]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "clipboard_write_request",
+        "state_effect": "rejected without clipboard mutation",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "malformed_percent_encoding",
+      "coverage": ["malformed percent encoding"],
+      "protocol": "OSC 7",
+      "wire": {
+        "chunks_hex": ["1b5d373b66696c653a2f2f2f746d702f255a5a2f6261641b5c"]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "cwd",
+        "state_effect": "invalid path is ignored or sanitized",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "unknown_key",
+      "coverage": ["unknown key"],
+      "protocol": "OSC 8",
+      "wire": {
+        "chunks_hex": [
+          "1b5d383b76656e646f723d6675747572653a69643d6b6e6f776e3b68747470733a2f2f6578616d706c652e746573742f756e6b6e6f776e1b5c"
+        ]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "hyperlink_open",
+        "state_effect": "unknown key ignored and id=known retained",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "mixed_supported_unsupported",
+      "coverage": ["mixed supported/unsupported sequence"],
+      "protocol": "OSC 2 + OSC 999 + OSC 8",
+      "wire": {
+        "chunks_hex": [
+          "1b5d323b737570706f727465642d7469746c651b5c1b5d3939393b756e737570706f727465641b5c1b5d383b69643d6d697865643b68747470733a2f2f6578616d706c652e746573742f6d6978656407"
+        ],
+        "sequence_count": 3
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "mixed_stream",
+        "state_effect": "supported neighbors apply and OSC 999 is a no-op",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "tmux_passthrough",
+      "coverage": ["tmux passthrough fixture"],
+      "protocol": "tmux DCS passthrough carrying OSC 8",
+      "wire": {
+        "chunks_hex": [
+          "1b50746d75783b1b1b5d383b69643d746d75783b68747470733a2f2f6578616d706c652e746573742f746d75781b1b5c1b5c"
+        ]
+      },
+      "terminator": "DCS_ST",
+      "expected": {
+        "semantic_intent": "hyperlink_open",
+        "state_effect": "outer DCS unwrap preserves id=tmux",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "screen_passthrough",
+      "coverage": ["screen passthrough fixture"],
+      "protocol": "GNU screen DCS passthrough carrying OSC 8",
+      "wire": {
+        "chunks_hex": [
+          "1b501b5d383b69643d73637265656e3b68747470733a2f2f6578616d706c652e746573742f73637265656e071b5c"
+        ]
+      },
+      "terminator": "DCS_ST",
+      "expected": {
+        "semantic_intent": "hyperlink_open",
+        "state_effect": "outer DCS unwrap preserves id=screen",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    }
+  ]
+}

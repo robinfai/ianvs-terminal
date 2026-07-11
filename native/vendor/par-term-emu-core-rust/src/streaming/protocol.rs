@@ -358,7 +358,7 @@ pub enum ServerMessage {
         /// Timestamp (Unix epoch milliseconds)
         #[serde(skip_serializing_if = "Option::is_none")]
         timestamp: Option<u64>,
-        /// Absolute cursor line (scrollback_len + cursor_row) at marker time
+        /// Global cursor line (`total_lines_scrolled + cursor_row`) at marker time
         #[serde(skip_serializing_if = "Option::is_none")]
         cursor_line: Option<u64>,
     },
@@ -408,7 +408,7 @@ pub enum ServerMessage {
         zone_id: u64,
         /// Zone type: "prompt", "command", "output"
         zone_type: String,
-        /// Absolute row where zone starts
+        /// Global absolute row where the zone starts
         abs_row_start: u64,
     },
 
@@ -419,9 +419,9 @@ pub enum ServerMessage {
         zone_id: u64,
         /// Zone type
         zone_type: String,
-        /// Absolute row where zone starts
+        /// Global absolute row where the zone starts
         abs_row_start: u64,
-        /// Absolute row where zone ends
+        /// Global absolute row where the zone ends
         abs_row_end: u64,
         /// Exit code (for output zones only)
         #[serde(skip_serializing_if = "Option::is_none")]

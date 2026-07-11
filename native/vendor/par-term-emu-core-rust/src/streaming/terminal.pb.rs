@@ -387,7 +387,7 @@ pub struct ShellIntegrationEvent {
     pub exit_code: ::core::option::Option<i32>,
     #[prost(uint64, optional, tag = "4")]
     pub timestamp: ::core::option::Option<u64>,
-    /// Absolute cursor line (scrollback_len + cursor_row) at marker time
+    /// Global cursor line (total_lines_scrolled + cursor_row) at marker time
     #[prost(uint64, optional, tag = "5")]
     pub cursor_line: ::core::option::Option<u64>,
 }
@@ -503,6 +503,7 @@ pub struct ZoneOpened {
     /// "prompt", "command", "output"
     #[prost(string, tag = "2")]
     pub zone_type: ::prost::alloc::string::String,
+    /// Global absolute row (total_lines_scrolled + visible_row)
     #[prost(uint64, tag = "3")]
     pub abs_row_start: u64,
 }
@@ -513,8 +514,10 @@ pub struct ZoneClosed {
     pub zone_id: u64,
     #[prost(string, tag = "2")]
     pub zone_type: ::prost::alloc::string::String,
+    /// Global absolute row (total_lines_scrolled + visible_row)
     #[prost(uint64, tag = "3")]
     pub abs_row_start: u64,
+    /// Inclusive global absolute row
     #[prost(uint64, tag = "4")]
     pub abs_row_end: u64,
     #[prost(int32, optional, tag = "5")]

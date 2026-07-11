@@ -10,69 +10,150 @@ use crate::terminal::Terminal;
 use std::time::Instant;
 
 const GRAPHICS_SEQUENCE_OVERHEAD_BYTES: usize = 4096;
+const TMUX_PASSTHROUGH_HEADER: &[u8] = b"tmux;";
+
+fn unsupported_iterm_log_message(command: &str) -> String {
+    format!(
+        "Unsupported OSC 1337 command: command_bytes={}",
+        command.len()
+    )
+}
+
+/// Incremental decoder state for tmux/screen DCS passthrough wrappers.
+///
+/// No wrapper payload is retained here: decoded bytes are emitted to the OSC
+/// ingress gate on every `process` call.  The largest retained state is the
+/// fixed five-byte tmux header prefix.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum GraphicsPassthroughState {
+    #[default]
+    Ground,
+    Escape,
+    DcsStart,
+    TmuxHeader(usize),
+    TmuxPayload,
+    TmuxPayloadEscape,
+    ScreenPayload,
+    ScreenPayloadEscape,
+}
+
+impl GraphicsPassthroughState {
+    pub(crate) const fn is_ground(self) -> bool {
+        matches!(self, Self::Ground)
+    }
+}
 
 impl Terminal {
-    /// Unwrap tmux/screen DCS passthrough wrappers before the normal graphics parsers run.
+    /// Incrementally unwrap tmux/screen DCS passthrough wrappers.
+    ///
+    /// Decoded bytes are returned on each call so OSC policy and size limits
+    /// run before an outer wrapper terminates.  Only fixed-size decoder state
+    /// is retained across chunks.
     pub(crate) fn handle_graphics_passthrough_sequences(&mut self, data: &[u8]) -> Vec<u8> {
-        let input = if self.graphics_passthrough_buffer.is_empty() {
-            data.to_vec()
-        } else {
-            let mut buffered = std::mem::take(&mut self.graphics_passthrough_buffer);
-            buffered.extend_from_slice(data);
-            buffered
-        };
+        let mut output = Vec::with_capacity(data.len().saturating_add(7));
 
-        let mut output = Vec::with_capacity(input.len());
-        let mut index = 0usize;
-        while index < input.len() {
-            let Some(relative_start) = find_bytes(&input[index..], b"\x1bP") else {
-                output.extend_from_slice(&input[index..]);
-                break;
-            };
-            let start = index + relative_start;
-            let is_tmux = input[start..].starts_with(b"\x1bPtmux;");
-            let is_screen = !is_tmux && input.get(start + 2) == Some(&b'\x1b');
-            if !is_tmux && !is_screen {
-                output.extend_from_slice(&input[index..start + 2]);
-                index = start + 2;
-                continue;
-            }
-
-            output.extend_from_slice(&input[index..start]);
-            let payload_start = if is_tmux {
-                start + b"\x1bPtmux;".len()
-            } else {
-                start + 2
-            };
-            let Some((terminator_start, terminator_end)) =
-                find_dcs_passthrough_terminator(&input, payload_start, is_tmux)
-            else {
-                if !self.retain_incomplete_graphics_passthrough(&input[start..]) {
-                    self.push_kitty_response(
-                        None,
-                        None,
-                        "EINVAL: graphics passthrough sequence exceeds configured byte limit",
-                    );
+        for &input_byte in data {
+            let mut byte = Some(input_byte);
+            while let Some(current) = byte.take() {
+                match self.graphics_passthrough_state {
+                    GraphicsPassthroughState::Ground => {
+                        if current == b'\x1b' {
+                            self.graphics_passthrough_state = GraphicsPassthroughState::Escape;
+                        } else {
+                            output.push(current);
+                        }
+                    }
+                    GraphicsPassthroughState::Escape => {
+                        if current == b'P' {
+                            self.graphics_passthrough_state = GraphicsPassthroughState::DcsStart;
+                        } else {
+                            output.push(b'\x1b');
+                            self.graphics_passthrough_state = GraphicsPassthroughState::Ground;
+                            byte = Some(current);
+                        }
+                    }
+                    GraphicsPassthroughState::DcsStart => {
+                        if current == b'\x1b' {
+                            // Screen's wrapper payload begins with this ESC.
+                            self.graphics_passthrough_state =
+                                GraphicsPassthroughState::ScreenPayloadEscape;
+                        } else if current == TMUX_PASSTHROUGH_HEADER[0] {
+                            self.graphics_passthrough_state =
+                                GraphicsPassthroughState::TmuxHeader(1);
+                        } else {
+                            // Not a passthrough wrapper; preserve the DCS bytes.
+                            output.extend_from_slice(b"\x1bP");
+                            self.graphics_passthrough_state = GraphicsPassthroughState::Ground;
+                            byte = Some(current);
+                        }
+                    }
+                    GraphicsPassthroughState::TmuxHeader(matched) => {
+                        if current == TMUX_PASSTHROUGH_HEADER[matched] {
+                            let matched = matched + 1;
+                            self.graphics_passthrough_state =
+                                if matched == TMUX_PASSTHROUGH_HEADER.len() {
+                                    GraphicsPassthroughState::TmuxPayload
+                                } else {
+                                    GraphicsPassthroughState::TmuxHeader(matched)
+                                };
+                        } else {
+                            // The fixed header candidate was an ordinary DCS.
+                            output.extend_from_slice(b"\x1bP");
+                            output.extend_from_slice(&TMUX_PASSTHROUGH_HEADER[..matched]);
+                            self.graphics_passthrough_state = GraphicsPassthroughState::Ground;
+                            byte = Some(current);
+                        }
+                    }
+                    GraphicsPassthroughState::TmuxPayload => {
+                        if current == b'\x1b' {
+                            self.graphics_passthrough_state =
+                                GraphicsPassthroughState::TmuxPayloadEscape;
+                        } else {
+                            output.push(current);
+                        }
+                    }
+                    GraphicsPassthroughState::TmuxPayloadEscape => match current {
+                        b'\x1b' => {
+                            // tmux doubles every ESC in the inner stream.
+                            output.push(b'\x1b');
+                            self.graphics_passthrough_state = GraphicsPassthroughState::TmuxPayload;
+                        }
+                        b'\\' => {
+                            // A non-doubled ST terminates the outer wrapper.
+                            self.graphics_passthrough_state = GraphicsPassthroughState::Ground;
+                        }
+                        _ => {
+                            // Preserve malformed/non-doubled inner ESC bytes.
+                            output.push(b'\x1b');
+                            self.graphics_passthrough_state = GraphicsPassthroughState::TmuxPayload;
+                            byte = Some(current);
+                        }
+                    },
+                    GraphicsPassthroughState::ScreenPayload => {
+                        if current == b'\x1b' {
+                            self.graphics_passthrough_state =
+                                GraphicsPassthroughState::ScreenPayloadEscape;
+                        } else {
+                            output.push(current);
+                        }
+                    }
+                    GraphicsPassthroughState::ScreenPayloadEscape => match current {
+                        b'\\' => {
+                            self.graphics_passthrough_state = GraphicsPassthroughState::Ground;
+                        }
+                        b'\x1b' => {
+                            // The first ESC is payload; the second may start ST.
+                            output.push(b'\x1b');
+                        }
+                        _ => {
+                            output.push(b'\x1b');
+                            self.graphics_passthrough_state =
+                                GraphicsPassthroughState::ScreenPayload;
+                            byte = Some(current);
+                        }
+                    },
                 }
-                break;
-            };
-
-            let payload = &input[payload_start..terminator_start];
-            if self.graphics_sequence_exceeds_limit(payload.len()) {
-                self.push_kitty_response(
-                    None,
-                    None,
-                    "EINVAL: graphics passthrough sequence exceeds configured byte limit",
-                );
-                index = terminator_end;
-                continue;
             }
-            if is_tmux {
-                output.extend_from_slice(&decode_tmux_passthrough_payload(payload));
-            } else {
-                output.extend_from_slice(payload);
-            }
-            index = terminator_end;
         }
 
         output
@@ -364,8 +445,8 @@ impl Terminal {
             (None, Some(number)) => format!("I={number}"),
             (None, None) => String::new(),
         };
-        self.response_buffer
-            .extend_from_slice(format!("\x1b_G{params};{message}\x1b\\").as_bytes());
+        let response = format!("\x1b_G{params};{message}\x1b\\");
+        self.push_response(response.as_bytes());
     }
 
     fn graphics_sequence_byte_limit(&self) -> usize {
@@ -374,6 +455,14 @@ impl Terminal {
             .saturating_mul(2)
             .saturating_add(GRAPHICS_SEQUENCE_OVERHEAD_BYTES)
             .max(GRAPHICS_SEQUENCE_OVERHEAD_BYTES)
+    }
+
+    fn iterm_inline_multipart_byte_limit(&self) -> usize {
+        let decoded_limit = self.graphics_store.max_decoded_image_bytes();
+        let base64_limit = (decoded_limit.saturating_add(2) / 3).saturating_mul(4);
+        base64_limit
+            .saturating_add(GRAPHICS_SEQUENCE_OVERHEAD_BYTES)
+            .min(self.graphics_store.limits().max_total_memory)
     }
 
     fn graphics_sequence_exceeds_limit(&self, len: usize) -> bool {
@@ -387,16 +476,6 @@ impl Terminal {
         }
         self.kitty_apc_buffer.clear();
         self.kitty_apc_buffer.extend_from_slice(pending);
-        true
-    }
-
-    fn retain_incomplete_graphics_passthrough(&mut self, pending: &[u8]) -> bool {
-        if self.graphics_sequence_exceeds_limit(pending.len()) {
-            self.graphics_passthrough_buffer.clear();
-            return false;
-        }
-        self.graphics_passthrough_buffer.clear();
-        self.graphics_passthrough_buffer.extend_from_slice(pending);
         true
     }
 
@@ -734,16 +813,33 @@ impl Terminal {
         let total_size = params.get("size").and_then(|s| s.parse::<usize>().ok());
 
         if is_inline {
+            let decoded_limit = self.graphics_store.max_decoded_image_bytes();
+            let state_limit = self.iterm_inline_multipart_byte_limit();
+            let params_bytes = params
+                .iter()
+                .map(|(key, value)| key.len().saturating_add(value.len()))
+                .sum::<usize>();
+            if params_bytes > state_limit {
+                debug::log(
+                    debug::DebugLevel::Debug,
+                    "ITERM",
+                    &format!(
+                        "MultipartFile rejected: retained parameters exceed limit {}",
+                        state_limit
+                    ),
+                );
+                return;
+            }
+
             // Inline image path: check graphics limits
             if let Some(size) = total_size {
-                let limits = self.graphics_store.limits();
-                if size > limits.max_total_memory {
+                if size > decoded_limit {
                     debug::log(
                         debug::DebugLevel::Debug,
                         "ITERM",
                         &format!(
                             "MultipartFile rejected: size {} exceeds graphics limit {}",
-                            size, limits.max_total_memory
+                            size, decoded_limit
                         ),
                     );
                     return;
@@ -753,7 +849,7 @@ impl Terminal {
             // Initialize multipart state for inline image
             self.iterm_multipart_buffer = Some(crate::terminal::ITermMultipartState {
                 params,
-                chunks: Vec::new(),
+                encoded_data: String::new(),
                 pending_base64: Vec::new(),
                 base64_padding_seen: false,
                 total_size,
@@ -804,7 +900,7 @@ impl Terminal {
             // Initialize multipart state for file transfer
             self.iterm_multipart_buffer = Some(crate::terminal::ITermMultipartState {
                 params,
-                chunks: Vec::new(),
+                encoded_data: String::new(),
                 pending_base64: Vec::new(),
                 base64_padding_seen: false,
                 total_size,
@@ -817,6 +913,29 @@ impl Terminal {
 
     /// Handle FilePart command (chunk of data in multipart transfer)
     fn handle_file_part(&mut self, base64_chunk: &str) {
+        let inline_decoded_limit = self.graphics_store.max_decoded_image_bytes();
+        let inline_encoded_limit = self.iterm_inline_multipart_byte_limit();
+
+        let encoded_limit_exceeded = self
+            .iterm_multipart_buffer
+            .as_ref()
+            .filter(|state| !state.is_file_transfer)
+            .is_some_and(|state| {
+                state.retained_bytes().saturating_add(base64_chunk.len()) > inline_encoded_limit
+            });
+        if encoded_limit_exceeded {
+            debug::log(
+                debug::DebugLevel::Debug,
+                "ITERM",
+                &format!(
+                    "FilePart rejected: retained encoded inline data exceeds limit {}",
+                    inline_encoded_limit
+                ),
+            );
+            self.iterm_multipart_buffer = None;
+            return;
+        }
+
         // Check if we have an active multipart transfer
         let state = match self.iterm_multipart_buffer.as_mut() {
             Some(s) => s,
@@ -859,7 +978,20 @@ impl Terminal {
             }
         };
         let decoded_size = decoded.len();
-        let new_accumulated = state.accumulated_size + decoded_size;
+        let new_accumulated = state.accumulated_size.saturating_add(decoded_size);
+
+        if !state.is_file_transfer && new_accumulated > inline_decoded_limit {
+            debug::log(
+                debug::DebugLevel::Debug,
+                "ITERM",
+                &format!(
+                    "FilePart rejected: decoded inline data {} exceeds limit {}",
+                    new_accumulated, inline_decoded_limit
+                ),
+            );
+            self.iterm_multipart_buffer = None;
+            return;
+        }
 
         if let Some(expected_size) = state.total_size {
             if new_accumulated > expected_size {
@@ -918,7 +1050,7 @@ impl Terminal {
 
         // For inline images: accumulate base64 chunks
         if !state.is_file_transfer {
-            state.chunks.push(base64_chunk.to_string());
+            state.encoded_data.push_str(base64_chunk);
         }
         state.accumulated_size = new_accumulated;
 
@@ -943,6 +1075,7 @@ impl Terminal {
 
     /// Finalize multipart transfer and process the complete data
     fn finalize_multipart_transfer(&mut self) {
+        let inline_decoded_limit = self.graphics_store.max_decoded_image_bytes();
         // Take the buffer state
         let mut state = match self.iterm_multipart_buffer.take() {
             Some(s) => s,
@@ -970,7 +1103,18 @@ impl Terminal {
         };
 
         if !final_decoded.is_empty() {
-            let new_accumulated = state.accumulated_size + final_decoded.len();
+            let new_accumulated = state.accumulated_size.saturating_add(final_decoded.len());
+            if !state.is_file_transfer && new_accumulated > inline_decoded_limit {
+                debug::log(
+                    debug::DebugLevel::Debug,
+                    "ITERM",
+                    &format!(
+                        "FileEnd rejected: decoded inline data {} exceeds limit {}",
+                        new_accumulated, inline_decoded_limit
+                    ),
+                );
+                return;
+            }
             if let Some(expected_size) = state.total_size {
                 if new_accumulated > expected_size {
                     let reason = format!(
@@ -1082,8 +1226,9 @@ impl Terminal {
                 }
             }
         } else {
-            // Inline image path: join chunks and delegate to handle_single_file_transfer
-            let complete_data = state.chunks.join("");
+            // Inline image path: delegate the bounded accumulated data to the
+            // single-sequence decoder.
+            let complete_data = state.encoded_data;
 
             // Reconstruct File= format string with params
             let mut params_parts = Vec::new();
@@ -1123,7 +1268,7 @@ impl Terminal {
             debug::log(
                 debug::DebugLevel::Debug,
                 "ITERM",
-                &format!("Unsupported OSC 1337 command: {}", params_str),
+                &unsupported_iterm_log_message(params_str),
             );
             return;
         }
@@ -1352,42 +1497,6 @@ fn kitty_payload_is_delete_command(payload: &str) -> bool {
     })
 }
 
-fn find_dcs_passthrough_terminator(
-    input: &[u8],
-    start: usize,
-    collapse_doubled_esc: bool,
-) -> Option<(usize, usize)> {
-    let mut index = start;
-    while index < input.len() {
-        if input[index] == b'\x1b' {
-            if collapse_doubled_esc && input.get(index + 1) == Some(&b'\x1b') {
-                index += 2;
-                continue;
-            }
-            if input.get(index + 1) == Some(&b'\\') {
-                return Some((index, index + 2));
-            }
-        }
-        index += 1;
-    }
-    None
-}
-
-fn decode_tmux_passthrough_payload(payload: &[u8]) -> Vec<u8> {
-    let mut output = Vec::with_capacity(payload.len());
-    let mut index = 0usize;
-    while index < payload.len() {
-        if payload[index] == b'\x1b' && payload.get(index + 1) == Some(&b'\x1b') {
-            output.push(b'\x1b');
-            index += 2;
-            continue;
-        }
-        output.push(payload[index]);
-        index += 1;
-    }
-    output
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1414,6 +1523,37 @@ mod tests {
         assert!(kitty_payload_is_delete_command("d=i,i=1,a=d;"));
         assert!(!kitty_payload_is_delete_command("a=T,m=1;AAAA"));
         assert!(!kitty_payload_is_delete_command("m=0;AAAA"));
+    }
+
+    #[test]
+    fn unsupported_iterm_log_message_never_contains_command() {
+        let command = "command-secret-canary";
+        let message = unsupported_iterm_log_message(command);
+
+        assert!(!message.contains(command));
+        assert!(message.contains(&format!("command_bytes={}", command.len())));
+    }
+
+    #[test]
+    fn kitty_reply_uses_the_atomic_response_budget() {
+        const RESPONSE: &[u8] = b"\x1b_Gi=7;OK\x1b\\";
+        let mut term = create_test_terminal();
+        let filler = vec![b'x'; crate::terminal::MAX_RESPONSE_BUFFER_BYTES - RESPONSE.len() + 1];
+        term.push_response(&filler);
+        drop(filler);
+
+        term.push_kitty_response(Some(7), None, "OK");
+        assert_eq!(
+            term.response_buffer.len(),
+            crate::terminal::MAX_RESPONSE_BUFFER_BYTES - RESPONSE.len() + 1
+        );
+        assert_eq!(term.response_buffer_overflow_count(), 1);
+        let buffered = term.drain_responses();
+        assert!(buffered.iter().all(|byte| *byte == b'x'));
+        drop(buffered);
+
+        term.push_kitty_response(Some(7), None, "OK");
+        assert_eq!(term.drain_responses(), RESPONSE);
     }
 
     #[test]
@@ -1450,7 +1590,7 @@ mod tests {
     }
 
     #[test]
-    fn incomplete_tmux_graphics_passthrough_over_limit_is_dropped() {
+    fn incomplete_tmux_passthrough_retains_only_decoder_state() {
         let mut term = create_test_terminal();
         term.set_graphics_memory_limits(8, 8);
         let mut payload = b"\x1bPtmux;".to_vec();
@@ -1458,7 +1598,11 @@ mod tests {
 
         term.process(&payload);
 
-        assert!(term.graphics_passthrough_buffer.is_empty());
+        assert_eq!(
+            term.graphics_passthrough_state,
+            GraphicsPassthroughState::TmuxPayload
+        );
+        assert!(term.drain_responses().is_empty());
     }
 
     #[test]

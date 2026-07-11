@@ -4,8 +4,12 @@ mod sixel;
 
 use crate::debug;
 use crate::graphics::{next_graphic_id, GraphicProtocol, ImageDimension, TerminalGraphic};
-use crate::terminal::Terminal;
+use crate::terminal::{Terminal, TerminalInputBufferDiscardReason};
 use vte::Params;
+
+/// Non-Sixel DCS payloads have no consumer, so retain only a small bounded
+/// prefix before discarding the remainder of the sequence through ST.
+pub(crate) const MAX_NON_SIXEL_DCS_BYTES: usize = 4 * 1024;
 
 fn sixel_display_width_for_pixel_aspect(
     width: usize,
@@ -47,6 +51,7 @@ impl Terminal {
         action: char,
     ) {
         let is_sixel = action == 'q' && intermediates.is_empty();
+        self.dcs_discarding = false;
         if is_sixel && self.disable_insecure_sequences {
             debug::log(
                 debug::DebugLevel::Debug,
@@ -68,6 +73,10 @@ impl Terminal {
     /// VTE put - data for DCS sequence
     pub(in crate::terminal) fn dcs_put(&mut self, byte: u8) {
         if !self.dcs_active {
+            return;
+        }
+
+        if self.dcs_discarding {
             return;
         }
 
@@ -119,6 +128,10 @@ impl Terminal {
                 }
                 self.dcs_buffer.push(byte);
             }
+        } else if self.dcs_buffer.len() >= MAX_NON_SIXEL_DCS_BYTES {
+            self.dcs_buffer = Vec::new();
+            self.dcs_discarding = true;
+            self.record_input_buffer_discard(TerminalInputBufferDiscardReason::NonSixelDcsLimit);
         } else {
             self.dcs_buffer.push(byte);
         }
@@ -137,6 +150,7 @@ impl Terminal {
                     self.dcs_active = false;
                     self.dcs_action = None;
                     self.dcs_buffer.clear();
+                    self.dcs_discarding = false;
                     return;
                 }
 
@@ -199,6 +213,7 @@ impl Terminal {
         self.dcs_active = false;
         self.dcs_action = None;
         self.dcs_buffer.clear();
+        self.dcs_discarding = false;
     }
 }
 

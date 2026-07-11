@@ -61,12 +61,15 @@ pub enum ImagePlacement {
 }
 
 /// State for multi-part iTerm2 image transfers (MultipartFile/FilePart protocol)
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct ITermMultipartState {
     /// Parameters from MultipartFile command (inline, size, name, etc.)
     pub params: HashMap<String, String>,
-    /// Accumulated base64 chunks from FilePart commands
-    pub chunks: Vec<String>,
+    /// Accumulated encoded data from FilePart commands.
+    ///
+    /// One contiguous buffer avoids unbounded per-chunk `String` allocation
+    /// overhead when a sender emits many empty or tiny parts.
+    pub encoded_data: String,
     /// Base64 tail that is not long enough to decode until the next FilePart.
     pub pending_base64: Vec<u8>,
     /// Whether padding has already been seen in the multipart base64 stream.
@@ -79,6 +82,17 @@ pub(crate) struct ITermMultipartState {
     pub is_file_transfer: bool,
     /// Transfer ID if this is a file transfer (from FileTransferManager)
     pub transfer_id: Option<u64>,
+}
+
+impl ITermMultipartState {
+    pub(crate) fn retained_bytes(&self) -> usize {
+        self.params
+            .iter()
+            .map(|(key, value)| key.len() + value.len())
+            .sum::<usize>()
+            + self.encoded_data.len()
+            + self.pending_base64.len()
+    }
 }
 
 use crate::terminal::Terminal;

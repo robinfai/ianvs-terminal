@@ -783,6 +783,8 @@ The protocol is defined in `proto/terminal.proto`. Messages use Protocol Buffers
 | `shutdown` | `reason: string` | Server shutting down |
 | `pong` | (none) | Keepalive response |
 
+`cursor_line`, `abs_row_start`, and `abs_row_end` use global terminal-row coordinates. Visible row `n` is `total_lines_scrolled + n`, so coordinates remain stable when bounded scrollback evicts older rows.
+
 ### Client Messages (ClientMessage oneof)
 
 | Message | Fields | Description |

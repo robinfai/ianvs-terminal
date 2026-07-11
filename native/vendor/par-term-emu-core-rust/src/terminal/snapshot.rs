@@ -826,20 +826,11 @@ impl Terminal {
     }
 
     /// Export the current screen as HTML
-    pub fn export_html(&self, _include_styles: bool) -> String {
-        let (_cols, rows) = self.size();
-        let mut output = String::from("<pre style=\"font-family: monospace\">\n");
-
-        for row in 0..rows {
-            if let Some(line) = self.active_grid().row(row) {
-                let text = crate::terminal::cells_to_text(line);
-                let escaped = crate::terminal::html_escape(&text);
-                output.push_str(&escaped);
-                output.push('\n');
-            }
-        }
-
-        output.push_str("</pre>");
-        output
+    pub fn export_html(&self, include_styles: bool) -> String {
+        crate::html_export::export_visible_html_with_palette(
+            self.active_grid(),
+            include_styles,
+            &self.get_ansi_palette_256(),
+        )
     }
 }

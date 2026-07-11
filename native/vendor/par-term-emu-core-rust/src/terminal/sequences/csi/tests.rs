@@ -519,6 +519,52 @@ fn test_device_status_report() {
 }
 
 #[test]
+fn device_status_queries_cannot_grow_pending_responses_without_bound() {
+    const STATUS_RESPONSE: &[u8] = b"\x1b[0n";
+    let mut term = Terminal::new(80, 24);
+    let filler = vec![b'x'; crate::terminal::MAX_RESPONSE_BUFFER_BYTES - STATUS_RESPONSE.len()];
+    term.push_response(&filler);
+    drop(filler);
+
+    term.process(b"\x1b[5n");
+    assert_eq!(
+        term.response_buffer.len(),
+        crate::terminal::MAX_RESPONSE_BUFFER_BYTES
+    );
+
+    for _ in 0..8 {
+        term.process(b"\x1b[5n");
+    }
+    assert_eq!(
+        term.response_buffer.len(),
+        crate::terminal::MAX_RESPONSE_BUFFER_BYTES
+    );
+    assert_eq!(term.response_buffer_overflow_count(), 8);
+
+    let buffered = term.drain_responses();
+    assert!(buffered.ends_with(STATUS_RESPONSE));
+    drop(buffered);
+
+    term.process(b"\x1b[5n");
+    assert_eq!(term.drain_responses(), STATUS_RESPONSE);
+
+    let filler = vec![b'x'; crate::terminal::MAX_RESPONSE_BUFFER_BYTES - 2];
+    term.push_response(&filler);
+    drop(filler);
+    term.process(b"\x1b[5n");
+    assert_eq!(
+        term.response_buffer.len(),
+        crate::terminal::MAX_RESPONSE_BUFFER_BYTES - 2
+    );
+    let buffered = term.drain_responses();
+    assert!(buffered.iter().all(|byte| *byte == b'x'));
+    drop(buffered);
+
+    assert_eq!(term.take_response_buffer_overflow_count(), 9);
+    assert_eq!(term.response_buffer_overflow_count(), 0);
+}
+
+#[test]
 fn test_device_attributes() {
     let mut term = Terminal::new(80, 24);
 
@@ -670,6 +716,31 @@ fn test_xtwinops_title_stack() {
     // Restore title (CSI 23 t)
     term.process(b"\x1b[23t");
     assert_eq!(term.title(), "Original");
+}
+
+#[test]
+fn test_xtwinops_title_stack_is_bounded_and_keeps_newest_titles() {
+    let mut term = Terminal::new(80, 24);
+
+    for index in 0..40 {
+        term.process(format!("\x1b]0;title-{index}\x1b\\\x1b[22t").as_bytes());
+    }
+
+    assert_eq!(term.title_stack.len(), 32);
+    assert_eq!(
+        term.title_stack.first().map(String::as_str),
+        Some("title-8")
+    );
+    assert_eq!(
+        term.title_stack.last().map(String::as_str),
+        Some("title-39")
+    );
+
+    for _ in 0..32 {
+        term.process(b"\x1b[23t");
+    }
+    assert_eq!(term.title(), "title-8");
+    assert!(term.title_stack.is_empty());
 }
 
 // ========== Insert Mode Tests ==========
@@ -1204,6 +1275,65 @@ fn test_synchronized_updates_timeout_keeps_buffer_before_deadline() {
     assert!(term.synchronized_updates);
     assert_eq!(term.update_buffer, b"hidden");
     assert_eq!(term.active_grid().row_text(0).trim_end(), "before");
+}
+
+#[test]
+fn test_synchronized_updates_unterminated_fragments_are_bounded_and_recover() {
+    let mut term = Terminal::new(80, 24);
+    let fragment = vec![b'x'; crate::terminal::MAX_SYNCHRONIZED_UPDATE_BYTES / 2];
+
+    term.process(b"\x1b[?2026h");
+    term.process(&fragment);
+    term.process(&fragment);
+    assert_eq!(
+        term.update_buffer.len(),
+        crate::terminal::MAX_SYNCHRONIZED_UPDATE_BYTES
+    );
+    assert_eq!(
+        term.input_buffer_diagnostics()
+            .count(crate::terminal::TerminalInputBufferDiscardReason::SynchronizedUpdateLimit,),
+        0
+    );
+
+    term.process(b"overflow-without-terminator");
+
+    assert!(!term.synchronized_updates);
+    assert!(term.update_buffer.is_empty());
+    assert_eq!(
+        term.input_buffer_diagnostics()
+            .count(crate::terminal::TerminalInputBufferDiscardReason::SynchronizedUpdateLimit,),
+        1
+    );
+    term.process(b"recovered");
+    assert_eq!(term.active_grid().row_text(0).trim_end(), "recovered");
+
+    term.reset();
+    assert!(!term.synchronized_updates);
+    assert!(term.update_buffer.is_empty());
+    assert_eq!(
+        term.input_buffer_diagnostics()
+            .count(crate::terminal::TerminalInputBufferDiscardReason::SynchronizedUpdateLimit,),
+        1
+    );
+    term.process(b"after-ris");
+    assert_eq!(term.active_grid().row_text(0).trim_end(), "after-ris");
+}
+
+#[test]
+fn test_synchronized_updates_timeout_is_enforced_by_process_hot_path() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"before\x1b[?2026hhidden");
+    term.sync_update_started_at =
+        Some(std::time::Instant::now() - std::time::Duration::from_secs(2));
+    term.process(b"-recovered");
+
+    assert!(!term.synchronized_updates);
+    assert!(term.update_buffer.is_empty());
+    assert_eq!(
+        term.active_grid().row_text(0).trim_end(),
+        "beforehidden-recovered"
+    );
 }
 
 #[test]
