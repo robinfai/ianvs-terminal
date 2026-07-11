@@ -1124,12 +1124,14 @@ class TerminalHyperlinkRange extends $pb.GeneratedMessage {
     $core.int? startCol,
     $core.int? endCol,
     $core.String? uri,
+    $core.String? protocolId,
   }) {
     final result = create();
     if (row != null) result.row = row;
     if (startCol != null) result.startCol = startCol;
     if (endCol != null) result.endCol = endCol;
     if (uri != null) result.uri = uri;
+    if (protocolId != null) result.protocolId = protocolId;
     return result;
   }
 
@@ -1150,6 +1152,7 @@ class TerminalHyperlinkRange extends $pb.GeneratedMessage {
     ..aI(2, _omitFieldNames ? '' : 'startCol', fieldType: $pb.PbFieldType.OU3)
     ..aI(3, _omitFieldNames ? '' : 'endCol', fieldType: $pb.PbFieldType.OU3)
     ..aOS(4, _omitFieldNames ? '' : 'uri')
+    ..aOS(5, _omitFieldNames ? '' : 'protocolId')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1207,6 +1210,15 @@ class TerminalHyperlinkRange extends $pb.GeneratedMessage {
   $core.bool hasUri() => $_has(3);
   @$pb.TagNumber(4)
   void clearUri() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get protocolId => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set protocolId($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasProtocolId() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearProtocolId() => $_clearField(5);
 }
 
 class TerminalInlineImage extends $pb.GeneratedMessage {

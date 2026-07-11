@@ -371,6 +371,8 @@ pub struct TerminalHyperlinkRange {
     pub start_col: usize,
     pub end_col: usize,
     pub uri: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub protocol_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

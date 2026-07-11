@@ -41,12 +41,14 @@ class TerminalLinkTarget {
     required this.globalPosition,
     this.visibleText,
     this.explicitHyperlink = false,
+    this.protocolId,
   });
 
   final String uri;
   final Offset globalPosition;
   final String? visibleText;
   final bool explicitHyperlink;
+  final String? protocolId;
 
   bool get hasMismatchedVisibleText {
     final text = visibleText?.trim();
@@ -1244,6 +1246,7 @@ class _TerminalViewportState extends State<TerminalViewport>
           globalPosition: globalPosition,
           visibleText: _visibleTextForHyperlink(frame, hyperlink),
           explicitHyperlink: true,
+          protocolId: hyperlink.protocolId,
         );
       }
     }

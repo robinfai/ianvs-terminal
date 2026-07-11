@@ -153,7 +153,7 @@ impl Terminal {
             self.kitty_parser = None;
             KittyParser::new()
         } else {
-            self.kitty_parser.take().unwrap_or_else(KittyParser::new)
+            self.kitty_parser.take().unwrap_or_default()
         };
         parser.set_max_data_bytes(self.graphics_store.max_decoded_image_bytes());
         let more_chunks = match parser.parse_chunk(payload) {
@@ -428,6 +428,7 @@ impl Terminal {
         self.graphics_store.commit_deferred_kitty_deletes();
     }
 
+    #[allow(clippy::type_complexity)]
     fn pending_kitty_replacement_target(&self) -> Option<(Option<u32>, u32, (usize, usize), bool)> {
         let parser = self.kitty_parser.as_ref()?;
         match parser.action {
@@ -690,7 +691,7 @@ impl Terminal {
 
         state.pending_base64.extend_from_slice(&cleaned_chunk);
         let decode_len = if state.base64_padding_seen {
-            if state.pending_base64.len() % 4 != 0 {
+            if !state.pending_base64.len().is_multiple_of(4) {
                 return Ok(Vec::new());
             }
             state.pending_base64.len()
@@ -1592,7 +1593,7 @@ mod tests {
     }
 
     #[test]
-    fn test_adjust_graphics_for_scroll_up_overlapping() {
+    fn test_adjust_graphics_for_scroll_up_drops_boundary_overlap() {
         let mut term = create_test_terminal();
         // Graphic starts above scroll region but extends into it
         // Row 2, height 6 pixels (3 terminal rows: 2, 3, 4)
@@ -1602,9 +1603,8 @@ mod tests {
 
         term.adjust_graphics_for_scroll_up(2, 3, 15);
 
-        // Graphic starts above region, so it stays at same position
-        assert_eq!(term.graphics_store.graphics_count(), 1);
-        assert_eq!(term.graphics_store.all_graphics()[0].position.1, 2);
+        // A graphic crossing a scroll-region boundary cannot be split safely.
+        assert_eq!(term.graphics_store.graphics_count(), 0);
     }
 
     #[test]
@@ -1622,18 +1622,16 @@ mod tests {
     }
 
     #[test]
-    fn test_adjust_graphics_for_scroll_down_at_bottom() {
+    fn test_adjust_graphics_for_scroll_down_drops_at_bottom() {
         let mut term = create_test_terminal();
         // Graphic at row 22 in region 0-23
         term.graphics_store
             .add_graphic(create_test_graphic(0, 22, 10, 4));
 
-        // Scroll down 5 lines - graphic shouldn't move beyond bottom
+        // Scroll down 5 lines - the graphic leaves the scroll region.
         term.adjust_graphics_for_scroll_down(5, 0, 23);
 
-        assert_eq!(term.graphics_store.graphics_count(), 1);
-        // Graphic stays at 22 because new_row (27) > bottom (23)
-        assert_eq!(term.graphics_store.all_graphics()[0].position.1, 22);
+        assert_eq!(term.graphics_store.graphics_count(), 0);
     }
 
     #[test]
@@ -1654,7 +1652,7 @@ mod tests {
     }
 
     #[test]
-    fn test_adjust_graphics_for_scroll_down_beyond_bottom() {
+    fn test_adjust_graphics_for_scroll_down_drops_beyond_bottom() {
         let mut term = create_test_terminal();
         // Graphic at row 14 in scroll region 0-15
         term.graphics_store
@@ -1663,8 +1661,7 @@ mod tests {
         // Scroll down 3 lines - would go to row 17 which is beyond bottom (15)
         term.adjust_graphics_for_scroll_down(3, 0, 15);
 
-        assert_eq!(term.graphics_store.graphics_count(), 1);
-        assert_eq!(term.graphics_store.all_graphics()[0].position.1, 14); // Doesn't move
+        assert_eq!(term.graphics_store.graphics_count(), 0);
     }
 
     #[test]

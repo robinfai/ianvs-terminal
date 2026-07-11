@@ -510,7 +510,7 @@ fn sixel_macro_pixel_aspect_ratio(macro_param: u16) -> Option<(u16, u16)> {
         0 | 1 | 5 | 6 => Some((2, 1)),
         2 => Some((5, 1)),
         3 | 4 => Some((3, 1)),
-        7 | 8 | 9 => Some((1, 1)),
+        7..=9 => Some((1, 1)),
         _ => None,
     }
 }

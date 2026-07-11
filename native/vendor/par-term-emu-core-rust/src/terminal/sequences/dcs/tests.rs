@@ -65,7 +65,7 @@ fn test_dcs_q_with_intermediate_is_not_sixel() {
     let mut term = create_test_terminal();
     let params = create_empty_params();
 
-    term.dcs_hook(&params, &[b'$'], false, 'q');
+    term.dcs_hook(&params, b"$", false, 'q');
 
     assert!(term.dcs_active);
     assert_eq!(term.dcs_action, Some('q'));

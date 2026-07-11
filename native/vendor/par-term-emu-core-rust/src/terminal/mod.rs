@@ -796,6 +796,8 @@ pub struct Terminal {
     pub(crate) response_buffer: Vec<u8>,
     /// Hyperlink storage: ID -> URL mapping (for deduplication)
     pub(crate) hyperlinks: HashMap<u32, String>,
+    /// Hyperlink storage: internal ID -> OSC 8 protocol `id` parameter.
+    pub(crate) hyperlink_protocol_ids: HashMap<u32, String>,
     /// Current hyperlink ID being written
     pub(crate) current_hyperlink_id: Option<u32>,
     /// Next available hyperlink ID
@@ -832,12 +834,16 @@ pub struct Terminal {
     pub(crate) allow_clipboard_read: bool,
     /// Default foreground color (for OSC 10 queries)
     pub(crate) default_fg: Color,
+    pub(crate) baseline_default_fg: Color,
     /// Default background color (for OSC 11 queries)
     pub(crate) default_bg: Color,
+    pub(crate) baseline_default_bg: Color,
     /// Cursor color (for OSC 12 queries)
     pub(crate) cursor_color: Color,
+    pub(crate) baseline_cursor_color: Color,
     /// ANSI color palette (0-15) - modified by OSC 4/104
     pub(crate) ansi_palette: [Color; 16],
+    pub(crate) baseline_ansi_palette: [Color; 16],
     /// Color stack for XTPUSHCOLORS/XTPOPCOLORS (fg, bg, underline)
     pub(crate) color_stack: Vec<(Color, Color, Option<Color>)>,
     /// Notifications from OSC 9 / OSC 777 sequences
@@ -1157,6 +1163,7 @@ impl Terminal {
             modify_other_keys_mode_alt: 0,
             response_buffer: Vec::new(),
             hyperlinks: HashMap::new(),
+            hyperlink_protocol_ids: HashMap::new(),
             current_hyperlink_id: None,
             next_hyperlink_id: 0,
             graphics_store: GraphicsStore::with_limits(GraphicsLimits::default()),
@@ -1174,9 +1181,13 @@ impl Terminal {
             clipboard_content: None,
             allow_clipboard_read: false,
             default_fg: Color::Named(NamedColor::White),
+            baseline_default_fg: Color::Named(NamedColor::White),
             default_bg: Color::Named(NamedColor::Black),
+            baseline_default_bg: Color::Named(NamedColor::Black),
             cursor_color: Color::Named(NamedColor::White),
+            baseline_cursor_color: Color::Named(NamedColor::White),
             ansi_palette: Self::default_ansi_palette(),
+            baseline_ansi_palette: Self::default_ansi_palette(),
             color_stack: Vec::new(),
             notifications: Vec::new(),
             progress_bar: ProgressBar::default(),
@@ -3029,6 +3040,11 @@ impl Terminal {
         self.hyperlinks.get(&id).cloned()
     }
 
+    /// Get the optional OSC 8 protocol identifier for a hyperlink ID.
+    pub fn get_hyperlink_protocol_id(&self, id: u32) -> Option<String> {
+        self.hyperlink_protocol_ids.get(&id).cloned()
+    }
+
     /// Enable or disable tmux control mode
     pub fn set_tmux_control_mode(&mut self, enabled: bool) {
         self.tmux_parser.set_control_mode(enabled);
@@ -3132,7 +3148,6 @@ impl Terminal {
             self.sync_update_started_at = None;
             self.sync_update_explicitly_disabled = true;
             self.flush_synchronized_updates_with_report_state(report_state);
-            return;
         }
     }
 

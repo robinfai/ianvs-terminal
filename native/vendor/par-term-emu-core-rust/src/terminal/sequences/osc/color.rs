@@ -120,13 +120,12 @@ impl Terminal {
                 // Reset ANSI color palette (OSC 104)
                 if !self.disable_insecure_sequences {
                     if params.len() == 1 || (params.len() >= 2 && params[1].is_empty()) {
-                        self.ansi_palette = Self::default_ansi_palette();
+                        self.ansi_palette = self.baseline_ansi_palette;
                     } else if params.len() >= 2 {
                         if let Ok(data) = std::str::from_utf8(params[1]) {
                             if let Ok(index) = data.trim().parse::<usize>() {
                                 if index < 16 {
-                                    let defaults = Self::default_ansi_palette();
-                                    self.ansi_palette[index] = defaults[index];
+                                    self.ansi_palette[index] = self.baseline_ansi_palette[index];
                                 }
                             }
                         }
@@ -162,17 +161,17 @@ impl Terminal {
             }
             "110" => {
                 if !self.disable_insecure_sequences {
-                    self.default_fg = Color::Rgb(0xE5, 0xE5, 0xE5);
+                    self.default_fg = self.baseline_default_fg;
                 }
             }
             "111" => {
                 if !self.disable_insecure_sequences {
-                    self.default_bg = Color::Rgb(0x14, 0x19, 0x1E);
+                    self.default_bg = self.baseline_default_bg;
                 }
             }
             "112" => {
                 if !self.disable_insecure_sequences {
-                    self.cursor_color = Color::Rgb(0xE5, 0xE5, 0xE5);
+                    self.cursor_color = self.baseline_cursor_color;
                 }
             }
             _ => {}

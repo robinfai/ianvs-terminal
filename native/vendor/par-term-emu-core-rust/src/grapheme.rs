@@ -232,11 +232,10 @@ pub fn is_keycap_sequence(grapheme: &str) -> bool {
         return false;
     }
 
-    match (chars.next(), chars.next(), chars.next()) {
-        (Some('\u{20E3}'), None, None) => true,
-        (Some('\u{FE0F}'), Some('\u{20E3}'), None) => true,
-        _ => false,
-    }
+    matches!(
+        (chars.next(), chars.next(), chars.next()),
+        (Some('\u{20E3}'), None, None) | (Some('\u{FE0F}'), Some('\u{20E3}'), None)
+    )
 }
 
 /// Check if a character is a combining mark (diacritics, accents, etc.)

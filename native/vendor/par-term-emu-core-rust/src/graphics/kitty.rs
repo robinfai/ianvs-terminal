@@ -139,6 +139,7 @@ pub enum KittyDeleteTarget {
 
 /// Result of building a Kitty graphic
 #[derive(Debug, Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum KittyGraphicResult {
     /// A regular graphic that should be displayed
     Graphic(TerminalGraphic),

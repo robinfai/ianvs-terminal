@@ -17,16 +17,7 @@ impl Terminal {
                     }
                 }
             }
-            "21" => {
-                if params.len() >= 2 {
-                    if let Ok(title) = std::str::from_utf8(params[1]) {
-                        self.title_stack.push(title.to_string());
-                    }
-                } else {
-                    self.title_stack.push(self.title.clone());
-                }
-            }
-            "22" | "23" => {
+            "23" => {
                 if let Some(title) = self.title_stack.pop() {
                     self.title = title;
                 }

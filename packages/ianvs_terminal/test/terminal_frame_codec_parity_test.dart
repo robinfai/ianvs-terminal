@@ -29,6 +29,40 @@ void main() {
       );
     });
 
+    test('OSC 8 protocol identifiers survive JSON and protobuf decoding', () {
+      final jsonFrame = TerminalFrameDiff.fromJson(
+        _jsonFrame(
+          hyperlinks: <Object?>[
+            <String, Object?>{
+              'row': 0,
+              'start_col': 0,
+              'end_col': 4,
+              'uri': 'https://example.test',
+              'protocol_id': 'first',
+            },
+          ],
+        ),
+      );
+      final protobufFrame = TerminalFrameDiff.fromProtobufBytes(
+        frame_pb.TerminalFrameDiff(
+          viewportRows: 1,
+          viewportCols: 80,
+          hyperlinks: <frame_pb.TerminalHyperlinkRange>[
+            frame_pb.TerminalHyperlinkRange(
+              row: 0,
+              startCol: 0,
+              endCol: 4,
+              uri: 'https://example.test',
+              protocolId: 'first',
+            ),
+          ],
+        ).writeToBuffer(),
+      );
+
+      expect(jsonFrame.hyperlinks.single.protocolId, 'first');
+      expect(protobufFrame.hyperlinks.single.protocolId, 'first');
+    });
+
     test('graphics identities preserve values above uint32 range', () {
       const placementId = 4294967301;
       const renderId = 4294967303;

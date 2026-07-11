@@ -1,3 +1,4 @@
+use crate::color::Color;
 use crate::shell_integration::ShellIntegrationMarker;
 use crate::terminal::Terminal;
 use base64::Engine;
@@ -73,21 +74,31 @@ fn test_set_window_title() {
 }
 
 #[test]
-fn test_title_stack() {
+fn osc_21_and_22_do_not_mutate_title_or_title_stack() {
     let mut term = Terminal::new(80, 24);
 
     term.process(b"\x1b]0;Original Title\x1b\\");
+    term.title_stack.push("Saved Title".to_string());
 
-    // OSC 21 - Push title (no parameter pushes current title)
-    term.process(b"\x1b]21\x1b\\");
-
-    // Change title
-    term.process(b"\x1b]0;New Title\x1b\\");
-    assert_eq!(term.title(), "New Title");
-
-    // OSC 22 - Pop title
-    term.process(b"\x1b]22\x1b\\");
+    // Kitty dynamic-color and pointer-shape payloads are currently ignored.
+    term.process(b"\x1b]21;foreground=#123456\x1b\\");
+    term.process(b"\x1b]22;pointer\x07");
     assert_eq!(term.title(), "Original Title");
+    assert_eq!(term.title_stack, vec!["Saved Title"]);
+}
+
+#[test]
+fn split_and_malformed_osc_21_and_22_do_not_mutate_title() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"\x1b]0;Stable\x1b\\");
+    term.process(b"\x1b]21;foreground=rgb:12/34");
+    term.process(b"/56\x1b");
+    term.process(b"\\");
+    term.process(b"\x1b]22;not-a-pointer\x07");
+
+    assert_eq!(term.title(), "Stable");
+    assert!(term.title_stack.is_empty());
 }
 
 #[test]
@@ -151,6 +162,29 @@ fn test_hyperlinks() {
     // Reuse existing URL (deduplication)
     term.process(b"\x1b]8;;https://example.com\x1b\\");
     assert_eq!(term.current_hyperlink_id, Some(id1));
+}
+
+#[test]
+fn osc_8_protocol_id_preserves_distinct_link_identity() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"\x1b]8;id=first;https://example.com\x1b\\");
+    let first = term.current_hyperlink_id.expect("first hyperlink");
+    term.process(b"\x1b]8;id=second:unknown=value;https://example.com\x07");
+    let second = term.current_hyperlink_id.expect("second hyperlink");
+
+    assert_ne!(first, second);
+    assert_eq!(
+        term.get_hyperlink_protocol_id(first).as_deref(),
+        Some("first")
+    );
+    assert_eq!(
+        term.get_hyperlink_protocol_id(second).as_deref(),
+        Some("second")
+    );
+
+    term.process(b"\x1b]8;id=first;https://example.com\x1b\\");
+    assert_eq!(term.current_hyperlink_id, Some(first));
 }
 
 #[test]
@@ -332,18 +366,32 @@ fn test_notifications_security() {
 #[test]
 fn test_ansi_palette_reset() {
     let mut term = Terminal::new(80, 24);
+    let baseline = Color::Rgb(0x12, 0x34, 0x56);
+    term.set_ansi_palette_color(3, baseline).unwrap();
+    term.process(b"\x1b]4;3;#abcdef\x1b\\");
+    assert_eq!(term.ansi_palette[3], Color::Rgb(0xab, 0xcd, 0xef));
 
-    // Modify a color (we can't easily test this without accessing private fields,
-    // so we'll just ensure the sequence doesn't crash)
     term.process(b"\x1b]104;3\x1b\\"); // Reset color 3
+    assert_eq!(term.ansi_palette[3], baseline);
 
     // Reset all colors
+    term.process(b"\x1b]4;3;#abcdef\x1b\\");
     term.process(b"\x1b]104\x1b\\");
+    assert_eq!(term.ansi_palette[3], baseline);
 }
 
 #[test]
 fn test_default_color_reset() {
     let mut term = Terminal::new(80, 24);
+    let foreground = Color::Rgb(1, 2, 3);
+    let background = Color::Rgb(4, 5, 6);
+    let cursor = Color::Rgb(7, 8, 9);
+    term.set_default_fg(foreground);
+    term.set_default_bg(background);
+    term.set_cursor_color(cursor);
+    term.process(b"\x1b]10;#aabbcc\x1b\\");
+    term.process(b"\x1b]11;#bbccdd\x1b\\");
+    term.process(b"\x1b]12;#ccddee\x1b\\");
 
     // OSC 110 - Reset foreground
     term.process(b"\x1b]110\x1b\\");
@@ -353,6 +401,9 @@ fn test_default_color_reset() {
 
     // OSC 112 - Reset cursor color
     term.process(b"\x1b]112\x1b\\");
+    assert_eq!(term.default_fg(), foreground);
+    assert_eq!(term.default_bg(), background);
+    assert_eq!(term.cursor_color(), cursor);
 }
 
 #[test]

@@ -1218,14 +1218,15 @@ mod tests {
         term.write_char('X');
 
         assert_eq!(term.active_grid().get(78, 0).unwrap().c, 'Q');
-        let emoji = term.active_grid().get(79, 0).unwrap();
+        assert_eq!(term.active_grid().get(79, 0).unwrap().c, ' ');
+        let emoji = term.active_grid().get(0, 1).unwrap();
         assert_eq!(emoji.get_grapheme(), "✈️");
         assert_eq!(emoji.width(), 2);
         assert!(emoji.flags.wide_char());
         assert!(term.active_grid().is_line_wrapped(0));
-        assert_eq!(term.active_grid().get(0, 1).unwrap().c, 'X');
+        assert_eq!(term.active_grid().get(2, 1).unwrap().c, 'X');
         assert_eq!(term.cursor.row, 1);
-        assert_eq!(term.cursor.col, 1);
+        assert_eq!(term.cursor.col, 3);
         assert!(!term.pending_wrap);
     }
 
@@ -1264,14 +1265,15 @@ mod tests {
         term.write_char('X');
 
         assert_eq!(term.active_grid().get(78, 0).unwrap().c, 'Q');
-        let flag = term.active_grid().get(79, 0).unwrap();
+        assert_eq!(term.active_grid().get(79, 0).unwrap().c, ' ');
+        let flag = term.active_grid().get(0, 1).unwrap();
         assert_eq!(flag.get_grapheme(), "🇺🇸");
         assert_eq!(flag.width(), 2);
         assert!(flag.flags.wide_char());
         assert!(term.active_grid().is_line_wrapped(0));
-        assert_eq!(term.active_grid().get(0, 1).unwrap().c, 'X');
+        assert_eq!(term.active_grid().get(2, 1).unwrap().c, 'X');
         assert_eq!(term.cursor.row, 1);
-        assert_eq!(term.cursor.col, 1);
+        assert_eq!(term.cursor.col, 3);
         assert!(!term.pending_wrap);
     }
 

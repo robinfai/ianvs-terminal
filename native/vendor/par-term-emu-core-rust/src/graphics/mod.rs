@@ -686,6 +686,7 @@ fn relative_kitty_position(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn compose_frame_pixels(
     source: &AnimationFrame,
     destination: &mut AnimationFrame,
@@ -2462,6 +2463,7 @@ impl GraphicsStore {
     }
 
     /// Compose a source frame rectangle into a destination animation frame.
+    #[allow(clippy::too_many_arguments)]
     pub fn compose_animation_frame(
         &mut self,
         image_id: u32,

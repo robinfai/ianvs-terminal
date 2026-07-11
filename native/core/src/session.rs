@@ -3870,7 +3870,7 @@ fn extract_hyperlinks_for_row(
     row: usize,
 ) -> Vec<TerminalHyperlinkRange> {
     let mut ranges = Vec::new();
-    let mut active_uri: Option<String> = None;
+    let mut active_link: Option<(String, Option<String>)> = None;
     let mut active_start = 0usize;
     let mut column_offset = 0usize;
 
@@ -3881,36 +3881,39 @@ fn extract_hyperlinks_for_row(
 
         let column_start = column_offset;
         column_offset += cell.width();
-        let cell_uri = cell
-            .flags
-            .hyperlink_id
-            .and_then(|id| terminal.get_hyperlink_url(id));
+        let cell_link = cell.flags.hyperlink_id.and_then(|id| {
+            terminal
+                .get_hyperlink_url(id)
+                .map(|uri| (uri, terminal.get_hyperlink_protocol_id(id)))
+        });
 
-        if active_uri.as_deref() == cell_uri.as_deref() {
+        if active_link == cell_link {
             continue;
         }
 
-        if let Some(uri) = active_uri.take() {
+        if let Some((uri, protocol_id)) = active_link.take() {
             ranges.push(TerminalHyperlinkRange {
                 row,
                 start_col: active_start,
                 end_col: column_start,
                 uri,
+                protocol_id,
             });
         }
 
-        if let Some(uri) = cell_uri {
+        if let Some(link) = cell_link {
             active_start = column_start;
-            active_uri = Some(uri);
+            active_link = Some(link);
         }
     }
 
-    if let Some(uri) = active_uri {
+    if let Some((uri, protocol_id)) = active_link {
         ranges.push(TerminalHyperlinkRange {
             row,
             start_col: active_start,
             end_col: column_offset,
             uri,
+            protocol_id,
         });
     }
 
@@ -4380,6 +4383,7 @@ fn hyperlink_signature(hyperlinks: &[TerminalHyperlinkRange]) -> u64 {
         hyperlink.start_col.hash(&mut hasher);
         hyperlink.end_col.hash(&mut hasher);
         hyperlink.uri.hash(&mut hasher);
+        hyperlink.protocol_id.hash(&mut hasher);
     }
     hasher.finish()
 }

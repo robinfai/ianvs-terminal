@@ -159,6 +159,8 @@ pub struct TerminalHyperlinkRange {
     pub end_col: u32,
     #[prost(string, tag = "4")]
     pub uri: ::prost::alloc::string::String,
+    #[prost(string, tag = "5")]
+    pub protocol_id: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct TerminalInlineImage {

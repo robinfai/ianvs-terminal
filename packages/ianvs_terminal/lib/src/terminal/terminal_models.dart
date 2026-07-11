@@ -309,12 +309,14 @@ class TerminalHyperlinkRange {
     required this.startCol,
     required this.endCol,
     required this.uri,
+    this.protocolId,
   });
 
   final int row;
   final int startCol;
   final int endCol;
   final String uri;
+  final String? protocolId;
 
   factory TerminalHyperlinkRange.fromJson(Map<String, Object?> json) {
     final range = TerminalHyperlinkRange.tryFromJson(json);
@@ -340,6 +342,7 @@ class TerminalHyperlinkRange {
       startCol: startCol,
       endCol: endCol,
       uri: uri,
+      protocolId: _nonEmptyTrimmedStringFromJson(json['protocol_id']),
     );
   }
 }
@@ -1236,6 +1239,10 @@ TerminalHyperlinkRange? _terminalHyperlinkFromProtobuf(
     startCol: hyperlink.startCol,
     endCol: hyperlink.endCol,
     uri: uri,
+    protocolId: _nonEmptyTrimmedProtoString(
+      hasValue: hyperlink.hasProtocolId(),
+      value: hyperlink.protocolId,
+    ),
   );
 }
 
@@ -2335,6 +2342,7 @@ List<TerminalHyperlinkRange> _shiftHyperlinks({
         startCol: range.startCol,
         endCol: range.endCol,
         uri: range.uri,
+        protocolId: range.protocolId,
       ),
     );
   }

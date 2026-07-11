@@ -50,6 +50,7 @@ impl Terminal {
 
     /// Set default foreground color (OSC 10)
     pub fn set_default_fg(&mut self, color: Color) {
+        self.baseline_default_fg = color;
         let previous = self.default_fg;
         self.default_fg = color;
         if self.fg == previous {
@@ -69,6 +70,7 @@ impl Terminal {
 
     /// Set default background color (OSC 11)
     pub fn set_default_bg(&mut self, color: Color) {
+        self.baseline_default_bg = color;
         let previous = self.default_bg;
         self.default_bg = color;
         if self.bg == previous {
@@ -130,6 +132,7 @@ impl Terminal {
 
     /// Set cursor color (OSC 12)
     pub fn set_cursor_color(&mut self, color: Color) {
+        self.baseline_cursor_color = color;
         self.cursor_color = color;
     }
 
@@ -266,6 +269,7 @@ impl Terminal {
             return Err(format!("Invalid palette index: {} (must be 0-15)", index));
         }
         self.ansi_palette[index] = color;
+        self.baseline_ansi_palette[index] = color;
         Ok(())
     }
 

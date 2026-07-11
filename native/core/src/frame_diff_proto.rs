@@ -128,6 +128,7 @@ fn to_proto_hyperlink(link: &TerminalHyperlinkRange) -> pb::TerminalHyperlinkRan
         start_col: usize_to_u32(link.start_col),
         end_col: usize_to_u32(link.end_col),
         uri: link.uri.clone(),
+        protocol_id: link.protocol_id.clone().unwrap_or_default(),
     }
 }
 

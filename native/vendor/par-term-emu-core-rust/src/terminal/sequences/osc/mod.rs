@@ -64,7 +64,11 @@ impl Terminal {
             }
 
             match command {
-                "0" | "2" | "21" | "22" | "23" => self.handle_osc_title(command, params),
+                // OSC 21 and 22 are used by modern terminals for dynamic
+                // colors and pointer shapes. Until those protocols are
+                // implemented, consume them through the unsupported path;
+                // they must never mutate the title stack.
+                "0" | "2" | "23" => self.handle_osc_title(command, params),
                 "7" | "133" => self.handle_osc_shell(command, params),
                 "8" => self.handle_osc_hyperlink(params),
                 "9" | "777" | "934" => self.handle_osc_notify(command, params),
@@ -88,6 +92,18 @@ impl Terminal {
         if params.len() >= 3 {
             if let Ok(url) = std::str::from_utf8(params[2]) {
                 let url = url.trim();
+                let protocol_id = std::str::from_utf8(params[1]).ok().and_then(|value| {
+                    value
+                        .split(':')
+                        .filter_map(|parameter| parameter.split_once('='))
+                        .find_map(|(key, value)| {
+                            (key == "id"
+                                && !value.is_empty()
+                                && value.len() <= 1024
+                                && !value.chars().any(char::is_control))
+                            .then(|| value.to_string())
+                        })
+                });
 
                 if url.is_empty() {
                     self.current_hyperlink_id = None;
@@ -95,11 +111,17 @@ impl Terminal {
                     let id = self
                         .hyperlinks
                         .iter()
-                        .find(|(_, v)| v.as_str() == url)
+                        .find(|(id, value)| {
+                            value.as_str() == url
+                                && self.hyperlink_protocol_ids.get(id) == protocol_id.as_ref()
+                        })
                         .map(|(k, _)| *k)
                         .unwrap_or_else(|| {
                             let id = self.next_hyperlink_id;
                             self.hyperlinks.insert(id, url.to_string());
+                            if let Some(protocol_id) = protocol_id.clone() {
+                                self.hyperlink_protocol_ids.insert(id, protocol_id);
+                            }
                             self.next_hyperlink_id += 1;
                             id
                         });
