@@ -40,6 +40,12 @@ impl Terminal {
     }
 
     fn write_plain_ascii_printable_run(&mut self, bytes: &[u8]) {
+        if self.active_grid().has_multicells() {
+            for byte in bytes {
+                self.write_char(*byte as char);
+            }
+            return;
+        }
         self.commit_deferred_kitty_deletes_for_visual_output();
         let mut index = 0;
         while index < bytes.len() {
@@ -78,6 +84,7 @@ impl Terminal {
                         underline_color,
                         flags: cell_flags,
                         width: 1,
+                        multicell: None,
                     };
                 }
             }
@@ -218,6 +225,15 @@ impl Terminal {
                 return;
             };
 
+            if self
+                .active_grid()
+                .get(target_col, target_row)
+                .is_some_and(|cell| cell.multicell.is_some())
+            {
+                self.append_combining_to_multicell(target_col, target_row, c);
+                return;
+            }
+
             // Copy normalization form before mutable borrow
             let norm_form = self.normalization_form;
             let width_config = self.width_config;
@@ -297,6 +313,21 @@ impl Terminal {
             let Some((target_col, target_row)) = self.previous_grapheme_cell_position(cols) else {
                 return;
             };
+
+            if let Some(rect) = self
+                .active_grid()
+                .multicell_rect_at(target_col, target_row as isize)
+            {
+                let continues_multicell = self
+                    .active_grid()
+                    .relative_row(rect.anchor_row)
+                    .and_then(|row_cells| row_cells.get(rect.anchor_col))
+                    .is_some_and(|anchor| anchor.get_grapheme().ends_with('\u{200D}'));
+                if continues_multicell {
+                    self.append_combining_to_multicell(target_col, target_row, c);
+                    return;
+                }
+            }
 
             // Check if target cell has ZWJ in combining chars
             if let Some(target_cell) = self.active_grid().get(target_col, target_row) {
@@ -483,6 +514,8 @@ impl Terminal {
             self.pending_wrap = false;
         }
 
+        self.prepare_normal_write_position(char_width.max(1));
+
         // If wide character won't fit on current line, wrap first
         if char_width == 2 && self.cursor.col >= cols - 1 && self.auto_wrap {
             // Mark the current row as wrapped (line continues to next row)
@@ -534,6 +567,7 @@ impl Terminal {
             underline_color: self.underline_color,
             flags: cell_flags,
             width: char_width as u8,
+            multicell: None,
         };
 
         let cursor_col = self.cursor.col;
@@ -576,6 +610,7 @@ impl Terminal {
                 underline_color: self.underline_color,
                 flags: spacer_flags,
                 width: 1, // Spacers always have width 1
+                multicell: None,
             };
             let spacer_col = self.cursor.col - 1;
             let spacer_row = self.cursor.row;
@@ -607,6 +642,7 @@ impl Terminal {
             underline_color: self.underline_color,
             flags,
             width: 1,
+            multicell: None,
         }
     }
 
@@ -674,6 +710,7 @@ impl Terminal {
             underline_color: cell.underline_color,
             flags: spacer_flags,
             width: 1,
+            multicell: None,
         }
     }
 
@@ -796,6 +833,7 @@ impl Terminal {
             underline_color: self.underline_color,
             flags: cell_flags,
             width: 1, // Initially width 1, will become 2 when paired
+            multicell: None,
         };
 
         let cursor_col = self.cursor.col;

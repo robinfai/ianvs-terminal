@@ -22,6 +22,8 @@ const Set<String> _requiredCoverage = <String>{
   'OSC 23 title no-op',
   'OSC 22 pointer shape stack',
   'OSC 22 screen-local state',
+  'OSC 66 sized text',
+  'OSC 66 overwrite/edit recovery',
   'OSC 3008 hierarchy',
   'OSC 3008 malformed close recovery',
   'tmux passthrough fixture',
@@ -140,6 +142,11 @@ void _validateFixture(String id, Map<String, Object?> fixture) {
     expect(RegExp(r'\x1b]22;').allMatches(text), hasLength(6));
     expect(RegExp(r'\x1b\[\?1049').allMatches(text), hasLength(2));
     expect(text, contains('__current__'));
+  } else if (id == 'osc66_sized_text_edit_recovery') {
+    final text = latin1.decode(stream);
+    expect(RegExp(r'\x1b]66;').allMatches(text), hasLength(2));
+    expect(text, contains('s=2:w=2:n=1:d=2:v=2:h=1;AB'));
+    expect(text, contains('\x1b[X'));
   }
 }
 

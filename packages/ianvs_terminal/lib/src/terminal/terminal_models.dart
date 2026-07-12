@@ -396,6 +396,122 @@ class TerminalHyperlinkRange {
   }
 }
 
+class TerminalSizedTextPlacement {
+  const TerminalSizedTextPlacement({
+    required this.text,
+    required this.row,
+    required this.col,
+    required this.widthCells,
+    required this.heightCells,
+    required this.sourceRowOffsetCells,
+    required this.visibleHeightCells,
+    required this.scale,
+    required this.subscaleN,
+    required this.subscaleD,
+    required this.verticalAlign,
+    required this.horizontalAlign,
+    required this.naturalWidth,
+    this.foreground,
+    this.background,
+    this.bold = false,
+    this.dim = false,
+    this.italic = false,
+    this.underline = false,
+    this.blink = false,
+    this.inverse = false,
+  });
+
+  final String text;
+  final int row;
+  final int col;
+  final int widthCells;
+  final int heightCells;
+  final int sourceRowOffsetCells;
+  final int visibleHeightCells;
+  final int scale;
+  final int subscaleN;
+  final int subscaleD;
+  final int verticalAlign;
+  final int horizontalAlign;
+  final bool naturalWidth;
+  final Color? foreground;
+  final Color? background;
+  final bool bold;
+  final bool dim;
+  final bool italic;
+  final bool underline;
+  final bool blink;
+  final bool inverse;
+
+  static TerminalSizedTextPlacement? tryFromJson(Map<String, Object?> json) {
+    final text = _stringFromJson(json['text']);
+    final row = _intOrNullFromJson(json['row']);
+    final col = _intOrNullFromJson(json['col']);
+    final widthCells = _intOrNullFromJson(json['width_cells']);
+    final heightCells = _intOrNullFromJson(json['height_cells']);
+    final sourceRowOffsetCells = _nonNegativeIntFromJson(
+      json['source_row_offset_cells'],
+    );
+    final visibleHeightCells = _intOrNullFromJson(json['visible_height_cells']);
+    final scale = _intOrNullFromJson(json['scale']);
+    final subscaleN = _nonNegativeIntFromJson(json['subscale_n']);
+    final subscaleD = _nonNegativeIntFromJson(json['subscale_d']);
+    final verticalAlign = _nonNegativeIntFromJson(json['vertical_align']);
+    final horizontalAlign = _nonNegativeIntFromJson(json['horizontal_align']);
+    if (text == null ||
+        text.isEmpty ||
+        text.length > 4096 ||
+        utf8.encode(text).length > 4096 ||
+        row == null ||
+        row < 0 ||
+        col == null ||
+        col < 0 ||
+        widthCells == null ||
+        widthCells <= 0 ||
+        widthCells > 49 ||
+        heightCells == null ||
+        heightCells <= 0 ||
+        heightCells > 7 ||
+        sourceRowOffsetCells >= heightCells ||
+        visibleHeightCells == null ||
+        visibleHeightCells <= 0 ||
+        sourceRowOffsetCells + visibleHeightCells > heightCells ||
+        scale == null ||
+        scale < 1 ||
+        scale > 7 ||
+        subscaleN > 15 ||
+        subscaleD > 15 ||
+        (subscaleD > 0 && subscaleN >= subscaleD) ||
+        verticalAlign > 2 ||
+        horizontalAlign > 2) {
+      return null;
+    }
+    return TerminalSizedTextPlacement(
+      text: text,
+      row: row,
+      col: col,
+      widthCells: widthCells,
+      heightCells: heightCells,
+      sourceRowOffsetCells: sourceRowOffsetCells,
+      visibleHeightCells: visibleHeightCells,
+      scale: scale,
+      subscaleN: subscaleD == 0 ? 0 : subscaleN,
+      subscaleD: subscaleD,
+      verticalAlign: verticalAlign,
+      horizontalAlign: horizontalAlign,
+      naturalWidth: _boolFromJson(json['natural_width'], fallback: false),
+      foreground: _colorFromHex(_stringFromJson(json['foreground'])),
+      background: _colorFromHex(_stringFromJson(json['background'])),
+      bold: _boolFromJson(json['bold'], fallback: false),
+      dim: _boolFromJson(json['dim'], fallback: false),
+      italic: _boolFromJson(json['italic'], fallback: false),
+      underline: _boolFromJson(json['underline'], fallback: false),
+      blink: _boolFromJson(json['blink'], fallback: false),
+      inverse: _boolFromJson(json['inverse'], fallback: false),
+    );
+  }
+}
+
 class TerminalInlineImage {
   const TerminalInlineImage({
     required this.row,
@@ -792,6 +908,7 @@ class TerminalFrameDiff {
     this.windowTitle,
     this.windowIconName,
     this.hyperlinks = const [],
+    this.sizedText = const [],
     this.inlineImages = const [],
     this.graphics = const [],
   });
@@ -821,6 +938,7 @@ class TerminalFrameDiff {
   final String? windowTitle;
   final String? windowIconName;
   final List<TerminalHyperlinkRange> hyperlinks;
+  final List<TerminalSizedTextPlacement> sizedText;
   final List<TerminalInlineImage> inlineImages;
   final List<TerminalGraphicPlacement> graphics;
 
@@ -887,6 +1005,11 @@ class TerminalFrameDiff {
       windowTitle: _stringFromJson(json['window_title']),
       windowIconName: _stringFromJson(json['window_icon_name']),
       hyperlinks: _hyperlinksFromJson(json['hyperlinks'], viewportRows),
+      sizedText: _sizedTextFromJson(
+        json['sized_text'],
+        viewportRows,
+        viewportCols,
+      ),
       inlineImages: _inlineImagesFromJson(
         json['inline_images'],
         viewportRows,
@@ -1031,6 +1154,28 @@ List<TerminalHyperlinkRange> _hyperlinksFromJson(
   }, maxEntries: TerminalFrameValidationLimits.maxHyperlinksPerFrame);
 }
 
+List<TerminalSizedTextPlacement> _sizedTextFromJson(
+  Object? value,
+  int viewportRows,
+  int viewportCols,
+) {
+  return _jsonListFromJson(
+    value,
+    (json) {
+      final placement = TerminalSizedTextPlacement.tryFromJson(json);
+      if (placement == null ||
+          placement.row >= viewportRows ||
+          placement.col >= viewportCols ||
+          placement.col + placement.widthCells > viewportCols ||
+          placement.row + placement.visibleHeightCells > viewportRows) {
+        return null;
+      }
+      return placement;
+    },
+    maxEntries: TerminalFrameValidationLimits.maxSizedTextPlacementsPerFrame,
+  );
+}
+
 List<TerminalInlineImage> _inlineImagesFromJson(
   Object? value,
   int viewportRows,
@@ -1137,6 +1282,11 @@ TerminalFrameDiff _terminalFrameDiffFromProtobuf(
     windowTitle: proto.hasWindowTitle() ? proto.windowTitle : null,
     windowIconName: proto.hasWindowIconName() ? proto.windowIconName : null,
     hyperlinks: _hyperlinksFromProtobuf(proto.hyperlinks, viewportRows),
+    sizedText: _sizedTextFromProtobuf(
+      proto.sizedText,
+      viewportRows,
+      viewportCols,
+    ),
     inlineImages: _inlineImagesFromProtobuf(
       proto.inlineImages,
       viewportRows,
@@ -1327,6 +1477,99 @@ List<TerminalHyperlinkRange> _hyperlinksFromProtobuf(
     }
     return decoded;
   }, maxEntries: TerminalFrameValidationLimits.maxHyperlinksPerFrame);
+}
+
+TerminalSizedTextPlacement? _terminalSizedTextFromProtobuf(
+  frame_pb.TerminalSizedTextPlacement placement,
+) {
+  final text = placement.hasText() ? placement.text : '';
+  final widthCells = placement.hasWidthCells() ? placement.widthCells : 0;
+  final heightCells = placement.hasHeightCells() ? placement.heightCells : 0;
+  final sourceRowOffsetCells = placement.hasSourceRowOffsetCells()
+      ? placement.sourceRowOffsetCells
+      : 0;
+  final visibleHeightCells = placement.hasVisibleHeightCells()
+      ? placement.visibleHeightCells
+      : 0;
+  final scale = placement.hasScale() ? placement.scale : 0;
+  final subscaleN = placement.hasSubscaleN() ? placement.subscaleN : 0;
+  final subscaleD = placement.hasSubscaleD() ? placement.subscaleD : 0;
+  final verticalAlign = placement.hasVerticalAlign()
+      ? placement.verticalAlign
+      : 0;
+  final horizontalAlign = placement.hasHorizontalAlign()
+      ? placement.horizontalAlign
+      : 0;
+  if (text.isEmpty ||
+      text.length > 4096 ||
+      utf8.encode(text).length > 4096 ||
+      widthCells < 1 ||
+      widthCells > 49 ||
+      heightCells < 1 ||
+      heightCells > 7 ||
+      sourceRowOffsetCells >= heightCells ||
+      visibleHeightCells < 1 ||
+      sourceRowOffsetCells + visibleHeightCells > heightCells ||
+      scale < 1 ||
+      scale > 7 ||
+      subscaleN > 15 ||
+      subscaleD > 15 ||
+      (subscaleD > 0 && subscaleN >= subscaleD) ||
+      verticalAlign > 2 ||
+      horizontalAlign > 2) {
+    return null;
+  }
+  return TerminalSizedTextPlacement(
+    text: text,
+    row: placement.hasRow() ? placement.row : 0,
+    col: placement.hasCol() ? placement.col : 0,
+    widthCells: widthCells,
+    heightCells: heightCells,
+    sourceRowOffsetCells: sourceRowOffsetCells,
+    visibleHeightCells: visibleHeightCells,
+    scale: scale,
+    subscaleN: subscaleD == 0 ? 0 : subscaleN,
+    subscaleD: subscaleD,
+    verticalAlign: verticalAlign,
+    horizontalAlign: horizontalAlign,
+    naturalWidth: placement.naturalWidth,
+    foreground: _colorFromProtobuf(
+      hasValue: placement.hasForeground(),
+      value: placement.foreground,
+    ),
+    background: _colorFromProtobuf(
+      hasValue: placement.hasBackground(),
+      value: placement.background,
+    ),
+    bold: placement.bold,
+    dim: placement.dim,
+    italic: placement.italic,
+    underline: placement.underline,
+    blink: placement.blink,
+    inverse: placement.inverse,
+  );
+}
+
+List<TerminalSizedTextPlacement> _sizedTextFromProtobuf(
+  Iterable<frame_pb.TerminalSizedTextPlacement> placements,
+  int viewportRows,
+  int viewportCols,
+) {
+  return _boundedProtobufItems(
+    placements,
+    (placement) {
+      final decoded = _terminalSizedTextFromProtobuf(placement);
+      if (decoded == null ||
+          decoded.row >= viewportRows ||
+          decoded.col >= viewportCols ||
+          decoded.col + decoded.widthCells > viewportCols ||
+          decoded.row + decoded.visibleHeightCells > viewportRows) {
+        return null;
+      }
+      return decoded;
+    },
+    maxEntries: TerminalFrameValidationLimits.maxSizedTextPlacementsPerFrame,
+  );
 }
 
 TerminalInlineImage? _terminalInlineImageFromProtobuf(
@@ -1806,6 +2049,7 @@ class TerminalViewportState {
         windowTitle: nextFrame.windowTitle,
         windowIconName: nextFrame.windowIconName,
         hyperlinks: mergedHyperlinks,
+        sizedText: nextFrame.sizedText,
         inlineImages: mergedInlineImages,
         graphics: mergedGraphics,
       ),
@@ -2100,6 +2344,17 @@ TerminalFrameDiff _normalizeSnapshotFrame(
         (range) => _isValidHyperlinkInViewport(range, viewportRows),
       ),
     ),
+    sizedText: frame.sizedText
+        .where(
+          (placement) =>
+              placement.row >= 0 &&
+              placement.row < viewportRows &&
+              placement.col >= 0 &&
+              placement.col + placement.widthCells <= viewportCols &&
+              placement.row + placement.visibleHeightCells <= viewportRows,
+        )
+        .take(TerminalFrameValidationLimits.maxSizedTextPlacementsPerFrame)
+        .toList(growable: false),
     inlineImages: _normalizeInlineImages(
       images: frame.inlineImages,
       viewportRows: viewportRows,

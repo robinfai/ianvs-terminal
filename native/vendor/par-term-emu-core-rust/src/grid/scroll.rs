@@ -77,6 +77,7 @@ impl Grid {
         }
 
         self.damage.record_scroll(0, self.rows, -(n as i32));
+        self.sanitize_multicell_fragments();
         self.scroll_debug_stats.scroll_micros = self
             .scroll_debug_stats
             .scroll_micros
@@ -108,6 +109,7 @@ impl Grid {
         }
 
         self.damage.record_scroll(0, self.rows, n as i32);
+        self.sanitize_multicell_fragments();
         self.scroll_debug_stats.scroll_micros = self
             .scroll_debug_stats
             .scroll_micros
@@ -153,6 +155,7 @@ impl Grid {
             }
             self.damage
                 .mark_rows_dirty(top, effective_bottom.saturating_add(1));
+            self.sanitize_multicell_fragments();
             self.scroll_debug_stats.scroll_micros = self
                 .scroll_debug_stats
                 .scroll_micros
@@ -178,6 +181,7 @@ impl Grid {
         }
         self.damage
             .record_scroll(top, effective_bottom.saturating_add(1), -(n as i32));
+        self.sanitize_multicell_fragments();
         self.scroll_debug_stats.scroll_micros = self
             .scroll_debug_stats
             .scroll_micros
@@ -220,6 +224,7 @@ impl Grid {
             }
             self.damage
                 .mark_rows_dirty(top, effective_bottom.saturating_add(1));
+            self.sanitize_multicell_fragments();
             self.scroll_debug_stats.scroll_micros = self
                 .scroll_debug_stats
                 .scroll_micros
@@ -243,6 +248,7 @@ impl Grid {
         }
         self.damage
             .record_scroll(top, effective_bottom.saturating_add(1), n as i32);
+        self.sanitize_multicell_fragments();
         self.scroll_debug_stats.scroll_micros = self
             .scroll_debug_stats
             .scroll_micros
@@ -494,6 +500,24 @@ impl Grid {
         let mut current_col = 0;
 
         for cell in line {
+            if let Some(metadata) = cell.multicell {
+                let block_width = metadata.block_width();
+                if metadata.x == 0 && block_width <= width && current_col + block_width > width {
+                    while current_col < width {
+                        new_cells.push(self.blank_cell());
+                        current_col += 1;
+                    }
+                    wrapped_flags.push(true);
+                    current_col = 0;
+                }
+                // OSC 66 blocks already materialize every occupied physical
+                // cell. The anchor's Cell::width describes the whole block
+                // for cursor semantics, so ordinary wide-character reflow
+                // would create duplicate spacers and corrupt the block.
+                new_cells.push(cell.clone());
+                current_col += 1;
+                continue;
+            }
             let char_width = cell.width as usize;
             if current_col + char_width > width {
                 while current_col < width {

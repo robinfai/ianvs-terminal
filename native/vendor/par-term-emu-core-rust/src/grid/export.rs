@@ -14,7 +14,11 @@ impl Grid {
             if let Some(line) = self.scrollback_line(i) {
                 let mut line_text = String::new();
                 for cell in line {
-                    if !cell.flags.wide_char_spacer() {
+                    if !cell.flags.wide_char_spacer()
+                        && cell
+                            .multicell
+                            .is_none_or(|metadata| metadata.x == 0 && metadata.y == 0)
+                    {
                         line_text.push(cell.c);
                         for &combining in &cell.combining {
                             line_text.push(combining);
@@ -35,7 +39,11 @@ impl Grid {
             if let Some(row_cells) = self.row(row) {
                 let mut line_text = String::new();
                 for cell in row_cells {
-                    if !cell.flags.wide_char_spacer() {
+                    if !cell.flags.wide_char_spacer()
+                        && cell
+                            .multicell
+                            .is_none_or(|metadata| metadata.x == 0 && metadata.y == 0)
+                    {
                         line_text.push(cell.c);
                         for &combining in &cell.combining {
                             line_text.push(combining);
@@ -78,6 +86,12 @@ impl Grid {
         let mut last_significant = 0;
         for (col, cell) in row_cells.iter().enumerate() {
             if cell.flags.wide_char_spacer() {
+                continue;
+            }
+            if cell
+                .multicell
+                .is_some_and(|metadata| metadata.x > 0 || metadata.y > 0)
+            {
                 continue;
             }
             let has_content = cell.c != ' ' || !cell.combining.is_empty();
@@ -184,6 +198,12 @@ impl Grid {
                     if cell.flags.wide_char_spacer() {
                         continue;
                     }
+                    if cell
+                        .multicell
+                        .is_some_and(|metadata| metadata.x > 0 || metadata.y > 0)
+                    {
+                        continue;
+                    }
                     if col >= last_sig {
                         break;
                     }
@@ -213,6 +233,12 @@ impl Grid {
                 let last_sig = self.find_last_significant(line);
                 for (col, cell) in line.iter().enumerate() {
                     if cell.flags.wide_char_spacer() {
+                        continue;
+                    }
+                    if cell
+                        .multicell
+                        .is_some_and(|metadata| metadata.x > 0 || metadata.y > 0)
+                    {
                         continue;
                     }
                     if col >= last_sig {
@@ -343,6 +369,12 @@ impl Grid {
                 result.push_str(&format!("\x1b[{};1H", row + 1));
                 for (col, cell) in row_cells.iter().enumerate() {
                     if cell.flags.wide_char_spacer() {
+                        continue;
+                    }
+                    if cell
+                        .multicell
+                        .is_some_and(|metadata| metadata.x > 0 || metadata.y > 0)
+                    {
                         continue;
                     }
                     if col >= last_sig {

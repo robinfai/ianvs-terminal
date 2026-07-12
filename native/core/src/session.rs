@@ -4,7 +4,7 @@ use crate::model::{
     TerminalEmulation, TerminalEvent, TerminalFrameDiff, TerminalFrameKind, TerminalFrameModes,
     TerminalGraphicPlacement, TerminalHyperlinkRange, TerminalProfile, TerminalProfileAnsiColors,
     TerminalProfileColors, TerminalRow, TerminalSearchMatch, TerminalSelectionRequest,
-    TerminalStyleRun, normalize_scrollback_lines,
+    TerminalSizedTextPlacement, TerminalStyleRun, normalize_scrollback_lines,
 };
 use crate::pty::spawn_pty;
 use par_term_emu_core_rust::cell::{Cell, CellFlags};
@@ -2192,6 +2192,11 @@ impl TerminalSession {
             } else {
                 (Vec::new(), 0, 0, Vec::new())
             };
+        let sized_text = if self.emulation == TerminalEmulation::Xterm256 {
+            build_sized_text_placements(terminal, viewport_start_row, viewport_rows)
+        } else {
+            Vec::new()
+        };
         let graphic_placements_count = graphics.len();
         if self.should_defer_kitty_delete_graphics_frame(
             terminal,
@@ -2264,6 +2269,7 @@ impl TerminalSession {
             window_title,
             window_icon_name,
             hyperlinks,
+            sized_text,
             graphics,
         }))
     }
@@ -4313,6 +4319,68 @@ fn visible_row_for_screen_row(
     Some(absolute_row.saturating_sub(viewport_start_row))
 }
 
+fn build_sized_text_placements(
+    terminal: &Terminal,
+    viewport_start_row: usize,
+    viewport_rows: usize,
+) -> Vec<TerminalSizedTextPlacement> {
+    let viewport_end_row = viewport_start_row.saturating_add(viewport_rows);
+    let scan_start_row = viewport_start_row.saturating_sub(6);
+    let theme = terminal_theme_snapshot(terminal);
+    let mut placements = Vec::new();
+
+    for absolute_row in scan_start_row..viewport_end_row {
+        let (cells, _) = row_cells_for_visible_index(terminal, absolute_row);
+        for (col, cell) in cells.unwrap_or_default().iter().enumerate() {
+            let Some(metadata) = cell.multicell else {
+                continue;
+            };
+            if !metadata.is_anchor() {
+                continue;
+            }
+            let width_cells = metadata.block_width();
+            let height_cells = metadata.block_height();
+            let block_end_row = absolute_row.saturating_add(height_cells);
+            if width_cells == 0
+                || height_cells == 0
+                || col.saturating_add(width_cells) > terminal.size().0
+                || block_end_row <= viewport_start_row
+            {
+                continue;
+            }
+            let visible_start_row = absolute_row.max(viewport_start_row);
+            let visible_end_row = block_end_row.min(viewport_end_row);
+            if visible_start_row >= visible_end_row {
+                continue;
+            }
+            placements.push(TerminalSizedTextPlacement {
+                text: cell.get_grapheme(),
+                row: visible_start_row.saturating_sub(viewport_start_row),
+                col,
+                width_cells,
+                height_cells,
+                source_row_offset_cells: visible_start_row.saturating_sub(absolute_row),
+                visible_height_cells: visible_end_row.saturating_sub(visible_start_row),
+                scale: metadata.scale,
+                subscale_n: metadata.subscale_n,
+                subscale_d: metadata.subscale_d,
+                vertical_align: metadata.vertical_align,
+                horizontal_align: metadata.horizontal_align,
+                natural_width: metadata.natural_width,
+                foreground: color_to_hex(cell.fg, &theme.ansi_palette),
+                background: color_to_hex(cell.bg, &theme.ansi_palette),
+                bold: cell.flags.bold(),
+                dim: cell.flags.dim(),
+                italic: cell.flags.italic(),
+                underline: cell.flags.underline(),
+                blink: cell.flags.blink(),
+                inverse: cell.flags.reverse(),
+            });
+        }
+    }
+    placements
+}
+
 fn scroll_region_covers_full_active_screen(
     scroll_region: &PendingScrollRegion,
     viewport_rows: usize,
@@ -4334,9 +4402,14 @@ fn extract_hyperlinks_for_row(
         if cell.flags.wide_char_spacer() {
             continue;
         }
+        if cell.multicell.is_some_and(|metadata| metadata.x > 0) {
+            continue;
+        }
 
         let column_start = column_offset;
-        column_offset += cell.width();
+        column_offset += cell
+            .multicell
+            .map_or_else(|| cell.width(), |metadata| metadata.block_width());
         let cell_link = cell.flags.hyperlink_id.and_then(|id| {
             terminal
                 .get_hyperlink_url(id)
@@ -4412,16 +4485,25 @@ fn extract_row(
         if cell.flags.wide_char_spacer() {
             continue;
         }
+        let multicell = cell.multicell;
+        if multicell.is_some_and(|metadata| metadata.x > 0) {
+            continue;
+        }
 
         let grapheme = cell.get_grapheme();
         let is_kitty_placeholder = grapheme.starts_with(PLACEHOLDER_CHAR);
-        text.push_str(if grapheme.is_empty() || is_kitty_placeholder {
-            " "
+        let cell_width = multicell.map_or_else(|| cell.width(), |metadata| metadata.block_width());
+        if multicell.is_some() {
+            text.extend(std::iter::repeat_n(' ', cell_width));
         } else {
-            &grapheme
-        });
+            text.push_str(if grapheme.is_empty() || is_kitty_placeholder {
+                " "
+            } else {
+                &grapheme
+            });
+        }
         let column_start = column_offset;
-        column_offset += cell.width();
+        column_offset += cell_width;
         let column_end = column_offset;
         let style = TerminalStyleRun {
             start: column_start,
@@ -4706,9 +4788,14 @@ fn slice_cells_columns(
         if cell.flags.wide_char_spacer() {
             continue;
         }
+        if cell.multicell.is_some_and(|metadata| metadata.x > 0) {
+            continue;
+        }
 
         let column_start = column_offset;
-        column_offset += cell.width();
+        column_offset += cell
+            .multicell
+            .map_or_else(|| cell.width(), |metadata| metadata.block_width());
         if column_offset <= start_col {
             continue;
         }
@@ -4716,8 +4803,10 @@ fn slice_cells_columns(
             break;
         }
 
-        let grapheme = cell.get_grapheme();
-        text.push_str(&grapheme);
+        if cell.multicell.is_none_or(|metadata| metadata.y == 0) {
+            let grapheme = cell.get_grapheme();
+            text.push_str(&grapheme);
+        }
     }
     text
 }
@@ -4733,8 +4822,14 @@ fn last_significant_column(cells: Option<&[Cell]>, theme: &TerminalThemeSnapshot
         if cell.flags.wide_char_spacer() {
             continue;
         }
-        column_offset += cell.width();
-        let has_content = cell.c != ' ' || !cell.combining.is_empty();
+        if cell.multicell.is_some_and(|metadata| metadata.x > 0) {
+            continue;
+        }
+        column_offset += cell
+            .multicell
+            .map_or_else(|| cell.width(), |metadata| metadata.block_width());
+        let has_content = cell.multicell.is_none_or(|metadata| metadata.y == 0)
+            && (cell.c != ' ' || !cell.combining.is_empty());
         let has_styling =
             cell.fg != default_fg || cell.bg != default_bg || cell.flags != default_flags;
         if has_content || has_styling {
@@ -6529,6 +6624,26 @@ mod tests {
         assert!(!style.bold);
         assert!(!style.underline);
         assert!(!style.inverse);
+    }
+
+    #[test]
+    fn sized_text_placements_clip_blocks_crossing_the_viewport_top() {
+        let mut terminal = Terminal::with_scrollback(8, 4, 12);
+        terminal.process(b"\x1b]66;s=2:w=2;clip\x07");
+        terminal.process(b"\x1b[4;1H\n");
+
+        let full = build_sized_text_placements(&terminal, 0, 4);
+        assert_eq!(full.len(), 1);
+        assert_eq!(full[0].row, 0);
+        assert_eq!(full[0].source_row_offset_cells, 0);
+        assert_eq!(full[0].visible_height_cells, 2);
+
+        let clipped = build_sized_text_placements(&terminal, 1, 4);
+        assert_eq!(clipped.len(), 1);
+        assert_eq!(clipped[0].text, "clip");
+        assert_eq!(clipped[0].row, 0);
+        assert_eq!(clipped[0].source_row_offset_cells, 1);
+        assert_eq!(clipped[0].visible_height_cells, 1);
     }
 
     #[test]

@@ -12,6 +12,7 @@ pub mod damage;
 mod edit;
 mod erase;
 mod export;
+mod multicell;
 mod rect;
 mod scroll;
 mod zone;
@@ -41,6 +42,10 @@ pub struct Grid {
     pub(crate) rows: usize,
     /// The actual grid data (row-major order)
     pub(crate) cells: Vec<Cell>,
+    /// O(1) guard for the plain-ASCII write fast path.
+    pub(crate) screen_has_multicells: bool,
+    /// O(1) guard for history-aware fragment sanitization.
+    pub(crate) multicells_may_exist: bool,
     /// Cell template used for implementation-created blank cells.
     pub(crate) blank_cell: Cell,
     /// Physical row backing logical row 0 in `cells`.
@@ -82,6 +87,8 @@ impl std::fmt::Debug for Grid {
             .field("cols", &self.cols)
             .field("rows", &self.rows)
             .field("visible_cell_count", &self.cells.len())
+            .field("screen_has_multicells", &self.screen_has_multicells)
+            .field("multicells_may_exist", &self.multicells_may_exist)
             .field("screen_row_start", &self.screen_row_start)
             .field("scrollback_cell_count", &self.scrollback_cells.len())
             .field("scrollback_start", &self.scrollback_start)
@@ -105,6 +112,8 @@ impl Grid {
             cols,
             rows,
             cells,
+            screen_has_multicells: false,
+            multicells_may_exist: false,
             blank_cell,
             screen_row_start: 0,
             scrollback_cells: Vec::new(),
@@ -227,6 +236,10 @@ impl Grid {
 
     /// Set a cell at (col, row)
     pub fn set(&mut self, col: usize, row: usize, cell: Cell) {
+        if cell.multicell.is_some() {
+            self.screen_has_multicells = true;
+            self.multicells_may_exist = true;
+        }
         if let Some(c) = self.get_mut(col, row) {
             *c = cell;
         }
@@ -322,7 +335,12 @@ impl Grid {
         if let Some(cells) = self.row(row) {
             cells
                 .iter()
-                .filter(|cell| !cell.flags.wide_char_spacer())
+                .filter(|cell| {
+                    !cell.flags.wide_char_spacer()
+                        && cell
+                            .multicell
+                            .is_none_or(|metadata| metadata.x == 0 && metadata.y == 0)
+                })
                 .map(|cell| cell.get_grapheme())
                 .collect::<Vec<String>>()
                 .join("")
@@ -416,6 +434,12 @@ impl Grid {
         snap: &crate::terminal::terminal_snapshot::GridSnapshot,
     ) {
         self.cells = snap.cells.clone();
+        self.screen_has_multicells = self.cells.iter().any(|cell| cell.multicell.is_some());
+        self.multicells_may_exist = self.screen_has_multicells
+            || self
+                .scrollback_cells
+                .iter()
+                .any(|cell| cell.multicell.is_some());
         self.screen_row_start = 0;
         self.scrollback_cells = snap.scrollback_cells.clone();
         self.scrollback_start = snap.scrollback_start;

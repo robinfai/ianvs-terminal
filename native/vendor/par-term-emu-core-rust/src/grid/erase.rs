@@ -13,8 +13,14 @@ impl Grid {
 
     /// Clear the entire grid
     pub fn clear(&mut self) {
+        self.clear_multicells_intersecting(0, self.cols, 0, self.rows);
         let blank_cell = self.blank_cell();
         self.cells.fill(blank_cell);
+        self.screen_has_multicells = false;
+        self.multicells_may_exist = self
+            .scrollback_cells
+            .iter()
+            .any(|cell| cell.multicell.is_some());
         self.screen_row_start = 0;
         self.wrapped.fill(false);
         self.zones.clear();
@@ -23,6 +29,7 @@ impl Grid {
 
     /// Clear a specific row
     pub fn clear_row(&mut self, row: usize) {
+        self.clear_multicells_intersecting(0, self.cols, row, row.saturating_add(1));
         let blank_cell = self.blank_cell();
         if let Some(row_cells) = self.row_mut(row) {
             row_cells.fill(blank_cell);
@@ -35,6 +42,7 @@ impl Grid {
     }
 
     pub(crate) fn clear_row_with_bg_source(&mut self, row: usize, bg: Color, bg_is_default: bool) {
+        self.clear_multicells_intersecting(0, self.cols, row, row.saturating_add(1));
         let blank = self.blank_cell_with_bg_source(bg, bg_is_default);
         if let Some(row_cells) = self.row_mut(row) {
             for cell in row_cells {
@@ -45,6 +53,7 @@ impl Grid {
 
     /// Clear from cursor to end of line
     pub fn clear_line_right(&mut self, col: usize, row: usize) {
+        self.clear_multicells_intersecting(col, self.cols, row, row.saturating_add(1));
         let blank_cell = self.blank_cell();
         if let Some(range) = self.wide_safe_range(col, row, self.cols.saturating_sub(col)) {
             for c in range {
@@ -67,6 +76,7 @@ impl Grid {
         bg: Color,
         bg_is_default: bool,
     ) {
+        self.clear_multicells_intersecting(col, self.cols, row, row.saturating_add(1));
         let blank = self.blank_cell_with_bg_source(bg, bg_is_default);
         if let Some(range) = self.wide_safe_range(col, row, self.cols.saturating_sub(col)) {
             for c in range {
@@ -79,6 +89,7 @@ impl Grid {
 
     /// Clear from beginning of line to cursor
     pub fn clear_line_left(&mut self, col: usize, row: usize) {
+        self.clear_multicells_intersecting(0, col.saturating_add(1), row, row.saturating_add(1));
         let blank_cell = self.blank_cell();
         if let Some(range) = self.wide_safe_range(0, row, col.saturating_add(1)) {
             for c in range {
@@ -101,6 +112,7 @@ impl Grid {
         bg: Color,
         bg_is_default: bool,
     ) {
+        self.clear_multicells_intersecting(0, col.saturating_add(1), row, row.saturating_add(1));
         let blank = self.blank_cell_with_bg_source(bg, bg_is_default);
         if let Some(range) = self.wide_safe_range(0, row, col.saturating_add(1)) {
             for c in range {
@@ -165,6 +177,7 @@ impl Grid {
 
     /// Erase characters at (col, row)
     pub fn erase_characters(&mut self, col: usize, row: usize, n: usize) {
+        self.clear_multicells_intersecting(col, col.saturating_add(n), row, row.saturating_add(1));
         let blank_cell = self.blank_cell();
         if let Some(range) = self.wide_safe_range(col, row, n) {
             for c in range {
@@ -188,6 +201,7 @@ impl Grid {
         bg: Color,
         bg_is_default: bool,
     ) {
+        self.clear_multicells_intersecting(col, col.saturating_add(n), row, row.saturating_add(1));
         let blank = self.blank_cell_with_bg_source(bg, bg_is_default);
         if let Some(range) = self.wide_safe_range(col, row, n) {
             for c in range {
@@ -214,6 +228,7 @@ impl Grid {
         self.scrollback_lines = 0;
         self.scrollback_wrapped.clear();
         self.total_lines_scrolled = 0;
+        self.sanitize_multicell_fragments();
         self.damage.mark_full_repaint("clear_scrollback");
     }
 }

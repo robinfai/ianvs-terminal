@@ -15,6 +15,7 @@ import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_state.dart';
 import 'package:app/features/shell/password_manager_store.dart';
 import 'package:app/features/shell/shell_screen.dart';
+import 'package:app/features/terminal/render_terminal_viewport.dart';
 
 import '../test/support/memory_app_preferences_repository.dart';
 import '../test/support/macos_integration_test_lifecycle.dart';
@@ -720,6 +721,81 @@ sleep 1
         },
         onTimeout: () => 'Frame: ${_activeFrame(harness.container)}',
       );
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
+    'real PTY OSC 66 crosses frame transport and sized-text rendering',
+    (tester) async {
+      final goFile = _tempSignalFile('osc66-sized-text');
+      final profile = _scriptProfile(
+        id: 'osc66-real-pty',
+        name: 'OSC 66 Real PTY',
+        script: r'''
+printf 'osc66-ready\n'
+while [ ! -f "$GO_FILE" ]; do sleep 0.05; done
+printf '\033[31;44;1m'
+printf '\033]66;s=2:w=2:n=1:d=2:v=2:h=1;AB\033\\'
+printf '\033[0m OSC66-DONE\n'
+sleep 1
+''',
+        env: {'GO_FILE': goFile.path},
+      );
+      final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
+
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'OSC 66 real PTY ready marker',
+        matches: (text) => text.contains('osc66-ready'),
+      );
+      _signal(goFile);
+
+      await _waitFor(
+        tester,
+        description: 'OSC 66 typed frame placement',
+        condition: () {
+          final frame = _activeFrame(harness.container);
+          if (frame == null ||
+              !frame.rows.any((row) => row.text.contains('OSC66-DONE'))) {
+            return false;
+          }
+          return frame.sizedText.any(
+            (placement) =>
+                placement.text == 'AB' &&
+                placement.widthCells == 4 &&
+                placement.heightCells == 2 &&
+                placement.scale == 2 &&
+                placement.subscaleN == 1 &&
+                placement.subscaleD == 2 &&
+                placement.verticalAlign == 2 &&
+                placement.horizontalAlign == 1 &&
+                !placement.naturalWidth,
+          );
+        },
+        onTimeout: () => 'Frame: ${_activeFrame(harness.container)}',
+      );
+
+      if (kDebugMode) {
+        await _waitFor(
+          tester,
+          description: 'OSC 66 render-object sized-text paint',
+          condition: () =>
+              tester.allRenderObjects.whereType<RenderTerminalViewport>().any(
+                (renderObject) => renderObject.debugSizedText.any(
+                  (resolved) =>
+                      resolved.text == 'AB' &&
+                      resolved.blockRect.width > 0 &&
+                      resolved.blockRect.height > 0 &&
+                      resolved.visibleRect.width > 0 &&
+                      resolved.visibleRect.height > 0 &&
+                      resolved.scale > 0,
+                ),
+              ),
+          onTimeout: () => 'Frame: ${_activeFrame(harness.container)}',
+        );
+      }
     },
     skip: _skipNonRefreshPolicyGateTests,
   );

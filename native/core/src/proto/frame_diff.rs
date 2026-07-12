@@ -47,6 +47,8 @@ pub struct TerminalFrameDiff {
     pub global_bottom_row: ::core::option::Option<u64>,
     #[prost(string, tag = "23")]
     pub pointer_shape: ::prost::alloc::string::String,
+    #[prost(message, repeated, tag = "24")]
+    pub sized_text: ::prost::alloc::vec::Vec<TerminalSizedTextPlacement>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TerminalRow {
@@ -165,6 +167,51 @@ pub struct TerminalHyperlinkRange {
     pub uri: ::prost::alloc::string::String,
     #[prost(string, tag = "5")]
     pub protocol_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct TerminalSizedTextPlacement {
+    #[prost(string, tag = "1")]
+    pub text: ::prost::alloc::string::String,
+    #[prost(uint32, tag = "2")]
+    pub row: u32,
+    #[prost(uint32, tag = "3")]
+    pub col: u32,
+    #[prost(uint32, tag = "4")]
+    pub width_cells: u32,
+    #[prost(uint32, tag = "5")]
+    pub height_cells: u32,
+    #[prost(uint32, tag = "6")]
+    pub source_row_offset_cells: u32,
+    #[prost(uint32, tag = "7")]
+    pub visible_height_cells: u32,
+    #[prost(uint32, tag = "8")]
+    pub scale: u32,
+    #[prost(uint32, tag = "9")]
+    pub subscale_n: u32,
+    #[prost(uint32, tag = "10")]
+    pub subscale_d: u32,
+    #[prost(uint32, tag = "11")]
+    pub vertical_align: u32,
+    #[prost(uint32, tag = "12")]
+    pub horizontal_align: u32,
+    #[prost(bool, tag = "13")]
+    pub natural_width: bool,
+    #[prost(message, optional, tag = "14")]
+    pub foreground: ::core::option::Option<ColorRgb>,
+    #[prost(message, optional, tag = "15")]
+    pub background: ::core::option::Option<ColorRgb>,
+    #[prost(bool, tag = "16")]
+    pub bold: bool,
+    #[prost(bool, tag = "17")]
+    pub dim: bool,
+    #[prost(bool, tag = "18")]
+    pub italic: bool,
+    #[prost(bool, tag = "19")]
+    pub underline: bool,
+    #[prost(bool, tag = "20")]
+    pub blink: bool,
+    #[prost(bool, tag = "21")]
+    pub inverse: bool,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct TerminalInlineImage {

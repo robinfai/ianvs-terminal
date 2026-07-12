@@ -11,6 +11,7 @@ impl Grid {
         self.normalize_screen_rows();
         let n = n.min(scroll_bottom - row + 1);
         let effective_bottom = scroll_bottom.min(self.rows - 1);
+        self.clear_multicell_split_at_line(row);
 
         for i in (row..=(effective_bottom - n)).rev() {
             let src_start = i * self.cols;
@@ -25,6 +26,7 @@ impl Grid {
         }
         self.damage
             .record_scroll(row, effective_bottom.saturating_add(1), n as i32);
+        self.sanitize_multicell_fragments();
     }
 
     /// Delete n lines at row
@@ -35,6 +37,7 @@ impl Grid {
         self.normalize_screen_rows();
         let n = n.min(scroll_bottom - row + 1);
         let effective_bottom = scroll_bottom.min(self.rows - 1);
+        self.clear_multicells_intersecting(0, self.cols, row, row + n);
 
         for i in row..=(effective_bottom.saturating_sub(n)) {
             let src_start = (i + n) * self.cols;
@@ -50,6 +53,7 @@ impl Grid {
         }
         self.damage
             .record_scroll(row, effective_bottom.saturating_add(1), -(n as i32));
+        self.sanitize_multicell_fragments();
     }
 
     /// Insert n blank characters at position
@@ -57,6 +61,7 @@ impl Grid {
         if row >= self.rows || col >= self.cols {
             return;
         }
+        self.clear_multiline_multicells_from(col, row);
         self.clear_wide_char_at_insertion_boundary(col, row);
         let n = n.min(self.cols - col);
         let cols = self.cols;
@@ -71,10 +76,13 @@ impl Grid {
             }
         }
         self.sanitize_wide_char_fragments(row);
+        self.sanitize_multicell_fragments();
     }
 
     /// Delete n characters at position
     pub fn delete_chars(&mut self, col: usize, row: usize, n: usize) {
+        self.clear_multiline_multicells_from(col, row);
+        self.clear_multicells_intersecting(col, col.saturating_add(n), row, row + 1);
         let Some(range) = self.wide_safe_range(col, row, n) else {
             return;
         };
@@ -92,6 +100,7 @@ impl Grid {
             }
         }
         self.sanitize_wide_char_fragments(row);
+        self.sanitize_multicell_fragments();
     }
 
     /// Alias for insert_chars to satisfy CSI dispatcher

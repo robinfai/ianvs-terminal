@@ -825,6 +825,90 @@ void main() {
     expect(invalid.pointerShape, isNull);
   });
 
+  test('terminal sized text validates bounds and fractional metadata', () {
+    final oversizedUtf8 = List<String>.filled(1025, '😀').join();
+    final frame = TerminalFrameDiff.fromJson(<String, Object?>{
+      'rows': <Object?>[],
+      'cursor': <String, Object?>{'row': 0, 'col': 0, 'visible': false},
+      'viewport_rows': 4,
+      'viewport_cols': 20,
+      'dirty_ranges': <Object?>[],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+      'sized_text': <Object?>[
+        <String, Object?>{
+          'text': 'AB',
+          'row': 0,
+          'col': 1,
+          'width_cells': 4,
+          'height_cells': 2,
+          'source_row_offset_cells': 0,
+          'visible_height_cells': 2,
+          'scale': 2,
+          'subscale_n': 1,
+          'subscale_d': 2,
+          'vertical_align': 2,
+          'horizontal_align': 1,
+          'natural_width': false,
+        },
+        <String, Object?>{
+          'text': 'too-wide',
+          'row': 0,
+          'col': 0,
+          'width_cells': 50,
+          'height_cells': 1,
+          'source_row_offset_cells': 0,
+          'visible_height_cells': 1,
+          'scale': 1,
+        },
+        <String, Object?>{
+          'text': oversizedUtf8,
+          'row': 0,
+          'col': 0,
+          'width_cells': 1,
+          'height_cells': 1,
+          'source_row_offset_cells': 0,
+          'visible_height_cells': 1,
+          'scale': 1,
+        },
+      ],
+    });
+
+    expect(frame.sizedText, hasLength(1));
+    final placement = frame.sizedText.single;
+    expect(placement.text, 'AB');
+    expect(placement.widthCells, 4);
+    expect(placement.heightCells, 2);
+    expect(placement.scale, 2);
+    expect(placement.subscaleN, 1);
+    expect(placement.subscaleD, 2);
+    expect(placement.verticalAlign, 2);
+    expect(placement.horizontalAlign, 1);
+  });
+
+  test('terminal sized text protobuf enforces the 4 KiB UTF-8 limit', () {
+    final payload = frame_pb.TerminalFrameDiff(
+      cursor: frame_pb.TerminalCursor(row: 0, col: 0, visible: false),
+      viewportRows: 4,
+      viewportCols: 20,
+      sizedText: <frame_pb.TerminalSizedTextPlacement>[
+        frame_pb.TerminalSizedTextPlacement(
+          text: List<String>.filled(1025, '😀').join(),
+          row: 0,
+          col: 0,
+          widthCells: 1,
+          heightCells: 1,
+          sourceRowOffsetCells: 0,
+          visibleHeightCells: 1,
+          scale: 1,
+        ),
+      ],
+    );
+
+    final frame = TerminalFrameDiff.fromProtobufBytes(payload.writeToBuffer());
+    expect(frame.sizedText, isEmpty);
+  });
+
   test('terminal style runs normalize color strings', () {
     final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
       'rows': [
@@ -1275,6 +1359,23 @@ void main() {
       defaultBackground: frame_pb.ColorRgb(present: true, rgb: 0x101010),
       cursorColor: frame_pb.ColorRgb(present: true, rgb: 0xff00aa),
       pointerShape: 'zoom-in',
+      sizedText: [
+        frame_pb.TerminalSizedTextPlacement(
+          text: 'AB',
+          row: 0,
+          col: 1,
+          widthCells: 4,
+          heightCells: 2,
+          sourceRowOffsetCells: 0,
+          visibleHeightCells: 2,
+          scale: 2,
+          subscaleN: 1,
+          subscaleD: 2,
+          verticalAlign: 2,
+          horizontalAlign: 1,
+          naturalWidth: false,
+        ),
+      ],
       modes: frame_pb.TerminalFrameModes(
         alternateScreen: true,
         mouseMode: ' Any_Event ',
@@ -1368,6 +1469,12 @@ void main() {
     expect(frame.defaultBackground, const Color(0xFF101010));
     expect(frame.cursorColor, const Color(0xFFFF00AA));
     expect(frame.pointerShape, TerminalPointerShape.zoomIn);
+    expect(frame.sizedText, hasLength(1));
+    expect(frame.sizedText.single.text, 'AB');
+    expect(frame.sizedText.single.widthCells, 4);
+    expect(frame.sizedText.single.scale, 2);
+    expect(frame.sizedText.single.subscaleN, 1);
+    expect(frame.sizedText.single.subscaleD, 2);
     expect(frame.modes.alternateScreen, isTrue);
     expect(frame.modes.mouseMode, 'any_event');
     expect(frame.modes.mouseEncoding, 'sgr_pixels');

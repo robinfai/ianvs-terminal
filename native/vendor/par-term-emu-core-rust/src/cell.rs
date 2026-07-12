@@ -20,6 +20,50 @@ pub enum UnderlineStyle {
     Dashed,
 }
 
+/// Per-cell metadata for a Kitty OSC 66 multicell text block.
+///
+/// Every occupied cell carries the same sizing parameters plus its `x`/`y`
+/// offset from the block's top-left anchor. Only the anchor stores text; the
+/// remaining cells are structural continuations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MultiCell {
+    /// Width in unscaled cells (`w`), from 1 through 7.
+    pub width: u8,
+    /// Integral scale (`s`), from 1 through 7.
+    pub scale: u8,
+    /// Fractional numerator (`n`), from 0 through 15.
+    pub subscale_n: u8,
+    /// Fractional denominator (`d`), from 0 through 15.
+    pub subscale_d: u8,
+    /// Vertical fractional alignment (`v`): top, bottom, or centered.
+    pub vertical_align: u8,
+    /// Horizontal fractional alignment (`h`): left, right, or centered.
+    pub horizontal_align: u8,
+    /// Horizontal cell offset from the block anchor.
+    pub x: u8,
+    /// Vertical cell offset from the block anchor.
+    pub y: u8,
+    /// Whether `width` came from normal grapheme width (`w=0`).
+    pub natural_width: bool,
+}
+
+impl MultiCell {
+    #[inline]
+    pub const fn block_width(self) -> usize {
+        self.width as usize * self.scale as usize
+    }
+
+    #[inline]
+    pub const fn block_height(self) -> usize {
+        self.scale as usize
+    }
+
+    #[inline]
+    pub const fn is_anchor(self) -> bool {
+        self.x == 0 && self.y == 0
+    }
+}
+
 bitflags! {
     /// Bitflags for cell text attributes
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -238,6 +282,8 @@ pub struct Cell {
     pub flags: CellFlags,
     /// Cached display width of the character (1 or 2, typically)
     pub(crate) width: u8,
+    /// Kitty OSC 66 multicell metadata, when this cell belongs to a block.
+    pub multicell: Option<MultiCell>,
 }
 
 impl Default for Cell {
@@ -250,6 +296,7 @@ impl Default for Cell {
             underline_color: None,
             flags: CellFlags::default(),
             width: 1, // Space has width 1
+            multicell: None,
         }
     }
 }
@@ -298,6 +345,7 @@ impl Cell {
             underline_color: None,
             flags,
             width,
+            multicell: None,
         }
     }
 
@@ -315,12 +363,13 @@ impl Cell {
             underline_color: None,
             flags,
             width,
+            multicell: None,
         }
     }
 
     /// Check if this cell is empty (contains a space with default attributes)
     pub fn is_empty(&self) -> bool {
-        self.c == ' ' && self.flags == CellFlags::default()
+        self.c == ' ' && self.flags == CellFlags::default() && self.multicell.is_none()
     }
 
     /// Reset the cell to default state

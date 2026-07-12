@@ -148,6 +148,16 @@ PROBES = {
         + osc("22;>wait,crosshair")
         + osc("22;?__current__,pointer,wait,no-such-name"),
     ),
+    "sized_text": Probe(
+        "sized_text",
+        "Kitty OSC 66",
+        "Render fractional fixed-width text, exercise lower-row writing and erasure, then render natural-width text.",
+        "AB occupies a 4x2 block, lower-row x skips to its right, erasure removes the block, and Z occupies 2x2 cells.",
+        "appearance only; no host action",
+        osc("66;s=2:w=2:n=1:d=2:v=2:h=1;AB")
+        + b"\x1b[2;2Hx\x1b[1;2H\x1b[X"
+        + osc("66;s=2;Z", bell=True),
+    ),
     "progress": Probe(
         "progress",
         "OSC 9;4",
@@ -212,6 +222,7 @@ def self_test() -> None:
         "color_control",
         "osc23_noop",
         "pointer_shape",
+        "sized_text",
         "progress",
         "badge",
         "user_var",
@@ -237,6 +248,10 @@ def self_test() -> None:
         raise ValueError("OSC 23 no-op fixture is malformed")
     if PROBES["pointer_shape"].payload.count(b"\x1b]22;") != 3:
         raise ValueError("pointer-shape lifecycle fixture is malformed")
+    if PROBES["sized_text"].payload.count(b"\x1b]66;") != 2:
+        raise ValueError("sized-text lifecycle fixture is malformed")
+    if b"\x1b[X" not in PROBES["sized_text"].payload:
+        raise ValueError("sized-text erase recovery fixture is malformed")
 
 
 def parser() -> argparse.ArgumentParser:

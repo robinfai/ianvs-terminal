@@ -654,6 +654,12 @@ fn measured_payload_len(content: &[u8], separator: usize, classification: Classi
             }),
         // The OSC 934 version-1 specification defines its 8 KiB boundary
         // over the complete `934;...` payload, matching the command parser.
+        (b"66", OscIntent::Appearance) => payload
+            .iter()
+            .position(|byte| *byte == b';')
+            .map_or(payload.len(), |metadata_end| {
+                payload.len().saturating_sub(metadata_end + 1)
+            }),
         (b"934", OscIntent::IanvsPrivate) => content.len(),
         _ => payload.len(),
     }
@@ -673,8 +679,8 @@ fn classify_osc(
     };
 
     match command {
-        b"0" | b"1" | b"2" | b"4" | b"10" | b"11" | b"12" | b"21" | b"22" | b"23" | b"104"
-        | b"110" | b"111" | b"112" => {
+        b"0" | b"1" | b"2" | b"4" | b"10" | b"11" | b"12" | b"21" | b"22" | b"23" | b"66"
+        | b"104" | b"110" | b"111" | b"112" => {
             Classification::new(OscIntent::Appearance, OscCapability::Appearance)
         }
         b"7" => Classification::new(OscIntent::CurrentDirectory, OscCapability::Metadata),
@@ -869,6 +875,44 @@ mod tests {
         let diagnostics = gate.diagnostics().for_intent(OscIntent::Appearance);
         assert_eq!(diagnostics.oversized, 1);
         assert_eq!(diagnostics.accepted, 0);
+    }
+
+    #[test]
+    fn osc66_ingress_applies_the_4k_limit_to_text_not_metadata() {
+        let policy = OscCapabilityPolicy::default();
+        let context = OscClassificationContext::default();
+
+        let mut exact = b"\x1b]66;s=2:w=2;".to_vec();
+        exact.extend(std::iter::repeat_n(b'x', 4 * KIB));
+        exact.push(b'\x07');
+        let mut exact_gate = OscStreamGate::default();
+        assert_eq!(
+            filter_owned(&mut exact_gate, &exact, policy, context),
+            exact
+        );
+        assert_eq!(
+            exact_gate
+                .diagnostics()
+                .for_intent(OscIntent::Appearance)
+                .accepted,
+            1
+        );
+
+        let mut oversized = b"\x1b]66;s=2:w=2;".to_vec();
+        oversized.extend(std::iter::repeat_n(b'x', 4 * KIB + 1));
+        oversized.extend_from_slice(b"\x07recovered");
+        let mut oversized_gate = OscStreamGate::default();
+        assert_eq!(
+            filter_owned(&mut oversized_gate, &oversized, policy, context),
+            b"recovered"
+        );
+        assert_eq!(
+            oversized_gate
+                .diagnostics()
+                .for_intent(OscIntent::Appearance)
+                .oversized,
+            1
+        );
     }
 
     #[test]

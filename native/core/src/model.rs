@@ -376,6 +376,45 @@ pub struct TerminalHyperlinkRange {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TerminalSizedTextPlacement {
+    pub text: String,
+    pub row: usize,
+    pub col: usize,
+    pub width_cells: usize,
+    pub height_cells: usize,
+    #[serde(default)]
+    pub source_row_offset_cells: usize,
+    pub visible_height_cells: usize,
+    pub scale: u8,
+    #[serde(default)]
+    pub subscale_n: u8,
+    #[serde(default)]
+    pub subscale_d: u8,
+    #[serde(default)]
+    pub vertical_align: u8,
+    #[serde(default)]
+    pub horizontal_align: u8,
+    #[serde(default)]
+    pub natural_width: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub foreground: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub background: Option<String>,
+    #[serde(default)]
+    pub bold: bool,
+    #[serde(default)]
+    pub dim: bool,
+    #[serde(default)]
+    pub italic: bool,
+    #[serde(default)]
+    pub underline: bool,
+    #[serde(default)]
+    pub blink: bool,
+    #[serde(default)]
+    pub inverse: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TerminalGraphicPlacement {
     #[serde(default)]
     pub render_id: u64,
@@ -498,6 +537,8 @@ pub struct TerminalFrameDiff {
     pub window_icon_name: Option<String>,
     #[serde(default)]
     pub hyperlinks: Vec<TerminalHyperlinkRange>,
+    #[serde(default)]
+    pub sized_text: Vec<TerminalSizedTextPlacement>,
     #[serde(default)]
     pub graphics: Vec<TerminalGraphicPlacement>,
 }

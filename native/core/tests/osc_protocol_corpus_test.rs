@@ -142,6 +142,15 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
                     b"\x1b]22;crosshair,text,default,1,0\x1b\\\x1b]22;help\x1b\\\x1b]22;crosshair\x1b\\"
                 );
             }
+            "osc66_sized_text_edit_recovery" => {
+                let anchor = terminal.grid().get(1, 0).expect("OSC 66 anchor");
+                assert_eq!(anchor.get_grapheme(), "Z");
+                let metadata = anchor.multicell.expect("OSC 66 metadata");
+                assert_eq!(metadata.scale, 2);
+                assert_eq!(metadata.width, 1);
+                assert!(metadata.natural_width);
+                assert_eq!(terminal.grid().get(4, 1).unwrap().get_grapheme(), "x");
+            }
             "osc3008_malformed_close_recovery" => {
                 let contexts = terminal
                     .poll_events()

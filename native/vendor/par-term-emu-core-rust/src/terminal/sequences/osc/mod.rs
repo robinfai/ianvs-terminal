@@ -7,6 +7,7 @@ mod iterm;
 mod notify;
 mod pointer;
 mod shell;
+mod sized_text;
 mod title;
 
 use crate::debug;
@@ -166,6 +167,7 @@ impl Terminal {
                 "9" | "99" | "777" | "934" => self.handle_osc_notify(command, params),
                 "52" => self.handle_osc_clipboard(command, params),
                 "22" => self.handle_osc_pointer_shape(params),
+                "66" => self.handle_osc_sized_text(params),
                 "4" | "21" | "104" | "10" | "11" | "12" | "110" | "111" | "112" => {
                     self.handle_osc_color(command, params)
                 }

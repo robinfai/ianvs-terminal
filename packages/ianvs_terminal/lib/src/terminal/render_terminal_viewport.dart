@@ -89,6 +89,22 @@ class TerminalResolvedBackgroundSpan {
   final Rect rect;
 }
 
+class TerminalResolvedSizedText {
+  const TerminalResolvedSizedText({
+    required this.text,
+    required this.blockRect,
+    required this.visibleRect,
+    required this.drawOffset,
+    required this.scale,
+  });
+
+  final String text;
+  final Rect blockRect;
+  final Rect visibleRect;
+  final Offset drawOffset;
+  final double scale;
+}
+
 class TerminalRowTextMetrics {
   const TerminalRowTextMetrics({
     required this.alphabeticBaseline,
@@ -184,6 +200,8 @@ class RenderTerminalViewport extends RenderBox {
       {};
   final Map<int, int> _rowPictureBuildCounts = {};
   final List<Rect> _debugHyperlinkUnderlineRects = <Rect>[];
+  final List<TerminalResolvedSizedText> _debugSizedText =
+      <TerminalResolvedSizedText>[];
   int _paragraphBuilds = 0;
   Size _cellSize = terminalFallbackCellSize;
   double _cellBaseline = terminalFallbackCellSize.height;
@@ -321,6 +339,7 @@ class RenderTerminalViewport extends RenderBox {
       _debugRebuiltRowIndexesScratch.clear();
       _debugSearchHighlightRects.clear();
       _debugHyperlinkUnderlineRects.clear();
+      _debugSizedText.clear();
     }
     final canvas = context.canvas;
     canvas.save();
@@ -431,6 +450,7 @@ class RenderTerminalViewport extends RenderBox {
       }
       _paintHyperlinkUnderlinesForRow(canvas, frame, row.index, y);
     }
+    _paintSizedTextPlacements(canvas, frame);
     if (hasNewFrame) {
       _pruneInactiveRowCaches(_activeRowIndexesScratch);
       _lastPaintedFrameVersion = _controller.frameVersion;
@@ -528,6 +548,8 @@ class RenderTerminalViewport extends RenderBox {
       List<Rect>.unmodifiable(_debugSearchHighlightRects);
   List<Rect> get debugHyperlinkUnderlineRects =>
       List<Rect>.unmodifiable(_debugHyperlinkUnderlineRects);
+  List<TerminalResolvedSizedText> get debugSizedText =>
+      List<TerminalResolvedSizedText>.unmodifiable(_debugSizedText);
   bool get debugCursorVisible {
     final frame = _controller.frame;
     return frame.cursor.visible && _cursorVisible;
@@ -1218,6 +1240,16 @@ class RenderTerminalViewport extends RenderBox {
     TerminalCursor cursor,
     Color cursorColor,
   ) {
+    final sizedText = _sizedTextAtCursor(cursor);
+    if (sizedText != null) {
+      _paintSizedTextPlacement(
+        canvas,
+        frame,
+        sizedText,
+        foregroundOverride: _cursorTextColorFor(frame, cursorColor),
+      );
+      return;
+    }
     final cell = _cursorCellFor(cursor);
     if (cell == null || cell.isContinuation || cell.text.isEmpty) {
       return;
@@ -1581,6 +1613,138 @@ class RenderTerminalViewport extends RenderBox {
     return spans;
   }
 
+  void _paintSizedTextPlacements(Canvas canvas, TerminalFrameDiff frame) {
+    for (final placement in frame.sizedText) {
+      _paintSizedTextPlacement(canvas, frame, placement);
+    }
+  }
+
+  void _paintSizedTextPlacement(
+    Canvas canvas,
+    TerminalFrameDiff frame,
+    TerminalSizedTextPlacement placement, {
+    Color? foregroundOverride,
+  }) {
+    final anchorRow = placement.row - placement.sourceRowOffsetCells;
+    final blockRect = Rect.fromLTWH(
+      placement.col * _cellSize.width,
+      anchorRow * _cellSize.height,
+      placement.widthCells * _cellSize.width,
+      placement.heightCells * _cellSize.height,
+    );
+    final visibleRect = Rect.fromLTWH(
+      placement.col * _cellSize.width,
+      placement.row * _cellSize.height,
+      placement.widthCells * _cellSize.width,
+      placement.visibleHeightCells * _cellSize.height,
+    ).intersect(_localPaintBounds);
+    if (visibleRect.isEmpty || blockRect.isEmpty) {
+      return;
+    }
+
+    final canvasBackground = _canvasBackgroundFor(frame);
+    final resolvedStyle = _resolvedCellStyleFor(
+      TerminalStyleRun(
+        start: placement.col,
+        end: placement.col + placement.widthCells,
+        foreground: foregroundOverride ?? placement.foreground,
+        background: placement.background,
+        bold: placement.bold,
+        dim: placement.dim,
+        italic: placement.italic,
+        underline: placement.underline,
+        blink: placement.blink,
+        inverse: foregroundOverride == null && placement.inverse,
+      ),
+      defaultForeground:
+          foregroundOverride ??
+          placement.foreground ??
+          frame.defaultForeground ??
+          _colors.foreground,
+      defaultBackground: placement.background ?? frame.defaultBackground,
+      canvasBackground: canvasBackground,
+    );
+    final glyph = _glyphParagraphFor(placement.text, resolvedStyle);
+    if (glyph.size.width <= 0 || glyph.size.height <= 0) {
+      return;
+    }
+    final fraction = placement.subscaleD > 0
+        ? placement.subscaleN / placement.subscaleD
+        : 1.0;
+    final requestedScale = placement.scale * fraction;
+    final fitScale = math.min(
+      requestedScale,
+      math.min(
+        blockRect.width / glyph.size.width,
+        blockRect.height / glyph.size.height,
+      ),
+    );
+    if (!fitScale.isFinite || fitScale <= 0) {
+      return;
+    }
+    final scaledSize = Size(
+      glyph.size.width * fitScale,
+      glyph.size.height * fitScale,
+    );
+    final horizontalSlack = math.max(0.0, blockRect.width - scaledSize.width);
+    final verticalSlack = math.max(0.0, blockRect.height - scaledSize.height);
+    final drawOffset = Offset(
+      blockRect.left +
+          switch (placement.horizontalAlign) {
+            1 => horizontalSlack,
+            2 => horizontalSlack / 2,
+            _ => 0,
+          },
+      blockRect.top +
+          switch (placement.verticalAlign) {
+            1 => verticalSlack,
+            2 => verticalSlack / 2,
+            _ => 0,
+          },
+    );
+
+    canvas.save();
+    canvas.clipRect(visibleRect);
+    canvas.translate(drawOffset.dx, drawOffset.dy);
+    canvas.scale(fitScale, fitScale);
+    canvas.drawParagraph(glyph.paragraph, Offset.zero);
+    canvas.restore();
+    if (kDebugMode && foregroundOverride == null) {
+      _debugSizedText.add(
+        TerminalResolvedSizedText(
+          text: placement.text,
+          blockRect: blockRect,
+          visibleRect: visibleRect,
+          drawOffset: drawOffset,
+          scale: fitScale,
+        ),
+      );
+    }
+  }
+
+  TerminalSizedTextPlacement? _sizedTextAtCursor(TerminalCursor cursor) {
+    for (final placement in _controller.frame.sizedText) {
+      final visibleBottom = placement.row + placement.visibleHeightCells;
+      final right = placement.col + placement.widthCells;
+      if (cursor.row >= placement.row &&
+          cursor.row < visibleBottom &&
+          cursor.col >= placement.col &&
+          cursor.col < right) {
+        return placement;
+      }
+    }
+    return null;
+  }
+
+  Rect _sizedTextVisibleRect(TerminalSizedTextPlacement placement) {
+    return Rect.fromLTWH(
+      placement.col * _cellSize.width,
+      placement.row * _cellSize.height,
+      placement.widthCells * _cellSize.width,
+      placement.visibleHeightCells * _cellSize.height,
+    );
+  }
+
   Rect _cursorRect(TerminalCursor cursor) {
     return switch (_cursor.shape) {
       TerminalCursorShape.block => _cursorBlockRect(cursor),
@@ -1590,6 +1754,10 @@ class RenderTerminalViewport extends RenderBox {
   }
 
   Rect _cursorBlockRect(TerminalCursor cursor) {
+    final sizedText = _sizedTextAtCursor(cursor);
+    if (sizedText != null) {
+      return _snapRect(_sizedTextVisibleRect(sizedText));
+    }
     return _snapRect(_cursorCellRect(cursor));
   }
 
@@ -1598,6 +1766,13 @@ class RenderTerminalViewport extends RenderBox {
         ? _devicePixelRatio
         : 1.0;
     final thickness = math.max(1.0, 2.0 / devicePixelRatio);
+    final sizedText = _sizedTextAtCursor(cursor);
+    if (sizedText != null) {
+      final rect = _sizedTextVisibleRect(sizedText);
+      return _snapRect(
+        Rect.fromLTWH(rect.left, rect.top, thickness, rect.height),
+      );
+    }
     final left = cursor.col * _cellSize.width;
     final top = cursor.row * _cellSize.height;
     return _snapRect(Rect.fromLTWH(left, top, thickness, _cellSize.height));
@@ -1608,7 +1783,10 @@ class RenderTerminalViewport extends RenderBox {
         ? _devicePixelRatio
         : 1.0;
     final thickness = math.max(1.0, 2.0 / devicePixelRatio);
-    final cellRect = _cursorCellRect(cursor);
+    final sizedText = _sizedTextAtCursor(cursor);
+    final cellRect = sizedText == null
+        ? _cursorCellRect(cursor)
+        : _sizedTextVisibleRect(sizedText);
     final bottom = cellRect.bottom;
     return _snapRect(
       Rect.fromLTRB(

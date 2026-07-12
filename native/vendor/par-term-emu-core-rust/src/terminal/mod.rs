@@ -15,6 +15,7 @@ mod graphics;
 pub mod image;
 pub mod macros;
 pub mod metrics;
+mod multicell;
 pub mod multiplexing;
 pub mod notification;
 mod osc_stream;
@@ -1563,6 +1564,8 @@ impl Terminal {
 
         self.grid.resize(cols, rows);
         self.alt_grid.resize(cols, rows);
+        self.grid.sanitize_multicell_fragments();
+        self.alt_grid.sanitize_multicell_fragments();
         let (cell_width, cell_height) = self.cell_dimensions;
         self.graphics_store
             .refresh_cell_dimensions(cell_width, cell_height, cols, rows);

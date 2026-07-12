@@ -790,6 +790,7 @@ class TerminalRuntimeController {
         modes: current.modes,
         windowTitle: current.windowTitle,
         windowIconName: current.windowIconName,
+        sizedText: current.sizedText,
       ),
     );
     return true;

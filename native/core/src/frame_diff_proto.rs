@@ -1,7 +1,7 @@
 use crate::model::{
     TerminalCursor, TerminalDirtyRange, TerminalFrameDiff, TerminalFrameKind, TerminalFrameModes,
     TerminalGraphicPlacement, TerminalHyperlinkRange, TerminalRow, TerminalSelection,
-    TerminalStyleRun,
+    TerminalSizedTextPlacement, TerminalStyleRun,
 };
 use crate::proto::frame_diff as pb;
 use prost::Message;
@@ -49,8 +49,35 @@ fn to_proto_frame(frame: &TerminalFrameDiff) -> pb::TerminalFrameDiff {
         window_title: frame.window_title.clone().unwrap_or_default(),
         window_icon_name: frame.window_icon_name.clone().unwrap_or_default(),
         hyperlinks: frame.hyperlinks.iter().map(to_proto_hyperlink).collect(),
+        sized_text: frame.sized_text.iter().map(to_proto_sized_text).collect(),
         inline_images: Vec::new(),
         graphics: frame.graphics.iter().map(to_proto_graphic).collect(),
+    }
+}
+
+fn to_proto_sized_text(placement: &TerminalSizedTextPlacement) -> pb::TerminalSizedTextPlacement {
+    pb::TerminalSizedTextPlacement {
+        text: placement.text.clone(),
+        row: usize_to_u32(placement.row),
+        col: usize_to_u32(placement.col),
+        width_cells: usize_to_u32(placement.width_cells),
+        height_cells: usize_to_u32(placement.height_cells),
+        source_row_offset_cells: usize_to_u32(placement.source_row_offset_cells),
+        visible_height_cells: usize_to_u32(placement.visible_height_cells),
+        scale: u32::from(placement.scale),
+        subscale_n: u32::from(placement.subscale_n),
+        subscale_d: u32::from(placement.subscale_d),
+        vertical_align: u32::from(placement.vertical_align),
+        horizontal_align: u32::from(placement.horizontal_align),
+        natural_width: placement.natural_width,
+        foreground: color_to_proto(placement.foreground.as_deref()),
+        background: color_to_proto(placement.background.as_deref()),
+        bold: placement.bold,
+        dim: placement.dim,
+        italic: placement.italic,
+        underline: placement.underline,
+        blink: placement.blink,
+        inverse: placement.inverse,
     }
 }
 

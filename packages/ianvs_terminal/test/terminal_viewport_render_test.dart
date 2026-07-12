@@ -12,6 +12,103 @@ import 'package:ianvs_terminal/src/terminal/render_terminal_viewport.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
 
 void main() {
+  testWidgets('OSC 66 sized text scales, aligns, clips, and expands cursor', (
+    tester,
+  ) async {
+    final renderObject = await _pumpRenderViewportFrame(
+      tester,
+      cursorVisible: true,
+      frame: const TerminalFrameDiff(
+        rows: [
+          TerminalRow(index: 0, text: '                    '),
+          TerminalRow(index: 1, text: '                    '),
+          TerminalRow(index: 2, text: '                    '),
+        ],
+        cursor: TerminalCursor(row: 1, col: 1, visible: true),
+        viewportRows: 3,
+        viewportCols: 20,
+        dirtyRanges: [TerminalDirtyRange(start: 0, end: 3)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+        sizedText: [
+          TerminalSizedTextPlacement(
+            text: 'A',
+            row: 0,
+            col: 0,
+            widthCells: 2,
+            heightCells: 2,
+            sourceRowOffsetCells: 0,
+            visibleHeightCells: 2,
+            scale: 2,
+            subscaleN: 0,
+            subscaleD: 0,
+            verticalAlign: 0,
+            horizontalAlign: 0,
+            naturalWidth: true,
+          ),
+        ],
+      ),
+    );
+
+    final cellSize = renderObject.debugCellSize;
+    final resolved = renderObject.debugSizedText.single;
+    expect(resolved.text, 'A');
+    expect(
+      resolved.blockRect,
+      Rect.fromLTWH(0, 0, cellSize.width * 2, cellSize.height * 2),
+    );
+    expect(resolved.visibleRect, resolved.blockRect);
+    expect(resolved.scale, closeTo(2, 0.05));
+    expect(renderObject.debugCursorRect, resolved.blockRect);
+  });
+
+  testWidgets('OSC 66 fractional alignment and viewport clipping are exact', (
+    tester,
+  ) async {
+    final renderObject = await _pumpRenderViewportFrame(
+      tester,
+      frame: const TerminalFrameDiff(
+        rows: [
+          TerminalRow(index: 0, text: '                    '),
+          TerminalRow(index: 1, text: '                    '),
+          TerminalRow(index: 2, text: '                    '),
+        ],
+        cursor: TerminalCursor(row: 0, col: 0, visible: false),
+        viewportRows: 3,
+        viewportCols: 20,
+        dirtyRanges: [TerminalDirtyRange(start: 0, end: 3)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+        sizedText: [
+          TerminalSizedTextPlacement(
+            text: 'ab',
+            row: 0,
+            col: 2,
+            widthCells: 4,
+            heightCells: 3,
+            sourceRowOffsetCells: 1,
+            visibleHeightCells: 2,
+            scale: 3,
+            subscaleN: 1,
+            subscaleD: 2,
+            verticalAlign: 1,
+            horizontalAlign: 1,
+            naturalWidth: false,
+          ),
+        ],
+      ),
+    );
+
+    final cellSize = renderObject.debugCellSize;
+    final resolved = renderObject.debugSizedText.single;
+    expect(resolved.blockRect.top, closeTo(-cellSize.height, 0.01));
+    expect(resolved.visibleRect.top, 0);
+    expect(resolved.visibleRect.height, closeTo(cellSize.height * 2, 0.01));
+    expect(resolved.scale, closeTo(1.5, 0.05));
+    expect(resolved.drawOffset.dx, greaterThan(resolved.blockRect.left));
+    expect(resolved.drawOffset.dy, greaterThan(resolved.blockRect.top));
+  });
+
   testWidgets('explicit hyperlink tap preserves its OSC 8 protocol id', (
     tester,
   ) async {

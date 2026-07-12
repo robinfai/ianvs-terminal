@@ -46,6 +46,7 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
     $core.Iterable<TerminalGraphicPlacement>? graphics,
     $fixnum.Int64? globalBottomRow,
     $core.String? pointerShape,
+    $core.Iterable<TerminalSizedTextPlacement>? sizedText,
   }) {
     final result = create();
     if (frameSchemaVersion != null)
@@ -73,6 +74,7 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
     if (graphics != null) result.graphics.addAll(graphics);
     if (globalBottomRow != null) result.globalBottomRow = globalBottomRow;
     if (pointerShape != null) result.pointerShape = pointerShape;
+    if (sizedText != null) result.sizedText.addAll(sizedText);
     return result;
   }
 
@@ -131,6 +133,8 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
         22, _omitFieldNames ? '' : 'globalBottomRow', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOS(23, _omitFieldNames ? '' : 'pointerShape')
+    ..pPM<TerminalSizedTextPlacement>(24, _omitFieldNames ? '' : 'sizedText',
+        subBuilder: TerminalSizedTextPlacement.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -340,6 +344,9 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
   $core.bool hasPointerShape() => $_has(22);
   @$pb.TagNumber(23)
   void clearPointerShape() => $_clearField(23);
+
+  @$pb.TagNumber(24)
+  $pb.PbList<TerminalSizedTextPlacement> get sizedText => $_getList(23);
 }
 
 class TerminalRow extends $pb.GeneratedMessage {
@@ -1245,6 +1252,315 @@ class TerminalHyperlinkRange extends $pb.GeneratedMessage {
   $core.bool hasProtocolId() => $_has(4);
   @$pb.TagNumber(5)
   void clearProtocolId() => $_clearField(5);
+}
+
+class TerminalSizedTextPlacement extends $pb.GeneratedMessage {
+  factory TerminalSizedTextPlacement({
+    $core.String? text,
+    $core.int? row,
+    $core.int? col,
+    $core.int? widthCells,
+    $core.int? heightCells,
+    $core.int? sourceRowOffsetCells,
+    $core.int? visibleHeightCells,
+    $core.int? scale,
+    $core.int? subscaleN,
+    $core.int? subscaleD,
+    $core.int? verticalAlign,
+    $core.int? horizontalAlign,
+    $core.bool? naturalWidth,
+    ColorRgb? foreground,
+    ColorRgb? background,
+    $core.bool? bold,
+    $core.bool? dim,
+    $core.bool? italic,
+    $core.bool? underline,
+    $core.bool? blink,
+    $core.bool? inverse,
+  }) {
+    final result = create();
+    if (text != null) result.text = text;
+    if (row != null) result.row = row;
+    if (col != null) result.col = col;
+    if (widthCells != null) result.widthCells = widthCells;
+    if (heightCells != null) result.heightCells = heightCells;
+    if (sourceRowOffsetCells != null)
+      result.sourceRowOffsetCells = sourceRowOffsetCells;
+    if (visibleHeightCells != null)
+      result.visibleHeightCells = visibleHeightCells;
+    if (scale != null) result.scale = scale;
+    if (subscaleN != null) result.subscaleN = subscaleN;
+    if (subscaleD != null) result.subscaleD = subscaleD;
+    if (verticalAlign != null) result.verticalAlign = verticalAlign;
+    if (horizontalAlign != null) result.horizontalAlign = horizontalAlign;
+    if (naturalWidth != null) result.naturalWidth = naturalWidth;
+    if (foreground != null) result.foreground = foreground;
+    if (background != null) result.background = background;
+    if (bold != null) result.bold = bold;
+    if (dim != null) result.dim = dim;
+    if (italic != null) result.italic = italic;
+    if (underline != null) result.underline = underline;
+    if (blink != null) result.blink = blink;
+    if (inverse != null) result.inverse = inverse;
+    return result;
+  }
+
+  TerminalSizedTextPlacement._();
+
+  factory TerminalSizedTextPlacement.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory TerminalSizedTextPlacement.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'TerminalSizedTextPlacement',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'frame_diff'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'text')
+    ..aI(2, _omitFieldNames ? '' : 'row', fieldType: $pb.PbFieldType.OU3)
+    ..aI(3, _omitFieldNames ? '' : 'col', fieldType: $pb.PbFieldType.OU3)
+    ..aI(4, _omitFieldNames ? '' : 'widthCells', fieldType: $pb.PbFieldType.OU3)
+    ..aI(5, _omitFieldNames ? '' : 'heightCells',
+        fieldType: $pb.PbFieldType.OU3)
+    ..aI(6, _omitFieldNames ? '' : 'sourceRowOffsetCells',
+        fieldType: $pb.PbFieldType.OU3)
+    ..aI(7, _omitFieldNames ? '' : 'visibleHeightCells',
+        fieldType: $pb.PbFieldType.OU3)
+    ..aI(8, _omitFieldNames ? '' : 'scale', fieldType: $pb.PbFieldType.OU3)
+    ..aI(9, _omitFieldNames ? '' : 'subscaleN', fieldType: $pb.PbFieldType.OU3)
+    ..aI(10, _omitFieldNames ? '' : 'subscaleD', fieldType: $pb.PbFieldType.OU3)
+    ..aI(11, _omitFieldNames ? '' : 'verticalAlign',
+        fieldType: $pb.PbFieldType.OU3)
+    ..aI(12, _omitFieldNames ? '' : 'horizontalAlign',
+        fieldType: $pb.PbFieldType.OU3)
+    ..aOB(13, _omitFieldNames ? '' : 'naturalWidth')
+    ..aOM<ColorRgb>(14, _omitFieldNames ? '' : 'foreground',
+        subBuilder: ColorRgb.create)
+    ..aOM<ColorRgb>(15, _omitFieldNames ? '' : 'background',
+        subBuilder: ColorRgb.create)
+    ..aOB(16, _omitFieldNames ? '' : 'bold')
+    ..aOB(17, _omitFieldNames ? '' : 'dim')
+    ..aOB(18, _omitFieldNames ? '' : 'italic')
+    ..aOB(19, _omitFieldNames ? '' : 'underline')
+    ..aOB(20, _omitFieldNames ? '' : 'blink')
+    ..aOB(21, _omitFieldNames ? '' : 'inverse')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TerminalSizedTextPlacement clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TerminalSizedTextPlacement copyWith(
+          void Function(TerminalSizedTextPlacement) updates) =>
+      super.copyWith(
+              (message) => updates(message as TerminalSizedTextPlacement))
+          as TerminalSizedTextPlacement;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static TerminalSizedTextPlacement create() => TerminalSizedTextPlacement._();
+  @$core.override
+  TerminalSizedTextPlacement createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static TerminalSizedTextPlacement getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<TerminalSizedTextPlacement>(create);
+  static TerminalSizedTextPlacement? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get text => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set text($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasText() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearText() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.int get row => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set row($core.int value) => $_setUnsignedInt32(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasRow() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearRow() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.int get col => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set col($core.int value) => $_setUnsignedInt32(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasCol() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearCol() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.int get widthCells => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set widthCells($core.int value) => $_setUnsignedInt32(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasWidthCells() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearWidthCells() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.int get heightCells => $_getIZ(4);
+  @$pb.TagNumber(5)
+  set heightCells($core.int value) => $_setUnsignedInt32(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasHeightCells() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearHeightCells() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.int get sourceRowOffsetCells => $_getIZ(5);
+  @$pb.TagNumber(6)
+  set sourceRowOffsetCells($core.int value) => $_setUnsignedInt32(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasSourceRowOffsetCells() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearSourceRowOffsetCells() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.int get visibleHeightCells => $_getIZ(6);
+  @$pb.TagNumber(7)
+  set visibleHeightCells($core.int value) => $_setUnsignedInt32(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasVisibleHeightCells() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearVisibleHeightCells() => $_clearField(7);
+
+  @$pb.TagNumber(8)
+  $core.int get scale => $_getIZ(7);
+  @$pb.TagNumber(8)
+  set scale($core.int value) => $_setUnsignedInt32(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasScale() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearScale() => $_clearField(8);
+
+  @$pb.TagNumber(9)
+  $core.int get subscaleN => $_getIZ(8);
+  @$pb.TagNumber(9)
+  set subscaleN($core.int value) => $_setUnsignedInt32(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasSubscaleN() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearSubscaleN() => $_clearField(9);
+
+  @$pb.TagNumber(10)
+  $core.int get subscaleD => $_getIZ(9);
+  @$pb.TagNumber(10)
+  set subscaleD($core.int value) => $_setUnsignedInt32(9, value);
+  @$pb.TagNumber(10)
+  $core.bool hasSubscaleD() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearSubscaleD() => $_clearField(10);
+
+  @$pb.TagNumber(11)
+  $core.int get verticalAlign => $_getIZ(10);
+  @$pb.TagNumber(11)
+  set verticalAlign($core.int value) => $_setUnsignedInt32(10, value);
+  @$pb.TagNumber(11)
+  $core.bool hasVerticalAlign() => $_has(10);
+  @$pb.TagNumber(11)
+  void clearVerticalAlign() => $_clearField(11);
+
+  @$pb.TagNumber(12)
+  $core.int get horizontalAlign => $_getIZ(11);
+  @$pb.TagNumber(12)
+  set horizontalAlign($core.int value) => $_setUnsignedInt32(11, value);
+  @$pb.TagNumber(12)
+  $core.bool hasHorizontalAlign() => $_has(11);
+  @$pb.TagNumber(12)
+  void clearHorizontalAlign() => $_clearField(12);
+
+  @$pb.TagNumber(13)
+  $core.bool get naturalWidth => $_getBF(12);
+  @$pb.TagNumber(13)
+  set naturalWidth($core.bool value) => $_setBool(12, value);
+  @$pb.TagNumber(13)
+  $core.bool hasNaturalWidth() => $_has(12);
+  @$pb.TagNumber(13)
+  void clearNaturalWidth() => $_clearField(13);
+
+  @$pb.TagNumber(14)
+  ColorRgb get foreground => $_getN(13);
+  @$pb.TagNumber(14)
+  set foreground(ColorRgb value) => $_setField(14, value);
+  @$pb.TagNumber(14)
+  $core.bool hasForeground() => $_has(13);
+  @$pb.TagNumber(14)
+  void clearForeground() => $_clearField(14);
+  @$pb.TagNumber(14)
+  ColorRgb ensureForeground() => $_ensure(13);
+
+  @$pb.TagNumber(15)
+  ColorRgb get background => $_getN(14);
+  @$pb.TagNumber(15)
+  set background(ColorRgb value) => $_setField(15, value);
+  @$pb.TagNumber(15)
+  $core.bool hasBackground() => $_has(14);
+  @$pb.TagNumber(15)
+  void clearBackground() => $_clearField(15);
+  @$pb.TagNumber(15)
+  ColorRgb ensureBackground() => $_ensure(14);
+
+  @$pb.TagNumber(16)
+  $core.bool get bold => $_getBF(15);
+  @$pb.TagNumber(16)
+  set bold($core.bool value) => $_setBool(15, value);
+  @$pb.TagNumber(16)
+  $core.bool hasBold() => $_has(15);
+  @$pb.TagNumber(16)
+  void clearBold() => $_clearField(16);
+
+  @$pb.TagNumber(17)
+  $core.bool get dim => $_getBF(16);
+  @$pb.TagNumber(17)
+  set dim($core.bool value) => $_setBool(16, value);
+  @$pb.TagNumber(17)
+  $core.bool hasDim() => $_has(16);
+  @$pb.TagNumber(17)
+  void clearDim() => $_clearField(17);
+
+  @$pb.TagNumber(18)
+  $core.bool get italic => $_getBF(17);
+  @$pb.TagNumber(18)
+  set italic($core.bool value) => $_setBool(17, value);
+  @$pb.TagNumber(18)
+  $core.bool hasItalic() => $_has(17);
+  @$pb.TagNumber(18)
+  void clearItalic() => $_clearField(18);
+
+  @$pb.TagNumber(19)
+  $core.bool get underline => $_getBF(18);
+  @$pb.TagNumber(19)
+  set underline($core.bool value) => $_setBool(18, value);
+  @$pb.TagNumber(19)
+  $core.bool hasUnderline() => $_has(18);
+  @$pb.TagNumber(19)
+  void clearUnderline() => $_clearField(19);
+
+  @$pb.TagNumber(20)
+  $core.bool get blink => $_getBF(19);
+  @$pb.TagNumber(20)
+  set blink($core.bool value) => $_setBool(19, value);
+  @$pb.TagNumber(20)
+  $core.bool hasBlink() => $_has(19);
+  @$pb.TagNumber(20)
+  void clearBlink() => $_clearField(20);
+
+  @$pb.TagNumber(21)
+  $core.bool get inverse => $_getBF(20);
+  @$pb.TagNumber(21)
+  set inverse($core.bool value) => $_setBool(20, value);
+  @$pb.TagNumber(21)
+  $core.bool hasInverse() => $_has(20);
+  @$pb.TagNumber(21)
+  void clearInverse() => $_clearField(21);
 }
 
 class TerminalInlineImage extends $pb.GeneratedMessage {

@@ -1369,6 +1369,20 @@ fn osc22_pointer_shape_profile(emulation: TerminalEmulation) -> TerminalProfile 
     )
 }
 
+fn osc66_sized_text_profile(emulation: TerminalEmulation) -> TerminalProfile {
+    local_profile(
+        "osc66-sized-text",
+        "OSC 66 Sized Text",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"printf '\033]66;s=2:w=2:n=1:d=2:v=2:h=1;AB\033\\OSC66-SET\n'; sleep 1"#.to_string(),
+        ],
+        BTreeMap::new(),
+        emulation,
+    )
+}
+
 fn osc_palette_product_profile() -> TerminalProfile {
     let mut profile = local_profile(
         "osc-palette-product",
@@ -1926,6 +1940,38 @@ fn assert_frame_json_protobuf_pointer_shape_parity(frame: &str, expected: &str) 
     let protobuf = ianvs_core::frame_diff_proto::decode_frame_diff_for_test(&protobuf_bytes)
         .expect("decode the same pointer-shape protobuf frame");
     assert_eq!(protobuf.pointer_shape, expected);
+}
+
+fn assert_frame_json_protobuf_sized_text_parity(frame: &str) {
+    let parsed: serde_json::Value = serde_json::from_str(frame).unwrap();
+    let placement = &parsed["sized_text"][0];
+    assert_eq!(placement["text"], "AB");
+    assert_eq!(placement["row"], 0);
+    assert_eq!(placement["col"], 0);
+    assert_eq!(placement["width_cells"], 4);
+    assert_eq!(placement["height_cells"], 2);
+    assert_eq!(placement["scale"], 2);
+    assert_eq!(placement["subscale_n"], 1);
+    assert_eq!(placement["subscale_d"], 2);
+    assert_eq!(placement["vertical_align"], 2);
+    assert_eq!(placement["horizontal_align"], 1);
+
+    let frame_model: ianvs_core::model::TerminalFrameDiff = serde_json::from_str(frame).unwrap();
+    let protobuf_bytes = ianvs_core::frame_diff_proto::encode_frame_diff(&frame_model)
+        .expect("encode the same sized-text frame as protobuf");
+    let protobuf = ianvs_core::frame_diff_proto::decode_frame_diff_for_test(&protobuf_bytes)
+        .expect("decode the same sized-text protobuf frame");
+    let placement = &protobuf.sized_text[0];
+    assert_eq!(placement.text, "AB");
+    assert_eq!(placement.row, 0);
+    assert_eq!(placement.col, 0);
+    assert_eq!(placement.width_cells, 4);
+    assert_eq!(placement.height_cells, 2);
+    assert_eq!(placement.scale, 2);
+    assert_eq!(placement.subscale_n, 1);
+    assert_eq!(placement.subscale_d, 2);
+    assert_eq!(placement.vertical_align, 2);
+    assert_eq!(placement.horizontal_align, 1);
 }
 
 fn frame_row_at_index(frame: &serde_json::Value, index: u64) -> &serde_json::Value {
@@ -17062,6 +17108,45 @@ fn vt220_sessions_gate_osc22_pointer_shape_and_queries() {
     );
     let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
     assert!(parsed.get("pointer_shape").is_none());
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_osc66_sized_text_crosses_the_real_pty_and_frame_codecs() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc66_sized_text_profile(TerminalEmulation::Xterm256)).unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "OSC66-SET");
+    assert_frame_json_protobuf_sized_text_parity(&frame);
+    assert!(
+        logical_rows_from_frame(&frame)
+            .iter()
+            .any(|row| row.starts_with("    OSC66-SET")),
+        "OSC 66 must reserve four typed frame columns before the marker"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_sessions_gate_osc66_sized_text() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc66_sized_text_profile(TerminalEmulation::Vt220)).unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "OSC66-SET");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    assert_eq!(parsed["sized_text"], serde_json::json!([]));
+    assert!(
+        logical_rows_from_frame(&frame)
+            .iter()
+            .any(|row| row == "OSC66-SET"),
+        "VT220 policy must ignore OSC 66 without moving the cursor"
+    );
 
     session::close_session(session_id).unwrap();
 }

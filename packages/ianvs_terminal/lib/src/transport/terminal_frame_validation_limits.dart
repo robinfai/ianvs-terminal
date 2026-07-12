@@ -2,6 +2,7 @@ abstract final class TerminalFrameValidationLimits {
   static const int maxNativeDimension = 0xffff;
   static const int maxStyleRunsPerRow = 1024;
   static const int maxHyperlinksPerFrame = 4096;
+  static const int maxSizedTextPlacementsPerFrame = 4096;
   static const int maxInlineImagesPerFrame = 32;
   static const int maxInlineImageDecodedBytes = 4 * 1024 * 1024;
   static const int malformedCollectionSlack = 64;

@@ -297,6 +297,27 @@
       }
     },
     {
+      "id": "osc66_sized_text_edit_recovery",
+      "coverage": [
+        "OSC 66 sized text",
+        "OSC 66 overwrite/edit recovery"
+      ],
+      "protocol": "Kitty OSC 66",
+      "wire": {
+        "chunks_hex": [
+          "1b5d36363b733d323a773d323a6e3d313a643d323a763d323a683d313b41421b5c1b5b323b3248781b5b313b32481b5b581b5d36363b733d323b5a07"
+        ],
+        "sequence_count": 2
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "sized_text_render",
+        "state_effect": "fractional fixed-width text survives lower-row output, ECH clears the intersected block, and a new scaled block recovers",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
       "id": "tmux_passthrough",
       "coverage": ["tmux passthrough fixture"],
       "protocol": "tmux DCS passthrough carrying OSC 8",
