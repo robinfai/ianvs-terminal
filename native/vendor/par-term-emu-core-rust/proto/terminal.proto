@@ -262,6 +262,11 @@ message ShellIntegrationEvent {
   optional int32 exit_code = 3;         // Exit code (for command_finished)
   optional uint64 timestamp = 4;
   optional uint64 cursor_line = 5;     // Global cursor line (total_lines_scrolled + cursor_row) at marker time
+  optional string prompt_kind = 6;
+  optional string aid = 7;
+  optional string parent_aid = 8;
+  uint32 implicit_closed_count = 9;
+  optional bool fresh_line = 10;
 }
 
 // CPU statistics

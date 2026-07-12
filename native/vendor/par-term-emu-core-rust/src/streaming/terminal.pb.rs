@@ -390,6 +390,16 @@ pub struct ShellIntegrationEvent {
     /// Global cursor line (total_lines_scrolled + cursor_row) at marker time
     #[prost(uint64, optional, tag = "5")]
     pub cursor_line: ::core::option::Option<u64>,
+    #[prost(string, optional, tag = "6")]
+    pub prompt_kind: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "7")]
+    pub aid: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "8")]
+    pub parent_aid: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(uint32, tag = "9")]
+    pub implicit_closed_count: u32,
+    #[prost(bool, optional, tag = "10")]
+    pub fresh_line: ::core::option::Option<bool>,
 }
 /// CPU statistics
 #[derive(Clone, PartialEq, ::prost::Message)]

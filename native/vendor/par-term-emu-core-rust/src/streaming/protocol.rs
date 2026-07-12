@@ -361,6 +361,16 @@ pub enum ServerMessage {
         /// Global cursor line (`total_lines_scrolled + cursor_row`) at marker time
         #[serde(skip_serializing_if = "Option::is_none")]
         cursor_line: Option<u64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        prompt_kind: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        aid: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        parent_aid: Option<String>,
+        #[serde(default)]
+        implicit_closed_count: u32,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        fresh_line: Option<bool>,
     },
 
     /// System resource statistics (CPU, memory, disk, network)
@@ -1094,6 +1104,38 @@ impl ServerMessage {
             exit_code,
             timestamp,
             cursor_line,
+            prompt_kind: None,
+            aid: None,
+            parent_aid: None,
+            implicit_closed_count: 0,
+            fresh_line: None,
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn shell_integration_event_with_metadata(
+        event_type: String,
+        command: Option<String>,
+        exit_code: Option<i32>,
+        timestamp: Option<u64>,
+        cursor_line: Option<u64>,
+        prompt_kind: Option<String>,
+        aid: Option<String>,
+        parent_aid: Option<String>,
+        implicit_closed_count: u32,
+        fresh_line: Option<bool>,
+    ) -> Self {
+        Self::ShellIntegrationEvent {
+            event_type,
+            command,
+            exit_code,
+            timestamp,
+            cursor_line,
+            prompt_kind,
+            aid,
+            parent_aid,
+            implicit_closed_count,
+            fresh_line,
         }
     }
 

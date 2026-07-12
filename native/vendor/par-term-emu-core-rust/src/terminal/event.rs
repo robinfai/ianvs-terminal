@@ -160,6 +160,16 @@ pub enum TerminalEvent {
         timestamp: Option<u64>,
         /// Global cursor line (`total_lines_scrolled + cursor_row`) when the marker was emitted.
         cursor_line: Option<usize>,
+        /// OSC 133 semantic prompt kind (`initial`, `secondary`, `continuation`, `right`).
+        prompt_kind: Option<String>,
+        /// Opaque active shell-integration lifecycle identifier.
+        aid: Option<String>,
+        /// Opaque suspended parent lifecycle identifier.
+        parent_aid: Option<String>,
+        /// Inner lifecycles implicitly closed by an `aid`-targeted `D`.
+        implicit_closed_count: usize,
+        /// Whether the prompt marker requires fresh-line semantics (`A`/`N` vs `P`).
+        fresh_line: Option<bool>,
     },
     /// iTerm2 shell integration script version metadata.
     ShellIntegrationVersion {
@@ -361,8 +371,16 @@ impl TerminalEvent {
             Self::ShellIntegrationEvent {
                 event_type,
                 command,
+                prompt_kind,
+                aid,
+                parent_aid,
                 ..
-            } => event_type.len().saturating_add(option_len(command)),
+            } => event_type
+                .len()
+                .saturating_add(option_len(command))
+                .saturating_add(option_len(prompt_kind))
+                .saturating_add(option_len(aid))
+                .saturating_add(option_len(parent_aid)),
             Self::ShellIntegrationVersion { version, shell } => {
                 version.len().saturating_add(option_len(shell))
             }
@@ -571,6 +589,11 @@ mod tests {
             exit_code: None,
             timestamp: Some(1234567890),
             cursor_line: Some(5),
+            prompt_kind: Some("initial".to_string()),
+            aid: Some("shell-1".to_string()),
+            parent_aid: None,
+            implicit_closed_count: 0,
+            fresh_line: Some(true),
         };
         assert_eq!(event.kind(), TerminalEventKind::ShellIntegrationEvent);
     }

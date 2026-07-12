@@ -5980,6 +5980,11 @@ void main() {
             'eventType': 'command_finished',
             'command': 'dart test',
             'exitCode': 0,
+            'promptKind': 'right',
+            'aid': 'inner-shell',
+            'parentAid': 'outer-shell',
+            'implicitClosedCount': 1,
+            'freshLine': false,
           },
         ),
       );
@@ -6074,6 +6079,11 @@ void main() {
       expect(shellCommand.single.source, 'osc633');
       expect(shellCommand.single.eventType, 'command_finished');
       expect(shellCommand.single.exitCode, 0);
+      expect(shellCommand.single.promptKind, 'right');
+      expect(shellCommand.single.aid, 'inner-shell');
+      expect(shellCommand.single.parentAid, 'outer-shell');
+      expect(shellCommand.single.implicitClosedCount, 1);
+      expect(shellCommand.single.freshLine, isFalse);
       expect(
         events.whereType<TerminalSessionShellUserVarEvent>().single.name,
         'IANVS_TEST',

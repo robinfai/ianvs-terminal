@@ -18,6 +18,49 @@ const OSC7_CWD_MAX_BYTES: usize = 4 * 1024;
 const OSC7_HOST_MAX_BYTES: usize = 255;
 const OSC7_USERNAME_MAX_BYTES: usize = 255;
 const SHELL_COMMAND_MAX_CHARS: usize = 4 * 1024;
+const OSC133_AID_MAX_BYTES: usize = 256;
+
+fn is_valid_osc133_aid(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= OSC133_AID_MAX_BYTES
+        && !value.chars().any(char::is_control)
+        && !value.contains(';')
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SemanticPromptKind {
+    Initial,
+    Secondary,
+    Continuation,
+    Right,
+}
+
+impl SemanticPromptKind {
+    fn parse(value: Option<&str>) -> Self {
+        match value {
+            Some("s") => Self::Secondary,
+            Some("c") => Self::Continuation,
+            Some("r") => Self::Right,
+            _ => Self::Initial,
+        }
+    }
+
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Initial => "initial",
+            Self::Secondary => "secondary",
+            Self::Continuation => "continuation",
+            Self::Right => "right",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+struct Osc133Metadata {
+    prompt_kind: Option<SemanticPromptKind>,
+    aid: Option<String>,
+    fresh_line: Option<bool>,
+}
 
 impl Terminal {
     /// Configure the optional VS Code OSC 633 command-line correlation nonce.
@@ -89,33 +132,55 @@ impl Terminal {
                 else {
                     return;
                 };
-                let marker = match marker {
-                    "A" => ShellIntegrationMarker::PromptStart,
-                    "B" => ShellIntegrationMarker::CommandStart,
-                    "C" => ShellIntegrationMarker::CommandExecuted,
-                    "D" => ShellIntegrationMarker::CommandFinished,
+                let (marker, fresh_line) = match marker {
+                    "A" | "N" => (ShellIntegrationMarker::PromptStart, Some(true)),
+                    "P" => (ShellIntegrationMarker::PromptStart, Some(false)),
+                    "B" => (ShellIntegrationMarker::CommandStart, None),
+                    "C" => (ShellIntegrationMarker::CommandExecuted, None),
+                    "D" => (ShellIntegrationMarker::CommandFinished, None),
                     _ => return,
                 };
+                let fields = params
+                    .iter()
+                    .skip(2)
+                    .filter_map(|value| std::str::from_utf8(value).ok());
+                let mut kind = None;
+                let mut aid = None;
+                let mut positional = Vec::new();
+                for field in fields {
+                    if let Some(value) = field.strip_prefix("k=") {
+                        kind = Some(value);
+                    } else if let Some(value) = field.strip_prefix("aid=") {
+                        if is_valid_osc133_aid(value) {
+                            aid = Some(value.to_string());
+                        } else if !value.is_empty() {
+                            return;
+                        }
+                    } else if !field.contains('=') {
+                        positional.push(field);
+                    }
+                }
                 let command = (marker == ShellIntegrationMarker::CommandExecuted)
-                    .then(|| {
-                        params
-                            .get(2)
-                            .and_then(|value| std::str::from_utf8(value).ok())
-                    })
+                    .then(|| positional.first().copied())
                     .flatten();
                 let exit_code = (marker == ShellIntegrationMarker::CommandFinished)
                     .then(|| {
-                        params
-                            .get(2)
-                            .and_then(|value| std::str::from_utf8(value).ok())
-                            .and_then(|value| value.trim().parse::<i32>().ok())
+                        positional
+                            .iter()
+                            .find_map(|value| value.trim().parse::<i32>().ok())
                     })
                     .flatten();
-                self.handle_shell_marker(
+                self.handle_shell_marker_with_metadata(
                     ShellIntegrationSource::Osc133,
                     marker,
                     command,
                     exit_code,
+                    Osc133Metadata {
+                        prompt_kind: (marker == ShellIntegrationMarker::PromptStart)
+                            .then(|| SemanticPromptKind::parse(kind)),
+                        aid,
+                        fresh_line,
+                    },
                 );
             }
             "633" => self.handle_osc633(params),
@@ -235,6 +300,23 @@ impl Terminal {
         command: Option<&str>,
         exit_code: Option<i32>,
     ) {
+        self.handle_shell_marker_with_metadata(
+            source,
+            marker,
+            command,
+            exit_code,
+            Osc133Metadata::default(),
+        );
+    }
+
+    fn handle_shell_marker_with_metadata(
+        &mut self,
+        source: ShellIntegrationSource,
+        marker: ShellIntegrationMarker,
+        command: Option<&str>,
+        exit_code: Option<i32>,
+        metadata: Osc133Metadata,
+    ) {
         // Full suppression is intentional: TUI applications frequently emit
         // terminal-looking bytes on the alternate screen, and those bytes
         // must not mutate the primary screen's shell metadata or zones.
@@ -246,6 +328,37 @@ impl Terminal {
         let abs_line = self.active_grid().total_lines_scrolled() + self.cursor.row;
         let close_row = abs_line.saturating_sub(1);
 
+        if marker == ShellIntegrationMarker::PromptStart
+            && metadata.prompt_kind != Some(SemanticPromptKind::Initial)
+            && metadata.prompt_kind.is_some()
+        {
+            self.push_shell_marker_event(
+                source,
+                "semantic_prompt",
+                None,
+                None,
+                timestamp,
+                abs_line,
+                &metadata,
+                0,
+            );
+            return;
+        }
+
+        let mut implicit_closed_count = 0;
+        if marker == ShellIntegrationMarker::CommandFinished {
+            if let Some(ref aid) = metadata.aid {
+                let Some(count) = self.shell_integration.restore_lifecycle_for_aid(aid) else {
+                    return;
+                };
+                implicit_closed_count = count;
+                if count > 0 {
+                    self.confirm_nested_shell_return();
+                    self.in_command_output = true;
+                }
+            }
+        }
+
         // A completed child with a suspended parent is ambiguous until the
         // next lifecycle marker. A following `A` is the normal next prompt of
         // a long-lived child shell, while a consecutive `D` is the only marker
@@ -256,6 +369,7 @@ impl Terminal {
             && marker == ShellIntegrationMarker::PromptStart;
         if self.shell_integration.has_pending_parent_lifecycle()
             && marker == ShellIntegrationMarker::CommandFinished
+            && metadata.aid.is_none()
         {
             self.confirm_nested_shell_return();
             if !self.shell_integration.restore_parent_lifecycle() {
@@ -278,6 +392,12 @@ impl Terminal {
             ShellMarkerTransition::Accepted => {}
         }
 
+        if marker == ShellIntegrationMarker::PromptStart
+            && (previous_state == ShellIntegrationState::CommandOutput || metadata.aid.is_some())
+        {
+            self.shell_integration.set_aid(metadata.aid.clone());
+        }
+
         match marker {
             ShellIntegrationMarker::PromptStart => {
                 match previous_state {
@@ -291,7 +411,16 @@ impl Terminal {
                     _ => {}
                 }
 
-                self.push_shell_marker_event(source, marker, None, None, timestamp, abs_line);
+                self.push_shell_marker_event(
+                    source,
+                    "prompt_start",
+                    None,
+                    None,
+                    timestamp,
+                    abs_line,
+                    &metadata,
+                    0,
+                );
                 if continuing_nested_prompt {
                     // This is another command cycle in the same child shell,
                     // not a deeper sub-shell entry.
@@ -307,11 +436,13 @@ impl Terminal {
                 let command = self.shell_integration.command().map(str::to_owned);
                 self.push_shell_marker_event(
                     source,
-                    marker,
+                    "command_start",
                     command.clone(),
                     None,
                     timestamp,
                     abs_line,
+                    &metadata,
+                    0,
                 );
                 self.close_shell_zone(ZoneType::Prompt, close_row, None);
                 self.open_shell_zone(ZoneType::Command, abs_line, timestamp, command);
@@ -323,11 +454,13 @@ impl Terminal {
                 let command = self.shell_integration.command().map(str::to_owned);
                 self.push_shell_marker_event(
                     source,
-                    marker,
+                    "command_executed",
                     command.clone(),
                     None,
                     timestamp,
                     abs_line,
+                    &metadata,
+                    0,
                 );
                 if let Some(ref mut execution) = self.current_command {
                     execution.output_start_row = Some(abs_line);
@@ -340,28 +473,34 @@ impl Terminal {
                 if let Some(exit_code) = exit_code {
                     self.shell_integration.set_exit_code(exit_code);
                 }
-                self.push_shell_marker_event(source, marker, None, exit_code, timestamp, abs_line);
+                self.push_shell_marker_event(
+                    source,
+                    "command_finished",
+                    None,
+                    exit_code,
+                    timestamp,
+                    abs_line,
+                    &metadata,
+                    implicit_closed_count,
+                );
                 self.close_shell_zone(ZoneType::Output, abs_line, exit_code);
                 self.in_command_output = self.shell_integration.has_pending_parent_lifecycle();
             }
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn push_shell_marker_event(
         &mut self,
         source: ShellIntegrationSource,
-        marker: ShellIntegrationMarker,
+        event_type: &str,
         command: Option<String>,
         exit_code: Option<i32>,
         timestamp: u64,
         cursor_line: usize,
+        metadata: &Osc133Metadata,
+        implicit_closed_count: usize,
     ) {
-        let event_type = match marker {
-            ShellIntegrationMarker::PromptStart => "prompt_start",
-            ShellIntegrationMarker::CommandStart => "command_start",
-            ShellIntegrationMarker::CommandExecuted => "command_executed",
-            ShellIntegrationMarker::CommandFinished => "command_finished",
-        };
         self.terminal_events
             .push(TerminalEvent::ShellIntegrationEvent {
                 source,
@@ -370,6 +509,14 @@ impl Terminal {
                 exit_code,
                 timestamp: Some(timestamp),
                 cursor_line: Some(cursor_line),
+                prompt_kind: metadata.prompt_kind.map(|kind| kind.as_str().to_string()),
+                aid: metadata
+                    .aid
+                    .clone()
+                    .or_else(|| self.shell_integration.aid().map(str::to_string)),
+                parent_aid: self.shell_integration.parent_aid().map(str::to_string),
+                implicit_closed_count,
+                fresh_line: metadata.fresh_line,
             });
     }
 
@@ -695,6 +842,149 @@ mod tests {
                     Some(7)
                 ),
             ]
+        );
+    }
+
+    #[test]
+    fn osc133_semantic_prompt_variants_preserve_lifecycle_and_zones() {
+        let mut term = Terminal::new(80, 24);
+
+        term.process(b"\x1b]133;N;aid=shell-1;k=i\x07");
+        let zone_count = term.get_zones().len();
+        term.process(b"\x1b]133;P;k=s;aid=shell-1\x1b\\");
+        term.process(b"\x1b]133;A;aid=shell-1;k=c\x07");
+        term.process(b"\x1b]133;N;k=r;aid=shell-1\x07");
+
+        assert_eq!(
+            term.shell_integration.state(),
+            ShellIntegrationState::Prompt
+        );
+        assert_eq!(term.shell_integration.aid(), Some("shell-1"));
+        assert_eq!(term.get_zones().len(), zone_count);
+        let events = term.poll_events();
+        let semantic = events
+            .iter()
+            .filter_map(|event| match event {
+                TerminalEvent::ShellIntegrationEvent {
+                    event_type,
+                    prompt_kind,
+                    aid,
+                    fresh_line,
+                    ..
+                } if event_type == "semantic_prompt" => {
+                    Some((prompt_kind.as_deref(), aid.as_deref(), *fresh_line))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            semantic,
+            vec![
+                (Some("secondary"), Some("shell-1"), Some(false)),
+                (Some("continuation"), Some("shell-1"), Some(true)),
+                (Some("right"), Some("shell-1"), Some(true)),
+            ]
+        );
+    }
+
+    #[test]
+    fn osc133_d_targets_aid_and_parses_exit_code_in_any_order() {
+        let mut term = Terminal::new(80, 24);
+        term.process(b"\x1b]133;A;k=i;aid=outer\x07\x1b]133;B\x07\x1b]133;C;outer-command\x07");
+        term.process(b"\x1b]133;A;aid=inner;k=i\x07\x1b]133;B\x07\x1b]133;C;inner-command\x07");
+        term.poll_events();
+
+        term.process(b"\x1b]133;D;aid=unknown;99\x07");
+        assert_eq!(term.shell_integration.aid(), Some("inner"));
+        assert_eq!(
+            term.shell_integration.state(),
+            ShellIntegrationState::CommandOutput
+        );
+
+        term.process(b"\x1b]133;D;aid=inner;0\x07");
+        term.process(b"\x1b]133;D;aid=inner;0\x07");
+        assert_eq!(term.shell_integration.aid(), Some("inner"));
+        assert_eq!(term.shell_integration.parent_aid(), Some("outer"));
+        assert_eq!(
+            term.shell_integration.state(),
+            ShellIntegrationState::Finished
+        );
+
+        term.process(b"\x1b]133;D;aid=outer;7\x07");
+        assert_eq!(term.shell_integration.aid(), Some("outer"));
+        assert_eq!(
+            term.shell_integration.state(),
+            ShellIntegrationState::Finished
+        );
+        assert_eq!(term.shell_integration.exit_code(), Some(7));
+        assert!(term.poll_events().iter().any(|event| matches!(
+            event,
+            TerminalEvent::ShellIntegrationEvent {
+                event_type,
+                aid: Some(aid),
+                implicit_closed_count: 1,
+                exit_code: Some(7),
+                ..
+            } if event_type == "command_finished" && aid == "outer"
+        )));
+    }
+
+    #[test]
+    fn osc133_rejects_invalid_or_oversized_aid_without_mutation() {
+        let mut term = Terminal::new(80, 24);
+        let oversized = "x".repeat(OSC133_AID_MAX_BYTES + 1);
+        term.process(format!("\x1b]133;A;aid={oversized}\x07").as_bytes());
+        assert_eq!(term.shell_integration.state(), ShellIntegrationState::Idle);
+        assert!(term
+            .poll_events()
+            .iter()
+            .all(|event| !matches!(event, TerminalEvent::ShellIntegrationEvent { .. })));
+    }
+
+    #[test]
+    fn osc133_semantic_prompt_accepts_every_byte_split() {
+        let wire = b"\x1b]133;N;k=i;aid=split\x07\x1b]133;P;aid=split;k=s\x1b\\";
+        for split in 0..=wire.len() {
+            let mut term = Terminal::new(80, 24);
+            term.process(&wire[..split]);
+            term.process(&wire[split..]);
+            assert_eq!(
+                term.shell_integration.state(),
+                ShellIntegrationState::Prompt
+            );
+            assert_eq!(term.shell_integration.aid(), Some("split"));
+            assert!(
+                term.poll_events().iter().any(|event| matches!(
+                    event,
+                    TerminalEvent::ShellIntegrationEvent {
+                        event_type,
+                        prompt_kind: Some(kind),
+                        fresh_line: Some(false),
+                        ..
+                    } if event_type == "semantic_prompt" && kind == "secondary"
+                )),
+                "split {split} lost semantic prompt metadata"
+            );
+        }
+    }
+
+    #[test]
+    fn osc133_aid_stack_survives_snapshot_and_ris_clears_it() {
+        let mut source = Terminal::new(80, 24);
+        source.process(b"\x1b]133;A;aid=outer\x07\x1b]133;B\x07\x1b]133;C;outer\x07");
+        source.process(b"\x1b]133;A;aid=inner\x07");
+
+        let mut restored = Terminal::new(80, 24);
+        restored.restore_from_snapshot(source.capture_snapshot());
+        assert_eq!(restored.shell_integration.aid(), Some("inner"));
+        assert_eq!(restored.shell_integration.parent_aid(), Some("outer"));
+
+        restored.process(b"\x1bc");
+        assert_eq!(restored.shell_integration.aid(), None);
+        assert_eq!(restored.shell_integration.parent_aid(), None);
+        assert_eq!(
+            restored.shell_integration.state(),
+            ShellIntegrationState::Idle
         );
     }
 

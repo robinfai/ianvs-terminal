@@ -652,6 +652,9 @@ class TerminalShellPromptMark {
     this.zoneId,
     this.command,
     this.cwd,
+    this.promptKind,
+    this.aid,
+    this.parentAid,
   }) : assert(
          globalLine != null || legacyScrollbackOffset != null,
          'A prompt mark needs a global line or a legacy scrollback offset.',
@@ -666,6 +669,9 @@ class TerminalShellPromptMark {
   final int? zoneId;
   final String? command;
   final String? cwd;
+  final String? promptKind;
+  final String? aid;
+  final String? parentAid;
 }
 
 int? terminalPromptMarkScrollbackOffset(

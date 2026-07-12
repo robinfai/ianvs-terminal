@@ -1264,6 +1264,9 @@ class SessionController extends Notifier<SessionState> {
             globalLine: globalLine,
             command: command,
             cwd: current.currentDirectory,
+            promptKind: _boundedShellMetadata(event.promptKind, 32),
+            aid: _boundedShellMetadata(event.aid, 256),
+            parentAid: _boundedShellMetadata(event.parentAid, 256),
           )
         : current.promptMarks;
     if (eventType == 'integration_version') {
@@ -1806,6 +1809,9 @@ class SessionController extends Notifier<SessionState> {
     int? zoneId,
     required String? command,
     required String? cwd,
+    String? promptKind,
+    String? aid,
+    String? parentAid,
   }) {
     if (globalLine < 0 || (zoneId != null && zoneId < 0)) {
       return current;
@@ -1822,6 +1828,9 @@ class SessionController extends Notifier<SessionState> {
         zoneId: zoneId,
         command: command,
         cwd: cwd,
+        promptKind: promptKind,
+        aid: aid,
+        parentAid: parentAid,
       ),
     ];
     final boundedMarks = nextMarks.length > 100
@@ -1905,6 +1914,9 @@ class SessionController extends Notifier<SessionState> {
       zoneId: zoneId,
       command: matched.command,
       cwd: matched.cwd,
+      promptKind: matched.promptKind,
+      aid: matched.aid,
+      parentAid: matched.parentAid,
     );
     return next;
   }

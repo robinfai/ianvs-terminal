@@ -80,16 +80,17 @@ PROBES = {
     ),
     "prompt_command_output": Probe(
         "prompt_command_output",
-        "OSC 133 A/B/C/D",
-        "Emit one prompt, command-input, output, and completion lifecycle.",
-        "One command zone completes with exit code 0.",
+        "OSC 133 N/P/A/B/C/D with k= and aid=",
+        "Emit initial and secondary semantic prompts plus one aid-correlated command lifecycle.",
+        "One prompt/command zone completes with exit code 0; the secondary prompt adds no navigation mark.",
         "none; metadata must never authorize execution",
-        osc("133;A")
+        osc("133;N;aid=ianvs-probe;k=i")
+        + osc("133;P;k=s;aid=ianvs-probe")
         + osc("133;B")
         + b"probe-command\r\n"
         + osc("133;C;probe-command")
         + b"probe-output\r\n"
-        + osc("133;D;0"),
+        + osc("133;D;aid=ianvs-probe;0"),
     ),
     "notification": Probe(
         "notification",

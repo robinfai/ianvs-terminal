@@ -1098,6 +1098,11 @@ fn callback_event_from_parser_event(
             exit_code,
             timestamp,
             cursor_line,
+            prompt_kind,
+            aid,
+            parent_aid,
+            implicit_closed_count,
+            fresh_line,
         } => {
             if suppress_shell_zones {
                 return None;
@@ -1112,6 +1117,17 @@ fn callback_event_from_parser_event(
                     "exitCode": exit_code,
                     "timestamp": timestamp,
                     "cursorLine": cursor_line,
+                    "promptKind": prompt_kind
+                        .as_deref()
+                        .and_then(|value| sanitize_protocol_text_option(Some(value), 32)),
+                    "aid": aid
+                        .as_deref()
+                        .and_then(|value| sanitize_protocol_text_option(Some(value), 256)),
+                    "parentAid": parent_aid
+                        .as_deref()
+                        .and_then(|value| sanitize_protocol_text_option(Some(value), 256)),
+                    "implicitClosedCount": implicit_closed_count,
+                    "freshLine": fresh_line,
                 }),
             })
         }

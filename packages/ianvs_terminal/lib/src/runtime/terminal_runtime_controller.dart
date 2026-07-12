@@ -155,6 +155,13 @@ final class TerminalSessionShellCommandEvent extends TerminalSessionEvent {
   int? get absRowEnd => _wholeIntValue(rawPayload['absRowEnd']);
   String? get integrationVersion => _stringValue(rawPayload['version']);
   String? get shell => _stringValue(rawPayload['shell']);
+  String? get promptKind => _stringValue(rawPayload['promptKind']);
+  String? get aid => _stringValue(rawPayload['aid']);
+  String? get parentAid => _stringValue(rawPayload['parentAid']);
+  int? get implicitClosedCount =>
+      _wholeIntValue(rawPayload['implicitClosedCount']);
+  bool? get freshLine =>
+      rawPayload['freshLine'] is bool ? rawPayload['freshLine'] as bool : null;
 
   static String? _stringValue(Object? value) {
     return value is String ? value : null;
@@ -2004,9 +2011,8 @@ class TerminalRuntimeController {
       if (_isCurrentSession(sessionId, sessionEpoch)) {
         _pendingCellSizeReports.update(
           sessionId,
-          (count) => (count + 1)
-              .clamp(1, _maxPendingOsc1337CellSizeReports)
-              .toInt(),
+          (count) =>
+              (count + 1).clamp(1, _maxPendingOsc1337CellSizeReports).toInt(),
           ifAbsent: () => 1,
         );
       }

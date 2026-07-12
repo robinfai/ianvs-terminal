@@ -626,7 +626,7 @@ fn osc133_shell_command_profile() -> TerminalProfile {
         "/bin/sh",
         vec![
             "-lc".to_string(),
-            "printf '\\033]133;A\\a\\033]133;B\\a\\033]133;C;echo ok\\aoutput\\n\\033]133;D;7\\a'"
+            "printf '\\033]133;N;aid=shell-1;k=i\\a\\033]133;P;k=s;aid=shell-1\\a\\033]133;B\\a\\033]133;C;echo ok\\aoutput\\n\\033]133;D;aid=shell-1;7\\a'"
                 .to_string(),
         ],
         BTreeMap::new(),
@@ -17800,6 +17800,9 @@ fn session_emits_shell_command_events_from_osc133() {
     let events = collect_events_until(session_id, |events| {
         events.iter().any(|event| {
             event["kind"] == "shell_command"
+                && event["payload"]["eventType"].as_str() == Some("semantic_prompt")
+        }) && events.iter().any(|event| {
+            event["kind"] == "shell_command"
                 && event["payload"]["eventType"].as_str() == Some("command_executed")
         }) && events.iter().any(|event| {
             event["kind"] == "shell_command"
@@ -17810,6 +17813,28 @@ fn session_emits_shell_command_events_from_osc133() {
                 && event["payload"]["zoneType"].as_str() == Some("output")
         })
     });
+    let prompt = events
+        .iter()
+        .find(|event| {
+            event["kind"] == "shell_command"
+                && event["payload"]["eventType"].as_str() == Some("prompt_start")
+        })
+        .expect("expected prompt_start event");
+    assert_eq!(prompt["payload"]["promptKind"].as_str(), Some("initial"));
+    assert_eq!(prompt["payload"]["aid"].as_str(), Some("shell-1"));
+    assert_eq!(prompt["payload"]["freshLine"].as_bool(), Some(true));
+    let semantic = events
+        .iter()
+        .find(|event| {
+            event["kind"] == "shell_command"
+                && event["payload"]["eventType"].as_str() == Some("semantic_prompt")
+        })
+        .expect("expected semantic_prompt event");
+    assert_eq!(
+        semantic["payload"]["promptKind"].as_str(),
+        Some("secondary")
+    );
+    assert_eq!(semantic["payload"]["freshLine"].as_bool(), Some(false));
     let executed = events
         .iter()
         .find(|event| {
@@ -17827,6 +17852,7 @@ fn session_emits_shell_command_events_from_osc133() {
         })
         .expect("expected command_finished event");
     assert_eq!(finished["payload"]["exitCode"].as_i64(), Some(7));
+    assert_eq!(finished["payload"]["aid"].as_str(), Some("shell-1"));
 
     let zone = events
         .iter()

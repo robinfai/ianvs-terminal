@@ -2324,6 +2324,17 @@ void main() {
       'eventType': 'prompt_start',
       'cursorLine': 42,
       'command': 'echo ok',
+      'promptKind': 'initial',
+      'aid': 'outer-shell',
+    });
+    await tester.pump();
+    enqueueShellCommand(const <String, Object?>{
+      'source': 'osc133',
+      'eventType': 'semantic_prompt',
+      'cursorLine': 43,
+      'promptKind': 'secondary',
+      'aid': 'outer-shell',
+      'freshLine': false,
     });
     await tester.pump();
     enqueueShellCommand(const <String, Object?>{
@@ -2355,6 +2366,8 @@ void main() {
       7,
       8,
     ]);
+    expect(pane.shellIntegration.promptMarks.first.promptKind, 'initial');
+    expect(pane.shellIntegration.promptMarks.first.aid, 'outer-shell');
 
     enqueueShellCommand(const <String, Object?>{
       'source': 'osc133',

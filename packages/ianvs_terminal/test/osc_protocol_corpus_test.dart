@@ -172,6 +172,12 @@ void _validateFixture(String id, Map<String, Object?> fixture) {
     expect(text, contains('\x1b[4 q'));
     expect(text, contains('\x1b[0 q'));
     expect(text, endsWith('\x1b]1337;CursorShape=9\x07'));
+  } else if (id == 'osc133_semantic_prompt_aid') {
+    final text = latin1.decode(stream);
+    expect(RegExp(r'\x1b]133;').allMatches(text), hasLength(5));
+    expect(text, contains('N;aid=outer;k=i'));
+    expect(text, contains('P;k=s;aid=outer'));
+    expect(text, contains('D;aid=outer;0'));
   }
 }
 

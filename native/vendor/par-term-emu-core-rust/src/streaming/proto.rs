@@ -360,12 +360,22 @@ impl From<&AppServerMessage> for pb::ServerMessage {
                 exit_code,
                 timestamp,
                 cursor_line,
+                prompt_kind,
+                aid,
+                parent_aid,
+                implicit_closed_count,
+                fresh_line,
             } => Some(Message::ShellIntegrationEvent(pb::ShellIntegrationEvent {
                 event_type: event_type.clone(),
                 command: command.clone(),
                 exit_code: *exit_code,
                 timestamp: *timestamp,
                 cursor_line: *cursor_line,
+                prompt_kind: prompt_kind.clone(),
+                aid: aid.clone(),
+                parent_aid: parent_aid.clone(),
+                implicit_closed_count: *implicit_closed_count,
+                fresh_line: *fresh_line,
             })),
             AppServerMessage::SystemStats {
                 cpu,
@@ -825,6 +835,11 @@ impl TryFrom<pb::ServerMessage> for AppServerMessage {
                     exit_code: sie.exit_code,
                     timestamp: sie.timestamp,
                     cursor_line: sie.cursor_line,
+                    prompt_kind: sie.prompt_kind,
+                    aid: sie.aid,
+                    parent_aid: sie.parent_aid,
+                    implicit_closed_count: sie.implicit_closed_count,
+                    fresh_line: sie.fresh_line,
                 })
             }
             Some(Message::SystemStats(ss)) => Ok(AppServerMessage::SystemStats {

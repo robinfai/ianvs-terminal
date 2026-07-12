@@ -78,6 +78,7 @@ struct ShellLifecycleFrame {
     state: ShellIntegrationState,
     command: Option<String>,
     exit_code: Option<i32>,
+    aid: Option<String>,
 }
 
 /// Shell integration state
@@ -93,6 +94,8 @@ pub struct ShellIntegration {
     last_exit_code: Option<i32>,
     /// Suspended outer command-output lifecycles while a nested shell runs.
     lifecycle_stack: Vec<ShellLifecycleFrame>,
+    /// Opaque OSC 133 shell-integration lifecycle identifier.
+    current_aid: Option<String>,
     /// Current working directory
     cwd: Option<String>,
     /// Hostname from OSC 7 (None if localhost/implicit)
@@ -132,6 +135,7 @@ impl ShellIntegration {
             current_command: None,
             last_exit_code: None,
             lifecycle_stack: Vec::new(),
+            current_aid: None,
             cwd: None,
             hostname: None,
             username: None,
@@ -198,6 +202,7 @@ impl ShellIntegration {
                         state: self.current_state,
                         command: self.current_command.clone(),
                         exit_code: self.last_exit_code,
+                        aid: self.current_aid.clone(),
                     });
                 }
                 self.set_marker(marker);
@@ -226,7 +231,43 @@ impl ShellIntegration {
         self.current_state = parent.state;
         self.current_command = parent.command;
         self.last_exit_code = parent.exit_code;
+        self.current_aid = parent.aid;
         true
+    }
+
+    /// Select an active or suspended lifecycle by its opaque OSC 133 `aid`.
+    /// Returns the number of inner lifecycles implicitly closed.
+    pub(crate) fn restore_lifecycle_for_aid(&mut self, aid: &str) -> Option<usize> {
+        if self.current_aid.as_deref() == Some(aid) {
+            return Some(0);
+        }
+        let index = self
+            .lifecycle_stack
+            .iter()
+            .rposition(|frame| frame.aid.as_deref() == Some(aid))?;
+        let implicitly_closed = self.lifecycle_stack.len().saturating_sub(index);
+        let target = self.lifecycle_stack.remove(index);
+        self.lifecycle_stack.truncate(index);
+        self.current_marker = target.marker;
+        self.current_state = target.state;
+        self.current_command = target.command;
+        self.last_exit_code = target.exit_code;
+        self.current_aid = target.aid;
+        Some(implicitly_closed)
+    }
+
+    pub(crate) fn set_aid(&mut self, aid: Option<String>) {
+        self.current_aid = aid;
+    }
+
+    pub fn aid(&self) -> Option<&str> {
+        self.current_aid.as_deref()
+    }
+
+    pub fn parent_aid(&self) -> Option<&str> {
+        self.lifecycle_stack
+            .last()
+            .and_then(|frame| frame.aid.as_deref())
     }
 
     /// Whether a completed or aborted child has a suspended parent lifecycle.

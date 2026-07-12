@@ -756,12 +756,20 @@ impl ServerState {
                         exit_code,
                         timestamp,
                         cursor_line,
+                        prompt_kind,
+                        aid,
+                        parent_aid,
+                        implicit_closed_count,
+                        fresh_line,
                         ..
                     } => {
                         self.streaming_server.broadcast(
-                            par_term_emu_core_rust::streaming::protocol::ServerMessage::shell_integration_event(
+                            par_term_emu_core_rust::streaming::protocol::ServerMessage::shell_integration_event_with_metadata(
                                 event_type, command, exit_code, timestamp,
                                 cursor_line.map(|l| l as u64),
+                                prompt_kind, aid, parent_aid,
+                                implicit_closed_count.min(u32::MAX as usize) as u32,
+                                fresh_line,
                             ),
                         );
                     }
@@ -1371,13 +1379,21 @@ impl SessionFactory for BinarySessionFactory {
                             exit_code,
                             timestamp,
                             cursor_line,
+                            prompt_kind,
+                            aid,
+                            parent_aid,
+                            implicit_closed_count,
+                            fresh_line,
                             ..
                         } => {
                             server.send_to_session(
                                 &session_id_clone,
-                                par_term_emu_core_rust::streaming::protocol::ServerMessage::shell_integration_event(
+                                par_term_emu_core_rust::streaming::protocol::ServerMessage::shell_integration_event_with_metadata(
                                     event_type, command, exit_code, timestamp,
                                     cursor_line.map(|l| l as u64),
+                                    prompt_kind, aid, parent_aid,
+                                    implicit_closed_count.min(u32::MAX as usize) as u32,
+                                    fresh_line,
                                 ),
                             );
                         }

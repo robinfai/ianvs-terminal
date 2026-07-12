@@ -268,6 +268,28 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
                 );
                 assert_eq!(terminal.cursor().blink_override(), Some(true));
             }
+            "osc133_semantic_prompt_aid" => {
+                let events = terminal.poll_events();
+                assert!(events.iter().any(|event| matches!(
+                    event,
+                    TerminalEvent::ShellIntegrationEvent {
+                        event_type,
+                        prompt_kind: Some(kind),
+                        aid: Some(aid),
+                        fresh_line: Some(false),
+                        ..
+                    } if event_type == "semantic_prompt" && kind == "secondary" && aid == "outer"
+                )));
+                assert!(events.iter().any(|event| matches!(
+                    event,
+                    TerminalEvent::ShellIntegrationEvent {
+                        event_type,
+                        aid: Some(aid),
+                        exit_code: Some(0),
+                        ..
+                    } if event_type == "command_finished" && aid == "outer"
+                )));
+            }
             "tmux_passthrough" => assert_eq!(
                 write_hyperlink_probe(&mut terminal),
                 Some((

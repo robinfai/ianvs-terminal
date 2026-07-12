@@ -195,6 +195,11 @@ impl Terminal {
                 exit_code: None,
                 timestamp: Some(crate::terminal::unix_millis()),
                 cursor_line: Some(cursor_line),
+                prompt_kind: None,
+                aid: None,
+                parent_aid: None,
+                implicit_closed_count: 0,
+                fresh_line: None,
             });
     }
 
