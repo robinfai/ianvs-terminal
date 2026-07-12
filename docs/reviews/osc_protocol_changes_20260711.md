@@ -285,8 +285,9 @@ Phase 8 Kitty OSC 99 is implemented as the safe subset recorded in
 as recorded in `osc21_phase10_20260712.md` and `osc22_phase11_20260712.md`.
 Phase 12 Kitty OSC 66 is implemented as recorded in
 `osc66_phase12_20260712.md`.
-Kitty OSC 72, unsafe iTerm2 upload/download/actions, arbitrary
-URL/profile/command actions,
+Phase 13 Kitty OSC 72 implements the target subset recorded in
+`osc72_phase13_20260712.md`. Its outgoing/remote-file remainder, unsafe iTerm2
+upload/download/actions, arbitrary URL/profile/command actions,
 notification buttons/sounds/icons and shell-provided execution are deferred.
 Unknown/deferred sequences remain bounded and cannot gain host authority.
 
@@ -330,3 +331,27 @@ entire intersecting block as specified. Clear/reset left no control-code debris,
 and the command menu, Profiles, second real-shell tab and `SHELL ACTIVE` state
 all passed. Reference-terminal evidence remains separately unproven for the
 safety-policy reason documented in `osc_cross_terminal_probe_20260711.md`.
+
+## Phase 13 report — Kitty OSC 72 target subset
+
+- **Start SHA:** `d22f209bb37fd425f26278cf0b1b4f7f1b17f67e`.
+- **Implementation SHA:** `260abc8`.
+- **Confirmed issue:** OSC 72 was a generic no-op, so a TUI could neither
+  negotiate a Finder drop nor receive user-dropped MIME data.
+- **Fixes:** default-off typed parser, active-pane target ownership, correlated
+  query, move/drop geometry and operation negotiation, bounded native
+  pasteboard capture, indexed Base64 data chunks, end markers and cleanup.
+- **Review fixes:** empty MIME defaults, remote `y/Y` denial, legacy safety
+  switch denial, payload-aware event accounting and exact encoded chunk bound.
+- **Unfixed by design:** outgoing drags/images/data offers, remote machine file
+  reads, directory handles/traversal and symlinks remain unauthorized.
+- **Security:** 1 KiB metadata, 4 KiB encoded packets, 64 MIME entries, 256-byte
+  MIME tokens, 64 MiB captured drop budget, 3,072-byte reads, active-pane only,
+  user gesture required and no arbitrary path selection.
+- **Tests/results:** repository gate passed: corpus 21/26, probes 17, vendored
+  1,628, native session 459/459, example grouped 922/922, complete Widget
+  125/125, macOS smoke 4/4, real PTY 22/22 and RunnerTests 12/12. Computer Use
+  visibly confirmed the production query/register path and exact capability
+  response; see `osc72_phase13_20260712.md` for the Finder gesture boundary.
+- **Rollback:** revert the Phase 13 implementation commit; OSC 72 returns to a
+  bounded generic no-op with no config or wire compatibility break.

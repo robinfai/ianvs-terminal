@@ -12,11 +12,13 @@
 - Kitty OSC 21 color-control commit: `f7d48bb`.
 - Kitty OSC 22 pointer-shape commit: `fbf9a37`.
 - Kitty OSC 66 sized-text commit: `5442352`.
+- Kitty OSC 72 target-subset commit: `260abc8`.
 
-Phases 0–12 are implemented. Phase 12 adds bounded Kitty OSC 66 fixed/natural
+Phases 0–13 are implemented. Phase 12 adds bounded Kitty OSC 66 fixed/natural
 width, integral/fractional scale and alignment, full multicell grid semantics,
-typed frame transport and actual Flutter rendering. No unsupported opcode or
-host action is advertised as a product capability.
+typed frame transport and actual Flutter rendering. Phase 13 adds an honest
+macOS OSC 72 drop-target subset; outgoing and remote file-source actions remain
+denied. No unsupported opcode or host action is advertised as a product capability.
 
 ## Final classification
 
@@ -36,7 +38,7 @@ host action is advertised as a product capability.
 | documented private extension | OSC 934 identity/version/query were implicit | governed as `ianvs-osc934/1`; bounded query and canonical source implemented |
 | confirmed compatibility gap | Kitty OSC 99 rich notification lifecycle absent | safe ID/title/body/Base64/update/close/application/type/query/expiry subset implemented; actions, buttons, sound, icons and commands remain denied |
 | confirmed compatibility gap | UAPI OSC 3008 hierarchical context metadata absent | bounded v1.0 hierarchy, lifecycle recovery, snapshot/RIS and typed events implemented; no UI/authority |
-| deferred by product decision | unsafe iTerm2 actions and Kitty OSC 72 | still deferred; bounded no-op/no product authorization |
+| implemented safe subset / deferred remainder | Kitty OSC 72 | active-pane macOS target negotiation and user-dropped local MIME data are implemented; outgoing drags and remote file/directory authority remain denied |
 | hypothesis requiring manual evidence | reference-terminal semantic consumption/echo/reply | not proven: Computer Use denies terminal-emulator UI control; see `osc_cross_terminal_probe_20260711.md` |
 
 ## Architecture and security result
@@ -64,6 +66,14 @@ complete example Widget tests enabled: corpus 20 cases/24 edge classes, probes
 16, vendored 1,622 passed/1 ignored, native lib 74/74 and session 457/457,
 example grouped 914/914, Widget 125/125, macOS smoke 4/4 and real PTY 21/21. A
 standalone rebuild and native RunnerTests 10/10 protect the macOS launch path.
+
+The Phase 13 repository-wide verifier passed with corpus 21 cases/26 edge
+classes, probes 17, vendored 1,628 tests, native session 459/459, example
+grouped 922/922, complete Widget 125/125, macOS smoke 4/4, real PTY 22/22 and
+native RunnerTests 12/12. Computer Use visibly confirmed the production OSC 72
+child query and exact `drop=1:offer=0` response. Finder's held asynchronous
+drag gesture is not claimed as visual evidence; its move/drop/data path is
+covered by deterministic product, real-PTY and native tests.
 
 The Phase 11 Ianvs GUI Computer Use gate passed on a clean cold launch. Real
 PTY OSC 22 `wait` set and empty reset sequences were consumed with visible
