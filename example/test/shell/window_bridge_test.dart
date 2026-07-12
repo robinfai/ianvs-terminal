@@ -73,6 +73,31 @@ void main() {
     expect(status.shortcut, '⌥⌘Space');
   });
 
+  test('OSC 72 native drag events validate and bound platform data', () {
+    final event = NativeOsc72DragEvent.fromPlatform(<String, Object?>{
+      'phase': 'drop',
+      'sessionId': 'session-1',
+      'mimeTypes': <String>[
+        for (var index = 0; index < 80; index += 1) 'type/$index',
+      ],
+      'x': 12.5,
+      'y': 23,
+      'operations': 3,
+      'dropId': 'drop-1',
+    });
+
+    expect(event.phase, 'drop');
+    expect(event.sessionId, 'session-1');
+    expect(event.mimeTypes, hasLength(64));
+    expect(event.position, const Offset(12.5, 23));
+    expect(event.operations, 3);
+    expect(event.dropId, 'drop-1');
+    expect(
+      () => NativeOsc72DragEvent.fromPlatform(const <String, Object?>{}),
+      throwsFormatException,
+    );
+  });
+
   testWidgets('openExternalUrl only forwards supported URL schemes', (
     tester,
   ) async {
@@ -106,4 +131,74 @@ void main() {
       'url': 'file:///tmp/ianvs.txt',
     });
   });
+
+  testWidgets(
+    'OSC 72 bridge sends bounded target, decision, read and release calls',
+    (tester) async {
+      const channel = MethodChannel('app/window_bridge');
+      final calls = <MethodCall>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        call,
+      ) async {
+        calls.add(call);
+      if (call.method == 'readOsc72DropData') {
+          return <String, Object?>{
+            'bytes': Uint8List.fromList(<int>[1, 2, 3]),
+            'eof': true,
+            'size': 3,
+        };
+      }
+      if (call.method == 'osc72DropTargetStatus') {
+        return <String, Object?>{
+          'enabled': true,
+          'sessionId': 'session-1',
+          'mimeTypes': <String>['text/plain'],
+          'decision': 1,
+          'cachedDrops': 0,
+        };
+      }
+        return null;
+      });
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
+
+      await WindowBridge.configureOsc72DropTarget(
+        enabled: true,
+        sessionId: 'session-1',
+        mimeTypes: const <String>['text/plain'],
+      );
+      await WindowBridge.setOsc72DropDecision(1);
+      final chunk = await WindowBridge.readOsc72DropData(
+        dropId: 'drop-1',
+        mimeType: 'text/plain',
+        offset: 0,
+      );
+    await WindowBridge.releaseOsc72Drop('drop-1');
+    final status = await WindowBridge.osc72DropTargetStatus();
+
+      expect(chunk.bytes, <int>[1, 2, 3]);
+      expect(chunk.eof, isTrue);
+    expect(chunk.size, 3);
+    expect(status?.enabled, isTrue);
+    expect(status?.sessionId, 'session-1');
+    expect(status?.mimeTypes, <String>['text/plain']);
+      expect(calls.map((call) => call.method), <String>[
+        'configureOsc72DropTarget',
+        'setOsc72DropDecision',
+        'readOsc72DropData',
+        'releaseOsc72Drop',
+        'osc72DropTargetStatus',
+      ]);
+      expect(calls[2].arguments, <String, Object?>{
+        'dropId': 'drop-1',
+        'mimeType': 'text/plain',
+        'offset': 0,
+        'maxBytes': 3072,
+      });
+    },
+  );
 }

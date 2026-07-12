@@ -24,6 +24,8 @@ const Set<String> _requiredCoverage = <String>{
   'OSC 22 screen-local state',
   'OSC 66 sized text',
   'OSC 66 overwrite/edit recovery',
+  'OSC 72 target negotiation',
+  'OSC 72 bounded host authorization',
   'OSC 3008 hierarchy',
   'OSC 3008 malformed close recovery',
   'tmux passthrough fixture',
@@ -147,6 +149,11 @@ void _validateFixture(String id, Map<String, Object?> fixture) {
     expect(RegExp(r'\x1b]66;').allMatches(text), hasLength(2));
     expect(text, contains('s=2:w=2:n=1:d=2:v=2:h=1;AB'));
     expect(text, contains('\x1b[X'));
+  } else if (id == 'osc72_drop_target_negotiation') {
+    final text = latin1.decode(stream);
+    expect(RegExp(r'\x1b]72;').allMatches(text), hasLength(3));
+    expect(text, contains('t=a:i=7;text/plain text/uri-list'));
+    expect(text, contains('t=r:i=7:x=1;'));
   }
 }
 

@@ -151,4 +151,41 @@ class RunnerTests: XCTestCase {
     XCTAssertEqual(nextOrigin.y, 167)
   }
 
+  func testOsc72PasteboardAndOperationMappingsAreDeterministic() {
+    XCTAssertEqual(
+      MainFlutterWindow.osc72PasteboardTypes(for: "text/plain"),
+      [.string]
+    )
+    XCTAssertEqual(
+      MainFlutterWindow.osc72PasteboardTypes(for: "text/uri-list"),
+      [.fileURL, .URL]
+    )
+    XCTAssertEqual(MainFlutterWindow.osc72OperationMask([.copy, .move]), 3)
+    XCTAssertEqual(MainFlutterWindow.osc72OperationMask(.copy), 1)
+    XCTAssertEqual(MainFlutterWindow.osc72OperationMask([]), 0)
+  }
+
+  func testOsc72UriListAndBoundedReadRange() throws {
+    let data = try XCTUnwrap(
+      MainFlutterWindow.osc72UriListData([
+        URL(fileURLWithPath: "/tmp/a b.txt"),
+        URL(fileURLWithPath: "/tmp/c.txt")
+      ])
+    )
+    XCTAssertEqual(
+      String(data: data, encoding: .utf8),
+      "file:///tmp/a%20b.txt\r\nfile:///tmp/c.txt\r\n"
+    )
+    XCTAssertEqual(
+      MainFlutterWindow.osc72ReadRange(offset: 3072, maxBytes: 3072, dataCount: 5000),
+      3072..<5000
+    )
+    XCTAssertNil(
+      MainFlutterWindow.osc72ReadRange(offset: 0, maxBytes: 4096, dataCount: 5000)
+    )
+    XCTAssertNil(
+      MainFlutterWindow.osc72ReadRange(offset: 5001, maxBytes: 1, dataCount: 5000)
+    )
+  }
+
 }

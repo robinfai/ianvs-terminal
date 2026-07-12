@@ -61,6 +61,7 @@ void main() {
         'maxImageBytes': defaultTerminalGraphicMaxImageBytes,
         'maxTotalBytes': defaultTerminalGraphicMaxTotalBytes,
       },
+      'dragDropEnabled': false,
     });
     expect(payload['appearance'], <String, Object?>{
       'font': <String, Object?>{

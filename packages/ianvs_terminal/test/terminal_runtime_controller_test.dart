@@ -5959,6 +5959,25 @@ void main() {
       );
       runtimeBackend.enqueueEvent(
         sessionId,
+        PtyEvent(
+          kind: 'drag_drop_command',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'osc72',
+            'action': 'a',
+            'more': false,
+            'identifier': 7,
+            'operation': 1,
+            'x': 3,
+            'y': 4,
+            'pixelX': 30,
+            'pixelY': 40,
+            'payload': 'text/plain text/uri-list',
+          },
+        ),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
         PtyEvent(kind: 'session_reset', sessionId: sessionId),
       );
 
@@ -6011,6 +6030,17 @@ void main() {
       expect(context.cwd, '/tmp/project');
       expect(context.commandLine, 'dart test');
       expect(context.implicitClosedCount, 1);
+      final dragDrop = events
+          .whereType<TerminalSessionDragDropCommandEvent>()
+          .single;
+      expect(dragDrop.action, 'a');
+      expect(dragDrop.identifier, 7);
+      expect(dragDrop.operation, 1);
+      expect(dragDrop.x, 3);
+      expect(dragDrop.y, 4);
+      expect(dragDrop.pixelX, 30);
+      expect(dragDrop.pixelY, 40);
+      expect(dragDrop.payload, 'text/plain text/uri-list');
       expect(
         events.whereType<TerminalSessionResetEvent>().single.sessionId,
         sessionId,

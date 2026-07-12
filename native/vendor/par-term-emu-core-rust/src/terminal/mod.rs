@@ -9,6 +9,7 @@ mod color_control;
 mod colors;
 pub mod compliance;
 pub mod context;
+pub mod drag_drop;
 pub mod event;
 pub mod file_transfer;
 mod graphics;
@@ -43,6 +44,9 @@ pub use context::{
     TerminalContext, TerminalContextAction, TerminalContextEndMetadata, TerminalContextEvent,
     TerminalContextExit, TerminalContextMetadata, TerminalContextStack, TerminalContextType,
     MAX_TERMINAL_CONTEXT_DEPTH, MAX_TERMINAL_CONTEXT_ID_BYTES, MAX_TERMINAL_CONTEXT_TEXT_BYTES,
+};
+pub use drag_drop::{
+    DragDropAction, DragDropCommand, MAX_OSC72_METADATA_BYTES, MAX_OSC72_PAYLOAD_BYTES,
 };
 pub use event::{
     BellEvent, CwdChange, CwdChangeSource, ShellEvent, TerminalEvent, TerminalEventKind,
@@ -2670,6 +2674,10 @@ impl Terminal {
             policy.clipboard_read = false;
             policy.notification = false;
             policy.host_action = false;
+            // OSC 72 did not exist on the historical surface; treat the
+            // legacy safety switch as an explicit denial of this privileged
+            // host drag/drop protocol even if an embedder enabled it earlier.
+            policy.drag_drop = false;
         }
         policy
     }

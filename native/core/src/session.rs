@@ -151,6 +151,9 @@ enum CallbackEvent {
     TerminalContext {
         payload: serde_json::Value,
     },
+    DragDropCommand {
+        payload: serde_json::Value,
+    },
     SessionReset,
     Bell,
 }
@@ -1233,6 +1236,23 @@ fn callback_event_from_parser_event(
                 }),
             })
         }
+        ParserTerminalEvent::DragDropCommand(command) => {
+            let command = *command;
+            Some(CallbackEvent::DragDropCommand {
+                payload: serde_json::json!({
+                    "source": "osc72",
+                    "action": command.action.wire_name(),
+                    "more": command.more,
+                    "identifier": command.identifier,
+                    "operation": command.operation,
+                    "x": command.x,
+                    "y": command.y,
+                    "pixelX": command.pixel_x,
+                    "pixelY": command.pixel_y,
+                    "payload": String::from_utf8(command.payload).ok(),
+                }),
+            })
+        }
         ParserTerminalEvent::TerminalReset => Some(CallbackEvent::SessionReset),
         _ => None,
     }
@@ -1413,6 +1433,7 @@ pub struct TerminalSession {
     emulation: TerminalEmulation,
     scrollback_lines: usize,
     graphics_enabled: bool,
+    drag_drop_enabled: bool,
     graphics_memory_limits: Option<TerminalGraphicsMemoryLimits>,
     profile_colors: TerminalProfileColors,
     osc633_expected_nonce: Option<String>,
@@ -1457,6 +1478,8 @@ impl TerminalSession {
         let scrollback_lines = normalize_scrollback_lines(profile.terminal.scrollback_lines);
         let graphics_enabled =
             emulation == TerminalEmulation::Xterm256 && profile.terminal.graphics.enabled;
+        let drag_drop_enabled =
+            emulation == TerminalEmulation::Xterm256 && profile.terminal.drag_drop_enabled;
         let graphics_memory_limits = graphics_enabled.then_some(TerminalGraphicsMemoryLimits {
             max_image_bytes: profile.terminal.graphics.max_image_bytes,
             max_total_bytes: profile.terminal.graphics.max_total_bytes,
@@ -1491,6 +1514,7 @@ impl TerminalSession {
             graphics_memory_limits,
             &profile_colors,
             osc633_expected_nonce.as_deref(),
+            drag_drop_enabled,
         );
 
         let session = Arc::new(Self {
@@ -1498,6 +1522,7 @@ impl TerminalSession {
             emulation,
             scrollback_lines,
             graphics_enabled,
+            drag_drop_enabled,
             graphics_memory_limits,
             profile_colors,
             osc633_expected_nonce,
@@ -1902,6 +1927,7 @@ impl TerminalSession {
                 self.graphics_memory_limits,
                 &self.profile_colors,
                 self.osc633_expected_nonce.as_deref(),
+                self.drag_drop_enabled,
             );
             if pixel_width > 0 && pixel_height > 0 {
                 apply_terminal_pixel_metrics(
@@ -2714,6 +2740,9 @@ impl TerminalSession {
             ),
             CallbackEvent::TerminalContext { payload } => {
                 self.push_event("terminal_context", Some(payload))
+            }
+            CallbackEvent::DragDropCommand { payload } => {
+                self.push_event("drag_drop_command", Some(payload))
             }
             CallbackEvent::SessionReset => self.push_event("session_reset", None),
             CallbackEvent::Bell => self.push_event("bell", None),
@@ -5091,12 +5120,14 @@ fn configure_session_terminal(
     graphics_memory_limits: Option<TerminalGraphicsMemoryLimits>,
     profile_colors: &TerminalProfileColors,
     osc633_expected_nonce: Option<&str>,
+    drag_drop_enabled: bool,
 ) {
     if let Some(limits) = graphics_memory_limits {
         terminal.set_graphics_memory_limits(limits.max_image_bytes, limits.max_total_bytes);
     }
     apply_profile_colors(terminal, profile_colors);
     configure_terminal_protocol_policy(terminal, emulation);
+    terminal.set_osc_capability_allowed(OscCapability::DragDrop, drag_drop_enabled);
     if let Some(nonce) = osc633_expected_nonce {
         let configured = terminal.set_osc633_expected_nonce(Some(nonce.to_string()));
         debug_assert!(configured, "VSCODE_NONCE was prevalidated");
@@ -5118,6 +5149,7 @@ fn configure_terminal_protocol_policy(terminal: &mut Terminal, emulation: Termin
             OscCapability::Media,
             OscCapability::HostAction,
             OscCapability::FileTransfer,
+            OscCapability::DragDrop,
             OscCapability::CustomProtocol,
         ] {
             terminal.set_osc_capability_allowed(capability, false);
@@ -6814,6 +6846,33 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(ids, vec![first, second]);
+    }
+
+    #[test]
+    fn osc72_parser_event_maps_to_bounded_product_command_only_when_enabled() {
+        let sequence = b"\x1b]72;t=a:i=9:x=3:y=4:X=30:Y=40:o=1;text/plain\x1b\\";
+        let mut denied = Terminal::new(80, 24);
+        denied.process(sequence);
+        assert!(denied.poll_events().is_empty());
+
+        let mut terminal = Terminal::new(80, 24);
+        terminal.set_osc_capability_allowed(OscCapability::DragDrop, true);
+        terminal.process(sequence);
+        let events = terminal
+            .poll_events()
+            .into_iter()
+            .filter_map(|event| callback_event_from_parser_event(event, false))
+            .collect::<Vec<_>>();
+
+        let [CallbackEvent::DragDropCommand { payload }] = events.as_slice() else {
+            panic!("expected one OSC 72 product event: {events:?}");
+        };
+        assert_eq!(payload["source"], "osc72");
+        assert_eq!(payload["action"], "a");
+        assert_eq!(payload["identifier"], 9);
+        assert_eq!(payload["x"], 3);
+        assert_eq!(payload["pixelY"], 40);
+        assert_eq!(payload["payload"], "text/plain");
     }
 
     #[test]

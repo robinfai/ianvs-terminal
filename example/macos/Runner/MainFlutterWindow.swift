@@ -153,14 +153,28 @@ class MainFlutterWindow: NSWindow {
     let startMouseLocation: NSPoint
   }
 
+  private struct Osc72DropTarget {
+    let sessionId: String
+    let mimeTypes: [String]
+  }
+
+  private struct Osc72DropPayload {
+    let mimeTypes: [String]
+    let dataByMimeType: [String: Data]
+  }
+
   private static let chromeBarHeight: CGFloat = 44
   private static let leadingWindowDragWidth: CGFloat = 132
+  private static let maxOsc72DropBytes = 64 * 1024 * 1024
 
   private var windowBridgeChannel: FlutterMethodChannel?
   private var hotkeyWindowController: HotkeyWindowController?
   private var trafficLightCenteringWorkItem: DispatchWorkItem?
   private var notificationExpiryWorkItems: [String: DispatchWorkItem] = [:]
   private var nativeWindowDragState: NativeWindowDragState?
+  private var osc72DropTarget: Osc72DropTarget?
+  private var osc72DropPayloads: [String: Osc72DropPayload] = [:]
+  private var osc72DropDecision: NSDragOperation = []
 
   static func shouldStartNativeWindowDrag(
     at point: NSPoint,
@@ -360,6 +374,22 @@ class MainFlutterWindow: NSWindow {
         self.showNotification(arguments: call.arguments, result: result)
       case "closeNotification":
         self.closeNotification(arguments: call.arguments, result: result)
+      case "configureOsc72DropTarget":
+        self.configureOsc72DropTarget(arguments: call.arguments, result: result)
+      case "setOsc72DropDecision":
+        self.setOsc72DropDecision(arguments: call.arguments, result: result)
+      case "readOsc72DropData":
+        self.readOsc72DropData(arguments: call.arguments, result: result)
+      case "releaseOsc72Drop":
+        self.releaseOsc72Drop(arguments: call.arguments, result: result)
+      case "osc72DropTargetStatus":
+        result([
+          "enabled": self.osc72DropTarget != nil,
+          "sessionId": (self.osc72DropTarget?.sessionId as Any?) ?? NSNull(),
+          "mimeTypes": self.osc72DropTarget?.mimeTypes ?? [],
+          "decision": Self.osc72OperationMask(self.osc72DropDecision),
+          "cachedDrops": self.osc72DropPayloads.count
+        ])
       default:
         result(FlutterMethodNotImplemented)
       }
@@ -375,6 +405,7 @@ class MainFlutterWindow: NSWindow {
       workItem.cancel()
     }
     notificationExpiryWorkItems.removeAll()
+    osc72DropPayloads.removeAll()
     NotificationCenter.default.removeObserver(self)
   }
 
@@ -422,6 +453,49 @@ class MainFlutterWindow: NSWindow {
     scheduleTrafficLightCentering()
   }
 
+  @objc func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
+    osc72DropDecision = []
+    reportOsc72DragEvent(sender, phase: "move")
+    return []
+  }
+
+  @objc func draggingUpdated(_ sender: any NSDraggingInfo) -> NSDragOperation {
+    reportOsc72DragEvent(sender, phase: "move")
+    return supportedOsc72Operation(sender.draggingSourceOperationMask)
+  }
+
+  @objc func draggingExited(_ sender: (any NSDraggingInfo)?) {
+    guard let target = osc72DropTarget else {
+      return
+    }
+    windowBridgeChannel?.invokeMethod(
+      "osc72DragEvent",
+      arguments: [
+        "phase": "leave",
+        "sessionId": target.sessionId,
+        "mimeTypes": [String](),
+        "x": -1.0,
+        "y": -1.0,
+        "operations": 0
+      ]
+    )
+    osc72DropDecision = []
+  }
+
+  @objc func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+    guard
+      let target = osc72DropTarget,
+      !supportedOsc72Operation(sender.draggingSourceOperationMask).isEmpty,
+      let payload = captureOsc72DropPayload(sender.draggingPasteboard, target: target)
+    else {
+      return false
+    }
+    let dropId = UUID().uuidString
+    osc72DropPayloads[dropId] = payload
+    reportOsc72DragEvent(sender, phase: "drop", dropId: dropId, mimeTypes: payload.mimeTypes)
+    return true
+  }
+
   @objc func paste(_ sender: Any?) {
     windowBridgeChannel?.invokeMethod("nativePaste", arguments: nil)
   }
@@ -456,6 +530,236 @@ class MainFlutterWindow: NSWindow {
         }
       }
     }
+  }
+
+  private func configureOsc72DropTarget(
+    arguments: Any?,
+    result: @escaping FlutterResult
+  ) {
+    guard let arguments = arguments as? [String: Any] else {
+      result(FlutterMethodNotImplemented)
+      return
+    }
+    let enabled = arguments["enabled"] as? Bool ?? false
+    guard enabled else {
+      unregisterDraggedTypes()
+      osc72DropTarget = nil
+      osc72DropDecision = []
+      osc72DropPayloads.removeAll()
+      result(nil)
+      return
+    }
+    guard
+      let sessionId = arguments["sessionId"] as? String,
+      !sessionId.isEmpty,
+      let rawMimeTypes = arguments["mimeTypes"] as? [String]
+    else {
+      result(
+        FlutterError(
+          code: "invalid_osc72_target",
+          message: "OSC 72 target session and MIME types are required",
+          details: nil
+        )
+      )
+      return
+    }
+    let mimeTypes = Array(Set(rawMimeTypes.filter { !$0.isEmpty })).sorted()
+    let pasteboardTypes = Set(mimeTypes.flatMap(Self.osc72PasteboardTypes))
+    guard !pasteboardTypes.isEmpty else {
+      result(
+        FlutterError(
+          code: "unsupported_osc72_mime",
+          message: "No requested MIME type maps to a macOS pasteboard type",
+          details: nil
+        )
+      )
+      return
+    }
+    osc72DropTarget = Osc72DropTarget(sessionId: sessionId, mimeTypes: mimeTypes)
+    osc72DropDecision = []
+    registerForDraggedTypes(Array(pasteboardTypes))
+    result(nil)
+  }
+
+  static func osc72PasteboardTypes(for mimeType: String) -> [NSPasteboard.PasteboardType] {
+    switch mimeType.lowercased() {
+    case "text/plain":
+      return [.string]
+    case "text/uri-list":
+      return [.fileURL, .URL]
+    default:
+      return [NSPasteboard.PasteboardType(mimeType)]
+    }
+  }
+
+  private func setOsc72DropDecision(arguments: Any?, result: @escaping FlutterResult) {
+    guard
+      let arguments = arguments as? [String: Any],
+      let operation = arguments["operation"] as? Int
+    else {
+      result(FlutterMethodNotImplemented)
+      return
+    }
+    osc72DropDecision = switch operation {
+    case 1: .copy
+    case 2: .move
+    default: []
+    }
+    result(nil)
+  }
+
+  private func supportedOsc72Operation(_ source: NSDragOperation) -> NSDragOperation {
+    if osc72DropDecision.contains(.move), source.contains(.move) {
+      return .move
+    }
+    if osc72DropDecision.contains(.copy), source.contains(.copy) {
+      return .copy
+    }
+    return []
+  }
+
+  private func offeredOsc72MimeTypes(
+    _ pasteboard: NSPasteboard,
+    target: Osc72DropTarget
+  ) -> [String] {
+    target.mimeTypes.filter { mimeType in
+      Self.osc72PasteboardTypes(for: mimeType).contains { pasteboard.availableType(from: [$0]) != nil }
+    }
+  }
+
+  private func reportOsc72DragEvent(
+    _ sender: any NSDraggingInfo,
+    phase: String,
+    dropId: String? = nil,
+    mimeTypes explicitMimeTypes: [String]? = nil
+  ) {
+    guard let target = osc72DropTarget else {
+      return
+    }
+    let point = sender.draggingLocation
+    let contentHeight = contentView?.bounds.height ?? frame.height
+    let mimeTypes = explicitMimeTypes ?? offeredOsc72MimeTypes(sender.draggingPasteboard, target: target)
+    var arguments: [String: Any] = [
+      "phase": phase,
+      "sessionId": target.sessionId,
+      "mimeTypes": mimeTypes,
+      "x": Double(point.x),
+      "y": Double(contentHeight - point.y),
+      "operations": Self.osc72OperationMask(sender.draggingSourceOperationMask)
+    ]
+    if let dropId {
+      arguments["dropId"] = dropId
+    }
+    windowBridgeChannel?.invokeMethod("osc72DragEvent", arguments: arguments)
+  }
+
+  static func osc72OperationMask(_ operations: NSDragOperation) -> Int {
+    var value = 0
+    if operations.contains(.copy) {
+      value |= 1
+    }
+    if operations.contains(.move) {
+      value |= 2
+    }
+    return value
+  }
+
+  static func osc72UriListData(_ urls: [URL]) -> Data? {
+    urls
+      .map(\.absoluteString)
+      .joined(separator: "\r\n")
+      .appending(urls.isEmpty ? "" : "\r\n")
+      .data(using: .utf8)
+  }
+
+  static func osc72ReadRange(offset: Int, maxBytes: Int, dataCount: Int) -> Range<Int>? {
+    guard offset >= 0, maxBytes > 0, maxBytes <= 3072, offset <= dataCount else {
+      return nil
+    }
+    return offset..<min(offset + maxBytes, dataCount)
+  }
+
+  private func captureOsc72DropPayload(
+    _ pasteboard: NSPasteboard,
+    target: Osc72DropTarget
+  ) -> Osc72DropPayload? {
+    let offered = offeredOsc72MimeTypes(pasteboard, target: target)
+    var dataByMimeType: [String: Data] = [:]
+    var totalBytes = 0
+    for mimeType in offered {
+      let data: Data?
+      switch mimeType.lowercased() {
+      case "text/plain":
+        data = pasteboard.string(forType: .string)?.data(using: .utf8)
+      case "text/uri-list":
+        let urlObjects = pasteboard.readObjects(
+          forClasses: [NSURL.self],
+          options: [.urlReadingFileURLsOnly: true]
+        ) ?? []
+        let urls = urlObjects.compactMap { object -> URL? in
+          (object as? NSURL).map { $0 as URL }
+        }
+        data = Self.osc72UriListData(urls)
+      default:
+        data = pasteboard.data(forType: NSPasteboard.PasteboardType(mimeType))
+      }
+      guard let data else {
+        continue
+      }
+      totalBytes += data.count
+      guard totalBytes <= Self.maxOsc72DropBytes else {
+        return nil
+      }
+      dataByMimeType[mimeType] = data
+    }
+    let mimeTypes = offered.filter { dataByMimeType[$0] != nil }
+    guard !mimeTypes.isEmpty else {
+      return nil
+    }
+    return Osc72DropPayload(mimeTypes: mimeTypes, dataByMimeType: dataByMimeType)
+  }
+
+  private func readOsc72DropData(arguments: Any?, result: @escaping FlutterResult) {
+    guard
+      let arguments = arguments as? [String: Any],
+      let dropId = arguments["dropId"] as? String,
+      let mimeType = arguments["mimeType"] as? String,
+      let offset = arguments["offset"] as? Int,
+      let maxBytes = arguments["maxBytes"] as? Int,
+      let data = osc72DropPayloads[dropId]?.dataByMimeType[mimeType],
+      let range = Self.osc72ReadRange(
+        offset: offset,
+        maxBytes: maxBytes,
+        dataCount: data.count
+      )
+    else {
+      result(
+        FlutterError(
+          code: "invalid_osc72_read",
+          message: "OSC 72 drop data request is invalid or expired",
+          details: nil
+        )
+      )
+      return
+    }
+    let end = range.upperBound
+    result([
+      "bytes": FlutterStandardTypedData(bytes: data.subdata(in: range)),
+      "eof": end == data.count,
+      "size": data.count
+    ])
+  }
+
+  private func releaseOsc72Drop(arguments: Any?, result: @escaping FlutterResult) {
+    guard
+      let arguments = arguments as? [String: Any],
+      let dropId = arguments["dropId"] as? String
+    else {
+      result(FlutterMethodNotImplemented)
+      return
+    }
+    osc72DropPayloads.removeValue(forKey: dropId)
+    result(nil)
   }
 
   private func observeTrafficLightLayoutChanges() {

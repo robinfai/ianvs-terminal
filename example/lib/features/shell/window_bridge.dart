@@ -9,8 +9,9 @@ class WindowBridge {
   static void setNativeMenuHandlers({
     Future<void> Function()? onPaste,
     Future<void> Function(NativeFindAction action)? onFind,
+    Future<void> Function(NativeOsc72DragEvent event)? onOsc72DragEvent,
   }) {
-    if (onPaste == null && onFind == null) {
+    if (onPaste == null && onFind == null && onOsc72DragEvent == null) {
       _channel.setMethodCallHandler(null);
       return;
     }
@@ -28,6 +29,12 @@ class WindowBridge {
             throw MissingPluginException('No handler for ${call.method}');
           }
           await handler(NativeFindAction.fromTag(_findTagFrom(call.arguments)));
+        case 'osc72DragEvent':
+          final handler = onOsc72DragEvent;
+          if (handler == null) {
+            throw MissingPluginException('No handler for ${call.method}');
+          }
+          await handler(NativeOsc72DragEvent.fromPlatform(call.arguments));
         default:
           throw MissingPluginException('No handler for ${call.method}');
       }
@@ -209,6 +216,188 @@ class WindowBridge {
       return;
     }
   }
+
+  static Future<void> configureOsc72DropTarget({
+    required bool enabled,
+    String? sessionId,
+    List<String> mimeTypes = const <String>[],
+  }) async {
+    if (BindingBase.debugBindingType() == null) {
+      return;
+    }
+    try {
+      await _channel.invokeMethod<void>('configureOsc72DropTarget', {
+        'enabled': enabled,
+        'sessionId': ?sessionId,
+        'mimeTypes': mimeTypes,
+      });
+    } on MissingPluginException {
+      return;
+    }
+  }
+
+  static Future<void> setOsc72DropDecision(int operation) async {
+    if (BindingBase.debugBindingType() == null) {
+      return;
+    }
+    try {
+      await _channel.invokeMethod<void>('setOsc72DropDecision', {
+        'operation': operation,
+      });
+    } on MissingPluginException {
+      return;
+    }
+  }
+
+  static Future<NativeOsc72DropChunk> readOsc72DropData({
+    required String dropId,
+    required String mimeType,
+    required int offset,
+    int maxBytes = 3072,
+  }) async {
+    final result = await _channel.invokeMapMethod<String, Object?>(
+      'readOsc72DropData',
+      {
+        'dropId': dropId,
+        'mimeType': mimeType,
+        'offset': offset,
+        'maxBytes': maxBytes,
+      },
+    );
+    if (result == null || result['bytes'] is! Uint8List) {
+      throw const FormatException('Invalid OSC 72 drop chunk');
+    }
+    return NativeOsc72DropChunk(
+      bytes: result['bytes']! as Uint8List,
+      eof: result['eof'] == true,
+      size: _nonNegativeInt(result['size']),
+    );
+  }
+
+  static Future<void> releaseOsc72Drop(String dropId) async {
+    if (BindingBase.debugBindingType() == null || dropId.isEmpty) {
+      return;
+    }
+    try {
+      await _channel.invokeMethod<void>('releaseOsc72Drop', {'dropId': dropId});
+    } on MissingPluginException {
+      return;
+    }
+  }
+
+  static Future<NativeOsc72DropTargetStatus?> osc72DropTargetStatus() async {
+    if (BindingBase.debugBindingType() == null) {
+      return null;
+    }
+    try {
+      final result = await _channel.invokeMapMethod<String, Object?>(
+        'osc72DropTargetStatus',
+      );
+      return result == null
+          ? null
+          : NativeOsc72DropTargetStatus.fromPlatform(result);
+    } on MissingPluginException {
+      return null;
+    }
+  }
+}
+
+class NativeOsc72DragEvent {
+  const NativeOsc72DragEvent({
+    required this.phase,
+    required this.sessionId,
+    required this.mimeTypes,
+    required this.position,
+    required this.operations,
+    this.dropId,
+  });
+
+  final String phase;
+  final String sessionId;
+  final List<String> mimeTypes;
+  final Offset position;
+  final int operations;
+  final String? dropId;
+
+  factory NativeOsc72DragEvent.fromPlatform(Object? value) {
+    if (value is! Map) {
+      throw const FormatException('Invalid OSC 72 drag event');
+    }
+    final phase = value['phase'];
+    final sessionId = value['sessionId'];
+    if (phase is! String || sessionId is! String) {
+      throw const FormatException('Invalid OSC 72 drag event identity');
+    }
+    final rawMimeTypes = value['mimeTypes'];
+    final mimeTypes = rawMimeTypes is List
+        ? rawMimeTypes.whereType<String>().take(64).toList(growable: false)
+        : const <String>[];
+    return NativeOsc72DragEvent(
+      phase: phase,
+      sessionId: sessionId,
+      mimeTypes: mimeTypes,
+      position: Offset(_finiteDouble(value['x']), _finiteDouble(value['y'])),
+      operations: _nonNegativeInt(value['operations']) ?? 0,
+      dropId: value['dropId'] is String ? value['dropId'] as String : null,
+    );
+  }
+}
+
+class NativeOsc72DropChunk {
+  const NativeOsc72DropChunk({
+    required this.bytes,
+    required this.eof,
+    this.size,
+  });
+
+  final Uint8List bytes;
+  final bool eof;
+  final int? size;
+}
+
+class NativeOsc72DropTargetStatus {
+  const NativeOsc72DropTargetStatus({
+    required this.enabled,
+    required this.mimeTypes,
+    required this.decision,
+    required this.cachedDrops,
+    this.sessionId,
+  });
+
+  final bool enabled;
+  final String? sessionId;
+  final List<String> mimeTypes;
+  final int decision;
+  final int cachedDrops;
+
+  factory NativeOsc72DropTargetStatus.fromPlatform(Map<String, Object?> value) {
+    final rawMimeTypes = value['mimeTypes'];
+    return NativeOsc72DropTargetStatus(
+      enabled: value['enabled'] == true,
+      sessionId: value['sessionId'] is String
+          ? value['sessionId'] as String
+          : null,
+      mimeTypes: rawMimeTypes is List
+          ? rawMimeTypes.whereType<String>().take(64).toList(growable: false)
+          : const <String>[],
+      decision: _nonNegativeInt(value['decision']) ?? 0,
+      cachedDrops: _nonNegativeInt(value['cachedDrops']) ?? 0,
+    );
+  }
+}
+
+double _finiteDouble(Object? value) {
+  if (value is num && value.isFinite) {
+    return value.toDouble();
+  }
+  return 0;
+}
+
+int? _nonNegativeInt(Object? value) {
+  if (value is int && value >= 0) {
+    return value;
+  }
+  return null;
 }
 
 class WindowMetrics {

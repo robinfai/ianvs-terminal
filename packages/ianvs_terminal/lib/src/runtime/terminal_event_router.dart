@@ -12,6 +12,7 @@ enum TerminalImmediateEventKind {
   sessionProgress,
   sessionBadge,
   terminalContext,
+  dragDropCommand,
   sessionReset,
 }
 
@@ -97,6 +98,10 @@ final class TerminalEventRouter {
       ),
       'terminal_context' => TerminalImmediateEventRoute(
         kind: TerminalImmediateEventKind.terminalContext,
+        payload: event.payload,
+      ),
+      'drag_drop_command' => TerminalImmediateEventRoute(
+        kind: TerminalImmediateEventKind.dragDropCommand,
         payload: event.payload,
       ),
       'session_reset' => TerminalImmediateEventRoute(

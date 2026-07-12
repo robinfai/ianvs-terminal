@@ -281,6 +281,29 @@ final class TerminalSessionContextEvent extends TerminalSessionEvent {
   }
 }
 
+/// A bounded Kitty OSC 72 command. This describes an untrusted child request;
+/// it never authorizes a system drag/drop or file read by itself.
+final class TerminalSessionDragDropCommandEvent extends TerminalSessionEvent {
+  TerminalSessionDragDropCommandEvent(
+    super.sessionId, {
+    Map<String, Object?>? rawPayload,
+  }) : rawPayload = Map.unmodifiable(rawPayload ?? const <String, Object?>{});
+
+  final Map<String, Object?> rawPayload;
+
+  String get action => _stringValue(rawPayload['action']) ?? 'a';
+  bool get more => rawPayload['more'] == true;
+  int? get identifier => _wholeIntValue(rawPayload['identifier']);
+  int? get operation => _wholeIntValue(rawPayload['operation']);
+  int? get x => _wholeIntValue(rawPayload['x']);
+  int? get y => _wholeIntValue(rawPayload['y']);
+  int? get pixelX => _wholeIntValue(rawPayload['pixelX']);
+  int? get pixelY => _wholeIntValue(rawPayload['pixelY']);
+  String get payload => _stringValue(rawPayload['payload']) ?? '';
+
+  static String? _stringValue(Object? value) => value is String ? value : null;
+}
+
 /// The parser received RIS (`ESC c`) and reset terminal semantic state.
 final class TerminalSessionResetEvent extends TerminalSessionEvent {
   const TerminalSessionResetEvent(super.sessionId);
@@ -1833,6 +1856,15 @@ class TerminalRuntimeController {
           sessionId,
           sessionEpoch,
           TerminalSessionContextEvent(sessionId, rawPayload: route.payload),
+        );
+      case TerminalImmediateEventKind.dragDropCommand:
+        _emitEventIfCurrent(
+          sessionId,
+          sessionEpoch,
+          TerminalSessionDragDropCommandEvent(
+            sessionId,
+            rawPayload: route.payload,
+          ),
         );
       case TerminalImmediateEventKind.sessionReset:
         _emitEventIfCurrent(

@@ -55,6 +55,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         _refreshSearchMatchesAfterFrame(sessionId, frame);
         _scheduleRenderableSessionSwap(sessionId);
       case terminal.TerminalSessionExitEvent():
+        unawaited(_osc72DragDropController.resetSession(event.sessionId));
         _clearPresentationStateForSession(event.sessionId);
         _notifySessionExit(event.sessionId, event.exitCode);
       case terminal.TerminalSessionBellEvent():
@@ -75,13 +76,50 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         break;
       case terminal.TerminalSessionContextEvent():
         break;
+      case terminal.TerminalSessionDragDropCommandEvent():
+        unawaited(_osc72DragDropController.handleCommand(event));
       case terminal.TerminalSessionResetEvent():
+        unawaited(_osc72DragDropController.resetSession(event.sessionId));
         _clearPresentationStateForSession(event.sessionId);
       case terminal.TerminalSessionClipboardEvent():
         _handleOsc52ClipboardEvent(event);
       case terminal.TerminalSessionBackendErrorEvent():
         break;
     }
+  }
+
+  Future<void> _handleNativeOsc72DragEvent(NativeOsc72DragEvent event) {
+    return _osc72DragDropController.handleNativeEvent(
+      event,
+      resolveLocation: _osc72LocationFor,
+    );
+  }
+
+  Osc72DropLocation? _osc72LocationFor(NativeOsc72DragEvent event) {
+    final context = _terminalViewportKeys[event.sessionId]?.currentContext;
+    final renderObject = context?.findRenderObject();
+    final cellSize = _measuredTerminalCellSizes[event.sessionId];
+    if (renderObject is! RenderBox ||
+        cellSize == null ||
+        !renderObject.hasSize) {
+      return null;
+    }
+    final local = renderObject.globalToLocal(event.position);
+    final sessionState = ref.read(sessionControllerProvider);
+    final padding = EdgeInsets.all(sessionState.terminalViewportPadding);
+    final x = local.dx - padding.left;
+    final y = local.dy - padding.top;
+    final contentWidth = renderObject.size.width - padding.horizontal;
+    final contentHeight = renderObject.size.height - padding.vertical;
+    if (x < 0 || y < 0 || x >= contentWidth || y >= contentHeight) {
+      return null;
+    }
+    return Osc72DropLocation(
+      cellX: (x / cellSize.width).floor(),
+      cellY: (y / cellSize.height).floor(),
+      pixelX: x.floor(),
+      pixelY: y.floor(),
+    );
   }
 
   Future<bool> _confirmOsc52Access(SessionOsc52PromptRequest request) async {

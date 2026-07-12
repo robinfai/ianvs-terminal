@@ -1383,6 +1383,23 @@ fn osc66_sized_text_profile(emulation: TerminalEmulation) -> TerminalProfile {
     )
 }
 
+fn osc72_drop_target_profile(emulation: TerminalEmulation) -> TerminalProfile {
+    let mut profile = local_profile(
+        "osc72-drop-target",
+        "OSC 72 Drop Target",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"printf '\033]72;t=a:i=7;text/plain text/uri-list\033\\OSC72-READY\n'; sleep 1"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        emulation,
+    );
+    profile.terminal.drag_drop_enabled = true;
+    profile
+}
+
 fn osc_palette_product_profile() -> TerminalProfile {
     let mut profile = local_profile(
         "osc-palette-product",
@@ -17147,6 +17164,35 @@ fn vt220_sessions_gate_osc66_sized_text() {
             .any(|row| row == "OSC66-SET"),
         "VT220 policy must ignore OSC 66 without moving the cursor"
     );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_osc72_drop_target_command_crosses_the_real_pty() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc72_drop_target_profile(TerminalEmulation::Xterm256)).unwrap(),
+    )
+    .unwrap();
+
+    let event = wait_for_event(session_id, "drag_drop_command");
+    assert_eq!(event["payload"]["source"], "osc72");
+    assert_eq!(event["payload"]["action"], "a");
+    assert_eq!(event["payload"]["identifier"], 7);
+    assert_eq!(event["payload"]["payload"], "text/plain text/uri-list");
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_sessions_gate_osc72_drop_target_commands() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc72_drop_target_profile(TerminalEmulation::Vt220)).unwrap(),
+    )
+    .unwrap();
+
+    let _ = wait_for_frame_containing(session_id, "OSC72-READY");
+    assert_event_kind_never_arrives(session_id, "drag_drop_command");
 
     session::close_session(session_id).unwrap();
 }

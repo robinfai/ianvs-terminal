@@ -15,6 +15,7 @@ import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_state.dart';
 import 'package:app/features/shell/password_manager_store.dart';
 import 'package:app/features/shell/shell_screen.dart';
+import 'package:app/features/shell/window_bridge.dart';
 import 'package:app/features/terminal/render_terminal_viewport.dart';
 
 import '../test/support/memory_app_preferences_repository.dart';
@@ -796,6 +797,64 @@ sleep 1
           onTimeout: () => 'Frame: ${_activeFrame(harness.container)}',
         );
       }
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
+    'real PTY OSC 72 query and target lifecycle reach the macOS bridge',
+    (tester) async {
+      final goFile = _tempSignalFile('osc72-drop-target');
+      final profile = _scriptProfile(
+        id: 'osc72-real-pty',
+        name: 'OSC 72 Real PTY',
+        script: r'''
+python3 - <<'PY'
+import os, select, termios, time, tty
+tty_fd = os.open("/dev/tty", os.O_RDWR)
+old = termios.tcgetattr(tty_fd)
+tty.setraw(tty_fd)
+os.write(tty_fd, b"\x1b]72;t=q:i=72;\x1b\\")
+ready, _, _ = select.select([tty_fd], [], [], 3.0)
+data = os.read(tty_fd, 512) if ready else b"TIMEOUT"
+termios.tcsetattr(tty_fd, termios.TCSANOW, old)
+os.close(tty_fd)
+os.write(1, b"OSC72-RESPONSE:" + repr(data).encode() + b"\n")
+PY
+printf '\033]72;t=a:i=72;text/plain text/uri-list\033\\OSC72-READY\n'
+while [ ! -f "$GO_FILE" ]; do sleep 0.05; done
+printf '\033]72;t=A:i=72;\033\\OSC72-STOPPED\n'
+sleep 1
+''',
+        env: {'GO_FILE': goFile.path},
+      );
+      final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
+
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'OSC 72 correlated query response and target marker',
+        matches: (text) =>
+            text.contains('t=q:i=72;drop=1:offer=0') &&
+            text.contains('OSC72-READY'),
+      );
+      final enabled = await _waitForOsc72Status(
+        tester,
+        matches: (status) =>
+            status.enabled &&
+            status.mimeTypes.join(' ') == 'text/plain text/uri-list',
+      );
+      expect(enabled.sessionId, isNotEmpty);
+      expect(enabled.cachedDrops, 0);
+
+      _signal(goFile);
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'OSC 72 target stop marker',
+        matches: (text) => text.contains('OSC72-STOPPED'),
+      );
+      await _waitForOsc72Status(tester, matches: (status) => !status.enabled);
     },
     skip: _skipNonRefreshPolicyGateTests,
   );
@@ -1656,6 +1715,22 @@ Future<void> _waitFor(
   fail(
     'Timed out waiting for $description.${onTimeout == null ? '' : '\n${onTimeout()}'}',
   );
+}
+
+Future<NativeOsc72DropTargetStatus> _waitForOsc72Status(
+  WidgetTester tester, {
+  required bool Function(NativeOsc72DropTargetStatus status) matches,
+}) async {
+  final deadline = DateTime.now().add(_frameWait);
+  NativeOsc72DropTargetStatus? latest;
+  while (DateTime.now().isBefore(deadline)) {
+    latest = await WindowBridge.osc72DropTargetStatus();
+    if (latest != null && matches(latest)) {
+      return latest;
+    }
+    await tester.pump(_pollStep);
+  }
+  fail('Timed out waiting for OSC 72 native target status. Latest: $latest');
 }
 
 TerminalPane? _activePane(ProviderContainer container) {

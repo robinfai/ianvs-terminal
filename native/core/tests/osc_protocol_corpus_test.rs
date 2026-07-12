@@ -1,5 +1,7 @@
 use par_term_emu_core_rust::color::Color;
-use par_term_emu_core_rust::terminal::{Terminal, TerminalContextAction, TerminalEvent};
+use par_term_emu_core_rust::terminal::{
+    DragDropAction, OscCapability, Terminal, TerminalContextAction, TerminalEvent,
+};
 use serde_json::Value;
 
 const CORPUS: &str = include_str!("fixtures/osc/osc_protocol_corpus_v1.json");
@@ -55,6 +57,9 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
         if id == "malformed_base64" {
             terminal.process(b"\x1b]52;c;c2VudGluZWw=\x1b\\");
             assert_eq!(terminal.clipboard(), Some("sentinel"));
+        }
+        if id == "osc72_drop_target_negotiation" {
+            terminal.set_osc_capability_allowed(OscCapability::DragDrop, true);
         }
 
         for chunk in wire_chunks(case) {
@@ -167,6 +172,24 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
                 assert_eq!(contexts[2].action, TerminalContextAction::End);
                 assert_eq!(contexts[2].implicit_closed_count, 1);
                 assert_eq!(contexts[2].end_metadata.as_ref().unwrap().status, Some(0));
+            }
+            "osc72_drop_target_negotiation" => {
+                let commands = terminal
+                    .poll_events()
+                    .into_iter()
+                    .filter_map(|event| match event {
+                        TerminalEvent::DragDropCommand(command) => Some(*command),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(commands.len(), 3);
+                assert_eq!(commands[0].action, DragDropAction::AcceptDrops);
+                assert_eq!(commands[0].identifier, Some(7));
+                assert_eq!(commands[0].payload, b"text/plain text/uri-list");
+                assert_eq!(commands[1].action, DragDropAction::DropMove);
+                assert_eq!(commands[1].operation, Some(1));
+                assert_eq!(commands[2].action, DragDropAction::RequestDropData);
+                assert_eq!(commands[2].x, Some(1));
             }
             "tmux_passthrough" => assert_eq!(
                 write_hyperlink_probe(&mut terminal),

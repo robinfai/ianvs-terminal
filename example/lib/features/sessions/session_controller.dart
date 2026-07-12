@@ -619,7 +619,13 @@ class SessionController extends Notifier<SessionState> {
 
   String? _createRuntimeSession(TerminalProfile launchProfile) {
     try {
-      return _runtime.createSession(launchProfile.toSessionConfig());
+      return _runtime.createSession(
+        launchProfile.toSessionConfig().copyWith(
+          // The macOS example installs the native OSC 72 bridge. Other
+          // platforms retain the package's deny-by-default behavior.
+          dragDropEnabled: Platform.isMacOS,
+        ),
+      );
     } on Object catch (error) {
       final detail = _boundedShellMetadata(error.toString(), 240);
       state = state.copyWith(
@@ -1093,6 +1099,9 @@ class SessionController extends Notifier<SessionState> {
         break;
       case TerminalSessionContextEvent():
         // OSC 3008 remains typed metadata only; it does not drive product UI.
+        break;
+      case TerminalSessionDragDropCommandEvent():
+        // ShellScreen owns the system drag/drop bridge and active-pane routing.
         break;
       case TerminalSessionResetEvent():
         _applySessionReset(event);

@@ -318,6 +318,27 @@
       }
     },
     {
+      "id": "osc72_drop_target_negotiation",
+      "coverage": [
+        "OSC 72 target negotiation",
+        "OSC 72 bounded host authorization"
+      ],
+      "protocol": "Kitty OSC 72",
+      "wire": {
+        "chunks_hex": [
+          "1b5d37323b743d613a693d373b746578742f706c61696e20746578742f7572692d6c6973741b5c1b5d37323b743d6d3a693d373a6f3d313b746578742f706c61696e1b5c1b5d37323b743d723a693d373a783d313b1b5c"
+        ],
+        "sequence_count": 3
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "drag_drop_target_lifecycle",
+        "state_effect": "active product policy receives bounded accept, move decision, and indexed data request commands correlated by i=7",
+        "reply": "product bridge response only",
+        "must_not_crash": true
+      }
+    },
+    {
       "id": "tmux_passthrough",
       "coverage": ["tmux passthrough fixture"],
       "protocol": "tmux DCS passthrough carrying OSC 8",

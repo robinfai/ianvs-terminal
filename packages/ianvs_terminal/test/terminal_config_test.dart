@@ -243,6 +243,20 @@ void main() {
     expect(defaultGraphics.graphics.advertise, 'kitty');
   });
 
+  test('terminal session config keeps OSC 72 opt-in and roundtrips it', () {
+    final denied = TerminalSessionConfig.fromJson(const <String, Object?>{
+      'launch': <String, Object?>{'program': '/bin/zsh'},
+    });
+    final enabled = TerminalSessionConfig.fromJson(const <String, Object?>{
+      'launch': <String, Object?>{'program': '/bin/zsh'},
+      'terminal': <String, Object?>{'dragDropEnabled': true},
+    });
+
+    expect(denied.dragDropEnabled, isFalse);
+    expect(enabled.dragDropEnabled, isTrue);
+    expect(enabled.toJson()['terminal'], containsPair('dragDropEnabled', true));
+  });
+
   test('terminal launch config trims direct json string fields', () {
     final launch = TerminalLaunchConfig.fromJson(const <String, Object?>{
       'program': '  /bin/zsh  ',
@@ -723,6 +737,7 @@ void main() {
       'emulation': 'xterm256',
       'scrollbackLines': maxTerminalScrollbackLines,
       'graphics': const TerminalGraphicsConfig().toJson(),
+      'dragDropEnabled': false,
     });
     expect(fromJson.scrollbackLines, maxTerminalScrollbackLines);
     expect(options.scrollback, maxTerminalScrollbackLines);

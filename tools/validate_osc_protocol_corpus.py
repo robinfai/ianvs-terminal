@@ -38,6 +38,8 @@ REQUIRED_COVERAGE = {
     "OSC 22 screen-local state",
     "OSC 66 sized text",
     "OSC 66 overwrite/edit recovery",
+    "OSC 72 target negotiation",
+    "OSC 72 bounded host authorization",
     "OSC 3008 hierarchy",
     "OSC 3008 malformed close recovery",
     "tmux passthrough fixture",
@@ -165,6 +167,10 @@ def validate_case(case: Any) -> set[str]:
         require(stream.count(b"\x1b]66;") == 2, f"{case_id}: OSC 66 sequence count")
         require(b"s=2:w=2:n=1:d=2:v=2:h=1;AB" in stream, f"{case_id}: metadata")
         require(b"\x1b[X" in stream, f"{case_id}: erase recovery missing")
+    elif case_id == "osc72_drop_target_negotiation":
+        require(stream.count(b"\x1b]72;") == 3, f"{case_id}: OSC 72 sequence count")
+        require(b"t=a:i=7;text/plain text/uri-list" in stream, f"{case_id}: accept")
+        require(b"t=r:i=7:x=1;" in stream, f"{case_id}: data request")
     elif case_id == "tmux_passthrough":
         require(stream.startswith(b"\x1bPtmux;\x1b\x1b]"), f"{case_id}: bad wrapper")
     elif case_id == "screen_passthrough":

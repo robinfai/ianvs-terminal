@@ -158,6 +158,14 @@ PROBES = {
         + b"\x1b[2;2Hx\x1b[1;2H\x1b[X"
         + osc("66;s=2;Z", bell=True),
     ),
+    "drag_drop_query": Probe(
+        "drag_drop_query",
+        "Kitty OSC 72",
+        "Query target-side drag-and-drop support with a multiplexer correlation id.",
+        "Supporting terminals reply with t=q:i=72 and bounded optional capability metadata.",
+        "none; the query must not register a drop target or read host data",
+        osc("72;t=q:i=72;"),
+    ),
     "progress": Probe(
         "progress",
         "OSC 9;4",
@@ -223,6 +231,7 @@ def self_test() -> None:
         "osc23_noop",
         "pointer_shape",
         "sized_text",
+        "drag_drop_query",
         "progress",
         "badge",
         "user_var",
@@ -252,6 +261,8 @@ def self_test() -> None:
         raise ValueError("sized-text lifecycle fixture is malformed")
     if b"\x1b[X" not in PROBES["sized_text"].payload:
         raise ValueError("sized-text erase recovery fixture is malformed")
+    if b"72;t=q:i=72;" not in PROBES["drag_drop_query"].payload:
+        raise ValueError("drag-drop query fixture is malformed")
 
 
 def parser() -> argparse.ArgumentParser:

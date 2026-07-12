@@ -3662,6 +3662,7 @@ void main() {
           'maxImageBytes': terminal.defaultTerminalGraphicMaxImageBytes,
           'maxTotalBytes': terminal.defaultTerminalGraphicMaxTotalBytes,
         },
+        'dragDropEnabled': true,
       });
     },
   );

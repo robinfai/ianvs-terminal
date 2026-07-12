@@ -339,6 +339,10 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                         children: [
                           Positioned.fill(
                             child: TerminalViewport(
+                              key: _terminalViewportKeys.putIfAbsent(
+                                sessionId,
+                                GlobalKey.new,
+                              ),
                               focusNode: focusNode,
                               controller: viewportController,
                               selectionController: selectionController,

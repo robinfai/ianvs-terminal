@@ -27,11 +27,12 @@ pub enum OscIntent {
     Media = 7,
     FileTransfer = 8,
     IanvsPrivate = 9,
-    Custom = 10,
+    DragDrop = 10,
+    Custom = 11,
 }
 
 impl OscIntent {
-    pub const COUNT: usize = 11;
+    pub const COUNT: usize = 12;
 
     /// Maximum semantic payload bytes for this intent.
     pub const fn payload_limit(self) -> usize {
@@ -39,6 +40,7 @@ impl OscIntent {
             Self::Appearance | Self::CurrentDirectory | Self::UserVariableOrBadge => 4 * KIB,
             Self::Hyperlink | Self::ShellIntegration => 16 * KIB,
             Self::Notification | Self::IanvsPrivate => 8 * KIB,
+            Self::DragDrop => 4 * KIB,
             Self::Clipboard => 4 * MIB,
             Self::Media | Self::FileTransfer => 64 * MIB,
             Self::Custom => 4 * KIB,
@@ -58,6 +60,7 @@ pub enum OscCapability {
     Media,
     HostAction,
     FileTransfer,
+    DragDrop,
     CustomProtocol,
 }
 
@@ -78,6 +81,7 @@ pub struct OscCapabilityPolicy {
     pub media: bool,
     pub host_action: bool,
     pub file_transfer: bool,
+    pub drag_drop: bool,
     pub custom_protocol: bool,
 }
 
@@ -95,6 +99,9 @@ impl Default for OscCapabilityPolicy {
             media: true,
             host_action: false,
             file_transfer: true,
+            // OSC 72 coordinates privileged OS drag/drop and file access.
+            // Embedders must opt in only after installing a product bridge.
+            drag_drop: false,
             custom_protocol: true,
         }
     }
@@ -112,6 +119,7 @@ impl OscCapabilityPolicy {
             OscCapability::Media => self.media,
             OscCapability::HostAction => self.host_action,
             OscCapability::FileTransfer => self.file_transfer,
+            OscCapability::DragDrop => self.drag_drop,
             OscCapability::CustomProtocol => self.custom_protocol,
         }
     }
@@ -127,6 +135,7 @@ impl OscCapabilityPolicy {
             OscCapability::Media => self.media = allowed,
             OscCapability::HostAction => self.host_action = allowed,
             OscCapability::FileTransfer => self.file_transfer = allowed,
+            OscCapability::DragDrop => self.drag_drop = allowed,
             OscCapability::CustomProtocol => self.custom_protocol = allowed,
         }
     }
@@ -654,7 +663,7 @@ fn measured_payload_len(content: &[u8], separator: usize, classification: Classi
             }),
         // The OSC 934 version-1 specification defines its 8 KiB boundary
         // over the complete `934;...` payload, matching the command parser.
-        (b"66", OscIntent::Appearance) => payload
+        (b"66", OscIntent::Appearance) | (b"72", OscIntent::DragDrop) => payload
             .iter()
             .position(|byte| *byte == b';')
             .map_or(payload.len(), |metadata_end| {
@@ -685,6 +694,7 @@ fn classify_osc(
         }
         b"7" => Classification::new(OscIntent::CurrentDirectory, OscCapability::Metadata),
         b"8" => Classification::new(OscIntent::Hyperlink, OscCapability::Hyperlink),
+        b"72" => Classification::new(OscIntent::DragDrop, OscCapability::DragDrop),
         b"9" => classify_osc_9(payload, complete),
         b"52" => {
             if !complete
@@ -835,6 +845,7 @@ mod tests {
         assert_eq!(OscIntent::Media.payload_limit(), 64 * MIB);
         assert_eq!(OscIntent::FileTransfer.payload_limit(), 64 * MIB);
         assert_eq!(OscIntent::IanvsPrivate.payload_limit(), 8 * KIB);
+        assert_eq!(OscIntent::DragDrop.payload_limit(), 4 * KIB);
         assert_eq!(OscIntent::Custom.payload_limit(), 4 * KIB);
     }
 
@@ -916,6 +927,48 @@ mod tests {
     }
 
     #[test]
+    fn osc72_ingress_is_opt_in_and_bounds_each_encoded_payload() {
+        let mut policy = OscCapabilityPolicy::default();
+        let context = OscClassificationContext::default();
+        let mut exact = b"\x1b]72;t=p:i=7:x=0;".to_vec();
+        exact.extend(std::iter::repeat_n(b'A', 4 * KIB));
+        exact.extend_from_slice(b"\x1b\\");
+
+        let mut denied_gate = OscStreamGate::default();
+        assert!(filter_owned(&mut denied_gate, &exact, policy, context).is_empty());
+        assert_eq!(
+            denied_gate
+                .diagnostics()
+                .for_intent(OscIntent::DragDrop)
+                .policy_denied,
+            1
+        );
+
+        policy.set(OscCapability::DragDrop, true);
+        let mut exact_gate = OscStreamGate::default();
+        assert_eq!(
+            filter_owned(&mut exact_gate, &exact, policy, context),
+            exact
+        );
+
+        let mut oversized = b"\x1b]72;t=p:i=7:x=0;".to_vec();
+        oversized.extend(std::iter::repeat_n(b'A', 4 * KIB + 1));
+        oversized.extend_from_slice(b"\x1b\\recovered");
+        let mut oversized_gate = OscStreamGate::default();
+        assert_eq!(
+            filter_owned(&mut oversized_gate, &oversized, policy, context),
+            b"recovered"
+        );
+        assert_eq!(
+            oversized_gate
+                .diagnostics()
+                .for_intent(OscIntent::DragDrop)
+                .oversized,
+            1
+        );
+    }
+
+    #[test]
     fn every_parse_capability_can_be_denied_independently() {
         let cases: &[(OscCapability, &[u8], OscIntent)] = &[
             (
@@ -957,6 +1010,11 @@ mod tests {
                 OscCapability::FileTransfer,
                 b"\x1b]1337;RequestUpload=format=tgz\x07",
                 OscIntent::FileTransfer,
+            ),
+            (
+                OscCapability::DragDrop,
+                b"\x1b]72;t=q:i=7;\x1b\\",
+                OscIntent::DragDrop,
             ),
             (
                 OscCapability::CustomProtocol,
@@ -1180,6 +1238,7 @@ mod tests {
         assert!(terminal.osc_capability_allowed(OscCapability::Metadata));
         assert!(terminal.osc_capability_allowed(OscCapability::Media));
         assert!(terminal.osc_capability_allowed(OscCapability::FileTransfer));
+        assert!(!terminal.osc_capability_allowed(OscCapability::DragDrop));
     }
 
     #[test]

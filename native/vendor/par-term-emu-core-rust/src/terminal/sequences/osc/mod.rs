@@ -3,6 +3,7 @@
 mod clipboard;
 mod color;
 mod context;
+mod drag_drop;
 mod iterm;
 mod notify;
 mod pointer;
@@ -168,6 +169,7 @@ impl Terminal {
                 "52" => self.handle_osc_clipboard(command, params),
                 "22" => self.handle_osc_pointer_shape(params),
                 "66" => self.handle_osc_sized_text(params),
+                "72" => self.handle_osc_drag_drop(params),
                 "4" | "21" | "104" | "10" | "11" | "12" | "110" | "111" | "112" => {
                     self.handle_osc_color(command, params)
                 }

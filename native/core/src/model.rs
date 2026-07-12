@@ -110,6 +110,10 @@ pub struct TerminalProfileTerminal {
     pub scrollback_lines: usize,
     #[serde(default)]
     pub graphics: TerminalGraphicsConfig,
+    /// Enable bounded OSC 72 parsing only when the embedding product has a
+    /// system drag/drop bridge installed. Defaults off to avoid false support.
+    #[serde(rename = "dragDropEnabled", default)]
+    pub drag_drop_enabled: bool,
 }
 
 impl Default for TerminalProfileTerminal {
@@ -118,6 +122,7 @@ impl Default for TerminalProfileTerminal {
             emulation: TerminalEmulation::Xterm256,
             scrollback_lines: default_scrollback_lines(),
             graphics: TerminalGraphicsConfig::default(),
+            drag_drop_enabled: false,
         }
     }
 }

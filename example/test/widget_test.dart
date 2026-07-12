@@ -5808,7 +5808,10 @@ void main() {
     await _openCommandMenu(tester);
     expect(find.text('Hotkey window'), findsNothing);
     expect(find.textContaining('Hide this window. Reopen with'), findsNothing);
-    expect(windowBridgeCalls, isEmpty);
+    expect(
+      windowBridgeCalls.map((call) => call.method),
+      isNot(contains(anyOf('hotkeyStatus', 'toggleHotkeyWindow'))),
+    );
     expect(fakeBindings.writes, isEmpty);
   });
 

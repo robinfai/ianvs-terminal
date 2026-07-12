@@ -39,6 +39,7 @@ import 'paste_history_repository.dart';
 import 'password_manager_store.dart';
 import 'reference_demo.dart';
 import 'local_terminal_shell_ui_wiring_exports.dart';
+import 'osc72_drag_drop_controller.dart';
 import 'shell_acceptance.dart';
 import 'shell_action_registry.dart';
 import 'shell_action_runtime_bindings.dart';
@@ -99,6 +100,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, Size> _scheduledViewportSizes = {};
   final Map<String, Size> _committedViewportSizes = {};
   final Map<String, Size> _measuredTerminalCellSizes = {};
+  final Map<String, GlobalKey> _terminalViewportKeys = {};
   final Map<String, double> _terminalViewportDevicePixelRatios = {};
   final Set<String> _readOnlySessionIds = {};
   final Map<String, DateTime> _lastActivityNotificationAt = {};
@@ -117,6 +119,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   StreamSubscription<terminal.TerminalSessionEvent>? _terminalEventSubscription;
   Future<void> Function()? _searchPasteHandler;
   late final LocalTerminalShellUiWiringSnapshot _completionDiagnosticsSnapshot;
+  late final Osc72DragDropController _osc72DragDropController;
   Timer? _workspaceCueTimer;
   final Map<String, Timer> _viewportResizeTimers = {};
   bool _isCommandMenuOpen = false;
@@ -203,18 +206,22 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   @override
   void initState() {
     super.initState();
+    final runtime = ref.read(terminalRuntimeControllerProvider);
+    _osc72DragDropController = Osc72DragDropController(
+      sendInput: runtime.sendInput,
+    );
     WindowBridge.setNativeMenuHandlers(
       onPaste: _handleNativePasteMenu,
       onFind: _handleNativeFindMenu,
+      onOsc72DragEvent: _handleNativeOsc72DragEvent,
     );
     _completionDiagnosticsSnapshot =
         LocalTerminalShellUiWiringSnapshot.verified(capturedAt: DateTime.now());
     _osc52PromptController = ref.read(sessionOsc52PromptControllerProvider);
     _osc52PromptController?.setHandler(_confirmOsc52Access);
-    _terminalEventSubscription = ref
-        .read(terminalRuntimeControllerProvider)
-        .events
-        .listen(_handleTerminalSessionEvent);
+    _terminalEventSubscription = runtime.events.listen(
+      _handleTerminalSessionEvent,
+    );
     Future.microtask(_loadPasteHistory);
     Future.microtask(_loadNotificationPreferences);
   }
@@ -222,6 +229,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   @override
   void dispose() {
     WindowBridge.setNativeMenuHandlers();
+    unawaited(_osc72DragDropController.dispose());
     _osc52PromptController?.clearHandler();
     _terminalEventSubscription?.cancel();
     _workspaceCueTimer?.cancel();

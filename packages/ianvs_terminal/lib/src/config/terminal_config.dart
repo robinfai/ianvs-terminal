@@ -579,6 +579,7 @@ class TerminalSessionConfig {
     this.emulation = TerminalEmulation.xterm256,
     int scrollbackLines = defaultTerminalScrollbackLines,
     this.graphics = const TerminalGraphicsConfig(),
+    this.dragDropEnabled = false,
     this.shellIntegration = const TerminalShellIntegrationConfig(),
     this.display = const TerminalDisplayConfig(),
     this.interaction = const TerminalInteractionConfig(),
@@ -592,6 +593,10 @@ class TerminalSessionConfig {
   final TerminalEmulation emulation;
   final int scrollbackLines;
   final TerminalGraphicsConfig graphics;
+
+  /// Enables bounded OSC 72 parsing. Set this only when a host drag/drop
+  /// bridge is installed; false prevents advertising unusable support.
+  final bool dragDropEnabled;
   final TerminalShellIntegrationConfig shellIntegration;
   final TerminalDisplayConfig display;
   final TerminalInteractionConfig interaction;
@@ -601,6 +606,7 @@ class TerminalSessionConfig {
     TerminalEmulation? emulation,
     int? scrollbackLines,
     TerminalGraphicsConfig? graphics,
+    bool? dragDropEnabled,
     TerminalShellIntegrationConfig? shellIntegration,
     TerminalDisplayConfig? display,
     TerminalInteractionConfig? interaction,
@@ -610,6 +616,7 @@ class TerminalSessionConfig {
       emulation: emulation ?? this.emulation,
       scrollbackLines: scrollbackLines ?? this.scrollbackLines,
       graphics: graphics ?? this.graphics,
+      dragDropEnabled: dragDropEnabled ?? this.dragDropEnabled,
       shellIntegration: shellIntegration ?? this.shellIntegration,
       display: display ?? this.display,
       interaction: interaction ?? this.interaction,
@@ -623,6 +630,7 @@ class TerminalSessionConfig {
         'emulation': emulation.name,
         'scrollbackLines': normalizeTerminalScrollbackLines(scrollbackLines),
         'graphics': graphics.toJson(),
+        'dragDropEnabled': dragDropEnabled,
       },
       'shellIntegration': shellIntegration.toJson(),
       'appearance': display.toJson(),
@@ -641,6 +649,7 @@ class TerminalSessionConfig {
         maximum: maxTerminalScrollbackLines,
       ),
       graphics: TerminalGraphicsConfig.fromJson(terminal?['graphics']),
+      dragDropEnabled: _boolOr(terminal?['dragDropEnabled'], false),
       display: TerminalDisplayConfig.fromJson(json['appearance']),
       interaction: TerminalInteractionConfig.fromJson(json['interaction']),
       shellIntegration: TerminalShellIntegrationConfig.fromJson(
@@ -678,6 +687,7 @@ class TerminalSessionConfig {
         terminal?['graphics'],
         onWarning: onWarning,
       ),
+      dragDropEnabled: _boolOr(terminal?['dragDropEnabled'], false),
       display: _displayConfigFromProfileJson(
         json['appearance'],
         onWarning: onWarning,

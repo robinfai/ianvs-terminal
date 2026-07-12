@@ -61,6 +61,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     _scheduledViewportSizes.remove(sessionId);
     _committedViewportSizes.remove(sessionId);
     _measuredTerminalCellSizes.remove(sessionId);
+    _terminalViewportKeys.remove(sessionId);
     _terminalViewportDevicePixelRatios.remove(sessionId);
   }
 
@@ -326,6 +327,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     final previousActiveSessionId = _lastObservedActiveSessionId;
     final activeSessionId = sessionState.activeSessionId;
     _lastObservedActiveSessionId = activeSessionId;
+    unawaited(_osc72DragDropController.setActiveSession(activeSessionId));
     if (previousActiveSessionId == null ||
         previousActiveSessionId == activeSessionId ||
         !sessionState.tabs.any(

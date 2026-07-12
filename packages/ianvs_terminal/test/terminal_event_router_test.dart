@@ -73,6 +73,7 @@ void main() {
         'session_notification': TerminalImmediateEventKind.sessionNotification,
         'session_progress': TerminalImmediateEventKind.sessionProgress,
         'session_badge': TerminalImmediateEventKind.sessionBadge,
+        'drag_drop_command': TerminalImmediateEventKind.dragDropCommand,
         'session_reset': TerminalImmediateEventKind.sessionReset,
       };
 
