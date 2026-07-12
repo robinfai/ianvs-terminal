@@ -67,6 +67,7 @@ class TerminalStyleRun {
     required this.end,
     this.foreground,
     this.background,
+    this.underlineColor,
     this.bold = false,
     this.dim = false,
     this.italic = false,
@@ -79,6 +80,7 @@ class TerminalStyleRun {
   final int end;
   final Color? foreground;
   final Color? background;
+  final Color? underlineColor;
   final bool bold;
   final bool dim;
   final bool italic;
@@ -105,6 +107,7 @@ class TerminalStyleRun {
       end: end,
       foreground: _colorFromHex(_stringFromJson(json['foreground'])),
       background: _colorFromHex(_stringFromJson(json['background'])),
+      underlineColor: _colorFromHex(_stringFromJson(json['underline_color'])),
       bold: _boolFromJson(json['bold'], fallback: false),
       dim: _boolFromJson(json['dim'], fallback: false),
       italic: _boolFromJson(json['italic'], fallback: false),
@@ -433,6 +436,7 @@ class TerminalSizedTextPlacement {
     required this.naturalWidth,
     this.foreground,
     this.background,
+    this.underlineColor,
     this.bold = false,
     this.dim = false,
     this.italic = false,
@@ -456,6 +460,7 @@ class TerminalSizedTextPlacement {
   final bool naturalWidth;
   final Color? foreground;
   final Color? background;
+  final Color? underlineColor;
   final bool bold;
   final bool dim;
   final bool italic;
@@ -522,6 +527,7 @@ class TerminalSizedTextPlacement {
       naturalWidth: _boolFromJson(json['natural_width'], fallback: false),
       foreground: _colorFromHex(_stringFromJson(json['foreground'])),
       background: _colorFromHex(_stringFromJson(json['background'])),
+      underlineColor: _colorFromHex(_stringFromJson(json['underline_color'])),
       bold: _boolFromJson(json['bold'], fallback: false),
       dim: _boolFromJson(json['dim'], fallback: false),
       italic: _boolFromJson(json['italic'], fallback: false),
@@ -924,6 +930,9 @@ class TerminalFrameDiff {
     this.cursorColor,
     this.selectionBackground,
     this.selectionForeground,
+    this.linkColor,
+    this.cursorTextColor,
+    this.tabColor,
     this.pointerShape,
     this.modes = TerminalFrameModes.empty,
     this.selection,
@@ -957,6 +966,9 @@ class TerminalFrameDiff {
   final Color? cursorColor;
   final Color? selectionBackground;
   final Color? selectionForeground;
+  final Color? linkColor;
+  final Color? cursorTextColor;
+  final Color? tabColor;
   final TerminalPointerShape? pointerShape;
   final TerminalFrameModes modes;
   final String? windowTitle;
@@ -1028,6 +1040,11 @@ class TerminalFrameDiff {
       selectionForeground: _colorFromHex(
         _stringFromJson(json['selection_foreground']),
       ),
+      linkColor: _colorFromHex(_stringFromJson(json['link_color'])),
+      cursorTextColor: _colorFromHex(
+        _stringFromJson(json['cursor_text_color']),
+      ),
+      tabColor: _colorFromHex(_stringFromJson(json['tab_color'])),
       pointerShape: TerminalPointerShape.fromWire(json['pointer_shape']),
       modes: modesJson == null
           ? TerminalFrameModes.empty
@@ -1311,6 +1328,18 @@ TerminalFrameDiff _terminalFrameDiffFromProtobuf(
       hasValue: proto.hasSelectionForeground(),
       value: proto.selectionForeground,
     ),
+    linkColor: _colorFromProtobuf(
+      hasValue: proto.hasLinkColor(),
+      value: proto.linkColor,
+    ),
+    cursorTextColor: _colorFromProtobuf(
+      hasValue: proto.hasCursorTextColor(),
+      value: proto.cursorTextColor,
+    ),
+    tabColor: _colorFromProtobuf(
+      hasValue: proto.hasTabColor(),
+      value: proto.tabColor,
+    ),
     pointerShape: proto.hasPointerShape()
         ? TerminalPointerShape.fromWire(proto.pointerShape)
         : null,
@@ -1410,6 +1439,10 @@ TerminalStyleRun? _terminalStyleRunFromProtobuf(frame_pb.TerminalStyleRun run) {
     background: _colorFromProtobuf(
       hasValue: run.hasBackground(),
       value: run.background,
+    ),
+    underlineColor: _colorFromProtobuf(
+      hasValue: run.hasUnderlineColor(),
+      value: run.underlineColor,
     ),
     bold: run.bold,
     dim: run.dim,
@@ -1582,6 +1615,10 @@ TerminalSizedTextPlacement? _terminalSizedTextFromProtobuf(
     background: _colorFromProtobuf(
       hasValue: placement.hasBackground(),
       value: placement.background,
+    ),
+    underlineColor: _colorFromProtobuf(
+      hasValue: placement.hasUnderlineColor(),
+      value: placement.underlineColor,
     ),
     bold: placement.bold,
     dim: placement.dim,
@@ -2090,6 +2127,9 @@ class TerminalViewportState {
             nextFrame.selectionBackground ?? frame.selectionBackground,
         selectionForeground:
             nextFrame.selectionForeground ?? frame.selectionForeground,
+        linkColor: nextFrame.linkColor ?? frame.linkColor,
+        cursorTextColor: nextFrame.cursorTextColor ?? frame.cursorTextColor,
+        tabColor: nextFrame.tabColor ?? frame.tabColor,
         pointerShape: nextFrame.pointerShape,
         modes: nextFrame.modes,
         windowTitle: nextFrame.windowTitle,
@@ -2383,6 +2423,9 @@ TerminalFrameDiff _normalizeSnapshotFrame(
     cursorColor: frame.cursorColor,
     selectionBackground: frame.selectionBackground,
     selectionForeground: frame.selectionForeground,
+    linkColor: frame.linkColor,
+    cursorTextColor: frame.cursorTextColor,
+    tabColor: frame.tabColor,
     pointerShape: frame.pointerShape,
     modes: frame.modes,
     windowTitle: frame.windowTitle,

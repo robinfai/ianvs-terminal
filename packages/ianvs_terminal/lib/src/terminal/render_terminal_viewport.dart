@@ -47,6 +47,7 @@ class TerminalResolvedCell {
     required this.text,
     required this.foreground,
     required this.background,
+    required this.decorationColor,
     required this.fontWeight,
     required this.glyphClass,
     required this.usesCustomGeometry,
@@ -63,6 +64,7 @@ class TerminalResolvedCell {
   final String text;
   final Color foreground;
   final Color? background;
+  final Color? decorationColor;
   final FontWeight fontWeight;
   final TerminalGlyphClass glyphClass;
   final bool usesCustomGeometry;
@@ -759,7 +761,7 @@ class RenderTerminalViewport extends RenderBox {
       return;
     }
     final color = _foregroundWithMinimumContrast(
-      frame.defaultForeground ?? _colors.foreground,
+      frame.linkColor ?? frame.defaultForeground ?? _colors.foreground,
       _canvasBackgroundFor(frame),
     ).withValues(alpha: 0.82);
     final devicePixelRatio = _devicePixelRatio.isFinite && _devicePixelRatio > 0
@@ -830,6 +832,7 @@ class RenderTerminalViewport extends RenderBox {
           entry.end,
           entry.foreground,
           entry.background,
+          entry.underlineColor,
           entry.bold,
           entry.dim,
           entry.italic,
@@ -856,6 +859,7 @@ class RenderTerminalViewport extends RenderBox {
         rawForeground: defaultRawForeground,
         foreground: defaultForeground,
         background: null,
+        decorationColor: null,
         fontWeight: FontWeight.w400,
         fontStyle: FontStyle.normal,
         decoration: TextDecoration.none,
@@ -921,6 +925,7 @@ class RenderTerminalViewport extends RenderBox {
           fontWeight: style.fontWeight,
           fontStyle: style.fontStyle,
           decoration: style.decoration,
+          decorationColor: style.decorationColor,
           glyphClass: glyphClass,
           paragraph: paragraph,
           glyphSize: glyphSize,
@@ -1001,6 +1006,7 @@ class RenderTerminalViewport extends RenderBox {
           text: cell.text,
           foreground: cell.foreground,
           background: cell.background,
+          decorationColor: cell.decorationColor,
           fontWeight: cell.fontWeight,
           glyphClass: cell.glyphClass,
           usesCustomGeometry: cell.usesCustomGeometry,
@@ -1078,6 +1084,7 @@ class RenderTerminalViewport extends RenderBox {
           rawForeground: foreground,
           foreground: resolvedForeground,
           background: null,
+          decorationColor: cell.decorationColor,
           fontWeight: cell.fontWeight,
           fontStyle: cell.fontStyle,
           decoration: cell.decoration,
@@ -1103,6 +1110,7 @@ class RenderTerminalViewport extends RenderBox {
       text: cell.text,
       foreground: cell.foreground,
       background: cell.background,
+      decorationColor: cell.decorationColor,
       fontWeight: cell.fontWeight,
       glyphClass: cell.glyphClass,
       usesCustomGeometry: cell.usesCustomGeometry,
@@ -1270,6 +1278,7 @@ class RenderTerminalViewport extends RenderBox {
       rawForeground: rawForeground,
       foreground: foreground,
       background: paintBackground ? background : null,
+      decorationColor: run.underlineColor,
       fontWeight: run.bold ? FontWeight.w700 : FontWeight.w400,
       fontStyle: run.italic ? FontStyle.italic : FontStyle.normal,
       decoration: run.underline
@@ -1352,6 +1361,7 @@ class RenderTerminalViewport extends RenderBox {
           rawForeground: foreground,
           foreground: foreground,
           background: cell.background,
+          decorationColor: cell.decorationColor,
           fontWeight: cell.fontWeight,
           fontStyle: cell.fontStyle,
           decoration: cell.decoration,
@@ -1369,6 +1379,14 @@ class RenderTerminalViewport extends RenderBox {
   }
 
   Color _cursorTextColorFor(TerminalFrameDiff frame, Color cursorColor) {
+    final explicit = frame.cursorTextColor;
+    if (explicit != null) {
+      return _foregroundWithContrastRatio(
+        explicit,
+        cursorColor,
+        _minimumContrastRatio,
+      );
+    }
     return _foregroundWithContrastRatio(
       _cursorBackgroundFor(frame),
       cursorColor,
@@ -1467,6 +1485,7 @@ class RenderTerminalViewport extends RenderBox {
       style.fontWeight,
       style.fontStyle,
       style.decoration,
+      style.decorationColor?.toARGB32(),
     );
     final cached = _glyphParagraphCache.remove(signature);
     if (cached != null) {
@@ -1480,6 +1499,7 @@ class RenderTerminalViewport extends RenderBox {
           fontWeight: style.fontWeight,
           fontStyle: style.fontStyle,
           decoration: style.decoration,
+          decorationColor: style.decorationColor,
         ),
       )
       ..addText(text)
@@ -1728,6 +1748,7 @@ class RenderTerminalViewport extends RenderBox {
         end: placement.col + placement.widthCells,
         foreground: foregroundOverride ?? placement.foreground,
         background: placement.background,
+        underlineColor: placement.underlineColor,
         bold: placement.bold,
         dim: placement.dim,
         italic: placement.italic,
@@ -1923,6 +1944,7 @@ class RenderTerminalViewport extends RenderBox {
     FontWeight? fontWeight,
     FontStyle? fontStyle,
     TextDecoration? decoration,
+    Color? decorationColor,
   }) {
     return ui.TextStyle(
       color: color,
@@ -1933,6 +1955,7 @@ class RenderTerminalViewport extends RenderBox {
       fontWeight: fontWeight,
       fontStyle: fontStyle,
       decoration: decoration,
+      decorationColor: decorationColor,
     );
   }
 
@@ -2174,6 +2197,7 @@ class _ResolvedCellStyle {
     required this.rawForeground,
     required this.foreground,
     required this.background,
+    required this.decorationColor,
     required this.fontWeight,
     required this.fontStyle,
     required this.decoration,
@@ -2182,6 +2206,7 @@ class _ResolvedCellStyle {
   final Color rawForeground;
   final Color foreground;
   final Color? background;
+  final Color? decorationColor;
   final FontWeight fontWeight;
   final FontStyle fontStyle;
   final TextDecoration decoration;
@@ -2194,6 +2219,7 @@ class _PaintCell {
     required this.text,
     required this.foreground,
     required this.background,
+    required this.decorationColor,
     required this.fontWeight,
     required this.fontStyle,
     required this.decoration,
@@ -2211,6 +2237,7 @@ class _PaintCell {
   final String text;
   final Color foreground;
   final Color? background;
+  final Color? decorationColor;
   final FontWeight fontWeight;
   final FontStyle fontStyle;
   final TextDecoration decoration;

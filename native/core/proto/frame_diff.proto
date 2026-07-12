@@ -29,6 +29,9 @@ message TerminalFrameDiff {
   repeated TerminalSizedTextPlacement sized_text = 24;
   ColorRgb selection_background = 25;
   ColorRgb selection_foreground = 26;
+  ColorRgb link_color = 27;
+  ColorRgb cursor_text_color = 28;
+  ColorRgb tab_color = 29;
 }
 
 enum TerminalFrameKind {
@@ -56,6 +59,7 @@ message TerminalStyleRun {
   bool underline = 8;
   bool blink = 9;
   bool inverse = 10;
+  ColorRgb underline_color = 11;
 }
 
 message ColorRgb {
@@ -132,6 +136,7 @@ message TerminalSizedTextPlacement {
   bool underline = 19;
   bool blink = 20;
   bool inverse = 21;
+  ColorRgb underline_color = 22;
 }
 
 message TerminalInlineImage {

@@ -403,6 +403,28 @@
       }
     },
     {
+      "id": "iterm_color_extensions",
+      "coverage": [
+        "iTerm2 OSC 4 negative queries",
+        "iTerm2 OSC 1337 SetColors",
+        "iTerm2 SetColors color spaces and tab reset"
+      ],
+      "protocol": "iTerm2 OSC 4 and OSC 1337 SetColors",
+      "wire": {
+        "chunks_hex": [
+          "1b5d313333373b536574436f6c6f72733d66673d3132332c62673d70333a3830383038302c626f6c643d6666303066662c756e6465726c696e653d3030666630302c6c696e6b3d3030666666662c73656c62673d6666303030302c73656c66673d3030303030302c63757262673d6666666630302c63757266673d3030303066662c7461623d3132333435362c7265643d6161626263631b5c1b5d343b2d323b3f3b2d313b3f071b5d313333373b536574436f6c6f72733d7461623d64656661756c742c7072657365743d47726173731b5c"
+        ],
+        "sequence_count": 3
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "iterm_color_extensions",
+        "state_effect": "session-local colors and palette change, Display-P3 is converted to sRGB, tab default clears its override, and preset remains unauthorized",
+        "reply": "OSC 4 replies for background -2 and foreground -1",
+        "must_not_crash": true
+      }
+    },
+    {
       "id": "tmux_passthrough",
       "coverage": ["tmux passthrough fixture"],
       "protocol": "tmux DCS passthrough carrying OSC 8",

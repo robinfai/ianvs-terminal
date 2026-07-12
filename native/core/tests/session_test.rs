@@ -1429,6 +1429,21 @@ fn xterm_special_colors_profile(emulation: TerminalEmulation) -> TerminalProfile
     )
 }
 
+fn iterm_set_colors_profile(emulation: TerminalEmulation) -> TerminalProfile {
+    local_profile(
+        "iterm-set-colors",
+        "iTerm2 SetColors",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import os,select,sys,termios,time,tty; old=termios.tcgetattr(0); tty.setraw(0); time.sleep(0.2); os.write(1,b"\x1b]1337;SetColors=fg=112233,bg=000000,bold=ff00ff,underline=00ff00,link=00ffff,selbg=ff0000,selfg=000000,curbg=ffff00,curfg=0000ff,tab=123456,red=aabbcc\x1b\\\x1b]4;-2;?;-1;?\x1b\\"); sys.stdout.flush(); time.sleep(0.2); ready,_,_=select.select([0],[],[],2.0); data=os.read(0,1024) if ready else b"TIMEOUT"; termios.tcsetattr(0, termios.TCSANOW, old); os.write(1,b"ITERM-COLOR-RESPONSE:"+repr(data).encode()+b"\n\x1b[1mB\x1b[0;4mU\x1b[0;38;5;1mR\x1b[0m ITERM-COLORS\n")'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        emulation,
+    )
+}
+
 fn osc22_pointer_shape_profile(emulation: TerminalEmulation) -> TerminalProfile {
     local_profile(
         "osc22-pointer-shape",
@@ -2065,6 +2080,53 @@ fn assert_frame_json_protobuf_selection_color_parity(
     assert!(foreground.present);
     assert_eq!(background.rgb, expected_background);
     assert_eq!(foreground.rgb, expected_foreground);
+}
+
+fn assert_frame_json_protobuf_iterm_color_parity(frame: &str) {
+    let parsed: serde_json::Value = serde_json::from_str(frame).unwrap();
+    assert_eq!(parsed["link_color"].as_str(), Some("#00ffff"));
+    assert_eq!(parsed["cursor_text_color"].as_str(), Some("#0000ff"));
+    assert_eq!(parsed["tab_color"].as_str(), Some("#123456"));
+    let json_row = frame_row_with_text(&parsed, "BUR ITERM-COLORS");
+    assert_eq!(
+        json_row["style_runs"][1]["underline_color"].as_str(),
+        Some("#00ff00")
+    );
+    assert_eq!(
+        json_row["style_runs"][2]["foreground"].as_str(),
+        Some("#aabbcc")
+    );
+
+    let frame_model: ianvs_core::model::TerminalFrameDiff = serde_json::from_str(frame).unwrap();
+    let protobuf_bytes = ianvs_core::frame_diff_proto::encode_frame_diff(&frame_model)
+        .expect("encode iTerm color frame");
+    let protobuf = ianvs_core::frame_diff_proto::decode_frame_diff_for_test(&protobuf_bytes)
+        .expect("decode iTerm color protobuf frame");
+    assert_eq!(protobuf.link_color.expect("link color").rgb, 0x00ffff);
+    assert_eq!(
+        protobuf.cursor_text_color.expect("cursor text color").rgb,
+        0x0000ff
+    );
+    assert_eq!(protobuf.tab_color.expect("tab color").rgb, 0x123456);
+    let row = protobuf
+        .rows
+        .iter()
+        .find(|row| row.text.contains("BUR ITERM-COLORS"))
+        .expect("iTerm styled protobuf row");
+    assert_eq!(
+        row.style_runs[1]
+            .underline_color
+            .expect("underline color")
+            .rgb,
+        0x00ff00
+    );
+    assert_eq!(
+        row.style_runs[2]
+            .foreground
+            .expect("palette foreground")
+            .rgb,
+        0xaabbcc
+    );
 }
 
 fn assert_frame_json_protobuf_cursor_override_parity(
@@ -17224,6 +17286,55 @@ fn session_xterm_special_and_dynamic_colors_cross_real_pty_and_frame_codecs() {
     );
     assert_frame_json_protobuf_foreground_parity(&frame, "BR XTERM-COLORS", ["#ff00ff", "#010203"]);
     assert_frame_json_protobuf_selection_color_parity(&frame, 0x112233, 0xddeeff);
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_iterm_set_colors_and_negative_osc4_queries_cross_real_pty_and_codecs() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&iterm_set_colors_profile(TerminalEmulation::Xterm256)).unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "ITERM-COLORS");
+    let visible = logical_rows_from_frame(&frame).join("\n");
+    assert!(
+        visible.contains(r"\x1b]4;-2;rgb:0000/0000/0000\x1b\\"),
+        "expected iTerm background query response: {visible}"
+    );
+    assert!(
+        visible.contains(r"\x1b]4;-1;rgb:1111/2222/3333\x1b\\"),
+        "expected iTerm foreground query response: {visible}"
+    );
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    assert_eq!(parsed["default_foreground"].as_str(), Some("#112233"));
+    assert_eq!(parsed["default_background"].as_str(), Some("#000000"));
+    assert_eq!(parsed["cursor_color"].as_str(), Some("#ffff00"));
+    assert_frame_json_protobuf_foreground_parity(&frame, "BUR ITERM-COLORS", ["#ff00ff"]);
+    assert_frame_json_protobuf_selection_color_parity(&frame, 0xff0000, 0x000000);
+    assert_frame_json_protobuf_iterm_color_parity(&frame);
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_sessions_gate_iterm_set_colors_and_negative_osc4_queries() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&iterm_set_colors_profile(TerminalEmulation::Vt220)).unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "ITERM-COLORS");
+    let visible = logical_rows_from_frame(&frame).join("\n");
+    assert!(
+        visible.contains("ITERM-COLOR-RESPONSE:b'TIMEOUT'"),
+        "VT220 must deny iTerm color extensions: {visible}"
+    );
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    assert!(parsed.get("link_color").is_none());
+    assert!(parsed.get("cursor_text_color").is_none());
+    assert!(parsed.get("tab_color").is_none());
 
     session::close_session(session_id).unwrap();
 }

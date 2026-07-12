@@ -102,6 +102,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, Size> _measuredTerminalCellSizes = {};
   final Map<String, GlobalKey> _terminalViewportKeys = {};
   final Map<String, double> _terminalViewportDevicePixelRatios = {};
+  final Map<String, terminal.TerminalViewportController>
+  _tabColorViewportControllers = {};
+  final Map<String, VoidCallback> _tabColorViewportListeners = {};
+  final Map<String, Color?> _lastTabColors = {};
   final Set<String> _readOnlySessionIds = {};
   final Map<String, DateTime> _lastActivityNotificationAt = {};
   final Map<String, Timer> _activityNotificationTrailingTimers = {};
@@ -246,6 +250,15 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     for (final selectionController in _selectionControllers.values) {
       selectionController.dispose();
     }
+    for (final entry in _tabColorViewportControllers.entries) {
+      final listener = _tabColorViewportListeners[entry.key];
+      if (listener != null) {
+        entry.value.removeListener(listener);
+      }
+    }
+    _tabColorViewportControllers.clear();
+    _tabColorViewportListeners.clear();
+    _lastTabColors.clear();
     for (final focusNode in _terminalFocusNodes.values) {
       focusNode.dispose();
     }

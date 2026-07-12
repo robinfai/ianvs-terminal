@@ -141,6 +141,20 @@ PROBES = {
         + osc("17;#112233;#181818;#ddeeff")
         + osc("17;?;?;?"),
     ),
+    "iterm_color_extensions": Probe(
+        "iterm_color_extensions",
+        "iTerm2 OSC 4 and OSC 1337 SetColors",
+        "Set session-local iTerm2 foreground, background, semantic, cursor, tab, and ANSI colors; query the default colors; then clear the tab override.",
+        "The requested colors reach the terminal frame, OSC 4 reports the default background and foreground, and tab=default restores profile tab styling.",
+        "appearance only; preset/profile switching remains unauthorized",
+        osc(
+            "1337;SetColors=fg=123,bg=p3:808080,bold=ff00ff,"
+            "underline=00ff00,link=00ffff,selbg=ff0000,selfg=000000,"
+            "curbg=ffff00,curfg=0000ff,tab=123456,red=aabbcc"
+        )
+        + osc("4;-2;?;-1;?")
+        + osc("1337;SetColors=tab=default,preset=Grass"),
+    ),
     "osc23_noop": Probe(
         "osc23_noop",
         "OSC 2 + unsupported OSC 23",
@@ -258,6 +272,7 @@ def self_test() -> None:
         "terminal_context",
         "color_control",
         "xterm_special_colors",
+        "iterm_color_extensions",
         "osc23_noop",
         "pointer_shape",
         "sized_text",
@@ -285,6 +300,10 @@ def self_test() -> None:
         raise ValueError("terminal context lifecycle fixture is malformed")
     if PROBES["color_control"].payload.count(b"=?") != 4:
         raise ValueError("color-control query fixture is malformed")
+    if PROBES["iterm_color_extensions"].payload.count(b"\x1b]1337;SetColors=") != 2:
+        raise ValueError("iTerm color-extension lifecycle fixture is malformed")
+    if b"4;-2;?;-1;?" not in PROBES["iterm_color_extensions"].payload:
+        raise ValueError("iTerm negative OSC 4 query fixture is malformed")
     if PROBES["osc23_noop"].payload.count(b"\x1b]") != 2:
         raise ValueError("OSC 23 no-op fixture is malformed")
     if PROBES["pointer_shape"].payload.count(b"\x1b]22;") != 3:

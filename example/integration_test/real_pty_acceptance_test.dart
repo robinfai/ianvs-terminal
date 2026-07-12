@@ -748,6 +748,80 @@ sleep 1
   );
 
   testWidgets(
+    'real PTY iTerm color extensions reach styles and product frame colors',
+    (tester) async {
+      final goFile = _tempSignalFile('iterm-color-extensions');
+      final profile = _scriptProfile(
+        id: 'iterm-color-extensions-real-pty',
+        name: 'iTerm Color Extensions Real PTY',
+        script: r'''
+printf 'iterm-color-extensions-ready\n'
+while [ ! -f "$GO_FILE" ]; do sleep 0.05; done
+printf '\033]1337;SetColors=fg=112233,bg=000000,bold=ff00ff,underline=00ff00,link=00ffff,selbg=ff0000,selfg=000000,curbg=ffff00,curfg=0000ff,tab=123456,red=aabbcc\033\\'
+printf '\033[1mB\033[0;4mU\033[0;38;5;1mR\033[0m ITERM-COLORS\n'
+sleep 1
+''',
+        env: {'GO_FILE': goFile.path},
+      );
+      final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
+
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'iTerm color extensions real PTY ready marker',
+        matches: (text) => text.contains('iterm-color-extensions-ready'),
+      );
+      _signal(goFile);
+
+      await _waitFor(
+        tester,
+        description: 'iTerm colors in styles and product frame metadata',
+        condition: () {
+          final frame = _activeFrame(harness.container);
+          if (frame == null) {
+            return false;
+          }
+          final rows = frame.rows
+              .where((row) => row.text.contains('BUR ITERM-COLORS'))
+              .toList(growable: false);
+          if (rows.isEmpty) {
+            return false;
+          }
+          final row = rows.first;
+          final bold = row.styleRuns.where(
+            (run) =>
+                run.start == 0 &&
+                run.foreground?.toARGB32() == 0xffff00ff &&
+                run.bold,
+          );
+          final underline = row.styleRuns.where(
+            (run) =>
+                run.start == 1 &&
+                run.underlineColor?.toARGB32() == 0xff00ff00 &&
+                run.underline,
+          );
+          final palette = row.styleRuns.where(
+            (run) => run.start == 2 && run.foreground?.toARGB32() == 0xffaabbcc,
+          );
+          return frame.defaultForeground?.toARGB32() == 0xff112233 &&
+              frame.defaultBackground?.toARGB32() == 0xff000000 &&
+              frame.cursorColor?.toARGB32() == 0xffffff00 &&
+              frame.selectionBackground?.toARGB32() == 0xffff0000 &&
+              frame.selectionForeground?.toARGB32() == 0xff000000 &&
+              frame.linkColor?.toARGB32() == 0xff00ffff &&
+              frame.cursorTextColor?.toARGB32() == 0xff0000ff &&
+              frame.tabColor?.toARGB32() == 0xff123456 &&
+              bold.isNotEmpty &&
+              underline.isNotEmpty &&
+              palette.isNotEmpty;
+        },
+        onTimeout: () => 'Frame: ${_activeFrame(harness.container)}',
+      );
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
     'real PTY OSC 22 updates pointer shape independently of mouse reporting',
     (tester) async {
       final goFile = _tempSignalFile('osc22-pointer-shape');

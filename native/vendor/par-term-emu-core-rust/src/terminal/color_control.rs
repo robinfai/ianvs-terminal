@@ -83,6 +83,10 @@ pub(crate) struct Osc21ColorControlState {
     xterm_dynamic_baselines: [Color; XTERM_DYNAMIC_COLOR_COUNT],
     selection_foreground_enabled: bool,
     selection_foreground_enabled_baseline: bool,
+    iterm_bold_color: Option<Color>,
+    iterm_link_color: Option<Color>,
+    iterm_underline_color: Option<Color>,
+    iterm_tab_color: Option<Color>,
 }
 
 impl Default for Osc21ColorControlState {
@@ -123,6 +127,10 @@ impl Default for Osc21ColorControlState {
             xterm_dynamic_baselines: xterm_dynamic,
             selection_foreground_enabled: false,
             selection_foreground_enabled_baseline: false,
+            iterm_bold_color: None,
+            iterm_link_color: None,
+            iterm_underline_color: None,
+            iterm_tab_color: None,
         }
     }
 }
@@ -154,6 +162,10 @@ impl Osc21ColorControlState {
         self.xterm_special_modes = self.xterm_special_mode_baselines;
         self.xterm_dynamic_current = self.xterm_dynamic_baselines;
         self.selection_foreground_enabled = self.selection_foreground_enabled_baseline;
+        self.iterm_bold_color = None;
+        self.iterm_link_color = None;
+        self.iterm_underline_color = None;
+        self.iterm_tab_color = None;
     }
 
     pub(crate) fn palette_alpha(&self, index: usize) -> Option<f32> {
@@ -269,5 +281,37 @@ impl Osc21ColorControlState {
     pub(crate) fn reset_selection_foreground_enabled(&mut self) -> bool {
         self.selection_foreground_enabled = self.selection_foreground_enabled_baseline;
         self.selection_foreground_enabled
+    }
+
+    pub(crate) const fn iterm_link_color(&self) -> Option<Color> {
+        self.iterm_link_color
+    }
+
+    pub(crate) const fn iterm_bold_color(&self) -> Option<Color> {
+        self.iterm_bold_color
+    }
+
+    pub(crate) fn set_iterm_bold_color(&mut self, color: Option<Color>) {
+        self.iterm_bold_color = color;
+    }
+
+    pub(crate) fn set_iterm_link_color(&mut self, color: Option<Color>) {
+        self.iterm_link_color = color;
+    }
+
+    pub(crate) const fn iterm_underline_color(&self) -> Option<Color> {
+        self.iterm_underline_color
+    }
+
+    pub(crate) fn set_iterm_underline_color(&mut self, color: Option<Color>) {
+        self.iterm_underline_color = color;
+    }
+
+    pub(crate) const fn iterm_tab_color(&self) -> Option<Color> {
+        self.iterm_tab_color
+    }
+
+    pub(crate) fn set_iterm_tab_color(&mut self, color: Option<Color>) {
+        self.iterm_tab_color = color;
     }
 }

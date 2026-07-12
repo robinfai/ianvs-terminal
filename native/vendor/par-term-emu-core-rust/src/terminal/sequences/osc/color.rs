@@ -448,16 +448,16 @@ impl Terminal {
                 // Set or query ANSI color palette entries (OSC 4).
                 for pair in params[1..].chunks_exact(2) {
                     if let Ok(index_data) = std::str::from_utf8(pair[0]) {
-                        if let Ok(index) = index_data.trim().parse::<usize>() {
+                        if let Ok(index) = index_data.trim().parse::<i32>() {
                             if let Ok(colorspec) = std::str::from_utf8(pair[1]) {
                                 let colorspec = colorspec.trim();
                                 if colorspec == "?" {
-                                    let color = if index < 256 {
-                                        self.get_ansi_color(index)
-                                    } else {
-                                        index
-                                            .checked_sub(256)
-                                            .and_then(|index| self.xterm_special_color(index))
+                                    let color = match index {
+                                        -2 => Some(self.default_bg()),
+                                        -1 => Some(self.default_fg()),
+                                        0..=255 => self.get_ansi_color(index as usize),
+                                        256..=260 => self.xterm_special_color(index as usize - 256),
+                                        _ => None,
                                     };
                                     if let Some(color) = color {
                                         let command = format!("4;{index}");
@@ -467,12 +467,16 @@ impl Terminal {
                                 } else if !self.disable_insecure_sequences {
                                     if let Some((r, g, b)) = Self::parse_color_spec(colorspec) {
                                         let color = Color::Rgb(r, g, b);
-                                        if index < 256 {
-                                            self.set_dynamic_ansi_palette_color(index, color);
-                                        } else if let Some(index) = index.checked_sub(256) {
-                                            if index < 5 {
-                                                self.set_dynamic_xterm_special_color(index, color);
-                                            }
+                                        if (0..=255).contains(&index) {
+                                            self.set_dynamic_ansi_palette_color(
+                                                index as usize,
+                                                color,
+                                            );
+                                        } else if (256..=260).contains(&index) {
+                                            self.set_dynamic_xterm_special_color(
+                                                index as usize - 256,
+                                                color,
+                                            );
                                         }
                                     }
                                 }
@@ -528,6 +532,23 @@ impl Terminal {
 mod tests {
     use super::*;
     use crate::terminal::color_control::Osc21SpecialColor;
+
+    #[test]
+    fn iterm_osc4_negative_indices_query_defaults_without_allowing_mutation() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.set_default_fg(Color::Rgb(0x12, 0x34, 0x56));
+        terminal.set_default_bg(Color::Rgb(0x65, 0x43, 0x21));
+        terminal.process(b"\x1b]4;-2;?;-1;?;-3;?\x1b\\");
+
+        assert_eq!(
+            terminal.drain_responses(),
+            b"\x1b]4;-2;rgb:6565/4343/2121\x1b\\\x1b]4;-1;rgb:1212/3434/5656\x1b\\"
+        );
+
+        terminal.process(b"\x1b]4;-2;#ffffff;-1;#000000\x1b\\");
+        assert_eq!(terminal.default_fg(), Color::Rgb(0x12, 0x34, 0x56));
+        assert_eq!(terminal.default_bg(), Color::Rgb(0x65, 0x43, 0x21));
+    }
 
     #[test]
     fn xterm_special_colors_modes_queries_and_targeted_resets_are_independent() {

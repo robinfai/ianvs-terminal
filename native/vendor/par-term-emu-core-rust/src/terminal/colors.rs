@@ -183,6 +183,79 @@ impl Terminal {
         self.link_color = color;
     }
 
+    /// Runtime iTerm2 bold-color override from OSC 1337 SetColors.
+    pub fn iterm_bold_color(&self) -> Option<Color> {
+        self.osc21_color_state.iterm_bold_color()
+    }
+
+    pub(crate) fn set_dynamic_iterm_bold_color(&mut self, color: Option<Color>) {
+        if self.osc21_color_state.iterm_bold_color() == color {
+            return;
+        }
+        self.osc21_color_state.set_iterm_bold_color(color);
+        self.mark_full_repaint("iterm_bold_color_changed");
+    }
+
+    /// Runtime iTerm2 link-color override from OSC 1337 SetColors.
+    pub fn iterm_link_color(&self) -> Option<Color> {
+        self.osc21_color_state.iterm_link_color()
+    }
+
+    pub(crate) fn set_dynamic_iterm_link_color(&mut self, color: Option<Color>) {
+        if self.osc21_color_state.iterm_link_color() == color {
+            return;
+        }
+        self.osc21_color_state.set_iterm_link_color(color);
+        self.mark_full_repaint("iterm_link_color_changed");
+    }
+
+    /// Runtime iTerm2 underline-decoration color from OSC 1337 SetColors.
+    pub fn iterm_underline_color(&self) -> Option<Color> {
+        self.osc21_color_state.iterm_underline_color()
+    }
+
+    pub(crate) fn set_dynamic_iterm_underline_color(&mut self, color: Option<Color>) {
+        if self.osc21_color_state.iterm_underline_color() == color {
+            return;
+        }
+        self.osc21_color_state.set_iterm_underline_color(color);
+        self.mark_full_repaint("iterm_underline_color_changed");
+    }
+
+    /// Runtime iTerm2 tab color from OSC 1337 SetColors.
+    pub fn iterm_tab_color(&self) -> Option<Color> {
+        self.osc21_color_state.iterm_tab_color()
+    }
+
+    pub(crate) fn set_dynamic_iterm_tab_color(&mut self, color: Option<Color>) {
+        if self.osc21_color_state.iterm_tab_color() == color {
+            return;
+        }
+        self.osc21_color_state.set_iterm_tab_color(color);
+        self.mark_full_repaint("iterm_tab_color_changed");
+    }
+
+    /// Runtime iTerm2 cursor-text color from OSC 1337 SetColors.
+    pub fn iterm_cursor_text_color(&self) -> Option<Color> {
+        self.osc21_color_state
+            .current(Osc21SpecialColor::CursorText)
+            .map(|value| value.color)
+    }
+
+    pub(crate) fn set_dynamic_iterm_cursor_text_color(&mut self, color: Option<Color>) {
+        let value = color.map(Osc21ColorValue::opaque);
+        if self
+            .osc21_color_state
+            .current(Osc21SpecialColor::CursorText)
+            == value
+        {
+            return;
+        }
+        self.osc21_color_state
+            .set_current(Osc21SpecialColor::CursorText, value);
+        self.mark_full_repaint("iterm_cursor_text_color_changed");
+    }
+
     /// Get bold text custom color
     pub fn bold_color(&self) -> Color {
         self.bold_color

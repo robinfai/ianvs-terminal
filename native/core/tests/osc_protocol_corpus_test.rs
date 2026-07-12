@@ -159,6 +159,36 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
                     b"\x1b]5;0;rgb:ffff/0000/ffff\x1b\\\x1b]17;rgb:1111/2222/3333\x1b\\\x1b]18;rgb:1818/1818/1818\x1b\\\x1b]19;rgb:dddd/eeee/ffff\x1b\\"
                 );
             }
+            "iterm_color_extensions" => {
+                assert_eq!(terminal.default_fg(), Color::Rgb(0x11, 0x22, 0x33));
+                assert_eq!(terminal.default_bg(), Color::Rgb(0x80, 0x80, 0x80));
+                assert_eq!(
+                    terminal.iterm_bold_color(),
+                    Some(Color::Rgb(0xff, 0x00, 0xff))
+                );
+                assert_eq!(
+                    terminal.iterm_underline_color(),
+                    Some(Color::Rgb(0x00, 0xff, 0x00))
+                );
+                assert_eq!(
+                    terminal.iterm_link_color(),
+                    Some(Color::Rgb(0x00, 0xff, 0xff))
+                );
+                assert_eq!(terminal.cursor_color(), Color::Rgb(0xff, 0xff, 0x00));
+                assert_eq!(
+                    terminal.iterm_cursor_text_color(),
+                    Some(Color::Rgb(0x00, 0x00, 0xff))
+                );
+                assert_eq!(terminal.iterm_tab_color(), None);
+                assert_eq!(
+                    terminal.get_ansi_color(1),
+                    Some(Color::Rgb(0xaa, 0xbb, 0xcc))
+                );
+                assert_eq!(
+                    terminal.drain_responses(),
+                    b"\x1b]4;-2;rgb:8080/8080/8080\x1b\\\x1b]4;-1;rgb:1111/2222/3333\x1b\\"
+                );
+            }
             "osc22_pointer_shape_stack" => {
                 assert_eq!(terminal.pointer_shape_name(), Some("crosshair"));
                 assert_eq!(

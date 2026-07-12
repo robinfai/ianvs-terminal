@@ -325,6 +325,8 @@ pub struct TerminalStyleRun {
     pub end: usize,
     pub foreground: Option<String>,
     pub background: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub underline_color: Option<String>,
     #[serde(default)]
     pub bold: bool,
     #[serde(default)]
@@ -419,6 +421,8 @@ pub struct TerminalSizedTextPlacement {
     pub foreground: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub background: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub underline_color: Option<String>,
     #[serde(default)]
     pub bold: bool,
     #[serde(default)]
@@ -550,6 +554,12 @@ pub struct TerminalFrameDiff {
     pub selection_background: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub selection_foreground: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub link_color: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cursor_text_color: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tab_color: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pointer_shape: Option<String>,
     #[serde(default)]

@@ -581,6 +581,99 @@ void main() {
     },
   );
 
+  testWidgets('underline decoration uses the frame color', (tester) async {
+    const boundaryKey = GlobalObjectKey('dynamic-underline-color');
+    const underlineColor = Color(0xFFFF0000);
+    const frame = TerminalFrameDiff(
+      rows: [
+        TerminalRow(
+          index: 0,
+          text: 'M',
+          styleRuns: [
+            TerminalStyleRun(
+              start: 0,
+              end: 1,
+              underline: true,
+              underlineColor: underlineColor,
+            ),
+          ],
+        ),
+      ],
+      cursor: TerminalCursor(row: 0, col: 0, visible: false),
+      viewportRows: 1,
+      viewportCols: 1,
+      dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+      scrollbackOffset: 0,
+      scrollbackMaxOffset: 0,
+    );
+    await _pumpRenderViewportFrame(
+      tester,
+      frame: frame,
+      repaintBoundaryKey: boundaryKey,
+    );
+
+    final boundary = tester.renderObject<RenderRepaintBoundary>(
+      find.byKey(boundaryKey),
+    );
+    final image = await _runUiAsync(tester, () => boundary.toImage());
+    try {
+      final byteData = await _runUiAsync(
+        tester,
+        () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
+      );
+      expect(byteData, isNotNull);
+      expect(
+        _countRedDominantPixels(byteData!.buffer.asUint8List()),
+        greaterThan(0),
+      );
+    } finally {
+      image.dispose();
+    }
+  });
+
+  testWidgets('cursor glyph uses the explicit frame text color', (
+    tester,
+  ) async {
+    const boundaryKey = GlobalObjectKey('dynamic-cursor-text-color');
+    const cursorColor = Color(0xFFFFFFFF);
+    const cursorTextColor = Color(0xFFFF0000);
+    const frame = TerminalFrameDiff(
+      rows: [TerminalRow(index: 0, text: 'M')],
+      cursor: TerminalCursor(row: 0, col: 0, visible: true),
+      viewportRows: 1,
+      viewportCols: 1,
+      dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+      scrollbackOffset: 0,
+      scrollbackMaxOffset: 0,
+      cursorColor: cursorColor,
+      cursorTextColor: cursorTextColor,
+    );
+    await _pumpRenderViewportFrame(
+      tester,
+      frame: frame,
+      cursorVisible: true,
+      repaintBoundaryKey: boundaryKey,
+    );
+
+    final boundary = tester.renderObject<RenderRepaintBoundary>(
+      find.byKey(boundaryKey),
+    );
+    final image = await _runUiAsync(tester, () => boundary.toImage());
+    try {
+      final byteData = await _runUiAsync(
+        tester,
+        () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
+      );
+      expect(byteData, isNotNull);
+      expect(
+        _countPixelsEqualTo(byteData!.buffer.asUint8List(), cursorTextColor),
+        greaterThan(0),
+      );
+    } finally {
+      image.dispose();
+    }
+  });
+
   test('painted cursor rect remains available outside debug collection', () {
     final source = _renderTerminalViewportSource();
     final paintStart = source.indexOf(
@@ -3333,6 +3426,19 @@ int _countPixelsEqualTo(Uint8List pixels, Color color) {
         pixels[offset + 1] == expectedGreen &&
         pixels[offset + 2] == expectedBlue &&
         pixels[offset + 3] == expectedAlpha) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+int _countRedDominantPixels(Uint8List pixels) {
+  var count = 0;
+  for (var offset = 0; offset + 3 < pixels.length; offset += 4) {
+    final red = pixels[offset];
+    final green = pixels[offset + 1];
+    final blue = pixels[offset + 2];
+    if (red > green + 20 && red > blue + 20) {
       count += 1;
     }
   }

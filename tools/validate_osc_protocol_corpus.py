@@ -47,6 +47,9 @@ REQUIRED_COVERAGE = {
     "xterm OSC 5/6 special colors",
     "xterm OSC 13-19 dynamic colors",
     "xterm OSC 105/119 resets and 106 alias",
+    "iTerm2 OSC 4 negative queries",
+    "iTerm2 OSC 1337 SetColors",
+    "iTerm2 SetColors color spaces and tab reset",
     "OSC 3008 hierarchy",
     "OSC 3008 malformed close recovery",
     "tmux passthrough fixture",
@@ -184,6 +187,12 @@ def validate_case(case: Any) -> set[str]:
         require(b"\x1b]17;?;?;?" in stream, f"{case_id}: sequential query")
         require(b"\x1b]106;0;0" in stream, f"{case_id}: OSC 106 alias")
         require(b"\x1b]119" in stream, f"{case_id}: selection reset")
+    elif case_id == "iterm_color_extensions":
+        require(stream.count(b"\x1b]") == 3, f"{case_id}: sequence count")
+        require(b"SetColors=fg=123" in stream, f"{case_id}: SetColors mutation")
+        require(b"bg=p3:808080" in stream, f"{case_id}: Display-P3 color")
+        require(b"\x1b]4;-2;?;-1;?" in stream, f"{case_id}: negative queries")
+        require(b"tab=default,preset=Grass" in stream, f"{case_id}: safe reset")
     elif case_id == "tmux_passthrough":
         require(stream.startswith(b"\x1bPtmux;\x1b\x1b]"), f"{case_id}: bad wrapper")
     elif case_id == "screen_passthrough":

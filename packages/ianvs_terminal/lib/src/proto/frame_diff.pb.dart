@@ -49,6 +49,9 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
     $core.Iterable<TerminalSizedTextPlacement>? sizedText,
     ColorRgb? selectionBackground,
     ColorRgb? selectionForeground,
+    ColorRgb? linkColor,
+    ColorRgb? cursorTextColor,
+    ColorRgb? tabColor,
   }) {
     final result = create();
     if (frameSchemaVersion != null)
@@ -81,6 +84,9 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
       result.selectionBackground = selectionBackground;
     if (selectionForeground != null)
       result.selectionForeground = selectionForeground;
+    if (linkColor != null) result.linkColor = linkColor;
+    if (cursorTextColor != null) result.cursorTextColor = cursorTextColor;
+    if (tabColor != null) result.tabColor = tabColor;
     return result;
   }
 
@@ -144,6 +150,12 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
     ..aOM<ColorRgb>(25, _omitFieldNames ? '' : 'selectionBackground',
         subBuilder: ColorRgb.create)
     ..aOM<ColorRgb>(26, _omitFieldNames ? '' : 'selectionForeground',
+        subBuilder: ColorRgb.create)
+    ..aOM<ColorRgb>(27, _omitFieldNames ? '' : 'linkColor',
+        subBuilder: ColorRgb.create)
+    ..aOM<ColorRgb>(28, _omitFieldNames ? '' : 'cursorTextColor',
+        subBuilder: ColorRgb.create)
+    ..aOM<ColorRgb>(29, _omitFieldNames ? '' : 'tabColor',
         subBuilder: ColorRgb.create)
     ..hasRequiredFields = false;
 
@@ -379,6 +391,39 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
   void clearSelectionForeground() => $_clearField(26);
   @$pb.TagNumber(26)
   ColorRgb ensureSelectionForeground() => $_ensure(25);
+
+  @$pb.TagNumber(27)
+  ColorRgb get linkColor => $_getN(26);
+  @$pb.TagNumber(27)
+  set linkColor(ColorRgb value) => $_setField(27, value);
+  @$pb.TagNumber(27)
+  $core.bool hasLinkColor() => $_has(26);
+  @$pb.TagNumber(27)
+  void clearLinkColor() => $_clearField(27);
+  @$pb.TagNumber(27)
+  ColorRgb ensureLinkColor() => $_ensure(26);
+
+  @$pb.TagNumber(28)
+  ColorRgb get cursorTextColor => $_getN(27);
+  @$pb.TagNumber(28)
+  set cursorTextColor(ColorRgb value) => $_setField(28, value);
+  @$pb.TagNumber(28)
+  $core.bool hasCursorTextColor() => $_has(27);
+  @$pb.TagNumber(28)
+  void clearCursorTextColor() => $_clearField(28);
+  @$pb.TagNumber(28)
+  ColorRgb ensureCursorTextColor() => $_ensure(27);
+
+  @$pb.TagNumber(29)
+  ColorRgb get tabColor => $_getN(28);
+  @$pb.TagNumber(29)
+  set tabColor(ColorRgb value) => $_setField(29, value);
+  @$pb.TagNumber(29)
+  $core.bool hasTabColor() => $_has(28);
+  @$pb.TagNumber(29)
+  void clearTabColor() => $_clearField(29);
+  @$pb.TagNumber(29)
+  ColorRgb ensureTabColor() => $_ensure(28);
 }
 
 class TerminalRow extends $pb.GeneratedMessage {
@@ -490,6 +535,7 @@ class TerminalStyleRun extends $pb.GeneratedMessage {
     $core.bool? underline,
     $core.bool? blink,
     $core.bool? inverse,
+    ColorRgb? underlineColor,
   }) {
     final result = create();
     if (start != null) result.start = start;
@@ -502,6 +548,7 @@ class TerminalStyleRun extends $pb.GeneratedMessage {
     if (underline != null) result.underline = underline;
     if (blink != null) result.blink = blink;
     if (inverse != null) result.inverse = inverse;
+    if (underlineColor != null) result.underlineColor = underlineColor;
     return result;
   }
 
@@ -530,6 +577,8 @@ class TerminalStyleRun extends $pb.GeneratedMessage {
     ..aOB(8, _omitFieldNames ? '' : 'underline')
     ..aOB(9, _omitFieldNames ? '' : 'blink')
     ..aOB(10, _omitFieldNames ? '' : 'inverse')
+    ..aOM<ColorRgb>(11, _omitFieldNames ? '' : 'underlineColor',
+        subBuilder: ColorRgb.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -644,6 +693,17 @@ class TerminalStyleRun extends $pb.GeneratedMessage {
   $core.bool hasInverse() => $_has(9);
   @$pb.TagNumber(10)
   void clearInverse() => $_clearField(10);
+
+  @$pb.TagNumber(11)
+  ColorRgb get underlineColor => $_getN(10);
+  @$pb.TagNumber(11)
+  set underlineColor(ColorRgb value) => $_setField(11, value);
+  @$pb.TagNumber(11)
+  $core.bool hasUnderlineColor() => $_has(10);
+  @$pb.TagNumber(11)
+  void clearUnderlineColor() => $_clearField(11);
+  @$pb.TagNumber(11)
+  ColorRgb ensureUnderlineColor() => $_ensure(10);
 }
 
 class ColorRgb extends $pb.GeneratedMessage {
@@ -1333,6 +1393,7 @@ class TerminalSizedTextPlacement extends $pb.GeneratedMessage {
     $core.bool? underline,
     $core.bool? blink,
     $core.bool? inverse,
+    ColorRgb? underlineColor,
   }) {
     final result = create();
     if (text != null) result.text = text;
@@ -1358,6 +1419,7 @@ class TerminalSizedTextPlacement extends $pb.GeneratedMessage {
     if (underline != null) result.underline = underline;
     if (blink != null) result.blink = blink;
     if (inverse != null) result.inverse = inverse;
+    if (underlineColor != null) result.underlineColor = underlineColor;
     return result;
   }
 
@@ -1402,6 +1464,8 @@ class TerminalSizedTextPlacement extends $pb.GeneratedMessage {
     ..aOB(19, _omitFieldNames ? '' : 'underline')
     ..aOB(20, _omitFieldNames ? '' : 'blink')
     ..aOB(21, _omitFieldNames ? '' : 'inverse')
+    ..aOM<ColorRgb>(22, _omitFieldNames ? '' : 'underlineColor',
+        subBuilder: ColorRgb.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1617,6 +1681,17 @@ class TerminalSizedTextPlacement extends $pb.GeneratedMessage {
   $core.bool hasInverse() => $_has(20);
   @$pb.TagNumber(21)
   void clearInverse() => $_clearField(21);
+
+  @$pb.TagNumber(22)
+  ColorRgb get underlineColor => $_getN(21);
+  @$pb.TagNumber(22)
+  set underlineColor(ColorRgb value) => $_setField(22, value);
+  @$pb.TagNumber(22)
+  $core.bool hasUnderlineColor() => $_has(21);
+  @$pb.TagNumber(22)
+  void clearUnderlineColor() => $_clearField(22);
+  @$pb.TagNumber(22)
+  ColorRgb ensureUnderlineColor() => $_ensure(21);
 }
 
 class TerminalInlineImage extends $pb.GeneratedMessage {

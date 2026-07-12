@@ -354,6 +354,9 @@ struct CachedFrameMeta {
     cursor_color_rgb: (u8, u8, u8),
     selection_background_rgb: (u8, u8, u8),
     selection_foreground_rgb: Option<(u8, u8, u8)>,
+    link_color_rgb: Option<(u8, u8, u8)>,
+    cursor_text_color_rgb: Option<(u8, u8, u8)>,
+    tab_color_rgb: Option<(u8, u8, u8)>,
     pointer_shape: Option<String>,
     ansi_palette: [Color; 256],
     modes: TerminalFrameModes,
@@ -2177,6 +2180,15 @@ impl TerminalSession {
             selection_foreground_rgb: theme
                 .selection_foreground
                 .map(|color| resolve_color_rgb(color, &theme.ansi_palette)),
+            link_color_rgb: theme
+                .link_color
+                .map(|color| resolve_color_rgb(color, &theme.ansi_palette)),
+            cursor_text_color_rgb: theme
+                .cursor_text_color
+                .map(|color| resolve_color_rgb(color, &theme.ansi_palette)),
+            tab_color_rgb: theme
+                .tab_color
+                .map(|color| resolve_color_rgb(color, &theme.ansi_palette)),
             pointer_shape: pointer_shape.clone(),
             ansi_palette: theme.ansi_palette,
             modes: modes.clone(),
@@ -2317,6 +2329,15 @@ impl TerminalSession {
             selection_background: color_to_hex(theme.selection_background, &theme.ansi_palette),
             selection_foreground: theme
                 .selection_foreground
+                .and_then(|color| color_to_hex(color, &theme.ansi_palette)),
+            link_color: theme
+                .link_color
+                .and_then(|color| color_to_hex(color, &theme.ansi_palette)),
+            cursor_text_color: theme
+                .cursor_text_color
+                .and_then(|color| color_to_hex(color, &theme.ansi_palette)),
+            tab_color: theme
+                .tab_color
                 .and_then(|color| color_to_hex(color, &theme.ansi_palette)),
             pointer_shape,
             modes,
@@ -4440,6 +4461,10 @@ fn build_sized_text_placements(
                 natural_width: metadata.natural_width,
                 foreground: color_to_hex(foreground, &theme.ansi_palette),
                 background: color_to_hex(background, &theme.ansi_palette),
+                underline_color: (cell.flags.underline() && attribute_index != Some(1))
+                    .then(|| cell.underline_color.or(theme.iterm_underline_color))
+                    .flatten()
+                    .and_then(|color| color_to_hex(color, &theme.ansi_palette)),
                 bold: cell.flags.bold() && attribute_index != Some(0),
                 dim: cell.flags.dim(),
                 italic: cell.flags.italic() && attribute_index != Some(4),
@@ -4527,6 +4552,11 @@ struct TerminalThemeSnapshot {
     cursor_color: Color,
     selection_background: Color,
     selection_foreground: Option<Color>,
+    iterm_bold_color: Option<Color>,
+    iterm_underline_color: Option<Color>,
+    link_color: Option<Color>,
+    cursor_text_color: Option<Color>,
+    tab_color: Option<Color>,
     xterm_attribute_colors: [Option<Color>; 5],
     xterm_color_attr_override: bool,
     ansi_palette: [Color; 256],
@@ -4541,6 +4571,11 @@ fn terminal_theme_snapshot(terminal: &Terminal) -> TerminalThemeSnapshot {
         selection_foreground: terminal
             .selection_foreground_color_enabled()
             .then(|| terminal.get_selection_fg_color()),
+        iterm_bold_color: terminal.iterm_bold_color(),
+        iterm_underline_color: terminal.iterm_underline_color(),
+        link_color: terminal.iterm_link_color(),
+        cursor_text_color: terminal.iterm_cursor_text_color(),
+        tab_color: terminal.iterm_tab_color(),
         xterm_attribute_colors: std::array::from_fn(|index| {
             (terminal.xterm_special_color_mode(index) == Some(true))
                 .then(|| terminal.xterm_special_color(index))
@@ -4584,7 +4619,15 @@ fn frame_cell_colors(
 ) -> (Color, Color, bool, Option<usize>) {
     let inverse = cell.flags.reverse();
     let Some((attribute_index, attribute_color)) = xterm_attribute_color(cell.flags, theme) else {
-        return (cell.fg, cell.bg, inverse, None);
+        return if cell.flags.bold() {
+            theme
+                .iterm_bold_color
+                .map_or((cell.fg, cell.bg, inverse, None), |color| {
+                    (color, cell.bg, inverse, None)
+                })
+        } else {
+            (cell.fg, cell.bg, inverse, None)
+        };
     };
     let display_background = if inverse { cell.fg } else { cell.bg };
     (
@@ -4644,6 +4687,12 @@ fn extract_row(
             } else {
                 color_to_hex_delta(background, theme.default_bg, &theme.ansi_palette)
             },
+            underline_color: (!is_kitty_placeholder
+                && cell.flags.underline()
+                && attribute_index != Some(1))
+            .then(|| cell.underline_color.or(theme.iterm_underline_color))
+            .flatten()
+            .and_then(|color| color_to_hex(color, &theme.ansi_palette)),
             bold: !is_kitty_placeholder && cell.flags.bold() && attribute_index != Some(0),
             dim: !is_kitty_placeholder && cell.flags.dim(),
             italic: !is_kitty_placeholder && cell.flags.italic() && attribute_index != Some(4),
@@ -5035,6 +5084,7 @@ fn remap_scrollback_offset(
 fn same_style(left: &TerminalStyleRun, right: &TerminalStyleRun) -> bool {
     left.foreground == right.foreground
         && left.background == right.background
+        && left.underline_color == right.underline_color
         && left.bold == right.bold
         && left.dim == right.dim
         && left.italic == right.italic
@@ -5050,6 +5100,7 @@ fn style_signature(style_runs: &[TerminalStyleRun]) -> u64 {
         run.end.hash(&mut hasher);
         run.foreground.hash(&mut hasher);
         run.background.hash(&mut hasher);
+        run.underline_color.hash(&mut hasher);
         run.bold.hash(&mut hasher);
         run.dim.hash(&mut hasher);
         run.italic.hash(&mut hasher);
@@ -5161,6 +5212,12 @@ fn frame_meta_delta_break_reason(
         || previous_frame_meta.selection_foreground_rgb != frame_meta.selection_foreground_rgb
     {
         return Some("terminal_selection_colors_changed");
+    }
+    if previous_frame_meta.link_color_rgb != frame_meta.link_color_rgb
+        || previous_frame_meta.cursor_text_color_rgb != frame_meta.cursor_text_color_rgb
+        || previous_frame_meta.tab_color_rgb != frame_meta.tab_color_rgb
+    {
+        return Some("terminal_iterm_colors_changed");
     }
     if previous_frame_meta.pointer_shape != frame_meta.pointer_shape {
         return Some("terminal_pointer_shape_changed");
@@ -6147,6 +6204,35 @@ mod tests {
             .expect("colorAttrMode explicit-color override run");
         assert_eq!(overridden_explicit.foreground.as_deref(), Some("#ff00ff"));
         assert!(!overridden_explicit.bold);
+    }
+
+    #[test]
+    fn iterm_set_colors_exports_bold_underline_and_frame_resource_overrides() {
+        let mut terminal = Terminal::with_scrollback(8, 2, 16);
+        terminal.process(
+            b"\x1b]1337;SetColors=bold=ff00ff,underline=00ff00,link=112233,curfg=445566,tab=778899\x1b\\\x1b[1mB\x1b[0;4mU\x1b[0m",
+        );
+        let theme = terminal_theme_snapshot(&terminal);
+        let extracted = extract_row(terminal.grid().row(0), false, &theme);
+
+        let bold = extracted
+            .style_runs
+            .iter()
+            .find(|run| run.start == 0)
+            .expect("iTerm bold run");
+        assert_eq!(bold.foreground.as_deref(), Some("#ff00ff"));
+        assert!(bold.bold, "iTerm bold color preserves bold font weight");
+
+        let underline = extracted
+            .style_runs
+            .iter()
+            .find(|run| run.start == 1)
+            .expect("iTerm underline run");
+        assert_eq!(underline.underline_color.as_deref(), Some("#00ff00"));
+        assert!(underline.underline);
+        assert_eq!(theme.link_color, Some(Color::Rgb(0x11, 0x22, 0x33)));
+        assert_eq!(theme.cursor_text_color, Some(Color::Rgb(0x44, 0x55, 0x66)));
+        assert_eq!(theme.tab_color, Some(Color::Rgb(0x77, 0x88, 0x99)));
     }
 
     #[test]

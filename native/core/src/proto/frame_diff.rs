@@ -53,6 +53,12 @@ pub struct TerminalFrameDiff {
     pub selection_background: ::core::option::Option<ColorRgb>,
     #[prost(message, optional, tag = "26")]
     pub selection_foreground: ::core::option::Option<ColorRgb>,
+    #[prost(message, optional, tag = "27")]
+    pub link_color: ::core::option::Option<ColorRgb>,
+    #[prost(message, optional, tag = "28")]
+    pub cursor_text_color: ::core::option::Option<ColorRgb>,
+    #[prost(message, optional, tag = "29")]
+    pub tab_color: ::core::option::Option<ColorRgb>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TerminalRow {
@@ -89,6 +95,8 @@ pub struct TerminalStyleRun {
     pub blink: bool,
     #[prost(bool, tag = "10")]
     pub inverse: bool,
+    #[prost(message, optional, tag = "11")]
+    pub underline_color: ::core::option::Option<ColorRgb>,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ColorRgb {
@@ -220,6 +228,8 @@ pub struct TerminalSizedTextPlacement {
     pub blink: bool,
     #[prost(bool, tag = "21")]
     pub inverse: bool,
+    #[prost(message, optional, tag = "22")]
+    pub underline_color: ::core::option::Option<ColorRgb>,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct TerminalInlineImage {

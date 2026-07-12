@@ -1,6 +1,7 @@
 //! iTerm2 OSC 1337 sequence handling
 
 use super::sanitize_osc_text;
+use crate::color::Color;
 use crate::cursor::CursorShape;
 use crate::debug;
 use crate::terminal::event::ShellIntegrationSource;
@@ -12,6 +13,7 @@ const MAX_REMOTE_USERNAME_CHARS: usize = 80;
 const MAX_REMOTE_HOSTNAME_CHARS: usize = 255;
 const MAX_SHELL_INTEGRATION_VERSION_CHARS: usize = 32;
 const MAX_SHELL_NAME_CHARS: usize = 32;
+const MAX_SET_COLORS_PAIRS: usize = 32;
 
 impl Terminal {
     pub(crate) fn handle_osc_iterm(&mut self, _command: &str, params: &[&[u8]]) {
@@ -26,6 +28,8 @@ impl Terminal {
 
             if let Some(encoded) = data.strip_prefix("SetBadgeFormat=") {
                 self.handle_set_badge_format(encoded);
+            } else if let Some(payload) = data.strip_prefix("SetColors=") {
+                self.handle_iterm_set_colors(payload);
             } else if let Some(payload) = data.strip_prefix("SetUserVar=") {
                 self.handle_set_user_var(payload);
             } else if let Some(payload) = data.strip_prefix("RemoteHost=") {
@@ -55,6 +59,127 @@ impl Terminal {
             _ => return,
         };
         self.cursor.set_shape(shape);
+    }
+
+    fn handle_iterm_set_colors(&mut self, payload: &str) {
+        for pair in payload.split(',').take(MAX_SET_COLORS_PAIRS) {
+            let Some((key, value)) = pair.split_once('=') else {
+                continue;
+            };
+            let key = key.trim();
+            let value = value.trim();
+            if key.is_empty() || value.is_empty() {
+                continue;
+            }
+            if key == "tab" && value == "default" {
+                self.set_dynamic_iterm_tab_color(None);
+                continue;
+            }
+            // `preset` changes host profile configuration rather than a
+            // session-local color resource and is intentionally unauthorized.
+            if key == "preset" {
+                continue;
+            }
+            let Some(color) = Self::parse_iterm_set_color(value) else {
+                continue;
+            };
+            match key {
+                "fg" => self.set_dynamic_default_fg(color),
+                "bg" => self.set_dynamic_default_bg(color),
+                "bold" => self.set_dynamic_iterm_bold_color(Some(color)),
+                "link" => self.set_dynamic_iterm_link_color(Some(color)),
+                "selbg" => self.set_dynamic_selection_bg_color(color),
+                "selfg" => {
+                    self.set_dynamic_selection_fg_color(color);
+                    self.set_dynamic_selected_text_color_enabled(true);
+                }
+                "curbg" => self.set_dynamic_cursor_color(color),
+                "curfg" => self.set_dynamic_iterm_cursor_text_color(Some(color)),
+                "underline" => self.set_dynamic_iterm_underline_color(Some(color)),
+                "tab" => self.set_dynamic_iterm_tab_color(Some(color)),
+                _ => {
+                    if let Some(index) = Self::iterm_palette_index(key) {
+                        self.set_dynamic_ansi_palette_color(index, color);
+                    }
+                }
+            }
+        }
+    }
+
+    fn iterm_palette_index(key: &str) -> Option<usize> {
+        Some(match key {
+            "black" => 0,
+            "red" => 1,
+            "green" => 2,
+            "yellow" => 3,
+            "blue" => 4,
+            "magenta" => 5,
+            "cyan" => 6,
+            "white" => 7,
+            "br_black" => 8,
+            "br_red" => 9,
+            "br_green" => 10,
+            "br_yellow" => 11,
+            "br_blue" => 12,
+            "br_magenta" => 13,
+            "br_cyan" => 14,
+            "br_white" => 15,
+            _ => return None,
+        })
+    }
+
+    fn parse_iterm_set_color(value: &str) -> Option<Color> {
+        let (space, hex) = value
+            .split_once(':')
+            .map_or(("srgb", value), |(space, hex)| (space, hex));
+        let space = space.to_ascii_lowercase();
+        if !matches!(space.as_str(), "srgb" | "rgb" | "p3") {
+            return None;
+        }
+        if !matches!(hex.len(), 3 | 6) || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            return None;
+        }
+        let channel = |offset: usize| -> Option<u8> {
+            if hex.len() == 3 {
+                let digit = u8::from_str_radix(&hex[offset..offset + 1], 16).ok()?;
+                Some(digit * 17)
+            } else {
+                u8::from_str_radix(&hex[offset * 2..offset * 2 + 2], 16).ok()
+            }
+        };
+        let rgb = (channel(0)?, channel(1)?, channel(2)?);
+        let (red, green, blue) = if space == "p3" {
+            Self::display_p3_to_srgb(rgb)
+        } else {
+            rgb
+        };
+        Some(Color::Rgb(red, green, blue))
+    }
+
+    fn display_p3_to_srgb((red, green, blue): (u8, u8, u8)) -> (u8, u8, u8) {
+        let decode = |value: u8| {
+            let value = f64::from(value) / 255.0;
+            if value <= 0.04045 {
+                value / 12.92
+            } else {
+                ((value + 0.055) / 1.055).powf(2.4)
+            }
+        };
+        let encode = |value: f64| {
+            let value = value.clamp(0.0, 1.0);
+            let value = if value <= 0.003_130_8 {
+                value * 12.92
+            } else {
+                1.055 * value.powf(1.0 / 2.4) - 0.055
+            };
+            (value * 255.0).round() as u8
+        };
+        let (red, green, blue) = (decode(red), decode(green), decode(blue));
+        (
+            encode(1.224_940_176_3 * red - 0.224_940_176_3 * green),
+            encode(-0.042_056_954_7 * red + 1.042_056_954_7 * green),
+            encode(-0.019_637_554_6 * red - 0.078_636_045_6 * green + 1.098_273_600_1 * blue),
+        )
     }
 
     fn handle_iterm_set_mark(&mut self) {
@@ -226,9 +351,107 @@ impl Terminal {
 
 #[cfg(test)]
 mod tests {
+    use crate::color::Color;
     use crate::terminal::event::ShellIntegrationSource;
     use crate::terminal::{Terminal, TerminalEvent};
     use base64::{engine::general_purpose::STANDARD, Engine};
+
+    #[test]
+    fn set_colors_applies_all_session_local_resources_and_palette_entries() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.process(
+            b"\x1b]1337;SetColors=fg=123,bg=srgb:234,bold=345,link=456,selbg=567,selfg=678,curbg=789,curfg=89a,underline=9ab,tab=abc,black=bcd,br_white=cde\x1b\\",
+        );
+
+        assert_eq!(terminal.default_fg(), Color::Rgb(0x11, 0x22, 0x33));
+        assert_eq!(terminal.default_bg(), Color::Rgb(0x22, 0x33, 0x44));
+        assert_eq!(
+            terminal.iterm_bold_color(),
+            Some(Color::Rgb(0x33, 0x44, 0x55))
+        );
+        assert_eq!(
+            terminal.iterm_link_color(),
+            Some(Color::Rgb(0x44, 0x55, 0x66))
+        );
+        assert_eq!(
+            terminal.get_selection_bg_color(),
+            Color::Rgb(0x55, 0x66, 0x77)
+        );
+        assert_eq!(
+            terminal.get_selection_fg_color(),
+            Color::Rgb(0x66, 0x77, 0x88)
+        );
+        assert!(terminal.selection_foreground_color_enabled());
+        assert_eq!(terminal.cursor_color(), Color::Rgb(0x77, 0x88, 0x99));
+        assert_eq!(
+            terminal.iterm_cursor_text_color(),
+            Some(Color::Rgb(0x88, 0x99, 0xaa))
+        );
+        assert_eq!(
+            terminal.iterm_underline_color(),
+            Some(Color::Rgb(0x99, 0xaa, 0xbb))
+        );
+        assert_eq!(
+            terminal.iterm_tab_color(),
+            Some(Color::Rgb(0xaa, 0xbb, 0xcc))
+        );
+        assert_eq!(
+            terminal.get_ansi_color(0),
+            Some(Color::Rgb(0xbb, 0xcc, 0xdd))
+        );
+        assert_eq!(
+            terminal.get_ansi_color(15),
+            Some(Color::Rgb(0xcc, 0xdd, 0xee))
+        );
+    }
+
+    #[test]
+    fn set_colors_converts_display_p3_and_rejects_profile_or_malformed_values() {
+        let mut terminal = Terminal::new(80, 24);
+        let baseline = terminal.default_fg();
+        terminal.process(
+            b"\x1b]1337;SetColors=fg=p3:808080,preset=Grass,bg=unknown:ffffff,tab=default,red=12xz89\x07",
+        );
+
+        assert_eq!(terminal.default_fg(), Color::Rgb(0x80, 0x80, 0x80));
+        assert_eq!(
+            terminal.default_bg(),
+            Color::Named(crate::color::NamedColor::Black)
+        );
+        assert_eq!(terminal.iterm_tab_color(), None);
+        assert_ne!(terminal.default_fg(), baseline);
+        assert_eq!(
+            terminal.get_ansi_color(1),
+            Some(Color::Rgb(0xb4, 0x3c, 0x2a))
+        );
+    }
+
+    #[test]
+    fn set_colors_tab_default_and_ris_restore_runtime_overrides() {
+        let mut terminal = Terminal::new(80, 24);
+        let baseline_fg = terminal.default_fg();
+        terminal.process(b"\x1b]1337;SetColors=fg=123,link=456,tab=abcdef\x1b\\");
+        let snapshot = terminal.capture_snapshot();
+
+        let mut restored = Terminal::new(80, 24);
+        restored.restore_from_snapshot(snapshot);
+        assert_eq!(restored.default_fg(), Color::Rgb(0x11, 0x22, 0x33));
+        assert_eq!(
+            restored.iterm_link_color(),
+            Some(Color::Rgb(0x44, 0x55, 0x66))
+        );
+        assert_eq!(
+            restored.iterm_tab_color(),
+            Some(Color::Rgb(0xab, 0xcd, 0xef))
+        );
+
+        restored.process(b"\x1b]1337;SetColors=tab=default\x07");
+        assert_eq!(restored.iterm_tab_color(), None);
+        restored.process(b"\x1bc");
+        assert_eq!(restored.default_fg(), baseline_fg);
+        assert_eq!(restored.iterm_link_color(), None);
+        assert_eq!(restored.iterm_tab_color(), None);
+    }
 
     #[test]
     fn user_variables_strip_controls_and_reject_unsafe_names() {

@@ -549,6 +549,59 @@ void main() {
   );
 
   testWidgets(
+    'OSC frame tab color overrides and restores the profile tab color',
+    (tester) async {
+      const profileColor = Color(0xFF336699);
+      const dynamicColor = Color(0xFFFF0000);
+      final baseProfile = defaultTerminalProfile();
+      final profile = baseProfile.copyWith(
+        appearance: baseProfile.appearance.copyWith(
+          colors: baseProfile.appearance.colors.copyWith(
+            special: baseProfile.appearance.colors.special.copyWith(
+              tab: '#336699',
+            ),
+          ),
+        ),
+      );
+      final fakeBindings = FakePtyBackend();
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [profile]),
+        ),
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+
+      fakeBindings.setFrame(1, <String, Object?>{
+        ..._terminalFrameWithTitle('Dynamic Tab'),
+        'window_title': null,
+        'tab_color': '#ff0000',
+      });
+      container.read(terminalRuntimeControllerProvider).refreshSession('1');
+      await tester.pump();
+      expect(
+        _decoratedBoxColor(tester, const Key('shell-tab-color-1')),
+        dynamicColor,
+      );
+
+      fakeBindings.setFrame(1, <String, Object?>{
+        ..._terminalFrameWithTitle('Restored Tab'),
+        'window_title': null,
+      });
+      container.read(terminalRuntimeControllerProvider).refreshSession('1');
+      await tester.pump();
+      expect(
+        _decoratedBoxColor(tester, const Key('shell-tab-color-1')),
+        profileColor,
+      );
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
     'tab overflow menu activates hidden tabs',
     (tester) async {
       tester.view.devicePixelRatio = 1.0;

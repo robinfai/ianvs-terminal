@@ -66,6 +66,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
   }
 
   void _clearPresentationStateForSession(String sessionId) {
+    _detachTabColorViewportListener(sessionId);
     _clearViewportMetricsForSession(sessionId);
     _clearInstantReplayHistory(sessionId);
 
@@ -261,6 +262,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
 
   void _syncPresentationState(SessionState sessionState) {
     final currentTabCount = sessionState.tabs.length;
+    _syncTabColorViewportListeners(sessionState);
     _seedInactiveSessionFrameBaselines(sessionState);
     _syncZoomedPaneState(sessionState);
     _syncHoveredTerminalLinkVisibility(sessionState);
@@ -321,6 +323,52 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       _syncSearchResultsForSessionScope(sessionState);
     }
     _lastObservedTabCount = currentTabCount;
+  }
+
+  void _syncTabColorViewportListeners(SessionState sessionState) {
+    final sessionIds = <String>{
+      for (final tab in sessionState.tabs)
+        for (final pane in tab.effectivePanes) pane.sessionId,
+    };
+    for (final staleSessionId
+        in _tabColorViewportControllers.keys
+            .where((sessionId) => !sessionIds.contains(sessionId))
+            .toList(growable: false)) {
+      _detachTabColorViewportListener(staleSessionId);
+    }
+
+    final sessionController = ref.read(sessionControllerProvider.notifier);
+    for (final sessionId in sessionIds) {
+      final viewport = sessionController.viewportFor(sessionId);
+      if (identical(_tabColorViewportControllers[sessionId], viewport)) {
+        continue;
+      }
+      _detachTabColorViewportListener(sessionId);
+      _lastTabColors[sessionId] = viewport.frame.tabColor;
+      void listener() {
+        final nextColor = viewport.frame.tabColor;
+        if (_lastTabColors[sessionId] == nextColor) {
+          return;
+        }
+        _lastTabColors[sessionId] = nextColor;
+        if (mounted) {
+          _mutateState(() {});
+        }
+      }
+
+      _tabColorViewportControllers[sessionId] = viewport;
+      _tabColorViewportListeners[sessionId] = listener;
+      viewport.addListener(listener);
+    }
+  }
+
+  void _detachTabColorViewportListener(String sessionId) {
+    final viewport = _tabColorViewportControllers.remove(sessionId);
+    final listener = _tabColorViewportListeners.remove(sessionId);
+    if (viewport != null && listener != null) {
+      viewport.removeListener(listener);
+    }
+    _lastTabColors.remove(sessionId);
   }
 
   void _seedInactiveSessionFrameBaselines(SessionState sessionState) {
@@ -567,6 +615,14 @@ extension _ShellScreenStateSessions on _ShellScreenState {
   }
 
   Color? _tabProfileColor(SessionState sessionState, TerminalTab tab) {
+    final dynamicColor = ref
+        .read(sessionControllerProvider.notifier)
+        .viewportFor(tab.activePane.sessionId)
+        .frame
+        .tabColor;
+    if (dynamicColor != null) {
+      return dynamicColor;
+    }
     final profile = _profileForPane(tab.activePane, sessionState.profiles);
     return terminalViewportColorFromHex(profile?.appearance.colors.tab);
   }

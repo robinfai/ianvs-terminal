@@ -46,6 +46,9 @@ fn to_proto_frame(frame: &TerminalFrameDiff) -> pb::TerminalFrameDiff {
         cursor_color: color_to_proto(frame.cursor_color.as_deref()),
         selection_background: color_to_proto(frame.selection_background.as_deref()),
         selection_foreground: color_to_proto(frame.selection_foreground.as_deref()),
+        link_color: color_to_proto(frame.link_color.as_deref()),
+        cursor_text_color: color_to_proto(frame.cursor_text_color.as_deref()),
+        tab_color: color_to_proto(frame.tab_color.as_deref()),
         pointer_shape: frame.pointer_shape.clone().unwrap_or_default(),
         modes: Some(to_proto_modes(&frame.modes)),
         window_title: frame.window_title.clone().unwrap_or_default(),
@@ -80,6 +83,7 @@ fn to_proto_sized_text(placement: &TerminalSizedTextPlacement) -> pb::TerminalSi
         underline: placement.underline,
         blink: placement.blink,
         inverse: placement.inverse,
+        underline_color: color_to_proto(placement.underline_color.as_deref()),
     }
 }
 
@@ -105,6 +109,7 @@ fn to_proto_style_run(run: &TerminalStyleRun) -> pb::TerminalStyleRun {
         underline: run.underline,
         blink: run.blink,
         inverse: run.inverse,
+        underline_color: color_to_proto(run.underline_color.as_deref()),
     }
 }
 

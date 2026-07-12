@@ -974,6 +974,7 @@ void main() {
               'end': 6,
               'foreground': ' #112233 ',
               'background': ' #80445566 ',
+              'underline_color': ' #abcdef ',
             },
             {'start': 1, 'end': 6, 'foreground': '12#3456'},
           ],
@@ -990,14 +991,21 @@ void main() {
       'cursor_color': ' #123456 ',
       'selection_background': ' #234567 ',
       'selection_foreground': ' #345678 ',
+      'link_color': ' #456789 ',
+      'cursor_text_color': ' #56789a ',
+      'tab_color': ' #6789ab ',
     });
 
     final run = frame.rows.single.styleRuns.first;
     expect(run.foreground, const Color(0xFF112233));
     expect(run.background, const Color(0x80445566));
+    expect(run.underlineColor, const Color(0xFFABCDEF));
     expect(frame.cursorColor, const Color(0xFF123456));
     expect(frame.selectionBackground, const Color(0xFF234567));
     expect(frame.selectionForeground, const Color(0xFF345678));
+    expect(frame.linkColor, const Color(0xFF456789));
+    expect(frame.cursorTextColor, const Color(0xFF56789A));
+    expect(frame.tabColor, const Color(0xFF6789AB));
     expect(frame.rows.single.styleRuns.last.foreground, isNull);
   });
 
@@ -1392,6 +1400,7 @@ void main() {
               end: 6,
               foreground: frame_pb.ColorRgb(present: true, rgb: 0x112233),
               background: frame_pb.ColorRgb(present: true, rgb: 0x445566),
+              underlineColor: frame_pb.ColorRgb(present: true, rgb: 0xabcdef),
               bold: true,
             ),
           ],
@@ -1417,6 +1426,9 @@ void main() {
       cursorColor: frame_pb.ColorRgb(present: true, rgb: 0xff00aa),
       selectionBackground: frame_pb.ColorRgb(present: true, rgb: 0x123456),
       selectionForeground: frame_pb.ColorRgb(present: true, rgb: 0xfedcba),
+      linkColor: frame_pb.ColorRgb(present: true, rgb: 0x234567),
+      cursorTextColor: frame_pb.ColorRgb(present: true, rgb: 0x345678),
+      tabColor: frame_pb.ColorRgb(present: true, rgb: 0x456789),
       pointerShape: 'zoom-in',
       sizedText: [
         frame_pb.TerminalSizedTextPlacement(
@@ -1433,6 +1445,7 @@ void main() {
           verticalAlign: 2,
           horizontalAlign: 1,
           naturalWidth: false,
+          underlineColor: frame_pb.ColorRgb(present: true, rgb: 0x102030),
         ),
       ],
       modes: frame_pb.TerminalFrameModes(
@@ -1508,6 +1521,10 @@ void main() {
       frame.rows.single.styleRuns.single.background,
       const Color(0xFF445566),
     );
+    expect(
+      frame.rows.single.styleRuns.single.underlineColor,
+      const Color(0xFFABCDEF),
+    );
     expect(frame.rows.single.styleRuns.single.bold, isTrue);
     expect(frame.cursor.row, 1);
     expect(frame.cursor.col, 6);
@@ -1529,6 +1546,9 @@ void main() {
     expect(frame.cursorColor, const Color(0xFFFF00AA));
     expect(frame.selectionBackground, const Color(0xFF123456));
     expect(frame.selectionForeground, const Color(0xFFFEDCBA));
+    expect(frame.linkColor, const Color(0xFF234567));
+    expect(frame.cursorTextColor, const Color(0xFF345678));
+    expect(frame.tabColor, const Color(0xFF456789));
     expect(frame.pointerShape, TerminalPointerShape.zoomIn);
     expect(frame.sizedText, hasLength(1));
     expect(frame.sizedText.single.text, 'AB');
@@ -1536,6 +1556,7 @@ void main() {
     expect(frame.sizedText.single.scale, 2);
     expect(frame.sizedText.single.subscaleN, 1);
     expect(frame.sizedText.single.subscaleD, 2);
+    expect(frame.sizedText.single.underlineColor, const Color(0xFF102030));
     expect(frame.modes.alternateScreen, isTrue);
     expect(frame.modes.mouseMode, 'any_event');
     expect(frame.modes.mouseEncoding, 'sgr_pixels');
@@ -7067,6 +7088,9 @@ void main() {
         'cursor_color': '#123456',
         'selection_background': '#234567',
         'selection_foreground': '#345678',
+        'link_color': '#456789',
+        'cursor_text_color': '#56789a',
+        'tab_color': '#6789ab',
         'hyperlinks': <Object?>[
           <String, Object?>{
             'row': 0,
@@ -7121,6 +7145,9 @@ void main() {
       expect(merged.cursorColor, const Color(0xFF123456));
       expect(merged.selectionBackground, const Color(0xFF234567));
       expect(merged.selectionForeground, const Color(0xFF345678));
+      expect(merged.linkColor, const Color(0xFF456789));
+      expect(merged.cursorTextColor, const Color(0xFF56789A));
+      expect(merged.tabColor, const Color(0xFF6789AB));
     },
   );
 
