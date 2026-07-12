@@ -14,6 +14,7 @@
 - Kitty OSC 66 sized-text commit: `5442352`.
 - Kitty OSC 72 target-subset commit: `260abc8`.
 - iTerm2 OSC 1337 shell-metadata commit: `4d080ae`.
+- iTerm2 OSC 1337 dynamic-cursor commit: `66d477b`.
 
 Phases 0–14 are implemented. Phase 12 adds bounded Kitty OSC 66 fixed/natural
 width, integral/fractional scale and alignment, full multicell grid semantics,
@@ -43,6 +44,8 @@ accurate logical ReportCellSize response without expanding host authority.
 | confirmed compatibility gap | UAPI OSC 3008 hierarchical context metadata absent | bounded v1.0 hierarchy, lifecycle recovery, snapshot/RIS and typed events implemented; no UI/authority |
 | implemented safe subset / deferred remainder | Kitty OSC 72 | active-pane macOS target negotiation and user-dropped local MIME data are implemented; outgoing drags and remote file/directory authority remain denied |
 | confirmed compatibility gap | iTerm2 OSC 1337 SetMark, ShellIntegrationVersion and ReportCellSize were absent | Phase 14 maps marks and version into existing shell state and reports logical cell geometry plus DPR |
+| confirmed compatibility gap | OSC 1337 CursorShape and existing DECSCUSR state did not reach rendering | Phase 15 adds exact OSC parsing and optional JSON/protobuf cursor shape/blink overrides over profile fallback |
+| confirmed defect | DECSCUSR also changed warning-bell volume | Phase 15 removes the unrelated side effect and adds a regression |
 | hypothesis requiring manual evidence | reference-terminal semantic consumption/echo/reply | not proven: Computer Use denies terminal-emulator UI control; see `osc_cross_terminal_probe_20260711.md` |
 
 ## Architecture and security result
@@ -86,6 +89,13 @@ example grouped 923/923, complete Widget 125/125, macOS smoke 4/4, real PTY
 standalone app consumed SetMark and ShellIntegrationVersion, exposed shell
 `zsh` and version `17`, returned `ReportCellSize=22.00;8.40;2.00`, and remained
 interactive after the probe.
+
+The Phase 15 repository-wide verifier passed with corpus 23 cases/30 edge
+classes, probes 19, vendored 1,638 tests, native lib 75/75 and session 465/465,
+example grouped 925/925, complete Widget 125/125, macOS smoke 4/4, real PTY
+24/24 and native RunnerTests 12/12. Computer Use visibly confirmed OSC beam,
+DECSCUSR steady underline, blinking block, `P15-PASS` and post-probe
+interactive input in the standalone app.
 
 The Phase 11 Ianvs GUI Computer Use gate passed on a clean cold launch. Real
 PTY OSC 22 `wait` set and empty reset sequences were consumed with visible

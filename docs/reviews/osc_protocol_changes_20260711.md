@@ -379,3 +379,24 @@ safety-policy reason documented in `osc_cross_terminal_probe_20260711.md`.
 - **Compatibility:** additive events/state only; no protobuf/frame changes.
 - **Rollback:** revert the Phase 14 implementation commit; existing OSC 1337
   CurrentDir/RemoteHost/UserVar/Badge behavior remains unchanged.
+
+## Phase 15 report — iTerm2 OSC 1337 CursorShape
+
+- **Start SHA:** `4d0093e2f731cf8974e371a9dfbf13233f9506b0`.
+- **Implementation SHA:** `66d477b`.
+- **Confirmed gaps:** OSC 1337 CursorShape was ignored and existing DECSCUSR
+  state never reached JSON/protobuf or Flutter rendering.
+- **Fixes:** exact 0/1/2 OSC shape parsing, independent optional shape/blink
+  cursor fields, cursor-only deltas, profile fallback and actual viewport
+  rendering. DECSCUSR no longer changes warning-bell volume.
+- **Security:** appearance-only, VT220/fine-grained denial, no host authority.
+- **Tests/results:** targeted parser, policy, corpus, native real PTY, codec,
+  cursor-only delta, Widget and macOS application real-PTY tests pass. The full
+  verifier passed with corpus 23/30, probes 19, vendored 1,638, native lib
+  75/75 and session 465/465, example grouped 925/925, Widget 125/125, macOS
+  smoke 4/4, real PTY 24/24 and RunnerTests 12/12. Computer Use visibly
+  confirmed beam, steady underline, blinking block, `P15-PASS` and subsequent
+  interactive input on the standalone build.
+- **Compatibility:** additive JSON and protobuf fields; missing fields retain
+  profile behavior.
+- **Rollback:** revert the Phase 15 implementation commit.
