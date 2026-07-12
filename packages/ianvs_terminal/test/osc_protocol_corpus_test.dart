@@ -154,6 +154,12 @@ void _validateFixture(String id, Map<String, Object?> fixture) {
     expect(RegExp(r'\x1b]72;').allMatches(text), hasLength(3));
     expect(text, contains('t=a:i=7;text/plain text/uri-list'));
     expect(text, contains('t=r:i=7:x=1;'));
+  } else if (id == 'osc1337_shell_metadata_and_cell_size') {
+    final text = latin1.decode(stream);
+    expect(RegExp(r'\x1b]1337;').allMatches(text), hasLength(3));
+    expect(text, contains('ShellIntegrationVersion=17;zsh'));
+    expect(text, contains('SetMark'));
+    expect(text, contains('ReportCellSize'));
   }
 }
 

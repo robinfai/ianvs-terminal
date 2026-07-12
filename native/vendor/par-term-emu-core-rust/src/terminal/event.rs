@@ -17,6 +17,8 @@ pub enum ShellIntegrationSource {
     Osc133,
     /// VS Code OSC 633 marker.
     Osc633,
+    /// iTerm2 OSC 1337 shell metadata or explicit mark.
+    Osc1337,
 }
 
 impl ShellIntegrationSource {
@@ -25,6 +27,7 @@ impl ShellIntegrationSource {
         match self {
             Self::Osc133 => "osc133",
             Self::Osc633 => "osc633",
+            Self::Osc1337 => "osc1337",
         }
     }
 }
@@ -158,6 +161,15 @@ pub enum TerminalEvent {
         /// Global cursor line (`total_lines_scrolled + cursor_row`) when the marker was emitted.
         cursor_line: Option<usize>,
     },
+    /// iTerm2 shell integration script version metadata.
+    ShellIntegrationVersion {
+        /// Bounded version reported by the shell integration script.
+        version: String,
+        /// Optional bounded shell name (for example `zsh`).
+        shell: Option<String>,
+    },
+    /// iTerm2 requested the current rendered character-cell size.
+    CellSizeReportRequested,
     /// A zone was opened (prompt, command, or output block started)
     ZoneOpened {
         /// Unique zone identifier
@@ -292,6 +304,10 @@ impl TerminalEvent {
             TerminalEvent::TerminalContextChanged(_) => TerminalEventKind::TerminalContextChanged,
             TerminalEvent::DragDropCommand(_) => TerminalEventKind::DragDropCommand,
             TerminalEvent::ShellIntegrationEvent { .. } => TerminalEventKind::ShellIntegrationEvent,
+            TerminalEvent::ShellIntegrationVersion { .. } => {
+                TerminalEventKind::ShellIntegrationVersion
+            }
+            TerminalEvent::CellSizeReportRequested => TerminalEventKind::CellSizeReportRequested,
             TerminalEvent::ZoneOpened { .. } => TerminalEventKind::ZoneOpened,
             TerminalEvent::ZoneClosed { .. } => TerminalEventKind::ZoneClosed,
             TerminalEvent::ZoneScrolledOut { .. } => TerminalEventKind::ZoneScrolledOut,
@@ -347,6 +363,9 @@ impl TerminalEvent {
                 command,
                 ..
             } => event_type.len().saturating_add(option_len(command)),
+            Self::ShellIntegrationVersion { version, shell } => {
+                version.len().saturating_add(option_len(shell))
+            }
             Self::EnvironmentChanged {
                 key,
                 value,
@@ -378,6 +397,7 @@ impl TerminalEvent {
             | Self::ZoneClosed { .. }
             | Self::ZoneScrolledOut { .. }
             | Self::FileTransferProgress { .. }
+            | Self::CellSizeReportRequested
             | Self::ScreenCleared { .. }
             | Self::TerminalReset => 0,
         };
@@ -403,6 +423,8 @@ pub enum TerminalEventKind {
     TerminalContextChanged,
     DragDropCommand,
     ShellIntegrationEvent,
+    ShellIntegrationVersion,
+    CellSizeReportRequested,
     ZoneOpened,
     ZoneClosed,
     ZoneScrolledOut,

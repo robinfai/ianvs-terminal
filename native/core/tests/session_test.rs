@@ -713,6 +713,21 @@ fn osc1337_remote_host_user_var_profile() -> TerminalProfile {
     )
 }
 
+fn osc1337_shell_metadata_profile(emulation: TerminalEmulation) -> TerminalProfile {
+    local_profile(
+        "osc1337-shell-metadata",
+        "OSC1337 Shell Metadata",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import sys; sys.stdout.buffer.write(b"\x1b]1337;ShellIntegrationVersion=17;zsh\x1b\\line\n\x1b]1337;SetMark\x07\x1b]1337;ReportCellSize\x1b\\")'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        emulation,
+    )
+}
+
 fn osc_notification_progress_badge_profile() -> TerminalProfile {
     local_profile(
         "osc-notification-progress-badge",
@@ -17813,6 +17828,60 @@ fn session_emits_remote_host_and_user_var_from_osc1337() {
         .expect("expected user var event");
     assert_eq!(user_var["payload"]["name"].as_str(), Some("IANVS_TEST"));
     assert_eq!(user_var["payload"]["value"].as_str(), Some("hello"));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_emits_osc1337_mark_version_and_cell_size_request() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc1337_shell_metadata_profile(TerminalEmulation::Xterm256))
+            .unwrap(),
+    )
+    .unwrap();
+
+    let events = collect_events_until(session_id, |events| {
+        events.iter().any(|event| {
+            event["kind"] == "shell_command"
+                && event["payload"]["eventType"].as_str() == Some("mark")
+        }) && events.iter().any(|event| {
+            event["kind"] == "shell_command"
+                && event["payload"]["eventType"].as_str() == Some("integration_version")
+        }) && events
+            .iter()
+            .any(|event| event["kind"] == "cell_size_report_request")
+    });
+    let mark = events
+        .iter()
+        .find(|event| event["payload"]["eventType"].as_str() == Some("mark"))
+        .expect("expected OSC 1337 mark");
+    assert_eq!(mark["payload"]["source"].as_str(), Some("osc1337"));
+    assert_eq!(mark["payload"]["cursorLine"].as_u64(), Some(1));
+    let version = events
+        .iter()
+        .find(|event| event["payload"]["eventType"].as_str() == Some("integration_version"))
+        .expect("expected OSC 1337 integration version");
+    assert_eq!(version["payload"]["version"].as_str(), Some("17"));
+    assert_eq!(version["payload"]["shell"].as_str(), Some("zsh"));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_sessions_gate_osc1337_mark_version_and_cell_size_request() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc1337_shell_metadata_profile(TerminalEmulation::Vt220)).unwrap(),
+    )
+    .unwrap();
+
+    for _ in 0..10 {
+        let events = session::poll_events(session_id).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&events).unwrap();
+        assert!(parsed.as_array().unwrap().iter().all(|event| {
+            event["kind"] != "shell_command" && event["kind"] != "cell_size_report_request"
+        }));
+        thread::sleep(Duration::from_millis(50));
+    }
 
     session::close_session(session_id).unwrap();
 }

@@ -1727,6 +1727,67 @@ void main() {
     },
   );
 
+  testWidgets('OSC 1337 mark and integration version update shell state', (
+    tester,
+  ) async {
+    final bindings = _EventfulPtyBackend(FakePtyBackend());
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(bindings),
+        sessionControllerProvider.overrideWith(_TestSessionController.new),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+        sessionPollingEnabledProvider.overrideWithValue(false),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container
+        .read(sessionControllerProvider.notifier)
+        .createSession(defaultTerminalProfile().copyWith(id: 'osc1337-meta'));
+    final sessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+    await tester.pump();
+
+    bindings.enqueueEvent(sessionId, {
+      'kind': 'shell_command',
+      'payload': const <String, Object?>{
+        'source': 'osc1337',
+        'eventType': 'integration_version',
+        'version': '17',
+        'shell': 'zsh',
+      },
+    });
+    bindings.enqueueEvent(sessionId, {
+      'kind': 'shell_command',
+      'payload': const <String, Object?>{
+        'source': 'osc1337',
+        'eventType': 'mark',
+        'cursorLine': 84,
+      },
+    });
+    container.read(terminalRuntimeControllerProvider).refreshSession(sessionId);
+    await tester.pump(const Duration(milliseconds: 40));
+
+    final integration = container
+        .read(sessionControllerProvider)
+        .tabs
+        .single
+        .activePane
+        .shellIntegration;
+    expect(integration.shell, 'zsh');
+    expect(integration.integrationVersion, '17');
+    expect(integration.promptMarks, hasLength(1));
+    expect(integration.promptMarks.single.globalLine, 84);
+    expect(integration.promptMarks.single.cwd, isNull);
+    expect(integration.recentCommands, isEmpty);
+  });
+
   testWidgets('legacy frames retain shell-hook prompt offsets', (tester) async {
     final bindings = _EventfulPtyBackend(FakePtyBackend());
     final container = ProviderContainer(

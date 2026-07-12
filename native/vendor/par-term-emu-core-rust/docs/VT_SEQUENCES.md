@@ -377,6 +377,9 @@ bytes, and retained state to 64 active IDs per terminal session. See the
 - `OSC 1337;RemoteHost=<user>@<host> ST` - Report remote host identity
 - `OSC 1337;SetBadgeFormat=<base64_fmt> ST` - Set badge format string
 - `OSC 1337;CurrentDir=<path> ST` - Report current directory (alternative to OSC 7)
+- `OSC 1337;SetMark ST` - Record a bounded primary-screen navigation mark
+- `OSC 1337;ShellIntegrationVersion=<version>[;<shell>] ST` - Report validated shell integration metadata
+- `OSC 1337;ReportCellSize ST` - Request a product-owned logical `height;width;scale` reply
 
 Shell integration scripts use these to report session information. Variables are decoded and stored on the terminal.
 

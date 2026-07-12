@@ -166,6 +166,16 @@ PROBES = {
         "none; the query must not register a drop target or read host data",
         osc("72;t=q:i=72;"),
     ),
+    "shell_metadata": Probe(
+        "shell_metadata",
+        "iTerm2 OSC 1337",
+        "Publish shell integration version, set a navigation mark, and query the rendered cell size.",
+        "The version/shell and mark become typed metadata; the terminal replies with height;width;scale.",
+        "none; metadata and a bounded geometry reply only",
+        osc("1337;ShellIntegrationVersion=17;zsh")
+        + osc("1337;SetMark", bell=True)
+        + osc("1337;ReportCellSize"),
+    ),
     "progress": Probe(
         "progress",
         "OSC 9;4",
@@ -232,6 +242,7 @@ def self_test() -> None:
         "pointer_shape",
         "sized_text",
         "drag_drop_query",
+        "shell_metadata",
         "progress",
         "badge",
         "user_var",
@@ -263,6 +274,8 @@ def self_test() -> None:
         raise ValueError("sized-text erase recovery fixture is malformed")
     if b"72;t=q:i=72;" not in PROBES["drag_drop_query"].payload:
         raise ValueError("drag-drop query fixture is malformed")
+    if PROBES["shell_metadata"].payload.count(b"\x1b]1337;") != 3:
+        raise ValueError("OSC 1337 shell metadata fixture is malformed")
 
 
 def parser() -> argparse.ArgumentParser:

@@ -6049,6 +6049,66 @@ void main() {
   );
 
   testWidgets(
+    'OSC 1337 cell-size query waits for and reports exact logical metrics',
+    (tester) async {
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+      runtimeBackend.writeCalls.clear();
+
+      final requests = <TerminalSessionCellSizeReportRequestEvent>[];
+      final subscription = runtime.events
+          .where((event) => event is TerminalSessionCellSizeReportRequestEvent)
+          .cast<TerminalSessionCellSizeReportRequestEvent>()
+          .listen(requests.add);
+      addTearDown(subscription.cancel);
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(kind: 'cell_size_report_request', sessionId: sessionId),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(kind: 'cell_size_report_request', sessionId: sessionId),
+      );
+
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+      expect(requests, hasLength(2));
+      expect(
+        runtimeBackend.writeCalls.where((bytes) => bytes.isNotEmpty),
+        isEmpty,
+      );
+
+      runtime
+          .viewportFor(sessionId)
+          .updateMeasuredCellSize(const Size(8.25, 17.5));
+      expect(runtime.resizeSession(sessionId, const Size(825, 350), 2), isTrue);
+      await tester.pump();
+
+      final responses = runtimeBackend.writeCalls
+          .where((bytes) => bytes.isNotEmpty)
+          .map(utf8.decode)
+          .toList(growable: false);
+      expect(responses, <String>[
+        '\u001b]1337;ReportCellSize=17.50;8.25;2.00\u001b\\',
+        '\u001b]1337;ReportCellSize=17.50;8.25;2.00\u001b\\',
+      ]);
+    },
+  );
+
+  testWidgets(
     'terminal runtime controller emits shell hooks before same-batch exits',
     (tester) async {
       final runtimeBackend = _FakePtyBackend();

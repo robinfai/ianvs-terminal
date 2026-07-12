@@ -754,6 +754,16 @@ fn classify_osc_1337(
     context: OscClassificationContext,
     complete: bool,
 ) -> Classification {
+    if payload == b"SetMark"
+        || (!complete && b"SetMark".starts_with(payload))
+        || payload.starts_with(b"ShellIntegrationVersion=")
+        || (!complete && b"ShellIntegrationVersion=".starts_with(payload))
+    {
+        return Classification::new(OscIntent::ShellIntegration, OscCapability::Metadata);
+    }
+    if payload == b"ReportCellSize" || (!complete && b"ReportCellSize".starts_with(payload)) {
+        return Classification::new(OscIntent::Appearance, OscCapability::Appearance);
+    }
     if payload.starts_with(b"SetBadgeFormat=") {
         return Classification::new(OscIntent::UserVariableOrBadge, OscCapability::Appearance);
     }
@@ -965,6 +975,45 @@ mod tests {
                 .for_intent(OscIntent::DragDrop)
                 .oversized,
             1
+        );
+    }
+
+    #[test]
+    fn osc1337_shell_metadata_and_cell_query_use_independent_safe_capabilities() {
+        let context = OscClassificationContext::default();
+        let mark = b"\x1b]1337;SetMark\x1b\\";
+        let version = b"\x1b]1337;ShellIntegrationVersion=17;zsh\x07";
+        let cell_query = b"\x1b]1337;ReportCellSize\x1b\\";
+
+        let mut metadata_denied = OscCapabilityPolicy::default();
+        metadata_denied.set(OscCapability::Metadata, false);
+        let mut gate = OscStreamGate::default();
+        assert!(filter_owned(&mut gate, mark, metadata_denied, context).is_empty());
+        assert!(filter_owned(&mut gate, version, metadata_denied, context).is_empty());
+        assert_eq!(
+            gate.diagnostics()
+                .for_intent(OscIntent::ShellIntegration)
+                .policy_denied,
+            2
+        );
+        assert_eq!(
+            filter_owned(&mut gate, cell_query, metadata_denied, context),
+            cell_query
+        );
+
+        let mut appearance_denied = OscCapabilityPolicy::default();
+        appearance_denied.set(OscCapability::Appearance, false);
+        let mut gate = OscStreamGate::default();
+        assert!(filter_owned(&mut gate, cell_query, appearance_denied, context).is_empty());
+        assert_eq!(
+            gate.diagnostics()
+                .for_intent(OscIntent::Appearance)
+                .policy_denied,
+            1
+        );
+        assert_eq!(
+            filter_owned(&mut gate, mark, appearance_denied, context),
+            mark
         );
     }
 

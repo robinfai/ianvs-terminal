@@ -388,7 +388,19 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         : _ShellIntegrationHealth.fromSnapshot(statusPane.shellIntegration);
     final statusShellIntegrationHealthTooltip = _statusTooltipForPane(
       sessionId: statusSessionId,
-      tooltip: statusShellIntegrationHealth?.tooltip,
+      tooltip: statusShellIntegrationHealth == null
+          ? null
+          : [
+              statusShellIntegrationHealth.tooltip,
+              if (statusPane?.shellIntegration.shell?.trim().isNotEmpty == true)
+                'Shell: ${statusPane!.shellIntegration.shell!.trim()}',
+              if (statusPane?.shellIntegration.integrationVersion
+                      ?.trim()
+                      .isNotEmpty ==
+                  true)
+                'Integration version: '
+                    '${statusPane!.shellIntegration.integrationVersion!.trim()}',
+            ].join('\n'),
     );
     final statusRemoteTooltip = _statusTooltipForPane(
       sessionId: statusSessionId,

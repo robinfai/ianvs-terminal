@@ -1103,6 +1103,9 @@ class SessionController extends Notifier<SessionState> {
       case TerminalSessionDragDropCommandEvent():
         // ShellScreen owns the system drag/drop bridge and active-pane routing.
         break;
+      case TerminalSessionCellSizeReportRequestEvent():
+        // TerminalRuntimeController owns the immediate protocol reply.
+        break;
       case TerminalSessionResetEvent():
         _applySessionReset(event);
         break;
@@ -1253,7 +1256,9 @@ class SessionController extends Notifier<SessionState> {
       return;
     }
     final globalLine = event.cursorLine;
-    var nextPromptMarks = eventType == 'prompt_start' && globalLine != null
+    var nextPromptMarks =
+        (eventType == 'prompt_start' || eventType == 'mark') &&
+            globalLine != null
         ? _promptMarksForValues(
             current.promptMarks,
             globalLine: globalLine,
@@ -1261,6 +1266,23 @@ class SessionController extends Notifier<SessionState> {
             cwd: current.currentDirectory,
           )
         : current.promptMarks;
+    if (eventType == 'integration_version') {
+      final version = _boundedShellMetadata(event.integrationVersion, 32);
+      final shell = _boundedShellMetadata(event.shell, 32);
+      if (version == null && shell == null) {
+        return;
+      }
+      _replaceSessionPane(
+        event.sessionId,
+        currentPane.copyWith(
+          shellIntegration: current.copyWith(
+            shell: shell ?? current.shell,
+            integrationVersion: version ?? current.integrationVersion,
+          ),
+        ),
+      );
+      return;
+    }
     if (eventType == 'zone_opened' &&
         event.zoneType == 'prompt' &&
         event.zoneId != null &&

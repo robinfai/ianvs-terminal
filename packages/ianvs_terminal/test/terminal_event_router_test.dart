@@ -74,6 +74,8 @@ void main() {
         'session_progress': TerminalImmediateEventKind.sessionProgress,
         'session_badge': TerminalImmediateEventKind.sessionBadge,
         'drag_drop_command': TerminalImmediateEventKind.dragDropCommand,
+        'cell_size_report_request':
+            TerminalImmediateEventKind.cellSizeReportRequest,
         'session_reset': TerminalImmediateEventKind.sessionReset,
       };
 

@@ -508,6 +508,8 @@ class Terminal implements TerminalDisposable {
         break;
       case TerminalSessionDragDropCommandEvent():
         break;
+      case TerminalSessionCellSizeReportRequestEvent():
+        break;
       case TerminalSessionResetEvent():
         break;
       case TerminalSessionClipboardEvent():

@@ -35,6 +35,30 @@ void main() {
       expect(duplicate.metric, first.metric);
     });
 
+    test('logical cell changes survive identical rounded native pixels', () {
+      final coordinator = TerminalResizeCoordinator();
+      const sessionId = 'session-1';
+      final first = coordinator.planCellResize(
+        sessionId,
+        cols: 80,
+        rows: 24,
+        cellSize: const Size(8.1, 17.1),
+      );
+      coordinator.commit(sessionId, first.metric);
+
+      final changed = coordinator.planCellResize(
+        sessionId,
+        cols: 80,
+        rows: 24,
+        cellSize: const Size(8.4, 17.4),
+      );
+      expect(changed.metric.cellWidth, first.metric.cellWidth);
+      expect(changed.metric.cellHeight, first.metric.cellHeight);
+      expect(changed.isDuplicate, isFalse);
+      expect(changed.metric.logicalCellWidth, 8.4);
+      expect(changed.metric.logicalCellHeight, 17.4);
+    });
+
     test('returns null for invalid viewport resize inputs', () {
       final coordinator = TerminalResizeCoordinator();
 
@@ -170,6 +194,8 @@ TerminalResizeMetric _resizeMetric({
     cellHeight: (18 * dpr).round(),
     logicalWidth: cols * 9,
     logicalHeight: rows * 18,
+    logicalCellWidth: 9,
+    logicalCellHeight: 18,
     devicePixelRatio: dpr,
   );
 }

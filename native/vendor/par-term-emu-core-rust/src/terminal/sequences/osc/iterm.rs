@@ -2,12 +2,15 @@
 
 use super::sanitize_osc_text;
 use crate::debug;
-use crate::terminal::{CwdChangeSource, Terminal};
+use crate::terminal::event::ShellIntegrationSource;
+use crate::terminal::{CwdChangeSource, Terminal, TerminalEvent};
 
 const MAX_USER_VAR_NAME_CHARS: usize = 80;
 const MAX_USER_VAR_VALUE_CHARS: usize = 4096;
 const MAX_REMOTE_USERNAME_CHARS: usize = 80;
 const MAX_REMOTE_HOSTNAME_CHARS: usize = 255;
+const MAX_SHELL_INTEGRATION_VERSION_CHARS: usize = 32;
+const MAX_SHELL_NAME_CHARS: usize = 32;
 
 impl Terminal {
     pub(crate) fn handle_osc_iterm(&mut self, _command: &str, params: &[&[u8]]) {
@@ -28,10 +31,63 @@ impl Terminal {
                 self.handle_remote_host(payload);
             } else if let Some(payload) = data.strip_prefix("RequestUpload=") {
                 self.handle_request_upload(payload);
+            } else if data == "SetMark" {
+                self.handle_iterm_set_mark();
+            } else if let Some(payload) = data.strip_prefix("ShellIntegrationVersion=") {
+                self.handle_shell_integration_version(payload);
+            } else if data == "ReportCellSize" {
+                self.terminal_events
+                    .push(TerminalEvent::CellSizeReportRequested);
             } else {
                 self.handle_iterm_image(&data);
             }
         }
+    }
+
+    fn handle_iterm_set_mark(&mut self) {
+        if self.alt_screen_active {
+            return;
+        }
+        let cursor_line = self.active_grid().total_lines_scrolled() + self.cursor.row;
+        self.terminal_events
+            .push(TerminalEvent::ShellIntegrationEvent {
+                source: ShellIntegrationSource::Osc1337,
+                event_type: "mark".to_string(),
+                command: None,
+                exit_code: None,
+                timestamp: Some(crate::terminal::unix_millis()),
+                cursor_line: Some(cursor_line),
+            });
+    }
+
+    fn handle_shell_integration_version(&mut self, payload: &str) {
+        if self.alt_screen_active {
+            return;
+        }
+        let (version, shell) = payload
+            .split_once(';')
+            .map_or((payload, None), |(version, shell)| (version, Some(shell)));
+        let version = version.trim();
+        if version.is_empty()
+            || version.chars().count() > MAX_SHELL_INTEGRATION_VERSION_CHARS
+            || !version.chars().all(|value| value.is_ascii_digit())
+        {
+            return;
+        }
+        let shell = shell.and_then(|value| {
+            let value = value.trim();
+            (!value.is_empty()
+                && value.chars().count() <= MAX_SHELL_NAME_CHARS
+                && value.chars().all(|character| {
+                    character.is_ascii_alphanumeric() || "._+-".contains(character)
+                }))
+            .then(|| value.to_string())
+        });
+        self.terminal_events
+            .push(TerminalEvent::ShellIntegrationVersion {
+                version: version.to_string(),
+                shell,
+            });
     }
 
     pub(crate) fn handle_set_badge_format(&mut self, encoded: &str) {
@@ -157,7 +213,8 @@ impl Terminal {
 
 #[cfg(test)]
 mod tests {
-    use crate::terminal::Terminal;
+    use crate::terminal::event::ShellIntegrationSource;
+    use crate::terminal::{Terminal, TerminalEvent};
     use base64::{engine::general_purpose::STANDARD, Engine};
 
     #[test]
@@ -179,5 +236,114 @@ mod tests {
 
         assert!(terminal.shell_integration().hostname().is_none());
         assert!(terminal.shell_integration().username().is_none());
+    }
+
+    #[test]
+    fn set_mark_emits_bounded_primary_screen_marker_for_bel_and_st() {
+        for sequence in [
+            b"\x1b]1337;SetMark\x07".as_slice(),
+            b"\x1b]1337;SetMark\x1b\\".as_slice(),
+        ] {
+            let mut terminal = Terminal::new(80, 24);
+            terminal.process(b"line\r\n");
+            terminal.process(sequence);
+            assert!(terminal.poll_events().iter().any(|event| matches!(
+                event,
+                TerminalEvent::ShellIntegrationEvent {
+                    source: ShellIntegrationSource::Osc1337,
+                    event_type,
+                    cursor_line: Some(1),
+                    ..
+                } if event_type == "mark"
+            )));
+        }
+
+        let mut alternate = Terminal::new(80, 24);
+        alternate.process(b"\x1b[?1049h\x1b]1337;SetMark\x07");
+        assert!(!alternate.poll_events().iter().any(|event| matches!(
+            event,
+            TerminalEvent::ShellIntegrationEvent {
+                source: ShellIntegrationSource::Osc1337,
+                ..
+            }
+        )));
+    }
+
+    #[test]
+    fn shell_integration_version_is_typed_bounded_metadata() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.process(b"\x1b]1337;ShellIntegrationVersion=17;zsh\x1b\\");
+        terminal.process(b"\x1b]1337;ShellIntegrationVersion=beta;bad\x07");
+        terminal.process(b"\x1b]1337;ShellIntegrationVersion=18;bad shell\x07");
+
+        let events = terminal.poll_events();
+        assert!(events.iter().any(|event| matches!(
+            event,
+            TerminalEvent::ShellIntegrationVersion { version, shell }
+                if version == "17" && shell.as_deref() == Some("zsh")
+        )));
+        assert!(events.iter().any(|event| matches!(
+            event,
+            TerminalEvent::ShellIntegrationVersion { version, shell }
+                if version == "18" && shell.is_none()
+        )));
+        assert_eq!(
+            events
+                .iter()
+                .filter(|event| matches!(event, TerminalEvent::ShellIntegrationVersion { .. }))
+                .count(),
+            2
+        );
+    }
+
+    #[test]
+    fn report_cell_size_emits_only_for_the_exact_query() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.process(b"\x1b]1337;ReportCellSize\x07");
+        terminal.process(b"\x1b]1337;ReportCellSize=spoof\x07");
+
+        assert_eq!(
+            terminal
+                .poll_events()
+                .iter()
+                .filter(|event| matches!(event, TerminalEvent::CellSizeReportRequested))
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn shell_metadata_sequences_accept_every_byte_split() {
+        type EventMatcher = fn(&TerminalEvent) -> bool;
+        let cases: &[(&[u8], EventMatcher)] = &[
+            (b"\x1b]1337;SetMark\x1b\\", |event| {
+                matches!(
+                    event,
+                    TerminalEvent::ShellIntegrationEvent {
+                        source: ShellIntegrationSource::Osc1337,
+                        event_type,
+                        ..
+                    } if event_type == "mark"
+                )
+            }),
+            (b"\x1b]1337;ShellIntegrationVersion=17;zsh\x1b\\", |event| {
+                matches!(event, TerminalEvent::ShellIntegrationVersion { .. })
+            }),
+            (b"\x1b]1337;ReportCellSize\x1b\\", |event| {
+                matches!(event, TerminalEvent::CellSizeReportRequested)
+            }),
+        ];
+
+        for (sequence, matches_event) in cases {
+            for split in 1..sequence.len() {
+                let mut terminal = Terminal::new(80, 24);
+                terminal.process(&sequence[..split]);
+                terminal.process(&sequence[split..]);
+                assert!(
+                    terminal.poll_events().iter().any(matches_event),
+                    "missing event at byte split {split} for {sequence:?}"
+                );
+            }
+        }
     }
 }

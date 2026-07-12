@@ -33,6 +33,7 @@ export 'terminal_frame_transport_coordinator.dart'
 const int _maxOsc52ClipboardDecodedBytes = 4 * 1024 * 1024;
 const int _maxOsc52ClipboardEncodedLength =
     ((_maxOsc52ClipboardDecodedBytes + 2) ~/ 3) * 4;
+const int _maxPendingOsc1337CellSizeReports = 16;
 
 typedef TerminalWindowResizeCallback =
     Future<void> Function({
@@ -152,10 +153,17 @@ final class TerminalSessionShellCommandEvent extends TerminalSessionEvent {
   String? get zoneType => _stringValue(rawPayload['zoneType']);
   int? get absRowStart => _wholeIntValue(rawPayload['absRowStart']);
   int? get absRowEnd => _wholeIntValue(rawPayload['absRowEnd']);
+  String? get integrationVersion => _stringValue(rawPayload['version']);
+  String? get shell => _stringValue(rawPayload['shell']);
 
   static String? _stringValue(Object? value) {
     return value is String ? value : null;
   }
+}
+
+final class TerminalSessionCellSizeReportRequestEvent
+    extends TerminalSessionEvent {
+  const TerminalSessionCellSizeReportRequestEvent(super.sessionId);
 }
 
 final class TerminalSessionShellUserVarEvent extends TerminalSessionEvent {
@@ -497,6 +505,7 @@ class TerminalRuntimeController {
   final Map<String, _TerminalRefreshTrace> _activeRefreshTraces =
       <String, _TerminalRefreshTrace>{};
   final Set<String> _pendingFullPollRequests = <String>{};
+  final Map<String, int> _pendingCellSizeReports = <String, int>{};
   final Map<String, int> _refreshIdSeeds = <String, int>{};
   final Map<String, int> _sessionEpochs = <String, int>{};
   final Map<String, DateTime> _lastFrameAppliedAt = <String, DateTime>{};
@@ -893,6 +902,7 @@ class TerminalRuntimeController {
       return false;
     }
     _resizeCoordinator.commit(sessionId, metric);
+    _flushPendingCellSizeReport(sessionId);
     _resizeEvents.add(
       TerminalSessionResizeEvent(
         sessionId,
@@ -947,6 +957,7 @@ class TerminalRuntimeController {
       return false;
     }
     _resizeCoordinator.commit(sessionId, metric);
+    _flushPendingCellSizeReport(sessionId);
     _resizeEvents.add(
       TerminalSessionResizeEvent(
         sessionId,
@@ -1866,6 +1877,13 @@ class TerminalRuntimeController {
             rawPayload: route.payload,
           ),
         );
+      case TerminalImmediateEventKind.cellSizeReportRequest:
+        _replyOrQueueCellSizeReport(sessionId, sessionEpoch);
+        _emitEventIfCurrent(
+          sessionId,
+          sessionEpoch,
+          TerminalSessionCellSizeReportRequestEvent(sessionId),
+        );
       case TerminalImmediateEventKind.sessionReset:
         _emitEventIfCurrent(
           sessionId,
@@ -1948,6 +1966,7 @@ class TerminalRuntimeController {
       return;
     }
     _resizeCoordinator.commit(sessionId, metric);
+    _flushPendingCellSizeReport(sessionId);
     _resizeEvents.add(
       TerminalSessionResizeEvent(
         sessionId,
@@ -1978,6 +1997,57 @@ class TerminalRuntimeController {
 
   Size _cellSizeFor(String sessionId) {
     return viewportFor(sessionId).measuredCellSize ?? terminalFallbackCellSize;
+  }
+
+  void _replyOrQueueCellSizeReport(String sessionId, int sessionEpoch) {
+    if (!_sendCellSizeReport(sessionId, sessionEpoch: sessionEpoch)) {
+      if (_isCurrentSession(sessionId, sessionEpoch)) {
+        _pendingCellSizeReports.update(
+          sessionId,
+          (count) => (count + 1)
+              .clamp(1, _maxPendingOsc1337CellSizeReports)
+              .toInt(),
+          ifAbsent: () => 1,
+        );
+      }
+    }
+  }
+
+  void _flushPendingCellSizeReport(String sessionId) {
+    final count = _pendingCellSizeReports[sessionId];
+    if (count == null) {
+      return;
+    }
+    for (var index = 0; index < count; index += 1) {
+      if (!_sendCellSizeReport(sessionId)) {
+        _pendingCellSizeReports[sessionId] = count - index;
+        return;
+      }
+    }
+    _pendingCellSizeReports.remove(sessionId);
+  }
+
+  bool _sendCellSizeReport(String sessionId, {int? sessionEpoch}) {
+    final metric = _resizeCoordinator.metricFor(sessionId);
+    if (metric == null ||
+        !metric.logicalCellWidth.isFinite ||
+        metric.logicalCellWidth <= 0 ||
+        !metric.logicalCellHeight.isFinite ||
+        metric.logicalCellHeight <= 0 ||
+        !metric.devicePixelRatio.isFinite ||
+        metric.devicePixelRatio <= 0) {
+      return false;
+    }
+    final response =
+        '\u001b]1337;ReportCellSize='
+        '${metric.logicalCellHeight.toStringAsFixed(2)};'
+        '${metric.logicalCellWidth.toStringAsFixed(2)};'
+        '${metric.devicePixelRatio.toStringAsFixed(2)}\u001b\\';
+    return _sendInput(
+      sessionId,
+      Uint8List.fromList(ascii.encode(response)),
+      sessionEpoch: sessionEpoch,
+    );
   }
 
   Future<void> _handleClipboardCopyEvent(
@@ -2304,6 +2374,7 @@ class TerminalRuntimeController {
     _pendingRefreshTraces.remove(sessionId);
     _activeRefreshTraces.remove(sessionId);
     _pendingFullPollRequests.remove(sessionId);
+    _pendingCellSizeReports.remove(sessionId);
     _refreshIdSeeds.remove(sessionId);
     _sessionEpochs.remove(sessionId);
     _lastFrameAppliedAt.remove(sessionId);

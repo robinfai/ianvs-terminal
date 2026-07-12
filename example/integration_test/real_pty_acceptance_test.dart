@@ -860,6 +860,67 @@ sleep 1
   );
 
   testWidgets(
+    'real PTY OSC 1337 mark version and cell-size reply cross the product',
+    (tester) async {
+      final profile = _scriptProfile(
+        id: 'osc1337-shell-metadata',
+        name: 'OSC 1337 Shell Metadata',
+        script: r'''
+python3 - <<'PY'
+import os, select, termios, tty
+tty_fd = os.open("/dev/tty", os.O_RDWR)
+old = termios.tcgetattr(tty_fd)
+tty.setraw(tty_fd)
+os.write(tty_fd, b"\x1b]1337;ShellIntegrationVersion=17;zsh\x1b\\")
+os.write(tty_fd, b"OSC1337-MARK-LINE\r\n\x1b]1337;SetMark\x07")
+os.write(tty_fd, b"\x1b]1337;ReportCellSize\x1b\\")
+ready, _, _ = select.select([tty_fd], [], [], 3.0)
+data = os.read(tty_fd, 512) if ready else b"TIMEOUT"
+termios.tcsetattr(tty_fd, termios.TCSANOW, old)
+os.close(tty_fd)
+os.write(1, b"OSC1337-CELL:" + repr(data).encode() + b"\n")
+PY
+sleep 1
+''',
+      );
+      final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
+
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'OSC 1337 cell-size response marker',
+        matches: (text) =>
+            text.contains('OSC1337-MARK-LINE') &&
+            text.contains('OSC1337-CELL:') &&
+            text.contains('ReportCellSize='),
+      );
+      final pane = harness.container
+          .read(sessionControllerProvider)
+          .tabs
+          .single
+          .activePane;
+      expect(pane.shellIntegration.shell, 'zsh');
+      expect(pane.shellIntegration.integrationVersion, '17');
+      expect(pane.shellIntegration.promptMarks, isNotEmpty);
+      expect(
+        pane.shellIntegration.promptMarks.last.globalLine,
+        isNotNull,
+      );
+      final text = _activeFrame(harness.container)!.rows
+          .map((row) => row.text)
+          .join('\n');
+      final response = RegExp(
+        r'ReportCellSize=(\d+\.\d{2});(\d+\.\d{2});(\d+\.\d{2})',
+      ).firstMatch(text);
+      expect(response, isNotNull);
+      expect(double.parse(response!.group(1)!), greaterThan(0));
+      expect(double.parse(response.group(2)!), greaterThan(0));
+      expect(double.parse(response.group(3)!), greaterThanOrEqualTo(1));
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
     'real PTY active wake baseline after four seconds child idle',
     (tester) =>
         _verifyIdleWakeBaseline(tester, state: _BaselineIdleWakeState.active),

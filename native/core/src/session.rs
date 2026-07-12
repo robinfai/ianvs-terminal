@@ -132,6 +132,7 @@ enum CallbackEvent {
         name: String,
         value: String,
     },
+    CellSizeReportRequest,
     SessionNotification {
         source: String,
         action: String,
@@ -1108,6 +1109,19 @@ fn callback_event_from_parser_event(
                 }),
             })
         }
+        ParserTerminalEvent::ShellIntegrationVersion { version, shell } => {
+            Some(CallbackEvent::ShellCommand {
+                payload: serde_json::json!({
+                    "source": "osc1337",
+                    "eventType": "integration_version",
+                    "version": sanitize_protocol_text(&version, 32),
+                    "shell": shell
+                        .as_deref()
+                        .and_then(|value| sanitize_protocol_text_option(Some(value), 32)),
+                }),
+            })
+        }
+        ParserTerminalEvent::CellSizeReportRequested => Some(CallbackEvent::CellSizeReportRequest),
         ParserTerminalEvent::ZoneOpened {
             zone_id,
             zone_type,
@@ -2706,6 +2720,9 @@ impl TerminalSession {
                     "value": value,
                 })),
             ),
+            CallbackEvent::CellSizeReportRequest => {
+                self.push_event("cell_size_report_request", None)
+            }
             CallbackEvent::SessionNotification {
                 source,
                 action,
@@ -2953,6 +2970,7 @@ fn sanitize_diagnostic_event_payload(
         "clipboard_paste_request" => Some(serde_json::json!({
             "selection": payload.get("selection").and_then(serde_json::Value::as_str),
         })),
+        "cell_size_report_request" => Some(serde_json::json!({})),
         "shell_hook" => sanitize_shell_hook_payload(payload),
         "shell_context" => sanitize_shell_context_payload(payload),
         "shell_command" => sanitize_shell_command_payload(payload),

@@ -4941,6 +4941,19 @@ void main() {
         },
       ),
     );
+    fakeBindings.enqueueEvent(
+      1,
+      PtyEvent(
+        kind: 'shell_command',
+        sessionId: '1',
+        payload: const <String, Object?>{
+          'source': 'osc1337',
+          'eventType': 'integration_version',
+          'version': '17',
+          'shell': 'zsh',
+        },
+      ),
+    );
     await tester.pump(const Duration(milliseconds: 40));
 
     expect(find.byKey(const Key('shell-status-bar')), findsOneWidget);
@@ -4960,7 +4973,9 @@ void main() {
     expect(find.text('UTF-8'), findsOneWidget);
     expect(find.text('SHELL ACTIVE'), findsOneWidget);
     expect(
-      find.byTooltip('Shell integration is active for this pane.'),
+      find.byTooltip(
+        'Shell integration is active for this pane.\nShell: zsh\nIntegration version: 17',
+      ),
       findsOneWidget,
     );
 
@@ -5023,7 +5038,7 @@ void main() {
     expect(find.text('SHELL PARTIAL'), findsOneWidget);
     expect(
       find.byTooltip(
-        'Shell integration has shell context, but command or prompt metadata has not arrived.',
+        'Shell integration has shell context, but command or prompt metadata has not arrived.\nShell: zsh',
       ),
       findsOneWidget,
     );

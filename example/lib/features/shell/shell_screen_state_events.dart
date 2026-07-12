@@ -78,6 +78,9 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         break;
       case terminal.TerminalSessionDragDropCommandEvent():
         unawaited(_osc72DragDropController.handleCommand(event));
+      case terminal.TerminalSessionCellSizeReportRequestEvent():
+        // The reusable runtime already replied using its committed cell metric.
+        break;
       case terminal.TerminalSessionResetEvent():
         unawaited(_osc72DragDropController.resetSession(event.sessionId));
         _clearPresentationStateForSession(event.sessionId);

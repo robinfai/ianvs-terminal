@@ -191,6 +191,27 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
                 assert_eq!(commands[2].action, DragDropAction::RequestDropData);
                 assert_eq!(commands[2].x, Some(1));
             }
+            "osc1337_shell_metadata_and_cell_size" => {
+                let events = terminal.poll_events();
+                assert!(events.iter().any(|event| matches!(
+                    event,
+                    TerminalEvent::ShellIntegrationVersion { version, shell }
+                        if version == "17" && shell.as_deref() == Some("zsh")
+                )));
+                assert!(events.iter().any(|event| matches!(
+                    event,
+                    TerminalEvent::ShellIntegrationEvent {
+                        source: par_term_emu_core_rust::terminal::event::ShellIntegrationSource::Osc1337,
+                        event_type,
+                        ..
+                    } if event_type == "mark"
+                )));
+                assert!(
+                    events
+                        .iter()
+                        .any(|event| matches!(event, TerminalEvent::CellSizeReportRequested))
+                );
+            }
             "tmux_passthrough" => assert_eq!(
                 write_hyperlink_probe(&mut terminal),
                 Some((

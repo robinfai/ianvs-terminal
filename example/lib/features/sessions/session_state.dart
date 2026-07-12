@@ -712,6 +712,7 @@ class TerminalShellIntegrationSnapshot {
     this.hostname,
     this.username,
     this.shell,
+    this.integrationVersion,
     this.lastCommand,
     this.lastExitCode,
     this.recentCommands = const <String>[],
@@ -726,6 +727,7 @@ class TerminalShellIntegrationSnapshot {
   final String? hostname;
   final String? username;
   final String? shell;
+  final String? integrationVersion;
   final String? lastCommand;
   final int? lastExitCode;
   final List<String> recentCommands;
@@ -738,6 +740,7 @@ class TerminalShellIntegrationSnapshot {
     Object? hostname = _shellIntegrationNoChange,
     Object? username = _shellIntegrationNoChange,
     Object? shell = _shellIntegrationNoChange,
+    Object? integrationVersion = _shellIntegrationNoChange,
     Object? lastCommand = _shellIntegrationNoChange,
     Object? lastExitCode = _shellIntegrationNoChange,
     List<String>? recentCommands,
@@ -758,6 +761,10 @@ class TerminalShellIntegrationSnapshot {
       shell: identical(shell, _shellIntegrationNoChange)
           ? this.shell
           : shell as String?,
+      integrationVersion:
+          identical(integrationVersion, _shellIntegrationNoChange)
+          ? this.integrationVersion
+          : integrationVersion as String?,
       lastCommand: identical(lastCommand, _shellIntegrationNoChange)
           ? this.lastCommand
           : lastCommand as String?,

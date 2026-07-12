@@ -13,6 +13,7 @@ enum TerminalImmediateEventKind {
   sessionBadge,
   terminalContext,
   dragDropCommand,
+  cellSizeReportRequest,
   sessionReset,
 }
 
@@ -102,6 +103,10 @@ final class TerminalEventRouter {
       ),
       'drag_drop_command' => TerminalImmediateEventRoute(
         kind: TerminalImmediateEventKind.dragDropCommand,
+        payload: event.payload,
+      ),
+      'cell_size_report_request' => TerminalImmediateEventRoute(
+        kind: TerminalImmediateEventKind.cellSizeReportRequest,
         payload: event.payload,
       ),
       'session_reset' => TerminalImmediateEventRoute(

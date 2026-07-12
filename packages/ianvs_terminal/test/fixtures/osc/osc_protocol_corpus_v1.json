@@ -339,6 +339,27 @@
       }
     },
     {
+      "id": "osc1337_shell_metadata_and_cell_size",
+      "coverage": [
+        "OSC 1337 shell metadata",
+        "OSC 1337 cell-size query"
+      ],
+      "protocol": "iTerm2 OSC 1337",
+      "wire": {
+        "chunks_hex": [
+          "1b5d313333373b5368656c6c496e746567726174696f6e56657273696f6e3d31373b7a73681b5c1b5d313333373b5365744d61726b071b5d313333373b5265706f727443656c6c53697a651b5c"
+        ],
+        "sequence_count": 3
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "shell_metadata_and_cell_size",
+        "state_effect": "version and shell metadata plus a cursor-line mark are emitted; product receives one exact cell-size reply request",
+        "reply": "product replies with bounded height;width;scale metrics",
+        "must_not_crash": true
+      }
+    },
+    {
       "id": "tmux_passthrough",
       "coverage": ["tmux passthrough fixture"],
       "protocol": "tmux DCS passthrough carrying OSC 8",

@@ -153,6 +153,8 @@ final class TerminalResizeCoordinator {
       cellHeight: _boundedPixelDimension(cellSize.height * devicePixelRatio),
       logicalWidth: logicalWidth,
       logicalHeight: logicalHeight,
+      logicalCellWidth: cellSize.width,
+      logicalCellHeight: cellSize.height,
       devicePixelRatio: devicePixelRatio,
     );
   }
@@ -204,6 +206,8 @@ final class TerminalResizeMetric {
     required this.cellHeight,
     required this.logicalWidth,
     required this.logicalHeight,
+    required this.logicalCellWidth,
+    required this.logicalCellHeight,
     required this.devicePixelRatio,
   });
 
@@ -215,6 +219,8 @@ final class TerminalResizeMetric {
   final int cellHeight;
   final double logicalWidth;
   final double logicalHeight;
+  final double logicalCellWidth;
+  final double logicalCellHeight;
   final double devicePixelRatio;
 
   bool sameNativeResize(TerminalResizeMetric other) {
@@ -223,7 +229,12 @@ final class TerminalResizeMetric {
         pixelWidth == other.pixelWidth &&
         pixelHeight == other.pixelHeight &&
         cellWidth == other.cellWidth &&
-        cellHeight == other.cellHeight;
+        cellHeight == other.cellHeight &&
+        logicalWidth == other.logicalWidth &&
+        logicalHeight == other.logicalHeight &&
+        logicalCellWidth == other.logicalCellWidth &&
+        logicalCellHeight == other.logicalCellHeight &&
+        devicePixelRatio == other.devicePixelRatio;
   }
 
   @override
@@ -237,6 +248,8 @@ final class TerminalResizeMetric {
         cellHeight == other.cellHeight &&
         logicalWidth == other.logicalWidth &&
         logicalHeight == other.logicalHeight &&
+        logicalCellWidth == other.logicalCellWidth &&
+        logicalCellHeight == other.logicalCellHeight &&
         devicePixelRatio == other.devicePixelRatio;
   }
 
@@ -250,6 +263,8 @@ final class TerminalResizeMetric {
     cellHeight,
     logicalWidth,
     logicalHeight,
+    logicalCellWidth,
+    logicalCellHeight,
     devicePixelRatio,
   );
 }
