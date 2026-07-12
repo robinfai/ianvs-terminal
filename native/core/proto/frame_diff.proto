@@ -65,6 +65,8 @@ message TerminalCursor {
   uint32 row = 1;
   uint32 col = 2;
   bool visible = 3;
+  optional string shape = 4;
+  optional bool blink = 5;
 }
 
 message TerminalSelection {

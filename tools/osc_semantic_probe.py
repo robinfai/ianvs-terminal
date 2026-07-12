@@ -176,6 +176,14 @@ PROBES = {
         + osc("1337;SetMark", bell=True)
         + osc("1337;ReportCellSize"),
     ),
+    "dynamic_cursor": Probe(
+        "dynamic_cursor",
+        "iTerm2 OSC 1337 CursorShape",
+        "Select the iTerm2 vertical-bar cursor shape.",
+        "The rendered cursor becomes a vertical bar while profile blink behavior is preserved.",
+        "appearance only; no host action",
+        osc("1337;CursorShape=1"),
+    ),
     "progress": Probe(
         "progress",
         "OSC 9;4",
@@ -243,6 +251,7 @@ def self_test() -> None:
         "sized_text",
         "drag_drop_query",
         "shell_metadata",
+        "dynamic_cursor",
         "progress",
         "badge",
         "user_var",
@@ -276,6 +285,8 @@ def self_test() -> None:
         raise ValueError("drag-drop query fixture is malformed")
     if PROBES["shell_metadata"].payload.count(b"\x1b]1337;") != 3:
         raise ValueError("OSC 1337 shell metadata fixture is malformed")
+    if b"1337;CursorShape=1" not in PROBES["dynamic_cursor"].payload:
+        raise ValueError("OSC 1337 cursor shape fixture is malformed")
 
 
 def parser() -> argparse.ArgumentParser:

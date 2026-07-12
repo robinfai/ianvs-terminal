@@ -42,6 +42,8 @@ REQUIRED_COVERAGE = {
     "OSC 72 bounded host authorization",
     "OSC 1337 shell metadata",
     "OSC 1337 cell-size query",
+    "OSC 1337 cursor shape",
+    "DECSCUSR cursor override coexistence",
     "OSC 3008 hierarchy",
     "OSC 3008 malformed close recovery",
     "tmux passthrough fixture",

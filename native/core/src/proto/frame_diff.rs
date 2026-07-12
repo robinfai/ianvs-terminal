@@ -93,7 +93,7 @@ pub struct ColorRgb {
     #[prost(uint32, tag = "2")]
     pub rgb: u32,
 }
-#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct TerminalCursor {
     #[prost(uint32, tag = "1")]
     pub row: u32,
@@ -101,6 +101,10 @@ pub struct TerminalCursor {
     pub col: u32,
     #[prost(bool, tag = "3")]
     pub visible: bool,
+    #[prost(string, optional, tag = "4")]
+    pub shape: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "5")]
+    pub blink: ::core::option::Option<bool>,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct TerminalSelection {

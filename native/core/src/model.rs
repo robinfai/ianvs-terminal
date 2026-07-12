@@ -27,6 +27,16 @@ pub enum TerminalCursorShape {
     Beam,
 }
 
+impl TerminalCursorShape {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Block => "block",
+            Self::Underline => "underline",
+            Self::Beam => "beam",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TerminalOptionDragMode {
@@ -344,6 +354,10 @@ pub struct TerminalCursor {
     pub row: usize,
     pub col: usize,
     pub visible: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shape: Option<TerminalCursorShape>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub blink: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

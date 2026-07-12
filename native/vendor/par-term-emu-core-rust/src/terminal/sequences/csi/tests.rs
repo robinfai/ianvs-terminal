@@ -643,9 +643,17 @@ fn test_tab_stops() {
 fn test_cursor_style() {
     let mut term = Terminal::new(80, 24);
 
+    // Ps=0 is xterm-compatible blinking block.
+    let warning_bell_before = term.warning_bell_volume();
+    term.process(b"\x1b[0 q");
+    assert_eq!(term.cursor.style, CursorStyle::BlinkingBlock);
+    assert_eq!(term.cursor.blink_override(), Some(true));
+    assert_eq!(term.warning_bell_volume(), warning_bell_before);
+
     // Blinking block
     term.process(b"\x1b[1 q");
     assert_eq!(term.cursor.style, CursorStyle::BlinkingBlock);
+    assert_eq!(term.cursor.blink_override(), Some(true));
 
     // Steady block
     term.process(b"\x1b[2 q");
@@ -665,6 +673,11 @@ fn test_cursor_style() {
 
     // Steady bar
     term.process(b"\x1b[6 q");
+    assert_eq!(term.cursor.style, CursorStyle::SteadyBar);
+    assert_eq!(term.cursor.blink_override(), Some(false));
+
+    // Unknown values do not mutate the active override.
+    term.process(b"\x1b[7 q");
     assert_eq!(term.cursor.style, CursorStyle::SteadyBar);
 }
 

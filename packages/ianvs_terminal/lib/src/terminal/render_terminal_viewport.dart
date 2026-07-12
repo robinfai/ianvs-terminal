@@ -466,7 +466,7 @@ class RenderTerminalViewport extends RenderBox {
       }
       _cursorPaint.color = cursorColor;
       canvas.drawRect(cursorRect, _cursorPaint);
-      if (_cursor.shape == TerminalCursorShape.block) {
+      if (_effectiveCursorShape(frame.cursor) == TerminalCursorShape.block) {
         _paintCursorText(canvas, frame, frame.cursor, cursorColor);
       }
     } else {
@@ -1746,12 +1746,15 @@ class RenderTerminalViewport extends RenderBox {
   }
 
   Rect _cursorRect(TerminalCursor cursor) {
-    return switch (_cursor.shape) {
+    return switch (_effectiveCursorShape(cursor)) {
       TerminalCursorShape.block => _cursorBlockRect(cursor),
       TerminalCursorShape.beam => _cursorBeamRect(cursor),
       TerminalCursorShape.underline => _cursorUnderlineRect(cursor),
     };
   }
+
+  TerminalCursorShape _effectiveCursorShape(TerminalCursor cursor) =>
+      cursor.shape ?? _cursor.shape;
 
   Rect _cursorBlockRect(TerminalCursor cursor) {
     final sizedText = _sizedTextAtCursor(cursor);

@@ -1,6 +1,7 @@
 //! iTerm2 OSC 1337 sequence handling
 
 use super::sanitize_osc_text;
+use crate::cursor::CursorShape;
 use crate::debug;
 use crate::terminal::event::ShellIntegrationSource;
 use crate::terminal::{CwdChangeSource, Terminal, TerminalEvent};
@@ -35,6 +36,8 @@ impl Terminal {
                 self.handle_iterm_set_mark();
             } else if let Some(payload) = data.strip_prefix("ShellIntegrationVersion=") {
                 self.handle_shell_integration_version(payload);
+            } else if let Some(payload) = data.strip_prefix("CursorShape=") {
+                self.handle_iterm_cursor_shape(payload);
             } else if data == "ReportCellSize" {
                 self.terminal_events
                     .push(TerminalEvent::CellSizeReportRequested);
@@ -42,6 +45,16 @@ impl Terminal {
                 self.handle_iterm_image(&data);
             }
         }
+    }
+
+    fn handle_iterm_cursor_shape(&mut self, payload: &str) {
+        let shape = match payload {
+            "0" => CursorShape::Block,
+            "1" => CursorShape::Bar,
+            "2" => CursorShape::Underline,
+            _ => return,
+        };
+        self.cursor.set_shape(shape);
     }
 
     fn handle_iterm_set_mark(&mut self) {
@@ -310,6 +323,76 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    #[test]
+    fn cursor_shape_maps_exact_iterm_values_without_overriding_blink() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.process(b"\x1b]1337;CursorShape=1\x07");
+        assert_eq!(
+            terminal.cursor().shape_override(),
+            Some(crate::cursor::CursorShape::Bar)
+        );
+        assert_eq!(terminal.cursor().blink_override(), None);
+
+        terminal.process(b"\x1b]1337;CursorShape=2\x1b\\");
+        assert_eq!(
+            terminal.cursor().shape_override(),
+            Some(crate::cursor::CursorShape::Underline)
+        );
+        terminal.process(b"\x1b]1337;CursorShape=3\x07");
+        terminal.process(b"\x1b]1337;CursorShape=01\x07");
+        assert_eq!(
+            terminal.cursor().shape_override(),
+            Some(crate::cursor::CursorShape::Underline)
+        );
+
+        terminal.process(b"\x1b[4 q\x1b]1337;CursorShape=1\x07");
+        assert_eq!(
+            terminal.cursor().shape_override(),
+            Some(crate::cursor::CursorShape::Bar)
+        );
+        assert_eq!(terminal.cursor().blink_override(), Some(false));
+    }
+
+    #[test]
+    fn cursor_shape_accepts_every_byte_split_and_both_terminators() {
+        for sequence in [
+            b"\x1b]1337;CursorShape=1\x07".as_slice(),
+            b"\x1b]1337;CursorShape=2\x1b\\".as_slice(),
+        ] {
+            for split in 1..sequence.len() {
+                let mut terminal = Terminal::new(80, 24);
+                terminal.process(&sequence[..split]);
+                terminal.process(&sequence[split..]);
+                assert!(
+                    terminal.cursor().shape_override().is_some(),
+                    "split={split}"
+                );
+                assert_eq!(terminal.cursor().blink_override(), None);
+            }
+        }
+    }
+
+    #[test]
+    fn cursor_shape_is_restored_across_alternate_screen_and_ris() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.process(b"\x1b]1337;CursorShape=1\x07");
+        terminal.process(b"\x1b[?1049h\x1b]1337;CursorShape=2\x07");
+        assert_eq!(
+            terminal.cursor().shape_override(),
+            Some(crate::cursor::CursorShape::Underline)
+        );
+
+        terminal.process(b"\x1b[?1049l");
+        assert_eq!(
+            terminal.cursor().shape_override(),
+            Some(crate::cursor::CursorShape::Bar)
+        );
+
+        terminal.process(b"\x1bc");
+        assert_eq!(terminal.cursor().shape_override(), None);
+        assert_eq!(terminal.cursor().blink_override(), None);
     }
 
     #[test]

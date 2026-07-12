@@ -48,7 +48,13 @@ TerminalFrameWireFixture completeTerminalFrameWireFixture({
           ],
         },
       ],
-      'cursor': <String, Object?>{'row': 1, 'col': 3, 'visible': true},
+      'cursor': <String, Object?>{
+        'row': 1,
+        'col': 3,
+        'visible': true,
+        'shape': 'underline',
+        'blink': false,
+      },
       'selection': <String, Object?>{
         'start_row': 1,
         'start_col': 0,
@@ -177,7 +183,13 @@ TerminalFrameWireFixture completeTerminalFrameWireFixture({
           ],
         ),
       ],
-      cursor: frame_pb.TerminalCursor(row: 1, col: 3, visible: true),
+      cursor: frame_pb.TerminalCursor(
+        row: 1,
+        col: 3,
+        visible: true,
+        shape: 'underline',
+        blink: false,
+      ),
       selection: frame_pb.TerminalSelection(
         present: true,
         startRow: 1,
@@ -320,6 +332,8 @@ Map<String, Object?> terminalFrameProjection(TerminalFrameDiff frame) {
       'row': frame.cursor.row,
       'col': frame.cursor.col,
       'visible': frame.cursor.visible,
+      'shape': frame.cursor.shape?.name,
+      'blink': frame.cursor.blink,
     },
     'selection': selection == null
         ? null

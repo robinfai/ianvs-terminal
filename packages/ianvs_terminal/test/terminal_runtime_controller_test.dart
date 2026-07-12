@@ -154,6 +154,59 @@ void main() {
     },
   );
 
+  test('cursor-only deltas apply and clear protocol overrides', () {
+    final controller = TerminalViewportController();
+    addTearDown(controller.dispose);
+    controller.updateFrame(
+      const TerminalFrameDiff(
+        rows: [TerminalRow(index: 0, text: 'prompt')],
+        cursor: TerminalCursor(row: 0, col: 6, visible: true),
+        viewportRows: 1,
+        viewportCols: 80,
+        dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+      ),
+    );
+
+    controller.updateFrame(
+      const TerminalFrameDiff(
+        frameKind: TerminalFrameKind.delta,
+        rows: [],
+        cursor: TerminalCursor(
+          row: 0,
+          col: 6,
+          visible: true,
+          shape: TerminalCursorShape.beam,
+          blink: false,
+        ),
+        viewportRows: 1,
+        viewportCols: 80,
+        dirtyRanges: [],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+      ),
+    );
+    expect(controller.frame.cursor.shape, TerminalCursorShape.beam);
+    expect(controller.frame.cursor.blink, isFalse);
+    expect(controller.frame.rows.single.text, 'prompt');
+
+    controller.updateFrame(
+      const TerminalFrameDiff(
+        frameKind: TerminalFrameKind.delta,
+        rows: [],
+        cursor: TerminalCursor(row: 0, col: 6, visible: true),
+        viewportRows: 1,
+        viewportCols: 80,
+        dirtyRanges: [],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+      ),
+    );
+    expect(controller.frame.cursor.shape, isNull);
+    expect(controller.frame.cursor.blink, isNull);
+  });
+
   test(
     'terminal viewport controller treats graphics as frame-authoritative',
     () {

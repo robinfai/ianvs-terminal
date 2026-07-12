@@ -177,18 +177,15 @@ impl Terminal {
 
                     // Handle DECSCUSR
                     use crate::cursor::CursorStyle;
-                    self.cursor.style = match n {
-                        0 | 1 => CursorStyle::BlinkingBlock,
-                        2 => CursorStyle::SteadyBlock,
-                        3 => CursorStyle::BlinkingUnderline,
-                        4 => CursorStyle::SteadyUnderline,
-                        5 => CursorStyle::BlinkingBar,
-                        6 => CursorStyle::SteadyBar,
-                        _ => CursorStyle::BlinkingBlock,
-                    };
-
-                    // Handle DECSWBV (VT520)
-                    self.warning_bell_volume = n.min(8) as u8;
+                    match n {
+                        0 | 1 => self.cursor.set_style(CursorStyle::BlinkingBlock),
+                        2 => self.cursor.set_style(CursorStyle::SteadyBlock),
+                        3 => self.cursor.set_style(CursorStyle::BlinkingUnderline),
+                        4 => self.cursor.set_style(CursorStyle::SteadyUnderline),
+                        5 => self.cursor.set_style(CursorStyle::BlinkingBar),
+                        6 => self.cursor.set_style(CursorStyle::SteadyBar),
+                        _ => {}
+                    }
                 }
             }
             's' => {

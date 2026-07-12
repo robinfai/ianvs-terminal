@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui';
 
+import '../config/terminal_config.dart';
 import '../proto/frame_diff.pb.dart' as frame_pb;
 import '../transport/terminal_frame_validation_limits.dart';
 import '../transport/terminal_wire_compatibility.dart';
@@ -237,11 +238,15 @@ class TerminalCursor {
     required this.row,
     required this.col,
     required this.visible,
+    this.shape,
+    this.blink,
   });
 
   final int row;
   final int col;
   final bool visible;
+  final TerminalCursorShape? shape;
+  final bool? blink;
 
   factory TerminalCursor.fromJson(Map<String, Object?> json) {
     final cursor = TerminalCursor.tryFromJson(json);
@@ -258,8 +263,23 @@ class TerminalCursor {
     if (row == null || row < 0 || col == null || col < 0 || visible is! bool) {
       return null;
     }
-    return TerminalCursor(row: row, col: col, visible: visible);
+    return TerminalCursor(
+      row: row,
+      col: col,
+      visible: visible,
+      shape: _terminalCursorShapeFromWire(json['shape']),
+      blink: json['blink'] is bool ? json['blink']! as bool : null,
+    );
   }
+}
+
+TerminalCursorShape? _terminalCursorShapeFromWire(Object? value) {
+  return switch (value) {
+    'block' => TerminalCursorShape.block,
+    'underline' => TerminalCursorShape.underline,
+    'beam' => TerminalCursorShape.beam,
+    _ => null,
+  };
 }
 
 class TerminalSelection {
@@ -1402,6 +1422,10 @@ TerminalCursor _terminalCursorFromProtobuf(frame_pb.TerminalCursor cursor) {
     row: cursor.row,
     col: cursor.col,
     visible: cursor.visible,
+    shape: cursor.hasShape()
+        ? _terminalCursorShapeFromWire(cursor.shape)
+        : null,
+    blink: cursor.hasBlink() ? cursor.blink : null,
   );
 }
 

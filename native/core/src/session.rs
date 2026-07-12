@@ -1,10 +1,11 @@
 use crate::frame_diff_proto;
 use crate::model::{
-    MAX_SCROLLBACK_LINES, TERMINAL_FRAME_SCHEMA_VERSION, TerminalCursor, TerminalDirtyRange,
-    TerminalEmulation, TerminalEvent, TerminalFrameDiff, TerminalFrameKind, TerminalFrameModes,
-    TerminalGraphicPlacement, TerminalHyperlinkRange, TerminalProfile, TerminalProfileAnsiColors,
-    TerminalProfileColors, TerminalRow, TerminalSearchMatch, TerminalSelectionRequest,
-    TerminalSizedTextPlacement, TerminalStyleRun, normalize_scrollback_lines,
+    MAX_SCROLLBACK_LINES, TERMINAL_FRAME_SCHEMA_VERSION, TerminalCursor, TerminalCursorShape,
+    TerminalDirtyRange, TerminalEmulation, TerminalEvent, TerminalFrameDiff, TerminalFrameKind,
+    TerminalFrameModes, TerminalGraphicPlacement, TerminalHyperlinkRange, TerminalProfile,
+    TerminalProfileAnsiColors, TerminalProfileColors, TerminalRow, TerminalSearchMatch,
+    TerminalSelectionRequest, TerminalSizedTextPlacement, TerminalStyleRun,
+    normalize_scrollback_lines,
 };
 use crate::pty::spawn_pty;
 use par_term_emu_core_rust::cell::{Cell, CellFlags};
@@ -2823,6 +2824,14 @@ fn terminal_cursor_snapshot(cursor: &par_term_emu_core_rust::cursor::Cursor) -> 
         row: cursor.row,
         col: cursor.col,
         visible: cursor.visible,
+        shape: cursor.shape_override().map(|shape| match shape {
+            par_term_emu_core_rust::cursor::CursorShape::Block => TerminalCursorShape::Block,
+            par_term_emu_core_rust::cursor::CursorShape::Underline => {
+                TerminalCursorShape::Underline
+            }
+            par_term_emu_core_rust::cursor::CursorShape::Bar => TerminalCursorShape::Beam,
+        }),
+        blink: cursor.blink_override(),
     }
 }
 

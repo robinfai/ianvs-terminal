@@ -212,6 +212,13 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
                         .any(|event| matches!(event, TerminalEvent::CellSizeReportRequested))
                 );
             }
+            "osc1337_dynamic_cursor_shape" => {
+                assert_eq!(
+                    terminal.cursor().shape_override(),
+                    Some(par_term_emu_core_rust::cursor::CursorShape::Block)
+                );
+                assert_eq!(terminal.cursor().blink_override(), Some(true));
+            }
             "tmux_passthrough" => assert_eq!(
                 write_hyperlink_probe(&mut terminal),
                 Some((

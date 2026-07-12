@@ -111,6 +111,8 @@ fn to_proto_cursor(cursor: &TerminalCursor) -> pb::TerminalCursor {
         row: usize_to_u32(cursor.row),
         col: usize_to_u32(cursor.col),
         visible: cursor.visible,
+        shape: cursor.shape.map(|shape| shape.as_str().to_string()),
+        blink: cursor.blink,
     }
 }
 

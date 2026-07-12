@@ -764,6 +764,9 @@ fn classify_osc_1337(
     if payload == b"ReportCellSize" || (!complete && b"ReportCellSize".starts_with(payload)) {
         return Classification::new(OscIntent::Appearance, OscCapability::Appearance);
     }
+    if payload.starts_with(b"CursorShape=") || (!complete && b"CursorShape=".starts_with(payload)) {
+        return Classification::new(OscIntent::Appearance, OscCapability::Appearance);
+    }
     if payload.starts_with(b"SetBadgeFormat=") {
         return Classification::new(OscIntent::UserVariableOrBadge, OscCapability::Appearance);
     }
@@ -1105,6 +1108,31 @@ mod tests {
                 "{capability:?} did not report a category-only denial"
             );
         }
+    }
+
+    #[test]
+    fn osc1337_cursor_shape_uses_only_the_appearance_capability() {
+        let sequence = b"\x1b]1337;CursorShape=1\x1b\\";
+        let context = OscClassificationContext::default();
+
+        let mut appearance_denied = OscCapabilityPolicy::default();
+        appearance_denied.set(OscCapability::Appearance, false);
+        let mut gate = OscStreamGate::default();
+        assert!(filter_owned(&mut gate, sequence, appearance_denied, context).is_empty());
+        assert_eq!(
+            gate.diagnostics()
+                .for_intent(OscIntent::Appearance)
+                .policy_denied,
+            1
+        );
+
+        let mut metadata_denied = OscCapabilityPolicy::default();
+        metadata_denied.set(OscCapability::Metadata, false);
+        let mut gate = OscStreamGate::default();
+        assert_eq!(
+            filter_owned(&mut gate, sequence, metadata_denied, context),
+            sequence
+        );
     }
 
     #[test]

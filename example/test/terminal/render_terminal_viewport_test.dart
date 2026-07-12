@@ -6266,6 +6266,37 @@ void main() {
     expect(cursorRect.bottom, cellSize.height);
   });
 
+  testWidgets('protocol cursor shape overrides the configured profile shape', (
+    tester,
+  ) async {
+    final renderObject = await _pumpThemedTerminalViewport(
+      tester,
+      themeMode: ThemeMode.dark,
+      frame: const TerminalFrameDiff(
+        rows: [TerminalRow(index: 0, text: 'ready')],
+        cursor: TerminalCursor(
+          row: 0,
+          col: 2,
+          visible: true,
+          shape: TerminalCursorShape.beam,
+        ),
+        viewportRows: 24,
+        viewportCols: 80,
+        dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+      ),
+      cursor: const TerminalCursorConfig(shape: TerminalCursorShape.underline),
+    );
+
+    final cursorRect = renderObject.debugCursorRect!;
+    final cellSize = renderObject.debugCellSize;
+
+    expect(cursorRect.left, 2 * cellSize.width);
+    expect(cursorRect.width, lessThan(cellSize.width / 2));
+    expect(cursorRect.height, cellSize.height);
+  });
+
   testWidgets('terminal viewport updates measured cells for font overrides', (
     tester,
   ) async {
@@ -6385,6 +6416,58 @@ void main() {
       expect(renderObject.debugCursorVisible, isTrue);
     },
   );
+
+  testWidgets('protocol steady cursor overrides a blinking profile', (
+    tester,
+  ) async {
+    final focusNode = FocusNode(debugLabel: 'terminal-steady-protocol-focus');
+    addTearDown(focusNode.dispose);
+    final controller = TerminalViewportController()
+      ..updateFrame(
+        const TerminalFrameDiff(
+          rows: [TerminalRow(index: 0, text: 'ready')],
+          cursor: TerminalCursor(row: 0, col: 2, visible: true, blink: false),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+    final inputController = TerminalInputController(
+      sessionId: '1',
+      runtime: testRuntime(FakePtyBackend()),
+      readSelection: () => '',
+      copySelection: (_) async {},
+      readClipboard: () async => '',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox(
+          width: 400,
+          height: 200,
+          child: TerminalViewport(
+            controller: controller,
+            selectionController: SelectionController(),
+            inputController: inputController,
+            onScrollLines: (_) {},
+            onScrollToOffset: (_) {},
+            focusNode: focusNode,
+            cursor: const TerminalCursorConfig(blink: true),
+          ),
+        ),
+      ),
+    );
+
+    focusNode.requestFocus();
+    await tester.pump();
+    final renderObject = tester.allRenderObjects
+        .whereType<RenderTerminalViewport>()
+        .last;
+    await tester.pump(const Duration(milliseconds: 700));
+    expect(renderObject.debugCursorVisible, isTrue);
+  });
 
   testWidgets(
     'terminal cursor resets visible when the frame cursor hides and shows again',

@@ -684,11 +684,15 @@ class TerminalCursor extends $pb.GeneratedMessage {
     $core.int? row,
     $core.int? col,
     $core.bool? visible,
+    $core.String? shape,
+    $core.bool? blink,
   }) {
     final result = create();
     if (row != null) result.row = row;
     if (col != null) result.col = col;
     if (visible != null) result.visible = visible;
+    if (shape != null) result.shape = shape;
+    if (blink != null) result.blink = blink;
     return result;
   }
 
@@ -708,6 +712,8 @@ class TerminalCursor extends $pb.GeneratedMessage {
     ..aI(1, _omitFieldNames ? '' : 'row', fieldType: $pb.PbFieldType.OU3)
     ..aI(2, _omitFieldNames ? '' : 'col', fieldType: $pb.PbFieldType.OU3)
     ..aOB(3, _omitFieldNames ? '' : 'visible')
+    ..aOS(4, _omitFieldNames ? '' : 'shape')
+    ..aOB(5, _omitFieldNames ? '' : 'blink')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -755,6 +761,24 @@ class TerminalCursor extends $pb.GeneratedMessage {
   $core.bool hasVisible() => $_has(2);
   @$pb.TagNumber(3)
   void clearVisible() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get shape => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set shape($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasShape() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearShape() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.bool get blink => $_getBF(4);
+  @$pb.TagNumber(5)
+  set blink($core.bool value) => $_setBool(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasBlink() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearBlink() => $_clearField(5);
 }
 
 class TerminalSelection extends $pb.GeneratedMessage {

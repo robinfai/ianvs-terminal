@@ -360,6 +360,27 @@
       }
     },
     {
+      "id": "osc1337_dynamic_cursor_shape",
+      "coverage": [
+        "OSC 1337 cursor shape",
+        "DECSCUSR cursor override coexistence"
+      ],
+      "protocol": "iTerm2 OSC 1337 and DECSCUSR",
+      "wire": {
+        "chunks_hex": [
+          "1b5d313333373b437572736f7253686170653d311b5c1b5b3420711b5b3020711b5d313333373b437572736f7253686170653d3907"
+        ],
+        "sequence_count": 2
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "dynamic_cursor_shape",
+        "state_effect": "OSC selects a beam without changing profile blink, DECSCUSR selects a steady underline, and Ps=0 selects a blinking block without changing bell volume",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
       "id": "tmux_passthrough",
       "coverage": ["tmux passthrough fixture"],
       "protocol": "tmux DCS passthrough carrying OSC 8",

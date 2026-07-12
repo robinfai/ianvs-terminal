@@ -591,7 +591,9 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   bool get _shouldBlinkCursor =>
-      widget.cursor.blink && _focusNode.hasFocus && _canDisplayFrameCursor;
+      (widget.controller.frame.cursor.blink ?? widget.cursor.blink) &&
+      _focusNode.hasFocus &&
+      _canDisplayFrameCursor;
 
   void _syncCursorBlinkTimer() {
     if (_shouldBlinkCursor) {

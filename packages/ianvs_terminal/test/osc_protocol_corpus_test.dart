@@ -160,6 +160,12 @@ void _validateFixture(String id, Map<String, Object?> fixture) {
     expect(text, contains('ShellIntegrationVersion=17;zsh'));
     expect(text, contains('SetMark'));
     expect(text, contains('ReportCellSize'));
+  } else if (id == 'osc1337_dynamic_cursor_shape') {
+    final text = latin1.decode(stream);
+    expect(text, contains('\x1b]1337;CursorShape=1\x1b\\'));
+    expect(text, contains('\x1b[4 q'));
+    expect(text, contains('\x1b[0 q'));
+    expect(text, endsWith('\x1b]1337;CursorShape=9\x07'));
   }
 }
 

@@ -902,13 +902,10 @@ sleep 1
       expect(pane.shellIntegration.shell, 'zsh');
       expect(pane.shellIntegration.integrationVersion, '17');
       expect(pane.shellIntegration.promptMarks, isNotEmpty);
-      expect(
-        pane.shellIntegration.promptMarks.last.globalLine,
-        isNotNull,
-      );
-      final text = _activeFrame(harness.container)!.rows
-          .map((row) => row.text)
-          .join('\n');
+      expect(pane.shellIntegration.promptMarks.last.globalLine, isNotNull);
+      final text = _activeFrame(
+        harness.container,
+      )!.rows.map((row) => row.text).join('\n');
       final response = RegExp(
         r'ReportCellSize=(\d+\.\d{2});(\d+\.\d{2});(\d+\.\d{2})',
       ).firstMatch(text);
@@ -916,6 +913,62 @@ sleep 1
       expect(double.parse(response!.group(1)!), greaterThan(0));
       expect(double.parse(response.group(2)!), greaterThan(0));
       expect(double.parse(response.group(3)!), greaterThanOrEqualTo(1));
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
+    'real PTY OSC 1337 and DECSCUSR cursor shapes reach the renderer',
+    (tester) async {
+      final oscFile = _tempSignalFile('osc1337-cursor-shape');
+      final csiFile = _tempSignalFile('decscusr-cursor-shape');
+      final profile = _scriptProfile(
+        id: 'osc1337-cursor-shape',
+        name: 'OSC 1337 Cursor Shape',
+        script: r'''
+printf 'osc1337-cursor-ready\n'
+while [ ! -f "$OSC_FILE" ]; do sleep 0.05; done
+printf '\033]1337;CursorShape=1\033\\OSC1337-CURSOR-BEAM\n'
+while [ ! -f "$CSI_FILE" ]; do sleep 0.05; done
+printf '\033[4 qDECSCUSR-CURSOR-UNDERLINE\n'
+sleep 1
+''',
+        env: {'OSC_FILE': oscFile.path, 'CSI_FILE': csiFile.path},
+      );
+      final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
+
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'OSC 1337 cursor ready marker',
+        matches: (text) => text.contains('osc1337-cursor-ready'),
+      );
+      _signal(oscFile);
+      await _waitFor(
+        tester,
+        description: 'OSC 1337 beam cursor frame',
+        condition: () {
+          final frame = _activeFrame(harness.container);
+          return frame?.cursor.shape == terminal.TerminalCursorShape.beam &&
+              frame!.cursor.blink == null &&
+              frame.rows.any((row) => row.text.contains('OSC1337-CURSOR-BEAM'));
+        },
+      );
+
+      _signal(csiFile);
+      await _waitFor(
+        tester,
+        description: 'DECSCUSR steady underline cursor frame',
+        condition: () {
+          final frame = _activeFrame(harness.container);
+          return frame?.cursor.shape ==
+                  terminal.TerminalCursorShape.underline &&
+              frame!.cursor.blink == false &&
+              frame.rows.any(
+                (row) => row.text.contains('DECSCUSR-CURSOR-UNDERLINE'),
+              );
+        },
+      );
     },
     skip: _skipNonRefreshPolicyGateTests,
   );

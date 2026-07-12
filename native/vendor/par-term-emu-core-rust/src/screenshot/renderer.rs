@@ -1953,6 +1953,8 @@ mod tests {
             row: 2,
             visible: true,
             style: CursorStyle::SteadyBlock,
+            shape_explicit: true,
+            blink_explicit: true,
         };
         renderer.render_cursor(&mut image, &cursor);
         // Block cursor at (col=2, row=2) blends at 50% alpha with white cursor_color

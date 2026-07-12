@@ -60,6 +60,50 @@ void main() {
       expect(zeroProtobuf.globalBottomRow, 0);
     });
 
+    test(
+      'dynamic cursor overrides preserve optional compatibility semantics',
+      () {
+        final legacyJson = TerminalFrameDiff.fromJson(_jsonFrame());
+        final dynamicJson = TerminalFrameDiff.fromJson(<String, Object?>{
+          ..._jsonFrame(),
+          'cursor': <String, Object?>{
+            'row': 0,
+            'col': 0,
+            'visible': true,
+            'shape': 'beam',
+            'blink': false,
+          },
+        });
+        final legacyProtobuf = TerminalFrameDiff.fromProtobufBytes(
+          frame_pb.TerminalFrameDiff(
+            viewportRows: 1,
+            viewportCols: 1,
+            cursor: frame_pb.TerminalCursor(visible: true),
+          ).writeToBuffer(),
+        );
+        final dynamicProtobuf = TerminalFrameDiff.fromProtobufBytes(
+          frame_pb.TerminalFrameDiff(
+            viewportRows: 1,
+            viewportCols: 1,
+            cursor: frame_pb.TerminalCursor(
+              visible: true,
+              shape: 'beam',
+              blink: false,
+            ),
+          ).writeToBuffer(),
+        );
+
+        expect(legacyJson.cursor.shape, isNull);
+        expect(legacyJson.cursor.blink, isNull);
+        expect(legacyProtobuf.cursor.shape, isNull);
+        expect(legacyProtobuf.cursor.blink, isNull);
+        expect(dynamicJson.cursor.shape, TerminalCursorShape.beam);
+        expect(dynamicJson.cursor.blink, isFalse);
+        expect(dynamicProtobuf.cursor.shape, TerminalCursorShape.beam);
+        expect(dynamicProtobuf.cursor.blink, isFalse);
+      },
+    );
+
     test('OSC 8 protocol identifiers survive JSON and protobuf decoding', () {
       final jsonFrame = TerminalFrameDiff.fromJson(
         _jsonFrame(

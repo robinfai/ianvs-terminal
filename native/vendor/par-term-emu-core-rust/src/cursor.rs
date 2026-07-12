@@ -16,6 +16,14 @@ pub enum CursorStyle {
     SteadyBar,
 }
 
+/// Cursor shape independent of blink behavior.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CursorShape {
+    Block,
+    Underline,
+    Bar,
+}
+
 /// Cursor state and position
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Cursor {
@@ -27,6 +35,10 @@ pub struct Cursor {
     pub visible: bool,
     /// Cursor style (DECSCUSR)
     pub style: CursorStyle,
+    /// Whether a protocol explicitly overrode the configured cursor shape.
+    pub shape_explicit: bool,
+    /// Whether a protocol explicitly overrode the configured blink behavior.
+    pub blink_explicit: bool,
 }
 
 impl Default for Cursor {
@@ -36,6 +48,8 @@ impl Default for Cursor {
             row: 0,
             visible: true,
             style: CursorStyle::default(),
+            shape_explicit: false,
+            blink_explicit: false,
         }
     }
 }
@@ -96,6 +110,54 @@ impl Cursor {
     /// Set cursor style (DECSCUSR)
     pub fn set_style(&mut self, style: CursorStyle) {
         self.style = style;
+        self.shape_explicit = true;
+        self.blink_explicit = true;
+    }
+
+    /// Set only the cursor shape, preserving profile-owned blink behavior.
+    pub fn set_shape(&mut self, shape: CursorShape) {
+        let blinking = self.style_blinks();
+        self.style = match (shape, blinking) {
+            (CursorShape::Block, true) => CursorStyle::BlinkingBlock,
+            (CursorShape::Block, false) => CursorStyle::SteadyBlock,
+            (CursorShape::Underline, true) => CursorStyle::BlinkingUnderline,
+            (CursorShape::Underline, false) => CursorStyle::SteadyUnderline,
+            (CursorShape::Bar, true) => CursorStyle::BlinkingBar,
+            (CursorShape::Bar, false) => CursorStyle::SteadyBar,
+        };
+        self.shape_explicit = true;
+    }
+
+    /// Clear protocol overrides so the renderer can use the configured profile.
+    pub fn clear_style_override(&mut self) {
+        self.style = CursorStyle::default();
+        self.shape_explicit = false;
+        self.blink_explicit = false;
+    }
+
+    /// Protocol-owned shape, if one has been set.
+    pub fn shape_override(&self) -> Option<CursorShape> {
+        self.shape_explicit.then(|| self.style_shape())
+    }
+
+    /// Protocol-owned blink behavior, if one has been set.
+    pub fn blink_override(&self) -> Option<bool> {
+        self.blink_explicit.then(|| self.style_blinks())
+    }
+
+    fn style_shape(&self) -> CursorShape {
+        match self.style {
+            CursorStyle::BlinkingBlock | CursorStyle::SteadyBlock => CursorShape::Block,
+            CursorStyle::BlinkingUnderline | CursorStyle::SteadyUnderline => CursorShape::Underline,
+            CursorStyle::BlinkingBar | CursorStyle::SteadyBar => CursorShape::Bar,
+        }
+    }
+
+    fn style_blinks(&self) -> bool {
+        matches!(
+            self.style,
+            CursorStyle::BlinkingBlock | CursorStyle::BlinkingUnderline | CursorStyle::BlinkingBar
+        )
     }
 
     /// Get cursor style
@@ -220,6 +282,21 @@ mod tests {
 
         cursor.set_style(CursorStyle::SteadyBar);
         assert_eq!(cursor.style(), CursorStyle::SteadyBar);
+        assert_eq!(cursor.shape_override(), Some(CursorShape::Bar));
+        assert_eq!(cursor.blink_override(), Some(false));
+    }
+
+    #[test]
+    fn shape_only_override_preserves_blink_and_reset_restores_profile_fallback() {
+        let mut cursor = Cursor::new();
+        cursor.set_shape(CursorShape::Underline);
+        assert_eq!(cursor.style(), CursorStyle::BlinkingUnderline);
+        assert_eq!(cursor.shape_override(), Some(CursorShape::Underline));
+        assert_eq!(cursor.blink_override(), None);
+
+        cursor.clear_style_override();
+        assert_eq!(cursor.shape_override(), None);
+        assert_eq!(cursor.blink_override(), None);
     }
 
     #[test]

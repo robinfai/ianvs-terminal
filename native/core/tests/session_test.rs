@@ -728,6 +728,51 @@ fn osc1337_shell_metadata_profile(emulation: TerminalEmulation) -> TerminalProfi
     )
 }
 
+fn osc1337_cursor_shape_profile(emulation: TerminalEmulation) -> TerminalProfile {
+    local_profile(
+        "osc1337-cursor-shape",
+        "OSC1337 Cursor Shape",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import sys,time; sys.stdout.buffer.write(b"\x1b]1337;CursorShape=1\x1b\\OSC1337-CURSOR-BEAM\n"); sys.stdout.flush(); time.sleep(0.5)'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        emulation,
+    )
+}
+
+fn osc1337_cursor_shape_only_profile() -> TerminalProfile {
+    local_profile(
+        "osc1337-cursor-shape-only",
+        "OSC1337 Cursor Shape Only",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import sys,time; sys.stdout.buffer.write(b"\x1b]1337;CursorShape=1\x1b\\"); sys.stdout.flush(); time.sleep(0.5)'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn decscusr_cursor_shape_profile() -> TerminalProfile {
+    local_profile(
+        "decscusr-cursor-shape",
+        "DECSCUSR Cursor Shape",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import sys,time; sys.stdout.buffer.write(b"\x1b[4 qDECSCUSR-CURSOR-UNDERLINE\n"); sys.stdout.flush(); time.sleep(0.5)'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
 fn osc_notification_progress_badge_profile() -> TerminalProfile {
     local_profile(
         "osc-notification-progress-badge",
@@ -1972,6 +2017,24 @@ fn assert_frame_json_protobuf_pointer_shape_parity(frame: &str, expected: &str) 
     let protobuf = ianvs_core::frame_diff_proto::decode_frame_diff_for_test(&protobuf_bytes)
         .expect("decode the same pointer-shape protobuf frame");
     assert_eq!(protobuf.pointer_shape, expected);
+}
+
+fn assert_frame_json_protobuf_cursor_override_parity(
+    frame: &str,
+    expected_shape: Option<&str>,
+    expected_blink: Option<bool>,
+) {
+    let parsed: serde_json::Value = serde_json::from_str(frame).unwrap();
+    assert_eq!(parsed["cursor"]["shape"].as_str(), expected_shape);
+    assert_eq!(parsed["cursor"]["blink"].as_bool(), expected_blink);
+    let frame_model: ianvs_core::model::TerminalFrameDiff = serde_json::from_str(frame).unwrap();
+    let protobuf_bytes = ianvs_core::frame_diff_proto::encode_frame_diff(&frame_model)
+        .expect("encode the same cursor-override frame as protobuf");
+    let protobuf = ianvs_core::frame_diff_proto::decode_frame_diff_for_test(&protobuf_bytes)
+        .expect("decode the same cursor-override protobuf frame");
+    let cursor = protobuf.cursor.expect("protobuf cursor");
+    assert_eq!(cursor.shape.as_deref(), expected_shape);
+    assert_eq!(cursor.blink, expected_blink);
 }
 
 fn assert_frame_json_protobuf_sized_text_parity(frame: &str) {
@@ -17882,6 +17945,63 @@ fn vt220_sessions_gate_osc1337_mark_version_and_cell_size_request() {
         }));
         thread::sleep(Duration::from_millis(50));
     }
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_osc1337_cursor_shape_crosses_real_pty_and_frame_codecs() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc1337_cursor_shape_profile(TerminalEmulation::Xterm256)).unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "OSC1337-CURSOR-BEAM");
+    assert_frame_json_protobuf_cursor_override_parity(&frame, Some("beam"), None);
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_osc1337_cursor_shape_only_emits_a_cursor_delta_frame() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc1337_cursor_shape_only_profile()).unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_where(session_id, |frame| {
+        serde_json::from_str::<serde_json::Value>(frame)
+            .ok()
+            .and_then(|value| value["cursor"]["shape"].as_str().map(str::to_owned))
+            .as_deref()
+            == Some("beam")
+    });
+    assert_frame_json_protobuf_cursor_override_parity(&frame, Some("beam"), None);
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_decscusr_cursor_style_crosses_real_pty_and_frame_codecs() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&decscusr_cursor_shape_profile()).unwrap())
+            .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "DECSCUSR-CURSOR-UNDERLINE");
+    assert_frame_json_protobuf_cursor_override_parity(&frame, Some("underline"), Some(false));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_sessions_gate_osc1337_cursor_shape() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc1337_cursor_shape_profile(TerminalEmulation::Vt220)).unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "OSC1337-CURSOR-BEAM");
+    assert_frame_json_protobuf_cursor_override_parity(&frame, None, None);
 
     session::close_session(session_id).unwrap();
 }
