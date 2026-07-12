@@ -246,29 +246,62 @@ independently identified below with a scoped rollback path.
   second shell tab accepted input, and accessibility returned `SHELL ACTIVE`.
 - **Rollback:** revert `fbf9a37`; OSC 22 returns to bounded unsupported behavior.
 
+## Phase 12 report — Kitty OSC 66 sized text
+
+- **Start SHA:** `6a99296406baa7bd042c6c7e70eddd95ad674071`.
+- **Implementation SHA:** `54423525c25b42fe886094cd66b476022c98025c`.
+- **Modified files:** multicell cell/grid/parser state; reflow/edit/erase/export
+  paths; native frame model/protobuf/session bridge; Dart validation/runtime and
+  Flutter painter; mirrored corpus, semantic probe, real-PTY and protocol docs.
+- **Confirmed issue:** published Kitty OSC 66 was discarded, so applications
+  could not reserve exact widths or render integral/fractional sized text.
+- **Fixes:** bounded metadata and 4 KiB UTF-8 text; fixed/natural widths;
+  integral/fractional scale and alignment; complete overwrite/edit/erase,
+  scrollback, resize/reflow, snapshot/RIS and cursor behavior; additive typed
+  frame transport; clipped Flutter painting.
+- **Review fixes:** preserved valid blocks across width reflow; scanned and
+  sanitized history-only fragments; removed ED2/ED3 cross-boundary fragments;
+  enforced UTF-8 byte bounds in Dart; restored plain-output O(1) hot paths.
+- **Unfixed by design:** a renderer may downsize overfull text as allowed by the
+  protocol; OSC 72 remains a separate deferred drag-and-drop host action; Kitty
+  reference-terminal comparison remains pending.
+- **Security:** appearance-only policy, VT220 denial, payload-free rejection,
+  4 KiB text, 128-byte metadata, bounded dimensions and additive codecs.
+- **Tests/results:** corpus 20 cases/24 edge classes, probes 16; vendored 1,622
+  passed/1 ignored; native lib 74/74, corpus 1/1, session 457/457, vttest 3/3;
+  example grouped 914/914, Widget 125/125, macOS smoke 4/4, real PTY 21/21 and
+  RunnerTests 10/10.
+- **Computer Use:** cold-launch visual gate passed: live real-PTY scaled text,
+  protocol-defined EL erasure, clear/reset, command menu, Profiles, second-tab
+  input/output and `SHELL ACTIVE` all behaved as expected.
+- **Rollback:** revert the Phase 12 implementation commit; OSC 66 returns to
+  bounded unsupported behavior and protobuf tag 24 becomes unused.
+
 ## Deferred phases
 
 Phase 8 Kitty OSC 99 is implemented as the safe subset recorded in
 `osc99_phase8_20260711.md`. Phase 9 OSC 3008 is implemented as typed metadata in
 `osc3008_phase9_20260711.md`. Phase 10 OSC 21 and Phase 11 OSC 22 are implemented
 as recorded in `osc21_phase10_20260712.md` and `osc22_phase11_20260712.md`.
-Kitty OSC 66/72, unsafe iTerm2 upload/download/actions, arbitrary
+Phase 12 Kitty OSC 66 is implemented as recorded in
+`osc66_phase12_20260712.md`.
+Kitty OSC 72, unsafe iTerm2 upload/download/actions, arbitrary
 URL/profile/command actions,
 notification buttons/sounds/icons and shell-provided execution are deferred.
 Unknown/deferred sequences remain bounded and cannot gain host authority.
 
 ## Final verification record
 
-The Phase 11 repository gate is green:
+The Phase 12 repository gate is green:
 
-- vendored fmt, strict Clippy and tests: 1,606 passed, 1 ignored; doc tests 11
+- vendored fmt, strict Clippy and tests: 1,622 passed, 1 ignored; doc tests 11
   passed, 1 ignored;
-- native fmt/Clippy; lib 73/73, corpus 1/1, session 455/455, vttest 3/3;
-- corpus validator 19 cases (22 edge classes) and semantic probe self-test 15/15;
+- native fmt/Clippy; lib 74/74, corpus 1/1, session 457/457, vttest 3/3;
+- corpus validator 20 cases (24 edge classes) and semantic probe self-test 16/16;
 - Dart/Flutter analysis and protocol/runtime/controller/widget focused suites;
-- macOS smoke 4/4, real PTY 20/20 and native RunnerTests 10/10.
+- macOS smoke 4/4, real PTY 21/21 and native RunnerTests 10/10.
 
-Final committed-tree command:
+Final implementation-tree command:
 
 ```bash
 VERIFY_FLUTTER_TERMINAL_RUN_EXAMPLE_WIDGET_TESTS=1 \
@@ -278,7 +311,7 @@ VERIFY_FLUTTER_TERMINAL_RUN_EXAMPLE_WIDGET_TESTS=1 \
 Result: passed with exit code 0. This includes vendored/core format, strict
 Clippy and tests; PTY/Dart/Flutter analysis and tests; docs contract; CI smoke
 benchmark; 914 example grouped tests; complete example Widget tests 125/125;
-macOS smoke 4/4; and macOS real PTY acceptance 20/20. The optional nightly
+macOS smoke 4/4; and macOS real PTY acceptance 21/21. The optional nightly
 resource benchmark was not enabled because it is not a release gate. The
 verifier also rebuilds the standalone macOS app after Flutter integration tests
 and runs native RunnerTests 10/10.
@@ -290,9 +323,10 @@ superclass call was removed in `8a89afd`; `d2758a5` adds the native regression
 gate and isolates its test host from Flutter integration targets. The final
 repository verifier passed again after both fixes.
 
-The final Phase 11 Ianvs GUI Computer Use gate passed on a clean standalone cold
-launch: the shell rendered, OSC 22 `wait` set and empty reset probes produced
-their markers without control debris, the command menu and Profiles opened, a
-second tab accepted real shell input, and accessibility produced `SHELL ACTIVE`
-semantics. Reference-terminal evidence remains separately unproven for the
+The final Phase 12 Computer Use gate passed after manual unlock on a cold-launched
+standalone Debug app. A live real-PTY probe visibly rendered red scaled
+`OSC66-GATE` text and an adjacent marker; the subsequent prompt EL erased the
+entire intersecting block as specified. Clear/reset left no control-code debris,
+and the command menu, Profiles, second real-shell tab and `SHELL ACTIVE` state
+all passed. Reference-terminal evidence remains separately unproven for the
 safety-policy reason documented in `osc_cross_terminal_probe_20260711.md`.
