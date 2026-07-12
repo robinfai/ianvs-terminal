@@ -13,12 +13,15 @@
 - Kitty OSC 22 pointer-shape commit: `fbf9a37`.
 - Kitty OSC 66 sized-text commit: `5442352`.
 - Kitty OSC 72 target-subset commit: `260abc8`.
+- iTerm2 OSC 1337 shell-metadata commit: `4d080ae`.
 
-Phases 0–13 are implemented. Phase 12 adds bounded Kitty OSC 66 fixed/natural
+Phases 0–14 are implemented. Phase 12 adds bounded Kitty OSC 66 fixed/natural
 width, integral/fractional scale and alignment, full multicell grid semantics,
 typed frame transport and actual Flutter rendering. Phase 13 adds an honest
 macOS OSC 72 drop-target subset; outgoing and remote file-source actions remain
 denied. No unsupported opcode or host action is advertised as a product capability.
+Phase 14 adds iTerm2 SetMark, validated ShellIntegrationVersion metadata and an
+accurate logical ReportCellSize response without expanding host authority.
 
 ## Final classification
 
@@ -39,6 +42,7 @@ denied. No unsupported opcode or host action is advertised as a product capabili
 | confirmed compatibility gap | Kitty OSC 99 rich notification lifecycle absent | safe ID/title/body/Base64/update/close/application/type/query/expiry subset implemented; actions, buttons, sound, icons and commands remain denied |
 | confirmed compatibility gap | UAPI OSC 3008 hierarchical context metadata absent | bounded v1.0 hierarchy, lifecycle recovery, snapshot/RIS and typed events implemented; no UI/authority |
 | implemented safe subset / deferred remainder | Kitty OSC 72 | active-pane macOS target negotiation and user-dropped local MIME data are implemented; outgoing drags and remote file/directory authority remain denied |
+| confirmed compatibility gap | iTerm2 OSC 1337 SetMark, ShellIntegrationVersion and ReportCellSize were absent | Phase 14 maps marks and version into existing shell state and reports logical cell geometry plus DPR |
 | hypothesis requiring manual evidence | reference-terminal semantic consumption/echo/reply | not proven: Computer Use denies terminal-emulator UI control; see `osc_cross_terminal_probe_20260711.md` |
 
 ## Architecture and security result
@@ -74,6 +78,14 @@ native RunnerTests 12/12. Computer Use visibly confirmed the production OSC 72
 child query and exact `drop=1:offer=0` response. Finder's held asynchronous
 drag gesture is not claimed as visual evidence; its move/drop/data path is
 covered by deterministic product, real-PTY and native tests.
+
+The Phase 14 repository-wide verifier passed with corpus 22 cases/28 edge
+classes, probes 18, vendored 1,633 tests, native lib 75/75 and session 461/461,
+example grouped 923/923, complete Widget 125/125, macOS smoke 4/4, real PTY
+23/23 and native RunnerTests 12/12. Computer Use visibly confirmed the
+standalone app consumed SetMark and ShellIntegrationVersion, exposed shell
+`zsh` and version `17`, returned `ReportCellSize=22.00;8.40;2.00`, and remained
+interactive after the probe.
 
 The Phase 11 Ianvs GUI Computer Use gate passed on a clean cold launch. Real
 PTY OSC 22 `wait` set and empty reset sequences were consumed with visible

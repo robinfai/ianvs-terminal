@@ -355,3 +355,27 @@ safety-policy reason documented in `osc_cross_terminal_probe_20260711.md`.
   response; see `osc72_phase13_20260712.md` for the Finder gesture boundary.
 - **Rollback:** revert the Phase 13 implementation commit; OSC 72 returns to a
   bounded generic no-op with no config or wire compatibility break.
+
+## Phase 14 report — iTerm2 OSC 1337 shell metadata
+
+- **Start SHA:** `1e0cd05a8c7c8fe4f7dd71107790a560a10ad031`.
+- **Implementation SHA:** `4d080ae`.
+- **Confirmed gaps:** SetMark, ShellIntegrationVersion and ReportCellSize were
+  absent at the product boundary.
+- **Fixes:** typed primary-screen mark, validated version/shell metadata,
+  logical cell/DPR retention, bounded pre-layout query queue and exact
+  `height;width;scale` replies.
+- **Security:** metadata/appearance capabilities remain independent; VT220 and
+  explicit fine-grained policy deny while the legacy switch retains its
+  historical mapping; 100 product marks, 16 queued geometry queries,
+  no new host/file/process authority.
+- **Tests/results:** targeted parser, split, policy, corpus, native real PTY,
+  VT220, Dart runtime, product, Widget and macOS application real-PTY tests pass.
+  The repository-wide verifier passed with corpus 22/28, probes 18, vendored
+  1,633, native lib 75/75 and session 461/461, example grouped 923/923, Widget
+  125/125, macOS smoke 4/4, real PTY 23/23 and RunnerTests 12/12. Computer Use
+  visibly confirmed `P14-MARK`, `ReportCellSize=22.00;8.40;2.00`, `P14-PASS`,
+  shell/version state and post-probe interactive input on the standalone build.
+- **Compatibility:** additive events/state only; no protobuf/frame changes.
+- **Rollback:** revert the Phase 14 implementation commit; existing OSC 1337
+  CurrentDir/RemoteHost/UserVar/Badge behavior remains unchanged.
