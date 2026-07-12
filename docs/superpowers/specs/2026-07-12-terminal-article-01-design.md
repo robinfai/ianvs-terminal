@@ -66,6 +66,10 @@ Terminal     ＝ 两类 Shell 共同使用的人机界面
 1. 开发与运维不是互斥人群。DevOps、SRE 和平台工程会让两类需求在同一用户、同一会话中交汇。
 2. Terminal 本身不是系统能力的来源。真正长期存在的是 CLI、Shell、标准流和进程接口；Terminal 在需要人参与时承载交互，并因两类用户的要求而继续演进。
 
+这里的“开发侧”和“运维侧”是两种需求原型，不是两张封闭的职业名单。数据与 ML、科研计算、嵌入式、安全响应、数据库和网络等角色，都可以按自己面对的问题落入其中一侧，或者同时跨越两侧。
+
+还要区分“依赖 CLI/Shell”和“依赖 Terminal”：CI/CD、批处理系统和 AI Agent 通常可以不经过 Terminal 直接调用 CLI；只有运行交互程序、维持会话状态、观察现场或需要人工接管时，Terminal 才成为必要的人机界面。
+
 ## 主论证链
 
 ```text
@@ -236,12 +240,14 @@ Kubernetes 只作为证据：它以声明式 API 为正常控制面，却仍保�
 
 Terminal 没有停留在遗留兼容层，因为两类用户持续提出新要求：
 
-| 需求来源 | 主要诉求 | 推动的产品演进 |
-| --- | --- | --- |
-| 开发侧 Shell | 更短反馈循环、更少输入负担、更清晰上下文 | 现代输入编辑、补全、搜索、Block、命令历史、IDE 集成 |
-| 运维侧 Shell | 更广兼容、更稳会话、更低延迟、更可靠接管 | SSH、会话恢复、全屏程序支持、性能优化、兼容与降级路径 |
+| 需求原型 | 典型角色 | 主要诉求 | 推动的产品演进 |
+| --- | --- | --- | --- |
+| 开发侧 Shell | 应用与系统开发、数据与 ML、科研/HPC、构建发布、技术管线 | 更短反馈循环、更少输入负担、更清晰上下文 | 现代输入编辑、补全、搜索、Block、命令历史、IDE 集成 |
+| 运维侧 Shell | SRE 与运维、DBA、网络、安全响应、IT 支持与现场服务 | 更广兼容、更稳会话、更低延迟、更可靠接管 | SSH、会话恢复、全屏程序支持、性能优化、兼容与降级路径 |
 
 IDE 和云平台分别证明两种角色可以被上层产品收编，但没有被删除。DevOps、SRE 和平台工程又让它们在同一个 Terminal 产品里汇合。
+
+嵌入式、内核、驱动和机器人开发最能说明两类需求可以出现在同一角色身上：交叉编译、烧录和调试属于开发工作台；串口现场、远程目标和启动恢复又属于直接控制通道。正文用这一组交叉角色做 150—200 字旁证，其余角色只在表格中点到为止，避免文章变成职业枚举。
 
 本节点明标题中的“今天”：现代 Terminal 的持续迭代不是怀旧，而是两类仍在变化的 Shell 需求共同驱动的结果。
 
@@ -345,6 +351,15 @@ kubectl exec deployment/app -- cat /etc/resolv.conf
 | [Kubernetes `kubectl exec` 文档](https://kubernetes.io/docs/reference/kubectl/generated/kubectl_exec/) | 核对声明式平台保留直接命令入口的事实 |
 | [Kubernetes `exec.go`](https://github.com/kubernetes/kubectl/blob/master/pkg/cmd/exec/exec.go) | 从源码确认 `kubectl exec` 的命令入口与执行路径 |
 
+### 其他专业角色的旁证
+
+| 来源 | 阅读目的 |
+| --- | --- |
+| [Slurm `sbatch`](https://slurm.schedmd.com/sbatch.html) | 核对科研与 HPC 用户通过脚本提交批处理任务、接收标准输出和错误的工作方式 |
+| [GDB Remote Debugging](https://sourceware.org/gdb/current/onlinedocs/gdb.html/Remote-Debugging.html) | 核对内核、小型系统和远程目标无法运行完整调试器时的交互调试需求 |
+| [PostgreSQL `psql`](https://www.postgresql.org/docs/current/app-psql.html) | 观察 DBA 和数据工程角色如何同时使用交互式终端与脚本化数据库入口 |
+| [NIST SP 800-61 Rev. 3](https://csrc.nist.gov/pubs/sp/800/61/r3/final) | 支撑安全响应、分析与恢复是一类持续存在的现场工作；不将其作为 Terminal 必需性的直接证据 |
+
 ### Warp：基础 Terminal 之上的 Agent
 
 | 来源 | 阅读目的 |
@@ -389,6 +404,9 @@ kubectl exec deployment/app -- cat /etc/resolv.conf
 3. [Warp Full Terminal Use](https://docs.warp.dev/agent-platform/capabilities/full-terminal-use)
 4. [Warp Agent Profiles & Permissions](https://docs.warp.dev/agent-platform/capabilities/agent-profiles-permissions/)
 5. [Terminal Lucidity: Envisioning the Future of the Terminal](https://arxiv.org/abs/2504.13994)
+6. [Slurm `sbatch`](https://slurm.schedmd.com/sbatch.html)
+7. [GDB Remote Debugging](https://sourceware.org/gdb/current/onlinedocs/gdb.html/Remote-Debugging.html)
+8. [PostgreSQL `psql`](https://www.postgresql.org/docs/current/app-psql.html)
 
 ## 写作语气与术语约束
 
@@ -396,6 +414,7 @@ kubectl exec deployment/app -- cat /etc/resolv.conf
 
 - “去 Console 化”是对多轮产品趋势的概括，不是一个有统一名称和组织的正式历史运动。
 - 开发侧 Shell 是开放、可组合的日常工作台；运维侧 Shell 是直接控制与应急恢复通道。
+- “开发侧”和“运维侧”是需求原型，不是职业边界；专业角色可以落入一侧，也可以同时跨越两侧。
 - 两类 Shell 需求共同推动 Terminal 在生产力、兼容性、可靠性和 AI 方向持续迭代。
 - CLI 与 Shell 是长期能力基础；Terminal 是需要人参与时的界面。
 - AI Terminal 同时改善开发与运维体验，但不把 Agent 变成基础命令入口的前置条件。
@@ -418,6 +437,8 @@ kubectl exec deployment/app -- cat /etc/resolv.conf
 - [ ] 早期设备、Unix、VT100 和 SSH 的年份有一手资料支持。
 - [ ] 没有把 Terminal、Console、Shell、CLI、TTY、PTY 当作同义词。
 - [ ] 开发侧日常工作与运维侧直接控制均有事实和案例支持，权重没有失衡。
+- [ ] 其他专业角色按需求机制归类，没有扩张成与开发、运维并列的第三主线。
+- [ ] 没有把 CI/CD、批处理或 Agent 对 CLI/Shell 的依赖误写成对 Terminal 界面的必然依赖。
 - [ ] Kubernetes 案例只用于证明保留直接入口，不解释 TTY 参数或传输协议。
 - [ ] Warp 案例区分“保留基础链路”与“完全兼容所有终端能力”。
 - [ ] Warp 的 2021、2024、2025、2026 演进节点使用官方资料。
@@ -431,14 +452,15 @@ kubectl exec deployment/app -- cat /etc/resolv.conf
 1. 前 500 字内给出开发工作台、运维消防楼梯和一句话答案。
 2. 全文围绕“两类 Shell 需求为何持续存在并推动 Terminal 迭代”推进。
 3. 开发侧的日常使用与运维侧的直接控制、应急恢复得到同等清晰的解释。
-4. CLI、Shell 与 Terminal 的关系得到最小但准确的说明。
-5. Kubernetes、SSH、IDE 和 Warp 都只是论据，不形成第二主线。
-6. Kubernetes 不出现 TTY 参数、流式协议或 Runtime 调用链解释。
-7. Warp 技术细节只用于证明开发增强与基础兼容可以共存。
-8. 至少包含一张主 ASCII 图和开发、运维各一个短代码示例。
-9. 历史事实、现代产品判断和源码路径均有可追溯来源。
-10. 结尾不宣称 Terminal 重新成为大众主界面或 AI 的唯一未来。
-11. 最终落点是：开发需要工作台，运维需要消防楼梯；AI 让两类体验更顺滑。
+4. 数据与 ML、科研计算、嵌入式、安全响应、数据库和网络等角色被解释为两种需求原型的派生或交叉案例。
+5. CLI、Shell 与 Terminal 的关系得到最小但准确的说明，并明确自动化不必经过 Terminal。
+6. Kubernetes、SSH、IDE、专业角色和 Warp 都只是论据，不形成额外主线。
+7. Kubernetes 不出现 TTY 参数、流式协议或 Runtime 调用链解释。
+8. Warp 技术细节只用于证明开发增强与基础兼容可以共存。
+9. 至少包含一张主 ASCII 图和开发、运维各一个短代码示例。
+10. 历史事实、现代产品判断和源码路径均有可追溯来源。
+11. 结尾不宣称 Terminal 重新成为大众主界面或 AI 的唯一未来。
+12. 最终落点是：开发需要工作台，运维需要消防楼梯；AI 让两类体验更顺滑。
 
 ## 设计自检
 
@@ -446,4 +468,4 @@ kubectl exec deployment/app -- cat /etc/resolv.conf
 - 内部矛盾：已统一为“开发工作台与运维消防楼梯”的双重角色，未再把 Terminal 仅写成应急通道。
 - 范围：限定为第 1 篇的世界观与存续原因；协议和实现细节已明确后移。
 - 歧义：明确区分开发、运维两类需求及其交汇；明确 Warp 的基础链路保留不等于完整兼容。
-- 案例权重：IDE、Kubernetes 与 Warp 均服务双重需求主线，没有解释 TTY 参数或远程执行协议。
+- 案例权重：专业角色只作为需求原型的派生案例；IDE、Kubernetes 与 Warp 均服务双重需求主线，没有解释 TTY 参数或远程执行协议。
