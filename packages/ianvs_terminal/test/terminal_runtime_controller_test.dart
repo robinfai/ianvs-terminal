@@ -988,12 +988,16 @@ void main() {
       'scrollback_offset': 0,
       'scrollback_max_offset': 0,
       'cursor_color': ' #123456 ',
+      'selection_background': ' #234567 ',
+      'selection_foreground': ' #345678 ',
     });
 
     final run = frame.rows.single.styleRuns.first;
     expect(run.foreground, const Color(0xFF112233));
     expect(run.background, const Color(0x80445566));
     expect(frame.cursorColor, const Color(0xFF123456));
+    expect(frame.selectionBackground, const Color(0xFF234567));
+    expect(frame.selectionForeground, const Color(0xFF345678));
     expect(frame.rows.single.styleRuns.last.foreground, isNull);
   });
 
@@ -1411,6 +1415,8 @@ void main() {
       defaultForeground: frame_pb.ColorRgb(present: true, rgb: 0xaaaaaa),
       defaultBackground: frame_pb.ColorRgb(present: true, rgb: 0x101010),
       cursorColor: frame_pb.ColorRgb(present: true, rgb: 0xff00aa),
+      selectionBackground: frame_pb.ColorRgb(present: true, rgb: 0x123456),
+      selectionForeground: frame_pb.ColorRgb(present: true, rgb: 0xfedcba),
       pointerShape: 'zoom-in',
       sizedText: [
         frame_pb.TerminalSizedTextPlacement(
@@ -1521,6 +1527,8 @@ void main() {
     expect(frame.defaultForeground, const Color(0xFFAAAAAA));
     expect(frame.defaultBackground, const Color(0xFF101010));
     expect(frame.cursorColor, const Color(0xFFFF00AA));
+    expect(frame.selectionBackground, const Color(0xFF123456));
+    expect(frame.selectionForeground, const Color(0xFFFEDCBA));
     expect(frame.pointerShape, TerminalPointerShape.zoomIn);
     expect(frame.sizedText, hasLength(1));
     expect(frame.sizedText.single.text, 'AB');
@@ -7057,6 +7065,8 @@ void main() {
         'scrollback_offset': 0,
         'scrollback_max_offset': 0,
         'cursor_color': '#123456',
+        'selection_background': '#234567',
+        'selection_foreground': '#345678',
         'hyperlinks': <Object?>[
           <String, Object?>{
             'row': 0,
@@ -7109,6 +7119,8 @@ void main() {
         'https://example.com/beta',
       ]);
       expect(merged.cursorColor, const Color(0xFF123456));
+      expect(merged.selectionBackground, const Color(0xFF234567));
+      expect(merged.selectionForeground, const Color(0xFF345678));
     },
   );
 

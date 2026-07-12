@@ -74,6 +74,8 @@ TerminalFrameWireFixture completeTerminalFrameWireFixture({
       'default_foreground': '#010203',
       'default_background': '#F0E0D0',
       'cursor_color': '#00FF7F',
+      'selection_background': '#112233',
+      'selection_foreground': '#DDEEFF',
       'pointer_shape': 'zoom-in',
       'modes': <String, Object?>{
         'alternate_screen': true,
@@ -210,6 +212,8 @@ TerminalFrameWireFixture completeTerminalFrameWireFixture({
       defaultForeground: _protobufColor(0x010203),
       defaultBackground: _protobufColor(0xF0E0D0),
       cursorColor: _protobufColor(0x00FF7F),
+      selectionBackground: _protobufColor(0x112233),
+      selectionForeground: _protobufColor(0xDDEEFF),
       pointerShape: 'zoom-in',
       modes: frame_pb.TerminalFrameModes(
         alternateScreen: true,
@@ -357,6 +361,8 @@ Map<String, Object?> terminalFrameProjection(TerminalFrameDiff frame) {
     'defaultForeground': frame.defaultForeground?.toARGB32(),
     'defaultBackground': frame.defaultBackground?.toARGB32(),
     'cursorColor': frame.cursorColor?.toARGB32(),
+    'selectionBackground': frame.selectionBackground?.toARGB32(),
+    'selectionForeground': frame.selectionForeground?.toARGB32(),
     'pointerShape': frame.pointerShape?.wireName,
     'modes': <String, Object?>{
       'alternateScreen': frame.modes.alternateScreen,

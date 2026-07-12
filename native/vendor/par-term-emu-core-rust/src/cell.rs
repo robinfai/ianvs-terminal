@@ -236,6 +236,14 @@ impl CellFlags {
         self.bits.contains(CellBitflags::DEFAULT_FG_SOURCE)
     }
 
+    /// Whether the cell foreground came from the terminal default rather than
+    /// an explicit SGR color. This provenance controls xterm attribute-color
+    /// overrides when `colorAttrMode` has its default disabled value.
+    #[inline]
+    pub fn foreground_is_default(&self) -> bool {
+        self.fg_is_default()
+    }
+
     #[inline]
     pub(crate) fn bg_is_default(&self) -> bool {
         self.bits.contains(CellBitflags::DEFAULT_BG_SOURCE)

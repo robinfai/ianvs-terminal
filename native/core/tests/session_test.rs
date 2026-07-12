@@ -1414,6 +1414,21 @@ fn osc21_color_control_profile(emulation: TerminalEmulation) -> TerminalProfile 
     )
 }
 
+fn xterm_special_colors_profile(emulation: TerminalEmulation) -> TerminalProfile {
+    local_profile(
+        "xterm-special-colors",
+        "xterm Special Colors",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import os,select,sys,termios,time,tty; old=termios.tcgetattr(0); tty.setraw(0); time.sleep(0.2); os.write(1,b"\x1b]5;0;#ff00ff\x1b\\\x1b]6;0;1\x1b\\\x1b]17;#112233;#181818;#ddeeff\x1b\\\x1b]5;0;?\x1b\\\x1b]17;?;?;?\x1b\\"); sys.stdout.flush(); time.sleep(0.2); ready,_,_=select.select([0],[],[],2.0); data=os.read(0,1024) if ready else b"TIMEOUT"; termios.tcsetattr(0, termios.TCSANOW, old); os.write(1,b"XTERM-RESPONSE:"+repr(data).encode()+b"\n\x1b[1mB\x1b[38;2;1;2;3mR\x1b[0m XTERM-COLORS\n")'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        emulation,
+    )
+}
+
 fn osc22_pointer_shape_profile(emulation: TerminalEmulation) -> TerminalProfile {
     local_profile(
         "osc22-pointer-shape",
@@ -2017,6 +2032,39 @@ fn assert_frame_json_protobuf_pointer_shape_parity(frame: &str, expected: &str) 
     let protobuf = ianvs_core::frame_diff_proto::decode_frame_diff_for_test(&protobuf_bytes)
         .expect("decode the same pointer-shape protobuf frame");
     assert_eq!(protobuf.pointer_shape, expected);
+}
+
+fn assert_frame_json_protobuf_selection_color_parity(
+    frame: &str,
+    expected_background: u32,
+    expected_foreground: u32,
+) {
+    let parsed: serde_json::Value = serde_json::from_str(frame).unwrap();
+    let expected_background_hex = format!("#{expected_background:06x}");
+    let expected_foreground_hex = format!("#{expected_foreground:06x}");
+    assert_eq!(
+        parsed["selection_background"].as_str(),
+        Some(expected_background_hex.as_str())
+    );
+    assert_eq!(
+        parsed["selection_foreground"].as_str(),
+        Some(expected_foreground_hex.as_str())
+    );
+    let frame_model: ianvs_core::model::TerminalFrameDiff = serde_json::from_str(frame).unwrap();
+    let protobuf_bytes = ianvs_core::frame_diff_proto::encode_frame_diff(&frame_model)
+        .expect("encode selection-color frame");
+    let protobuf = ianvs_core::frame_diff_proto::decode_frame_diff_for_test(&protobuf_bytes)
+        .expect("decode selection-color protobuf frame");
+    let background = protobuf
+        .selection_background
+        .expect("protobuf selection background");
+    let foreground = protobuf
+        .selection_foreground
+        .expect("protobuf selection foreground");
+    assert!(background.present);
+    assert!(foreground.present);
+    assert_eq!(background.rgb, expected_background);
+    assert_eq!(foreground.rgb, expected_foreground);
 }
 
 fn assert_frame_json_protobuf_cursor_override_parity(
@@ -17149,6 +17197,52 @@ fn session_osc21_query_and_frame_colors_cross_the_real_pty() {
     assert_eq!(parsed["default_background"].as_str(), Some("#234567"));
     assert_eq!(parsed["cursor_color"].as_str(), Some("#345678"));
     assert_frame_json_protobuf_foreground_parity(&frame, "OSC21-SET", ["#456789"]);
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_xterm_special_and_dynamic_colors_cross_real_pty_and_frame_codecs() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&xterm_special_colors_profile(TerminalEmulation::Xterm256)).unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "XTERM-COLORS");
+    let visible = logical_rows_from_frame(&frame).join("\n");
+    assert!(
+        visible.contains(r"\x1b]5;0;rgb:ffff/0000/ffff\x1b\\"),
+        "expected OSC 5 query response: {visible}"
+    );
+    assert!(
+        visible.contains(r"\x1b]17;rgb:1111/2222/3333\x1b\\"),
+        "expected OSC 17 query response: {visible}"
+    );
+    assert!(
+        visible.contains(r"\x1b]19;rgb:dddd/eeee/ffff\x1b\\"),
+        "expected OSC 19 query response: {visible}"
+    );
+    assert_frame_json_protobuf_foreground_parity(&frame, "BR XTERM-COLORS", ["#ff00ff", "#010203"]);
+    assert_frame_json_protobuf_selection_color_parity(&frame, 0x112233, 0xddeeff);
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_sessions_gate_xterm_special_and_dynamic_colors() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&xterm_special_colors_profile(TerminalEmulation::Vt220)).unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "XTERM-COLORS");
+    let visible = logical_rows_from_frame(&frame).join("\n");
+    assert!(
+        visible.contains("XTERM-RESPONSE:b'TIMEOUT'"),
+        "VT220 must not expose xterm color-query support: {visible}"
+    );
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    assert!(parsed.get("selection_foreground").is_none());
 
     session::close_session(session_id).unwrap();
 }

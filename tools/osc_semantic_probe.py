@@ -130,6 +130,17 @@ PROBES = {
             "196=#456789;foreground=?;background=?;cursor=?;196=?"
         ),
     ),
+    "xterm_special_colors": Probe(
+        "xterm_special_colors",
+        "xterm OSC 5/6 and 17-19",
+        "Enable a magenta bold resource and set/query selection background, Tek cursor, and selection foreground.",
+        "Default-colored bold text becomes magenta and four query responses report the resource colors.",
+        "appearance only; no host action",
+        osc("5;0;#ff00ff;0;?")
+        + osc("6;0;1")
+        + osc("17;#112233;#181818;#ddeeff")
+        + osc("17;?;?;?"),
+    ),
     "osc23_noop": Probe(
         "osc23_noop",
         "OSC 2 + unsupported OSC 23",
@@ -246,6 +257,7 @@ def self_test() -> None:
         "notification_query",
         "terminal_context",
         "color_control",
+        "xterm_special_colors",
         "osc23_noop",
         "pointer_shape",
         "sized_text",

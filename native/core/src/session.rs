@@ -352,6 +352,8 @@ struct CachedFrameMeta {
     default_foreground_rgb: (u8, u8, u8),
     default_background_rgb: (u8, u8, u8),
     cursor_color_rgb: (u8, u8, u8),
+    selection_background_rgb: (u8, u8, u8),
+    selection_foreground_rgb: Option<(u8, u8, u8)>,
     pointer_shape: Option<String>,
     ansi_palette: [Color; 256],
     modes: TerminalFrameModes,
@@ -2168,6 +2170,13 @@ impl TerminalSession {
             default_foreground_rgb: resolve_color_rgb(theme.default_fg, &theme.ansi_palette),
             default_background_rgb: resolve_color_rgb(theme.default_bg, &theme.ansi_palette),
             cursor_color_rgb: resolve_color_rgb(theme.cursor_color, &theme.ansi_palette),
+            selection_background_rgb: resolve_color_rgb(
+                theme.selection_background,
+                &theme.ansi_palette,
+            ),
+            selection_foreground_rgb: theme
+                .selection_foreground
+                .map(|color| resolve_color_rgb(color, &theme.ansi_palette)),
             pointer_shape: pointer_shape.clone(),
             ansi_palette: theme.ansi_palette,
             modes: modes.clone(),
@@ -2305,6 +2314,10 @@ impl TerminalSession {
             default_foreground: color_to_hex(theme.default_fg, &theme.ansi_palette),
             default_background: color_to_hex(theme.default_bg, &theme.ansi_palette),
             cursor_color: color_to_hex(theme.cursor_color, &theme.ansi_palette),
+            selection_background: color_to_hex(theme.selection_background, &theme.ansi_palette),
+            selection_foreground: theme
+                .selection_foreground
+                .and_then(|color| color_to_hex(color, &theme.ansi_palette)),
             pointer_shape,
             modes,
             window_title,
@@ -4409,6 +4422,8 @@ fn build_sized_text_placements(
             if visible_start_row >= visible_end_row {
                 continue;
             }
+            let (foreground, background, inverse, attribute_index) =
+                frame_cell_colors(cell, &theme);
             placements.push(TerminalSizedTextPlacement {
                 text: cell.get_grapheme(),
                 row: visible_start_row.saturating_sub(viewport_start_row),
@@ -4423,14 +4438,14 @@ fn build_sized_text_placements(
                 vertical_align: metadata.vertical_align,
                 horizontal_align: metadata.horizontal_align,
                 natural_width: metadata.natural_width,
-                foreground: color_to_hex(cell.fg, &theme.ansi_palette),
-                background: color_to_hex(cell.bg, &theme.ansi_palette),
-                bold: cell.flags.bold(),
+                foreground: color_to_hex(foreground, &theme.ansi_palette),
+                background: color_to_hex(background, &theme.ansi_palette),
+                bold: cell.flags.bold() && attribute_index != Some(0),
                 dim: cell.flags.dim(),
-                italic: cell.flags.italic(),
-                underline: cell.flags.underline(),
-                blink: cell.flags.blink(),
-                inverse: cell.flags.reverse(),
+                italic: cell.flags.italic() && attribute_index != Some(4),
+                underline: cell.flags.underline() && attribute_index != Some(1),
+                blink: cell.flags.blink() && attribute_index != Some(2),
+                inverse,
             });
         }
     }
@@ -4510,6 +4525,10 @@ struct TerminalThemeSnapshot {
     default_fg: Color,
     default_bg: Color,
     cursor_color: Color,
+    selection_background: Color,
+    selection_foreground: Option<Color>,
+    xterm_attribute_colors: [Option<Color>; 5],
+    xterm_color_attr_override: bool,
     ansi_palette: [Color; 256],
 }
 
@@ -4518,12 +4537,62 @@ fn terminal_theme_snapshot(terminal: &Terminal) -> TerminalThemeSnapshot {
         default_fg: terminal.default_fg(),
         default_bg: terminal.default_bg(),
         cursor_color: terminal.cursor_color(),
+        selection_background: terminal.get_selection_bg_color(),
+        selection_foreground: terminal
+            .selection_foreground_color_enabled()
+            .then(|| terminal.get_selection_fg_color()),
+        xterm_attribute_colors: std::array::from_fn(|index| {
+            (terminal.xterm_special_color_mode(index) == Some(true))
+                .then(|| terminal.xterm_special_color(index))
+                .flatten()
+        }),
+        xterm_color_attr_override: terminal.xterm_special_color_mode(5) == Some(true),
         ansi_palette: std::array::from_fn(|index| {
             terminal
                 .get_ansi_color(index)
                 .unwrap_or(Color::Indexed(index as u8))
         }),
     }
+}
+
+fn xterm_attribute_color(
+    flags: CellFlags,
+    theme: &TerminalThemeSnapshot,
+) -> Option<(usize, Color)> {
+    if !flags.foreground_is_default() && !theme.xterm_color_attr_override {
+        return None;
+    }
+    [
+        (3, flags.reverse()),
+        (2, flags.blink()),
+        (0, flags.bold()),
+        (1, flags.underline()),
+        (4, flags.italic()),
+    ]
+    .into_iter()
+    .find_map(|(index, active)| {
+        active
+            .then_some(theme.xterm_attribute_colors[index])
+            .flatten()
+            .map(|color| (index, color))
+    })
+}
+
+fn frame_cell_colors(
+    cell: &Cell,
+    theme: &TerminalThemeSnapshot,
+) -> (Color, Color, bool, Option<usize>) {
+    let inverse = cell.flags.reverse();
+    let Some((attribute_index, attribute_color)) = xterm_attribute_color(cell.flags, theme) else {
+        return (cell.fg, cell.bg, inverse, None);
+    };
+    let display_background = if inverse { cell.fg } else { cell.bg };
+    (
+        attribute_color,
+        display_background,
+        false,
+        Some(attribute_index),
+    )
 }
 
 fn extract_row(
@@ -4561,25 +4630,28 @@ fn extract_row(
         let column_start = column_offset;
         column_offset += cell_width;
         let column_end = column_offset;
+        let (foreground, background, inverse, attribute_index) = frame_cell_colors(cell, theme);
         let style = TerminalStyleRun {
             start: column_start,
             end: column_end,
             foreground: if is_kitty_placeholder {
                 None
             } else {
-                color_to_hex_delta(cell.fg, theme.default_fg, &theme.ansi_palette)
+                color_to_hex_delta(foreground, theme.default_fg, &theme.ansi_palette)
             },
             background: if is_kitty_placeholder {
                 None
             } else {
-                color_to_hex_delta(cell.bg, theme.default_bg, &theme.ansi_palette)
+                color_to_hex_delta(background, theme.default_bg, &theme.ansi_palette)
             },
-            bold: !is_kitty_placeholder && cell.flags.bold(),
+            bold: !is_kitty_placeholder && cell.flags.bold() && attribute_index != Some(0),
             dim: !is_kitty_placeholder && cell.flags.dim(),
-            italic: !is_kitty_placeholder && cell.flags.italic(),
-            underline: !is_kitty_placeholder && cell.flags.underline(),
-            blink: !is_kitty_placeholder && cell.flags.blink(),
-            inverse: !is_kitty_placeholder && cell.flags.reverse(),
+            italic: !is_kitty_placeholder && cell.flags.italic() && attribute_index != Some(4),
+            underline: !is_kitty_placeholder
+                && cell.flags.underline()
+                && attribute_index != Some(1),
+            blink: !is_kitty_placeholder && cell.flags.blink() && attribute_index != Some(2),
+            inverse: !is_kitty_placeholder && inverse,
         };
 
         match &run_style {
@@ -5084,6 +5156,11 @@ fn frame_meta_delta_break_reason(
     }
     if previous_frame_meta.cursor_color_rgb != frame_meta.cursor_color_rgb {
         return Some("terminal_cursor_color_changed");
+    }
+    if previous_frame_meta.selection_background_rgb != frame_meta.selection_background_rgb
+        || previous_frame_meta.selection_foreground_rgb != frame_meta.selection_foreground_rgb
+    {
+        return Some("terminal_selection_colors_changed");
     }
     if previous_frame_meta.pointer_shape != frame_meta.pointer_shape {
         return Some("terminal_pointer_shape_changed");
@@ -6027,12 +6104,57 @@ mod tests {
     }
 
     #[test]
+    fn xterm_attribute_colors_repaint_default_sourced_attributes_only() {
+        let mut terminal = Terminal::with_scrollback(8, 2, 16);
+        terminal.process(
+            b"\x1b]5;0;#ff00ff;3;#00ffff\x1b\\\x1b]6;0;1;3;1\x1b\\\x1b[1mB\x1b[38;2;1;2;3mR\x1b[0;7mV\x1b[0m",
+        );
+        let theme = terminal_theme_snapshot(&terminal);
+        let extracted = extract_row(terminal.grid().row(0), false, &theme);
+
+        let bold = extracted
+            .style_runs
+            .iter()
+            .find(|run| run.start == 0)
+            .expect("default-sourced bold run");
+        assert_eq!(bold.foreground.as_deref(), Some("#ff00ff"));
+        assert!(!bold.bold, "colorBDMode replaces the bold font by default");
+
+        let explicit_bold = extracted
+            .style_runs
+            .iter()
+            .find(|run| run.start == 1)
+            .expect("explicit-color bold run");
+        assert_eq!(explicit_bold.foreground.as_deref(), Some("#010203"));
+        assert!(explicit_bold.bold);
+
+        let reverse = extracted
+            .style_runs
+            .iter()
+            .find(|run| run.start == 2)
+            .expect("default-sourced reverse run");
+        assert_eq!(reverse.foreground.as_deref(), Some("#00ffff"));
+        assert_eq!(reverse.background.as_deref(), Some("#e5e5e5"));
+        assert!(!reverse.inverse, "special reverse color is flattened once");
+
+        terminal.process(b"\x1b]106;5;1\x1b\\\x1b[1;38;2;4;5;6mX\x1b[0m");
+        let override_theme = terminal_theme_snapshot(&terminal);
+        let overridden = extract_row(terminal.grid().row(0), false, &override_theme);
+        let overridden_explicit = overridden
+            .style_runs
+            .iter()
+            .find(|run| run.start == 3)
+            .expect("colorAttrMode explicit-color override run");
+        assert_eq!(overridden_explicit.foreground.as_deref(), Some("#ff00ff"));
+        assert!(!overridden_explicit.bold);
+    }
+
+    #[test]
     fn extract_row_tracks_style_runs_in_terminal_columns() {
         let mut terminal = Terminal::with_scrollback(4, 4, 16);
         terminal
             .set_ansi_palette_color(1, Color::Rgb(0x12, 0x34, 0x56))
             .unwrap();
-        let ansi_palette = terminal_theme_snapshot(&terminal).ansi_palette;
         let wide = Cell::with_colors(
             '你',
             Color::Named(NamedColor::White),
@@ -6050,7 +6172,7 @@ mod tests {
             default_fg: Color::Named(NamedColor::White),
             default_bg: Color::Named(NamedColor::Black),
             cursor_color: Color::Named(NamedColor::White),
-            ansi_palette,
+            ..terminal_theme_snapshot(&terminal)
         };
 
         let extracted = extract_row(Some(&row), false, &theme);
@@ -6073,14 +6195,13 @@ mod tests {
     #[test]
     fn extract_row_omits_default_colors_from_style_runs() {
         let terminal = Terminal::with_scrollback(4, 4, 16);
-        let ansi_palette = terminal_theme_snapshot(&terminal).ansi_palette;
         let default_fg = Color::Rgb(0xAB, 0xCD, 0xEF);
         let default_bg = Color::Rgb(0x12, 0x34, 0x56);
         let theme = TerminalThemeSnapshot {
             default_fg,
             default_bg,
             cursor_color: Color::Named(NamedColor::White),
-            ansi_palette,
+            ..terminal_theme_snapshot(&terminal)
         };
         let row = vec![Cell::with_colors('a', default_fg, default_bg)];
 
@@ -6654,12 +6775,11 @@ mod tests {
     #[test]
     fn extract_row_hides_kitty_placeholder_cells() {
         let terminal = Terminal::with_scrollback(4, 4, 16);
-        let ansi_palette = terminal_theme_snapshot(&terminal).ansi_palette;
         let theme = TerminalThemeSnapshot {
             default_fg: Color::Named(NamedColor::White),
             default_bg: Color::Named(NamedColor::Black),
             cursor_color: Color::Named(NamedColor::White),
-            ansi_palette,
+            ..terminal_theme_snapshot(&terminal)
         };
         let mut placeholder = Cell::with_colors(
             PLACEHOLDER_CHAR,

@@ -29,19 +29,20 @@ The following affect the rendered terminal and exported JSON/Protobuf frame:
 
 - ANSI palette indices `0` through `255`;
 - `foreground` and `background`;
-- `cursor`.
+- `cursor`;
+- `selection_background` and `selection_foreground`.
 
 The following are retained, reset and queried in the terminal snapshot/state:
 
-- `selection_background` and `selection_foreground`;
 - `cursor_text` and `visual_bell`;
 - `transparent_background_color1` through
   `transparent_background_color7`.
 
-Selection text recoloring, visual-bell tint, cursor-text color, and transparent
-background compositing are not yet consumed by the Flutter renderer. The
-protocol does not invent a visual effect for those fields; they remain typed
-color state for query and future renderer work.
+Visual-bell tint, cursor-text color, and transparent background compositing are
+not yet consumed by the Flutter renderer. The protocol does not invent a visual
+effect for those fields; they remain typed color state for query and future
+renderer work. Selection colors share the same runtime resources and renderer
+path as xterm OSC 17/19.
 
 ## Color values
 

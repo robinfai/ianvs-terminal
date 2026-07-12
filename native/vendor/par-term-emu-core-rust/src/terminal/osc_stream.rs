@@ -688,10 +688,10 @@ fn classify_osc(
     };
 
     match command {
-        b"0" | b"1" | b"2" | b"4" | b"10" | b"11" | b"12" | b"21" | b"22" | b"23" | b"66"
-        | b"104" | b"110" | b"111" | b"112" => {
-            Classification::new(OscIntent::Appearance, OscCapability::Appearance)
-        }
+        b"0" | b"1" | b"2" | b"4" | b"5" | b"6" | b"10" | b"11" | b"12" | b"13" | b"14" | b"15"
+        | b"16" | b"17" | b"18" | b"19" | b"21" | b"22" | b"23" | b"66" | b"104" | b"105"
+        | b"106" | b"110" | b"111" | b"112" | b"113" | b"114" | b"115" | b"116" | b"117"
+        | b"118" | b"119" => Classification::new(OscIntent::Appearance, OscCapability::Appearance),
         b"7" => Classification::new(OscIntent::CurrentDirectory, OscCapability::Metadata),
         b"8" => Classification::new(OscIntent::Hyperlink, OscCapability::Hyperlink),
         b"72" => Classification::new(OscIntent::DragDrop, OscCapability::DragDrop),

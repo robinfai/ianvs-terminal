@@ -3816,6 +3816,24 @@ impl Terminal {
             self.smart_cursor_color,
             self.faint_text_alpha,
         ) = profile_rendering;
+        if let Some(color) = self.osc21_color_state.xterm_special(0) {
+            self.bold_color = color;
+        }
+        if let Some(color) = self.osc21_color_state.xterm_dynamic(17) {
+            self.selection_bg_color = color;
+        }
+        if let Some(color) = self.osc21_color_state.xterm_dynamic(19) {
+            self.selection_fg_color = color;
+        }
+        self.use_bold_color = self
+            .osc21_color_state
+            .xterm_special_mode(0)
+            .unwrap_or(self.use_bold_color);
+        self.use_underline_color = self
+            .osc21_color_state
+            .xterm_special_mode(1)
+            .unwrap_or(self.use_underline_color);
+        self.use_selected_text_color = self.osc21_color_state.selection_foreground_enabled();
         self.baseline_default_fg = baseline_default_fg;
         self.baseline_default_bg = baseline_default_bg;
         self.baseline_cursor_color = baseline_cursor_color;

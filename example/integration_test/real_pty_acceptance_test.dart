@@ -685,6 +685,69 @@ sleep 1
   );
 
   testWidgets(
+    'real PTY xterm special and selection colors reach the product frame',
+    (tester) async {
+      final goFile = _tempSignalFile('xterm-special-colors');
+      final profile = _scriptProfile(
+        id: 'xterm-special-colors-real-pty',
+        name: 'XTerm Special Colors Real PTY',
+        script: r'''
+printf 'xterm-special-colors-ready\n'
+while [ ! -f "$GO_FILE" ]; do sleep 0.05; done
+printf '\033]5;0;#c000ff\033\\'
+printf '\033]6;0;1\033\\'
+printf '\033]17;#112233;#445566;#778899\033\\'
+printf '\033[1mB\033[0m XTERM-SPECIAL-COLORS\n'
+sleep 1
+''',
+        env: {'GO_FILE': goFile.path},
+      );
+      final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
+
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'xterm special colors real PTY ready marker',
+        matches: (text) => text.contains('xterm-special-colors-ready'),
+      );
+      _signal(goFile);
+
+      await _waitFor(
+        tester,
+        description: 'xterm special and selection colors in the product frame',
+        condition: () {
+          final frame = _activeFrame(harness.container);
+          if (frame == null) {
+            return false;
+          }
+          final matchingRows = frame.rows
+              .where((row) => row.text.contains('B XTERM-SPECIAL-COLORS'))
+              .toList(growable: false);
+          if (matchingRows.isEmpty) {
+            return false;
+          }
+          final row = matchingRows.first;
+          final column = row.text.indexOf('B XTERM-SPECIAL-COLORS');
+          final specialColorRuns = row.styleRuns
+              .where(
+                (run) =>
+                    run.start <= column &&
+                    run.end > column &&
+                    run.foreground?.toARGB32() == 0xffc000ff &&
+                    !run.bold,
+              )
+              .toList(growable: false);
+          return frame.selectionBackground?.toARGB32() == 0xff112233 &&
+              frame.selectionForeground?.toARGB32() == 0xff778899 &&
+              specialColorRuns.isNotEmpty;
+        },
+        onTimeout: () => 'Frame: ${_activeFrame(harness.container)}',
+      );
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
     'real PTY OSC 22 updates pointer shape independently of mouse reporting',
     (tester) async {
       final goFile = _tempSignalFile('osc22-pointer-shape');

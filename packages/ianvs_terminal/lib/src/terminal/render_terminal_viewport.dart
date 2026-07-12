@@ -403,6 +403,8 @@ class RenderTerminalViewport extends RenderBox {
       }
       final rowVisual = _rowVisualCache[row.index];
       final y = row.index * _cellSize.height;
+      var selectedStart = 0;
+      var selectedEnd = 0;
       final backgroundSpans =
           rowVisual?.backgroundSpans ??
           const <TerminalResolvedBackgroundSpan>[];
@@ -416,24 +418,24 @@ class RenderTerminalViewport extends RenderBox {
       );
       if (selectionTouchesRow) {
         final rowCellCount = rowVisual?.cellCount ?? rowLayout?.cellCount ?? 0;
-        final selectedStart = _selectionController.isBlockSelection
+        selectedStart = _selectionController.isBlockSelection
             ? activeSelection.startCol
             : (row.index == activeSelection.startRow
                   ? activeSelection.startCol
                   : 0);
-        final selectedEnd = _selectionController.isBlockSelection
+        selectedEnd = _selectionController.isBlockSelection
             ? activeSelection.endCol
             : (row.index == activeSelection.endRow
                   ? activeSelection.endCol
                   : rowCellCount);
-        final clampedStart = selectedStart.clamp(0, rowCellCount);
-        final clampedEnd = selectedEnd.clamp(clampedStart, rowCellCount);
-        _selectionPaint.color = _colors.selection;
+        selectedStart = selectedStart.clamp(0, rowCellCount);
+        selectedEnd = selectedEnd.clamp(selectedStart, rowCellCount);
+        _selectionPaint.color = frame.selectionBackground ?? _colors.selection;
         canvas.drawRect(
           Rect.fromLTWH(
-            clampedStart * _cellSize.width,
+            selectedStart * _cellSize.width,
             y,
-            (clampedEnd - clampedStart) * _cellSize.width,
+            (selectedEnd - selectedStart) * _cellSize.width,
             _cellSize.height,
           ),
           _selectionPaint,
@@ -447,6 +449,20 @@ class RenderTerminalViewport extends RenderBox {
         if (benchmarkEnabled) {
           pictureDrawCount += 1;
         }
+      }
+      final selectionForeground = frame.selectionForeground;
+      if (selectionTouchesRow &&
+          selectionForeground != null &&
+          selectedEnd > selectedStart) {
+        _paintSelectionForegroundForRow(
+          canvas,
+          rowLayout!,
+          startColumn: selectedStart,
+          endColumn: selectedEnd,
+          rowY: y,
+          foreground: selectionForeground,
+          background: frame.selectionBackground ?? _colors.selection,
+        );
       }
       _paintHyperlinkUnderlinesForRow(canvas, frame, row.index, y);
     }
@@ -1013,6 +1029,69 @@ class RenderTerminalViewport extends RenderBox {
           (_rowPictureBuildCounts[row.index] ?? 0) + 1;
       _debugRebuiltRowIndexesScratch.add(row.index);
     }
+  }
+
+  void _paintSelectionForegroundForRow(
+    Canvas canvas,
+    _CachedRowLayout rowLayout, {
+    required int startColumn,
+    required int endColumn,
+    required double rowY,
+    required Color foreground,
+    required Color background,
+  }) {
+    final resolvedForeground = _foregroundWithMinimumContrast(
+      foreground,
+      background,
+    );
+    canvas.save();
+    canvas.clipRect(
+      Rect.fromLTWH(
+        startColumn * _cellSize.width,
+        rowY,
+        (endColumn - startColumn) * _cellSize.width,
+        _cellSize.height,
+      ),
+    );
+    for (final cell in rowLayout.cells) {
+      if (cell.isContinuation ||
+          cell.column >= endColumn ||
+          cell.column + cell.columnSpan <= startColumn) {
+        continue;
+      }
+      final placement = _placementForCell(cell, rowY);
+      if (cell.usesCustomGeometry) {
+        _paintCustomGeometry(
+          canvas,
+          cell,
+          placement.rect,
+          foreground: resolvedForeground,
+        );
+        continue;
+      }
+      if (cell.text.trim().isEmpty && cell.decoration == TextDecoration.none) {
+        continue;
+      }
+      final paragraph = _glyphParagraphFor(
+        cell.text,
+        _ResolvedCellStyle(
+          rawForeground: foreground,
+          foreground: resolvedForeground,
+          background: null,
+          fontWeight: cell.fontWeight,
+          fontStyle: cell.fontStyle,
+          decoration: cell.decoration,
+        ),
+      ).paragraph;
+      canvas.save();
+      canvas.translate(placement.drawOffset.dx, placement.drawOffset.dy);
+      if (placement.scaleX != 1 || placement.scaleY != 1) {
+        canvas.scale(placement.scaleX, placement.scaleY);
+      }
+      canvas.drawParagraph(paragraph, Offset.zero);
+      canvas.restore();
+    }
+    canvas.restore();
   }
 
   TerminalResolvedCell _resolvedCellWithAbsoluteRowOffset(

@@ -170,9 +170,9 @@ impl Terminal {
                 "22" => self.handle_osc_pointer_shape(params),
                 "66" => self.handle_osc_sized_text(params),
                 "72" => self.handle_osc_drag_drop(params),
-                "4" | "21" | "104" | "10" | "11" | "12" | "110" | "111" | "112" => {
-                    self.handle_osc_color(command, params)
-                }
+                "4" | "5" | "6" | "10" | "11" | "12" | "13" | "14" | "15" | "16" | "17" | "18"
+                | "19" | "21" | "104" | "105" | "106" | "110" | "111" | "112" | "113" | "114"
+                | "115" | "116" | "117" | "118" | "119" => self.handle_osc_color(command, params),
                 "1337" => self.handle_osc_iterm(command, params),
                 "3008" => self.handle_osc3008(params),
                 _ => {

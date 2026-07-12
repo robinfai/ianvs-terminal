@@ -238,11 +238,15 @@ impl Terminal {
             }
             (Osc21SpecialColor::SelectionForeground, Some(value)) => {
                 self.set_dynamic_selection_fg_color(value.color);
+                self.set_dynamic_selected_text_color_enabled(true);
                 self.osc21_color_state.set_current(key, Some(value));
             }
             (Osc21SpecialColor::Cursor, None) => {
                 self.set_dynamic_cursor_color(self.default_fg);
                 self.osc21_color_state.set_current(key, None);
+            }
+            (Osc21SpecialColor::SelectionForeground, None) => {
+                self.set_dynamic_selected_text_color_enabled(false);
             }
             _ => {}
         }
@@ -251,6 +255,106 @@ impl Terminal {
     fn reset_osc21_special(&mut self, key: Osc21SpecialColor) {
         let value = self.osc21_color_state.reset(key);
         self.apply_osc21_special(key, value);
+        if key == Osc21SpecialColor::SelectionForeground {
+            let enabled = self.osc21_color_state.reset_selection_foreground_enabled();
+            self.set_dynamic_selected_text_color_enabled(enabled);
+        }
+    }
+
+    fn handle_xterm_special_color(&mut self, params: &[&[u8]]) {
+        for pair in params[1..].chunks_exact(2) {
+            let (Some(index), Ok(spec)) = (
+                std::str::from_utf8(pair[0])
+                    .ok()
+                    .and_then(|value| value.trim().parse::<usize>().ok()),
+                std::str::from_utf8(pair[1]),
+            ) else {
+                continue;
+            };
+            if index >= 5 {
+                continue;
+            }
+            let spec = spec.trim();
+            if spec == "?" {
+                if let Some(color) = self.xterm_special_color(index) {
+                    let command = format!("5;{index}");
+                    let response = self.format_color_response(&command, color);
+                    self.push_response(response.as_bytes());
+                }
+            } else if !self.disable_insecure_sequences {
+                if let Some((red, green, blue)) = Self::parse_color_spec(spec) {
+                    self.set_dynamic_xterm_special_color(index, Color::Rgb(red, green, blue));
+                }
+            }
+        }
+    }
+
+    fn handle_xterm_special_color_mode(&mut self, params: &[&[u8]]) {
+        if self.disable_insecure_sequences {
+            return;
+        }
+        for pair in params[1..].chunks_exact(2) {
+            let (Some(index), Some(flag)) = (
+                std::str::from_utf8(pair[0])
+                    .ok()
+                    .and_then(|value| value.trim().parse::<usize>().ok()),
+                std::str::from_utf8(pair[1])
+                    .ok()
+                    .and_then(|value| value.trim().parse::<i64>().ok()),
+            ) else {
+                continue;
+            };
+            if index < 6 {
+                self.set_dynamic_xterm_special_mode(index, flag != 0);
+            }
+        }
+    }
+
+    fn reset_xterm_special_colors(&mut self, params: &[&[u8]]) {
+        if self.disable_insecure_sequences {
+            return;
+        }
+        let reset_all = params.len() <= 1 || params.iter().skip(1).all(|value| value.is_empty());
+        let indices = params.iter().skip(1).filter_map(|value| {
+            std::str::from_utf8(value)
+                .ok()
+                .and_then(|value| value.trim().parse::<usize>().ok())
+        });
+        let indices = indices.collect::<Vec<_>>();
+        if reset_all {
+            for index in 0..5 {
+                self.reset_dynamic_xterm_special_color(index);
+            }
+        } else {
+            for index in indices {
+                if index < 5 {
+                    self.reset_dynamic_xterm_special_color(index);
+                }
+            }
+        }
+    }
+
+    fn handle_xterm_dynamic_colors(&mut self, start_command: usize, params: &[&[u8]]) {
+        for (offset, parameter) in params.iter().skip(1).enumerate() {
+            let command = start_command.saturating_add(offset);
+            if command > 19 {
+                break;
+            }
+            let Ok(spec) = std::str::from_utf8(parameter) else {
+                continue;
+            };
+            let spec = spec.trim();
+            if spec == "?" {
+                if let Some(color) = self.xterm_dynamic_color(command) {
+                    let response = self.format_color_response(&command.to_string(), color);
+                    self.push_response(response.as_bytes());
+                }
+            } else if !self.disable_insecure_sequences {
+                if let Some((red, green, blue)) = Self::parse_color_spec(spec) {
+                    self.set_dynamic_xterm_color(command, Color::Rgb(red, green, blue));
+                }
+            }
+        }
     }
 
     fn handle_osc21_color_control(&mut self, params: &[&[u8]]) {
@@ -338,6 +442,8 @@ impl Terminal {
     pub(crate) fn handle_osc_color(&mut self, command: &str, params: &[&[u8]]) {
         match command {
             "21" => self.handle_osc21_color_control(params),
+            "5" => self.handle_xterm_special_color(params),
+            "6" | "106" => self.handle_xterm_special_color_mode(params),
             "4" => {
                 // Set or query ANSI color palette entries (OSC 4).
                 for pair in params[1..].chunks_exact(2) {
@@ -346,17 +452,28 @@ impl Terminal {
                             if let Ok(colorspec) = std::str::from_utf8(pair[1]) {
                                 let colorspec = colorspec.trim();
                                 if colorspec == "?" {
-                                    if let Some(color) = self.get_ansi_color(index) {
+                                    let color = if index < 256 {
+                                        self.get_ansi_color(index)
+                                    } else {
+                                        index
+                                            .checked_sub(256)
+                                            .and_then(|index| self.xterm_special_color(index))
+                                    };
+                                    if let Some(color) = color {
                                         let command = format!("4;{index}");
                                         let response = self.format_color_response(&command, color);
                                         self.push_response(response.as_bytes());
                                     }
                                 } else if !self.disable_insecure_sequences {
                                     if let Some((r, g, b)) = Self::parse_color_spec(colorspec) {
-                                        self.set_dynamic_ansi_palette_color(
-                                            index,
-                                            Color::Rgb(r, g, b),
-                                        );
+                                        let color = Color::Rgb(r, g, b);
+                                        if index < 256 {
+                                            self.set_dynamic_ansi_palette_color(index, color);
+                                        } else if let Some(index) = index.checked_sub(256) {
+                                            if index < 5 {
+                                                self.set_dynamic_xterm_special_color(index, color);
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -376,53 +493,30 @@ impl Terminal {
                         for data in indices {
                             if let Ok(data) = std::str::from_utf8(data) {
                                 if let Ok(index) = data.trim().parse::<usize>() {
-                                    self.reset_dynamic_ansi_palette_color(index);
+                                    if index < 256 {
+                                        self.reset_dynamic_ansi_palette_color(index);
+                                    } else if let Some(index) = index.checked_sub(256) {
+                                        if index < 5 {
+                                            self.reset_dynamic_xterm_special_color(index);
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-            "10" | "11" | "12" => {
-                // Query or set default colors
-                if params.len() >= 2 {
-                    if let Ok(data) = std::str::from_utf8(params[1]) {
-                        let data = data.trim();
-                        if data == "?" {
-                            let color = match command {
-                                "10" => self.default_fg,
-                                "11" => self.default_bg,
-                                "12" => self.cursor_color,
-                                _ => unreachable!(),
-                            };
-                            let response = self.format_color_response(command, color);
-                            self.push_response(response.as_bytes());
-                        } else if !self.disable_insecure_sequences {
-                            if let Some((r, g, b)) = Self::parse_color_spec(data) {
-                                match command {
-                                    "10" => self.set_dynamic_default_fg(Color::Rgb(r, g, b)),
-                                    "11" => self.set_dynamic_default_bg(Color::Rgb(r, g, b)),
-                                    "12" => self.set_dynamic_cursor_color(Color::Rgb(r, g, b)),
-                                    _ => unreachable!(),
-                                }
-                            }
-                        }
+            "10" | "11" | "12" | "13" | "14" | "15" | "16" | "17" | "18" | "19" => {
+                if let Ok(start_command) = command.parse::<usize>() {
+                    self.handle_xterm_dynamic_colors(start_command, params);
+                }
+            }
+            "105" => self.reset_xterm_special_colors(params),
+            "110" | "111" | "112" | "113" | "114" | "115" | "116" | "117" | "118" | "119" => {
+                if !self.disable_insecure_sequences {
+                    if let Ok(command) = command.parse::<usize>() {
+                        self.reset_dynamic_xterm_color(command.saturating_sub(100));
                     }
-                }
-            }
-            "110" => {
-                if !self.disable_insecure_sequences {
-                    self.set_dynamic_default_fg(self.baseline_default_fg);
-                }
-            }
-            "111" => {
-                if !self.disable_insecure_sequences {
-                    self.set_dynamic_default_bg(self.baseline_default_bg);
-                }
-            }
-            "112" => {
-                if !self.disable_insecure_sequences {
-                    self.set_dynamic_cursor_color(self.baseline_cursor_color);
                 }
             }
             _ => {}
@@ -434,6 +528,156 @@ impl Terminal {
 mod tests {
     use super::*;
     use crate::terminal::color_control::Osc21SpecialColor;
+
+    #[test]
+    fn xterm_special_colors_modes_queries_and_targeted_resets_are_independent() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.set_default_fg(Color::Rgb(1, 2, 3));
+        terminal.set_bold_color(Color::Rgb(4, 5, 6));
+        terminal.process(b"\x1b]5;0;#aabbcc;1;rgb:11/22/33;2;red;3;green;4;blue;0;?;4;?\x1b\\");
+        assert_eq!(
+            terminal.xterm_special_color(0),
+            Some(Color::Rgb(0xaa, 0xbb, 0xcc))
+        );
+        assert_eq!(
+            terminal.xterm_special_color(4),
+            Some(Color::Rgb(0, 0, 0xff))
+        );
+        assert_eq!(
+            terminal.drain_responses(),
+            b"\x1b]5;0;rgb:aaaa/bbbb/cccc\x1b\\\x1b]5;4;rgb:0000/0000/ffff\x1b\\"
+        );
+
+        terminal.process(b"\x1b]6;0;1;1;-2;2;0;3;1;4;1\x1b\\");
+        assert_eq!(terminal.xterm_special_color_mode(0), Some(true));
+        assert_eq!(terminal.xterm_special_color_mode(1), Some(true));
+        assert_eq!(terminal.xterm_special_color_mode(2), Some(false));
+        assert_eq!(terminal.xterm_special_color_mode(3), Some(true));
+        assert_eq!(terminal.xterm_special_color_mode(4), Some(true));
+        assert_eq!(terminal.xterm_special_color_mode(5), Some(false));
+
+        terminal.process(b"\x1b]106;0;0;5;1\x1b\\");
+        assert_eq!(terminal.xterm_special_color_mode(0), Some(false));
+        assert_eq!(terminal.xterm_special_color_mode(5), Some(true));
+        terminal.process(b"\x1b]106\x1b\\");
+        assert_eq!(terminal.xterm_special_color_mode(5), Some(true));
+
+        terminal.process(b"\x1b]4;260;#090807;260;?\x1b\\");
+        assert_eq!(terminal.xterm_special_color(4), Some(Color::Rgb(9, 8, 7)));
+        assert_eq!(
+            terminal.drain_responses(),
+            b"\x1b]4;260;rgb:0909/0808/0707\x1b\\"
+        );
+        terminal.process(b"\x1b]104;260\x1b\\");
+        assert_eq!(terminal.xterm_special_color(4), Some(Color::Rgb(1, 2, 3)));
+
+        terminal.process(b"\x1b]105;0;bad;9\x1b\\");
+        assert_eq!(terminal.xterm_special_color(0), Some(Color::Rgb(4, 5, 6)));
+        assert_eq!(
+            terminal.xterm_special_color(1),
+            Some(Color::Rgb(0x11, 0x22, 0x33))
+        );
+        assert_eq!(terminal.xterm_special_color_mode(0), Some(false));
+        assert_eq!(terminal.xterm_special_color_mode(1), Some(true));
+
+        terminal.process(b"\x1b]105\x1b\\\x1b]6;1;0;2;0;3;0;4;0;5;0\x1b\\");
+        for index in 0..6 {
+            assert_eq!(terminal.xterm_special_color_mode(index), Some(false));
+        }
+        assert_eq!(terminal.xterm_special_color(1), Some(Color::Rgb(1, 2, 3)));
+    }
+
+    #[test]
+    fn xterm_dynamic_colors_apply_sequentially_query_and_reset_profile_baselines() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.set_default_fg(Color::Rgb(1, 2, 3));
+        terminal.set_default_bg(Color::Rgb(4, 5, 6));
+        terminal.set_cursor_color(Color::Rgb(7, 8, 9));
+        terminal.set_selection_bg_color(Color::Rgb(10, 11, 12));
+        terminal.set_selection_fg_color(Color::Rgb(13, 14, 15));
+        terminal.process(
+            b"\x1b]13;#130000;#140000;#150000;#160000;#170000;#180000;#190000;#ignored\x1b\\",
+        );
+        assert_eq!(terminal.get_selection_bg_color(), Color::Rgb(0x17, 0, 0));
+        assert_eq!(terminal.get_selection_fg_color(), Color::Rgb(0x19, 0, 0));
+        assert!(terminal.selection_foreground_color_enabled());
+
+        terminal.process(b"\x1b]13;?;?;?;?;?;?;?\x1b\\");
+        assert_eq!(
+            terminal.drain_responses(),
+            b"\x1b]13;rgb:1313/0000/0000\x1b\\\x1b]14;rgb:1414/0000/0000\x1b\\\x1b]15;rgb:1515/0000/0000\x1b\\\x1b]16;rgb:1616/0000/0000\x1b\\\x1b]17;rgb:1717/0000/0000\x1b\\\x1b]18;rgb:1818/0000/0000\x1b\\\x1b]19;rgb:1919/0000/0000\x1b\\"
+        );
+
+        terminal.process(b"\x1b]117\x1b\\\x1b]119\x1b\\");
+        assert_eq!(terminal.get_selection_bg_color(), Color::Rgb(10, 11, 12));
+        assert_eq!(terminal.get_selection_fg_color(), Color::Rgb(13, 14, 15));
+        assert!(!terminal.selection_foreground_color_enabled());
+
+        terminal.process(b"\x1b]10;#101010;#111111;#121212;?\x1b\\");
+        assert_eq!(terminal.default_fg(), Color::Rgb(0x10, 0x10, 0x10));
+        assert_eq!(terminal.default_bg(), Color::Rgb(0x11, 0x11, 0x11));
+        assert_eq!(terminal.cursor_color(), Color::Rgb(0x12, 0x12, 0x12));
+        assert_eq!(
+            terminal.drain_responses(),
+            b"\x1b]13;rgb:1313/0000/0000\x1b\\"
+        );
+    }
+
+    #[test]
+    fn xterm_color_state_survives_every_byte_split_and_ris_restores_baselines() {
+        let sequence =
+            b"\x1b]5;0;#abcdef\x1b\\\x1b]6;0;1\x1b\\\x1b]17;#123456;#181818;#654321\x1b\\";
+        for split in 0..=sequence.len() {
+            let mut terminal = Terminal::new(80, 24);
+            terminal.process(&sequence[..split]);
+            terminal.process(&sequence[split..]);
+            assert_eq!(
+                terminal.xterm_special_color(0),
+                Some(Color::Rgb(0xab, 0xcd, 0xef))
+            );
+            assert_eq!(terminal.xterm_special_color_mode(0), Some(true));
+            assert_eq!(
+                terminal.get_selection_bg_color(),
+                Color::Rgb(0x12, 0x34, 0x56)
+            );
+            assert_eq!(
+                terminal.get_selection_fg_color(),
+                Color::Rgb(0x65, 0x43, 0x21)
+            );
+            assert!(terminal.selection_foreground_color_enabled());
+
+            let snapshot = terminal.capture_snapshot();
+            terminal.process(b"\x1b]105\x1b\\\x1b]106;0;0\x1b\\\x1b]119\x1b\\");
+            terminal.restore_from_snapshot(snapshot);
+            assert_eq!(terminal.xterm_special_color_mode(0), Some(true));
+
+            terminal.reset();
+            assert_eq!(
+                terminal.xterm_special_color(0),
+                Some(Color::Named(crate::color::NamedColor::White))
+            );
+            assert_eq!(terminal.xterm_special_color_mode(0), Some(false));
+            assert_eq!(
+                terminal.get_selection_bg_color(),
+                Color::Rgb(0xb5, 0xd5, 0xff)
+            );
+            assert!(!terminal.selection_foreground_color_enabled());
+        }
+    }
+
+    #[test]
+    fn xterm_special_pairs_obey_vte_field_ceiling_and_recover_next_sequence() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.process(
+            b"\x1b]5;0;red;0;green;0;blue;0;yellow;0;cyan;0;magenta;0;#010203;0;#abcdef\x1b\\\x1b]5;0;?\x1b\\",
+        );
+
+        assert_eq!(terminal.xterm_special_color(0), Some(Color::Rgb(1, 2, 3)));
+        assert_eq!(
+            terminal.drain_responses(),
+            b"\x1b]5;0;rgb:0101/0202/0303\x1b\\"
+        );
+    }
 
     #[test]
     fn osc21_batches_set_query_dynamic_unknown_and_alpha_fields_in_order() {

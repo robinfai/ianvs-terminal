@@ -525,6 +525,62 @@ void main() {
     );
   });
 
+  testWidgets(
+    'selection uses frame background and foreground colors for selected glyphs',
+    (tester) async {
+      const boundaryKey = GlobalObjectKey('dynamic-selection-colors');
+      const selectionBackground = Color(0xFF000000);
+      const selectionForeground = Color(0xFFFFFF00);
+      const frame = TerminalFrameDiff(
+        rows: [TerminalRow(index: 0, text: 'M')],
+        cursor: TerminalCursor(row: 0, col: 0, visible: false),
+        viewportRows: 1,
+        viewportCols: 1,
+        dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+        selectionBackground: selectionBackground,
+        selectionForeground: selectionForeground,
+      );
+      await _pumpRenderViewportFrame(
+        tester,
+        frame: frame,
+        selection: const TerminalSelection(
+          startRow: 0,
+          startCol: 0,
+          endRow: 0,
+          endCol: 1,
+        ),
+        repaintBoundaryKey: boundaryKey,
+      );
+
+      final boundary = tester.renderObject<RenderRepaintBoundary>(
+        find.byKey(boundaryKey),
+      );
+      final image = await _runUiAsync(tester, () => boundary.toImage());
+      try {
+        final byteData = await _runUiAsync(
+          tester,
+          () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
+        );
+        if (byteData == null) {
+          throw StateError('Failed to read dynamic selection image bytes.');
+        }
+        final pixels = byteData.buffer.asUint8List();
+        expect(
+          _countPixelsEqualTo(pixels, selectionBackground),
+          greaterThan(0),
+        );
+        expect(
+          _countPixelsEqualTo(pixels, selectionForeground),
+          greaterThan(0),
+        );
+      } finally {
+        image.dispose();
+      }
+    },
+  );
+
   test('painted cursor rect remains available outside debug collection', () {
     final source = _renderTerminalViewportSource();
     final paintStart = source.indexOf(
@@ -3063,12 +3119,16 @@ Future<RenderTerminalViewport> _pumpRenderViewportFrame(
       const TerminalSearchHighlightStyle(),
   bool cursorVisible = false,
   GlobalKey? repaintBoundaryKey,
+  TerminalSelection? selection,
   TerminalBenchmarkEventSink? benchmarkEventSink,
 }) async {
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.resetDevicePixelRatio);
   final controller = TerminalViewportController()..updateFrame(frame);
   final selectionController = SelectionController();
+  if (selection != null) {
+    selectionController.setSelection(selection);
+  }
 
   final viewport = SizedBox(
     width: 320,
@@ -3257,6 +3317,23 @@ int _countPixelsDifferentFrom(
       if (pixel.toARGB32() != color.toARGB32()) {
         count += 1;
       }
+    }
+  }
+  return count;
+}
+
+int _countPixelsEqualTo(Uint8List pixels, Color color) {
+  var count = 0;
+  final expectedRed = (color.r * 255).round();
+  final expectedGreen = (color.g * 255).round();
+  final expectedBlue = (color.b * 255).round();
+  final expectedAlpha = (color.a * 255).round();
+  for (var offset = 0; offset + 3 < pixels.length; offset += 4) {
+    if (pixels[offset] == expectedRed &&
+        pixels[offset + 1] == expectedGreen &&
+        pixels[offset + 2] == expectedBlue &&
+        pixels[offset + 3] == expectedAlpha) {
+      count += 1;
     }
   }
   return count;

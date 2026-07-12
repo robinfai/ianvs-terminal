@@ -922,6 +922,8 @@ class TerminalFrameDiff {
     this.defaultForeground,
     this.defaultBackground,
     this.cursorColor,
+    this.selectionBackground,
+    this.selectionForeground,
     this.pointerShape,
     this.modes = TerminalFrameModes.empty,
     this.selection,
@@ -953,6 +955,8 @@ class TerminalFrameDiff {
   final Color? defaultForeground;
   final Color? defaultBackground;
   final Color? cursorColor;
+  final Color? selectionBackground;
+  final Color? selectionForeground;
   final TerminalPointerShape? pointerShape;
   final TerminalFrameModes modes;
   final String? windowTitle;
@@ -1018,6 +1022,12 @@ class TerminalFrameDiff {
         _stringFromJson(json['default_background']),
       ),
       cursorColor: _colorFromHex(_stringFromJson(json['cursor_color'])),
+      selectionBackground: _colorFromHex(
+        _stringFromJson(json['selection_background']),
+      ),
+      selectionForeground: _colorFromHex(
+        _stringFromJson(json['selection_foreground']),
+      ),
       pointerShape: TerminalPointerShape.fromWire(json['pointer_shape']),
       modes: modesJson == null
           ? TerminalFrameModes.empty
@@ -1292,6 +1302,14 @@ TerminalFrameDiff _terminalFrameDiffFromProtobuf(
     cursorColor: _colorFromProtobuf(
       hasValue: proto.hasCursorColor(),
       value: proto.cursorColor,
+    ),
+    selectionBackground: _colorFromProtobuf(
+      hasValue: proto.hasSelectionBackground(),
+      value: proto.selectionBackground,
+    ),
+    selectionForeground: _colorFromProtobuf(
+      hasValue: proto.hasSelectionForeground(),
+      value: proto.selectionForeground,
     ),
     pointerShape: proto.hasPointerShape()
         ? TerminalPointerShape.fromWire(proto.pointerShape)
@@ -2068,6 +2086,10 @@ class TerminalViewportState {
         defaultBackground:
             nextFrame.defaultBackground ?? frame.defaultBackground,
         cursorColor: nextFrame.cursorColor ?? frame.cursorColor,
+        selectionBackground:
+            nextFrame.selectionBackground ?? frame.selectionBackground,
+        selectionForeground:
+            nextFrame.selectionForeground ?? frame.selectionForeground,
         pointerShape: nextFrame.pointerShape,
         modes: nextFrame.modes,
         windowTitle: nextFrame.windowTitle,
@@ -2359,6 +2381,8 @@ TerminalFrameDiff _normalizeSnapshotFrame(
     defaultForeground: frame.defaultForeground,
     defaultBackground: frame.defaultBackground,
     cursorColor: frame.cursorColor,
+    selectionBackground: frame.selectionBackground,
+    selectionForeground: frame.selectionForeground,
     pointerShape: frame.pointerShape,
     modes: frame.modes,
     windowTitle: frame.windowTitle,

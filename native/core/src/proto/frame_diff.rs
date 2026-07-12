@@ -49,6 +49,10 @@ pub struct TerminalFrameDiff {
     pub pointer_shape: ::prost::alloc::string::String,
     #[prost(message, repeated, tag = "24")]
     pub sized_text: ::prost::alloc::vec::Vec<TerminalSizedTextPlacement>,
+    #[prost(message, optional, tag = "25")]
+    pub selection_background: ::core::option::Option<ColorRgb>,
+    #[prost(message, optional, tag = "26")]
+    pub selection_foreground: ::core::option::Option<ColorRgb>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TerminalRow {

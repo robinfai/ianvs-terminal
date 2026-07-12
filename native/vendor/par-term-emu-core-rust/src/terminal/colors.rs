@@ -9,6 +9,7 @@
 //! - Bold text colors
 //! - Color mode flags
 
+use crate::cell::CellFlags;
 use crate::color::Color;
 use crate::terminal::color_control::{Osc21ColorValue, Osc21SpecialColor};
 use crate::terminal::Terminal;
@@ -61,10 +62,19 @@ impl Terminal {
             Osc21SpecialColor::Foreground,
             Osc21ColorValue::opaque(color),
         );
+        for command in [10, 13, 15, 18] {
+            self.osc21_color_state
+                .set_xterm_dynamic_baseline(command, color);
+        }
+        for index in 0..5 {
+            self.osc21_color_state
+                .set_xterm_special_baseline(index, color);
+        }
         self.set_dynamic_default_fg(color);
     }
 
     pub(crate) fn set_dynamic_default_fg(&mut self, color: Color) {
+        self.osc21_color_state.set_xterm_dynamic(10, color);
         self.osc21_color_state.set_current(
             Osc21SpecialColor::Foreground,
             Some(Osc21ColorValue::opaque(color)),
@@ -97,10 +107,15 @@ impl Terminal {
             Osc21SpecialColor::Background,
             Osc21ColorValue::opaque(color),
         );
+        for command in [11, 14, 16] {
+            self.osc21_color_state
+                .set_xterm_dynamic_baseline(command, color);
+        }
         self.set_dynamic_default_bg(color);
     }
 
     pub(crate) fn set_dynamic_default_bg(&mut self, color: Color) {
+        self.osc21_color_state.set_xterm_dynamic(11, color);
         self.osc21_color_state.set_current(
             Osc21SpecialColor::Background,
             Some(Osc21ColorValue::opaque(color)),
@@ -141,10 +156,12 @@ impl Terminal {
         self.baseline_cursor_color = color;
         self.osc21_color_state
             .set_baseline(Osc21SpecialColor::Cursor, Osc21ColorValue::opaque(color));
+        self.osc21_color_state.set_xterm_dynamic_baseline(12, color);
         self.set_dynamic_cursor_color(color);
     }
 
     pub(crate) fn set_dynamic_cursor_color(&mut self, color: Color) {
+        self.osc21_color_state.set_xterm_dynamic(12, color);
         self.osc21_color_state.set_current(
             Osc21SpecialColor::Cursor,
             Some(Osc21ColorValue::opaque(color)),
@@ -174,6 +191,7 @@ impl Terminal {
     /// Set bold text custom color
     pub fn set_bold_color(&mut self, color: Color) {
         self.bold_color = color;
+        self.osc21_color_state.set_xterm_special_baseline(0, color);
     }
 
     /// Get cursor guide color
@@ -217,10 +235,12 @@ impl Terminal {
             Osc21SpecialColor::SelectionBackground,
             Osc21ColorValue::opaque(color),
         );
+        self.osc21_color_state.set_xterm_dynamic_baseline(17, color);
         self.set_dynamic_selection_bg_color(color);
     }
 
     pub(crate) fn set_dynamic_selection_bg_color(&mut self, color: Color) {
+        self.osc21_color_state.set_xterm_dynamic(17, color);
         self.osc21_color_state.set_current(
             Osc21SpecialColor::SelectionBackground,
             Some(Osc21ColorValue::opaque(color)),
@@ -243,10 +263,12 @@ impl Terminal {
             Osc21SpecialColor::SelectionForeground,
             Osc21ColorValue::opaque(color),
         );
+        self.osc21_color_state.set_xterm_dynamic_baseline(19, color);
         self.set_dynamic_selection_fg_color(color);
     }
 
     pub(crate) fn set_dynamic_selection_fg_color(&mut self, color: Color) {
+        self.osc21_color_state.set_xterm_dynamic(19, color);
         self.osc21_color_state.set_current(
             Osc21SpecialColor::SelectionForeground,
             Some(Osc21ColorValue::opaque(color)),
@@ -266,6 +288,8 @@ impl Terminal {
     /// Set whether to use custom bold color
     pub fn set_use_bold_color(&mut self, use_bold: bool) {
         self.use_bold_color = use_bold;
+        self.osc21_color_state
+            .set_xterm_special_mode_baseline(0, use_bold);
     }
 
     /// Get whether to use custom underline color
@@ -276,6 +300,8 @@ impl Terminal {
     /// Set whether to use custom underline color
     pub fn set_use_underline_color(&mut self, use_underline: bool) {
         self.use_underline_color = use_underline;
+        self.osc21_color_state
+            .set_xterm_special_mode_baseline(1, use_underline);
     }
 
     /// Get whether to show cursor guide
@@ -296,6 +322,136 @@ impl Terminal {
     /// Set whether to use custom selected text color
     pub fn set_use_selected_text_color(&mut self, use_selected: bool) {
         self.use_selected_text_color = use_selected;
+        self.osc21_color_state
+            .set_selection_foreground_enabled_baseline(use_selected);
+    }
+
+    pub(crate) fn set_dynamic_selected_text_color_enabled(&mut self, enabled: bool) {
+        self.osc21_color_state
+            .set_selection_foreground_enabled(enabled);
+        if self.use_selected_text_color == enabled {
+            return;
+        }
+        self.use_selected_text_color = enabled;
+        self.mark_full_repaint("selection_color_changed");
+    }
+
+    /// Current xterm OSC 5 resource color for indices 0 through 4.
+    pub fn xterm_special_color(&self, index: usize) -> Option<Color> {
+        self.osc21_color_state.xterm_special(index)
+    }
+
+    /// Current xterm OSC 6/106 mode for indices 0 through 5.
+    pub fn xterm_special_color_mode(&self, index: usize) -> Option<bool> {
+        self.osc21_color_state.xterm_special_mode(index)
+    }
+
+    /// Resolve the active xterm attribute color for a cell. Attribute colors
+    /// only override default-sourced foregrounds, matching xterm's default
+    /// `colorAttrMode=false` behavior.
+    pub fn xterm_attribute_color(&self, flags: CellFlags) -> Option<Color> {
+        if !flags.foreground_is_default()
+            && self.osc21_color_state.xterm_special_mode(5) != Some(true)
+        {
+            return None;
+        }
+        [
+            (3, flags.reverse()),
+            (2, flags.blink()),
+            (0, flags.bold()),
+            (1, flags.underline()),
+            (4, flags.italic()),
+        ]
+        .into_iter()
+        .find_map(|(index, active)| {
+            (active && self.osc21_color_state.xterm_special_mode(index) == Some(true))
+                .then(|| self.osc21_color_state.xterm_special(index))
+                .flatten()
+        })
+    }
+
+    /// Whether the current selected-text resource should override glyph color.
+    pub fn selection_foreground_color_enabled(&self) -> bool {
+        self.osc21_color_state.selection_foreground_enabled()
+    }
+
+    pub(crate) fn set_dynamic_xterm_special_color(&mut self, index: usize, color: Color) {
+        if self.osc21_color_state.xterm_special(index) == Some(color) {
+            return;
+        }
+        self.osc21_color_state.set_xterm_special(index, color);
+        if index == 0 {
+            self.bold_color = color;
+        }
+        self.mark_full_repaint("xterm_special_color_changed");
+    }
+
+    pub(crate) fn reset_dynamic_xterm_special_color(&mut self, index: usize) {
+        self.osc21_color_state.reset_xterm_special(index);
+        if let Some(color) = self.osc21_color_state.xterm_special(index) {
+            if index == 0 {
+                self.bold_color = color;
+            }
+        }
+        self.mark_full_repaint("xterm_special_color_changed");
+    }
+
+    pub(crate) fn set_dynamic_xterm_special_mode(&mut self, index: usize, enabled: bool) {
+        if self.osc21_color_state.xterm_special_mode(index) == Some(enabled) {
+            return;
+        }
+        self.osc21_color_state
+            .set_xterm_special_mode(index, enabled);
+        if index == 0 {
+            self.use_bold_color = enabled;
+        } else if index == 1 {
+            self.use_underline_color = enabled;
+        }
+        self.mark_full_repaint("xterm_special_color_mode_changed");
+    }
+
+    pub(crate) fn xterm_dynamic_color(&self, command: usize) -> Option<Color> {
+        self.osc21_color_state.xterm_dynamic(command)
+    }
+
+    pub(crate) fn set_dynamic_xterm_color(&mut self, command: usize, color: Color) {
+        match command {
+            10 => self.set_dynamic_default_fg(color),
+            11 => self.set_dynamic_default_bg(color),
+            12 => self.set_dynamic_cursor_color(color),
+            17 => self.set_dynamic_selection_bg_color(color),
+            19 => {
+                self.set_dynamic_selection_fg_color(color);
+                self.set_dynamic_selected_text_color_enabled(true);
+            }
+            13..=16 | 18 => {
+                if self.osc21_color_state.xterm_dynamic(command) == Some(color) {
+                    return;
+                }
+                self.osc21_color_state.set_xterm_dynamic(command, color);
+                self.mark_full_repaint("xterm_dynamic_color_changed");
+            }
+            _ => {}
+        }
+    }
+
+    pub(crate) fn reset_dynamic_xterm_color(&mut self, command: usize) {
+        let Some(color) = self.osc21_color_state.reset_xterm_dynamic(command) else {
+            return;
+        };
+        match command {
+            10 => self.set_dynamic_default_fg(color),
+            11 => self.set_dynamic_default_bg(color),
+            12 => self.set_dynamic_cursor_color(color),
+            17 => self.set_dynamic_selection_bg_color(color),
+            19 => {
+                self.set_dynamic_selection_fg_color(color);
+                let enabled = self.osc21_color_state.reset_selection_foreground_enabled();
+                self.set_dynamic_selected_text_color_enabled(enabled);
+            }
+            13..=16 | 18 => self.mark_full_repaint("xterm_dynamic_color_changed"),
+            _ => {}
+        }
     }
 
     /// Get whether smart cursor color is enabled
@@ -1172,7 +1328,7 @@ mod tests {
         let before = term.get_ansi_color(255);
         let _ = term.drain_active_screen_damage();
 
-        term.process(b"\x1b]4;256;#abcdef;999;?\x1b\\");
+        term.process(b"\x1b]4;261;#abcdef;999;?\x1b\\");
 
         assert_eq!(term.get_ansi_color(255), before);
         assert!(term.drain_responses().is_empty());

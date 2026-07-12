@@ -44,6 +44,9 @@ REQUIRED_COVERAGE = {
     "OSC 1337 cell-size query",
     "OSC 1337 cursor shape",
     "DECSCUSR cursor override coexistence",
+    "xterm OSC 5/6 special colors",
+    "xterm OSC 13-19 dynamic colors",
+    "xterm OSC 105/119 resets and 106 alias",
     "OSC 3008 hierarchy",
     "OSC 3008 malformed close recovery",
     "tmux passthrough fixture",
@@ -175,6 +178,12 @@ def validate_case(case: Any) -> set[str]:
         require(stream.count(b"\x1b]72;") == 3, f"{case_id}: OSC 72 sequence count")
         require(b"t=a:i=7;text/plain text/uri-list" in stream, f"{case_id}: accept")
         require(b"t=r:i=7:x=1;" in stream, f"{case_id}: data request")
+    elif case_id == "xterm_special_dynamic_colors":
+        require(stream.count(b"\x1b]") == 7, f"{case_id}: sequence count")
+        require(b"\x1b]5;0;#ff00ff;0;?" in stream, f"{case_id}: OSC 5 query")
+        require(b"\x1b]17;?;?;?" in stream, f"{case_id}: sequential query")
+        require(b"\x1b]106;0;0" in stream, f"{case_id}: OSC 106 alias")
+        require(b"\x1b]119" in stream, f"{case_id}: selection reset")
     elif case_id == "tmux_passthrough":
         require(stream.startswith(b"\x1bPtmux;\x1b\x1b]"), f"{case_id}: bad wrapper")
     elif case_id == "screen_passthrough":

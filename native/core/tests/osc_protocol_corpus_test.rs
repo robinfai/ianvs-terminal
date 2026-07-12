@@ -140,6 +140,25 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
                 );
                 assert_eq!(terminal.drain_responses(), b"\x1b]21;future=?\x1b\\");
             }
+            "xterm_special_dynamic_colors" => {
+                assert_eq!(
+                    terminal.xterm_special_color(0),
+                    Some(Color::Named(
+                        par_term_emu_core_rust::color::NamedColor::White
+                    ))
+                );
+                assert_eq!(terminal.xterm_special_color_mode(0), Some(false));
+                assert_eq!(
+                    terminal.get_selection_bg_color(),
+                    Color::Rgb(0x11, 0x22, 0x33)
+                );
+                assert_eq!(terminal.get_selection_fg_color(), Color::Rgb(0, 0, 0));
+                assert!(!terminal.selection_foreground_color_enabled());
+                assert_eq!(
+                    terminal.drain_responses(),
+                    b"\x1b]5;0;rgb:ffff/0000/ffff\x1b\\\x1b]17;rgb:1111/2222/3333\x1b\\\x1b]18;rgb:1818/1818/1818\x1b\\\x1b]19;rgb:dddd/eeee/ffff\x1b\\"
+                );
+            }
             "osc22_pointer_shape_stack" => {
                 assert_eq!(terminal.pointer_shape_name(), Some("crosshair"));
                 assert_eq!(

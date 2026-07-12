@@ -27,6 +27,8 @@ message TerminalFrameDiff {
   optional uint64 global_bottom_row = 22;
   string pointer_shape = 23;
   repeated TerminalSizedTextPlacement sized_text = 24;
+  ColorRgb selection_background = 25;
+  ColorRgb selection_foreground = 26;
 }
 
 enum TerminalFrameKind {

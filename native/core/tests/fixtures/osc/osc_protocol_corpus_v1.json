@@ -381,6 +381,28 @@
       }
     },
     {
+      "id": "xterm_special_dynamic_colors",
+      "coverage": [
+        "xterm OSC 5/6 special colors",
+        "xterm OSC 13-19 dynamic colors",
+        "xterm OSC 105/119 resets and 106 alias"
+      ],
+      "protocol": "xterm OSC 5/6/17/105/106/119",
+      "wire": {
+        "chunks_hex": [
+          "1b5d353b303b236666303066663b303b3f1b5c1b5d363b303b311b5c1b5d31373b233131323233333b233138313831383b236464656566661b5c1b5d31373b3f3b3f3b3f1b5c1b5d3130353b301b5c1b5d3130363b303b301b5c1b5d3131391b5c"
+        ],
+        "sequence_count": 7
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "xterm_special_dynamic_colors",
+        "state_effect": "bold resource/mode set then OSC 105 resets the resource while OSC 106 disables the mode; sequential highlight resources set/query; OSC 119 restores selected-text baseline",
+        "reply": "one OSC 5 response and three dynamic-color responses",
+        "must_not_crash": true
+      }
+    },
+    {
       "id": "tmux_passthrough",
       "coverage": ["tmux passthrough fixture"],
       "protocol": "tmux DCS passthrough carrying OSC 8",

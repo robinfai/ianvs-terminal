@@ -47,6 +47,8 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
     $fixnum.Int64? globalBottomRow,
     $core.String? pointerShape,
     $core.Iterable<TerminalSizedTextPlacement>? sizedText,
+    ColorRgb? selectionBackground,
+    ColorRgb? selectionForeground,
   }) {
     final result = create();
     if (frameSchemaVersion != null)
@@ -75,6 +77,10 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
     if (globalBottomRow != null) result.globalBottomRow = globalBottomRow;
     if (pointerShape != null) result.pointerShape = pointerShape;
     if (sizedText != null) result.sizedText.addAll(sizedText);
+    if (selectionBackground != null)
+      result.selectionBackground = selectionBackground;
+    if (selectionForeground != null)
+      result.selectionForeground = selectionForeground;
     return result;
   }
 
@@ -135,6 +141,10 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
     ..aOS(23, _omitFieldNames ? '' : 'pointerShape')
     ..pPM<TerminalSizedTextPlacement>(24, _omitFieldNames ? '' : 'sizedText',
         subBuilder: TerminalSizedTextPlacement.create)
+    ..aOM<ColorRgb>(25, _omitFieldNames ? '' : 'selectionBackground',
+        subBuilder: ColorRgb.create)
+    ..aOM<ColorRgb>(26, _omitFieldNames ? '' : 'selectionForeground',
+        subBuilder: ColorRgb.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -347,6 +357,28 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(24)
   $pb.PbList<TerminalSizedTextPlacement> get sizedText => $_getList(23);
+
+  @$pb.TagNumber(25)
+  ColorRgb get selectionBackground => $_getN(24);
+  @$pb.TagNumber(25)
+  set selectionBackground(ColorRgb value) => $_setField(25, value);
+  @$pb.TagNumber(25)
+  $core.bool hasSelectionBackground() => $_has(24);
+  @$pb.TagNumber(25)
+  void clearSelectionBackground() => $_clearField(25);
+  @$pb.TagNumber(25)
+  ColorRgb ensureSelectionBackground() => $_ensure(24);
+
+  @$pb.TagNumber(26)
+  ColorRgb get selectionForeground => $_getN(25);
+  @$pb.TagNumber(26)
+  set selectionForeground(ColorRgb value) => $_setField(26, value);
+  @$pb.TagNumber(26)
+  $core.bool hasSelectionForeground() => $_has(25);
+  @$pb.TagNumber(26)
+  void clearSelectionForeground() => $_clearField(26);
+  @$pb.TagNumber(26)
+  ColorRgb ensureSelectionForeground() => $_ensure(25);
 }
 
 class TerminalRow extends $pb.GeneratedMessage {
