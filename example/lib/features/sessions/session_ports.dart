@@ -8,6 +8,9 @@ import 'session_state.dart';
 
 typedef SessionClipboardCopy = Future<void> Function(String text);
 typedef SessionClipboardPaste = Future<String> Function();
+typedef SessionClipboardMimeWrite = TerminalClipboardMimeWriter;
+typedef SessionClipboardMimeRead = TerminalClipboardMimeReader;
+typedef SessionClipboardMimeTypeList = TerminalClipboardMimeTypeLister;
 typedef SessionWindowTitleWriter = Future<void> Function(String title);
 typedef SessionTerminalContentPublisher =
     void Function({
@@ -47,6 +50,15 @@ final sessionClipboardCopyProvider = Provider<SessionClipboardCopy>((ref) {
 final sessionClipboardPasteProvider = Provider<SessionClipboardPaste>((ref) {
   return () async => '';
 });
+
+final sessionClipboardMimeWriteProvider = Provider<SessionClipboardMimeWrite?>(
+  (ref) => null,
+);
+final sessionClipboardMimeReadProvider = Provider<SessionClipboardMimeRead?>(
+  (ref) => null,
+);
+final sessionClipboardMimeTypeListProvider =
+    Provider<SessionClipboardMimeTypeList?>((ref) => null);
 
 final sessionWindowResizeProvider = Provider<TerminalWindowResizeCallback?>(
   (ref) => null,

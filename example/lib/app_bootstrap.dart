@@ -28,6 +28,15 @@ Widget buildIanvsTerminalRoot({
       ),
       sessionClipboardCopyProvider.overrideWithValue(ClipboardBridge.copy),
       sessionClipboardPasteProvider.overrideWithValue(ClipboardBridge.paste),
+      sessionClipboardMimeWriteProvider.overrideWithValue(
+        ClipboardBridge.writeMimeItems,
+      ),
+      sessionClipboardMimeReadProvider.overrideWithValue(
+        ClipboardBridge.readMimeItems,
+      ),
+      sessionClipboardMimeTypeListProvider.overrideWithValue(
+        ClipboardBridge.listMimeTypes,
+      ),
       sessionWindowResizeProvider.overrideWithValue(
         ({required heightDelta, required widthDelta}) => WindowBridge.resizeBy(
           widthDelta: widthDelta,

@@ -78,6 +78,24 @@ PROBES = {
         "clipboard read request; default deny or explicit authorization",
         osc("52;c;?"),
     ),
+    "clipboard_mime": Probe(
+        "clipboard_mime",
+        "Kitty OSC 5522",
+        "Write one binary MIME representation with an alias, then list available MIME types.",
+        "Allowed terminals reply DONE for the write and return a DATA list containing the stored MIME type.",
+        "clipboard write request is policy-gated; MIME listing requires no clipboard data read",
+        osc("5522;type=write:id=ianvs-probe")
+        + osc(
+            "5522;type=wdata:mime=YXBwbGljYXRpb24vb2N0ZXQtc3RyZWFt;"
+            "SWFudnMgT1NDIDU1MjIgcHJvYmU="
+        )
+        + osc(
+            "5522;type=walias:mime=YXBwbGljYXRpb24vb2N0ZXQtc3RyZWFt;"
+            "YXBwbGljYXRpb24veC1pYW52cy1wcm9iZQ=="
+        )
+        + osc("5522;type=wdata")
+        + osc("5522;type=read:id=ianvs-list;Lg=="),
+    ),
     "prompt_command_output": Probe(
         "prompt_command_output",
         "OSC 133 N/P/A/B/C/D with k= and aid=",
@@ -267,6 +285,7 @@ def self_test() -> None:
         "hyperlink_with_id",
         "clipboard_copy",
         "clipboard_query",
+        "clipboard_mime",
         "prompt_command_output",
         "notification",
         "notification_query",
@@ -297,6 +316,8 @@ def self_test() -> None:
         raise ValueError("hyperlink probe lost its protocol id")
     if b"52;c;?" not in PROBES["clipboard_query"].payload:
         raise ValueError("clipboard query fixture is malformed")
+    if PROBES["clipboard_mime"].payload.count(b"\x1b]5522;") != 5:
+        raise ValueError("OSC 5522 MIME clipboard fixture is malformed")
     if PROBES["terminal_context"].payload.count(b"\x1b]3008;") != 4:
         raise ValueError("terminal context lifecycle fixture is malformed")
     if PROBES["color_control"].payload.count(b"=?") != 4:

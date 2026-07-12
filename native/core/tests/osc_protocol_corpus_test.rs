@@ -290,6 +290,9 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
                     } if event_type == "command_finished" && aid == "outer"
                 )));
             }
+            "osc5522_binary_mime_clipboard" => {
+                assert_eq!(terminal.title(), "osc5522-corpus-ok");
+            }
             "tmux_passthrough" => assert_eq!(
                 write_hyperlink_probe(&mut terminal),
                 Some((

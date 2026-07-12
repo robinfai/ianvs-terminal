@@ -559,6 +559,21 @@ fn clipboard_paste_request_profile() -> TerminalProfile {
     )
 }
 
+fn osc5522_clipboard_profile(emulation: TerminalEmulation) -> TerminalProfile {
+    local_profile(
+        "osc5522-clipboard",
+        "OSC5522 Clipboard",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import sys; sys.stdout.buffer.write(b"\x1b]5522;type=write:id=w1\x1b\\\x1b]5522;type=wdata:mime=dGV4dC9wbGFpbg==;aGk=\x1b\\\x1b]5522;type=wdata:mime=aW1hZ2UvcG5n;AAEC\x1b\\\x1b]5522;type=wdata\x1b\\\x1b]5522;type=read:id=list;Lg==\x1b\\\x1b]5522;type=read:id=r1;aW1hZ2UvcG5n\x1b\\")'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        emulation,
+    )
+}
+
 fn osc7_shell_context_profile(emulation: TerminalEmulation) -> TerminalProfile {
     local_profile(
         "osc7-shell-context",
@@ -17666,6 +17681,59 @@ fn vt220_sessions_do_not_emit_clipboard_paste_requests_from_osc_52_queries() {
 
     assert_event_kind_never_arrives(session_id, "clipboard_paste_request");
 
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_emits_binary_mime_write_list_and_read_requests_from_osc5522() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc5522_clipboard_profile(TerminalEmulation::Xterm256)).unwrap(),
+    )
+    .unwrap();
+    let events = collect_events_until(session_id, |events| {
+        ["clipboard_mime_write", "clipboard_mime_read_request"]
+            .iter()
+            .all(|kind| events.iter().any(|event| event["kind"] == *kind))
+            && events
+                .iter()
+                .filter(|event| event["kind"] == "clipboard_mime_read_request")
+                .count()
+                == 2
+    });
+    let write = events
+        .iter()
+        .find(|event| event["kind"] == "clipboard_mime_write")
+        .expect("expected MIME write");
+    assert_eq!(write["payload"]["id"], "w1");
+    assert_eq!(write["payload"]["items"][0]["mime"], "image/png");
+    assert_eq!(write["payload"]["items"][0]["data"], "AAEC");
+    assert_eq!(write["payload"]["items"][1]["mime"], "text/plain");
+    assert!(events.iter().any(|event| {
+        event["kind"] == "clipboard_mime_read_request"
+            && event["payload"]["listOnly"] == true
+            && event["payload"]["id"] == "list"
+    }));
+    assert!(events.iter().any(|event| {
+        event["kind"] == "clipboard_mime_read_request"
+            && event["payload"]["listOnly"] == false
+            && event["payload"]["mimeTypes"][0] == "image/png"
+    }));
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_sessions_gate_osc5522_clipboard_events() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc5522_clipboard_profile(TerminalEmulation::Vt220)).unwrap(),
+    )
+    .unwrap();
+    for kind in [
+        "clipboard_mime_write",
+        "clipboard_mime_read_request",
+        "clipboard_mime_error",
+    ] {
+        assert_event_kind_never_arrives(session_id, kind);
+    }
     session::close_session(session_id).unwrap();
 }
 

@@ -166,6 +166,7 @@ class MainFlutterWindow: NSWindow {
   private static let chromeBarHeight: CGFloat = 44
   private static let leadingWindowDragWidth: CGFloat = 132
   private static let maxOsc72DropBytes = 64 * 1024 * 1024
+  private static let mimePasteboardTypePrefix = "dev.ianvs.terminal.mime."
 
   private var windowBridgeChannel: FlutterMethodChannel?
   private var hotkeyWindowController: HotkeyWindowController?
@@ -231,6 +232,66 @@ class MainFlutterWindow: NSWindow {
       x: startFrameOrigin.x + currentMouseLocation.x - startMouseLocation.x,
       y: startFrameOrigin.y + currentMouseLocation.y - startMouseLocation.y
     )
+  }
+
+  static func pasteboardType(forMime mime: String) -> NSPasteboard.PasteboardType {
+    switch mime.lowercased() {
+    case "text/plain": return .string
+    case "text/html": return .html
+    case "text/rtf": return .rtf
+    case "image/png": return .png
+    case "image/tiff": return .tiff
+    default:
+      let encoded = mime.utf8.map { String(format: "%02x", $0) }.joined()
+      return NSPasteboard.PasteboardType(mimePasteboardTypePrefix + encoded)
+    }
+  }
+
+  static func mime(forPasteboardType type: NSPasteboard.PasteboardType) -> String {
+    switch type {
+    case .string: return "text/plain"
+    case .html: return "text/html"
+    case .rtf: return "text/rtf"
+    case .png: return "image/png"
+    case .tiff: return "image/tiff"
+    default:
+      if type.rawValue.hasPrefix(mimePasteboardTypePrefix) {
+        let encoded = type.rawValue.dropFirst(mimePasteboardTypePrefix.count)
+        guard encoded.count.isMultiple(of: 2) else { return type.rawValue.lowercased() }
+        var bytes: [UInt8] = []
+        bytes.reserveCapacity(encoded.count / 2)
+        var index = encoded.startIndex
+        while index < encoded.endIndex {
+          let next = encoded.index(index, offsetBy: 2)
+          guard let byte = UInt8(encoded[index..<next], radix: 16) else {
+            return type.rawValue.lowercased()
+          }
+          bytes.append(byte)
+          index = next
+        }
+        return String(bytes: bytes, encoding: .utf8) ?? type.rawValue.lowercased()
+      }
+      switch type.rawValue.lowercased() {
+      case "nsstringpboardtype": return "text/plain"
+      case "apple png pasteboard type": return "image/png"
+      case "next tiff v4.0 pasteboard type": return "image/tiff"
+      default: return type.rawValue.lowercased()
+      }
+    }
+  }
+
+  static func isMimeType(_ value: String) -> Bool {
+    let parts = value.split(separator: "/", maxSplits: 1, omittingEmptySubsequences: false)
+    return parts.count == 2 && parts.allSatisfy { !$0.isEmpty && $0.count <= 127 }
+  }
+
+  static func mimePattern(_ pattern: String, matches mime: String) -> Bool {
+    if pattern == "*/*" { return true }
+    let patternParts = pattern.split(separator: "/", maxSplits: 1).map(String.init)
+    let mimeParts = mime.split(separator: "/", maxSplits: 1).map(String.init)
+    guard patternParts.count == 2, mimeParts.count == 2 else { return pattern == mime }
+    return (patternParts[0] == "*" || patternParts[0] == mimeParts[0])
+      && (patternParts[1] == "*" || patternParts[1] == mimeParts[1])
   }
 
   override func awakeFromNib() {
@@ -390,6 +451,12 @@ class MainFlutterWindow: NSWindow {
           "decision": Self.osc72OperationMask(self.osc72DropDecision),
           "cachedDrops": self.osc72DropPayloads.count
         ])
+      case "writeClipboardMime":
+        self.writeClipboardMime(arguments: call.arguments, result: result)
+      case "readClipboardMime":
+        self.readClipboardMime(arguments: call.arguments, result: result)
+      case "listClipboardMimeTypes":
+        result(Self.clipboardMimeTypes(NSPasteboard.general))
       default:
         result(FlutterMethodNotImplemented)
       }
@@ -928,6 +995,107 @@ class MainFlutterWindow: NSWindow {
         }
       }
     }
+  }
+
+  static func clipboardMimeTypes(_ pasteboard: NSPasteboard) -> [String] {
+    Array(
+      Set(
+        (pasteboard.types ?? [])
+          .map(Self.mime(forPasteboardType:))
+          .filter(Self.isMimeType)
+      )
+    ).sorted()
+  }
+
+  static func writeClipboardEntries(
+    _ entries: [(NSPasteboard.PasteboardType, Data)],
+    to pasteboard: NSPasteboard
+  ) -> Bool {
+    let item = NSPasteboardItem()
+    for (type, data) in entries where !item.setData(data, forType: type) {
+      return false
+    }
+    pasteboard.clearContents()
+    return pasteboard.writeObjects([item])
+  }
+
+  private func writeClipboardMime(arguments: Any?, result: @escaping FlutterResult) {
+    guard
+      let arguments = arguments as? [String: Any],
+      let rawItems = arguments["items"] as? [[String: Any]],
+      !rawItems.isEmpty,
+      rawItems.count <= 64
+    else {
+      result(FlutterError(code: "invalid_clipboard_mime", message: "Clipboard MIME items are invalid", details: nil))
+      return
+    }
+    var entries: [(NSPasteboard.PasteboardType, Data)] = []
+    var totalBytes = 0
+    for rawItem in rawItems {
+      guard
+        let mime = rawItem["mime"] as? String,
+        !mime.isEmpty,
+        mime.utf8.count <= 255,
+        let typedData = rawItem["data"] as? FlutterStandardTypedData
+      else {
+        result(FlutterError(code: "invalid_clipboard_mime", message: "Clipboard MIME entry is invalid", details: nil))
+        return
+      }
+      let data = typedData.data
+      totalBytes += data.count
+      guard totalBytes <= 4 * 1024 * 1024 else {
+        result(FlutterError(code: "clipboard_mime_too_large", message: "Clipboard MIME payload exceeds the limit", details: nil))
+        return
+      }
+      entries.append((Self.pasteboardType(forMime: mime), data))
+      if let aliases = rawItem["aliases"] as? [String] {
+        for alias in aliases.prefix(16) where !alias.isEmpty && alias.utf8.count <= 255 {
+          entries.append((Self.pasteboardType(forMime: alias), data))
+        }
+      }
+    }
+    let pasteboard = NSPasteboard.general
+    guard Self.writeClipboardEntries(entries, to: pasteboard) else {
+      result(FlutterError(code: "clipboard_mime_write_failed", message: "macOS rejected clipboard MIME transaction", details: nil))
+      return
+    }
+    result(nil)
+  }
+
+  private func readClipboardMime(arguments: Any?, result: @escaping FlutterResult) {
+    guard
+      let arguments = arguments as? [String: Any],
+      let patterns = arguments["mimeTypes"] as? [String],
+      !patterns.isEmpty,
+      patterns.count <= 64
+    else {
+      result(FlutterError(code: "invalid_clipboard_mime", message: "Clipboard MIME request is invalid", details: nil))
+      return
+    }
+    let pasteboard = NSPasteboard.general
+    var items: [[String: Any]] = []
+    var seen = Set<String>()
+    var totalBytes = 0
+    for type in pasteboard.types ?? [] {
+      let mime = Self.mime(forPasteboardType: type)
+      guard
+        Self.isMimeType(mime),
+        !seen.contains(mime),
+        patterns.contains(where: { Self.mimePattern($0, matches: mime) })
+      else {
+        continue
+      }
+      guard let data = pasteboard.data(forType: type) else { continue }
+      totalBytes += data.count
+      guard totalBytes <= 4 * 1024 * 1024 else {
+        result(FlutterError(code: "clipboard_mime_too_large", message: "Clipboard MIME payload exceeds the limit", details: nil))
+        return
+      }
+      seen.insert(mime)
+      items.append(["mime": mime, "data": FlutterStandardTypedData(bytes: data)])
+      if items.count >= 64 { break }
+    }
+    result(["items": items])
   }
 
   private func closeNotification(arguments: Any?, result: @escaping FlutterResult) {

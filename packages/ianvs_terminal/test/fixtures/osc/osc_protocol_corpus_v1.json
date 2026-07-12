@@ -475,6 +475,25 @@
         "reply": "none",
         "must_not_crash": true
       }
+    },
+    {
+      "id": "osc5522_binary_mime_clipboard",
+      "coverage": [
+        "OSC 5522 binary MIME clipboard"
+      ],
+      "protocol": "Kitty OSC 5522 MIME clipboard",
+      "wire": {
+        "chunks_hex": [
+          "1b5d353532323b747970653d77726974653a69643d636f727075731b5c1b5d353532323b747970653d77646174613a6d696d653d5958427762476c6a595852706232347662324e305a585174633352795a5746743b414145432f773d3d1b5c1b5d353532323b747970653d77616c6961733a6d696d653d5958427762476c6a595852706232347662324e305a585174633352795a5746743b5958427762476c6a5958527062323476654331705957353263793177636d39695a513d3d1b5c1b5d353532323b747970653d77646174611b5c1b5d323b6f7363353532322d636f727075732d6f6b1b5c"
+        ]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "clipboard_mime_write",
+        "state_effect": "one binary application/octet-stream item and its MIME alias are assembled without corrupting later OSC parsing",
+        "reply": "policy-gated DONE or an explicit error status",
+        "must_not_crash": true
+      }
     }
   ]
 }

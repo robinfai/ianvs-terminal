@@ -1,6 +1,13 @@
 import 'package:ianvs_pty/ianvs_pty.dart';
 
-enum TerminalAsyncEventKind { resize, clipboardCopy, clipboardPasteRequest }
+enum TerminalAsyncEventKind {
+  resize,
+  clipboardCopy,
+  clipboardPasteRequest,
+  clipboardMimeWrite,
+  clipboardMimeReadRequest,
+  clipboardMimeError,
+}
 
 enum TerminalImmediateEventKind {
   bell,
@@ -63,6 +70,18 @@ final class TerminalEventRouter {
       ),
       'clipboard_paste_request' => TerminalAsyncEventRoute(
         kind: TerminalAsyncEventKind.clipboardPasteRequest,
+        payload: event.payload,
+      ),
+      'clipboard_mime_write' => TerminalAsyncEventRoute(
+        kind: TerminalAsyncEventKind.clipboardMimeWrite,
+        payload: event.payload,
+      ),
+      'clipboard_mime_read_request' => TerminalAsyncEventRoute(
+        kind: TerminalAsyncEventKind.clipboardMimeReadRequest,
+        payload: event.payload,
+      ),
+      'clipboard_mime_error' => TerminalAsyncEventRoute(
+        kind: TerminalAsyncEventKind.clipboardMimeError,
         payload: event.payload,
       ),
       'bell' => TerminalImmediateEventRoute(

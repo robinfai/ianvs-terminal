@@ -178,6 +178,12 @@ void _validateFixture(String id, Map<String, Object?> fixture) {
     expect(text, contains('N;aid=outer;k=i'));
     expect(text, contains('P;k=s;aid=outer'));
     expect(text, contains('D;aid=outer;0'));
+  } else if (id == 'osc5522_binary_mime_clipboard') {
+    final text = latin1.decode(stream);
+    expect(RegExp(r'\x1b]5522;').allMatches(text), hasLength(4));
+    expect(text, contains('type=wdata:mime=YXBwbGljYXRpb24vb2N0ZXQtc3RyZWFt'));
+    expect(text, contains('type=walias'));
+    expect(text, endsWith('\x1b]2;osc5522-corpus-ok\x1b\\'));
   }
 }
 

@@ -188,4 +188,53 @@ class RunnerTests: XCTestCase {
     )
   }
 
+  func testOsc5522MimeMappingsPatternsAndPasteboardListingAreDeterministic() throws {
+    XCTAssertEqual(MainFlutterWindow.pasteboardType(forMime: "text/plain"), .string)
+    XCTAssertEqual(MainFlutterWindow.pasteboardType(forMime: "image/png"), .png)
+    XCTAssertEqual(MainFlutterWindow.mime(forPasteboardType: .html), "text/html")
+    let customType = MainFlutterWindow.pasteboardType(
+      forMime: "application/x-ianvs-probe"
+    )
+    XCTAssertTrue(customType.rawValue.hasPrefix("dev.ianvs.terminal.mime."))
+    XCTAssertEqual(
+      MainFlutterWindow.mime(forPasteboardType: customType),
+      "application/x-ianvs-probe"
+    )
+    XCTAssertTrue(MainFlutterWindow.mimePattern("image/*", matches: "image/png"))
+    XCTAssertTrue(MainFlutterWindow.mimePattern("*/*", matches: "application/pdf"))
+    XCTAssertFalse(MainFlutterWindow.mimePattern("text/*", matches: "image/png"))
+
+    let pasteboard = NSPasteboard.withUniqueName()
+    pasteboard.clearContents()
+    XCTAssertTrue(pasteboard.setData(Data([0, 1, 2]), forType: .png))
+    XCTAssertTrue(pasteboard.setData(Data("hello".utf8), forType: .string))
+    XCTAssertEqual(
+      MainFlutterWindow.clipboardMimeTypes(pasteboard),
+      ["image/png", "image/tiff", "text/plain"]
+    )
+    pasteboard.releaseGlobally()
+
+    let customPasteboard = NSPasteboard.withUniqueName()
+    XCTAssertTrue(
+      MainFlutterWindow.writeClipboardEntries(
+        [
+          (customType, Data([3, 2, 1])),
+          (
+            MainFlutterWindow.pasteboardType(
+              forMime: "application/octet-stream"
+            ),
+            Data([3, 2, 1])
+          ),
+        ],
+        to: customPasteboard
+      )
+    )
+    XCTAssertEqual(
+      MainFlutterWindow.clipboardMimeTypes(customPasteboard),
+      ["application/octet-stream", "application/x-ianvs-probe"]
+    )
+    XCTAssertEqual(customPasteboard.data(forType: customType), Data([3, 2, 1]))
+    customPasteboard.releaseGlobally()
+  }
+
 }

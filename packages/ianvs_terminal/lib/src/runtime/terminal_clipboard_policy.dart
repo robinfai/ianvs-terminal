@@ -1,4 +1,6 @@
-enum TerminalClipboardOperation { copy, pasteRequest }
+import 'dart:typed_data';
+
+enum TerminalClipboardOperation { copy, pasteRequest, mimeWrite, mimeRead }
 
 enum TerminalClipboardDecision { allowed, blocked, invalidPayload }
 
@@ -12,6 +14,8 @@ final class TerminalClipboardAccessRequest {
     this.textPreview,
     this.textPreviewTruncated = false,
     this.resolveText,
+    this.protocol = 'osc52',
+    this.mimeTypes = const <String>[],
   });
 
   final String sessionId;
@@ -22,7 +26,28 @@ final class TerminalClipboardAccessRequest {
   final String? textPreview;
   final bool textPreviewTruncated;
   final Future<String> Function()? resolveText;
+  final String protocol;
+  final List<String> mimeTypes;
 }
+
+final class TerminalClipboardMimeItem {
+  TerminalClipboardMimeItem({
+    required this.mimeType,
+    required Uint8List bytes,
+    List<String> aliases = const <String>[],
+  }) : bytes = Uint8List.fromList(bytes),
+       aliases = List<String>.unmodifiable(aliases);
+
+  final String mimeType;
+  final Uint8List bytes;
+  final List<String> aliases;
+}
+
+typedef TerminalClipboardMimeWriter =
+    Future<void> Function(List<TerminalClipboardMimeItem> items);
+typedef TerminalClipboardMimeReader =
+    Future<List<TerminalClipboardMimeItem>> Function(List<String> mimeTypes);
+typedef TerminalClipboardMimeTypeLister = Future<List<String>> Function();
 
 final class TerminalClipboardPolicyAdapter {
   const TerminalClipboardPolicyAdapter({

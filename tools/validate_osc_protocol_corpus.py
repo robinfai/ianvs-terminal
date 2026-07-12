@@ -42,6 +42,7 @@ REQUIRED_COVERAGE = {
     "OSC 72 bounded host authorization",
     "OSC 1337 shell metadata",
     "OSC 133 semantic prompts and aid lifecycle",
+    "OSC 5522 binary MIME clipboard",
     "OSC 1337 cell-size query",
     "OSC 1337 cursor shape",
     "DECSCUSR cursor override coexistence",

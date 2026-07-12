@@ -3587,6 +3587,102 @@ void main() {
   });
 
   test(
+    'OSC 5522 multi-MIME clipboard uses product providers and allow policy',
+    () async {
+      final fakeBindings = FakePtyBackend();
+      final bindings = _EventfulPtyBackend(fakeBindings);
+      final written = <terminal.TerminalClipboardMimeItem>[];
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(bindings),
+          sessionClipboardMimeWriteProvider.overrideWithValue((items) async {
+            written.addAll(items);
+          }),
+          sessionClipboardMimeReadProvider.overrideWithValue((types) async {
+            return <terminal.TerminalClipboardMimeItem>[
+              terminal.TerminalClipboardMimeItem(
+                mimeType: 'image/png',
+                bytes: Uint8List.fromList(<int>[9, 8, 7]),
+              ),
+            ];
+          }),
+          sessionClipboardMimeTypeListProvider.overrideWithValue(
+            () async => <String>['image/png', 'text/plain'],
+          ),
+          sessionControllerProvider.overrideWith(_TestSessionController.new),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalConfigRepository(
+              const LocalTerminalConfigDocument(
+                clipboard: LocalTerminalClipboardConfig(
+                  osc52: LocalTerminalOsc52Policy.allow,
+                ),
+              ),
+            ),
+          ),
+          sessionPollingEnabledProvider.overrideWithValue(false),
+        ],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(sessionControllerProvider.notifier);
+      controller.createSession(
+        defaultTerminalProfile().copyWith(id: 'shell-1'),
+      );
+      final sessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      bindings.enqueueEvent(sessionId, {
+        'kind': 'clipboard_mime_write',
+        'session_id': int.parse(sessionId),
+        'payload': {
+          'location': 'clipboard',
+          'id': 'write-product',
+          'items': <Object?>[
+            <String, Object?>{
+              'mime': 'image/png',
+              'data': base64.encode(<int>[1, 2, 3]),
+            },
+          ],
+        },
+      });
+      controller.resizeActiveSession(const Size(640, 480), 1.0);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(written.single.mimeType, 'image/png');
+      expect(written.single.bytes, <int>[1, 2, 3]);
+      expect(
+        ascii.decode(fakeBindings.writes.last),
+        '\u001b]5522;type=write:status=DONE:id=write-product\u001b\\',
+      );
+
+      bindings.enqueueEvent(sessionId, {
+        'kind': 'clipboard_mime_read_request',
+        'session_id': int.parse(sessionId),
+        'payload': {
+          'location': 'clipboard',
+          'id': 'read-product',
+          'mimeTypes': <String>['image/*'],
+          'listOnly': false,
+        },
+      });
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(sessionId);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(
+        fakeBindings.writes.map(ascii.decode).join(),
+        contains(
+          'type=read:status=DATA:mime=aW1hZ2UvcG5n:id=read-product;CQgH',
+        ),
+      );
+    },
+  );
+
+  test(
     'bootstrap prefers explicit override over persisted and legacy defaults',
     () async {
       final coreClient = FakePtyBackend();

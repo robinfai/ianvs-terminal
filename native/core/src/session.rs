@@ -8,6 +8,7 @@ use crate::model::{
     normalize_scrollback_lines,
 };
 use crate::pty::spawn_pty;
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use par_term_emu_core_rust::cell::{Cell, CellFlags};
 use par_term_emu_core_rust::color::Color;
 use par_term_emu_core_rust::graphics::placeholder::{PlaceholderInfo, parse_diacritics};
@@ -22,7 +23,7 @@ use par_term_emu_core_rust::terminal::{
 };
 use parking_lot::Mutex;
 use regex::RegexBuilder;
-use std::collections::{BTreeSet, HashMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::{Read, Write};
 use std::sync::{
@@ -46,6 +47,11 @@ const RESOURCE_SAMPLER_MAX_FAILURES: u64 = 5;
 const MAX_GRAPHIC_ASSET_SNAPSHOTS: usize = 128;
 const VT220_PRIMARY_DA_RESPONSE: &str = "\x1b[?62;1;2;6;7;8;9c";
 const VT220_SECONDARY_DA_RESPONSE: &str = "\x1b[>1;10;0c";
+const OSC5522_MAX_TOTAL_BYTES: usize = 4 * 1024 * 1024;
+const OSC5522_MAX_CHUNK_BYTES: usize = 4096;
+const OSC5522_MAX_MIME_TYPES: usize = 64;
+const OSC5522_MAX_MIME_BYTES: usize = 255;
+const OSC5522_MAX_ID_BYTES: usize = 128;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum TerminalSearchMode {
@@ -119,6 +125,15 @@ enum CallbackEvent {
     },
     ClipboardPasteRequest {
         selection: String,
+    },
+    ClipboardMimeWrite {
+        payload: serde_json::Value,
+    },
+    ClipboardMimeReadRequest {
+        payload: serde_json::Value,
+    },
+    ClipboardMimeError {
+        payload: serde_json::Value,
     },
     ShellHook {
         payload: serde_json::Value,
@@ -291,7 +306,13 @@ fn pending_event_is_coalescible(kind: &str) -> bool {
 fn pending_event_is_critical(kind: &str) -> bool {
     matches!(
         kind,
-        "exit" | "clipboard_copy" | "clipboard_paste_request" | "session_reset"
+        "exit"
+            | "clipboard_copy"
+            | "clipboard_paste_request"
+            | "clipboard_mime_write"
+            | "clipboard_mime_read_request"
+            | "clipboard_mime_error"
+            | "session_reset"
     )
 }
 
@@ -781,11 +802,23 @@ struct TerminalState {
     graphic_asset_cache_max_bytes: usize,
 }
 
+#[derive(Clone, Debug)]
+struct Osc5522WriteState {
+    location: String,
+    id: Option<String>,
+    data_by_mime: BTreeMap<String, Vec<u8>>,
+    aliases_by_mime: BTreeMap<String, Vec<String>>,
+    last_mime: Option<String>,
+    total_bytes: usize,
+    failed: bool,
+}
+
 #[derive(Clone, Default)]
 struct HostProtocolState {
     buffer: Vec<u8>,
     window_icon_name: Option<String>,
     application_keypad: bool,
+    osc5522_write: Option<Osc5522WriteState>,
 }
 
 impl HostProtocolState {
@@ -824,6 +857,7 @@ impl HostProtocolState {
                     // copied back into frames after that reset.
                     self.window_icon_name = None;
                     self.application_keypad = false;
+                    self.osc5522_write = None;
                     index += 2;
                 }
                 b']' => match self.consume_osc(index, emulation, &mut events) {
@@ -990,6 +1024,7 @@ impl HostProtocolState {
                     }
                 }
             }
+            b"5522" => self.handle_osc5522(remainder, events),
             b"9" => {
                 if let Some(payload) = primary_progress_payload_from_osc9(remainder) {
                     events.push(CallbackEvent::SessionProgress { payload });
@@ -1003,6 +1038,221 @@ impl HostProtocolState {
                 }
             }
             _ => {}
+        }
+    }
+
+    fn handle_osc5522(&mut self, remainder: &[u8], events: &mut Vec<CallbackEvent>) {
+        let mut fields = remainder.splitn(2, |byte| *byte == b';');
+        let metadata = fields.next().unwrap_or_default();
+        let payload = fields.next().unwrap_or_default();
+        let Ok(metadata) = std::str::from_utf8(metadata) else {
+            self.fail_osc5522_write("EINVAL", None, events);
+            return;
+        };
+        let Some(metadata) = parse_osc5522_metadata(metadata) else {
+            self.fail_osc5522_write("EINVAL", None, events);
+            return;
+        };
+        let request_type = metadata.get("type").map(String::as_str).unwrap_or_default();
+        let id = metadata
+            .get("id")
+            .and_then(|value| sanitized_osc5522_id(value));
+        match request_type {
+            "write" => {
+                if !payload.is_empty() {
+                    events.push(osc5522_error_event("write", "EINVAL", id));
+                    self.osc5522_write = None;
+                    return;
+                }
+                let Some(location) = osc5522_location(&metadata) else {
+                    events.push(osc5522_error_event("write", "EINVAL", id));
+                    self.osc5522_write = None;
+                    return;
+                };
+                self.osc5522_write = Some(Osc5522WriteState {
+                    location,
+                    id,
+                    data_by_mime: BTreeMap::new(),
+                    aliases_by_mime: BTreeMap::new(),
+                    last_mime: None,
+                    total_bytes: 0,
+                    failed: false,
+                });
+            }
+            "wdata" => self.handle_osc5522_wdata(&metadata, payload, events),
+            "walias" => self.handle_osc5522_walias(&metadata, payload, events),
+            "read" => self.handle_osc5522_read(&metadata, payload, id, events),
+            _ => self.fail_osc5522_write("EINVAL", id, events),
+        }
+    }
+
+    fn handle_osc5522_wdata(
+        &mut self,
+        metadata: &BTreeMap<String, String>,
+        payload: &[u8],
+        events: &mut Vec<CallbackEvent>,
+    ) {
+        let Some(state) = self.osc5522_write.as_mut() else {
+            events.push(osc5522_error_event("write", "EINVAL", None));
+            return;
+        };
+        if state.failed {
+            return;
+        }
+        let Some(encoded_mime) = metadata.get("mime") else {
+            if !payload.is_empty() || state.data_by_mime.is_empty() {
+                self.fail_osc5522_write("EINVAL", None, events);
+                return;
+            }
+            let state = self.osc5522_write.take().expect("write state exists");
+            let items = state
+                .data_by_mime
+                .into_iter()
+                .map(|(mime, data)| {
+                    serde_json::json!({
+                        "mime": mime,
+                        "data": BASE64_STANDARD.encode(data),
+                        "aliases": state.aliases_by_mime.get(&mime).cloned().unwrap_or_default(),
+                    })
+                })
+                .collect::<Vec<_>>();
+            events.push(CallbackEvent::ClipboardMimeWrite {
+                payload: serde_json::json!({
+                    "protocol": "osc5522",
+                    "location": state.location,
+                    "id": state.id,
+                    "items": items,
+                }),
+            });
+            return;
+        };
+        let Some(mime) = decode_osc5522_mime(encoded_mime) else {
+            self.fail_osc5522_write("EINVAL", None, events);
+            return;
+        };
+        let Ok(chunk) = BASE64_STANDARD.decode(payload) else {
+            self.fail_osc5522_write("EINVAL", None, events);
+            return;
+        };
+        if chunk.len() > OSC5522_MAX_CHUNK_BYTES
+            || state.total_bytes.saturating_add(chunk.len()) > OSC5522_MAX_TOTAL_BYTES
+            || (!state.data_by_mime.contains_key(&mime)
+                && state.data_by_mime.len() >= OSC5522_MAX_MIME_TYPES)
+            || (state.last_mime.as_deref() != Some(&mime) && state.data_by_mime.contains_key(&mime))
+        {
+            self.fail_osc5522_write("EINVAL", None, events);
+            return;
+        }
+        state.total_bytes += chunk.len();
+        state.last_mime = Some(mime.clone());
+        state.data_by_mime.entry(mime).or_default().extend(chunk);
+    }
+
+    fn handle_osc5522_walias(
+        &mut self,
+        metadata: &BTreeMap<String, String>,
+        payload: &[u8],
+        events: &mut Vec<CallbackEvent>,
+    ) {
+        let Some(state) = self.osc5522_write.as_mut() else {
+            events.push(osc5522_error_event("write", "EINVAL", None));
+            return;
+        };
+        if state.failed {
+            return;
+        }
+        let Some(target) = metadata
+            .get("mime")
+            .and_then(|value| decode_osc5522_mime(value))
+        else {
+            self.fail_osc5522_write("EINVAL", None, events);
+            return;
+        };
+        let Ok(decoded) = BASE64_STANDARD.decode(payload) else {
+            self.fail_osc5522_write("EINVAL", None, events);
+            return;
+        };
+        let Ok(decoded) = std::str::from_utf8(&decoded) else {
+            self.fail_osc5522_write("EINVAL", None, events);
+            return;
+        };
+        let aliases = decoded
+            .split_ascii_whitespace()
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        if aliases.is_empty()
+            || aliases.len() > 16
+            || !state.data_by_mime.contains_key(&target)
+            || aliases.iter().any(|alias| !is_valid_osc5522_mime(alias))
+        {
+            self.fail_osc5522_write("EINVAL", None, events);
+            return;
+        }
+        state.aliases_by_mime.insert(target, aliases);
+    }
+
+    fn handle_osc5522_read(
+        &mut self,
+        metadata: &BTreeMap<String, String>,
+        payload: &[u8],
+        id: Option<String>,
+        events: &mut Vec<CallbackEvent>,
+    ) {
+        let Some(location) = osc5522_location(metadata) else {
+            events.push(osc5522_error_event("read", "EINVAL", id));
+            return;
+        };
+        let Ok(decoded) = BASE64_STANDARD.decode(payload) else {
+            events.push(osc5522_error_event("read", "EINVAL", id));
+            return;
+        };
+        let Ok(decoded) = std::str::from_utf8(&decoded) else {
+            events.push(osc5522_error_event("read", "EINVAL", id));
+            return;
+        };
+        let mime_types = decoded
+            .split_ascii_whitespace()
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        if mime_types.is_empty()
+            || mime_types.len() > OSC5522_MAX_MIME_TYPES
+            || mime_types
+                .iter()
+                .any(|mime| mime != "." && !is_valid_osc5522_mime_pattern(mime))
+            || (mime_types.contains(&".".to_string()) && mime_types.len() != 1)
+        {
+            events.push(osc5522_error_event("read", "EINVAL", id));
+            return;
+        }
+        events.push(CallbackEvent::ClipboardMimeReadRequest {
+            payload: serde_json::json!({
+                "protocol": "osc5522",
+                "location": location,
+                "id": id,
+                "mimeTypes": mime_types,
+                "listOnly": decoded == ".",
+            }),
+        });
+    }
+
+    fn fail_osc5522_write(
+        &mut self,
+        status: &str,
+        id: Option<String>,
+        events: &mut Vec<CallbackEvent>,
+    ) {
+        if let Some(state) = self.osc5522_write.as_mut() {
+            if state.failed {
+                return;
+            }
+            state.failed = true;
+            events.push(osc5522_error_event(
+                "write",
+                status,
+                state.id.clone().or(id),
+            ));
+        } else {
+            events.push(osc5522_error_event("write", status, id));
         }
     }
 
@@ -2756,6 +3006,15 @@ impl TerminalSession {
                     "selection": selection,
                 })),
             ),
+            CallbackEvent::ClipboardMimeWrite { payload } => {
+                self.push_event("clipboard_mime_write", Some(payload))
+            }
+            CallbackEvent::ClipboardMimeReadRequest { payload } => {
+                self.push_event("clipboard_mime_read_request", Some(payload))
+            }
+            CallbackEvent::ClipboardMimeError { payload } => {
+                self.push_event("clipboard_mime_error", Some(payload))
+            }
             CallbackEvent::ShellHook { payload } => self.push_event("shell_hook", Some(payload)),
             CallbackEvent::ShellContext { payload } => {
                 self.push_event("shell_context", Some(payload))
@@ -2882,6 +3141,96 @@ fn terminal_cursor_snapshot(cursor: &par_term_emu_core_rust::cursor::Cursor) -> 
             par_term_emu_core_rust::cursor::CursorShape::Bar => TerminalCursorShape::Beam,
         }),
         blink: cursor.blink_override(),
+    }
+}
+
+fn parse_osc5522_metadata(value: &str) -> Option<BTreeMap<String, String>> {
+    let mut metadata = BTreeMap::new();
+    for field in value.split(':') {
+        let (key, value) = field.split_once('=')?;
+        if key.is_empty()
+            || key.len() > 16
+            || !key
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+            || value.len() > 1024
+        {
+            return None;
+        }
+        metadata
+            .entry(key.to_string())
+            .or_insert_with(|| value.to_string());
+        if metadata.len() > 16 {
+            return None;
+        }
+    }
+    Some(metadata)
+}
+
+fn osc5522_location(metadata: &BTreeMap<String, String>) -> Option<String> {
+    match metadata
+        .get("loc")
+        .map(String::as_str)
+        .unwrap_or("clipboard")
+    {
+        "clipboard" => Some("clipboard".to_string()),
+        "primary" => Some("primary".to_string()),
+        _ => None,
+    }
+}
+
+fn sanitized_osc5522_id(value: &str) -> Option<String> {
+    let sanitized = value
+        .bytes()
+        .filter(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'+' | b'.'))
+        .take(OSC5522_MAX_ID_BYTES)
+        .map(char::from)
+        .collect::<String>();
+    (!sanitized.is_empty()).then_some(sanitized)
+}
+
+fn decode_osc5522_mime(encoded: &str) -> Option<String> {
+    let decoded = BASE64_STANDARD.decode(encoded).ok()?;
+    let mime = String::from_utf8(decoded).ok()?;
+    is_valid_osc5522_mime(&mime).then_some(mime)
+}
+
+fn is_valid_osc5522_mime(value: &str) -> bool {
+    value.len() <= OSC5522_MAX_MIME_BYTES
+        && value.split_once('/').is_some_and(|(major, minor)| {
+            !major.is_empty()
+                && !minor.is_empty()
+                && major.bytes().all(is_osc5522_mime_byte)
+                && minor.bytes().all(is_osc5522_mime_byte)
+        })
+}
+
+fn is_valid_osc5522_mime_pattern(value: &str) -> bool {
+    is_valid_osc5522_mime(value)
+        || value.split_once('/').is_some_and(|(major, minor)| {
+            !major.is_empty()
+                && !minor.is_empty()
+                && (major == "*" || major.bytes().all(is_osc5522_mime_byte))
+                && (minor == "*" || minor.bytes().all(is_osc5522_mime_byte))
+        })
+}
+
+fn is_osc5522_mime_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric()
+        || matches!(
+            byte,
+            b'!' | b'#' | b'$' | b'&' | b'^' | b'_' | b'.' | b'+' | b'-'
+        )
+}
+
+fn osc5522_error_event(operation: &str, status: &str, id: Option<String>) -> CallbackEvent {
+    CallbackEvent::ClipboardMimeError {
+        payload: serde_json::json!({
+            "protocol": "osc5522",
+            "operation": operation,
+            "status": status,
+            "id": id,
+        }),
     }
 }
 
@@ -3028,6 +3377,23 @@ fn sanitize_diagnostic_event_payload(
         })),
         "clipboard_paste_request" => Some(serde_json::json!({
             "selection": payload.get("selection").and_then(serde_json::Value::as_str),
+        })),
+        "clipboard_mime_write" => Some(serde_json::json!({
+            "protocol": "osc5522",
+            "location": payload.get("location").and_then(serde_json::Value::as_str),
+            "item_count": payload.get("items").and_then(serde_json::Value::as_array).map(Vec::len),
+            "encoded_bytes": payload
+                .get("items")
+                .and_then(serde_json::Value::as_array)
+                .map(|items| items.iter().filter_map(|item| item.get("data").and_then(serde_json::Value::as_str)).map(str::len).sum::<usize>()),
+        })),
+        "clipboard_mime_read_request" | "clipboard_mime_error" => Some(serde_json::json!({
+            "protocol": "osc5522",
+            "operation": payload.get("operation").and_then(serde_json::Value::as_str),
+            "status": payload.get("status").and_then(serde_json::Value::as_str),
+            "location": payload.get("location").and_then(serde_json::Value::as_str),
+            "mime_count": payload.get("mimeTypes").and_then(serde_json::Value::as_array).map(Vec::len),
+            "list_only": payload.get("listOnly").and_then(serde_json::Value::as_bool),
         })),
         "cell_size_report_request" => Some(serde_json::json!({})),
         "shell_hook" => sanitize_shell_hook_payload(payload),
@@ -7145,6 +7511,132 @@ mod tests {
                 if selection == "c" && data.len() == encoded.len()
         ));
         assert!(host.buffer.is_empty());
+    }
+
+    #[test]
+    fn host_protocol_assembles_osc5522_binary_mime_write_and_aliases() {
+        let mut host = HostProtocolState::default();
+        let packets = concat!(
+            "\x1b]5522;type=write:id=mux!1\x1b\\",
+            "\x1b]5522;type=wdata:mime=dGV4dC9wbGFpbg==;aA==\x1b\\",
+            "\x1b]5522;type=wdata:mime=dGV4dC9wbGFpbg==;aQ==\x1b\\",
+            "\x1b]5522;type=walias:mime=dGV4dC9wbGFpbg==;dGV4dC91dGY4\x1b\\",
+            "\x1b]5522;type=wdata:mime=aW1hZ2UvcG5n;AAEC\x1b\\",
+            "\x1b]5522;type=wdata\x1b\\"
+        );
+        let mut events = Vec::new();
+        for chunk in packets.as_bytes().chunks(11) {
+            events.extend(host.observe(chunk, TerminalEmulation::Xterm256));
+        }
+        let [CallbackEvent::ClipboardMimeWrite { payload }] = events.as_slice() else {
+            panic!("expected one assembled OSC 5522 write: {events:?}");
+        };
+        assert_eq!(payload["protocol"], "osc5522");
+        assert_eq!(payload["location"], "clipboard");
+        assert_eq!(payload["id"], "mux1");
+        let items = payload["items"].as_array().expect("items array");
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0]["mime"], "image/png");
+        assert_eq!(items[0]["data"], "AAEC");
+        assert_eq!(items[1]["mime"], "text/plain");
+        assert_eq!(items[1]["data"], "aGk=");
+        assert_eq!(items[1]["aliases"][0], "text/utf8");
+    }
+
+    #[test]
+    fn host_protocol_emits_osc5522_read_list_and_mime_requests() {
+        let mut host = HostProtocolState::default();
+        let events = host.observe(
+            concat!(
+                "\x1b]5522;type=read:id=list;Lg==\x1b\\",
+                "\x1b]5522;type=read:loc=clipboard:id=read-1;dGV4dC9wbGFpbiBpbWFnZS8q\x1b\\"
+            )
+            .as_bytes(),
+            TerminalEmulation::Xterm256,
+        );
+        assert_eq!(events.len(), 2);
+        let CallbackEvent::ClipboardMimeReadRequest { payload: list } = &events[0] else {
+            panic!("expected list request")
+        };
+        assert_eq!(list["listOnly"], true);
+        assert_eq!(list["mimeTypes"][0], ".");
+        let CallbackEvent::ClipboardMimeReadRequest { payload: read } = &events[1] else {
+            panic!("expected MIME read request")
+        };
+        assert_eq!(read["id"], "read-1");
+        assert_eq!(read["mimeTypes"][0], "text/plain");
+        assert_eq!(read["mimeTypes"][1], "image/*");
+    }
+
+    #[test]
+    fn host_protocol_osc5522_write_failure_ignores_packets_until_restart() {
+        let mut host = HostProtocolState::default();
+        let events = host.observe(
+            concat!(
+                "\x1b]5522;type=write:id=bad\x1b\\",
+                "\x1b]5522;type=wdata:mime=dGV4dC9wbGFpbg==;%%%\x1b\\",
+                "\x1b]5522;type=wdata\x1b\\",
+                "\x1b]5522;type=write:id=good\x1b\\",
+                "\x1b]5522;type=wdata:mime=dGV4dC9wbGFpbg==;b2s=\x1b\\",
+                "\x1b]5522;type=wdata\x1b\\"
+            )
+            .as_bytes(),
+            TerminalEmulation::Xterm256,
+        );
+        assert_eq!(events.len(), 2);
+        assert!(matches!(
+            &events[0],
+            CallbackEvent::ClipboardMimeError { payload }
+                if payload["status"] == "EINVAL" && payload["id"] == "bad"
+        ));
+        assert!(matches!(
+            &events[1],
+            CallbackEvent::ClipboardMimeWrite { payload }
+                if payload["id"] == "good"
+        ));
+    }
+
+    #[test]
+    fn host_protocol_parses_osc5522_across_every_byte_boundary() {
+        let mut host = HostProtocolState::default();
+        let sequence = concat!(
+            "\x1b]5522;type=write:id=byte-split\x1b\\",
+            "\x1b]5522;type=wdata:mime=YXBwbGljYXRpb24vb2N0ZXQtc3RyZWFt;AAEC/w==\x1b\\",
+            "\x1b]5522;type=wdata\x1b\\"
+        );
+        let mut events = Vec::new();
+        for byte in sequence.as_bytes() {
+            events.extend(host.observe(std::slice::from_ref(byte), TerminalEmulation::Xterm256));
+        }
+        let [CallbackEvent::ClipboardMimeWrite { payload }] = events.as_slice() else {
+            panic!("expected every-byte split write: {events:?}");
+        };
+        assert_eq!(payload["id"], "byte-split");
+        assert_eq!(payload["items"][0]["mime"], "application/octet-stream");
+        assert_eq!(payload["items"][0]["data"], "AAEC/w==");
+    }
+
+    #[test]
+    fn host_protocol_rejects_osc5522_nonempty_start_and_oversized_chunk() {
+        let oversized = BASE64_STANDARD.encode(vec![0x5a; OSC5522_MAX_CHUNK_BYTES + 1]);
+        let sequence = format!(
+            "\x1b]5522;type=write:id=start-data;QQ==\x1b\\\
+             \x1b]5522;type=write:id=too-large\x1b\\\
+             \x1b]5522;type=wdata:mime=YXBwbGljYXRpb24vb2N0ZXQtc3RyZWFt;{oversized}\x1b\\"
+        );
+        let events =
+            HostProtocolState::default().observe(sequence.as_bytes(), TerminalEmulation::Xterm256);
+        assert_eq!(events.len(), 2);
+        assert!(matches!(
+            &events[0],
+            CallbackEvent::ClipboardMimeError { payload }
+                if payload["status"] == "EINVAL" && payload["id"] == "start-data"
+        ));
+        assert!(matches!(
+            &events[1],
+            CallbackEvent::ClipboardMimeError { payload }
+                if payload["status"] == "EINVAL" && payload["id"] == "too-large"
+        ));
     }
 
     #[test]

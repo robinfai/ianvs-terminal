@@ -615,6 +615,7 @@ name = "ianvs_core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64",
  "cbindgen",
  "libc",
  "par-term-emu-core-rust",

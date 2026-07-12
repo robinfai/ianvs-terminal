@@ -129,17 +129,21 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (!mounted) {
       return false;
     }
-    final isPasteRequest =
-        request.operation == terminal.TerminalClipboardOperation.pasteRequest;
+    final promptTitle = switch (request.operation) {
+      terminal.TerminalClipboardOperation.copy =>
+        'Allow OSC 52 clipboard copy?',
+      terminal.TerminalClipboardOperation.pasteRequest =>
+        'Allow OSC 52 paste read?',
+      terminal.TerminalClipboardOperation.mimeWrite =>
+        'Allow ${_oscProtocolDisplayName(request.protocol)} clipboard write?',
+      terminal.TerminalClipboardOperation.mimeRead =>
+        'Allow ${_oscProtocolDisplayName(request.protocol)} clipboard read?',
+    };
     final result = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text(
-            isPasteRequest
-                ? 'Allow OSC 52 paste read?'
-                : 'Allow OSC 52 clipboard copy?',
-          ),
+          title: Text(promptTitle),
           content: _buildOsc52PromptContent(request),
           actions: [
             TextButton(
@@ -159,7 +163,8 @@ extension _ShellScreenStateEvents on _ShellScreenState {
 
   Widget _buildOsc52PromptContent(SessionOsc52PromptRequest request) {
     final isPasteRequest =
-        request.operation == terminal.TerminalClipboardOperation.pasteRequest;
+        request.operation == terminal.TerminalClipboardOperation.pasteRequest ||
+        request.operation == terminal.TerminalClipboardOperation.mimeRead;
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
     final details = <Widget>[
@@ -168,6 +173,11 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         value: _osc52SessionDetailValue(request.sessionId),
       ),
       _Osc52PromptDetail(label: 'Selection', value: request.selection ?? 'c'),
+      if (request.mimeTypes.isNotEmpty)
+        _Osc52PromptDetail(
+          label: 'MIME types',
+          value: request.mimeTypes.join(', '),
+        ),
       if (request.characterCount != null || request.byteCount != null)
         _Osc52PromptDetail(
           label: 'Size',
@@ -281,19 +291,25 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     final operation = switch (event.operation) {
       terminal.TerminalClipboardOperation.copy => 'COPY',
       terminal.TerminalClipboardOperation.pasteRequest => 'PASTE',
+      terminal.TerminalClipboardOperation.mimeWrite => 'MIME WRITE',
+      terminal.TerminalClipboardOperation.mimeRead => 'MIME READ',
     };
     final decision = switch (event.decision) {
       terminal.TerminalClipboardDecision.allowed => 'OK',
       terminal.TerminalClipboardDecision.blocked => 'BLOCKED',
       terminal.TerminalClipboardDecision.invalidPayload => 'INVALID',
     };
-    return 'OSC52 $operation $decision';
+    return '${event.protocol.toUpperCase()} $operation $decision';
   }
 
   String _osc52StatusTooltipFor(terminal.TerminalSessionClipboardEvent event) {
     final operation = switch (event.operation) {
       terminal.TerminalClipboardOperation.copy => 'clipboard write',
       terminal.TerminalClipboardOperation.pasteRequest => 'clipboard read',
+      terminal.TerminalClipboardOperation.mimeWrite =>
+        'multi-format clipboard write',
+      terminal.TerminalClipboardOperation.mimeRead =>
+        'multi-format clipboard read',
     };
     final decision = switch (event.decision) {
       terminal.TerminalClipboardDecision.allowed => 'allowed',
@@ -301,11 +317,13 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       terminal.TerminalClipboardDecision.invalidPayload => 'invalid payload',
     };
     return [
-      'OSC 52 $operation $decision',
+      '${_oscProtocolDisplayName(event.protocol)} $operation $decision',
       'Session: ${_osc52SessionDetailValue(event.sessionId)}',
       if (event.selection != null) 'Selection: ${event.selection}',
       if (event.characterCount != null) 'Characters: ${event.characterCount}',
       if (event.byteCount != null) 'Bytes: ${event.byteCount}',
+      if (event.mimeTypes.isNotEmpty)
+        'MIME types: ${event.mimeTypes.join(', ')}',
       if (event.textPreview != null)
         'Preview: ${_visibleOsc52Preview(event.textPreview!)}'
             '${event.textPreviewTruncated ? '\n... preview truncated' : ''}',
@@ -313,6 +331,13 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       if (_osc52StatusShouldOfferPaneFocus(event)) 'Click to focus this pane.',
     ].join('\n');
   }
+
+  String _oscProtocolDisplayName(String protocol) =>
+      switch (protocol.toLowerCase()) {
+        'osc52' => 'OSC 52',
+        'osc5522' => 'OSC 5522',
+        _ => protocol.toUpperCase(),
+      };
 
   bool _osc52StatusShouldOfferPaneFocus(
     terminal.TerminalSessionClipboardEvent event,
@@ -375,6 +400,36 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         terminal.TerminalClipboardDecision.invalidPayload,
       ) =>
         'OSC 52 paste read ignored: invalid payload',
+      (
+        terminal.TerminalClipboardOperation.mimeWrite,
+        terminal.TerminalClipboardDecision.allowed,
+      ) =>
+        'OSC 5522 wrote ${event.mimeTypes.length} MIME types (${event.byteCount ?? 0} bytes)',
+      (
+        terminal.TerminalClipboardOperation.mimeWrite,
+        terminal.TerminalClipboardDecision.blocked,
+      ) =>
+        'OSC 5522 MIME clipboard write blocked by policy',
+      (
+        terminal.TerminalClipboardOperation.mimeWrite,
+        terminal.TerminalClipboardDecision.invalidPayload,
+      ) =>
+        'OSC 5522 MIME clipboard write failed',
+      (
+        terminal.TerminalClipboardOperation.mimeRead,
+        terminal.TerminalClipboardDecision.allowed,
+      ) =>
+        'OSC 5522 replied with ${event.mimeTypes.length} MIME types (${event.byteCount ?? 0} bytes)',
+      (
+        terminal.TerminalClipboardOperation.mimeRead,
+        terminal.TerminalClipboardDecision.blocked,
+      ) =>
+        'OSC 5522 MIME clipboard read blocked by policy',
+      (
+        terminal.TerminalClipboardOperation.mimeRead,
+        terminal.TerminalClipboardDecision.invalidPayload,
+      ) =>
+        'OSC 5522 MIME clipboard read failed',
     };
     if (!_osc52StatusShouldOfferPaneFocus(event)) {
       return message;

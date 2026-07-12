@@ -654,7 +654,7 @@ fn measured_payload_len(content: &[u8], separator: usize, classification: Classi
             .or_else(|| payload.strip_prefix(b"SetUserVar="))
             .unwrap_or(payload)
             .len(),
-        (b"52", OscIntent::Clipboard) => payload
+        (b"52" | b"5522", OscIntent::Clipboard) => payload
             .iter()
             .take(MAX_OSC_COMMAND_BYTES + 1)
             .position(|byte| *byte == b';')
@@ -713,6 +713,18 @@ fn classify_osc(
             };
             Classification::new(OscIntent::Clipboard, capability)
         }
+        b"5522" => {
+            let capability = if complete && osc_5522_is_type_list_query(payload) {
+                // The official protocol explicitly permits MIME enumeration
+                // without a read prompt. It returns names, never clipboard data.
+                OscCapability::ClipboardWrite
+            } else if payload.starts_with(b"type=read") {
+                OscCapability::ClipboardRead
+            } else {
+                OscCapability::ClipboardWrite
+            };
+            Classification::new(OscIntent::Clipboard, capability)
+        }
         b"133" => Classification::new(OscIntent::ShellIntegration, OscCapability::Metadata),
         b"3008" => Classification::new(OscIntent::ShellIntegration, OscCapability::Metadata),
         b"633" => {
@@ -729,6 +741,14 @@ fn classify_osc(
         b"1337" => classify_osc_1337(payload, context, complete),
         _ => Classification::new(OscIntent::Custom, OscCapability::CustomProtocol),
     }
+}
+
+fn osc_5522_is_type_list_query(payload: &[u8]) -> bool {
+    payload.starts_with(b"type=read")
+        && payload
+            .splitn(2, |byte| *byte == b';')
+            .nth(1)
+            .is_some_and(|encoded| encoded == b"Lg==")
 }
 
 fn classify_osc_9(payload: &[u8], complete: bool) -> Classification {
@@ -1052,6 +1072,16 @@ mod tests {
                 OscIntent::Clipboard,
             ),
             (
+                OscCapability::ClipboardWrite,
+                b"\x1b]5522;type=write:id=w1\x1b\\",
+                OscIntent::Clipboard,
+            ),
+            (
+                OscCapability::ClipboardRead,
+                b"\x1b]5522;type=read:id=r1;dGV4dC9wbGFpbg==\x1b\\",
+                OscIntent::Clipboard,
+            ),
+            (
                 OscCapability::Notification,
                 b"\x1b]99;;hello\x1b\\",
                 OscIntent::Notification,
@@ -1111,6 +1141,26 @@ mod tests {
                 "{capability:?} did not report a category-only denial"
             );
         }
+    }
+
+    #[test]
+    fn osc5522_mime_type_listing_is_allowed_without_clipboard_read_permission() {
+        let sequence = b"\x1b]5522;type=read:id=list;Lg==\x1b\\";
+        let policy = OscCapabilityPolicy {
+            clipboard_write: true,
+            clipboard_read: false,
+            ..OscCapabilityPolicy::default()
+        };
+        let mut gate = OscStreamGate::default();
+        assert_eq!(
+            filter_owned(
+                &mut gate,
+                sequence,
+                policy,
+                OscClassificationContext::default(),
+            ),
+            sequence
+        );
     }
 
     #[test]

@@ -108,7 +108,8 @@ final terminalRuntimeControllerProvider = Provider<TerminalRuntimeController>((
               .read(sessionOsc52PromptControllerProvider)
               .request(await promptRequestFor(request)),
         LocalTerminalOsc52Policy.profile =>
-          request.operation == TerminalClipboardOperation.pasteRequest
+          request.operation == TerminalClipboardOperation.pasteRequest ||
+                  request.operation == TerminalClipboardOperation.mimeRead
               ? await ref
                     .read(sessionOsc52PromptControllerProvider)
                     .request(await promptRequestFor(request))
@@ -124,6 +125,9 @@ final terminalRuntimeControllerProvider = Provider<TerminalRuntimeController>((
     backend: ref.read(ptySessionBackendProvider),
     copyToClipboard: ref.read(sessionClipboardCopyProvider),
     readClipboard: ref.read(sessionClipboardPasteProvider),
+    writeMimeClipboard: ref.read(sessionClipboardMimeWriteProvider),
+    readMimeClipboard: ref.read(sessionClipboardMimeReadProvider),
+    listClipboardMimeTypes: ref.read(sessionClipboardMimeTypeListProvider),
     allowClipboardCopyWithContext: osc52ClipboardAccessAllowed,
     allowClipboardPasteRequestWithContext: osc52ClipboardAccessAllowed,
     resizeWindowBy: ref.read(sessionWindowResizeProvider),
@@ -194,6 +198,8 @@ class SessionOsc52PromptRequest {
     this.characterCount,
     this.textPreview,
     this.textPreviewTruncated = false,
+    this.protocol = 'osc52',
+    this.mimeTypes = const <String>[],
   });
 
   factory SessionOsc52PromptRequest.fromAccessRequest(
@@ -207,6 +213,8 @@ class SessionOsc52PromptRequest {
       characterCount: request.characterCount,
       textPreview: request.textPreview,
       textPreviewTruncated: request.textPreviewTruncated,
+      protocol: request.protocol,
+      mimeTypes: request.mimeTypes,
     );
   }
 
@@ -217,6 +225,8 @@ class SessionOsc52PromptRequest {
   final int? characterCount;
   final String? textPreview;
   final bool textPreviewTruncated;
+  final String protocol;
+  final List<String> mimeTypes;
 }
 
 typedef SessionOsc52PromptHandler =

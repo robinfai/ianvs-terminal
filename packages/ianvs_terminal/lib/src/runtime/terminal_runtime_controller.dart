@@ -34,6 +34,45 @@ const int _maxOsc52ClipboardDecodedBytes = 4 * 1024 * 1024;
 const int _maxOsc52ClipboardEncodedLength =
     ((_maxOsc52ClipboardDecodedBytes + 2) ~/ 3) * 4;
 const int _maxPendingOsc1337CellSizeReports = 16;
+const int _osc5522ChunkBytes = 4096;
+
+Future<void> _writeMimeClipboardAsText(
+  Future<void> Function(String text) writer,
+  List<TerminalClipboardMimeItem> items,
+) async {
+  TerminalClipboardMimeItem? textItem;
+  for (final item in items) {
+    if (item.mimeType == 'text/plain') {
+      textItem = item;
+      break;
+    }
+  }
+  if (textItem == null) {
+    throw UnsupportedError('No text/plain clipboard representation');
+  }
+  await writer(utf8.decode(textItem.bytes));
+}
+
+Future<List<TerminalClipboardMimeItem>> _readMimeClipboardAsText(
+  Future<String> Function() reader,
+  List<String> mimeTypes,
+) async {
+  if (!mimeTypes.any(
+    (mime) => mime == 'text/plain' || mime == 'text/*' || mime == '*/*',
+  )) {
+    return const <TerminalClipboardMimeItem>[];
+  }
+  return <TerminalClipboardMimeItem>[
+    TerminalClipboardMimeItem(
+      mimeType: 'text/plain',
+      bytes: Uint8List.fromList(utf8.encode(await reader())),
+    ),
+  ];
+}
+
+Future<List<String>> _listTextClipboardMimeType() async => const <String>[
+  'text/plain',
+];
 
 typedef TerminalWindowResizeCallback =
     Future<void> Function({
@@ -334,6 +373,8 @@ final class TerminalSessionClipboardEvent extends TerminalSessionEvent {
     this.characterCount,
     this.textPreview,
     this.textPreviewTruncated = false,
+    this.protocol = 'osc52',
+    this.mimeTypes = const <String>[],
   });
 
   final TerminalClipboardOperation operation;
@@ -343,6 +384,8 @@ final class TerminalSessionClipboardEvent extends TerminalSessionEvent {
   final int? characterCount;
   final String? textPreview;
   final bool textPreviewTruncated;
+  final String protocol;
+  final List<String> mimeTypes;
 
   bool get allowed => decision == TerminalClipboardDecision.allowed;
 }
@@ -406,6 +449,9 @@ class TerminalRuntimeController {
     allowClipboardCopyWithContext,
     Future<bool> Function(TerminalClipboardAccessRequest request)?
     allowClipboardPasteRequestWithContext,
+    TerminalClipboardMimeWriter? writeMimeClipboard,
+    TerminalClipboardMimeReader? readMimeClipboard,
+    TerminalClipboardMimeTypeLister? listClipboardMimeTypes,
     TerminalWindowResizeCallback? resizeWindowBy,
     bool enableSessionPolling = true,
     bool enableWarmUpRefresh = false,
@@ -424,6 +470,9 @@ class TerminalRuntimeController {
            allowClipboardPasteRequestWithContext:
                allowClipboardPasteRequestWithContext,
          ),
+         writeMimeClipboard: writeMimeClipboard,
+         readMimeClipboard: readMimeClipboard,
+         listClipboardMimeTypes: listClipboardMimeTypes,
          resizeWindowBy: resizeWindowBy,
          enableSessionPolling: enableSessionPolling,
          enableWarmUpRefresh: enableWarmUpRefresh,
@@ -437,6 +486,9 @@ class TerminalRuntimeController {
     required this.copyToClipboard,
     required this.readClipboard,
     required TerminalClipboardPolicyAdapter clipboardPolicy,
+    TerminalClipboardMimeWriter? writeMimeClipboard,
+    TerminalClipboardMimeReader? readMimeClipboard,
+    TerminalClipboardMimeTypeLister? listClipboardMimeTypes,
     this.resizeWindowBy,
     this.enableSessionPolling = true,
     this.enableWarmUpRefresh = false,
@@ -447,6 +499,14 @@ class TerminalRuntimeController {
   }) : _backend = backend,
        allowClipboardCopy = clipboardPolicy.allowCopy,
        allowClipboardPasteRequest = clipboardPolicy.allowPasteRequest,
+       writeMimeClipboard =
+           writeMimeClipboard ??
+           ((items) => _writeMimeClipboardAsText(copyToClipboard, items)),
+       readMimeClipboard =
+           readMimeClipboard ??
+           ((mimeTypes) => _readMimeClipboardAsText(readClipboard, mimeTypes)),
+       listClipboardMimeTypes =
+           listClipboardMimeTypes ?? _listTextClipboardMimeType,
        _readMonotonicNow = monotonicNow {
     final refreshHintBackend = backend is PtySessionRefreshHintBackend
         ? backend as PtySessionRefreshHintBackend
@@ -486,6 +546,9 @@ class TerminalRuntimeController {
   late final TerminalFrameTransportCoordinator _frameTransportCoordinator;
   final Future<void> Function(String text) copyToClipboard;
   final Future<String> Function() readClipboard;
+  final TerminalClipboardMimeWriter writeMimeClipboard;
+  final TerminalClipboardMimeReader readMimeClipboard;
+  final TerminalClipboardMimeTypeLister listClipboardMimeTypes;
   final Future<bool> Function(TerminalClipboardAccessRequest request)
   allowClipboardCopy;
   final Future<bool> Function(TerminalClipboardAccessRequest request)
@@ -1800,6 +1863,18 @@ class TerminalRuntimeController {
           sessionEpoch,
           route.payload,
         ),
+      TerminalAsyncEventKind.clipboardMimeWrite => _handleClipboardMimeWrite(
+        sessionId,
+        sessionEpoch,
+        route.payload,
+      ),
+      TerminalAsyncEventKind.clipboardMimeReadRequest =>
+        _handleClipboardMimeReadRequest(sessionId, sessionEpoch, route.payload),
+      TerminalAsyncEventKind.clipboardMimeError => _handleClipboardMimeError(
+        sessionId,
+        sessionEpoch,
+        route.payload,
+      ),
     };
   }
 
@@ -2302,6 +2377,474 @@ class TerminalRuntimeController {
         characterCount: summary.characterCount,
         textPreview: summary.preview,
         textPreviewTruncated: summary.previewTruncated,
+      ),
+    );
+  }
+
+  Future<void> _handleClipboardMimeWrite(
+    String sessionId,
+    int sessionEpoch,
+    Map<String, Object?>? payload,
+  ) async {
+    final id = _osc5522Id(payload?['id']);
+    final location = _stringFromJsonValue(payload?['location']);
+    final rawItems = payload?['items'];
+    if (location != 'clipboard' ||
+        rawItems is! List<Object?> ||
+        rawItems.isEmpty) {
+      _sendOsc5522Status(
+        sessionId,
+        sessionEpoch,
+        operation: 'write',
+        status: location == 'primary' ? 'ENOSYS' : 'EINVAL',
+        id: id,
+      );
+      return;
+    }
+    final items = <TerminalClipboardMimeItem>[];
+    var totalBytes = 0;
+    for (final rawItem in rawItems) {
+      if (rawItem is! Map<String, Object?> || items.length >= 64) {
+        _sendOsc5522Status(
+          sessionId,
+          sessionEpoch,
+          operation: 'write',
+          status: 'EINVAL',
+          id: id,
+        );
+        return;
+      }
+      final mime = _validOsc5522Mime(rawItem['mime']);
+      final encoded = _stringFromJsonValue(rawItem['data']);
+      if (mime == null || encoded == null) {
+        _sendOsc5522Status(
+          sessionId,
+          sessionEpoch,
+          operation: 'write',
+          status: 'EINVAL',
+          id: id,
+        );
+        return;
+      }
+      final bytes = _decodeOsc52ClipboardPayload(encoded);
+      if (bytes == null) {
+        _sendOsc5522Status(
+          sessionId,
+          sessionEpoch,
+          operation: 'write',
+          status: 'EINVAL',
+          id: id,
+        );
+        return;
+      }
+      totalBytes += bytes.length;
+      if (totalBytes > _maxOsc52ClipboardDecodedBytes) {
+        _sendOsc5522Status(
+          sessionId,
+          sessionEpoch,
+          operation: 'write',
+          status: 'EINVAL',
+          id: id,
+        );
+        return;
+      }
+      final aliases = switch (rawItem['aliases']) {
+        final List<Object?> values
+            when values.length <= 16 &&
+                values.every(
+                  (value) => value is String && _isValidOsc5522Mime(value),
+                ) =>
+          values.cast<String>().toList(growable: false),
+        null => const <String>[],
+        _ => null,
+      };
+      if (aliases == null) {
+        _sendOsc5522Status(
+          sessionId,
+          sessionEpoch,
+          operation: 'write',
+          status: 'EINVAL',
+          id: id,
+        );
+        return;
+      }
+      items.add(
+        TerminalClipboardMimeItem(
+          mimeType: mime,
+          bytes: bytes,
+          aliases: aliases,
+        ),
+      );
+    }
+    final mimeTypes = items
+        .map((item) => item.mimeType)
+        .toList(growable: false);
+    final allowed = await allowClipboardCopy(
+      TerminalClipboardAccessRequest(
+        sessionId: sessionId,
+        operation: TerminalClipboardOperation.mimeWrite,
+        protocol: 'osc5522',
+        selection: location,
+        byteCount: totalBytes,
+        mimeTypes: mimeTypes,
+      ),
+    );
+    if (!_isCurrentSession(sessionId, sessionEpoch)) return;
+    if (!allowed) {
+      _sendOsc5522Status(
+        sessionId,
+        sessionEpoch,
+        operation: 'write',
+        status: 'EPERM',
+        id: id,
+      );
+      _emitOsc5522ClipboardEvent(
+        sessionId,
+        sessionEpoch,
+        TerminalClipboardOperation.mimeWrite,
+        TerminalClipboardDecision.blocked,
+        mimeTypes,
+        totalBytes,
+      );
+      return;
+    }
+    try {
+      await writeMimeClipboard(items);
+    } on Object {
+      _sendOsc5522Status(
+        sessionId,
+        sessionEpoch,
+        operation: 'write',
+        status: 'EIO',
+        id: id,
+      );
+      _emitOsc5522ClipboardEvent(
+        sessionId,
+        sessionEpoch,
+        TerminalClipboardOperation.mimeWrite,
+        TerminalClipboardDecision.invalidPayload,
+        mimeTypes,
+        totalBytes,
+      );
+      return;
+    }
+    if (!_isCurrentSession(sessionId, sessionEpoch)) return;
+    _sendOsc5522Status(
+      sessionId,
+      sessionEpoch,
+      operation: 'write',
+      status: 'DONE',
+      id: id,
+    );
+    _emitOsc5522ClipboardEvent(
+      sessionId,
+      sessionEpoch,
+      TerminalClipboardOperation.mimeWrite,
+      TerminalClipboardDecision.allowed,
+      mimeTypes,
+      totalBytes,
+    );
+  }
+
+  Future<void> _handleClipboardMimeReadRequest(
+    String sessionId,
+    int sessionEpoch,
+    Map<String, Object?>? payload,
+  ) async {
+    final id = _osc5522Id(payload?['id']);
+    final location = _stringFromJsonValue(payload?['location']);
+    final listOnly = payload?['listOnly'] == true;
+    final mimeTypes = switch (payload?['mimeTypes']) {
+      final List<Object?> values
+          when values.length <= 64 &&
+              values.every((value) => value is String) =>
+        values.cast<String>().toList(growable: false),
+      _ => const <String>[],
+    };
+    final validRequest = listOnly
+        ? mimeTypes.length == 1 && mimeTypes.single == '.'
+        : mimeTypes.isNotEmpty && mimeTypes.every(_isValidOsc5522MimePattern);
+    if (location != 'clipboard' || !validRequest) {
+      _sendOsc5522Status(
+        sessionId,
+        sessionEpoch,
+        operation: 'read',
+        status: location == 'primary' ? 'ENOSYS' : 'EINVAL',
+        id: id,
+      );
+      return;
+    }
+    if (listOnly) {
+      try {
+        final available =
+            (await listClipboardMimeTypes())
+                .where(_isValidOsc5522Mime)
+                .toSet()
+                .take(64)
+                .toList()
+              ..sort();
+        if (!_isCurrentSession(sessionId, sessionEpoch)) return;
+        _sendOsc5522ReadData(
+          sessionId,
+          sessionEpoch,
+          id: id,
+          items: <TerminalClipboardMimeItem>[
+            TerminalClipboardMimeItem(
+              mimeType: '.',
+              bytes: Uint8List.fromList(utf8.encode(available.join(' '))),
+            ),
+          ],
+        );
+      } on Object {
+        _sendOsc5522Status(
+          sessionId,
+          sessionEpoch,
+          operation: 'read',
+          status: 'EIO',
+          id: id,
+        );
+      }
+      return;
+    }
+    final allowed = await allowClipboardPasteRequest(
+      TerminalClipboardAccessRequest(
+        sessionId: sessionId,
+        operation: TerminalClipboardOperation.mimeRead,
+        protocol: 'osc5522',
+        selection: location,
+        mimeTypes: mimeTypes,
+      ),
+    );
+    if (!_isCurrentSession(sessionId, sessionEpoch)) return;
+    if (!allowed) {
+      _sendOsc5522Status(
+        sessionId,
+        sessionEpoch,
+        operation: 'read',
+        status: 'EPERM',
+        id: id,
+      );
+      _emitOsc5522ClipboardEvent(
+        sessionId,
+        sessionEpoch,
+        TerminalClipboardOperation.mimeRead,
+        TerminalClipboardDecision.blocked,
+        mimeTypes,
+        null,
+      );
+      return;
+    }
+    try {
+      final items = (await readMimeClipboard(mimeTypes))
+          .where(
+            (item) =>
+                _isValidOsc5522Mime(item.mimeType) &&
+                mimeTypes.any(
+                  (pattern) => _mimePatternMatches(pattern, item.mimeType),
+                ),
+          )
+          .take(64)
+          .toList(growable: false);
+      if (!_isCurrentSession(sessionId, sessionEpoch)) return;
+      if (items.isEmpty ||
+          items.fold<int>(0, (total, item) => total + item.bytes.length) >
+              _maxOsc52ClipboardDecodedBytes) {
+        _sendOsc5522Status(
+          sessionId,
+          sessionEpoch,
+          operation: 'read',
+          status: 'ENOSYS',
+          id: id,
+        );
+        return;
+      }
+      _sendOsc5522ReadData(sessionId, sessionEpoch, id: id, items: items);
+      _emitOsc5522ClipboardEvent(
+        sessionId,
+        sessionEpoch,
+        TerminalClipboardOperation.mimeRead,
+        TerminalClipboardDecision.allowed,
+        items.map((item) => item.mimeType).toList(growable: false),
+        items.fold<int>(0, (total, item) => total + item.bytes.length),
+      );
+    } on Object {
+      _sendOsc5522Status(
+        sessionId,
+        sessionEpoch,
+        operation: 'read',
+        status: 'EIO',
+        id: id,
+      );
+    }
+  }
+
+  Future<void> _handleClipboardMimeError(
+    String sessionId,
+    int sessionEpoch,
+    Map<String, Object?>? payload,
+  ) async {
+    final operation = _stringFromJsonValue(payload?['operation']);
+    final status = _stringFromJsonValue(payload?['status']);
+    if ((operation == 'read' || operation == 'write') &&
+        status != null &&
+        const <String>{
+          'EINVAL',
+          'ENOSYS',
+          'EPERM',
+          'EBUSY',
+          'EIO',
+        }.contains(status)) {
+      _sendOsc5522Status(
+        sessionId,
+        sessionEpoch,
+        operation: operation!,
+        status: status,
+        id: _osc5522Id(payload?['id']),
+      );
+    }
+  }
+
+  void _sendOsc5522ReadData(
+    String sessionId,
+    int sessionEpoch, {
+    required String? id,
+    required List<TerminalClipboardMimeItem> items,
+  }) {
+    _sendOsc5522Status(
+      sessionId,
+      sessionEpoch,
+      operation: 'read',
+      status: 'OK',
+      id: id,
+    );
+    for (final item in items) {
+      final encodedMime = base64.encode(utf8.encode(item.mimeType));
+      final chunks = item.bytes.isEmpty
+          ? <Uint8List>[Uint8List(0)]
+          : <Uint8List>[
+              for (
+                var offset = 0;
+                offset < item.bytes.length;
+                offset += _osc5522ChunkBytes
+              )
+                Uint8List.sublistView(
+                  item.bytes,
+                  offset,
+                  (offset + _osc5522ChunkBytes).clamp(0, item.bytes.length),
+                ),
+            ];
+      for (final chunk in chunks) {
+        final metadata = _osc5522Metadata(
+          'read',
+          id: id,
+          status: 'DATA',
+          mime: encodedMime,
+        );
+        _sendInput(
+          sessionId,
+          Uint8List.fromList(
+            ascii.encode(
+              '\u001b]5522;$metadata;${base64.encode(chunk)}\u001b\\',
+            ),
+          ),
+          sessionEpoch: sessionEpoch,
+        );
+      }
+    }
+    _sendOsc5522Status(
+      sessionId,
+      sessionEpoch,
+      operation: 'read',
+      status: 'DONE',
+      id: id,
+    );
+  }
+
+  void _sendOsc5522Status(
+    String sessionId,
+    int sessionEpoch, {
+    required String operation,
+    required String status,
+    required String? id,
+  }) {
+    final metadata = _osc5522Metadata(operation, status: status, id: id);
+    _sendInput(
+      sessionId,
+      Uint8List.fromList(ascii.encode('\u001b]5522;$metadata\u001b\\')),
+      sessionEpoch: sessionEpoch,
+    );
+  }
+
+  String _osc5522Metadata(
+    String operation, {
+    String? status,
+    String? id,
+    String? mime,
+  }) => <String>[
+    'type=$operation',
+    if (status != null) 'status=$status',
+    if (mime != null) 'mime=$mime',
+    if (id != null) 'id=$id',
+  ].join(':');
+
+  String? _osc5522Id(Object? value) {
+    final id = _stringFromJsonValue(value);
+    if (id == null ||
+        id.isEmpty ||
+        id.length > 128 ||
+        !RegExp(r'^[A-Za-z0-9_+.-]+$').hasMatch(id)) {
+      return null;
+    }
+    return id;
+  }
+
+  String? _validOsc5522Mime(Object? value) {
+    final mime = _stringFromJsonValue(value);
+    return mime != null && _isValidOsc5522Mime(mime) ? mime : null;
+  }
+
+  bool _isValidOsc5522Mime(String mime) =>
+      mime.length <= 255 &&
+      RegExp(r'^[A-Za-z0-9!#\$&^_.+-]+/[A-Za-z0-9!#\$&^_.+-]+$').hasMatch(mime);
+
+  bool _isValidOsc5522MimePattern(String pattern) =>
+      pattern == '*/*' ||
+      (pattern.length <= 255 &&
+          RegExp(
+            r'^(?:\*|[A-Za-z0-9!#\$&^_.+-]+)/(?:\*|[A-Za-z0-9!#\$&^_.+-]+)$',
+          ).hasMatch(pattern));
+
+  bool _mimePatternMatches(String pattern, String mime) {
+    if (pattern == '*/*') return true;
+    final slash = pattern.indexOf('/');
+    if (slash < 1) return pattern == mime;
+    final major = pattern.substring(0, slash);
+    final minor = pattern.substring(slash + 1);
+    final mimeParts = mime.split('/');
+    return mimeParts.length == 2 &&
+        (major == '*' || major == mimeParts[0]) &&
+        (minor == '*' || minor == mimeParts[1]);
+  }
+
+  void _emitOsc5522ClipboardEvent(
+    String sessionId,
+    int sessionEpoch,
+    TerminalClipboardOperation operation,
+    TerminalClipboardDecision decision,
+    List<String> mimeTypes,
+    int? byteCount,
+  ) {
+    _emitEventIfCurrent(
+      sessionId,
+      sessionEpoch,
+      TerminalSessionClipboardEvent(
+        sessionId,
+        operation: operation,
+        decision: decision,
+        protocol: 'osc5522',
+        selection: 'clipboard',
+        mimeTypes: List<String>.unmodifiable(mimeTypes),
+        byteCount: byteCount,
       ),
     );
   }

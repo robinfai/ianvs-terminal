@@ -8649,6 +8649,246 @@ void main() {
     expect(event['native_rows_scanned'], 40);
     expect(event['native_rows_emitted'], 8);
   });
+
+  testWidgets(
+    'OSC 5522 writes multiple binary MIME representations and replies DONE',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      final written = <TerminalClipboardMimeItem>[];
+      final events = <TerminalSessionClipboardEvent>[];
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        writeMimeClipboard: (items) async => written.addAll(items),
+        allowClipboardCopyWithContext: (request) async => true,
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final subscription = runtime.events
+          .where((event) => event is TerminalSessionClipboardEvent)
+          .cast<TerminalSessionClipboardEvent>()
+          .listen(events.add);
+      addTearDown(subscription.cancel);
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_mime_write',
+          sessionId: sessionId,
+          payload: <String, Object?>{
+            'protocol': 'osc5522',
+            'location': 'clipboard',
+            'id': 'write-1',
+            'items': <Object?>[
+              <String, Object?>{
+                'mime': 'text/plain',
+                'data': base64.encode(utf8.encode('hello')),
+                'aliases': <String>['text/utf8'],
+              },
+              <String, Object?>{
+                'mime': 'image/png',
+                'data': base64.encode(<int>[0, 1, 2, 255]),
+              },
+            ],
+          },
+        ),
+      );
+
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+      await tester.pump();
+
+      expect(written.map((item) => item.mimeType), <String>[
+        'text/plain',
+        'image/png',
+      ]);
+      expect(written[0].aliases, <String>['text/utf8']);
+      expect(written[1].bytes, <int>[0, 1, 2, 255]);
+      expect(
+        ascii.decode(backend.writeCalls.last),
+        '\u001b]5522;type=write:status=DONE:id=write-1\u001b\\',
+      );
+      expect(events.single.protocol, 'osc5522');
+      expect(events.single.operation, TerminalClipboardOperation.mimeWrite);
+      expect(events.single.mimeTypes, <String>['text/plain', 'image/png']);
+      expect(events.single.byteCount, 9);
+    },
+  );
+
+  testWidgets(
+    'OSC 5522 lists MIME types without permission and chunks allowed binary reads',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      var permissionRequests = 0;
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        listClipboardMimeTypes: () async => <String>['text/plain', 'image/png'],
+        readMimeClipboard: (types) async => <TerminalClipboardMimeItem>[
+          TerminalClipboardMimeItem(
+            mimeType: 'image/png',
+            bytes: Uint8List.fromList(
+              List<int>.generate(5000, (index) => index % 251),
+            ),
+          ),
+        ],
+        allowClipboardPasteRequestWithContext: (request) async {
+          permissionRequests += 1;
+          return true;
+        },
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_mime_read_request',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'location': 'clipboard',
+            'id': 'list-1',
+            'mimeTypes': <String>['.'],
+            'listOnly': true,
+          },
+        ),
+      );
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+      await tester.pump();
+      expect(permissionRequests, 0);
+      expect(
+        backend.writeCalls.map(ascii.decode).join(),
+        contains(base64.encode(utf8.encode('image/png text/plain'))),
+      );
+
+      backend.writeCalls.clear();
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_mime_read_request',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'location': 'clipboard',
+            'id': 'read-1',
+            'mimeTypes': <String>['image/*'],
+            'listOnly': false,
+          },
+        ),
+      );
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+      await tester.pump();
+
+      final responses = backend.writeCalls.map(ascii.decode).join();
+      expect(permissionRequests, 1);
+      expect(RegExp('status=DATA').allMatches(responses), hasLength(2));
+      expect(
+        responses,
+        startsWith('\u001b]5522;type=read:status=OK:id=read-1'),
+      );
+      expect(
+        responses,
+        endsWith('\u001b]5522;type=read:status=DONE:id=read-1\u001b\\'),
+      );
+    },
+  );
+
+  testWidgets(
+    'OSC 5522 denies unauthorized MIME access and reports unsupported primary selection',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      var platformWrites = 0;
+      var platformReads = 0;
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        writeMimeClipboard: (_) async => platformWrites += 1,
+        readMimeClipboard: (_) async {
+          platformReads += 1;
+          return const <TerminalClipboardMimeItem>[];
+        },
+        allowClipboardCopyWithContext: (_) async => false,
+        allowClipboardPasteRequestWithContext: (_) async => false,
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_mime_write',
+          sessionId: sessionId,
+          payload: <String, Object?>{
+            'location': 'clipboard',
+            'id': 'deny-write',
+            'items': <Object?>[
+              <String, Object?>{
+                'mime': 'application/octet-stream',
+                'data': base64.encode(<int>[1, 2, 3]),
+              },
+            ],
+          },
+        ),
+      );
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_mime_read_request',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'location': 'clipboard',
+            'id': 'deny-read',
+            'mimeTypes': <String>['application/*'],
+            'listOnly': false,
+          },
+        ),
+      );
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_mime_write',
+          sessionId: sessionId,
+          payload: <String, Object?>{
+            'location': 'primary',
+            'id': 'primary-write',
+            'items': <Object?>[
+              <String, Object?>{
+                'mime': 'text/plain',
+                'data': base64.encode(utf8.encode('ignored')),
+              },
+            ],
+          },
+        ),
+      );
+
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+      await tester.pump();
+
+      final responses = backend.writeCalls.map(ascii.decode).join();
+      expect(platformWrites, 0);
+      expect(platformReads, 0);
+      expect(responses, contains('type=write:status=EPERM:id=deny-write'));
+      expect(responses, contains('type=read:status=EPERM:id=deny-read'));
+      expect(responses, contains('type=write:status=ENOSYS:id=primary-write'));
+    },
+  );
 }
 
 class _FakePtyBackend
