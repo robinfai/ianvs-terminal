@@ -424,3 +424,28 @@ safety-policy reason documented in `osc_cross_terminal_probe_20260711.md`.
   safety behavior remain intact.
 - **Rollback:** revert `e2f90be`; see
   `xterm_special_colors_phase16_20260712.md` for the full acceptance record.
+
+## Phase 17 report — iTerm2 color extensions
+
+- **Start SHA:** `5a9e57289a3cbd7764ead3bbe7c502c678bc7a34`.
+- **Implementation SHA:** `37d24239d35a2162cf895543840e2d827cc5c87c`.
+- **Confirmed gaps:** iTerm2 OSC 4 `-2`/`-1` default queries and OSC 1337
+  `SetColors` were absent from the session, frame, and product contracts.
+- **Fixes:** bounded RGB/sRGB/P3 defaults, semantic resources, cursor,
+  selection, tab and ANSI colors; additive JSON/protobuf transport; actual
+  Flutter decoration/cursor/tab rendering; profile-preserving resets.
+- **Review correction:** Computer Use found that a tab-only frame did not
+  rebuild shell chrome. Per-session viewport listeners now rebuild only when
+  `tabColor` changes and are cleaned up on close/dispose; the regression test
+  omits title metadata so unrelated state cannot mask the dependency.
+- **Security:** appearance-only policy and VT220 denial remain authoritative;
+  `preset` profile switching is ignored and no host authority is added.
+- **Tests/results:** corpus 25/36, probes 21, vendored 1,646 passed/1 ignored,
+  native lib 77/77 and session 469/469, package 454 passed/1 skipped, example
+  grouped 925/925, Widget 126/126, macOS smoke 4/4, real PTY 26/26 and
+  RunnerTests 12/12. Computer Use confirmed every visible color class, the
+  repaired orange tab indicator, `SHELL ACTIVE`, and interactive input.
+- **Compatibility:** optional protobuf tags 27–29, style tag 11 and sized-text
+  tag 22; missing values retain profile behavior.
+- **Rollback:** revert `37d2423`; see
+  `iterm_color_extensions_phase17_20260712.md` for the acceptance record.

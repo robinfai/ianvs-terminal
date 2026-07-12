@@ -15,8 +15,9 @@
 - Kitty OSC 72 target-subset commit: `260abc8`.
 - iTerm2 OSC 1337 shell-metadata commit: `4d080ae`.
 - iTerm2 OSC 1337 dynamic-cursor commit: `66d477b`.
+- iTerm2 color-extensions commit: `37d2423`.
 
-Phases 0–14 are implemented. Phase 12 adds bounded Kitty OSC 66 fixed/natural
+Phases 0–17 are implemented. Phase 12 adds bounded Kitty OSC 66 fixed/natural
 width, integral/fractional scale and alignment, full multicell grid semantics,
 typed frame transport and actual Flutter rendering. Phase 13 adds an honest
 macOS OSC 72 drop-target subset; outgoing and remote file-source actions remain
@@ -46,6 +47,8 @@ accurate logical ReportCellSize response without expanding host authority.
 | confirmed compatibility gap | iTerm2 OSC 1337 SetMark, ShellIntegrationVersion and ReportCellSize were absent | Phase 14 maps marks and version into existing shell state and reports logical cell geometry plus DPR |
 | confirmed compatibility gap | OSC 1337 CursorShape and existing DECSCUSR state did not reach rendering | Phase 15 adds exact OSC parsing and optional JSON/protobuf cursor shape/blink overrides over profile fallback |
 | confirmed defect | DECSCUSR also changed warning-bell volume | Phase 15 removes the unrelated side effect and adds a regression |
+| confirmed compatibility gap | iTerm2 OSC 4 default queries and OSC 1337 SetColors were absent | Phase 17 adds bounded session-local RGB/sRGB/P3 color resources through product rendering while denying `preset` profile mutation |
+| confirmed product defect | tab-only SetColors frames did not refresh shell chrome | Computer Use exposed the missing dependency; Phase 17 now rebuilds only on per-session tab-color changes and owns listener cleanup |
 | hypothesis requiring manual evidence | reference-terminal semantic consumption/echo/reply | not proven: Computer Use denies terminal-emulator UI control; see `osc_cross_terminal_probe_20260711.md` |
 
 ## Architecture and security result
@@ -96,6 +99,14 @@ example grouped 925/925, complete Widget 125/125, macOS smoke 4/4, real PTY
 24/24 and native RunnerTests 12/12. Computer Use visibly confirmed OSC beam,
 DECSCUSR steady underline, blinking block, `P15-PASS` and post-probe
 interactive input in the standalone app.
+
+The Phase 17 repository-wide verifier passed after the Computer Use repair with
+corpus 25 cases/36 edge classes, probes 21, vendored 1,646 passed/1 ignored,
+native lib 77/77 and session 469/469, package 454 passed/1 skipped, example
+grouped 925/925, complete Widget 126/126, macOS smoke 4/4, real PTY 26/26 and
+RunnerTests 12/12. Computer Use visibly confirmed all session-local resources,
+found the missing tab-only chrome refresh, verified its repair as an orange tab
+indicator, and completed `P17-INTERACTIVE-PASS` with `SHELL ACTIVE`.
 
 The Phase 11 Ianvs GUI Computer Use gate passed on a clean cold launch. Real
 PTY OSC 22 `wait` set and empty reset sequences were consumed with visible
