@@ -121,6 +121,32 @@ final terminalRuntimeControllerProvider = Provider<TerminalRuntimeController>((
     }
   }
 
+  Future<TerminalClipboardAuthorization> osc5522ClipboardAccessAuthorized(
+    TerminalClipboardAccessRequest request,
+  ) async {
+    try {
+      final config = await ref.read(localTerminalConfigLoaderProvider).load();
+      return switch (config.config.clipboard.osc52) {
+        LocalTerminalOsc52Policy.disabled =>
+          TerminalClipboardAuthorization.denied,
+        LocalTerminalOsc52Policy.ask =>
+          await ref
+              .read(sessionOsc52PromptControllerProvider)
+              .authorize(await promptRequestFor(request)),
+        LocalTerminalOsc52Policy.profile =>
+          request.operation == TerminalClipboardOperation.mimeRead
+              ? await ref
+                    .read(sessionOsc52PromptControllerProvider)
+                    .authorize(await promptRequestFor(request))
+              : TerminalClipboardAuthorization.allowOnce,
+        LocalTerminalOsc52Policy.allow =>
+          TerminalClipboardAuthorization.allowOnce,
+      };
+    } on Object {
+      return TerminalClipboardAuthorization.denied;
+    }
+  }
+
   final controller = TerminalRuntimeController(
     backend: ref.read(ptySessionBackendProvider),
     copyToClipboard: ref.read(sessionClipboardCopyProvider),
@@ -128,6 +154,7 @@ final terminalRuntimeControllerProvider = Provider<TerminalRuntimeController>((
     writeMimeClipboard: ref.read(sessionClipboardMimeWriteProvider),
     readMimeClipboard: ref.read(sessionClipboardMimeReadProvider),
     listClipboardMimeTypes: ref.read(sessionClipboardMimeTypeListProvider),
+    authorizeMimeClipboardAccessWithContext: osc5522ClipboardAccessAuthorized,
     allowClipboardCopyWithContext: osc52ClipboardAccessAllowed,
     allowClipboardPasteRequestWithContext: osc52ClipboardAccessAllowed,
     resizeWindowBy: ref.read(sessionWindowResizeProvider),
@@ -200,6 +227,8 @@ class SessionOsc52PromptRequest {
     this.textPreviewTruncated = false,
     this.protocol = 'osc52',
     this.mimeTypes = const <String>[],
+    this.applicationName,
+    this.canRememberPassword = false,
   });
 
   factory SessionOsc52PromptRequest.fromAccessRequest(
@@ -215,6 +244,8 @@ class SessionOsc52PromptRequest {
       textPreviewTruncated: request.textPreviewTruncated,
       protocol: request.protocol,
       mimeTypes: request.mimeTypes,
+      applicationName: request.applicationName,
+      canRememberPassword: request.canRememberPassword,
     );
   }
 
@@ -227,13 +258,20 @@ class SessionOsc52PromptRequest {
   final bool textPreviewTruncated;
   final String protocol;
   final List<String> mimeTypes;
+  final String? applicationName;
+  final bool canRememberPassword;
 }
 
 typedef SessionOsc52PromptHandler =
     Future<bool> Function(SessionOsc52PromptRequest request);
+typedef SessionOsc52AuthorizationPromptHandler =
+    Future<TerminalClipboardAuthorization> Function(
+      SessionOsc52PromptRequest request,
+    );
 
 class SessionOsc52PromptController {
   SessionOsc52PromptHandler? _handler;
+  SessionOsc52AuthorizationPromptHandler? _authorizationHandler;
 
   void setHandler(SessionOsc52PromptHandler handler) {
     _handler = handler;
@@ -243,12 +281,36 @@ class SessionOsc52PromptController {
     _handler = null;
   }
 
+  void setAuthorizationHandler(SessionOsc52AuthorizationPromptHandler handler) {
+    _authorizationHandler = handler;
+  }
+
+  void clearAuthorizationHandler() {
+    _authorizationHandler = null;
+  }
+
   Future<bool> request(SessionOsc52PromptRequest request) async {
     final handler = _handler;
-    if (handler == null) {
-      return false;
+    if (handler != null) {
+      return handler(request);
     }
-    return handler(request);
+    final authorizationHandler = _authorizationHandler;
+    if (authorizationHandler != null) {
+      return (await authorizationHandler(request)).allowed;
+    }
+    return false;
+  }
+
+  Future<TerminalClipboardAuthorization> authorize(
+    SessionOsc52PromptRequest request,
+  ) async {
+    final handler = _authorizationHandler;
+    if (handler != null) {
+      return handler(request);
+    }
+    return await this.request(request)
+        ? TerminalClipboardAuthorization.allowOnce
+        : TerminalClipboardAuthorization.denied;
   }
 }
 

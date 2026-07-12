@@ -16,6 +16,8 @@ final class TerminalClipboardAccessRequest {
     this.resolveText,
     this.protocol = 'osc52',
     this.mimeTypes = const <String>[],
+    this.authorizationPassword,
+    this.applicationName,
   });
 
   final String sessionId;
@@ -28,7 +30,34 @@ final class TerminalClipboardAccessRequest {
   final Future<String> Function()? resolveText;
   final String protocol;
   final List<String> mimeTypes;
+  final String? authorizationPassword;
+  final String? applicationName;
+
+  bool get canRememberPassword =>
+      authorizationPassword != null && applicationName != null;
 }
+
+final class TerminalClipboardAuthorization {
+  const TerminalClipboardAuthorization({
+    required this.allowed,
+    this.rememberPassword = false,
+  });
+
+  static const denied = TerminalClipboardAuthorization(allowed: false);
+  static const allowOnce = TerminalClipboardAuthorization(allowed: true);
+  static const allowSession = TerminalClipboardAuthorization(
+    allowed: true,
+    rememberPassword: true,
+  );
+
+  final bool allowed;
+  final bool rememberPassword;
+}
+
+typedef TerminalClipboardAuthorizer =
+    Future<TerminalClipboardAuthorization> Function(
+      TerminalClipboardAccessRequest request,
+    );
 
 final class TerminalClipboardMimeItem {
   TerminalClipboardMimeItem({

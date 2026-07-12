@@ -734,6 +734,7 @@ void main() {
       'alternate_screen': true,
       'kitty_keyboard_flags': 5,
       'synchronized_output': true,
+      'mime_paste': true,
     });
     final invalid = TerminalFrameModes.fromJson(const <String, Object?>{
       'kitty_keyboard_flags': -1,
@@ -742,6 +743,7 @@ void main() {
     expect(modes.alternateScreen, isTrue);
     expect(modes.kittyKeyboardFlags, 5);
     expect(modes.synchronizedOutput, isTrue);
+    expect(modes.mimePaste, isTrue);
     expect(invalid.kittyKeyboardFlags, 0);
   });
 
@@ -8887,6 +8889,293 @@ void main() {
       expect(responses, contains('type=write:status=EPERM:id=deny-write'));
       expect(responses, contains('type=read:status=EPERM:id=deny-read'));
       expect(responses, contains('type=write:status=ENOSYS:id=primary-write'));
+    },
+  );
+
+  testWidgets(
+    'OSC 5522 remembers an application password for later session access',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      backend.forcedSessionId = 'same-tty-id';
+      var authorizations = 0;
+      var platformWrites = 0;
+      var platformReads = 0;
+      final authorizationRequests = <TerminalClipboardAccessRequest>[];
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        writeMimeClipboard: (_) async => platformWrites += 1,
+        readMimeClipboard: (_) async {
+          platformReads += 1;
+          return <TerminalClipboardMimeItem>[
+            TerminalClipboardMimeItem(
+              mimeType: 'text/plain',
+              bytes: Uint8List.fromList(utf8.encode('remembered')),
+            ),
+          ];
+        },
+        authorizeMimeClipboardAccessWithContext: (request) async {
+          authorizations += 1;
+          authorizationRequests.add(request);
+          return TerminalClipboardAuthorization.allowSession;
+        },
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_mime_write',
+          sessionId: sessionId,
+          payload: <String, Object?>{
+            'location': 'clipboard',
+            'id': 'remember-write',
+            'password': 'secret',
+            'applicationName': 'Editor',
+            'items': <Object?>[
+              <String, Object?>{
+                'mime': 'text/plain',
+                'data': base64.encode(utf8.encode('hello')),
+              },
+            ],
+          },
+        ),
+      );
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.pump();
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_mime_read_request',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'location': 'clipboard',
+            'id': 'remember-read',
+            'password': 'secret',
+            'applicationName': 'Editor',
+            'mimeTypes': <String>['text/plain'],
+            'listOnly': false,
+          },
+        ),
+      );
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.pump();
+
+      expect(authorizations, 1);
+      expect(authorizationRequests.single.authorizationPassword, 'secret');
+      expect(authorizationRequests.single.applicationName, 'Editor');
+      expect(authorizationRequests.single.canRememberPassword, isTrue);
+      expect(platformWrites, 1);
+      expect(platformReads, 1);
+      expect(
+        backend.writeCalls.map(ascii.decode).join(),
+        contains('type=read:status=DONE:id=remember-read'),
+      );
+
+      runtime.closeSession(sessionId);
+      final replacementSessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      expect(replacementSessionId, sessionId);
+      backend.enqueueEvent(
+        replacementSessionId,
+        PtyEvent(
+          kind: 'clipboard_mime_write',
+          sessionId: replacementSessionId,
+          payload: <String, Object?>{
+            'location': 'clipboard',
+            'id': 'after-close',
+            'password': 'secret',
+            'applicationName': 'Editor',
+            'items': <Object?>[
+              <String, Object?>{
+                'mime': 'text/plain',
+                'data': base64.encode(utf8.encode('new session')),
+              },
+            ],
+          },
+        ),
+      );
+      runtime.sendInput(replacementSessionId, Uint8List(0));
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.pump();
+
+      expect(authorizations, 2);
+      expect(platformWrites, 2);
+    },
+  );
+
+  testWidgets(
+    'OSC 5522 never remembers a password without an application name',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      var authorizations = 0;
+      final rememberCapabilities = <bool>[];
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        writeMimeClipboard: (_) async {},
+        authorizeMimeClipboardAccessWithContext: (request) async {
+          authorizations += 1;
+          rememberCapabilities.add(request.canRememberPassword);
+          return TerminalClipboardAuthorization.allowSession;
+        },
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      PtyEvent event(String id) => PtyEvent(
+        kind: 'clipboard_mime_write',
+        sessionId: sessionId,
+        payload: <String, Object?>{
+          'location': 'clipboard',
+          'id': id,
+          'password': 'no-name',
+          'items': <Object?>[
+            <String, Object?>{
+              'mime': 'text/plain',
+              'data': base64.encode(utf8.encode('hello')),
+            },
+          ],
+        },
+      );
+
+      for (final id in <String>['first', 'second']) {
+        backend.enqueueEvent(sessionId, event(id));
+        runtime.sendInput(sessionId, Uint8List(0));
+        await tester.pump(const Duration(milliseconds: 40));
+        await tester.pump();
+      }
+
+      expect(authorizations, 2);
+      expect(rememberCapabilities, <bool>[false, false]);
+    },
+  );
+
+  testWidgets(
+    'OSC 5522 paste event advertises MIME types and consumes its token once',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      var authorizations = 0;
+      var platformReads = 0;
+      var now = Duration.zero;
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        listClipboardMimeTypes: () async => <String>[
+          'text/plain',
+          'image/png',
+          'text/plain',
+          'invalid',
+        ],
+        readMimeClipboard: (_) async {
+          platformReads += 1;
+          return <TerminalClipboardMimeItem>[
+            TerminalClipboardMimeItem(
+              mimeType: 'text/plain',
+              bytes: Uint8List.fromList(utf8.encode('paste event')),
+            ),
+          ];
+        },
+        authorizeMimeClipboardAccessWithContext: (_) async {
+          authorizations += 1;
+          return TerminalClipboardAuthorization.denied;
+        },
+        monotonicNow: () => now,
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+
+      expect(await runtime.sendOsc5522PasteEvent(sessionId), isTrue);
+      final eventPackets = backend.writeCalls.map(ascii.decode).toList();
+      expect(eventPackets, hasLength(4));
+      expect(
+        eventPackets[1],
+        '\u001b]5522;type=read:status=DATA:mime=aW1hZ2UvcG5n\u001b\\',
+      );
+      expect(
+        eventPackets[2],
+        '\u001b]5522;type=read:status=DATA:mime=dGV4dC9wbGFpbg==\u001b\\',
+      );
+      expect(eventPackets.last, '\u001b]5522;type=read:status=DONE\u001b\\');
+      final encodedPassword = RegExp(
+        r':pw=([^\x1b]+)',
+      ).firstMatch(eventPackets.first)!.group(1)!;
+      final password = utf8.decode(base64.decode(encodedPassword));
+
+      PtyEvent readEvent(String id, String token) => PtyEvent(
+        kind: 'clipboard_mime_read_request',
+        sessionId: sessionId,
+        payload: <String, Object?>{
+          'location': 'clipboard',
+          'id': id,
+          'password': token,
+          'mimeTypes': const <String>['text/plain'],
+          'listOnly': false,
+        },
+      );
+      backend.writeCalls.clear();
+      backend.enqueueEvent(sessionId, readEvent('token-once', password));
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+      await tester.pump();
+      expect(authorizations, 0);
+      expect(platformReads, 1);
+      expect(
+        backend.writeCalls.map(ascii.decode).join(),
+        contains('type=read:status=DONE:id=token-once'),
+      );
+
+      backend.writeCalls.clear();
+      backend.enqueueEvent(sessionId, readEvent('token-reused', password));
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+      await tester.pump();
+      expect(authorizations, 1);
+      expect(platformReads, 1);
+      expect(
+        backend.writeCalls.map(ascii.decode).join(),
+        contains('type=read:status=EPERM:id=token-reused'),
+      );
+
+      expect(await runtime.sendOsc5522PasteEvent(sessionId), isTrue);
+      final expiredPacket = backend.writeCalls
+          .map(ascii.decode)
+          .lastWhere((packet) => packet.contains(':status=OK:pw='));
+      final expiredEncoded = RegExp(
+        r':pw=([^\x1b]+)',
+      ).firstMatch(expiredPacket)!.group(1)!;
+      final expiredPassword = utf8.decode(base64.decode(expiredEncoded));
+      now = const Duration(seconds: 11);
+      backend.enqueueEvent(sessionId, readEvent('expired', expiredPassword));
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+      await tester.pump();
+      expect(authorizations, 2);
+      expect(platformReads, 1);
     },
   );
 }

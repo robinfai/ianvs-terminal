@@ -214,6 +214,8 @@ pub struct TerminalSnapshot {
     pub application_cursor: bool,
     /// Bracketed paste mode
     pub bracketed_paste: bool,
+    /// Unsolicited OSC 5522 MIME paste notification mode.
+    pub mime_paste: bool,
     /// Synchronized update mode (DEC 2026)
     pub(crate) synchronized_updates: bool,
     /// Timestamp when the active synchronized update batch started
@@ -653,6 +655,7 @@ impl Terminal {
             line_feed_new_line_mode: self.line_feed_new_line_mode,
             application_cursor: self.application_cursor,
             bracketed_paste: self.bracketed_paste,
+            mime_paste: self.mime_paste,
             synchronized_updates: self.synchronized_updates,
             sync_update_started_at: self.sync_update_started_at,
             update_buffer: self.update_buffer.clone(),
@@ -799,6 +802,7 @@ impl Terminal {
         self.line_feed_new_line_mode = snap.line_feed_new_line_mode;
         self.application_cursor = snap.application_cursor;
         self.bracketed_paste = snap.bracketed_paste;
+        self.mime_paste = snap.mime_paste;
         self.synchronized_updates = snap.synchronized_updates;
         self.sync_update_started_at = snap.sync_update_started_at;
         self.update_buffer = snap.update_buffer;
@@ -926,6 +930,7 @@ mod tests {
             line_feed_new_line_mode: false,
             application_cursor: false,
             bracketed_paste: false,
+            mime_paste: false,
             synchronized_updates: false,
             sync_update_started_at: None,
             update_buffer: Vec::new(),

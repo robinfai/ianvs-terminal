@@ -32,6 +32,9 @@ Future<void> _pumpShellScreen(
   MemoryAppPreferencesRepository? preferencesRepository,
   LocalTerminalConfigRepository? localConfigRepository,
   Future<String> Function()? clipboardPaste,
+  SessionClipboardMimeWrite? clipboardMimeWrite,
+  SessionClipboardMimeRead? clipboardMimeRead,
+  SessionClipboardMimeTypeList? clipboardMimeTypeList,
   ShellNotificationSender? notificationSender,
   ShellNotificationCloser? notificationCloser,
 }) async {
@@ -55,6 +58,16 @@ Future<void> _pumpShellScreen(
         ),
         if (clipboardPaste != null)
           sessionClipboardPasteProvider.overrideWithValue(clipboardPaste),
+        if (clipboardMimeWrite != null)
+          sessionClipboardMimeWriteProvider.overrideWithValue(
+            clipboardMimeWrite,
+          ),
+        if (clipboardMimeRead != null)
+          sessionClipboardMimeReadProvider.overrideWithValue(clipboardMimeRead),
+        if (clipboardMimeTypeList != null)
+          sessionClipboardMimeTypeListProvider.overrideWithValue(
+            clipboardMimeTypeList,
+          ),
         if (notificationSender != null)
           shellNotificationSenderProvider.overrideWithValue(notificationSender),
         if (notificationCloser != null)
@@ -759,6 +772,77 @@ void main() {
     expect(clipboardReads, 1);
     expect(fakeBindings.writes, isEmpty);
   });
+
+  testWidgets(
+    'OSC 5522 prompt can remember an exact application password for the session',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      var platformWrites = 0;
+
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        localConfigRepository: _MemoryLocalTerminalConfigRepository(
+          const LocalTerminalConfigDocument(
+            clipboard: LocalTerminalClipboardConfig(
+              osc52: LocalTerminalOsc52Policy.ask,
+            ),
+          ),
+        ),
+        clipboardMimeWrite: (_) async => platformWrites += 1,
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final runtime = container.read(terminalRuntimeControllerProvider);
+      final sessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      PtyEvent writeEvent(String id) => PtyEvent(
+        kind: 'clipboard_mime_write',
+        sessionId: sessionId,
+        payload: <String, Object?>{
+          'location': 'clipboard',
+          'id': id,
+          'password': 'shared-secret',
+          'applicationName': 'Editor',
+          'items': <Object?>[
+            <String, Object?>{
+              'mime': 'text/plain',
+              'data': base64.encode(utf8.encode('hello')),
+            },
+          ],
+        },
+      );
+
+      fakeBindings.enqueueEvent(sessionId, writeEvent('remember-first'));
+      runtime.refreshSession(sessionId);
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(find.text('Allow OSC 5522 clipboard write?'), findsOneWidget);
+      expect(find.text('Application: Editor'), findsOneWidget);
+      expect(find.text('Always allow'), findsOneWidget);
+      expect(
+        find.textContaining('future OSC 5522 clipboard reads and writes'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Always allow'));
+      await tester.pumpAndSettle();
+      expect(platformWrites, 1);
+
+      fakeBindings.enqueueEvent(sessionId, writeEvent('remember-second'));
+      runtime.refreshSession(sessionId);
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.pump();
+
+      expect(find.text('Allow OSC 5522 clipboard write?'), findsNothing);
+      expect(platformWrites, 2);
+      expect(
+        fakeBindings.writes.map(ascii.decode).join(),
+        contains('type=write:status=DONE:id=remember-second'),
+      );
+    },
+  );
 
   testWidgets('OSC 52 prompt identifies inactive split pane', (tester) async {
     final fakeBindings = FakePtyBackend();
@@ -4021,6 +4105,87 @@ void main() {
     expect(fakeBindings.writes, hasLength(1));
     expect(utf8.decode(fakeBindings.writes.single), contains(clipboardText));
   });
+
+  testWidgets(
+    'OSC 5522 MIME paste mode advertises types without reading or pasting text',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      var clipboardReads = 0;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (methodCall) async {
+          if (methodCall.method == 'Clipboard.getData') {
+            clipboardReads += 1;
+            return <String, dynamic>{'text': 'must not be pasted'};
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        clipboardMimeTypeList: () async => <String>['text/plain', 'image/png'],
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final sessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      fakeBindings.setFrame(sessionId, <String, Object?>{
+        'rows': <Object?>[],
+        'cursor': <String, Object?>{'row': 0, 'col': 0, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': <Object?>[],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+        'modes': <String, Object?>{'bracketed_paste': true, 'mime_paste': true},
+      });
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(sessionId);
+      await tester.pump();
+
+      expect(
+        find.byKey(const Key('shell-status-mode-mime-paste')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('shell-status-mode-paste')), findsNothing);
+
+      await _tapCommandMenuAction(
+        tester,
+        const Key('shell-top-paste-clipboard'),
+      );
+      await tester.pump();
+
+      final packets = fakeBindings.writes.map(ascii.decode).toList();
+      expect(clipboardReads, 0);
+      expect(packets, hasLength(4));
+      expect(packets.first, startsWith('\u001b]5522;type=read:status=OK:pw='));
+      expect(
+        packets,
+        contains('\u001b]5522;type=read:status=DATA:mime=aW1hZ2UvcG5n\u001b\\'),
+      );
+      expect(
+        packets,
+        contains(
+          '\u001b]5522;type=read:status=DATA:mime=dGV4dC9wbGFpbg==\u001b\\',
+        ),
+      );
+      expect(packets.last, '\u001b]5522;type=read:status=DONE\u001b\\');
+      expect(packets.join(), isNot(contains('must not be pasted')));
+      expect(packets.join(), isNot(contains('\u001b[200~')));
+    },
+  );
 
   testWidgets('local paste config can disable multiline confirmation', (
     tester,

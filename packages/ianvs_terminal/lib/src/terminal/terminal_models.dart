@@ -129,6 +129,7 @@ class TerminalFrameModes {
     this.lineFeedNewLineMode = false,
     this.hideCursor = false,
     this.bracketedPaste = false,
+    this.mimePaste = false,
     this.focusTracking = false,
     this.charProtected = false,
     this.mouseMode = 'off',
@@ -146,6 +147,7 @@ class TerminalFrameModes {
   final bool lineFeedNewLineMode;
   final bool hideCursor;
   final bool bracketedPaste;
+  final bool mimePaste;
   final bool focusTracking;
   final bool charProtected;
   final String mouseMode;
@@ -175,6 +177,7 @@ class TerminalFrameModes {
       ),
       hideCursor: _boolFromJson(json['hide_cursor'], fallback: false),
       bracketedPaste: _boolFromJson(json['bracketed_paste'], fallback: false),
+      mimePaste: _boolFromJson(json['mime_paste'], fallback: false),
       focusTracking: _boolFromJson(json['focus_tracking'], fallback: false),
       charProtected: _boolFromJson(json['char_protected'], fallback: false),
       mouseMode: _terminalMouseModeFromJson(json['mouse_mode']),
@@ -1507,6 +1510,7 @@ TerminalFrameModes _terminalFrameModesFromProtobuf(
     lineFeedNewLineMode: modes.lineFeedNewLineMode,
     hideCursor: modes.hideCursor,
     bracketedPaste: modes.bracketedPaste,
+    mimePaste: modes.mimePaste,
     focusTracking: modes.focusTracking,
     charProtected: modes.charProtected,
     mouseMode: _terminalMouseModeFromJson(modes.mouseMode),

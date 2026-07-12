@@ -810,6 +810,8 @@ pub struct Terminal {
     pub(crate) focus_tracking_alt: bool,
     /// Bracketed paste mode
     pub(crate) bracketed_paste: bool,
+    /// Unsolicited OSC 5522 MIME notifications on user paste (DECSET 5522).
+    pub(crate) mime_paste: bool,
     /// Synchronized update mode (DEC 2026)
     pub(crate) synchronized_updates: bool,
     /// When the current synchronized update batch started.
@@ -1246,6 +1248,7 @@ impl Terminal {
             focus_tracking: false,
             focus_tracking_alt: false,
             bracketed_paste: false,
+            mime_paste: false,
             synchronized_updates: false,
             sync_update_started_at: None,
             update_buffer: Vec::new(),
@@ -2080,6 +2083,16 @@ impl Terminal {
     /// Set bracketed paste mode
     pub fn set_bracketed_paste(&mut self, enabled: bool) {
         self.bracketed_paste = enabled;
+    }
+
+    /// Check if unsolicited OSC 5522 MIME paste notifications are enabled.
+    pub fn mime_paste(&self) -> bool {
+        self.mime_paste
+    }
+
+    /// Set unsolicited OSC 5522 MIME paste notification mode.
+    pub fn set_mime_paste(&mut self, enabled: bool) {
+        self.mime_paste = enabled;
     }
 
     /// Check if reverse video mode is enabled (DECSCNM)

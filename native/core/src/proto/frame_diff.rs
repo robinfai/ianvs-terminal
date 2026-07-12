@@ -170,6 +170,8 @@ pub struct TerminalFrameModes {
     pub kitty_keyboard_flags: u32,
     #[prost(bool, tag = "15")]
     pub synchronized_output: bool,
+    #[prost(bool, tag = "16")]
+    pub mime_paste: bool,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct TerminalHyperlinkRange {

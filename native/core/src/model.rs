@@ -497,6 +497,8 @@ pub struct TerminalFrameModes {
     #[serde(default)]
     pub bracketed_paste: bool,
     #[serde(default)]
+    pub mime_paste: bool,
+    #[serde(default)]
     pub focus_tracking: bool,
     #[serde(default)]
     pub alternate_scroll: bool,

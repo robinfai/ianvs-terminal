@@ -151,6 +151,7 @@ fn to_proto_modes(modes: &TerminalFrameModes) -> pb::TerminalFrameModes {
         line_feed_new_line_mode: modes.line_feed_new_line_mode,
         hide_cursor: modes.hide_cursor,
         bracketed_paste: modes.bracketed_paste,
+        mime_paste: modes.mime_paste,
         focus_tracking: modes.focus_tracking,
         char_protected: modes.char_protected,
         mouse_mode: modes.mouse_mode.clone(),

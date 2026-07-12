@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui';
 
@@ -35,6 +36,9 @@ const int _maxOsc52ClipboardEncodedLength =
     ((_maxOsc52ClipboardDecodedBytes + 2) ~/ 3) * 4;
 const int _maxPendingOsc1337CellSizeReports = 16;
 const int _osc5522ChunkBytes = 4096;
+const Duration _osc5522PasteTokenLifetime = Duration(seconds: 10);
+const int _osc5522MaxRememberedPasswords = 32;
+const int _osc5522MaxPasteTokens = 8;
 
 Future<void> _writeMimeClipboardAsText(
   Future<void> Function(String text) writer,
@@ -390,6 +394,13 @@ final class TerminalSessionClipboardEvent extends TerminalSessionEvent {
   bool get allowed => decision == TerminalClipboardDecision.allowed;
 }
 
+final class _Osc5522PasteToken {
+  const _Osc5522PasteToken({required this.location, required this.expiresAt});
+
+  final String location;
+  final Duration expiresAt;
+}
+
 final class _ClipboardTextSummary {
   const _ClipboardTextSummary({
     required this.byteCount,
@@ -452,6 +463,7 @@ class TerminalRuntimeController {
     TerminalClipboardMimeWriter? writeMimeClipboard,
     TerminalClipboardMimeReader? readMimeClipboard,
     TerminalClipboardMimeTypeLister? listClipboardMimeTypes,
+    TerminalClipboardAuthorizer? authorizeMimeClipboardAccessWithContext,
     TerminalWindowResizeCallback? resizeWindowBy,
     bool enableSessionPolling = true,
     bool enableWarmUpRefresh = false,
@@ -473,6 +485,8 @@ class TerminalRuntimeController {
          writeMimeClipboard: writeMimeClipboard,
          readMimeClipboard: readMimeClipboard,
          listClipboardMimeTypes: listClipboardMimeTypes,
+         authorizeMimeClipboardAccessWithContext:
+             authorizeMimeClipboardAccessWithContext,
          resizeWindowBy: resizeWindowBy,
          enableSessionPolling: enableSessionPolling,
          enableWarmUpRefresh: enableWarmUpRefresh,
@@ -489,6 +503,7 @@ class TerminalRuntimeController {
     TerminalClipboardMimeWriter? writeMimeClipboard,
     TerminalClipboardMimeReader? readMimeClipboard,
     TerminalClipboardMimeTypeLister? listClipboardMimeTypes,
+    TerminalClipboardAuthorizer? authorizeMimeClipboardAccessWithContext,
     this.resizeWindowBy,
     this.enableSessionPolling = true,
     this.enableWarmUpRefresh = false,
@@ -507,6 +522,21 @@ class TerminalRuntimeController {
            ((mimeTypes) => _readMimeClipboardAsText(readClipboard, mimeTypes)),
        listClipboardMimeTypes =
            listClipboardMimeTypes ?? _listTextClipboardMimeType,
+       authorizeMimeClipboardAccess =
+           authorizeMimeClipboardAccessWithContext ??
+           ((request) async {
+             final allowed = switch (request.operation) {
+               TerminalClipboardOperation.copy ||
+               TerminalClipboardOperation.mimeWrite =>
+                 await clipboardPolicy.allowCopy(request),
+               TerminalClipboardOperation.pasteRequest ||
+               TerminalClipboardOperation.mimeRead =>
+                 await clipboardPolicy.allowPasteRequest(request),
+             };
+             return allowed
+                 ? TerminalClipboardAuthorization.allowOnce
+                 : TerminalClipboardAuthorization.denied;
+           }),
        _readMonotonicNow = monotonicNow {
     final refreshHintBackend = backend is PtySessionRefreshHintBackend
         ? backend as PtySessionRefreshHintBackend
@@ -549,6 +579,7 @@ class TerminalRuntimeController {
   final TerminalClipboardMimeWriter writeMimeClipboard;
   final TerminalClipboardMimeReader readMimeClipboard;
   final TerminalClipboardMimeTypeLister listClipboardMimeTypes;
+  final TerminalClipboardAuthorizer authorizeMimeClipboardAccess;
   final Future<bool> Function(TerminalClipboardAccessRequest request)
   allowClipboardCopy;
   final Future<bool> Function(TerminalClipboardAccessRequest request)
@@ -579,6 +610,11 @@ class TerminalRuntimeController {
   final Map<String, int> _refreshIdSeeds = <String, int>{};
   final Map<String, int> _sessionEpochs = <String, int>{};
   final Map<String, DateTime> _lastFrameAppliedAt = <String, DateTime>{};
+  final Map<String, List<String>> _osc5522RememberedPasswords =
+      <String, List<String>>{};
+  final Map<String, Map<String, _Osc5522PasteToken>> _osc5522PasteTokens =
+      <String, Map<String, _Osc5522PasteToken>>{};
+  final Random _osc5522SecureRandom = Random.secure();
   final StreamController<TerminalSessionEvent> _events =
       StreamController<TerminalSessionEvent>.broadcast();
   final StreamController<TerminalSessionInputEvent> _inputEvents =
@@ -687,6 +723,67 @@ class TerminalRuntimeController {
 
   void sendInput(String sessionId, Uint8List bytes) {
     _sendInput(sessionId, bytes);
+  }
+
+  Future<bool> sendOsc5522PasteEvent(
+    String sessionId, {
+    String location = 'clipboard',
+  }) async {
+    final sessionEpoch = _sessionEpochs[sessionId];
+    if (sessionEpoch == null || location != 'clipboard') {
+      return false;
+    }
+    late final List<String> available;
+    try {
+      available =
+          (await listClipboardMimeTypes())
+              .where(_isValidOsc5522Mime)
+              .toSet()
+              .toList()
+            ..sort();
+    } on Object {
+      return false;
+    }
+    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+      return false;
+    }
+    final mimeTypes = available.take(64).toList(growable: false);
+    final password = List<int>.generate(
+      32,
+      (_) => _osc5522SecureRandom.nextInt(256),
+      growable: false,
+    ).map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
+    final tokens = _osc5522PasteTokens.putIfAbsent(
+      sessionId,
+      () => <String, _Osc5522PasteToken>{},
+    );
+    final now = _monotonicNow;
+    tokens.removeWhere((_, token) => token.expiresAt <= now);
+    while (tokens.length >= _osc5522MaxPasteTokens) {
+      tokens.remove(tokens.keys.first);
+    }
+    tokens[password] = _Osc5522PasteToken(
+      location: location,
+      expiresAt: now + _osc5522PasteTokenLifetime,
+    );
+    final encodedPassword = base64.encode(utf8.encode(password));
+    final packets = <String>[
+      '\u001b]5522;type=read:status=OK:pw=$encodedPassword\u001b\\',
+      for (final mime in mimeTypes)
+        '\u001b]5522;type=read:status=DATA:mime=${base64.encode(utf8.encode(mime))}\u001b\\',
+      '\u001b]5522;type=read:status=DONE\u001b\\',
+    ];
+    for (final packet in packets) {
+      if (!_sendInput(
+        sessionId,
+        Uint8List.fromList(ascii.encode(packet)),
+        sessionEpoch: sessionEpoch,
+      )) {
+        tokens.remove(password);
+        return false;
+      }
+    }
+    return true;
   }
 
   bool _sendInput(String sessionId, Uint8List bytes, {int? sessionEpoch}) {
@@ -2388,8 +2485,17 @@ class TerminalRuntimeController {
   ) async {
     final id = _osc5522Id(payload?['id']);
     final location = _stringFromJsonValue(payload?['location']);
+    final password = _osc5522Credential(payload?['password'], maxBytes: 256);
+    final applicationName = _osc5522Credential(
+      payload?['applicationName'],
+      maxBytes: 256,
+      rejectControls: true,
+    );
     final rawItems = payload?['items'];
     if (location != 'clipboard' ||
+        (payload?.containsKey('password') == true && password == null) ||
+        (payload?.containsKey('applicationName') == true &&
+            applicationName == null) ||
         rawItems is! List<Object?> ||
         rawItems.isEmpty) {
       _sendOsc5522Status(
@@ -2479,7 +2585,7 @@ class TerminalRuntimeController {
     final mimeTypes = items
         .map((item) => item.mimeType)
         .toList(growable: false);
-    final allowed = await allowClipboardCopy(
+    final authorization = await _authorizeOsc5522Access(
       TerminalClipboardAccessRequest(
         sessionId: sessionId,
         operation: TerminalClipboardOperation.mimeWrite,
@@ -2487,10 +2593,12 @@ class TerminalRuntimeController {
         selection: location,
         byteCount: totalBytes,
         mimeTypes: mimeTypes,
+        authorizationPassword: password,
+        applicationName: applicationName,
       ),
     );
     if (!_isCurrentSession(sessionId, sessionEpoch)) return;
-    if (!allowed) {
+    if (!authorization.allowed) {
       _sendOsc5522Status(
         sessionId,
         sessionEpoch,
@@ -2553,6 +2661,12 @@ class TerminalRuntimeController {
   ) async {
     final id = _osc5522Id(payload?['id']);
     final location = _stringFromJsonValue(payload?['location']);
+    final password = _osc5522Credential(payload?['password'], maxBytes: 256);
+    final applicationName = _osc5522Credential(
+      payload?['applicationName'],
+      maxBytes: 256,
+      rejectControls: true,
+    );
     final listOnly = payload?['listOnly'] == true;
     final mimeTypes = switch (payload?['mimeTypes']) {
       final List<Object?> values
@@ -2564,7 +2678,11 @@ class TerminalRuntimeController {
     final validRequest = listOnly
         ? mimeTypes.length == 1 && mimeTypes.single == '.'
         : mimeTypes.isNotEmpty && mimeTypes.every(_isValidOsc5522MimePattern);
-    if (location != 'clipboard' || !validRequest) {
+    if (location != 'clipboard' ||
+        (payload?.containsKey('password') == true && password == null) ||
+        (payload?.containsKey('applicationName') == true &&
+            applicationName == null) ||
+        !validRequest) {
       _sendOsc5522Status(
         sessionId,
         sessionEpoch,
@@ -2606,17 +2724,19 @@ class TerminalRuntimeController {
       }
       return;
     }
-    final allowed = await allowClipboardPasteRequest(
+    final authorization = await _authorizeOsc5522Access(
       TerminalClipboardAccessRequest(
         sessionId: sessionId,
         operation: TerminalClipboardOperation.mimeRead,
         protocol: 'osc5522',
         selection: location,
         mimeTypes: mimeTypes,
+        authorizationPassword: password,
+        applicationName: applicationName,
       ),
     );
     if (!_isCurrentSession(sessionId, sessionEpoch)) return;
-    if (!allowed) {
+    if (!authorization.allowed) {
       _sendOsc5522Status(
         sessionId,
         sessionEpoch,
@@ -2798,6 +2918,67 @@ class TerminalRuntimeController {
     return id;
   }
 
+  String? _osc5522Credential(
+    Object? value, {
+    required int maxBytes,
+    bool rejectControls = false,
+  }) {
+    final credential = _stringFromJsonValue(value);
+    if (credential == null || credential.isEmpty) {
+      return null;
+    }
+    final bytes = utf8.encode(credential);
+    if (bytes.length > maxBytes ||
+        (rejectControls &&
+            credential.runes.any((rune) => rune < 0x20 || rune == 0x7f))) {
+      return null;
+    }
+    return credential;
+  }
+
+  Future<TerminalClipboardAuthorization> _authorizeOsc5522Access(
+    TerminalClipboardAccessRequest request,
+  ) async {
+    final password = request.authorizationPassword;
+    if (password != null &&
+        request.operation == TerminalClipboardOperation.mimeRead) {
+      final tokens = _osc5522PasteTokens[request.sessionId];
+      final token = tokens?[password];
+      if (token != null) {
+        if (token.expiresAt <= _monotonicNow) {
+          tokens!.remove(password);
+        } else if (token.location == request.selection) {
+          tokens!.remove(password);
+          return TerminalClipboardAuthorization.allowOnce;
+        }
+      }
+    }
+    final applicationName = request.applicationName;
+    final cacheKey = password != null && applicationName != null
+        ? jsonEncode(<String>[applicationName, password])
+        : null;
+    if (cacheKey != null &&
+        (_osc5522RememberedPasswords[request.sessionId]?.contains(cacheKey) ??
+            false)) {
+      return TerminalClipboardAuthorization.allowOnce;
+    }
+    final authorization = await authorizeMimeClipboardAccess(request);
+    if (authorization.allowed &&
+        authorization.rememberPassword &&
+        cacheKey != null) {
+      final remembered = _osc5522RememberedPasswords.putIfAbsent(
+        request.sessionId,
+        () => <String>[],
+      );
+      remembered.remove(cacheKey);
+      remembered.add(cacheKey);
+      while (remembered.length > _osc5522MaxRememberedPasswords) {
+        remembered.removeAt(0);
+      }
+    }
+    return authorization;
+  }
+
   String? _validOsc5522Mime(Object? value) {
     final mime = _stringFromJsonValue(value);
     return mime != null && _isValidOsc5522Mime(mime) ? mime : null;
@@ -2927,6 +3108,8 @@ class TerminalRuntimeController {
     _refreshIdSeeds.remove(sessionId);
     _sessionEpochs.remove(sessionId);
     _lastFrameAppliedAt.remove(sessionId);
+    _osc5522RememberedPasswords.remove(sessionId);
+    _osc5522PasteTokens.remove(sessionId);
     for (final timer in _warmUpTimers.remove(sessionId) ?? const <Timer>[]) {
       timer.cancel();
     }

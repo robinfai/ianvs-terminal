@@ -187,6 +187,13 @@ impl Terminal {
                                     2
                                 }
                             }
+                            5522 => {
+                                if self.mime_paste {
+                                    1
+                                } else {
+                                    2
+                                }
+                            }
                             2026 => {
                                 if self
                                     .sync_update_report_override

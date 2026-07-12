@@ -500,6 +500,25 @@ fn test_private_mode_bracketed_paste() {
     assert!(!term.bracketed_paste);
 }
 
+#[test]
+fn osc5522_mime_paste_mode_sets_resets_and_reports_support() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"\x1b[?5522$p");
+    assert_eq!(term.drain_responses(), b"\x1b[?5522;2$y");
+
+    term.process(b"\x1b[?5522h");
+    assert!(term.mime_paste());
+    assert!(term.poll_events().iter().any(
+        |event| matches!(event, TerminalEvent::ModeChanged(name, true) if name == "mime_paste")
+    ));
+    term.process(b"\x1b[?5522$p");
+    assert_eq!(term.drain_responses(), b"\x1b[?5522;1$y");
+
+    term.process(b"\x1b[?5522l");
+    assert!(!term.mime_paste());
+}
+
 // ========== Device Response Tests ==========
 
 #[test]

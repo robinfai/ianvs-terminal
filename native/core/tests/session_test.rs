@@ -566,7 +566,7 @@ fn osc5522_clipboard_profile(emulation: TerminalEmulation) -> TerminalProfile {
         "/bin/sh",
         vec![
             "-lc".to_string(),
-            r#"python3 -c 'import sys; sys.stdout.buffer.write(b"\x1b]5522;type=write:id=w1\x1b\\\x1b]5522;type=wdata:mime=dGV4dC9wbGFpbg==;aGk=\x1b\\\x1b]5522;type=wdata:mime=aW1hZ2UvcG5n;AAEC\x1b\\\x1b]5522;type=wdata\x1b\\\x1b]5522;type=read:id=list;Lg==\x1b\\\x1b]5522;type=read:id=r1;aW1hZ2UvcG5n\x1b\\")'"#
+            r#"python3 -c 'import sys; sys.stdout.buffer.write(b"\x1b]5522;type=write:id=w1:pw=c2VjcmV0:name=RWRpdG9y\x1b\\\x1b]5522;type=wdata:mime=dGV4dC9wbGFpbg==;aGk=\x1b\\\x1b]5522;type=wdata:mime=aW1hZ2UvcG5n;AAEC\x1b\\\x1b]5522;type=wdata\x1b\\\x1b]5522;type=read:id=list;Lg==\x1b\\\x1b]5522;type=read:id=r1:mime=aW1hZ2UvcG5n:pw=b25lLXRpbWU=;\x1b\\")'"#
                 .to_string(),
         ],
         BTreeMap::new(),
@@ -1009,6 +1009,20 @@ fn bracketed_paste_mode_profile() -> TerminalProfile {
         "Bracketed Paste Mode",
         "/bin/sh",
         vec!["-lc".to_string(), "printf '\\033[?2004hPASTE'".to_string()],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn osc5522_mime_paste_mode_profile() -> TerminalProfile {
+    local_profile(
+        "osc5522-mime-paste-mode",
+        "OSC5522 MIME Paste Mode",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            "printf '\\033[?5522hMIMEPASTE'".to_string(),
+        ],
         BTreeMap::new(),
         TerminalEmulation::Xterm256,
     )
@@ -14575,7 +14589,7 @@ fn parser_terminal_restores_primary_interaction_modes_after_alt_screen_exit() {
 fn parser_terminal_hard_reset_clears_interaction_modes() {
     let mut terminal = ParserTerminal::new(80, 24);
 
-    terminal.process(b"\x1b[?1004h\x1b[?1007h\x1b[?1002h\x1b[?1006h\x1b[?2004h\x1b[=1u");
+    terminal.process(b"\x1b[?1004h\x1b[?1007h\x1b[?1002h\x1b[?1006h\x1b[?2004h\x1b[?5522h\x1b[=1u");
     assert!(terminal.focus_tracking());
     assert!(terminal.alternate_scroll());
     assert!(terminal.bracketed_paste());
@@ -14598,6 +14612,7 @@ fn parser_terminal_hard_reset_clears_interaction_modes() {
     assert!(!terminal.focus_tracking());
     assert!(!terminal.alternate_scroll());
     assert!(!terminal.bracketed_paste());
+    assert!(!terminal.mime_paste());
     assert_eq!(terminal.mouse_mode(), MouseMode::Off);
     assert_eq!(terminal.mouse_encoding(), MouseEncoding::Default);
     assert_eq!(terminal.keyboard_flags(), 0);
@@ -14607,8 +14622,9 @@ fn parser_terminal_hard_reset_clears_interaction_modes() {
     terminal.process(
         b"\x1b[?1004$p\x1b[?1007$p\x1b[?1003$p\x1b[?1016$p\x1b[?2004$p\x1b[?2026$p\x1b[?u",
     );
+    terminal.process(b"\x1b[?5522$p");
     let response = String::from_utf8(terminal.drain_responses()).unwrap();
-    for mode in [1004, 1007, 1003, 1016, 2004, 2026] {
+    for mode in [1004, 1007, 1003, 1016, 2004, 2026, 5522] {
         assert!(
             response.contains(&format!("\x1b[?{mode};2$y")),
             "RIS should report interaction mode {mode} reset: {response:?}"
@@ -15542,6 +15558,21 @@ fn session_frame_diff_exposes_bracketed_paste_mode_for_xterm_profiles() {
     let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
 
     assert_eq!(parsed["modes"]["bracketed_paste"].as_bool(), Some(true));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_exposes_osc5522_mime_paste_mode() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc5522_mime_paste_mode_profile()).unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "MIMEPASTE");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+
+    assert_eq!(parsed["modes"]["mime_paste"].as_bool(), Some(true));
 
     session::close_session(session_id).unwrap();
 }
@@ -17708,6 +17739,8 @@ fn session_emits_binary_mime_write_list_and_read_requests_from_osc5522() {
     assert_eq!(write["payload"]["items"][0]["mime"], "image/png");
     assert_eq!(write["payload"]["items"][0]["data"], "AAEC");
     assert_eq!(write["payload"]["items"][1]["mime"], "text/plain");
+    assert_eq!(write["payload"]["password"], "secret");
+    assert_eq!(write["payload"]["applicationName"], "Editor");
     assert!(events.iter().any(|event| {
         event["kind"] == "clipboard_mime_read_request"
             && event["payload"]["listOnly"] == true
@@ -17717,6 +17750,8 @@ fn session_emits_binary_mime_write_list_and_read_requests_from_osc5522() {
         event["kind"] == "clipboard_mime_read_request"
             && event["payload"]["listOnly"] == false
             && event["payload"]["mimeTypes"][0] == "image/png"
+            && event["payload"]["password"] == "one-time"
+            && event["payload"]["applicationName"].is_null()
     }));
     session::close_session(session_id).unwrap();
 }

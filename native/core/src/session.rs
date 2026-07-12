@@ -52,6 +52,8 @@ const OSC5522_MAX_CHUNK_BYTES: usize = 4096;
 const OSC5522_MAX_MIME_TYPES: usize = 64;
 const OSC5522_MAX_MIME_BYTES: usize = 255;
 const OSC5522_MAX_ID_BYTES: usize = 128;
+const OSC5522_MAX_PASSWORD_BYTES: usize = 256;
+const OSC5522_MAX_APPLICATION_NAME_BYTES: usize = 256;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum TerminalSearchMode {
@@ -806,6 +808,8 @@ struct TerminalState {
 struct Osc5522WriteState {
     location: String,
     id: Option<String>,
+    password: Option<String>,
+    application_name: Option<String>,
     data_by_mime: BTreeMap<String, Vec<u8>>,
     aliases_by_mime: BTreeMap<String, Vec<String>>,
     last_mime: Option<String>,
@@ -1069,9 +1073,16 @@ impl HostProtocolState {
                     self.osc5522_write = None;
                     return;
                 };
+                let Some((password, application_name)) = osc5522_credentials(&metadata) else {
+                    events.push(osc5522_error_event("write", "EINVAL", id));
+                    self.osc5522_write = None;
+                    return;
+                };
                 self.osc5522_write = Some(Osc5522WriteState {
                     location,
                     id,
+                    password,
+                    application_name,
                     data_by_mime: BTreeMap::new(),
                     aliases_by_mime: BTreeMap::new(),
                     last_mime: None,
@@ -1121,6 +1132,8 @@ impl HostProtocolState {
                     "protocol": "osc5522",
                     "location": state.location,
                     "id": state.id,
+                    "password": state.password,
+                    "applicationName": state.application_name,
                     "items": items,
                 }),
             });
@@ -1202,18 +1215,37 @@ impl HostProtocolState {
             events.push(osc5522_error_event("read", "EINVAL", id));
             return;
         };
-        let Ok(decoded) = BASE64_STANDARD.decode(payload) else {
+        let Some((password, application_name)) = osc5522_credentials(metadata) else {
             events.push(osc5522_error_event("read", "EINVAL", id));
             return;
         };
-        let Ok(decoded) = std::str::from_utf8(&decoded) else {
-            events.push(osc5522_error_event("read", "EINVAL", id));
-            return;
+        let (mime_types, list_only) = if let Some(encoded_mime) = metadata.get("mime") {
+            if !payload.is_empty() {
+                events.push(osc5522_error_event("read", "EINVAL", id));
+                return;
+            }
+            let Some(mime) = decode_osc5522_mime(encoded_mime) else {
+                events.push(osc5522_error_event("read", "EINVAL", id));
+                return;
+            };
+            (vec![mime], false)
+        } else {
+            let Ok(decoded) = BASE64_STANDARD.decode(payload) else {
+                events.push(osc5522_error_event("read", "EINVAL", id));
+                return;
+            };
+            let Ok(decoded) = std::str::from_utf8(&decoded) else {
+                events.push(osc5522_error_event("read", "EINVAL", id));
+                return;
+            };
+            (
+                decoded
+                    .split_ascii_whitespace()
+                    .map(str::to_string)
+                    .collect::<Vec<_>>(),
+                decoded == ".",
+            )
         };
-        let mime_types = decoded
-            .split_ascii_whitespace()
-            .map(str::to_string)
-            .collect::<Vec<_>>();
         if mime_types.is_empty()
             || mime_types.len() > OSC5522_MAX_MIME_TYPES
             || mime_types
@@ -1229,8 +1261,10 @@ impl HostProtocolState {
                 "protocol": "osc5522",
                 "location": location,
                 "id": id,
+                "password": password,
+                "applicationName": application_name,
                 "mimeTypes": mime_types,
-                "listOnly": decoded == ".",
+                "listOnly": list_only,
             }),
         });
     }
@@ -2369,6 +2403,7 @@ impl TerminalSession {
             hide_cursor: !cursor.visible,
             bracketed_paste: self.emulation == TerminalEmulation::Xterm256
                 && terminal.bracketed_paste(),
+            mime_paste: self.emulation == TerminalEmulation::Xterm256 && terminal.mime_paste(),
             focus_tracking: self.emulation == TerminalEmulation::Xterm256
                 && terminal.focus_tracking(),
             alternate_scroll: self.emulation == TerminalEmulation::Xterm256
@@ -3187,6 +3222,45 @@ fn sanitized_osc5522_id(value: &str) -> Option<String> {
         .map(char::from)
         .collect::<String>();
     (!sanitized.is_empty()).then_some(sanitized)
+}
+
+fn osc5522_credentials(
+    metadata: &BTreeMap<String, String>,
+) -> Option<(Option<String>, Option<String>)> {
+    let password = decode_osc5522_utf8_metadata(
+        metadata.get("pw").map(String::as_str),
+        OSC5522_MAX_PASSWORD_BYTES,
+        false,
+    )?;
+    let application_name = decode_osc5522_utf8_metadata(
+        metadata.get("name").map(String::as_str),
+        OSC5522_MAX_APPLICATION_NAME_BYTES,
+        true,
+    )?;
+    Some((password, application_name))
+}
+
+fn decode_osc5522_utf8_metadata(
+    encoded: Option<&str>,
+    max_bytes: usize,
+    reject_controls: bool,
+) -> Option<Option<String>> {
+    let Some(encoded) = encoded else {
+        return Some(None);
+    };
+    let decoded = BASE64_STANDARD.decode(encoded).ok()?;
+    if decoded.is_empty() || decoded.len() > max_bytes {
+        return None;
+    }
+    let value = String::from_utf8(decoded).ok()?;
+    if reject_controls
+        && value
+            .chars()
+            .any(|character| character.is_control() || character == '\u{7f}')
+    {
+        return None;
+    }
+    Some(Some(value))
 }
 
 fn decode_osc5522_mime(encoded: &str) -> Option<String> {
@@ -5435,6 +5509,8 @@ fn normalize_responses(emulation: TerminalEmulation, responses: Vec<u8>) -> Vec<
     String::from_utf8_lossy(&responses)
         .replace("\x1b[?62;1;4;6;9;15;22;52c", VT220_PRIMARY_DA_RESPONSE)
         .replace("\x1b[>82;10000;0c", VT220_SECONDARY_DA_RESPONSE)
+        .replace("\x1b[?5522;1$y", "\x1b[?5522;0$y")
+        .replace("\x1b[?5522;2$y", "\x1b[?5522;0$y")
         .into_bytes()
 }
 
@@ -7295,11 +7371,14 @@ mod tests {
 
     #[test]
     fn vt220_response_normalization_rewrites_da_sequences() {
-        let input = b"\x1b[?62;1;4;6;9;15;22;52c\x1b[>82;10000;0c".to_vec();
+        let input =
+            b"\x1b[?62;1;4;6;9;15;22;52c\x1b[>82;10000;0c\x1b[?5522;1$y\x1b[?5522;2$y".to_vec();
         let output = normalize_responses(TerminalEmulation::Vt220, input);
         assert_eq!(
             String::from_utf8(output).unwrap(),
-            format!("{VT220_PRIMARY_DA_RESPONSE}{VT220_SECONDARY_DA_RESPONSE}")
+            format!(
+                "{VT220_PRIMARY_DA_RESPONSE}{VT220_SECONDARY_DA_RESPONSE}\x1b[?5522;0$y\x1b[?5522;0$y"
+            )
         );
     }
 
@@ -7517,7 +7596,7 @@ mod tests {
     fn host_protocol_assembles_osc5522_binary_mime_write_and_aliases() {
         let mut host = HostProtocolState::default();
         let packets = concat!(
-            "\x1b]5522;type=write:id=mux!1\x1b\\",
+            "\x1b]5522;type=write:id=mux!1:pw=c2VjcmV0:name=RWRpdG9y\x1b\\",
             "\x1b]5522;type=wdata:mime=dGV4dC9wbGFpbg==;aA==\x1b\\",
             "\x1b]5522;type=wdata:mime=dGV4dC9wbGFpbg==;aQ==\x1b\\",
             "\x1b]5522;type=walias:mime=dGV4dC9wbGFpbg==;dGV4dC91dGY4\x1b\\",
@@ -7534,6 +7613,8 @@ mod tests {
         assert_eq!(payload["protocol"], "osc5522");
         assert_eq!(payload["location"], "clipboard");
         assert_eq!(payload["id"], "mux1");
+        assert_eq!(payload["password"], "secret");
+        assert_eq!(payload["applicationName"], "Editor");
         let items = payload["items"].as_array().expect("items array");
         assert_eq!(items.len(), 2);
         assert_eq!(items[0]["mime"], "image/png");
@@ -7549,12 +7630,13 @@ mod tests {
         let events = host.observe(
             concat!(
                 "\x1b]5522;type=read:id=list;Lg==\x1b\\",
-                "\x1b]5522;type=read:loc=clipboard:id=read-1;dGV4dC9wbGFpbiBpbWFnZS8q\x1b\\"
+                "\x1b]5522;type=read:loc=clipboard:id=read-1;dGV4dC9wbGFpbiBpbWFnZS8q\x1b\\",
+                "\x1b]5522;type=read:id=paste:mime=dGV4dC9odG1s:pw=b25lLXRpbWU=\x1b\\"
             )
             .as_bytes(),
             TerminalEmulation::Xterm256,
         );
-        assert_eq!(events.len(), 2);
+        assert_eq!(events.len(), 3);
         let CallbackEvent::ClipboardMimeReadRequest { payload: list } = &events[0] else {
             panic!("expected list request")
         };
@@ -7566,6 +7648,27 @@ mod tests {
         assert_eq!(read["id"], "read-1");
         assert_eq!(read["mimeTypes"][0], "text/plain");
         assert_eq!(read["mimeTypes"][1], "image/*");
+        let CallbackEvent::ClipboardMimeReadRequest { payload: paste } = &events[2] else {
+            panic!("expected paste-token MIME request")
+        };
+        assert_eq!(paste["mimeTypes"][0], "text/html");
+        assert_eq!(paste["password"], "one-time");
+        assert!(paste["applicationName"].is_null());
+    }
+
+    #[test]
+    fn host_protocol_rejects_invalid_osc5522_password_metadata() {
+        let events = HostProtocolState::default().observe(
+            b"\x1b]5522;type=read:id=bad:pw=%%%:name=RWRpdG9y;dGV4dC9wbGFpbg==\x1b\\",
+            TerminalEmulation::Xterm256,
+        );
+        assert!(matches!(
+            events.as_slice(),
+            [CallbackEvent::ClipboardMimeError { payload }]
+                if payload["operation"] == "read"
+                    && payload["status"] == "EINVAL"
+                    && payload["id"] == "bad"
+        ));
     }
 
     #[test]

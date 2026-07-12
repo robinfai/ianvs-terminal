@@ -446,7 +446,20 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
         ),
       );
     }
-    if (modes.bracketedPaste) {
+    if (modes.mimePaste) {
+      items.add(
+        _ShellStatusModeItem(
+          key: const Key('shell-status-mode-mime-paste'),
+          label: 'MIME PASTE',
+          tooltip: _statusTooltipForPane(
+            sessionId: sessionId,
+            tooltip:
+                'OSC 5522 paste events are active and take precedence over bracketed paste.',
+          )!,
+          semanticsLabel: 'Terminal mode: OSC 5522 paste events active',
+        ),
+      );
+    } else if (modes.bracketedPaste) {
       items.add(
         _ShellStatusModeItem(
           key: const Key('shell-status-mode-paste'),

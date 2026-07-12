@@ -222,7 +222,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     _completionDiagnosticsSnapshot =
         LocalTerminalShellUiWiringSnapshot.verified(capturedAt: DateTime.now());
     _osc52PromptController = ref.read(sessionOsc52PromptControllerProvider);
-    _osc52PromptController?.setHandler(_confirmOsc52Access);
+    _osc52PromptController?.setAuthorizationHandler(_confirmOsc52Access);
     _terminalEventSubscription = runtime.events.listen(
       _handleTerminalSessionEvent,
     );
@@ -234,7 +234,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   void dispose() {
     WindowBridge.setNativeMenuHandlers();
     unawaited(_osc72DragDropController.dispose());
-    _osc52PromptController?.clearHandler();
+    _osc52PromptController?.clearAuthorizationHandler();
     _terminalEventSubscription?.cancel();
     _workspaceCueTimer?.cancel();
     for (final timer in _viewportResizeTimers.values) {

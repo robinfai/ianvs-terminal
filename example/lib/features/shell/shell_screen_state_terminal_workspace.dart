@@ -1026,7 +1026,15 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
         icon: Icons.mouse_outlined,
       );
     }
-    if (modes.bracketedPaste) {
+    if (modes.mimePaste) {
+      addModeIndicator(
+        kind: 'mime-paste',
+        label: 'MIME PASTE',
+        tooltip:
+            'OSC 5522 paste events are active and take precedence over bracketed paste.',
+        icon: Icons.content_paste_go_rounded,
+      );
+    } else if (modes.bracketedPaste) {
       addModeIndicator(
         kind: 'paste',
         label: 'PASTE',

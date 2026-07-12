@@ -1058,6 +1058,7 @@ class TerminalFrameModes extends $pb.GeneratedMessage {
     $core.String? mouseEncoding,
     $core.int? kittyKeyboardFlags,
     $core.bool? synchronizedOutput,
+    $core.bool? mimePaste,
   }) {
     final result = create();
     if (alternateScreen != null) result.alternateScreen = alternateScreen;
@@ -1078,6 +1079,7 @@ class TerminalFrameModes extends $pb.GeneratedMessage {
       result.kittyKeyboardFlags = kittyKeyboardFlags;
     if (synchronizedOutput != null)
       result.synchronizedOutput = synchronizedOutput;
+    if (mimePaste != null) result.mimePaste = mimePaste;
     return result;
   }
 
@@ -1110,6 +1112,7 @@ class TerminalFrameModes extends $pb.GeneratedMessage {
     ..aI(14, _omitFieldNames ? '' : 'kittyKeyboardFlags',
         fieldType: $pb.PbFieldType.OU3)
     ..aOB(15, _omitFieldNames ? '' : 'synchronizedOutput')
+    ..aOB(16, _omitFieldNames ? '' : 'mimePaste')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1265,6 +1268,15 @@ class TerminalFrameModes extends $pb.GeneratedMessage {
   $core.bool hasSynchronizedOutput() => $_has(14);
   @$pb.TagNumber(15)
   void clearSynchronizedOutput() => $_clearField(15);
+
+  @$pb.TagNumber(16)
+  $core.bool get mimePaste => $_getBF(15);
+  @$pb.TagNumber(16)
+  set mimePaste($core.bool value) => $_setBool(15, value);
+  @$pb.TagNumber(16)
+  $core.bool hasMimePaste() => $_has(15);
+  @$pb.TagNumber(16)
+  void clearMimePaste() => $_clearField(16);
 }
 
 class TerminalHyperlinkRange extends $pb.GeneratedMessage {

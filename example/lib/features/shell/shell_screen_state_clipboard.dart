@@ -435,6 +435,15 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
       _focusSession(sessionId);
       return;
     }
+    final runtime = ref.read(terminalRuntimeControllerProvider);
+    if (runtime.viewportFor(sessionId).frame.modes.mimePaste) {
+      final sent = await runtime.sendOsc5522PasteEvent(sessionId);
+      if (!sent && mounted) {
+        _showShellSnackBar('OSC 5522 paste event could not be delivered');
+      }
+      _focusSession(sessionId);
+      return;
+    }
     final text = await ClipboardBridge.paste();
     if (text.isEmpty) {
       return;

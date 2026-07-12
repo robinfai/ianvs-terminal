@@ -104,6 +104,7 @@ message TerminalFrameModes {
   string mouse_encoding = 13;
   uint32 kitty_keyboard_flags = 14;
   bool synchronized_output = 15;
+  bool mime_paste = 16;
 }
 
 message TerminalHyperlinkRange {

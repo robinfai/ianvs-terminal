@@ -121,6 +121,7 @@ impl Terminal {
             47 | 1047 | 1049 => Some(format!("alt_screen:{}", self.alt_screen_active)),
             1004 => Some(format!("focus_tracking:{}", self.focus_tracking())),
             2004 => Some(format!("bracketed_paste:{}", self.bracketed_paste)),
+            5522 => Some(format!("mime_paste:{}", self.mime_paste)),
             2026 => Some(format!("sync_updates:{}", self.synchronized_updates)),
             _ => None,
         };
@@ -153,6 +154,7 @@ impl Terminal {
             }
             1004 => self.set_focus_tracking(true),
             2004 => self.bracketed_paste = true,
+            5522 => self.mime_paste = true,
             2026 => {
                 if !self.suppress_synchronized_update_enable && !self.synchronized_updates {
                     self.sync_update_started_at = Some(std::time::Instant::now());
@@ -182,6 +184,7 @@ impl Terminal {
             47 | 1047 | 1049 => Some(format!("alt_screen:{}", self.alt_screen_active)),
             1004 => Some(format!("focus_tracking:{}", self.focus_tracking())),
             2004 => Some(format!("bracketed_paste:{}", self.bracketed_paste)),
+            5522 => Some(format!("mime_paste:{}", self.mime_paste)),
             2026 => Some(format!("sync_updates:{}", self.synchronized_updates)),
             _ => None,
         };
@@ -208,6 +211,7 @@ impl Terminal {
                 1016 => "mouse_sgr_pixels",
                 47 | 1047 | 1049 => "alternate_screen",
                 2004 => "bracketed_paste",
+                5522 => "mime_paste",
                 2026 => "synchronized_updates",
                 _ => "unknown",
             };
@@ -229,6 +233,7 @@ impl Terminal {
             47 | 1047 | 1049 => Some(format!("alt_screen:{}", self.alt_screen_active)),
             1004 => Some(format!("focus_tracking:{}", self.focus_tracking())),
             2004 => Some(format!("bracketed_paste:{}", self.bracketed_paste)),
+            5522 => Some(format!("mime_paste:{}", self.mime_paste)),
             2026 => Some(format!("sync_updates:{}", self.synchronized_updates)),
             _ => None,
         };
@@ -256,6 +261,7 @@ impl Terminal {
             }
             1004 => self.set_focus_tracking(false),
             2004 => self.bracketed_paste = false,
+            5522 => self.mime_paste = false,
             2026 => {
                 self.synchronized_updates = false;
                 self.sync_update_started_at = None;
@@ -284,6 +290,7 @@ impl Terminal {
             47 | 1047 | 1049 => Some(format!("alt_screen:{}", self.alt_screen_active)),
             1004 => Some(format!("focus_tracking:{}", self.focus_tracking())),
             2004 => Some(format!("bracketed_paste:{}", self.bracketed_paste)),
+            5522 => Some(format!("mime_paste:{}", self.mime_paste)),
             2026 => Some(format!("sync_updates:{}", self.synchronized_updates)),
             _ => None,
         };
@@ -310,6 +317,7 @@ impl Terminal {
                 1016 => "mouse_sgr_pixels",
                 47 | 1047 | 1049 => "alternate_screen",
                 2004 => "bracketed_paste",
+                5522 => "mime_paste",
                 2026 => "synchronized_updates",
                 _ => "unknown",
             };

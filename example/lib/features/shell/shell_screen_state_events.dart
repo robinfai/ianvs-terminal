@@ -125,9 +125,11 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     );
   }
 
-  Future<bool> _confirmOsc52Access(SessionOsc52PromptRequest request) async {
+  Future<terminal.TerminalClipboardAuthorization> _confirmOsc52Access(
+    SessionOsc52PromptRequest request,
+  ) async {
     if (!mounted) {
-      return false;
+      return terminal.TerminalClipboardAuthorization.denied;
     }
     final promptTitle = switch (request.operation) {
       terminal.TerminalClipboardOperation.copy =>
@@ -139,7 +141,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       terminal.TerminalClipboardOperation.mimeRead =>
         'Allow ${_oscProtocolDisplayName(request.protocol)} clipboard read?',
     };
-    final result = await showDialog<bool>(
+    final result = await showDialog<terminal.TerminalClipboardAuthorization>(
       context: context,
       builder: (context) {
         return AlertDialog(
@@ -147,18 +149,29 @@ extension _ShellScreenStateEvents on _ShellScreenState {
           content: _buildOsc52PromptContent(request),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
+              onPressed: () => Navigator.of(
+                context,
+              ).pop(terminal.TerminalClipboardAuthorization.denied),
               child: const Text('Deny'),
             ),
+            if (request.canRememberPassword)
+              TextButton(
+                onPressed: () => Navigator.of(
+                  context,
+                ).pop(terminal.TerminalClipboardAuthorization.allowSession),
+                child: const Text('Always allow'),
+              ),
             FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
+              onPressed: () => Navigator.of(
+                context,
+              ).pop(terminal.TerminalClipboardAuthorization.allowOnce),
               child: const Text('Allow'),
             ),
           ],
         );
       },
     );
-    return result ?? false;
+    return result ?? terminal.TerminalClipboardAuthorization.denied;
   }
 
   Widget _buildOsc52PromptContent(SessionOsc52PromptRequest request) {
@@ -177,6 +190,11 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         _Osc52PromptDetail(
           label: 'MIME types',
           value: request.mimeTypes.join(', '),
+        ),
+      if (request.applicationName != null)
+        _Osc52PromptDetail(
+          label: 'Application',
+          value: request.applicationName!,
         ),
       if (request.characterCount != null || request.byteCount != null)
         _Osc52PromptDetail(
@@ -206,6 +224,13 @@ extension _ShellScreenStateEvents on _ShellScreenState {
                 ? 'The terminal is requesting clipboard contents and will send them back to the session if allowed.'
                 : 'The terminal wants to write the following text to your clipboard.',
           ),
+          if (request.canRememberPassword) ...[
+            const SizedBox(height: 8),
+            Text(
+              '“Always allow” permits future OSC 5522 clipboard reads and writes that use this exact application name and password, only for the current terminal session.',
+              style: textTheme.bodySmall,
+            ),
+          ],
           const SizedBox(height: 12),
           Wrap(spacing: 8, runSpacing: 8, children: details),
           const SizedBox(height: 12),
