@@ -400,3 +400,27 @@ safety-policy reason documented in `osc_cross_terminal_probe_20260711.md`.
 - **Compatibility:** additive JSON and protobuf fields; missing fields retain
   profile behavior.
 - **Rollback:** revert the Phase 15 implementation commit.
+
+## Phase 16 report — xterm special and dynamic colors
+
+- **Start SHA:** `f4a9e9b2c3857ca1811cf4e80178bff1e7cfa03c`.
+- **Implementation SHA:** `e2f90be`.
+- **Confirmed gaps:** OSC 5/6/105/106, OSC 13–19/113–119 and OSC 4 aliases
+  256–260 were absent; selection foreground/background mutations were not
+  transported or rendered.
+- **Fixes:** bounded special/dynamic color state and queries, exact OSC 6/106
+  aliasing, mode 5 explicit-color override, default xterm attribute replacement,
+  profile/RIS restoration, additive JSON/protobuf selection colors and clipped
+  selected-glyph repaint.
+- **Review corrections:** OSC 106 alias semantics, OSC 4 special aliases,
+  explicit-color provenance, attribute priority, selection activation and an
+  application-level real PTY gate.
+- **Tests/results:** final repository gate passed with corpus 24/33, probes 20,
+  vendored 1,641 plus 1 ignored, native lib 76/76 and session 467/467, example
+  grouped 925/925, Widget 125/125, macOS smoke 4/4, real PTY 25/25 and
+  RunnerTests 12/12. Computer Use visibly confirmed magenta special bold text
+  and red/black dynamic selection colors on the standalone current build.
+- **Compatibility:** additive optional frame fields; VT220 and malformed-input
+  safety behavior remain intact.
+- **Rollback:** revert `e2f90be`; see
+  `xterm_special_colors_phase16_20260712.md` for the full acceptance record.
