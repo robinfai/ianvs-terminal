@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -17,6 +18,7 @@ import 'package:app/features/sessions/session_ports.dart';
 import 'package:app/features/sessions/session_state.dart';
 import 'package:app/features/shell/shell_action_registry.dart';
 import 'package:app/features/shell/shell_screen.dart';
+import 'package:app/features/shell/window_bridge.dart';
 import 'package:app/features/terminal/terminal_viewport.dart';
 
 import '../support/fake_pty_backend.dart';
@@ -40,6 +42,9 @@ Future<void> _pumpShellScreen(
   ShellNotificationCloser? notificationCloser,
   ShellFileDownloadWriter? fileDownloadWriter,
   ShellExternalUrlOpener? externalUrlOpener,
+  ShellUserAttentionBridge? userAttentionBridge,
+  bool? shellAnimationsEnabled,
+  ShellClock? clock,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -83,6 +88,15 @@ Future<void> _pumpShellScreen(
           shellFileDownloadWriterProvider.overrideWithValue(fileDownloadWriter),
         if (externalUrlOpener != null)
           shellExternalUrlOpenerProvider.overrideWithValue(externalUrlOpener),
+        if (userAttentionBridge != null)
+          shellUserAttentionBridgeProvider.overrideWithValue(
+            userAttentionBridge,
+          ),
+        if (shellAnimationsEnabled != null)
+          shellAnimationsEnabledProvider.overrideWithValue(
+            shellAnimationsEnabled,
+          ),
+        if (clock != null) shellClockProvider.overrideWithValue(clock),
       ],
       child: MaterialApp(
         theme: ThemeData.light().copyWith(
@@ -98,6 +112,39 @@ Future<void> _pumpShellScreen(
   );
   await tester.pump();
   await tester.pumpAndSettle();
+}
+
+final class _RecordingUserAttentionBridge implements ShellUserAttentionBridge {
+  final List<NativeUserAttentionType> requests = <NativeUserAttentionType>[];
+  final List<int> cancellations = <int>[];
+  int _nextRequestId = 100;
+
+  @override
+  Future<int?> request(NativeUserAttentionType type) async {
+    requests.add(type);
+    return _nextRequestId++;
+  }
+
+  @override
+  Future<void> cancel(int requestId) async {
+    cancellations.add(requestId);
+  }
+}
+
+final class _PendingUserAttentionBridge implements ShellUserAttentionBridge {
+  final List<NativeUserAttentionType> requests = <NativeUserAttentionType>[];
+  final List<Completer<int?>> pendingRequests = <Completer<int?>>[];
+
+  @override
+  Future<int?> request(NativeUserAttentionType type) {
+    requests.add(type);
+    final completer = Completer<int?>();
+    pendingRequests.add(completer);
+    return completer.future;
+  }
+
+  @override
+  Future<void> cancel(int requestId) async {}
 }
 
 RenderTerminalViewport _renderTerminalViewportForPane(
@@ -353,6 +400,336 @@ void main() {
       localConfigRepository.savedDocuments.last.hostActions.osc1337OpenUrl,
       LocalTerminalOpenUrlPolicy.disabled,
     );
+  });
+
+  testWidgets('defaults dialog explicitly enables OSC 1337 attention', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    final localConfigRepository = _MemoryLocalTerminalConfigRepository(
+      const LocalTerminalConfigDocument(),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      localConfigRepository: localConfigRepository,
+    );
+    await _openCommandMenu(tester);
+    await tester.tap(find.text('Defaults & appearance'));
+    await tester.pumpAndSettle();
+    final allow = find.byKey(
+      const Key('default-osc1337-request-attention-policy-allow'),
+    );
+    await tester.ensureVisible(allow);
+    await tester.tap(allow);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('defaults-save')));
+    await tester.pumpAndSettle();
+
+    expect(
+      localConfigRepository
+          .savedDocuments
+          .last
+          .hostActions
+          .osc1337RequestAttention,
+      LocalTerminalRequestAttentionPolicy.allow,
+    );
+  });
+
+  testWidgets('OSC 1337 attention defaults to deny without host effects', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    final attention = _RecordingUserAttentionBridge();
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      userAttentionBridge: attention,
+    );
+    for (final action in <String>['yes', 'once', 'fireworks']) {
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'attention_request',
+          sessionId: '1',
+          payload: <String, Object?>{'source': 'iterm1337', 'action': action},
+        ),
+      );
+    }
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(attention.requests, isEmpty);
+    expect(attention.cancellations, isEmpty);
+    expect(find.byKey(const Key('osc1337-fireworks-1')), findsNothing);
+  });
+
+  testWidgets('OSC 1337 once yes and no map to owned AppKit requests', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    final attention = _RecordingUserAttentionBridge();
+    var now = DateTime.utc(2026, 7, 13, 12);
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      localConfigRepository: _MemoryLocalTerminalConfigRepository(
+        const LocalTerminalConfigDocument(
+          hostActions: LocalTerminalHostActionsConfig(
+            osc1337RequestAttention: LocalTerminalRequestAttentionPolicy.allow,
+          ),
+        ),
+      ),
+      userAttentionBridge: attention,
+      clock: () => now,
+    );
+
+    fakeBindings.enqueueEvent(
+      1,
+      const PtyEvent(
+        kind: 'attention_request',
+        sessionId: '1',
+        payload: <String, Object?>{'source': 'iterm1337', 'action': 'once'},
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+    expect(attention.requests, <NativeUserAttentionType>[
+      NativeUserAttentionType.informational,
+    ]);
+
+    fakeBindings.enqueueEvent(
+      1,
+      const PtyEvent(
+        kind: 'attention_request',
+        sessionId: '1',
+        payload: <String, Object?>{'source': 'iterm1337', 'action': 'once'},
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+    expect(
+      attention.requests,
+      <NativeUserAttentionType>[NativeUserAttentionType.informational],
+      reason: 'the per-session cooldown must suppress an immediate burst',
+    );
+
+    fakeBindings.enqueueEvent(
+      1,
+      const PtyEvent(
+        kind: 'attention_request',
+        sessionId: '1',
+        payload: <String, Object?>{'source': 'iterm1337', 'action': 'no'},
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+    expect(attention.cancellations, <int>[100]);
+
+    now = now.add(const Duration(seconds: 3));
+    fakeBindings.enqueueEvent(
+      1,
+      const PtyEvent(
+        kind: 'attention_request',
+        sessionId: '1',
+        payload: <String, Object?>{'source': 'iterm1337', 'action': 'yes'},
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+    expect(attention.requests, <NativeUserAttentionType>[
+      NativeUserAttentionType.informational,
+      NativeUserAttentionType.critical,
+    ]);
+
+    fakeBindings.enqueueEvent(
+      1,
+      const PtyEvent(
+        kind: 'attention_request',
+        sessionId: '1',
+        payload: <String, Object?>{'source': 'iterm1337', 'action': 'no'},
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+    expect(attention.cancellations, <int>[100, 101]);
+  });
+
+  testWidgets('OSC 1337 pending requests reserve the global attention cap', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    final attention = _PendingUserAttentionBridge();
+    var now = DateTime.utc(2026, 7, 13, 12);
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      localConfigRepository: _MemoryLocalTerminalConfigRepository(
+        const LocalTerminalConfigDocument(
+          hostActions: LocalTerminalHostActionsConfig(
+            osc1337RequestAttention: LocalTerminalRequestAttentionPolicy.allow,
+          ),
+        ),
+      ),
+      userAttentionBridge: attention,
+      clock: () => now,
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final controller = container.read(sessionControllerProvider.notifier);
+    final profile = defaultTerminalProfile();
+    for (var index = 0; index < 8; index += 1) {
+      controller.createSession(profile);
+    }
+    await tester.pumpAndSettle();
+
+    final sessionIds = container
+        .read(sessionControllerProvider)
+        .tabs
+        .map((tab) => tab.sessionId)
+        .toList(growable: false);
+    expect(sessionIds, hasLength(9));
+    final runtime = container.read(terminalRuntimeControllerProvider);
+    for (final sessionId in sessionIds) {
+      fakeBindings.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'attention_request',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'iterm1337',
+            'action': 'once',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump(const Duration(milliseconds: 40));
+      now = now.add(const Duration(seconds: 1));
+    }
+
+    expect(attention.requests, hasLength(8));
+    expect(attention.pendingRequests, hasLength(8));
+  });
+
+  testWidgets('OSC 1337 policy disable cancels owned attention immediately', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    final attention = _RecordingUserAttentionBridge();
+    final localConfigRepository = _MemoryLocalTerminalConfigRepository(
+      const LocalTerminalConfigDocument(
+        hostActions: LocalTerminalHostActionsConfig(
+          osc1337RequestAttention: LocalTerminalRequestAttentionPolicy.allow,
+        ),
+      ),
+    );
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      localConfigRepository: localConfigRepository,
+      userAttentionBridge: attention,
+    );
+
+    fakeBindings.enqueueEvent(
+      1,
+      const PtyEvent(
+        kind: 'attention_request',
+        sessionId: '1',
+        payload: <String, Object?>{'source': 'iterm1337', 'action': 'once'},
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+    expect(attention.requests, <NativeUserAttentionType>[
+      NativeUserAttentionType.informational,
+    ]);
+
+    await _openCommandMenu(tester);
+    await tester.tap(find.text('Defaults & appearance'));
+    await tester.pumpAndSettle();
+    final deny = find.byKey(
+      const Key('default-osc1337-request-attention-policy-disabled'),
+    );
+    await tester.ensureVisible(deny);
+    await tester.tap(deny);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('defaults-save')));
+    await tester.pumpAndSettle();
+
+    expect(attention.cancellations, <int>[100]);
+    expect(
+      localConfigRepository
+          .savedDocuments
+          .last
+          .hostActions
+          .osc1337RequestAttention,
+      LocalTerminalRequestAttentionPolicy.disabled,
+    );
+  });
+
+  testWidgets('OSC 1337 fireworks is cursor-local and Reduce Motion safe', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    final attention = _RecordingUserAttentionBridge();
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      localConfigRepository: _MemoryLocalTerminalConfigRepository(
+        const LocalTerminalConfigDocument(
+          hostActions: LocalTerminalHostActionsConfig(
+            osc1337RequestAttention: LocalTerminalRequestAttentionPolicy.allow,
+          ),
+        ),
+      ),
+      userAttentionBridge: attention,
+      shellAnimationsEnabled: false,
+    );
+    fakeBindings.setFrame(1, const <String, Object?>{
+      'rows': <Object?>[
+        <String, Object?>{
+          'index': 10,
+          'text': 'attention target',
+          'style_runs': <Object?>[],
+        },
+      ],
+      'cursor': <String, Object?>{'row': 10, 'col': 20, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': <Object?>[
+        <String, Object?>{'start': 10, 'end': 11},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+    });
+    await tester.pump(const Duration(milliseconds: 40));
+    fakeBindings.enqueueEvent(
+      1,
+      const PtyEvent(
+        kind: 'attention_request',
+        sessionId: '1',
+        payload: <String, Object?>{
+          'source': 'iterm1337',
+          'action': 'fireworks',
+        },
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+
+    final burst = find.byKey(const Key('osc1337-fireworks-1'));
+    expect(burst, findsOneWidget);
+    expect(
+      find.bySemanticsLabel('Terminal requested attention'),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: burst, matching: find.byType(AnimatedBuilder)),
+      findsNothing,
+      reason: 'Reduce Motion must use the static fallback',
+    );
+    final burstRect = tester.getRect(burst);
+    final viewportRect = tester.getRect(find.byType(TerminalViewport));
+    expect(viewportRect.contains(burstRect.center), isTrue);
+    expect(attention.requests, isEmpty);
+
+    await tester.pump(const Duration(milliseconds: 450));
+    expect(burst, findsNothing);
   });
 
   testWidgets('OSC 1337 OpenURL requires active confirmation before opening', (

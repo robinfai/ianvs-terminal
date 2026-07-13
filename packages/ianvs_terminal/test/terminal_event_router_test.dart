@@ -82,6 +82,7 @@ void main() {
         'cell_size_report_request':
             TerminalImmediateEventKind.cellSizeReportRequest,
         'open_url_request': TerminalImmediateEventKind.openUrlRequest,
+        'attention_request': TerminalImmediateEventKind.attentionRequest,
         'session_reset': TerminalImmediateEventKind.sessionReset,
       };
 

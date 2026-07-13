@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+enum NativeUserAttentionType { critical, informational }
+
 class WindowBridge {
   const WindowBridge._();
 
@@ -153,6 +155,35 @@ class WindowBridge {
       await _channel.invokeMethod<void>('openExternalUrl', {
         'url': normalizedUrl,
       });
+    } on MissingPluginException {
+      return;
+    }
+  }
+
+  static Future<int?> requestUserAttention(NativeUserAttentionType type) async {
+    if (BindingBase.debugBindingType() == null) {
+      return null;
+    }
+    try {
+      final requestId = await _channel.invokeMethod<int>(
+        'requestUserAttention',
+        <String, Object?>{'type': type.name},
+      );
+      return requestId != null && requestId >= 0 ? requestId : null;
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
+  static Future<void> cancelUserAttention(int requestId) async {
+    if (BindingBase.debugBindingType() == null || requestId < 0) {
+      return;
+    }
+    try {
+      await _channel.invokeMethod<void>(
+        'cancelUserAttention',
+        <String, Object?>{'requestId': requestId},
+      );
     } on MissingPluginException {
       return;
     }

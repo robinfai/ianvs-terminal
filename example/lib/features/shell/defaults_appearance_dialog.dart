@@ -13,6 +13,7 @@ class DefaultsAndAppearanceSelection {
     required this.terminalViewportPadding,
     required this.osc52Policy,
     required this.openUrlPolicy,
+    required this.requestAttentionPolicy,
     this.updatedProfile,
     this.openProfiles = false,
   });
@@ -22,6 +23,7 @@ class DefaultsAndAppearanceSelection {
   final double terminalViewportPadding;
   final LocalTerminalOsc52Policy osc52Policy;
   final LocalTerminalOpenUrlPolicy openUrlPolicy;
+  final LocalTerminalRequestAttentionPolicy requestAttentionPolicy;
   final TerminalProfile? updatedProfile;
   final bool openProfiles;
 }
@@ -36,6 +38,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
     required this.terminalViewportPadding,
     required this.osc52Policy,
     required this.openUrlPolicy,
+    required this.requestAttentionPolicy,
   });
 
   final List<TerminalProfile> profiles;
@@ -45,6 +48,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
   final double terminalViewportPadding;
   final LocalTerminalOsc52Policy osc52Policy;
   final LocalTerminalOpenUrlPolicy openUrlPolicy;
+  final LocalTerminalRequestAttentionPolicy requestAttentionPolicy;
 
   @override
   State<DefaultsAndAppearanceDialog> createState() =>
@@ -59,6 +63,7 @@ class _DefaultsAndAppearanceDialogState
   late double _selectedTerminalViewportPadding;
   late LocalTerminalOsc52Policy _selectedOsc52Policy;
   late LocalTerminalOpenUrlPolicy _selectedOpenUrlPolicy;
+  late LocalTerminalRequestAttentionPolicy _selectedRequestAttentionPolicy;
   String _terminalPresetFilter = '';
 
   @override
@@ -69,6 +74,7 @@ class _DefaultsAndAppearanceDialogState
     _selectedTerminalViewportPadding = widget.terminalViewportPadding;
     _selectedOsc52Policy = widget.osc52Policy;
     _selectedOpenUrlPolicy = widget.openUrlPolicy;
+    _selectedRequestAttentionPolicy = widget.requestAttentionPolicy;
     _selectedTerminalPresetId = _matchingPresetIdFor(
       _effectiveProfileFor(
         configuredProfileId: _selectedProfileId,
@@ -225,6 +231,8 @@ class _DefaultsAndAppearanceDialogState
                                 _selectedTerminalViewportPadding,
                             osc52Policy: _selectedOsc52Policy,
                             openUrlPolicy: _selectedOpenUrlPolicy,
+                            requestAttentionPolicy:
+                                _selectedRequestAttentionPolicy,
                             updatedProfile: null,
                             openProfiles: true,
                           ),
@@ -454,6 +462,38 @@ class _DefaultsAndAppearanceDialogState
             ),
             SizedBox(height: theme.spacing.xl),
             const AppSectionHeader(
+              title: 'Terminal attention requests',
+              description:
+                  'Choose whether OSC 1337 RequestAttention may use a bounded Dock alert or a cursor-local visual effect. Requests never activate or focus the app.',
+            ),
+            SizedBox(height: theme.spacing.sm),
+            RadioGroup<LocalTerminalRequestAttentionPolicy>(
+              groupValue: _selectedRequestAttentionPolicy,
+              onChanged: (value) {
+                if (value == null) {
+                  return;
+                }
+                setState(() {
+                  _selectedRequestAttentionPolicy = value;
+                });
+              },
+              child: Column(
+                children: [
+                  for (final policy
+                      in LocalTerminalRequestAttentionPolicy.values)
+                    AppCompactRadioTile<LocalTerminalRequestAttentionPolicy>(
+                      tileKey: Key(
+                        'default-osc1337-request-attention-policy-${policy.name}',
+                      ),
+                      value: policy,
+                      title: Text(requestAttentionPolicyLabel(policy)),
+                      subtitle: Text(requestAttentionPolicyDescription(policy)),
+                    ),
+                ],
+              ),
+            ),
+            SizedBox(height: theme.spacing.xl),
+            const AppSectionHeader(
               title: 'Terminal canvas inset',
               description:
                   'Adjust the empty space between the shell frame and terminal text.',
@@ -576,6 +616,7 @@ class _DefaultsAndAppearanceDialogState
                   terminalViewportPadding: _selectedTerminalViewportPadding,
                   osc52Policy: _selectedOsc52Policy,
                   openUrlPolicy: _selectedOpenUrlPolicy,
+                  requestAttentionPolicy: _selectedRequestAttentionPolicy,
                   updatedProfile: _updatedProfileForPreset(effectiveProfile),
                   openProfiles: false,
                 ),
@@ -639,6 +680,24 @@ String openUrlPolicyDescription(LocalTerminalOpenUrlPolicy policy) {
       'Block every OSC 1337 OpenURL request without showing a dialog.',
     LocalTerminalOpenUrlPolicy.ask =>
       'Require confirmation for each accepted request from the active terminal.',
+  };
+}
+
+String requestAttentionPolicyLabel(LocalTerminalRequestAttentionPolicy policy) {
+  return switch (policy) {
+    LocalTerminalRequestAttentionPolicy.disabled => 'Deny',
+    LocalTerminalRequestAttentionPolicy.allow => 'Allow with limits',
+  };
+}
+
+String requestAttentionPolicyDescription(
+  LocalTerminalRequestAttentionPolicy policy,
+) {
+  return switch (policy) {
+    LocalTerminalRequestAttentionPolicy.disabled =>
+      'Block OSC 1337 RequestAttention. Cancellation requests are still honored.',
+    LocalTerminalRequestAttentionPolicy.allow =>
+      'Allow rate-limited Dock attention and a short cursor-local visual effect.',
   };
 }
 

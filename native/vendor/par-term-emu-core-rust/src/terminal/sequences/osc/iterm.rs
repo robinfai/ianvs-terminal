@@ -7,7 +7,7 @@ use crate::debug;
 use crate::terminal::block::{
     bounded_iterm_block_value, MAX_ITERM_BLOCK_ID_CHARS, MAX_ITERM_BLOCK_TYPE_CHARS,
 };
-use crate::terminal::event::ShellIntegrationSource;
+use crate::terminal::event::{ItermAttentionAction, ShellIntegrationSource};
 use crate::terminal::{CwdChangeSource, Terminal, TerminalEvent};
 use crate::zone::ZoneType;
 
@@ -54,6 +54,8 @@ impl Terminal {
                     .push(TerminalEvent::CellSizeReportRequested);
             } else if let Some(encoded) = data.strip_prefix("OpenURL=:") {
                 self.handle_iterm_open_url(encoded);
+            } else if let Some(action) = data.strip_prefix("RequestAttention=") {
+                self.handle_iterm_request_attention(action);
             } else if let Some(payload) = data.strip_prefix("AddAnnotation=") {
                 self.handle_iterm_annotation(payload, true);
             } else if let Some(payload) = data.strip_prefix("AddHiddenAnnotation=") {
@@ -98,6 +100,18 @@ impl Terminal {
         }
         self.terminal_events
             .push(TerminalEvent::ItermOpenUrlRequested { url });
+    }
+
+    fn handle_iterm_request_attention(&mut self, value: &str) {
+        let action = match value {
+            "yes" => ItermAttentionAction::Yes,
+            "once" => ItermAttentionAction::Once,
+            "no" => ItermAttentionAction::No,
+            "fireworks" => ItermAttentionAction::Fireworks,
+            _ => return,
+        };
+        self.terminal_events
+            .push(TerminalEvent::ItermAttentionRequested { action });
     }
 
     fn handle_iterm_block(&mut self, payload: &str) {
@@ -670,7 +684,7 @@ mod tests {
     use crate::color::Color;
     use crate::terminal::event::ShellIntegrationSource;
     use crate::terminal::MAX_ITERM_BLOCK_ID_CHARS;
-    use crate::terminal::{Terminal, TerminalEvent};
+    use crate::terminal::{ItermAttentionAction, Terminal, TerminalEvent};
     use crate::zone::ZoneType;
     use base64::{engine::general_purpose::STANDARD, Engine};
 
@@ -1348,6 +1362,47 @@ mod tests {
     }
 
     #[test]
+    fn request_attention_emits_only_the_four_exact_documented_actions() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.process(b"\x1b]1337;RequestAttention=yes\x07");
+        terminal.process(b"\x1b]1337;RequestAttention=once\x1b\\");
+        terminal.process(b"\x1b]1337;RequestAttention=fireworks\x07");
+        terminal.process(b"\x1b]1337;RequestAttention=no\x1b\\");
+
+        let actions = terminal
+            .poll_events()
+            .into_iter()
+            .filter_map(|event| match event {
+                TerminalEvent::ItermAttentionRequested { action } => Some(action),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            actions,
+            vec![
+                ItermAttentionAction::Yes,
+                ItermAttentionAction::Once,
+                ItermAttentionAction::Fireworks,
+                ItermAttentionAction::No,
+            ]
+        );
+
+        for invalid in [
+            "",
+            "YES",
+            "yes ",
+            "true",
+            "forever",
+            "firework",
+            "once;extra",
+        ] {
+            terminal.process(format!("\x1b]1337;RequestAttention={invalid}\x07").as_bytes());
+        }
+        terminal.process(b"\x1b]1337;RequestAttention\x07");
+        assert!(terminal.poll_events().is_empty());
+    }
+
+    #[test]
     fn shell_metadata_sequences_accept_every_byte_split() {
         type EventMatcher = fn(&TerminalEvent) -> bool;
         let cases: &[(&[u8], EventMatcher)] = &[
@@ -1371,6 +1426,14 @@ mod tests {
                 b"\x1b]1337;OpenURL=:aHR0cHM6Ly9leGFtcGxlLnRlc3QvcGhhc2UyOQ==\x1b\\",
                 |event| matches!(event, TerminalEvent::ItermOpenUrlRequested { .. }),
             ),
+            (b"\x1b]1337;RequestAttention=fireworks\x1b\\", |event| {
+                matches!(
+                    event,
+                    TerminalEvent::ItermAttentionRequested {
+                        action: ItermAttentionAction::Fireworks
+                    }
+                )
+            }),
         ];
 
         for (sequence, matches_event) in cases {

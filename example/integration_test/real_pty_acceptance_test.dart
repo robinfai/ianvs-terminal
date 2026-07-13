@@ -11,6 +11,7 @@ import 'package:ianvs_pty/ianvs_pty.dart';
 import 'package:integration_test/integration_test.dart';
 
 import 'package:app/app.dart';
+import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_ports.dart';
@@ -1404,6 +1405,84 @@ sleep 5
   );
 
   testWidgets(
+    'real PTY iTerm2 OSC 1337 attention reaches bounded product effects',
+    (tester) async {
+      final goFile = _tempSignalFile('osc1337-attention');
+      final attention = _RecordingAttentionBridge();
+      final profile = _scriptProfile(
+        id: 'osc1337-attention',
+        name: 'OSC 1337 Attention',
+        script: r'''
+printf 'osc1337-attention-ready\n'
+while [ ! -f "$GO_FILE" ]; do sleep 0.05; done
+printf '\033]1337;RequestAttention=fireworks\033\\'
+printf 'OSC1337-FIREWORKS-SHOWN\n'
+sleep 1
+printf '\033]1337;RequestAttention=once\007'
+printf 'OSC1337-ONCE-REQUESTED\n'
+sleep 0.2
+printf '\033]1337;RequestAttention=no\033\\'
+printf 'OSC1337-ATTENTION-DONE\n'
+sleep 5
+''',
+        env: {'GO_FILE': goFile.path},
+      );
+      final harness = await _pumpRealPtyApp(
+        tester,
+        profiles: [profile],
+        localConfig: const LocalTerminalConfigDocument(
+          hostActions: LocalTerminalHostActionsConfig(
+            osc1337RequestAttention: LocalTerminalRequestAttentionPolicy.allow,
+          ),
+        ),
+        userAttentionBridge: attention,
+      );
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'OSC 1337 attention ready marker',
+        matches: (text) => text.contains('osc1337-attention-ready'),
+      );
+      final sessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      final fireworks = find.byKey(Key('osc1337-fireworks-$sessionId'));
+
+      _signal(goFile);
+      await _waitFor(
+        tester,
+        description: 'cursor-local OSC 1337 fireworks overlay',
+        condition: () =>
+            fireworks.evaluate().isNotEmpty &&
+            _terminalText(
+              harness.container,
+            ).contains('OSC1337-FIREWORKS-SHOWN'),
+        onTimeout: () => 'Terminal text: ${_terminalText(harness.container)}',
+      );
+      expect(attention.requests, isEmpty);
+
+      await _waitFor(
+        tester,
+        description: 'informational attention request and cancellation',
+        condition: () =>
+            attention.requests.length == 1 &&
+            attention.cancellations.length == 1 &&
+            _terminalText(harness.container).contains('OSC1337-ATTENTION-DONE'),
+        onTimeout: () =>
+            'requests=${attention.requests} '
+            'cancellations=${attention.cancellations}\n'
+            'Terminal text: ${_terminalText(harness.container)}',
+      );
+      expect(attention.requests, <NativeUserAttentionType>[
+        NativeUserAttentionType.informational,
+      ]);
+      expect(attention.cancellations, <int>[700]);
+      expect(fireworks, findsNothing);
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
     'real PTY iTerm2 OSC 1337 annotations reach the product sheet and badge',
     (tester) async {
       final goFile = _tempSignalFile('osc1337-annotations');
@@ -1750,6 +1829,8 @@ Future<_RealPtyHarness> _pumpRealPtyApp(
   SessionClipboardTextWrite? clipboardTextWrite,
   ShellFileDownloadWriter? fileDownloadWriter,
   ShellExternalUrlOpener? externalUrlOpener,
+  LocalTerminalConfigDocument? localConfig,
+  ShellUserAttentionBridge? userAttentionBridge,
 }) async {
   ensureMacosIntegrationTestFramesEnabled(tester.binding);
   final container = ProviderContainer(
@@ -1765,7 +1846,7 @@ Future<_RealPtyHarness> _pumpRealPtyApp(
         MemoryAppPreferencesRepository(null),
       ),
       localTerminalConfigRepositoryProvider.overrideWithValue(
-        MemoryLocalTerminalConfigRepository(null),
+        MemoryLocalTerminalConfigRepository(localConfig),
       ),
       shellAnimationsEnabledProvider.overrideWithValue(false),
       if (clipboardTextWrite != null)
@@ -1774,6 +1855,8 @@ Future<_RealPtyHarness> _pumpRealPtyApp(
         shellFileDownloadWriterProvider.overrideWithValue(fileDownloadWriter),
       if (externalUrlOpener != null)
         shellExternalUrlOpenerProvider.overrideWithValue(externalUrlOpener),
+      if (userAttentionBridge != null)
+        shellUserAttentionBridgeProvider.overrideWithValue(userAttentionBridge),
       if (runtimeEvents != null)
         terminalGraphicsTraceSinkProvider.overrideWithValue(runtimeEvents.add),
       shellNotificationSenderProvider.overrideWithValue(({
@@ -1806,6 +1889,22 @@ Future<_RealPtyHarness> _pumpRealPtyApp(
   );
   await _waitForActiveSession(tester, container);
   return _RealPtyHarness(container);
+}
+
+final class _RecordingAttentionBridge implements ShellUserAttentionBridge {
+  final List<NativeUserAttentionType> requests = <NativeUserAttentionType>[];
+  final List<int> cancellations = <int>[];
+
+  @override
+  Future<int?> request(NativeUserAttentionType type) async {
+    requests.add(type);
+    return 700;
+  }
+
+  @override
+  Future<void> cancel(int requestId) async {
+    cancellations.add(requestId);
+  }
 }
 
 enum _IdleWakeState { interactive, background, maximumIdle }

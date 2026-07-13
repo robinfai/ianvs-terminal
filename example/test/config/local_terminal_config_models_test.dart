@@ -22,6 +22,10 @@ void main() {
       expect(config.clipboard.osc52, LocalTerminalOsc52Policy.profile);
       expect(config.hostActions.osc1337OpenUrl, LocalTerminalOpenUrlPolicy.ask);
       expect(
+        config.hostActions.osc1337RequestAttention,
+        LocalTerminalRequestAttentionPolicy.disabled,
+      );
+      expect(
         config.paste.bracketedPaste,
         LocalTerminalBracketedPastePolicy.auto,
       );
@@ -238,7 +242,10 @@ void main() {
           },
         },
         'clipboard': {'osc52': ' ALLOW '},
-        'hostActions': {'osc1337OpenUrl': ' DENY '},
+        'hostActions': {
+          'osc1337OpenUrl': ' DENY ',
+          'osc1337RequestAttention': ' ALLOW ',
+        },
         'paste': {'bracketedPaste': ' FORCE '},
       });
 
@@ -250,6 +257,10 @@ void main() {
       expect(
         config.hostActions.osc1337OpenUrl,
         LocalTerminalOpenUrlPolicy.disabled,
+      );
+      expect(
+        config.hostActions.osc1337RequestAttention,
+        LocalTerminalRequestAttentionPolicy.allow,
       );
       expect(
         config.paste.bracketedPaste,
@@ -280,6 +291,34 @@ void main() {
         );
       },
     );
+
+    test('OSC 1337 RequestAttention policy roundtrips and fails closed', () {
+      const config = LocalTerminalConfigDocument(
+        hostActions: LocalTerminalHostActionsConfig(
+          osc1337RequestAttention: LocalTerminalRequestAttentionPolicy.allow,
+        ),
+      );
+      final decoded = LocalTerminalConfigDocument.decode(config.encode());
+      final malformed = LocalTerminalConfigDocument.fromJson(const {
+        'hostActions': {'osc1337RequestAttention': 'always-bounce'},
+      });
+      final denyAlias = LocalTerminalConfigDocument.fromJson(const {
+        'hostActions': {'osc1337RequestAttention': 'deny'},
+      });
+
+      expect(
+        decoded.hostActions.osc1337RequestAttention,
+        LocalTerminalRequestAttentionPolicy.allow,
+      );
+      expect(
+        malformed.hostActions.osc1337RequestAttention,
+        LocalTerminalRequestAttentionPolicy.disabled,
+      );
+      expect(
+        denyAlias.hostActions.osc1337RequestAttention,
+        LocalTerminalRequestAttentionPolicy.disabled,
+      );
+    });
 
     test('OSC 52 policy parses ask and deny aliases', () {
       final askConfig = LocalTerminalConfigDocument.fromJson(const {

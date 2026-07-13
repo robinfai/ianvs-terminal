@@ -17,6 +17,8 @@ use par_term_emu_core_rust::graphics::{
 };
 use par_term_emu_core_rust::grid::{Grid, ScrollRegionDamage};
 use par_term_emu_core_rust::mouse::{MouseEncoding, MouseMode};
+#[cfg(test)]
+use par_term_emu_core_rust::terminal::ItermAttentionAction;
 use par_term_emu_core_rust::terminal::{
     OscCapability, Terminal, TerminalDamage, TerminalEvent as ParserTerminalEvent,
     TerminalProcessDebugStats, TransferDirection, TransferStatus, snapshot::ExportFormat,
@@ -161,6 +163,9 @@ enum CallbackEvent {
     },
     CellSizeReportRequest,
     OpenUrlRequest {
+        payload: serde_json::Value,
+    },
+    AttentionRequest {
         payload: serde_json::Value,
     },
     SessionAnnotation {
@@ -1764,6 +1769,15 @@ fn callback_event_from_parser_event_with_terminal(
                 }),
             })
         }
+        ParserTerminalEvent::ItermAttentionRequested { action } => {
+            let action = validated_iterm_attention_action(action.as_str())?;
+            Some(CallbackEvent::AttentionRequest {
+                payload: serde_json::json!({
+                    "source": "iterm1337",
+                    "action": action,
+                }),
+            })
+        }
         ParserTerminalEvent::ItermAnnotation {
             message,
             visible,
@@ -2090,6 +2104,16 @@ fn validated_terminal_open_url(value: &str) -> Option<String> {
         _ => false,
     };
     allowed.then(|| value.to_string())
+}
+
+fn validated_iterm_attention_action(value: &str) -> Option<&'static str> {
+    match value {
+        "yes" => Some("yes"),
+        "once" => Some("once"),
+        "no" => Some("no"),
+        "fireworks" => Some("fireworks"),
+        _ => None,
+    }
 }
 
 fn input_sets_alt_screen(input: &[u8]) -> bool {
@@ -3792,6 +3816,9 @@ impl TerminalSession {
             CallbackEvent::OpenUrlRequest { payload } => {
                 self.push_event("open_url_request", Some(payload))
             }
+            CallbackEvent::AttentionRequest { payload } => {
+                self.push_event("attention_request", Some(payload))
+            }
             CallbackEvent::SessionAnnotation { payload } => {
                 self.push_event("session_annotation", Some(payload))
             }
@@ -4246,6 +4273,10 @@ fn sanitize_diagnostic_event_payload(
                 .get("url")
                 .and_then(serde_json::Value::as_str)
                 .map(diagnostic_hash),
+        })),
+        "attention_request" => Some(serde_json::json!({
+            "source": payload.get("source").and_then(serde_json::Value::as_str),
+            "action": payload.get("action").and_then(serde_json::Value::as_str),
         })),
         "shell_hook" => sanitize_shell_hook_payload(payload),
         "shell_context" => sanitize_shell_context_payload(payload),
@@ -7591,6 +7622,36 @@ mod tests {
         assert!(!serialized.contains("example.test"));
         assert!(!serialized.contains("secret"));
         assert!(diagnostics.get("url").is_none());
+    }
+
+    #[test]
+    fn osc1337_attention_is_closed_set_and_privacy_safe_before_product_routing() {
+        for (action, expected) in [
+            (ItermAttentionAction::Yes, "yes"),
+            (ItermAttentionAction::Once, "once"),
+            (ItermAttentionAction::No, "no"),
+            (ItermAttentionAction::Fireworks, "fireworks"),
+        ] {
+            let callback = callback_event_from_parser_event(
+                ParserTerminalEvent::ItermAttentionRequested { action },
+                false,
+            )
+            .expect("expected validated attention request");
+            let CallbackEvent::AttentionRequest { payload } = callback else {
+                panic!("expected attention callback");
+            };
+            assert_eq!(payload["source"], "iterm1337");
+            assert_eq!(payload["action"], expected);
+
+            let diagnostics =
+                sanitize_diagnostic_event_payload("attention_request", Some(&payload))
+                    .expect("expected privacy-safe diagnostics");
+            assert_eq!(diagnostics, payload);
+        }
+
+        for invalid in ["", "YES", "yes ", "forever", "firework"] {
+            assert_eq!(validated_iterm_attention_action(invalid), None);
+        }
     }
 
     #[test]

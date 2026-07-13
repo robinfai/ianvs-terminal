@@ -172,6 +172,7 @@ class MainFlutterWindow: NSWindow {
   private var hotkeyWindowController: HotkeyWindowController?
   private var trafficLightCenteringWorkItem: DispatchWorkItem?
   private var notificationExpiryWorkItems: [String: DispatchWorkItem] = [:]
+  private var attentionRequestIds: Set<Int> = []
   private var nativeWindowDragState: NativeWindowDragState?
   private var osc72DropTarget: Osc72DropTarget?
   private var osc72DropPayloads: [String: Osc72DropPayload] = [:]
@@ -283,6 +284,16 @@ class MainFlutterWindow: NSWindow {
   static func isMimeType(_ value: String) -> Bool {
     let parts = value.split(separator: "/", maxSplits: 1, omittingEmptySubsequences: false)
     return parts.count == 2 && parts.allSatisfy { !$0.isEmpty && $0.count <= 127 }
+  }
+
+  static func userAttentionType(
+    for value: String
+  ) -> NSApplication.RequestUserAttentionType? {
+    switch value {
+    case "critical": return .criticalRequest
+    case "informational": return .informationalRequest
+    default: return nil
+    }
   }
 
   static func mimePattern(_ pattern: String, matches mime: String) -> Bool {
@@ -431,6 +442,10 @@ class MainFlutterWindow: NSWindow {
           return
         }
         result(nil)
+      case "requestUserAttention":
+        self.requestUserAttention(arguments: call.arguments, result: result)
+      case "cancelUserAttention":
+        self.cancelUserAttention(arguments: call.arguments, result: result)
       case "chooseFileDownloadLocation":
         guard
           let arguments = call.arguments as? [String: Any],
@@ -501,6 +516,10 @@ class MainFlutterWindow: NSWindow {
       workItem.cancel()
     }
     notificationExpiryWorkItems.removeAll()
+    for requestId in attentionRequestIds {
+      NSApp.cancelUserAttentionRequest(requestId)
+    }
+    attentionRequestIds.removeAll()
     osc72DropPayloads.removeAll()
     NotificationCenter.default.removeObserver(self)
   }
@@ -674,6 +693,53 @@ class MainFlutterWindow: NSWindow {
     osc72DropTarget = Osc72DropTarget(sessionId: sessionId, mimeTypes: mimeTypes)
     osc72DropDecision = []
     registerForDraggedTypes(Array(pasteboardTypes))
+    result(nil)
+  }
+
+  private func requestUserAttention(
+    arguments: Any?,
+    result: @escaping FlutterResult
+  ) {
+    guard
+      let arguments = arguments as? [String: Any],
+      let rawType = arguments["type"] as? String,
+      let type = Self.userAttentionType(for: rawType)
+    else {
+      result(
+        FlutterError(
+          code: "invalid_attention_type",
+          message: "User-attention type must be critical or informational",
+          details: nil
+        )
+      )
+      return
+    }
+    let requestId = NSApp.requestUserAttention(type)
+    attentionRequestIds.insert(requestId)
+    result(requestId)
+  }
+
+  private func cancelUserAttention(
+    arguments: Any?,
+    result: @escaping FlutterResult
+  ) {
+    guard
+      let arguments = arguments as? [String: Any],
+      let requestId = arguments["requestId"] as? Int,
+      requestId >= 0
+    else {
+      result(
+        FlutterError(
+          code: "invalid_attention_request_id",
+          message: "User-attention request ID is missing or invalid",
+          details: nil
+        )
+      )
+      return
+    }
+    if attentionRequestIds.remove(requestId) != nil {
+      NSApp.cancelUserAttentionRequest(requestId)
+    }
     result(nil)
   }
 

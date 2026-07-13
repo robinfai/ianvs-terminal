@@ -335,6 +335,14 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                           }
                         });
                       }
+                      final attentionBurst = _osc1337AttentionBurstFor(
+                        context: context,
+                        sessionId: sessionId,
+                        viewportController: viewportController,
+                        viewportSize: terminalConstraints.biggest,
+                        contentPadding: terminalViewportPadding,
+                        palette: palette,
+                      );
                       return Stack(
                         children: [
                           Positioned.fill(
@@ -461,6 +469,7 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                                 ),
                               ),
                             ),
+                          ?attentionBurst,
                           if (isActive && _isSearchOpen)
                             Positioned(
                               top:
@@ -631,6 +640,68 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
           ),
         );
       },
+    );
+  }
+
+  Widget? _osc1337AttentionBurstFor({
+    required BuildContext context,
+    required String sessionId,
+    required TerminalViewportController viewportController,
+    required Size viewportSize,
+    required EdgeInsets contentPadding,
+    required AppThemeTokens palette,
+  }) {
+    final serial = _osc1337FireworksSerials[sessionId];
+    final cellSize = _measuredTerminalCellSizes[sessionId];
+    final frame = viewportController.frame;
+    if (serial == null ||
+        cellSize == null ||
+        !cellSize.width.isFinite ||
+        !cellSize.height.isFinite ||
+        cellSize.width <= 0 ||
+        cellSize.height <= 0 ||
+        !viewportSize.width.isFinite ||
+        !viewportSize.height.isFinite ||
+        viewportSize.isEmpty ||
+        frame.scrollbackOffset != 0 ||
+        frame.viewportRows <= 0 ||
+        frame.viewportCols <= 0) {
+      return null;
+    }
+
+    const preferredExtent = 76.0;
+    final extent = math.min(
+      preferredExtent,
+      math.min(viewportSize.width, viewportSize.height),
+    );
+    if (extent <= 0) {
+      return null;
+    }
+    final cursorRow = frame.cursor.row.clamp(0, frame.viewportRows - 1).toInt();
+    final cursorCol = frame.cursor.col.clamp(0, frame.viewportCols - 1).toInt();
+    final rawCenter = Offset(
+      contentPadding.left + (cursorCol + 0.5) * cellSize.width,
+      contentPadding.top + (cursorRow + 0.5) * cellSize.height,
+    );
+    final center = Offset(
+      rawCenter.dx.clamp(extent / 2, viewportSize.width - extent / 2),
+      rawCenter.dy.clamp(extent / 2, viewportSize.height - extent / 2),
+    );
+    final reduceMotion =
+        !ref.read(shellAnimationsEnabledProvider) ||
+        (MediaQuery.maybeOf(context)?.disableAnimations ?? false);
+
+    return Positioned(
+      key: Key('osc1337-fireworks-$sessionId'),
+      left: center.dx - extent / 2,
+      top: center.dy - extent / 2,
+      width: extent,
+      height: extent,
+      child: _TerminalAttentionBurst(
+        key: ValueKey<String>('osc1337-fireworks-$sessionId-$serial'),
+        animate: !reduceMotion,
+        colors: <Color>[palette.accent, palette.warning, palette.success],
+      ),
     );
   }
 
@@ -1106,6 +1177,134 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
       );
     }
     return indicators;
+  }
+}
+
+class _TerminalAttentionBurst extends StatefulWidget {
+  const _TerminalAttentionBurst({
+    super.key,
+    required this.animate,
+    required this.colors,
+  });
+
+  final bool animate;
+  final List<Color> colors;
+
+  @override
+  State<_TerminalAttentionBurst> createState() =>
+      _TerminalAttentionBurstState();
+}
+
+class _TerminalAttentionBurstState extends State<_TerminalAttentionBurst>
+    with SingleTickerProviderStateMixin {
+  AnimationController? _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.animate) {
+      _controller = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 400),
+      )..forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = _controller;
+    return IgnorePointer(
+      child: Semantics(
+        container: true,
+        liveRegion: true,
+        label: 'Terminal requested attention',
+        child: RepaintBoundary(
+          child: controller == null
+              ? CustomPaint(
+                  painter: _TerminalAttentionBurstPainter(
+                    progress: 0.58,
+                    colors: widget.colors,
+                    staticFallback: true,
+                  ),
+                )
+              : AnimatedBuilder(
+                  animation: controller,
+                  builder: (context, _) => CustomPaint(
+                    painter: _TerminalAttentionBurstPainter(
+                      progress: controller.value,
+                      colors: widget.colors,
+                    ),
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TerminalAttentionBurstPainter extends CustomPainter {
+  const _TerminalAttentionBurstPainter({
+    required this.progress,
+    required this.colors,
+    this.staticFallback = false,
+  });
+
+  final double progress;
+  final List<Color> colors;
+  final bool staticFallback;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (colors.isEmpty || size.isEmpty) {
+      return;
+    }
+    final center = size.center(Offset.zero);
+    final eased = Curves.easeOutCubic.transform(progress.clamp(0.0, 1.0));
+    final opacity = staticFallback
+        ? 0.88
+        : (1 - Curves.easeIn.transform(progress)).clamp(0.0, 1.0);
+    final ringPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.8
+      ..color = colors.first.withValues(alpha: opacity * 0.86);
+    canvas.drawCircle(center, 7 + 20 * eased, ringPaint);
+
+    for (var index = 0; index < 12; index += 1) {
+      final angle = (math.pi * 2 * index / 12) - math.pi / 2;
+      final direction = Offset(math.cos(angle), math.sin(angle));
+      final innerRadius = 9 + 7 * eased;
+      final outerRadius = 15 + (index.isEven ? 17 : 12) * eased;
+      final color = colors[index % colors.length].withValues(
+        alpha: opacity * (index.isEven ? 0.95 : 0.72),
+      );
+      final rayPaint = Paint()
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = index.isEven ? 2.2 : 1.5
+        ..color = color;
+      canvas.drawLine(
+        center + direction * innerRadius,
+        center + direction * outerRadius,
+        rayPaint,
+      );
+      canvas.drawCircle(
+        center + direction * (outerRadius + 2.5),
+        index.isEven ? 2.2 : 1.5,
+        Paint()..color = color,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_TerminalAttentionBurstPainter oldDelegate) {
+    return oldDelegate.progress != progress ||
+        oldDelegate.staticFallback != staticFallback ||
+        !listEquals(oldDelegate.colors, colors);
   }
 }
 

@@ -260,6 +260,28 @@ final class TerminalSessionOpenUrlRequestEvent extends TerminalSessionEvent {
   static String? _stringValue(Object? value) => value is String ? value : null;
 }
 
+/// An untrusted iTerm2 OSC 1337 request for bounded attention feedback.
+///
+/// Product code must independently validate this event, apply a persisted
+/// policy, rate-limit system attention, and retain cancellation ownership.
+final class TerminalSessionAttentionRequestEvent extends TerminalSessionEvent {
+  TerminalSessionAttentionRequestEvent(
+    super.sessionId, {
+    Map<String, Object?>? rawPayload,
+  }) : rawPayload = Map.unmodifiable(rawPayload ?? const <String, Object?>{});
+
+  final Map<String, Object?> rawPayload;
+
+  String? get source => _stringValue(rawPayload['source']);
+  String? get action => _stringValue(rawPayload['action']);
+
+  bool get isValid =>
+      source == 'iterm1337' &&
+      const <String>{'yes', 'once', 'no', 'fireworks'}.contains(action);
+
+  static String? _stringValue(Object? value) => value is String ? value : null;
+}
+
 final class TerminalSessionShellUserVarEvent extends TerminalSessionEvent {
   TerminalSessionShellUserVarEvent(
     super.sessionId, {
@@ -2374,6 +2396,15 @@ class TerminalRuntimeController {
           sessionId,
           sessionEpoch,
           TerminalSessionOpenUrlRequestEvent(
+            sessionId,
+            rawPayload: route.payload,
+          ),
+        );
+      case TerminalImmediateEventKind.attentionRequest:
+        _emitEventIfCurrent(
+          sessionId,
+          sessionEpoch,
+          TerminalSessionAttentionRequestEvent(
             sessionId,
             rawPayload: route.payload,
           ),

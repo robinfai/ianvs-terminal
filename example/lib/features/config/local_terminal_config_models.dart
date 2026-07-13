@@ -340,30 +340,43 @@ enum LocalTerminalOsc52Policy { disabled, profile, allow, ask }
 class LocalTerminalHostActionsConfig {
   const LocalTerminalHostActionsConfig({
     this.osc1337OpenUrl = LocalTerminalOpenUrlPolicy.ask,
+    this.osc1337RequestAttention = LocalTerminalRequestAttentionPolicy.disabled,
   });
 
   final LocalTerminalOpenUrlPolicy osc1337OpenUrl;
+  final LocalTerminalRequestAttentionPolicy osc1337RequestAttention;
 
   LocalTerminalHostActionsConfig copyWith({
     LocalTerminalOpenUrlPolicy? osc1337OpenUrl,
+    LocalTerminalRequestAttentionPolicy? osc1337RequestAttention,
   }) {
     return LocalTerminalHostActionsConfig(
       osc1337OpenUrl: osc1337OpenUrl ?? this.osc1337OpenUrl,
+      osc1337RequestAttention:
+          osc1337RequestAttention ?? this.osc1337RequestAttention,
     );
   }
 
   Map<String, Object?> toJson() {
-    return {'osc1337OpenUrl': osc1337OpenUrl.name};
+    return {
+      'osc1337OpenUrl': osc1337OpenUrl.name,
+      'osc1337RequestAttention': osc1337RequestAttention.name,
+    };
   }
 
   static LocalTerminalHostActionsConfig fromJson(Map<Object?, Object?>? json) {
     return LocalTerminalHostActionsConfig(
       osc1337OpenUrl: _openUrlPolicy(json?['osc1337OpenUrl']),
+      osc1337RequestAttention: _requestAttentionPolicy(
+        json?['osc1337RequestAttention'],
+      ),
     );
   }
 }
 
 enum LocalTerminalOpenUrlPolicy { disabled, ask }
+
+enum LocalTerminalRequestAttentionPolicy { disabled, allow }
 
 class LocalTerminalPasteConfig {
   const LocalTerminalPasteConfig({
@@ -638,6 +651,21 @@ LocalTerminalOpenUrlPolicy _openUrlPolicy(Object? value) {
     }
   }
   return LocalTerminalOpenUrlPolicy.ask;
+}
+
+LocalTerminalRequestAttentionPolicy _requestAttentionPolicy(Object? value) {
+  if (value is String) {
+    final normalized = value.trim().toLowerCase();
+    if (normalized == 'deny') {
+      return LocalTerminalRequestAttentionPolicy.disabled;
+    }
+    for (final policy in LocalTerminalRequestAttentionPolicy.values) {
+      if (policy.name == normalized) {
+        return policy;
+      }
+    }
+  }
+  return LocalTerminalRequestAttentionPolicy.disabled;
 }
 
 LocalTerminalBracketedPastePolicy _bracketedPastePolicy(Object? value) {

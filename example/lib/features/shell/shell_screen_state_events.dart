@@ -94,6 +94,8 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         break;
       case terminal.TerminalSessionOpenUrlRequestEvent():
         _handleOsc1337OpenUrlRequest(event);
+      case terminal.TerminalSessionAttentionRequestEvent():
+        _handleOsc1337AttentionRequest(event);
       case terminal.TerminalSessionResetEvent():
         unawaited(_osc72DragDropController.resetSession(event.sessionId));
         _clearPresentationStateForSession(event.sessionId);
@@ -116,7 +118,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       _showShellSnackBar('OSC 1337 Open URL blocked by policy');
       return;
     }
-    final now = DateTime.now();
+    final now = _clock();
     final lastPromptAt = _lastOsc1337OpenUrlPromptAt;
     if (_osc1337OpenUrlPromptActive ||
         (lastPromptAt != null &&
@@ -127,6 +129,162 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     _osc1337OpenUrlPromptActive = true;
     _lastOsc1337OpenUrlPromptAt = now;
     unawaited(_confirmOsc1337OpenUrl(event));
+  }
+
+  void _handleOsc1337AttentionRequest(
+    terminal.TerminalSessionAttentionRequestEvent event,
+  ) {
+    if (!event.isValid || !_sessionExists(event.sessionId)) {
+      return;
+    }
+    if (event.action == 'no') {
+      unawaited(_cancelOsc1337AttentionRequest(event.sessionId));
+      return;
+    }
+    if (_hostActionsConfig.osc1337RequestAttention !=
+        LocalTerminalRequestAttentionPolicy.allow) {
+      return;
+    }
+    if (event.action == 'fireworks') {
+      _showOsc1337Fireworks(event.sessionId);
+      return;
+    }
+    unawaited(
+      _requestOsc1337SystemAttention(
+        event.sessionId,
+        critical: event.action == 'yes',
+      ),
+    );
+  }
+
+  Future<void> _requestOsc1337SystemAttention(
+    String sessionId, {
+    required bool critical,
+  }) async {
+    if (!_sessionExists(sessionId) ||
+        _hostActionsConfig.osc1337RequestAttention !=
+            LocalTerminalRequestAttentionPolicy.allow ||
+        _osc1337AttentionRequestsPending.contains(sessionId)) {
+      return;
+    }
+    final now = _clock();
+    final lastSessionRequest = _lastOsc1337SystemAttentionAt[sessionId];
+    final lastGlobalRequest = _lastOsc1337GlobalSystemAttentionAt;
+    if ((lastSessionRequest != null &&
+            now.difference(lastSessionRequest) <
+                _ShellScreenState._osc1337SystemAttentionSessionCooldown) ||
+        (lastGlobalRequest != null &&
+            now.difference(lastGlobalRequest) <
+                _ShellScreenState._osc1337SystemAttentionGlobalCooldown)) {
+      return;
+    }
+    final reservedSessions = <String>{
+      ..._osc1337AttentionRequestIds.keys,
+      ..._osc1337AttentionRequestsPending,
+    };
+    if (!_osc1337AttentionRequestIds.containsKey(sessionId) &&
+        reservedSessions.length >=
+            _ShellScreenState._osc1337MaxOutstandingAttentionRequests) {
+      return;
+    }
+
+    final epoch = (_osc1337AttentionEpochs[sessionId] ?? 0) + 1;
+    _osc1337AttentionEpochs[sessionId] = epoch;
+    _osc1337AttentionRequestsPending.add(sessionId);
+    _lastOsc1337SystemAttentionAt[sessionId] = now;
+    _lastOsc1337GlobalSystemAttentionAt = now;
+
+    final previousRequestId = _osc1337AttentionRequestIds.remove(sessionId);
+    if (previousRequestId != null) {
+      await _userAttentionBridge.cancel(previousRequestId);
+    }
+    if (!_sessionExists(sessionId) ||
+        _hostActionsConfig.osc1337RequestAttention !=
+            LocalTerminalRequestAttentionPolicy.allow ||
+        _osc1337AttentionEpochs[sessionId] != epoch) {
+      _osc1337AttentionRequestsPending.remove(sessionId);
+      return;
+    }
+
+    final requestId = await _userAttentionBridge.request(
+      critical
+          ? NativeUserAttentionType.critical
+          : NativeUserAttentionType.informational,
+    );
+    _osc1337AttentionRequestsPending.remove(sessionId);
+    if (requestId == null) {
+      return;
+    }
+    if (!_sessionExists(sessionId) ||
+        _hostActionsConfig.osc1337RequestAttention !=
+            LocalTerminalRequestAttentionPolicy.allow ||
+        _osc1337AttentionEpochs[sessionId] != epoch) {
+      await _userAttentionBridge.cancel(requestId);
+      return;
+    }
+    final superseded = _osc1337AttentionRequestIds[sessionId];
+    if (superseded != null && superseded != requestId) {
+      await _userAttentionBridge.cancel(superseded);
+    }
+    _osc1337AttentionRequestIds[sessionId] = requestId;
+  }
+
+  Future<void> _cancelOsc1337AttentionRequest(String sessionId) async {
+    _osc1337AttentionEpochs[sessionId] =
+        (_osc1337AttentionEpochs[sessionId] ?? 0) + 1;
+    _osc1337AttentionRequestsPending.remove(sessionId);
+    _lastOsc1337SystemAttentionAt.remove(sessionId);
+    final requestId = _osc1337AttentionRequestIds.remove(sessionId);
+    if (requestId != null) {
+      await _userAttentionBridge.cancel(requestId);
+    }
+  }
+
+  Future<void> _cancelAllOsc1337AttentionRequests() async {
+    final sessionIds = <String>{
+      ..._osc1337AttentionRequestIds.keys,
+      ..._osc1337AttentionRequestsPending,
+    };
+    final requestIds = _osc1337AttentionRequestIds.values.toList(
+      growable: false,
+    );
+    for (final sessionId in sessionIds) {
+      _osc1337AttentionEpochs[sessionId] =
+          (_osc1337AttentionEpochs[sessionId] ?? 0) + 1;
+    }
+    _osc1337AttentionRequestIds.clear();
+    _osc1337AttentionRequestsPending.clear();
+    _lastOsc1337SystemAttentionAt.clear();
+    _lastOsc1337GlobalSystemAttentionAt = null;
+    await Future.wait(requestIds.map(_userAttentionBridge.cancel));
+  }
+
+  void _showOsc1337Fireworks(String sessionId) {
+    final now = _clock();
+    final lastShown = _lastOsc1337FireworksAt[sessionId];
+    if (lastShown != null &&
+        now.difference(lastShown) <
+            _ShellScreenState._osc1337FireworksCooldown) {
+      return;
+    }
+    _lastOsc1337FireworksAt[sessionId] = now;
+    _osc1337FireworksTimers.remove(sessionId)?.cancel();
+    _mutateState(() {
+      _osc1337FireworksSerials[sessionId] =
+          (_osc1337FireworksSerials[sessionId] ?? 0) + 1;
+    });
+    _osc1337FireworksTimers[sessionId] = Timer(
+      _ShellScreenState._osc1337FireworksLifetime,
+      () {
+        _osc1337FireworksTimers.remove(sessionId);
+        if (!mounted) {
+          return;
+        }
+        _mutateState(() {
+          _osc1337FireworksSerials.remove(sessionId);
+        });
+      },
+    );
   }
 
   Future<void> _confirmOsc1337OpenUrl(

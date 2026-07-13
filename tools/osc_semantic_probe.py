@@ -110,6 +110,17 @@ PROBES = {
         + osc("1337;AddAnnotation=7|Ianvs visible annotation")
         + b"visible",
     ),
+    "iterm_request_attention": Probe(
+        "iterm_request_attention",
+        "iTerm2 OSC 1337 RequestAttention",
+        "Request one cursor-local burst, one informational Dock alert, one persistent Dock alert, then cancel it.",
+        "Allowed terminals show a bounded cursor-local effect and Dock attention without focusing the app; denied terminals only honor cancellation.",
+        "attention request; persistent policy and rate limits apply; must not activate or focus",
+        osc("1337;RequestAttention=fireworks")
+        + osc("1337;RequestAttention=once", bell=True)
+        + osc("1337;RequestAttention=yes")
+        + osc("1337;RequestAttention=no"),
+    ),
     "clipboard_query": Probe(
         "clipboard_query",
         "OSC 52",
@@ -350,6 +361,7 @@ def self_test() -> None:
         "clipboard_copy",
         "iterm_clipboard_copy",
         "iterm_annotations",
+        "iterm_request_attention",
         "clipboard_query",
         "clipboard_mime",
         "tab_status",
@@ -389,6 +401,13 @@ def self_test() -> None:
         raise ValueError("iTerm2 OSC 1337 clipboard fixture is malformed")
     if PROBES["iterm_annotations"].payload.count(b"\x1b]1337;") != 2:
         raise ValueError("iTerm2 OSC 1337 annotation fixture is malformed")
+    if PROBES["iterm_request_attention"].payload.count(
+        b"\x1b]1337;RequestAttention="
+    ) != 4:
+        raise ValueError("iTerm2 OSC 1337 attention fixture is malformed")
+    for action in (b"fireworks", b"once", b"yes", b"no"):
+        if b"RequestAttention=" + action not in PROBES["iterm_request_attention"].payload:
+            raise ValueError("iTerm2 OSC 1337 attention action is missing")
     if PROBES["clipboard_mime"].payload.count(b"\x1b]5522;") != 5:
         raise ValueError("OSC 5522 MIME clipboard fixture is malformed")
     if PROBES["tab_status"].payload.count(b"\x1b]21337;") != 1:

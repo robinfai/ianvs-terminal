@@ -41,6 +41,8 @@ const Set<String> _requiredCoverage = <String>{
   'iTerm2 annotation coordinate range',
   'iTerm2 OSC 1337 OpenURL Base64 decoding',
   'iTerm2 OSC 1337 OpenURL fragmented ST termination',
+  'iTerm2 OSC 1337 RequestAttention four-value contract',
+  'iTerm2 OSC 1337 RequestAttention fragmented ST termination',
   'iTerm2 OSC 1337 block lifecycle',
   'iTerm2 OSC 1337 nested block folding',
   'iTerm2 OSC 1337 block update no-op safety',
@@ -218,6 +220,18 @@ void _validateFixture(String id, Map<String, Object?> fixture) {
     expect(chunks.first, <int>[0x1b]);
     expect(chunks[chunks.length - 2].last, 0x1b);
     expect(chunks.last, <int>[0x5c]);
+  } else if (id == 'osc1337_request_attention') {
+    final text = latin1.decode(stream);
+    expect(
+      RegExp(r'\x1b]1337;RequestAttention=').allMatches(text),
+      hasLength(5),
+    );
+    expect(text, contains('RequestAttention=yes\x07'));
+    expect(text, contains('RequestAttention=once\x1b\\'));
+    expect(text, contains('RequestAttention=fireworks\x1b\\'));
+    expect(text, contains('RequestAttention=no\x07'));
+    expect(text, contains('RequestAttention=YES\x07'));
+    expect(text, endsWith('\x1b]2;osc1337-attention-corpus-ok\x1b\\'));
   } else if (id == 'osc1337_blocks') {
     final text = latin1.decode(stream);
     expect(RegExp(r'\x1b]1337;Block=').allMatches(text), hasLength(4));

@@ -10,6 +10,31 @@ use crate::terminal::progress::{ProgressBarAction, ProgressState};
 use crate::terminal::trigger::TriggerMatch;
 use crate::zone::ZoneType;
 
+/// iTerm2 OSC 1337 `RequestAttention` action.
+///
+/// These values are deliberately closed over the four spellings documented
+/// by iTerm2. They describe an untrusted request and never grant host-action
+/// authority by themselves.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ItermAttentionAction {
+    Yes,
+    Once,
+    No,
+    Fireworks,
+}
+
+impl ItermAttentionAction {
+    /// Stable wire/debug name for the product bridge.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Yes => "yes",
+            Self::Once => "once",
+            Self::No => "no",
+            Self::Fireworks => "fireworks",
+        }
+    }
+}
+
 /// Protocol that produced a normalized shell-integration event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ShellIntegrationSource {
@@ -219,6 +244,15 @@ pub enum TerminalEvent {
         /// Original validated URL decoded from the OSC Base64 payload.
         url: String,
     },
+    /// iTerm2 requested bounded user-attention feedback.
+    ///
+    /// This event is an untrusted request only. Embedders must apply a
+    /// persisted product policy and anti-spam controls before asking the host
+    /// operating system to perform an attention effect.
+    ItermAttentionRequested {
+        /// One of the four exact actions documented by iTerm2.
+        action: ItermAttentionAction,
+    },
     /// iTerm2 attached a bounded annotation to a terminal cell range.
     ItermAnnotation {
         /// Sanitized note text shown in the product annotation UI.
@@ -374,6 +408,9 @@ impl TerminalEvent {
             }
             TerminalEvent::CellSizeReportRequested => TerminalEventKind::CellSizeReportRequested,
             TerminalEvent::ItermOpenUrlRequested { .. } => TerminalEventKind::ItermOpenUrlRequested,
+            TerminalEvent::ItermAttentionRequested { .. } => {
+                TerminalEventKind::ItermAttentionRequested
+            }
             TerminalEvent::ItermAnnotation { .. } => TerminalEventKind::ItermAnnotation,
             TerminalEvent::ZoneOpened { .. } => TerminalEventKind::ZoneOpened,
             TerminalEvent::ZoneClosed { .. } => TerminalEventKind::ZoneClosed,
@@ -476,6 +513,7 @@ impl TerminalEvent {
             | Self::ZoneScrolledOut { .. }
             | Self::FileTransferProgress { .. }
             | Self::CellSizeReportRequested
+            | Self::ItermAttentionRequested { .. }
             | Self::ScreenCleared { .. }
             | Self::TerminalReset => 0,
         };
@@ -505,6 +543,7 @@ pub enum TerminalEventKind {
     ShellIntegrationVersion,
     CellSizeReportRequested,
     ItermOpenUrlRequested,
+    ItermAttentionRequested,
     ItermAnnotation,
     ZoneOpened,
     ZoneClosed,

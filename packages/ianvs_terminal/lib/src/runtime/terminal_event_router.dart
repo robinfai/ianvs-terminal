@@ -27,6 +27,7 @@ enum TerminalImmediateEventKind {
   fileUploadDenied,
   cellSizeReportRequest,
   openUrlRequest,
+  attentionRequest,
   sessionReset,
 }
 
@@ -156,6 +157,10 @@ final class TerminalEventRouter {
       ),
       'open_url_request' => TerminalImmediateEventRoute(
         kind: TerminalImmediateEventKind.openUrlRequest,
+        payload: event.payload,
+      ),
+      'attention_request' => TerminalImmediateEventRoute(
+        kind: TerminalImmediateEventKind.attentionRequest,
         payload: event.payload,
       ),
       'session_reset' => TerminalImmediateEventRoute(

@@ -1,9 +1,10 @@
 # OSC Capability Plan
 
 Status: active support contract. P0/P1 and the promoted P2/P3 OSC families are
-implemented with automated regression coverage. Phase 28 additionally promotes
-the safe incoming OSC 1337 download subset; uploads and other host actions stay
-outside the current product.
+implemented with automated regression coverage. Through Phase 30, the safe
+incoming OSC 1337 download subset, permission-gated OpenURL subset, and bounded
+RequestAttention actions are promoted; uploads and other privileged host
+actions stay outside the current product.
 
 This plan turns OSC support from a list of escape-code numbers into product
 capability gates. The current implementation scope is local terminal fidelity
@@ -50,6 +51,7 @@ P0 closes the support contract and prevents accidental regressions.
 | OSC 1337 File inline=0 | incoming file download | `user-actionable` safe subset | Active-pane explicit Save only; bounded native one-shot bytes and discard on cancel/background/timeout. |
 | OSC 1337 RequestUpload | outgoing file upload | `unsupported` | Deny and close the protocol request without reading local data. |
 | OSC 1337 OpenURL | external URL request | `user-actionable` safe subset | Parse as untrusted Hyperlink-capability metadata; require active-pane Ask policy and exact explicit confirmation; persistent Deny remains available. |
+| OSC 1337 RequestAttention | Dock/cursor attention request | `user-actionable` bounded subset | Exact yes/once/no/fireworks actions; persistent Deny by default, explicit Allow with per-session/global limits and owned cancellation; never focus or activate the app. |
 
 P0 deliverables:
 
@@ -359,6 +361,10 @@ Policy and trust:
 - Later product decision: OSC 1337 RequestUpload and any other outgoing file
   transfer. Incoming non-inline download is supported by Phase 28's explicit
   Save boundary.
+- OSC 1337 RequestAttention is no longer deferred: Phase 30 supports its closed
+  four-action set behind persistent policy, rate limits, owned AppKit request
+  IDs and bounded cursor-local rendering. Focus stealing, Notification Center
+  payloads and arbitrary attention actions remain unauthorized.
 - Not P0/P1: public custom OSC parser hooks, remote identity, full file
   transfer, notification spam defaults.
 - Not P2/P3: SFTP/SSH session management, remote file browsing, automatic
@@ -421,6 +427,10 @@ and native notification delivery.
   named progress list, completion grace, and clear behavior.
 - Send OSC 1337 SetBadgeFormat and verify tab/pane badge set, update, clear,
   truncation, and tooltip behavior.
+- With attention policy Allow, send OSC 1337 RequestAttention fireworks,
+  once/yes/no and verify the cursor-local effect, bounded Dock attention and
+  cancellation while the shell remains interactive and the app never steals
+  focus. Repeat with Deny and verify no new host effect occurs.
 
 ## Done Criteria
 

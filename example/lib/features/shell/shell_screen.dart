@@ -72,6 +72,27 @@ part 'shell_screen_shared_buttons.dart';
 typedef ShellFileDownloadWriter =
     Future<void> Function(String path, List<int> bytes);
 typedef ShellExternalUrlOpener = Future<void> Function(String url);
+typedef ShellClock = DateTime Function();
+
+abstract interface class ShellUserAttentionBridge {
+  Future<int?> request(NativeUserAttentionType type);
+
+  Future<void> cancel(int requestId);
+}
+
+final class WindowShellUserAttentionBridge implements ShellUserAttentionBridge {
+  const WindowShellUserAttentionBridge();
+
+  @override
+  Future<int?> request(NativeUserAttentionType type) {
+    return WindowBridge.requestUserAttention(type);
+  }
+
+  @override
+  Future<void> cancel(int requestId) {
+    return WindowBridge.cancelUserAttention(requestId);
+  }
+}
 
 final shellFileDownloadWriterProvider = Provider<ShellFileDownloadWriter>((
   ref,
@@ -82,6 +103,14 @@ final shellFileDownloadWriterProvider = Provider<ShellFileDownloadWriter>((
 final shellExternalUrlOpenerProvider = Provider<ShellExternalUrlOpener>((ref) {
   return WindowBridge.openExternalUrl;
 });
+
+final shellUserAttentionBridgeProvider = Provider<ShellUserAttentionBridge>((
+  ref,
+) {
+  return const WindowShellUserAttentionBridge();
+});
+
+final shellClockProvider = Provider<ShellClock>((ref) => DateTime.now);
 
 class ShellScreen extends ConsumerStatefulWidget {
   const ShellScreen({super.key});
@@ -109,6 +138,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   static const _activityPreviewMaxCharacters = 512;
   static const _activityNotificationTrailingDelay = Duration(milliseconds: 200);
   static const _osc1337OpenUrlPromptCooldown = Duration(seconds: 5);
+  static const _osc1337SystemAttentionSessionCooldown = Duration(seconds: 2);
+  static const _osc1337SystemAttentionGlobalCooldown = Duration(
+    milliseconds: 750,
+  );
+  static const _osc1337FireworksCooldown = Duration(milliseconds: 800);
+  static const _osc1337FireworksLifetime = Duration(milliseconds: 420);
+  static const _osc1337MaxOutstandingAttentionRequests = 8;
 
   final Map<String, SelectionController> _selectionControllers = {};
   final Map<String, FocusNode> _terminalFocusNodes = {};
@@ -140,6 +176,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   Future<void> Function()? _searchPasteHandler;
   late final LocalTerminalShellUiWiringSnapshot _completionDiagnosticsSnapshot;
   late final Osc72DragDropController _osc72DragDropController;
+  late final ShellUserAttentionBridge _userAttentionBridge;
+  late final ShellClock _clock;
   Timer? _workspaceCueTimer;
   final Map<String, Timer> _viewportResizeTimers = {};
   bool _isCommandMenuOpen = false;
@@ -170,6 +208,15 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       const LocalTerminalHostActionsConfig();
   bool _osc1337OpenUrlPromptActive = false;
   DateTime? _lastOsc1337OpenUrlPromptAt;
+  final Map<String, int> _osc1337AttentionRequestIds = <String, int>{};
+  final Map<String, int> _osc1337AttentionEpochs = <String, int>{};
+  final Set<String> _osc1337AttentionRequestsPending = <String>{};
+  final Map<String, DateTime> _lastOsc1337SystemAttentionAt =
+      <String, DateTime>{};
+  DateTime? _lastOsc1337GlobalSystemAttentionAt;
+  final Map<String, DateTime> _lastOsc1337FireworksAt = <String, DateTime>{};
+  final Map<String, int> _osc1337FireworksSerials = <String, int>{};
+  final Map<String, Timer> _osc1337FireworksTimers = <String, Timer>{};
   LocalTerminalBracketedPastePolicy _bracketedPastePolicy =
       LocalTerminalBracketedPastePolicy.auto;
   LocalTerminalPastePolicy _pastePolicy = const LocalTerminalPastePolicy();
@@ -234,6 +281,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   void initState() {
     super.initState();
     final runtime = ref.read(terminalRuntimeControllerProvider);
+    _userAttentionBridge = ref.read(shellUserAttentionBridgeProvider);
+    _clock = ref.read(shellClockProvider);
     _osc72DragDropController = Osc72DragDropController(
       sendInput: runtime.sendInput,
     );
@@ -270,6 +319,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     _activityNotificationTrailingTimers.clear();
     _osc52StatusClearTimer?.cancel();
     _notificationFailureStatusClearTimer?.cancel();
+    for (final timer in _osc1337FireworksTimers.values) {
+      timer.cancel();
+    }
+    _osc1337FireworksTimers.clear();
+    unawaited(_cancelAllOsc1337AttentionRequests());
     for (final selectionController in _selectionControllers.values) {
       selectionController.dispose();
     }

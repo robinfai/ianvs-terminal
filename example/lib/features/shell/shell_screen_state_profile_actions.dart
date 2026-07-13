@@ -35,6 +35,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
             terminalViewportPadding: sessionState.terminalViewportPadding,
             osc52Policy: _clipboardConfig.osc52,
             openUrlPolicy: _hostActionsConfig.osc1337OpenUrl,
+            requestAttentionPolicy: _hostActionsConfig.osc1337RequestAttention,
           ),
         ),
       ),
@@ -115,6 +116,24 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
             osc1337OpenUrl: selection.openUrlPolicy,
           );
         });
+      }
+      if (selection.requestAttentionPolicy !=
+          _hostActionsConfig.osc1337RequestAttention) {
+        await sessionController.setOsc1337RequestAttentionPolicy(
+          selection.requestAttentionPolicy,
+        );
+        if (!mounted) {
+          return;
+        }
+        _mutateState(() {
+          _hostActionsConfig = _hostActionsConfig.copyWith(
+            osc1337RequestAttention: selection.requestAttentionPolicy,
+          );
+        });
+        if (selection.requestAttentionPolicy ==
+            LocalTerminalRequestAttentionPolicy.disabled) {
+          unawaited(_cancelAllOsc1337AttentionRequests());
+        }
       }
       final updatedProfile = selection.updatedProfile;
       if (updatedProfile != null) {

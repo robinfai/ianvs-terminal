@@ -66,6 +66,8 @@ extension _ShellScreenStateSessions on _ShellScreenState {
   }
 
   void _clearPresentationStateForSession(String sessionId) {
+    unawaited(_cancelOsc1337AttentionRequest(sessionId));
+    _osc1337FireworksTimers.remove(sessionId)?.cancel();
     _detachTabColorViewportListener(sessionId);
     _clearViewportMetricsForSession(sessionId);
     _clearInstantReplayHistory(sessionId);
@@ -88,6 +90,9 @@ extension _ShellScreenStateSessions on _ShellScreenState {
 
     _mutateState(() {
       _readOnlySessionIds.remove(sessionId);
+      _osc1337AttentionEpochs.remove(sessionId);
+      _lastOsc1337FireworksAt.remove(sessionId);
+      _osc1337FireworksSerials.remove(sessionId);
       _lastActivityNotificationAt.remove(sessionId);
       _activityNotificationTrailingTimers.remove(sessionId)?.cancel();
       _lastActivityFramePreviews.remove(sessionId);

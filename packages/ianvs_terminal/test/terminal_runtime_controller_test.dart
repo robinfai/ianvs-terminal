@@ -6412,6 +6412,78 @@ void main() {
     );
   });
 
+  testWidgets('OSC 1337 RequestAttention stays a strict typed request', (
+    tester,
+  ) async {
+    final backend = _FakePtyBackend();
+    final runtime = TerminalRuntimeController(
+      backend: backend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    await tester.pump();
+    final events = <TerminalSessionEvent>[];
+    final subscription = runtime.events.listen(events.add);
+    addTearDown(subscription.cancel);
+    backend.enqueueEvent(
+      sessionId,
+      PtyEvent(
+        kind: 'attention_request',
+        sessionId: sessionId,
+        payload: const <String, Object?>{
+          'source': 'iterm1337',
+          'action': 'fireworks',
+        },
+      ),
+    );
+
+    runtime.sendInput(sessionId, Uint8List(0));
+    await tester.pump();
+
+    final request = events
+        .whereType<TerminalSessionAttentionRequestEvent>()
+        .single;
+    expect(request.source, 'iterm1337');
+    expect(request.action, 'fireworks');
+    expect(request.isValid, isTrue);
+    for (final action in <String>['yes', 'once', 'no', 'fireworks']) {
+      expect(
+        TerminalSessionAttentionRequestEvent(
+          sessionId,
+          rawPayload: <String, Object?>{
+            'source': 'iterm1337',
+            'action': action,
+          },
+        ).isValid,
+        isTrue,
+        reason: action,
+      );
+    }
+    for (final invalid in <Map<String, Object?>>[
+      const {'source': 'unknown', 'action': 'yes'},
+      const {'source': 'iterm1337', 'action': 'YES'},
+      const {'source': 'iterm1337', 'action': 'yes '},
+      const {'source': 'iterm1337', 'action': 'forever'},
+      const {'source': 'iterm1337'},
+    ]) {
+      expect(
+        TerminalSessionAttentionRequestEvent(
+          sessionId,
+          rawPayload: invalid,
+        ).isValid,
+        isFalse,
+        reason: '$invalid',
+      );
+    }
+  });
+
   testWidgets(
     'OSC 1337 cell-size query waits for and reports exact logical metrics',
     (tester) async {

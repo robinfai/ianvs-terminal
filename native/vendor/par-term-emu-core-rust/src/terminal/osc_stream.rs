@@ -810,6 +810,13 @@ fn classify_osc_1337(
         // alone never grants host-action authority to open it.
         return Classification::new(OscIntent::Hyperlink, OscCapability::Hyperlink);
     }
+    if payload.starts_with(b"RequestAttention=")
+        || (!complete && b"RequestAttention=".starts_with(payload))
+    {
+        // Parsing a bounded attention request does not grant the embedding
+        // product permission to interrupt the user.
+        return Classification::new(OscIntent::Notification, OscCapability::Notification);
+    }
     if payload == b"HighlightCursorLine"
         || payload.starts_with(b"HighlightCursorLine=")
         || (!complete && b"HighlightCursorLine=".starts_with(payload))
@@ -1324,6 +1331,54 @@ mod tests {
         .is_empty());
         assert_eq!(
             gate.diagnostics().for_intent(OscIntent::Hyperlink),
+            OscIntentDiagnostics {
+                policy_denied: 1,
+                ..OscIntentDiagnostics::default()
+            }
+        );
+    }
+
+    #[test]
+    fn osc1337_request_attention_is_bounded_notification_without_host_authority() {
+        let sequence = b"\x1b]1337;RequestAttention=fireworks\x1b\\";
+        let classification = classify_osc(
+            &sequence[2..sequence.len() - 2],
+            true,
+            OscClassificationContext::default(),
+        );
+        assert_eq!(classification.intent, OscIntent::Notification);
+        assert_eq!(classification.capability, OscCapability::Notification);
+        assert!(!OscCapabilityPolicy::default().allows_host_action(OscCapability::Notification));
+
+        for split in 1..sequence.len() {
+            let mut gate = OscStreamGate::default();
+            let mut output = filter_owned(
+                &mut gate,
+                &sequence[..split],
+                OscCapabilityPolicy::default(),
+                OscClassificationContext::default(),
+            );
+            output.extend(filter_owned(
+                &mut gate,
+                &sequence[split..],
+                OscCapabilityPolicy::default(),
+                OscClassificationContext::default(),
+            ));
+            assert_eq!(output, sequence, "failed at byte split {split}");
+        }
+
+        let mut denied = OscCapabilityPolicy::default();
+        denied.set(OscCapability::Notification, false);
+        let mut gate = OscStreamGate::default();
+        assert!(filter_owned(
+            &mut gate,
+            sequence,
+            denied,
+            OscClassificationContext::default(),
+        )
+        .is_empty());
+        assert_eq!(
+            gate.diagnostics().for_intent(OscIntent::Notification),
             OscIntentDiagnostics {
                 policy_denied: 1,
                 ..OscIntentDiagnostics::default()

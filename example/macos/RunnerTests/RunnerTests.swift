@@ -184,6 +184,19 @@ class RunnerTests: XCTestCase {
     XCTAssertEqual(MainFlutterWindow.osc72OperationMask([]), 0)
   }
 
+  func testUserAttentionMappingsAcceptOnlyOwnedModes() {
+    XCTAssertEqual(
+      MainFlutterWindow.userAttentionType(for: "critical"),
+      .criticalRequest
+    )
+    XCTAssertEqual(
+      MainFlutterWindow.userAttentionType(for: "informational"),
+      .informationalRequest
+    )
+    XCTAssertNil(MainFlutterWindow.userAttentionType(for: "yes"))
+    XCTAssertNil(MainFlutterWindow.userAttentionType(for: "critical "))
+  }
+
   func testOsc72UriListAndBoundedReadRange() throws {
     let data = try XCTUnwrap(
       MainFlutterWindow.osc72UriListData([

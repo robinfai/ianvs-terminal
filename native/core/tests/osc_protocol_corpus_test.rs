@@ -1,6 +1,7 @@
 use par_term_emu_core_rust::color::Color;
 use par_term_emu_core_rust::terminal::{
-    DragDropAction, OscCapability, Terminal, TerminalContextAction, TerminalEvent,
+    DragDropAction, ItermAttentionAction, OscCapability, Terminal, TerminalContextAction,
+    TerminalEvent,
 };
 use serde_json::Value;
 
@@ -331,6 +332,26 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
                         ))
                         .count(),
                     1
+                );
+            }
+            "osc1337_request_attention" => {
+                assert_eq!(terminal.title(), "osc1337-attention-corpus-ok");
+                let actions = terminal
+                    .poll_events()
+                    .into_iter()
+                    .filter_map(|event| match event {
+                        TerminalEvent::ItermAttentionRequested { action } => Some(action),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(
+                    actions,
+                    vec![
+                        ItermAttentionAction::Yes,
+                        ItermAttentionAction::Once,
+                        ItermAttentionAction::Fireworks,
+                        ItermAttentionAction::No,
+                    ]
                 );
             }
             "osc1337_blocks" => {
