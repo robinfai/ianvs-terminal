@@ -4325,6 +4325,89 @@ void main() {
     },
   );
 
+  testWidgets(
+    'OSC 99 notification menu reports buttons, activation, and dismissal',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'session_notification',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'osc99',
+            'action': 'show',
+            'id': 'deploy',
+            'title': 'Deploy ready',
+            'message': 'Choose a safe action',
+            'reportActivation': true,
+            'reportClose': true,
+            'buttons': <String>['\u0085', 'Retry'],
+          },
+        ),
+      );
+      container.read(terminalRuntimeControllerProvider).refreshSession('1');
+      await tester.pump(const Duration(milliseconds: 40));
+      ScaffoldMessenger.of(
+        tester.element(find.byType(ShellScreen)),
+      ).hideCurrentSnackBar();
+      await tester.pumpAndSettle();
+      fakeBindings.writes.clear();
+      fakeBindings.writesBySession.clear();
+
+      Future<void> openNotificationMenu() async {
+        await tester.tap(find.byKey(const Key('shell-status-notification')));
+        await tester.pumpAndSettle();
+      }
+
+      await openNotificationMenu();
+      expect(find.text('Button 1'), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
+      expect(find.text('Dismiss'), findsOneWidget);
+      await tester.tap(
+        find.byKey(const Key('shell-status-notification-0-button-2')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        utf8.decode(fakeBindings.writes.single),
+        '\x1b]99;i=deploy;2\x1b\\',
+      );
+      expect(fakeBindings.writesBySession.single.key, '1');
+
+      await openNotificationMenu();
+      await tester.tap(
+        find.byKey(const Key('shell-status-notification-0-activate')),
+      );
+      await tester.pumpAndSettle();
+      expect(utf8.decode(fakeBindings.writes.last), '\x1b]99;i=deploy;\x1b\\');
+
+      await openNotificationMenu();
+      await tester.tap(
+        find.byKey(const Key('shell-status-notification-0-dismiss')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        utf8.decode(fakeBindings.writes.last),
+        '\x1b]99;i=deploy:p=close;\x1b\\',
+      );
+      expect(
+        container
+            .read(sessionControllerProvider)
+            .tabs
+            .single
+            .activePane
+            .recentNotifications,
+        isEmpty,
+      );
+      expect(find.byKey(const Key('shell-status-notification')), findsNothing);
+    },
+  );
+
   testWidgets('OSC notification snackbar identifies inactive split pane', (
     tester,
   ) async {

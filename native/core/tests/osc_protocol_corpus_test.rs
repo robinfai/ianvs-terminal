@@ -132,6 +132,15 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
                 assert_eq!(notification.title, "Title");
                 assert_eq!(notification.message, "Body");
             }
+            "osc99_report_buttons_focus_safe" => {
+                let notification = terminal.take_notifications().pop().unwrap();
+                assert_eq!(notification.identifier.as_deref(), Some("corpus-actions"));
+                assert_eq!(notification.title, "Deploy");
+                assert!(notification.report_activation);
+                assert!(notification.report_close);
+                assert_eq!(notification.buttons, ["Approve", "Retry"]);
+                assert!(terminal.drain_responses().is_empty());
+            }
             "osc21_batch_and_osc23_noop" => {
                 assert_eq!(terminal.title(), "stable-title");
                 assert_eq!(terminal.default_fg(), Color::Rgb(0x12, 0x34, 0x56));

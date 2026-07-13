@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert' show jsonEncode, utf8;
 import 'dart:io' show File, FileMode, IOSink, Platform;
+import 'dart:typed_data' show Uint8List;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -1442,7 +1443,10 @@ class SessionController extends Notifier<SessionState> {
     if (currentPane == null) {
       return;
     }
-    final identifier = _boundedShellMetadata(event.identifier, 128);
+    final source = _boundedShellMetadata(event.source, 48) ?? 'osc';
+    final identifier = source == 'osc99'
+        ? _boundedOsc99Identifier(event.identifier)
+        : _boundedShellMetadata(event.identifier, 128);
     if (event.isClose) {
       if (identifier == null) {
         return;
@@ -1469,7 +1473,6 @@ class SessionController extends Notifier<SessionState> {
     final title =
         _boundedShellMetadata(event.title, 160) ?? 'Terminal notification';
     final message = _boundedShellMetadata(event.message, 512) ?? '';
-    final source = _boundedShellMetadata(event.source, 48) ?? 'osc';
     final applicationName = _boundedShellMetadata(event.applicationName, 160);
     final notificationTypes = event.notificationTypes
         .map((value) => _boundedShellMetadata(value, 64))
@@ -1477,6 +1480,10 @@ class SessionController extends Notifier<SessionState> {
         .take(8)
         .toList(growable: false);
     final expiresAfterMs = event.expiresAfterMs?.clamp(0, 0xFFFFFFFF);
+    final buttons = event.buttons
+        .take(5)
+        .map((value) => _boundedShellMetadata(value, 64) ?? '')
+        .toList(growable: false);
     final remoteHost = _isRemoteShellHost(currentPane.shellIntegration.hostname)
         ? _boundedShellMetadata(currentPane.shellIntegration.hostname, 255)
         : null;
@@ -1497,6 +1504,9 @@ class SessionController extends Notifier<SessionState> {
           recent.first.notificationTypes,
           notificationTypes,
         ) &&
+        recent.first.reportActivation == event.reportActivation &&
+        recent.first.reportClose == event.reportClose &&
+        _sameNotificationTypes(recent.first.buttons, buttons) &&
         recent.first.remoteHost == remoteHost &&
         recent.first.remoteUser == remoteUser;
     final correlatedIndex = identifier == null
@@ -1515,6 +1525,9 @@ class SessionController extends Notifier<SessionState> {
       applicationName: applicationName,
       notificationTypes: notificationTypes,
       expiresAfterMs: expiresAfterMs,
+      reportActivation: event.reportActivation,
+      reportClose: event.reportClose,
+      buttons: buttons,
       remoteHost: remoteHost,
       remoteUser: remoteUser,
       count: correlated?.count ?? 1,
@@ -1554,6 +1567,21 @@ class SessionController extends Notifier<SessionState> {
                 )
                 .toList(growable: false);
             if (retained.length != pane.recentNotifications.length) {
+              final expiring = pane.recentNotifications.where(
+                (notification) =>
+                    notification.identifier == identifier &&
+                    notification.source == source,
+              );
+              if (source == 'osc99') {
+                _runtime.dismissOsc99Notification(event.sessionId, identifier);
+              }
+              if (expiring.any((notification) => notification.reportClose)) {
+                _sendOsc99NotificationReport(
+                  event.sessionId,
+                  identifier,
+                  close: true,
+                );
+              }
               _replaceSessionPane(
                 event.sessionId,
                 pane.copyWith(recentNotifications: retained),
@@ -1579,6 +1607,93 @@ class SessionController extends Notifier<SessionState> {
 
   String _notificationExpiryKey(String sessionId, String identifier) =>
       '$sessionId:$identifier';
+
+  bool reportSessionNotificationAction(
+    String sessionId,
+    TerminalPaneNotificationState expectedNotification, {
+    int? buttonNumber,
+  }) {
+    final pane = _paneForSession(sessionId);
+    if (pane == null) {
+      return false;
+    }
+    if (expectedNotification.source != 'osc99' ||
+        expectedNotification.identifier == null ||
+        !pane.recentNotifications.any(
+          (notification) => identical(notification, expectedNotification),
+        ) ||
+        !expectedNotification.reportActivation) {
+      return false;
+    }
+    if (buttonNumber != null &&
+        (buttonNumber < 1 ||
+            buttonNumber > expectedNotification.buttons.length)) {
+      return false;
+    }
+    return _sendOsc99NotificationReport(
+      sessionId,
+      expectedNotification.identifier!,
+      buttonNumber: buttonNumber,
+    );
+  }
+
+  bool dismissSessionNotification(
+    String sessionId,
+    TerminalPaneNotificationState expectedNotification,
+  ) {
+    final pane = _paneForSession(sessionId);
+    if (pane == null ||
+        expectedNotification.source != 'osc99' ||
+        expectedNotification.identifier == null ||
+        !pane.recentNotifications.any(
+          (notification) => identical(notification, expectedNotification),
+        )) {
+      return false;
+    }
+    final identifier = expectedNotification.identifier!;
+    final retained = pane.recentNotifications
+        .where(
+          (notification) =>
+              notification.source != 'osc99' ||
+              notification.identifier != identifier,
+        )
+        .toList(growable: false);
+    if (retained.length == pane.recentNotifications.length) {
+      return false;
+    }
+    _notificationExpiryTimers
+        .remove(_notificationExpiryKey(sessionId, identifier))
+        ?.cancel();
+    _runtime.dismissOsc99Notification(sessionId, identifier);
+    _replaceSessionPane(
+      sessionId,
+      pane.copyWith(recentNotifications: retained),
+    );
+    if (expectedNotification.reportClose) {
+      _sendOsc99NotificationReport(sessionId, identifier, close: true);
+    }
+    return true;
+  }
+
+  bool _sendOsc99NotificationReport(
+    String sessionId,
+    String identifier, {
+    int? buttonNumber,
+    bool close = false,
+  }) {
+    if ((close && buttonNumber != null) ||
+        !_runtime.hasSession(sessionId) ||
+        _boundedOsc99Identifier(identifier) != identifier) {
+      return false;
+    }
+    final metadata = close ? 'i=$identifier:p=close' : 'i=$identifier';
+    final payload = buttonNumber?.toString() ?? '';
+    _runtime.sendInput(
+      sessionId,
+      Uint8List.fromList(utf8.encode('\x1b]99;$metadata;$payload\x1b\\')),
+    );
+    return true;
+  }
 
   void _applySessionBadge(TerminalSessionBadgeEvent event) {
     final currentPane = _paneForSession(event.sessionId);
@@ -2086,7 +2201,10 @@ class SessionController extends Notifier<SessionState> {
     final sanitized = value == null
         ? null
         : String.fromCharCodes(
-            value.runes.where((rune) => rune >= 0x20 && rune != 0x7f),
+            value.runes.where(
+              (rune) =>
+                  rune >= 0x20 && rune != 0x7f && (rune < 0x80 || rune > 0x9f),
+            ),
           );
     final trimmed = sanitized?.trim();
     if (trimmed == null || trimmed.isEmpty) {
@@ -2105,6 +2223,22 @@ class SessionController extends Notifier<SessionState> {
       return trimmed;
     }
     return String.fromCharCodes(runes.take(maxRunes));
+  }
+
+  String? _boundedOsc99Identifier(String? value) {
+    if (value == null ||
+        value.isEmpty ||
+        value.length > 128 ||
+        value.codeUnits.any(
+          (byte) =>
+              !(byte >= 0x30 && byte <= 0x39) &&
+              !(byte >= 0x41 && byte <= 0x5A) &&
+              !(byte >= 0x61 && byte <= 0x7A) &&
+              !r'_-+.'.codeUnits.contains(byte),
+        )) {
+      return null;
+    }
+    return value;
   }
 
   String? _osc934ProgressId(String? value) {

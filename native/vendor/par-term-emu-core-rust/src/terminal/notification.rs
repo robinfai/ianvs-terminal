@@ -9,6 +9,8 @@ pub(crate) const MAX_KITTY_NOTIFICATION_BODY_CHARS: usize = 512;
 pub(crate) const MAX_KITTY_NOTIFICATION_APPLICATION_CHARS: usize = 160;
 pub(crate) const MAX_KITTY_NOTIFICATION_TYPE_CHARS: usize = 64;
 pub(crate) const MAX_KITTY_NOTIFICATION_TYPES: usize = 8;
+pub(crate) const MAX_KITTY_NOTIFICATION_BUTTONS: usize = 5;
+pub(crate) const MAX_KITTY_NOTIFICATION_BUTTON_CHARS: usize = 64;
 
 /// Lifecycle action represented by a terminal notification event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -51,6 +53,12 @@ pub struct Notification {
     /// `None` uses platform policy, `Some(0)` requests no automatic expiry,
     /// and a positive value is a bounded expiry duration in milliseconds.
     pub expires_after_ms: Option<u32>,
+    /// Whether an explicit user activation should be reported to the child.
+    pub report_activation: bool,
+    /// Whether an explicit or timed close should be reported to the child.
+    pub report_close: bool,
+    /// Bounded, presentation-only button labels. Labels never contain commands.
+    pub buttons: Vec<String>,
 }
 
 impl Notification {
@@ -65,6 +73,9 @@ impl Notification {
             application_name: None,
             notification_types: Vec::new(),
             expires_after_ms: None,
+            report_activation: false,
+            report_close: false,
+            buttons: Vec::new(),
         }
     }
 
@@ -82,6 +93,9 @@ impl Notification {
             application_name: assembly.application_name,
             notification_types: assembly.notification_types,
             expires_after_ms: assembly.expires_after_ms,
+            report_activation: assembly.report_activation,
+            report_close: assembly.report_close,
+            buttons: assembly.buttons,
         }
     }
 }
@@ -93,6 +107,10 @@ pub(crate) struct KittyNotificationAssembly {
     pub(crate) application_name: Option<String>,
     pub(crate) notification_types: Vec<String>,
     pub(crate) expires_after_ms: Option<u32>,
+    pub(crate) report_activation: bool,
+    pub(crate) report_close: bool,
+    pub(crate) button_payload: String,
+    pub(crate) buttons: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -150,9 +168,15 @@ impl KittyNotificationState {
         true
     }
 
-    pub(crate) fn close(&mut self, identifier: &str) -> bool {
+    pub(crate) fn close(&mut self, identifier: &str) -> Option<KittyActiveNotification> {
         self.pending.remove(identifier);
-        self.active.remove(identifier).is_some()
+        self.active.remove(identifier)
+    }
+
+    pub(crate) fn active_identifiers(&self) -> Vec<&str> {
+        let mut identifiers = self.active.keys().map(String::as_str).collect::<Vec<_>>();
+        identifiers.sort_unstable();
+        identifiers
     }
 
     pub(crate) fn retained_bytes(&self) -> usize {
@@ -169,6 +193,8 @@ impl KittyNotificationState {
                         .iter()
                         .map(String::len)
                         .sum::<usize>()
+                    + assembly.button_payload.len()
+                    + assembly.buttons.iter().map(String::len).sum::<usize>()
             })
             .sum::<usize>();
         pending + self.active.keys().map(String::len).sum::<usize>()

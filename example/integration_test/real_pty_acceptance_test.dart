@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -550,6 +551,144 @@ sleep 1
             .tabs
             .first
             .paneFor(sourceSessionId)!
+            .recentNotifications,
+        isEmpty,
+      );
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
+    'real PTY OSC 99 reports explicit menu interactions to its source child',
+    (tester) async {
+      final profile = _scriptProfile(
+        id: 'osc99-interactive-real-pty',
+        name: 'OSC 99 Interactive Real PTY',
+        script: r'''
+python3 - <<'PY'
+import os, termios, tty
+tty_fd = os.open("/dev/tty", os.O_RDWR)
+old = termios.tcgetattr(tty_fd)
+tty.setraw(tty_fd)
+os.write(tty_fd, b"osc99-interactive-ready\r\n")
+os.write(tty_fd, b"\x1b]99;i=integration:d=0:a=report:c=1;Deploy ready\x1b\\")
+os.write(tty_fd, b"\x1b]99;i=integration:p=buttons;Approve\xe2\x80\xa8Retry\x1b\\")
+for index in range(1, 4):
+    data = b""
+    while not data.endswith(b"\x1b\\"):
+        data += os.read(tty_fd, 1)
+    os.write(tty_fd, ("\r\nosc99-report-%d:%s\r\n" % (index, data.hex())).encode())
+os.write(tty_fd, b"\x1b]99;i=after-dismiss:p=alive;\x1b\\")
+alive = b""
+while not alive.endswith(b"\x1b\\"):
+    alive += os.read(tty_fd, 1)
+os.write(tty_fd, ("osc99-alive-after-dismiss:%s\r\n" % alive.hex()).encode())
+termios.tcsetattr(tty_fd, termios.TCSANOW, old)
+os.close(tty_fd)
+PY
+sleep 1
+''',
+      );
+      final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
+
+      await _waitForPane(
+        tester,
+        harness.container,
+        description: 'interactive OSC 99 notification state',
+        matches: (pane) {
+          final recent = pane.recentNotifications;
+          return recent.length == 1 &&
+              recent.single.identifier == 'integration' &&
+              recent.single.reportActivation &&
+              recent.single.reportClose &&
+              listEquals(recent.single.buttons, const ['Approve', 'Retry']);
+        },
+      );
+      ScaffoldMessenger.of(
+        tester.element(find.byType(ShellScreen)),
+      ).hideCurrentSnackBar();
+      await tester.pumpAndSettle();
+
+      Future<void> openNotificationMenu() async {
+        await tester.tap(find.byKey(const Key('shell-status-notification')));
+        await tester.pumpAndSettle();
+      }
+
+      await openNotificationMenu();
+      await tester.tap(
+        find.byKey(const Key('shell-status-notification-0-button-2')),
+      );
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'exact OSC 99 button report',
+        matches: (text) => text.contains(
+          'osc99-report-1:1b5d39393b693d696e746567726174696f6e3b321b5c',
+        ),
+      );
+
+      final sessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      final controller = harness.container.read(
+        sessionControllerProvider.notifier,
+      );
+      var currentNotification = harness.container
+          .read(sessionControllerProvider)
+          .tabs
+          .single
+          .activePane
+          .recentNotifications
+          .single;
+      expect(
+        controller.reportSessionNotificationAction(
+          sessionId,
+          currentNotification,
+        ),
+        isTrue,
+      );
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'exact OSC 99 activation report',
+        matches: (text) => text.contains(
+          'osc99-report-2:1b5d39393b693d696e746567726174696f6e3b1b5c',
+        ),
+      );
+
+      currentNotification = harness.container
+          .read(sessionControllerProvider)
+          .tabs
+          .single
+          .activePane
+          .recentNotifications
+          .single;
+      expect(
+        controller.dismissSessionNotification(sessionId, currentNotification),
+        isTrue,
+      );
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'exact OSC 99 close report',
+        matches: (text) => text.contains(
+          'osc99-report-3:1b5d39393b693d696e746567726174696f6e3a703d636c6f73653b1b5c',
+        ),
+      );
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'dismissed OSC 99 identifier absent from alive query',
+        matches: (text) => text.contains(
+          'osc99-alive-after-dismiss:1b5d39393b693d61667465722d6469736d6973733a703d616c6976653b1b5c',
+        ),
+      );
+      expect(
+        harness.container
+            .read(sessionControllerProvider)
+            .tabs
+            .single
+            .activePane
             .recentNotifications,
         isEmpty,
       );

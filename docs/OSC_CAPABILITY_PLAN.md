@@ -1,10 +1,11 @@
 # OSC Capability Plan
 
 Status: active support contract. P0/P1 and the promoted P2/P3 OSC families are
-implemented with automated regression coverage. Through Phase 30, the safe
+implemented with automated regression coverage. Through Phase 31, the safe
 incoming OSC 1337 download subset, permission-gated OpenURL subset, and bounded
-RequestAttention actions are promoted; uploads and other privileged host
-actions stay outside the current product.
+RequestAttention actions are promoted alongside report-only OSC 99 notification
+interactions; uploads and other privileged host actions stay outside the
+current product.
 
 This plan turns OSC support from a list of escape-code numbers into product
 capability gates. The current implementation scope is local terminal fidelity
@@ -247,6 +248,7 @@ must reuse existing notification policy instead of bypassing it.
 | --- | --- | --- | --- |
 | OSC 9 | terminal notification | notification intent | Normalize to a session notification event. |
 | OSC 777 | iTerm notification variants | notification intent | Normalize title/body/action fields. |
+| OSC 99 | Kitty notification lifecycle and reports | bounded notification intent plus fixed user-action report | Correlate by session/ID and expose only label-only buttons and fixed report grammar. |
 
 Interaction:
 
@@ -256,6 +258,11 @@ Interaction:
   preference and focus policy allow it.
 - Clicking a notification focuses the source session. It must not execute shell
   actions, open links, or replay OSC-provided commands.
+- OSC 99 `a=report` may return only the fixed activation or one-based button
+  response after an explicit in-window gesture. `a=focus` never focuses the app
+  or pane by itself.
+- Dismissal and tracked positive expiry return the fixed OSC 99 close shape only
+  when `c=1`; child-issued close never causes a report loop.
 - Duplicate or burst notifications collapse into one visible item with a count.
 - Muted, blocked, or permission-denied notifications surface the existing
   visible notification failure state instead of disappearing silently.
@@ -275,6 +282,9 @@ Policy and trust:
 - Treat URLs in notification bodies as text unless a future link affordance
   explicitly validates and exposes them.
 - Label remote-reported notifications with the remote host when known.
+- Treat OSC 99 button payloads as capped labels, never commands. Re-resolve the
+  current session and notification before writing a report so stale menus and
+  cross-session identity reuse fail closed.
 
 ### P3-B Progress
 
@@ -365,6 +375,10 @@ Policy and trust:
   four-action set behind persistent policy, rate limits, owned AppKit request
   IDs and bounded cursor-local rendering. Focus stealing, Notification Center
   payloads and arbitrary attention actions remain unauthorized.
+- OSC 99 report-only interactions are no longer deferred: Phase 31 supports
+  canonical/default IDs, five label-only buttons, fixed activation/button/close
+  reports and alive queries. Protocol focus, sound, icons, urgency, arbitrary
+  callback payloads and command execution remain unauthorized.
 - Not P0/P1: public custom OSC parser hooks, remote identity, full file
   transfer, notification spam defaults.
 - Not P2/P3: SFTP/SSH session management, remote file browsing, automatic
@@ -423,6 +437,10 @@ and native notification delivery.
 - Send OSC 9/777 notification payloads and verify in-window default display,
   policy-gated system notification delivery, rate limiting, and blocked-state
   feedback.
+- Send a chunked OSC 99 notification with `a=report:c=1:p=buttons`, verify the
+  keyboard-native in-window menu, exact activation/button/close response bytes,
+  stale-action rejection, and continued terminal input. Repeat `a=focus` while
+  another app is foreground and verify Ianvs does not activate itself.
 - Send OSC 9;4/934 progress updates and verify status-bar progress display,
   named progress list, completion grace, and clear behavior.
 - Send OSC 1337 SetBadgeFormat and verify tab/pane badge set, update, clear,

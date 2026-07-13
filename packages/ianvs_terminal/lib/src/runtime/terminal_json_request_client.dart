@@ -75,6 +75,15 @@ final class TerminalJsonRequestClient {
     return decoded?['cleared'] == true;
   }
 
+  bool dismissOsc99Notification(String sessionId, String identifier) {
+    const operation = 'terminal.dismiss_osc99_notification';
+    final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
+      'kind': operation,
+      'id': identifier,
+    });
+    return decoded?['dismissed'] == true;
+  }
+
   bool setBlockFolded(String sessionId, String id, {required bool folded}) {
     const operation = 'terminal.set_block_folded';
     final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{

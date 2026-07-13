@@ -6055,6 +6055,9 @@ void main() {
             'application': 'buildctl',
             'types': <String>['deploy', 'ci'],
             'expiresAfterMs': 250,
+            'reportActivation': true,
+            'reportClose': true,
+            'buttons': <String>['Approve', 'Retry'],
           },
         ),
       );
@@ -6168,6 +6171,9 @@ void main() {
       expect(notification.applicationName, 'buildctl');
       expect(notification.notificationTypes, <String>['deploy', 'ci']);
       expect(notification.expiresAfterMs, 250);
+      expect(notification.reportActivation, isTrue);
+      expect(notification.reportClose, isTrue);
+      expect(notification.buttons, <String>['Approve', 'Retry']);
       expect(
         events.whereType<TerminalSessionProgressEvent>().single.id,
         'build',
@@ -6743,6 +6749,37 @@ void main() {
       isFalse,
     );
     expect(runtimeBackend.jsonRequests, isEmpty);
+  });
+
+  test('terminal runtime synchronizes OSC 99 product dismissal by ID', () {
+    final runtimeBackend = _FakePtyBackend();
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    runtimeBackend.jsonRequests.clear();
+
+    expect(runtime.dismissOsc99Notification(sessionId, 'deploy-1'), isTrue);
+    expect(runtimeBackend.jsonRequests.single, <String, Object?>{
+      'kind': 'terminal.dismiss_osc99_notification',
+      'id': 'deploy-1',
+    });
+
+    runtimeBackend
+      ..dismissOsc99NotificationResponse = false
+      ..jsonRequests.clear();
+    expect(runtime.dismissOsc99Notification(sessionId, 'missing'), isFalse);
+    expect(runtime.dismissOsc99Notification(sessionId, ''), isFalse);
+    expect(runtime.dismissOsc99Notification('unknown', 'deploy-1'), isFalse);
+    expect(runtimeBackend.jsonRequests, hasLength(1));
   });
 
   test('terminal runtime degrades malformed JSON request responses', () {
@@ -9677,6 +9714,7 @@ class _FakePtyBackend
   String? clearScrollbackRawResponse;
   bool setBlockFoldedResponse = true;
   bool setBlockRenderedResponse = true;
+  bool dismissOsc99NotificationResponse = true;
   String? scrollbackRawResponse;
   Map<String, Object?>? diagnosticsResponse;
   String? diagnosticsRawResponse;
@@ -9825,6 +9863,9 @@ class _FakePtyBackend
       'terminal.clear_scrollback' =>
         clearScrollbackRawResponse ??
             jsonEncode(<String, Object?>{'cleared': true}),
+      'terminal.dismiss_osc99_notification' => jsonEncode(<String, Object?>{
+        'dismissed': dismissOsc99NotificationResponse,
+      }),
       'terminal.set_block_folded' => jsonEncode(<String, Object?>{
         'updated': setBlockFoldedResponse,
       }),

@@ -29,6 +29,7 @@ class _ShellStatusBar extends StatelessWidget {
     this.notificationTooltip,
     this.notifications = const <TerminalPaneNotificationState>[],
     this.onNotificationPressed,
+    this.onNotificationInteraction,
     this.badgeLabel,
     this.badgeTooltip,
     this.onBadgePressed,
@@ -60,6 +61,7 @@ class _ShellStatusBar extends StatelessWidget {
   final String? notificationTooltip;
   final List<TerminalPaneNotificationState> notifications;
   final VoidCallback? onNotificationPressed;
+  final ValueChanged<_ShellNotificationInteraction>? onNotificationInteraction;
   final String? badgeLabel;
   final String? badgeTooltip;
   final VoidCallback? onBadgePressed;
@@ -163,6 +165,7 @@ class _ShellStatusBar extends StatelessWidget {
           tooltip: notificationTooltip,
           notifications: notifications,
           onPressed: onNotificationPressed,
+          onInteraction: onNotificationInteraction,
         ),
       if (badgeLabel != null)
         _ShellStatusItem(
@@ -536,6 +539,7 @@ class _ShellStatusNotificationItem extends StatelessWidget {
     required this.notifications,
     this.tooltip,
     this.onPressed,
+    this.onInteraction,
   });
 
   final Key itemKey;
@@ -545,6 +549,7 @@ class _ShellStatusNotificationItem extends StatelessWidget {
   final List<TerminalPaneNotificationState> notifications;
   final String? tooltip;
   final VoidCallback? onPressed;
+  final ValueChanged<_ShellNotificationInteraction>? onInteraction;
 
   @override
   Widget build(BuildContext context) {
@@ -575,17 +580,24 @@ class _ShellStatusNotificationItem extends StatelessWidget {
       }
       return item;
     }
-    return _ShellStatusPopup<int>(
+    return _ShellStatusPopup<_ShellNotificationInteraction>(
       palette: palette,
       tone: tone,
       tooltip: tooltip ?? 'Terminal notifications',
       item: item,
       onOpened: onPressed,
+      onSelected: onInteraction,
       entries: [
-        for (var index = 0; index < notifications.take(6).length; index += 1)
-          PopupMenuItem<int>(
-            value: index,
-            enabled: false,
+        for (
+          var index = 0;
+          index < notifications.take(6).length;
+          index += 1
+        ) ...[
+          if (index > 0) const PopupMenuDivider(height: 8),
+          PopupMenuItem<_ShellNotificationInteraction>(
+            key: Key('shell-status-notification-$index-activate'),
+            value: _ShellNotificationInteraction.activate(notifications[index]),
+            enabled: notifications[index].reportActivation,
             height: 52,
             child: _ShellStatusMenuTextBlock(
               title: _notificationMenuTitle(notifications[index]),
@@ -593,6 +605,46 @@ class _ShellStatusNotificationItem extends StatelessWidget {
               tone: tone,
             ),
           ),
+          for (
+            var buttonIndex = 0;
+            buttonIndex < notifications[index].buttons.length;
+            buttonIndex += 1
+          )
+            PopupMenuItem<_ShellNotificationInteraction>(
+              key: Key(
+                'shell-status-notification-$index-button-${buttonIndex + 1}',
+              ),
+              value: _ShellNotificationInteraction.button(
+                notifications[index],
+                buttonIndex + 1,
+              ),
+              enabled: notifications[index].reportActivation,
+              height: 40,
+              child: _ShellStatusMenuTextBlock(
+                title: notifications[index].buttons[buttonIndex].isEmpty
+                    ? 'Button ${buttonIndex + 1}'
+                    : notifications[index].buttons[buttonIndex],
+                subtitle: 'Notification action ${buttonIndex + 1}',
+                tone: tone,
+              ),
+            ),
+          if (notifications[index].source == 'osc99' &&
+              notifications[index].identifier != null)
+            PopupMenuItem<_ShellNotificationInteraction>(
+              key: Key('shell-status-notification-$index-dismiss'),
+              value: _ShellNotificationInteraction.dismiss(
+                notifications[index],
+              ),
+              height: 40,
+              child: _ShellStatusMenuTextBlock(
+                title: 'Dismiss',
+                subtitle: notifications[index].reportClose
+                    ? 'Close and report to the terminal process'
+                    : 'Remove this notification',
+                tone: tone,
+              ),
+            ),
+        ],
       ],
     );
   }
@@ -614,6 +666,27 @@ class _ShellStatusNotificationItem extends StatelessWidget {
   }
 }
 
+enum _ShellNotificationInteractionKind { activate, button, dismiss }
+
+class _ShellNotificationInteraction {
+  const _ShellNotificationInteraction.activate(this.notification)
+    : kind = _ShellNotificationInteractionKind.activate,
+      buttonNumber = null;
+
+  const _ShellNotificationInteraction.button(
+    this.notification,
+    this.buttonNumber,
+  ) : kind = _ShellNotificationInteractionKind.button;
+
+  const _ShellNotificationInteraction.dismiss(this.notification)
+    : kind = _ShellNotificationInteractionKind.dismiss,
+      buttonNumber = null;
+
+  final TerminalPaneNotificationState notification;
+  final _ShellNotificationInteractionKind kind;
+  final int? buttonNumber;
+}
+
 String _statusSemanticsLabel(String label, String? tooltip) {
   final detail = tooltip?.trim();
   if (detail == null || detail.isEmpty) {
@@ -630,6 +703,7 @@ class _ShellStatusPopup<T> extends StatelessWidget {
     required this.item,
     required this.entries,
     this.onOpened,
+    this.onSelected,
   });
 
   final AppThemeTokens palette;
@@ -638,6 +712,7 @@ class _ShellStatusPopup<T> extends StatelessWidget {
   final Widget item;
   final List<PopupMenuEntry<T>> entries;
   final VoidCallback? onOpened;
+  final ValueChanged<T>? onSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -670,6 +745,7 @@ class _ShellStatusPopup<T> extends StatelessWidget {
         surfaceTintColor: Colors.transparent,
         shape: menuShape,
         onOpened: onOpened,
+        onSelected: onSelected,
         itemBuilder: (context) => entries,
         child: item,
       ),

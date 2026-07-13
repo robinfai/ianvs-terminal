@@ -344,6 +344,16 @@ final class TerminalSessionNotificationEvent extends TerminalSessionEvent {
   }
 
   int? get expiresAfterMs => _wholeIntValue(rawPayload['expiresAfterMs']);
+  bool get reportActivation => rawPayload['reportActivation'] == true;
+  bool get reportClose => rawPayload['reportClose'] == true;
+  List<String> get buttons {
+    final values = rawPayload['buttons'];
+    if (values is! List<Object?>) {
+      return const <String>[];
+    }
+    return List<String>.unmodifiable(values.whereType<String>().take(5));
+  }
+
   bool get isClose => action == 'close';
 
   static String? _stringValue(Object? value) {
@@ -1246,6 +1256,13 @@ class TerminalRuntimeController {
       ),
     );
     return true;
+  }
+
+  bool dismissOsc99Notification(String sessionId, String identifier) {
+    if (!hasSession(sessionId) || identifier.isEmpty) {
+      return false;
+    }
+    return _jsonRequestClient.dismissOsc99Notification(sessionId, identifier);
   }
 
   bool setBlockFolded(String sessionId, String id, {required bool folded}) {

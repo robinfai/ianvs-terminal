@@ -1258,6 +1258,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     notificationTooltip: statusNotificationTooltip,
                     notifications: statusNotificationItems,
                     onNotificationPressed: focusStatusPane,
+                    onNotificationInteraction: statusSessionId == null
+                        ? null
+                        : (interaction) => _handleOscNotificationInteraction(
+                            statusSessionId,
+                            interaction,
+                          ),
                     badgeLabel: statusBadge != null && statusBadge.isNotEmpty
                         ? 'BADGE ${_shortStatusValue(statusBadge)}'
                         : null,
@@ -1311,6 +1317,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         notificationTooltip: statusNotificationTooltip,
                         notifications: statusNotificationItems,
                         onNotificationPressed: focusStatusPane,
+                        onNotificationInteraction: statusSessionId == null
+                            ? null
+                            : (interaction) =>
+                                  _handleOscNotificationInteraction(
+                                    statusSessionId,
+                                    interaction,
+                                  ),
                         badgeLabel:
                             statusBadge != null && statusBadge.isNotEmpty
                             ? 'BADGE ${_shortStatusValue(statusBadge)}'

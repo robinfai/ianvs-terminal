@@ -2551,6 +2551,9 @@ void main() {
         'application': 'buildctl',
         'types': <String>['deploy'],
         'expiresAfterMs': 500,
+        'reportActivation': true,
+        'reportClose': true,
+        'buttons': <String>['Approve', 'Retry'],
       },
     });
     bindings.enqueueEvent(sessionId, {
@@ -2564,6 +2567,9 @@ void main() {
         'application': 'buildctl',
         'types': <String>['deploy'],
         'expiresAfterMs': 1000,
+        'reportActivation': true,
+        'reportClose': true,
+        'buttons': <String>['Approve', 'Retry'],
       },
     });
     container.read(terminalRuntimeControllerProvider).refreshSession(sessionId);
@@ -2581,6 +2587,9 @@ void main() {
     expect(notifications.single.applicationName, 'buildctl');
     expect(notifications.single.notificationTypes, <String>['deploy']);
     expect(notifications.single.expiresAfterMs, 1000);
+    expect(notifications.single.reportActivation, isTrue);
+    expect(notifications.single.reportClose, isTrue);
+    expect(notifications.single.buttons, <String>['Approve', 'Retry']);
 
     bindings.enqueueEvent(sessionId, {
       'kind': 'session_notification',
@@ -2604,10 +2613,199 @@ void main() {
     expect(notifications, isEmpty);
   });
 
+  testWidgets(
+    'OSC 99 reports only current explicit notification interactions',
+    (tester) async {
+      final backend = FakePtyBackend();
+      final bindings = _EventfulPtyBackend(backend);
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(bindings),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalConfigRepository(null),
+          ),
+          sessionPollingEnabledProvider.overrideWithValue(false),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(sessionControllerProvider);
+      await tester.pump(const Duration(milliseconds: 50));
+      final sessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      bindings.enqueueEvent(sessionId, {
+        'kind': 'session_notification',
+        'payload': <String, Object?>{
+          'source': 'osc99',
+          'action': 'show',
+          'id': 'deploy-1',
+          'title': 'Deploy ready',
+          'message': 'Choose an action',
+          'reportActivation': true,
+          'reportClose': true,
+          'buttons': <String>['\u0085', 'Retry'],
+        },
+      });
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(sessionId);
+      await tester.pump();
+      backend.writes.clear();
+      backend.writesBySession.clear();
+
+      final controller = container.read(sessionControllerProvider.notifier);
+      final offeredNotification = container
+          .read(sessionControllerProvider)
+          .tabs
+          .single
+          .activePane
+          .recentNotifications
+          .single;
+      expect(offeredNotification.buttons, <String>['', 'Retry']);
+      expect(
+        controller.reportSessionNotificationAction(
+          sessionId,
+          offeredNotification,
+        ),
+        isTrue,
+      );
+      expect(
+        controller.reportSessionNotificationAction(
+          sessionId,
+          offeredNotification,
+          buttonNumber: 2,
+        ),
+        isTrue,
+      );
+      expect(
+        controller.reportSessionNotificationAction(
+          sessionId,
+          offeredNotification,
+          buttonNumber: 3,
+        ),
+        isFalse,
+      );
+      expect(backend.writes.map(utf8.decode), <String>[
+        '\x1b]99;i=deploy-1;\x1b\\',
+        '\x1b]99;i=deploy-1;2\x1b\\',
+      ]);
+      expect(
+        backend.writesBySession.map((entry) => entry.key),
+        everyElement(sessionId),
+      );
+
+      bindings.enqueueEvent(sessionId, {
+        'kind': 'session_notification',
+        'payload': <String, Object?>{
+          'source': 'osc99',
+          'action': 'update',
+          'id': 'deploy-1',
+          'title': 'Deploy changed',
+          'message': 'New action set',
+          'reportActivation': true,
+          'reportClose': true,
+          'buttons': <String>['Open logs'],
+        },
+      });
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(sessionId);
+      await tester.pump();
+      expect(
+        controller.reportSessionNotificationAction(
+          sessionId,
+          offeredNotification,
+        ),
+        isFalse,
+      );
+      final updatedNotification = container
+          .read(sessionControllerProvider)
+          .tabs
+          .single
+          .activePane
+          .recentNotifications
+          .single;
+      expect(
+        controller.dismissSessionNotification(sessionId, updatedNotification),
+        isTrue,
+      );
+      expect(
+        utf8.decode(backend.writes.last),
+        '\x1b]99;i=deploy-1:p=close;\x1b\\',
+      );
+      expect(
+        backend.jsonRequests.any(
+          (request) =>
+              request['kind'] == 'terminal.dismiss_osc99_notification' &&
+              request['id'] == 'deploy-1',
+        ),
+        isTrue,
+      );
+      expect(
+        container
+            .read(sessionControllerProvider)
+            .tabs
+            .single
+            .activePane
+            .recentNotifications,
+        isEmpty,
+      );
+      expect(
+        controller.reportSessionNotificationAction(
+          sessionId,
+          updatedNotification,
+        ),
+        isFalse,
+      );
+
+      bindings.enqueueEvent(sessionId, {
+        'kind': 'session_notification',
+        'payload': <String, Object?>{
+          'source': 'osc99',
+          'action': 'show',
+          'id': 'bad?id',
+          'title': 'Invalid identifier',
+          'message': '',
+          'reportActivation': true,
+        },
+      });
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(sessionId);
+      await tester.pump();
+      final invalidIdentifierNotification = container
+          .read(sessionControllerProvider)
+          .tabs
+          .single
+          .activePane
+          .recentNotifications
+          .single;
+      expect(invalidIdentifierNotification.identifier, isNull);
+      expect(
+        controller.reportSessionNotificationAction(
+          sessionId,
+          invalidIdentifierNotification,
+        ),
+        isFalse,
+      );
+      expect(backend.writes, hasLength(3));
+    },
+  );
+
   testWidgets('OSC 99 positive expiry removes product notification state', (
     tester,
   ) async {
-    final bindings = _EventfulPtyBackend(FakePtyBackend());
+    final backend = FakePtyBackend();
+    final bindings = _EventfulPtyBackend(backend);
     final container = ProviderContainer(
       overrides: [
         ptySessionBackendProvider.overrideWithValue(bindings),
@@ -2641,6 +2839,7 @@ void main() {
         'title': 'Short lived',
         'message': '',
         'expiresAfterMs': 20,
+        'reportClose': true,
       },
     });
     container.read(terminalRuntimeControllerProvider).refreshSession(sessionId);
@@ -2664,6 +2863,18 @@ void main() {
           .activePane
           .recentNotifications,
       isEmpty,
+    );
+    expect(
+      backend.writes.map(utf8.decode),
+      contains('\x1b]99;i=short:p=close;\x1b\\'),
+    );
+    expect(
+      backend.jsonRequests.any(
+        (request) =>
+            request['kind'] == 'terminal.dismiss_osc99_notification' &&
+            request['id'] == 'short',
+      ),
+      isTrue,
     );
   });
 

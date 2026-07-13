@@ -1687,7 +1687,7 @@ fn osc99_notification_lifecycle_profile() -> TerminalProfile {
         "/bin/sh",
         vec![
             "-lc".to_string(),
-            r#"python3 -c 'import os; os.write(1,b"\x1b]99;i=build:d=0:e=1:f=YnVpbGRjdGw=:t=ZGVwbG95;VGl0bGU=\x1b\\\x1b]99;i=build:p=body:e=1:w=250;Qm9keQ==\x1b\\\x1b]99;i=build;Updated\x1b\\\x1b]99;i=build:p=close;\x1b\\")'"#
+            r#"python3 -c 'import os; os.write(1,b"\x1b]99;i=build:d=0:e=1:f=YnVpbGRjdGw=:t=ZGVwbG95:a=report:c=1;VGl0bGU=\x1b\\\x1b]99;i=build:p=body:d=0:e=1:w=250;Qm9keQ==\x1b\\\x1b]99;i=build:p=buttons;Approve\xe2\x80\xa8Retry\x1b\\\x1b]99;i=build;Updated\x1b\\\x1b]99;i=build:p=close;\x1b\\")'"#
                 .to_string(),
         ],
         BTreeMap::new(),
@@ -1703,6 +1703,36 @@ fn osc99_query_profile() -> TerminalProfile {
         vec![
             "-lc".to_string(),
             r#"python3 -c 'import os,select,sys,termios,time,tty; old=termios.tcgetattr(0); tty.setraw(0); time.sleep(0.2); os.write(1,b"\x1b]99;i=probe:p=?;\x1b\\"); sys.stdout.flush(); ready,_,_=select.select([0],[],[],2.0); data=os.read(0,512) if ready else b"TIMEOUT"; termios.tcsetattr(0, termios.TCSANOW, old); os.write(1,b"OSC99-RESPONSE:"+repr(data).encode()+b"\n")'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn osc99_interactive_report_profile() -> TerminalProfile {
+    local_profile(
+        "osc99-interactive-report",
+        "OSC 99 Interactive Report",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import os,select,termios,time,tty; old=termios.tcgetattr(0); tty.setraw(0); time.sleep(0.2); os.write(1,b"\x1b]99;i=deploy:d=0:a=report:c=1;Deploy ready\x1b\\\x1b]99;i=deploy:p=buttons;Approve\xe2\x80\xa8Retry\x1b\\"); ready,_,_=select.select([0],[],[],2.0); data=os.read(0,512) if ready else b"TIMEOUT"; termios.tcsetattr(0, termios.TCSANOW, old); os.write(1,b"OSC99-ACTION:"+repr(data).encode()+b"\n")'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn osc99_product_dismiss_profile() -> TerminalProfile {
+    local_profile(
+        "osc99-product-dismiss",
+        "OSC 99 Product Dismiss",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import os,time; os.write(1,b"\x1b]99;i=dismiss-me;Waiting\x1b\\"); time.sleep(2)'"#
                 .to_string(),
         ],
         BTreeMap::new(),
@@ -17760,10 +17790,89 @@ fn session_osc99_query_reports_safe_notification_capability() {
     let visible = logical_rows_from_frame(&frame).join("\n");
     assert!(
         visible.contains(
-            r"OSC99-RESPONSE:b'\x1b]99;i=probe:p=?;o=always:p=title,body,close:w=1\x1b\\'"
+            r"OSC99-RESPONSE:b'\x1b]99;i=probe:p=?;a=report:c=1:o=always:p=title,body,close,alive,buttons:w=1\x1b\\'"
         ),
         "expected OSC 99 query to report only the safe subset: {visible}"
     );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_osc99_interactive_report_round_trips_over_real_pty() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc99_interactive_report_profile()).unwrap(),
+    )
+    .unwrap();
+
+    let events = collect_events_until(session_id, |events| {
+        events.iter().any(|event| {
+            event["kind"] == "session_notification"
+                && event["payload"]["id"].as_str() == Some("deploy")
+        })
+    });
+    let notification = events
+        .iter()
+        .find(|event| {
+            event["kind"] == "session_notification"
+                && event["payload"]["id"].as_str() == Some("deploy")
+        })
+        .expect("expected interactive OSC 99 notification");
+    assert_eq!(
+        notification["payload"]["reportActivation"].as_bool(),
+        Some(true)
+    );
+    assert_eq!(notification["payload"]["reportClose"].as_bool(), Some(true));
+    assert_eq!(
+        notification["payload"]["buttons"][1].as_str(),
+        Some("Retry")
+    );
+
+    session::write_session(session_id, b"\x1b]99;i=deploy;2\x1b\\").unwrap();
+    let frame = wait_for_frame_containing(session_id, "OSC99-ACTION:");
+    let visible = logical_rows_from_frame(&frame).join("\n");
+    assert!(
+        visible.contains(r"OSC99-ACTION:b'\x1b]99;i=deploy;2\x1b\\'"),
+        "expected exact OSC 99 button report over the PTY: {visible}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_osc99_product_dismiss_request_synchronizes_native_lifecycle() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&osc99_product_dismiss_profile()).unwrap())
+            .unwrap();
+
+    let notification = wait_for_event(session_id, "session_notification");
+    assert_eq!(notification["payload"]["id"].as_str(), Some("dismiss-me"));
+
+    let request = serde_json::json!({
+        "kind": "terminal.dismiss_osc99_notification",
+        "id": "dismiss-me",
+    });
+    let response = session::request_session_json(session_id, &request.to_string())
+        .unwrap()
+        .expect("expected product-dismiss response");
+    let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+    assert_eq!(response["dismissed"].as_bool(), Some(true));
+
+    let repeated = session::request_session_json(session_id, &request.to_string())
+        .unwrap()
+        .expect("expected repeated product-dismiss response");
+    let repeated: serde_json::Value = serde_json::from_str(&repeated).unwrap();
+    assert_eq!(repeated["dismissed"].as_bool(), Some(false));
+
+    let malformed = serde_json::json!({
+        "kind": "terminal.dismiss_osc99_notification",
+        "id": "bad:id",
+    });
+    let malformed = session::request_session_json(session_id, &malformed.to_string())
+        .unwrap()
+        .expect("expected malformed product-dismiss response");
+    let malformed: serde_json::Value = serde_json::from_str(&malformed).unwrap();
+    assert_eq!(malformed["dismissed"].as_bool(), Some(false));
 
     session::close_session(session_id).unwrap();
 }
@@ -19291,6 +19400,10 @@ fn session_emits_typed_osc99_show_update_and_close_events() {
     assert_eq!(show["payload"]["application"].as_str(), Some("buildctl"));
     assert_eq!(show["payload"]["types"][0].as_str(), Some("deploy"));
     assert_eq!(show["payload"]["expiresAfterMs"].as_u64(), Some(250));
+    assert_eq!(show["payload"]["reportActivation"].as_bool(), Some(true));
+    assert_eq!(show["payload"]["reportClose"].as_bool(), Some(true));
+    assert_eq!(show["payload"]["buttons"][0].as_str(), Some("Approve"));
+    assert_eq!(show["payload"]["buttons"][1].as_str(), Some("Retry"));
 
     let update = notifications
         .iter()

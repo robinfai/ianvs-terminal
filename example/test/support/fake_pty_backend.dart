@@ -27,6 +27,7 @@ class FakePtyBackend
   final List<List<int>> scrollToCalls = <List<int>>[];
   final List<List<Object?>> searchCalls = <List<Object?>>[];
   final List<List<Object?>> selectionTextCalls = <List<Object?>>[];
+  final List<Map<String, Object?>> jsonRequests = <Map<String, Object?>>[];
   final Set<String> failingOperations = <String>{};
   final Map<(String, int), Uint8List> fileDownloads =
       <(String, int), Uint8List>{};
@@ -173,6 +174,7 @@ class FakePtyBackend
   @override
   String? requestSessionJson(String sessionId, String requestJson) {
     final request = jsonDecode(requestJson) as Map<String, Object?>;
+    jsonRequests.add(request);
     return switch (request['kind']) {
       'terminal.search_text' => _searchTextJson(
         sessionId,
@@ -180,6 +182,9 @@ class FakePtyBackend
         request['mode'] as String? ?? 'smart_case_substring',
       ),
       'terminal.selection_text' => _selectionTextJson(sessionId, request),
+      'terminal.dismiss_osc99_notification' => jsonEncode(<String, Object?>{
+        'dismissed': true,
+      }),
       _ => null,
     };
   }

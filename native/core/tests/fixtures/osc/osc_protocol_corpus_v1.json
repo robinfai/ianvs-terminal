@@ -234,6 +234,24 @@
       }
     },
     {
+      "id": "osc99_report_buttons_focus_safe",
+      "coverage": ["OSC 99 report actions", "OSC 99 buttons", "focus exclusion"],
+      "protocol": "Kitty OSC 99",
+      "wire": {
+        "chunks_hex": [
+          "1b5d39393b693d636f727075732d616374696f6e733a643d303a613d7265706f72742c666f6375733a633d313b4465706c6f791b5c",
+          "1b5d39393b693d636f727075732d616374696f6e733a703d627574746f6e733b417070726f7665e280a852657472791b5c"
+        ]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "notification_interaction_offer",
+        "state_effect": "report-only buttons retained while protocol focus remains disabled",
+        "reply": "only after an explicit product user gesture",
+        "must_not_crash": true
+      }
+    },
+    {
       "id": "osc21_batch_and_osc23_noop",
       "coverage": [
         "OSC 21 batch color control",

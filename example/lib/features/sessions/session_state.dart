@@ -172,6 +172,9 @@ class TerminalPaneNotificationState {
     this.applicationName,
     this.notificationTypes = const <String>[],
     this.expiresAfterMs,
+    this.reportActivation = false,
+    this.reportClose = false,
+    this.buttons = const <String>[],
     this.remoteHost,
     this.remoteUser,
     this.count = 1,
@@ -184,6 +187,9 @@ class TerminalPaneNotificationState {
   final String? applicationName;
   final List<String> notificationTypes;
   final int? expiresAfterMs;
+  final bool reportActivation;
+  final bool reportClose;
+  final List<String> buttons;
   final String? remoteHost;
   final String? remoteUser;
   final int count;
@@ -197,6 +203,9 @@ class TerminalPaneNotificationState {
       applicationName: applicationName,
       notificationTypes: notificationTypes,
       expiresAfterMs: expiresAfterMs,
+      reportActivation: reportActivation,
+      reportClose: reportClose,
+      buttons: buttons,
       remoteHost: remoteHost,
       remoteUser: remoteUser,
       count: count ?? this.count,

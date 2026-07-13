@@ -4,7 +4,8 @@ use super::sanitize_osc_text;
 use crate::debug;
 use crate::terminal::notification::{
     KittyNotificationAssembly, MAX_KITTY_NOTIFICATION_APPLICATION_CHARS,
-    MAX_KITTY_NOTIFICATION_BODY_CHARS, MAX_KITTY_NOTIFICATION_ID_BYTES,
+    MAX_KITTY_NOTIFICATION_BODY_CHARS, MAX_KITTY_NOTIFICATION_BUTTONS,
+    MAX_KITTY_NOTIFICATION_BUTTON_CHARS, MAX_KITTY_NOTIFICATION_ID_BYTES,
     MAX_KITTY_NOTIFICATION_TITLE_CHARS, MAX_KITTY_NOTIFICATION_TYPES,
     MAX_KITTY_NOTIFICATION_TYPE_CHARS,
 };
@@ -23,15 +24,20 @@ const MAX_KITTY_NOTIFICATION_METADATA_BYTES: usize = 1024;
 const MAX_KITTY_NOTIFICATION_PLAIN_CHUNK_BYTES: usize = 2048;
 const MAX_KITTY_NOTIFICATION_ENCODED_CHUNK_BYTES: usize = 4096;
 const MAX_KITTY_NOTIFICATION_EXPIRY_MS: u64 = u32::MAX as u64;
-const OSC99_CAPABILITY_PAYLOAD: &str = "o=always:p=title,body,close:w=1";
+const MAX_KITTY_NOTIFICATION_BUTTON_PAYLOAD_CHARS: usize = MAX_KITTY_NOTIFICATION_BUTTONS
+    * MAX_KITTY_NOTIFICATION_BUTTON_CHARS
+    + MAX_KITTY_NOTIFICATION_BUTTONS.saturating_sub(1);
+const OSC99_CAPABILITY_PAYLOAD: &str = "a=report:c=1:o=always:p=title,body,close,alive,buttons:w=1";
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum KittyNotificationPayloadKind {
     #[default]
     Title,
     Body,
+    Buttons,
     Close,
     Query,
+    Alive,
     Unsupported,
 }
 
@@ -45,10 +51,16 @@ struct KittyNotificationMetadata {
     notification_types: Vec<String>,
     expiry_specified: bool,
     expires_after_ms: Option<u32>,
+    report_activation: Option<bool>,
+    report_close: Option<bool>,
 }
 
 fn is_kitty_metadata_value_byte(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || b"-_/+.,(){}[]*&^%$#@!`~=?".contains(&byte)
+}
+
+fn is_kitty_notification_identifier_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || b"_-+.".contains(&byte)
 }
 
 fn decode_base64_text(value: &[u8], max_encoded_bytes: usize, max_chars: usize) -> Option<String> {
@@ -88,7 +100,7 @@ fn parse_kitty_notification_metadata(value: &[u8]) -> Option<KittyNotificationMe
             "i" => {
                 if value.is_empty()
                     || value.len() > MAX_KITTY_NOTIFICATION_ID_BYTES
-                    || value.chars().any(char::is_control)
+                    || !value.bytes().all(is_kitty_notification_identifier_byte)
                 {
                     return None;
                 }
@@ -98,8 +110,10 @@ fn parse_kitty_notification_metadata(value: &[u8]) -> Option<KittyNotificationMe
                 metadata.payload_kind = match value {
                     "title" => KittyNotificationPayloadKind::Title,
                     "body" => KittyNotificationPayloadKind::Body,
+                    "buttons" => KittyNotificationPayloadKind::Buttons,
                     "close" => KittyNotificationPayloadKind::Close,
                     "?" => KittyNotificationPayloadKind::Query,
+                    "alive" => KittyNotificationPayloadKind::Alive,
                     _ => KittyNotificationPayloadKind::Unsupported,
                 };
             }
@@ -151,9 +165,26 @@ fn parse_kitty_notification_metadata(value: &[u8]) -> Option<KittyNotificationMe
                     return None;
                 }
             }
-            // Actions, close reports, icons, sound, urgency and visibility
-            // occasions are intentionally not host capabilities in the safe
-            // subset. Their metadata is consumed but never acted upon.
+            "a" => {
+                for action in value.split(',') {
+                    match action {
+                        "report" => metadata.report_activation = Some(true),
+                        "-report" => metadata.report_activation = Some(false),
+                        // Protocol-driven focus is deliberately never honored.
+                        "focus" | "-focus" => {}
+                        _ => return None,
+                    }
+                }
+            }
+            "c" => {
+                metadata.report_close = Some(match value {
+                    "0" => false,
+                    "1" => true,
+                    _ => return None,
+                });
+            }
+            // Icons, sound, urgency and visibility occasions are consumed but
+            // never acted upon by the safe subset.
             _ => {}
         }
     }
@@ -227,6 +258,27 @@ fn apply_kitty_metadata(
     if metadata.expiry_specified {
         assembly.expires_after_ms = metadata.expires_after_ms;
     }
+    if let Some(report_activation) = metadata.report_activation {
+        assembly.report_activation = report_activation;
+    }
+    if let Some(report_close) = metadata.report_close {
+        assembly.report_close = report_close;
+    }
+}
+
+fn finalize_kitty_buttons(assembly: &mut KittyNotificationAssembly) {
+    let buttons = assembly
+        .button_payload
+        .split('\u{2028}')
+        .map(|label| sanitize_osc_text(label, MAX_KITTY_NOTIFICATION_BUTTON_CHARS))
+        .take(MAX_KITTY_NOTIFICATION_BUTTONS)
+        .collect::<Vec<_>>();
+    assembly.buttons = if buttons.iter().all(String::is_empty) {
+        Vec::new()
+    } else {
+        buttons
+    };
+    assembly.button_payload.clear();
 }
 
 impl Terminal {
@@ -290,20 +342,26 @@ impl Terminal {
         };
         let now = crate::terminal::unix_millis();
         self.kitty_notification_state.expire(now);
+        let identifier = metadata
+            .identifier
+            .clone()
+            .unwrap_or_else(|| "0".to_string());
 
         match metadata.payload_kind {
             KittyNotificationPayloadKind::Query => {
-                let identifier = metadata.identifier.as_deref().unwrap_or("0");
                 self.push_response(
                     format!("\x1b]99;i={identifier}:p=?;{OSC99_CAPABILITY_PAYLOAD}\x1b\\")
                         .as_bytes(),
                 );
             }
+            KittyNotificationPayloadKind::Alive => {
+                let active = self.kitty_notification_state.active_identifiers().join(",");
+                self.push_response(
+                    format!("\x1b]99;i={identifier}:p=alive;{active}\x1b\\").as_bytes(),
+                );
+            }
             KittyNotificationPayloadKind::Close => {
-                let Some(identifier) = metadata.identifier else {
-                    return;
-                };
-                if !self.kitty_notification_state.close(&identifier) {
+                if self.kitty_notification_state.close(&identifier).is_none() {
                     return;
                 }
                 self.enqueue_notification(Notification::kitty(
@@ -313,53 +371,49 @@ impl Terminal {
                 ));
             }
             KittyNotificationPayloadKind::Unsupported => {
-                if let Some(identifier) = metadata.identifier.as_deref() {
-                    self.kitty_notification_state.discard_pending(identifier);
-                }
+                self.kitty_notification_state.discard_pending(&identifier);
             }
-            KittyNotificationPayloadKind::Title | KittyNotificationPayloadKind::Body => {
+            KittyNotificationPayloadKind::Title
+            | KittyNotificationPayloadKind::Body
+            | KittyNotificationPayloadKind::Buttons => {
                 let Some(payload) = joined_osc_payload(&params[2..]) else {
                     return;
                 };
                 let Some(payload) = decode_kitty_notification_payload(&payload, metadata.encoded)
                 else {
-                    if let Some(identifier) = metadata.identifier.as_deref() {
-                        self.kitty_notification_state.discard_pending(identifier);
-                    }
+                    self.kitty_notification_state.discard_pending(&identifier);
                     return;
                 };
 
-                let mut assembly = if let Some(identifier) = metadata.identifier.as_deref() {
-                    if metadata.done {
-                        self.kitty_notification_state
-                            .take_pending(identifier)
-                            .unwrap_or_default()
-                    } else {
-                        let Some(assembly) = self.kitty_notification_state.pending_mut(identifier)
-                        else {
-                            return;
-                        };
-                        apply_kitty_metadata(assembly, &metadata);
-                        match metadata.payload_kind {
-                            KittyNotificationPayloadKind::Title => append_sanitized_bounded(
-                                &mut assembly.title,
-                                &payload,
-                                MAX_KITTY_NOTIFICATION_TITLE_CHARS,
-                            ),
-                            KittyNotificationPayloadKind::Body => append_sanitized_bounded(
-                                &mut assembly.body,
-                                &payload,
-                                MAX_KITTY_NOTIFICATION_BODY_CHARS,
-                            ),
-                            _ => unreachable!(),
-                        }
-                        return;
-                    }
+                let mut assembly = if metadata.done {
+                    self.kitty_notification_state
+                        .take_pending(&identifier)
+                        .unwrap_or_default()
                 } else {
-                    if !metadata.done {
+                    let Some(assembly) = self.kitty_notification_state.pending_mut(&identifier)
+                    else {
                         return;
+                    };
+                    apply_kitty_metadata(assembly, &metadata);
+                    match metadata.payload_kind {
+                        KittyNotificationPayloadKind::Title => append_sanitized_bounded(
+                            &mut assembly.title,
+                            &payload,
+                            MAX_KITTY_NOTIFICATION_TITLE_CHARS,
+                        ),
+                        KittyNotificationPayloadKind::Body => append_sanitized_bounded(
+                            &mut assembly.body,
+                            &payload,
+                            MAX_KITTY_NOTIFICATION_BODY_CHARS,
+                        ),
+                        KittyNotificationPayloadKind::Buttons => append_sanitized_bounded(
+                            &mut assembly.button_payload,
+                            &payload,
+                            MAX_KITTY_NOTIFICATION_BUTTON_PAYLOAD_CHARS,
+                        ),
+                        _ => unreachable!(),
                     }
-                    KittyNotificationAssembly::default()
+                    return;
                 };
 
                 apply_kitty_metadata(&mut assembly, &metadata);
@@ -374,8 +428,14 @@ impl Terminal {
                         &payload,
                         MAX_KITTY_NOTIFICATION_BODY_CHARS,
                     ),
+                    KittyNotificationPayloadKind::Buttons => append_sanitized_bounded(
+                        &mut assembly.button_payload,
+                        &payload,
+                        MAX_KITTY_NOTIFICATION_BUTTON_PAYLOAD_CHARS,
+                    ),
                     _ => unreachable!(),
                 }
+                finalize_kitty_buttons(&mut assembly);
                 if assembly.title.is_empty() {
                     if assembly.body.is_empty() {
                         return;
@@ -384,33 +444,42 @@ impl Terminal {
                     assembly.body.clear();
                 }
 
-                let action = if let Some(identifier) = metadata.identifier.as_ref() {
-                    let was_active = self.kitty_notification_state.is_active(identifier);
-                    let expires_at = assembly
-                        .expires_after_ms
-                        .filter(|expiry| *expiry > 0)
-                        .map(|expiry| now.saturating_add(expiry as u64));
-                    if !self
-                        .kitty_notification_state
-                        .activate(identifier.clone(), expires_at)
-                    {
-                        return;
-                    }
-                    if was_active {
-                        NotificationAction::Update
-                    } else {
-                        NotificationAction::Show
-                    }
+                let was_active = self.kitty_notification_state.is_active(&identifier);
+                let expires_at = assembly
+                    .expires_after_ms
+                    .filter(|expiry| *expiry > 0)
+                    .map(|expiry| now.saturating_add(expiry as u64));
+                if !self
+                    .kitty_notification_state
+                    .activate(identifier.clone(), expires_at)
+                {
+                    return;
+                }
+                let action = if was_active {
+                    NotificationAction::Update
                 } else {
                     NotificationAction::Show
                 };
-                self.enqueue_notification(Notification::kitty(
-                    action,
-                    metadata.identifier,
-                    assembly,
-                ));
+                self.enqueue_notification(Notification::kitty(action, Some(identifier), assembly));
             }
         }
+    }
+
+    /// Remove an OSC 99 identifier after an attributable product dismissal.
+    /// This synchronizes `p=alive` without emitting a child-originated close
+    /// event or trusting product-supplied response bytes.
+    pub fn dismiss_osc99_notification(&mut self, identifier: &str) -> bool {
+        if identifier.is_empty()
+            || identifier.len() > MAX_KITTY_NOTIFICATION_ID_BYTES
+            || !identifier
+                .bytes()
+                .all(is_kitty_notification_identifier_byte)
+        {
+            return false;
+        }
+        self.kitty_notification_state
+            .expire(crate::terminal::unix_millis());
+        self.kitty_notification_state.close(identifier).is_some()
     }
 
     fn handle_osc9_current_dir(&mut self, value: Option<&[u8]>) {
@@ -554,7 +623,7 @@ mod tests {
         assert_eq!(notifications.len(), 1);
         assert_eq!(notifications[0].source, "osc99");
         assert_eq!(notifications[0].action, NotificationAction::Show);
-        assert_eq!(notifications[0].identifier, None);
+        assert_eq!(notifications[0].identifier.as_deref(), Some("0"));
         assert_eq!(notifications[0].title, "Build; complete");
         assert_eq!(notifications[0].message, "");
     }
@@ -601,7 +670,7 @@ mod tests {
 
         assert_eq!(
             terminal.drain_responses(),
-            b"\x1b]99;i=probe-1:p=?;o=always:p=title,body,close:w=1\x1b\\"
+            b"\x1b]99;i=probe-1:p=?;a=report:c=1:o=always:p=title,body,close,alive,buttons:w=1\x1b\\"
         );
         assert!(terminal.notifications().is_empty());
     }
@@ -665,6 +734,25 @@ mod tests {
     }
 
     #[test]
+    fn kitty_osc99_pending_buttons_and_report_metadata_survive_snapshot_restore() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.process(b"\x1b]99;i=snapshot-actions:d=0:a=report:c=1;Deploy\x1b\\");
+        terminal
+            .process("\x1b]99;i=snapshot-actions:p=buttons:d=0;Approve\u{2028}\x1b\\".as_bytes());
+        let snapshot = terminal.capture_snapshot();
+
+        let mut restored = Terminal::new(80, 24);
+        restored.restore_from_snapshot(snapshot);
+        restored.process(b"\x1b]99;i=snapshot-actions:p=buttons;Retry\x1b\\");
+
+        let notification = restored.take_notifications().pop().unwrap();
+        assert_eq!(notification.title, "Deploy");
+        assert_eq!(notification.buttons, ["Approve", "Retry"]);
+        assert!(notification.report_activation);
+        assert!(notification.report_close);
+    }
+
+    #[test]
     fn kitty_osc99_handles_byte_splits_and_bel_or_st_terminators() {
         for sequence in [
             b"\x1b]99;i=st;ST\x1b\\".as_slice(),
@@ -699,12 +787,97 @@ mod tests {
         oversized_base64.extend_from_slice(b"\x1b\\");
         terminal.process(&oversized_base64);
 
-        terminal.process(b"\x1b]99;i=safe:a=report:s=Y3VzdG9t:g=aWNvbg==;Safe notification\x1b\\");
+        terminal.process(b"\x1b]99;i=safe:a=focus:s=Y3VzdG9t:g=aWNvbg==;Safe notification\x1b\\");
 
         let notifications = terminal.take_notifications();
         assert_eq!(notifications.len(), 1);
         assert_eq!(notifications[0].identifier.as_deref(), Some("safe"));
         assert_eq!(notifications[0].title, "Safe notification");
+        assert!(!notifications[0].report_activation);
         assert!(terminal.drain_responses().is_empty());
+    }
+
+    #[test]
+    fn kitty_osc99_supports_report_only_actions_and_bounded_buttons() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.process(b"\x1b]99;i=deploy:d=0:a=report,focus:c=1;Deploy ready\x1b\\");
+        terminal.process(
+            "\x1b]99;i=deploy:p=buttons;Approve\u{2028}Retry\u{2028}Logs\u{2028}Cancel\u{2028}Later\u{2028}Ignored\x1b\\"
+                .as_bytes(),
+        );
+
+        let notification = terminal.take_notifications().pop().unwrap();
+        assert_eq!(notification.identifier.as_deref(), Some("deploy"));
+        assert!(notification.report_activation);
+        assert!(notification.report_close);
+        assert_eq!(
+            notification.buttons,
+            ["Approve", "Retry", "Logs", "Cancel", "Later"]
+        );
+
+        terminal.process(b"\x1b]99;i=empty-slots:d=0:a=report;Choose\x1b\\");
+        terminal.process("\x1b]99;i=empty-slots:p=buttons;\u{2028}Retry\x1b\\".as_bytes());
+        let empty_slots = terminal.take_notifications().pop().unwrap();
+        assert_eq!(empty_slots.buttons, ["", "Retry"]);
+
+        terminal.process(b"\x1b]99;i=deploy:a=-report,-focus;Updated\x1b\\");
+        let updated = terminal.take_notifications().pop().unwrap();
+        assert_eq!(updated.action, NotificationAction::Update);
+        assert!(!updated.report_activation);
+        assert!(!updated.report_close);
+        assert!(updated.buttons.is_empty());
+    }
+
+    #[test]
+    fn kitty_osc99_alive_query_and_default_identifier_follow_lifecycle() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.process(b"\x1b]99;;Default\x1b\\");
+        terminal.process(b"\x1b]99;i=build;Build\x1b\\");
+        terminal.process(b"\x1b]99;i=query:p=alive;\x1b\\");
+
+        assert_eq!(
+            terminal.drain_responses(),
+            b"\x1b]99;i=query:p=alive;0,build\x1b\\"
+        );
+
+        terminal.process(b"\x1b]99;p=close;\x1b\\");
+        let notifications = terminal.take_notifications();
+        assert_eq!(
+            notifications.last().unwrap().action,
+            NotificationAction::Close
+        );
+        assert_eq!(
+            notifications.last().unwrap().identifier.as_deref(),
+            Some("0")
+        );
+
+        terminal.process(b"\x1b]99;i=query:p=alive;\x1b\\");
+        assert_eq!(
+            terminal.drain_responses(),
+            b"\x1b]99;i=query:p=alive;build\x1b\\"
+        );
+
+        assert!(terminal.dismiss_osc99_notification("build"));
+        assert!(!terminal.dismiss_osc99_notification("build"));
+        assert!(!terminal.dismiss_osc99_notification("bad:id"));
+        assert!(!terminal.dismiss_osc99_notification("bad?id"));
+        terminal.process(b"\x1b]99;i=query:p=alive;\x1b\\");
+        assert_eq!(
+            terminal.drain_responses(),
+            b"\x1b]99;i=query:p=alive;\x1b\\"
+        );
+    }
+
+    #[test]
+    fn kitty_osc99_rejects_unknown_actions_and_invalid_close_reporting() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.process(b"\x1b]99;i=command:a=command;Ignored\x1b\\");
+        terminal.process(b"\x1b]99;i=close:c=2;Ignored\x1b\\");
+        terminal.process(b"\x1b]99;i=bad?id:a=report;Ignored\x1b\\");
+        terminal.process(b"\x1b]99;i=bad?id:p=?;\x1b\\");
+
+        assert!(terminal.notifications().is_empty());
+        assert!(terminal.drain_responses().is_empty());
+        assert_eq!(terminal.kitty_notification_state.retained_counts(), (0, 0));
     }
 }

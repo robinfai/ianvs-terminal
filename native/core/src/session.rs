@@ -180,6 +180,9 @@ enum CallbackEvent {
         application_name: Option<String>,
         notification_types: Vec<String>,
         expires_after_ms: Option<u32>,
+        report_activation: bool,
+        report_close: bool,
+        buttons: Vec<String>,
     },
     SessionProgress {
         payload: serde_json::Value,
@@ -2540,6 +2543,14 @@ impl TerminalSession {
                                                 })
                                                 .collect(),
                                             expires_after_ms: notification.expires_after_ms,
+                                            report_activation: notification.report_activation,
+                                            report_close: notification.report_close,
+                                            buttons: notification
+                                                .buttons
+                                                .into_iter()
+                                                .take(5)
+                                                .map(|button| sanitize_protocol_text(&button, 64))
+                                                .collect(),
                                         }
                                     },
                                 ));
@@ -2946,6 +2957,13 @@ impl TerminalSession {
         self.pending_frame_signal
             .mutate(|work| work.mark_full_repaint("clear_scrollback"));
         Ok(true)
+    }
+
+    pub fn dismiss_osc99_notification(&self, identifier: &str) -> bool {
+        self.state
+            .lock()
+            .terminal
+            .dismiss_osc99_notification(identifier)
     }
 
     pub fn set_block_folded(&self, id: &str, folded: bool) -> bool {
@@ -3831,6 +3849,9 @@ impl TerminalSession {
                 application_name,
                 notification_types,
                 expires_after_ms,
+                report_activation,
+                report_close,
+                buttons,
             } => self.push_event(
                 "session_notification",
                 Some(serde_json::json!({
@@ -3842,6 +3863,9 @@ impl TerminalSession {
                     "application": application_name,
                     "types": notification_types,
                     "expiresAfterMs": expires_after_ms,
+                    "reportActivation": report_activation,
+                    "reportClose": report_close,
+                    "buttons": buttons,
                 })),
             ),
             CallbackEvent::SessionProgress { payload } => {
@@ -4335,6 +4359,16 @@ fn sanitize_diagnostic_event_payload(
             "expires_after_ms": payload
                 .get("expiresAfterMs")
                 .and_then(serde_json::Value::as_u64),
+            "report_activation": payload
+                .get("reportActivation")
+                .and_then(serde_json::Value::as_bool),
+            "report_close": payload
+                .get("reportClose")
+                .and_then(serde_json::Value::as_bool),
+            "button_count": payload
+                .get("buttons")
+                .and_then(serde_json::Value::as_array)
+                .map(Vec::len),
         })),
         "session_progress" => Some(serde_json::json!({
             "source": payload.get("source").and_then(serde_json::Value::as_str),
@@ -7347,6 +7381,17 @@ pub fn request_session_json(
                 .map_err(|error| SessionError::Serialize(error.to_string()))
         }
         "terminal.clear_scrollback" => clear_scrollback_session(session_id).map(Some),
+        "terminal.dismiss_osc99_notification" => {
+            let Some(identifier) = request.get("id").and_then(serde_json::Value::as_str) else {
+                return Ok(None);
+            };
+            let dismissed = STORE
+                .get(session_id)?
+                .dismiss_osc99_notification(identifier);
+            serde_json::to_string(&serde_json::json!({ "dismissed": dismissed }))
+                .map(Some)
+                .map_err(|error| SessionError::Serialize(error.to_string()))
+        }
         "terminal.set_block_folded" => {
             let Some(id) = request.get("id").and_then(serde_json::Value::as_str) else {
                 return Ok(None);
@@ -9826,6 +9871,9 @@ mod tests {
             "application": application,
             "types": ["deploy", "private"],
             "expiresAfterMs": 250,
+            "reportActivation": true,
+            "reportClose": true,
+            "buttons": ["Approve secret", "Cancel secret"],
         });
 
         let sanitized = sanitize_diagnostic_event_payload("session_notification", Some(&payload))
@@ -9835,12 +9883,24 @@ mod tests {
         assert_eq!(sanitized["action"].as_str(), Some("update"));
         assert_eq!(sanitized["type_count"].as_u64(), Some(2));
         assert_eq!(sanitized["expires_after_ms"].as_u64(), Some(250));
+        assert_eq!(sanitized["report_activation"].as_bool(), Some(true));
+        assert_eq!(sanitized["report_close"].as_bool(), Some(true));
+        assert_eq!(sanitized["button_count"].as_u64(), Some(2));
         assert!(sanitized["id_hash"].as_str().is_some());
         assert!(sanitized["title_hash"].as_str().is_some());
         assert!(sanitized["message_hash"].as_str().is_some());
         assert!(sanitized["application_hash"].as_str().is_some());
         let serialized = sanitized.to_string();
-        for secret in [identifier, title, message, application, "deploy", "private"] {
+        for secret in [
+            identifier,
+            title,
+            message,
+            application,
+            "deploy",
+            "private",
+            "Approve secret",
+            "Cancel secret",
+        ] {
             assert!(!serialized.contains(secret));
         }
     }
