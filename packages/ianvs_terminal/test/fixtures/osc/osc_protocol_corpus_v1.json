@@ -597,6 +597,32 @@
         "reply": "policy-gated DONE or an explicit error status",
         "must_not_crash": true
       }
+    },
+    {
+      "id": "osc1337_blocks",
+      "coverage": [
+        "iTerm2 OSC 1337 block lifecycle",
+        "iTerm2 OSC 1337 nested block folding",
+        "iTerm2 OSC 1337 block update no-op safety"
+      ],
+      "protocol": "iTerm2 OSC 1337 Block and UpdateBlock",
+      "wire": {
+        "sequence_count": 7,
+        "chunks_hex": [
+          "1b",
+          "5d313333373b426c6f636b3d69643d6f757465723b617474723d73746172743b74797065",
+          "3d6275696c641b5c66697273740a1b5d313333373b426c6f636b3d69643d696e6e65723b617474723d7374617274",
+          "1b5c7365637265740a1b5d313333373b426c6f636b3d69643d696e6e65723b617474723d656e641b5c6c6173741b5d313333373b426c6f63",
+          "6b3d69643d6f757465723b617474723d656e643b72656e6465723d311b5c1b5d313333373b557064617465426c6f636b3d69643d6f757465723b616374696f6e3d666f6c641b5c1b5d313333373b557064617465426c6f636b3d69643d6d697373696e673b616374696f6e3d756e666f6c641b5c1b5d323b6f7363313333372d626c6f636b2d636f727075732d6f6b1b5c"
+        ]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "block_folding",
+        "state_effect": "nested blocks retain exact source ranges while the completed outer block folds and a missing update stays a no-op",
+        "reply": "none",
+        "must_not_crash": true
+      }
     }
   ]
 }

@@ -1,7 +1,7 @@
 use crate::model::{
-    TerminalCursor, TerminalDirtyRange, TerminalFrameDiff, TerminalFrameKind, TerminalFrameModes,
-    TerminalGraphicPlacement, TerminalHyperlinkRange, TerminalRow, TerminalSelection,
-    TerminalSizedTextPlacement, TerminalStyleRun,
+    TerminalBlock, TerminalCursor, TerminalDirtyRange, TerminalFrameDiff, TerminalFrameKind,
+    TerminalFrameModes, TerminalGraphicPlacement, TerminalHyperlinkRange, TerminalRow,
+    TerminalSelection, TerminalSizedTextPlacement, TerminalStyleRun,
 };
 use crate::proto::frame_diff as pb;
 use prost::Message;
@@ -58,6 +58,7 @@ fn to_proto_frame(frame: &TerminalFrameDiff) -> pb::TerminalFrameDiff {
         sized_text: frame.sized_text.iter().map(to_proto_sized_text).collect(),
         inline_images: Vec::new(),
         graphics: frame.graphics.iter().map(to_proto_graphic).collect(),
+        blocks: frame.blocks.iter().map(to_proto_block).collect(),
     }
 }
 
@@ -95,6 +96,21 @@ fn to_proto_row(row: &TerminalRow) -> pb::TerminalRow {
         wrapped: row.wrapped,
         modified_at_micros: 0,
         style_runs: row.style_runs.iter().map(to_proto_style_run).collect(),
+        source_row: row.source_row.map(usize_to_u32),
+        source_end_row: row.source_end_row.map(usize_to_u32),
+    }
+}
+
+fn to_proto_block(block: &TerminalBlock) -> pb::TerminalBlock {
+    pb::TerminalBlock {
+        id: block.id.clone(),
+        block_type: block.block_type.clone().unwrap_or_default(),
+        start_row: usize_to_u32(block.start_row),
+        end_row: usize_to_u32(block.end_row),
+        source_start_row: usize_to_u32(block.source_start_row),
+        source_end_row: usize_to_u32(block.source_end_row),
+        folded: block.folded,
+        hidden_rows: usize_to_u32(block.hidden_rows),
     }
 }
 

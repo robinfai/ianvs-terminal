@@ -41,18 +41,23 @@ class SelectionController extends ChangeNotifier {
     TerminalCellPosition cell, {
     bool block = false,
     int viewportStartRow = 0,
+    int? sourceRow,
   }) {
     _mode = block ? SelectionMode.block : SelectionMode.linear;
     _selection = TerminalSelection(
-      startRow: viewportStartRow + cell.row,
+      startRow: sourceRow ?? viewportStartRow + cell.row,
       startCol: cell.col,
-      endRow: viewportStartRow + cell.row,
+      endRow: sourceRow ?? viewportStartRow + cell.row,
       endCol: cell.col,
     );
     notifyListeners();
   }
 
-  void update(TerminalCellPosition cell, {int viewportStartRow = 0}) {
+  void update(
+    TerminalCellPosition cell, {
+    int viewportStartRow = 0,
+    int? sourceRow,
+  }) {
     final current = _selection;
     if (current == null) {
       return;
@@ -60,7 +65,7 @@ class SelectionController extends ChangeNotifier {
     _selection = TerminalSelection(
       startRow: current.startRow,
       startCol: current.startCol,
-      endRow: viewportStartRow + cell.row,
+      endRow: sourceRow ?? viewportStartRow + cell.row,
       endCol: cell.col,
     );
     notifyListeners();
@@ -77,24 +82,40 @@ class SelectionController extends ChangeNotifier {
     if (normalized == null || frame.viewportRows <= 0) {
       return null;
     }
-    final frameStartRow = frame.viewportStartRow;
-    final frameEndRow = frameStartRow + frame.viewportRows - 1;
-    if (normalized.endRow < frameStartRow ||
-        normalized.startRow > frameEndRow) {
+    final explicitMapping = frame.hasExplicitSourceRowMapping;
+    final visibleRows = frame.rows
+        .where((row) {
+          if (explicitMapping &&
+              row.sourceRow == null &&
+              row.sourceEndRow == null) {
+            return false;
+          }
+          final sourceStart =
+              row.sourceRow ?? frame.viewportStartRow + row.index;
+          final sourceEnd = row.sourceEndRow ?? sourceStart;
+          return normalized.endRow >= sourceStart &&
+              normalized.startRow <= sourceEnd;
+        })
+        .toList(growable: false);
+    if (visibleRows.isEmpty) {
       return null;
     }
-
-    final startsBeforeFrame = normalized.startRow < frameStartRow;
-    final endsAfterFrame = normalized.endRow > frameEndRow;
+    final firstVisible = visibleRows.first;
+    final lastVisible = visibleRows.last;
+    final firstSource =
+        firstVisible.sourceRow ?? frame.viewportStartRow + firstVisible.index;
+    final lastSource =
+        lastVisible.sourceEndRow ??
+        lastVisible.sourceRow ??
+        frame.viewportStartRow + lastVisible.index;
+    final startsBeforeFrame = normalized.startRow < firstSource;
+    final endsAfterFrame = normalized.endRow > lastSource;
     return TerminalSelection(
-      startRow: math.max(0, normalized.startRow - frameStartRow),
+      startRow: firstVisible.index,
       startCol: _mode == SelectionMode.block || !startsBeforeFrame
           ? normalized.startCol
           : 0,
-      endRow: math.min(
-        frame.viewportRows - 1,
-        normalized.endRow - frameStartRow,
-      ),
+      endRow: lastVisible.index,
       endCol: _mode == SelectionMode.block || !endsAfterFrame
           ? normalized.endCol
           : frame.viewportCols,

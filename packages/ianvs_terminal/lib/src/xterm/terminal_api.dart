@@ -377,6 +377,10 @@ class Terminal implements TerminalDisposable {
     _runtime.scrollViewportTo(_requireSessionId(), line);
   }
 
+  bool setBlockFolded(String id, {required bool folded}) {
+    return _runtime.setBlockFolded(_requireSessionId(), id, folded: folded);
+  }
+
   void refresh() {
     _runtime.refreshSession(_requireSessionId());
   }

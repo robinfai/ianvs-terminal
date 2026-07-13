@@ -22,6 +22,7 @@ import 'terminal_viewport_colors.dart';
 const Key terminalScrollbarTrackKey = Key('terminal-scrollbar-track');
 const Key terminalScrollbarThumbKey = Key('terminal-scrollbar-thumb');
 const Key terminalLinkTooltipKey = Key('terminal-link-tooltip');
+Key terminalBlockToggleKey(String id) => Key('terminal-block-toggle-$id');
 const double _terminalTimestampOverlayWidth = 66;
 const Size terminalFallbackCellSize = Size(9, 18);
 final RegExp _visibleUrlPattern = RegExp(r'(?:https?|file)://[^\s<>()"]+');
@@ -190,6 +191,7 @@ class TerminalViewport extends StatefulWidget {
     this.graphicsCache,
     this.benchmarkEventSink,
     this.graphicsDiagnosticSessionId,
+    this.onToggleBlock,
   });
 
   final TerminalViewportController controller;
@@ -219,6 +221,7 @@ class TerminalViewport extends StatefulWidget {
   final TerminalGraphicsCache? graphicsCache;
   final TerminalBenchmarkEventSink? benchmarkEventSink;
   final String? graphicsDiagnosticSessionId;
+  final ValueChanged<TerminalBlock>? onToggleBlock;
 
   @override
   State<TerminalViewport> createState() => _TerminalViewportState();
@@ -260,6 +263,7 @@ class _TerminalViewportState extends State<TerminalViewport>
   int _currentPrimaryTapCount = 0;
   Offset? _activeMouseButtonGlobalPosition;
   bool _selectionMovedSincePointerDown = false;
+  bool _blockTogglePointerActive = false;
   _LocalSelectionMode _localSelectionMode = _LocalSelectionMode.cell;
   _TerminalWordRange? _wordSelectionAnchor;
   TextInputConnection? _textInputConnection;
@@ -959,6 +963,9 @@ class _TerminalViewportState extends State<TerminalViewport>
 
   void _handlePointerDown(PointerDownEvent event) {
     _stopScrollMomentum();
+    if (_blockTogglePointerActive) {
+      return;
+    }
     if (!_terminalMouseEnabled) {
       if (_isSecondaryButton(event.buttons)) {
         _showLinkContextMenuAt(event.position);
@@ -982,6 +989,25 @@ class _TerminalViewportState extends State<TerminalViewport>
         _stopSelectionAutoScroll();
         return;
       }
+      final sourceRow = widget.controller.frame.mappedSourceRowForViewportRow(
+        cell.row,
+      );
+      if (sourceRow == null) {
+        _isLocalSelectionActive = false;
+        _selectionPointerDownGlobalPosition = null;
+        _wordSelectionAnchor = null;
+        _stopSelectionAutoScroll();
+        return;
+      }
+      final foldedBlock = _foldedBlockAtViewportRow(cell.row);
+      if (foldedBlock != null && widget.onToggleBlock != null) {
+        _isLocalSelectionActive = false;
+        _selectionPointerDownGlobalPosition = null;
+        _wordSelectionAnchor = null;
+        _stopSelectionAutoScroll();
+        widget.onToggleBlock!(foldedBlock);
+        return;
+      }
       _currentPrimaryTapCount = _nextPrimaryTapCount(
         event.position,
         event.timeStamp,
@@ -1003,6 +1029,7 @@ class _TerminalViewportState extends State<TerminalViewport>
         cell,
         block: _usesOptionBlockSelection,
         viewportStartRow: widget.controller.frame.viewportStartRow,
+        sourceRow: sourceRow,
       );
       _syncSelectionAutoScroll();
       return;
@@ -1017,6 +1044,15 @@ class _TerminalViewportState extends State<TerminalViewport>
       button: _activeMouseButton!,
       pressed: true,
     );
+  }
+
+  TerminalBlock? _foldedBlockAtViewportRow(int row) {
+    for (final block in widget.controller.frame.blocks) {
+      if (block.folded && block.startRow == row) {
+        return block;
+      }
+    }
+    return null;
   }
 
   void _handlePointerMove(PointerMoveEvent event) {
@@ -1420,10 +1456,17 @@ class _TerminalViewportState extends State<TerminalViewport>
     if (cell == null) {
       return;
     }
+    final mappedSourceRow = viewportStartRow == null
+        ? widget.controller.frame.mappedSourceRowForViewportRow(cell.row)
+        : null;
+    if (viewportStartRow == null && mappedSourceRow == null) {
+      return;
+    }
     widget.selectionController.update(
       cell,
       viewportStartRow:
           viewportStartRow ?? widget.controller.frame.viewportStartRow,
+      sourceRow: mappedSourceRow,
     );
   }
 
@@ -1860,6 +1903,11 @@ class _TerminalViewportState extends State<TerminalViewport>
                               contentPadding,
                               effectiveColors,
                             ),
+                          ..._buildBlockFoldOverlays(
+                            frame,
+                            contentPadding,
+                            effectiveColors,
+                          ),
                           if (frame.scrollbackMaxOffset > 0 && trackHeight > 0)
                             Positioned(
                               top: 8,
@@ -2258,6 +2306,72 @@ class _TerminalViewportState extends State<TerminalViewport>
     ];
   }
 
+  List<Widget> _buildBlockFoldOverlays(
+    TerminalFrameDiff frame,
+    EdgeInsets contentPadding,
+    TerminalViewportColors colors,
+  ) {
+    final onToggleBlock = widget.onToggleBlock;
+    if (onToggleBlock == null || frame.blocks.isEmpty) {
+      return const <Widget>[];
+    }
+    final cellSize =
+        widget.controller.measuredCellSize ?? terminalFallbackCellSize;
+    if (cellSize.height <= 0) {
+      return const <Widget>[];
+    }
+    final buttonSize = math.max(28.0, math.min(36.0, cellSize.height * 1.8));
+    final rightInset =
+        contentPadding.right + (frame.scrollbackMaxOffset > 0 ? 20.0 : 4.0);
+    return [
+      for (final block in frame.blocks)
+        if (block.startRow >= 0 && block.startRow < frame.viewportRows)
+          Positioned(
+            top:
+                contentPadding.top +
+                block.startRow * cellSize.height -
+                (buttonSize - cellSize.height) / 2,
+            right: rightInset,
+            width: buttonSize,
+            height: buttonSize,
+            child: Listener(
+              onPointerDown: (_) => _blockTogglePointerActive = true,
+              onPointerUp: (_) => _blockTogglePointerActive = false,
+              onPointerCancel: (_) => _blockTogglePointerActive = false,
+              child: Tooltip(
+                message: block.folded ? 'Unfold block' : 'Fold block',
+                child: Semantics(
+                  button: true,
+                  excludeSemantics: true,
+                  label: block.folded
+                      ? 'Unfold terminal block'
+                      : 'Fold terminal block',
+                  onTap: () => onToggleBlock(block),
+                  child: IconButton(
+                    key: terminalBlockToggleKey(block.id),
+                    padding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
+                    style: IconButton.styleFrom(
+                      foregroundColor: colors.foreground,
+                      backgroundColor: colors.canvasBackground.withValues(
+                        alpha: 0.88,
+                      ),
+                    ),
+                    iconSize: math.min(20.0, buttonSize * 0.64),
+                    icon: Icon(
+                      block.folded
+                          ? Icons.chevron_right_rounded
+                          : Icons.expand_more_rounded,
+                    ),
+                    onPressed: () => onToggleBlock(block),
+                  ),
+                ),
+              ),
+            ),
+          ),
+    ];
+  }
+
   @override
   TextEditingValue? get currentTextEditingValue => _textInputValue;
 
@@ -2456,6 +2570,11 @@ _TerminalWordRange? _wordRangeAtRelativeCell(
   if (cell == null) {
     return null;
   }
+  final mappedStartRow = frame.mappedSourceRowForViewportRow(relativeRow);
+  final mappedEndRow = frame.mappedSourceEndRowForViewportRow(relativeRow);
+  if (mappedStartRow == null || mappedEndRow == null) {
+    return null;
+  }
   final smartRange = _smartRangeAtCell(
     frame: frame,
     relativeRow: relativeRow,
@@ -2471,9 +2590,9 @@ _TerminalWordRange? _wordRangeAtRelativeCell(
     return null;
   }
 
-  var startRow = frame.viewportStartRow + relativeRow;
+  var startRow = mappedStartRow;
   var startCol = cell.column;
-  var endRow = frame.viewportStartRow + relativeRow;
+  var endRow = mappedEndRow;
   var endCol = cell.column + cell.columnSpan;
 
   switch (kind) {
@@ -2593,10 +2712,15 @@ _TerminalWordRange? _smartRangeAtCell({
       if (range == null || codeUnit < range.start || codeUnit >= range.end) {
         continue;
       }
+      final startRow = frame.mappedSourceRowForViewportRow(relativeRow);
+      final endRow = frame.mappedSourceEndRowForViewportRow(relativeRow);
+      if (startRow == null || endRow == null) {
+        return null;
+      }
       return _TerminalWordRange(
-        startRow: frame.viewportStartRow + relativeRow,
+        startRow: startRow,
         startCol: rowCells.columnForCodeUnit(range.start),
-        endRow: frame.viewportStartRow + relativeRow,
+        endRow: endRow,
         endCol: rowCells.columnForCodeUnit(range.end),
       );
     }

@@ -60,6 +60,9 @@ REQUIRED_COVERAGE = {
     "iTerm2 OSC 1337 annotations",
     "iTerm2 visible and hidden annotations",
     "iTerm2 annotation coordinate range",
+    "iTerm2 OSC 1337 block lifecycle",
+    "iTerm2 OSC 1337 nested block folding",
+    "iTerm2 OSC 1337 block update no-op safety",
     "OSC 3008 hierarchy",
     "OSC 3008 malformed close recovery",
     "tmux passthrough fixture",
@@ -234,6 +237,28 @@ def validate_case(case: Any) -> set[str]:
             f"{case_id}: hidden coordinate range",
         )
         require(b"osc1337-annotation-corpus-ok" in stream, f"{case_id}: recovery")
+    elif case_id == "osc1337_blocks":
+        require(stream.count(b"\x1b]1337;Block=") == 4, f"{case_id}: block marks")
+        require(
+            stream.count(b"\x1b]1337;UpdateBlock=") == 2,
+            f"{case_id}: block updates",
+        )
+        require(
+            b"Block=id=outer;attr=start;type=build" in stream,
+            f"{case_id}: typed start",
+        )
+        require(
+            b"Block=id=outer;attr=end;render=1" in stream,
+            f"{case_id}: rendered end",
+        )
+        require(
+            b"UpdateBlock=id=outer;action=fold" in stream,
+            f"{case_id}: fold update",
+        )
+        require(
+            b"UpdateBlock=id=missing;action=unfold" in stream,
+            f"{case_id}: missing update",
+        )
     elif case_id == "tmux_passthrough":
         require(stream.startswith(b"\x1bPtmux;\x1b\x1b]"), f"{case_id}: bad wrapper")
     elif case_id == "screen_passthrough":

@@ -4,6 +4,9 @@ use super::sanitize_osc_text;
 use crate::color::Color;
 use crate::cursor::CursorShape;
 use crate::debug;
+use crate::terminal::block::{
+    bounded_iterm_block_value, MAX_ITERM_BLOCK_ID_CHARS, MAX_ITERM_BLOCK_TYPE_CHARS,
+};
 use crate::terminal::event::ShellIntegrationSource;
 use crate::terminal::{CwdChangeSource, Terminal, TerminalEvent};
 use crate::zone::ZoneType;
@@ -56,6 +59,10 @@ impl Terminal {
                 self.handle_iterm_annotation(payload, true);
             } else if let Some(payload) = data.strip_prefix("AddHiddenNote=") {
                 self.handle_iterm_annotation(payload, false);
+            } else if let Some(payload) = data.strip_prefix("Block=") {
+                self.handle_iterm_block(payload);
+            } else if let Some(payload) = data.strip_prefix("UpdateBlock=") {
+                self.handle_iterm_update_block(payload);
             } else if data == "ClearScrollback" {
                 self.handle_iterm_clear_buffer();
             } else if data == "HighlightCursorLine" {
@@ -65,6 +72,68 @@ impl Terminal {
             } else {
                 self.handle_iterm_image(&data);
             }
+        }
+    }
+
+    fn handle_iterm_block(&mut self, payload: &str) {
+        let pairs = parse_iterm_block_pairs(payload);
+        let Some(id) = pairs
+            .iter()
+            .rev()
+            .find_map(|(key, value)| (*key == "id").then_some(*value))
+            .and_then(|value| bounded_iterm_block_value(value, MAX_ITERM_BLOCK_ID_CHARS))
+        else {
+            return;
+        };
+        let attr = pairs
+            .iter()
+            .rev()
+            .find_map(|(key, value)| (*key == "attr").then_some(*value));
+        match attr {
+            Some("start") => {
+                let block_type = pairs
+                    .iter()
+                    .rev()
+                    .find_map(|(key, value)| (*key == "type").then_some(*value))
+                    .and_then(|value| bounded_iterm_block_value(value, MAX_ITERM_BLOCK_TYPE_CHARS));
+                self.handle_iterm_block_start(id, block_type);
+            }
+            Some("end") => {
+                let render = pairs
+                    .iter()
+                    .rev()
+                    .any(|(key, value)| *key == "render" && *value == "1");
+                self.handle_iterm_block_end(&id, render);
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_iterm_update_block(&mut self, payload: &str) {
+        if self.alt_screen_active {
+            return;
+        }
+        let pairs = parse_iterm_block_pairs(payload);
+        let Some(id) = pairs
+            .iter()
+            .rev()
+            .find_map(|(key, value)| (*key == "id").then_some(*value))
+            .and_then(|value| bounded_iterm_block_value(value, MAX_ITERM_BLOCK_ID_CHARS))
+        else {
+            return;
+        };
+        let action = pairs
+            .iter()
+            .rev()
+            .find_map(|(key, value)| (*key == "action").then_some(*value));
+        match action {
+            Some("fold") => {
+                self.set_iterm_block_folded(&id, true);
+            }
+            Some("unfold") => {
+                self.set_iterm_block_folded(&id, false);
+            }
+            _ => {}
         }
     }
 
@@ -199,6 +268,7 @@ impl Terminal {
         // iTerm2's history belongs to the primary buffer even when an
         // alternate-screen application sends the command.
         self.grid.clear_scrollback();
+        self.clear_iterm_blocks();
         self.graphics_store.clear_scrollback_graphics();
         self.active_grid_mut().clear();
         self.clear_graphics();
@@ -531,6 +601,14 @@ impl Terminal {
     }
 }
 
+fn parse_iterm_block_pairs(payload: &str) -> Vec<(&str, &str)> {
+    payload
+        .split(';')
+        .take(16)
+        .filter_map(|part| part.split_once('='))
+        .collect()
+}
+
 fn parse_annotation_unsigned(value: &str) -> Option<usize> {
     (!value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()))
         .then(|| value.parse::<usize>().ok())
@@ -548,6 +626,7 @@ fn parse_annotation_signed(value: &str) -> Option<i64> {
 mod tests {
     use crate::color::Color;
     use crate::terminal::event::ShellIntegrationSource;
+    use crate::terminal::MAX_ITERM_BLOCK_ID_CHARS;
     use crate::terminal::{Terminal, TerminalEvent};
     use crate::zone::ZoneType;
     use base64::{engine::general_purpose::STANDARD, Engine};
@@ -1068,6 +1147,104 @@ mod tests {
         terminal.process(b"\x1bc");
         assert_eq!(terminal.cursor().shape_override(), None);
         assert_eq!(terminal.cursor().blink_override(), None);
+    }
+
+    #[test]
+    fn block_lifecycle_tracks_bounded_primary_screen_ranges_and_fold_state() {
+        let mut terminal = Terminal::with_scrollback(20, 4, 16);
+        terminal.process(b"\x1b]1337;Block=id=build-1;attr=start;type=build\x07");
+        terminal.process(b"first\r\nsecond\r\nthird");
+        terminal.process(b"\x1b]1337;Block=attr=end;render=0;id=build-1\x1b\\");
+
+        let block = terminal.iterm_blocks().back().expect("completed block");
+        assert_eq!(block.id, "build-1");
+        assert_eq!(block.block_type.as_deref(), Some("build"));
+        assert_eq!((block.start_abs_row, block.end_abs_row), (0, 2));
+        assert!(block.complete);
+        assert!(!block.folded);
+
+        terminal.process(b"\x1b]1337;UpdateBlock=action=fold;id=build-1\x07");
+        assert!(terminal.iterm_blocks().back().unwrap().folded);
+        terminal.process(b"\x1b]1337;UpdateBlock=id=build-1;action=unfold\x1b\\");
+        assert!(!terminal.iterm_blocks().back().unwrap().folded);
+    }
+
+    #[test]
+    fn blocks_ignore_unknown_incomplete_single_line_and_alternate_screen_updates() {
+        let mut terminal = Terminal::new(20, 4);
+        terminal.process(b"\x1b]1337;Block=id=single;attr=start\x07");
+        terminal.process(b"\x1b]1337;Block=id=single;attr=end\x07");
+        terminal.process(b"\x1b]1337;UpdateBlock=id=single;action=fold\x07");
+        assert!(!terminal.iterm_blocks().back().unwrap().folded);
+
+        terminal.process(b"\x1b]1337;Block=id=active;attr=start\x07row\r\nnext");
+        terminal.process(b"\x1b]1337;UpdateBlock=id=active;action=fold\x07");
+        terminal.process(b"\x1b]1337;Block=id=missing;attr=end\x07");
+        terminal.process(b"\x1b]1337;UpdateBlock=id=missing;action=fold\x07");
+        assert!(terminal
+            .iterm_blocks()
+            .iter()
+            .find(|block| block.id == "active")
+            .is_some_and(|block| !block.complete && !block.folded));
+
+        let count = terminal.iterm_blocks().len();
+        terminal.process(
+            b"\x1b[?1049h\x1b]1337;Block=id=alt;attr=start\x07x\r\ny\x1b]1337;Block=id=alt;attr=end\x07\x1b[?1049l",
+        );
+        assert_eq!(terminal.iterm_blocks().len(), count);
+    }
+
+    #[test]
+    fn block_sequences_are_split_safe_nested_and_snapshot_restorable() {
+        let sequence = b"\x1b]1337;Block=id=outer;attr=start;type=test\x1b\\";
+        for split in 1..sequence.len() {
+            let mut terminal = Terminal::new(20, 4);
+            terminal.process(&sequence[..split]);
+            terminal.process(&sequence[split..]);
+            assert_eq!(terminal.iterm_blocks().len(), 1, "split={split}");
+        }
+
+        let mut terminal = Terminal::new(20, 5);
+        terminal.process(b"\x1b]1337;Block=id=outer;attr=start\x07outer\r\n");
+        terminal.process(b"\x1b]1337;Block=id=inner;attr=start\x07inner\r\nend");
+        terminal.process(b"\x1b]1337;Block=id=inner;attr=end\x07");
+        terminal.process(b"\x1b]1337;Block=id=outer;attr=end;render=1\x07");
+        terminal.process(b"\x1b]1337;UpdateBlock=id=inner;action=fold\x07");
+        assert_eq!(terminal.iterm_blocks().len(), 2);
+        assert!(terminal.iterm_blocks()[1].folded);
+        assert!(terminal.iterm_blocks()[0].render);
+
+        let snapshot = terminal.capture_snapshot();
+        let mut restored = Terminal::new(20, 5);
+        restored.restore_from_snapshot(snapshot);
+        assert_eq!(restored.iterm_blocks(), terminal.iterm_blocks());
+    }
+
+    #[test]
+    fn block_inputs_are_bounded_and_clear_buffer_discards_marks() {
+        let mut terminal = Terminal::new(20, 4);
+        let oversized = "x".repeat(MAX_ITERM_BLOCK_ID_CHARS + 1);
+        terminal.process(format!("\x1b]1337;Block=id={oversized};attr=start\x07").as_bytes());
+        assert!(terminal.iterm_blocks().is_empty());
+
+        terminal.process(b"\x1b]1337;Block=id=kept;attr=start\x07a\r\nb");
+        terminal.process(b"\x1b]1337;Block=id=kept;attr=end\x07");
+        assert_eq!(terminal.iterm_blocks().len(), 1);
+        terminal.process(b"\x1b]1337;ClearScrollback\x07");
+        assert!(terminal.iterm_blocks().is_empty());
+    }
+
+    #[test]
+    fn direct_reflow_invalidates_physical_block_ranges() {
+        let mut terminal = Terminal::new(20, 4);
+        terminal.process(b"\x1b]1337;Block=id=build;attr=start\x07first\r\nsecond");
+        terminal.process(b"\x1b]1337;Block=id=build;attr=end\x07");
+        terminal.process(b"\x1b]1337;UpdateBlock=id=build;action=fold\x07");
+        assert!(terminal.iterm_blocks().back().unwrap().folded);
+
+        terminal.resize(10, 4);
+
+        assert!(terminal.iterm_blocks().is_empty());
     }
 
     #[test]

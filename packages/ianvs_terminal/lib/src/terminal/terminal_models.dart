@@ -198,6 +198,8 @@ class TerminalRow {
     this.wrapped = false,
     this.modifiedAt,
     this.styleRuns = const [],
+    this.sourceRow,
+    this.sourceEndRow,
   });
 
   final int index;
@@ -205,6 +207,8 @@ class TerminalRow {
   final bool wrapped;
   final DateTime? modifiedAt;
   final List<TerminalStyleRun> styleRuns;
+  final int? sourceRow;
+  final int? sourceEndRow;
 
   factory TerminalRow.fromJson(Map<String, Object?> json) {
     final row = TerminalRow.tryFromJson(json);
@@ -218,6 +222,13 @@ class TerminalRow {
     final index = _intOrNullFromJson(json['index']);
     final text = _stringFromJson(json['text']);
     if (index == null || text == null) {
+      return null;
+    }
+    final sourceRow = _optionalNonNegativeIntFromJson(json['source_row']);
+    final sourceEndRow = _optionalNonNegativeIntFromJson(
+      json['source_end_row'],
+    );
+    if (sourceRow != null && sourceEndRow != null && sourceEndRow < sourceRow) {
       return null;
     }
     return TerminalRow(
@@ -235,6 +246,66 @@ class TerminalRow {
         TerminalStyleRun.tryFromJson,
         maxEntries: TerminalFrameValidationLimits.maxStyleRunsPerRow,
       ),
+      sourceRow: sourceRow ?? sourceEndRow,
+      sourceEndRow: sourceEndRow ?? sourceRow,
+    );
+  }
+}
+
+class TerminalBlock {
+  const TerminalBlock({
+    required this.id,
+    required this.startRow,
+    required this.endRow,
+    required this.sourceStartRow,
+    required this.sourceEndRow,
+    required this.folded,
+    required this.hiddenRows,
+    this.blockType,
+  });
+
+  final String id;
+  final String? blockType;
+  final int startRow;
+  final int endRow;
+  final int sourceStartRow;
+  final int sourceEndRow;
+  final bool folded;
+  final int hiddenRows;
+
+  static TerminalBlock? tryFromJson(Map<String, Object?> json) {
+    final id = _nonEmptyTrimmedStringFromJson(json['id']);
+    final blockType = _nonEmptyTrimmedStringFromJson(
+      json['block_type'] ?? json['type'],
+    );
+    final startRow = _intOrNullFromJson(json['start_row']);
+    final endRow = _intOrNullFromJson(json['end_row']);
+    final sourceStartRow = _intOrNullFromJson(json['source_start_row']);
+    final sourceEndRow = _intOrNullFromJson(json['source_end_row']);
+    if (id == null ||
+        id.runes.length > TerminalFrameValidationLimits.maxBlockIdChars ||
+        (blockType != null &&
+            blockType.runes.length >
+                TerminalFrameValidationLimits.maxBlockTypeChars) ||
+        startRow == null ||
+        startRow < 0 ||
+        endRow == null ||
+        endRow < startRow ||
+        sourceStartRow == null ||
+        sourceStartRow < 0 ||
+        sourceEndRow == null ||
+        sourceEndRow < sourceStartRow) {
+      return null;
+    }
+    return TerminalBlock(
+      id: id,
+      blockType: blockType,
+      startRow: startRow,
+      endRow: endRow,
+      sourceStartRow: sourceStartRow,
+      sourceEndRow: sourceEndRow,
+      folded: _boolFromJson(json['folded'], fallback: false),
+      hiddenRows: _nonNegativeIntFromJson(json['hidden_rows']),
     );
   }
 }
@@ -951,6 +1022,7 @@ class TerminalFrameDiff {
     this.sizedText = const [],
     this.inlineImages = const [],
     this.graphics = const [],
+    this.blocks = const [],
   });
 
   final String frameSchemaVersion;
@@ -987,6 +1059,76 @@ class TerminalFrameDiff {
   final List<TerminalSizedTextPlacement> sizedText;
   final List<TerminalInlineImage> inlineImages;
   final List<TerminalGraphicPlacement> graphics;
+  final List<TerminalBlock> blocks;
+
+  bool get hasExplicitSourceRowMapping =>
+      rows.any((row) => row.sourceRow != null || row.sourceEndRow != null);
+
+  int? mappedSourceRowForViewportRow(int viewportRow) {
+    if (viewportRow < 0) {
+      return null;
+    }
+    for (final row in rows) {
+      if (row.index != viewportRow) {
+        continue;
+      }
+      if (row.sourceRow != null) {
+        return row.sourceRow;
+      }
+      return hasExplicitSourceRowMapping
+          ? null
+          : viewportStartRow + viewportRow;
+    }
+    return hasExplicitSourceRowMapping ? null : viewportStartRow + viewportRow;
+  }
+
+  int? mappedSourceEndRowForViewportRow(int viewportRow) {
+    if (viewportRow < 0) {
+      return null;
+    }
+    for (final row in rows) {
+      if (row.index != viewportRow) {
+        continue;
+      }
+      if (row.sourceEndRow != null || row.sourceRow != null) {
+        return row.sourceEndRow ?? row.sourceRow;
+      }
+      return hasExplicitSourceRowMapping
+          ? null
+          : viewportStartRow + viewportRow;
+    }
+    return hasExplicitSourceRowMapping ? null : viewportStartRow + viewportRow;
+  }
+
+  int sourceRowForViewportRow(int viewportRow) {
+    return mappedSourceRowForViewportRow(viewportRow) ??
+        viewportStartRow + viewportRow.clamp(0, viewportRows).toInt();
+  }
+
+  int sourceEndRowForViewportRow(int viewportRow) {
+    return mappedSourceEndRowForViewportRow(viewportRow) ??
+        viewportStartRow + viewportRow.clamp(0, viewportRows).toInt();
+  }
+
+  int? viewportRowForSourceRow(int sourceRow) {
+    if (sourceRow < 0) {
+      return null;
+    }
+    final explicitMapping = hasExplicitSourceRowMapping;
+    for (final row in rows) {
+      if (explicitMapping &&
+          row.sourceRow == null &&
+          row.sourceEndRow == null) {
+        continue;
+      }
+      final start = row.sourceRow ?? viewportStartRow + row.index;
+      final end = row.sourceEndRow ?? start;
+      if (sourceRow >= start && sourceRow <= end) {
+        return row.index;
+      }
+    }
+    return null;
+  }
 
   static const empty = TerminalFrameDiff(
     frameSchemaVersion: currentFrameSchemaVersion,
@@ -1080,6 +1222,7 @@ class TerminalFrameDiff {
         viewportRows: viewportRows,
         viewportCols: viewportCols,
       ),
+      blocks: _blocksFromJson(json['blocks'], viewportRows),
     );
   }
 
@@ -1140,6 +1283,8 @@ TerminalRow _rowBoundedToViewportCols(TerminalRow row, int viewportCols) {
       text: '',
       wrapped: row.wrapped,
       modifiedAt: row.modifiedAt,
+      sourceRow: row.sourceRow,
+      sourceEndRow: row.sourceEndRow,
     );
   }
 
@@ -1154,6 +1299,8 @@ TerminalRow _rowBoundedToViewportCols(TerminalRow row, int viewportCols) {
     wrapped: row.wrapped,
     modifiedAt: row.modifiedAt,
     styleRuns: row.styleRuns,
+    sourceRow: row.sourceRow,
+    sourceEndRow: row.sourceEndRow,
   );
 }
 
@@ -1290,6 +1437,21 @@ List<TerminalGraphicPlacement> _graphicsFromJson(Object? value) {
   return _jsonListFromJson(value, TerminalGraphicPlacement.tryFromJson);
 }
 
+List<TerminalBlock> _blocksFromJson(Object? value, int viewportRows) {
+  if (viewportRows <= 0) {
+    return const <TerminalBlock>[];
+  }
+  return _jsonListFromJson(value, (json) {
+    final block = TerminalBlock.tryFromJson(json);
+    if (block == null ||
+        block.startRow >= viewportRows ||
+        block.endRow >= viewportRows) {
+      return null;
+    }
+    return block;
+  }, maxEntries: TerminalFrameValidationLimits.maxBlocksPerFrame);
+}
+
 TerminalFrameDiff _terminalFrameDiffFromProtobuf(
   frame_pb.TerminalFrameDiff proto,
 ) {
@@ -1381,6 +1543,11 @@ TerminalFrameDiff _terminalFrameDiffFromProtobuf(
       viewportRows: viewportRows,
       viewportCols: viewportCols,
     ),
+    blocks: _boundedProtobufItems(
+      proto.blocks,
+      (block) => _terminalBlockFromProtobuf(block, viewportRows),
+      maxEntries: TerminalFrameValidationLimits.maxBlocksPerFrame,
+    ),
   );
 }
 
@@ -1429,6 +1596,8 @@ List<TerminalRow> _rowsFromProtobuf(
 }
 
 TerminalRow _terminalRowFromProtobuf(frame_pb.TerminalRow row) {
+  final sourceRow = row.hasSourceRow() ? row.sourceRow : null;
+  final sourceEndRow = row.hasSourceEndRow() ? row.sourceEndRow : null;
   return TerminalRow(
     index: row.index,
     text: row.text,
@@ -1439,7 +1608,34 @@ TerminalRow _terminalRowFromProtobuf(frame_pb.TerminalRow row) {
       _terminalStyleRunFromProtobuf,
       maxEntries: TerminalFrameValidationLimits.maxStyleRunsPerRow,
     ),
+    sourceRow: sourceRow ?? sourceEndRow,
+    sourceEndRow:
+        sourceRow != null && sourceEndRow != null && sourceEndRow < sourceRow
+        ? sourceRow
+        : sourceEndRow ?? sourceRow,
   );
+}
+
+TerminalBlock? _terminalBlockFromProtobuf(
+  frame_pb.TerminalBlock block,
+  int viewportRows,
+) {
+  final decoded = TerminalBlock.tryFromJson(<String, Object?>{
+    'id': block.id,
+    'block_type': block.blockType,
+    'start_row': block.startRow,
+    'end_row': block.endRow,
+    'source_start_row': block.sourceStartRow,
+    'source_end_row': block.sourceEndRow,
+    'folded': block.folded,
+    'hidden_rows': block.hiddenRows,
+  });
+  if (decoded == null ||
+      decoded.startRow >= viewportRows ||
+      decoded.endRow >= viewportRows) {
+    return null;
+  }
+  return decoded;
 }
 
 TerminalStyleRun? _terminalStyleRunFromProtobuf(frame_pb.TerminalStyleRun run) {
@@ -2158,6 +2354,7 @@ class TerminalViewportState {
         sizedText: nextFrame.sizedText,
         inlineImages: mergedInlineImages,
         graphics: mergedGraphics,
+        blocks: _normalizeBlocks(nextFrame.blocks, nextViewportRows),
       ),
     );
   }
@@ -2477,7 +2674,32 @@ TerminalFrameDiff _normalizeSnapshotFrame(
       viewportRows: viewportRows,
       viewportCols: viewportCols,
     ),
+    blocks: _normalizeBlocks(frame.blocks, viewportRows),
   );
+}
+
+List<TerminalBlock> _normalizeBlocks(
+  Iterable<TerminalBlock> blocks,
+  int viewportRows,
+) {
+  if (viewportRows <= 0) {
+    return const <TerminalBlock>[];
+  }
+  return blocks
+      .where(
+        (block) =>
+            block.id.isNotEmpty &&
+            block.id.runes.length <=
+                TerminalFrameValidationLimits.maxBlockIdChars &&
+            block.startRow >= 0 &&
+            block.startRow < viewportRows &&
+            block.endRow >= block.startRow &&
+            block.endRow < viewportRows &&
+            block.sourceStartRow >= 0 &&
+            block.sourceEndRow >= block.sourceStartRow,
+      )
+      .take(TerminalFrameValidationLimits.maxBlocksPerFrame)
+      .toList(growable: false);
 }
 
 List<TerminalDirtyRange> _fullViewportDirtyRanges(int viewportRows) {
@@ -2670,6 +2892,8 @@ List<TerminalRow> _shiftViewportRows({
       wrapped: sourceRow.wrapped,
       modifiedAt: sourceRow.modifiedAt,
       styleRuns: sourceRow.styleRuns,
+      sourceRow: sourceRow.sourceRow,
+      sourceEndRow: sourceRow.sourceEndRow,
     );
   }, growable: false);
 }
@@ -2684,12 +2908,16 @@ TerminalRow _rowWithFallbackModifiedAt(TerminalRow row, DateTime? modifiedAt) {
     wrapped: row.wrapped,
     modifiedAt: modifiedAt,
     styleRuns: row.styleRuns,
+    sourceRow: row.sourceRow,
+    sourceEndRow: row.sourceEndRow,
   );
 }
 
 bool _sameRowVisualContent(TerminalRow left, TerminalRow right) {
   return left.text == right.text &&
       left.wrapped == right.wrapped &&
+      left.sourceRow == right.sourceRow &&
+      left.sourceEndRow == right.sourceEndRow &&
       _sameStyleRuns(left.styleRuns, right.styleRuns);
 }
 

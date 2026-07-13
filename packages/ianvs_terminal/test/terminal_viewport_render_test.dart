@@ -12,6 +12,143 @@ import 'package:ianvs_terminal/src/terminal/render_terminal_viewport.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
 
 void main() {
+  testWidgets('OSC 1337 block toggle is accessible and reports its block', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final toggled = <TerminalBlock>[];
+    final controller = TerminalViewportController()
+      ..updateMeasuredCellSize(const Size(10, 18))
+      ..updateFrame(
+        const TerminalFrameDiff(
+          rows: <TerminalRow>[
+            TerminalRow(
+              index: 0,
+              text: 'first …1 line… last',
+              sourceRow: 100,
+              sourceEndRow: 102,
+            ),
+            TerminalRow(index: 1, text: 'done', sourceRow: 103),
+          ],
+          cursor: TerminalCursor(row: 1, col: 4, visible: true),
+          viewportRows: 4,
+          viewportCols: 40,
+          dirtyRanges: <TerminalDirtyRange>[
+            TerminalDirtyRange(start: 0, end: 4),
+          ],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 10,
+          viewportStartRow: 100,
+          blocks: <TerminalBlock>[
+            TerminalBlock(
+              id: 'build-1',
+              blockType: 'build',
+              startRow: 0,
+              endRow: 0,
+              sourceStartRow: 100,
+              sourceEndRow: 102,
+              folded: true,
+              hiddenRows: 2,
+            ),
+          ],
+        ),
+      );
+    final selectionController = SelectionController();
+    final runtime = TerminalRuntimeController(
+      backend: _NoopPtyBackend(),
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    final inputController = TerminalInputController(
+      sessionId: '1',
+      runtime: runtime,
+      readFrame: () => controller.frame,
+      readSelection: () => '',
+      copySelection: (_) async {},
+      readClipboard: () async => '',
+    );
+    addTearDown(controller.dispose);
+    addTearDown(selectionController.dispose);
+    addTearDown(runtime.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 400,
+            height: 96,
+            child: TerminalViewport(
+              controller: controller,
+              selectionController: selectionController,
+              inputController: inputController,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+              onToggleBlock: toggled.add,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final toggle = find.byKey(terminalBlockToggleKey('build-1'));
+    expect(toggle, findsOneWidget);
+    expect(find.byTooltip('Unfold block'), findsOneWidget);
+    final semanticToggle = find.bySemanticsLabel('Unfold terminal block');
+    expect(semanticToggle, findsOneWidget);
+    expect(
+      tester
+          .getSemantics(semanticToggle)
+          .getSemanticsData()
+          .hasAction(ui.SemanticsAction.tap),
+      isTrue,
+    );
+    final surfaceFinder = find.byWidgetPredicate(
+      (widget) => widget.runtimeType.toString() == '_TerminalViewportSurface',
+    );
+    final renderObject = tester.renderObject<RenderTerminalViewport>(
+      surfaceFinder,
+    );
+
+    await tester.tapAt(
+      renderObject.localToGlobal(
+        Offset(
+          renderObject.debugCellSize.width * 10,
+          renderObject.debugCellSize.height * 3.5,
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(
+      selectionController.selection,
+      isNull,
+      reason: 'projection padding must not select hidden source rows',
+    );
+    expect(toggled, isEmpty);
+
+    await tester.tapAt(
+      renderObject.localToGlobal(
+        Offset(
+          renderObject.debugCellSize.width * 10,
+          renderObject.debugCellSize.height / 2,
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(toggled, hasLength(1));
+    expect(toggled.single.id, 'build-1');
+    toggled.clear();
+
+    await tester.tap(toggle);
+    await tester.pump();
+
+    expect(toggled, hasLength(1));
+    expect(toggled.single.id, 'build-1');
+    expect(toggled.single.folded, isTrue);
+  });
+
   testWidgets(
     'OSC 1337 cursor guide paints the visible cursor row with frame color',
     (tester) async {

@@ -5649,6 +5649,11 @@ void main() {
       );
       final searchResult = runtime.searchTextResult(sessionId, 'demo');
       final clearResult = runtime.clearScrollback(sessionId);
+      final blockResult = runtime.setBlockFolded(
+        sessionId,
+        'build-1',
+        folded: true,
+      );
       final exportText = runtime.exportScrollbackText(sessionId);
       final diagnostics = runtime.exportSessionDiagnostics(sessionId);
       await tester.pump();
@@ -5656,12 +5661,14 @@ void main() {
       expect(selectionText, 'demo');
       expect(searchResult.matches, isEmpty);
       expect(clearResult, isFalse);
+      expect(blockResult, isFalse);
       expect(exportText, isNull);
       expect(diagnostics, isNull);
       expect(backendErrors.map((event) => event.operation), <String>[
         'terminal.selection_text',
         'terminal.search_text',
         'terminal.clear_scrollback',
+        'terminal.set_block_folded',
         'terminal.export_scrollback',
         'terminal.export_diagnostics',
       ]);
@@ -6402,6 +6409,50 @@ void main() {
       'kind': 'terminal.export_scrollback',
       'maxLines': maxTerminalScrollbackLines,
     });
+  });
+
+  testWidgets('terminal runtime toggles OSC 1337 blocks and refreshes frames', (
+    tester,
+  ) async {
+    final runtimeBackend = _FakePtyBackend();
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    await tester.pump();
+    runtimeBackend.jsonRequests.clear();
+    final readsBeforeToggle = runtimeBackend.takeFrameDiffCalls;
+
+    expect(runtime.setBlockFolded(sessionId, 'build-1', folded: false), isTrue);
+    expect(runtimeBackend.jsonRequests.single, <String, Object?>{
+      'kind': 'terminal.set_block_folded',
+      'id': 'build-1',
+      'folded': false,
+    });
+    await tester.pump();
+    expect(runtimeBackend.takeFrameDiffCalls, greaterThan(readsBeforeToggle));
+
+    runtimeBackend
+      ..setBlockFoldedResponse = false
+      ..jsonRequests.clear();
+    final readsBeforeRejectedToggle = runtimeBackend.takeFrameDiffCalls;
+    expect(runtime.setBlockFolded(sessionId, 'missing', folded: true), isFalse);
+    await tester.pump();
+    expect(runtimeBackend.takeFrameDiffCalls, readsBeforeRejectedToggle);
+    expect(runtimeBackend.jsonRequests.single['id'], 'missing');
+
+    runtimeBackend.jsonRequests.clear();
+    expect(runtime.setBlockFolded(sessionId, '', folded: true), isFalse);
+    expect(runtime.setBlockFolded('unknown', 'build-1', folded: true), isFalse);
+    expect(runtimeBackend.jsonRequests, isEmpty);
   });
 
   test('terminal runtime degrades malformed JSON request responses', () {
@@ -9328,6 +9379,7 @@ class _FakePtyBackend
   String selectionResponse = '';
   String? selectionRawResponse;
   String? clearScrollbackRawResponse;
+  bool setBlockFoldedResponse = true;
   String? scrollbackRawResponse;
   Map<String, Object?>? diagnosticsResponse;
   String? diagnosticsRawResponse;
@@ -9476,6 +9528,9 @@ class _FakePtyBackend
       'terminal.clear_scrollback' =>
         clearScrollbackRawResponse ??
             jsonEncode(<String, Object?>{'cleared': true}),
+      'terminal.set_block_folded' => jsonEncode(<String, Object?>{
+        'updated': setBlockFoldedResponse,
+      }),
       'terminal.export_scrollback' =>
         scrollbackRawResponse ??
             jsonEncode(<String, Object?>{'content': 'scrollback text'}),

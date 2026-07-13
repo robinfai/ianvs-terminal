@@ -4,6 +4,7 @@
 //! split across multiple submodules for maintainability.
 
 // Submodules
+pub mod block;
 pub mod clipboard;
 mod color_control;
 mod colors;
@@ -35,6 +36,9 @@ pub mod trigger;
 mod write;
 
 // Re-export types as they're part of the public API
+pub use block::{
+    ItermBlock, MAX_ITERM_BLOCKS, MAX_ITERM_BLOCK_ID_CHARS, MAX_ITERM_BLOCK_TYPE_CHARS,
+};
 pub use clipboard::{
     ClipboardEntry, ClipboardHistoryEntry, ClipboardOperation, ClipboardSlot, ClipboardSyncEvent,
     ClipboardTarget,
@@ -772,6 +776,8 @@ pub struct Terminal {
     pub(crate) alt_screen_active: bool,
     /// Kitty OSC 22 pointer-shape stacks, kept separately per screen.
     pub(crate) pointer_shape_state: pointer_shape::PointerShapeState,
+    /// Primary-screen iTerm2 OSC 1337 block marks and fold state.
+    pub(crate) iterm_blocks: block::ItermBlockState,
     /// Cursor position and state
     pub(crate) cursor: Cursor,
     /// Saved cursor for alternate screen
@@ -1228,6 +1234,7 @@ impl Terminal {
             alt_grid: Grid::new(cols, rows, 0), // Alt screen has no scrollback
             alt_screen_active: false,
             pointer_shape_state: pointer_shape::PointerShapeState::default(),
+            iterm_blocks: block::ItermBlockState::default(),
             cursor: Cursor::new(),
             alt_cursor: Cursor::new(),
             fg: Color::Named(NamedColor::White),
@@ -1569,6 +1576,15 @@ impl Terminal {
 
         let old_cols = self.grid.cols().max(1);
         let old_rows = self.grid.rows().max(1);
+
+        // Block marks store physical row boundaries. Width reflow and height
+        // shrink can split, join, or discard those rows, so direct terminal
+        // consumers must invalidate the marks instead of exposing stale fold
+        // ranges. The native session layer reconstructs them by replaying its
+        // bounded transcript when that is available.
+        if cols != old_cols || rows < old_rows {
+            self.clear_iterm_blocks();
+        }
 
         self.grid.resize(cols, rows);
         self.alt_grid.resize(cols, rows);

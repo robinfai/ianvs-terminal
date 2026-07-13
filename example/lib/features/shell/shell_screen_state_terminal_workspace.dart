@@ -420,6 +420,16 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                                     .read(terminalRuntimeControllerProvider)
                                     .scrollViewportTo(sessionId, offset);
                               },
+                              onToggleBlock: (block) {
+                                selectionController.clear();
+                                ref
+                                    .read(terminalRuntimeControllerProvider)
+                                    .setBlockFolded(
+                                      sessionId,
+                                      block.id,
+                                      folded: !block.folded,
+                                    );
+                              },
                               onOpenLinkTarget: (target) => unawaited(
                                 _openTerminalLinkTarget(sessionId, target),
                               ),

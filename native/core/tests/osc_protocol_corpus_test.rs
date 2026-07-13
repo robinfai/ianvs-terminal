@@ -319,6 +319,22 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
                 );
                 assert_eq!(terminal.cursor().blink_override(), Some(true));
             }
+            "osc1337_blocks" => {
+                assert_eq!(terminal.title(), "osc1337-block-corpus-ok");
+                let blocks = terminal.iterm_blocks();
+                assert_eq!(blocks.len(), 2);
+                let outer = blocks.iter().find(|block| block.id == "outer").unwrap();
+                assert_eq!(outer.block_type.as_deref(), Some("build"));
+                assert_eq!((outer.start_abs_row, outer.end_abs_row), (0, 2));
+                assert!(outer.complete);
+                assert!(outer.folded);
+                assert!(outer.render);
+                let inner = blocks.iter().find(|block| block.id == "inner").unwrap();
+                assert_eq!((inner.start_abs_row, inner.end_abs_row), (1, 2));
+                assert!(inner.complete);
+                assert!(!inner.folded);
+                assert!(!inner.render);
+            }
             "osc133_semantic_prompt_aid" => {
                 let events = terminal.poll_events();
                 assert!(events.iter().any(|event| matches!(

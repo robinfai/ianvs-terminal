@@ -834,6 +834,21 @@ fn osc1337_clear_buffer_profile(emulation: TerminalEmulation) -> TerminalProfile
     )
 }
 
+fn osc1337_block_profile(emulation: TerminalEmulation) -> TerminalProfile {
+    local_profile(
+        "osc1337-block",
+        "OSC1337 Block",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import sys,time; sys.stdout.buffer.write(b"\x1b]1337;Block=id=build-1;attr=start;type=build\x1b\\block-first\nblock-secret\nblock-last\x1b]1337;Block=id=build-1;attr=end;render=1\x1b\\\x1b]1337;UpdateBlock=id=build-1;action=fold\x1b\\\nOSC1337-BLOCK-DONE\n"); sys.stdout.flush(); time.sleep(0.5)'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        emulation,
+    )
+}
+
 fn decscusr_cursor_shape_profile() -> TerminalProfile {
     local_profile(
         "decscusr-cursor-shape",
@@ -18602,6 +18617,182 @@ fn session_osc1337_clear_buffer_clears_scrollback_and_cannot_resurrect_on_resize
         logical_rows_from_frame(&resized)
             .iter()
             .all(|row| !row.contains("OSC1337-OLD-"))
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_osc1337_block_folding_crosses_real_pty_search_selection_and_runtime_requests() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc1337_block_profile(TerminalEmulation::Xterm256)).unwrap(),
+    )
+    .unwrap();
+    session::resize_session(session_id, 80, 6, 0, 0).unwrap();
+
+    let frame = wait_for_frame_where(session_id, |candidate| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(candidate) else {
+            return false;
+        };
+        parsed["blocks"].as_array().is_some_and(|blocks| {
+            blocks
+                .iter()
+                .any(|block| block["id"] == "build-1" && block["folded"] == true)
+        }) && candidate.contains("OSC1337-BLOCK-DONE")
+    });
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let block = parsed["blocks"]
+        .as_array()
+        .and_then(|blocks| blocks.first())
+        .expect("expected folded OSC 1337 block");
+    assert_eq!(block["id"], "build-1");
+    assert_eq!(block["block_type"], "build");
+    assert_eq!(block["start_row"].as_u64(), Some(0));
+    assert_eq!(block["end_row"].as_u64(), Some(0));
+    assert_eq!(block["source_start_row"].as_u64(), Some(0));
+    assert_eq!(block["source_end_row"].as_u64(), Some(2));
+    assert_eq!(block["hidden_rows"].as_u64(), Some(2));
+    let summary = frame_row_at_index(&parsed, 0);
+    assert_eq!(summary["source_row"].as_u64(), Some(0));
+    assert_eq!(summary["source_end_row"].as_u64(), Some(2));
+    let summary_text = summary["text"].as_str().unwrap_or_default();
+    assert!(summary_text.contains("block-first"));
+    assert!(summary_text.contains("1 line"));
+    assert!(summary_text.contains("block-last"));
+    assert!(!frame.contains("block-secret"));
+
+    let search = session::search_session(session_id, "block-secret").unwrap();
+    let matches: serde_json::Value = serde_json::from_str(&search).unwrap();
+    let hidden_match = matches
+        .as_array()
+        .and_then(|entries| entries.first())
+        .expect("hidden block content should remain searchable");
+    assert_eq!(hidden_match["row"].as_u64(), Some(1));
+    assert_eq!(hidden_match["scrollback_offset"].as_u64(), Some(0));
+
+    let selected =
+        session::selection_text_session(session_id, &selection_request(0, 0, 2, 10, false))
+            .unwrap();
+    assert_eq!(selected, "block-first\nblock-secret\nblock-last");
+
+    session::resize_session(session_id, 8, 6, 0, 0).unwrap();
+    let narrow = wait_for_frame_where(session_id, |candidate| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(candidate) else {
+            return false;
+        };
+        parsed["blocks"].as_array().is_some_and(|blocks| {
+            blocks.iter().any(|block| {
+                block["id"] == "build-1"
+                    && block["folded"] == true
+                    && block["source_end_row"].as_u64().unwrap_or_default() > 2
+            })
+        })
+    });
+    let narrow: serde_json::Value = serde_json::from_str(&narrow).unwrap();
+    let narrow_block = narrow["blocks"].as_array().unwrap().first().unwrap();
+    assert!(narrow_block["hidden_rows"].as_u64().unwrap_or_default() > 2);
+
+    session::resize_session(session_id, 80, 6, 0, 0).unwrap();
+    let restored = wait_for_frame_where(session_id, |candidate| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(candidate) else {
+            return false;
+        };
+        parsed["blocks"].as_array().is_some_and(|blocks| {
+            blocks.iter().any(|block| {
+                block["id"] == "build-1"
+                    && block["folded"] == true
+                    && block["source_start_row"] == 0
+                    && block["source_end_row"] == 2
+            })
+        })
+    });
+    assert!(restored.contains("OSC1337-BLOCK-DONE"));
+
+    let unfold_request = serde_json::json!({
+        "kind": "terminal.set_block_folded",
+        "id": "build-1",
+        "folded": false,
+    });
+    let response = session::request_session_json(session_id, &unfold_request.to_string())
+        .unwrap()
+        .expect("expected unfold response");
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&response).unwrap()["updated"],
+        true
+    );
+
+    let unfolded = wait_for_frame_where(session_id, |candidate| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(candidate) else {
+            return false;
+        };
+        candidate.contains("block-secret")
+            && parsed["blocks"].as_array().is_some_and(|blocks| {
+                blocks
+                    .iter()
+                    .any(|block| block["id"] == "build-1" && block["folded"] == false)
+            })
+    });
+    let unfolded: serde_json::Value = serde_json::from_str(&unfolded).unwrap();
+    let block = unfolded["blocks"].as_array().unwrap().first().unwrap();
+    assert_eq!(block["start_row"].as_u64(), Some(0));
+    assert_eq!(block["end_row"].as_u64(), Some(2));
+    assert_eq!(block["hidden_rows"].as_u64(), Some(0));
+
+    let missing_request = serde_json::json!({
+        "kind": "terminal.set_block_folded",
+        "id": "missing",
+        "folded": true,
+    });
+    let response = session::request_session_json(session_id, &missing_request.to_string())
+        .unwrap()
+        .expect("expected missing-block response");
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&response).unwrap()["updated"],
+        false
+    );
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_osc1337_block_source_ranges_have_json_protobuf_parity() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc1337_block_profile(TerminalEmulation::Xterm256)).unwrap(),
+    )
+    .unwrap();
+    session::resize_session(session_id, 80, 6, 0, 0).unwrap();
+
+    let deadline = Instant::now() + Duration::from_secs(3);
+    let decoded = loop {
+        if let Some(bytes) = session::take_frame_diff_protobuf(session_id).unwrap() {
+            let decoded = ianvs_core::frame_diff_proto::decode_frame_diff_for_test(&bytes)
+                .expect("valid protobuf frame");
+            if decoded
+                .blocks
+                .iter()
+                .any(|block| block.id == "build-1" && block.folded)
+            {
+                break decoded;
+            }
+        }
+        assert!(
+            Instant::now() < deadline,
+            "timed out waiting for OSC 1337 block in protobuf frame"
+        );
+        thread::sleep(Duration::from_millis(10));
+    };
+    let block = decoded
+        .blocks
+        .iter()
+        .find(|block| block.id == "build-1")
+        .unwrap();
+    assert_eq!(block.block_type, "build");
+    assert_eq!((block.start_row, block.end_row), (0, 0));
+    assert_eq!((block.source_start_row, block.source_end_row), (0, 2));
+    assert_eq!(block.hidden_rows, 2);
+    let summary = decoded.rows.iter().find(|row| row.index == 0).unwrap();
+    assert_eq!(
+        (summary.source_row, summary.source_end_row),
+        (Some(0), Some(2))
     );
 
     session::close_session(session_id).unwrap();

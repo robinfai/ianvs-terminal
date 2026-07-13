@@ -1297,6 +1297,101 @@ sleep 1
   );
 
   testWidgets(
+    'real PTY iTerm2 OSC 1337 blocks fold and unfold through product controls',
+    (tester) async {
+      final goFile = _tempSignalFile('osc1337-blocks');
+      final profile = _scriptProfile(
+        id: 'osc1337-blocks',
+        name: 'OSC 1337 Blocks',
+        script: r'''
+printf 'osc1337-blocks-ready\n'
+while [ ! -f "$GO_FILE" ]; do sleep 0.05; done
+printf '\033]1337;Block=id=build-acceptance;attr=start;type=build\033\\'
+printf 'BLOCK-FIRST\nBLOCK-SECRET\nBLOCK-LAST'
+printf '\033]1337;Block=id=build-acceptance;attr=end\033\\'
+printf '\033]1337;UpdateBlock=id=build-acceptance;action=fold\033\\'
+printf '\nOSC1337-BLOCKS-DONE\n'
+sleep 5
+''',
+        env: {'GO_FILE': goFile.path},
+      );
+      final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
+
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'OSC 1337 blocks ready marker',
+        matches: (text) => text.contains('osc1337-blocks-ready'),
+      );
+      _signal(goFile);
+
+      await _waitFor(
+        tester,
+        description: 'folded OSC 1337 block product frame',
+        condition: () {
+          final frame = _activeFrame(harness.container);
+          return frame != null &&
+              frame.blocks.any(
+                (block) =>
+                    block.id == 'build-acceptance' &&
+                    block.folded &&
+                    block.hiddenRows == 2,
+              ) &&
+              frame.rows.any(
+                (row) =>
+                    row.text.contains('BLOCK-FIRST') &&
+                    row.text.contains('BLOCK-LAST') &&
+                    row.sourceEndRow != null,
+              ) &&
+              !frame.rows.any((row) => row.text.contains('BLOCK-SECRET'));
+        },
+        onTimeout: () => 'Frame: ${_activeFrame(harness.container)}',
+      );
+
+      final toggle = find.byKey(
+        terminal.terminalBlockToggleKey('build-acceptance'),
+      );
+      expect(toggle, findsOneWidget);
+      expect(find.byTooltip('Unfold block'), findsOneWidget);
+      await tester.tap(toggle);
+      await tester.pump();
+
+      await _waitFor(
+        tester,
+        description: 'unfolded OSC 1337 block product frame',
+        condition: () {
+          final frame = _activeFrame(harness.container);
+          return frame != null &&
+              frame.blocks.any(
+                (block) => block.id == 'build-acceptance' && !block.folded,
+              ) &&
+              frame.rows.any((row) => row.text.contains('BLOCK-SECRET'));
+        },
+        onTimeout: () => 'Frame: ${_activeFrame(harness.container)}',
+      );
+      expect(find.byTooltip('Fold block'), findsOneWidget);
+
+      await tester.tap(toggle);
+      await tester.pump();
+      await _waitFor(
+        tester,
+        description: 're-folded OSC 1337 block product frame',
+        condition: () {
+          final frame = _activeFrame(harness.container);
+          return frame != null &&
+              frame.blocks.any(
+                (block) => block.id == 'build-acceptance' && block.folded,
+              ) &&
+              !frame.rows.any((row) => row.text.contains('BLOCK-SECRET'));
+        },
+        onTimeout: () => 'Frame: ${_activeFrame(harness.container)}',
+      );
+      expect(_terminalText(harness.container), contains('OSC1337-BLOCKS-DONE'));
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
     'real PTY OSC 1337 ClearScrollback clears product rows and history',
     (tester) async {
       final goFile = _tempSignalFile('osc1337-clear-buffer');

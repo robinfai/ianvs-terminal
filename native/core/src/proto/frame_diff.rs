@@ -61,6 +61,8 @@ pub struct TerminalFrameDiff {
     pub tab_color: ::core::option::Option<ColorRgb>,
     #[prost(message, optional, tag = "30")]
     pub cursor_guide_color: ::core::option::Option<ColorRgb>,
+    #[prost(message, repeated, tag = "31")]
+    pub blocks: ::prost::alloc::vec::Vec<TerminalBlock>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TerminalRow {
@@ -74,6 +76,29 @@ pub struct TerminalRow {
     pub modified_at_micros: i64,
     #[prost(message, repeated, tag = "5")]
     pub style_runs: ::prost::alloc::vec::Vec<TerminalStyleRun>,
+    #[prost(uint32, optional, tag = "6")]
+    pub source_row: ::core::option::Option<u32>,
+    #[prost(uint32, optional, tag = "7")]
+    pub source_end_row: ::core::option::Option<u32>,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct TerminalBlock {
+    #[prost(string, tag = "1")]
+    pub id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub block_type: ::prost::alloc::string::String,
+    #[prost(uint32, tag = "3")]
+    pub start_row: u32,
+    #[prost(uint32, tag = "4")]
+    pub end_row: u32,
+    #[prost(uint32, tag = "5")]
+    pub source_start_row: u32,
+    #[prost(uint32, tag = "6")]
+    pub source_end_row: u32,
+    #[prost(bool, tag = "7")]
+    pub folded: bool,
+    #[prost(uint32, tag = "8")]
+    pub hidden_rows: u32,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct TerminalStyleRun {

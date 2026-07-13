@@ -705,8 +705,10 @@ class RenderTerminalViewport extends RenderBox {
           match.text.isEmpty) {
         continue;
       }
-      final relativeRow = match.row - frame.viewportStartRow;
-      if (relativeRow < 0 || relativeRow >= frame.viewportRows) {
+      final relativeRow = frame.viewportRowForSourceRow(match.row);
+      if (relativeRow == null ||
+          relativeRow < 0 ||
+          relativeRow >= frame.viewportRows) {
         continue;
       }
       final startCol = match.startCol.clamp(0, frame.viewportCols).toInt();

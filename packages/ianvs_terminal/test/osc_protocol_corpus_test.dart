@@ -39,6 +39,9 @@ const Set<String> _requiredCoverage = <String>{
   'iTerm2 OSC 1337 annotations',
   'iTerm2 visible and hidden annotations',
   'iTerm2 annotation coordinate range',
+  'iTerm2 OSC 1337 block lifecycle',
+  'iTerm2 OSC 1337 nested block folding',
+  'iTerm2 OSC 1337 block update no-op safety',
   'OSC 3008 hierarchy',
   'OSC 3008 malformed close recovery',
   'tmux passthrough fixture',
@@ -201,6 +204,15 @@ void _validateFixture(String id, Map<String, Object?> fixture) {
     expect(text, contains('\x1b[4 q'));
     expect(text, contains('\x1b[0 q'));
     expect(text, endsWith('\x1b]1337;CursorShape=9\x07'));
+  } else if (id == 'osc1337_blocks') {
+    final text = latin1.decode(stream);
+    expect(RegExp(r'\x1b]1337;Block=').allMatches(text), hasLength(4));
+    expect(RegExp(r'\x1b]1337;UpdateBlock=').allMatches(text), hasLength(2));
+    expect(text, contains('Block=id=outer;attr=start;type=build'));
+    expect(text, contains('Block=id=outer;attr=end;render=1'));
+    expect(text, contains('UpdateBlock=id=outer;action=fold'));
+    expect(text, contains('UpdateBlock=id=missing;action=unfold'));
+    expect(text, endsWith('\x1b]2;osc1337-block-corpus-ok\x1b\\'));
   } else if (id == 'osc133_semantic_prompt_aid') {
     final text = latin1.decode(stream);
     expect(RegExp(r'\x1b]133;').allMatches(text), hasLength(5));

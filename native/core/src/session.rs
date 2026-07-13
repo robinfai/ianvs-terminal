@@ -1,10 +1,10 @@
 use crate::frame_diff_proto;
 use crate::model::{
-    MAX_SCROLLBACK_LINES, TERMINAL_FRAME_SCHEMA_VERSION, TerminalCursor, TerminalCursorShape,
-    TerminalDirtyRange, TerminalEmulation, TerminalEvent, TerminalFrameDiff, TerminalFrameKind,
-    TerminalFrameModes, TerminalGraphicPlacement, TerminalHyperlinkRange, TerminalProfile,
-    TerminalProfileAnsiColors, TerminalProfileColors, TerminalRow, TerminalSearchMatch,
-    TerminalSelectionRequest, TerminalSizedTextPlacement, TerminalStyleRun,
+    MAX_SCROLLBACK_LINES, TERMINAL_FRAME_SCHEMA_VERSION, TerminalBlock, TerminalCursor,
+    TerminalCursorShape, TerminalDirtyRange, TerminalEmulation, TerminalEvent, TerminalFrameDiff,
+    TerminalFrameKind, TerminalFrameModes, TerminalGraphicPlacement, TerminalHyperlinkRange,
+    TerminalProfile, TerminalProfileAnsiColors, TerminalProfileColors, TerminalRow,
+    TerminalSearchMatch, TerminalSelectionRequest, TerminalSizedTextPlacement, TerminalStyleRun,
     normalize_scrollback_lines,
 };
 use crate::pty::spawn_pty;
@@ -21,6 +21,7 @@ use par_term_emu_core_rust::terminal::{
     OscCapability, Terminal, TerminalDamage, TerminalEvent as ParserTerminalEvent,
     TerminalProcessDebugStats, snapshot::ExportFormat,
 };
+use par_term_emu_core_rust::{WidthConfig, str_width};
 use parking_lot::Mutex;
 use regex::RegexBuilder;
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
@@ -398,6 +399,74 @@ struct CachedFrameMeta {
     modes: TerminalFrameModes,
     window_title: Option<String>,
     window_icon_name: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+enum DisplayProjectionRow {
+    Source(usize),
+    FoldSummary(usize),
+}
+
+#[derive(Clone, Debug)]
+struct CollapsedBlockRange {
+    id: String,
+    source_start_row: usize,
+    source_end_row: usize,
+    has_summary: bool,
+}
+
+#[derive(Clone, Debug)]
+struct DisplayProjection {
+    rows: Vec<DisplayProjectionRow>,
+    collapsed: Vec<CollapsedBlockRange>,
+}
+
+impl DisplayProjection {
+    fn identity(total_rows: usize) -> Self {
+        Self {
+            rows: (0..total_rows).map(DisplayProjectionRow::Source).collect(),
+            collapsed: Vec::new(),
+        }
+    }
+
+    fn has_folds(&self) -> bool {
+        !self.collapsed.is_empty()
+    }
+
+    fn source_range(&self, row: &DisplayProjectionRow) -> (usize, usize) {
+        match row {
+            DisplayProjectionRow::Source(source) => (*source, *source),
+            DisplayProjectionRow::FoldSummary(index) => {
+                let range = &self.collapsed[*index];
+                (range.source_start_row, range.source_end_row)
+            }
+        }
+    }
+
+    fn display_index_for_source(&self, source_row: usize) -> Option<usize> {
+        let index = self.rows.partition_point(|row| {
+            let (_, end) = self.source_range(row);
+            end < source_row
+        });
+        self.rows.get(index).and_then(|row| {
+            let (start, end) = self.source_range(row);
+            (source_row >= start && source_row <= end).then_some(index)
+        })
+    }
+
+    fn summary_id_for_source(&self, source_row: usize) -> Option<&str> {
+        let index = self.display_index_for_source(source_row)?;
+        let DisplayProjectionRow::FoldSummary(range_index) = self.rows.get(index)? else {
+            return None;
+        };
+        Some(self.collapsed[*range_index].id.as_str())
+    }
+
+    fn intersects_collapsed_range(&self, start_row: usize, end_row_exclusive: usize) -> bool {
+        self.collapsed.iter().any(|range| {
+            start_row <= range.source_end_row && end_row_exclusive > range.source_start_row
+        })
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -2597,6 +2666,34 @@ impl TerminalSession {
         Ok(true)
     }
 
+    pub fn set_block_folded(&self, id: &str, folded: bool) -> bool {
+        if id.is_empty()
+            || id.chars().count() > par_term_emu_core_rust::terminal::MAX_ITERM_BLOCK_ID_CHARS
+            || id.chars().any(char::is_control)
+        {
+            return false;
+        }
+        let mut state = self.state.lock();
+        let changed = state.terminal.set_iterm_block_folded(id, folded);
+        if changed {
+            let max_offset = current_scrollback_max(&state);
+            state.scrollback_offset = state.scrollback_offset.min(max_offset);
+        }
+        drop(state);
+        if changed {
+            self.last_rows.lock().clear();
+            *self.last_frame_meta.lock() = None;
+            self.pending_frame_signal.mutate(|work| {
+                work.mark_full_repaint(if folded {
+                    "iterm_block_fold_request"
+                } else {
+                    "iterm_block_unfold_request"
+                })
+            });
+        }
+        changed
+    }
+
     pub fn export_scrollback_text(&self, max_lines: Option<usize>) -> String {
         let state = self.state.lock();
         state
@@ -2641,6 +2738,7 @@ impl TerminalSession {
             state.scrollback_offset = state.scrollback_offset.min(scrollback_max_offset);
         }
         let terminal = &state.terminal;
+        let display_projection = display_projection_for_terminal(terminal);
         let theme = terminal_theme_snapshot(terminal);
         let (viewport_cols, viewport_rows) = terminal.size();
         let global_bottom_row = u64::try_from(terminal.grid().total_lines_scrolled())
@@ -2701,17 +2799,35 @@ impl TerminalSession {
         } else {
             None
         };
-        let viewport_start_row = if alt_screen_active {
+        let viewport_display_start_row = if alt_screen_active {
             0
         } else {
             scrollback_max_offset.saturating_sub(state.scrollback_offset)
         };
+        let viewport_start_row = display_projection
+            .rows
+            .get(viewport_display_start_row)
+            .map(|row| display_projection.source_range(row).0)
+            .unwrap_or(0);
         let scrollback_len = if alt_screen_active {
             0
         } else {
             terminal.grid().scrollback_len()
         };
-        let cursor_snapshot = terminal_cursor_snapshot(terminal, cursor);
+        let mut cursor_snapshot = terminal_cursor_snapshot(terminal, cursor);
+        if display_projection.has_folds() && !alt_screen_active {
+            let cursor_source_row = scrollback_len.saturating_add(cursor.row);
+            match display_projection.display_index_for_source(cursor_source_row) {
+                Some(display_row)
+                    if display_row >= viewport_display_start_row
+                        && display_row
+                            < viewport_display_start_row.saturating_add(viewport_rows) =>
+                {
+                    cursor_snapshot.row = display_row.saturating_sub(viewport_display_start_row);
+                }
+                _ => cursor_snapshot.visible = false,
+            }
+        }
         let (signal_was_dirty, refresh_hint_was_dirty, pending_frame_work) =
             self.pending_frame_signal.take();
         had_dirty_work = signal_was_dirty || synchronized_timeout_flushed;
@@ -2755,12 +2871,16 @@ impl TerminalSession {
             window_title: window_title.clone(),
             window_icon_name: window_icon_name.clone(),
         };
-        let snapshot_fallback_reason = snapshot_fallback_reason(
-            &pending_frame_work,
-            &last_rows,
-            last_frame_meta.as_ref(),
-            &frame_meta,
-        );
+        let snapshot_fallback_reason = if display_projection.has_folds() {
+            Some("iterm_block_projection".to_string())
+        } else {
+            snapshot_fallback_reason(
+                &pending_frame_work,
+                &last_rows,
+                last_frame_meta.as_ref(),
+                &frame_meta,
+            )
+        };
         let frame_kind = if snapshot_fallback_reason.is_some() {
             TerminalFrameKind::Snapshot
         } else {
@@ -2778,7 +2898,23 @@ impl TerminalSession {
         };
         let (rows, hyperlinks, current_rows, dirty_ranges, rows_scanned, rows_emitted) =
             if frame_kind == TerminalFrameKind::Snapshot {
-                build_snapshot_frame(terminal, self.emulation, viewport_start_row, viewport_rows)
+                if display_projection.has_folds() {
+                    build_projected_snapshot_frame(
+                        terminal,
+                        self.emulation,
+                        &display_projection,
+                        viewport_display_start_row,
+                        viewport_rows,
+                        viewport_cols,
+                    )
+                } else {
+                    build_snapshot_frame(
+                        terminal,
+                        self.emulation,
+                        viewport_start_row,
+                        viewport_rows,
+                    )
+                }
             } else {
                 build_delta_frame(DeltaFrameContext {
                     terminal,
@@ -2797,9 +2933,10 @@ impl TerminalSession {
                 let active_graphics_count = terminal.graphics_count();
                 let scrollback_graphics_count = terminal.scrollback_graphics_count();
                 let asset_snapshots = graphic_asset_snapshots(terminal);
-                let placements = build_graphic_placements(
+                let placements = build_projected_graphic_placements(
                     terminal,
-                    viewport_start_row,
+                    &display_projection,
+                    viewport_display_start_row,
                     viewport_rows,
                     scrollback_len,
                     alt_screen_active,
@@ -2815,10 +2952,21 @@ impl TerminalSession {
                 (Vec::new(), 0, 0, Vec::new())
             };
         let sized_text = if self.emulation == TerminalEmulation::Xterm256 {
-            build_sized_text_placements(terminal, viewport_start_row, viewport_rows)
+            build_projected_sized_text_placements(
+                terminal,
+                &display_projection,
+                viewport_display_start_row,
+                viewport_rows,
+            )
         } else {
             Vec::new()
         };
+        let blocks = build_terminal_blocks(
+            terminal,
+            &display_projection,
+            viewport_display_start_row,
+            viewport_rows,
+        );
         let graphic_placements_count = graphics.len();
         if self.should_defer_kitty_delete_graphics_frame(
             terminal,
@@ -2907,6 +3055,7 @@ impl TerminalSession {
             hyperlinks,
             sized_text,
             graphics,
+            blocks,
         }))
     }
 
@@ -3077,8 +3226,13 @@ impl TerminalSession {
             let grid = terminal.grid();
             let scrollback_len = grid.scrollback_len();
             let total_lines = scrollback_len + viewport_rows;
+            let projection = display_projection_for_terminal(terminal);
+            let display_max_offset = projection.rows.len().saturating_sub(viewport_rows);
 
             for visible_index in 0..total_lines {
+                let Some(display_index) = projection.display_index_for_source(visible_index) else {
+                    continue;
+                };
                 let extracted = if visible_index < scrollback_len {
                     extract_row(
                         grid.scrollback_line(visible_index),
@@ -3097,7 +3251,7 @@ impl TerminalSession {
                     row: visible_index,
                     text: extracted.text,
                     wrapped: extracted.wrapped,
-                    scrollback_offset: total_lines.saturating_sub(viewport_rows + visible_index),
+                    scrollback_offset: display_max_offset.saturating_sub(display_index),
                 });
             }
         }
@@ -4307,11 +4461,29 @@ fn extract_viewport_row(
     viewport_start_row: usize,
     viewport_row: usize,
 ) -> ExtractedVisibleRow {
+    let mut extracted = extract_source_row(
+        terminal,
+        emulation,
+        viewport_start_row.saturating_add(viewport_row),
+        viewport_row,
+    );
+    // Contiguous frames retain the legacy compact representation. Explicit
+    // source bounds are emitted only by the non-contiguous fold projection.
+    extracted.row.source_row = None;
+    extracted.row.source_end_row = None;
+    extracted
+}
+
+fn extract_source_row(
+    terminal: &Terminal,
+    emulation: TerminalEmulation,
+    source_row: usize,
+    viewport_row: usize,
+) -> ExtractedVisibleRow {
     let theme = terminal_theme_snapshot(terminal);
-    let absolute_visible_index = viewport_start_row.saturating_add(viewport_row);
-    let (cells, wrapped) = row_cells_for_visible_index(terminal, absolute_visible_index);
-    let continues_from_previous = absolute_visible_index > 0
-        && row_cells_for_visible_index(terminal, absolute_visible_index - 1).1;
+    let (cells, wrapped) = row_cells_for_visible_index(terminal, source_row);
+    let continues_from_previous =
+        source_row > 0 && row_cells_for_visible_index(terminal, source_row - 1).1;
     let extracted = extract_row(cells, wrapped, &theme);
     let hyperlinks = if emulation == TerminalEmulation::Xterm256 {
         extract_hyperlinks_for_row(terminal, cells, viewport_row)
@@ -4325,10 +4497,249 @@ fn extract_viewport_row(
             text: extracted.text,
             wrapped: extracted.wrapped,
             style_runs: extracted.style_runs,
+            source_row: Some(source_row),
+            source_end_row: Some(source_row),
         },
         continues_from_previous,
         hyperlinks,
     }
+}
+
+fn build_projected_snapshot_frame(
+    terminal: &Terminal,
+    emulation: TerminalEmulation,
+    projection: &DisplayProjection,
+    display_start_row: usize,
+    viewport_rows: usize,
+    viewport_cols: usize,
+) -> (
+    Vec<TerminalRow>,
+    Vec<TerminalHyperlinkRange>,
+    Vec<CachedRowState>,
+    Vec<TerminalDirtyRange>,
+    usize,
+    usize,
+) {
+    let mut rows = Vec::with_capacity(viewport_rows);
+    let mut hyperlinks = Vec::new();
+    let mut current_rows = Vec::with_capacity(viewport_rows);
+    for viewport_row in 0..viewport_rows {
+        let display_row = display_start_row.saturating_add(viewport_row);
+        let extracted = match projection.rows.get(display_row) {
+            Some(DisplayProjectionRow::Source(source_row)) => {
+                extract_source_row(terminal, emulation, *source_row, viewport_row)
+            }
+            Some(DisplayProjectionRow::FoldSummary(range_index)) => extract_fold_summary_row(
+                terminal,
+                &projection.collapsed[*range_index],
+                viewport_row,
+                viewport_cols,
+            ),
+            None => ExtractedVisibleRow {
+                row: TerminalRow {
+                    index: viewport_row,
+                    text: String::new(),
+                    wrapped: false,
+                    style_runs: Vec::new(),
+                    source_row: None,
+                    source_end_row: None,
+                },
+                continues_from_previous: false,
+                hyperlinks: Vec::new(),
+            },
+        };
+        current_rows.push(cached_row_state_for(&extracted));
+        hyperlinks.extend(extracted.hyperlinks.clone());
+        rows.push(extracted.row);
+    }
+    let dirty_ranges = if viewport_rows == 0 {
+        Vec::new()
+    } else {
+        vec![TerminalDirtyRange {
+            start: 0,
+            end: viewport_rows,
+        }]
+    };
+    (
+        rows,
+        hyperlinks,
+        current_rows,
+        dirty_ranges,
+        viewport_rows,
+        viewport_rows,
+    )
+}
+
+fn build_terminal_blocks(
+    terminal: &Terminal,
+    projection: &DisplayProjection,
+    display_start_row: usize,
+    viewport_rows: usize,
+) -> Vec<TerminalBlock> {
+    if terminal.is_alt_screen_active() || viewport_rows == 0 {
+        return Vec::new();
+    }
+    let grid = terminal.grid();
+    let scrollback_len = grid.scrollback_len();
+    let total_rows = scrollback_len.saturating_add(grid.rows());
+    if total_rows == 0 {
+        return Vec::new();
+    }
+    let first_retained_abs_row = grid.total_lines_scrolled().saturating_sub(scrollback_len);
+    let last_retained_abs_row = first_retained_abs_row.saturating_add(total_rows - 1);
+    let display_end_row = display_start_row.saturating_add(viewport_rows);
+    let mut blocks = terminal
+        .iterm_blocks()
+        .iter()
+        .filter(|block| block.complete && block.end_abs_row > block.start_abs_row)
+        .filter(|block| {
+            block.end_abs_row >= first_retained_abs_row
+                && block.start_abs_row <= last_retained_abs_row
+        })
+        .filter_map(|block| {
+            let source_start_row = block
+                .start_abs_row
+                .saturating_sub(first_retained_abs_row)
+                .min(total_rows - 1);
+            let source_end_row = block
+                .end_abs_row
+                .saturating_sub(first_retained_abs_row)
+                .min(total_rows - 1);
+            if projection
+                .summary_id_for_source(source_start_row)
+                .is_some_and(|summary_id| summary_id != block.id)
+            {
+                return None;
+            }
+            let start_display_row = projection.display_index_for_source(source_start_row)?;
+            let end_display_row = projection.display_index_for_source(source_end_row)?;
+            if end_display_row < display_start_row || start_display_row >= display_end_row {
+                return None;
+            }
+            Some(TerminalBlock {
+                id: block.id.clone(),
+                block_type: block.block_type.clone(),
+                start_row: start_display_row
+                    .max(display_start_row)
+                    .saturating_sub(display_start_row),
+                end_row: end_display_row
+                    .min(display_end_row.saturating_sub(1))
+                    .saturating_sub(display_start_row),
+                source_start_row,
+                source_end_row,
+                folded: block.folded,
+                hidden_rows: if block.folded {
+                    source_end_row.saturating_sub(source_start_row)
+                } else {
+                    0
+                },
+            })
+        })
+        .collect::<Vec<_>>();
+    blocks.sort_by(|left, right| {
+        left.start_row
+            .cmp(&right.start_row)
+            .then_with(|| left.end_row.cmp(&right.end_row).reverse())
+            .then_with(|| left.id.cmp(&right.id))
+    });
+    blocks
+}
+
+fn extract_fold_summary_row(
+    terminal: &Terminal,
+    range: &CollapsedBlockRange,
+    viewport_row: usize,
+    viewport_cols: usize,
+) -> ExtractedVisibleRow {
+    let theme = terminal_theme_snapshot(terminal);
+    let first = extract_row(
+        row_cells_for_visible_index(terminal, range.source_start_row).0,
+        false,
+        &theme,
+    );
+    let last = extract_row(
+        row_cells_for_visible_index(terminal, range.source_end_row).0,
+        false,
+        &theme,
+    );
+    let interior_rows = range
+        .source_end_row
+        .saturating_sub(range.source_start_row)
+        .saturating_sub(1);
+    let text = fold_summary_text(
+        &first.text,
+        &last.text,
+        interior_rows,
+        viewport_cols,
+        terminal.width_config(),
+    );
+    let width = str_width(&text, terminal.width_config());
+    let style_runs = (!text.is_empty()).then_some(TerminalStyleRun {
+        start: 0,
+        end: width,
+        foreground: None,
+        background: None,
+        underline_color: None,
+        bold: false,
+        dim: true,
+        italic: true,
+        underline: false,
+        blink: false,
+        inverse: false,
+    });
+    ExtractedVisibleRow {
+        row: TerminalRow {
+            index: viewport_row,
+            text,
+            wrapped: false,
+            style_runs: style_runs.into_iter().collect(),
+            source_row: Some(range.source_start_row),
+            source_end_row: Some(range.source_end_row),
+        },
+        continues_from_previous: false,
+        hyperlinks: Vec::new(),
+    }
+}
+
+fn fold_summary_text(
+    first: &str,
+    last: &str,
+    interior_rows: usize,
+    cols: usize,
+    width_config: &WidthConfig,
+) -> String {
+    if cols == 0 {
+        return String::new();
+    }
+    let mut middle = format!(
+        " …{interior_rows} line{}… ",
+        if interior_rows == 1 { "" } else { "s" }
+    );
+    if str_width(&middle, width_config) + 10 > cols {
+        middle = "…".to_string();
+    }
+    let middle_width = str_width(&middle, width_config);
+    if middle_width >= cols {
+        return truncate_to_display_width(&middle, cols, width_config);
+    }
+    let remaining = cols - middle_width;
+    let first_budget = remaining.div_ceil(2);
+    let last_budget = remaining / 2;
+    let first = truncate_to_display_width(first.trim_end(), first_budget, width_config);
+    let last = truncate_to_display_width(last.trim(), last_budget, width_config);
+    format!("{first}{middle}{last}")
+}
+
+fn truncate_to_display_width(value: &str, max_width: usize, width_config: &WidthConfig) -> String {
+    let mut output = String::new();
+    for character in value.chars() {
+        output.push(character);
+        if str_width(&output, width_config) > max_width {
+            output.pop();
+            break;
+        }
+    }
+    output
 }
 
 fn shift_cached_rows(
@@ -4547,6 +4958,78 @@ fn build_graphic_placements(
     );
 
     placements
+}
+
+fn projection_source_span(
+    projection: &DisplayProjection,
+    display_start_row: usize,
+    viewport_rows: usize,
+) -> Option<(usize, usize)> {
+    let mut ranges = projection
+        .rows
+        .iter()
+        .skip(display_start_row)
+        .take(viewport_rows)
+        .map(|row| projection.source_range(row));
+    let first = ranges.next()?;
+    Some(ranges.fold(first, |(start, end), (next_start, next_end)| {
+        (start.min(next_start), end.max(next_end))
+    }))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_projected_graphic_placements(
+    terminal: &Terminal,
+    projection: &DisplayProjection,
+    display_start_row: usize,
+    viewport_rows: usize,
+    scrollback_len: usize,
+    alt_screen_active: bool,
+    include_pending_cleared_kitty: bool,
+) -> Vec<TerminalGraphicPlacement> {
+    if !projection.has_folds() {
+        return build_graphic_placements(
+            terminal,
+            display_start_row,
+            viewport_rows,
+            scrollback_len,
+            alt_screen_active,
+            include_pending_cleared_kitty,
+        );
+    }
+    let Some((source_start_row, source_end_row)) =
+        projection_source_span(projection, display_start_row, viewport_rows)
+    else {
+        return Vec::new();
+    };
+    let physical_rows = source_end_row
+        .saturating_sub(source_start_row)
+        .saturating_add(1);
+    build_graphic_placements(
+        terminal,
+        source_start_row,
+        physical_rows,
+        scrollback_len,
+        alt_screen_active,
+        include_pending_cleared_kitty,
+    )
+    .into_iter()
+    .filter_map(|mut placement| {
+        let source_row = source_start_row.saturating_add(placement.row);
+        let source_end_exclusive = source_row.saturating_add(placement.height_cells.max(1));
+        if projection.intersects_collapsed_range(source_row, source_end_exclusive) {
+            return None;
+        }
+        let display_row = projection.display_index_for_source(source_row)?;
+        if display_row < display_start_row
+            || display_row >= display_start_row.saturating_add(viewport_rows)
+        {
+            return None;
+        }
+        placement.row = display_row.saturating_sub(display_start_row);
+        Some(placement)
+    })
+    .collect()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -5258,6 +5741,43 @@ fn build_sized_text_placements(
     placements
 }
 
+fn build_projected_sized_text_placements(
+    terminal: &Terminal,
+    projection: &DisplayProjection,
+    display_start_row: usize,
+    viewport_rows: usize,
+) -> Vec<TerminalSizedTextPlacement> {
+    if !projection.has_folds() {
+        return build_sized_text_placements(terminal, display_start_row, viewport_rows);
+    }
+    let Some((source_start_row, source_end_row)) =
+        projection_source_span(projection, display_start_row, viewport_rows)
+    else {
+        return Vec::new();
+    };
+    let physical_rows = source_end_row
+        .saturating_sub(source_start_row)
+        .saturating_add(1);
+    build_sized_text_placements(terminal, source_start_row, physical_rows)
+        .into_iter()
+        .filter_map(|mut placement| {
+            let source_row = source_start_row.saturating_add(placement.row);
+            let source_end_exclusive = source_row.saturating_add(placement.height_cells.max(1));
+            if projection.intersects_collapsed_range(source_row, source_end_exclusive) {
+                return None;
+            }
+            let display_row = projection.display_index_for_source(source_row)?;
+            if display_row < display_start_row
+                || display_row >= display_start_row.saturating_add(viewport_rows)
+            {
+                return None;
+            }
+            placement.row = display_row.saturating_sub(display_start_row);
+            Some(placement)
+        })
+        .collect()
+}
+
 fn scroll_region_covers_full_active_screen(
     scroll_region: &PendingScrollRegion,
     viewport_rows: usize,
@@ -5857,11 +6377,94 @@ fn normalize_responses(emulation: TerminalEmulation, responses: Vec<u8>) -> Vec<
         .into_bytes()
 }
 
+fn display_projection_for_terminal(terminal: &Terminal) -> DisplayProjection {
+    let (_, viewport_rows) = terminal.size();
+    if terminal.is_alt_screen_active() {
+        return DisplayProjection::identity(viewport_rows);
+    }
+
+    let grid = terminal.grid();
+    let scrollback_len = grid.scrollback_len();
+    let total_rows = scrollback_len.saturating_add(viewport_rows);
+    if total_rows == 0 {
+        return DisplayProjection::identity(0);
+    }
+    let first_retained_abs_row = grid.total_lines_scrolled().saturating_sub(scrollback_len);
+    let last_retained_abs_row = first_retained_abs_row.saturating_add(total_rows - 1);
+    let mut collapsed = terminal
+        .iterm_blocks()
+        .iter()
+        .filter(|block| block.complete && block.folded && block.end_abs_row > block.start_abs_row)
+        .filter(|block| {
+            block.end_abs_row >= first_retained_abs_row
+                && block.start_abs_row <= last_retained_abs_row
+        })
+        .map(|block| CollapsedBlockRange {
+            id: block.id.clone(),
+            source_start_row: block
+                .start_abs_row
+                .saturating_sub(first_retained_abs_row)
+                .min(total_rows - 1),
+            source_end_row: block
+                .end_abs_row
+                .saturating_sub(first_retained_abs_row)
+                .min(total_rows - 1),
+            has_summary: block.start_abs_row >= first_retained_abs_row,
+        })
+        .collect::<Vec<_>>();
+    collapsed.sort_by(|left, right| {
+        left.source_start_row
+            .cmp(&right.source_start_row)
+            .then_with(|| right.source_end_row.cmp(&left.source_end_row))
+            .then_with(|| left.id.cmp(&right.id))
+    });
+
+    let mut merged: Vec<CollapsedBlockRange> = Vec::with_capacity(collapsed.len());
+    for candidate in collapsed {
+        if let Some(previous) = merged.last_mut()
+            && candidate.source_start_row <= previous.source_end_row
+        {
+            previous.source_end_row = previous.source_end_row.max(candidate.source_end_row);
+            continue;
+        }
+        merged.push(candidate);
+    }
+    if merged.is_empty() {
+        return DisplayProjection::identity(total_rows);
+    }
+
+    let mut rows = Vec::with_capacity(total_rows);
+    let mut source_row = 0usize;
+    for (range_index, range) in merged.iter().enumerate() {
+        while source_row < range.source_start_row {
+            rows.push(DisplayProjectionRow::Source(source_row));
+            source_row += 1;
+        }
+        if range.has_summary {
+            rows.push(DisplayProjectionRow::FoldSummary(range_index));
+        }
+        source_row = range.source_end_row.saturating_add(1);
+    }
+    while source_row < total_rows {
+        rows.push(DisplayProjectionRow::Source(source_row));
+        source_row += 1;
+    }
+
+    DisplayProjection {
+        rows,
+        collapsed: merged,
+    }
+}
+
 fn current_scrollback_max(state: &TerminalState) -> usize {
     if state.terminal.is_alt_screen_active() {
         0
     } else {
-        state.terminal.grid().scrollback_len()
+        let (_, viewport_rows) = state.terminal.size();
+        display_projection_for_terminal(&state.terminal)
+            .rows
+            .len()
+            .saturating_sub(viewport_rows)
     }
 }
 
@@ -6389,6 +6992,18 @@ pub fn request_session_json(
                 .map_err(|error| SessionError::Serialize(error.to_string()))
         }
         "terminal.clear_scrollback" => clear_scrollback_session(session_id).map(Some),
+        "terminal.set_block_folded" => {
+            let Some(id) = request.get("id").and_then(serde_json::Value::as_str) else {
+                return Ok(None);
+            };
+            let Some(folded) = request.get("folded").and_then(serde_json::Value::as_bool) else {
+                return Ok(None);
+            };
+            let updated = STORE.get(session_id)?.set_block_folded(id, folded);
+            serde_json::to_string(&serde_json::json!({ "updated": updated }))
+                .map(Some)
+                .map_err(|error| SessionError::Serialize(error.to_string()))
+        }
         "terminal.export_scrollback" => {
             let max_lines = scrollback_export_max_lines_from_request(&request);
             export_scrollback_session(session_id, max_lines).map(Some)
@@ -6532,6 +7147,104 @@ mod tests {
             kind: kind.to_string(),
             session_id: 42,
             payload,
+        }
+    }
+
+    #[test]
+    fn iterm_block_projection_collapses_to_a_mapped_summary_and_pads_the_viewport() {
+        let mut terminal = Terminal::with_scrollback(24, 6, 32);
+        terminal.process(b"\x1b]1337;Block=id=build;attr=start;type=test\x07");
+        terminal.process(b"first\r\ninterior\r\nlast");
+        terminal.process(b"\x1b]1337;Block=id=build;attr=end\x07");
+        terminal.process(b"\x1b]1337;UpdateBlock=id=build;action=fold\x07");
+
+        let projection = display_projection_for_terminal(&terminal);
+        assert!(projection.has_folds());
+        assert_eq!(projection.rows.len(), 4);
+        assert_eq!(projection.display_index_for_source(0), Some(0));
+        assert_eq!(projection.display_index_for_source(2), Some(0));
+        assert_eq!(projection.display_index_for_source(3), Some(1));
+
+        let (rows, hyperlinks, _, dirty, _, _) = build_projected_snapshot_frame(
+            &terminal,
+            TerminalEmulation::Xterm256,
+            &projection,
+            0,
+            6,
+            24,
+        );
+        assert!(hyperlinks.is_empty());
+        assert_eq!(dirty.len(), 1);
+        assert_eq!((dirty[0].start, dirty[0].end), (0, 6));
+        assert!(rows[0].text.contains("first"));
+        assert!(rows[0].text.contains("…1 line…"));
+        assert_eq!(
+            (rows[0].source_row, rows[0].source_end_row),
+            (Some(0), Some(2))
+        );
+        assert_eq!(
+            (rows[1].source_row, rows[1].source_end_row),
+            (Some(3), Some(3))
+        );
+        assert_eq!((rows[5].source_row, rows[5].source_end_row), (None, None));
+
+        let blocks = build_terminal_blocks(&terminal, &projection, 0, 6);
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].id, "build");
+        assert_eq!((blocks[0].start_row, blocks[0].end_row), (0, 0));
+        assert_eq!(blocks[0].hidden_rows, 2);
+    }
+
+    #[test]
+    fn nested_fold_projection_uses_outer_summary_and_unfold_restores_identity_rows() {
+        let mut terminal = Terminal::with_scrollback(20, 6, 32);
+        terminal.process(b"\x1b]1337;Block=id=outer;attr=start\x07outer\r\n");
+        terminal.process(b"\x1b]1337;Block=id=inner;attr=start\x07inner\r\ninner-end");
+        terminal.process(b"\x1b]1337;Block=id=inner;attr=end\x07\r\nouter-end");
+        terminal.process(b"\x1b]1337;Block=id=outer;attr=end\x07");
+        terminal.process(b"\x1b]1337;UpdateBlock=id=inner;action=fold\x07");
+        terminal.process(b"\x1b]1337;UpdateBlock=id=outer;action=fold\x07");
+
+        let folded = display_projection_for_terminal(&terminal);
+        assert_eq!(folded.collapsed.len(), 1);
+        assert_eq!(folded.collapsed[0].id, "outer");
+        assert_eq!(folded.display_index_for_source(3), Some(0));
+        let visible_blocks = build_terminal_blocks(&terminal, &folded, 0, 6);
+        assert_eq!(
+            visible_blocks
+                .iter()
+                .map(|block| block.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["outer"]
+        );
+
+        assert!(terminal.set_iterm_block_folded("outer", false));
+        assert!(terminal.set_iterm_block_folded("inner", false));
+        let unfolded = display_projection_for_terminal(&terminal);
+        assert!(!unfolded.has_folds());
+        assert_eq!(
+            unfolded.rows.len(),
+            terminal.grid().scrollback_len() + terminal.size().1
+        );
+        assert_eq!(unfolded.display_index_for_source(3), Some(3));
+    }
+
+    #[test]
+    fn fold_summary_respects_grapheme_width_and_column_budget() {
+        let width_config = WidthConfig::default();
+        for columns in 1..=20 {
+            let summary = fold_summary_text(
+                "你e\u{301}👩\u{200d}💻first",
+                "last🏁末",
+                7,
+                columns,
+                &width_config,
+            );
+            assert!(
+                str_width(&summary, &width_config) <= columns,
+                "columns={columns} summary={summary:?}"
+            );
+            assert!(!summary.ends_with('\u{200d}'));
         }
     }
 

@@ -349,6 +349,29 @@ pub struct TerminalRow {
     pub wrapped: bool,
     #[serde(default)]
     pub style_runs: Vec<TerminalStyleRun>,
+    /// Retained terminal row that supplies this display row.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_row: Option<usize>,
+    /// Inclusive retained terminal row represented by the end of this display row.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_end_row: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TerminalBlock {
+    pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub block_type: Option<String>,
+    /// First viewport-relative display row occupied by the block.
+    pub start_row: usize,
+    /// Last viewport-relative display row occupied by the block.
+    pub end_row: usize,
+    /// Inclusive retained source range, independent of folding.
+    pub source_start_row: usize,
+    pub source_end_row: usize,
+    pub folded: bool,
+    #[serde(default)]
+    pub hidden_rows: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -580,6 +603,8 @@ pub struct TerminalFrameDiff {
     pub sized_text: Vec<TerminalSizedTextPlacement>,
     #[serde(default)]
     pub graphics: Vec<TerminalGraphicPlacement>,
+    #[serde(default)]
+    pub blocks: Vec<TerminalBlock>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

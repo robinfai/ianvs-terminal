@@ -468,3 +468,28 @@ safety-policy reason documented in `osc_cross_terminal_probe_20260711.md`.
   virtualization and are not approximated as metadata or blank-row painting.
 - **Compatibility:** additive JSON event only; no frame/protobuf changes.
 - **Rollback:** revert the Phase 25 implementation commit.
+
+## Phase 26 report — iTerm2 OSC 1337 blocks
+
+- **Start SHA:** `9cc7427992670294e1e8e7945d62af64fb75785e`.
+- **Confirmed gap:** `Block` / `UpdateBlock` were bounded no-ops because the
+  frame and product assumed every viewport row was contiguous.
+- **Fixes:** bounded nested block lifecycle, reversible first/last-line fold
+  summaries, non-contiguous row/source mapping, virtual scrollback, hidden-text
+  search, source selection, graphic/OSC 66 exclusion, resize replay, additive
+  JSON/protobuf transport, runtime toggle and accessible product controls.
+- **Review corrections:** direct width reflow now invalidates physical block
+  ranges when transcript replay is unavailable; projected padding has no source
+  mapping and cannot select hidden content; summary truncation uses the
+  terminal's grapheme-aware width configuration.
+- **Security:** terminal-local layout only, bounded IDs/types/counts, VT220 and
+  alternate-screen gates, and no host authority.
+- **Deferred:** iTerm2's `attr=end;render=1` text-document transformation is not
+  part of the folding subset; the flag remains bounded metadata/no-op.
+- **Tests/results:** targeted parser, split, corpus, native unit/real-PTY,
+  resize, JSON/protobuf, Dart model/runtime and widget tests pass. Final full
+  verifier and Computer Use counts are recorded in
+  `osc1337_blocks_phase26_20260713.md`.
+- **Compatibility:** additive protobuf frame tag 31 and row tags 6/7; legacy
+  contiguous frames retain fallback mapping and protobuf tags are not reused.
+- **Rollback:** revert the Phase 26 implementation commit.

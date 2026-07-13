@@ -53,6 +53,7 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
     ColorRgb? cursorTextColor,
     ColorRgb? tabColor,
     ColorRgb? cursorGuideColor,
+    $core.Iterable<TerminalBlock>? blocks,
   }) {
     final result = create();
     if (frameSchemaVersion != null)
@@ -89,6 +90,7 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
     if (cursorTextColor != null) result.cursorTextColor = cursorTextColor;
     if (tabColor != null) result.tabColor = tabColor;
     if (cursorGuideColor != null) result.cursorGuideColor = cursorGuideColor;
+    if (blocks != null) result.blocks.addAll(blocks);
     return result;
   }
 
@@ -161,6 +163,8 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
         subBuilder: ColorRgb.create)
     ..aOM<ColorRgb>(30, _omitFieldNames ? '' : 'cursorGuideColor',
         subBuilder: ColorRgb.create)
+    ..pPM<TerminalBlock>(31, _omitFieldNames ? '' : 'blocks',
+        subBuilder: TerminalBlock.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -439,6 +443,9 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
   void clearCursorGuideColor() => $_clearField(30);
   @$pb.TagNumber(30)
   ColorRgb ensureCursorGuideColor() => $_ensure(29);
+
+  @$pb.TagNumber(31)
+  $pb.PbList<TerminalBlock> get blocks => $_getList(30);
 }
 
 class TerminalRow extends $pb.GeneratedMessage {
@@ -448,6 +455,8 @@ class TerminalRow extends $pb.GeneratedMessage {
     $core.bool? wrapped,
     $fixnum.Int64? modifiedAtMicros,
     $core.Iterable<TerminalStyleRun>? styleRuns,
+    $core.int? sourceRow,
+    $core.int? sourceEndRow,
   }) {
     final result = create();
     if (index != null) result.index = index;
@@ -455,6 +464,8 @@ class TerminalRow extends $pb.GeneratedMessage {
     if (wrapped != null) result.wrapped = wrapped;
     if (modifiedAtMicros != null) result.modifiedAtMicros = modifiedAtMicros;
     if (styleRuns != null) result.styleRuns.addAll(styleRuns);
+    if (sourceRow != null) result.sourceRow = sourceRow;
+    if (sourceEndRow != null) result.sourceEndRow = sourceEndRow;
     return result;
   }
 
@@ -477,6 +488,9 @@ class TerminalRow extends $pb.GeneratedMessage {
     ..aInt64(4, _omitFieldNames ? '' : 'modifiedAtMicros')
     ..pPM<TerminalStyleRun>(5, _omitFieldNames ? '' : 'styleRuns',
         subBuilder: TerminalStyleRun.create)
+    ..aI(6, _omitFieldNames ? '' : 'sourceRow', fieldType: $pb.PbFieldType.OU3)
+    ..aI(7, _omitFieldNames ? '' : 'sourceEndRow',
+        fieldType: $pb.PbFieldType.OU3)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -536,6 +550,164 @@ class TerminalRow extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(5)
   $pb.PbList<TerminalStyleRun> get styleRuns => $_getList(4);
+
+  @$pb.TagNumber(6)
+  $core.int get sourceRow => $_getIZ(5);
+  @$pb.TagNumber(6)
+  set sourceRow($core.int value) => $_setUnsignedInt32(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasSourceRow() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearSourceRow() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.int get sourceEndRow => $_getIZ(6);
+  @$pb.TagNumber(7)
+  set sourceEndRow($core.int value) => $_setUnsignedInt32(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasSourceEndRow() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearSourceEndRow() => $_clearField(7);
+}
+
+class TerminalBlock extends $pb.GeneratedMessage {
+  factory TerminalBlock({
+    $core.String? id,
+    $core.String? blockType,
+    $core.int? startRow,
+    $core.int? endRow,
+    $core.int? sourceStartRow,
+    $core.int? sourceEndRow,
+    $core.bool? folded,
+    $core.int? hiddenRows,
+  }) {
+    final result = create();
+    if (id != null) result.id = id;
+    if (blockType != null) result.blockType = blockType;
+    if (startRow != null) result.startRow = startRow;
+    if (endRow != null) result.endRow = endRow;
+    if (sourceStartRow != null) result.sourceStartRow = sourceStartRow;
+    if (sourceEndRow != null) result.sourceEndRow = sourceEndRow;
+    if (folded != null) result.folded = folded;
+    if (hiddenRows != null) result.hiddenRows = hiddenRows;
+    return result;
+  }
+
+  TerminalBlock._();
+
+  factory TerminalBlock.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory TerminalBlock.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'TerminalBlock',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'frame_diff'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'id')
+    ..aOS(2, _omitFieldNames ? '' : 'blockType')
+    ..aI(3, _omitFieldNames ? '' : 'startRow', fieldType: $pb.PbFieldType.OU3)
+    ..aI(4, _omitFieldNames ? '' : 'endRow', fieldType: $pb.PbFieldType.OU3)
+    ..aI(5, _omitFieldNames ? '' : 'sourceStartRow',
+        fieldType: $pb.PbFieldType.OU3)
+    ..aI(6, _omitFieldNames ? '' : 'sourceEndRow',
+        fieldType: $pb.PbFieldType.OU3)
+    ..aOB(7, _omitFieldNames ? '' : 'folded')
+    ..aI(8, _omitFieldNames ? '' : 'hiddenRows', fieldType: $pb.PbFieldType.OU3)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TerminalBlock clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TerminalBlock copyWith(void Function(TerminalBlock) updates) =>
+      super.copyWith((message) => updates(message as TerminalBlock))
+          as TerminalBlock;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static TerminalBlock create() => TerminalBlock._();
+  @$core.override
+  TerminalBlock createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static TerminalBlock getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<TerminalBlock>(create);
+  static TerminalBlock? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get id => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set id($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get blockType => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set blockType($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasBlockType() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearBlockType() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.int get startRow => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set startRow($core.int value) => $_setUnsignedInt32(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasStartRow() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearStartRow() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.int get endRow => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set endRow($core.int value) => $_setUnsignedInt32(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasEndRow() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearEndRow() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.int get sourceStartRow => $_getIZ(4);
+  @$pb.TagNumber(5)
+  set sourceStartRow($core.int value) => $_setUnsignedInt32(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasSourceStartRow() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearSourceStartRow() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.int get sourceEndRow => $_getIZ(5);
+  @$pb.TagNumber(6)
+  set sourceEndRow($core.int value) => $_setUnsignedInt32(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasSourceEndRow() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearSourceEndRow() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.bool get folded => $_getBF(6);
+  @$pb.TagNumber(7)
+  set folded($core.bool value) => $_setBool(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasFolded() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearFolded() => $_clearField(7);
+
+  @$pb.TagNumber(8)
+  $core.int get hiddenRows => $_getIZ(7);
+  @$pb.TagNumber(8)
+  set hiddenRows($core.int value) => $_setUnsignedInt32(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasHiddenRows() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearHiddenRows() => $_clearField(8);
 }
 
 class TerminalStyleRun extends $pb.GeneratedMessage {
