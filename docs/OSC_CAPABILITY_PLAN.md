@@ -1,11 +1,11 @@
 # OSC Capability Plan
 
 Status: active support contract. P0/P1 and the promoted P2/P3 OSC families are
-implemented with automated regression coverage. Through Phase 31, the safe
+implemented with automated regression coverage. Through Phase 32, the safe
 incoming OSC 1337 download subset, permission-gated OpenURL subset, and bounded
 RequestAttention actions are promoted alongside report-only OSC 99 notification
-interactions; uploads and other privileged host actions stay outside the
-current product.
+interactions and user-driven OSC 1337 inline buttons; uploads and other
+privileged host actions stay outside the current product.
 
 This plan turns OSC support from a list of escape-code numbers into product
 capability gates. The current implementation scope is local terminal fidelity
@@ -53,6 +53,7 @@ P0 closes the support contract and prevents accidental regressions.
 | OSC 1337 RequestUpload | outgoing file upload | `unsupported` | Deny and close the protocol request without reading local data. |
 | OSC 1337 OpenURL | external URL request | `user-actionable` safe subset | Parse as untrusted Hyperlink-capability metadata; require active-pane Ask policy and exact explicit confirmation; persistent Deny remains available. |
 | OSC 1337 RequestAttention | Dock/cursor attention request | `user-actionable` bounded subset | Exact yes/once/no/fireworks actions; persistent Deny by default, explicit Allow with per-session/global limits and owned cancellation; never focus or activate the app. |
+| OSC 1337 Button | inline copy/custom controls | `user-actionable` fixed-action subset | Four-cell theme-derived controls; explicit copy of retained block text or exact `CSI ? 1337 ; code ~`; stale IDs fail closed. |
 
 P0 deliverables:
 
@@ -379,6 +380,10 @@ Policy and trust:
   canonical/default IDs, five label-only buttons, fixed activation/button/close
   reports and alive queries. Protocol focus, sound, icons, urgency, arbitrary
   callback payloads and command execution remain unauthorized.
+- OSC 1337 Button is no longer deferred: Phase 32 supports documented copy and
+  custom controls, custom invalidation, explicit retained-block copy and only
+  the fixed custom CSI reply. Icon names remain presentation-only and every
+  action revalidates a monotonic live session button ID.
 - Not P0/P1: public custom OSC parser hooks, remote identity, full file
   transfer, notification spam defaults.
 - Not P2/P3: SFTP/SSH session management, remote file browsing, automatic

@@ -1301,6 +1301,13 @@ class TerminalRuntimeController {
     return true;
   }
 
+  TerminalInlineButtonActivation activateItermButton(String sessionId, int id) {
+    if (!hasSession(sessionId) || id <= 0) {
+      return const TerminalInlineButtonActivation.rejected();
+    }
+    return _jsonRequestClient.activateItermButton(sessionId, id);
+  }
+
   String? exportScrollbackText(String sessionId, {int? maxLines}) {
     if (!hasSession(sessionId)) {
       return null;

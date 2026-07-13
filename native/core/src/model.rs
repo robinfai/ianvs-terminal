@@ -378,6 +378,24 @@ pub struct TerminalBlock {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TerminalInlineButton {
+    pub id: u64,
+    /// `copy` or `custom`.
+    pub kind: String,
+    pub row: usize,
+    pub col: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub block_id: Option<String>,
+    #[serde(default)]
+    pub valid: bool,
+    pub width_cells: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TerminalCursor {
     pub row: usize,
     pub col: usize,
@@ -608,6 +626,8 @@ pub struct TerminalFrameDiff {
     pub graphics: Vec<TerminalGraphicPlacement>,
     #[serde(default)]
     pub blocks: Vec<TerminalBlock>,
+    #[serde(default)]
+    pub inline_buttons: Vec<TerminalInlineButton>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

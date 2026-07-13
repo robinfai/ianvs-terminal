@@ -5,6 +5,9 @@ abstract final class TerminalFrameValidationLimits {
   static const int maxSizedTextPlacementsPerFrame = 4096;
   static const int maxInlineImagesPerFrame = 32;
   static const int maxBlocksPerFrame = 512;
+  static const int maxInlineButtonsPerFrame = 512;
+  static const int maxInlineButtonIconChars = 128;
+  static const int inlineButtonWidthCells = 4;
   static const int maxBlockIdChars = 256;
   static const int maxBlockTypeChars = 256;
   static const int maxInlineImageDecodedBytes = 4 * 1024 * 1024;

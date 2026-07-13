@@ -879,6 +879,21 @@ fn osc1337_block_profile(emulation: TerminalEmulation) -> TerminalProfile {
     )
 }
 
+fn osc1337_inline_button_profile(emulation: TerminalEmulation) -> TerminalProfile {
+    local_profile(
+        "osc1337-inline-button",
+        "OSC1337 Inline Button",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import os,sys,time,tty; fd=sys.stdin.fileno(); tty.setraw(fd); sys.stdout.buffer.write(b"\x1b]1337;Block=id=copy-1;attr=start\x1b\\copy-exact\x1b]1337;Block=id=copy-1;attr=end\x1b\\\r\n\x1b]1337;Button=type=copy;block=copy-1\x1b\\\x1b]1337;Button=type=custom;code=42;icon=star.fill\x07BUTTON-READY\r\n"); sys.stdout.flush(); time.sleep(0.2); data=os.read(fd,64); sys.stdout.buffer.write(("BUTTON-REPLY:"+data.hex()+"\r\n").encode()+b"\x1b]1337;Button=type=custom\x1b\\BUTTON-INVALID\r\n"); sys.stdout.flush(); time.sleep(1)'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        emulation,
+    )
+}
+
 fn decscusr_cursor_shape_profile() -> TerminalProfile {
     local_profile(
         "decscusr-cursor-shape",
@@ -19189,6 +19204,178 @@ fn session_osc1337_block_source_ranges_have_json_protobuf_parity() {
         (Some(0), Some(2))
     );
 
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_osc1337_inline_buttons_cross_real_pty_frame_copy_and_exact_custom_reply() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc1337_inline_button_profile(TerminalEmulation::Xterm256))
+            .unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_where(session_id, |candidate| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(candidate) else {
+            return false;
+        };
+        candidate.contains("BUTTON-READY")
+            && parsed["inline_buttons"]
+                .as_array()
+                .is_some_and(|buttons| buttons.len() == 2)
+    });
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let buttons = parsed["inline_buttons"].as_array().unwrap();
+    let copy = buttons
+        .iter()
+        .find(|button| button["kind"] == "copy")
+        .unwrap();
+    let custom = buttons
+        .iter()
+        .find(|button| button["kind"] == "custom")
+        .unwrap();
+    assert_eq!(copy["block_id"], "copy-1");
+    assert_eq!(copy["width_cells"].as_u64(), Some(4));
+    assert_eq!(custom["code"].as_i64(), Some(42));
+    assert_eq!(custom["icon"], "star.fill");
+    assert_eq!(custom["valid"].as_bool(), Some(true));
+
+    let copy_request = serde_json::json!({
+        "kind": "terminal.activate_iterm_button",
+        "id": copy["id"].as_u64().unwrap(),
+    });
+    let copy_response = session::request_session_json(session_id, &copy_request.to_string())
+        .unwrap()
+        .expect("expected copy activation response");
+    let copy_response: serde_json::Value = serde_json::from_str(&copy_response).unwrap();
+    assert_eq!(copy_response["activated"], true);
+    assert_eq!(copy_response["kind"], "copy");
+    assert_eq!(copy_response["text"], "copy-exact");
+
+    let custom_request = serde_json::json!({
+        "kind": "terminal.activate_iterm_button",
+        "id": custom["id"].as_u64().unwrap(),
+    });
+    let custom_response = session::request_session_json(session_id, &custom_request.to_string())
+        .unwrap()
+        .expect("expected custom activation response");
+    let custom_response: serde_json::Value = serde_json::from_str(&custom_response).unwrap();
+    assert_eq!(custom_response["activated"], true);
+    assert_eq!(custom_response["kind"], "custom");
+
+    let invalidated = wait_for_frame_where(session_id, |candidate| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(candidate) else {
+            return false;
+        };
+        candidate.contains("BUTTON-REPLY:1b5b3f313333373b34327e")
+            && candidate.contains("BUTTON-INVALID")
+            && parsed["inline_buttons"].as_array().is_some_and(|buttons| {
+                buttons
+                    .iter()
+                    .any(|button| button["kind"] == "custom" && button["valid"] == false)
+            })
+    });
+    assert!(invalidated.contains("BUTTON-REPLY:1b5b3f313333373b34327e"));
+
+    let rejected = session::request_session_json(session_id, &custom_request.to_string())
+        .unwrap()
+        .expect("expected invalid custom response");
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&rejected).unwrap()["activated"],
+        false
+    );
+    let missing = serde_json::json!({
+        "kind": "terminal.activate_iterm_button",
+        "id": u64::MAX,
+    });
+    let missing = session::request_session_json(session_id, &missing.to_string())
+        .unwrap()
+        .expect("expected stale button response");
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&missing).unwrap()["activated"],
+        false
+    );
+
+    session::resize_session(session_id, 96, 12, 0, 0).unwrap();
+    let resized = wait_for_frame_where(session_id, |candidate| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(candidate) else {
+            return false;
+        };
+        parsed["viewport_cols"] == 96
+            && parsed["inline_buttons"].as_array().is_some_and(|buttons| {
+                buttons.len() == 2
+                    && buttons
+                        .iter()
+                        .any(|button| button["kind"] == "custom" && button["valid"] == false)
+            })
+    });
+    assert!(resized.contains("BUTTON-INVALID"));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_osc1337_inline_buttons_have_protobuf_field_parity() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc1337_inline_button_profile(TerminalEmulation::Xterm256))
+            .unwrap(),
+    )
+    .unwrap();
+    let deadline = Instant::now() + Duration::from_secs(3);
+    let decoded = loop {
+        if let Some(bytes) = session::take_frame_diff_protobuf(session_id).unwrap() {
+            let decoded = ianvs_core::frame_diff_proto::decode_frame_diff_for_test(&bytes)
+                .expect("valid protobuf frame");
+            if decoded.inline_buttons.len() == 2 {
+                break decoded;
+            }
+        }
+        assert!(
+            Instant::now() < deadline,
+            "timed out waiting for OSC 1337 buttons in protobuf frame"
+        );
+        thread::sleep(Duration::from_millis(10));
+    };
+    let copy = decoded
+        .inline_buttons
+        .iter()
+        .find(|button| button.kind == "copy")
+        .unwrap();
+    assert_eq!(copy.block_id, "copy-1");
+    assert_eq!(copy.width_cells, 4);
+    assert!(copy.valid);
+    let custom = decoded
+        .inline_buttons
+        .iter()
+        .find(|button| button.kind == "custom")
+        .unwrap();
+    assert_eq!(custom.code, Some(42));
+    assert_eq!(custom.icon, "star.fill");
+    assert_eq!(custom.width_cells, 4);
+    assert!(custom.valid);
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_sessions_do_not_expose_or_activate_osc1337_inline_buttons() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc1337_inline_button_profile(TerminalEmulation::Vt220)).unwrap(),
+    )
+    .unwrap();
+    let frame = wait_for_frame_containing(session_id, "BUTTON-READY");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    assert!(parsed["inline_buttons"].as_array().unwrap().is_empty());
+    let request = serde_json::json!({
+        "kind": "terminal.activate_iterm_button",
+        "id": 1,
+    });
+    let response = session::request_session_json(session_id, &request.to_string())
+        .unwrap()
+        .expect("expected VT220 rejection response");
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&response).unwrap()["activated"],
+        false
+    );
     session::close_session(session_id).unwrap();
 }
 

@@ -63,6 +63,8 @@ pub struct TerminalFrameDiff {
     pub cursor_guide_color: ::core::option::Option<ColorRgb>,
     #[prost(message, repeated, tag = "31")]
     pub blocks: ::prost::alloc::vec::Vec<TerminalBlock>,
+    #[prost(message, repeated, tag = "32")]
+    pub inline_buttons: ::prost::alloc::vec::Vec<TerminalInlineButton>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TerminalRow {
@@ -101,6 +103,27 @@ pub struct TerminalBlock {
     pub hidden_rows: u32,
     #[prost(bool, tag = "9")]
     pub rendered: bool,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct TerminalInlineButton {
+    #[prost(uint64, tag = "1")]
+    pub id: u64,
+    #[prost(string, tag = "2")]
+    pub kind: ::prost::alloc::string::String,
+    #[prost(uint32, tag = "3")]
+    pub row: u32,
+    #[prost(uint32, tag = "4")]
+    pub col: u32,
+    #[prost(int32, optional, tag = "5")]
+    pub code: ::core::option::Option<i32>,
+    #[prost(string, tag = "6")]
+    pub icon: ::prost::alloc::string::String,
+    #[prost(string, tag = "7")]
+    pub block_id: ::prost::alloc::string::String,
+    #[prost(bool, tag = "8")]
+    pub valid: bool,
+    #[prost(uint32, tag = "9")]
+    pub width_cells: u32,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct TerminalStyleRun {

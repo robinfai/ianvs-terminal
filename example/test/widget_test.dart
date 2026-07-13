@@ -2717,6 +2717,111 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
+  testWidgets(
+    'OSC 1337 inline buttons route custom activation and explicit copy through product bridges',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      String? copiedText;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (methodCall) async {
+          if (methodCall.method == 'Clipboard.getData') {
+            return <String, dynamic>{'text': copiedText};
+          }
+          if (methodCall.method == 'Clipboard.setData') {
+            copiedText = (methodCall.arguments as Map)['text'] as String?;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      fakeBindings.inlineButtonActivationResponses.addAll(
+        <int, Map<String, Object?>>{
+          7001: <String, Object?>{'activated': true, 'kind': 'custom'},
+          7002: <String, Object?>{
+            'activated': true,
+            'kind': 'copy',
+            'text': 'copy-exact',
+          },
+        },
+      );
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+      fakeBindings.setFrame(1, <String, Object?>{
+        'rows': <Object?>[
+          <String, Object?>{
+            'index': 0,
+            'text': '        ',
+            'style_runs': <Object?>[],
+          },
+        ],
+        'cursor': <String, Object?>{'row': 0, 'col': 8, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': <Object?>[
+          <String, Object?>{'start': 0, 'end': 1},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+        'inline_buttons': <Object?>[
+          <String, Object?>{
+            'id': 7001,
+            'kind': 'custom',
+            'row': 0,
+            'col': 0,
+            'code': 42,
+            'icon': 'star.fill',
+            'valid': true,
+            'width_cells': 4,
+          },
+          <String, Object?>{
+            'id': 7002,
+            'kind': 'copy',
+            'row': 0,
+            'col': 4,
+            'block_id': 'copy-1',
+            'valid': true,
+            'width_cells': 4,
+          },
+        ],
+      });
+      await tester.pump(const Duration(milliseconds: 80));
+
+      await tester.tap(find.byKey(terminalInlineButtonKey(7001)));
+      await tester.tap(find.byKey(terminalInlineButtonKey(7002)));
+      await tester.pump();
+      expect(
+        fakeBindings.jsonRequests.where(
+          (request) => request['kind'] == 'terminal.activate_iterm_button',
+        ),
+        <Map<String, Object?>>[
+          <String, Object?>{
+            'kind': 'terminal.activate_iterm_button',
+            'id': 7001,
+          },
+          <String, Object?>{
+            'kind': 'terminal.activate_iterm_button',
+            'id': 7002,
+          },
+        ],
+      );
+      expect(copiedText, 'copy-exact');
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
+
   testWidgets('annotations empty state guides setup before selected text', (
     tester,
   ) async {

@@ -34,6 +34,7 @@ message TerminalFrameDiff {
   ColorRgb tab_color = 29;
   ColorRgb cursor_guide_color = 30;
   repeated TerminalBlock blocks = 31;
+  repeated TerminalInlineButton inline_buttons = 32;
 }
 
 enum TerminalFrameKind {
@@ -62,6 +63,18 @@ message TerminalBlock {
   bool folded = 7;
   uint32 hidden_rows = 8;
   bool rendered = 9;
+}
+
+message TerminalInlineButton {
+  uint64 id = 1;
+  string kind = 2;
+  uint32 row = 3;
+  uint32 col = 4;
+  optional int32 code = 5;
+  string icon = 6;
+  string block_id = 7;
+  bool valid = 8;
+  uint32 width_cells = 9;
 }
 
 message TerminalStyleRun {

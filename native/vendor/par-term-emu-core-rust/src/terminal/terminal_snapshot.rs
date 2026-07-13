@@ -19,6 +19,7 @@ use crate::terminal::{
 use crate::zone::Zone;
 
 use super::block::ItermBlockState;
+use super::button::ItermButtonState;
 use super::color_control::Osc21ColorControlState;
 use super::context::TerminalContextStack;
 use super::graphics::GraphicsPassthroughState;
@@ -100,6 +101,8 @@ pub struct TerminalSnapshot {
     pub(crate) pointer_shape_state: PointerShapeState,
     /// Primary-screen iTerm2 OSC 1337 block lifecycle and fold state.
     pub(crate) iterm_blocks: ItermBlockState,
+    /// iTerm2 OSC 1337 inline button state.
+    pub(crate) iterm_buttons: ItermButtonState,
 
     // --- Shell integration lifecycle ---
     /// Validated shell-integration state, including suspended nested lifecycles.
@@ -604,6 +607,7 @@ impl Terminal {
             alt_screen_active: self.alt_screen_active,
             pointer_shape_state: self.pointer_shape_state.clone(),
             iterm_blocks: self.iterm_blocks.clone(),
+            iterm_buttons: self.iterm_buttons.clone(),
             shell_integration: self.shell_integration.clone(),
             next_zone_id: self.next_zone_id,
             shell_depth: self.shell_depth,
@@ -737,6 +741,7 @@ impl Terminal {
         self.alt_screen_active = snap.alt_screen_active;
         self.pointer_shape_state = snap.pointer_shape_state;
         self.iterm_blocks = snap.iterm_blocks;
+        self.iterm_buttons = snap.iterm_buttons;
         self.shell_integration = snap.shell_integration;
         let minimum_next_zone_id = self
             .grid
@@ -889,6 +894,7 @@ mod tests {
             alt_screen_active: false,
             pointer_shape_state: PointerShapeState::default(),
             iterm_blocks: ItermBlockState::default(),
+            iterm_buttons: ItermButtonState::default(),
             shell_integration: ShellIntegration::new(),
             next_zone_id: 0,
             shell_depth: 0,

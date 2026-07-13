@@ -612,6 +612,14 @@ impl Terminal {
         // We need to pass the OLD scrollback length (before scroll) to graphics store
         // Since the grid has already grown by `n` lines, subtract `n` to get the old length
         let scrollback_len = self.active_grid().scrollback_len();
+        let primary_visible_base = self.grid.total_lines_scrolled();
+        self.iterm_buttons.adjust_scroll_up(
+            n,
+            top,
+            bottom,
+            self.alt_screen_active,
+            primary_visible_base,
+        );
         let old_scrollback_len = if !self.alt_screen_active && top == 0 {
             scrollback_len.saturating_sub(n)
         } else {
@@ -665,6 +673,14 @@ impl Terminal {
     /// * `top` - Top of scroll region (0-indexed)
     /// * `bottom` - Bottom of scroll region (0-indexed)
     pub(super) fn adjust_graphics_for_scroll_down(&mut self, n: usize, top: usize, bottom: usize) {
+        let primary_visible_base = self.grid.total_lines_scrolled();
+        self.iterm_buttons.adjust_scroll_down(
+            n,
+            top,
+            bottom,
+            self.alt_screen_active,
+            primary_visible_base,
+        );
         self.graphics_store.adjust_for_scroll_down_for_screen(
             n,
             top,

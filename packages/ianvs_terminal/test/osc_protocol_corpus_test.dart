@@ -49,6 +49,10 @@ const Set<String> _requiredCoverage = <String>{
   'iTerm2 OSC 1337 block lifecycle',
   'iTerm2 OSC 1337 nested block folding',
   'iTerm2 OSC 1337 block update no-op safety',
+  'iTerm2 OSC 1337 copy button',
+  'iTerm2 OSC 1337 custom button',
+  'iTerm2 OSC 1337 custom button invalidation',
+  'iTerm2 OSC 1337 mixed BEL/ST termination',
   'OSC 3008 hierarchy',
   'OSC 3008 malformed close recovery',
   'tmux passthrough fixture',
@@ -244,6 +248,13 @@ void _validateFixture(String id, Map<String, Object?> fixture) {
     expect(text, contains('UpdateBlock=id=outer;action=fold'));
     expect(text, contains('UpdateBlock=id=missing;action=unfold'));
     expect(text, endsWith('\x1b]2;osc1337-block-corpus-ok\x1b\\'));
+  } else if (id == 'osc1337_inline_buttons') {
+    final text = latin1.decode(stream);
+    expect(RegExp(r'\x1b]1337;Button=').allMatches(text), hasLength(3));
+    expect(text, contains('Button=type=copy;block=copy-1\x07'));
+    expect(text, contains('Button=type=custom;code=42;icon=star.fill\x1b\\'));
+    expect(text, contains('Button=type=custom\x07'));
+    expect(text, endsWith('\x1b]2;osc1337-button-corpus-ok\x1b\\'));
   } else if (id == 'osc133_semantic_prompt_aid') {
     final text = latin1.decode(stream);
     expect(RegExp(r'\x1b]133;').allMatches(text), hasLength(5));

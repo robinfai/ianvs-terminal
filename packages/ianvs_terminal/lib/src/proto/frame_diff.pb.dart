@@ -54,6 +54,7 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
     ColorRgb? tabColor,
     ColorRgb? cursorGuideColor,
     $core.Iterable<TerminalBlock>? blocks,
+    $core.Iterable<TerminalInlineButton>? inlineButtons,
   }) {
     final result = create();
     if (frameSchemaVersion != null)
@@ -91,6 +92,7 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
     if (tabColor != null) result.tabColor = tabColor;
     if (cursorGuideColor != null) result.cursorGuideColor = cursorGuideColor;
     if (blocks != null) result.blocks.addAll(blocks);
+    if (inlineButtons != null) result.inlineButtons.addAll(inlineButtons);
     return result;
   }
 
@@ -165,6 +167,8 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
         subBuilder: ColorRgb.create)
     ..pPM<TerminalBlock>(31, _omitFieldNames ? '' : 'blocks',
         subBuilder: TerminalBlock.create)
+    ..pPM<TerminalInlineButton>(32, _omitFieldNames ? '' : 'inlineButtons',
+        subBuilder: TerminalInlineButton.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -446,6 +450,9 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(31)
   $pb.PbList<TerminalBlock> get blocks => $_getList(30);
+
+  @$pb.TagNumber(32)
+  $pb.PbList<TerminalInlineButton> get inlineButtons => $_getList(31);
 }
 
 class TerminalRow extends $pb.GeneratedMessage {
@@ -720,6 +727,157 @@ class TerminalBlock extends $pb.GeneratedMessage {
   $core.bool hasRendered() => $_has(8);
   @$pb.TagNumber(9)
   void clearRendered() => $_clearField(9);
+}
+
+class TerminalInlineButton extends $pb.GeneratedMessage {
+  factory TerminalInlineButton({
+    $fixnum.Int64? id,
+    $core.String? kind,
+    $core.int? row,
+    $core.int? col,
+    $core.int? code,
+    $core.String? icon,
+    $core.String? blockId,
+    $core.bool? valid,
+    $core.int? widthCells,
+  }) {
+    final result = create();
+    if (id != null) result.id = id;
+    if (kind != null) result.kind = kind;
+    if (row != null) result.row = row;
+    if (col != null) result.col = col;
+    if (code != null) result.code = code;
+    if (icon != null) result.icon = icon;
+    if (blockId != null) result.blockId = blockId;
+    if (valid != null) result.valid = valid;
+    if (widthCells != null) result.widthCells = widthCells;
+    return result;
+  }
+
+  TerminalInlineButton._();
+
+  factory TerminalInlineButton.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory TerminalInlineButton.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'TerminalInlineButton',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'frame_diff'),
+      createEmptyInstance: create)
+    ..a<$fixnum.Int64>(1, _omitFieldNames ? '' : 'id', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..aOS(2, _omitFieldNames ? '' : 'kind')
+    ..aI(3, _omitFieldNames ? '' : 'row', fieldType: $pb.PbFieldType.OU3)
+    ..aI(4, _omitFieldNames ? '' : 'col', fieldType: $pb.PbFieldType.OU3)
+    ..aI(5, _omitFieldNames ? '' : 'code')
+    ..aOS(6, _omitFieldNames ? '' : 'icon')
+    ..aOS(7, _omitFieldNames ? '' : 'blockId')
+    ..aOB(8, _omitFieldNames ? '' : 'valid')
+    ..aI(9, _omitFieldNames ? '' : 'widthCells', fieldType: $pb.PbFieldType.OU3)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TerminalInlineButton clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TerminalInlineButton copyWith(void Function(TerminalInlineButton) updates) =>
+      super.copyWith((message) => updates(message as TerminalInlineButton))
+          as TerminalInlineButton;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static TerminalInlineButton create() => TerminalInlineButton._();
+  @$core.override
+  TerminalInlineButton createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static TerminalInlineButton getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<TerminalInlineButton>(create);
+  static TerminalInlineButton? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $fixnum.Int64 get id => $_getI64(0);
+  @$pb.TagNumber(1)
+  set id($fixnum.Int64 value) => $_setInt64(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get kind => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set kind($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasKind() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearKind() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.int get row => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set row($core.int value) => $_setUnsignedInt32(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasRow() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearRow() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.int get col => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set col($core.int value) => $_setUnsignedInt32(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasCol() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearCol() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.int get code => $_getIZ(4);
+  @$pb.TagNumber(5)
+  set code($core.int value) => $_setSignedInt32(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasCode() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearCode() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get icon => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set icon($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasIcon() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearIcon() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.String get blockId => $_getSZ(6);
+  @$pb.TagNumber(7)
+  set blockId($core.String value) => $_setString(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasBlockId() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearBlockId() => $_clearField(7);
+
+  @$pb.TagNumber(8)
+  $core.bool get valid => $_getBF(7);
+  @$pb.TagNumber(8)
+  set valid($core.bool value) => $_setBool(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasValid() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearValid() => $_clearField(8);
+
+  @$pb.TagNumber(9)
+  $core.int get widthCells => $_getIZ(8);
+  @$pb.TagNumber(9)
+  set widthCells($core.int value) => $_setUnsignedInt32(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasWidthCells() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearWidthCells() => $_clearField(9);
 }
 
 class TerminalStyleRun extends $pb.GeneratedMessage {

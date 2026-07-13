@@ -775,6 +775,9 @@ fn classify_osc_1337(
     context: OscClassificationContext,
     complete: bool,
 ) -> Classification {
+    if payload.starts_with(b"Button=") || (!complete && b"Button=".starts_with(payload)) {
+        return Classification::new(OscIntent::Appearance, OscCapability::Appearance);
+    }
     if payload == b"CopyToClipboard"
         || payload.starts_with(b"CopyToClipboard=")
         || (!complete && b"CopyToClipboard=".starts_with(payload))
@@ -1079,6 +1082,49 @@ mod tests {
         assert_eq!(
             filter_owned(&mut gate, mark, appearance_denied, context),
             mark
+        );
+    }
+
+    #[test]
+    fn osc1337_buttons_are_bounded_terminal_appearance_not_host_actions() {
+        let sequence = b"\x1b]1337;Button=type=custom;code=42;icon=star.fill\x1b\\";
+        let classification = classify_osc(
+            &sequence[2..sequence.len() - 2],
+            true,
+            OscClassificationContext::default(),
+        );
+        assert_eq!(classification.intent, OscIntent::Appearance);
+        assert_eq!(classification.capability, OscCapability::Appearance);
+
+        let mut appearance_denied = OscCapabilityPolicy::default();
+        appearance_denied.set(OscCapability::Appearance, false);
+        let mut gate = OscStreamGate::default();
+        assert!(filter_owned(
+            &mut gate,
+            sequence,
+            appearance_denied,
+            OscClassificationContext::default(),
+        )
+        .is_empty());
+
+        let mut oversized = b"\x1b]1337;Button=type=custom;code=42;icon=".to_vec();
+        oversized.extend(std::iter::repeat_n(b'A', 4 * KIB + 1));
+        oversized.extend_from_slice(b"\x07recovered");
+        let mut gate = OscStreamGate::default();
+        assert_eq!(
+            filter_owned(
+                &mut gate,
+                &oversized,
+                OscCapabilityPolicy::default(),
+                OscClassificationContext::default(),
+            ),
+            b"recovered"
+        );
+        assert_eq!(
+            gate.diagnostics()
+                .for_intent(OscIntent::Appearance)
+                .oversized,
+            1
         );
     }
 

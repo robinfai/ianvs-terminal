@@ -379,6 +379,29 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
                 assert!(!inner.folded);
                 assert!(!inner.render);
             }
+            "osc1337_inline_buttons" => {
+                use par_term_emu_core_rust::terminal::ItermButtonKind;
+
+                assert_eq!(terminal.title(), "osc1337-button-corpus-ok");
+                assert_eq!(terminal.iterm_buttons().len(), 2);
+                let copy = &terminal.iterm_buttons()[0];
+                assert!(copy.valid);
+                assert!(matches!(
+                    &copy.kind,
+                    ItermButtonKind::Copy { block_id } if block_id == "copy-1"
+                ));
+                assert_eq!(
+                    terminal.iterm_button_copy_text(copy.id).as_deref(),
+                    Some("copy-exact")
+                );
+                let custom = &terminal.iterm_buttons()[1];
+                assert!(!custom.valid);
+                assert!(matches!(
+                    &custom.kind,
+                    ItermButtonKind::Custom { code: 42, icon } if icon == "star.fill"
+                ));
+                assert_eq!(terminal.cursor().col, 8);
+            }
             "osc133_semantic_prompt_aid" => {
                 let events = terminal.poll_events();
                 assert!(events.iter().any(|event| matches!(

@@ -110,6 +110,19 @@ PROBES = {
         + osc("1337;AddAnnotation=7|Ianvs visible annotation")
         + b"visible",
     ),
+    "iterm_inline_buttons": Probe(
+        "iterm_inline_buttons",
+        "iTerm2 OSC 1337 Button",
+        "Create one completed text block, then show a copy button and a custom button with code 42.",
+        "Both four-cell controls appear; copy places the exact block text on the clipboard and custom replies with CSI ? 1337 ; 42 ~ only after explicit activation.",
+        "user gesture required; copy is clipboard write and custom reply has a fixed grammar",
+        osc("1337;Block=id=ianvs-button-probe;attr=start")
+        + b"Ianvs button copy probe"
+        + osc("1337;Block=id=ianvs-button-probe;attr=end", bell=True)
+        + b"\r\n"
+        + osc("1337;Button=type=copy;block=ianvs-button-probe")
+        + osc("1337;Button=type=custom;code=42;icon=star.fill", bell=True),
+    ),
     "iterm_request_attention": Probe(
         "iterm_request_attention",
         "iTerm2 OSC 1337 RequestAttention",
@@ -361,6 +374,7 @@ def self_test() -> None:
         "clipboard_copy",
         "iterm_clipboard_copy",
         "iterm_annotations",
+        "iterm_inline_buttons",
         "iterm_request_attention",
         "clipboard_query",
         "clipboard_mime",
@@ -401,6 +415,8 @@ def self_test() -> None:
         raise ValueError("iTerm2 OSC 1337 clipboard fixture is malformed")
     if PROBES["iterm_annotations"].payload.count(b"\x1b]1337;") != 2:
         raise ValueError("iTerm2 OSC 1337 annotation fixture is malformed")
+    if PROBES["iterm_inline_buttons"].payload.count(b"\x1b]1337;Button=") != 2:
+        raise ValueError("iTerm2 OSC 1337 button fixture is malformed")
     if PROBES["iterm_request_attention"].payload.count(
         b"\x1b]1337;RequestAttention="
     ) != 4:

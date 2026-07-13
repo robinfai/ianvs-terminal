@@ -28,6 +28,8 @@ class FakePtyBackend
   final List<List<Object?>> searchCalls = <List<Object?>>[];
   final List<List<Object?>> selectionTextCalls = <List<Object?>>[];
   final List<Map<String, Object?>> jsonRequests = <Map<String, Object?>>[];
+  final Map<int, Map<String, Object?>> inlineButtonActivationResponses =
+      <int, Map<String, Object?>>{};
   final Set<String> failingOperations = <String>{};
   final Map<(String, int), Uint8List> fileDownloads =
       <(String, int), Uint8List>{};
@@ -185,6 +187,10 @@ class FakePtyBackend
       'terminal.dismiss_osc99_notification' => jsonEncode(<String, Object?>{
         'dismissed': true,
       }),
+      'terminal.activate_iterm_button' => jsonEncode(
+        inlineButtonActivationResponses[request['id']] ??
+            const <String, Object?>{'activated': false},
+      ),
       _ => null,
     };
   }

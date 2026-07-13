@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 import 'package:ianvs_terminal/src/terminal/render_terminal_viewport.dart';
@@ -13,6 +13,142 @@ import 'package:ianvs_terminal/src/terminal/terminal_text_document_style.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
 
 void main() {
+  testWidgets(
+    'OSC 1337 inline buttons are themed, accessible, clickable and keyboard reachable',
+    (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final activated = <TerminalInlineButton>[];
+      final controller = TerminalViewportController()
+        ..updateMeasuredCellSize(const Size(10, 18))
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: <TerminalRow>[
+              TerminalRow(index: 0, text: '            '),
+              TerminalRow(index: 1, text: '            '),
+            ],
+            cursor: TerminalCursor(row: 1, col: 12, visible: true),
+            viewportRows: 2,
+            viewportCols: 20,
+            dirtyRanges: <TerminalDirtyRange>[
+              TerminalDirtyRange(start: 0, end: 2),
+            ],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+            inlineButtons: <TerminalInlineButton>[
+              TerminalInlineButton(
+                id: 1,
+                kind: TerminalInlineButtonKind.custom,
+                row: 0,
+                col: 0,
+                code: 42,
+                icon: 'star.fill',
+                valid: true,
+              ),
+              TerminalInlineButton(
+                id: 2,
+                kind: TerminalInlineButtonKind.copy,
+                row: 1,
+                col: 0,
+                blockId: 'build-output',
+                valid: true,
+              ),
+              TerminalInlineButton(
+                id: 3,
+                kind: TerminalInlineButtonKind.custom,
+                row: 0,
+                col: 8,
+                code: 9,
+                icon: 'unknown.symbol',
+                valid: false,
+              ),
+            ],
+          ),
+        );
+      final selectionController = SelectionController();
+      final runtime = TerminalRuntimeController(
+        backend: _NoopPtyBackend(),
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: runtime,
+        readFrame: () => controller.frame,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+      addTearDown(controller.dispose);
+      addTearDown(selectionController.dispose);
+      addTearDown(runtime.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData.dark(useMaterial3: true),
+          home: Scaffold(
+            body: SizedBox(
+              width: 220,
+              height: 64,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: inputController,
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+                onActivateInlineButton: activated.add,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final custom = find.byKey(terminalInlineButtonKey(1));
+      final copy = find.byKey(terminalInlineButtonKey(2));
+      final disabled = find.byKey(terminalInlineButtonKey(3));
+      expect(custom, findsOneWidget);
+      expect(copy, findsOneWidget);
+      expect(disabled, findsOneWidget);
+      expect(
+        find.bySemanticsLabel('Activate terminal button 42'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsLabel('Copy terminal block build-output'),
+        findsOneWidget,
+      );
+      final disabledSemantics = find.bySemanticsLabel(
+        'Activate terminal button 9 (disabled)',
+      );
+      expect(disabledSemantics, findsOneWidget);
+      expect(
+        tester
+            .getSemantics(disabledSemantics)
+            .getSemanticsData()
+            .hasAction(ui.SemanticsAction.tap),
+        isFalse,
+      );
+
+      await tester.tap(custom);
+      await tester.tap(copy);
+      await tester.tap(disabled);
+      await tester.pump();
+      expect(activated.map((button) => button.id), <int>[1, 2]);
+
+      activated.clear();
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(activated.map((button) => button.id), <int>[1]);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets(
     'OSC 1337 rendered block is themed, searchable and has one close action',
     (tester) async {

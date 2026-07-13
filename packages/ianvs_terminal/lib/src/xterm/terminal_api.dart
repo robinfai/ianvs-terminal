@@ -389,6 +389,10 @@ class Terminal implements TerminalDisposable {
     );
   }
 
+  TerminalInlineButtonActivation activateItermButton(int id) {
+    return _runtime.activateItermButton(_requireSessionId(), id);
+  }
+
   void refresh() {
     _runtime.refreshSession(_requireSessionId());
   }

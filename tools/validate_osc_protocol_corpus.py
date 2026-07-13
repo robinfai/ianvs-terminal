@@ -63,6 +63,10 @@ REQUIRED_COVERAGE = {
     "iTerm2 OSC 1337 block lifecycle",
     "iTerm2 OSC 1337 nested block folding",
     "iTerm2 OSC 1337 block update no-op safety",
+    "iTerm2 OSC 1337 copy button",
+    "iTerm2 OSC 1337 custom button",
+    "iTerm2 OSC 1337 custom button invalidation",
+    "iTerm2 OSC 1337 mixed BEL/ST termination",
     "OSC 3008 hierarchy",
     "OSC 3008 malformed close recovery",
     "tmux passthrough fixture",
@@ -259,6 +263,15 @@ def validate_case(case: Any) -> set[str]:
             b"UpdateBlock=id=missing;action=unfold" in stream,
             f"{case_id}: missing update",
         )
+    elif case_id == "osc1337_inline_buttons":
+        require(stream.count(b"\x1b]1337;Button=") == 3, f"{case_id}: buttons")
+        require(b"Button=type=copy;block=copy-1" in stream, f"{case_id}: copy")
+        require(
+            b"Button=type=custom;code=42;icon=star.fill" in stream,
+            f"{case_id}: custom",
+        )
+        require(b"Button=type=custom\x07" in stream, f"{case_id}: invalidation")
+        require(b"osc1337-button-corpus-ok" in stream, f"{case_id}: recovery")
     elif case_id == "tmux_passthrough":
         require(stream.startswith(b"\x1bPtmux;\x1b\x1b]"), f"{case_id}: bad wrapper")
     elif case_id == "screen_passthrough":

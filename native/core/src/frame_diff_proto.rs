@@ -1,7 +1,7 @@
 use crate::model::{
     TerminalBlock, TerminalCursor, TerminalDirtyRange, TerminalFrameDiff, TerminalFrameKind,
-    TerminalFrameModes, TerminalGraphicPlacement, TerminalHyperlinkRange, TerminalRow,
-    TerminalSelection, TerminalSizedTextPlacement, TerminalStyleRun,
+    TerminalFrameModes, TerminalGraphicPlacement, TerminalHyperlinkRange, TerminalInlineButton,
+    TerminalRow, TerminalSelection, TerminalSizedTextPlacement, TerminalStyleRun,
 };
 use crate::proto::frame_diff as pb;
 use prost::Message;
@@ -59,6 +59,25 @@ fn to_proto_frame(frame: &TerminalFrameDiff) -> pb::TerminalFrameDiff {
         inline_images: Vec::new(),
         graphics: frame.graphics.iter().map(to_proto_graphic).collect(),
         blocks: frame.blocks.iter().map(to_proto_block).collect(),
+        inline_buttons: frame
+            .inline_buttons
+            .iter()
+            .map(to_proto_inline_button)
+            .collect(),
+    }
+}
+
+fn to_proto_inline_button(button: &TerminalInlineButton) -> pb::TerminalInlineButton {
+    pb::TerminalInlineButton {
+        id: button.id,
+        kind: button.kind.clone(),
+        row: usize_to_u32(button.row),
+        col: usize_to_u32(button.col),
+        code: button.code,
+        icon: button.icon.clone().unwrap_or_default(),
+        block_id: button.block_id.clone().unwrap_or_default(),
+        valid: button.valid,
+        width_cells: usize_to_u32(button.width_cells),
     }
 }
 

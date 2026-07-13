@@ -26,6 +26,7 @@ const Key terminalLinkTooltipKey = Key('terminal-link-tooltip');
 Key terminalBlockToggleKey(String id) => Key('terminal-block-toggle-$id');
 Key terminalBlockRenderCloseKey(String id) =>
     Key('terminal-block-render-close-$id');
+Key terminalInlineButtonKey(int id) => Key('terminal-inline-button-$id');
 const double _terminalTimestampOverlayWidth = 66;
 const Size terminalFallbackCellSize = Size(9, 18);
 final RegExp _visibleUrlPattern = RegExp(r'(?:https?|file)://[^\s<>()"]+');
@@ -196,6 +197,8 @@ class TerminalViewport extends StatefulWidget {
     this.graphicsDiagnosticSessionId,
     this.onToggleBlock,
     this.onDismissBlockRender,
+    this.onActivateInlineButton,
+    this.inlineButtonEnabled,
   });
 
   final TerminalViewportController controller;
@@ -227,6 +230,8 @@ class TerminalViewport extends StatefulWidget {
   final String? graphicsDiagnosticSessionId;
   final ValueChanged<TerminalBlock>? onToggleBlock;
   final ValueChanged<TerminalBlock>? onDismissBlockRender;
+  final ValueChanged<TerminalInlineButton>? onActivateInlineButton;
+  final bool Function(TerminalInlineButton button)? inlineButtonEnabled;
 
   @override
   State<TerminalViewport> createState() => _TerminalViewportState();
@@ -1612,6 +1617,14 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   KeyEventResult _handleTerminalKeyEvent(KeyEvent event) {
+    if ((event.logicalKey == LogicalKeyboardKey.tab &&
+            widget.onActivateInlineButton != null &&
+            widget.controller.frame.inlineButtons.isNotEmpty) ||
+        (!_focusNode.hasPrimaryFocus &&
+            (event.logicalKey == LogicalKeyboardKey.enter ||
+                event.logicalKey == LogicalKeyboardKey.space))) {
+      return KeyEventResult.ignored;
+    }
     if (_consumeBackspaceAfterImeClear(event)) {
       return KeyEventResult.handled;
     }
@@ -1908,6 +1921,11 @@ class _TerminalViewportState extends State<TerminalViewport>
                               contentPadding,
                               effectiveColors,
                             ),
+                          ..._buildInlineButtonOverlays(
+                            frame,
+                            contentPadding,
+                            effectiveColors,
+                          ),
                           ..._buildBlockOverlays(
                             frame,
                             contentPadding,
@@ -2378,6 +2396,123 @@ class _TerminalViewportState extends State<TerminalViewport>
             ),
           ),
     ];
+  }
+
+  List<Widget> _buildInlineButtonOverlays(
+    TerminalFrameDiff frame,
+    EdgeInsets contentPadding,
+    TerminalViewportColors colors,
+  ) {
+    final onActivate = widget.onActivateInlineButton;
+    if (onActivate == null || frame.inlineButtons.isEmpty) {
+      return const <Widget>[];
+    }
+    final cellSize =
+        widget.controller.measuredCellSize ?? terminalFallbackCellSize;
+    if (cellSize.width <= 0 || cellSize.height <= 0) {
+      return const <Widget>[];
+    }
+    final controlHeight = math.max(
+      22.0,
+      math.min(28.0, cellSize.height * 1.35),
+    );
+    return [
+      for (final button in frame.inlineButtons)
+        if (button.row >= 0 &&
+            button.row < frame.viewportRows &&
+            button.col >= 0 &&
+            button.col + button.widthCells <= frame.viewportCols)
+          Positioned(
+            top:
+                contentPadding.top +
+                button.row * cellSize.height -
+                (controlHeight - cellSize.height) / 2,
+            left: contentPadding.left + button.col * cellSize.width,
+            width: button.widthCells * cellSize.width,
+            height: controlHeight,
+            child: Listener(
+              onPointerDown: (_) => _blockTogglePointerActive = true,
+              onPointerUp: (_) => _blockTogglePointerActive = false,
+              onPointerCancel: (_) => _blockTogglePointerActive = false,
+              child: _buildInlineButton(button, colors, onActivate),
+            ),
+          ),
+    ];
+  }
+
+  Widget _buildInlineButton(
+    TerminalInlineButton button,
+    TerminalViewportColors colors,
+    ValueChanged<TerminalInlineButton> onActivate,
+  ) {
+    final isCopy = button.kind == TerminalInlineButtonKind.copy;
+    final enabled =
+        button.valid && (widget.inlineButtonEnabled?.call(button) ?? true);
+    final label = isCopy
+        ? 'Copy terminal block ${button.blockId}'
+        : 'Activate terminal button ${button.code}';
+    final tooltip = enabled ? label : '$label (disabled)';
+    return Tooltip(
+      message: tooltip,
+      child: Semantics(
+        button: true,
+        enabled: enabled,
+        excludeSemantics: true,
+        label: tooltip,
+        onTap: enabled ? () => onActivate(button) : null,
+        child: Opacity(
+          opacity: enabled ? 1 : 0.4,
+          child: IconButton(
+            key: terminalInlineButtonKey(button.id),
+            padding: EdgeInsets.zero,
+            visualDensity: VisualDensity.compact,
+            style: IconButton.styleFrom(
+              foregroundColor: colors.foreground,
+              disabledForegroundColor: colors.foreground,
+              backgroundColor: colors.canvasBackground.withValues(alpha: 0.9),
+              disabledBackgroundColor: colors.canvasBackground.withValues(
+                alpha: 0.9,
+              ),
+              side: BorderSide(
+                color: colors.foreground.withValues(alpha: 0.24),
+              ),
+            ),
+            iconSize: math.min(18.0, cellSizeForInlineButtonIcon(button)),
+            tooltip: null,
+            icon: Icon(
+              isCopy ? Icons.copy_rounded : _iconForSfSymbol(button.icon),
+            ),
+            onPressed: enabled ? () => onActivate(button) : null,
+          ),
+        ),
+      ),
+    );
+  }
+
+  double cellSizeForInlineButtonIcon(TerminalInlineButton button) {
+    final cellSize =
+        widget.controller.measuredCellSize ?? terminalFallbackCellSize;
+    return math.max(14.0, math.min(18.0, cellSize.height * 0.82));
+  }
+
+  IconData _iconForSfSymbol(String? symbol) {
+    return switch (symbol) {
+      'star' || 'star.fill' => Icons.star_rounded,
+      'checkmark' ||
+      'checkmark.circle' ||
+      'checkmark.circle.fill' => Icons.check_circle_rounded,
+      'play' ||
+      'play.fill' ||
+      'play.circle' ||
+      'play.circle.fill' => Icons.play_arrow_rounded,
+      'stop' ||
+      'stop.fill' ||
+      'stop.circle' ||
+      'stop.circle.fill' => Icons.stop_rounded,
+      'arrow.clockwise' => Icons.refresh_rounded,
+      'xmark' || 'xmark.circle' || 'xmark.circle.fill' => Icons.close_rounded,
+      _ => Icons.smart_button_outlined,
+    };
   }
 
   Widget _buildFoldBlockControl(

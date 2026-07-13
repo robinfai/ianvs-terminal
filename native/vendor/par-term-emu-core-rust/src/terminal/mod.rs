@@ -5,6 +5,7 @@
 
 // Submodules
 pub mod block;
+pub mod button;
 pub mod clipboard;
 mod color_control;
 mod colors;
@@ -38,6 +39,10 @@ mod write;
 // Re-export types as they're part of the public API
 pub use block::{
     ItermBlock, MAX_ITERM_BLOCKS, MAX_ITERM_BLOCK_ID_CHARS, MAX_ITERM_BLOCK_TYPE_CHARS,
+};
+pub use button::{
+    ItermButton, ItermButtonKind, ITERM_BUTTON_WIDTH_CELLS, MAX_ITERM_BUTTONS,
+    MAX_ITERM_BUTTON_ICON_CHARS,
 };
 pub use clipboard::{
     ClipboardEntry, ClipboardHistoryEntry, ClipboardOperation, ClipboardSlot, ClipboardSyncEvent,
@@ -778,6 +783,8 @@ pub struct Terminal {
     pub(crate) pointer_shape_state: pointer_shape::PointerShapeState,
     /// Primary-screen iTerm2 OSC 1337 block marks and fold state.
     pub(crate) iterm_blocks: block::ItermBlockState,
+    /// iTerm2 OSC 1337 inline button marks for both screen buffers.
+    pub(crate) iterm_buttons: button::ItermButtonState,
     /// Cursor position and state
     pub(crate) cursor: Cursor,
     /// Saved cursor for alternate screen
@@ -1235,6 +1242,7 @@ impl Terminal {
             alt_screen_active: false,
             pointer_shape_state: pointer_shape::PointerShapeState::default(),
             iterm_blocks: block::ItermBlockState::default(),
+            iterm_buttons: button::ItermButtonState::default(),
             cursor: Cursor::new(),
             alt_cursor: Cursor::new(),
             fg: Color::Named(NamedColor::White),
@@ -1584,6 +1592,7 @@ impl Terminal {
         // bounded transcript when that is available.
         if cols != old_cols || rows < old_rows {
             self.clear_iterm_blocks();
+            self.clear_iterm_buttons();
         }
 
         self.grid.resize(cols, rows);
@@ -1789,6 +1798,7 @@ impl Terminal {
             self.alt_cursor = primary_cursor;
             // Clear the alternate screen buffer to ensure it starts blank
             self.alt_grid.clear();
+            self.clear_iterm_buttons_for_screen(true);
             self.graphics_store.clear_alternate_screen_graphics();
             // Notify about alt screen entry
             self.terminal_events
@@ -1806,6 +1816,7 @@ impl Terminal {
             debug::log_screen_switch(false, "use_primary_screen");
             // Save current (alternate) cursor position before switching
             let alt_cursor = self.cursor;
+            self.clear_iterm_buttons_for_screen(true);
             self.alt_screen_active = false;
             // Restore primary cursor
             self.cursor = self.alt_cursor;
@@ -3774,12 +3785,14 @@ impl Terminal {
         let input_buffer_diagnostics = self.input_buffer_diagnostics;
         let response_buffer_overflow_count = self.response_buffer_overflow_count;
         let terminal_event_dropped_count = self.terminal_event_dropped_count;
+        let next_iterm_button_id = self.iterm_buttons.next_id();
         // UAPI OSC 3008 explicitly defines terminal reset as context-neutral.
         let terminal_context_stack = self.terminal_context_stack.clone();
         let mut osc21_color_state = self.osc21_color_state.clone();
         osc21_color_state.reset_runtime_to_baselines();
 
         *self = Self::with_scrollback(cols, rows, scrollback);
+        self.iterm_buttons.preserve_next_id(next_iterm_button_id);
         self.suppress_synchronized_update_enable = suppress_synchronized_update_enable;
         self.osc_capability_policy = osc_capability_policy;
         self.disable_insecure_sequences = disable_insecure_sequences;

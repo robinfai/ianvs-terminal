@@ -6751,6 +6751,52 @@ void main() {
     expect(runtimeBackend.jsonRequests, isEmpty);
   });
 
+  test(
+    'terminal runtime activates OSC 1337 buttons through the native bridge',
+    () {
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      runtimeBackend.jsonRequests.clear();
+
+      final custom = runtime.activateItermButton(sessionId, 7001);
+      expect(custom.activated, isTrue);
+      expect(custom.kind, TerminalInlineButtonKind.custom);
+      expect(custom.text, isNull);
+      expect(runtimeBackend.jsonRequests.single, <String, Object?>{
+        'kind': 'terminal.activate_iterm_button',
+        'id': 7001,
+      });
+
+      runtimeBackend
+        ..inlineButtonActivationResponse = <String, Object?>{
+          'activated': true,
+          'kind': 'copy',
+          'text': 'exact block text',
+        }
+        ..jsonRequests.clear();
+      final copy = runtime.activateItermButton(sessionId, 7002);
+      expect(copy.activated, isTrue);
+      expect(copy.kind, TerminalInlineButtonKind.copy);
+      expect(copy.text, 'exact block text');
+
+      runtimeBackend.jsonRequests.clear();
+      expect(runtime.activateItermButton(sessionId, 0).activated, isFalse);
+      expect(runtime.activateItermButton('unknown', 7001).activated, isFalse);
+      expect(runtimeBackend.jsonRequests, isEmpty);
+    },
+  );
+
   test('terminal runtime synchronizes OSC 99 product dismissal by ID', () {
     final runtimeBackend = _FakePtyBackend();
     final runtime = TerminalRuntimeController(
@@ -9714,6 +9760,10 @@ class _FakePtyBackend
   String? clearScrollbackRawResponse;
   bool setBlockFoldedResponse = true;
   bool setBlockRenderedResponse = true;
+  Map<String, Object?> inlineButtonActivationResponse = <String, Object?>{
+    'activated': true,
+    'kind': 'custom',
+  };
   bool dismissOsc99NotificationResponse = true;
   String? scrollbackRawResponse;
   Map<String, Object?>? diagnosticsResponse;
@@ -9872,6 +9922,9 @@ class _FakePtyBackend
       'terminal.set_block_rendered' => jsonEncode(<String, Object?>{
         'updated': setBlockRenderedResponse,
       }),
+      'terminal.activate_iterm_button' => jsonEncode(
+        inlineButtonActivationResponse,
+      ),
       'terminal.export_scrollback' =>
         scrollbackRawResponse ??
             jsonEncode(<String, Object?>{'content': 'scrollback text'}),

@@ -67,6 +67,8 @@ class TerminalViewport extends StatelessWidget {
     this.graphicsDiagnosticSessionId,
     this.onToggleBlock,
     this.onDismissBlockRender,
+    this.onActivateInlineButton,
+    this.inlineButtonEnabled,
   });
 
   final TerminalViewportController controller;
@@ -98,6 +100,9 @@ class TerminalViewport extends StatelessWidget {
   final String? graphicsDiagnosticSessionId;
   final ValueChanged<terminal.TerminalBlock>? onToggleBlock;
   final ValueChanged<terminal.TerminalBlock>? onDismissBlockRender;
+  final ValueChanged<terminal.TerminalInlineButton>? onActivateInlineButton;
+  final bool Function(terminal.TerminalInlineButton button)?
+  inlineButtonEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -131,6 +136,8 @@ class TerminalViewport extends StatelessWidget {
       graphicsDiagnosticSessionId: graphicsDiagnosticSessionId,
       onToggleBlock: onToggleBlock,
       onDismissBlockRender: onDismissBlockRender,
+      onActivateInlineButton: onActivateInlineButton,
+      inlineButtonEnabled: inlineButtonEnabled,
     );
   }
 }

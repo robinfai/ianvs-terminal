@@ -448,6 +448,42 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                                       rendered: false,
                                     );
                               },
+                              onActivateInlineButton: (button) {
+                                if (!isActive ||
+                                    (button.kind ==
+                                            terminal
+                                                .TerminalInlineButtonKind
+                                                .custom &&
+                                        _isSessionReadOnly(sessionId))) {
+                                  return;
+                                }
+                                final activation = ref
+                                    .read(terminalRuntimeControllerProvider)
+                                    .activateItermButton(sessionId, button.id);
+                                final text = activation.text;
+                                if (activation.activated &&
+                                    activation.kind ==
+                                        terminal
+                                            .TerminalInlineButtonKind
+                                            .copy &&
+                                    text != null) {
+                                  unawaited(() async {
+                                    await ClipboardBridge.copy(text);
+                                    await _recordPasteHistory(
+                                      text,
+                                      PasteHistoryKind.copy,
+                                    );
+                                  }());
+                                }
+                              },
+                              inlineButtonEnabled: (button) {
+                                return isActive &&
+                                    (button.kind ==
+                                            terminal
+                                                .TerminalInlineButtonKind
+                                                .copy ||
+                                        !_isSessionReadOnly(sessionId));
+                              },
                               onOpenLinkTarget: (target) => unawaited(
                                 _openTerminalLinkTarget(sessionId, target),
                               ),

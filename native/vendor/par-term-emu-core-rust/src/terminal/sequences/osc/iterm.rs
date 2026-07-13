@@ -7,6 +7,7 @@ use crate::debug;
 use crate::terminal::block::{
     bounded_iterm_block_value, MAX_ITERM_BLOCK_ID_CHARS, MAX_ITERM_BLOCK_TYPE_CHARS,
 };
+use crate::terminal::button::bounded_iterm_button_icon;
 use crate::terminal::event::{ItermAttentionAction, ShellIntegrationSource};
 use crate::terminal::{CwdChangeSource, Terminal, TerminalEvent};
 use crate::zone::ZoneType;
@@ -68,6 +69,8 @@ impl Terminal {
                 self.handle_iterm_block(payload);
             } else if let Some(payload) = data.strip_prefix("UpdateBlock=") {
                 self.handle_iterm_update_block(payload);
+            } else if let Some(payload) = data.strip_prefix("Button=") {
+                self.handle_iterm_button(payload);
             } else if data == "ClearScrollback" {
                 self.handle_iterm_clear_buffer();
             } else if data == "HighlightCursorLine" {
@@ -77,6 +80,37 @@ impl Terminal {
             } else {
                 self.handle_iterm_image(&data);
             }
+        }
+    }
+
+    fn handle_iterm_button(&mut self, payload: &str) {
+        let pairs = parse_iterm_block_pairs(payload);
+        let value = |key: &str| {
+            pairs
+                .iter()
+                .rev()
+                .find_map(|(candidate, value)| (*candidate == key).then_some(*value))
+        };
+        match value("type") {
+            Some("copy") => {
+                let Some(block_id) = value("block")
+                    .and_then(|value| bounded_iterm_block_value(value, MAX_ITERM_BLOCK_ID_CHARS))
+                else {
+                    return;
+                };
+                self.handle_iterm_copy_button(block_id);
+            }
+            Some("custom") => {
+                let code = value("code").and_then(|value| value.parse::<i32>().ok());
+                let icon = value("icon").and_then(bounded_iterm_button_icon);
+                match (code, icon) {
+                    (Some(code), Some(icon)) if code > 0 => {
+                        self.handle_iterm_custom_button(code, icon);
+                    }
+                    _ => self.invalidate_iterm_custom_buttons(),
+                }
+            }
+            _ => {}
         }
     }
 
@@ -308,6 +342,7 @@ impl Terminal {
         // alternate-screen application sends the command.
         self.grid.clear_scrollback();
         self.clear_iterm_blocks();
+        self.clear_iterm_buttons();
         self.graphics_store.clear_scrollback_graphics();
         self.active_grid_mut().clear();
         self.clear_graphics();
@@ -835,6 +870,72 @@ mod tests {
                 ..
             }
         )));
+    }
+
+    #[test]
+    fn inline_buttons_are_bounded_advance_four_cells_and_invalidate_custom_only() {
+        use crate::terminal::ItermButtonKind;
+
+        let mut terminal = Terminal::new(40, 6);
+        terminal.process(b"\x1b]1337;Block=id=copy-source;attr=start\x07alpha");
+        terminal.process(b"\x1b]1337;Block=id=copy-source;attr=end\x07\r\n");
+        terminal.process(b"\x1b]1337;Button=type=copy;block=copy-source\x07");
+        terminal.process(b"\x1b]1337;Button=type=custom;code=42;icon=star.fill\x1b\\");
+
+        assert_eq!(terminal.cursor.col, 8);
+        assert_eq!(terminal.iterm_buttons().len(), 2);
+        let copy = &terminal.iterm_buttons()[0];
+        assert!(matches!(
+            &copy.kind,
+            ItermButtonKind::Copy { block_id } if block_id == "copy-source"
+        ));
+        assert_eq!(
+            terminal.iterm_button_copy_text(copy.id).as_deref(),
+            Some("alpha")
+        );
+        assert!(matches!(
+            &terminal.iterm_buttons()[1].kind,
+            ItermButtonKind::Custom { code: 42, icon } if icon == "star.fill"
+        ));
+
+        terminal.process(b"\x1b]1337;Button=type=custom\x07");
+        assert!(terminal.iterm_buttons()[0].valid);
+        assert!(!terminal.iterm_buttons()[1].valid);
+        assert_eq!(terminal.cursor.col, 8);
+    }
+
+    #[test]
+    fn inline_buttons_reject_invalid_payloads_and_clear_transient_alt_marks() {
+        let mut terminal = Terminal::new(40, 6);
+        terminal.process(b"\x1b]1337;Button=type=custom;code=0;icon=star.fill\x07");
+        terminal.process(b"\x1b]1337;Button=type=custom;code=42\x07");
+        terminal.process(b"\x1b]1337;Button=type=copy;block=\x07");
+        assert!(terminal.iterm_buttons().is_empty());
+        assert_eq!(terminal.cursor.col, 0);
+
+        terminal
+            .process(b"\x1b[?1049h\x1b]1337;Button=type=custom;code=7;icon=checkmark.circle\x07");
+        assert_eq!(terminal.iterm_buttons().len(), 1);
+        assert!(terminal.iterm_buttons()[0].alternate_screen);
+        terminal.process(b"\x1b[?1049l");
+        assert!(terminal.iterm_buttons().is_empty());
+    }
+
+    #[test]
+    fn inline_button_ids_do_not_reuse_after_clear_or_ris() {
+        let mut terminal = Terminal::new(40, 6);
+        terminal.process(b"\x1b]1337;Button=type=custom;code=1;icon=star\x07");
+        let first_id = terminal.iterm_buttons()[0].id;
+        terminal.process(b"\x1b[2J");
+        terminal.process(b"\x1b]1337;Button=type=custom;code=2;icon=star\x07");
+        let second_id = terminal.iterm_buttons()[0].id;
+        assert!(second_id > first_id);
+
+        terminal.process(b"\x1bc");
+        terminal.process(b"\x1b]1337;Button=type=custom;code=3;icon=star\x07");
+        assert!(terminal.iterm_buttons()[0].id > second_id);
+        assert!(terminal.iterm_button(first_id).is_none());
+        assert!(terminal.iterm_button(second_id).is_none());
     }
 
     #[test]

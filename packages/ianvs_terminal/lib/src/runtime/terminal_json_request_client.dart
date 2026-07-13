@@ -104,6 +104,17 @@ final class TerminalJsonRequestClient {
     return decoded?['updated'] == true;
   }
 
+  TerminalInlineButtonActivation activateItermButton(String sessionId, int id) {
+    const operation = 'terminal.activate_iterm_button';
+    final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
+      'kind': operation,
+      'id': id,
+    });
+    return decoded == null
+        ? const TerminalInlineButtonActivation.rejected()
+        : TerminalInlineButtonActivation.fromJson(decoded);
+  }
+
   String? exportScrollbackText(String sessionId, {int? maxLines}) {
     const operation = 'terminal.export_scrollback';
     final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{

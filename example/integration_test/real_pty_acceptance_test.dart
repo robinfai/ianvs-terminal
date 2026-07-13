@@ -1774,6 +1774,106 @@ sleep 5
   );
 
   testWidgets(
+    'real PTY iTerm2 OSC 1337 buttons copy and return the exact custom reply',
+    (tester) async {
+      String? copiedText;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copiedText = (call.arguments as Map)['text'] as String?;
+          }
+          if (call.method == 'Clipboard.getData') {
+            return <String, Object?>{'text': copiedText};
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      final profile = _scriptProfile(
+        id: 'osc1337-buttons',
+        name: 'OSC 1337 Buttons',
+        script: r'''
+printf '\033]1337;Block=id=copy-acceptance;attr=start\033\\'
+printf 'BUTTON-COPY-EXACT'
+printf '\033]1337;Block=id=copy-acceptance;attr=end\033\\\r\n'
+printf '\033]1337;Button=type=copy;block=copy-acceptance\a'
+printf '\033]1337;Button=type=custom;code=42;icon=star.fill\033\\'
+printf 'OSC1337-BUTTONS-READY\r\n'
+saved_stty=$(stty -g)
+stty raw -echo
+reply=$(dd bs=1 count=11 2>/dev/null | od -An -tx1 | tr -d ' \n')
+stty "$saved_stty"
+printf 'OSC1337-BUTTON-REPLY:%s\r\n' "$reply"
+printf '\033]1337;Button=type=custom\033\\OSC1337-BUTTON-INVALID\r\n'
+sleep 5
+''',
+      );
+      final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
+
+      await _waitFor(
+        tester,
+        description: 'OSC 1337 real PTY inline buttons',
+        condition: () {
+          final frame = _activeFrame(harness.container);
+          return frame != null &&
+              frame.inlineButtons.length == 2 &&
+              frame.inlineButtons.every((button) => button.valid) &&
+              _terminalText(
+                harness.container,
+              ).contains('OSC1337-BUTTONS-READY');
+        },
+        onTimeout: () => 'Frame: ${_activeFrame(harness.container)}',
+      );
+      final initial = _activeFrame(harness.container)!;
+      final copy = initial.inlineButtons.firstWhere(
+        (button) => button.kind == terminal.TerminalInlineButtonKind.copy,
+      );
+      final custom = initial.inlineButtons.firstWhere(
+        (button) => button.kind == terminal.TerminalInlineButtonKind.custom,
+      );
+      await tester.tap(find.byKey(terminal.terminalInlineButtonKey(copy.id)));
+      await tester.pump();
+      expect(copiedText, 'BUTTON-COPY-EXACT');
+
+      await tester.tap(find.byKey(terminal.terminalInlineButtonKey(custom.id)));
+      await _waitFor(
+        tester,
+        description: 'OSC 1337 exact custom response and invalidation',
+        condition: () {
+          final frame = _activeFrame(harness.container);
+          return _terminalText(
+                harness.container,
+              ).contains('OSC1337-BUTTON-REPLY:1b5b3f313333373b34327e') &&
+              frame != null &&
+              frame.inlineButtons.any(
+                (button) =>
+                    button.id == custom.id &&
+                    button.kind == terminal.TerminalInlineButtonKind.custom &&
+                    !button.valid,
+              );
+        },
+        onTimeout: () =>
+            'Text: ${_terminalText(harness.container)}; frame: ${_activeFrame(harness.container)}',
+      );
+      expect(
+        tester
+            .widget<IconButton>(
+              find.byKey(terminal.terminalInlineButtonKey(custom.id)),
+            )
+            .onPressed,
+        isNull,
+      );
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
     'real PTY OSC 1337 ClearScrollback clears product rows and history',
     (tester) async {
       final goFile = _tempSignalFile('osc1337-clear-buffer');

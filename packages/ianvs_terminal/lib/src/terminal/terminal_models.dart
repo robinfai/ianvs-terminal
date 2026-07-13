@@ -315,6 +315,112 @@ class TerminalBlock {
   }
 }
 
+enum TerminalInlineButtonKind { copy, custom }
+
+class TerminalInlineButton {
+  const TerminalInlineButton({
+    required this.id,
+    required this.kind,
+    required this.row,
+    required this.col,
+    required this.valid,
+    this.code,
+    this.icon,
+    this.blockId,
+    this.widthCells = TerminalFrameValidationLimits.inlineButtonWidthCells,
+  });
+
+  final int id;
+  final TerminalInlineButtonKind kind;
+  final int row;
+  final int col;
+  final int? code;
+  final String? icon;
+  final String? blockId;
+  final bool valid;
+  final int widthCells;
+
+  static TerminalInlineButton? tryFromJson(Map<String, Object?> json) {
+    final id = _intOrNullFromJson(json['id']);
+    final kind = switch (_stringFromJson(json['kind'])) {
+      'copy' => TerminalInlineButtonKind.copy,
+      'custom' => TerminalInlineButtonKind.custom,
+      _ => null,
+    };
+    final row = _intOrNullFromJson(json['row']);
+    final col = _intOrNullFromJson(json['col']);
+    final widthCells = _intOrNullFromJson(json['width_cells']);
+    final code = _intOrNullFromJson(json['code']);
+    final icon = _nonEmptyTrimmedStringFromJson(json['icon']);
+    final blockId = _nonEmptyTrimmedStringFromJson(
+      json['block_id'] ?? json['block'],
+    );
+    if (id == null ||
+        id <= 0 ||
+        kind == null ||
+        row == null ||
+        row < 0 ||
+        col == null ||
+        col < 0 ||
+        widthCells != TerminalFrameValidationLimits.inlineButtonWidthCells ||
+        (kind == TerminalInlineButtonKind.custom &&
+            (code == null ||
+                code <= 0 ||
+                icon == null ||
+                icon.runes.length >
+                    TerminalFrameValidationLimits.maxInlineButtonIconChars)) ||
+        (kind == TerminalInlineButtonKind.copy &&
+            (blockId == null ||
+                blockId.runes.length >
+                    TerminalFrameValidationLimits.maxBlockIdChars))) {
+      return null;
+    }
+    return TerminalInlineButton(
+      id: id,
+      kind: kind,
+      row: row,
+      col: col,
+      code: kind == TerminalInlineButtonKind.custom ? code : null,
+      icon: kind == TerminalInlineButtonKind.custom ? icon : null,
+      blockId: kind == TerminalInlineButtonKind.copy ? blockId : null,
+      valid: _boolFromJson(json['valid'], fallback: false),
+      widthCells: widthCells!,
+    );
+  }
+}
+
+class TerminalInlineButtonActivation {
+  const TerminalInlineButtonActivation._({
+    required this.activated,
+    this.kind,
+    this.text,
+  });
+
+  const TerminalInlineButtonActivation.rejected() : this._(activated: false);
+
+  final bool activated;
+  final TerminalInlineButtonKind? kind;
+  final String? text;
+
+  static TerminalInlineButtonActivation fromJson(Map<String, Object?> json) {
+    if (json['activated'] != true) {
+      return const TerminalInlineButtonActivation.rejected();
+    }
+    return switch (_stringFromJson(json['kind'])) {
+      'copy' => TerminalInlineButtonActivation._(
+        activated: true,
+        kind: TerminalInlineButtonKind.copy,
+        text: _stringFromJson(json['text']),
+      ),
+      'custom' => const TerminalInlineButtonActivation._(
+        activated: true,
+        kind: TerminalInlineButtonKind.custom,
+      ),
+      _ => const TerminalInlineButtonActivation.rejected(),
+    };
+  }
+}
+
 class TerminalCursor {
   const TerminalCursor({
     required this.row,
@@ -1028,6 +1134,7 @@ class TerminalFrameDiff {
     this.inlineImages = const [],
     this.graphics = const [],
     this.blocks = const [],
+    this.inlineButtons = const [],
   });
 
   final String frameSchemaVersion;
@@ -1065,6 +1172,7 @@ class TerminalFrameDiff {
   final List<TerminalInlineImage> inlineImages;
   final List<TerminalGraphicPlacement> graphics;
   final List<TerminalBlock> blocks;
+  final List<TerminalInlineButton> inlineButtons;
 
   bool get hasExplicitSourceRowMapping =>
       rows.any((row) => row.sourceRow != null || row.sourceEndRow != null);
@@ -1228,6 +1336,11 @@ class TerminalFrameDiff {
         viewportCols: viewportCols,
       ),
       blocks: _blocksFromJson(json['blocks'], viewportRows),
+      inlineButtons: _inlineButtonsFromJson(
+        json['inline_buttons'],
+        viewportRows,
+        viewportCols,
+      ),
     );
   }
 
@@ -1457,6 +1570,23 @@ List<TerminalBlock> _blocksFromJson(Object? value, int viewportRows) {
   }, maxEntries: TerminalFrameValidationLimits.maxBlocksPerFrame);
 }
 
+List<TerminalInlineButton> _inlineButtonsFromJson(
+  Object? value,
+  int viewportRows,
+  int viewportCols,
+) {
+  return _jsonListFromJson(value, (json) {
+    final button = TerminalInlineButton.tryFromJson(json);
+    if (button == null ||
+        button.row >= viewportRows ||
+        button.col >= viewportCols ||
+        button.col + button.widthCells > viewportCols) {
+      return null;
+    }
+    return button;
+  }, maxEntries: TerminalFrameValidationLimits.maxInlineButtonsPerFrame);
+}
+
 TerminalFrameDiff _terminalFrameDiffFromProtobuf(
   frame_pb.TerminalFrameDiff proto,
 ) {
@@ -1553,6 +1683,12 @@ TerminalFrameDiff _terminalFrameDiffFromProtobuf(
       (block) => _terminalBlockFromProtobuf(block, viewportRows),
       maxEntries: TerminalFrameValidationLimits.maxBlocksPerFrame,
     ),
+    inlineButtons: _boundedProtobufItems(
+      proto.inlineButtons,
+      (button) =>
+          _terminalInlineButtonFromProtobuf(button, viewportRows, viewportCols),
+      maxEntries: TerminalFrameValidationLimits.maxInlineButtonsPerFrame,
+    ),
   );
 }
 
@@ -1639,6 +1775,30 @@ TerminalBlock? _terminalBlockFromProtobuf(
   if (decoded == null ||
       decoded.startRow >= viewportRows ||
       decoded.endRow >= viewportRows) {
+    return null;
+  }
+  return decoded;
+}
+
+TerminalInlineButton? _terminalInlineButtonFromProtobuf(
+  frame_pb.TerminalInlineButton button,
+  int viewportRows,
+  int viewportCols,
+) {
+  final decoded = TerminalInlineButton.tryFromJson(<String, Object?>{
+    'id': button.id.toInt(),
+    'kind': button.kind,
+    'row': button.row,
+    'col': button.col,
+    'code': button.hasCode() ? button.code : null,
+    'icon': button.icon,
+    'block_id': button.blockId,
+    'valid': button.valid,
+    'width_cells': button.widthCells,
+  });
+  if (decoded == null ||
+      decoded.row >= viewportRows ||
+      decoded.col + decoded.widthCells > viewportCols) {
     return null;
   }
   return decoded;
@@ -2361,6 +2521,11 @@ class TerminalViewportState {
         inlineImages: mergedInlineImages,
         graphics: mergedGraphics,
         blocks: _normalizeBlocks(nextFrame.blocks, nextViewportRows),
+        inlineButtons: _normalizeInlineButtons(
+          nextFrame.inlineButtons,
+          nextViewportRows,
+          nextViewportCols,
+        ),
       ),
     );
   }
@@ -2681,7 +2846,32 @@ TerminalFrameDiff _normalizeSnapshotFrame(
       viewportCols: viewportCols,
     ),
     blocks: _normalizeBlocks(frame.blocks, viewportRows),
+    inlineButtons: _normalizeInlineButtons(
+      frame.inlineButtons,
+      viewportRows,
+      viewportCols,
+    ),
   );
+}
+
+List<TerminalInlineButton> _normalizeInlineButtons(
+  Iterable<TerminalInlineButton> buttons,
+  int viewportRows,
+  int viewportCols,
+) {
+  return buttons
+      .where(
+        (button) =>
+            button.id > 0 &&
+            button.row >= 0 &&
+            button.row < viewportRows &&
+            button.col >= 0 &&
+            button.col + button.widthCells <= viewportCols &&
+            button.widthCells ==
+                TerminalFrameValidationLimits.inlineButtonWidthCells,
+      )
+      .take(TerminalFrameValidationLimits.maxInlineButtonsPerFrame)
+      .toList(growable: false);
 }
 
 List<TerminalBlock> _normalizeBlocks(

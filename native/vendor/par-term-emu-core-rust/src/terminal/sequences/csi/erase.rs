@@ -46,6 +46,7 @@ impl Terminal {
                     2 => {
                         self.active_grid_mut().clear();
                         self.clear_graphics();
+                        self.clear_iterm_buttons_for_screen(self.alt_screen_active);
                         self.terminal_events
                             .push(crate::terminal::TerminalEvent::ScreenCleared {
                                 include_scrollback: false,
@@ -61,6 +62,7 @@ impl Terminal {
                         if !self.alt_screen_active {
                             self.graphics_store.clear_scrollback_graphics();
                             self.clear_iterm_blocks();
+                            self.clear_iterm_buttons();
                         }
                         self.terminal_events
                             .push(crate::terminal::TerminalEvent::ScreenCleared {

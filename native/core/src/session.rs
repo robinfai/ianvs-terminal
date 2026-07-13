@@ -3,9 +3,9 @@ use crate::model::{
     MAX_SCROLLBACK_LINES, TERMINAL_FRAME_SCHEMA_VERSION, TerminalBlock, TerminalCursor,
     TerminalCursorShape, TerminalDirtyRange, TerminalEmulation, TerminalEvent, TerminalFrameDiff,
     TerminalFrameKind, TerminalFrameModes, TerminalGraphicPlacement, TerminalHyperlinkRange,
-    TerminalProfile, TerminalProfileAnsiColors, TerminalProfileColors, TerminalRow,
-    TerminalSearchMatch, TerminalSelectionRequest, TerminalSizedTextPlacement, TerminalStyleRun,
-    normalize_scrollback_lines,
+    TerminalInlineButton, TerminalProfile, TerminalProfileAnsiColors, TerminalProfileColors,
+    TerminalRow, TerminalSearchMatch, TerminalSelectionRequest, TerminalSizedTextPlacement,
+    TerminalStyleRun, normalize_scrollback_lines,
 };
 use crate::pty::spawn_pty;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
@@ -20,7 +20,7 @@ use par_term_emu_core_rust::mouse::{MouseEncoding, MouseMode};
 #[cfg(test)]
 use par_term_emu_core_rust::terminal::ItermAttentionAction;
 use par_term_emu_core_rust::terminal::{
-    OscCapability, Terminal, TerminalDamage, TerminalEvent as ParserTerminalEvent,
+    ItermButtonKind, OscCapability, Terminal, TerminalDamage, TerminalEvent as ParserTerminalEvent,
     TerminalProcessDebugStats, TransferDirection, TransferStatus, snapshot::ExportFormat,
 };
 use par_term_emu_core_rust::{WidthConfig, str_width};
@@ -68,6 +68,11 @@ enum TerminalSearchMode {
     CaseInsensitiveSubstring,
     CaseSensitiveRegex,
     CaseInsensitiveRegex,
+}
+
+enum ItermButtonActivation {
+    Copy(String),
+    Custom,
 }
 
 impl TerminalSearchMode {
@@ -3018,6 +3023,66 @@ impl TerminalSession {
         changed
     }
 
+    pub fn activate_iterm_button(&self, id: u64) -> Result<serde_json::Value, SessionError> {
+        if self.emulation != TerminalEmulation::Xterm256 || id == 0 {
+            return Ok(serde_json::json!({ "activated": false }));
+        }
+        let activation = {
+            let state = self.state.lock();
+            let terminal = &state.terminal;
+            let projection = display_projection_for_terminal(terminal);
+            let (_, viewport_rows) = terminal.size();
+            let scrollback_max_offset = projection.rows.len().saturating_sub(viewport_rows);
+            let display_start_row = if terminal.is_alt_screen_active() {
+                0
+            } else {
+                scrollback_max_offset
+                    .saturating_sub(state.scrollback_offset.min(scrollback_max_offset))
+            };
+            if !build_terminal_inline_buttons(
+                terminal,
+                &projection,
+                display_start_row,
+                viewport_rows,
+            )
+            .iter()
+            .any(|button| button.id == id)
+            {
+                return Ok(serde_json::json!({ "activated": false }));
+            }
+            let Some(button) = terminal.iterm_button(id) else {
+                return Ok(serde_json::json!({ "activated": false }));
+            };
+            if !button.valid || button.alternate_screen != terminal.is_alt_screen_active() {
+                return Ok(serde_json::json!({ "activated": false }));
+            }
+            match &button.kind {
+                ItermButtonKind::Copy { .. } => terminal
+                    .iterm_button_copy_text(id)
+                    .map(ItermButtonActivation::Copy),
+                ItermButtonKind::Custom { code, .. } => {
+                    self.writer
+                        .lock()
+                        .write_all(format!("\x1b[?1337;{code}~").as_bytes())
+                        .map_err(|error| SessionError::Io(error.to_string()))?;
+                    Some(ItermButtonActivation::Custom)
+                }
+            }
+        };
+        match activation {
+            Some(ItermButtonActivation::Copy(text)) => Ok(serde_json::json!({
+                "activated": true,
+                "kind": "copy",
+                "text": text,
+            })),
+            Some(ItermButtonActivation::Custom) => Ok(serde_json::json!({
+                "activated": true,
+                "kind": "custom",
+            })),
+            None => Ok(serde_json::json!({ "activated": false })),
+        }
+    }
+
     pub fn export_scrollback_text(&self, max_lines: Option<usize>) -> String {
         let state = self.state.lock();
         state
@@ -3291,6 +3356,16 @@ impl TerminalSession {
             viewport_display_start_row,
             viewport_rows,
         );
+        let inline_buttons = if self.emulation == TerminalEmulation::Xterm256 {
+            build_terminal_inline_buttons(
+                terminal,
+                &display_projection,
+                viewport_display_start_row,
+                viewport_rows,
+            )
+        } else {
+            Vec::new()
+        };
         let graphic_placements_count = graphics.len();
         if self.should_defer_kitty_delete_graphics_frame(
             terminal,
@@ -3380,6 +3455,7 @@ impl TerminalSession {
             sized_text,
             graphics,
             blocks,
+            inline_buttons,
         }))
     }
 
@@ -5031,6 +5107,63 @@ fn build_terminal_blocks(
             .then_with(|| left.id.cmp(&right.id))
     });
     blocks
+}
+
+fn build_terminal_inline_buttons(
+    terminal: &Terminal,
+    projection: &DisplayProjection,
+    display_start_row: usize,
+    viewport_rows: usize,
+) -> Vec<TerminalInlineButton> {
+    if viewport_rows == 0 {
+        return Vec::new();
+    }
+    let alternate_screen = terminal.is_alt_screen_active();
+    let first_retained_abs_row = if alternate_screen {
+        0
+    } else {
+        terminal
+            .grid()
+            .total_lines_scrolled()
+            .saturating_sub(terminal.grid().scrollback_len())
+    };
+    let display_end_row = display_start_row.saturating_add(viewport_rows);
+    let mut buttons = terminal
+        .iterm_buttons()
+        .iter()
+        .filter(|button| button.alternate_screen == alternate_screen)
+        .filter_map(|button| {
+            let source_row = button.row.checked_sub(first_retained_abs_row)?;
+            if projection.summary_id_for_source(source_row).is_some() {
+                return None;
+            }
+            let display_row = projection.display_index_for_source(source_row)?;
+            if display_row < display_start_row || display_row >= display_end_row {
+                return None;
+            }
+            let (kind, code, icon, block_id) = match &button.kind {
+                ItermButtonKind::Copy { block_id } => {
+                    ("copy".to_string(), None, None, Some(block_id.clone()))
+                }
+                ItermButtonKind::Custom { code, icon } => {
+                    ("custom".to_string(), Some(*code), Some(icon.clone()), None)
+                }
+            };
+            Some(TerminalInlineButton {
+                id: button.id,
+                kind,
+                row: display_row.saturating_sub(display_start_row),
+                col: button.col,
+                code,
+                icon,
+                block_id,
+                valid: button.valid,
+                width_cells: par_term_emu_core_rust::terminal::ITERM_BUTTON_WIDTH_CELLS,
+            })
+        })
+        .collect::<Vec<_>>();
+    buttons.sort_by_key(|button| (button.row, button.col, button.id));
+    buttons
 }
 
 fn extract_fold_summary_row(
@@ -7417,6 +7550,15 @@ pub fn request_session_json(
                 .map(Some)
                 .map_err(|error| SessionError::Serialize(error.to_string()))
         }
+        "terminal.activate_iterm_button" => {
+            let Some(id) = request.get("id").and_then(serde_json::Value::as_u64) else {
+                return Ok(None);
+            };
+            let response = STORE.get(session_id)?.activate_iterm_button(id)?;
+            serde_json::to_string(&response)
+                .map(Some)
+                .map_err(|error| SessionError::Serialize(error.to_string()))
+        }
         "terminal.export_scrollback" => {
             let max_lines = scrollback_export_max_lines_from_request(&request);
             export_scrollback_session(session_id, max_lines).map(Some)
@@ -7801,6 +7943,43 @@ mod tests {
         assert_eq!(blocks[0].id, "build");
         assert_eq!((blocks[0].start_row, blocks[0].end_row), (0, 0));
         assert_eq!(blocks[0].hidden_rows, 2);
+    }
+
+    #[test]
+    fn iterm_inline_buttons_project_to_viewport_and_hide_inside_folded_content() {
+        let mut terminal = Terminal::with_scrollback(24, 6, 32);
+        terminal.process(b"\x1b]1337;Block=id=copy-source;attr=start\x07copy me");
+        terminal.process(b"\x1b]1337;Block=id=copy-source;attr=end\x07\r\n");
+        terminal.process(b"\x1b]1337;Button=type=copy;block=copy-source\x07");
+        terminal.process(b"\x1b]1337;Button=type=custom;code=42;icon=star.fill\x1b\\");
+
+        let projection = display_projection_for_terminal(&terminal);
+        let buttons = build_terminal_inline_buttons(&terminal, &projection, 0, 6);
+        assert_eq!(buttons.len(), 2);
+        assert_eq!(
+            (buttons[0].kind.as_str(), buttons[0].row, buttons[0].col),
+            ("copy", 1, 0)
+        );
+        assert_eq!(buttons[0].block_id.as_deref(), Some("copy-source"));
+        assert_eq!(
+            (buttons[1].kind.as_str(), buttons[1].code),
+            ("custom", Some(42))
+        );
+        assert_eq!(buttons[1].icon.as_deref(), Some("star.fill"));
+        assert_eq!(buttons[1].col, 4);
+
+        terminal.process(b"\x1b]1337;Button=type=custom\x07");
+        let invalidated = build_terminal_inline_buttons(&terminal, &projection, 0, 6);
+        assert!(invalidated[0].valid);
+        assert!(!invalidated[1].valid);
+
+        let mut folded = Terminal::with_scrollback(24, 6, 32);
+        folded.process(b"\x1b]1337;Block=id=fold;attr=start\x07first\r\n");
+        folded.process(b"\x1b]1337;Button=type=custom;code=7;icon=star\x07last");
+        folded.process(b"\x1b]1337;Block=id=fold;attr=end\x07");
+        folded.process(b"\x1b]1337;UpdateBlock=id=fold;action=fold\x07");
+        let folded_projection = display_projection_for_terminal(&folded);
+        assert!(build_terminal_inline_buttons(&folded, &folded_projection, 0, 6).is_empty());
     }
 
     #[test]
