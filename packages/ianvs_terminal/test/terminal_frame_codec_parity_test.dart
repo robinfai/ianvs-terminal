@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:fixnum/fixnum.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 import 'package:ianvs_terminal/src/proto/frame_diff.pb.dart' as frame_pb;
@@ -103,6 +104,44 @@ void main() {
         expect(dynamicProtobuf.cursor.blink, isFalse);
       },
     );
+
+    test('cursor guide state and color preserve JSON/protobuf parity', () {
+      final jsonFrame = TerminalFrameDiff.fromJson(<String, Object?>{
+        ..._jsonFrame(),
+        'cursor': <String, Object?>{
+          'row': 0,
+          'col': 0,
+          'visible': true,
+          'highlight_line': true,
+        },
+        'cursor_guide_color': '#2A80D7',
+      });
+      final protobufFrame = TerminalFrameDiff.fromProtobufBytes(
+        frame_pb.TerminalFrameDiff(
+          viewportRows: 1,
+          viewportCols: 1,
+          cursor: frame_pb.TerminalCursor(visible: true, highlightLine: true),
+          cursorGuideColor: frame_pb.ColorRgb(present: true, rgb: 0x2A80D7),
+        ).writeToBuffer(),
+      );
+
+      expect(jsonFrame.cursor.highlightLine, isTrue);
+      expect(protobufFrame.cursor.highlightLine, isTrue);
+      expect(jsonFrame.cursorGuideColor, const Color(0xFF2A80D7));
+      expect(protobufFrame.cursorGuideColor, const Color(0xFF2A80D7));
+
+      final legacyJson = TerminalFrameDiff.fromJson(_jsonFrame());
+      final legacyProtobuf = TerminalFrameDiff.fromProtobufBytes(
+        frame_pb.TerminalFrameDiff(
+          viewportRows: 1,
+          viewportCols: 1,
+        ).writeToBuffer(),
+      );
+      expect(legacyJson.cursor.highlightLine, isFalse);
+      expect(legacyProtobuf.cursor.highlightLine, isFalse);
+      expect(legacyJson.cursorGuideColor, isNull);
+      expect(legacyProtobuf.cursorGuideColor, isNull);
+    });
 
     test('OSC 8 protocol identifiers survive JSON and protobuf decoding', () {
       final jsonFrame = TerminalFrameDiff.fromJson(

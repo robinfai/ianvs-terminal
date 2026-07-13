@@ -236,6 +236,14 @@ PROBES = {
         "terminal-local state only; no host action",
         osc("1337;ClearScrollback"),
     ),
+    "cursor_guide": Probe(
+        "cursor_guide",
+        "iTerm2 OSC 1337 HighlightCursorLine",
+        "Enable the cursor guide for the current terminal row.",
+        "A theme-colored guide follows the visible cursor row until explicitly disabled.",
+        "appearance only; no host action",
+        osc("1337;HighlightCursorLine=yes"),
+    ),
     "dynamic_cursor": Probe(
         "dynamic_cursor",
         "iTerm2 OSC 1337 CursorShape",
@@ -316,6 +324,7 @@ def self_test() -> None:
         "drag_drop_query",
         "shell_metadata",
         "clear_buffer",
+        "cursor_guide",
         "dynamic_cursor",
         "progress",
         "badge",
@@ -360,6 +369,8 @@ def self_test() -> None:
         raise ValueError("OSC 1337 shell metadata fixture is malformed")
     if PROBES["clear_buffer"].payload != osc("1337;ClearScrollback"):
         raise ValueError("OSC 1337 clear-buffer fixture is malformed")
+    if PROBES["cursor_guide"].payload != osc("1337;HighlightCursorLine=yes"):
+        raise ValueError("OSC 1337 cursor-guide fixture is malformed")
     if b"1337;CursorShape=1" not in PROBES["dynamic_cursor"].payload:
         raise ValueError("OSC 1337 cursor shape fixture is malformed")
 

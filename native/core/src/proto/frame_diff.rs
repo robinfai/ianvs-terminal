@@ -59,6 +59,8 @@ pub struct TerminalFrameDiff {
     pub cursor_text_color: ::core::option::Option<ColorRgb>,
     #[prost(message, optional, tag = "29")]
     pub tab_color: ::core::option::Option<ColorRgb>,
+    #[prost(message, optional, tag = "30")]
+    pub cursor_guide_color: ::core::option::Option<ColorRgb>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TerminalRow {
@@ -117,6 +119,8 @@ pub struct TerminalCursor {
     pub shape: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(bool, optional, tag = "5")]
     pub blink: ::core::option::Option<bool>,
+    #[prost(bool, tag = "6")]
+    pub highlight_line: bool,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct TerminalSelection {

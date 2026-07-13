@@ -274,7 +274,11 @@ impl Terminal {
 
     /// Set cursor guide color
     pub fn set_cursor_guide_color(&mut self, color: Color) {
+        if self.cursor_guide_color == color {
+            return;
+        }
         self.cursor_guide_color = color;
+        self.mark_full_repaint("cursor_guide_color_changed");
     }
 
     /// Get badge color
@@ -384,7 +388,11 @@ impl Terminal {
 
     /// Set whether to show cursor guide
     pub fn set_use_cursor_guide(&mut self, use_guide: bool) {
+        if self.use_cursor_guide == use_guide {
+            return;
+        }
         self.use_cursor_guide = use_guide;
+        self.mark_full_repaint("cursor_guide_visibility_changed");
     }
 
     /// Get whether to use custom selected text color

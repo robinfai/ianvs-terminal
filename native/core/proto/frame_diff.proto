@@ -32,6 +32,7 @@ message TerminalFrameDiff {
   ColorRgb link_color = 27;
   ColorRgb cursor_text_color = 28;
   ColorRgb tab_color = 29;
+  ColorRgb cursor_guide_color = 30;
 }
 
 enum TerminalFrameKind {
@@ -73,6 +74,7 @@ message TerminalCursor {
   bool visible = 3;
   optional string shape = 4;
   optional bool blink = 5;
+  bool highlight_line = 6;
 }
 
 message TerminalSelection {

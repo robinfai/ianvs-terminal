@@ -445,6 +445,26 @@
       }
     },
     {
+      "id": "osc1337_cursor_guide",
+      "coverage": [
+        "iTerm2 OSC 1337 cursor guide"
+      ],
+      "protocol": "iTerm2 OSC 1337 HighlightCursorLine",
+      "wire": {
+        "sequence_count": 3,
+        "chunks_hex": [
+          "1b5d313333373b486967686c69676874437572736f724c696e653d6e6f071b5d313333373b486967686c69676874437572736f724c696e653d7965731b5c1b5d323b6f7363313333372d637572736f722d67756964652d636f727075732d6f6b07"
+        ]
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "cursor_guide",
+        "state_effect": "the current cursor row is highlighted after the final documented yes value",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
       "id": "tmux_passthrough",
       "coverage": ["tmux passthrough fixture"],
       "protocol": "tmux DCS passthrough carrying OSC 8",

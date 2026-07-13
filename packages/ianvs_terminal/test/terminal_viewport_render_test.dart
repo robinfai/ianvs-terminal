@@ -12,6 +12,75 @@ import 'package:ianvs_terminal/src/terminal/render_terminal_viewport.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
 
 void main() {
+  testWidgets(
+    'OSC 1337 cursor guide paints the visible cursor row with frame color',
+    (tester) async {
+      const guideColor = Color(0xFF2A80D7);
+      final renderObject = await _pumpRenderViewportFrame(
+        tester,
+        // Simulate the cursor's blink-off phase. The guide follows DECTCEM,
+        // not the blink animation, so it must remain stable.
+        cursorVisible: false,
+        frame: const TerminalFrameDiff(
+          rows: [
+            TerminalRow(index: 0, text: 'first'),
+            TerminalRow(index: 1, text: 'guided'),
+            TerminalRow(index: 2, text: 'last'),
+          ],
+          cursor: TerminalCursor(
+            row: 1,
+            col: 3,
+            visible: true,
+            highlightLine: true,
+          ),
+          viewportRows: 3,
+          viewportCols: 20,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 3)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+          cursorGuideColor: guideColor,
+        ),
+      );
+
+      final cellSize = renderObject.debugCellSize;
+      expect(
+        renderObject.debugCursorGuideRect,
+        Rect.fromLTWH(0, cellSize.height, 320, cellSize.height),
+      );
+      final painted = renderObject.debugCursorGuideColor!;
+      expect(painted.r, closeTo(guideColor.r, 0.001));
+      expect(painted.g, closeTo(guideColor.g, 0.001));
+      expect(painted.b, closeTo(guideColor.b, 0.001));
+      expect(painted.a, closeTo(0.18, 0.001));
+      expect(renderObject.debugCursorVisible, isFalse);
+    },
+  );
+
+  testWidgets('OSC 1337 cursor guide respects terminal cursor visibility', (
+    tester,
+  ) async {
+    final renderObject = await _pumpRenderViewportFrame(
+      tester,
+      frame: const TerminalFrameDiff(
+        rows: [TerminalRow(index: 0, text: 'hidden')],
+        cursor: TerminalCursor(
+          row: 0,
+          col: 0,
+          visible: false,
+          highlightLine: true,
+        ),
+        viewportRows: 1,
+        viewportCols: 8,
+        dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+      ),
+    );
+
+    expect(renderObject.debugCursorGuideRect, isNull);
+    expect(renderObject.debugCursorGuideColor, isNull);
+  });
+
   testWidgets('OSC 66 sized text scales, aligns, clips, and expands cursor', (
     tester,
   ) async {

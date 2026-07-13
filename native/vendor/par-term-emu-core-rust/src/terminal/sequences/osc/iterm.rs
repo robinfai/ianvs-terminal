@@ -48,10 +48,26 @@ impl Terminal {
                     .push(TerminalEvent::CellSizeReportRequested);
             } else if data == "ClearScrollback" {
                 self.handle_iterm_clear_buffer();
+            } else if data == "HighlightCursorLine" {
+                self.set_use_cursor_guide(true);
+            } else if let Some(value) = data.strip_prefix("HighlightCursorLine=") {
+                self.handle_iterm_cursor_guide(value);
             } else {
                 self.handle_iterm_image(&data);
             }
         }
+    }
+
+    fn handle_iterm_cursor_guide(&mut self, value: &str) {
+        // iTerm2 documents yes/no and treats a missing value as enabled.
+        // Keep aliases bounded and explicit instead of inheriting a locale-
+        // sensitive host-language boolean parser.
+        let enabled = match value.trim().to_ascii_lowercase().as_str() {
+            "" | "1" | "true" | "yes" | "on" => true,
+            "0" | "false" | "no" | "off" => false,
+            _ => return,
+        };
+        self.set_use_cursor_guide(enabled);
     }
 
     /// iTerm2's `ClearScrollback` name is historical: unlike CSI 3 J, the
@@ -750,6 +766,46 @@ mod tests {
         terminal.process(b"\x1b[?1049l");
         assert!(!terminal.is_alt_screen_active());
         assert_eq!(terminal.scrollback_len(), 0);
+    }
+
+    #[test]
+    fn highlight_cursor_line_accepts_documented_values_and_exact_bare_enable() {
+        let mut terminal = Terminal::new(8, 2);
+        assert!(!terminal.use_cursor_guide());
+
+        terminal.process(b"\x1b]1337;HighlightCursorLine=yes\x07");
+        assert!(terminal.use_cursor_guide());
+
+        terminal.process(b"\x1b]1337;HighlightCursorLine=no\x1b\\");
+        assert!(!terminal.use_cursor_guide());
+
+        terminal.process(b"\x1b]1337;HighlightCursorLine\x07");
+        assert!(terminal.use_cursor_guide());
+    }
+
+    #[test]
+    fn highlight_cursor_line_is_split_safe_persistent_and_rejects_near_matches() {
+        let sequence = b"\x1b]1337;HighlightCursorLine=yes\x1b\\";
+        for split in 1..sequence.len() {
+            let mut terminal = Terminal::new(8, 2);
+            terminal.process(&sequence[..split]);
+            terminal.process(&sequence[split..]);
+            assert!(terminal.use_cursor_guide(), "split={split}");
+        }
+
+        let mut terminal = Terminal::new(8, 2);
+        terminal.process(b"\x1b]1337;HighlightCursorLine=yes\x07");
+        terminal.process(b"\x1bc");
+        assert!(terminal.use_cursor_guide());
+
+        for invalid in [
+            b"\x1b]1337;HighlightCursorLine=maybe\x07".as_slice(),
+            b"\x1b]1337;HighlightCursorLines=no\x07".as_slice(),
+            b"\x1b]1337;HighlightCursorLine=yes;extra=1\x07".as_slice(),
+        ] {
+            terminal.process(invalid);
+            assert!(terminal.use_cursor_guide());
+        }
     }
 
     #[test]

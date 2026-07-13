@@ -256,6 +256,10 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
                     }
                 )));
             }
+            "osc1337_cursor_guide" => {
+                assert!(terminal.use_cursor_guide());
+                assert_eq!(terminal.title(), "osc1337-cursor-guide-corpus-ok");
+            }
             "osc1337_shell_metadata_and_cell_size" => {
                 let events = terminal.poll_events();
                 assert!(events.iter().any(|event| matches!(

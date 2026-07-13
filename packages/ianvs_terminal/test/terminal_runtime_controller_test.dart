@@ -177,6 +177,7 @@ void main() {
           row: 0,
           col: 6,
           visible: true,
+          highlightLine: true,
           shape: TerminalCursorShape.beam,
           blink: false,
         ),
@@ -185,8 +186,11 @@ void main() {
         dirtyRanges: [],
         scrollbackOffset: 0,
         scrollbackMaxOffset: 0,
+        cursorGuideColor: Color(0xFF2A80D7),
       ),
     );
+    expect(controller.frame.cursor.highlightLine, isTrue);
+    expect(controller.frame.cursorGuideColor, const Color(0xFF2A80D7));
     expect(controller.frame.cursor.shape, TerminalCursorShape.beam);
     expect(controller.frame.cursor.blink, isFalse);
     expect(controller.frame.rows.single.text, 'prompt');
@@ -205,6 +209,8 @@ void main() {
     );
     expect(controller.frame.cursor.shape, isNull);
     expect(controller.frame.cursor.blink, isNull);
+    expect(controller.frame.cursor.highlightLine, isFalse);
+    expect(controller.frame.cursorGuideColor, const Color(0xFF2A80D7));
   });
 
   test(

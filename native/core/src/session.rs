@@ -378,6 +378,7 @@ struct CachedFrameMeta {
     default_foreground_rgb: (u8, u8, u8),
     default_background_rgb: (u8, u8, u8),
     cursor_color_rgb: (u8, u8, u8),
+    cursor_guide_color_rgb: (u8, u8, u8),
     selection_background_rgb: (u8, u8, u8),
     selection_foreground_rgb: Option<(u8, u8, u8)>,
     link_color_rgb: Option<(u8, u8, u8)>,
@@ -1926,7 +1927,8 @@ impl TerminalSession {
                             terminal_process_breakdown,
                         ) = {
                             let mut state = reader_session.state.lock();
-                            let cursor_before = terminal_cursor_snapshot(state.terminal.cursor());
+                            let cursor_before =
+                                terminal_cursor_snapshot(&state.terminal, state.terminal.cursor());
                             let process_started_at = Instant::now();
                             let was_alt_screen_active = state.terminal.is_alt_screen_active();
                             let input_enters_alt_screen = input_sets_alt_screen(&buf[..read]);
@@ -2013,7 +2015,8 @@ impl TerminalSession {
                                 append_transcript(&mut state, &buf[..read]);
                             }
                             let damage = state.terminal.drain_active_screen_damage();
-                            let cursor_after = terminal_cursor_snapshot(state.terminal.cursor());
+                            let cursor_after =
+                                terminal_cursor_snapshot(&state.terminal, state.terminal.cursor());
                             let responses = normalize_responses(
                                 reader_session.emulation,
                                 state.terminal.drain_responses(),
@@ -2500,7 +2503,7 @@ impl TerminalSession {
         } else {
             terminal.grid().scrollback_len()
         };
-        let cursor_snapshot = terminal_cursor_snapshot(cursor);
+        let cursor_snapshot = terminal_cursor_snapshot(terminal, cursor);
         let (signal_was_dirty, refresh_hint_was_dirty, pending_frame_work) =
             self.pending_frame_signal.take();
         had_dirty_work = signal_was_dirty || synchronized_timeout_flushed;
@@ -2518,6 +2521,10 @@ impl TerminalSession {
             default_foreground_rgb: resolve_color_rgb(theme.default_fg, &theme.ansi_palette),
             default_background_rgb: resolve_color_rgb(theme.default_bg, &theme.ansi_palette),
             cursor_color_rgb: resolve_color_rgb(theme.cursor_color, &theme.ansi_palette),
+            cursor_guide_color_rgb: resolve_color_rgb(
+                theme.cursor_guide_color,
+                &theme.ansi_palette,
+            ),
             selection_background_rgb: resolve_color_rgb(
                 theme.selection_background,
                 &theme.ansi_palette,
@@ -2671,6 +2678,7 @@ impl TerminalSession {
             default_foreground: color_to_hex(theme.default_fg, &theme.ansi_palette),
             default_background: color_to_hex(theme.default_bg, &theme.ansi_palette),
             cursor_color: color_to_hex(theme.cursor_color, &theme.ansi_palette),
+            cursor_guide_color: color_to_hex(theme.cursor_guide_color, &theme.ansi_palette),
             selection_background: color_to_hex(theme.selection_background, &theme.ansi_palette),
             selection_foreground: theme
                 .selection_foreground
@@ -3210,11 +3218,15 @@ struct ExtractedVisibleRow {
     hyperlinks: Vec<TerminalHyperlinkRange>,
 }
 
-fn terminal_cursor_snapshot(cursor: &par_term_emu_core_rust::cursor::Cursor) -> TerminalCursor {
+fn terminal_cursor_snapshot(
+    terminal: &Terminal,
+    cursor: &par_term_emu_core_rust::cursor::Cursor,
+) -> TerminalCursor {
     TerminalCursor {
         row: cursor.row,
         col: cursor.col,
         visible: cursor.visible,
+        highlight_line: terminal.use_cursor_guide(),
         shape: cursor.shape_override().map(|shape| match shape {
             par_term_emu_core_rust::cursor::CursorShape::Block => TerminalCursorShape::Block,
             par_term_emu_core_rust::cursor::CursorShape::Underline => {
@@ -5077,6 +5089,7 @@ struct TerminalThemeSnapshot {
     default_fg: Color,
     default_bg: Color,
     cursor_color: Color,
+    cursor_guide_color: Color,
     selection_background: Color,
     selection_foreground: Option<Color>,
     iterm_bold_color: Option<Color>,
@@ -5094,6 +5107,7 @@ fn terminal_theme_snapshot(terminal: &Terminal) -> TerminalThemeSnapshot {
         default_fg: terminal.default_fg(),
         default_bg: terminal.default_bg(),
         cursor_color: terminal.cursor_color(),
+        cursor_guide_color: terminal.cursor_guide_color(),
         selection_background: terminal.get_selection_bg_color(),
         selection_foreground: terminal
             .selection_foreground_color_enabled()

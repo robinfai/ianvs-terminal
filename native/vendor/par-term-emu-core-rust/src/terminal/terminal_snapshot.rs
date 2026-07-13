@@ -178,6 +178,10 @@ pub struct TerminalSnapshot {
     /// Current dynamic cursor color and its session/profile reset baseline.
     pub cursor_color: Color,
     pub baseline_cursor_color: Color,
+    /// iTerm2 cursor-guide presentation state. Unlike terminal modes this is
+    /// session-local UI state and survives RIS until explicitly changed.
+    pub cursor_guide_color: Color,
+    pub use_cursor_guide: bool,
     /// Current 0-15 palette and its session/profile reset baseline.
     pub ansi_palette: [Color; 16],
     pub baseline_ansi_palette: [Color; 16],
@@ -638,6 +642,8 @@ impl Terminal {
             baseline_default_bg: self.baseline_default_bg,
             cursor_color: self.cursor_color,
             baseline_cursor_color: self.baseline_cursor_color,
+            cursor_guide_color: self.cursor_guide_color,
+            use_cursor_guide: self.use_cursor_guide,
             ansi_palette: self.ansi_palette,
             baseline_ansi_palette: self.baseline_ansi_palette,
             extended_ansi_palette: self.extended_ansi_palette,
@@ -784,6 +790,8 @@ impl Terminal {
         self.baseline_default_bg = snap.baseline_default_bg;
         self.cursor_color = snap.cursor_color;
         self.baseline_cursor_color = snap.baseline_cursor_color;
+        self.cursor_guide_color = snap.cursor_guide_color;
+        self.use_cursor_guide = snap.use_cursor_guide;
         self.ansi_palette = snap.ansi_palette;
         self.baseline_ansi_palette = snap.baseline_ansi_palette;
         self.extended_ansi_palette = snap.extended_ansi_palette;
@@ -913,6 +921,8 @@ mod tests {
             baseline_default_bg: Color::Named(NamedColor::Black),
             cursor_color: Color::Named(NamedColor::White),
             baseline_cursor_color: Color::Named(NamedColor::White),
+            cursor_guide_color: Color::Rgb(0xa6, 0xe8, 0xff),
+            use_cursor_guide: false,
             ansi_palette: Terminal::default_ansi_palette(),
             baseline_ansi_palette: Terminal::default_ansi_palette(),
             extended_ansi_palette: Terminal::default_extended_ansi_palette(),
@@ -1083,6 +1093,23 @@ mod tests {
         assert_eq!(term.default_bg(), baseline_bg);
         assert_eq!(term.cursor_color(), baseline_cursor);
         assert_eq!(term.get_ansi_color(196), Some(baseline_196));
+    }
+
+    #[test]
+    fn restore_preserves_iterm_cursor_guide_state_and_color() {
+        let mut terminal = Terminal::new(8, 2);
+        terminal.set_cursor_guide_color(Color::Rgb(0x12, 0x34, 0x56));
+        terminal.process(b"\x1b]1337;HighlightCursorLine=yes\x07");
+        let snapshot = terminal.capture_snapshot();
+
+        terminal.set_cursor_guide_color(Color::Rgb(0xaa, 0xbb, 0xcc));
+        terminal.process(b"\x1b]1337;HighlightCursorLine=no\x07");
+        terminal.restore_from_snapshot(snapshot);
+
+        assert!(terminal.use_cursor_guide());
+        assert_eq!(terminal.cursor_guide_color(), Color::Rgb(0x12, 0x34, 0x56));
+        terminal.reset();
+        assert!(terminal.use_cursor_guide());
     }
 
     #[test]

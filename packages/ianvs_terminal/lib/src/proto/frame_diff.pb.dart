@@ -52,6 +52,7 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
     ColorRgb? linkColor,
     ColorRgb? cursorTextColor,
     ColorRgb? tabColor,
+    ColorRgb? cursorGuideColor,
   }) {
     final result = create();
     if (frameSchemaVersion != null)
@@ -87,6 +88,7 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
     if (linkColor != null) result.linkColor = linkColor;
     if (cursorTextColor != null) result.cursorTextColor = cursorTextColor;
     if (tabColor != null) result.tabColor = tabColor;
+    if (cursorGuideColor != null) result.cursorGuideColor = cursorGuideColor;
     return result;
   }
 
@@ -156,6 +158,8 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
     ..aOM<ColorRgb>(28, _omitFieldNames ? '' : 'cursorTextColor',
         subBuilder: ColorRgb.create)
     ..aOM<ColorRgb>(29, _omitFieldNames ? '' : 'tabColor',
+        subBuilder: ColorRgb.create)
+    ..aOM<ColorRgb>(30, _omitFieldNames ? '' : 'cursorGuideColor',
         subBuilder: ColorRgb.create)
     ..hasRequiredFields = false;
 
@@ -424,6 +428,17 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
   void clearTabColor() => $_clearField(29);
   @$pb.TagNumber(29)
   ColorRgb ensureTabColor() => $_ensure(28);
+
+  @$pb.TagNumber(30)
+  ColorRgb get cursorGuideColor => $_getN(29);
+  @$pb.TagNumber(30)
+  set cursorGuideColor(ColorRgb value) => $_setField(30, value);
+  @$pb.TagNumber(30)
+  $core.bool hasCursorGuideColor() => $_has(29);
+  @$pb.TagNumber(30)
+  void clearCursorGuideColor() => $_clearField(30);
+  @$pb.TagNumber(30)
+  ColorRgb ensureCursorGuideColor() => $_ensure(29);
 }
 
 class TerminalRow extends $pb.GeneratedMessage {
@@ -778,6 +793,7 @@ class TerminalCursor extends $pb.GeneratedMessage {
     $core.bool? visible,
     $core.String? shape,
     $core.bool? blink,
+    $core.bool? highlightLine,
   }) {
     final result = create();
     if (row != null) result.row = row;
@@ -785,6 +801,7 @@ class TerminalCursor extends $pb.GeneratedMessage {
     if (visible != null) result.visible = visible;
     if (shape != null) result.shape = shape;
     if (blink != null) result.blink = blink;
+    if (highlightLine != null) result.highlightLine = highlightLine;
     return result;
   }
 
@@ -806,6 +823,7 @@ class TerminalCursor extends $pb.GeneratedMessage {
     ..aOB(3, _omitFieldNames ? '' : 'visible')
     ..aOS(4, _omitFieldNames ? '' : 'shape')
     ..aOB(5, _omitFieldNames ? '' : 'blink')
+    ..aOB(6, _omitFieldNames ? '' : 'highlightLine')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -871,6 +889,15 @@ class TerminalCursor extends $pb.GeneratedMessage {
   $core.bool hasBlink() => $_has(4);
   @$pb.TagNumber(5)
   void clearBlink() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.bool get highlightLine => $_getBF(5);
+  @$pb.TagNumber(6)
+  set highlightLine($core.bool value) => $_setBool(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasHighlightLine() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearHighlightLine() => $_clearField(6);
 }
 
 class TerminalSelection extends $pb.GeneratedMessage {

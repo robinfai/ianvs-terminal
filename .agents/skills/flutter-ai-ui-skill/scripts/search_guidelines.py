@@ -77,9 +77,10 @@ def print_results(results: list, show_examples: bool = False):
     for row in results:
         sev = row.get('Severity', 'LOW')
         color = SEVERITY_COLOR.get(sev.lower(), RESET)
+        dont = row.get("Don't", '')
         print(f"{color}[{sev}]{RESET} {BOLD}{row.get('Category', '')}{RESET} — {row.get('Guideline', '')}")
         print(f"  ✅ DO    : {row.get('Do', '')}")
-        print(f"  ❌ DON'T : {row.get(\"Don't\", '')}")
+        print(f"  ❌ DON'T : {dont}")
         if show_examples and row.get('Flutter Example'):
             example = row.get('Flutter Example', '')
             print(f"  📝 EXAMPLE: {example}")

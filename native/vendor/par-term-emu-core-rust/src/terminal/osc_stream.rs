@@ -787,6 +787,12 @@ fn classify_osc_1337(
     if payload == b"ReportCellSize" || (!complete && b"ReportCellSize".starts_with(payload)) {
         return Classification::new(OscIntent::Appearance, OscCapability::Appearance);
     }
+    if payload == b"HighlightCursorLine"
+        || payload.starts_with(b"HighlightCursorLine=")
+        || (!complete && b"HighlightCursorLine=".starts_with(payload))
+    {
+        return Classification::new(OscIntent::Appearance, OscCapability::Appearance);
+    }
     if payload.starts_with(b"CursorShape=") || (!complete && b"CursorShape=".starts_with(payload)) {
         return Classification::new(OscIntent::Appearance, OscCapability::Appearance);
     }
@@ -1086,6 +1092,56 @@ mod tests {
         );
         assert_eq!(output, sequence);
         assert!(!appearance_denied.allows_host_action(OscCapability::Metadata));
+    }
+
+    #[test]
+    fn osc1337_cursor_guide_is_bounded_appearance_not_a_host_action() {
+        let sequence = b"\x1b]1337;HighlightCursorLine=yes\x1b\\";
+        let classification = classify_osc(
+            &sequence[2..sequence.len() - 2],
+            true,
+            OscClassificationContext::default(),
+        );
+        assert_eq!(classification.intent, OscIntent::Appearance);
+        assert_eq!(classification.capability, OscCapability::Appearance);
+
+        let mut appearance_denied = OscCapabilityPolicy::default();
+        appearance_denied.set(OscCapability::Appearance, false);
+        let mut gate = OscStreamGate::default();
+        assert!(filter_owned(
+            &mut gate,
+            sequence,
+            appearance_denied,
+            OscClassificationContext::default(),
+        )
+        .is_empty());
+        assert_eq!(
+            gate.diagnostics().for_intent(OscIntent::Appearance),
+            OscIntentDiagnostics {
+                policy_denied: 1,
+                ..OscIntentDiagnostics::default()
+            }
+        );
+        assert!(!appearance_denied.allows_host_action(OscCapability::Appearance));
+
+        let oversized = format!(
+            "\x1b]1337;HighlightCursorLine={}\x07",
+            "y".repeat(OscIntent::Appearance.payload_limit() + 1)
+        );
+        let mut gate = OscStreamGate::default();
+        assert!(filter_owned(
+            &mut gate,
+            oversized.as_bytes(),
+            OscCapabilityPolicy::default(),
+            OscClassificationContext::default(),
+        )
+        .is_empty());
+        assert_eq!(
+            gate.diagnostics()
+                .for_intent(OscIntent::Appearance)
+                .oversized,
+            1
+        );
     }
 
     #[test]

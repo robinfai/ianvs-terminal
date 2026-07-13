@@ -133,6 +133,8 @@ final TerminalRowTextMetrics terminalFallbackRowTextMetrics =
     );
 
 const double _smartCursorContrastRatio = 4.5;
+const double _cursorGuideFillAlpha = 0.18;
+const double _cursorGuideBorderAlpha = 0.42;
 const int _maxGlyphParagraphCacheEntries = 1024;
 
 class RenderTerminalViewport extends RenderBox {
@@ -182,6 +184,8 @@ class RenderTerminalViewport extends RenderBox {
   final Paint _rowBackgroundPaint = Paint()..isAntiAlias = false;
   final Paint _selectionPaint = Paint()..isAntiAlias = false;
   final Paint _cursorPaint = Paint()..isAntiAlias = false;
+  final Paint _cursorGuideFillPaint = Paint()..isAntiAlias = false;
+  final Paint _cursorGuideBorderPaint = Paint()..isAntiAlias = false;
   final Paint _searchFillPaint = Paint()..isAntiAlias = true;
   final Paint _searchBorderPaint = Paint()
     ..style = PaintingStyle.stroke
@@ -211,6 +215,8 @@ class RenderTerminalViewport extends RenderBox {
   final List<Rect> _debugSearchHighlightRects = <Rect>[];
   Rect? _paintedCursorRect;
   Color? _debugCursorColor;
+  Rect? _paintedCursorGuideRect;
+  Color? _debugCursorGuideColor;
   _MeasuredCellMetrics? _cachedCellMetrics;
   TerminalRowTextMetrics? _cachedMeasuredRowTextMetrics;
   int? _textMetricsSignature;
@@ -348,6 +354,8 @@ class RenderTerminalViewport extends RenderBox {
     canvas.translate(offset.dx, offset.dy);
     canvas.clipRect(_localPaintBounds);
     final frame = _controller.frame;
+    _paintedCursorGuideRect = null;
+    _debugCursorGuideColor = null;
     final canvasBackground = _canvasBackgroundFor(frame);
     _canvasPaint.color = canvasBackground;
     canvas.drawRect(_localPaintBounds, _canvasPaint);
@@ -413,6 +421,11 @@ class RenderTerminalViewport extends RenderBox {
       for (final span in backgroundSpans) {
         _rowBackgroundPaint.color = span.background;
         canvas.drawRect(span.rect.shift(Offset(0, y)), _rowBackgroundPaint);
+      }
+      if (frame.cursor.highlightLine &&
+          frame.cursor.visible &&
+          row.index == frame.cursor.row) {
+        _paintCursorGuide(canvas, frame, y);
       }
       _paintSearchHighlightsForRow(
         canvas,
@@ -574,6 +587,8 @@ class RenderTerminalViewport extends RenderBox {
   }
 
   Color? get debugCursorColor => _debugCursorColor;
+  Rect? get debugCursorGuideRect => _paintedCursorGuideRect;
+  Color? get debugCursorGuideColor => _debugCursorGuideColor;
   Color get debugCanvasBackground => _canvasBackgroundFor(_controller.frame);
 
   int debugRowPictureBuildsForRow(int row) => _rowPictureBuildCounts[row] ?? 0;
@@ -1320,6 +1335,55 @@ class RenderTerminalViewport extends RenderBox {
       background,
       math.max(_minimumContrastRatio, _smartCursorContrastRatio),
     );
+  }
+
+  void _paintCursorGuide(
+    Canvas canvas,
+    TerminalFrameDiff frame,
+    double rowTop,
+  ) {
+    final guideColor =
+        frame.cursorGuideColor ?? frame.cursorColor ?? _colors.cursor;
+    final fillColor = guideColor.withValues(alpha: _cursorGuideFillAlpha);
+    final borderColor = guideColor.withValues(alpha: _cursorGuideBorderAlpha);
+    final guideRect = _snapRect(
+      Rect.fromLTWH(0, rowTop, _localPaintBounds.width, _cellSize.height),
+    );
+    if (guideRect.isEmpty) {
+      return;
+    }
+
+    _cursorGuideFillPaint.color = fillColor;
+    canvas.drawRect(guideRect, _cursorGuideFillPaint);
+
+    final devicePixelRatio = _devicePixelRatio.isFinite && _devicePixelRatio > 0
+        ? _devicePixelRatio
+        : 1.0;
+    final borderHeight = math.min(guideRect.height, 1 / devicePixelRatio);
+    _cursorGuideBorderPaint.color = borderColor;
+    canvas.drawRect(
+      Rect.fromLTWH(
+        guideRect.left,
+        guideRect.top,
+        guideRect.width,
+        borderHeight,
+      ),
+      _cursorGuideBorderPaint,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(
+        guideRect.left,
+        guideRect.bottom - borderHeight,
+        guideRect.width,
+        borderHeight,
+      ),
+      _cursorGuideBorderPaint,
+    );
+
+    if (kDebugMode) {
+      _paintedCursorGuideRect = guideRect;
+      _debugCursorGuideColor = fillColor;
+    }
   }
 
   void _paintCursorText(

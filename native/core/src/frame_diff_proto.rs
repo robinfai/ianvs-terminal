@@ -44,6 +44,7 @@ fn to_proto_frame(frame: &TerminalFrameDiff) -> pb::TerminalFrameDiff {
         default_foreground: color_to_proto(frame.default_foreground.as_deref()),
         default_background: color_to_proto(frame.default_background.as_deref()),
         cursor_color: color_to_proto(frame.cursor_color.as_deref()),
+        cursor_guide_color: color_to_proto(frame.cursor_guide_color.as_deref()),
         selection_background: color_to_proto(frame.selection_background.as_deref()),
         selection_foreground: color_to_proto(frame.selection_foreground.as_deref()),
         link_color: color_to_proto(frame.link_color.as_deref()),
@@ -120,6 +121,7 @@ fn to_proto_cursor(cursor: &TerminalCursor) -> pb::TerminalCursor {
         visible: cursor.visible,
         shape: cursor.shape.map(|shape| shape.as_str().to_string()),
         blink: cursor.blink,
+        highlight_line: cursor.highlight_line,
     }
 }
 

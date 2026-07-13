@@ -773,6 +773,21 @@ fn osc1337_cursor_shape_only_profile() -> TerminalProfile {
     )
 }
 
+fn osc1337_cursor_guide_profile(emulation: TerminalEmulation) -> TerminalProfile {
+    local_profile(
+        "osc1337-cursor-guide",
+        "OSC1337 Cursor Guide",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import sys,time; sys.stdout.buffer.write(b"\x1b]1337;HighlightCursorLine=yes\x1b\\OSC1337-CURSOR-GUIDE\n"); sys.stdout.flush(); time.sleep(0.5)'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        emulation,
+    )
+}
+
 fn osc1337_clear_buffer_profile(emulation: TerminalEmulation) -> TerminalProfile {
     local_profile_with_scrollback(
         "osc1337-clear-buffer",
@@ -2205,6 +2220,26 @@ fn assert_frame_json_protobuf_cursor_override_parity(
     let cursor = protobuf.cursor.expect("protobuf cursor");
     assert_eq!(cursor.shape.as_deref(), expected_shape);
     assert_eq!(cursor.blink, expected_blink);
+}
+
+fn assert_frame_json_protobuf_cursor_guide_parity(frame: &str, expected: bool) {
+    let parsed: serde_json::Value = serde_json::from_str(frame).unwrap();
+    assert_eq!(parsed["cursor"]["highlight_line"].as_bool(), Some(expected));
+    assert_eq!(parsed["cursor_guide_color"].as_str(), Some("#a6e8ff"));
+
+    let frame_model: ianvs_core::model::TerminalFrameDiff = serde_json::from_str(frame).unwrap();
+    let protobuf_bytes = ianvs_core::frame_diff_proto::encode_frame_diff(&frame_model)
+        .expect("encode the same cursor-guide frame as protobuf");
+    let protobuf = ianvs_core::frame_diff_proto::decode_frame_diff_for_test(&protobuf_bytes)
+        .expect("decode the same cursor-guide protobuf frame");
+    assert_eq!(
+        protobuf.cursor.as_ref().map(|cursor| cursor.highlight_line),
+        Some(expected)
+    );
+    assert_eq!(
+        protobuf.cursor_guide_color.as_ref().map(|color| color.rgb),
+        Some(0xa6e8ff)
+    );
 }
 
 fn assert_frame_json_protobuf_sized_text_parity(frame: &str) {
@@ -18367,6 +18402,32 @@ fn vt220_sessions_gate_osc1337_cursor_shape() {
 
     let frame = wait_for_frame_containing(session_id, "OSC1337-CURSOR-BEAM");
     assert_frame_json_protobuf_cursor_override_parity(&frame, None, None);
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_osc1337_cursor_guide_crosses_real_pty_and_frame_codecs() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc1337_cursor_guide_profile(TerminalEmulation::Xterm256)).unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "OSC1337-CURSOR-GUIDE");
+    assert_frame_json_protobuf_cursor_guide_parity(&frame, true);
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_sessions_gate_osc1337_cursor_guide() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc1337_cursor_guide_profile(TerminalEmulation::Vt220)).unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "OSC1337-CURSOR-GUIDE");
+    assert_frame_json_protobuf_cursor_guide_parity(&frame, false);
 
     session::close_session(session_id).unwrap();
 }

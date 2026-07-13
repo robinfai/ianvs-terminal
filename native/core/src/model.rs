@@ -356,6 +356,8 @@ pub struct TerminalCursor {
     pub row: usize,
     pub col: usize,
     pub visible: bool,
+    #[serde(default)]
+    pub highlight_line: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shape: Option<TerminalCursorShape>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -552,6 +554,8 @@ pub struct TerminalFrameDiff {
     pub default_background: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cursor_color: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cursor_guide_color: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub selection_background: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

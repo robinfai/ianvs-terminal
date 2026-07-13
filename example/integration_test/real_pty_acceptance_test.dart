@@ -1111,6 +1111,78 @@ sleep 1
   );
 
   testWidgets(
+    'real PTY OSC 1337 cursor guide enables, paints, and disables',
+    (tester) async {
+      final enableFile = _tempSignalFile('osc1337-cursor-guide-enable');
+      final disableFile = _tempSignalFile('osc1337-cursor-guide-disable');
+      final profile = _scriptProfile(
+        id: 'osc1337-cursor-guide',
+        name: 'OSC 1337 Cursor Guide',
+        script: r'''
+printf 'osc1337-cursor-guide-ready\n'
+while [ ! -f "$ENABLE_FILE" ]; do sleep 0.05; done
+printf '\033]1337;HighlightCursorLine=yes\033\\OSC1337-GUIDE-ENABLED\n'
+while [ ! -f "$DISABLE_FILE" ]; do sleep 0.05; done
+printf '\033]1337;HighlightCursorLine=no\033\\OSC1337-GUIDE-DISABLED\n'
+sleep 1
+''',
+        env: {'ENABLE_FILE': enableFile.path, 'DISABLE_FILE': disableFile.path},
+      );
+      final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
+
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'OSC 1337 cursor guide ready marker',
+        matches: (text) => text.contains('osc1337-cursor-guide-ready'),
+      );
+      _signal(enableFile);
+      await _waitFor(
+        tester,
+        description: 'OSC 1337 cursor guide enabled frame',
+        condition: () {
+          final frame = _activeFrame(harness.container);
+          return frame?.cursor.highlightLine == true &&
+              frame!.cursorGuideColor != null &&
+              frame.rows.any(
+                (row) => row.text.contains('OSC1337-GUIDE-ENABLED'),
+              );
+        },
+        onTimeout: () => 'Frame: ${_activeFrame(harness.container)}',
+      );
+
+      if (kDebugMode) {
+        await _waitFor(
+          tester,
+          description: 'OSC 1337 cursor guide render-object paint',
+          condition: () =>
+              tester.allRenderObjects.whereType<RenderTerminalViewport>().any(
+                (renderObject) =>
+                    renderObject.debugCursorGuideRect?.height.isFinite ==
+                        true &&
+                    renderObject.debugCursorGuideColor != null,
+              ),
+        );
+      }
+
+      _signal(disableFile);
+      await _waitFor(
+        tester,
+        description: 'OSC 1337 cursor guide disabled frame',
+        condition: () {
+          final frame = _activeFrame(harness.container);
+          return frame?.cursor.highlightLine == false &&
+              frame!.rows.any(
+                (row) => row.text.contains('OSC1337-GUIDE-DISABLED'),
+              );
+        },
+        onTimeout: () => 'Frame: ${_activeFrame(harness.container)}',
+      );
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
     'real PTY OSC 1337 ClearScrollback clears product rows and history',
     (tester) async {
       final goFile = _tempSignalFile('osc1337-clear-buffer');

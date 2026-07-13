@@ -244,6 +244,7 @@ class TerminalCursor {
     required this.row,
     required this.col,
     required this.visible,
+    this.highlightLine = false,
     this.shape,
     this.blink,
   });
@@ -251,6 +252,7 @@ class TerminalCursor {
   final int row;
   final int col;
   final bool visible;
+  final bool highlightLine;
   final TerminalCursorShape? shape;
   final bool? blink;
 
@@ -273,6 +275,9 @@ class TerminalCursor {
       row: row,
       col: col,
       visible: visible,
+      highlightLine: json['highlight_line'] is bool
+          ? json['highlight_line']! as bool
+          : false,
       shape: _terminalCursorShapeFromWire(json['shape']),
       blink: json['blink'] is bool ? json['blink']! as bool : null,
     );
@@ -931,6 +936,7 @@ class TerminalFrameDiff {
     this.defaultForeground,
     this.defaultBackground,
     this.cursorColor,
+    this.cursorGuideColor,
     this.selectionBackground,
     this.selectionForeground,
     this.linkColor,
@@ -967,6 +973,7 @@ class TerminalFrameDiff {
   final Color? defaultForeground;
   final Color? defaultBackground;
   final Color? cursorColor;
+  final Color? cursorGuideColor;
   final Color? selectionBackground;
   final Color? selectionForeground;
   final Color? linkColor;
@@ -1037,6 +1044,9 @@ class TerminalFrameDiff {
         _stringFromJson(json['default_background']),
       ),
       cursorColor: _colorFromHex(_stringFromJson(json['cursor_color'])),
+      cursorGuideColor: _colorFromHex(
+        _stringFromJson(json['cursor_guide_color']),
+      ),
       selectionBackground: _colorFromHex(
         _stringFromJson(json['selection_background']),
       ),
@@ -1323,6 +1333,10 @@ TerminalFrameDiff _terminalFrameDiffFromProtobuf(
       hasValue: proto.hasCursorColor(),
       value: proto.cursorColor,
     ),
+    cursorGuideColor: _colorFromProtobuf(
+      hasValue: proto.hasCursorGuideColor(),
+      value: proto.cursorGuideColor,
+    ),
     selectionBackground: _colorFromProtobuf(
       hasValue: proto.hasSelectionBackground(),
       value: proto.selectionBackground,
@@ -1476,6 +1490,7 @@ TerminalCursor _terminalCursorFromProtobuf(frame_pb.TerminalCursor cursor) {
     row: cursor.row,
     col: cursor.col,
     visible: cursor.visible,
+    highlightLine: cursor.highlightLine,
     shape: cursor.hasShape()
         ? _terminalCursorShapeFromWire(cursor.shape)
         : null,
@@ -2127,6 +2142,7 @@ class TerminalViewportState {
         defaultBackground:
             nextFrame.defaultBackground ?? frame.defaultBackground,
         cursorColor: nextFrame.cursorColor ?? frame.cursorColor,
+        cursorGuideColor: nextFrame.cursorGuideColor ?? frame.cursorGuideColor,
         selectionBackground:
             nextFrame.selectionBackground ?? frame.selectionBackground,
         selectionForeground:
@@ -2425,6 +2441,7 @@ TerminalFrameDiff _normalizeSnapshotFrame(
     defaultForeground: frame.defaultForeground,
     defaultBackground: frame.defaultBackground,
     cursorColor: frame.cursorColor,
+    cursorGuideColor: frame.cursorGuideColor,
     selectionBackground: frame.selectionBackground,
     selectionForeground: frame.selectionForeground,
     linkColor: frame.linkColor,
