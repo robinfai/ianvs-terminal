@@ -228,6 +228,14 @@ PROBES = {
         + osc("1337;SetMark", bell=True)
         + osc("1337;ReportCellSize"),
     ),
+    "clear_buffer": Probe(
+        "clear_buffer",
+        "iTerm2 OSC 1337 ClearScrollback",
+        "Clear the visible terminal buffer and retained scrollback history.",
+        "Existing visible rows and scrollback disappear; later terminal output continues on a clean first row.",
+        "terminal-local state only; no host action",
+        osc("1337;ClearScrollback"),
+    ),
     "dynamic_cursor": Probe(
         "dynamic_cursor",
         "iTerm2 OSC 1337 CursorShape",
@@ -307,6 +315,7 @@ def self_test() -> None:
         "sized_text",
         "drag_drop_query",
         "shell_metadata",
+        "clear_buffer",
         "dynamic_cursor",
         "progress",
         "badge",
@@ -349,6 +358,8 @@ def self_test() -> None:
         raise ValueError("drag-drop query fixture is malformed")
     if PROBES["shell_metadata"].payload.count(b"\x1b]1337;") != 3:
         raise ValueError("OSC 1337 shell metadata fixture is malformed")
+    if PROBES["clear_buffer"].payload != osc("1337;ClearScrollback"):
+        raise ValueError("OSC 1337 clear-buffer fixture is malformed")
     if b"1337;CursorShape=1" not in PROBES["dynamic_cursor"].payload:
         raise ValueError("OSC 1337 cursor shape fixture is malformed")
 

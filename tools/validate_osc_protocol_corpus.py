@@ -53,6 +53,7 @@ REQUIRED_COVERAGE = {
     "iTerm2 OSC 4 negative queries",
     "iTerm2 OSC 1337 SetColors",
     "iTerm2 SetColors color spaces and tab reset",
+    "OSC 1337 clear buffer",
     "OSC 3008 hierarchy",
     "OSC 3008 malformed close recovery",
     "tmux passthrough fixture",
@@ -200,6 +201,10 @@ def validate_case(case: Any) -> set[str]:
         require(b"bg=p3:808080" in stream, f"{case_id}: Display-P3 color")
         require(b"\x1b]4;-2;?;-1;?" in stream, f"{case_id}: negative queries")
         require(b"tab=default,preset=Grass" in stream, f"{case_id}: safe reset")
+    elif case_id == "osc1337_clear_buffer":
+        require(stream.count(b"\x1b]") == 2, f"{case_id}: sequence count")
+        require(b"1337;ClearScrollback" in stream, f"{case_id}: command")
+        require(b"after-clear" in stream, f"{case_id}: post-clear marker")
     elif case_id == "tmux_passthrough":
         require(stream.startswith(b"\x1bPtmux;\x1b\x1b]"), f"{case_id}: bad wrapper")
     elif case_id == "screen_passthrough":

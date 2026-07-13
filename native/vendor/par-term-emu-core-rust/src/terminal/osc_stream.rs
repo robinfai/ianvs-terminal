@@ -777,6 +777,8 @@ fn classify_osc_1337(
 ) -> Classification {
     if payload == b"SetMark"
         || (!complete && b"SetMark".starts_with(payload))
+        || payload == b"ClearScrollback"
+        || (!complete && b"ClearScrollback".starts_with(payload))
         || payload.starts_with(b"ShellIntegrationVersion=")
         || (!complete && b"ShellIntegrationVersion=".starts_with(payload))
     {
@@ -1042,6 +1044,48 @@ mod tests {
             filter_owned(&mut gate, mark, appearance_denied, context),
             mark
         );
+    }
+
+    #[test]
+    fn osc1337_clear_scrollback_is_bounded_metadata_not_a_host_action() {
+        let sequence = b"\x1b]1337;ClearScrollback\x1b\\";
+
+        let classification = classify_osc(
+            &sequence[2..sequence.len() - 2],
+            true,
+            OscClassificationContext::default(),
+        );
+        assert_eq!(classification.intent, OscIntent::ShellIntegration);
+        assert_eq!(classification.capability, OscCapability::Metadata);
+
+        let mut metadata_denied = OscCapabilityPolicy::default();
+        metadata_denied.set(OscCapability::Metadata, false);
+        let mut gate = OscStreamGate::default();
+        let output = filter_owned(
+            &mut gate,
+            sequence,
+            metadata_denied,
+            OscClassificationContext::default(),
+        );
+        assert!(output.is_empty());
+        assert_eq!(
+            gate.diagnostics()
+                .for_intent(OscIntent::ShellIntegration)
+                .policy_denied,
+            1
+        );
+
+        let mut appearance_denied = OscCapabilityPolicy::default();
+        appearance_denied.set(OscCapability::Appearance, false);
+        let mut gate = OscStreamGate::default();
+        let output = filter_owned(
+            &mut gate,
+            sequence,
+            appearance_denied,
+            OscClassificationContext::default(),
+        );
+        assert_eq!(output, sequence);
+        assert!(!appearance_denied.allows_host_action(OscCapability::Metadata));
     }
 
     #[test]

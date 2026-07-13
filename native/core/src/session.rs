@@ -1920,6 +1920,7 @@ impl TerminalSession {
                             damage,
                             cursor_before,
                             cursor_after,
+                            cleared_scrollback,
                             host_protocol_micros,
                             terminal_process_micros,
                             terminal_process_breakdown,
@@ -1943,6 +1944,14 @@ impl TerminalSession {
                                 host_protocol_micros = host_started_at.elapsed().as_micros() as u64;
                             });
                             let parser_events = state.terminal.poll_events();
+                            let cleared_scrollback = parser_events.iter().any(|event| {
+                                matches!(
+                                    event,
+                                    ParserTerminalEvent::ScreenCleared {
+                                        include_scrollback: true
+                                    }
+                                )
+                            });
                             let notifications = state.terminal.take_notifications();
                             if reader_session.emulation == TerminalEmulation::Xterm256 {
                                 let suppress_shell_zones = was_alt_screen_active
@@ -1987,12 +1996,22 @@ impl TerminalSession {
                                     },
                                 ));
                             }
+                            if cleared_scrollback {
+                                // Terminal-originated CSI 3 J and iTerm2 OSC
+                                // 1337 ClearScrollback invalidate replay and
+                                // navigation history just like the host API.
+                                state.scrollback_offset = 0;
+                                state.transcript.clear();
+                                state.transcript_truncated = true;
+                            }
                             let terminal_process_micros = (process_started_at.elapsed().as_micros()
                                 as u64)
                                 .saturating_sub(host_protocol_micros);
                             let terminal_process_breakdown =
                                 state.terminal.take_process_debug_stats();
-                            append_transcript(&mut state, &buf[..read]);
+                            if !cleared_scrollback {
+                                append_transcript(&mut state, &buf[..read]);
+                            }
                             let damage = state.terminal.drain_active_screen_damage();
                             let cursor_after = terminal_cursor_snapshot(state.terminal.cursor());
                             let responses = normalize_responses(
@@ -2005,6 +2024,7 @@ impl TerminalSession {
                                 damage,
                                 cursor_before,
                                 cursor_after,
+                                cleared_scrollback,
                                 host_protocol_micros,
                                 terminal_process_micros,
                                 terminal_process_breakdown,
@@ -2017,6 +2037,14 @@ impl TerminalSession {
                         });
                         let damage_merge_micros =
                             damage_merge_started_at.elapsed().as_micros() as u64;
+
+                        if cleared_scrollback {
+                            reader_session.last_rows.lock().clear();
+                            *reader_session.last_frame_meta.lock() = None;
+                            reader_session
+                                .pending_frame_signal
+                                .mutate(|work| work.mark_full_repaint("terminal_clear_scrollback"));
+                        }
 
                         for event in callback_events {
                             reader_session.push_callback_event(event);

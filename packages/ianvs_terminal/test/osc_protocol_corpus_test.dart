@@ -32,6 +32,7 @@ const Set<String> _requiredCoverage = <String>{
   'iTerm2 OSC 4 negative queries',
   'iTerm2 OSC 1337 SetColors',
   'iTerm2 SetColors color spaces and tab reset',
+  'OSC 1337 clear buffer',
   'OSC 3008 hierarchy',
   'OSC 3008 malformed close recovery',
   'tmux passthrough fixture',
@@ -166,6 +167,11 @@ void _validateFixture(String id, Map<String, Object?> fixture) {
     expect(text, contains('ShellIntegrationVersion=17;zsh'));
     expect(text, contains('SetMark'));
     expect(text, contains('ReportCellSize'));
+  } else if (id == 'osc1337_clear_buffer') {
+    final text = latin1.decode(stream);
+    expect(RegExp(r'\x1b]').allMatches(text), hasLength(2));
+    expect(text, contains('1337;ClearScrollback'));
+    expect(text, contains('after-clear'));
   } else if (id == 'osc1337_dynamic_cursor_shape') {
     final text = latin1.decode(stream);
     expect(text, contains('\x1b]1337;CursorShape=1\x1b\\'));

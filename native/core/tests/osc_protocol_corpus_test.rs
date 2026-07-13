@@ -240,6 +240,22 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
                 assert_eq!(commands[2].action, DragDropAction::RequestDropData);
                 assert_eq!(commands[2].x, Some(1));
             }
+            "osc1337_clear_buffer" => {
+                assert_eq!(terminal.scrollback_len(), 0);
+                assert_eq!(terminal.title(), "osc1337-clear-corpus-ok");
+                let visible = terminal.active_grid().rows();
+                let visible = (0..visible)
+                    .map(|row| terminal.active_grid().row_text(row))
+                    .collect::<String>();
+                assert!(visible.contains("after-clear"));
+                assert!(!visible.contains("old-"));
+                assert!(terminal.poll_events().iter().any(|event| matches!(
+                    event,
+                    TerminalEvent::ScreenCleared {
+                        include_scrollback: true
+                    }
+                )));
+            }
             "osc1337_shell_metadata_and_cell_size" => {
                 let events = terminal.poll_events();
                 assert!(events.iter().any(|event| matches!(

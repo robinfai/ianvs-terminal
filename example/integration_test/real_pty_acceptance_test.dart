@@ -1111,6 +1111,61 @@ sleep 1
   );
 
   testWidgets(
+    'real PTY OSC 1337 ClearScrollback clears product rows and history',
+    (tester) async {
+      final goFile = _tempSignalFile('osc1337-clear-buffer');
+      final profile = _scriptProfile(
+        id: 'osc1337-clear-buffer',
+        name: 'OSC 1337 Clear Buffer',
+        script: r'''
+index=0
+while [ "$index" -lt 48 ]; do
+  printf 'OSC1337-OLD-%02d\n' "$index"
+  index=$((index + 1))
+done
+printf 'OSC1337-CLEAR-READY\n'
+while [ ! -f "$GO_FILE" ]; do sleep 0.05; done
+printf '\033]1337;ClearScrollback\033\\OSC1337-AFTER-CLEAR\n'
+sleep 1
+''',
+        env: {'GO_FILE': goFile.path},
+      );
+      final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
+
+      await _waitFor(
+        tester,
+        description: 'OSC 1337 pre-clear scrollback',
+        condition: () {
+          final frame = _activeFrame(harness.container);
+          return frame != null &&
+              frame.scrollbackMaxOffset > 0 &&
+              frame.rows.any((row) => row.text.contains('OSC1337-CLEAR-READY'));
+        },
+      );
+
+      _signal(goFile);
+      await _waitFor(
+        tester,
+        description: 'OSC 1337 cleared product frame',
+        condition: () {
+          final frame = _activeFrame(harness.container);
+          if (frame == null ||
+              frame.scrollbackOffset != 0 ||
+              frame.scrollbackMaxOffset != 0 ||
+              !frame.rows.any(
+                (row) => row.text.contains('OSC1337-AFTER-CLEAR'),
+              )) {
+            return false;
+          }
+          return frame.rows.every((row) => !row.text.contains('OSC1337-OLD-'));
+        },
+        onTimeout: () => 'Frame: ${_activeFrame(harness.container)}',
+      );
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
     'real PTY active wake baseline after four seconds child idle',
     (tester) =>
         _verifyIdleWakeBaseline(tester, state: _BaselineIdleWakeState.active),

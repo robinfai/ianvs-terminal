@@ -773,6 +773,22 @@ fn osc1337_cursor_shape_only_profile() -> TerminalProfile {
     )
 }
 
+fn osc1337_clear_buffer_profile(emulation: TerminalEmulation) -> TerminalProfile {
+    local_profile_with_scrollback(
+        "osc1337-clear-buffer",
+        "OSC1337 Clear Buffer",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import sys,time; [sys.stdout.write(f"OSC1337-OLD-{index:02d}\n") for index in range(48)]; sys.stdout.buffer.write(b"\x1b]1337;ClearScrollback\x1b\\OSC1337-AFTER-CLEAR\n"); sys.stdout.flush(); time.sleep(0.5)'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        emulation,
+        128,
+    )
+}
+
 fn decscusr_cursor_shape_profile() -> TerminalProfile {
     local_profile(
         "decscusr-cursor-shape",
@@ -18351,6 +18367,74 @@ fn vt220_sessions_gate_osc1337_cursor_shape() {
 
     let frame = wait_for_frame_containing(session_id, "OSC1337-CURSOR-BEAM");
     assert_frame_json_protobuf_cursor_override_parity(&frame, None, None);
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_osc1337_clear_buffer_clears_scrollback_and_cannot_resurrect_on_resize() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc1337_clear_buffer_profile(TerminalEmulation::Xterm256)).unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "OSC1337-AFTER-CLEAR");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    assert_eq!(parsed["scrollback_offset"].as_u64(), Some(0));
+    assert_eq!(parsed["scrollback_max_offset"].as_u64(), Some(0));
+    assert!(
+        logical_rows_from_frame(&frame)
+            .iter()
+            .all(|row| !row.contains("OSC1337-OLD-"))
+    );
+
+    let exported: serde_json::Value =
+        serde_json::from_str(&session::export_scrollback_session(session_id, None).unwrap())
+            .unwrap();
+    assert_eq!(exported["content"].as_str(), Some(""));
+    let stats = session::take_session_debug_stats_json(session_id)
+        .unwrap()
+        .expect("expected session debug stats");
+    let stats: serde_json::Value = serde_json::from_str(&stats).unwrap();
+    assert_eq!(stats["transcript_truncated"].as_bool(), Some(true));
+
+    session::resize_session(session_id, 96, 12, 0, 0).unwrap();
+    let resized = wait_for_frame_where(session_id, |candidate| {
+        let Ok(value) = serde_json::from_str::<serde_json::Value>(candidate) else {
+            return false;
+        };
+        value["viewport_cols"].as_u64() == Some(96)
+            && logical_rows_from_frame(candidate)
+                .iter()
+                .any(|row| row.contains("OSC1337-AFTER-CLEAR"))
+    });
+    assert!(
+        logical_rows_from_frame(&resized)
+            .iter()
+            .all(|row| !row.contains("OSC1337-OLD-"))
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_sessions_gate_osc1337_clear_buffer() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc1337_clear_buffer_profile(TerminalEmulation::Vt220)).unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "OSC1337-AFTER-CLEAR");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    assert!(parsed["scrollback_max_offset"].as_u64().unwrap_or(0) > 0);
+    let exported: serde_json::Value =
+        serde_json::from_str(&session::export_scrollback_session(session_id, None).unwrap())
+            .unwrap();
+    assert!(
+        exported["content"]
+            .as_str()
+            .is_some_and(|text| text.contains("OSC1337-OLD-00"))
+    );
 
     session::close_session(session_id).unwrap();
 }

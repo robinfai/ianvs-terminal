@@ -6,6 +6,7 @@ use crate::cursor::CursorShape;
 use crate::debug;
 use crate::terminal::event::ShellIntegrationSource;
 use crate::terminal::{CwdChangeSource, Terminal, TerminalEvent};
+use crate::zone::ZoneType;
 
 const MAX_USER_VAR_NAME_CHARS: usize = 80;
 const MAX_USER_VAR_VALUE_CHARS: usize = 4096;
@@ -45,10 +46,82 @@ impl Terminal {
             } else if data == "ReportCellSize" {
                 self.terminal_events
                     .push(TerminalEvent::CellSizeReportRequested);
+            } else if data == "ClearScrollback" {
+                self.handle_iterm_clear_buffer();
             } else {
                 self.handle_iterm_image(&data);
             }
         }
+    }
+
+    /// iTerm2's `ClearScrollback` name is historical: unlike CSI 3 J, the
+    /// command clears both the visible grid and retained history.  It is the
+    /// escape-sequence equivalent of iTerm2's Clear Buffer action.
+    fn handle_iterm_clear_buffer(&mut self) {
+        let preserved_rows = {
+            let grid = self.active_grid();
+            let cursor_row = self.cursor.row.min(grid.rows().saturating_sub(1));
+            let mut start_row = cursor_row;
+            while start_row > 0 && grid.is_line_wrapped(start_row - 1) {
+                start_row -= 1;
+            }
+
+            // With shell integration, iTerm2 retains from the latest prompt
+            // mark through the cursor. Clamp a prompt that began in history
+            // to the first visible row.
+            if !self.alt_screen_active {
+                let visible_base = grid.total_lines_scrolled();
+                let cursor_abs_row = visible_base.saturating_add(cursor_row);
+                if let Some(prompt) = self.get_zones().iter().rev().find(|zone| {
+                    zone.zone_type == ZoneType::Prompt && zone.abs_row_start <= cursor_abs_row
+                }) {
+                    start_row = prompt
+                        .abs_row_start
+                        .saturating_sub(visible_base)
+                        .min(cursor_row);
+                }
+            }
+
+            (start_row..=cursor_row)
+                .filter_map(|row| {
+                    grid.row(row)
+                        .map(|cells| (cells.to_vec(), grid.is_line_wrapped(row)))
+                })
+                .collect::<Vec<_>>()
+        };
+
+        // Invalidate retained zones before clearing the visible grid so
+        // subscribers still receive bounded eviction events.
+        // iTerm2's history belongs to the primary buffer even when an
+        // alternate-screen application sends the command.
+        self.grid.clear_scrollback();
+        self.graphics_store.clear_scrollback_graphics();
+        self.active_grid_mut().clear();
+        self.clear_graphics();
+
+        {
+            let grid = self.active_grid_mut();
+            for (row, (cells, wrapped)) in preserved_rows.iter().enumerate() {
+                for (col, cell) in cells.iter().cloned().enumerate() {
+                    grid.set(col, row, cell);
+                }
+                grid.set_line_wrapped(row, *wrapped);
+            }
+        }
+
+        // Keep the cursor on the final retained row, matching iTerm2's clear
+        // buffer behavior for wrapped prompts and command input.
+        self.cursor.row = preserved_rows.len().saturating_sub(1);
+        self.saved_cursor = None;
+        self.scroll_region_top = 0;
+        self.scroll_region_bottom = self.size().1.saturating_sub(1);
+        self.use_lr_margins = false;
+        self.left_margin = 0;
+        self.right_margin = self.size().0.saturating_sub(1);
+        self.origin_mode = false;
+        self.terminal_events.push(TerminalEvent::ScreenCleared {
+            include_scrollback: true,
+        });
     }
 
     fn handle_iterm_cursor_shape(&mut self, payload: &str) {
@@ -359,6 +432,7 @@ mod tests {
     use crate::color::Color;
     use crate::terminal::event::ShellIntegrationSource;
     use crate::terminal::{Terminal, TerminalEvent};
+    use crate::zone::ZoneType;
     use base64::{engine::general_purpose::STANDARD, Engine};
 
     #[test]
@@ -551,6 +625,131 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    #[test]
+    fn clear_scrollback_clears_visible_buffer_history_and_saved_layout_state() {
+        let mut terminal = Terminal::with_scrollback(8, 3, 16);
+        terminal.process(b"old-0\r\nold-1\r\nold-2\r\nold-3\r\nold-4");
+        terminal.process(b"\x1b[2;3r\x1b[?69h\x1b[2;7s\x1b[?6h\x1b7");
+        assert!(terminal.scrollback_len() > 0);
+        assert_eq!(terminal.scroll_region(), (1, 2));
+        assert!(terminal.use_lr_margins);
+        assert!(terminal.origin_mode());
+        let current_line = terminal
+            .active_grid()
+            .row_text(terminal.cursor().row)
+            .trim()
+            .to_string();
+        let _ = terminal.poll_events();
+
+        terminal.process(b"\x1b]1337;ClearScrollback\x1b\\");
+
+        assert_eq!(terminal.scrollback_len(), 0);
+        assert_eq!(terminal.cursor().row, 0);
+        assert_eq!(terminal.scroll_region(), (0, 2));
+        assert!(!terminal.use_lr_margins);
+        assert_eq!(terminal.left_right_margins(), (0, 7));
+        assert!(!terminal.origin_mode());
+        assert_eq!(terminal.active_grid().row_text(0).trim(), current_line);
+        assert!((1..terminal.active_grid().rows()).all(|row| terminal
+            .active_grid()
+            .row_text(row)
+            .trim()
+            .is_empty()));
+        assert!(terminal.poll_events().iter().any(|event| matches!(
+            event,
+            TerminalEvent::ScreenCleared {
+                include_scrollback: true
+            }
+        )));
+
+        // The command is exact. Near-matches must remain bounded no-ops.
+        terminal.process(b"\r\x1b[2Ksentinel\x1b]1337;ClearScrollback=1\x07");
+        assert_eq!(
+            terminal.active_grid().row(0).unwrap()[0].get_grapheme(),
+            "s"
+        );
+    }
+
+    #[test]
+    fn clear_scrollback_accepts_bel_st_and_every_byte_split() {
+        for sequence in [
+            b"\x1b]1337;ClearScrollback\x07".as_slice(),
+            b"\x1b]1337;ClearScrollback\x1b\\".as_slice(),
+        ] {
+            for split in 1..sequence.len() {
+                let mut terminal = Terminal::with_scrollback(8, 2, 8);
+                terminal.process(b"one\r\ntwo\r\nthree");
+                assert!(terminal.scrollback_len() > 0);
+                terminal.process(&sequence[..split]);
+                terminal.process(&sequence[split..]);
+                assert_eq!(terminal.scrollback_len(), 0, "split={split}");
+                assert_eq!(terminal.active_grid().row_text(0).trim(), "three");
+            }
+        }
+    }
+
+    #[test]
+    fn clear_scrollback_preserves_the_wrapped_cursor_line_at_the_top() {
+        let mut terminal = Terminal::with_scrollback(5, 3, 8);
+        terminal.process(b"older\r\n1234567");
+        assert!(terminal.active_grid().is_line_wrapped(1));
+
+        terminal.process(b"\x1b]1337;ClearScrollback\x07");
+
+        assert_eq!(terminal.scrollback_len(), 0);
+        assert_eq!(terminal.active_grid().row_text(0), "12345");
+        assert_eq!(terminal.active_grid().row_text(1).trim(), "67");
+        assert!(terminal.active_grid().is_line_wrapped(0));
+        assert_eq!(terminal.cursor().row, 1);
+        assert_eq!(terminal.cursor().col, 2);
+    }
+
+    #[test]
+    fn clear_scrollback_preserves_hard_broken_rows_from_the_latest_prompt_mark() {
+        let mut terminal = Terminal::with_scrollback(12, 4, 8);
+        terminal.process(b"\x1b]133;A\x07prompt-one\r\nprompt-two\x1b]133;B\x07");
+        assert_eq!(terminal.active_grid().row_text(0).trim(), "prompt-one");
+        assert_eq!(terminal.active_grid().row_text(1).trim(), "prompt-two");
+
+        terminal.process(b"\x1b]1337;ClearScrollback\x1b\\");
+
+        assert_eq!(terminal.active_grid().row_text(0).trim(), "prompt-one");
+        assert_eq!(terminal.active_grid().row_text(1).trim(), "prompt-two");
+        assert_eq!(terminal.cursor().row, 1);
+        assert!(terminal.get_zones().is_empty());
+        assert!(terminal.poll_events().iter().any(|event| matches!(
+            event,
+            TerminalEvent::ZoneScrolledOut {
+                zone_type: ZoneType::Prompt,
+                ..
+            }
+        )));
+    }
+
+    #[test]
+    fn clear_scrollback_from_alternate_screen_clears_primary_history() {
+        let mut terminal = Terminal::with_scrollback(8, 2, 8);
+        terminal.process(b"one\r\ntwo\r\nthree");
+        assert!(terminal.scrollback_len() > 0);
+
+        terminal.process(b"\x1b[?1049halternate\x1b]1337;ClearScrollback\x07");
+        assert!(terminal.is_alt_screen_active());
+        assert_eq!(terminal.scrollback_len(), 0);
+        assert_eq!(
+            format!(
+                "{}{}",
+                terminal.active_grid().row_text(0),
+                terminal.active_grid().row_text(1)
+            )
+            .trim(),
+            "alternate"
+        );
+
+        terminal.process(b"\x1b[?1049l");
+        assert!(!terminal.is_alt_screen_active());
+        assert_eq!(terminal.scrollback_len(), 0);
     }
 
     #[test]
