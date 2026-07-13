@@ -548,6 +548,21 @@ fn clipboard_empty_copy_profile() -> TerminalProfile {
     )
 }
 
+fn iterm_clipboard_copy_profile(emulation: TerminalEmulation) -> TerminalProfile {
+    local_profile(
+        "iterm-clipboard-copy",
+        "iTerm Clipboard Copy",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import sys; sys.stdout.buffer.write(b"\x1b]1337;CopyToClipboard=find\x07streamed text\n\x1b]1337;EndCopy\x1b\\\x1b]1337;Copy=:ZGlyZWN0IPCfmIA=\x07")'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        emulation,
+    )
+}
+
 fn clipboard_paste_request_profile() -> TerminalProfile {
     local_profile(
         "clipboard-paste",
@@ -17741,6 +17756,57 @@ fn session_emits_empty_clipboard_copy_events_from_osc_52() {
     let event = wait_for_event(session_id, "clipboard_copy");
     assert_eq!(event["payload"]["selection"].as_str(), Some("c"));
     assert_eq!(event["payload"]["data"].as_str(), Some(""));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_iterm_clipboard_stream_and_base64_copy_cross_the_real_pty() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&iterm_clipboard_copy_profile(TerminalEmulation::Xterm256)).unwrap(),
+    )
+    .unwrap();
+
+    let events = collect_events_until(session_id, |events| {
+        events
+            .iter()
+            .filter(|event| event["kind"] == "clipboard_copy")
+            .count()
+            >= 2
+    });
+    let copies = events
+        .iter()
+        .filter(|event| event["kind"] == "clipboard_copy")
+        .collect::<Vec<_>>();
+    assert_eq!(copies.len(), 2);
+    assert_eq!(copies[0]["payload"]["protocol"], "iterm1337");
+    assert_eq!(copies[0]["payload"]["mode"], "stream");
+    assert_eq!(copies[0]["payload"]["selection"], "find");
+    assert_eq!(copies[0]["payload"]["data"], "c3RyZWFtZWQgdGV4dA0K");
+    assert_eq!(copies[1]["payload"]["protocol"], "iterm1337");
+    assert_eq!(copies[1]["payload"]["mode"], "base64");
+    assert_eq!(copies[1]["payload"]["selection"], "c");
+    assert_eq!(copies[1]["payload"]["data"], "ZGlyZWN0IPCfmIA=");
+
+    let frame = wait_for_frame_containing(session_id, "streamed text");
+    assert!(
+        logical_rows_from_frame(&frame)
+            .join("\n")
+            .contains("streamed text"),
+        "legacy copy content should still render: {frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_sessions_gate_iterm_clipboard_copy() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&iterm_clipboard_copy_profile(TerminalEmulation::Vt220)).unwrap(),
+    )
+    .unwrap();
+
+    assert_event_kind_never_arrives(session_id, "clipboard_copy");
 
     session::close_session(session_id).unwrap();
 }

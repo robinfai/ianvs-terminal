@@ -55,6 +55,8 @@ REQUIRED_COVERAGE = {
     "iTerm2 SetColors color spaces and tab reset",
     "OSC 1337 clear buffer",
     "iTerm2 OSC 1337 cursor guide",
+    "iTerm2 OSC 1337 clipboard write",
+    "iTerm2 OSC 1337 streaming clipboard capture",
     "OSC 3008 hierarchy",
     "OSC 3008 malformed close recovery",
     "tmux passthrough fixture",
@@ -216,6 +218,11 @@ def validate_case(case: Any) -> set[str]:
             b"1337;HighlightCursorLine=yes" in stream,
             f"{case_id}: documented yes value",
         )
+    elif case_id == "osc1337_clipboard_copy":
+        require(stream.count(b"\x1b]") == 4, f"{case_id}: sequence count")
+        require(b"1337;CopyToClipboard=find" in stream, f"{case_id}: stream start")
+        require(b"1337;EndCopy" in stream, f"{case_id}: stream end")
+        require(b"1337;Copy=:ZGlyZWN0" in stream, f"{case_id}: direct copy")
     elif case_id == "tmux_passthrough":
         require(stream.startswith(b"\x1bPtmux;\x1b\x1b]"), f"{case_id}: bad wrapper")
     elif case_id == "screen_passthrough":

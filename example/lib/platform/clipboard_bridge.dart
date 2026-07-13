@@ -10,6 +10,17 @@ class ClipboardBridge {
     await Clipboard.setData(ClipboardData(text: value));
   }
 
+  static Future<void> writeText(String value, String selection) async {
+    if (selection == 'c') {
+      await copy(value);
+      return;
+    }
+    await _channel.invokeMethod<void>('writeClipboardText', <String, Object?>{
+      'text': value,
+      'selection': selection,
+    });
+  }
+
   static Future<String> paste() async {
     final data = await Clipboard.getData('text/plain');
     return data?.text ?? '';

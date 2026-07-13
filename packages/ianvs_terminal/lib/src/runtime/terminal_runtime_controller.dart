@@ -486,6 +486,7 @@ class TerminalRuntimeController {
     required PtySessionBackend backend,
     required Future<void> Function(String text) copyToClipboard,
     required Future<String> Function() readClipboard,
+    TerminalClipboardTextWriter? writeTextClipboard,
     Future<bool> Function()? allowClipboardCopy,
     Future<bool> Function()? allowClipboardPasteRequest,
     Future<bool> Function(TerminalClipboardAccessRequest request)?
@@ -507,6 +508,7 @@ class TerminalRuntimeController {
          backend: backend,
          copyToClipboard: copyToClipboard,
          readClipboard: readClipboard,
+         writeTextClipboard: writeTextClipboard,
          clipboardPolicy: TerminalClipboardPolicyAdapter(
            allowClipboardCopy: allowClipboardCopy,
            allowClipboardPasteRequest: allowClipboardPasteRequest,
@@ -532,6 +534,7 @@ class TerminalRuntimeController {
     required this.copyToClipboard,
     required this.readClipboard,
     required TerminalClipboardPolicyAdapter clipboardPolicy,
+    TerminalClipboardTextWriter? writeTextClipboard,
     TerminalClipboardMimeWriter? writeMimeClipboard,
     TerminalClipboardMimeReader? readMimeClipboard,
     TerminalClipboardMimeTypeLister? listClipboardMimeTypes,
@@ -544,6 +547,8 @@ class TerminalRuntimeController {
     this.benchmarkEventSink,
     Duration Function()? monotonicNow,
   }) : _backend = backend,
+       writeTextClipboard =
+           writeTextClipboard ?? ((text, selection) => copyToClipboard(text)),
        allowClipboardCopy = clipboardPolicy.allowCopy,
        allowClipboardPasteRequest = clipboardPolicy.allowPasteRequest,
        writeMimeClipboard =
@@ -607,6 +612,7 @@ class TerminalRuntimeController {
   late final TerminalFrameDecoder _frameDecoder;
   late final TerminalFrameTransportCoordinator _frameTransportCoordinator;
   final Future<void> Function(String text) copyToClipboard;
+  final TerminalClipboardTextWriter writeTextClipboard;
   final Future<String> Function() readClipboard;
   final TerminalClipboardMimeWriter writeMimeClipboard;
   final TerminalClipboardMimeReader readMimeClipboard;
@@ -2277,6 +2283,12 @@ class TerminalRuntimeController {
     final selection = _nonEmptyTrimmedStringFromJsonValue(
       payload?['selection'],
     );
+    final protocol = switch (_nonEmptyTrimmedStringFromJsonValue(
+      payload?['protocol'],
+    )?.toLowerCase()) {
+      'iterm1337' => 'iterm1337',
+      _ => 'osc52',
+    };
     if (payload == null) {
       _emitEventIfCurrent(
         sessionId,
@@ -2286,6 +2298,7 @@ class TerminalRuntimeController {
           operation: TerminalClipboardOperation.copy,
           decision: TerminalClipboardDecision.invalidPayload,
           selection: selection,
+          protocol: protocol,
         ),
       );
       return;
@@ -2300,6 +2313,7 @@ class TerminalRuntimeController {
           operation: TerminalClipboardOperation.copy,
           decision: TerminalClipboardDecision.invalidPayload,
           selection: selection,
+          protocol: protocol,
         ),
       );
       return;
@@ -2314,6 +2328,7 @@ class TerminalRuntimeController {
           operation: TerminalClipboardOperation.copy,
           decision: TerminalClipboardDecision.invalidPayload,
           selection: selection,
+          protocol: protocol,
         ),
       );
       return;
@@ -2330,6 +2345,7 @@ class TerminalRuntimeController {
           operation: TerminalClipboardOperation.copy,
           decision: TerminalClipboardDecision.invalidPayload,
           selection: selection,
+          protocol: protocol,
         ),
       );
       return;
@@ -2343,6 +2359,7 @@ class TerminalRuntimeController {
       characterCount: summary.characterCount,
       textPreview: summary.preview,
       textPreviewTruncated: summary.previewTruncated,
+      protocol: protocol,
     );
     final allowed = await allowClipboardCopy(request);
     if (!_isCurrentSession(sessionId, sessionEpoch)) {
@@ -2361,11 +2378,31 @@ class TerminalRuntimeController {
           characterCount: summary.characterCount,
           textPreview: summary.preview,
           textPreviewTruncated: summary.previewTruncated,
+          protocol: protocol,
         ),
       );
       return;
     }
-    await copyToClipboard(decoded);
+    try {
+      await writeTextClipboard(decoded, selection ?? 'c');
+    } on Object {
+      _emitEventIfCurrent(
+        sessionId,
+        sessionEpoch,
+        TerminalSessionClipboardEvent(
+          sessionId,
+          operation: TerminalClipboardOperation.copy,
+          decision: TerminalClipboardDecision.invalidPayload,
+          selection: selection,
+          byteCount: summary.byteCount,
+          characterCount: summary.characterCount,
+          textPreview: summary.preview,
+          textPreviewTruncated: summary.previewTruncated,
+          protocol: protocol,
+        ),
+      );
+      return;
+    }
     if (!_isCurrentSession(sessionId, sessionEpoch)) {
       return;
     }
@@ -2381,6 +2418,7 @@ class TerminalRuntimeController {
         characterCount: summary.characterCount,
         textPreview: summary.preview,
         textPreviewTruncated: summary.previewTruncated,
+        protocol: protocol,
       ),
     );
   }

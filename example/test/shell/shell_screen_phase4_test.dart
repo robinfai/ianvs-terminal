@@ -32,6 +32,7 @@ Future<void> _pumpShellScreen(
   MemoryAppPreferencesRepository? preferencesRepository,
   LocalTerminalConfigRepository? localConfigRepository,
   Future<String> Function()? clipboardPaste,
+  SessionClipboardTextWrite? clipboardTextWrite,
   SessionClipboardMimeWrite? clipboardMimeWrite,
   SessionClipboardMimeRead? clipboardMimeRead,
   SessionClipboardMimeTypeList? clipboardMimeTypeList,
@@ -58,6 +59,10 @@ Future<void> _pumpShellScreen(
         ),
         if (clipboardPaste != null)
           sessionClipboardPasteProvider.overrideWithValue(clipboardPaste),
+        if (clipboardTextWrite != null)
+          sessionClipboardTextWriteProvider.overrideWithValue(
+            clipboardTextWrite,
+          ),
         if (clipboardMimeWrite != null)
           sessionClipboardMimeWriteProvider.overrideWithValue(
             clipboardMimeWrite,
@@ -720,6 +725,57 @@ void main() {
       findsOneWidget,
     );
     expect(find.byKey(const Key('shell-status-osc52')), findsOneWidget);
+  });
+
+  testWidgets('iTerm2 OSC 1337 copy prompts and preserves named pasteboard', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    final writes = <(String, String)>[];
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      localConfigRepository: _MemoryLocalTerminalConfigRepository(
+        const LocalTerminalConfigDocument(
+          clipboard: LocalTerminalClipboardConfig(
+            osc52: LocalTerminalOsc52Policy.ask,
+          ),
+        ),
+      ),
+      clipboardTextWrite: (text, selection) async {
+        writes.add((text, selection));
+      },
+    );
+
+    fakeBindings.enqueueEvent(
+      1,
+      PtyEvent(
+        kind: 'clipboard_copy',
+        sessionId: '1',
+        payload: <String, Object?>{
+          'protocol': 'iterm1337',
+          'mode': 'stream',
+          'selection': 'find',
+          'data': base64.encode(utf8.encode('Find pasteboard text')),
+        },
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(find.text('Allow iTerm2 OSC 1337 clipboard copy?'), findsOneWidget);
+    expect(find.text('Selection: find'), findsOneWidget);
+    expect(find.text('Find pasteboard text'), findsOneWidget);
+
+    await tester.tap(find.text('Allow'));
+    await tester.pumpAndSettle();
+
+    expect(writes, <(String, String)>[('Find pasteboard text', 'find')]);
+    expect(find.text('ITERM1337 COPY OK'), findsOneWidget);
+    expect(
+      find.text('iTerm2 OSC 1337 copied 20 characters to the clipboard'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('OSC 52 ask policy prompts before paste read', (tester) async {

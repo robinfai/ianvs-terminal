@@ -260,6 +260,13 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
                 assert!(terminal.use_cursor_guide());
                 assert_eq!(terminal.title(), "osc1337-cursor-guide-corpus-ok");
             }
+            "osc1337_clipboard_copy" => {
+                assert_eq!(terminal.title(), "osc1337-clipboard-corpus-ok");
+                let visible = (0..terminal.active_grid().rows())
+                    .map(|row| terminal.active_grid().row_text(row))
+                    .collect::<String>();
+                assert!(visible.contains("STREAM-CORPUS"));
+            }
             "osc1337_shell_metadata_and_cell_size" => {
                 let events = terminal.poll_events();
                 assert!(events.iter().any(|event| matches!(

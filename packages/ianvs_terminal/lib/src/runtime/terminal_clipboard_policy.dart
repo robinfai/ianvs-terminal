@@ -77,6 +77,8 @@ typedef TerminalClipboardMimeWriter =
 typedef TerminalClipboardMimeReader =
     Future<List<TerminalClipboardMimeItem>> Function(List<String> mimeTypes);
 typedef TerminalClipboardMimeTypeLister = Future<List<String>> Function();
+typedef TerminalClipboardTextWriter =
+    Future<void> Function(String text, String selection);
 
 final class TerminalClipboardPolicyAdapter {
   const TerminalClipboardPolicyAdapter({

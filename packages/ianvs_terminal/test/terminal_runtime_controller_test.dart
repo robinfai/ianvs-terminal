@@ -7734,6 +7734,65 @@ void main() {
     },
   );
 
+  testWidgets(
+    'terminal runtime controller preserves iTerm2 clipboard protocol and named target',
+    (tester) async {
+      final writes = <(String, String)>[];
+      final requests = <TerminalClipboardAccessRequest>[];
+      final seenEvents = <TerminalSessionEvent>[];
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        writeTextClipboard: (text, selection) async {
+          writes.add((text, selection));
+        },
+        readClipboard: () async => '',
+        allowClipboardCopyWithContext: (request) async {
+          requests.add(request);
+          return true;
+        },
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final subscription = runtime.events.listen(seenEvents.add);
+      addTearDown(subscription.cancel);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_copy',
+          sessionId: sessionId,
+          payload: <String, Object?>{
+            'protocol': 'iterm1337',
+            'mode': 'stream',
+            'selection': 'find',
+            'data': base64.encode(utf8.encode('Find 😀')),
+          },
+        ),
+      );
+
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+
+      expect(writes, <(String, String)>[('Find 😀', 'find')]);
+      expect(requests.single.protocol, 'iterm1337');
+      expect(requests.single.selection, 'find');
+      expect(requests.single.textPreview, 'Find 😀');
+      final event = seenEvents
+          .whereType<TerminalSessionClipboardEvent>()
+          .single;
+      expect(event.protocol, 'iterm1337');
+      expect(event.selection, 'find');
+      expect(event.decision, TerminalClipboardDecision.allowed);
+    },
+  );
+
   testWidgets('terminal runtime controller can block OSC 52 copy events', (
     tester,
   ) async {

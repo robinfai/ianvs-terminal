@@ -12,6 +12,7 @@ import 'package:integration_test/integration_test.dart';
 import 'package:app/app.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
+import 'package:app/features/sessions/session_ports.dart';
 import 'package:app/features/sessions/session_state.dart';
 import 'package:app/features/shell/password_manager_store.dart';
 import 'package:app/features/shell/shell_screen.dart';
@@ -1183,6 +1184,62 @@ sleep 1
   );
 
   testWidgets(
+    'real PTY iTerm2 OSC 1337 streaming and base64 copy use clipboard policy',
+    (tester) async {
+      final goFile = _tempSignalFile('osc1337-clipboard');
+      final writes = <(String, String)>[];
+      final profile = _scriptProfile(
+        id: 'osc1337-clipboard',
+        name: 'OSC 1337 Clipboard',
+        script: r'''
+printf 'osc1337-clipboard-ready\n'
+while [ ! -f "$GO_FILE" ]; do sleep 0.05; done
+printf '\033]1337;CopyToClipboard=find\a'
+printf 'streamed clipboard text'
+printf '\033]1337;EndCopy\033\\'
+printf '\033]1337;Copy=:ZGlyZWN0IPCfmIA=\a'
+printf '\nOSC1337-CLIPBOARD-DONE\n'
+sleep 1
+''',
+        env: {'GO_FILE': goFile.path},
+      );
+      final harness = await _pumpRealPtyApp(
+        tester,
+        profiles: [profile],
+        clipboardTextWrite: (text, selection) async {
+          writes.add((text, selection));
+        },
+      );
+
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'OSC 1337 clipboard ready marker',
+        matches: (text) => text.contains('osc1337-clipboard-ready'),
+      );
+      _signal(goFile);
+
+      await _waitFor(
+        tester,
+        description: 'OSC 1337 clipboard writes and visible stream output',
+        condition: () =>
+            writes.length == 2 &&
+            _terminalText(
+              harness.container,
+            ).contains('streamed clipboard text') &&
+            _terminalText(harness.container).contains('OSC1337-CLIPBOARD-DONE'),
+        onTimeout: () =>
+            'Writes: $writes; text: ${_terminalText(harness.container)}',
+      );
+      expect(writes, <(String, String)>[
+        ('streamed clipboard text', 'find'),
+        ('direct 😀', 'c'),
+      ]);
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
     'real PTY OSC 1337 ClearScrollback clears product rows and history',
     (tester) async {
       final goFile = _tempSignalFile('osc1337-clear-buffer');
@@ -1374,6 +1431,7 @@ Future<_RealPtyHarness> _pumpRealPtyApp(
   List<String>? closedNotifications,
   List<Map<String, Object?>>? runtimeEvents,
   bool maskRefreshHints = false,
+  SessionClipboardTextWrite? clipboardTextWrite,
 }) async {
   ensureMacosIntegrationTestFramesEnabled(tester.binding);
   final container = ProviderContainer(
@@ -1392,6 +1450,8 @@ Future<_RealPtyHarness> _pumpRealPtyApp(
         MemoryLocalTerminalConfigRepository(null),
       ),
       shellAnimationsEnabledProvider.overrideWithValue(false),
+      if (clipboardTextWrite != null)
+        sessionClipboardTextWriteProvider.overrideWithValue(clipboardTextWrite),
       if (runtimeEvents != null)
         terminalGraphicsTraceSinkProvider.overrideWithValue(runtimeEvents.add),
       shellNotificationSenderProvider.overrideWithValue(({

@@ -27,6 +27,9 @@ Widget buildIanvsTerminalRoot({
         sessionEnvironmentOverrides,
       ),
       sessionClipboardCopyProvider.overrideWithValue(ClipboardBridge.copy),
+      sessionClipboardTextWriteProvider.overrideWithValue(
+        ClipboardBridge.writeText,
+      ),
       sessionClipboardPasteProvider.overrideWithValue(ClipboardBridge.paste),
       sessionClipboardMimeWriteProvider.overrideWithValue(
         ClipboardBridge.writeMimeItems,

@@ -775,6 +775,16 @@ fn classify_osc_1337(
     context: OscClassificationContext,
     complete: bool,
 ) -> Classification {
+    if payload == b"CopyToClipboard"
+        || payload.starts_with(b"CopyToClipboard=")
+        || (!complete && b"CopyToClipboard=".starts_with(payload))
+        || payload == b"EndCopy"
+        || (!complete && b"EndCopy".starts_with(payload))
+        || payload.starts_with(b"Copy=:")
+        || (!complete && b"Copy=:".starts_with(payload))
+    {
+        return Classification::new(OscIntent::Clipboard, OscCapability::ClipboardWrite);
+    }
     if payload == b"SetMark"
         || (!complete && b"SetMark".starts_with(payload))
         || payload == b"ClearScrollback"
@@ -1139,6 +1149,64 @@ mod tests {
         assert_eq!(
             gate.diagnostics()
                 .for_intent(OscIntent::Appearance)
+                .oversized,
+            1
+        );
+    }
+
+    #[test]
+    fn osc1337_clipboard_commands_are_bounded_policy_gated_writes() {
+        for sequence in [
+            b"\x1b]1337;CopyToClipboard\x07".as_slice(),
+            b"\x1b]1337;CopyToClipboard=find\x1b\\".as_slice(),
+            b"\x1b]1337;EndCopy\x07".as_slice(),
+            b"\x1b]1337;Copy=:aGVsbG8=\x1b\\".as_slice(),
+        ] {
+            let classification = classify_osc(
+                &sequence[2..sequence.len() - if sequence.ends_with(b"\x1b\\") { 2 } else { 1 }],
+                true,
+                OscClassificationContext::default(),
+            );
+            assert_eq!(classification.intent, OscIntent::Clipboard);
+            assert_eq!(classification.capability, OscCapability::ClipboardWrite);
+        }
+
+        let mut denied = OscCapabilityPolicy::default();
+        denied.set(OscCapability::ClipboardWrite, false);
+        let mut gate = OscStreamGate::default();
+        let stream = b"\x1b]1337;CopyToClipboard\x07visible\x1b]1337;EndCopy\x07";
+        assert_eq!(
+            filter_owned(
+                &mut gate,
+                stream,
+                denied,
+                OscClassificationContext::default(),
+            ),
+            b"visible"
+        );
+        assert_eq!(
+            gate.diagnostics().for_intent(OscIntent::Clipboard),
+            OscIntentDiagnostics {
+                policy_denied: 2,
+                ..OscIntentDiagnostics::default()
+            }
+        );
+
+        let oversized = format!(
+            "\x1b]1337;Copy=:{}\x07",
+            "A".repeat(OscIntent::Clipboard.payload_limit() + 1)
+        );
+        let mut gate = OscStreamGate::default();
+        assert!(filter_owned(
+            &mut gate,
+            oversized.as_bytes(),
+            OscCapabilityPolicy::default(),
+            OscClassificationContext::default(),
+        )
+        .is_empty());
+        assert_eq!(
+            gate.diagnostics()
+                .for_intent(OscIntent::Clipboard)
                 .oversized,
             1
         );

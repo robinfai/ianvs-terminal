@@ -133,11 +133,12 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (!mounted) {
       return terminal.TerminalClipboardAuthorization.denied;
     }
+    final protocolName = _oscProtocolDisplayName(request.protocol);
     final promptTitle = switch (request.operation) {
       terminal.TerminalClipboardOperation.copy =>
-        'Allow OSC 52 clipboard copy?',
+        'Allow $protocolName clipboard copy?',
       terminal.TerminalClipboardOperation.pasteRequest =>
-        'Allow OSC 52 paste read?',
+        'Allow $protocolName paste read?',
       terminal.TerminalClipboardOperation.mimeWrite =>
         'Allow ${_oscProtocolDisplayName(request.protocol)} clipboard write?',
       terminal.TerminalClipboardOperation.mimeRead =>
@@ -363,6 +364,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       switch (protocol.toLowerCase()) {
         'osc52' => 'OSC 52',
         'osc5522' => 'OSC 5522',
+        'iterm1337' => 'iTerm2 OSC 1337',
         _ => protocol.toUpperCase(),
       };
 
@@ -396,37 +398,38 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     terminal.TerminalSessionClipboardEvent event,
   ) {
     final count = event.characterCount;
+    final protocolName = _oscProtocolDisplayName(event.protocol);
     final message = switch ((event.operation, event.decision)) {
       (
         terminal.TerminalClipboardOperation.copy,
         terminal.TerminalClipboardDecision.allowed,
       ) =>
-        'OSC 52 copied ${count ?? 0} characters to the clipboard',
+        '$protocolName copied ${count ?? 0} characters to the clipboard',
       (
         terminal.TerminalClipboardOperation.copy,
         terminal.TerminalClipboardDecision.blocked,
       ) =>
-        'OSC 52 clipboard copy blocked by policy',
+        '$protocolName clipboard copy blocked by policy',
       (
         terminal.TerminalClipboardOperation.copy,
         terminal.TerminalClipboardDecision.invalidPayload,
       ) =>
-        'OSC 52 clipboard copy ignored: invalid payload',
+        '$protocolName clipboard copy ignored: invalid payload',
       (
         terminal.TerminalClipboardOperation.pasteRequest,
         terminal.TerminalClipboardDecision.allowed,
       ) =>
-        'OSC 52 paste read replied with ${count ?? 0} characters',
+        '$protocolName paste read replied with ${count ?? 0} characters',
       (
         terminal.TerminalClipboardOperation.pasteRequest,
         terminal.TerminalClipboardDecision.blocked,
       ) =>
-        'OSC 52 paste read blocked by policy',
+        '$protocolName paste read blocked by policy',
       (
         terminal.TerminalClipboardOperation.pasteRequest,
         terminal.TerminalClipboardDecision.invalidPayload,
       ) =>
-        'OSC 52 paste read ignored: invalid payload',
+        '$protocolName paste read ignored: invalid payload',
       (
         terminal.TerminalClipboardOperation.mimeWrite,
         terminal.TerminalClipboardDecision.allowed,

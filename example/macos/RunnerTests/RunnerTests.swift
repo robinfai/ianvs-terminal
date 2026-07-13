@@ -33,6 +33,25 @@ class RunnerTests: XCTestCase {
     XCTAssertNil(error.details)
   }
 
+  func testItermClipboardSelectionsMapToNamedPasteboards() {
+    XCTAssertEqual(
+      MainFlutterWindow.itermClipboardPasteboardName(for: "c"),
+      NSPasteboard.Name.general
+    )
+    XCTAssertEqual(
+      MainFlutterWindow.itermClipboardPasteboardName(for: "find"),
+      NSPasteboard.Name.find
+    )
+    XCTAssertEqual(
+      MainFlutterWindow.itermClipboardPasteboardName(for: "font"),
+      NSPasteboard.Name.font
+    )
+    XCTAssertEqual(
+      MainFlutterWindow.itermClipboardPasteboardName(for: "unknown"),
+      NSPasteboard.Name.general
+    )
+  }
+
   func testPreferredForegroundWindowChoosesFlutterWindowFirst() {
     let utilityWindow = NSWindow()
     let mainWindow = MainFlutterWindow()

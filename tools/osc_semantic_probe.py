@@ -70,6 +70,20 @@ PROBES = {
             + base64.b64encode(b"Ianvs OSC clipboard probe").decode("ascii")
         ),
     ),
+    "iterm_clipboard_copy": Probe(
+        "iterm_clipboard_copy",
+        "iTerm2 OSC 1337 clipboard",
+        "Stream a deterministic string to the general pasteboard, then issue the direct Base64 form.",
+        "Allowed terminals copy each value while keeping the streamed text visible; denied terminals only render the text.",
+        "clipboard write request; policy-gated",
+        osc("1337;CopyToClipboard", bell=True)
+        + b"Ianvs iTerm clipboard stream"
+        + osc("1337;EndCopy")
+        + osc(
+            "1337;Copy=:"
+            + base64.b64encode(b"Ianvs iTerm clipboard direct").decode("ascii")
+        ),
+    ),
     "clipboard_query": Probe(
         "clipboard_query",
         "OSC 52",
@@ -308,6 +322,7 @@ def self_test() -> None:
         "cwd",
         "hyperlink_with_id",
         "clipboard_copy",
+        "iterm_clipboard_copy",
         "clipboard_query",
         "clipboard_mime",
         "tab_status",
@@ -343,6 +358,8 @@ def self_test() -> None:
         raise ValueError("hyperlink probe lost its protocol id")
     if b"52;c;?" not in PROBES["clipboard_query"].payload:
         raise ValueError("clipboard query fixture is malformed")
+    if PROBES["iterm_clipboard_copy"].payload.count(b"\x1b]1337;") != 3:
+        raise ValueError("iTerm2 OSC 1337 clipboard fixture is malformed")
     if PROBES["clipboard_mime"].payload.count(b"\x1b]5522;") != 5:
         raise ValueError("OSC 5522 MIME clipboard fixture is malformed")
     if PROBES["tab_status"].payload.count(b"\x1b]21337;") != 1:

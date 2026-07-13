@@ -34,6 +34,8 @@ const Set<String> _requiredCoverage = <String>{
   'iTerm2 SetColors color spaces and tab reset',
   'OSC 1337 clear buffer',
   'iTerm2 OSC 1337 cursor guide',
+  'iTerm2 OSC 1337 clipboard write',
+  'iTerm2 OSC 1337 streaming clipboard capture',
   'OSC 3008 hierarchy',
   'OSC 3008 malformed close recovery',
   'tmux passthrough fixture',
@@ -178,6 +180,12 @@ void _validateFixture(String id, Map<String, Object?> fixture) {
     expect(RegExp(r'\x1b]').allMatches(text), hasLength(3));
     expect(text, contains('1337;HighlightCursorLine=no'));
     expect(text, contains('1337;HighlightCursorLine=yes'));
+  } else if (id == 'osc1337_clipboard_copy') {
+    final text = latin1.decode(stream);
+    expect(RegExp(r'\x1b]').allMatches(text), hasLength(4));
+    expect(text, contains('1337;CopyToClipboard=find'));
+    expect(text, contains('1337;EndCopy'));
+    expect(text, contains('1337;Copy=:ZGlyZWN0'));
   } else if (id == 'osc1337_dynamic_cursor_shape') {
     final text = latin1.decode(stream);
     expect(text, contains('\x1b]1337;CursorShape=1\x1b\\'));

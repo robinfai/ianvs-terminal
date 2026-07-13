@@ -150,6 +150,7 @@ final terminalRuntimeControllerProvider = Provider<TerminalRuntimeController>((
   final controller = TerminalRuntimeController(
     backend: ref.read(ptySessionBackendProvider),
     copyToClipboard: ref.read(sessionClipboardCopyProvider),
+    writeTextClipboard: ref.read(sessionClipboardTextWriteProvider),
     readClipboard: ref.read(sessionClipboardPasteProvider),
     writeMimeClipboard: ref.read(sessionClipboardMimeWriteProvider),
     readMimeClipboard: ref.read(sessionClipboardMimeReadProvider),

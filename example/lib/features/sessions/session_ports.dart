@@ -7,6 +7,8 @@ import '../profiles/profile_models.dart';
 import 'session_state.dart';
 
 typedef SessionClipboardCopy = Future<void> Function(String text);
+typedef SessionClipboardTextWrite =
+    Future<void> Function(String text, String selection);
 typedef SessionClipboardPaste = Future<String> Function();
 typedef SessionClipboardMimeWrite = TerminalClipboardMimeWriter;
 typedef SessionClipboardMimeRead = TerminalClipboardMimeReader;
@@ -49,6 +51,12 @@ final sessionClipboardCopyProvider = Provider<SessionClipboardCopy>((ref) {
 
 final sessionClipboardPasteProvider = Provider<SessionClipboardPaste>((ref) {
   return () async => '';
+});
+
+final sessionClipboardTextWriteProvider = Provider<SessionClipboardTextWrite>((
+  ref,
+) {
+  return (text, selection) => ref.read(sessionClipboardCopyProvider)(text);
 });
 
 final sessionClipboardMimeWriteProvider = Provider<SessionClipboardMimeWrite?>(

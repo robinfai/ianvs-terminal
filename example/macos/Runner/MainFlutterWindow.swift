@@ -453,6 +453,8 @@ class MainFlutterWindow: NSWindow {
         ])
       case "writeClipboardMime":
         self.writeClipboardMime(arguments: call.arguments, result: result)
+      case "writeClipboardText":
+        self.writeClipboardText(arguments: call.arguments, result: result)
       case "readClipboardMime":
         self.readClipboardMime(arguments: call.arguments, result: result)
       case "listClipboardMimeTypes":
@@ -1017,6 +1019,38 @@ class MainFlutterWindow: NSWindow {
     }
     pasteboard.clearContents()
     return pasteboard.writeObjects([item])
+  }
+
+  static func itermClipboardPasteboardName(for selection: String) -> NSPasteboard.Name {
+    switch selection {
+    case "find":
+      return .find
+    case "font":
+      return .font
+    default:
+      return .general
+    }
+  }
+
+  private func writeClipboardText(arguments: Any?, result: @escaping FlutterResult) {
+    guard
+      let arguments = arguments as? [String: Any],
+      let text = arguments["text"] as? String,
+      text.utf8.count <= 4 * 1024 * 1024,
+      let selection = arguments["selection"] as? String,
+      ["c", "find", "font"].contains(selection)
+    else {
+      result(FlutterError(code: "invalid_clipboard_text", message: "Clipboard text request is invalid", details: nil))
+      return
+    }
+    let name = Self.itermClipboardPasteboardName(for: selection)
+    let pasteboard = name == .general ? NSPasteboard.general : NSPasteboard(name: name)
+    pasteboard.clearContents()
+    guard pasteboard.setString(text, forType: .string) else {
+      result(FlutterError(code: "clipboard_text_write_failed", message: "macOS rejected clipboard text", details: nil))
+      return
+    }
+    result(nil)
   }
 
   private func writeClipboardMime(arguments: Any?, result: @escaping FlutterResult) {

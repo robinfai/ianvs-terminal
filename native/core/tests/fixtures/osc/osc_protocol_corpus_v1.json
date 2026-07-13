@@ -465,6 +465,27 @@
       }
     },
     {
+      "id": "osc1337_clipboard_copy",
+      "coverage": [
+        "iTerm2 OSC 1337 clipboard write",
+        "iTerm2 OSC 1337 streaming clipboard capture"
+      ],
+      "protocol": "iTerm2 OSC 1337 CopyToClipboard/EndCopy and Copy=:",
+      "wire": {
+        "sequence_count": 4,
+        "chunks_hex": [
+          "1b5d313333373b436f7079546f436c6970626f6172643d66696e640753545245414d2d434f525055531b5d313333373b456e64436f70791b5c1b5d313333373b436f70793d3a5a476c795a574e30071b5d323b6f7363313333372d636c6970626f6172642d636f727075732d6f6b1b5c"
+        ]
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "clipboard_copy",
+        "state_effect": "stream content remains visible while both clipboard forms stay policy-gated and later OSC parsing remains intact",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
       "id": "tmux_passthrough",
       "coverage": ["tmux passthrough fixture"],
       "protocol": "tmux DCS passthrough carrying OSC 8",

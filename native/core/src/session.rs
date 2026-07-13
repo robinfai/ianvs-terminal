@@ -54,6 +54,7 @@ const OSC5522_MAX_MIME_BYTES: usize = 255;
 const OSC5522_MAX_ID_BYTES: usize = 128;
 const OSC5522_MAX_PASSWORD_BYTES: usize = 256;
 const OSC5522_MAX_APPLICATION_NAME_BYTES: usize = 256;
+const ITERM_CLIPBOARD_MAX_BYTES: usize = 4 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum TerminalSearchMode {
@@ -127,6 +128,11 @@ enum CallbackEvent {
     },
     ClipboardPasteRequest {
         selection: String,
+    },
+    ItermClipboardCopy {
+        selection: String,
+        data: Option<String>,
+        streaming: bool,
     },
     ClipboardMimeWrite {
         payload: serde_json::Value,
@@ -821,23 +827,78 @@ struct Osc5522WriteState {
     failed: bool,
 }
 
+#[derive(Clone, Debug)]
+struct ItermClipboardCaptureState {
+    selection: String,
+    data: Vec<u8>,
+    overflowed: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum ItermClipboardBoundary {
+    None,
+    Start(String),
+    End,
+}
+
 #[derive(Clone, Default)]
 struct HostProtocolState {
     buffer: Vec<u8>,
     window_icon_name: Option<String>,
     application_keypad: bool,
     osc5522_write: Option<Osc5522WriteState>,
+    iterm_clipboard_capture: Option<ItermClipboardCaptureState>,
+}
+
+fn iterm_clipboard_boundary(payload: &[u8]) -> ItermClipboardBoundary {
+    let Some(command) = payload.strip_prefix(b"1337;") else {
+        return ItermClipboardBoundary::None;
+    };
+    if command == b"EndCopy" {
+        return ItermClipboardBoundary::End;
+    }
+    let name = if command == b"CopyToClipboard" {
+        ""
+    } else if let Some(name) = command.strip_prefix(b"CopyToClipboard=") {
+        if name.len() > 32
+            || name
+                .iter()
+                .any(|byte| !byte.is_ascii() || byte.is_ascii_control())
+        {
+            return ItermClipboardBoundary::None;
+        }
+        let Ok(name) = std::str::from_utf8(name) else {
+            return ItermClipboardBoundary::None;
+        };
+        name
+    } else {
+        return ItermClipboardBoundary::None;
+    };
+
+    let selection = match name {
+        "find" => "find",
+        "font" => "font",
+        // iTerm2 routes the documented empty/rule value and unknown bounded
+        // names to the general pasteboard. `general`, `clipboard`, and the
+        // historical source spelling `ruler` are accepted aliases.
+        _ => "c",
+    };
+    ItermClipboardBoundary::Start(selection.to_string())
 }
 
 impl HostProtocolState {
     fn observe(&mut self, bytes: &[u8], emulation: TerminalEmulation) -> Vec<CallbackEvent> {
-        if self.buffer.is_empty() && !bytes.contains(&0x1b) {
+        if self.buffer.is_empty()
+            && self.iterm_clipboard_capture.is_none()
+            && !bytes.contains(&0x1b)
+        {
             return Vec::new();
         }
 
         self.buffer.extend_from_slice(bytes);
         let mut events = Vec::new();
         let mut index = 0usize;
+        let mut capture_segment_start = self.iterm_clipboard_capture.as_ref().map(|_| 0usize);
 
         while index < self.buffer.len() {
             if self.buffer[index] != 0x1b {
@@ -845,18 +906,25 @@ impl HostProtocolState {
                 continue;
             }
 
+            if let Some(start) = capture_segment_start.take() {
+                self.append_iterm_clipboard_range(start, index);
+            }
+
             if index + 1 >= self.buffer.len() {
                 break;
             }
 
+            let sequence_start = index;
             match self.buffer[index + 1] {
                 b'=' => {
                     self.application_keypad = true;
                     index += 2;
+                    self.append_iterm_clipboard_range(sequence_start, index);
                 }
                 b'>' => {
                     self.application_keypad = false;
                     index += 2;
+                    self.append_iterm_clipboard_range(sequence_start, index);
                 }
                 b'c' => {
                     // Mirror RIS for the small native-side observer state.
@@ -866,24 +934,54 @@ impl HostProtocolState {
                     self.window_icon_name = None;
                     self.application_keypad = false;
                     self.osc5522_write = None;
+                    self.iterm_clipboard_capture = None;
                     index += 2;
                 }
                 b']' => match self.consume_osc(index, emulation, &mut events) {
-                    Some(next) => index = next,
+                    Some((next, boundary)) => {
+                        match boundary {
+                            ItermClipboardBoundary::None => {
+                                self.append_iterm_clipboard_range(sequence_start, next);
+                            }
+                            ItermClipboardBoundary::Start(selection) => {
+                                self.iterm_clipboard_capture = Some(ItermClipboardCaptureState {
+                                    selection,
+                                    data: Vec::new(),
+                                    overflowed: false,
+                                });
+                            }
+                            ItermClipboardBoundary::End => {
+                                self.finish_iterm_clipboard_capture(&mut events);
+                            }
+                        }
+                        index = next;
+                    }
                     None => break,
                 },
                 b'P' => match self.consume_dcs(index, emulation, &mut events) {
-                    Some(next) => index = next,
+                    Some(next) => {
+                        index = next;
+                        self.append_iterm_clipboard_range(sequence_start, index);
+                    }
                     None => break,
                 },
                 b'[' => match self.consume_csi(index, emulation, &mut events) {
-                    Some(next) => index = next,
+                    Some(next) => {
+                        index = next;
+                        self.append_iterm_clipboard_range(sequence_start, index);
+                    }
                     None => break,
                 },
                 _ => {
                     index += 2;
+                    self.append_iterm_clipboard_range(sequence_start, index);
                 }
             }
+            capture_segment_start = self.iterm_clipboard_capture.as_ref().map(|_| index);
+        }
+
+        if let Some(start) = capture_segment_start {
+            self.append_iterm_clipboard_range(start, index);
         }
 
         if index > 0 {
@@ -896,12 +994,47 @@ impl HostProtocolState {
         events
     }
 
+    fn append_iterm_clipboard_range(&mut self, start: usize, end: usize) {
+        if start >= end {
+            return;
+        }
+        let Some(capture) = self.iterm_clipboard_capture.as_mut() else {
+            return;
+        };
+        if capture.overflowed {
+            return;
+        }
+        let bytes = &self.buffer[start..end];
+        let Some(new_len) = capture.data.len().checked_add(bytes.len()) else {
+            capture.data.clear();
+            capture.overflowed = true;
+            return;
+        };
+        if new_len > ITERM_CLIPBOARD_MAX_BYTES {
+            capture.data.clear();
+            capture.overflowed = true;
+            return;
+        }
+        capture.data.extend_from_slice(bytes);
+    }
+
+    fn finish_iterm_clipboard_capture(&mut self, events: &mut Vec<CallbackEvent>) {
+        let Some(capture) = self.iterm_clipboard_capture.take() else {
+            return;
+        };
+        events.push(CallbackEvent::ItermClipboardCopy {
+            selection: capture.selection,
+            data: (!capture.overflowed).then(|| BASE64_STANDARD.encode(capture.data)),
+            streaming: true,
+        });
+    }
+
     fn consume_osc(
         &mut self,
         start: usize,
         emulation: TerminalEmulation,
         events: &mut Vec<CallbackEvent>,
-    ) -> Option<usize> {
+    ) -> Option<(usize, ItermClipboardBoundary)> {
         let mut cursor = start + 2;
         let mut terminator_len = 0usize;
         let mut terminator_start = 0usize;
@@ -928,12 +1061,17 @@ impl HostProtocolState {
             return None;
         }
 
+        let payload = self.buffer[start + 2..terminator_start].to_vec();
+        let boundary = if emulation == TerminalEmulation::Xterm256 {
+            iterm_clipboard_boundary(&payload)
+        } else {
+            ItermClipboardBoundary::None
+        };
         if emulation == TerminalEmulation::Xterm256 {
-            let payload = self.buffer[start + 2..terminator_start].to_vec();
             self.handle_osc_payload(&payload, events);
         }
 
-        Some(terminator_start + terminator_len)
+        Some((terminator_start + terminator_len, boundary))
     }
 
     fn consume_dcs(
@@ -1039,7 +1177,13 @@ impl HostProtocolState {
                 }
             }
             b"1337" => {
-                if let Ok(data) = std::str::from_utf8(remainder)
+                if let Some(encoded) = remainder.strip_prefix(b"Copy=:") {
+                    events.push(CallbackEvent::ItermClipboardCopy {
+                        selection: "c".to_string(),
+                        data: std::str::from_utf8(encoded).ok().map(str::to_string),
+                        streaming: false,
+                    });
+                } else if let Ok(data) = std::str::from_utf8(remainder)
                     && let Some(payload) = shell_context_payload_from_current_dir(data)
                 {
                     events.push(CallbackEvent::ShellContext { payload });
@@ -3093,6 +3237,19 @@ impl TerminalSession {
                     "selection": selection,
                 })),
             ),
+            CallbackEvent::ItermClipboardCopy {
+                selection,
+                data,
+                streaming,
+            } => self.push_event(
+                "clipboard_copy",
+                Some(serde_json::json!({
+                    "selection": selection,
+                    "data": data,
+                    "protocol": "iterm1337",
+                    "mode": if streaming { "stream" } else { "base64" },
+                })),
+            ),
             CallbackEvent::ClipboardMimeWrite { payload } => {
                 self.push_event("clipboard_mime_write", Some(payload))
             }
@@ -3503,6 +3660,8 @@ fn sanitize_diagnostic_event_payload(
         })),
         "clipboard_copy" => Some(serde_json::json!({
             "selection": payload.get("selection").and_then(serde_json::Value::as_str),
+            "protocol": payload.get("protocol").and_then(serde_json::Value::as_str),
+            "mode": payload.get("mode").and_then(serde_json::Value::as_str),
             "data_bytes": payload
                 .get("data")
                 .and_then(serde_json::Value::as_str)
@@ -7496,6 +7655,154 @@ mod tests {
     }
 
     #[test]
+    fn host_protocol_captures_split_iterm_clipboard_stream_without_hiding_output() {
+        let sequence = concat!(
+            "\x1b]1337;CopyToClipboard\x1b\\",
+            "Hello\n\x1b[31mworld\x1b[0m",
+            "\x1b]1337;EndCopy\x07"
+        )
+        .as_bytes();
+
+        for chunk_size in [1, 2, 7, sequence.len()] {
+            let mut state = HostProtocolState::default();
+            let mut events = Vec::new();
+            for chunk in sequence.chunks(chunk_size) {
+                events.extend(state.observe(chunk, TerminalEmulation::Xterm256));
+            }
+
+            let [
+                CallbackEvent::ItermClipboardCopy {
+                    selection,
+                    data: Some(data),
+                    streaming,
+                },
+            ] = events.as_slice()
+            else {
+                panic!("expected one iTerm2 streaming copy: {events:?}");
+            };
+            assert_eq!(selection, "c");
+            assert!(*streaming);
+            assert_eq!(
+                BASE64_STANDARD.decode(data).unwrap(),
+                b"Hello\n\x1b[31mworld\x1b[0m"
+            );
+            assert!(state.buffer.is_empty());
+            assert!(state.iterm_clipboard_capture.is_none());
+        }
+    }
+
+    #[test]
+    fn host_protocol_maps_iterm_named_pasteboards_and_direct_base64_copy() {
+        let mut state = HostProtocolState::default();
+        let events = state.observe(
+            concat!(
+                "\x1b]1337;CopyToClipboard=find\x07find me\x1b]1337;EndCopy\x07",
+                "\x1b]1337;CopyToClipboard=font\x07font me\x1b]1337;EndCopy\x07",
+                "\x1b]1337;CopyToClipboard=unknown\x07general\x1b]1337;EndCopy\x07",
+                "\x1b]1337;Copy=:ZGlyZWN0IPCfmIA=\x1b\\"
+            )
+            .as_bytes(),
+            TerminalEmulation::Xterm256,
+        );
+
+        assert_eq!(events.len(), 4);
+        for (index, (expected_selection, expected_text, expected_streaming)) in [
+            ("find", "find me", true),
+            ("font", "font me", true),
+            ("c", "general", true),
+            ("c", "direct 😀", false),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let CallbackEvent::ItermClipboardCopy {
+                selection,
+                data: Some(data),
+                streaming,
+            } = &events[index]
+            else {
+                panic!("expected iTerm2 clipboard event: {:?}", events[index]);
+            };
+            assert_eq!(selection, expected_selection);
+            assert_eq!(
+                BASE64_STANDARD.decode(data).unwrap(),
+                expected_text.as_bytes()
+            );
+            assert_eq!(*streaming, expected_streaming);
+        }
+    }
+
+    #[test]
+    fn host_protocol_bounds_and_resets_iterm_clipboard_capture() {
+        let mut state = HostProtocolState::default();
+        assert!(
+            state
+                .observe(
+                    b"\x1b]1337;CopyToClipboard\x07",
+                    TerminalEmulation::Xterm256,
+                )
+                .is_empty()
+        );
+        assert!(
+            state
+                .observe(
+                    &vec![b'x'; ITERM_CLIPBOARD_MAX_BYTES + 1],
+                    TerminalEmulation::Xterm256,
+                )
+                .is_empty()
+        );
+        let events = state.observe(b"\x1b]1337;EndCopy\x07", TerminalEmulation::Xterm256);
+        assert!(matches!(
+            events.as_slice(),
+            [CallbackEvent::ItermClipboardCopy { data: None, .. }]
+        ));
+
+        let events = state.observe(
+            concat!(
+                "\x1b]1337;CopyToClipboard\x07old",
+                "\x1b]1337;CopyToClipboard=find\x07new",
+                "\x1b]1337;EndCopy\x07"
+            )
+            .as_bytes(),
+            TerminalEmulation::Xterm256,
+        );
+        assert!(matches!(
+            events.as_slice(),
+            [CallbackEvent::ItermClipboardCopy {
+                selection,
+                data: Some(data),
+                streaming: true,
+            }] if selection == "find" && BASE64_STANDARD.decode(data).unwrap() == b"new"
+        ));
+
+        assert!(
+            state
+                .observe(
+                    b"\x1b]1337;CopyToClipboard\x07discarded\x1bc",
+                    TerminalEmulation::Xterm256,
+                )
+                .is_empty()
+        );
+        assert!(state.iterm_clipboard_capture.is_none());
+        assert!(
+            state
+                .observe(b"\x1b]1337;EndCopy\x07", TerminalEmulation::Xterm256)
+                .is_empty()
+        );
+
+        let mut vt220 = HostProtocolState::default();
+        assert!(
+            vt220
+                .observe(
+                    b"\x1b]1337;CopyToClipboard\x07ignored\x1b]1337;EndCopy\x07",
+                    TerminalEmulation::Vt220,
+                )
+                .is_empty()
+        );
+        assert!(vt220.iterm_clipboard_capture.is_none());
+    }
+
+    #[test]
     fn host_protocol_ris_clears_native_icon_and_keypad_state() {
         let mut state = HostProtocolState::default();
         state.observe(b"\x1b]1;build icon\x07\x1b=", TerminalEmulation::Xterm256);
@@ -7675,6 +7982,35 @@ mod tests {
                 if selection == "c" && data.len() == encoded.len()
         ));
         assert!(host.buffer.is_empty());
+    }
+
+    #[test]
+    fn terminal_filtered_bridge_denies_iterm_clipboard_but_keeps_stream_text_visible() {
+        let mut terminal = Terminal::new(80, 4);
+        terminal.set_osc_capability_allowed(OscCapability::ClipboardWrite, false);
+        let mut host = HostProtocolState::default();
+        let mut events = Vec::new();
+        terminal.process_with_filtered_input(
+            concat!(
+                "\x1b]1337;CopyToClipboard\x07",
+                "visible denied stream",
+                "\x1b]1337;EndCopy\x1b\\",
+                "\x1b]1337;Copy=:ZGVuaWVk\x07"
+            )
+            .as_bytes(),
+            |filtered| {
+                events.extend(host.observe(filtered, TerminalEmulation::Xterm256));
+            },
+        );
+
+        assert!(events.is_empty());
+        assert!(host.iterm_clipboard_capture.is_none());
+        assert!(
+            terminal
+                .active_grid()
+                .row_text(0)
+                .contains("visible denied stream")
+        );
     }
 
     #[test]
