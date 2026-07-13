@@ -82,6 +82,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   static const _terminalOverlayPadding = EdgeInsets.fromLTRB(12, 10, 14, 12);
   static const _pasteHistoryLimit = maxPasteHistoryEntries;
   static const _annotationLimit = 80;
+  static const _protocolAnnotationTextRefreshLimit = 16;
   static const _capturedOutputLimit = 80;
   static const _coprocessInputHistoryLimit = 512;
   static const _minimumHorizontalPaneCols = 24;
@@ -194,11 +195,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   List<PasteHistoryEntry> _pasteHistoryEntries = const [];
   _InstantReplayWorkspaceSession? _instantReplayWorkspaceSession;
   List<_TerminalAnnotation> _annotations = const [];
+  final GlobalKey<_AnnotationsSheetState> _annotationSheetKey = GlobalKey();
   List<_CapturedOutputEntry> _capturedOutputEntries = const [];
   Map<String, _ShellCoprocess> _coprocesses = const {};
   bool _pasteHistoryPersistToDisk = false;
   bool _pasteHistoryLoaded = false;
   int _nextAnnotationId = 0;
+  bool _annotationSheetOpen = false;
+  String? _annotationSheetSessionId;
   int _nextCapturedOutputId = 0;
   final Map<String, Set<String>> _coprocessInputKeysBySession =
       <String, Set<String>>{};

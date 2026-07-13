@@ -70,6 +70,7 @@ void main() {
         'shell_context': TerminalImmediateEventKind.shellContext,
         'shell_command': TerminalImmediateEventKind.shellCommand,
         'shell_user_var': TerminalImmediateEventKind.shellUserVar,
+        'session_annotation': TerminalImmediateEventKind.sessionAnnotation,
         'session_notification': TerminalImmediateEventKind.sessionNotification,
         'session_progress': TerminalImmediateEventKind.sessionProgress,
         'session_badge': TerminalImmediateEventKind.sessionBadge,

@@ -210,6 +210,21 @@ pub enum TerminalEvent {
     },
     /// iTerm2 requested the current rendered character-cell size.
     CellSizeReportRequested,
+    /// iTerm2 attached a bounded annotation to a terminal cell range.
+    ItermAnnotation {
+        /// Sanitized note text shown in the product annotation UI.
+        message: String,
+        /// Whether AddAnnotation requested immediate presentation.
+        visible: bool,
+        /// Global absolute start row at the time the OSC was received.
+        start_abs_row: usize,
+        /// Inclusive start column.
+        start_col: usize,
+        /// Global absolute row containing the exclusive end coordinate.
+        end_abs_row: usize,
+        /// Exclusive end column on `end_abs_row`.
+        end_col: usize,
+    },
     /// A zone was opened (prompt, command, or output block started)
     ZoneOpened {
         /// Unique zone identifier
@@ -349,6 +364,7 @@ impl TerminalEvent {
                 TerminalEventKind::ShellIntegrationVersion
             }
             TerminalEvent::CellSizeReportRequested => TerminalEventKind::CellSizeReportRequested,
+            TerminalEvent::ItermAnnotation { .. } => TerminalEventKind::ItermAnnotation,
             TerminalEvent::ZoneOpened { .. } => TerminalEventKind::ZoneOpened,
             TerminalEvent::ZoneClosed { .. } => TerminalEventKind::ZoneClosed,
             TerminalEvent::ZoneScrolledOut { .. } => TerminalEventKind::ZoneScrolledOut,
@@ -416,6 +432,7 @@ impl TerminalEvent {
             Self::ShellIntegrationVersion { version, shell } => {
                 version.len().saturating_add(option_len(shell))
             }
+            Self::ItermAnnotation { message, .. } => message.len(),
             Self::EnvironmentChanged {
                 key,
                 value,
@@ -476,6 +493,7 @@ pub enum TerminalEventKind {
     ShellIntegrationEvent,
     ShellIntegrationVersion,
     CellSizeReportRequested,
+    ItermAnnotation,
     ZoneOpened,
     ZoneClosed,
     ZoneScrolledOut,

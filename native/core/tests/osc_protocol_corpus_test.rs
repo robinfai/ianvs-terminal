@@ -189,6 +189,30 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
                     b"\x1b]4;-2;rgb:8080/8080/8080\x1b\\\x1b]4;-1;rgb:1111/2222/3333\x1b\\"
                 );
             }
+            "osc1337_annotations" => {
+                let annotations = terminal
+                    .poll_events()
+                    .into_iter()
+                    .filter_map(|event| match event {
+                        TerminalEvent::ItermAnnotation {
+                            message,
+                            visible,
+                            start_col,
+                            end_col,
+                            ..
+                        } => Some((message, visible, start_col, end_col)),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(
+                    annotations,
+                    vec![
+                        ("Visible note".to_string(), true, 7, 11),
+                        ("Hidden note".to_string(), false, 0, 6),
+                    ]
+                );
+                assert_eq!(terminal.title(), "osc1337-annotation-corpus-ok");
+            }
             "osc22_pointer_shape_stack" => {
                 assert_eq!(terminal.pointer_shape_name(), Some("crosshair"));
                 assert_eq!(

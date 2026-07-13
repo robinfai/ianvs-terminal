@@ -449,3 +449,22 @@ safety-policy reason documented in `osc_cross_terminal_probe_20260711.md`.
   tag 22; missing values retain profile behavior.
 - **Rollback:** revert `37d2423`; see
   `iterm_color_extensions_phase17_20260712.md` for the acceptance record.
+
+## Phase 25 report — iTerm2 OSC 1337 annotations
+
+- **Start SHA:** `15eedb8b0406a3bfc2739a7a43aa96e7f1724ddb`.
+- **Confirmed gap:** iTerm2 visible/hidden terminal-range annotations and their
+  legacy aliases were bounded no-ops at the product boundary.
+- **Fixes:** official one/two/four-part parsing, bounded typed event and retained
+  text range, existing annotation sheet/badge integration, active-pane focus
+  safety, and delayed text refresh when target bytes follow the OSC.
+- **Security:** metadata-only, VT220/fine-grained denial, diagnostic redaction,
+  and no host authority.
+- **Tests/results:** targeted parser, every-byte split, ingress, corpus, native
+  real PTY, Dart runtime, Widget, and macOS application real-PTY tests pass;
+  final full-gate and Computer Use counts are in
+  `osc1337_annotations_phase25_20260713.md`.
+- **Deferred:** Blocks/UpdateBlock require non-contiguous viewport row
+  virtualization and are not approximated as metadata or blank-row painting.
+- **Compatibility:** additive JSON event only; no frame/protobuf changes.
+- **Rollback:** revert the Phase 25 implementation commit.

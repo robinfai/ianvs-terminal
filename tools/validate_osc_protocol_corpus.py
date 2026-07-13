@@ -57,6 +57,9 @@ REQUIRED_COVERAGE = {
     "iTerm2 OSC 1337 cursor guide",
     "iTerm2 OSC 1337 clipboard write",
     "iTerm2 OSC 1337 streaming clipboard capture",
+    "iTerm2 OSC 1337 annotations",
+    "iTerm2 visible and hidden annotations",
+    "iTerm2 annotation coordinate range",
     "OSC 3008 hierarchy",
     "OSC 3008 malformed close recovery",
     "tmux passthrough fixture",
@@ -223,6 +226,14 @@ def validate_case(case: Any) -> set[str]:
         require(b"1337;CopyToClipboard=find" in stream, f"{case_id}: stream start")
         require(b"1337;EndCopy" in stream, f"{case_id}: stream end")
         require(b"1337;Copy=:ZGlyZWN0" in stream, f"{case_id}: direct copy")
+    elif case_id == "osc1337_annotations":
+        require(stream.count(b"\x1b]") == 3, f"{case_id}: sequence count")
+        require(b"1337;AddAnnotation=4|Visible note" in stream, f"{case_id}: visible")
+        require(
+            b"1337;AddHiddenAnnotation=Hidden note|6|0|1" in stream,
+            f"{case_id}: hidden coordinate range",
+        )
+        require(b"osc1337-annotation-corpus-ok" in stream, f"{case_id}: recovery")
     elif case_id == "tmux_passthrough":
         require(stream.startswith(b"\x1bPtmux;\x1b\x1b]"), f"{case_id}: bad wrapper")
     elif case_id == "screen_passthrough":

@@ -22,6 +22,21 @@ def osc(payload: str, *, bell: bool = False) -> bytes:
     return b"\x1b]" + payload.encode("utf-8") + terminator
 
 
+def all_osc_sequences_are_terminated(payload: bytes) -> bool:
+    offset = 0
+    while True:
+        introducer = payload.find(b"\x1b]", offset)
+        if introducer < 0:
+            return True
+        bell = payload.find(b"\x07", introducer + 2)
+        string_terminator = payload.find(ST, introducer + 2)
+        terminators = [index for index in (bell, string_terminator) if index >= 0]
+        if not terminators:
+            return False
+        terminator = min(terminators)
+        offset = terminator + (2 if payload.startswith(ST, terminator) else 1)
+
+
 @dataclass(frozen=True)
 class Probe:
     intent: str
@@ -83,6 +98,17 @@ PROBES = {
             "1337;Copy=:"
             + base64.b64encode(b"Ianvs iTerm clipboard direct").decode("ascii")
         ),
+    ),
+    "iterm_annotations": Probe(
+        "iterm_annotations",
+        "iTerm2 OSC 1337 annotations",
+        "Attach one hidden note and one immediately presented note to deterministic terminal text ranges.",
+        "Both notes appear in the session annotation list; only AddAnnotation opens the active-pane annotation sheet.",
+        "terminal-local metadata and UI only; no host action",
+        osc("1337;AddHiddenAnnotation=4|Ianvs hidden annotation", bell=True)
+        + b"away\r\nsecond "
+        + osc("1337;AddAnnotation=7|Ianvs visible annotation")
+        + b"visible",
     ),
     "clipboard_query": Probe(
         "clipboard_query",
@@ -323,6 +349,7 @@ def self_test() -> None:
         "hyperlink_with_id",
         "clipboard_copy",
         "iterm_clipboard_copy",
+        "iterm_annotations",
         "clipboard_query",
         "clipboard_mime",
         "tab_status",
@@ -350,7 +377,7 @@ def self_test() -> None:
     for key, probe in PROBES.items():
         if key != probe.intent or not probe.payload.startswith(b"\x1b]"):
             raise ValueError(f"invalid probe identity or introducer: {key}")
-        if not probe.payload.endswith((ST, b"\x07")):
+        if not all_osc_sequences_are_terminated(probe.payload):
             raise ValueError(f"missing OSC terminator: {key}")
         if not all((probe.protocol, probe.description, probe.expected, probe.host_action)):
             raise ValueError(f"missing probe metadata: {key}")
@@ -360,6 +387,8 @@ def self_test() -> None:
         raise ValueError("clipboard query fixture is malformed")
     if PROBES["iterm_clipboard_copy"].payload.count(b"\x1b]1337;") != 3:
         raise ValueError("iTerm2 OSC 1337 clipboard fixture is malformed")
+    if PROBES["iterm_annotations"].payload.count(b"\x1b]1337;") != 2:
+        raise ValueError("iTerm2 OSC 1337 annotation fixture is malformed")
     if PROBES["clipboard_mime"].payload.count(b"\x1b]5522;") != 5:
         raise ValueError("OSC 5522 MIME clipboard fixture is malformed")
     if PROBES["tab_status"].payload.count(b"\x1b]21337;") != 1:

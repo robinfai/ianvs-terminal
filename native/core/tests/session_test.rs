@@ -563,6 +563,21 @@ fn iterm_clipboard_copy_profile(emulation: TerminalEmulation) -> TerminalProfile
     )
 }
 
+fn iterm_annotation_profile(emulation: TerminalEmulation) -> TerminalProfile {
+    local_profile(
+        "iterm-annotation",
+        "iTerm Annotation",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import sys,time; sys.stdout.buffer.write(b"prefix \x1b]1337;AddAnnotation=4|Visible note\x07word\n\x1b]1337;AddHiddenAnnotation=Hidden note|6|0|1\x1b\\secret\nOSC1337-ANNOTATION-DONE\n"); sys.stdout.flush(); time.sleep(0.4)'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        emulation,
+    )
+}
+
 fn clipboard_paste_request_profile() -> TerminalProfile {
     local_profile(
         "clipboard-paste",
@@ -17808,6 +17823,54 @@ fn vt220_sessions_gate_iterm_clipboard_copy() {
 
     assert_event_kind_never_arrives(session_id, "clipboard_copy");
 
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_iterm_annotations_cross_the_real_pty_with_text_ranges() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&iterm_annotation_profile(TerminalEmulation::Xterm256)).unwrap(),
+    )
+    .unwrap();
+
+    let events = collect_events_until(session_id, |events| {
+        events
+            .iter()
+            .filter(|event| event["kind"] == "session_annotation")
+            .count()
+            >= 2
+    });
+    let annotations = events
+        .iter()
+        .filter(|event| event["kind"] == "session_annotation")
+        .collect::<Vec<_>>();
+    assert_eq!(annotations.len(), 2);
+    assert_eq!(annotations[0]["payload"]["source"], "iterm1337");
+    assert_eq!(annotations[0]["payload"]["message"], "Visible note");
+    assert_eq!(annotations[0]["payload"]["selectedText"], "word");
+    assert_eq!(annotations[0]["payload"]["visible"], true);
+    assert_eq!(annotations[0]["payload"]["startCol"], 7);
+    assert_eq!(annotations[0]["payload"]["endCol"], 11);
+    assert_eq!(annotations[1]["payload"]["message"], "Hidden note");
+    assert_eq!(annotations[1]["payload"]["selectedText"], "secret");
+    assert_eq!(annotations[1]["payload"]["visible"], false);
+
+    let frame = wait_for_frame_containing(session_id, "OSC1337-ANNOTATION-DONE");
+    assert!(
+        logical_rows_from_frame(&frame).join("\n").contains("word"),
+        "annotated text should remain visible: {frame}"
+    );
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_sessions_gate_iterm_annotations() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&iterm_annotation_profile(TerminalEmulation::Vt220)).unwrap(),
+    )
+    .unwrap();
+
+    assert_event_kind_never_arrives(session_id, "session_annotation");
     session::close_session(session_id).unwrap();
 }
 

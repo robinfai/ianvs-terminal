@@ -36,6 +36,9 @@ const Set<String> _requiredCoverage = <String>{
   'iTerm2 OSC 1337 cursor guide',
   'iTerm2 OSC 1337 clipboard write',
   'iTerm2 OSC 1337 streaming clipboard capture',
+  'iTerm2 OSC 1337 annotations',
+  'iTerm2 visible and hidden annotations',
+  'iTerm2 annotation coordinate range',
   'OSC 3008 hierarchy',
   'OSC 3008 malformed close recovery',
   'tmux passthrough fixture',
@@ -180,6 +183,12 @@ void _validateFixture(String id, Map<String, Object?> fixture) {
     expect(RegExp(r'\x1b]').allMatches(text), hasLength(3));
     expect(text, contains('1337;HighlightCursorLine=no'));
     expect(text, contains('1337;HighlightCursorLine=yes'));
+  } else if (id == 'osc1337_annotations') {
+    final text = latin1.decode(stream);
+    expect(RegExp(r'\x1b]').allMatches(text), hasLength(3));
+    expect(text, contains('1337;AddAnnotation=4|Visible note'));
+    expect(text, contains('1337;AddHiddenAnnotation=Hidden note|6|0|1'));
+    expect(text, contains('osc1337-annotation-corpus-ok'));
   } else if (id == 'osc1337_clipboard_copy') {
     final text = latin1.decode(stream);
     expect(RegExp(r'\x1b]').allMatches(text), hasLength(4));

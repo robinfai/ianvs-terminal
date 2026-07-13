@@ -6011,6 +6011,25 @@ void main() {
       runtimeBackend.enqueueEvent(
         sessionId,
         PtyEvent(
+          kind: 'session_annotation',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'iterm1337',
+            'message': 'Inspect this value',
+            'selectedText': 'value',
+            'visible': true,
+            'startAbsRow': 42,
+            'startCol': 3,
+            'endAbsRow': 42,
+            'endCol': 8,
+            'startRow': 2,
+            'endRow': 2,
+          },
+        ),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
           kind: 'session_notification',
           sessionId: sessionId,
           payload: const <String, Object?>{
@@ -6112,6 +6131,19 @@ void main() {
         events.whereType<TerminalSessionShellUserVarEvent>().single.name,
         'IANVS_TEST',
       );
+      final annotation = events
+          .whereType<TerminalSessionAnnotationEvent>()
+          .single;
+      expect(annotation.source, 'iterm1337');
+      expect(annotation.message, 'Inspect this value');
+      expect(annotation.selectedText, 'value');
+      expect(annotation.visible, isTrue);
+      expect(annotation.startAbsRow, 42);
+      expect(annotation.startCol, 3);
+      expect(annotation.endAbsRow, 42);
+      expect(annotation.endCol, 8);
+      expect(annotation.startRow, 2);
+      expect(annotation.endRow, 2);
       final notification = events
           .whereType<TerminalSessionNotificationEvent>()
           .single;

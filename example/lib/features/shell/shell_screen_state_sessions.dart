@@ -155,6 +155,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
         _resetAutoComposerState(clearText: true);
       }
     });
+    _syncOpenAnnotationSheet();
   }
 
   void _clearPresentationStateForSessions(Iterable<String> sessionIds) {

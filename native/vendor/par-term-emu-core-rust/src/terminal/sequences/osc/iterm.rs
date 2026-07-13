@@ -15,6 +15,8 @@ const MAX_REMOTE_HOSTNAME_CHARS: usize = 255;
 const MAX_SHELL_INTEGRATION_VERSION_CHARS: usize = 32;
 const MAX_SHELL_NAME_CHARS: usize = 32;
 const MAX_SET_COLORS_PAIRS: usize = 32;
+const MAX_ANNOTATION_MESSAGE_CHARS: usize = 1024;
+const MAX_ANNOTATION_LENGTH_CELLS: usize = 4096;
 
 impl Terminal {
     pub(crate) fn handle_osc_iterm(&mut self, _command: &str, params: &[&[u8]]) {
@@ -46,6 +48,14 @@ impl Terminal {
             } else if data == "ReportCellSize" {
                 self.terminal_events
                     .push(TerminalEvent::CellSizeReportRequested);
+            } else if let Some(payload) = data.strip_prefix("AddAnnotation=") {
+                self.handle_iterm_annotation(payload, true);
+            } else if let Some(payload) = data.strip_prefix("AddHiddenAnnotation=") {
+                self.handle_iterm_annotation(payload, false);
+            } else if let Some(payload) = data.strip_prefix("AddNote=") {
+                self.handle_iterm_annotation(payload, true);
+            } else if let Some(payload) = data.strip_prefix("AddHiddenNote=") {
+                self.handle_iterm_annotation(payload, false);
             } else if data == "ClearScrollback" {
                 self.handle_iterm_clear_buffer();
             } else if data == "HighlightCursorLine" {
@@ -68,6 +78,84 @@ impl Terminal {
             _ => return,
         };
         self.set_use_cursor_guide(enabled);
+    }
+
+    fn handle_iterm_annotation(&mut self, payload: &str, visible: bool) {
+        let parts = payload.split('|').collect::<Vec<_>>();
+        let (message, length, coordinates) = match parts.as_slice() {
+            [message] => {
+                let (columns, _) = self.size();
+                let length = columns.saturating_sub(self.cursor.col).saturating_sub(1);
+                (*message, length, None)
+            }
+            [length, message] => {
+                let Some(length) = parse_annotation_unsigned(length) else {
+                    return;
+                };
+                (*message, length, None)
+            }
+            [message, length, x, y, ..] => {
+                let Some(length) = parse_annotation_unsigned(length) else {
+                    return;
+                };
+                let (Some(x), Some(y)) = (parse_annotation_signed(x), parse_annotation_signed(y))
+                else {
+                    return;
+                };
+                (*message, length, Some((x, y)))
+            }
+            _ => return,
+        };
+        if length == 0 || length > MAX_ANNOTATION_LENGTH_CELLS {
+            return;
+        }
+        let message = sanitize_osc_text(message, MAX_ANNOTATION_MESSAGE_CHARS);
+        if message.is_empty() {
+            return;
+        }
+
+        let (columns, rows) = self.size();
+        if columns == 0 || rows == 0 {
+            return;
+        }
+        let (start_col, start_row) =
+            coordinates.map_or((self.cursor.col, self.cursor.row), |(x, y)| {
+                (
+                    x.clamp(0, columns.saturating_sub(1) as i64) as usize,
+                    y.clamp(0, rows.saturating_sub(1) as i64) as usize,
+                )
+            });
+        let start_linear = start_row
+            .checked_mul(columns)
+            .and_then(|value| value.checked_add(start_col));
+        let Some(end_linear) = start_linear.and_then(|value| value.checked_add(length)) else {
+            return;
+        };
+        let max_linear = columns
+            .checked_mul(rows)
+            .and_then(|value| value.checked_sub(1))
+            .unwrap_or(0);
+        if end_linear > max_linear {
+            return;
+        }
+        let end_row = end_linear / columns;
+        let end_col = end_linear % columns;
+        // iTerm2 annotations in the alternate screen are addressed directly
+        // against that transient grid. Alternate-screen scrolling must not
+        // leak its discarded-line counter into the exported row coordinates.
+        let global_base = if self.alt_screen_active {
+            0
+        } else {
+            self.active_grid().total_lines_scrolled()
+        };
+        self.terminal_events.push(TerminalEvent::ItermAnnotation {
+            message,
+            visible,
+            start_abs_row: global_base.saturating_add(start_row),
+            start_col,
+            end_abs_row: global_base.saturating_add(end_row),
+            end_col,
+        });
     }
 
     /// iTerm2's `ClearScrollback` name is historical: unlike CSI 3 J, the
@@ -443,6 +531,19 @@ impl Terminal {
     }
 }
 
+fn parse_annotation_unsigned(value: &str) -> Option<usize> {
+    (!value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()))
+        .then(|| value.parse::<usize>().ok())
+        .flatten()
+}
+
+fn parse_annotation_signed(value: &str) -> Option<i64> {
+    let digits = value.strip_prefix('-').unwrap_or(value);
+    (!digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit()))
+        .then(|| value.parse::<i64>().ok())
+        .flatten()
+}
+
 #[cfg(test)]
 mod tests {
     use crate::color::Color;
@@ -641,6 +742,97 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    #[test]
+    fn annotations_emit_bounded_ranges_for_visible_hidden_and_legacy_forms() {
+        let mut terminal = Terminal::new(12, 4);
+        terminal.process(b"prefix ");
+        terminal.process(b"\x1b]1337;AddAnnotation=4|Visible note\x07word");
+        terminal.process(b"\r\nsecond line");
+        terminal.process(b"\x1b]1337;AddHiddenAnnotation=Hidden note|5|-10|1\x1b\\");
+        terminal.process(b"\x1b]1337;AddNote=3|Legacy\x07");
+
+        let annotations = terminal
+            .poll_events()
+            .into_iter()
+            .filter_map(|event| match event {
+                TerminalEvent::ItermAnnotation {
+                    message,
+                    visible,
+                    start_abs_row,
+                    start_col,
+                    end_abs_row,
+                    end_col,
+                } => Some((
+                    message,
+                    visible,
+                    start_abs_row,
+                    start_col,
+                    end_abs_row,
+                    end_col,
+                )),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            annotations,
+            vec![
+                ("Visible note".to_string(), true, 0, 7, 0, 11),
+                ("Hidden note".to_string(), false, 1, 0, 1, 5),
+                ("Legacy".to_string(), true, 1, 11, 2, 2),
+            ]
+        );
+    }
+
+    #[test]
+    fn annotations_handle_every_byte_split_default_length_and_invalid_bounds() {
+        let sequence = b"\x1b]1337;AddHiddenAnnotation=Default range\x1b\\";
+        for chunk_size in [1, 2, 7, sequence.len()] {
+            let mut terminal = Terminal::new(10, 3);
+            terminal.process(b"abc");
+            for chunk in sequence.chunks(chunk_size) {
+                terminal.process(chunk);
+            }
+            assert!(terminal.poll_events().iter().any(|event| matches!(
+                event,
+                TerminalEvent::ItermAnnotation {
+                    message,
+                    visible: false,
+                    start_abs_row: 0,
+                    start_col: 3,
+                    end_abs_row: 0,
+                    end_col: 9,
+                } if message == "Default range"
+            )));
+        }
+
+        let mut terminal = Terminal::new(10, 3);
+        terminal.process(b"\x1b]1337;AddAnnotation=0|zero\x07");
+        terminal.process(b"\x1b]1337;AddAnnotation=4097|large\x07");
+        terminal.process(b"\x1b]1337;AddAnnotation=message|2|1\x07");
+        terminal.process(b"\x1b]1337;AddAnnotation=message|9|9|2\x07");
+        terminal.process(b"\x1b]1337;AddAnnotation=2|\x07");
+        assert!(!terminal
+            .poll_events()
+            .iter()
+            .any(|event| matches!(event, TerminalEvent::ItermAnnotation { .. })));
+
+        let mut terminal = Terminal::new(10, 2);
+        terminal.process(b"\x1b[?1049hfirst\r\nsecond\r\nthird");
+        terminal.process(b"\x1b]1337;AddHiddenAnnotation=alt|1|0|0\x07");
+        assert!(terminal.poll_events().iter().any(|event| matches!(
+            event,
+            TerminalEvent::ItermAnnotation {
+                message,
+                visible: false,
+                start_abs_row: 0,
+                start_col: 0,
+                end_abs_row: 0,
+                end_col: 1,
+            } if message == "alt"
+        )));
     }
 
     #[test]

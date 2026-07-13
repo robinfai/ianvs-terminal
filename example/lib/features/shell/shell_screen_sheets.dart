@@ -355,6 +355,7 @@ class _CapturedOutputEntryTile extends StatelessWidget {
 
 class _AnnotationsSheet extends StatefulWidget {
   const _AnnotationsSheet({
+    super.key,
     required this.entries,
     required this.selectedText,
     required this.onAdd,
@@ -396,6 +397,13 @@ class _AnnotationsSheetState extends State<_AnnotationsSheet> {
 
   void _handleNoteChanged() {
     setState(() {});
+  }
+
+  void replaceEntries(List<_TerminalAnnotation> entries) {
+    if (!mounted) {
+      return;
+    }
+    setState(() => _entries = entries);
   }
 
   void _save() {

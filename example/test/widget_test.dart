@@ -2810,6 +2810,108 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
+  testWidgets('hidden OSC 1337 annotation adds a badge without opening UI', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final sessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+
+    fakeBindings.enqueueEvent(
+      sessionId,
+      PtyEvent(
+        kind: 'session_annotation',
+        sessionId: sessionId,
+        payload: const <String, Object?>{
+          'source': 'iterm1337',
+          'message': 'Hidden protocol note',
+          'selectedText': 'ready',
+          'visible': false,
+          'startRow': 0,
+          'startCol': 15,
+          'endRow': 0,
+          'endCol': 20,
+        },
+      ),
+    );
+    container.read(terminalRuntimeControllerProvider).refreshSession(sessionId);
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(find.byKey(const Key('annotations-sheet')), findsNothing);
+    expect(
+      find.byKey(Key('terminal-annotation-badge-$sessionId')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(Key('terminal-annotation-badge-$sessionId')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Hidden protocol note'), findsOneWidget);
+    expect(find.text('ready'), findsOneWidget);
+    expect(find.byKey(const Key('annotation-entry-0')), findsOneWidget);
+  });
+
+  testWidgets('visible OSC 1337 annotation opens once for the active pane', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final sessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+
+    void enqueueVisible(String note) => fakeBindings.enqueueEvent(
+      sessionId,
+      PtyEvent(
+        kind: 'session_annotation',
+        sessionId: sessionId,
+        payload: <String, Object?>{
+          'source': 'iterm1337',
+          'message': note,
+          'selectedText': 'terminal',
+          'visible': true,
+          'startRow': 0,
+          'startCol': 6,
+          'endRow': 0,
+          'endCol': 14,
+        },
+      ),
+    );
+
+    enqueueVisible('Visible protocol note');
+    container.read(terminalRuntimeControllerProvider).refreshSession(sessionId);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('annotations-sheet')), findsOneWidget);
+    expect(find.text('Visible protocol note'), findsOneWidget);
+
+    enqueueVisible('Second protocol note');
+    container.read(terminalRuntimeControllerProvider).refreshSession(sessionId);
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(find.byKey(const Key('annotations-sheet')), findsOneWidget);
+    expect(find.text('Second protocol note'), findsOneWidget);
+  });
+
   testWidgets(
     'command-shift-c copy mode extends selection and copies with enter',
     (tester) async {

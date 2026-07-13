@@ -1161,6 +1161,9 @@ class SessionController extends Notifier<SessionState> {
         }
         _applyShellUserVar(event);
         break;
+      case TerminalSessionAnnotationEvent():
+        // ShellScreen owns the annotation sheet and terminal-range preview.
+        break;
       case TerminalSessionNotificationEvent():
         _applySessionNotification(event);
         break;

@@ -1240,6 +1240,63 @@ sleep 1
   );
 
   testWidgets(
+    'real PTY iTerm2 OSC 1337 annotations reach the product sheet and badge',
+    (tester) async {
+      final goFile = _tempSignalFile('osc1337-annotations');
+      final profile = _scriptProfile(
+        id: 'osc1337-annotations',
+        name: 'OSC 1337 Annotations',
+        script: r'''
+printf 'osc1337-annotations-ready\n'
+while [ ! -f "$GO_FILE" ]; do sleep 0.05; done
+printf 'prefix \033]1337;AddHiddenAnnotation=4|Hidden protocol note\aaway\n'
+printf 'second \033]1337;AddAnnotation=7|Visible protocol note\033\\visible\n'
+printf 'OSC1337-ANNOTATIONS-DONE\n'
+sleep 1
+''',
+        env: {'GO_FILE': goFile.path},
+      );
+      final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
+
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'OSC 1337 annotations ready marker',
+        matches: (text) => text.contains('osc1337-annotations-ready'),
+      );
+      _signal(goFile);
+
+      await _waitFor(
+        tester,
+        description: 'visible OSC 1337 annotation product sheet',
+        condition: () =>
+            find.byKey(const Key('annotations-sheet')).evaluate().isNotEmpty &&
+            find.text('Visible protocol note').evaluate().isNotEmpty &&
+            find.text('Hidden protocol note').evaluate().isNotEmpty &&
+            find.text('visible').evaluate().isNotEmpty &&
+            find.text('away').evaluate().isNotEmpty,
+        onTimeout: () => 'Terminal text: ${_terminalText(harness.container)}',
+      );
+
+      await tester.tap(find.byKey(const Key('annotations-close')));
+      await tester.pumpAndSettle();
+      final sessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      expect(
+        find.byKey(Key('terminal-annotation-badge-$sessionId')),
+        findsOneWidget,
+      );
+      expect(find.text('2 annotations'), findsOneWidget);
+      expect(
+        _terminalText(harness.container),
+        contains('OSC1337-ANNOTATIONS-DONE'),
+      );
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
     'real PTY OSC 1337 ClearScrollback clears product rows and history',
     (tester) async {
       final goFile = _tempSignalFile('osc1337-clear-buffer');

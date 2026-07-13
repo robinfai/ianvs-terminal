@@ -15,6 +15,7 @@ enum TerminalImmediateEventKind {
   shellContext,
   shellCommand,
   shellUserVar,
+  sessionAnnotation,
   sessionNotification,
   sessionProgress,
   sessionBadge,
@@ -103,6 +104,10 @@ final class TerminalEventRouter {
       ),
       'shell_user_var' => TerminalImmediateEventRoute(
         kind: TerminalImmediateEventKind.shellUserVar,
+        payload: event.payload,
+      ),
+      'session_annotation' => TerminalImmediateEventRoute(
+        kind: TerminalImmediateEventKind.sessionAnnotation,
         payload: event.payload,
       ),
       'session_notification' => TerminalImmediateEventRoute(

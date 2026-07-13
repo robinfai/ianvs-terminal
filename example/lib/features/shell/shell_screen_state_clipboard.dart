@@ -126,44 +126,69 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
     String sessionId,
     SelectionController selectionController,
   ) async {
+    if (_annotationSheetOpen || !mounted) {
+      return;
+    }
     final selectedText = _selectionTextForSession(
       sessionController,
       sessionId,
       selectionController,
     ).trimRight();
     final animationsEnabled = ref.read(shellAnimationsEnabledProvider);
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      sheetAnimationStyle: animationsEnabled
-          ? null
-          : AnimationStyle.noAnimation,
-      builder: (sheetContext) {
-        return _AnnotationsSheet(
-          entries: _annotationsForSession(sessionId),
-          selectedText: selectedText,
-          onAdd: (note) => _addAnnotation(
-            sessionId: sessionId,
+    _annotationSheetOpen = true;
+    _annotationSheetSessionId = sessionId;
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        isScrollControlled: true,
+        sheetAnimationStyle: animationsEnabled
+            ? null
+            : AnimationStyle.noAnimation,
+        builder: (sheetContext) {
+          return _AnnotationsSheet(
+            key: _annotationSheetKey,
+            entries: _annotationsForSession(sessionId),
             selectedText: selectedText,
-            note: note,
-          ),
-          onRemove: _removeAnnotation,
-        );
-      },
-    );
+            onAdd: (note) => _addAnnotation(
+              sessionId: sessionId,
+              selectedText: selectedText,
+              note: note,
+              syncOpenSheet: false,
+            ),
+            onRemove: _removeAnnotation,
+          );
+        },
+      );
+    } finally {
+      _annotationSheetOpen = false;
+      if (_annotationSheetSessionId == sessionId) {
+        _annotationSheetSessionId = null;
+      }
+    }
   }
 
   _TerminalAnnotation _addAnnotation({
     required String sessionId,
     required String selectedText,
     required String note,
+    String source = 'user',
+    int? startRow,
+    int? startCol,
+    int? endRow,
+    int? endCol,
+    bool syncOpenSheet = true,
   }) {
     final annotation = _TerminalAnnotation(
       id: 'annotation-${_nextAnnotationId++}',
       sessionId: sessionId,
       selectedText: selectedText.trimRight(),
       note: note.trim(),
+      source: source,
+      startRow: startRow,
+      startCol: startCol,
+      endRow: endRow,
+      endCol: endCol,
     );
     _mutateState(() {
       _annotations = <_TerminalAnnotation>[
@@ -171,7 +196,64 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
         ..._annotations,
       ].take(_ShellScreenState._annotationLimit).toList(growable: false);
     });
+    if (syncOpenSheet) {
+      _syncOpenAnnotationSheet();
+    }
     return annotation;
+  }
+
+  void _syncOpenAnnotationSheet() {
+    final sessionId = _annotationSheetSessionId;
+    final sheetState = _annotationSheetKey.currentState;
+    if (sessionId == null || sheetState == null) {
+      return;
+    }
+    sheetState.replaceEntries(_annotationsForSession(sessionId));
+  }
+
+  void _refreshProtocolAnnotationText(String sessionId) {
+    final runtime = ref.read(terminalRuntimeControllerProvider);
+    var changed = false;
+    final next = <_TerminalAnnotation>[
+      for (final annotation in _annotations)
+        if (annotation.sessionId == sessionId &&
+            annotation.source == 'iterm1337' &&
+            annotation.selectedText.isEmpty &&
+            annotation.hasTerminalRange &&
+            annotation.textRefreshAttempts <
+                _ShellScreenState._protocolAnnotationTextRefreshLimit)
+          (() {
+            final selectedText = runtime
+                .selectionText(
+                  sessionId,
+                  terminal.TerminalSelection(
+                    startRow: annotation.startRow!,
+                    startCol: annotation.startCol!,
+                    endRow: annotation.endRow!,
+                    endCol: annotation.endCol!,
+                  ),
+                  block: false,
+                )
+                ?.trimRight();
+            if (selectedText == null || selectedText.isEmpty) {
+              changed = true;
+              return annotation.copyWith(
+                textRefreshAttempts: annotation.textRefreshAttempts + 1,
+              );
+            }
+            changed = true;
+            return annotation.copyWith(
+              selectedText: selectedText,
+              textRefreshAttempts: annotation.textRefreshAttempts + 1,
+            );
+          })()
+        else
+          annotation,
+    ];
+    if (changed) {
+      _mutateState(() => _annotations = next);
+      _syncOpenAnnotationSheet();
+    }
   }
 
   void _removeAnnotation(String annotationId) {
@@ -181,6 +263,7 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
           if (annotation.id != annotationId) annotation,
       ];
     });
+    _syncOpenAnnotationSheet();
   }
 
   List<_CapturedOutputEntry> _capturedOutputForSession(String sessionId) {

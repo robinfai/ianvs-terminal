@@ -486,6 +486,28 @@
       }
     },
     {
+      "id": "osc1337_annotations",
+      "coverage": [
+        "iTerm2 OSC 1337 annotations",
+        "iTerm2 visible and hidden annotations",
+        "iTerm2 annotation coordinate range"
+      ],
+      "protocol": "iTerm2 OSC 1337 AddAnnotation/AddHiddenAnnotation",
+      "wire": {
+        "sequence_count": 3,
+        "chunks_hex": [
+          "707265666978201b5d313333373b416464416e6e6f746174696f6e3d347c56697369626c65206e6f746507776f72640d0a1b5d313333373b41646448696464656e416e6e6f746174696f6e3d48696464656e206e6f74657c367c307c311b5c7365637265741b5d323b6f7363313333372d616e6e6f746174696f6e2d636f727075732d6f6b1b5c"
+        ]
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "session_annotation",
+        "state_effect": "visible and hidden notes retain their terminal text ranges while later OSC title parsing remains intact",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
       "id": "tmux_passthrough",
       "coverage": ["tmux passthrough fixture"],
       "protocol": "tmux DCS passthrough carrying OSC 8",

@@ -183,12 +183,52 @@ class _TerminalAnnotation {
     required this.sessionId,
     required this.selectedText,
     required this.note,
+    this.source = 'user',
+    this.startRow,
+    this.startCol,
+    this.endRow,
+    this.endCol,
+    this.textRefreshAttempts = 0,
   });
 
   final String id;
   final String sessionId;
   final String selectedText;
   final String note;
+  final String source;
+  final int? startRow;
+  final int? startCol;
+  final int? endRow;
+  final int? endCol;
+  final int textRefreshAttempts;
+
+  bool get hasTerminalRange =>
+      startRow != null &&
+      startRow! >= 0 &&
+      startCol != null &&
+      startCol! >= 0 &&
+      endRow != null &&
+      endRow! >= startRow! &&
+      endCol != null &&
+      endCol! >= 0;
+
+  _TerminalAnnotation copyWith({
+    String? selectedText,
+    int? textRefreshAttempts,
+  }) {
+    return _TerminalAnnotation(
+      id: id,
+      sessionId: sessionId,
+      selectedText: selectedText ?? this.selectedText,
+      note: note,
+      source: source,
+      startRow: startRow,
+      startCol: startCol,
+      endRow: endRow,
+      endCol: endCol,
+      textRefreshAttempts: textRefreshAttempts ?? this.textRefreshAttempts,
+    );
+  }
 }
 
 class _CapturedOutputEntry {

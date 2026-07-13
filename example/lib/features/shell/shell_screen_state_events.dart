@@ -53,6 +53,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         _runProfileTriggers(sessionId, frame, frameSequence: frameSequence);
         _notifyInactiveActivity(sessionId, frame);
         _refreshSearchMatchesAfterFrame(sessionId, frame);
+        _refreshProtocolAnnotationText(sessionId);
         _scheduleRenderableSessionSwap(sessionId);
       case terminal.TerminalSessionExitEvent():
         unawaited(_osc72DragDropController.resetSession(event.sessionId));
@@ -68,6 +69,8 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         break;
       case terminal.TerminalSessionShellUserVarEvent():
         break;
+      case terminal.TerminalSessionAnnotationEvent():
+        _handleOscAnnotation(event);
       case terminal.TerminalSessionNotificationEvent():
         _handleOscNotification(event);
       case terminal.TerminalSessionProgressEvent():
@@ -98,6 +101,66 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       event,
       resolveLocation: _osc72LocationFor,
     );
+  }
+
+  void _handleOscAnnotation(terminal.TerminalSessionAnnotationEvent event) {
+    if (event.source != 'iterm1337') {
+      return;
+    }
+    final message = event.message?.trim();
+    final startRow = event.startRow;
+    final startCol = event.startCol;
+    final endRow = event.endRow;
+    final endCol = event.endCol;
+    if (message == null ||
+        message.isEmpty ||
+        message.runes.length > 1024 ||
+        startRow == null ||
+        startRow < 0 ||
+        startCol == null ||
+        startCol < 0 ||
+        endRow == null ||
+        endRow < startRow ||
+        endCol == null ||
+        endCol < 0) {
+      return;
+    }
+    _addAnnotation(
+      sessionId: event.sessionId,
+      selectedText: event.selectedText ?? '',
+      note: message,
+      source: 'iterm1337',
+      startRow: startRow,
+      startCol: startCol,
+      endRow: endRow,
+      endCol: endCol,
+    );
+    _refreshProtocolAnnotationText(event.sessionId);
+
+    final sessionState = ref.read(sessionControllerProvider);
+    if (!event.visible || sessionState.activeSessionId != event.sessionId) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      final currentState = ref.read(sessionControllerProvider);
+      if (currentState.activeSessionId != event.sessionId) {
+        return;
+      }
+      final selectionController = _selectionControllers.putIfAbsent(
+        event.sessionId,
+        SelectionController.new,
+      );
+      unawaited(
+        _openAnnotations(
+          ref.read(sessionControllerProvider.notifier),
+          event.sessionId,
+          selectionController,
+        ),
+      );
+    });
   }
 
   Osc72DropLocation? _osc72LocationFor(NativeOsc72DragEvent event) {

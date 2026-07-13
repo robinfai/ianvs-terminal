@@ -233,6 +233,28 @@ final class TerminalSessionShellUserVarEvent extends TerminalSessionEvent {
   }
 }
 
+final class TerminalSessionAnnotationEvent extends TerminalSessionEvent {
+  TerminalSessionAnnotationEvent(
+    super.sessionId, {
+    Map<String, Object?>? rawPayload,
+  }) : rawPayload = Map.unmodifiable(rawPayload ?? const <String, Object?>{});
+
+  final Map<String, Object?> rawPayload;
+
+  String? get source => _stringValue(rawPayload['source']);
+  String? get message => _stringValue(rawPayload['message']);
+  String? get selectedText => _stringValue(rawPayload['selectedText']);
+  bool get visible => rawPayload['visible'] == true;
+  int? get startAbsRow => _wholeIntValue(rawPayload['startAbsRow']);
+  int? get startCol => _wholeIntValue(rawPayload['startCol']);
+  int? get endAbsRow => _wholeIntValue(rawPayload['endAbsRow']);
+  int? get endCol => _wholeIntValue(rawPayload['endCol']);
+  int? get startRow => _wholeIntValue(rawPayload['startRow']);
+  int? get endRow => _wholeIntValue(rawPayload['endRow']);
+
+  static String? _stringValue(Object? value) => value is String ? value : null;
+}
+
 final class TerminalSessionNotificationEvent extends TerminalSessionEvent {
   TerminalSessionNotificationEvent(
     super.sessionId, {
@@ -2057,6 +2079,12 @@ class TerminalRuntimeController {
             sessionId,
             rawPayload: route.payload,
           ),
+        );
+      case TerminalImmediateEventKind.sessionAnnotation:
+        _emitEventIfCurrent(
+          sessionId,
+          sessionEpoch,
+          TerminalSessionAnnotationEvent(sessionId, rawPayload: route.payload),
         );
       case TerminalImmediateEventKind.sessionNotification:
         _emitEventIfCurrent(

@@ -498,6 +498,8 @@ class Terminal implements TerminalDisposable {
         break;
       case TerminalSessionShellUserVarEvent():
         break;
+      case TerminalSessionAnnotationEvent():
+        break;
       case TerminalSessionNotificationEvent():
         break;
       case TerminalSessionProgressEvent():

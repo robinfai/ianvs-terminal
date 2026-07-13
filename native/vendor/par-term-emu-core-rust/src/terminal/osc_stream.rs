@@ -791,6 +791,14 @@ fn classify_osc_1337(
         || (!complete && b"ClearScrollback".starts_with(payload))
         || payload.starts_with(b"ShellIntegrationVersion=")
         || (!complete && b"ShellIntegrationVersion=".starts_with(payload))
+        || payload.starts_with(b"AddAnnotation=")
+        || (!complete && b"AddAnnotation=".starts_with(payload))
+        || payload.starts_with(b"AddHiddenAnnotation=")
+        || (!complete && b"AddHiddenAnnotation=".starts_with(payload))
+        || payload.starts_with(b"AddNote=")
+        || (!complete && b"AddNote=".starts_with(payload))
+        || payload.starts_with(b"AddHiddenNote=")
+        || (!complete && b"AddHiddenNote=".starts_with(payload))
     {
         return Classification::new(OscIntent::ShellIntegration, OscCapability::Metadata);
     }
@@ -1207,6 +1215,64 @@ mod tests {
         assert_eq!(
             gate.diagnostics()
                 .for_intent(OscIntent::Clipboard)
+                .oversized,
+            1
+        );
+    }
+
+    #[test]
+    fn osc1337_annotations_are_bounded_metadata_without_host_authority() {
+        for sequence in [
+            b"\x1b]1337;AddAnnotation=4|note\x07".as_slice(),
+            b"\x1b]1337;AddHiddenAnnotation=hidden\x1b\\".as_slice(),
+            b"\x1b]1337;AddNote=3|legacy\x07".as_slice(),
+            b"\x1b]1337;AddHiddenNote=legacy\x07".as_slice(),
+        ] {
+            let payload_end = sequence.len() - if sequence.ends_with(b"\x1b\\") { 2 } else { 1 };
+            let classification = classify_osc(
+                &sequence[2..payload_end],
+                true,
+                OscClassificationContext::default(),
+            );
+            assert_eq!(classification.intent, OscIntent::ShellIntegration);
+            assert_eq!(classification.capability, OscCapability::Metadata);
+            assert_ne!(classification.capability, OscCapability::HostAction);
+        }
+
+        let mut denied = OscCapabilityPolicy::default();
+        denied.set(OscCapability::Metadata, false);
+        let mut gate = OscStreamGate::default();
+        assert_eq!(
+            filter_owned(
+                &mut gate,
+                b"before\x1b]1337;AddAnnotation=4|note\x07word after",
+                denied,
+                OscClassificationContext::default(),
+            ),
+            b"beforeword after"
+        );
+        assert_eq!(
+            gate.diagnostics()
+                .for_intent(OscIntent::ShellIntegration)
+                .policy_denied,
+            1
+        );
+
+        let oversized = format!(
+            "\x1b]1337;AddAnnotation={}|note\x07",
+            "4".repeat(OscIntent::ShellIntegration.payload_limit() + 1)
+        );
+        let mut gate = OscStreamGate::default();
+        assert!(filter_owned(
+            &mut gate,
+            oversized.as_bytes(),
+            OscCapabilityPolicy::default(),
+            OscClassificationContext::default(),
+        )
+        .is_empty());
+        assert_eq!(
+            gate.diagnostics()
+                .for_intent(OscIntent::ShellIntegration)
                 .oversized,
             1
         );

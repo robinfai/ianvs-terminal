@@ -157,6 +157,9 @@ enum CallbackEvent {
         value: String,
     },
     CellSizeReportRequest,
+    SessionAnnotation {
+        payload: serde_json::Value,
+    },
     SessionNotification {
         source: String,
         action: String,
@@ -1477,9 +1480,18 @@ impl HostProtocolState {
     }
 }
 
+#[cfg(test)]
 fn callback_event_from_parser_event(
     event: ParserTerminalEvent,
     suppress_shell_zones: bool,
+) -> Option<CallbackEvent> {
+    callback_event_from_parser_event_with_terminal(event, suppress_shell_zones, None)
+}
+
+fn callback_event_from_parser_event_with_terminal(
+    event: ParserTerminalEvent,
+    suppress_shell_zones: bool,
+    terminal: Option<&Terminal>,
 ) -> Option<CallbackEvent> {
     match event {
         ParserTerminalEvent::BellRang(_) => Some(CallbackEvent::Bell),
@@ -1576,6 +1588,49 @@ fn callback_event_from_parser_event(
             })
         }
         ParserTerminalEvent::CellSizeReportRequested => Some(CallbackEvent::CellSizeReportRequest),
+        ParserTerminalEvent::ItermAnnotation {
+            message,
+            visible,
+            start_abs_row,
+            start_col,
+            end_abs_row,
+            end_col,
+        } => {
+            let retained_range = terminal.and_then(|terminal| {
+                let start_row = retained_row_for_abs_row(terminal, start_abs_row)?;
+                let end_row = retained_row_for_abs_row(terminal, end_abs_row)?;
+                Some((start_row, end_row))
+            });
+            let selected_text = terminal
+                .zip(retained_range)
+                .map(|(terminal, (start_row, end_row))| {
+                    selection_text_for_terminal(
+                        terminal,
+                        TerminalSelectionRequest {
+                            start_row,
+                            start_col,
+                            end_row,
+                            end_col,
+                            block: false,
+                        },
+                    )
+                })
+                .unwrap_or_default();
+            Some(CallbackEvent::SessionAnnotation {
+                payload: serde_json::json!({
+                    "source": "iterm1337",
+                    "message": sanitize_protocol_text(&message, 1024),
+                    "visible": visible,
+                    "selectedText": sanitize_annotation_selected_text(&selected_text, 4096),
+                    "startAbsRow": start_abs_row,
+                    "startCol": start_col,
+                    "endAbsRow": end_abs_row,
+                    "endCol": end_col,
+                    "startRow": retained_range.map(|value| value.0),
+                    "endRow": retained_range.map(|value| value.1),
+                }),
+            })
+        }
         ParserTerminalEvent::ZoneOpened {
             zone_id,
             zone_type,
@@ -1904,6 +1959,14 @@ fn sanitize_protocol_text(value: &str, max_chars: usize) -> String {
         .to_string()
 }
 
+fn sanitize_annotation_selected_text(value: &str, max_chars: usize) -> String {
+    value
+        .chars()
+        .filter(|character| *character == '\n' || !character.is_control())
+        .take(max_chars)
+        .collect()
+}
+
 fn sanitize_protocol_text_option(value: Option<&str>, max_chars: usize) -> Option<String> {
     let value = sanitize_protocol_text(value?, max_chars);
     if value.is_empty() { None } else { Some(value) }
@@ -2105,9 +2168,10 @@ impl TerminalSession {
                                     || state.terminal.is_alt_screen_active();
                                 callback_events.extend(parser_events.into_iter().filter_map(
                                     |event| {
-                                        callback_event_from_parser_event(
+                                        callback_event_from_parser_event_with_terminal(
                                             event,
                                             suppress_shell_zones,
+                                            Some(&state.terminal),
                                         )
                                     },
                                 ));
@@ -3277,6 +3341,9 @@ impl TerminalSession {
             CallbackEvent::CellSizeReportRequest => {
                 self.push_event("cell_size_report_request", None)
             }
+            CallbackEvent::SessionAnnotation { payload } => {
+                self.push_event("session_annotation", Some(payload))
+            }
             CallbackEvent::SessionNotification {
                 source,
                 action,
@@ -3669,6 +3736,22 @@ fn sanitize_diagnostic_event_payload(
         })),
         "clipboard_paste_request" => Some(serde_json::json!({
             "selection": payload.get("selection").and_then(serde_json::Value::as_str),
+        })),
+        "session_annotation" => Some(serde_json::json!({
+            "source": payload.get("source").and_then(serde_json::Value::as_str),
+            "visible": payload.get("visible").and_then(serde_json::Value::as_bool),
+            "message_chars": payload
+                .get("message")
+                .and_then(serde_json::Value::as_str)
+                .map(|value| value.chars().count()),
+            "selected_text_chars": payload
+                .get("selectedText")
+                .and_then(serde_json::Value::as_str)
+                .map(|value| value.chars().count()),
+            "start_abs_row": payload.get("startAbsRow").and_then(serde_json::Value::as_u64),
+            "start_col": payload.get("startCol").and_then(serde_json::Value::as_u64),
+            "end_abs_row": payload.get("endAbsRow").and_then(serde_json::Value::as_u64),
+            "end_col": payload.get("endCol").and_then(serde_json::Value::as_u64),
         })),
         "clipboard_mime_write" => Some(serde_json::json!({
             "protocol": "osc5522",
@@ -5529,8 +5612,11 @@ fn segment_for_logical_byte_index(
 }
 
 fn selection_text_for_state(state: &TerminalState, request: TerminalSelectionRequest) -> String {
+    selection_text_for_terminal(&state.terminal, request)
+}
+
+fn selection_text_for_terminal(terminal: &Terminal, request: TerminalSelectionRequest) -> String {
     let normalized = normalize_selection_request(request);
-    let terminal = &state.terminal;
     let theme = terminal_theme_snapshot(terminal);
     let total_lines = total_visible_lines(terminal);
     if total_lines == 0 || normalized.start_row >= total_lines {
@@ -5571,6 +5657,19 @@ fn selection_text_for_state(state: &TerminalState, request: TerminalSelectionReq
         }
     }
     text
+}
+
+fn retained_row_for_abs_row(terminal: &Terminal, abs_row: usize) -> Option<usize> {
+    if terminal.is_alt_screen_active() {
+        return (abs_row < terminal.size().1).then_some(abs_row);
+    }
+    let scrollback_len = terminal.grid().scrollback_len();
+    let retained_base = terminal
+        .grid()
+        .total_lines_scrolled()
+        .saturating_sub(scrollback_len);
+    let retained_row = abs_row.checked_sub(retained_base)?;
+    (retained_row < scrollback_len.saturating_add(terminal.size().1)).then_some(retained_row)
 }
 
 fn normalize_selection_request(request: TerminalSelectionRequest) -> TerminalSelectionRequest {
@@ -7800,6 +7899,45 @@ mod tests {
                 .is_empty()
         );
         assert!(vt220.iterm_clipboard_capture.is_none());
+    }
+
+    #[test]
+    fn parser_annotations_resolve_terminal_text_and_redact_diagnostics() {
+        let mut terminal = Terminal::new(12, 4);
+        terminal.process(
+            b"prefix \x1b]1337;AddAnnotation=4|Visible note\x07word\r\n\x1b]1337;AddHiddenAnnotation=Hidden|5|0|1\x1b\\value",
+        );
+        let annotations = terminal
+            .poll_events()
+            .into_iter()
+            .filter_map(|event| {
+                callback_event_from_parser_event_with_terminal(event, false, Some(&terminal))
+            })
+            .filter_map(|event| match event {
+                CallbackEvent::SessionAnnotation { payload } => Some(payload),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(annotations.len(), 2);
+        assert_eq!(annotations[0]["source"], "iterm1337");
+        assert_eq!(annotations[0]["message"], "Visible note");
+        assert_eq!(annotations[0]["visible"], true);
+        assert_eq!(annotations[0]["selectedText"], "word");
+        assert_eq!(annotations[0]["startRow"], 0);
+        assert_eq!(annotations[0]["startCol"], 7);
+        assert_eq!(annotations[0]["endRow"], 0);
+        assert_eq!(annotations[0]["endCol"], 11);
+        assert_eq!(annotations[1]["visible"], false);
+        assert_eq!(annotations[1]["selectedText"], "value");
+
+        let diagnostics =
+            sanitize_diagnostic_event_payload("session_annotation", Some(&annotations[0]))
+                .expect("annotation diagnostics");
+        assert_eq!(diagnostics["message_chars"], 12);
+        assert_eq!(diagnostics["selected_text_chars"], 4);
+        assert!(diagnostics.get("message").is_none());
+        assert!(diagnostics.get("selectedText").is_none());
     }
 
     #[test]
