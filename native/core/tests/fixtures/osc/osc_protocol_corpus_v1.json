@@ -477,6 +477,26 @@
       }
     },
     {
+      "id": "osc21337_tab_status",
+      "coverage": [
+        "OSC 21337 incremental tab status"
+      ],
+      "protocol": "iTerm2 OSC 21337 tab status",
+      "wire": {
+        "sequence_count": 3,
+        "chunks_hex": [
+          "1b5d32313333373b696e64696361746f723d236666393530303b7374617475733d576f726b696e675c3b70686173653b7374617475732d636f6c6f723d233566383766661b5c1b5d32313333373b7374617475733d3b7374617475732d636f6c6f723d071b5d323b6f736332313333372d636f727075732d6f6b1b5c"
+        ]
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "tab_status",
+        "state_effect": "set and partial clear events preserve escaped status text and do not corrupt later OSC parsing",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
       "id": "osc5522_binary_mime_clipboard",
       "coverage": [
         "OSC 5522 binary MIME clipboard"

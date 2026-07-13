@@ -1370,6 +1370,12 @@ class _ShellTabOverflowRowState extends State<_ShellTabOverflowRow> {
         ? null
         : paneSignalInfos.first;
     final canActivateBadgePane = widget.tab.effectivePanes.length > 1;
+    final tabStatus = widget.tab.activePane.tabStatus;
+    final indicatorColor = terminalViewportColorFromHex(tabStatus.indicator);
+    final statusText = _normalizedShellTabStatusText(tabStatus.status);
+    final requestedStatusColor = terminalViewportColorFromHex(
+      tabStatus.statusColor,
+    );
     final tone = _ShellTabTone.fromTerminalBackground(
       palette: widget.palette,
       terminalBackground: widget.terminalBackgroundColor,
@@ -1456,6 +1462,27 @@ class _ShellTabOverflowRowState extends State<_ShellTabOverflowRow> {
                 ),
                 const SizedBox(width: 6),
               ],
+              if (indicatorColor != null) ...[
+                Tooltip(
+                  message: 'OSC 21337 session status indicator',
+                  child: DecoratedBox(
+                    key: Key(
+                      'shell-tab-overflow-status-indicator-${widget.tab.sessionId}',
+                    ),
+                    decoration: BoxDecoration(
+                      color: indicatorColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: widget.palette.textPrimary.withValues(
+                          alpha: 0.28,
+                        ),
+                      ),
+                    ),
+                    child: const SizedBox.square(dimension: 8),
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
               Expanded(
                 child: Text(
                   title,
@@ -1470,6 +1497,19 @@ class _ShellTabOverflowRowState extends State<_ShellTabOverflowRow> {
                   ),
                 ),
               ),
+              if (statusText != null) ...[
+                const SizedBox(width: 6),
+                _ShellTabStatusLabel(
+                  key: Key('shell-tab-overflow-status-${widget.tab.sessionId}'),
+                  text: statusText,
+                  requestedColor: requestedStatusColor,
+                  backgroundColor: background == Colors.transparent
+                      ? widget.terminalBackgroundColor
+                      : background,
+                  fallbackColor: textColor,
+                  maxWidth: 72,
+                ),
+              ],
               ..._shellTabBadgeChips(
                 keyPrefix: 'shell-tab-overflow-badge-${widget.tab.sessionId}',
                 tab: widget.tab,
@@ -1892,6 +1932,12 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
         ? null
         : paneSignalInfos.first;
     final canActivateBadgePane = widget.tab.effectivePanes.length > 1;
+    final tabStatus = widget.tab.activePane.tabStatus;
+    final indicatorColor = terminalViewportColorFromHex(tabStatus.indicator);
+    final statusText = _normalizedShellTabStatusText(tabStatus.status);
+    final requestedStatusColor = terminalViewportColorFromHex(
+      tabStatus.statusColor,
+    );
     final tone = _ShellTabTone.fromTerminalBackground(
       palette: widget.palette,
       terminalBackground: widget.chromeBackgroundColor,
@@ -1985,6 +2031,30 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
+                                if (indicatorColor != null) ...[
+                                  Tooltip(
+                                    message:
+                                        'OSC 21337 session status indicator',
+                                    child: DecoratedBox(
+                                      key: Key(
+                                        'shell-tab-status-indicator-${widget.tab.sessionId}',
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: indicatorColor,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: tone.primaryText.withValues(
+                                            alpha: 0.28,
+                                          ),
+                                        ),
+                                      ),
+                                      child: const SizedBox.square(
+                                        dimension: 8,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                ],
                                 Flexible(
                                   child: AnimatedDefaultTextStyle(
                                     duration: const Duration(milliseconds: 140),
@@ -1995,6 +2065,23 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                                     ),
                                   ),
                                 ),
+                                if (statusText != null) ...[
+                                  const SizedBox(width: 6),
+                                  _ShellTabStatusLabel(
+                                    key: Key(
+                                      'shell-tab-status-${widget.tab.sessionId}',
+                                    ),
+                                    text: statusText,
+                                    requestedColor: requestedStatusColor,
+                                    backgroundColor: widget.isActive
+                                        ? tone.activeBackground
+                                        : widget.chromeBackgroundColor,
+                                    fallbackColor: widget.isActive
+                                        ? tone.primaryText
+                                        : tone.mutedText,
+                                    maxWidth: widget.compact ? 48 : 72,
+                                  ),
+                                ],
                                 ..._shellTabBadgeChips(
                                   keyPrefix:
                                       'shell-tab-badge-${widget.tab.sessionId}',
@@ -2163,6 +2250,22 @@ String _shellTabSemanticsLabel(
   bool hasNewOutput = false,
 }) {
   final parts = <String>['${_shellTabDisplayTitle(tab)} tab'];
+  final tabStatus = tab.activePane.tabStatus;
+  final statusText = _normalizedShellTabStatusText(tabStatus.status);
+  if (statusText != null) {
+    parts.add(
+      tab.effectivePanes.length < 2
+          ? 'status $statusText'
+          : 'status $statusText from active pane',
+    );
+  }
+  if (tabStatus.indicator != null) {
+    parts.add(
+      tab.effectivePanes.length < 2
+          ? 'status indicator active'
+          : 'status indicator active on active pane',
+    );
+  }
   final badges = _shellTabBadgeInfos(tab);
   final badge = badges.isEmpty ? null : badges.first;
   final additionalBadgeCount = badges.length - 1;
@@ -2246,6 +2349,106 @@ String? _normalizedShellTabBadgeText(String? rawText) {
     return null;
   }
   return text;
+}
+
+String? _normalizedShellTabStatusText(String? rawText) {
+  final text = rawText?.trim();
+  if (text == null || text.isEmpty) {
+    return null;
+  }
+  return text;
+}
+
+class _ShellTabStatusLabel extends StatelessWidget {
+  const _ShellTabStatusLabel({
+    super.key,
+    required this.text,
+    required this.requestedColor,
+    required this.backgroundColor,
+    required this.fallbackColor,
+    required this.maxWidth,
+  });
+
+  final String text;
+  final Color? requestedColor;
+  final Color backgroundColor;
+  final Color fallbackColor;
+  final double maxWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    final requested = requestedColor ?? fallbackColor;
+    final chipBackground = Color.alphaBlend(
+      requested.withValues(alpha: 0.14),
+      backgroundColor,
+    );
+    final foreground = _shellAccessibleForeground(
+      requested,
+      chipBackground,
+      fallbackColor,
+    );
+    return Tooltip(
+      message: 'OSC 21337 status: $text',
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: requested.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(5),
+            border: Border.all(color: requested.withValues(alpha: 0.40)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textScaler: MediaQuery.textScalerOf(
+                context,
+              ).clamp(maxScaleFactor: 1.6),
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: foreground,
+                fontSize: 10.5,
+                height: 1,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Color _shellAccessibleForeground(
+  Color requested,
+  Color background,
+  Color fallback,
+) {
+  if (_shellContrastRatio(requested, background) >= 4.5) {
+    return requested;
+  }
+  if (_shellContrastRatio(fallback, background) >= 4.5) {
+    return fallback;
+  }
+  final black = Colors.black;
+  final white = Colors.white;
+  return _shellContrastRatio(black, background) >=
+          _shellContrastRatio(white, background)
+      ? black
+      : white;
+}
+
+double _shellContrastRatio(Color foreground, Color background) {
+  final lighter = math.max(
+    foreground.computeLuminance(),
+    background.computeLuminance(),
+  );
+  final darker = math.min(
+    foreground.computeLuminance(),
+    background.computeLuminance(),
+  );
+  return (lighter + 0.05) / (darker + 0.05);
 }
 
 String _shellTabBadgeLabel(String text, {required int badgeCount}) {

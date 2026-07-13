@@ -6049,6 +6049,22 @@ void main() {
       runtimeBackend.enqueueEvent(
         sessionId,
         PtyEvent(
+          kind: 'session_tab_status',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'osc21337',
+            'indicatorPresent': true,
+            'indicator': '#ff9500',
+            'statusPresent': true,
+            'status': 'Working',
+            'statusColorPresent': true,
+            'statusColor': '#5f87ff',
+          },
+        ),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
           kind: 'drag_drop_command',
           sessionId: sessionId,
           payload: const <String, Object?>{
@@ -6112,6 +6128,16 @@ void main() {
         events.whereType<TerminalSessionBadgeEvent>().single.text,
         'Build',
       );
+      final tabStatus = events
+          .whereType<TerminalSessionTabStatusEvent>()
+          .single;
+      expect(tabStatus.source, 'osc21337');
+      expect(tabStatus.indicatorPresent, isTrue);
+      expect(tabStatus.indicator, '#ff9500');
+      expect(tabStatus.statusPresent, isTrue);
+      expect(tabStatus.status, 'Working');
+      expect(tabStatus.statusColorPresent, isTrue);
+      expect(tabStatus.statusColor, '#5f87ff');
       final context = events.whereType<TerminalSessionContextEvent>().single;
       expect(context.source, 'osc3008');
       expect(context.action, 'update');

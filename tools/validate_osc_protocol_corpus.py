@@ -43,6 +43,7 @@ REQUIRED_COVERAGE = {
     "OSC 1337 shell metadata",
     "OSC 133 semantic prompts and aid lifecycle",
     "OSC 5522 binary MIME clipboard",
+    "OSC 21337 incremental tab status",
     "OSC 1337 cell-size query",
     "OSC 1337 cursor shape",
     "DECSCUSR cursor override coexistence",
@@ -168,6 +169,10 @@ def validate_case(case: Any) -> set[str]:
     elif case_id == "osc3008_malformed_close_recovery":
         require(stream.count(b"\x1b]3008;") == 4, f"{case_id}: lifecycle sequence count")
         require(b"end=missing" in stream, f"{case_id}: malformed close missing")
+    elif case_id == "osc21337_tab_status":
+        require(stream.count(b"\x1b]21337;") == 2, f"{case_id}: update count")
+        require(b"status=Working\\;phase" in stream, f"{case_id}: escaped status")
+        require(b"status=;status-color=" in stream, f"{case_id}: partial clear")
     elif case_id == "osc21_batch_and_osc23_noop":
         require(stream.count(b"\x1b]") == 3, f"{case_id}: sequence count")
         require(b"future=?" in stream, f"{case_id}: unknown query missing")

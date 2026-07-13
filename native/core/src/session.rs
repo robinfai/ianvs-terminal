@@ -167,6 +167,9 @@ enum CallbackEvent {
     SessionBadge {
         text: Option<String>,
     },
+    SessionTabStatus {
+        payload: serde_json::Value,
+    },
     TerminalContext {
         payload: serde_json::Value,
     },
@@ -1523,6 +1526,19 @@ fn callback_event_from_parser_event(
         }
         ParserTerminalEvent::BadgeChanged(text) => Some(CallbackEvent::SessionBadge {
             text: text.and_then(|value| sanitize_protocol_text_option(Some(&value), 80)),
+        }),
+        ParserTerminalEvent::TabStatusChanged(update) => Some(CallbackEvent::SessionTabStatus {
+            payload: serde_json::json!({
+                "source": "osc21337",
+                "indicatorPresent": update.indicator_present,
+                "indicator": update.indicator,
+                "statusPresent": update.status_present,
+                "status": update.status
+                    .as_deref()
+                    .and_then(|value| sanitize_protocol_text_option(Some(value), 256)),
+                "statusColorPresent": update.status_color_present,
+                "statusColor": update.status_color,
+            }),
         }),
         ParserTerminalEvent::TerminalContextChanged(event) => {
             let event = *event;
@@ -3100,6 +3116,9 @@ impl TerminalSession {
                     "text": text,
                 })),
             ),
+            CallbackEvent::SessionTabStatus { payload } => {
+                self.push_event("session_tab_status", Some(payload))
+            }
             CallbackEvent::TerminalContext { payload } => {
                 self.push_event("terminal_context", Some(payload))
             }
@@ -3557,6 +3576,30 @@ fn sanitize_diagnostic_event_payload(
                 .get("text")
                 .and_then(serde_json::Value::as_str)
                 .map(diagnostic_hash),
+        })),
+        "session_tab_status" => Some(serde_json::json!({
+            "source": payload.get("source").and_then(serde_json::Value::as_str),
+            "indicator_present": payload
+                .get("indicatorPresent")
+                .and_then(serde_json::Value::as_bool),
+            "indicator": payload.get("indicator").and_then(serde_json::Value::as_str),
+            "status_present": payload
+                .get("statusPresent")
+                .and_then(serde_json::Value::as_bool),
+            "status_chars": payload
+                .get("status")
+                .and_then(serde_json::Value::as_str)
+                .map(|value| value.chars().count()),
+            "status_hash": payload
+                .get("status")
+                .and_then(serde_json::Value::as_str)
+                .map(diagnostic_hash),
+            "status_color_present": payload
+                .get("statusColorPresent")
+                .and_then(serde_json::Value::as_bool),
+            "status_color": payload
+                .get("statusColor")
+                .and_then(serde_json::Value::as_str),
         })),
         "terminal_context" => Some(sanitize_terminal_context_payload(payload)),
         _ => None,
@@ -7918,6 +7961,40 @@ mod tests {
         let serialized = sanitized.to_string();
         assert!(!serialized.contains(secret_id));
         assert!(!serialized.contains(secret_label));
+    }
+
+    #[test]
+    fn tab_status_bridge_preserves_incremental_presence_and_privacy() {
+        let callback = callback_event_from_parser_event(
+            ParserTerminalEvent::TabStatusChanged(
+                par_term_emu_core_rust::terminal::TabStatusUpdate {
+                    indicator_present: true,
+                    indicator: Some("#ff9500".to_string()),
+                    status_present: true,
+                    status: Some("private deployment state".to_string()),
+                    status_color_present: false,
+                    status_color: None,
+                },
+            ),
+            false,
+        )
+        .expect("expected callback");
+
+        let CallbackEvent::SessionTabStatus { payload } = callback else {
+            panic!("expected session tab status callback");
+        };
+        assert_eq!(payload["indicatorPresent"].as_bool(), Some(true));
+        assert_eq!(payload["indicator"].as_str(), Some("#ff9500"));
+        assert_eq!(payload["statusPresent"].as_bool(), Some(true));
+        assert_eq!(payload["status"].as_str(), Some("private deployment state"));
+        assert_eq!(payload["statusColorPresent"].as_bool(), Some(false));
+
+        let sanitized = sanitize_diagnostic_event_payload("session_tab_status", Some(&payload))
+            .expect("expected sanitized tab status");
+        assert_eq!(sanitized["status_chars"].as_u64(), Some(24));
+        assert!(sanitized["status_hash"].as_str().is_some());
+        assert!(sanitized.get("status").is_none());
+        assert!(!sanitized.to_string().contains("private deployment state"));
     }
 
     #[test]

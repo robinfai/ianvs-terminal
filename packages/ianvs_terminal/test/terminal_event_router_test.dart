@@ -73,6 +73,7 @@ void main() {
         'session_notification': TerminalImmediateEventKind.sessionNotification,
         'session_progress': TerminalImmediateEventKind.sessionProgress,
         'session_badge': TerminalImmediateEventKind.sessionBadge,
+        'session_tab_status': TerminalImmediateEventKind.sessionTabStatus,
         'drag_drop_command': TerminalImmediateEventKind.dragDropCommand,
         'cell_size_report_request':
             TerminalImmediateEventKind.cellSizeReportRequest,

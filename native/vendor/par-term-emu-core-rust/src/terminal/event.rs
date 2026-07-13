@@ -89,6 +89,34 @@ pub struct CwdChange {
 }
 
 /// Terminal change event
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TabStatusUpdate {
+    /// Whether the OSC payload mentioned `indicator`.
+    pub indicator_present: bool,
+    /// Canonical `#rrggbb` color, or `None` when the field was cleared.
+    pub indicator: Option<String>,
+    /// Whether the OSC payload mentioned `status`.
+    pub status_present: bool,
+    /// Sanitized status text, or `None` when the field was cleared.
+    pub status: Option<String>,
+    /// Whether the OSC payload mentioned `status-color`.
+    pub status_color_present: bool,
+    /// Canonical `#rrggbb` color, or `None` when the field was cleared.
+    pub status_color: Option<String>,
+}
+
+impl TabStatusUpdate {
+    pub(crate) fn is_empty(&self) -> bool {
+        !self.indicator_present && !self.status_present && !self.status_color_present
+    }
+
+    fn retained_bytes(&self) -> usize {
+        self.indicator.as_ref().map_or(0, String::len)
+            + self.status.as_ref().map_or(0, String::len)
+            + self.status_color.as_ref().map_or(0, String::len)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum TerminalEvent {
     /// Bell event occurred
@@ -142,6 +170,8 @@ pub enum TerminalEvent {
     },
     /// Badge text changed (from OSC 1337 SetBadgeFormat)
     BadgeChanged(Option<String>),
+    /// Incremental tab-status update from iTerm2 OSC 21337.
+    TabStatusChanged(TabStatusUpdate),
     /// UAPI OSC 3008 hierarchical terminal context changed.
     TerminalContextChanged(Box<TerminalContextEvent>),
     /// A bounded Kitty OSC 72 command requiring product-side drag/drop policy.
@@ -311,6 +341,7 @@ impl TerminalEvent {
             TerminalEvent::UserVarChanged { .. } => TerminalEventKind::UserVarChanged,
             TerminalEvent::ProgressBarChanged { .. } => TerminalEventKind::ProgressBarChanged,
             TerminalEvent::BadgeChanged(_) => TerminalEventKind::BadgeChanged,
+            TerminalEvent::TabStatusChanged(_) => TerminalEventKind::TabStatusChanged,
             TerminalEvent::TerminalContextChanged(_) => TerminalEventKind::TerminalContextChanged,
             TerminalEvent::DragDropCommand(_) => TerminalEventKind::DragDropCommand,
             TerminalEvent::ShellIntegrationEvent { .. } => TerminalEventKind::ShellIntegrationEvent,
@@ -366,6 +397,7 @@ impl TerminalEvent {
                 id.len().saturating_add(option_len(label))
             }
             Self::BadgeChanged(badge) => option_len(badge),
+            Self::TabStatusChanged(update) => update.retained_bytes(),
             Self::TerminalContextChanged(event) => event.retained_bytes(),
             Self::DragDropCommand(command) => command.retained_bytes(),
             Self::ShellIntegrationEvent {
@@ -438,6 +470,7 @@ pub enum TerminalEventKind {
     UserVarChanged,
     ProgressBarChanged,
     BadgeChanged,
+    TabStatusChanged,
     TerminalContextChanged,
     DragDropCommand,
     ShellIntegrationEvent,

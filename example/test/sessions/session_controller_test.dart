@@ -2066,6 +2066,15 @@ void main() {
     }
 
     enqueue('session_badge', const <String, Object?>{'text': 'Deploy'});
+    enqueue('session_tab_status', const <String, Object?>{
+      'source': 'osc21337',
+      'indicatorPresent': true,
+      'indicator': '#ff9500',
+      'statusPresent': true,
+      'status': 'Working',
+      'statusColorPresent': true,
+      'statusColor': '#5f87ff',
+    });
     enqueue('session_progress', const <String, Object?>{
       'source': 'osc9;4',
       'action': 'set',
@@ -2121,6 +2130,9 @@ void main() {
         .paneFor(targetSessionId)!;
     expect(pane.profileId, 'local');
     expect(pane.oscBadge, 'Deploy');
+    expect(pane.tabStatus.indicator, '#ff9500');
+    expect(pane.tabStatus.status, 'Working');
+    expect(pane.tabStatus.statusColor, '#5f87ff');
     expect(pane.progress?.label, 'Deploy');
     expect(pane.namedProgress['build']?.label, 'Compile');
     expect(pane.recentNotifications.single.title, 'Deploy done');
@@ -2750,6 +2762,15 @@ void main() {
       'value': 'staging',
     });
     enqueue('session_badge', const <String, Object?>{'text': 'Deploy'});
+    enqueue('session_tab_status', const <String, Object?>{
+      'source': 'osc21337',
+      'indicatorPresent': true,
+      'indicator': '#ff9500',
+      'statusPresent': true,
+      'status': 'Working',
+      'statusColorPresent': true,
+      'statusColor': '#5f87ff',
+    });
     enqueue('session_progress', const <String, Object?>{
       'source': 'osc9;4',
       'action': 'set',
@@ -2790,6 +2811,19 @@ void main() {
     expect(pane.progress, isNotNull);
     expect(pane.namedProgress, contains('build'));
     expect(pane.recentNotifications, isNotEmpty);
+
+    enqueue('session_tab_status', const <String, Object?>{
+      'source': 'osc21337',
+      'indicatorPresent': false,
+      'statusPresent': false,
+      'statusColorPresent': true,
+      'statusColor': null,
+    });
+    await flush();
+    pane = container.read(sessionControllerProvider).tabs.single.activePane;
+    expect(pane.tabStatus.indicator, '#ff9500');
+    expect(pane.tabStatus.status, 'Working');
+    expect(pane.tabStatus.statusColor, isNull);
 
     // Create live grace timers, then prove RIS cancels them and also discards a
     // same-batch progress update queued before the reset event.
@@ -2832,6 +2866,7 @@ void main() {
     expect(pane.shellIntegration.promptMarks, isEmpty);
     expect(pane.shellIntegration.userVariables, isEmpty);
     expect(pane.oscBadge, isNull);
+    expect(pane.tabStatus.isEmpty, isTrue);
     expect(pane.progress, isNull);
     expect(pane.namedProgress, isEmpty);
     expect(pane.recentNotifications, isEmpty);

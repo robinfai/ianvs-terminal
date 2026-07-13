@@ -13,6 +13,7 @@ class TerminalPane {
     this.exitCode,
     this.shellIntegration = TerminalShellIntegrationSnapshot.empty,
     this.oscBadge,
+    this.tabStatus = const TerminalPaneTabStatusState(),
     this.progress,
     this.namedProgress = const <String, TerminalPaneProgressState>{},
     this.recentNotifications = const <TerminalPaneNotificationState>[],
@@ -26,6 +27,7 @@ class TerminalPane {
   final int? exitCode;
   final TerminalShellIntegrationSnapshot shellIntegration;
   final String? oscBadge;
+  final TerminalPaneTabStatusState tabStatus;
   final TerminalPaneProgressState? progress;
   final Map<String, TerminalPaneProgressState> namedProgress;
   final List<TerminalPaneNotificationState> recentNotifications;
@@ -38,6 +40,7 @@ class TerminalPane {
     Object? exitCode = _terminalPaneNoChange,
     TerminalShellIntegrationSnapshot? shellIntegration,
     Object? oscBadge = _terminalPaneNoChange,
+    TerminalPaneTabStatusState? tabStatus,
     Object? progress = _terminalPaneNoChange,
     Map<String, TerminalPaneProgressState>? namedProgress,
     List<TerminalPaneNotificationState>? recentNotifications,
@@ -57,6 +60,7 @@ class TerminalPane {
       oscBadge: identical(oscBadge, _terminalPaneNoChange)
           ? this.oscBadge
           : oscBadge as String?,
+      tabStatus: tabStatus ?? this.tabStatus,
       progress: identical(progress, _terminalPaneNoChange)
           ? this.progress
           : progress as TerminalPaneProgressState?,
@@ -67,6 +71,39 @@ class TerminalPane {
 }
 
 const Object _terminalPaneNoChange = Object();
+
+class TerminalPaneTabStatusState {
+  const TerminalPaneTabStatusState({
+    this.indicator,
+    this.status,
+    this.statusColor,
+  });
+
+  final String? indicator;
+  final String? status;
+  final String? statusColor;
+
+  bool get isEmpty =>
+      indicator == null && status == null && statusColor == null;
+
+  TerminalPaneTabStatusState copyWith({
+    Object? indicator = _terminalPaneNoChange,
+    Object? status = _terminalPaneNoChange,
+    Object? statusColor = _terminalPaneNoChange,
+  }) {
+    return TerminalPaneTabStatusState(
+      indicator: identical(indicator, _terminalPaneNoChange)
+          ? this.indicator
+          : indicator as String?,
+      status: identical(status, _terminalPaneNoChange)
+          ? this.status
+          : status as String?,
+      statusColor: identical(statusColor, _terminalPaneNoChange)
+          ? this.statusColor
+          : statusColor as String?,
+    );
+  }
+}
 
 class TerminalPaneProgressState {
   const TerminalPaneProgressState({
@@ -467,6 +504,7 @@ class TerminalTab {
     this.splitAxis = TerminalSplitAxis.horizontal,
     this.shellIntegration = TerminalShellIntegrationSnapshot.empty,
     this.oscBadge,
+    this.tabStatus = const TerminalPaneTabStatusState(),
     this.progress,
     this.namedProgress = const <String, TerminalPaneProgressState>{},
     this.recentNotifications = const <TerminalPaneNotificationState>[],
@@ -484,6 +522,7 @@ class TerminalTab {
   final TerminalSplitAxis splitAxis;
   final TerminalShellIntegrationSnapshot shellIntegration;
   final String? oscBadge;
+  final TerminalPaneTabStatusState tabStatus;
   final TerminalPaneProgressState? progress;
   final Map<String, TerminalPaneProgressState> namedProgress;
   final List<TerminalPaneNotificationState> recentNotifications;
@@ -498,6 +537,7 @@ class TerminalTab {
       exitCode: exitCode,
       shellIntegration: shellIntegration,
       oscBadge: oscBadge,
+      tabStatus: tabStatus,
       progress: progress,
       namedProgress: namedProgress,
       recentNotifications: recentNotifications,
@@ -556,6 +596,7 @@ class TerminalTab {
         exitCode: replacement.exitCode,
         shellIntegration: replacement.shellIntegration,
         oscBadge: replacement.oscBadge,
+        tabStatus: replacement.tabStatus,
         progress: replacement.progress,
         namedProgress: replacement.namedProgress,
         recentNotifications: replacement.recentNotifications,
@@ -575,6 +616,7 @@ class TerminalTab {
           ? replacement.shellIntegration
           : shellIntegration,
       oscBadge: replacingRootPane ? replacement.oscBadge : _terminalTabNoChange,
+      tabStatus: replacingRootPane ? replacement.tabStatus : null,
       progress: replacingRootPane ? replacement.progress : _terminalTabNoChange,
       namedProgress: replacingRootPane ? replacement.namedProgress : null,
       recentNotifications: replacingRootPane
@@ -597,6 +639,7 @@ class TerminalTab {
     TerminalSplitAxis? splitAxis,
     TerminalShellIntegrationSnapshot? shellIntegration,
     Object? oscBadge = _terminalTabNoChange,
+    TerminalPaneTabStatusState? tabStatus,
     Object? progress = _terminalTabNoChange,
     Map<String, TerminalPaneProgressState>? namedProgress,
     List<TerminalPaneNotificationState>? recentNotifications,
@@ -630,6 +673,7 @@ class TerminalTab {
       oscBadge: identical(oscBadge, _terminalTabNoChange)
           ? this.oscBadge
           : oscBadge as String?,
+      tabStatus: tabStatus ?? this.tabStatus,
       progress: identical(progress, _terminalTabNoChange)
           ? this.progress
           : progress as TerminalPaneProgressState?,

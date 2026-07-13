@@ -1184,6 +1184,22 @@ void main() {
         payload: const <String, Object?>{'text': 'Deploy'},
       ),
     );
+    fakeBindings.enqueueEvent(
+      closingSessionId,
+      PtyEvent(
+        kind: 'session_tab_status',
+        sessionId: closingSessionId,
+        payload: const <String, Object?>{
+          'source': 'osc21337',
+          'indicatorPresent': true,
+          'indicator': '#ff9500',
+          'statusPresent': true,
+          'status': 'Working',
+          'statusColorPresent': true,
+          'statusColor': '#5f87ff',
+        },
+      ),
+    );
     container
         .read(terminalRuntimeControllerProvider)
         .refreshSession(closingSessionId);
@@ -1197,6 +1213,7 @@ void main() {
     expect(find.byKey(const Key('shell-status-progress')), findsNothing);
     expect(find.byKey(const Key('shell-status-notification')), findsNothing);
     expect(find.byKey(Key('shell-tab-badge-$tabSessionId')), findsOneWidget);
+    expect(find.byKey(Key('shell-tab-status-$tabSessionId')), findsNothing);
     expect(
       find.byKey(Key('shell-tab-pane-signal-$tabSessionId')),
       findsOneWidget,
@@ -1230,6 +1247,20 @@ void main() {
     expect(find.byKey(const Key('shell-status-badge')), findsOneWidget);
     expect(find.byKey(const Key('shell-status-progress')), findsOneWidget);
     expect(find.byKey(const Key('shell-status-notification')), findsOneWidget);
+    expect(
+      find.byKey(Key('shell-tab-status-indicator-$tabSessionId')),
+      findsOneWidget,
+    );
+    expect(find.byKey(Key('shell-tab-status-$tabSessionId')), findsOneWidget);
+    expect(find.text('Working'), findsOneWidget);
+    final tabSemantics = tester.getSemantics(
+      find.bySemanticsIdentifier('shell-tab-$tabSessionId'),
+    );
+    expect(tabSemantics.label, contains('status Working from active pane'));
+    expect(
+      tabSemantics.label,
+      contains('status indicator active on active pane'),
+    );
 
     await tester.tap(
       find.byKey(Key('shell-pane-action-close-$closingSessionId')),
@@ -1244,6 +1275,7 @@ void main() {
     expect(find.byKey(const Key('shell-status-progress')), findsNothing);
     expect(find.byKey(const Key('shell-status-notification')), findsNothing);
     expect(find.byKey(Key('shell-tab-badge-$tabSessionId')), findsNothing);
+    expect(find.byKey(Key('shell-tab-status-$tabSessionId')), findsNothing);
     expect(
       find.byKey(Key('shell-tab-pane-signal-$tabSessionId')),
       findsNothing,

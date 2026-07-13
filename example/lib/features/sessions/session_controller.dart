@@ -1169,6 +1169,9 @@ class SessionController extends Notifier<SessionState> {
       case TerminalSessionBadgeEvent():
         _applySessionBadge(event);
         break;
+      case TerminalSessionTabStatusEvent():
+        _applySessionTabStatus(event);
+        break;
       case TerminalSessionContextEvent():
         // OSC 3008 remains typed metadata only; it does not drive product UI.
         break;
@@ -1571,6 +1574,24 @@ class SessionController extends Notifier<SessionState> {
     _replaceSessionPane(event.sessionId, currentPane.copyWith(oscBadge: text));
   }
 
+  void _applySessionTabStatus(TerminalSessionTabStatusEvent event) {
+    final currentPane = _paneForSession(event.sessionId);
+    if (currentPane == null) {
+      return;
+    }
+    var next = currentPane.tabStatus;
+    if (event.indicatorPresent) {
+      next = next.copyWith(indicator: event.indicator);
+    }
+    if (event.statusPresent) {
+      next = next.copyWith(status: _boundedShellMetadata(event.status, 256));
+    }
+    if (event.statusColorPresent) {
+      next = next.copyWith(statusColor: event.statusColor);
+    }
+    _replaceSessionPane(event.sessionId, currentPane.copyWith(tabStatus: next));
+  }
+
   void _applySessionReset(TerminalSessionResetEvent event) {
     _clearNotificationTrackingForSession(event.sessionId);
     final progressKeyPrefix = '${event.sessionId}:';
@@ -1604,6 +1625,7 @@ class SessionController extends Notifier<SessionState> {
       currentPane.copyWith(
         shellIntegration: nextIntegration,
         oscBadge: null,
+        tabStatus: const TerminalPaneTabStatusState(),
         progress: null,
         namedProgress: const <String, TerminalPaneProgressState>{},
         recentNotifications: const <TerminalPaneNotificationState>[],
@@ -2009,6 +2031,7 @@ class SessionController extends Notifier<SessionState> {
         exitCode: replacement.exitCode,
         shellIntegration: replacement.shellIntegration,
         oscBadge: replacement.oscBadge,
+        tabStatus: replacement.tabStatus,
         progress: replacement.progress,
         namedProgress: replacement.namedProgress,
         recentNotifications: replacement.recentNotifications,

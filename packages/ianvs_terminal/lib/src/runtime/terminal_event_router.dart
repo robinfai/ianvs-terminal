@@ -18,6 +18,7 @@ enum TerminalImmediateEventKind {
   sessionNotification,
   sessionProgress,
   sessionBadge,
+  sessionTabStatus,
   terminalContext,
   dragDropCommand,
   cellSizeReportRequest,
@@ -114,6 +115,10 @@ final class TerminalEventRouter {
       ),
       'session_badge' => TerminalImmediateEventRoute(
         kind: TerminalImmediateEventKind.sessionBadge,
+        payload: event.payload,
+      ),
+      'session_tab_status' => TerminalImmediateEventRoute(
+        kind: TerminalImmediateEventKind.sessionTabStatus,
         payload: event.payload,
       ),
       'terminal_context' => TerminalImmediateEventRoute(

@@ -96,6 +96,14 @@ PROBES = {
         + osc("5522;type=wdata")
         + osc("5522;type=read:id=ianvs-list;Lg=="),
     ),
+    "tab_status": Probe(
+        "tab_status",
+        "iTerm2 OSC 21337",
+        "Set an orange indicator, Working status text, and blue status text color.",
+        "The active session tab shows the indicator and Working status without changing terminal content.",
+        "appearance only; no host action",
+        osc("21337;indicator=#ff9500;status=Working;status-color=#5f87ff"),
+    ),
     "prompt_command_output": Probe(
         "prompt_command_output",
         "OSC 133 N/P/A/B/C/D with k= and aid=",
@@ -286,6 +294,7 @@ def self_test() -> None:
         "clipboard_copy",
         "clipboard_query",
         "clipboard_mime",
+        "tab_status",
         "prompt_command_output",
         "notification",
         "notification_query",
@@ -318,6 +327,8 @@ def self_test() -> None:
         raise ValueError("clipboard query fixture is malformed")
     if PROBES["clipboard_mime"].payload.count(b"\x1b]5522;") != 5:
         raise ValueError("OSC 5522 MIME clipboard fixture is malformed")
+    if PROBES["tab_status"].payload.count(b"\x1b]21337;") != 1:
+        raise ValueError("OSC 21337 tab status fixture is malformed")
     if PROBES["terminal_context"].payload.count(b"\x1b]3008;") != 4:
         raise ValueError("terminal context lifecycle fixture is malformed")
     if PROBES["color_control"].payload.count(b"=?") != 4:

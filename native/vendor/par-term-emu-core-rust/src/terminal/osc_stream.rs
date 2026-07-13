@@ -726,6 +726,7 @@ fn classify_osc(
             Classification::new(OscIntent::Clipboard, capability)
         }
         b"133" => Classification::new(OscIntent::ShellIntegration, OscCapability::Metadata),
+        b"21337" => Classification::new(OscIntent::Appearance, OscCapability::Appearance),
         b"3008" => Classification::new(OscIntent::ShellIntegration, OscCapability::Metadata),
         b"633" => {
             if payload.starts_with(b"P;Cwd=") {
@@ -1185,6 +1186,47 @@ mod tests {
         assert_eq!(
             filter_owned(&mut gate, sequence, metadata_denied, context),
             sequence
+        );
+    }
+
+    #[test]
+    fn osc21337_uses_only_the_bounded_appearance_capability() {
+        let sequence = b"\x1b]21337;indicator=#ff9500;status=Working;status-color=#5f87ff\x1b\\";
+        let context = OscClassificationContext::default();
+
+        let mut appearance_denied = OscCapabilityPolicy::default();
+        appearance_denied.set(OscCapability::Appearance, false);
+        let mut gate = OscStreamGate::default();
+        assert!(filter_owned(&mut gate, sequence, appearance_denied, context).is_empty());
+        assert_eq!(
+            gate.diagnostics()
+                .for_intent(OscIntent::Appearance)
+                .policy_denied,
+            1
+        );
+
+        let mut metadata_denied = OscCapabilityPolicy::default();
+        metadata_denied.set(OscCapability::Metadata, false);
+        let mut gate = OscStreamGate::default();
+        assert_eq!(
+            filter_owned(&mut gate, sequence, metadata_denied, context),
+            sequence
+        );
+
+        let oversized = format!("\x1b]21337;status={}\x07", "x".repeat(4097));
+        let mut gate = OscStreamGate::default();
+        assert!(filter_owned(
+            &mut gate,
+            oversized.as_bytes(),
+            OscCapabilityPolicy::default(),
+            context,
+        )
+        .is_empty());
+        assert_eq!(
+            gate.diagnostics()
+                .for_intent(OscIntent::Appearance)
+                .oversized,
+            1
         );
     }
 

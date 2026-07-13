@@ -49,7 +49,8 @@ pub use drag_drop::{
     DragDropAction, DragDropCommand, MAX_OSC72_METADATA_BYTES, MAX_OSC72_PAYLOAD_BYTES,
 };
 pub use event::{
-    BellEvent, CwdChange, CwdChangeSource, ShellEvent, TerminalEvent, TerminalEventKind,
+    BellEvent, CwdChange, CwdChangeSource, ShellEvent, TabStatusUpdate, TerminalEvent,
+    TerminalEventKind,
 };
 pub use file_transfer::{
     FileTransfer, FileTransferManager, TransferDirection, TransferId, TransferStatus,

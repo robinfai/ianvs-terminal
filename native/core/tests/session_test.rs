@@ -803,6 +803,21 @@ fn osc_notification_progress_badge_profile() -> TerminalProfile {
     )
 }
 
+fn osc21337_tab_status_profile(emulation: TerminalEmulation) -> TerminalProfile {
+    local_profile(
+        "osc21337-tab-status",
+        "OSC21337 Tab Status",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import sys,time; sys.stdout.buffer.write(b"\x1b]21337;indicator=#ff9500;status=Working\\;phase;status-color=#5f87ff\x1b\\\x1b]21337;status-color=\x07OSC21337-READY\n"); sys.stdout.flush(); time.sleep(0.2)'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        emulation,
+    )
+}
+
 fn osc9_indeterminate_progress_profile() -> TerminalProfile {
     local_profile(
         "osc9-indeterminate-progress",
@@ -18415,6 +18430,77 @@ fn session_emits_osc9_osc777_osc934_notification_progress_and_badge_events() {
         .find(|event| event["kind"] == "session_badge")
         .expect("expected badge event");
     assert_eq!(badge["payload"]["text"].as_str(), Some("Build"));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_osc21337_crosses_real_pty_as_ordered_incremental_events() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc21337_tab_status_profile(TerminalEmulation::Xterm256)).unwrap(),
+    )
+    .unwrap();
+
+    let _ = wait_for_frame_containing(session_id, "OSC21337-READY");
+    let events = collect_events_until(session_id, |events| {
+        events
+            .iter()
+            .filter(|event| event["kind"] == "session_tab_status")
+            .count()
+            >= 2
+    });
+    let updates = events
+        .iter()
+        .filter(|event| event["kind"] == "session_tab_status")
+        .collect::<Vec<_>>();
+    assert_eq!(updates.len(), 2);
+    assert_eq!(updates[0]["payload"]["source"].as_str(), Some("osc21337"));
+    assert_eq!(updates[0]["payload"]["indicator"].as_str(), Some("#ff9500"));
+    assert_eq!(
+        updates[0]["payload"]["status"].as_str(),
+        Some("Working;phase")
+    );
+    assert_eq!(
+        updates[0]["payload"]["statusColor"].as_str(),
+        Some("#5f87ff")
+    );
+    assert_eq!(
+        updates[1]["payload"]["indicatorPresent"].as_bool(),
+        Some(false)
+    );
+    assert_eq!(
+        updates[1]["payload"]["statusPresent"].as_bool(),
+        Some(false)
+    );
+    assert_eq!(
+        updates[1]["payload"]["statusColorPresent"].as_bool(),
+        Some(true)
+    );
+    assert!(updates[1]["payload"]["statusColor"].is_null());
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_sessions_gate_osc21337_tab_status() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc21337_tab_status_profile(TerminalEmulation::Vt220)).unwrap(),
+    )
+    .unwrap();
+
+    let _ = wait_for_frame_containing(session_id, "OSC21337-READY");
+    for _ in 0..10 {
+        let events = session::poll_events(session_id).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&events).unwrap();
+        assert!(
+            parsed
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|event| event["kind"] != "session_tab_status")
+        );
+        thread::sleep(Duration::from_millis(25));
+    }
 
     session::close_session(session_id).unwrap();
 }

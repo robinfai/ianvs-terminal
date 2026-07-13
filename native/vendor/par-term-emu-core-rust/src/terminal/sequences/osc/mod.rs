@@ -9,6 +9,7 @@ mod notify;
 mod pointer;
 mod shell;
 mod sized_text;
+mod tab_status;
 mod title;
 
 use crate::debug;
@@ -174,6 +175,7 @@ impl Terminal {
                 | "19" | "21" | "104" | "105" | "106" | "110" | "111" | "112" | "113" | "114"
                 | "115" | "116" | "117" | "118" | "119" => self.handle_osc_color(command, params),
                 "1337" => self.handle_osc_iterm(command, params),
+                "21337" => self.handle_osc_tab_status(params),
                 "3008" => self.handle_osc3008(params),
                 _ => {
                     debug::log(

@@ -74,6 +74,8 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         break;
       case terminal.TerminalSessionBadgeEvent():
         break;
+      case terminal.TerminalSessionTabStatusEvent():
+        break;
       case terminal.TerminalSessionContextEvent():
         break;
       case terminal.TerminalSessionDragDropCommandEvent():

@@ -299,6 +299,38 @@ final class TerminalSessionBadgeEvent extends TerminalSessionEvent {
   }
 }
 
+/// Incremental iTerm2 OSC 21337 tab-status update.
+///
+/// Each `*Present` flag distinguishes an omitted field (keep the current
+/// value) from a present `null` value (clear it).
+final class TerminalSessionTabStatusEvent extends TerminalSessionEvent {
+  TerminalSessionTabStatusEvent(
+    super.sessionId, {
+    Map<String, Object?>? rawPayload,
+  }) : rawPayload = Map.unmodifiable(rawPayload ?? const <String, Object?>{});
+
+  final Map<String, Object?> rawPayload;
+
+  String? get source => _stringValue(rawPayload['source']);
+  bool get indicatorPresent => rawPayload['indicatorPresent'] == true;
+  String? get indicator => _colorValue(rawPayload['indicator']);
+  bool get statusPresent => rawPayload['statusPresent'] == true;
+  String? get status => _stringValue(rawPayload['status']);
+  bool get statusColorPresent => rawPayload['statusColorPresent'] == true;
+  String? get statusColor => _colorValue(rawPayload['statusColor']);
+
+  static String? _stringValue(Object? value) {
+    return value is String ? value : null;
+  }
+
+  static String? _colorValue(Object? value) {
+    if (value is! String || !RegExp(r'^#[0-9a-f]{6}$').hasMatch(value)) {
+      return null;
+    }
+    return value;
+  }
+}
+
 /// Untrusted UAPI OSC 3008 hierarchy metadata emitted by the child process.
 final class TerminalSessionContextEvent extends TerminalSessionEvent {
   TerminalSessionContextEvent(
@@ -2040,6 +2072,12 @@ class TerminalRuntimeController {
           sessionId,
           sessionEpoch,
           TerminalSessionBadgeEvent(sessionId, rawPayload: route.payload),
+        );
+      case TerminalImmediateEventKind.sessionTabStatus:
+        _emitEventIfCurrent(
+          sessionId,
+          sessionEpoch,
+          TerminalSessionTabStatusEvent(sessionId, rawPayload: route.payload),
         );
       case TerminalImmediateEventKind.terminalContext:
         _emitEventIfCurrent(

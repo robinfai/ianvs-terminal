@@ -293,6 +293,25 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
             "osc5522_binary_mime_clipboard" => {
                 assert_eq!(terminal.title(), "osc5522-corpus-ok");
             }
+            "osc21337_tab_status" => {
+                assert_eq!(terminal.title(), "osc21337-corpus-ok");
+                let events = terminal.poll_events();
+                assert!(events.iter().any(|event| matches!(
+                    event,
+                    TerminalEvent::TabStatusChanged(update)
+                        if update.indicator.as_deref() == Some("#ff9500")
+                            && update.status.as_deref() == Some("Working;phase")
+                            && update.status_color.as_deref() == Some("#5f87ff")
+                )));
+                assert!(events.iter().any(|event| matches!(
+                    event,
+                    TerminalEvent::TabStatusChanged(update)
+                        if update.status_present
+                            && update.status.is_none()
+                            && update.status_color_present
+                            && update.status_color.is_none()
+                )));
+            }
             "tmux_passthrough" => assert_eq!(
                 write_hyperlink_probe(&mut terminal),
                 Some((
