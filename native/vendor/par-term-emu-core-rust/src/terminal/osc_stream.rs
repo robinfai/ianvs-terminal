@@ -805,6 +805,11 @@ fn classify_osc_1337(
     if payload == b"ReportCellSize" || (!complete && b"ReportCellSize".starts_with(payload)) {
         return Classification::new(OscIntent::Appearance, OscCapability::Appearance);
     }
+    if payload.starts_with(b"OpenURL=:") || (!complete && b"OpenURL=:".starts_with(payload)) {
+        // The parser may surface a bounded request, but Hyperlink capability
+        // alone never grants host-action authority to open it.
+        return Classification::new(OscIntent::Hyperlink, OscCapability::Hyperlink);
+    }
     if payload == b"HighlightCursorLine"
         || payload.starts_with(b"HighlightCursorLine=")
         || (!complete && b"HighlightCursorLine=".starts_with(payload))
@@ -1275,6 +1280,54 @@ mod tests {
                 .for_intent(OscIntent::ShellIntegration)
                 .oversized,
             1
+        );
+    }
+
+    #[test]
+    fn osc1337_open_url_is_a_bounded_hyperlink_request_without_host_authority() {
+        let sequence = b"\x1b]1337;OpenURL=:aHR0cHM6Ly9leGFtcGxlLnRlc3QvcGhhc2UyOQ==\x1b\\";
+        let classification = classify_osc(
+            &sequence[2..sequence.len() - 2],
+            true,
+            OscClassificationContext::default(),
+        );
+        assert_eq!(classification.intent, OscIntent::Hyperlink);
+        assert_eq!(classification.capability, OscCapability::Hyperlink);
+        assert!(!OscCapabilityPolicy::default().allows_host_action(OscCapability::Hyperlink));
+
+        for split in 1..sequence.len() {
+            let mut gate = OscStreamGate::default();
+            let mut output = filter_owned(
+                &mut gate,
+                &sequence[..split],
+                OscCapabilityPolicy::default(),
+                OscClassificationContext::default(),
+            );
+            output.extend(filter_owned(
+                &mut gate,
+                &sequence[split..],
+                OscCapabilityPolicy::default(),
+                OscClassificationContext::default(),
+            ));
+            assert_eq!(output, sequence, "failed at byte split {split}");
+        }
+
+        let mut denied = OscCapabilityPolicy::default();
+        denied.set(OscCapability::Hyperlink, false);
+        let mut gate = OscStreamGate::default();
+        assert!(filter_owned(
+            &mut gate,
+            sequence,
+            denied,
+            OscClassificationContext::default(),
+        )
+        .is_empty());
+        assert_eq!(
+            gate.diagnostics().for_intent(OscIntent::Hyperlink),
+            OscIntentDiagnostics {
+                policy_denied: 1,
+                ..OscIntentDiagnostics::default()
+            }
         );
     }
 

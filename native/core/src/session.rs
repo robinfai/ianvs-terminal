@@ -160,6 +160,9 @@ enum CallbackEvent {
         value: String,
     },
     CellSizeReportRequest,
+    OpenUrlRequest {
+        payload: serde_json::Value,
+    },
     SessionAnnotation {
         payload: serde_json::Value,
     },
@@ -1752,6 +1755,15 @@ fn callback_event_from_parser_event_with_terminal(
             })
         }
         ParserTerminalEvent::CellSizeReportRequested => Some(CallbackEvent::CellSizeReportRequest),
+        ParserTerminalEvent::ItermOpenUrlRequested { url } => {
+            let url = validated_terminal_open_url(&url)?;
+            Some(CallbackEvent::OpenUrlRequest {
+                payload: serde_json::json!({
+                    "source": "iterm1337",
+                    "url": url,
+                }),
+            })
+        }
         ParserTerminalEvent::ItermAnnotation {
             message,
             visible,
@@ -2060,6 +2072,24 @@ fn discard_replayed_parser_host_events(terminal: &mut Terminal) {
             _ => {}
         }
     }
+}
+
+fn validated_terminal_open_url(value: &str) -> Option<String> {
+    const MAX_OPEN_URL_BYTES: usize = 4096;
+    if value.is_empty()
+        || value.len() > MAX_OPEN_URL_BYTES
+        || value.trim() != value
+        || value.chars().any(char::is_control)
+    {
+        return None;
+    }
+    let parsed = url::Url::parse(value).ok()?;
+    let allowed = match parsed.scheme() {
+        "http" | "https" => parsed.host_str().is_some_and(|host| !host.is_empty()),
+        "file" => parsed.host_str().is_none() && !parsed.path().is_empty() && parsed.path() != "/",
+        _ => false,
+    };
+    allowed.then(|| value.to_string())
 }
 
 fn input_sets_alt_screen(input: &[u8]) -> bool {
@@ -3759,6 +3789,9 @@ impl TerminalSession {
             CallbackEvent::CellSizeReportRequest => {
                 self.push_event("cell_size_report_request", None)
             }
+            CallbackEvent::OpenUrlRequest { payload } => {
+                self.push_event("open_url_request", Some(payload))
+            }
             CallbackEvent::SessionAnnotation { payload } => {
                 self.push_event("session_annotation", Some(payload))
             }
@@ -4198,6 +4231,22 @@ fn sanitize_diagnostic_event_payload(
             "list_only": payload.get("listOnly").and_then(serde_json::Value::as_bool),
         })),
         "cell_size_report_request" => Some(serde_json::json!({})),
+        "open_url_request" => Some(serde_json::json!({
+            "source": payload.get("source").and_then(serde_json::Value::as_str),
+            "scheme": payload
+                .get("url")
+                .and_then(serde_json::Value::as_str)
+                .and_then(|value| url::Url::parse(value).ok())
+                .map(|value| value.scheme().to_string()),
+            "url_chars": payload
+                .get("url")
+                .and_then(serde_json::Value::as_str)
+                .map(|value| value.chars().count()),
+            "url_hash": payload
+                .get("url")
+                .and_then(serde_json::Value::as_str)
+                .map(diagnostic_hash),
+        })),
         "shell_hook" => sanitize_shell_hook_payload(payload),
         "shell_context" => sanitize_shell_context_payload(payload),
         "shell_command" => sanitize_shell_command_payload(payload),
@@ -7492,6 +7541,56 @@ mod tests {
         assert_eq!(&bytes, b"hello");
         assert!(state.take_file_download(1, &mut bytes).is_err());
         assert_eq!(state.pending_file_download_bytes, 0);
+    }
+
+    #[test]
+    fn osc1337_open_url_is_revalidated_and_redacted_before_product_routing() {
+        let callback = callback_event_from_parser_event(
+            ParserTerminalEvent::ItermOpenUrlRequested {
+                url: "https://example.test/private-phase29?token=secret".to_string(),
+            },
+            false,
+        )
+        .expect("expected validated open URL request");
+        let CallbackEvent::OpenUrlRequest { payload } = callback else {
+            panic!("expected open URL callback");
+        };
+        assert_eq!(payload["source"], "iterm1337");
+        assert_eq!(
+            payload["url"],
+            "https://example.test/private-phase29?token=secret"
+        );
+
+        for invalid in [
+            "javascript:alert(1)",
+            "https://",
+            "file:///",
+            "file://remote.example/path",
+            " https://example.test/space",
+            "https://example.test/control\n",
+        ] {
+            assert!(
+                callback_event_from_parser_event(
+                    ParserTerminalEvent::ItermOpenUrlRequested {
+                        url: invalid.to_string(),
+                    },
+                    false,
+                )
+                .is_none(),
+                "unsafe URL crossed the native bridge: {invalid:?}"
+            );
+        }
+
+        let diagnostics = sanitize_diagnostic_event_payload("open_url_request", Some(&payload))
+            .expect("expected privacy-safe diagnostics");
+        assert_eq!(diagnostics["source"], "iterm1337");
+        assert_eq!(diagnostics["scheme"], "https");
+        assert!(diagnostics["url_chars"].as_u64().is_some());
+        assert!(diagnostics["url_hash"].as_str().is_some());
+        let serialized = diagnostics.to_string();
+        assert!(!serialized.contains("example.test"));
+        assert!(!serialized.contains("secret"));
+        assert!(diagnostics.get("url").is_none());
     }
 
     #[test]

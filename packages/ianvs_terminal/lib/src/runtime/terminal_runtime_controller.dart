@@ -36,6 +36,7 @@ const int _maxOsc52ClipboardEncodedLength =
     ((_maxOsc52ClipboardDecodedBytes + 2) ~/ 3) * 4;
 const int _maxPendingOsc1337CellSizeReports = 16;
 const int _maxOsc1337FileDownloadBytes = 16 * 1024 * 1024;
+const int _maxOsc1337OpenUrlBytes = 4096;
 const int _osc5522ChunkBytes = 4096;
 const Duration _osc5522PasteTokenLifetime = Duration(seconds: 10);
 const int _osc5522MaxRememberedPasswords = 32;
@@ -215,6 +216,48 @@ final class TerminalSessionShellCommandEvent extends TerminalSessionEvent {
 final class TerminalSessionCellSizeReportRequestEvent
     extends TerminalSessionEvent {
   const TerminalSessionCellSizeReportRequestEvent(super.sessionId);
+}
+
+/// An untrusted OSC 1337 request to open a URL.
+///
+/// This event never grants host-action authority. Product code must require
+/// an active session, apply its persisted policy, and obtain explicit user
+/// confirmation before invoking a platform URL opener.
+final class TerminalSessionOpenUrlRequestEvent extends TerminalSessionEvent {
+  TerminalSessionOpenUrlRequestEvent(
+    super.sessionId, {
+    Map<String, Object?>? rawPayload,
+  }) : rawPayload = Map.unmodifiable(rawPayload ?? const <String, Object?>{});
+
+  final Map<String, Object?> rawPayload;
+
+  String? get source => _stringValue(rawPayload['source']);
+  String? get url => _stringValue(rawPayload['url']);
+
+  bool get isValid {
+    final value = url;
+    if (source != 'iterm1337' ||
+        value == null ||
+        value.isEmpty ||
+        utf8.encode(value).length > _maxOsc1337OpenUrlBytes ||
+        value.trim() != value ||
+        value.runes.any((rune) => rune < 0x20 || rune == 0x7f) ||
+        RegExp(r'\s').hasMatch(value)) {
+      return false;
+    }
+    final parsed = Uri.tryParse(value);
+    if (parsed == null) {
+      return false;
+    }
+    return switch (parsed.scheme.toLowerCase()) {
+      'http' || 'https' => parsed.host.isNotEmpty,
+      'file' =>
+        parsed.host.isEmpty && parsed.path.isNotEmpty && parsed.path != '/',
+      _ => false,
+    };
+  }
+
+  static String? _stringValue(Object? value) => value is String ? value : null;
 }
 
 final class TerminalSessionShellUserVarEvent extends TerminalSessionEvent {
@@ -2325,6 +2368,15 @@ class TerminalRuntimeController {
           sessionId,
           sessionEpoch,
           TerminalSessionCellSizeReportRequestEvent(sessionId),
+        );
+      case TerminalImmediateEventKind.openUrlRequest:
+        _emitEventIfCurrent(
+          sessionId,
+          sessionEpoch,
+          TerminalSessionOpenUrlRequestEvent(
+            sessionId,
+            rawPayload: route.payload,
+          ),
         );
       case TerminalImmediateEventKind.sessionReset:
         _emitEventIfCurrent(

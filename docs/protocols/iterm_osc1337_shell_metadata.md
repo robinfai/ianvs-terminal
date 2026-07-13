@@ -52,7 +52,7 @@ only bounded field metadata and never shell output.
 
 ## Deliberately separate host actions
 
-`RequestUpload`, non-inline file download, `StealFocus`, `OpenURL`,
-`SetProfile`, custom controls and shell-provided command execution remain
-unsupported at the product boundary. This metadata subset must not be used as
-evidence that those OSC 1337 actions are authorized.
+`RequestUpload`, `StealFocus`, `SetProfile`, custom controls and shell-provided
+command execution remain unsupported at the product boundary. Non-inline file
+download and OpenURL have separate explicit-consent contracts. This metadata
+subset must not be used as evidence that any host action is authorized.

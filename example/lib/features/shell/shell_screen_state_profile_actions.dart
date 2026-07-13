@@ -34,6 +34,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
             themeMode: sessionState.themeMode,
             terminalViewportPadding: sessionState.terminalViewportPadding,
             osc52Policy: _clipboardConfig.osc52,
+            openUrlPolicy: _hostActionsConfig.osc1337OpenUrl,
           ),
         ),
       ),
@@ -99,6 +100,19 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         _mutateState(() {
           _clipboardConfig = _clipboardConfig.copyWith(
             osc52: selection.osc52Policy,
+          );
+        });
+      }
+      if (selection.openUrlPolicy != _hostActionsConfig.osc1337OpenUrl) {
+        await sessionController.setOsc1337OpenUrlPolicy(
+          selection.openUrlPolicy,
+        );
+        if (!mounted) {
+          return;
+        }
+        _mutateState(() {
+          _hostActionsConfig = _hostActionsConfig.copyWith(
+            osc1337OpenUrl: selection.openUrlPolicy,
           );
         });
       }

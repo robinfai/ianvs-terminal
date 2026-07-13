@@ -210,6 +210,15 @@ pub enum TerminalEvent {
     },
     /// iTerm2 requested the current rendered character-cell size.
     CellSizeReportRequested,
+    /// iTerm2 requested that the host open a bounded URL.
+    ///
+    /// This event is an untrusted request only. Embedders must apply their
+    /// own active-session policy and obtain explicit user authorization
+    /// before performing any external side effect.
+    ItermOpenUrlRequested {
+        /// Original validated URL decoded from the OSC Base64 payload.
+        url: String,
+    },
     /// iTerm2 attached a bounded annotation to a terminal cell range.
     ItermAnnotation {
         /// Sanitized note text shown in the product annotation UI.
@@ -364,6 +373,7 @@ impl TerminalEvent {
                 TerminalEventKind::ShellIntegrationVersion
             }
             TerminalEvent::CellSizeReportRequested => TerminalEventKind::CellSizeReportRequested,
+            TerminalEvent::ItermOpenUrlRequested { .. } => TerminalEventKind::ItermOpenUrlRequested,
             TerminalEvent::ItermAnnotation { .. } => TerminalEventKind::ItermAnnotation,
             TerminalEvent::ZoneOpened { .. } => TerminalEventKind::ZoneOpened,
             TerminalEvent::ZoneClosed { .. } => TerminalEventKind::ZoneClosed,
@@ -432,6 +442,7 @@ impl TerminalEvent {
             Self::ShellIntegrationVersion { version, shell } => {
                 version.len().saturating_add(option_len(shell))
             }
+            Self::ItermOpenUrlRequested { url } => url.len(),
             Self::ItermAnnotation { message, .. } => message.len(),
             Self::EnvironmentChanged {
                 key,
@@ -493,6 +504,7 @@ pub enum TerminalEventKind {
     ShellIntegrationEvent,
     ShellIntegrationVersion,
     CellSizeReportRequested,
+    ItermOpenUrlRequested,
     ItermAnnotation,
     ZoneOpened,
     ZoneClosed,

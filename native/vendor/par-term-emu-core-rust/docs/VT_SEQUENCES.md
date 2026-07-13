@@ -381,6 +381,7 @@ bytes, and retained state to 64 active IDs per terminal session. See the
 - `OSC 1337;ShellIntegrationVersion=<version>[;<shell>] ST` - Report validated shell integration metadata
 - `OSC 1337;ReportCellSize ST` - Request a product-owned logical `height;width;scale` reply
 - `OSC 1337;CursorShape=0|1|2 ST` - Select block, bar, or underline while preserving blink policy
+- `OSC 1337;OpenURL=:<base64_url> ST` - Emit a bounded untrusted URL request; host authorization is separate
 
 Shell integration scripts use these to report session information. Variables are decoded and stored on the terminal.
 

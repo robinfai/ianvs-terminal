@@ -26,6 +26,7 @@ enum TerminalImmediateEventKind {
   fileDownloadFailed,
   fileUploadDenied,
   cellSizeReportRequest,
+  openUrlRequest,
   sessionReset,
 }
 
@@ -151,6 +152,10 @@ final class TerminalEventRouter {
       ),
       'cell_size_report_request' => TerminalImmediateEventRoute(
         kind: TerminalImmediateEventKind.cellSizeReportRequest,
+        payload: event.payload,
+      ),
+      'open_url_request' => TerminalImmediateEventRoute(
+        kind: TerminalImmediateEventKind.openUrlRequest,
         payload: event.payload,
       ),
       'session_reset' => TerminalImmediateEventRoute(

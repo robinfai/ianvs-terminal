@@ -319,6 +319,20 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
                 );
                 assert_eq!(terminal.cursor().blink_override(), Some(true));
             }
+            "osc1337_open_url_request" => {
+                let events = terminal.poll_events();
+                assert_eq!(
+                    events
+                        .iter()
+                        .filter(|event| matches!(
+                            event,
+                            TerminalEvent::ItermOpenUrlRequested { url }
+                                if url == "https://example.test/phase29"
+                        ))
+                        .count(),
+                    1
+                );
+            }
             "osc1337_blocks" => {
                 assert_eq!(terminal.title(), "osc1337-block-corpus-ok");
                 let blocks = terminal.iterm_blocks();

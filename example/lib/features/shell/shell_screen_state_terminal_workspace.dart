@@ -827,19 +827,27 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
     }
   }
 
-  Future<void> _openTerminalLink(String url, {String? sourceSessionId}) async {
+  Future<void> _openTerminalLink(
+    String url, {
+    String? sourceSessionId,
+    bool filePermissionGranted = false,
+  }) async {
     final normalized = url.trim();
     final uri = Uri.tryParse(normalized);
     final scheme = uri?.scheme.toLowerCase();
     if (uri == null ||
         scheme == null ||
-        !const <String>{'http', 'https', 'file'}.contains(scheme)) {
+        !const <String>{'http', 'https', 'file'}.contains(scheme) ||
+        ((scheme == 'http' || scheme == 'https') && uri.host.isEmpty) ||
+        (scheme == 'file' &&
+            (uri.host.isNotEmpty || uri.path.isEmpty || uri.path == '/'))) {
       _showShellSnackBar(
         'Blocked link scheme: ${scheme == null || scheme.isEmpty ? 'unknown' : scheme}',
       );
       return;
     }
     if (scheme == 'file' &&
+        !filePermissionGranted &&
         !await _confirmOpenFileLink(
           normalized,
           sourceSessionId: sourceSessionId,
@@ -848,7 +856,7 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
       return;
     }
     try {
-      await WindowBridge.openExternalUrl(normalized);
+      await ref.read(shellExternalUrlOpenerProvider)(normalized);
     } on PlatformException catch (error) {
       final message = error.message?.trim();
       _showShellSnackBar(

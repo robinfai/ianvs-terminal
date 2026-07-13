@@ -81,6 +81,7 @@ void main() {
         'file_upload_denied': TerminalImmediateEventKind.fileUploadDenied,
         'cell_size_report_request':
             TerminalImmediateEventKind.cellSizeReportRequest,
+        'open_url_request': TerminalImmediateEventKind.openUrlRequest,
         'session_reset': TerminalImmediateEventKind.sessionReset,
       };
 

@@ -92,6 +92,8 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       case terminal.TerminalSessionCellSizeReportRequestEvent():
         // The reusable runtime already replied using its committed cell metric.
         break;
+      case terminal.TerminalSessionOpenUrlRequestEvent():
+        _handleOsc1337OpenUrlRequest(event);
       case terminal.TerminalSessionResetEvent():
         unawaited(_osc72DragDropController.resetSession(event.sessionId));
         _clearPresentationStateForSession(event.sessionId);
@@ -100,6 +102,100 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       case terminal.TerminalSessionBackendErrorEvent():
         break;
     }
+  }
+
+  void _handleOsc1337OpenUrlRequest(
+    terminal.TerminalSessionOpenUrlRequestEvent event,
+  ) {
+    final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
+    if (!event.isValid || activeSessionId != event.sessionId || !mounted) {
+      return;
+    }
+    if (_hostActionsConfig.osc1337OpenUrl ==
+        LocalTerminalOpenUrlPolicy.disabled) {
+      _showShellSnackBar('OSC 1337 Open URL blocked by policy');
+      return;
+    }
+    final now = DateTime.now();
+    final lastPromptAt = _lastOsc1337OpenUrlPromptAt;
+    if (_osc1337OpenUrlPromptActive ||
+        (lastPromptAt != null &&
+            now.difference(lastPromptAt) <
+                _ShellScreenState._osc1337OpenUrlPromptCooldown)) {
+      return;
+    }
+    _osc1337OpenUrlPromptActive = true;
+    _lastOsc1337OpenUrlPromptAt = now;
+    unawaited(_confirmOsc1337OpenUrl(event));
+  }
+
+  Future<void> _confirmOsc1337OpenUrl(
+    terminal.TerminalSessionOpenUrlRequestEvent event,
+  ) async {
+    final url = event.url!;
+    final uri = Uri.parse(url);
+    final scheme = uri.scheme.toLowerCase();
+    final sourceContext = _sessionIsInMultiPaneTab(event.sessionId)
+        ? _terminalPaneContextLine(event.sessionId)
+        : null;
+    bool? approved;
+    try {
+      approved = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          final destination = scheme == 'file'
+              ? 'Local file'
+              : '${scheme.toUpperCase()} host: ${uri.host}';
+          return AlertDialog(
+            key: const Key('osc1337-open-url-dialog'),
+            title: const Text('Open terminal-requested URL?'),
+            content: SelectableText(
+              [
+                'The active terminal requested permission to open this URL. Terminal output can be untrusted.',
+                if (sourceContext != null) 'Source: $sourceContext',
+                'Destination: $destination',
+                '',
+                url,
+              ].join('\n'),
+            ),
+            actions: [
+              TextButton(
+                key: const Key('osc1337-open-url-deny'),
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Deny'),
+              ),
+              FilledButton(
+                key: const Key('osc1337-open-url-approve'),
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text('Open'),
+              ),
+            ],
+          );
+        },
+      );
+    } finally {
+      _osc1337OpenUrlPromptActive = false;
+    }
+    if (!mounted) {
+      return;
+    }
+    if (approved != true) {
+      _showShellSnackBar('OSC 1337 Open URL blocked');
+      return;
+    }
+    if (ref.read(sessionControllerProvider).activeSessionId !=
+        event.sessionId) {
+      _showShellSnackBar(
+        'OSC 1337 Open URL blocked: source is no longer active',
+      );
+      return;
+    }
+    await _openTerminalLink(
+      url,
+      sourceSessionId: event.sessionId,
+      filePermissionGranted: true,
+    );
   }
 
   void _handleOsc1337FileDownload(
@@ -867,6 +963,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       _notificationLocalConfig = configBootstrap.config;
       _keybindingsConfig = configBootstrap.config.keybindings;
       _clipboardConfig = configBootstrap.config.clipboard;
+      _hostActionsConfig = configBootstrap.config.hostActions;
       _bracketedPastePolicy = configBootstrap.config.paste.bracketedPaste;
       _pastePolicy = _pastePolicyFromConfig(configBootstrap.config.paste);
       _pasteHistoryPolicy = _pasteHistoryPolicyFromConfig(

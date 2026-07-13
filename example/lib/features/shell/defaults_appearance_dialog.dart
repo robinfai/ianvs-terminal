@@ -12,6 +12,7 @@ class DefaultsAndAppearanceSelection {
     required this.themeMode,
     required this.terminalViewportPadding,
     required this.osc52Policy,
+    required this.openUrlPolicy,
     this.updatedProfile,
     this.openProfiles = false,
   });
@@ -20,6 +21,7 @@ class DefaultsAndAppearanceSelection {
   final TerminalThemeMode themeMode;
   final double terminalViewportPadding;
   final LocalTerminalOsc52Policy osc52Policy;
+  final LocalTerminalOpenUrlPolicy openUrlPolicy;
   final TerminalProfile? updatedProfile;
   final bool openProfiles;
 }
@@ -33,6 +35,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
     required this.themeMode,
     required this.terminalViewportPadding,
     required this.osc52Policy,
+    required this.openUrlPolicy,
   });
 
   final List<TerminalProfile> profiles;
@@ -41,6 +44,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
   final TerminalThemeMode themeMode;
   final double terminalViewportPadding;
   final LocalTerminalOsc52Policy osc52Policy;
+  final LocalTerminalOpenUrlPolicy openUrlPolicy;
 
   @override
   State<DefaultsAndAppearanceDialog> createState() =>
@@ -54,6 +58,7 @@ class _DefaultsAndAppearanceDialogState
   late TerminalThemeMode _selectedThemeMode;
   late double _selectedTerminalViewportPadding;
   late LocalTerminalOsc52Policy _selectedOsc52Policy;
+  late LocalTerminalOpenUrlPolicy _selectedOpenUrlPolicy;
   String _terminalPresetFilter = '';
 
   @override
@@ -63,6 +68,7 @@ class _DefaultsAndAppearanceDialogState
     _selectedThemeMode = widget.themeMode;
     _selectedTerminalViewportPadding = widget.terminalViewportPadding;
     _selectedOsc52Policy = widget.osc52Policy;
+    _selectedOpenUrlPolicy = widget.openUrlPolicy;
     _selectedTerminalPresetId = _matchingPresetIdFor(
       _effectiveProfileFor(
         configuredProfileId: _selectedProfileId,
@@ -218,6 +224,7 @@ class _DefaultsAndAppearanceDialogState
                             terminalViewportPadding:
                                 _selectedTerminalViewportPadding,
                             osc52Policy: _selectedOsc52Policy,
+                            openUrlPolicy: _selectedOpenUrlPolicy,
                             updatedProfile: null,
                             openProfiles: true,
                           ),
@@ -416,6 +423,37 @@ class _DefaultsAndAppearanceDialogState
             ),
             SizedBox(height: theme.spacing.xl),
             const AppSectionHeader(
+              title: 'Terminal URL requests',
+              description:
+                  'Choose whether OSC 1337 OpenURL requests may ask for permission. URLs are never opened automatically.',
+            ),
+            SizedBox(height: theme.spacing.sm),
+            RadioGroup<LocalTerminalOpenUrlPolicy>(
+              groupValue: _selectedOpenUrlPolicy,
+              onChanged: (value) {
+                if (value == null) {
+                  return;
+                }
+                setState(() {
+                  _selectedOpenUrlPolicy = value;
+                });
+              },
+              child: Column(
+                children: [
+                  for (final policy in LocalTerminalOpenUrlPolicy.values)
+                    AppCompactRadioTile<LocalTerminalOpenUrlPolicy>(
+                      tileKey: Key(
+                        'default-osc1337-open-url-policy-${policy.name}',
+                      ),
+                      value: policy,
+                      title: Text(openUrlPolicyLabel(policy)),
+                      subtitle: Text(openUrlPolicyDescription(policy)),
+                    ),
+                ],
+              ),
+            ),
+            SizedBox(height: theme.spacing.xl),
+            const AppSectionHeader(
               title: 'Terminal canvas inset',
               description:
                   'Adjust the empty space between the shell frame and terminal text.',
@@ -537,6 +575,7 @@ class _DefaultsAndAppearanceDialogState
                   themeMode: _selectedThemeMode,
                   terminalViewportPadding: _selectedTerminalViewportPadding,
                   osc52Policy: _selectedOsc52Policy,
+                  openUrlPolicy: _selectedOpenUrlPolicy,
                   updatedProfile: _updatedProfileForPreset(effectiveProfile),
                   openProfiles: false,
                 ),
@@ -584,6 +623,22 @@ String osc52PolicyDescription(LocalTerminalOsc52Policy policy) {
       'Allow trusted terminal sessions to use OSC 52 without prompting.',
     LocalTerminalOsc52Policy.ask =>
       'Prompt before each OSC 52 clipboard write or paste-read request.',
+  };
+}
+
+String openUrlPolicyLabel(LocalTerminalOpenUrlPolicy policy) {
+  return switch (policy) {
+    LocalTerminalOpenUrlPolicy.disabled => 'Deny',
+    LocalTerminalOpenUrlPolicy.ask => 'Ask every time',
+  };
+}
+
+String openUrlPolicyDescription(LocalTerminalOpenUrlPolicy policy) {
+  return switch (policy) {
+    LocalTerminalOpenUrlPolicy.disabled =>
+      'Block every OSC 1337 OpenURL request without showing a dialog.',
+    LocalTerminalOpenUrlPolicy.ask =>
+      'Require confirmation for each accepted request from the active terminal.',
   };
 }
 

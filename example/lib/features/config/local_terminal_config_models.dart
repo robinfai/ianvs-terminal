@@ -16,6 +16,7 @@ class LocalTerminalConfigDocument {
     this.keybindings = const LocalTerminalKeybindingsConfig(),
     this.workspace = const LocalTerminalWorkspaceConfig(),
     this.clipboard = const LocalTerminalClipboardConfig(),
+    this.hostActions = const LocalTerminalHostActionsConfig(),
     this.paste = const LocalTerminalPasteConfig(),
     this.shellIntegration = const LocalTerminalShellIntegrationConfig(),
     this.notifications = const LocalTerminalNotificationsConfig(),
@@ -42,6 +43,7 @@ class LocalTerminalConfigDocument {
   final LocalTerminalKeybindingsConfig keybindings;
   final LocalTerminalWorkspaceConfig workspace;
   final LocalTerminalClipboardConfig clipboard;
+  final LocalTerminalHostActionsConfig hostActions;
   final LocalTerminalPasteConfig paste;
   final LocalTerminalShellIntegrationConfig shellIntegration;
   final LocalTerminalNotificationsConfig notifications;
@@ -54,6 +56,7 @@ class LocalTerminalConfigDocument {
     LocalTerminalKeybindingsConfig? keybindings,
     LocalTerminalWorkspaceConfig? workspace,
     LocalTerminalClipboardConfig? clipboard,
+    LocalTerminalHostActionsConfig? hostActions,
     LocalTerminalPasteConfig? paste,
     LocalTerminalShellIntegrationConfig? shellIntegration,
     LocalTerminalNotificationsConfig? notifications,
@@ -72,6 +75,7 @@ class LocalTerminalConfigDocument {
       keybindings: keybindings ?? this.keybindings,
       workspace: workspace ?? this.workspace,
       clipboard: clipboard ?? this.clipboard,
+      hostActions: hostActions ?? this.hostActions,
       paste: paste ?? this.paste,
       shellIntegration: shellIntegration ?? this.shellIntegration,
       notifications: notifications ?? this.notifications,
@@ -90,6 +94,7 @@ class LocalTerminalConfigDocument {
       'keybindings': keybindings.toJson(),
       'workspace': workspace.toJson(),
       'clipboard': clipboard.toJson(),
+      'hostActions': hostActions.toJson(),
       'paste': paste.toJson(),
       'shellIntegration': shellIntegration.toJson(),
       'notifications': notifications.toJson(),
@@ -128,6 +133,9 @@ class LocalTerminalConfigDocument {
       ),
       clipboard: LocalTerminalClipboardConfig.fromJson(
         _objectMap(json['clipboard']),
+      ),
+      hostActions: LocalTerminalHostActionsConfig.fromJson(
+        _objectMap(json['hostActions']),
       ),
       paste: LocalTerminalPasteConfig.fromJson(_objectMap(json['paste'])),
       shellIntegration: LocalTerminalShellIntegrationConfig.fromJson(
@@ -327,6 +335,35 @@ class LocalTerminalClipboardConfig {
 }
 
 enum LocalTerminalOsc52Policy { disabled, profile, allow, ask }
+
+/// Persistent policy for terminal escape sequences that request host effects.
+class LocalTerminalHostActionsConfig {
+  const LocalTerminalHostActionsConfig({
+    this.osc1337OpenUrl = LocalTerminalOpenUrlPolicy.ask,
+  });
+
+  final LocalTerminalOpenUrlPolicy osc1337OpenUrl;
+
+  LocalTerminalHostActionsConfig copyWith({
+    LocalTerminalOpenUrlPolicy? osc1337OpenUrl,
+  }) {
+    return LocalTerminalHostActionsConfig(
+      osc1337OpenUrl: osc1337OpenUrl ?? this.osc1337OpenUrl,
+    );
+  }
+
+  Map<String, Object?> toJson() {
+    return {'osc1337OpenUrl': osc1337OpenUrl.name};
+  }
+
+  static LocalTerminalHostActionsConfig fromJson(Map<Object?, Object?>? json) {
+    return LocalTerminalHostActionsConfig(
+      osc1337OpenUrl: _openUrlPolicy(json?['osc1337OpenUrl']),
+    );
+  }
+}
+
+enum LocalTerminalOpenUrlPolicy { disabled, ask }
 
 class LocalTerminalPasteConfig {
   const LocalTerminalPasteConfig({
@@ -586,6 +623,21 @@ LocalTerminalOsc52Policy _osc52Policy(Object? value) {
     }
   }
   return LocalTerminalOsc52Policy.profile;
+}
+
+LocalTerminalOpenUrlPolicy _openUrlPolicy(Object? value) {
+  if (value is String) {
+    final normalized = value.trim().toLowerCase();
+    if (normalized == 'deny') {
+      return LocalTerminalOpenUrlPolicy.disabled;
+    }
+    for (final policy in LocalTerminalOpenUrlPolicy.values) {
+      if (policy.name == normalized) {
+        return policy;
+      }
+    }
+  }
+  return LocalTerminalOpenUrlPolicy.ask;
 }
 
 LocalTerminalBracketedPastePolicy _bracketedPastePolicy(Object? value) {

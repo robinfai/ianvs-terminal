@@ -39,6 +39,8 @@ const Set<String> _requiredCoverage = <String>{
   'iTerm2 OSC 1337 annotations',
   'iTerm2 visible and hidden annotations',
   'iTerm2 annotation coordinate range',
+  'iTerm2 OSC 1337 OpenURL Base64 decoding',
+  'iTerm2 OSC 1337 OpenURL fragmented ST termination',
   'iTerm2 OSC 1337 block lifecycle',
   'iTerm2 OSC 1337 nested block folding',
   'iTerm2 OSC 1337 block update no-op safety',
@@ -204,6 +206,18 @@ void _validateFixture(String id, Map<String, Object?> fixture) {
     expect(text, contains('\x1b[4 q'));
     expect(text, contains('\x1b[0 q'));
     expect(text, endsWith('\x1b]1337;CursorShape=9\x07'));
+  } else if (id == 'osc1337_open_url_request') {
+    final text = latin1.decode(stream);
+    expect(
+      text,
+      equals(
+        '\x1b]1337;OpenURL=:'
+        'aHR0cHM6Ly9leGFtcGxlLnRlc3QvcGhhc2UyOQ==\x1b\\',
+      ),
+    );
+    expect(chunks.first, <int>[0x1b]);
+    expect(chunks[chunks.length - 2].last, 0x1b);
+    expect(chunks.last, <int>[0x5c]);
   } else if (id == 'osc1337_blocks') {
     final text = latin1.decode(stream);
     expect(RegExp(r'\x1b]1337;Block=').allMatches(text), hasLength(4));

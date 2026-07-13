@@ -578,6 +578,21 @@ fn iterm_annotation_profile(emulation: TerminalEmulation) -> TerminalProfile {
     )
 }
 
+fn iterm_open_url_profile(emulation: TerminalEmulation) -> TerminalProfile {
+    local_profile(
+        "iterm-open-url",
+        "iTerm Open URL",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import sys; sys.stdout.buffer.write(b"\x1b]1337;OpenURL=:aHR0cHM6Ly9leGFtcGxlLnRlc3QvcGhhc2UyOQ==\x1b\\OSC1337-OPEN-URL-DONE\n"); sys.stdout.flush(); sys.stdin.readline(); sys.stdout.buffer.write(b"AFTER-OPEN-URL-RESIZE\n"); sys.stdout.flush()'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        emulation,
+    )
+}
+
 fn clipboard_paste_request_profile() -> TerminalProfile {
     local_profile(
         "clipboard-paste",
@@ -17927,6 +17942,82 @@ fn vt220_sessions_gate_iterm_annotations() {
     .unwrap();
 
     assert_event_kind_never_arrives(session_id, "session_annotation");
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_iterm_open_url_crosses_the_real_pty_as_an_untrusted_request() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&iterm_open_url_profile(TerminalEmulation::Xterm256)).unwrap(),
+    )
+    .unwrap();
+
+    let events = collect_events_until(session_id, |events| {
+        events
+            .iter()
+            .any(|event| event["kind"] == "open_url_request")
+    });
+    let request = events
+        .iter()
+        .find(|event| event["kind"] == "open_url_request")
+        .expect("expected OSC 1337 OpenURL request");
+    assert_eq!(request["payload"]["source"], "iterm1337");
+    assert_eq!(request["payload"]["url"], "https://example.test/phase29");
+    let frame = wait_for_frame_containing(session_id, "OSC1337-OPEN-URL-DONE");
+    assert!(
+        logical_rows_from_frame(&frame)
+            .join("\n")
+            .contains("OSC1337-OPEN-URL-DONE")
+    );
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_sessions_gate_iterm_open_url_requests() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&iterm_open_url_profile(TerminalEmulation::Vt220)).unwrap(),
+    )
+    .unwrap();
+
+    assert_event_kind_never_arrives(session_id, "open_url_request");
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn resize_transcript_replay_does_not_redeliver_iterm_open_url_requests() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&iterm_open_url_profile(TerminalEmulation::Xterm256)).unwrap(),
+    )
+    .unwrap();
+    let initial = collect_events_until(session_id, |events| {
+        events
+            .iter()
+            .any(|event| event["kind"] == "open_url_request")
+    });
+    assert_eq!(
+        initial
+            .iter()
+            .filter(|event| event["kind"] == "open_url_request")
+            .count(),
+        1
+    );
+
+    session::resize_session(session_id, 100, 30, 1000, 600).unwrap();
+    session::write_session(session_id, b"continue\n").unwrap();
+    let _ = wait_for_frame_containing(session_id, "AFTER-OPEN-URL-RESIZE");
+    for _ in 0..10 {
+        let payload = session::poll_events(session_id).unwrap();
+        let events: serde_json::Value = serde_json::from_str(&payload).unwrap();
+        assert!(
+            events
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|event| event["kind"] != "open_url_request"),
+            "resize replay redelivered a historical OpenURL request: {events}"
+        );
+        thread::sleep(Duration::from_millis(20));
+    }
     session::close_session(session_id).unwrap();
 }
 

@@ -548,3 +548,23 @@ safety-policy reason documented in `osc_cross_terminal_probe_20260711.md`.
   exports are additive. Existing inline graphics behavior is unchanged.
 - **Rollback:** revert the Phase 28 implementation; incoming downloads return
   to parser-internal bounded data and product-level no-op behavior.
+
+## Phase 29 report — iTerm2 OSC 1337 OpenURL
+
+- **Start SHA:** `1cb1ca2c2a3303b25873d85a666e3ebf14f5aae2`.
+- **Confirmed gap:** official Base64 OpenURL requests were classified as custom
+  protocol and fell through to image parsing, with no typed permission surface.
+- **Fixes:** bounded strict parser event, independent native/Dart validation,
+  privacy-safe diagnostics, persistent Ask/Deny config, active-pane full-target
+  dialog, five-second burst suppression, injectable opener and independent
+  macOS scheme validation.
+- **Security:** no automatic opening, no generic HostAction capability, no
+  inactive-pane prompt, post-dialog active-session recheck, no raw diagnostic
+  target, no resize replay and VT220 fail-closed behavior.
+- **Tests/results:** parser/native/real-PTY, shared corpus, runtime/router,
+  config/widget and application real-PTY evidence are recorded in
+  `osc1337_open_url_phase29_20260713.md`.
+- **Compatibility:** additive event/config fields only; no frame, protobuf or
+  FFI schema changes. Missing policy defaults to Ask.
+- **Rollback:** revert Phase 29 to restore bounded no-op behavior while leaving
+  OSC 8 links and file-download consent unchanged.

@@ -1190,6 +1190,9 @@ class SessionController extends Notifier<SessionState> {
       case TerminalSessionCellSizeReportRequestEvent():
         // TerminalRuntimeController owns the immediate protocol reply.
         break;
+      case TerminalSessionOpenUrlRequestEvent():
+        // ShellScreen owns active-pane policy and explicit host authorization.
+        break;
       case TerminalSessionResetEvent():
         _applySessionReset(event);
         break;
@@ -2736,6 +2739,19 @@ class SessionController extends Notifier<SessionState> {
     final latestConfig = await repository.load() ?? _localConfigDocument;
     _localConfigDocument = latestConfig.copyWith(
       clipboard: latestConfig.clipboard.copyWith(osc52: policy),
+    );
+    _configBootstrapSource = LocalTerminalConfigBootstrapSource.localConfig;
+    await repository.save(_localConfigDocument);
+    _preferencesLoadedFromDisk = true;
+  }
+
+  Future<void> setOsc1337OpenUrlPolicy(
+    LocalTerminalOpenUrlPolicy policy,
+  ) async {
+    final repository = ref.read(localTerminalConfigRepositoryProvider);
+    final latestConfig = await repository.load() ?? _localConfigDocument;
+    _localConfigDocument = latestConfig.copyWith(
+      hostActions: latestConfig.hostActions.copyWith(osc1337OpenUrl: policy),
     );
     _configBootstrapSource = LocalTerminalConfigBootstrapSource.localConfig;
     await repository.save(_localConfigDocument);

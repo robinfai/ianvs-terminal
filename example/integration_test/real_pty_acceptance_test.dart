@@ -1337,6 +1337,73 @@ sleep 5
   );
 
   testWidgets(
+    'real PTY iTerm2 OSC 1337 OpenURL waits for explicit approval',
+    (tester) async {
+      final goFile = _tempSignalFile('osc1337-open-url');
+      final opened = <String>[];
+      final profile = _scriptProfile(
+        id: 'osc1337-open-url',
+        name: 'OSC 1337 Open URL',
+        script: r'''
+printf 'osc1337-open-url-ready\n'
+while [ ! -f "$GO_FILE" ]; do sleep 0.05; done
+printf '\033]1337;OpenURL=:aHR0cHM6Ly9leGFtcGxlLnRlc3QvcGhhc2UyOQ==\033\\'
+printf 'OSC1337-OPEN-URL-DONE\n'
+sleep 5
+''',
+        env: {'GO_FILE': goFile.path},
+      );
+      final harness = await _pumpRealPtyApp(
+        tester,
+        profiles: [profile],
+        externalUrlOpener: (url) async => opened.add(url),
+      );
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'OSC 1337 OpenURL ready marker',
+        matches: (text) => text.contains('osc1337-open-url-ready'),
+      );
+
+      _signal(goFile);
+      await _waitFor(
+        tester,
+        description: 'OSC 1337 OpenURL confirmation dialog',
+        condition: () =>
+            find
+                .byKey(const Key('osc1337-open-url-dialog'))
+                .evaluate()
+                .isNotEmpty &&
+            _terminalText(harness.container).contains('OSC1337-OPEN-URL-DONE'),
+        onTimeout: () => 'Terminal text: ${_terminalText(harness.container)}',
+      );
+      expect(
+        opened,
+        isEmpty,
+        reason: 'PTY output must not open a URL by itself',
+      );
+      expect(find.text('Open terminal-requested URL?'), findsOneWidget);
+      expect(
+        find.textContaining('https://example.test/phase29'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('osc1337-open-url-approve')));
+      await _waitFor(
+        tester,
+        description: 'approved OSC 1337 URL opener call',
+        condition: () => opened.length == 1,
+      );
+      expect(opened, <String>['https://example.test/phase29']);
+      expect(
+        _terminalText(harness.container),
+        contains('OSC1337-OPEN-URL-DONE'),
+      );
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
     'real PTY iTerm2 OSC 1337 annotations reach the product sheet and badge',
     (tester) async {
       final goFile = _tempSignalFile('osc1337-annotations');
@@ -1682,6 +1749,7 @@ Future<_RealPtyHarness> _pumpRealPtyApp(
   bool maskRefreshHints = false,
   SessionClipboardTextWrite? clipboardTextWrite,
   ShellFileDownloadWriter? fileDownloadWriter,
+  ShellExternalUrlOpener? externalUrlOpener,
 }) async {
   ensureMacosIntegrationTestFramesEnabled(tester.binding);
   final container = ProviderContainer(
@@ -1704,6 +1772,8 @@ Future<_RealPtyHarness> _pumpRealPtyApp(
         sessionClipboardTextWriteProvider.overrideWithValue(clipboardTextWrite),
       if (fileDownloadWriter != null)
         shellFileDownloadWriterProvider.overrideWithValue(fileDownloadWriter),
+      if (externalUrlOpener != null)
+        shellExternalUrlOpenerProvider.overrideWithValue(externalUrlOpener),
       if (runtimeEvents != null)
         terminalGraphicsTraceSinkProvider.overrideWithValue(runtimeEvents.add),
       shellNotificationSenderProvider.overrideWithValue(({

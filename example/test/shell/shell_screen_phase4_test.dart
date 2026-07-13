@@ -39,6 +39,7 @@ Future<void> _pumpShellScreen(
   ShellNotificationSender? notificationSender,
   ShellNotificationCloser? notificationCloser,
   ShellFileDownloadWriter? fileDownloadWriter,
+  ShellExternalUrlOpener? externalUrlOpener,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -80,6 +81,8 @@ Future<void> _pumpShellScreen(
           shellNotificationCloserProvider.overrideWithValue(notificationCloser),
         if (fileDownloadWriter != null)
           shellFileDownloadWriterProvider.overrideWithValue(fileDownloadWriter),
+        if (externalUrlOpener != null)
+          shellExternalUrlOpenerProvider.overrideWithValue(externalUrlOpener),
       ],
       child: MaterialApp(
         theme: ThemeData.light().copyWith(
@@ -319,6 +322,210 @@ void main() {
       localConfigRepository.savedDocuments.last.clipboard.osc52,
       LocalTerminalOsc52Policy.ask,
     );
+  });
+
+  testWidgets('defaults dialog saves OSC 1337 OpenURL deny policy', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    final localConfigRepository = _MemoryLocalTerminalConfigRepository(
+      const LocalTerminalConfigDocument(),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      localConfigRepository: localConfigRepository,
+    );
+    await _openCommandMenu(tester);
+    await tester.tap(find.text('Defaults & appearance'));
+    await tester.pumpAndSettle();
+    final deny = find.byKey(
+      const Key('default-osc1337-open-url-policy-disabled'),
+    );
+    await tester.ensureVisible(deny);
+    await tester.tap(deny);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('defaults-save')));
+    await tester.pumpAndSettle();
+
+    expect(
+      localConfigRepository.savedDocuments.last.hostActions.osc1337OpenUrl,
+      LocalTerminalOpenUrlPolicy.disabled,
+    );
+  });
+
+  testWidgets('OSC 1337 OpenURL requires active confirmation before opening', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    final opened = <String>[];
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      externalUrlOpener: (url) async => opened.add(url),
+    );
+    fakeBindings.enqueueEvent(
+      1,
+      const PtyEvent(
+        kind: 'open_url_request',
+        sessionId: '1',
+        payload: <String, Object?>{
+          'source': 'iterm1337',
+          'url': 'https://example.test/phase29?prompt=visible',
+        },
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(find.byKey(const Key('osc1337-open-url-dialog')), findsOneWidget);
+    expect(find.text('Open terminal-requested URL?'), findsOneWidget);
+    expect(
+      find.textContaining('https://example.test/phase29?prompt=visible'),
+      findsOneWidget,
+    );
+    expect(
+      opened,
+      isEmpty,
+      reason: 'terminal output must never auto-open a URL',
+    );
+
+    await tester.tap(find.byKey(const Key('osc1337-open-url-approve')));
+    await tester.pumpAndSettle();
+    expect(opened, <String>['https://example.test/phase29?prompt=visible']);
+  });
+
+  testWidgets('OSC 1337 OpenURL denial and bursts never invoke the opener', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    final opened = <String>[];
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      externalUrlOpener: (url) async => opened.add(url),
+    );
+    for (final suffix in <String>['first', 'second']) {
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'open_url_request',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'iterm1337',
+            'url': 'https://example.test/$suffix',
+          },
+        ),
+      );
+    }
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(find.byKey(const Key('osc1337-open-url-dialog')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('osc1337-open-url-deny')));
+    await tester.pumpAndSettle();
+    expect(opened, isEmpty);
+    expect(find.text('OSC 1337 Open URL blocked'), findsOneWidget);
+  });
+
+  testWidgets('OSC 1337 OpenURL deny policy blocks without a dialog', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    final opened = <String>[];
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      localConfigRepository: _MemoryLocalTerminalConfigRepository(
+        const LocalTerminalConfigDocument(
+          hostActions: LocalTerminalHostActionsConfig(
+            osc1337OpenUrl: LocalTerminalOpenUrlPolicy.disabled,
+          ),
+        ),
+      ),
+      externalUrlOpener: (url) async => opened.add(url),
+    );
+    fakeBindings.enqueueEvent(
+      1,
+      const PtyEvent(
+        kind: 'open_url_request',
+        sessionId: '1',
+        payload: <String, Object?>{
+          'source': 'iterm1337',
+          'url': 'https://example.test/blocked',
+        },
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(find.byKey(const Key('osc1337-open-url-dialog')), findsNothing);
+    expect(opened, isEmpty);
+    expect(find.text('OSC 1337 Open URL blocked by policy'), findsOneWidget);
+  });
+
+  testWidgets('OSC 1337 OpenURL ignores inactive and unsafe requests', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    final opened = <String>[];
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      externalUrlOpener: (url) async => opened.add(url),
+    );
+    await _tapTabContextMenuAction(tester, 'Split right');
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final state = container.read(sessionControllerProvider);
+    final inactiveSessionId = state.tabs.single.effectivePanes
+        .firstWhere((pane) => pane.sessionId != state.activeSessionId)
+        .sessionId;
+    fakeBindings.enqueueEvent(
+      inactiveSessionId,
+      PtyEvent(
+        kind: 'open_url_request',
+        sessionId: inactiveSessionId,
+        payload: const <String, Object?>{
+          'source': 'iterm1337',
+          'url': 'https://example.test/inactive',
+        },
+      ),
+    );
+    container
+        .read(terminalRuntimeControllerProvider)
+        .refreshSession(inactiveSessionId);
+    fakeBindings.enqueueEvent(
+      state.activeSessionId!,
+      PtyEvent(
+        kind: 'open_url_request',
+        sessionId: state.activeSessionId!,
+        payload: const <String, Object?>{
+          'source': 'iterm1337',
+          'url': 'javascript:alert(1)',
+        },
+      ),
+    );
+    container
+        .read(terminalRuntimeControllerProvider)
+        .refreshSession(state.activeSessionId!);
+    fakeBindings.enqueueEvent(
+      state.activeSessionId!,
+      PtyEvent(
+        kind: 'open_url_request',
+        sessionId: state.activeSessionId!,
+        payload: const <String, Object?>{
+          'source': 'iterm1337',
+          'url': 'file://remote.example/path',
+        },
+      ),
+    );
+    container
+        .read(terminalRuntimeControllerProvider)
+        .refreshSession(state.activeSessionId!);
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(find.byKey(const Key('osc1337-open-url-dialog')), findsNothing);
+    expect(opened, isEmpty);
   });
 
   testWidgets('OSC 8 hover shows link target and context menu actions', (

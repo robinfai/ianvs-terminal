@@ -71,11 +71,16 @@ part 'shell_screen_shared_buttons.dart';
 
 typedef ShellFileDownloadWriter =
     Future<void> Function(String path, List<int> bytes);
+typedef ShellExternalUrlOpener = Future<void> Function(String url);
 
 final shellFileDownloadWriterProvider = Provider<ShellFileDownloadWriter>((
   ref,
 ) {
   return (path, bytes) => File(path).writeAsBytes(bytes, flush: true);
+});
+
+final shellExternalUrlOpenerProvider = Provider<ShellExternalUrlOpener>((ref) {
+  return WindowBridge.openExternalUrl;
 });
 
 class ShellScreen extends ConsumerStatefulWidget {
@@ -103,6 +108,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   static const _triggerMatchHistoryLimit = 512;
   static const _activityPreviewMaxCharacters = 512;
   static const _activityNotificationTrailingDelay = Duration(milliseconds: 200);
+  static const _osc1337OpenUrlPromptCooldown = Duration(seconds: 5);
 
   final Map<String, SelectionController> _selectionControllers = {};
   final Map<String, FocusNode> _terminalFocusNodes = {};
@@ -160,6 +166,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       const LocalTerminalKeybindingsConfig();
   LocalTerminalClipboardConfig _clipboardConfig =
       const LocalTerminalClipboardConfig();
+  LocalTerminalHostActionsConfig _hostActionsConfig =
+      const LocalTerminalHostActionsConfig();
+  bool _osc1337OpenUrlPromptActive = false;
+  DateTime? _lastOsc1337OpenUrlPromptAt;
   LocalTerminalBracketedPastePolicy _bracketedPastePolicy =
       LocalTerminalBracketedPastePolicy.auto;
   LocalTerminalPastePolicy _pastePolicy = const LocalTerminalPastePolicy();

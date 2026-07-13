@@ -599,6 +599,29 @@
       }
     },
     {
+      "id": "osc1337_open_url_request",
+      "coverage": [
+        "iTerm2 OSC 1337 OpenURL Base64 decoding",
+        "iTerm2 OSC 1337 OpenURL fragmented ST termination"
+      ],
+      "protocol": "iTerm2 OSC 1337 OpenURL",
+      "wire": {
+        "chunks_hex": [
+          "1b",
+          "5d313333373b4f70656e55524c3d3a6148523063484d364c79396c654746746347786c4c6e526c63335176634768",
+          "68633255794f513d3d1b",
+          "5c"
+        ]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "open_url_request",
+        "state_effect": "one validated request event is emitted without authorizing a host action",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
       "id": "osc1337_blocks",
       "coverage": [
         "iTerm2 OSC 1337 block lifecycle",

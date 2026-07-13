@@ -41,7 +41,8 @@ choose **Save**, then choose a destination in the native macOS save panel.
 - `RequestUpload` remains unsupported. Ianvs returns the parser's cancellation
   response and shows blocked feedback without opening a file panel, reading a
   local file or placing local bytes on the PTY.
-- OSC 1337 `OpenURL`, `StealFocus`, `SetProfile` and other host actions remain
+- OSC 1337 `OpenURL` is governed by its separate active-pane permission
+  contract; `StealFocus`, `SetProfile` and other host actions remain
   unsupported and unauthorized.
 
 ## Product lifecycle

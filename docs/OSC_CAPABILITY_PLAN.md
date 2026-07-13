@@ -49,6 +49,7 @@ P0 closes the support contract and prevents accidental regressions.
 | OSC 9/9;4/777/934/1337 badge | notification/progress/badge | `user-actionable` | Bridged through the P3 status/notification contract below. |
 | OSC 1337 File inline=0 | incoming file download | `user-actionable` safe subset | Active-pane explicit Save only; bounded native one-shot bytes and discard on cancel/background/timeout. |
 | OSC 1337 RequestUpload | outgoing file upload | `unsupported` | Deny and close the protocol request without reading local data. |
+| OSC 1337 OpenURL | external URL request | `user-actionable` safe subset | Parse as untrusted Hyperlink-capability metadata; require active-pane Ask policy and exact explicit confirmation; persistent Deny remains available. |
 
 P0 deliverables:
 

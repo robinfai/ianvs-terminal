@@ -20,6 +20,7 @@ void main() {
       );
       expect(config.keybindings.disabledDefaultActions, isEmpty);
       expect(config.clipboard.osc52, LocalTerminalOsc52Policy.profile);
+      expect(config.hostActions.osc1337OpenUrl, LocalTerminalOpenUrlPolicy.ask);
       expect(
         config.paste.bracketedPaste,
         LocalTerminalBracketedPastePolicy.auto,
@@ -237,6 +238,7 @@ void main() {
           },
         },
         'clipboard': {'osc52': ' ALLOW '},
+        'hostActions': {'osc1337OpenUrl': ' DENY '},
         'paste': {'bracketedPaste': ' FORCE '},
       });
 
@@ -246,10 +248,38 @@ void main() {
       );
       expect(config.clipboard.osc52, LocalTerminalOsc52Policy.allow);
       expect(
+        config.hostActions.osc1337OpenUrl,
+        LocalTerminalOpenUrlPolicy.disabled,
+      );
+      expect(
         config.paste.bracketedPaste,
         LocalTerminalBracketedPastePolicy.force,
       );
     });
+
+    test(
+      'OSC 1337 OpenURL policy roundtrips and malformed values fail safe',
+      () {
+        const config = LocalTerminalConfigDocument(
+          hostActions: LocalTerminalHostActionsConfig(
+            osc1337OpenUrl: LocalTerminalOpenUrlPolicy.disabled,
+          ),
+        );
+        final decoded = LocalTerminalConfigDocument.decode(config.encode());
+        final malformed = LocalTerminalConfigDocument.fromJson(const {
+          'hostActions': {'osc1337OpenUrl': 'always-open'},
+        });
+
+        expect(
+          decoded.hostActions.osc1337OpenUrl,
+          LocalTerminalOpenUrlPolicy.disabled,
+        );
+        expect(
+          malformed.hostActions.osc1337OpenUrl,
+          LocalTerminalOpenUrlPolicy.ask,
+        );
+      },
+    );
 
     test('OSC 52 policy parses ask and deny aliases', () {
       final askConfig = LocalTerminalConfigDocument.fromJson(const {

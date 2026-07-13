@@ -20,6 +20,7 @@ const MAX_SHELL_NAME_CHARS: usize = 32;
 const MAX_SET_COLORS_PAIRS: usize = 32;
 const MAX_ANNOTATION_MESSAGE_CHARS: usize = 1024;
 const MAX_ANNOTATION_LENGTH_CELLS: usize = 4096;
+const MAX_OPEN_URL_BYTES: usize = 4096;
 
 impl Terminal {
     pub(crate) fn handle_osc_iterm(&mut self, _command: &str, params: &[&[u8]]) {
@@ -51,6 +52,8 @@ impl Terminal {
             } else if data == "ReportCellSize" {
                 self.terminal_events
                     .push(TerminalEvent::CellSizeReportRequested);
+            } else if let Some(encoded) = data.strip_prefix("OpenURL=:") {
+                self.handle_iterm_open_url(encoded);
             } else if let Some(payload) = data.strip_prefix("AddAnnotation=") {
                 self.handle_iterm_annotation(payload, true);
             } else if let Some(payload) = data.strip_prefix("AddHiddenAnnotation=") {
@@ -73,6 +76,28 @@ impl Terminal {
                 self.handle_iterm_image(&data);
             }
         }
+    }
+
+    fn handle_iterm_open_url(&mut self, encoded: &str) {
+        use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+
+        if encoded.is_empty() {
+            return;
+        }
+        let Ok(decoded) = BASE64.decode(encoded) else {
+            return;
+        };
+        if decoded.is_empty() || decoded.len() > MAX_OPEN_URL_BYTES {
+            return;
+        }
+        let Ok(url) = String::from_utf8(decoded) else {
+            return;
+        };
+        if !is_safe_iterm_open_url(&url) {
+            return;
+        }
+        self.terminal_events
+            .push(TerminalEvent::ItermOpenUrlRequested { url });
     }
 
     fn handle_iterm_block(&mut self, payload: &str) {
@@ -598,6 +623,24 @@ impl Terminal {
         };
         self.terminal_events
             .push(crate::terminal::TerminalEvent::UploadRequested { format });
+    }
+}
+
+fn is_safe_iterm_open_url(value: &str) -> bool {
+    if value.is_empty()
+        || value.len() > MAX_OPEN_URL_BYTES
+        || value.trim() != value
+        || value.chars().any(char::is_control)
+    {
+        return false;
+    }
+    let Ok(url) = url::Url::parse(value) else {
+        return false;
+    };
+    match url.scheme() {
+        "http" | "https" => url.host_str().is_some_and(|host| !host.is_empty()),
+        "file" => url.host_str().is_none() && !url.path().is_empty() && url.path() != "/",
+        _ => false,
     }
 }
 
@@ -1267,6 +1310,44 @@ mod tests {
     }
 
     #[test]
+    fn open_url_emits_only_bounded_supported_requests() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.process(b"\x1b]1337;OpenURL=:aHR0cHM6Ly9leGFtcGxlLnRlc3QvcGhhc2UyOQ==\x07");
+        terminal.process(b"\x1b]1337;OpenURL=:ZmlsZTovLy90bXAvaWFudnMtcGhhc2UyOS50eHQ=\x1b\\");
+
+        let events = terminal.poll_events();
+        assert!(events.iter().any(|event| matches!(
+            event,
+            TerminalEvent::ItermOpenUrlRequested { url }
+                if url == "https://example.test/phase29"
+        )));
+        assert!(events.iter().any(|event| matches!(
+            event,
+            TerminalEvent::ItermOpenUrlRequested { url }
+                if url == "file:///tmp/ianvs-phase29.txt"
+        )));
+
+        use base64::{engine::general_purpose::STANDARD, Engine};
+        let oversized = format!(
+            "https://example.test/{}",
+            "x".repeat(super::MAX_OPEN_URL_BYTES)
+        );
+        for invalid in [
+            "%%%".to_string(),
+            STANDARD.encode("javascript:alert(1)"),
+            STANDARD.encode("https://"),
+            STANDARD.encode(" https://example.test/space"),
+            STANDARD.encode("https://example.test/control\n"),
+            STANDARD.encode("file:///"),
+            STANDARD.encode("file://remote.example/path"),
+            STANDARD.encode(oversized),
+        ] {
+            terminal.process(format!("\x1b]1337;OpenURL=:{invalid}\x07").as_bytes());
+        }
+        assert!(terminal.poll_events().is_empty());
+    }
+
+    #[test]
     fn shell_metadata_sequences_accept_every_byte_split() {
         type EventMatcher = fn(&TerminalEvent) -> bool;
         let cases: &[(&[u8], EventMatcher)] = &[
@@ -1286,6 +1367,10 @@ mod tests {
             (b"\x1b]1337;ReportCellSize\x1b\\", |event| {
                 matches!(event, TerminalEvent::CellSizeReportRequested)
             }),
+            (
+                b"\x1b]1337;OpenURL=:aHR0cHM6Ly9leGFtcGxlLnRlc3QvcGhhc2UyOQ==\x1b\\",
+                |event| matches!(event, TerminalEvent::ItermOpenUrlRequested { .. }),
+            ),
         ];
 
         for (sequence, matches_event) in cases {
