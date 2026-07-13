@@ -35,6 +35,7 @@ const int _maxOsc52ClipboardDecodedBytes = 4 * 1024 * 1024;
 const int _maxOsc52ClipboardEncodedLength =
     ((_maxOsc52ClipboardDecodedBytes + 2) ~/ 3) * 4;
 const int _maxPendingOsc1337CellSizeReports = 16;
+const int _maxOsc1337FileDownloadBytes = 16 * 1024 * 1024;
 const int _osc5522ChunkBytes = 4096;
 const Duration _osc5522PasteTokenLifetime = Duration(seconds: 10);
 const int _osc5522MaxRememberedPasswords = 32;
@@ -414,6 +415,75 @@ final class TerminalSessionDragDropCommandEvent extends TerminalSessionEvent {
   String get payload => _stringValue(rawPayload['payload']) ?? '';
 
   static String? _stringValue(Object? value) => value is String ? value : null;
+}
+
+/// A completed, bounded OSC 1337 download waiting for an explicit host choice.
+/// The file bytes are intentionally absent from this event and can be consumed
+/// only once through [TerminalRuntimeController.takeFileDownload].
+final class TerminalSessionFileDownloadEvent extends TerminalSessionEvent {
+  TerminalSessionFileDownloadEvent(
+    super.sessionId, {
+    Map<String, Object?>? rawPayload,
+  }) : rawPayload = Map.unmodifiable(rawPayload ?? const <String, Object?>{});
+
+  final Map<String, Object?> rawPayload;
+
+  String? get source => _stringValue(rawPayload['source']);
+  String? get filename => _stringValue(rawPayload['filename']);
+  int? get size => _wholeIntValue(rawPayload['size']);
+  int? get downloadId {
+    final value = _stringValue(rawPayload['transferId']);
+    if (value == null || !RegExp(r'^[1-9][0-9]*$').hasMatch(value)) {
+      return null;
+    }
+    return int.tryParse(value);
+  }
+
+  bool get isValid {
+    final resolvedName = filename;
+    final resolvedSize = size;
+    return source == 'iterm1337' &&
+        resolvedName != null &&
+        resolvedName.isNotEmpty &&
+        resolvedName != '.' &&
+        resolvedName != '..' &&
+        resolvedName.runes.length <= 160 &&
+        !resolvedName.contains('/') &&
+        !resolvedName.contains(r'\') &&
+        !resolvedName.runes.any((rune) => rune < 0x20 || rune == 0x7f) &&
+        downloadId != null &&
+        resolvedSize != null &&
+        resolvedSize >= 0 &&
+        resolvedSize <= _maxOsc1337FileDownloadBytes;
+  }
+
+  static String? _stringValue(Object? value) => value is String ? value : null;
+}
+
+final class TerminalSessionFileDownloadFailedEvent
+    extends TerminalSessionEvent {
+  TerminalSessionFileDownloadFailedEvent(
+    super.sessionId, {
+    Map<String, Object?>? rawPayload,
+  }) : rawPayload = Map.unmodifiable(rawPayload ?? const <String, Object?>{});
+
+  final Map<String, Object?> rawPayload;
+
+  String get reason => rawPayload['reason'] is String
+      ? rawPayload['reason'] as String
+      : 'download rejected';
+}
+
+final class TerminalSessionFileUploadDeniedEvent extends TerminalSessionEvent {
+  TerminalSessionFileUploadDeniedEvent(
+    super.sessionId, {
+    Map<String, Object?>? rawPayload,
+  }) : rawPayload = Map.unmodifiable(rawPayload ?? const <String, Object?>{});
+
+  final Map<String, Object?> rawPayload;
+
+  String? get format =>
+      rawPayload['format'] is String ? rawPayload['format'] as String : null;
 }
 
 /// The parser received RIS (`ESC c`) and reset terminal semantic state.
@@ -986,6 +1056,64 @@ class TerminalRuntimeController {
       height: nativeAsset.height,
       rgba: nativeAsset.rgba,
     );
+  }
+
+  Uint8List? takeFileDownload(TerminalSessionFileDownloadEvent event) {
+    if (!hasSession(event.sessionId) || !event.isValid) {
+      return null;
+    }
+    final backend = _backend;
+    final fileBackend = backend is PtySessionFileDownloadBackend
+        ? backend as PtySessionFileDownloadBackend
+        : null;
+    final downloadId = event.downloadId;
+    final expectedSize = event.size;
+    if (fileBackend == null || downloadId == null || expectedSize == null) {
+      return null;
+    }
+    try {
+      return fileBackend.takeFileDownload(
+        event.sessionId,
+        downloadId: downloadId,
+        expectedSize: expectedSize,
+      );
+    } on Object catch (error, stackTrace) {
+      _emitBackendRequestError(
+        event.sessionId,
+        'takeFileDownload',
+        error,
+        stackTrace,
+      );
+      return null;
+    }
+  }
+
+  bool discardFileDownload(TerminalSessionFileDownloadEvent event) {
+    final downloadId = event.downloadId;
+    if (!hasSession(event.sessionId) || downloadId == null) {
+      return false;
+    }
+    final backend = _backend;
+    final fileBackend = backend is PtySessionFileDownloadBackend
+        ? backend as PtySessionFileDownloadBackend
+        : null;
+    if (fileBackend == null) {
+      return false;
+    }
+    try {
+      return fileBackend.discardFileDownload(
+        event.sessionId,
+        downloadId: downloadId,
+      );
+    } on Object catch (error, stackTrace) {
+      _emitBackendRequestError(
+        event.sessionId,
+        'discardFileDownload',
+        error,
+        stackTrace,
+      );
+      return false;
+    }
   }
 
   String? selectionText(
@@ -2160,6 +2288,33 @@ class TerminalRuntimeController {
           sessionId,
           sessionEpoch,
           TerminalSessionDragDropCommandEvent(
+            sessionId,
+            rawPayload: route.payload,
+          ),
+        );
+      case TerminalImmediateEventKind.fileDownload:
+        _emitEventIfCurrent(
+          sessionId,
+          sessionEpoch,
+          TerminalSessionFileDownloadEvent(
+            sessionId,
+            rawPayload: route.payload,
+          ),
+        );
+      case TerminalImmediateEventKind.fileDownloadFailed:
+        _emitEventIfCurrent(
+          sessionId,
+          sessionEpoch,
+          TerminalSessionFileDownloadFailedEvent(
+            sessionId,
+            rawPayload: route.payload,
+          ),
+        );
+      case TerminalImmediateEventKind.fileUploadDenied:
+        _emitEventIfCurrent(
+          sessionId,
+          sessionEpoch,
+          TerminalSessionFileUploadDeniedEvent(
             sessionId,
             rawPayload: route.payload,
           ),

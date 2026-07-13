@@ -1,8 +1,9 @@
 # OSC Capability Plan
 
 Status: active support contract. P0/P1 and the promoted P2/P3 OSC families are
-implemented with automated regression coverage; deferred file-transfer scope
-remains outside the current product.
+implemented with automated regression coverage. Phase 28 additionally promotes
+the safe incoming OSC 1337 download subset; uploads and other host actions stay
+outside the current product.
 
 This plan turns OSC support from a list of escape-code numbers into product
 capability gates. The current implementation scope is local terminal fidelity
@@ -46,7 +47,8 @@ P0 closes the support contract and prevents accidental regressions.
 | OSC 1337 File inline=1 | inline image | `frame-visible`/rendered graphics | Treat as already planned under graphics; no new P0 expansion. |
 | OSC 7/133/1337 metadata | cwd/prompt/user vars | `user-actionable` | Bridged through the P2 shell-context contract below. |
 | OSC 9/9;4/777/934/1337 badge | notification/progress/badge | `user-actionable` | Bridged through the P3 status/notification contract below. |
-| OSC 1337 File inline=0 / RequestUpload | file transfer | `unsupported` for P0/P1 | Defer; conflicts with local-terminal scope if expanded prematurely. |
+| OSC 1337 File inline=0 | incoming file download | `user-actionable` safe subset | Active-pane explicit Save only; bounded native one-shot bytes and discard on cancel/background/timeout. |
+| OSC 1337 RequestUpload | outgoing file upload | `unsupported` | Deny and close the protocol request without reading local data. |
 
 P0 deliverables:
 
@@ -353,7 +355,9 @@ Policy and trust:
 
 ## Deferred Work
 
-- Later product decision: OSC 1337 File download/upload.
+- Later product decision: OSC 1337 RequestUpload and any other outgoing file
+  transfer. Incoming non-inline download is supported by Phase 28's explicit
+  Save boundary.
 - Not P0/P1: public custom OSC parser hooks, remote identity, full file
   transfer, notification spam defaults.
 - Not P2/P3: SFTP/SSH session management, remote file browsing, automatic

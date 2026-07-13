@@ -76,6 +76,9 @@ void main() {
         'session_badge': TerminalImmediateEventKind.sessionBadge,
         'session_tab_status': TerminalImmediateEventKind.sessionTabStatus,
         'drag_drop_command': TerminalImmediateEventKind.dragDropCommand,
+        'file_download': TerminalImmediateEventKind.fileDownload,
+        'file_download_failed': TerminalImmediateEventKind.fileDownloadFailed,
+        'file_upload_denied': TerminalImmediateEventKind.fileUploadDenied,
         'cell_size_report_request':
             TerminalImmediateEventKind.cellSizeReportRequest,
         'session_reset': TerminalImmediateEventKind.sessionReset,

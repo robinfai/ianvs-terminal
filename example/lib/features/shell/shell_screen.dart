@@ -69,6 +69,15 @@ part 'shell_screen_sheets.dart';
 part 'shell_screen_command_menu.dart';
 part 'shell_screen_shared_buttons.dart';
 
+typedef ShellFileDownloadWriter =
+    Future<void> Function(String path, List<int> bytes);
+
+final shellFileDownloadWriterProvider = Provider<ShellFileDownloadWriter>((
+  ref,
+) {
+  return (path, bytes) => File(path).writeAsBytes(bytes, flush: true);
+});
+
 class ShellScreen extends ConsumerStatefulWidget {
   const ShellScreen({super.key});
 

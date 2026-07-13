@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 import 'package:ianvs_pty/ianvs_pty.dart';
@@ -1240,6 +1241,102 @@ sleep 1
   );
 
   testWidgets(
+    'real PTY iTerm2 OSC 1337 download requires Save and blocks upload',
+    (tester) async {
+      final downloadFile = _tempSignalFile('osc1337-file-download');
+      final uploadFile = _tempSignalFile('osc1337-file-upload');
+      String? savedPath;
+      List<int>? savedBytes;
+      final profile = _scriptProfile(
+        id: 'osc1337-file-transfer',
+        name: 'OSC 1337 File Transfer',
+        script: r'''
+trap '' INT
+printf 'osc1337-file-transfer-ready\n'
+while [ ! -f "$DOWNLOAD_FILE" ]; do sleep 0.05; done
+printf '\033]1337;File=name=b3NjLXBoYXNlMjgudHh0;size=14;inline=0:aGVsbG8gcGhhc2UgMjg=\a'
+while [ ! -f "$UPLOAD_FILE" ]; do sleep 0.05; done
+stty -isig
+printf '\033]1337;RequestUpload=format=tgz\a'
+printf '\nOSC1337-FILE-TRANSFER-DONE\n'
+sleep 5
+''',
+        env: <String, String>{
+          'DOWNLOAD_FILE': downloadFile.path,
+          'UPLOAD_FILE': uploadFile.path,
+        },
+      );
+      final harness = await _pumpRealPtyApp(
+        tester,
+        profiles: [profile],
+        fileDownloadWriter: (path, bytes) async {
+          savedPath = path;
+          savedBytes = List<int>.from(bytes);
+        },
+      );
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'OSC 1337 file transfer ready marker',
+        matches: (text) => text.contains('osc1337-file-transfer-ready'),
+      );
+
+      const channel = MethodChannel('app/window_bridge');
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        call,
+      ) async {
+        return call.method == 'chooseFileDownloadLocation'
+            ? '/virtual/osc-phase28.txt'
+            : null;
+      });
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
+      _signal(downloadFile);
+
+      await _waitFor(
+        tester,
+        description: 'OSC 1337 real PTY download Save prompt',
+        condition: () =>
+            find.text('Received osc-phase28.txt (14 B)').evaluate().isNotEmpty,
+        onTimeout: () => 'Terminal text: ${_terminalText(harness.container)}',
+      );
+      expect(savedBytes, isNull);
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.tap(find.byKey(const Key('osc1337-file-download-save-1')));
+      await _waitFor(
+        tester,
+        description: 'OSC 1337 real PTY exact saved bytes',
+        condition: () => savedBytes != null,
+      );
+      expect(savedPath, '/virtual/osc-phase28.txt');
+      expect(savedBytes, utf8.encode('hello phase 28'));
+      await _waitFor(
+        tester,
+        description: 'OSC 1337 real PTY saved feedback',
+        condition: () =>
+            find.text('Saved osc-phase28.txt').evaluate().isNotEmpty,
+      );
+
+      _signal(uploadFile);
+      await _waitFor(
+        tester,
+        description: 'OSC 1337 real PTY upload denial',
+        condition: () =>
+            find.text('File upload request blocked').evaluate().isNotEmpty &&
+            _terminalText(
+              harness.container,
+            ).contains('OSC1337-FILE-TRANSFER-DONE'),
+        onTimeout: () => 'Terminal text: ${_terminalText(harness.container)}',
+      );
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
     'real PTY iTerm2 OSC 1337 annotations reach the product sheet and badge',
     (tester) async {
       final goFile = _tempSignalFile('osc1337-annotations');
@@ -1584,6 +1681,7 @@ Future<_RealPtyHarness> _pumpRealPtyApp(
   List<Map<String, Object?>>? runtimeEvents,
   bool maskRefreshHints = false,
   SessionClipboardTextWrite? clipboardTextWrite,
+  ShellFileDownloadWriter? fileDownloadWriter,
 }) async {
   ensureMacosIntegrationTestFramesEnabled(tester.binding);
   final container = ProviderContainer(
@@ -1604,6 +1702,8 @@ Future<_RealPtyHarness> _pumpRealPtyApp(
       shellAnimationsEnabledProvider.overrideWithValue(false),
       if (clipboardTextWrite != null)
         sessionClipboardTextWriteProvider.overrideWithValue(clipboardTextWrite),
+      if (fileDownloadWriter != null)
+        shellFileDownloadWriterProvider.overrideWithValue(fileDownloadWriter),
       if (runtimeEvents != null)
         terminalGraphicsTraceSinkProvider.overrideWithValue(runtimeEvents.add),
       shellNotificationSenderProvider.overrideWithValue(({

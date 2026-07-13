@@ -83,6 +83,12 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         break;
       case terminal.TerminalSessionDragDropCommandEvent():
         unawaited(_osc72DragDropController.handleCommand(event));
+      case terminal.TerminalSessionFileDownloadEvent():
+        _handleOsc1337FileDownload(event);
+      case terminal.TerminalSessionFileDownloadFailedEvent():
+        _handleOsc1337FileDownloadFailure(event);
+      case terminal.TerminalSessionFileUploadDeniedEvent():
+        _handleOsc1337FileUploadDenied(event);
       case terminal.TerminalSessionCellSizeReportRequestEvent():
         // The reusable runtime already replied using its committed cell metric.
         break;
@@ -94,6 +100,126 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       case terminal.TerminalSessionBackendErrorEvent():
         break;
     }
+  }
+
+  void _handleOsc1337FileDownload(
+    terminal.TerminalSessionFileDownloadEvent event,
+  ) {
+    final runtime = ref.read(terminalRuntimeControllerProvider);
+    final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
+    if (!event.isValid || activeSessionId != event.sessionId || !mounted) {
+      runtime.discardFileDownload(event);
+      return;
+    }
+
+    final downloadId = event.downloadId!;
+    final messenger = ScaffoldMessenger.of(context);
+    var actionClaimed = false;
+    final controller = messenger.showSnackBar(
+      SnackBar(
+        key: Key('osc1337-file-download-$downloadId'),
+        content: Text(
+          'Received ${event.filename} (${_osc1337FileSizeLabel(event.size!)})',
+        ),
+        duration: const Duration(seconds: 30),
+        showCloseIcon: true,
+        action: SnackBarAction(
+          key: Key('osc1337-file-download-save-$downloadId'),
+          label: 'Save',
+          onPressed: () {
+            actionClaimed = true;
+            unawaited(_saveOsc1337FileDownload(event));
+          },
+        ),
+      ),
+    );
+    unawaited(
+      controller.closed.then((reason) {
+        if (!actionClaimed && reason != SnackBarClosedReason.action) {
+          runtime.discardFileDownload(event);
+        }
+      }),
+    );
+  }
+
+  Future<void> _saveOsc1337FileDownload(
+    terminal.TerminalSessionFileDownloadEvent event,
+  ) async {
+    final runtime = ref.read(terminalRuntimeControllerProvider);
+    if (!mounted ||
+        ref.read(sessionControllerProvider).activeSessionId !=
+            event.sessionId) {
+      runtime.discardFileDownload(event);
+      return;
+    }
+
+    String? path;
+    try {
+      path = await WindowBridge.chooseFileDownloadLocation(
+        suggestedName: event.filename!,
+      );
+    } on Object {
+      runtime.discardFileDownload(event);
+      _showShellSnackBar('Could not open the save dialog');
+      return;
+    }
+    if (path == null) {
+      runtime.discardFileDownload(event);
+      if (mounted) {
+        _showShellSnackBar('Received file discarded');
+      }
+      return;
+    }
+
+    final bytes = runtime.takeFileDownload(event);
+    if (bytes == null || bytes.length != event.size) {
+      _showShellSnackBar('Received file is no longer available');
+      return;
+    }
+    try {
+      await ref.read(shellFileDownloadWriterProvider)(path, bytes);
+    } on Object {
+      _showShellSnackBar('Could not save ${event.filename}');
+      return;
+    }
+    if (mounted) {
+      _showShellSnackBar('Saved ${event.filename}');
+    }
+  }
+
+  void _handleOsc1337FileDownloadFailure(
+    terminal.TerminalSessionFileDownloadFailedEvent event,
+  ) {
+    if (!mounted ||
+        ref.read(sessionControllerProvider).activeSessionId !=
+            event.sessionId) {
+      return;
+    }
+    final reason = event.reason.runes.take(120).toList(growable: false);
+    _showShellSnackBar(
+      'File download rejected: ${String.fromCharCodes(reason)}',
+    );
+  }
+
+  void _handleOsc1337FileUploadDenied(
+    terminal.TerminalSessionFileUploadDeniedEvent event,
+  ) {
+    if (!mounted ||
+        ref.read(sessionControllerProvider).activeSessionId !=
+            event.sessionId) {
+      return;
+    }
+    _showShellSnackBar('File upload request blocked');
+  }
+
+  String _osc1337FileSizeLabel(int bytes) {
+    if (bytes < 1024) {
+      return '$bytes B';
+    }
+    if (bytes < 1024 * 1024) {
+      return '${(bytes / 1024).toStringAsFixed(1)} KiB';
+    }
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MiB';
   }
 
   Future<void> _handleNativeOsc72DragEvent(NativeOsc72DragEvent event) {

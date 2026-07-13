@@ -74,12 +74,24 @@ typedef _GraphicAssetRgbaCopyNative =
     );
 typedef _GraphicAssetRgbaCopyDart =
     int Function(int, int, int, ffi.Pointer<ffi.Uint8>, int);
+typedef _FileDownloadTakeNative =
+    ffi.IntPtr Function(
+      ffi.Uint64,
+      ffi.Uint64,
+      ffi.Pointer<ffi.Uint8>,
+      ffi.Size,
+    );
+typedef _FileDownloadTakeDart =
+    int Function(int, int, ffi.Pointer<ffi.Uint8>, int);
+typedef _FileDownloadDiscardNative = ffi.Int32 Function(ffi.Uint64, ffi.Uint64);
+typedef _FileDownloadDiscardDart = int Function(int, int);
 
 const _maxUint16 = 0xffff;
 const _minInt32 = -0x80000000;
 const _maxInt32 = 0x7fffffff;
 const _maxEventKindLength = 128;
 const _maxPtyEventBatchLength = 1024;
+const _maxFileDownloadBytes = 16 * 1024 * 1024;
 final _sessionIdDigits = RegExp(r'^[0-9]+$');
 final _maxUint64 = BigInt.parse('18446744073709551615');
 
@@ -180,6 +192,32 @@ _GraphicAssetRgbaCopyDart? _lookupOptionalGraphicAssetRgbaCopy(
     return library
         .lookupFunction<_GraphicAssetRgbaCopyNative, _GraphicAssetRgbaCopyDart>(
           'ianvs_session_graphic_asset_rgba_copy',
+        );
+  } on ArgumentError {
+    return null;
+  }
+}
+
+_FileDownloadTakeDart? _lookupOptionalFileDownloadTake(
+  ffi.DynamicLibrary library,
+) {
+  try {
+    return library
+        .lookupFunction<_FileDownloadTakeNative, _FileDownloadTakeDart>(
+          'ianvs_session_file_download_take',
+        );
+  } on ArgumentError {
+    return null;
+  }
+}
+
+_FileDownloadDiscardDart? _lookupOptionalFileDownloadDiscard(
+  ffi.DynamicLibrary library,
+) {
+  try {
+    return library
+        .lookupFunction<_FileDownloadDiscardNative, _FileDownloadDiscardDart>(
+          'ianvs_session_file_download_discard',
         );
   } on ArgumentError {
     return null;
@@ -363,12 +401,23 @@ abstract interface class PtyRefreshHintBindings {
   int sessionRefreshHintFlags(int sessionId);
 }
 
+abstract interface class PtyFileDownloadBindings {
+  Uint8List? sessionTakeFileDownload(
+    int sessionId,
+    int downloadId,
+    int expectedSize,
+  );
+
+  bool sessionDiscardFileDownload(int sessionId, int downloadId);
+}
+
 abstract final class PtyRefreshHintFlags {
   static const int none = 0;
   static const int frameDirty = 1 << 0;
 }
 
-class NativePtyBindings implements PtyBindings, PtyRefreshHintBindings {
+class NativePtyBindings
+    implements PtyBindings, PtyRefreshHintBindings, PtyFileDownloadBindings {
   NativePtyBindings(ffi.DynamicLibrary library)
     : _ping = library.lookupFunction<_PingNative, _PingDart>('ianvs_ping'),
       _createSession = library
@@ -425,6 +474,8 @@ class NativePtyBindings implements PtyBindings, PtyRefreshHintBindings {
           ),
       _graphicAssetMeta = _lookupOptionalGraphicAssetMeta(library),
       _graphicAssetRgbaCopy = _lookupOptionalGraphicAssetRgbaCopy(library),
+      _fileDownloadTake = _lookupOptionalFileDownloadTake(library),
+      _fileDownloadDiscard = _lookupOptionalFileDownloadDiscard(library),
       _stringFree = library.lookupFunction<_FreeStringNative, _FreeStringDart>(
         'ianvs_string_free',
       ),
@@ -447,6 +498,8 @@ class NativePtyBindings implements PtyBindings, PtyRefreshHintBindings {
   final _StringReturningDart _pollEventsJson;
   final _GraphicAssetMetaDart? _graphicAssetMeta;
   final _GraphicAssetRgbaCopyDart? _graphicAssetRgbaCopy;
+  final _FileDownloadTakeDart? _fileDownloadTake;
+  final _FileDownloadDiscardDart? _fileDownloadDiscard;
   final _FreeStringDart _stringFree;
   final _FreeBytesDart? _bytesFree;
 
@@ -672,6 +725,39 @@ class NativePtyBindings implements PtyBindings, PtyRefreshHintBindings {
       calloc.free(metaPointer);
     }
   }
+
+  @override
+  Uint8List? sessionTakeFileDownload(
+    int sessionId,
+    int downloadId,
+    int expectedSize,
+  ) {
+    final binding = _fileDownloadTake;
+    if (binding == null ||
+        downloadId <= 0 ||
+        expectedSize < 0 ||
+        expectedSize > _maxFileDownloadBytes) {
+      return null;
+    }
+    final pointer = malloc<ffi.Uint8>(expectedSize == 0 ? 1 : expectedSize);
+    try {
+      final copied = binding(sessionId, downloadId, pointer, expectedSize);
+      if (copied != expectedSize) {
+        return null;
+      }
+      return Uint8List.fromList(pointer.asTypedList(expectedSize));
+    } finally {
+      malloc.free(pointer);
+    }
+  }
+
+  @override
+  bool sessionDiscardFileDownload(int sessionId, int downloadId) {
+    final binding = _fileDownloadDiscard;
+    return binding != null &&
+        downloadId > 0 &&
+        binding(sessionId, downloadId) == 0;
+  }
 }
 
 abstract class PtySessionBackend {
@@ -710,6 +796,16 @@ abstract class PtySessionGraphicAssetBackend {
   });
 }
 
+abstract class PtySessionFileDownloadBackend {
+  Uint8List? takeFileDownload(
+    String sessionId, {
+    required int downloadId,
+    required int expectedSize,
+  });
+
+  bool discardFileDownload(String sessionId, {required int downloadId});
+}
+
 abstract class PtySessionProtobufFrameBackend {
   bool get supportsProtobufFrameDiffs;
   Uint8List? takeFrameDiffProtobuf(String sessionId);
@@ -726,6 +822,7 @@ class NativePtyBackend
         PtySessionJsonRequestBackend,
         PtySessionDiagnosticsBackend,
         PtySessionGraphicAssetBackend,
+        PtySessionFileDownloadBackend,
         PtySessionProtobufFrameBackend,
         PtySessionRefreshHintBackend {
   NativePtyBackend(this._bindings);
@@ -913,6 +1010,50 @@ class NativePtyBackend
       assetId,
       assetVersion,
     );
+  }
+
+  @override
+  Uint8List? takeFileDownload(
+    String sessionId, {
+    required int downloadId,
+    required int expectedSize,
+  }) {
+    if (downloadId <= 0) {
+      throw ArgumentError.value(downloadId, 'downloadId', 'must be positive');
+    }
+    if (expectedSize < 0 || expectedSize > _maxFileDownloadBytes) {
+      throw RangeError.range(
+        expectedSize,
+        0,
+        _maxFileDownloadBytes,
+        'expectedSize',
+      );
+    }
+    final bindings = _bindings;
+    final fileBindings = bindings is PtyFileDownloadBindings
+        ? bindings as PtyFileDownloadBindings
+        : null;
+    return fileBindings?.sessionTakeFileDownload(
+      _nativeSessionIdFor(sessionId),
+      downloadId,
+      expectedSize,
+    );
+  }
+
+  @override
+  bool discardFileDownload(String sessionId, {required int downloadId}) {
+    if (downloadId <= 0) {
+      return false;
+    }
+    final bindings = _bindings;
+    final fileBindings = bindings is PtyFileDownloadBindings
+        ? bindings as PtyFileDownloadBindings
+        : null;
+    return fileBindings?.sessionDiscardFileDownload(
+          _nativeSessionIdFor(sessionId),
+          downloadId,
+        ) ??
+        false;
   }
 
   int _nativeSessionIdFor(String sessionId) {

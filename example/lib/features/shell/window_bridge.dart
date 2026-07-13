@@ -158,6 +158,35 @@ class WindowBridge {
     }
   }
 
+  static Future<String?> chooseFileDownloadLocation({
+    required String suggestedName,
+  }) async {
+    if (BindingBase.debugBindingType() == null) {
+      return null;
+    }
+    final safeName = _safeSuggestedFileName(suggestedName);
+    try {
+      final selected = await _channel.invokeMethod<String>(
+        'chooseFileDownloadLocation',
+        <String, Object?>{'suggestedName': safeName},
+      );
+      final path = selected?.trim();
+      return path == null || path.isEmpty ? null : path;
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
+  static String _safeSuggestedFileName(String value) {
+    final basename = value.split(RegExp(r'[/\\]')).last;
+    final runes = basename.runes
+        .where((rune) => rune >= 0x20 && rune != 0x7f)
+        .take(160)
+        .toList(growable: false);
+    final safe = String.fromCharCodes(runes).trim();
+    return safe.isEmpty || safe == '.' || safe == '..' ? 'Unnamed file' : safe;
+  }
+
   static bool _isAllowedExternalUri(Uri uri) {
     return switch (uri.scheme.toLowerCase()) {
       'http' || 'https' => uri.host.isNotEmpty,

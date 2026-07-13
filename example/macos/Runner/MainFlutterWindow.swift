@@ -431,6 +431,33 @@ class MainFlutterWindow: NSWindow {
           return
         }
         result(nil)
+      case "chooseFileDownloadLocation":
+        guard
+          let arguments = call.arguments as? [String: Any],
+          let rawName = arguments["suggestedName"] as? String
+        else {
+          result(FlutterMethodNotImplemented)
+          return
+        }
+        let components = rawName.split(
+          whereSeparator: { $0 == "/" || $0 == "\\" }
+        )
+        let candidate = String(components.last ?? "")
+          .unicodeScalars
+          .filter { !CharacterSet.controlCharacters.contains($0) }
+          .prefix(160)
+        let trimmed = String(String.UnicodeScalarView(candidate))
+          .trimmingCharacters(in: .whitespacesAndNewlines)
+        let safeName = trimmed.isEmpty || trimmed == "." || trimmed == ".."
+          ? "Unnamed file"
+          : trimmed
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = safeName
+        panel.canCreateDirectories = true
+        panel.isExtensionHidden = false
+        panel.beginSheetModal(for: self) { response in
+          result(response == .OK ? panel.url?.path : nil)
+        }
       case "showNotification":
         self.showNotification(arguments: call.arguments, result: result)
       case "closeNotification":

@@ -524,3 +524,27 @@ safety-policy reason documented in `osc_cross_terminal_probe_20260711.md`.
   false and Phase 26 frame/source tags remain unchanged.
 - **Rollback:** revert the Phase 27 implementation; Phase 26 folding remains
   supported and `render=1` returns to bounded metadata.
+
+## Phase 28 report — iTerm2 OSC 1337 incoming file download
+
+- **Start SHA:** `1893fba4b96b767770b139e6c99b04c3091f498e`.
+- **Confirmed gap:** the parser retained bounded non-inline `File` and multipart
+  bytes, but native discarded their events and Dart had no safe authorization,
+  byte-transfer or product UI path.
+- **Fixes:** metadata-only native callbacks, 16 MiB/session and eight-item
+  one-shot storage, exact-size FFI copy/discard, typed runtime routing,
+  active-pane Save consent, native `NSSavePanel`, basename sanitization and
+  deterministic cleanup on cancel, timeout, background delivery and replay.
+- **Upload boundary:** `RequestUpload` is explicitly denied and cancelled; no
+  local file picker opens and no local bytes are read or returned.
+- **Security:** decoded bytes do not enter JSON, logs or Flutter event state;
+  automatic writes, path-controlled destinations and replayed host actions are
+  prevented. OpenURL, StealFocus, SetProfile and unrelated actions remain
+  unsupported.
+- **Tests/results:** parser/native/real-PTY, FFI/backend, runtime/router, product
+  widget, AppKit bridge, complete verifier and Computer Use results are recorded
+  in `osc1337_file_download_phase28_20260713.md`.
+- **Compatibility:** no frame/protobuf schema changes; new event kinds and FFI
+  exports are additive. Existing inline graphics behavior is unchanged.
+- **Rollback:** revert the Phase 28 implementation; incoming downloads return
+  to parser-internal bounded data and product-level no-op behavior.

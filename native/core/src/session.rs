@@ -19,7 +19,7 @@ use par_term_emu_core_rust::grid::{Grid, ScrollRegionDamage};
 use par_term_emu_core_rust::mouse::{MouseEncoding, MouseMode};
 use par_term_emu_core_rust::terminal::{
     OscCapability, Terminal, TerminalDamage, TerminalEvent as ParserTerminalEvent,
-    TerminalProcessDebugStats, snapshot::ExportFormat,
+    TerminalProcessDebugStats, TransferDirection, TransferStatus, snapshot::ExportFormat,
 };
 use par_term_emu_core_rust::{WidthConfig, str_width};
 use parking_lot::Mutex;
@@ -56,6 +56,8 @@ const OSC5522_MAX_ID_BYTES: usize = 128;
 const OSC5522_MAX_PASSWORD_BYTES: usize = 256;
 const OSC5522_MAX_APPLICATION_NAME_BYTES: usize = 256;
 const ITERM_CLIPBOARD_MAX_BYTES: usize = 4 * 1024 * 1024;
+const ITERM_FILE_DOWNLOAD_MAX_BYTES: usize = 16 * 1024 * 1024;
+const ITERM_FILE_DOWNLOAD_MAX_PENDING: usize = 8;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum TerminalSearchMode {
@@ -184,6 +186,15 @@ enum CallbackEvent {
         payload: serde_json::Value,
     },
     DragDropCommand {
+        payload: serde_json::Value,
+    },
+    FileDownload {
+        payload: serde_json::Value,
+    },
+    FileDownloadFailed {
+        payload: serde_json::Value,
+    },
+    FileUploadDenied {
         payload: serde_json::Value,
     },
     SessionReset,
@@ -857,6 +868,8 @@ pub enum SessionError {
     Serialize(String),
     #[error("graphic asset error: {0}")]
     GraphicAsset(String),
+    #[error("file download error: {0}")]
+    FileDownload(String),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -875,6 +888,12 @@ struct GraphicAssetSnapshot {
     pixels: Arc<Vec<u8>>,
 }
 
+#[derive(Debug)]
+struct PendingFileDownload {
+    id: u64,
+    data: Vec<u8>,
+}
+
 struct TerminalState {
     terminal: Terminal,
     transcript: Vec<u8>,
@@ -884,6 +903,82 @@ struct TerminalState {
     graphic_assets: VecDeque<GraphicAssetSnapshot>,
     graphic_asset_bytes: usize,
     graphic_asset_cache_max_bytes: usize,
+    pending_file_downloads: VecDeque<PendingFileDownload>,
+    pending_file_download_bytes: usize,
+    next_file_download_id: u64,
+}
+
+impl TerminalState {
+    fn retain_file_download(
+        &mut self,
+        filename: String,
+        data: Vec<u8>,
+    ) -> Result<(u64, String, usize), String> {
+        let size = data.len();
+        if size > ITERM_FILE_DOWNLOAD_MAX_BYTES {
+            return Err(format!(
+                "download exceeds maximum size of {ITERM_FILE_DOWNLOAD_MAX_BYTES} bytes"
+            ));
+        }
+        if self.pending_file_downloads.len() >= ITERM_FILE_DOWNLOAD_MAX_PENDING {
+            return Err("too many pending downloads".to_string());
+        }
+        if self.pending_file_download_bytes.saturating_add(size) > ITERM_FILE_DOWNLOAD_MAX_BYTES {
+            return Err("pending download memory budget exhausted".to_string());
+        }
+
+        let filename = sanitize_file_download_name(&filename);
+        let id = self.next_file_download_id.max(1);
+        self.next_file_download_id = id.checked_add(1).unwrap_or(1);
+        self.pending_file_download_bytes = self.pending_file_download_bytes.saturating_add(size);
+        self.pending_file_downloads
+            .push_back(PendingFileDownload { id, data });
+        Ok((id, filename, size))
+    }
+
+    fn take_file_download(
+        &mut self,
+        download_id: u64,
+        dst: &mut [u8],
+    ) -> Result<usize, SessionError> {
+        let index = self
+            .pending_file_downloads
+            .iter()
+            .position(|download| download.id == download_id)
+            .ok_or_else(|| SessionError::FileDownload(format!("missing download {download_id}")))?;
+        let expected_len = self.pending_file_downloads[index].data.len();
+        if dst.len() != expected_len {
+            return Err(SessionError::FileDownload(format!(
+                "destination length {} does not match download size {expected_len}",
+                dst.len()
+            )));
+        }
+        dst.copy_from_slice(&self.pending_file_downloads[index].data);
+        let removed = self
+            .pending_file_downloads
+            .remove(index)
+            .expect("pending download index was validated");
+        self.pending_file_download_bytes = self
+            .pending_file_download_bytes
+            .saturating_sub(removed.data.len());
+        Ok(expected_len)
+    }
+
+    fn discard_file_download(&mut self, download_id: u64) -> Result<(), SessionError> {
+        let index = self
+            .pending_file_downloads
+            .iter()
+            .position(|download| download.id == download_id)
+            .ok_or_else(|| SessionError::FileDownload(format!("missing download {download_id}")))?;
+        let removed = self
+            .pending_file_downloads
+            .remove(index)
+            .expect("pending download index was validated");
+        self.pending_file_download_bytes = self
+            .pending_file_download_bytes
+            .saturating_sub(removed.data.len());
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -1863,6 +1958,110 @@ fn callback_event_from_parser_event_with_terminal(
     }
 }
 
+fn callback_events_from_parser_events(
+    state: &mut TerminalState,
+    parser_events: Vec<ParserTerminalEvent>,
+    suppress_shell_zones: bool,
+) -> Vec<CallbackEvent> {
+    let mut callbacks = Vec::new();
+    for event in parser_events {
+        match event {
+            ParserTerminalEvent::FileTransferStarted { .. }
+            | ParserTerminalEvent::FileTransferProgress { .. } => {
+                // Progress can arrive once per multipart chunk. Keep it in the
+                // bounded parser state instead of exposing a floodable host
+                // event surface; the product acts only on a complete file.
+            }
+            ParserTerminalEvent::FileTransferCompleted { id, filename, size } => {
+                let retained = state.terminal.take_completed_transfer(id);
+                let Some(transfer) = retained else {
+                    callbacks.push(file_download_failed_callback(
+                        Some(id),
+                        "completed download data is unavailable",
+                    ));
+                    continue;
+                };
+                if transfer.direction != TransferDirection::Download
+                    || transfer.status != TransferStatus::Completed
+                    || transfer.data.len() != size
+                {
+                    callbacks.push(file_download_failed_callback(
+                        Some(id),
+                        "completed download metadata did not match retained data",
+                    ));
+                    continue;
+                }
+                let filename = filename.unwrap_or(transfer.filename);
+                match state.retain_file_download(filename, transfer.data) {
+                    Ok((download_id, filename, retained_size)) => {
+                        callbacks.push(CallbackEvent::FileDownload {
+                            payload: serde_json::json!({
+                                "source": "iterm1337",
+                                "transferId": download_id.to_string(),
+                                "filename": filename,
+                                "size": retained_size,
+                            }),
+                        });
+                    }
+                    Err(reason) => callbacks.push(file_download_failed_callback(Some(id), &reason)),
+                }
+            }
+            ParserTerminalEvent::FileTransferFailed { id, reason } => {
+                // Failed transfers are never recoverable host data. Taking the
+                // terminal record here promptly releases any retained bytes.
+                let _ = state.terminal.take_completed_transfer(id);
+                callbacks.push(file_download_failed_callback(Some(id), &reason));
+            }
+            ParserTerminalEvent::UploadRequested { format } => {
+                // RequestUpload would disclose user-selected local data to the
+                // PTY. This phase intentionally denies it and closes the remote
+                // protocol request instead of leaving the caller blocked.
+                state.terminal.cancel_upload();
+                callbacks.push(CallbackEvent::FileUploadDenied {
+                    payload: serde_json::json!({
+                        "source": "iterm1337",
+                        "format": sanitize_protocol_text(&format, 32),
+                        "reason": "upload is disabled",
+                    }),
+                });
+            }
+            event => {
+                if let Some(callback) = callback_event_from_parser_event_with_terminal(
+                    event,
+                    suppress_shell_zones,
+                    Some(&state.terminal),
+                ) {
+                    callbacks.push(callback);
+                }
+            }
+        }
+    }
+    callbacks
+}
+
+fn file_download_failed_callback(parser_transfer_id: Option<u64>, reason: &str) -> CallbackEvent {
+    CallbackEvent::FileDownloadFailed {
+        payload: serde_json::json!({
+            "source": "iterm1337",
+            "parserTransferId": parser_transfer_id.map(|id| id.to_string()),
+            "reason": sanitize_protocol_text(reason, 240),
+        }),
+    }
+}
+
+fn discard_replayed_parser_host_events(terminal: &mut Terminal) {
+    for event in terminal.poll_events() {
+        match event {
+            ParserTerminalEvent::FileTransferCompleted { id, .. }
+            | ParserTerminalEvent::FileTransferFailed { id, .. } => {
+                let _ = terminal.take_completed_transfer(id);
+            }
+            ParserTerminalEvent::UploadRequested { .. } => terminal.cancel_upload(),
+            _ => {}
+        }
+    }
+}
+
 fn input_sets_alt_screen(input: &[u8]) -> bool {
     let mut index = 0;
     while index + 3 < input.len() {
@@ -2028,6 +2227,23 @@ fn sanitize_protocol_text(value: &str, max_chars: usize) -> String {
         .to_string()
 }
 
+fn sanitize_file_download_name(value: &str) -> String {
+    let basename = value
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or_default()
+        .chars()
+        .filter(|character| !character.is_control())
+        .take(160)
+        .collect::<String>();
+    let basename = basename.trim();
+    if basename.is_empty() || basename == "." || basename == ".." {
+        "Unnamed file".to_string()
+    } else {
+        basename.to_string()
+    }
+}
+
 fn sanitize_annotation_selected_text(value: &str, max_chars: usize) -> String {
     value
         .chars()
@@ -2148,6 +2364,9 @@ impl TerminalSession {
                 graphic_assets: VecDeque::new(),
                 graphic_asset_bytes: 0,
                 graphic_asset_cache_max_bytes: profile.terminal.graphics.max_total_bytes,
+                pending_file_downloads: VecDeque::new(),
+                pending_file_download_bytes: 0,
+                next_file_download_id: 1,
             }),
             writer: Mutex::new(runtime.writer),
             master: Mutex::new(runtime.master),
@@ -2235,14 +2454,10 @@ impl TerminalSession {
                                 let suppress_shell_zones = was_alt_screen_active
                                     || input_enters_alt_screen
                                     || state.terminal.is_alt_screen_active();
-                                callback_events.extend(parser_events.into_iter().filter_map(
-                                    |event| {
-                                        callback_event_from_parser_event_with_terminal(
-                                            event,
-                                            suppress_shell_zones,
-                                            Some(&state.terminal),
-                                        )
-                                    },
+                                callback_events.extend(callback_events_from_parser_events(
+                                    &mut state,
+                                    parser_events,
+                                    suppress_shell_zones,
                                 ));
                                 callback_events.extend(notifications.into_iter().map(
                                     |notification| {
@@ -2595,7 +2810,7 @@ impl TerminalSession {
             // Replaying the transcript rebuilds terminal state only. Historical
             // host-facing effects must not be delivered again on the next PTY
             // read after resize.
-            let _ = terminal.poll_events();
+            discard_replayed_parser_host_events(&mut terminal);
             let _ = terminal.take_notifications();
             let _ = terminal.drain_responses();
             let _ = terminal.take_process_debug_stats();
@@ -3230,6 +3445,18 @@ impl TerminalSession {
         Ok(pixels.len())
     }
 
+    pub fn take_file_download(
+        &self,
+        download_id: u64,
+        dst: &mut [u8],
+    ) -> Result<usize, SessionError> {
+        self.state.lock().take_file_download(download_id, dst)
+    }
+
+    pub fn discard_file_download(&self, download_id: u64) -> Result<(), SessionError> {
+        self.state.lock().discard_file_download(download_id)
+    }
+
     fn search(
         &self,
         query: &str,
@@ -3575,6 +3802,15 @@ impl TerminalSession {
             }
             CallbackEvent::DragDropCommand { payload } => {
                 self.push_event("drag_drop_command", Some(payload))
+            }
+            CallbackEvent::FileDownload { payload } => {
+                self.push_event("file_download", Some(payload))
+            }
+            CallbackEvent::FileDownloadFailed { payload } => {
+                self.push_event("file_download_failed", Some(payload))
+            }
+            CallbackEvent::FileUploadDenied { payload } => {
+                self.push_event("file_upload_denied", Some(payload))
             }
             CallbackEvent::SessionReset => self.push_event("session_reset", None),
             CallbackEvent::Bell => self.push_event("bell", None),
@@ -6730,6 +6966,7 @@ fn configure_session_terminal(
     }
     apply_profile_colors(terminal, profile_colors);
     configure_terminal_protocol_policy(terminal, emulation);
+    terminal.set_max_transfer_size(ITERM_FILE_DOWNLOAD_MAX_BYTES);
     terminal.set_osc_capability_allowed(OscCapability::DragDrop, drag_drop_enabled);
     if let Some(nonce) = osc633_expected_nonce {
         let configured = terminal.set_osc633_expected_nonce(Some(nonce.to_string()));
@@ -7179,6 +7416,18 @@ pub fn copy_graphic_asset_rgba(
         .copy_graphic_asset_rgba(asset_id, asset_version, dst)
 }
 
+pub fn take_file_download(
+    session_id: u64,
+    download_id: u64,
+    dst: &mut [u8],
+) -> Result<usize, SessionError> {
+    STORE.get(session_id)?.take_file_download(download_id, dst)
+}
+
+pub fn discard_file_download(session_id: u64, download_id: u64) -> Result<(), SessionError> {
+    STORE.get(session_id)?.discard_file_download(download_id)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -7199,6 +7448,109 @@ mod tests {
             session_id: 42,
             payload,
         }
+    }
+
+    fn terminal_state_for_file_download_test(terminal: Terminal) -> TerminalState {
+        TerminalState {
+            terminal,
+            transcript: Vec::new(),
+            transcript_truncated: false,
+            scrollback_offset: 0,
+            host_protocol: HostProtocolState::default(),
+            graphic_assets: VecDeque::new(),
+            graphic_asset_bytes: 0,
+            graphic_asset_cache_max_bytes: 1024,
+            pending_file_downloads: VecDeque::new(),
+            pending_file_download_bytes: 0,
+            next_file_download_id: 1,
+        }
+    }
+
+    #[test]
+    fn osc1337_download_moves_bytes_to_one_shot_session_storage() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.set_max_transfer_size(ITERM_FILE_DOWNLOAD_MAX_BYTES);
+        terminal.process(
+            b"\x1b]1337;File=name=Li4vZXNjYXBlZC9yZXBvcnQudHh0;size=5;inline=0:aGVsbG8=\x07",
+        );
+        let parser_events = terminal.poll_events();
+        let mut state = terminal_state_for_file_download_test(terminal);
+
+        let callbacks = callback_events_from_parser_events(&mut state, parser_events, false);
+
+        let [CallbackEvent::FileDownload { payload }] = callbacks.as_slice() else {
+            panic!("expected one completed download callback: {callbacks:?}");
+        };
+        assert_eq!(payload["source"], "iterm1337");
+        assert_eq!(payload["transferId"], "1");
+        assert_eq!(payload["filename"], "report.txt");
+        assert_eq!(payload["size"], 5);
+        assert!(state.terminal.get_completed_transfers().is_empty());
+
+        let mut bytes = [0_u8; 5];
+        assert_eq!(state.take_file_download(1, &mut bytes).unwrap(), 5);
+        assert_eq!(&bytes, b"hello");
+        assert!(state.take_file_download(1, &mut bytes).is_err());
+        assert_eq!(state.pending_file_download_bytes, 0);
+    }
+
+    #[test]
+    fn osc1337_download_rejects_size_mismatch_without_retaining_bytes() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.process(b"\x1b]1337;File=name=YmFkLnR4dA==;size=6;inline=0:aGVsbG8=\x07");
+        let parser_events = terminal.poll_events();
+        let mut state = terminal_state_for_file_download_test(terminal);
+
+        let callbacks = callback_events_from_parser_events(&mut state, parser_events, false);
+
+        assert!(callbacks.iter().any(|event| matches!(
+            event,
+            CallbackEvent::FileDownloadFailed { payload }
+                if payload["reason"].as_str().is_some_and(|reason| reason.contains("size mismatch"))
+        )));
+        assert!(state.pending_file_downloads.is_empty());
+        assert!(state.terminal.get_completed_transfers().is_empty());
+    }
+
+    #[test]
+    fn osc1337_request_upload_is_cancelled_without_exposing_host_data() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.process(b"\x1b]1337;RequestUpload=format=tgz\x07");
+        let parser_events = terminal.poll_events();
+        let mut state = terminal_state_for_file_download_test(terminal);
+
+        let callbacks = callback_events_from_parser_events(&mut state, parser_events, false);
+
+        assert!(matches!(
+            callbacks.as_slice(),
+            [CallbackEvent::FileUploadDenied { payload }]
+                if payload["format"] == "tgz"
+        ));
+        assert_eq!(state.terminal.drain_responses(), &[0x03]);
+    }
+
+    #[test]
+    fn pending_file_download_budget_does_not_evict_an_earlier_user_choice() {
+        let terminal = Terminal::new(80, 24);
+        let mut state = terminal_state_for_file_download_test(terminal);
+        let first = vec![1_u8; ITERM_FILE_DOWNLOAD_MAX_BYTES - 1];
+        assert!(
+            state
+                .retain_file_download("first.bin".to_string(), first)
+                .is_ok()
+        );
+
+        let rejected = state.retain_file_download("second.bin".to_string(), vec![2_u8; 2]);
+
+        assert_eq!(
+            rejected.unwrap_err(),
+            "pending download memory budget exhausted"
+        );
+        assert_eq!(state.pending_file_downloads.len(), 1);
+        assert_eq!(
+            state.pending_file_download_bytes,
+            ITERM_FILE_DOWNLOAD_MAX_BYTES - 1
+        );
     }
 
     #[test]
@@ -8418,6 +8770,9 @@ mod tests {
             graphic_assets: VecDeque::new(),
             graphic_asset_bytes: 0,
             graphic_asset_cache_max_bytes: 256 * 1024 * 1024,
+            pending_file_downloads: VecDeque::new(),
+            pending_file_download_bytes: 0,
+            next_file_download_id: 1,
         };
         state
             .terminal

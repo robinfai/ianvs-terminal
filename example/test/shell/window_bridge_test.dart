@@ -132,6 +132,33 @@ void main() {
     });
   });
 
+  testWidgets('download save panel receives only a bounded basename', (
+    tester,
+  ) async {
+    const channel = MethodChannel('app/window_bridge');
+    MethodCall? seen;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+      call,
+    ) async {
+      seen = call;
+      return '/tmp/report.txt';
+    });
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      ),
+    );
+
+    final selected = await WindowBridge.chooseFileDownloadLocation(
+      suggestedName: '../unsafe\\report\u0000.txt',
+    );
+
+    expect(selected, '/tmp/report.txt');
+    expect(seen?.method, 'chooseFileDownloadLocation');
+    expect(seen?.arguments, <String, Object?>{'suggestedName': 'report.txt'});
+  });
+
   testWidgets(
     'OSC 72 bridge sends bounded target, decision, read and release calls',
     (tester) async {
@@ -141,22 +168,22 @@ void main() {
         call,
       ) async {
         calls.add(call);
-      if (call.method == 'readOsc72DropData') {
+        if (call.method == 'readOsc72DropData') {
           return <String, Object?>{
             'bytes': Uint8List.fromList(<int>[1, 2, 3]),
             'eof': true,
             'size': 3,
-        };
-      }
-      if (call.method == 'osc72DropTargetStatus') {
-        return <String, Object?>{
-          'enabled': true,
-          'sessionId': 'session-1',
-          'mimeTypes': <String>['text/plain'],
-          'decision': 1,
-          'cachedDrops': 0,
-        };
-      }
+          };
+        }
+        if (call.method == 'osc72DropTargetStatus') {
+          return <String, Object?>{
+            'enabled': true,
+            'sessionId': 'session-1',
+            'mimeTypes': <String>['text/plain'],
+            'decision': 1,
+            'cachedDrops': 0,
+          };
+        }
         return null;
       });
       addTearDown(
@@ -177,15 +204,15 @@ void main() {
         mimeType: 'text/plain',
         offset: 0,
       );
-    await WindowBridge.releaseOsc72Drop('drop-1');
-    final status = await WindowBridge.osc72DropTargetStatus();
+      await WindowBridge.releaseOsc72Drop('drop-1');
+      final status = await WindowBridge.osc72DropTargetStatus();
 
       expect(chunk.bytes, <int>[1, 2, 3]);
       expect(chunk.eof, isTrue);
-    expect(chunk.size, 3);
-    expect(status?.enabled, isTrue);
-    expect(status?.sessionId, 'session-1');
-    expect(status?.mimeTypes, <String>['text/plain']);
+      expect(chunk.size, 3);
+      expect(status?.enabled, isTrue);
+      expect(status?.sessionId, 'session-1');
+      expect(status?.mimeTypes, <String>['text/plain']);
       expect(calls.map((call) => call.method), <String>[
         'configureOsc72DropTarget',
         'setOsc72DropDecision',

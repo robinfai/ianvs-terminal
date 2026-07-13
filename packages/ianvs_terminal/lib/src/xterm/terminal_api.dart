@@ -524,6 +524,12 @@ class Terminal implements TerminalDisposable {
         break;
       case TerminalSessionDragDropCommandEvent():
         break;
+      case TerminalSessionFileDownloadEvent():
+        break;
+      case TerminalSessionFileDownloadFailedEvent():
+        break;
+      case TerminalSessionFileUploadDeniedEvent():
+        break;
       case TerminalSessionCellSizeReportRequestEvent():
         break;
       case TerminalSessionResetEvent():

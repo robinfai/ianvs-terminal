@@ -2340,6 +2340,47 @@ fn ping_returns_expected_value() {
 }
 
 #[test]
+fn osc1337_download_crosses_session_event_and_one_shot_binary_bridge() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&interactive_profile()).unwrap()).unwrap();
+    let _ = wait_for_frame_where(session_id, |_| true);
+    session::write_session(
+        session_id,
+        b"printf '\\033]1337;File=name=cmVwb3J0LnR4dA==;size=5;inline=0:aGVsbG8=\\007'\n",
+    )
+    .unwrap();
+
+    let event = wait_for_event(session_id, "file_download");
+    assert_eq!(event["payload"]["source"], "iterm1337");
+    assert_eq!(event["payload"]["filename"], "report.txt");
+    assert_eq!(event["payload"]["size"], 5);
+    let download_id = event["payload"]["transferId"]
+        .as_str()
+        .and_then(|value| value.parse::<u64>().ok())
+        .expect("download event must carry an opaque numeric string token");
+
+    session::resize_session(session_id, 91, 25, 0, 0).unwrap();
+    thread::sleep(Duration::from_millis(100));
+    let replay_events: serde_json::Value =
+        serde_json::from_str(&session::poll_events(session_id).unwrap()).unwrap();
+    assert!(
+        replay_events
+            .as_array()
+            .is_some_and(|events| { events.iter().all(|event| event["kind"] != "file_download") })
+    );
+
+    let mut bytes = [0_u8; 5];
+    assert_eq!(
+        session::take_file_download(session_id, download_id, &mut bytes).unwrap(),
+        5
+    );
+    assert_eq!(&bytes, b"hello");
+    assert!(session::take_file_download(session_id, download_id, &mut bytes).is_err());
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn refresh_hint_clears_after_frame_is_consumed() {
     let session_id =
         session::create_session(&serde_json::to_string(&test_profile()).unwrap()).unwrap();

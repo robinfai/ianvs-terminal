@@ -6,7 +6,10 @@ import 'package:ianvs_terminal/ianvs_terminal.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
 
 class FakePtyBackend
-    implements PtySessionBackend, PtySessionJsonRequestBackend {
+    implements
+        PtySessionBackend,
+        PtySessionJsonRequestBackend,
+        PtySessionFileDownloadBackend {
   int _nextSessionId = 0;
   final Map<String, Map<String, Object?>> _frames =
       <String, Map<String, Object?>>{};
@@ -25,6 +28,10 @@ class FakePtyBackend
   final List<List<Object?>> searchCalls = <List<Object?>>[];
   final List<List<Object?>> selectionTextCalls = <List<Object?>>[];
   final Set<String> failingOperations = <String>{};
+  final Map<(String, int), Uint8List> fileDownloads =
+      <(String, int), Uint8List>{};
+  final List<(String, int)> takenFileDownloads = <(String, int)>[];
+  final List<(String, int)> discardedFileDownloads = <(String, int)>[];
   Map<String, Object?>? lastCreatedSessionPayload;
   bool pingCalled = false;
 
@@ -273,6 +280,28 @@ class FakePtyBackend
     final copy = List<PtyEvent>.from(events);
     events.clear();
     return copy;
+  }
+
+  @override
+  Uint8List? takeFileDownload(
+    String sessionId, {
+    required int downloadId,
+    required int expectedSize,
+  }) {
+    _throwIfFailing('takeFileDownload');
+    takenFileDownloads.add((sessionId, downloadId));
+    final bytes = fileDownloads.remove((sessionId, downloadId));
+    if (bytes == null || bytes.length != expectedSize) {
+      return null;
+    }
+    return Uint8List.fromList(bytes);
+  }
+
+  @override
+  bool discardFileDownload(String sessionId, {required int downloadId}) {
+    _throwIfFailing('discardFileDownload');
+    discardedFileDownloads.add((sessionId, downloadId));
+    return fileDownloads.remove((sessionId, downloadId)) != null;
   }
 
   int getFrameDiffReadCount(Object sessionId) {

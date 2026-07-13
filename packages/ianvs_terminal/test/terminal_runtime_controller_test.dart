@@ -6221,6 +6221,127 @@ void main() {
   );
 
   testWidgets(
+    'OSC 1337 downloads stay metadata-only until one-shot take or discard',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+      final events = <TerminalSessionEvent>[];
+      final subscription = runtime.events.listen(events.add);
+      addTearDown(subscription.cancel);
+      backend.fileDownloads[(sessionId, 7)] = Uint8List.fromList(const <int>[
+        104,
+        101,
+        108,
+        108,
+        111,
+      ]);
+      backend.fileDownloads[(sessionId, 8)] = Uint8List.fromList(const <int>[
+        1,
+        2,
+      ]);
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'file_download',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'iterm1337',
+            'transferId': '7',
+            'filename': 'report.txt',
+            'size': 5,
+          },
+        ),
+      );
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'file_download_failed',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'reason': 'size mismatch'},
+        ),
+      );
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'file_upload_denied',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'format': 'tgz'},
+        ),
+      );
+
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+      await tester.pump();
+
+      final download = events
+          .whereType<TerminalSessionFileDownloadEvent>()
+          .single;
+      expect(download.isValid, isTrue);
+      expect(download.downloadId, 7);
+      expect(download.filename, 'report.txt');
+      expect(download.size, 5);
+      expect(download.rawPayload.containsKey('data'), isFalse);
+      expect(runtime.takeFileDownload(download), utf8.encode('hello'));
+      expect(runtime.takeFileDownload(download), isNull);
+      expect(
+        TerminalSessionFileDownloadEvent(
+          sessionId,
+          rawPayload: const <String, Object?>{
+            'source': 'iterm1337',
+            'transferId': '9',
+            'filename': '../escape.txt',
+            'size': 1,
+          },
+        ).isValid,
+        isFalse,
+      );
+      expect(
+        events
+            .whereType<TerminalSessionFileDownloadFailedEvent>()
+            .single
+            .reason,
+        'size mismatch',
+      );
+      expect(
+        events.whereType<TerminalSessionFileUploadDeniedEvent>().single.format,
+        'tgz',
+      );
+
+      final discardEvent = TerminalSessionFileDownloadEvent(
+        sessionId,
+        rawPayload: const <String, Object?>{
+          'source': 'iterm1337',
+          'transferId': '8',
+          'filename': 'discard.bin',
+          'size': 2,
+        },
+      );
+      expect(runtime.discardFileDownload(discardEvent), isTrue);
+      expect(runtime.discardFileDownload(discardEvent), isFalse);
+      expect(backend.fileDownloadTakeRequests, <(String, int, int)>[
+        (sessionId, 7, 5),
+        (sessionId, 7, 5),
+      ]);
+      expect(backend.fileDownloadDiscardRequests, <(String, int)>[
+        (sessionId, 8),
+        (sessionId, 8),
+      ]);
+    },
+  );
+
+  testWidgets(
     'OSC 1337 cell-size query waits for and reports exact logical metrics',
     (tester) async {
       final runtimeBackend = _FakePtyBackend();
@@ -9385,6 +9506,7 @@ class _FakePtyBackend
         PtySessionBackend,
         PtySessionJsonRequestBackend,
         PtySessionGraphicAssetBackend,
+        PtySessionFileDownloadBackend,
         PtySessionDiagnosticsBackend {
   String? lastCreateSessionJson;
   int takeFrameDiffCalls = 0;
@@ -9399,6 +9521,11 @@ class _FakePtyBackend
   final Set<String> failingOperations = <String>{};
   final Map<(int, int), PtyGraphicAsset> graphicAssets =
       <(int, int), PtyGraphicAsset>{};
+  final Map<(String, int), Uint8List> fileDownloads =
+      <(String, int), Uint8List>{};
+  final List<(String, int, int)> fileDownloadTakeRequests =
+      <(String, int, int)>[];
+  final List<(String, int)> fileDownloadDiscardRequests = <(String, int)>[];
   List<Map<String, Object?>> searchResponse = const <Map<String, Object?>>[];
   String? searchRawResponse;
   String? searchErrorText;
@@ -9602,6 +9729,25 @@ class _FakePtyBackend
     _throwIfFailing('loadGraphicAsset');
     graphicAssetRequests.add((sessionId, assetId, assetVersion));
     return graphicAssets[(assetId, assetVersion)];
+  }
+
+  @override
+  Uint8List? takeFileDownload(
+    String sessionId, {
+    required int downloadId,
+    required int expectedSize,
+  }) {
+    _throwIfFailing('takeFileDownload');
+    fileDownloadTakeRequests.add((sessionId, downloadId, expectedSize));
+    final bytes = fileDownloads.remove((sessionId, downloadId));
+    return bytes?.length == expectedSize ? Uint8List.fromList(bytes!) : null;
+  }
+
+  @override
+  bool discardFileDownload(String sessionId, {required int downloadId}) {
+    _throwIfFailing('discardFileDownload');
+    fileDownloadDiscardRequests.add((sessionId, downloadId));
+    return fileDownloads.remove((sessionId, downloadId)) != null;
   }
 
   @override

@@ -38,6 +38,7 @@ Future<void> _pumpShellScreen(
   SessionClipboardMimeTypeList? clipboardMimeTypeList,
   ShellNotificationSender? notificationSender,
   ShellNotificationCloser? notificationCloser,
+  ShellFileDownloadWriter? fileDownloadWriter,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -77,6 +78,8 @@ Future<void> _pumpShellScreen(
           shellNotificationSenderProvider.overrideWithValue(notificationSender),
         if (notificationCloser != null)
           shellNotificationCloserProvider.overrideWithValue(notificationCloser),
+        if (fileDownloadWriter != null)
+          shellFileDownloadWriterProvider.overrideWithValue(fileDownloadWriter),
       ],
       child: MaterialApp(
         theme: ThemeData.light().copyWith(
@@ -776,6 +779,158 @@ void main() {
       find.text('iTerm2 OSC 1337 copied 20 characters to the clipboard'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('OSC 1337 download requires Save before writing bytes', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final fakeBindings = FakePtyBackend();
+    const selectedPath = '/chosen/saved-report.txt';
+    final savedFiles = <String, Uint8List>{};
+    const channel = MethodChannel('app/window_bridge');
+    final calls = <MethodCall>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+      call,
+    ) async {
+      calls.add(call);
+      return call.method == 'chooseFileDownloadLocation' ? selectedPath : null;
+    });
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      ),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      fileDownloadWriter: (path, bytes) async {
+        savedFiles[path] = Uint8List.fromList(bytes);
+      },
+    );
+    fakeBindings.fileDownloads[('1', 7)] = Uint8List.fromList(
+      utf8.encode('hello'),
+    );
+    fakeBindings.enqueueEvent(
+      1,
+      const PtyEvent(
+        kind: 'file_download',
+        sessionId: '1',
+        payload: <String, Object?>{
+          'source': 'iterm1337',
+          'transferId': '7',
+          'filename': 'report.txt',
+          'size': 5,
+        },
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('Received report.txt (5 B)'), findsOneWidget);
+    expect(savedFiles, isEmpty);
+    await tester.tap(find.byKey(const Key('osc1337-file-download-save-7')));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(utf8.decode(savedFiles[selectedPath]!), 'hello');
+    expect(fakeBindings.takenFileDownloads, <(String, int)>[('1', 7)]);
+    expect(fakeBindings.discardedFileDownloads, isEmpty);
+    expect(
+      calls
+          .where((call) => call.method == 'chooseFileDownloadLocation')
+          .single
+          .arguments,
+      <String, Object?>{'suggestedName': 'report.txt'},
+    );
+    expect(find.text('Saved report.txt'), findsOneWidget);
+  });
+
+  testWidgets('OSC 1337 download cancel and inactive pane release bytes', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final fakeBindings = FakePtyBackend();
+    const channel = MethodChannel('app/window_bridge');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      channel,
+      (call) async => null,
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      ),
+    );
+
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+    fakeBindings.fileDownloads[('1', 8)] = Uint8List.fromList(const <int>[1]);
+    fakeBindings.enqueueEvent(
+      1,
+      const PtyEvent(
+        kind: 'file_download',
+        sessionId: '1',
+        payload: <String, Object?>{
+          'source': 'iterm1337',
+          'transferId': '8',
+          'filename': 'cancel.bin',
+          'size': 1,
+        },
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.byKey(const Key('osc1337-file-download-save-8')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 20));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(fakeBindings.discardedFileDownloads, <(String, int)>[('1', 8)]);
+    expect(find.text('Received file discarded'), findsOneWidget);
+
+    await _tapTabContextMenuAction(tester, 'Split right');
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final splitState = container.read(sessionControllerProvider);
+    final activeSessionId = splitState.activeSessionId!;
+    final inactiveSessionId = splitState.tabs.single.effectivePanes
+        .firstWhere((pane) => pane.sessionId != activeSessionId)
+        .sessionId;
+    fakeBindings.fileDownloads[(inactiveSessionId, 9)] = Uint8List.fromList(
+      const <int>[2],
+    );
+    fakeBindings.enqueueEvent(
+      inactiveSessionId,
+      PtyEvent(
+        kind: 'file_download',
+        sessionId: inactiveSessionId,
+        payload: const <String, Object?>{
+          'source': 'iterm1337',
+          'transferId': '9',
+          'filename': 'background.bin',
+          'size': 1,
+        },
+      ),
+    );
+    container
+        .read(terminalRuntimeControllerProvider)
+        .refreshSession(inactiveSessionId);
+    await tester.pump();
+
+    expect(find.textContaining('Received background.bin'), findsNothing);
+    expect(fakeBindings.discardedFileDownloads, <(String, int)>[
+      ('1', 8),
+      (inactiveSessionId, 9),
+    ]);
   });
 
   testWidgets('OSC 52 ask policy prompts before paste read', (tester) async {

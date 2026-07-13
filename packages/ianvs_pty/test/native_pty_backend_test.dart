@@ -162,6 +162,37 @@ void main() {
     expect(bindings.lastAssetVersion, 3);
   });
 
+  test('native pty backend consumes and discards file downloads once', () {
+    final bindings = _FileDownloadRecordingPtyBindings();
+    final backend =
+        NativePtyBackend.fromBindings(bindings)
+            as PtySessionFileDownloadBackend;
+
+    final bytes = backend.takeFileDownload(
+      '9',
+      downloadId: 42,
+      expectedSize: 5,
+    );
+    final discarded = backend.discardFileDownload('9', downloadId: 43);
+
+    expect(bytes, <int>[1, 2, 3, 4, 5]);
+    expect(discarded, isTrue);
+    expect(bindings.takeCalls, <(int, int, int)>[(9, 42, 5)]);
+    expect(bindings.discardCalls, <(int, int)>[(9, 43)]);
+    expect(
+      () => backend.takeFileDownload('9', downloadId: 0, expectedSize: 5),
+      throwsArgumentError,
+    );
+    expect(
+      () => backend.takeFileDownload(
+        '9',
+        downloadId: 1,
+        expectedSize: 16 * 1024 * 1024 + 1,
+      ),
+      throwsRangeError,
+    );
+  });
+
   test(
     'native pty backend leaves generic JSON response validation to callers',
     () {
@@ -701,5 +732,27 @@ class _GraphicAssetRecordingPtyBindings extends _NoopPtyBindings {
       height: 1,
       rgba: Uint8List.fromList(const <int>[255, 0, 0, 255]),
     );
+  }
+}
+
+class _FileDownloadRecordingPtyBindings extends _NoopPtyBindings
+    implements PtyFileDownloadBindings {
+  final List<(int, int, int)> takeCalls = <(int, int, int)>[];
+  final List<(int, int)> discardCalls = <(int, int)>[];
+
+  @override
+  Uint8List? sessionTakeFileDownload(
+    int sessionId,
+    int downloadId,
+    int expectedSize,
+  ) {
+    takeCalls.add((sessionId, downloadId, expectedSize));
+    return Uint8List.fromList(const <int>[1, 2, 3, 4, 5]);
+  }
+
+  @override
+  bool sessionDiscardFileDownload(int sessionId, int downloadId) {
+    discardCalls.add((sessionId, downloadId));
+    return true;
   }
 }

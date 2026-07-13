@@ -1182,6 +1182,11 @@ class SessionController extends Notifier<SessionState> {
       case TerminalSessionDragDropCommandEvent():
         // ShellScreen owns the system drag/drop bridge and active-pane routing.
         break;
+      case TerminalSessionFileDownloadEvent():
+      case TerminalSessionFileDownloadFailedEvent():
+      case TerminalSessionFileUploadDeniedEvent():
+        // ShellScreen owns explicit save consent and active-pane routing.
+        break;
       case TerminalSessionCellSizeReportRequestEvent():
         // TerminalRuntimeController owns the immediate protocol reply.
         break;

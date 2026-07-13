@@ -325,6 +325,39 @@ pub unsafe extern "C" fn ianvs_session_graphic_asset_rgba_copy(
 }
 
 #[unsafe(no_mangle)]
+/// Atomically copies and consumes one completed OSC 1337 download.
+///
+/// # Safety
+///
+/// When `len` is non-zero, `dst` must point to `len` writable bytes for the
+/// duration of this call. When `len` is zero, `dst` may be null.
+pub unsafe extern "C" fn ianvs_session_file_download_take(
+    session_id: u64,
+    download_id: u64,
+    dst: *mut u8,
+    len: usize,
+) -> isize {
+    let dst = if len == 0 {
+        &mut []
+    } else {
+        if dst.is_null() {
+            return -1;
+        }
+        unsafe { std::slice::from_raw_parts_mut(dst, len) }
+    };
+    session::take_file_download(session_id, download_id, dst)
+        .map(|copied| copied as isize)
+        .unwrap_or(-1)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ianvs_session_file_download_discard(session_id: u64, download_id: u64) -> c_int {
+    session::discard_file_download(session_id, download_id)
+        .map(|_| 0)
+        .unwrap_or(-1)
+}
+
+#[unsafe(no_mangle)]
 /// # Safety
 ///
 /// `value` must be a pointer previously returned by this library via

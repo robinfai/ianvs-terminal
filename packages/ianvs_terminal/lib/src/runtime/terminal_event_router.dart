@@ -22,6 +22,9 @@ enum TerminalImmediateEventKind {
   sessionTabStatus,
   terminalContext,
   dragDropCommand,
+  fileDownload,
+  fileDownloadFailed,
+  fileUploadDenied,
   cellSizeReportRequest,
   sessionReset,
 }
@@ -132,6 +135,18 @@ final class TerminalEventRouter {
       ),
       'drag_drop_command' => TerminalImmediateEventRoute(
         kind: TerminalImmediateEventKind.dragDropCommand,
+        payload: event.payload,
+      ),
+      'file_download' => TerminalImmediateEventRoute(
+        kind: TerminalImmediateEventKind.fileDownload,
+        payload: event.payload,
+      ),
+      'file_download_failed' => TerminalImmediateEventRoute(
+        kind: TerminalImmediateEventKind.fileDownloadFailed,
+        payload: event.payload,
+      ),
+      'file_upload_denied' => TerminalImmediateEventRoute(
+        kind: TerminalImmediateEventKind.fileUploadDenied,
         payload: event.payload,
       ),
       'cell_size_report_request' => TerminalImmediateEventRoute(
