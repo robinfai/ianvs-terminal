@@ -370,6 +370,9 @@ pub struct TerminalBlock {
     pub source_start_row: usize,
     pub source_end_row: usize,
     pub folded: bool,
+    /// Whether OSC 1337 requested terminal-local text-document rendering.
+    #[serde(default)]
+    pub rendered: bool,
     #[serde(default)]
     pub hidden_rows: usize,
 }

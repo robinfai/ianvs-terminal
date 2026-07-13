@@ -61,6 +61,7 @@ message TerminalBlock {
   uint32 source_end_row = 6;
   bool folded = 7;
   uint32 hidden_rows = 8;
+  bool rendered = 9;
 }
 
 message TerminalStyleRun {

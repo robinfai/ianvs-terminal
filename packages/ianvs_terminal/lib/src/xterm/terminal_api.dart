@@ -381,6 +381,14 @@ class Terminal implements TerminalDisposable {
     return _runtime.setBlockFolded(_requireSessionId(), id, folded: folded);
   }
 
+  bool setBlockRendered(String id, {required bool rendered}) {
+    return _runtime.setBlockRendered(
+      _requireSessionId(),
+      id,
+      rendered: rendered,
+    );
+  }
+
   void refresh() {
     _runtime.refreshSession(_requireSessionId());
   }

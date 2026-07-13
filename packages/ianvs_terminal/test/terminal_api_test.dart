@@ -117,6 +117,21 @@ void main() {
     expect(dataEvents, <String>['ls']);
     expect(inputEvents.single.bytes, Uint8List.fromList(utf8.encode('ls')));
 
+    expect(terminal.setBlockFolded('build-1', folded: true), isTrue);
+    expect(terminal.setBlockRendered('build-1', rendered: false), isTrue);
+    expect(backend.jsonRequests, <Map<String, Object?>>[
+      <String, Object?>{
+        'kind': 'terminal.set_block_folded',
+        'id': 'build-1',
+        'folded': true,
+      },
+      <String, Object?>{
+        'kind': 'terminal.set_block_rendered',
+        'id': 'build-1',
+        'rendered': false,
+      },
+    ]);
+
     terminal.dispose();
 
     expect(backend.closeCalls, <String>['1']);
@@ -356,6 +371,7 @@ class _FakePtyBackend
   final List<Uint8List> writeCalls = <Uint8List>[];
   final List<List<Object?>> resizeCalls = <List<Object?>>[];
   final List<(String, int)> scrollToCalls = <(String, int)>[];
+  final List<Map<String, Object?>> jsonRequests = <Map<String, Object?>>[];
   final Map<String, Map<String, Object?>> _frames =
       <String, Map<String, Object?>>{};
   final Map<String, List<PtyEvent>> _queuedEvents = <String, List<PtyEvent>>{};
@@ -442,11 +458,14 @@ class _FakePtyBackend
   @override
   String? requestSessionJson(String sessionId, String requestJson) {
     final request = (jsonDecode(requestJson) as Map).cast<String, Object?>();
+    jsonRequests.add(request);
     return switch (request['kind']) {
       'terminal.search_text' => '[]',
       'terminal.selection_text' => jsonEncode(<String, Object?>{
         'text': 'selected',
       }),
+      'terminal.set_block_folded' || 'terminal.set_block_rendered' =>
+        jsonEncode(<String, Object?>{'updated': true}),
       _ => null,
     };
   }

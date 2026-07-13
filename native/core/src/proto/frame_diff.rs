@@ -99,6 +99,8 @@ pub struct TerminalBlock {
     pub folded: bool,
     #[prost(uint32, tag = "8")]
     pub hidden_rows: u32,
+    #[prost(bool, tag = "9")]
+    pub rendered: bool,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct TerminalStyleRun {

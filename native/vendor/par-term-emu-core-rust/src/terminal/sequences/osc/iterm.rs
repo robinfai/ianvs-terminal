@@ -1221,6 +1221,25 @@ mod tests {
     }
 
     #[test]
+    fn rendered_blocks_can_restore_original_grid_presentation() {
+        let mut terminal = Terminal::new(20, 4);
+        terminal.process(b"\x1b]1337;Block=id=document;attr=start;type=json\x07{\"ok\": true}");
+        terminal.process(b"\x1b]1337;Block=id=document;attr=end;render=1\x07");
+        assert!(terminal.iterm_blocks().back().unwrap().render);
+
+        assert!(terminal.set_iterm_block_rendered("document", false));
+        assert!(!terminal.iterm_blocks().back().unwrap().render);
+        assert!(!terminal.set_iterm_block_rendered("document", false));
+        assert!(!terminal.set_iterm_block_rendered("missing", false));
+        assert!(terminal.set_iterm_block_rendered("document", true));
+
+        let snapshot = terminal.capture_snapshot();
+        let mut restored = Terminal::new(20, 4);
+        restored.restore_from_snapshot(snapshot);
+        assert!(restored.iterm_blocks().back().unwrap().render);
+    }
+
+    #[test]
     fn block_inputs_are_bounded_and_clear_buffer_discards_marks() {
         let mut terminal = Terminal::new(20, 4);
         let oversized = "x".repeat(MAX_ITERM_BLOCK_ID_CHARS + 1);

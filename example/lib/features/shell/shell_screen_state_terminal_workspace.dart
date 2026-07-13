@@ -430,6 +430,16 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                                       folded: !block.folded,
                                     );
                               },
+                              onDismissBlockRender: (block) {
+                                selectionController.clear();
+                                ref
+                                    .read(terminalRuntimeControllerProvider)
+                                    .setBlockRendered(
+                                      sessionId,
+                                      block.id,
+                                      rendered: false,
+                                    );
+                              },
                               onOpenLinkTarget: (target) => unawaited(
                                 _openTerminalLinkTarget(sessionId, target),
                               ),

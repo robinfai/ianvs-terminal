@@ -37,6 +37,7 @@ void main() {
           'source_start_row': 100,
           'source_end_row': 102,
           'folded': true,
+          'rendered': true,
           'hidden_rows': 2,
         },
       ],
@@ -54,6 +55,8 @@ void main() {
     expect(frame.blocks.single.id, 'build-1');
     expect(frame.blocks.single.blockType, 'build');
     expect(frame.blocks.single.folded, isTrue);
+    expect(frame.blocks.single.rendered, isTrue);
+    expect(frame.blocks.single.canFold, isTrue);
     expect(frame.blocks.single.hiddenRows, 2);
   });
 
@@ -82,6 +85,7 @@ void main() {
           sourceStartRow: 100,
           sourceEndRow: 102,
           folded: true,
+          rendered: true,
           hiddenRows: 2,
         ),
       ],
@@ -99,6 +103,7 @@ void main() {
     expect(frame.blocks.single.sourceStartRow, 100);
     expect(frame.blocks.single.sourceEndRow, 102);
     expect(frame.blocks.single.folded, isTrue);
+    expect(frame.blocks.single.rendered, isTrue);
     expect(frame.blocks.single.hiddenRows, 2);
   });
 

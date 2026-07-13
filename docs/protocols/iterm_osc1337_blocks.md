@@ -1,6 +1,7 @@
 # iTerm2 OSC 1337 Block and UpdateBlock
 
-Ianvs supports the terminal-local layout subset of iTerm2 block folding:
+Ianvs supports iTerm2's terminal-local block folding and text-document
+presentation commands:
 
 ```text
 OSC 1337 ; Block=id=<id>;attr=start[;type=<type>] ST
@@ -24,15 +25,24 @@ wins. Unknown attributes, actions and IDs are no-ops.
   interior physical rows. The source grid is not destructively rewritten.
 - Overlapping folded ranges collapse to the outermost stable summary. Unfolding
   restores the original grid immediately.
-- `render=1` is retained as bounded parser metadata, but iTerm2's associated
-  text/JSON document transformation is not implemented in this folding phase.
-  It remains a safe deferred action and grants no host authority.
+- `render=1` changes the completed, unfolded region into a theme-derived text
+  document presentation. `type` selects Markdown, JSON, plain text or generic
+  code styling; missing types use bounded visible-text heuristics.
+- Rendering is a reversible presentation projection. The original terminal
+  rows remain authoritative for selection, search, copy, replay and resize.
+  Closing the document restores the rows' original terminal styling.
+- Folding a rendered block hides its document presentation; unfolding restores
+  it. User document-close and fold choices are preserved across
+  transcript-backed width replay.
 - RIS, CSI `3 J`, and OSC 1337 `ClearScrollback` discard stale block marks.
 
-Ianvs deliberately implements folding as a reversible display projection. This
-matches iTerm2's observable first/last-line summary and fold controls while
-preserving the terminal grid as the authoritative source for copy, search and
-replay.
+Ianvs deliberately implements both folding and text documents as reversible
+display projections. This matches iTerm2's observable fold controls,
+syntax-aware document presentation, selection/search behavior and close-to-
+restore action while preserving the terminal grid as the authoritative source.
+iTerm2 replaces rows with a variable-height AppKit Porthole; Ianvs keeps the
+same terminal-cell row geometry so scrollback, graphics and frame coordinates
+remain deterministic across Flutter platforms.
 
 ## Cross-layer mapping
 
@@ -53,9 +63,11 @@ entire hidden interval; projection padding maps to no source row.
   reflow. If replay is unavailable, direct reflow invalidates physical marks
   instead of exposing stale coordinates.
 
-Frame transport is additive: protobuf frame tag `31` carries blocks, while row
-tags `6` and `7` carry source bounds. Older consumers ignore the new tags and
-legacy frames retain contiguous-row fallback behavior.
+Frame transport is additive: protobuf frame tag `31` carries blocks, block tag
+`9` carries the `rendered` state, and row tags `6` and `7` carry source bounds.
+Document content is not duplicated into frame metadata; it remains in the
+existing bounded viewport rows. Older consumers ignore the new tag and legacy
+frames default `rendered` to false.
 
 ## Bounds and safety
 
@@ -66,19 +78,19 @@ legacy frames retain contiguous-row fallback behavior.
 - Retained blocks: at most 512; completed entries are evicted first.
 - Frame blocks: at most 512 with viewport and source-range validation.
 
-The protocol changes only terminal-local layout. It cannot read files, access
-the clipboard, open URLs, focus windows, switch profiles, launch processes or
-perform another host action.
+Document styling examines only already-rendered viewport strings. The protocol
+changes only terminal-local layout and cannot read files, access the clipboard,
+open URLs, focus windows, switch profiles, launch processes or perform another
+host action.
 
 ## Reference behavior
 
 The implementation was compared with iTerm2 commit
 `2c6c17162f5fc979e0933714803f1a4a7f1fffa3`, including its
-`tests/test_block_folding.sh`, OSC parser, screen delegate, fold summary and
-fold-button paths. Ianvs uses reversible row virtualization rather than
-iTerm2's internal destructive buffer fold, while preserving the protocol's
-observable fold/unfold behavior.
-
-The comparison also confirmed that iTerm2 routes `attr=end;render=1` through
-its text-document renderer. Ianvs does not claim that separate transformation
-as part of the folding subset.
+`tests/test_block_folding.sh`, `VT100Terminal.m`, the screen/session delegates,
+`PTYTextView.swift`, `PortholeFactory.swift`, `TextViewPortholeRenderer.swift`
+and the Markdown/JSON renderer specializations. iTerm2 extracts the original
+range, builds a selectable/searchable text Porthole, applies a `type` hint or
+auto-detection, and restores saved lines when the Porthole closes. Ianvs uses
+reversible cross-platform row projection rather than destructive AppKit buffer
+replacement while preserving those protocol-level behaviors.

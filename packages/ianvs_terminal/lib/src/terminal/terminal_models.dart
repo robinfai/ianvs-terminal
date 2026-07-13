@@ -262,6 +262,7 @@ class TerminalBlock {
     required this.folded,
     required this.hiddenRows,
     this.blockType,
+    this.rendered = false,
   });
 
   final String id;
@@ -271,7 +272,10 @@ class TerminalBlock {
   final int sourceStartRow;
   final int sourceEndRow;
   final bool folded;
+  final bool rendered;
   final int hiddenRows;
+
+  bool get canFold => sourceEndRow > sourceStartRow;
 
   static TerminalBlock? tryFromJson(Map<String, Object?> json) {
     final id = _nonEmptyTrimmedStringFromJson(json['id']);
@@ -305,6 +309,7 @@ class TerminalBlock {
       sourceStartRow: sourceStartRow,
       sourceEndRow: sourceEndRow,
       folded: _boolFromJson(json['folded'], fallback: false),
+      rendered: _boolFromJson(json['rendered'], fallback: false),
       hiddenRows: _nonNegativeIntFromJson(json['hidden_rows']),
     );
   }
@@ -1628,6 +1633,7 @@ TerminalBlock? _terminalBlockFromProtobuf(
     'source_start_row': block.sourceStartRow,
     'source_end_row': block.sourceEndRow,
     'folded': block.folded,
+    'rendered': block.rendered,
     'hidden_rows': block.hiddenRows,
   });
   if (decoded == null ||

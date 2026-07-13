@@ -493,3 +493,34 @@ safety-policy reason documented in `osc_cross_terminal_probe_20260711.md`.
 - **Compatibility:** additive protobuf frame tag 31 and row tags 6/7; legacy
   contiguous frames retain fallback mapping and protobuf tags are not reused.
 - **Rollback:** revert the Phase 26 implementation commit.
+
+## Phase 27 report — iTerm2 OSC 1337 block rendering
+
+- **Start SHA:** `f96cf73eacf6fb2b6df86e76ca64cd47ec6cccb0`.
+- **Confirmed gap:** Phase 26 retained `attr=end;render=1` only as bounded
+  metadata, so iTerm2's type-aware text-document presentation and
+  close-to-restore lifecycle were absent.
+- **Fixes:** reversible Markdown/JSON/plain/code paint projection, explicit and
+  heuristic type classification, theme-derived Unicode-safe syntax runs,
+  search/selection continuity, accessible close/fold controls, user view-state
+  preservation through resize replay and additive JSON/protobuf transport.
+- **Review corrections:** rendered single-line blocks cross the frame without
+  becoming foldable; close clears only presentation state; narrow UI always
+  retains the close action; document text remains in existing bounded rows and
+  is never duplicated or evaluated.
+- **Security:** presentation-only, bounded type/content inputs, VT220 and
+  alternate-screen gates, no dependency or host authority.
+- **Tests/results:** targeted parser, corpus, native unit/real-PTY, resize,
+  JSON/protobuf, Dart model/runtime/API/style and widget tests pass. The final
+  full gate passed with corpus 33/49, probes 27, vendored 1,678 passed/1 ignored,
+  native core 93/93 and session 484/484, package 473 passed/1 existing skip,
+  example grouped 930/930, Widget 128/128, macOS smoke 4/4, real PTY 31/31 and
+  RunnerTests 14/14.
+- **Computer Use:** the verifier-built standalone app visibly passed JSON
+  styling/type, exact close-to-restore, fold/unfold-to-render, 93×21↔203×43
+  transcript-backed replay, `SHELL ACTIVE` and continued input; see
+  `osc1337_block_render_phase27_20260713.md`.
+- **Compatibility:** optional protobuf block tag 9; missing state defaults to
+  false and Phase 26 frame/source tags remain unchanged.
+- **Rollback:** revert the Phase 27 implementation; Phase 26 folding remains
+  supported and `render=1` returns to bounded metadata.

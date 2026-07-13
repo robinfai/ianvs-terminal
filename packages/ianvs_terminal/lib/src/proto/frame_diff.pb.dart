@@ -580,6 +580,7 @@ class TerminalBlock extends $pb.GeneratedMessage {
     $core.int? sourceEndRow,
     $core.bool? folded,
     $core.int? hiddenRows,
+    $core.bool? rendered,
   }) {
     final result = create();
     if (id != null) result.id = id;
@@ -590,6 +591,7 @@ class TerminalBlock extends $pb.GeneratedMessage {
     if (sourceEndRow != null) result.sourceEndRow = sourceEndRow;
     if (folded != null) result.folded = folded;
     if (hiddenRows != null) result.hiddenRows = hiddenRows;
+    if (rendered != null) result.rendered = rendered;
     return result;
   }
 
@@ -616,6 +618,7 @@ class TerminalBlock extends $pb.GeneratedMessage {
         fieldType: $pb.PbFieldType.OU3)
     ..aOB(7, _omitFieldNames ? '' : 'folded')
     ..aI(8, _omitFieldNames ? '' : 'hiddenRows', fieldType: $pb.PbFieldType.OU3)
+    ..aOB(9, _omitFieldNames ? '' : 'rendered')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -708,6 +711,15 @@ class TerminalBlock extends $pb.GeneratedMessage {
   $core.bool hasHiddenRows() => $_has(7);
   @$pb.TagNumber(8)
   void clearHiddenRows() => $_clearField(8);
+
+  @$pb.TagNumber(9)
+  $core.bool get rendered => $_getBF(8);
+  @$pb.TagNumber(9)
+  set rendered($core.bool value) => $_setBool(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasRendered() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearRendered() => $_clearField(9);
 }
 
 class TerminalStyleRun extends $pb.GeneratedMessage {

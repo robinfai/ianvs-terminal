@@ -2562,6 +2562,13 @@ impl TerminalSession {
         let should_rebuild_main_screen = !state.terminal.is_alt_screen_active();
 
         if should_rebuild_main_screen && !state.transcript_truncated {
+            let block_view_overrides = state
+                .terminal
+                .iterm_blocks()
+                .iter()
+                .filter(|block| block.complete)
+                .map(|block| (block.id.clone(), block.folded, block.render))
+                .collect::<Vec<_>>();
             let transcript = state.transcript.clone();
             let mut terminal =
                 Terminal::with_scrollback(cols as usize, rows as usize, self.scrollback_lines);
@@ -2592,6 +2599,12 @@ impl TerminalSession {
             let _ = terminal.take_notifications();
             let _ = terminal.drain_responses();
             let _ = terminal.take_process_debug_stats();
+            // Protocol replay reconstructs block ranges at the new width. Keep
+            // user-driven fold and document-close choices made after ingress.
+            for (id, folded, rendered) in block_view_overrides {
+                let _ = terminal.set_iterm_block_folded(&id, folded);
+                let _ = terminal.set_iterm_block_rendered(&id, rendered);
+            }
             state.terminal = terminal;
         } else {
             state.terminal.resize(cols as usize, rows as usize);
@@ -2688,6 +2701,30 @@ impl TerminalSession {
                     "iterm_block_fold_request"
                 } else {
                     "iterm_block_unfold_request"
+                })
+            });
+        }
+        changed
+    }
+
+    pub fn set_block_rendered(&self, id: &str, rendered: bool) -> bool {
+        if id.is_empty()
+            || id.chars().count() > par_term_emu_core_rust::terminal::MAX_ITERM_BLOCK_ID_CHARS
+            || id.chars().any(char::is_control)
+        {
+            return false;
+        }
+        let mut state = self.state.lock();
+        let changed = state.terminal.set_iterm_block_rendered(id, rendered);
+        drop(state);
+        if changed {
+            self.last_rows.lock().clear();
+            *self.last_frame_meta.lock() = None;
+            self.pending_frame_signal.mutate(|work| {
+                work.mark_full_repaint(if rendered {
+                    "iterm_block_render_request"
+                } else {
+                    "iterm_block_restore_request"
                 })
             });
         }
@@ -4591,7 +4628,7 @@ fn build_terminal_blocks(
     let mut blocks = terminal
         .iterm_blocks()
         .iter()
-        .filter(|block| block.complete && block.end_abs_row > block.start_abs_row)
+        .filter(|block| block.complete && (block.render || block.end_abs_row > block.start_abs_row))
         .filter(|block| {
             block.end_abs_row >= first_retained_abs_row
                 && block.start_abs_row <= last_retained_abs_row
@@ -4628,6 +4665,7 @@ fn build_terminal_blocks(
                 source_start_row,
                 source_end_row,
                 folded: block.folded,
+                rendered: block.render,
                 hidden_rows: if block.folded {
                     source_end_row.saturating_sub(source_start_row)
                 } else {
@@ -7004,6 +7042,19 @@ pub fn request_session_json(
                 .map(Some)
                 .map_err(|error| SessionError::Serialize(error.to_string()))
         }
+        "terminal.set_block_rendered" => {
+            let Some(id) = request.get("id").and_then(serde_json::Value::as_str) else {
+                return Ok(None);
+            };
+            let Some(rendered) = request.get("rendered").and_then(serde_json::Value::as_bool)
+            else {
+                return Ok(None);
+            };
+            let updated = STORE.get(session_id)?.set_block_rendered(id, rendered);
+            serde_json::to_string(&serde_json::json!({ "updated": updated }))
+                .map(Some)
+                .map_err(|error| SessionError::Serialize(error.to_string()))
+        }
         "terminal.export_scrollback" => {
             let max_lines = scrollback_export_max_lines_from_request(&request);
             export_scrollback_session(session_id, max_lines).map(Some)
@@ -7227,6 +7278,25 @@ mod tests {
             terminal.grid().scrollback_len() + terminal.size().1
         );
         assert_eq!(unfolded.display_index_for_source(3), Some(3));
+    }
+
+    #[test]
+    fn rendered_single_line_block_is_exposed_without_becoming_foldable() {
+        let mut terminal = Terminal::new(20, 4);
+        terminal
+            .process(b"\x1b]1337;Block=id=json;attr=start;type=application/json\x07{\"ok\":true}");
+        terminal.process(b"\x1b]1337;Block=id=json;attr=end;render=1\x07");
+
+        let projection = display_projection_for_terminal(&terminal);
+        let blocks = build_terminal_blocks(&terminal, &projection, 0, 4);
+
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].id, "json");
+        assert_eq!(blocks[0].block_type.as_deref(), Some("application/json"));
+        assert!(blocks[0].rendered);
+        assert!(!blocks[0].folded);
+        assert_eq!(blocks[0].source_start_row, blocks[0].source_end_row);
+        assert!(!terminal.set_iterm_block_folded("json", true));
     }
 
     #[test]

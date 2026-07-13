@@ -85,6 +85,16 @@ final class TerminalJsonRequestClient {
     return decoded?['updated'] == true;
   }
 
+  bool setBlockRendered(String sessionId, String id, {required bool rendered}) {
+    const operation = 'terminal.set_block_rendered';
+    final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
+      'kind': operation,
+      'id': id,
+      'rendered': rendered,
+    });
+    return decoded?['updated'] == true;
+  }
+
   String? exportScrollbackText(String sessionId, {int? maxLines}) {
     const operation = 'terminal.export_scrollback';
     final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{

@@ -107,6 +107,22 @@ impl ItermBlockState {
         block.folded = folded;
         true
     }
+
+    fn set_rendered(&mut self, id: &str, rendered: bool) -> bool {
+        let Some(block) = self
+            .blocks
+            .iter_mut()
+            .rev()
+            .find(|block| block.complete && block.id == id)
+        else {
+            return false;
+        };
+        if block.render == rendered {
+            return false;
+        }
+        block.render = rendered;
+        true
+    }
 }
 
 impl Terminal {
@@ -121,6 +137,18 @@ impl Terminal {
                 "iterm_block_fold"
             } else {
                 "iterm_block_unfold"
+            });
+        }
+        changed
+    }
+
+    pub fn set_iterm_block_rendered(&mut self, id: &str, rendered: bool) -> bool {
+        let changed = self.iterm_blocks.set_rendered(id, rendered);
+        if changed {
+            self.mark_full_repaint(if rendered {
+                "iterm_block_render"
+            } else {
+                "iterm_block_restore"
             });
         }
         changed

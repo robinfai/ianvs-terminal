@@ -1071,6 +1071,26 @@ class TerminalRuntimeController {
     return true;
   }
 
+  bool setBlockRendered(String sessionId, String id, {required bool rendered}) {
+    if (!hasSession(sessionId) || id.isEmpty) {
+      return false;
+    }
+    if (!_jsonRequestClient.setBlockRendered(
+      sessionId,
+      id,
+      rendered: rendered,
+    )) {
+      return false;
+    }
+    _framePumpController.reset(
+      sessionId,
+      now: _monotonicNow,
+      reason: TerminalFramePumpResetReason.input,
+    );
+    _requestRefreshSession(sessionId, immediate: true);
+    return true;
+  }
+
   String? exportScrollbackText(String sessionId, {int? maxLines}) {
     if (!hasSession(sessionId)) {
       return null;

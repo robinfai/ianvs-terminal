@@ -603,6 +603,7 @@
       "coverage": [
         "iTerm2 OSC 1337 block lifecycle",
         "iTerm2 OSC 1337 nested block folding",
+        "iTerm2 OSC 1337 text document rendering",
         "iTerm2 OSC 1337 block update no-op safety"
       ],
       "protocol": "iTerm2 OSC 1337 Block and UpdateBlock",
@@ -618,8 +619,8 @@
       },
       "terminator": "ST",
       "expected": {
-        "semantic_intent": "block_folding",
-        "state_effect": "nested blocks retain exact source ranges while the completed outer block folds and a missing update stays a no-op",
+        "semantic_intent": "block_folding_and_text_document_rendering",
+        "state_effect": "nested blocks retain exact source ranges and render metadata while the completed outer block folds and a missing update stays a no-op",
         "reply": "none",
         "must_not_crash": true
       }

@@ -18652,6 +18652,7 @@ fn session_osc1337_block_folding_crosses_real_pty_search_selection_and_runtime_r
     assert_eq!(block["source_start_row"].as_u64(), Some(0));
     assert_eq!(block["source_end_row"].as_u64(), Some(2));
     assert_eq!(block["hidden_rows"].as_u64(), Some(2));
+    assert_eq!(block["rendered"].as_bool(), Some(true));
     let summary = frame_row_at_index(&parsed, 0);
     assert_eq!(summary["source_row"].as_u64(), Some(0));
     assert_eq!(summary["source_end_row"].as_u64(), Some(2));
@@ -18737,6 +18738,79 @@ fn session_osc1337_block_folding_crosses_real_pty_search_selection_and_runtime_r
     assert_eq!(block["start_row"].as_u64(), Some(0));
     assert_eq!(block["end_row"].as_u64(), Some(2));
     assert_eq!(block["hidden_rows"].as_u64(), Some(0));
+    assert_eq!(block["rendered"].as_bool(), Some(true));
+
+    session::resize_session(session_id, 79, 6, 0, 0).unwrap();
+    let resized_rendered = wait_for_frame_where(session_id, |candidate| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(candidate) else {
+            return false;
+        };
+        parsed["viewport_cols"] == 79
+            && parsed["blocks"].as_array().is_some_and(|blocks| {
+                blocks.iter().any(|block| {
+                    block["id"] == "build-1"
+                        && block["folded"] == false
+                        && block["rendered"] == true
+                })
+            })
+    });
+    assert!(resized_rendered.contains("block-secret"));
+
+    session::resize_session(session_id, 80, 6, 0, 0).unwrap();
+    let restored_rendered = wait_for_frame_where(session_id, |candidate| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(candidate) else {
+            return false;
+        };
+        parsed["viewport_cols"] == 80
+            && parsed["blocks"].as_array().is_some_and(|blocks| {
+                blocks.iter().any(|block| {
+                    block["id"] == "build-1"
+                        && block["folded"] == false
+                        && block["rendered"] == true
+                })
+            })
+    });
+    assert!(restored_rendered.contains("block-secret"));
+
+    let restore_request = serde_json::json!({
+        "kind": "terminal.set_block_rendered",
+        "id": "build-1",
+        "rendered": false,
+    });
+    let response = session::request_session_json(session_id, &restore_request.to_string())
+        .unwrap()
+        .expect("expected document restore response");
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&response).unwrap()["updated"],
+        true
+    );
+    let restored_plain = wait_for_frame_where(session_id, |candidate| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(candidate) else {
+            return false;
+        };
+        parsed["blocks"].as_array().is_some_and(|blocks| {
+            blocks.iter().any(|block| {
+                block["id"] == "build-1" && block["folded"] == false && block["rendered"] == false
+            })
+        })
+    });
+    assert!(restored_plain.contains("block-secret"));
+
+    session::resize_session(session_id, 79, 6, 0, 0).unwrap();
+    let resized_plain = wait_for_frame_where(session_id, |candidate| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(candidate) else {
+            return false;
+        };
+        parsed["viewport_cols"] == 79
+            && parsed["blocks"].as_array().is_some_and(|blocks| {
+                blocks.iter().any(|block| {
+                    block["id"] == "build-1"
+                        && block["folded"] == false
+                        && block["rendered"] == false
+                })
+            })
+    });
+    assert!(resized_plain.contains("block-secret"));
 
     let missing_request = serde_json::json!({
         "kind": "terminal.set_block_folded",
@@ -18789,6 +18863,7 @@ fn session_osc1337_block_source_ranges_have_json_protobuf_parity() {
     assert_eq!((block.start_row, block.end_row), (0, 0));
     assert_eq!((block.source_start_row, block.source_end_row), (0, 2));
     assert_eq!(block.hidden_rows, 2);
+    assert!(block.rendered);
     let summary = decoded.rows.iter().find(|row| row.index == 0).unwrap();
     assert_eq!(
         (summary.source_row, summary.source_end_row),

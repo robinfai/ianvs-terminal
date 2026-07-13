@@ -17,12 +17,15 @@ import 'terminal_graphics_diagnostics.dart';
 import 'terminal_graphics_sync.dart';
 import 'terminal_input_controller.dart';
 import 'terminal_models.dart';
+import 'terminal_text_document_style.dart';
 import 'terminal_viewport_colors.dart';
 
 const Key terminalScrollbarTrackKey = Key('terminal-scrollbar-track');
 const Key terminalScrollbarThumbKey = Key('terminal-scrollbar-thumb');
 const Key terminalLinkTooltipKey = Key('terminal-link-tooltip');
 Key terminalBlockToggleKey(String id) => Key('terminal-block-toggle-$id');
+Key terminalBlockRenderCloseKey(String id) =>
+    Key('terminal-block-render-close-$id');
 const double _terminalTimestampOverlayWidth = 66;
 const Size terminalFallbackCellSize = Size(9, 18);
 final RegExp _visibleUrlPattern = RegExp(r'(?:https?|file)://[^\s<>()"]+');
@@ -192,6 +195,7 @@ class TerminalViewport extends StatefulWidget {
     this.benchmarkEventSink,
     this.graphicsDiagnosticSessionId,
     this.onToggleBlock,
+    this.onDismissBlockRender,
   });
 
   final TerminalViewportController controller;
@@ -222,6 +226,7 @@ class TerminalViewport extends StatefulWidget {
   final TerminalBenchmarkEventSink? benchmarkEventSink;
   final String? graphicsDiagnosticSessionId;
   final ValueChanged<TerminalBlock>? onToggleBlock;
+  final ValueChanged<TerminalBlock>? onDismissBlockRender;
 
   @override
   State<TerminalViewport> createState() => _TerminalViewportState();
@@ -1903,7 +1908,7 @@ class _TerminalViewportState extends State<TerminalViewport>
                               contentPadding,
                               effectiveColors,
                             ),
-                          ..._buildBlockFoldOverlays(
+                          ..._buildBlockOverlays(
                             frame,
                             contentPadding,
                             effectiveColors,
@@ -2306,13 +2311,15 @@ class _TerminalViewportState extends State<TerminalViewport>
     ];
   }
 
-  List<Widget> _buildBlockFoldOverlays(
+  List<Widget> _buildBlockOverlays(
     TerminalFrameDiff frame,
     EdgeInsets contentPadding,
     TerminalViewportColors colors,
   ) {
     final onToggleBlock = widget.onToggleBlock;
-    if (onToggleBlock == null || frame.blocks.isEmpty) {
+    final onDismissBlockRender = widget.onDismissBlockRender;
+    if ((onToggleBlock == null && onDismissBlockRender == null) ||
+        frame.blocks.isEmpty) {
       return const <Widget>[];
     }
     final cellSize =
@@ -2325,51 +2332,193 @@ class _TerminalViewportState extends State<TerminalViewport>
         contentPadding.right + (frame.scrollbackMaxOffset > 0 ? 20.0 : 4.0);
     return [
       for (final block in frame.blocks)
-        if (block.startRow >= 0 && block.startRow < frame.viewportRows)
+        if (block.startRow >= 0 &&
+            block.startRow < frame.viewportRows &&
+            ((onToggleBlock != null && block.canFold) ||
+                (onDismissBlockRender != null &&
+                    block.rendered &&
+                    !block.folded)))
           Positioned(
             top:
                 contentPadding.top +
                 block.startRow * cellSize.height -
                 (buttonSize - cellSize.height) / 2,
             right: rightInset,
-            width: buttonSize,
+            width: block.rendered && !block.folded
+                ? math.max(
+                    buttonSize,
+                    math.min(
+                      220.0,
+                      frame.viewportCols * cellSize.width -
+                          contentPadding.horizontal -
+                          rightInset,
+                    ),
+                  )
+                : buttonSize,
             height: buttonSize,
             child: Listener(
               onPointerDown: (_) => _blockTogglePointerActive = true,
               onPointerUp: (_) => _blockTogglePointerActive = false,
               onPointerCancel: (_) => _blockTogglePointerActive = false,
-              child: Tooltip(
-                message: block.folded ? 'Unfold block' : 'Fold block',
-                child: Semantics(
-                  button: true,
-                  excludeSemantics: true,
-                  label: block.folded
-                      ? 'Unfold terminal block'
-                      : 'Fold terminal block',
-                  onTap: () => onToggleBlock(block),
-                  child: IconButton(
-                    key: terminalBlockToggleKey(block.id),
-                    padding: EdgeInsets.zero,
-                    visualDensity: VisualDensity.compact,
-                    style: IconButton.styleFrom(
-                      foregroundColor: colors.foreground,
-                      backgroundColor: colors.canvasBackground.withValues(
-                        alpha: 0.88,
-                      ),
+              child: block.rendered && !block.folded
+                  ? _buildRenderedBlockControls(
+                      frame,
+                      block,
+                      colors,
+                      buttonSize,
+                      onToggleBlock: onToggleBlock,
+                      onDismissBlockRender: onDismissBlockRender,
+                    )
+                  : _buildFoldBlockControl(
+                      block,
+                      colors,
+                      buttonSize,
+                      onToggleBlock!,
                     ),
-                    iconSize: math.min(20.0, buttonSize * 0.64),
-                    icon: Icon(
-                      block.folded
-                          ? Icons.chevron_right_rounded
-                          : Icons.expand_more_rounded,
-                    ),
-                    onPressed: () => onToggleBlock(block),
-                  ),
-                ),
-              ),
             ),
           ),
     ];
+  }
+
+  Widget _buildFoldBlockControl(
+    TerminalBlock block,
+    TerminalViewportColors colors,
+    double buttonSize,
+    ValueChanged<TerminalBlock> onToggleBlock,
+  ) {
+    final label = block.folded
+        ? 'Unfold terminal block'
+        : 'Fold terminal block';
+    return Tooltip(
+      message: block.folded ? 'Unfold block' : 'Fold block',
+      child: Semantics(
+        button: true,
+        excludeSemantics: true,
+        label: label,
+        onTap: () => onToggleBlock(block),
+        child: IconButton(
+          key: terminalBlockToggleKey(block.id),
+          padding: EdgeInsets.zero,
+          visualDensity: VisualDensity.compact,
+          style: IconButton.styleFrom(
+            foregroundColor: colors.foreground,
+            backgroundColor: colors.canvasBackground.withValues(alpha: 0.88),
+          ),
+          iconSize: math.min(20.0, buttonSize * 0.64),
+          icon: Icon(
+            block.folded
+                ? Icons.chevron_right_rounded
+                : Icons.expand_more_rounded,
+          ),
+          onPressed: () => onToggleBlock(block),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRenderedBlockControls(
+    TerminalFrameDiff frame,
+    TerminalBlock block,
+    TerminalViewportColors colors,
+    double buttonSize, {
+    required ValueChanged<TerminalBlock>? onToggleBlock,
+    required ValueChanged<TerminalBlock>? onDismissBlockRender,
+  }) {
+    final visibleLines = <String>[
+      for (final row in frame.rows)
+        if (row.index >= block.startRow && row.index <= block.endRow) row.text,
+    ];
+    final kind = TerminalTextDocumentStyler.kindFor(
+      type: block.blockType,
+      visibleLines: visibleLines,
+    );
+    final documentLabel = TerminalTextDocumentStyler.displayLabel(
+      block.blockType,
+      kind,
+    );
+    final background = Color.alphaBlend(
+      colors.cursor.withValues(alpha: 0.12),
+      colors.canvasBackground,
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final showFold =
+            onToggleBlock != null &&
+            block.canFold &&
+            (onDismissBlockRender == null ||
+                constraints.maxWidth >= buttonSize * 2);
+        final actionWidth =
+            (showFold ? buttonSize : 0) +
+            (onDismissBlockRender != null ? buttonSize : 0);
+        final showLabel = constraints.maxWidth >= actionWidth + 48;
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            color: background.withValues(alpha: 0.96),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: colors.cursor.withValues(alpha: 0.36)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (showLabel)
+                Expanded(
+                  child: Semantics(
+                    label: 'Rendered terminal document: $documentLabel',
+                    excludeSemantics: true,
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 8, right: 4),
+                      child: Text(
+                        documentLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: colors.foreground.withValues(alpha: 0.82),
+                          fontSize: math.max(10, buttonSize * 0.34),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              if (showFold)
+                SizedBox(
+                  width: buttonSize,
+                  height: buttonSize,
+                  child: _buildFoldBlockControl(
+                    block,
+                    colors,
+                    buttonSize,
+                    onToggleBlock,
+                  ),
+                ),
+              if (onDismissBlockRender != null)
+                SizedBox(
+                  width: buttonSize,
+                  height: buttonSize,
+                  child: Tooltip(
+                    message: 'Close rendered document',
+                    child: Semantics(
+                      button: true,
+                      excludeSemantics: true,
+                      label: 'Close terminal text document',
+                      onTap: () => onDismissBlockRender(block),
+                      child: IconButton(
+                        key: terminalBlockRenderCloseKey(block.id),
+                        padding: EdgeInsets.zero,
+                        visualDensity: VisualDensity.compact,
+                        color: colors.foreground,
+                        iconSize: math.min(18.0, buttonSize * 0.58),
+                        icon: const Icon(Icons.close_rounded),
+                        onPressed: () => onDismissBlockRender(block),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override

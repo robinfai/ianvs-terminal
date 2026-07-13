@@ -5654,6 +5654,11 @@ void main() {
         'build-1',
         folded: true,
       );
+      final blockRenderResult = runtime.setBlockRendered(
+        sessionId,
+        'build-1',
+        rendered: false,
+      );
       final exportText = runtime.exportScrollbackText(sessionId);
       final diagnostics = runtime.exportSessionDiagnostics(sessionId);
       await tester.pump();
@@ -5662,6 +5667,7 @@ void main() {
       expect(searchResult.matches, isEmpty);
       expect(clearResult, isFalse);
       expect(blockResult, isFalse);
+      expect(blockRenderResult, isFalse);
       expect(exportText, isNull);
       expect(diagnostics, isNull);
       expect(backendErrors.map((event) => event.operation), <String>[
@@ -5669,6 +5675,7 @@ void main() {
         'terminal.search_text',
         'terminal.clear_scrollback',
         'terminal.set_block_folded',
+        'terminal.set_block_rendered',
         'terminal.export_scrollback',
         'terminal.export_diagnostics',
       ]);
@@ -6440,6 +6447,20 @@ void main() {
     await tester.pump();
     expect(runtimeBackend.takeFrameDiffCalls, greaterThan(readsBeforeToggle));
 
+    runtimeBackend.jsonRequests.clear();
+    final readsBeforeRestore = runtimeBackend.takeFrameDiffCalls;
+    expect(
+      runtime.setBlockRendered(sessionId, 'build-1', rendered: false),
+      isTrue,
+    );
+    expect(runtimeBackend.jsonRequests.single, <String, Object?>{
+      'kind': 'terminal.set_block_rendered',
+      'id': 'build-1',
+      'rendered': false,
+    });
+    await tester.pump();
+    expect(runtimeBackend.takeFrameDiffCalls, greaterThan(readsBeforeRestore));
+
     runtimeBackend
       ..setBlockFoldedResponse = false
       ..jsonRequests.clear();
@@ -6451,7 +6472,12 @@ void main() {
 
     runtimeBackend.jsonRequests.clear();
     expect(runtime.setBlockFolded(sessionId, '', folded: true), isFalse);
+    expect(runtime.setBlockRendered(sessionId, '', rendered: false), isFalse);
     expect(runtime.setBlockFolded('unknown', 'build-1', folded: true), isFalse);
+    expect(
+      runtime.setBlockRendered('unknown', 'build-1', rendered: false),
+      isFalse,
+    );
     expect(runtimeBackend.jsonRequests, isEmpty);
   });
 
@@ -9380,6 +9406,7 @@ class _FakePtyBackend
   String? selectionRawResponse;
   String? clearScrollbackRawResponse;
   bool setBlockFoldedResponse = true;
+  bool setBlockRenderedResponse = true;
   String? scrollbackRawResponse;
   Map<String, Object?>? diagnosticsResponse;
   String? diagnosticsRawResponse;
@@ -9530,6 +9557,9 @@ class _FakePtyBackend
             jsonEncode(<String, Object?>{'cleared': true}),
       'terminal.set_block_folded' => jsonEncode(<String, Object?>{
         'updated': setBlockFoldedResponse,
+      }),
+      'terminal.set_block_rendered' => jsonEncode(<String, Object?>{
+        'updated': setBlockRenderedResponse,
       }),
       'terminal.export_scrollback' =>
         scrollbackRawResponse ??

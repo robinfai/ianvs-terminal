@@ -111,6 +111,7 @@ fn to_proto_block(block: &TerminalBlock) -> pb::TerminalBlock {
         source_end_row: usize_to_u32(block.source_end_row),
         folded: block.folded,
         hidden_rows: usize_to_u32(block.hidden_rows),
+        rendered: block.rendered,
     }
 }
 

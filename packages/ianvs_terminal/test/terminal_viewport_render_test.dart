@@ -9,9 +9,145 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 import 'package:ianvs_terminal/src/terminal/render_terminal_viewport.dart';
+import 'package:ianvs_terminal/src/terminal/terminal_text_document_style.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
 
 void main() {
+  testWidgets(
+    'OSC 1337 rendered block is themed, searchable and has one close action',
+    (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final dismissed = <TerminalBlock>[];
+      final toggled = <TerminalBlock>[];
+      final controller = TerminalViewportController()
+        ..updateMeasuredCellSize(const Size(10, 18))
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: <TerminalRow>[
+              TerminalRow(index: 0, text: '{', sourceRow: 100),
+              TerminalRow(index: 1, text: '  "ok": true', sourceRow: 101),
+              TerminalRow(index: 2, text: '}', sourceRow: 102),
+              TerminalRow(index: 3, text: 'done', sourceRow: 103),
+            ],
+            cursor: TerminalCursor(row: 3, col: 4, visible: true),
+            viewportRows: 4,
+            viewportCols: 40,
+            dirtyRanges: <TerminalDirtyRange>[
+              TerminalDirtyRange(start: 0, end: 4),
+            ],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+            viewportStartRow: 100,
+            blocks: <TerminalBlock>[
+              TerminalBlock(
+                id: 'json-1',
+                blockType: 'application/json',
+                startRow: 0,
+                endRow: 2,
+                sourceStartRow: 100,
+                sourceEndRow: 102,
+                folded: false,
+                rendered: true,
+                hiddenRows: 0,
+              ),
+            ],
+          ),
+        );
+      final selectionController = SelectionController();
+      final runtime = TerminalRuntimeController(
+        backend: _NoopPtyBackend(),
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: runtime,
+        readFrame: () => controller.frame,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+      addTearDown(controller.dispose);
+      addTearDown(selectionController.dispose);
+      addTearDown(runtime.dispose);
+
+      Widget buildViewport(double width) => MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: width,
+            height: 96,
+            child: TerminalViewport(
+              controller: controller,
+              selectionController: selectionController,
+              inputController: inputController,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+              onToggleBlock: toggled.add,
+              onDismissBlockRender: dismissed.add,
+              searchMatches: const <TerminalSearchMatch>[
+                TerminalSearchMatch(
+                  row: 101,
+                  startCol: 3,
+                  endCol: 5,
+                  text: 'ok',
+                  scrollbackOffset: 0,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(buildViewport(420));
+      await tester.pump();
+
+      final close = find.byKey(terminalBlockRenderCloseKey('json-1'));
+      expect(close, findsOneWidget);
+      expect(find.byTooltip('Close rendered document'), findsOneWidget);
+      final semanticClose = find.bySemanticsLabel(
+        'Close terminal text document',
+      );
+      expect(semanticClose, findsOneWidget);
+      expect(
+        tester
+            .getSemantics(semanticClose)
+            .getSemanticsData()
+            .hasAction(ui.SemanticsAction.tap),
+        isTrue,
+      );
+      expect(
+        find.bySemanticsLabel('Rendered terminal document: application/json'),
+        findsOneWidget,
+      );
+
+      final surfaceFinder = find.byWidgetPredicate(
+        (widget) => widget.runtimeType.toString() == '_TerminalViewportSurface',
+      );
+      final renderObject = tester.renderObject<RenderTerminalViewport>(
+        surfaceFinder,
+      );
+      expect(renderObject.debugDocumentRows, <int>{0, 1, 2});
+      expect(
+        renderObject.debugDocumentKindForRow(1),
+        TerminalTextDocumentKind.json,
+      );
+      expect(renderObject.debugResolvedStylesForRow(1), isNotEmpty);
+      expect(renderObject.debugSearchHighlightRects, isNotEmpty);
+
+      await tester.pumpWidget(buildViewport(32));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(close, findsOneWidget);
+
+      await tester.tap(close);
+      await tester.pump();
+      expect(dismissed.map((block) => block.id), <String>['json-1']);
+      expect(toggled, isEmpty);
+    },
+  );
+
   testWidgets('OSC 1337 block toggle is accessible and reports its block', (
     tester,
   ) async {

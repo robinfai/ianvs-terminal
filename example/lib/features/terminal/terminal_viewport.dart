@@ -66,6 +66,7 @@ class TerminalViewport extends StatelessWidget {
     this.benchmarkEventSink,
     this.graphicsDiagnosticSessionId,
     this.onToggleBlock,
+    this.onDismissBlockRender,
   });
 
   final TerminalViewportController controller;
@@ -96,6 +97,7 @@ class TerminalViewport extends StatelessWidget {
   final terminal.TerminalBenchmarkEventSink? benchmarkEventSink;
   final String? graphicsDiagnosticSessionId;
   final ValueChanged<terminal.TerminalBlock>? onToggleBlock;
+  final ValueChanged<terminal.TerminalBlock>? onDismissBlockRender;
 
   @override
   Widget build(BuildContext context) {
@@ -128,6 +130,7 @@ class TerminalViewport extends StatelessWidget {
       benchmarkEventSink: benchmarkEventSink,
       graphicsDiagnosticSessionId: graphicsDiagnosticSessionId,
       onToggleBlock: onToggleBlock,
+      onDismissBlockRender: onDismissBlockRender,
     );
   }
 }

@@ -8,6 +8,7 @@ import '../config/terminal_config.dart';
 import '../runtime/terminal_benchmarking.dart';
 import 'selection_controller.dart';
 import 'terminal_models.dart';
+import 'terminal_text_document_style.dart';
 import 'terminal_viewport.dart';
 import 'terminal_viewport_colors.dart';
 
@@ -182,6 +183,7 @@ class RenderTerminalViewport extends RenderBox {
   final Map<int, _CachedRowVisual> _rowVisualCache = {};
   final Paint _canvasPaint = Paint()..isAntiAlias = false;
   final Paint _rowBackgroundPaint = Paint()..isAntiAlias = false;
+  final Paint _documentBackgroundPaint = Paint()..isAntiAlias = false;
   final Paint _selectionPaint = Paint()..isAntiAlias = false;
   final Paint _cursorPaint = Paint()..isAntiAlias = false;
   final Paint _cursorGuideFillPaint = Paint()..isAntiAlias = false;
@@ -213,6 +215,9 @@ class RenderTerminalViewport extends RenderBox {
   double _cellBaseline = terminalFallbackCellSize.height;
   TerminalRowTextMetrics _rowTextMetrics = terminalFallbackRowTextMetrics;
   final List<Rect> _debugSearchHighlightRects = <Rect>[];
+  final Set<int> _debugDocumentRows = <int>{};
+  final Map<int, TerminalTextDocumentKind> _debugDocumentKinds =
+      <int, TerminalTextDocumentKind>{};
   Rect? _paintedCursorRect;
   Color? _debugCursorColor;
   Rect? _paintedCursorGuideRect;
@@ -346,6 +351,8 @@ class RenderTerminalViewport extends RenderBox {
       _debugPaintedRowTextsScratch.clear();
       _debugRebuiltRowIndexesScratch.clear();
       _debugSearchHighlightRects.clear();
+      _debugDocumentRows.clear();
+      _debugDocumentKinds.clear();
       _debugHyperlinkUnderlineRects.clear();
       _debugSizedText.clear();
     }
@@ -378,6 +385,7 @@ class RenderTerminalViewport extends RenderBox {
     final shouldRebuildAllRows = renderIntent.rebuildAllRows;
     final dirtyRowIndexes = renderIntent.dirtyRowIndexes;
     final searchHighlightsByRow = _searchHighlightsByRow(frame);
+    final renderedDocumentsByRow = _renderedDocumentsByRow(frame);
 
     for (final row in frame.rows) {
       if (benchmarkEnabled) {
@@ -398,8 +406,9 @@ class RenderTerminalViewport extends RenderBox {
           activeSelection != null &&
           row.index >= activeSelection.startRow &&
           row.index <= activeSelection.endRow;
+      final renderedDocument = renderedDocumentsByRow[row.index];
       final rowLayout = rowNeedsRebuild || selectionTouchesRow
-          ? _rowLayoutFor(row, frame)
+          ? _rowLayoutFor(row, frame, renderedDocument)
           : null;
       if (rowNeedsRebuild) {
         _rebuildRowVisual(row: row, rowLayout: rowLayout!);
@@ -413,6 +422,17 @@ class RenderTerminalViewport extends RenderBox {
       }
       final rowVisual = _rowVisualCache[row.index];
       final y = row.index * _cellSize.height;
+      if (renderedDocument != null) {
+        _documentBackgroundPaint.color = _documentBackgroundFor(frame);
+        canvas.drawRect(
+          Rect.fromLTWH(0, y, _localPaintBounds.width, _cellSize.height),
+          _documentBackgroundPaint,
+        );
+        if (kDebugMode) {
+          _debugDocumentRows.add(row.index);
+          _debugDocumentKinds[row.index] = renderedDocument.kind;
+        }
+      }
       var selectedStart = 0;
       var selectedEnd = 0;
       final backgroundSpans =
@@ -577,6 +597,9 @@ class RenderTerminalViewport extends RenderBox {
       List<int>.unmodifiable(_debugRebuiltRowIndexesScratch);
   List<Rect> get debugSearchHighlightRects =>
       List<Rect>.unmodifiable(_debugSearchHighlightRects);
+  Set<int> get debugDocumentRows => Set<int>.unmodifiable(_debugDocumentRows);
+  TerminalTextDocumentKind? debugDocumentKindForRow(int row) =>
+      _debugDocumentKinds[row];
   List<Rect> get debugHyperlinkUnderlineRects =>
       List<Rect>.unmodifiable(_debugHyperlinkUnderlineRects);
   List<TerminalResolvedSizedText> get debugSizedText =>
@@ -835,7 +858,21 @@ class RenderTerminalViewport extends RenderBox {
     }
   }
 
-  _CachedRowLayout _rowLayoutFor(TerminalRow row, TerminalFrameDiff frame) {
+  _CachedRowLayout _rowLayoutFor(
+    TerminalRow row,
+    TerminalFrameDiff frame,
+    _RenderedDocumentRow? renderedDocument,
+  ) {
+    final documentPalette = renderedDocument == null
+        ? null
+        : _documentPaletteFor(frame);
+    final effectiveStyleRuns = renderedDocument == null
+        ? row.styleRuns
+        : TerminalTextDocumentStyler.styleRow(
+            text: row.text,
+            kind: renderedDocument.kind,
+            palette: documentPalette!,
+          );
     final signature = Object.hashAll([
       row.text,
       _colors.foreground.toARGB32(),
@@ -843,7 +880,12 @@ class RenderTerminalViewport extends RenderBox {
       _colors.minimumContrastRatio,
       frame.defaultForeground?.toARGB32(),
       frame.defaultBackground?.toARGB32(),
-      for (final entry in row.styleRuns)
+      renderedDocument?.kind,
+      documentPalette?.accent.toARGB32(),
+      documentPalette?.secondary.toARGB32(),
+      documentPalette?.tertiary.toARGB32(),
+      documentPalette?.muted.toARGB32(),
+      for (final entry in effectiveStyleRuns)
         Object.hash(
           entry.start,
           entry.end,
@@ -865,7 +907,10 @@ class RenderTerminalViewport extends RenderBox {
 
     final textCells = TerminalTextCells.fromText(row.text);
     final canvasBackground = _canvasBackgroundFor(frame);
-    final defaultRawForeground = frame.defaultForeground ?? _colors.foreground;
+    final defaultRawForeground =
+        documentPalette?.foreground ??
+        frame.defaultForeground ??
+        _colors.foreground;
     final defaultForeground = _foregroundWithMinimumContrast(
       defaultRawForeground,
       canvasBackground,
@@ -883,7 +928,7 @@ class RenderTerminalViewport extends RenderBox {
       ),
     );
     final resolvedStyles = kDebugMode ? <TerminalResolvedStyle>[] : null;
-    for (final run in row.styleRuns) {
+    for (final run in effectiveStyleRuns) {
       if (run.start < 0 || run.end <= run.start) {
         continue;
       }
@@ -965,6 +1010,71 @@ class RenderTerminalViewport extends RenderBox {
     }
     _paragraphBuilds += 1;
     return rowLayout;
+  }
+
+  Map<int, _RenderedDocumentRow> _renderedDocumentsByRow(
+    TerminalFrameDiff frame,
+  ) {
+    if (frame.blocks.isEmpty || frame.rows.isEmpty) {
+      return const <int, _RenderedDocumentRow>{};
+    }
+    final rowsByIndex = <int, TerminalRow>{
+      for (final row in frame.rows) row.index: row,
+    };
+    final documents = <int, _RenderedDocumentRow>{};
+    for (final block in frame.blocks) {
+      if (!block.rendered || block.folded) {
+        continue;
+      }
+      final visibleLines = <String>[
+        for (var row = block.startRow; row <= block.endRow; row += 1)
+          rowsByIndex[row]?.text ?? '',
+      ];
+      final kind = TerminalTextDocumentStyler.kindFor(
+        type: block.blockType,
+        visibleLines: visibleLines,
+      );
+      final candidate = _RenderedDocumentRow(block: block, kind: kind);
+      for (var row = block.startRow; row <= block.endRow; row += 1) {
+        if (!rowsByIndex.containsKey(row)) {
+          continue;
+        }
+        final existing = documents[row];
+        if (existing == null ||
+            _blockDisplaySpan(candidate.block) <
+                _blockDisplaySpan(existing.block)) {
+          documents[row] = candidate;
+        }
+      }
+    }
+    return documents;
+  }
+
+  int _blockDisplaySpan(TerminalBlock block) =>
+      math.max(0, block.endRow - block.startRow);
+
+  TerminalTextDocumentPalette _documentPaletteFor(TerminalFrameDiff frame) {
+    final background = _canvasBackgroundFor(frame);
+    final foreground = frame.defaultForeground ?? _colors.foreground;
+    final accent = frame.cursorColor ?? _colors.cursor;
+    return TerminalTextDocumentPalette(
+      foreground: foreground,
+      accent: accent,
+      secondary: _rotatedHue(accent, 82),
+      tertiary: _rotatedHue(accent, 204),
+      muted: Color.lerp(foreground, background, 0.48) ?? foreground,
+    );
+  }
+
+  Color _documentBackgroundFor(TerminalFrameDiff frame) {
+    final background = _canvasBackgroundFor(frame);
+    final tint = frame.cursorColor ?? _colors.cursor;
+    return Color.alphaBlend(tint.withValues(alpha: 0.07), background);
+  }
+
+  Color _rotatedHue(Color color, double degrees) {
+    final hsl = HSLColor.fromColor(color);
+    return hsl.withHue((hsl.hue + degrees) % 360).toColor();
   }
 
   void _syncTextMetrics() {
@@ -2362,6 +2472,13 @@ class _MeasuredCellMetrics {
 
   final Size size;
   final double alphabeticBaseline;
+}
+
+class _RenderedDocumentRow {
+  const _RenderedDocumentRow({required this.block, required this.kind});
+
+  final TerminalBlock block;
+  final TerminalTextDocumentKind kind;
 }
 
 class _PlacedCell {
