@@ -167,6 +167,9 @@ enum CallbackEvent {
         value: String,
     },
     CellSizeReportRequest,
+    ReportVariableRequest {
+        payload: serde_json::Value,
+    },
     OpenUrlRequest {
         payload: serde_json::Value,
     },
@@ -1768,6 +1771,17 @@ fn callback_event_from_parser_event_with_terminal(
             })
         }
         ParserTerminalEvent::CellSizeReportRequested => Some(CallbackEvent::CellSizeReportRequest),
+        ParserTerminalEvent::ItermReportVariableRequested { name } => {
+            let value =
+                terminal.and_then(|terminal| resolved_iterm_report_variable(terminal, &name));
+            Some(CallbackEvent::ReportVariableRequest {
+                payload: serde_json::json!({
+                    "source": "iterm1337",
+                    "name": name,
+                    "value": value,
+                }),
+            })
+        }
         ParserTerminalEvent::ItermOpenUrlRequested { url } => {
             let url = validated_terminal_open_url(&url)?;
             Some(CallbackEvent::OpenUrlRequest {
@@ -2112,6 +2126,28 @@ fn validated_terminal_open_url(value: &str) -> Option<String> {
         _ => false,
     };
     allowed.then(|| value.to_string())
+}
+
+fn resolved_iterm_report_variable(terminal: &Terminal, name: &str) -> Option<String> {
+    let variables = terminal.session_variables();
+    match name {
+        "session.name" => variables
+            .session_name
+            .clone()
+            .or_else(|| (!terminal.title().is_empty()).then(|| terminal.title().to_string())),
+        "session.columns" => Some(terminal.size().0.to_string()),
+        "session.rows" => Some(terminal.size().1.to_string()),
+        "session.hostname" => variables.hostname.clone(),
+        "session.username" => variables.username.clone(),
+        "session.path" => variables
+            .path
+            .clone()
+            .or_else(|| terminal.current_directory().map(str::to_string)),
+        _ => name
+            .strip_prefix("user.")
+            .and_then(|user_name| terminal.get_user_var(user_name))
+            .map(str::to_string),
+    }
 }
 
 fn validated_iterm_attention_action(value: &str) -> Option<&'static str> {
@@ -3907,6 +3943,9 @@ impl TerminalSession {
             CallbackEvent::CellSizeReportRequest => {
                 self.push_event("cell_size_report_request", None)
             }
+            CallbackEvent::ReportVariableRequest { payload } => {
+                self.push_event("report_variable_request", Some(payload))
+            }
             CallbackEvent::OpenUrlRequest { payload } => {
                 self.push_event("open_url_request", Some(payload))
             }
@@ -4358,6 +4397,22 @@ fn sanitize_diagnostic_event_payload(
             "list_only": payload.get("listOnly").and_then(serde_json::Value::as_bool),
         })),
         "cell_size_report_request" => Some(serde_json::json!({})),
+        "report_variable_request" => Some(serde_json::json!({
+            "source": payload.get("source").and_then(serde_json::Value::as_str),
+            "name": payload
+                .get("name")
+                .and_then(serde_json::Value::as_str)
+                .map(|name| sanitize_protocol_text(name, 256)),
+            "name_chars": payload
+                .get("name")
+                .and_then(serde_json::Value::as_str)
+                .map(|name| name.chars().count()),
+            "defined": payload.get("value").is_some_and(|value| !value.is_null()),
+            "value_chars": payload
+                .get("value")
+                .and_then(serde_json::Value::as_str)
+                .map(|value| value.chars().count()),
+        })),
         "open_url_request" => Some(serde_json::json!({
             "source": payload.get("source").and_then(serde_json::Value::as_str),
             "scheme": payload
@@ -7759,6 +7814,52 @@ mod tests {
         assert_eq!(&bytes, b"hello");
         assert!(state.take_file_download(1, &mut bytes).is_err());
         assert_eq!(state.pending_file_download_bytes, 0);
+    }
+
+    #[test]
+    fn osc1337_report_variable_bridge_resolves_only_session_owned_values() {
+        let mut terminal = Terminal::new(93, 31);
+        terminal.set_title("native-title".to_string());
+        terminal
+            .session_variables_mut()
+            .set_hostname("host.example");
+        terminal.session_variables_mut().set_username("alice");
+        terminal.session_variables_mut().set_path("/work/project");
+        terminal.set_user_var("gitBranch".to_string(), "feature/report".to_string());
+
+        let resolve = |name: &str| {
+            let callback = callback_event_from_parser_event_with_terminal(
+                ParserTerminalEvent::ItermReportVariableRequested {
+                    name: name.to_string(),
+                },
+                false,
+                Some(&terminal),
+            )
+            .expect("expected report-variable callback");
+            let CallbackEvent::ReportVariableRequest { payload } = callback else {
+                panic!("expected report-variable request");
+            };
+            payload
+        };
+
+        assert_eq!(resolve("session.name")["value"], "native-title");
+        assert_eq!(resolve("session.columns")["value"], "93");
+        assert_eq!(resolve("session.rows")["value"], "31");
+        assert_eq!(resolve("session.hostname")["value"], "host.example");
+        assert_eq!(resolve("session.username")["value"], "alice");
+        assert_eq!(resolve("session.path")["value"], "/work/project");
+        assert_eq!(resolve("user.gitBranch")["value"], "feature/report");
+        assert!(resolve("session.environment")["value"].is_null());
+        assert!(resolve("user.missing")["value"].is_null());
+        let user_payload = resolve("user.gitBranch");
+        assert_eq!(user_payload["source"], "iterm1337");
+        let diagnostics =
+            sanitize_diagnostic_event_payload("report_variable_request", Some(&user_payload))
+                .expect("expected privacy-safe diagnostics");
+        assert_eq!(diagnostics["name"], "user.gitBranch");
+        assert_eq!(diagnostics["defined"], true);
+        assert_eq!(diagnostics["value_chars"], 14);
+        assert!(diagnostics.get("value").is_none());
     }
 
     #[test]

@@ -803,6 +803,21 @@ fn osc1337_shell_metadata_profile(emulation: TerminalEmulation) -> TerminalProfi
     )
 }
 
+fn osc1337_report_variable_profile(emulation: TerminalEmulation) -> TerminalProfile {
+    local_profile(
+        "osc1337-report-variable",
+        "OSC1337 Report Variable",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import sys; sys.stdout.buffer.write(b"\x1b]1337;SetUserVar=REPORT_KEY=cmVwb3J0LXZhbHVl\x07\x1b]1337;ReportVariable=dXNlci5SRVBPUlRfS0VZ\x07\x1b]1337;ReportVariable=c2Vzc2lvbi5jb2x1bW5z\x1b\\\x1b]1337;ReportVariable=c2Vzc2lvbi5lbnZpcm9ubWVudA==\x07OSC1337-REPORT-VARIABLE-DONE\n"); sys.stdout.flush(); sys.stdin.readline(); sys.stdout.buffer.write(b"AFTER-REPORT-VARIABLE-RESIZE\n"); sys.stdout.flush()'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        emulation,
+    )
+}
+
 fn osc1337_cursor_shape_profile(emulation: TerminalEmulation) -> TerminalProfile {
     local_profile(
         "osc1337-cursor-shape",
@@ -18108,6 +18123,68 @@ fn session_iterm_open_url_crosses_the_real_pty_as_an_untrusted_request() {
             .join("\n")
             .contains("OSC1337-OPEN-URL-DONE")
     );
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_iterm_report_variable_crosses_real_pty_once_with_owned_values() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc1337_report_variable_profile(
+            TerminalEmulation::Xterm256,
+        ))
+        .unwrap(),
+    )
+    .unwrap();
+
+    let initial = collect_events_until(session_id, |events| {
+        events
+            .iter()
+            .filter(|event| event["kind"] == "report_variable_request")
+            .count()
+            >= 3
+    });
+    let requests = initial
+        .iter()
+        .filter(|event| event["kind"] == "report_variable_request")
+        .collect::<Vec<_>>();
+    assert_eq!(requests.len(), 3);
+    assert_eq!(requests[0]["payload"]["source"], "iterm1337");
+    assert_eq!(requests[0]["payload"]["name"], "user.REPORT_KEY");
+    assert_eq!(requests[0]["payload"]["value"], "report-value");
+    assert_eq!(requests[1]["payload"]["name"], "session.columns");
+    assert_eq!(requests[1]["payload"]["value"], "120");
+    assert_eq!(requests[2]["payload"]["name"], "session.environment");
+    assert!(requests[2]["payload"]["value"].is_null());
+    let _ = wait_for_frame_containing(session_id, "OSC1337-REPORT-VARIABLE-DONE");
+
+    session::resize_session(session_id, 100, 30, 1000, 600).unwrap();
+    session::write_session(session_id, b"continue\n").unwrap();
+    let _ = wait_for_frame_containing(session_id, "AFTER-REPORT-VARIABLE-RESIZE");
+    for _ in 0..10 {
+        let payload = session::poll_events(session_id).unwrap();
+        let events: serde_json::Value = serde_json::from_str(&payload).unwrap();
+        assert!(
+            events
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|event| event["kind"] != "report_variable_request"),
+            "resize replay redelivered a historical ReportVariable request: {events}"
+        );
+        thread::sleep(Duration::from_millis(20));
+    }
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_sessions_gate_iterm_report_variable_requests() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc1337_report_variable_profile(TerminalEmulation::Vt220)).unwrap(),
+    )
+    .unwrap();
+
+    assert_event_kind_never_arrives(session_id, "report_variable_request");
+    session::write_session(session_id, b"continue\n").unwrap();
     session::close_session(session_id).unwrap();
 }
 

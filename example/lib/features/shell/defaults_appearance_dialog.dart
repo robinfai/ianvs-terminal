@@ -14,6 +14,7 @@ class DefaultsAndAppearanceSelection {
     required this.osc52Policy,
     required this.openUrlPolicy,
     required this.requestAttentionPolicy,
+    required this.reportVariableDecisions,
     this.updatedProfile,
     this.openProfiles = false,
   });
@@ -24,6 +25,7 @@ class DefaultsAndAppearanceSelection {
   final LocalTerminalOsc52Policy osc52Policy;
   final LocalTerminalOpenUrlPolicy openUrlPolicy;
   final LocalTerminalRequestAttentionPolicy requestAttentionPolicy;
+  final Map<String, LocalTerminalReportVariablePolicy> reportVariableDecisions;
   final TerminalProfile? updatedProfile;
   final bool openProfiles;
 }
@@ -39,6 +41,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
     required this.osc52Policy,
     required this.openUrlPolicy,
     required this.requestAttentionPolicy,
+    required this.reportVariableDecisions,
   });
 
   final List<TerminalProfile> profiles;
@@ -49,6 +52,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
   final LocalTerminalOsc52Policy osc52Policy;
   final LocalTerminalOpenUrlPolicy openUrlPolicy;
   final LocalTerminalRequestAttentionPolicy requestAttentionPolicy;
+  final Map<String, LocalTerminalReportVariablePolicy> reportVariableDecisions;
 
   @override
   State<DefaultsAndAppearanceDialog> createState() =>
@@ -64,6 +68,8 @@ class _DefaultsAndAppearanceDialogState
   late LocalTerminalOsc52Policy _selectedOsc52Policy;
   late LocalTerminalOpenUrlPolicy _selectedOpenUrlPolicy;
   late LocalTerminalRequestAttentionPolicy _selectedRequestAttentionPolicy;
+  late Map<String, LocalTerminalReportVariablePolicy>
+  _selectedReportVariableDecisions;
   String _terminalPresetFilter = '';
 
   @override
@@ -75,6 +81,9 @@ class _DefaultsAndAppearanceDialogState
     _selectedOsc52Policy = widget.osc52Policy;
     _selectedOpenUrlPolicy = widget.openUrlPolicy;
     _selectedRequestAttentionPolicy = widget.requestAttentionPolicy;
+    _selectedReportVariableDecisions = Map.unmodifiable(
+      widget.reportVariableDecisions,
+    );
     _selectedTerminalPresetId = _matchingPresetIdFor(
       _effectiveProfileFor(
         configuredProfileId: _selectedProfileId,
@@ -171,6 +180,14 @@ class _DefaultsAndAppearanceDialogState
               _terminalPresetMatchesFilter(preset, terminalPresetFilter),
         )
         .toList(growable: false);
+    final allowedReportVariables = _selectedReportVariableDecisions.values
+        .where((policy) => policy == LocalTerminalReportVariablePolicy.allow)
+        .length;
+    final deniedReportVariables =
+        _selectedReportVariableDecisions.length - allowedReportVariables;
+    final reportVariableDecisionEntries =
+        _selectedReportVariableDecisions.entries.toList(growable: false)
+          ..sort((left, right) => left.key.compareTo(right.key));
 
     return AppDialogScaffold(
       key: const Key('defaults-dialog'),
@@ -233,6 +250,8 @@ class _DefaultsAndAppearanceDialogState
                             openUrlPolicy: _selectedOpenUrlPolicy,
                             requestAttentionPolicy:
                                 _selectedRequestAttentionPolicy,
+                            reportVariableDecisions:
+                                _selectedReportVariableDecisions,
                             updatedProfile: null,
                             openProfiles: true,
                           ),
@@ -494,6 +513,122 @@ class _DefaultsAndAppearanceDialogState
             ),
             SizedBox(height: theme.spacing.xl),
             const AppSectionHeader(
+              title: 'Terminal variable reports',
+              description:
+                  'OSC 1337 ReportVariable requests are denied the first time. Remembered decisions apply only to the named session.* or user.* variable.',
+            ),
+            SizedBox(height: theme.spacing.sm),
+            AppPanel(
+              tone: AppPanelTone.elevated,
+              padding: EdgeInsets.all(theme.spacing.md),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _selectedReportVariableDecisions.isEmpty
+                        ? 'No remembered decisions'
+                        : '${_selectedReportVariableDecisions.length} remembered · $allowedReportVariables allowed · $deniedReportVariables denied',
+                    key: const Key(
+                      'default-osc1337-report-variable-decision-summary',
+                    ),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: theme.textPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  SizedBox(height: theme.spacing.xs),
+                  Text(
+                    'Forgetting decisions restores the safe first-request denial and lets the app ask again later.',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
+                  ),
+                  if (reportVariableDecisionEntries.isNotEmpty) ...[
+                    SizedBox(height: theme.spacing.sm),
+                    const Divider(height: 1),
+                    SizedBox(height: theme.spacing.xs),
+                    for (final entry in reportVariableDecisionEntries)
+                      Padding(
+                        padding: EdgeInsets.symmetric(
+                          vertical: theme.spacing.xs,
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                entry.key,
+                                key: ValueKey<String>(
+                                  'default-osc1337-report-variable-name-${entry.key}',
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: theme.textPrimary),
+                              ),
+                            ),
+                            SizedBox(width: theme.spacing.sm),
+                            Text(
+                              entry.value ==
+                                      LocalTerminalReportVariablePolicy.allow
+                                  ? 'Allow'
+                                  : 'Deny',
+                              key: ValueKey<String>(
+                                'default-osc1337-report-variable-policy-${entry.key}',
+                              ),
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(color: theme.textSubtle),
+                            ),
+                            SizedBox(width: theme.spacing.xs),
+                            IconButton(
+                              key: ValueKey<String>(
+                                'default-osc1337-report-variable-forget-${entry.key}',
+                              ),
+                              tooltip: 'Forget decision for ${entry.key}',
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () {
+                                setState(() {
+                                  final next =
+                                      <
+                                          String,
+                                          LocalTerminalReportVariablePolicy
+                                        >{..._selectedReportVariableDecisions}
+                                        ..remove(entry.key);
+                                  _selectedReportVariableDecisions =
+                                      Map.unmodifiable(next);
+                                });
+                              },
+                              icon: const Icon(Icons.close_rounded),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                  SizedBox(height: theme.spacing.sm),
+                  AppActionButton(
+                    buttonKey: const Key(
+                      'default-osc1337-report-variable-forget-all',
+                    ),
+                    tone: AppActionTone.secondary,
+                    size: AppActionSize.compact,
+                    icon: Icons.restart_alt_rounded,
+                    label: 'Forget all decisions',
+                    onPressed: _selectedReportVariableDecisions.isEmpty
+                        ? null
+                        : () {
+                            setState(() {
+                              _selectedReportVariableDecisions =
+                                  const <
+                                    String,
+                                    LocalTerminalReportVariablePolicy
+                                  >{};
+                            });
+                          },
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: theme.spacing.xl),
+            const AppSectionHeader(
               title: 'Terminal canvas inset',
               description:
                   'Adjust the empty space between the shell frame and terminal text.',
@@ -617,6 +752,7 @@ class _DefaultsAndAppearanceDialogState
                   osc52Policy: _selectedOsc52Policy,
                   openUrlPolicy: _selectedOpenUrlPolicy,
                   requestAttentionPolicy: _selectedRequestAttentionPolicy,
+                  reportVariableDecisions: _selectedReportVariableDecisions,
                   updatedProfile: _updatedProfileForPreset(effectiveProfile),
                   openProfiles: false,
                 ),

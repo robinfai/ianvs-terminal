@@ -711,6 +711,31 @@
         "reply": "custom click only: CSI ? 1337 ; code ~",
         "must_not_crash": true
       }
+    },
+    {
+      "id": "osc1337_report_variable",
+      "coverage": [
+        "iTerm2 OSC 1337 ReportVariable Base64 name decoding",
+        "iTerm2 OSC 1337 ReportVariable user and session variable resolution",
+        "iTerm2 OSC 1337 ReportVariable malformed and unknown fail-closed handling",
+        "iTerm2 OSC 1337 ReportVariable mixed BEL/ST termination"
+      ],
+      "protocol": "iTerm2 OSC 1337 ReportVariable",
+      "wire": {
+        "sequence_count": 6,
+        "chunks_hex": [
+          "1b5d313333373b536574557365725661723d5245504f52545f4b45593d636d567762334a304c585a686248566c071b5d313333373b5265706f72745661726961626c653d64584e6c6369355352564250556c52665330565a07",
+          "1b5d313333373b5265706f72745661726961626c653d6332567a63326c766269356a623278316257357a1b",
+          "5c1b5d313333373b5265706f72745661726961626c653d252525071b5d313333373b5265706f72745661726961626c653d6332567a63326c766269356c626e5a70636d39756257567564413d3d071b5d323b6f7363313333372d7265706f72742d7661726961626c652d636f727075732d6f6b1b5c"
+        ]
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "permission_gated_variable_report",
+        "state_effect": "one defined user variable and one session dimension emit typed requests, malformed Base64 emits none, an unknown safe name remains typed with no value, and later OSC parsing remains intact",
+        "reply": "product policy: OSC 1337;ReportVariable=Base64(value) BEL, or an empty value when denied or undefined",
+        "must_not_crash": true
+      }
     }
   ]
 }

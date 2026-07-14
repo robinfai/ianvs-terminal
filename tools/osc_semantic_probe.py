@@ -123,6 +123,16 @@ PROBES = {
         + osc("1337;Button=type=copy;block=ianvs-button-probe")
         + osc("1337;Button=type=custom;code=42;icon=star.fill", bell=True),
     ),
+    "iterm_report_variable": Probe(
+        "iterm_report_variable",
+        "iTerm2 OSC 1337 ReportVariable",
+        "Define one terminal-owned user variable, then request it and one unsupported session variable.",
+        "The first unknown permission returns an empty ReportVariable reply and asks only for future access; after allowing the exact user variable, a repeated request returns its Base64 UTF-8 value, while the unsupported variable remains empty.",
+        "permission-gated read of bounded terminal/product-owned metadata; never host environment or files",
+        osc("1337;SetUserVar=REPORT_PROBE=cmVwb3J0LXByb2Jl", bell=True)
+        + osc("1337;ReportVariable=dXNlci5SRVBPUlRfUFJPQkU=")
+        + osc("1337;ReportVariable=c2Vzc2lvbi5lbnZpcm9ubWVudA==", bell=True),
+    ),
     "iterm_request_attention": Probe(
         "iterm_request_attention",
         "iTerm2 OSC 1337 RequestAttention",
@@ -375,6 +385,7 @@ def self_test() -> None:
         "iterm_clipboard_copy",
         "iterm_annotations",
         "iterm_inline_buttons",
+        "iterm_report_variable",
         "iterm_request_attention",
         "clipboard_query",
         "clipboard_mime",
@@ -417,6 +428,14 @@ def self_test() -> None:
         raise ValueError("iTerm2 OSC 1337 annotation fixture is malformed")
     if PROBES["iterm_inline_buttons"].payload.count(b"\x1b]1337;Button=") != 2:
         raise ValueError("iTerm2 OSC 1337 button fixture is malformed")
+    if PROBES["iterm_report_variable"].payload.count(
+        b"\x1b]1337;ReportVariable="
+    ) != 2:
+        raise ValueError("iTerm2 OSC 1337 ReportVariable fixture is malformed")
+    if b"SetUserVar=REPORT_PROBE=cmVwb3J0LXByb2Jl" not in PROBES[
+        "iterm_report_variable"
+    ].payload:
+        raise ValueError("iTerm2 OSC 1337 ReportVariable setup is malformed")
     if PROBES["iterm_request_attention"].payload.count(
         b"\x1b]1337;RequestAttention="
     ) != 4:

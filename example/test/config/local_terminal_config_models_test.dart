@@ -320,6 +320,99 @@ void main() {
       );
     });
 
+    test(
+      'OSC 1337 ReportVariable decisions roundtrip, validate, and stay bounded',
+      () {
+        final rawDecisions = <String, Object?>{
+          'session.path': ' ALLOW ',
+          'user.gitBranch': 'deny',
+          'session.environment': 'allow',
+          'user.bad\nname': 'allow',
+          'session.hostname': 'always',
+          for (var index = 0; index < 80; index += 1)
+            'user.key$index': index.isEven ? 'allow' : 'disabled',
+        };
+        final config = LocalTerminalConfigDocument.fromJson({
+          'hostActions': {'osc1337ReportVariables': rawDecisions},
+        });
+
+        expect(
+          config.hostActions.osc1337ReportVariables['session.path'],
+          LocalTerminalReportVariablePolicy.allow,
+        );
+        expect(
+          config.hostActions.osc1337ReportVariables['user.gitBranch'],
+          LocalTerminalReportVariablePolicy.deny,
+        );
+        expect(
+          config.hostActions.osc1337ReportVariables,
+          isNot(contains('session.environment')),
+        );
+        expect(
+          config.hostActions.osc1337ReportVariables,
+          isNot(contains('user.bad\nname')),
+        );
+        expect(
+          config.hostActions.osc1337ReportVariables,
+          isNot(contains('session.hostname')),
+        );
+        expect(
+          config.hostActions.osc1337ReportVariables.length,
+          maxLocalTerminalReportVariableDecisions,
+        );
+
+        final decoded = LocalTerminalConfigDocument.decode(config.encode());
+        expect(
+          decoded.hostActions.osc1337ReportVariables,
+          config.hostActions.osc1337ReportVariables,
+        );
+        expect(
+          isLocalTerminalReportVariableNameSupported('session.rows'),
+          isTrue,
+        );
+        expect(
+          isLocalTerminalReportVariableNameSupported(
+            'session.terminalWindowName',
+          ),
+          isTrue,
+        );
+        expect(
+          isLocalTerminalReportVariableNameSupported('session.profileName'),
+          isTrue,
+        );
+        expect(
+          isLocalTerminalReportVariableNameSupported('user.custom value'),
+          isTrue,
+        );
+        expect(
+          isLocalTerminalReportVariableNameSupported('session.secret'),
+          isFalse,
+        );
+        expect(
+          isLocalTerminalReportVariableNameSupported(
+            'user.${List<String>.filled(64, '😀').join()}',
+          ),
+          isFalse,
+        );
+        expect(
+          isLocalTerminalReportVariableNameSupported('user.bad\u0085name'),
+          isFalse,
+        );
+
+        final directJson = LocalTerminalHostActionsConfig(
+          osc1337ReportVariables: <String, LocalTerminalReportVariablePolicy>{
+            for (var index = 0; index < 64; index += 1)
+              'session.unsupported$index':
+                  LocalTerminalReportVariablePolicy.allow,
+            'session.shell': LocalTerminalReportVariablePolicy.allow,
+          },
+        ).toJson();
+        expect(directJson['osc1337ReportVariables'], <String, Object?>{
+          'session.shell': 'allow',
+        });
+      },
+    );
+
     test('OSC 52 policy parses ask and deny aliases', () {
       final askConfig = LocalTerminalConfigDocument.fromJson(const {
         'clipboard': {'osc52': ' Ask '},

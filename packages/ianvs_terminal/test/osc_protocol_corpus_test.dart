@@ -53,6 +53,10 @@ const Set<String> _requiredCoverage = <String>{
   'iTerm2 OSC 1337 custom button',
   'iTerm2 OSC 1337 custom button invalidation',
   'iTerm2 OSC 1337 mixed BEL/ST termination',
+  'iTerm2 OSC 1337 ReportVariable Base64 name decoding',
+  'iTerm2 OSC 1337 ReportVariable user and session variable resolution',
+  'iTerm2 OSC 1337 ReportVariable malformed and unknown fail-closed handling',
+  'iTerm2 OSC 1337 ReportVariable mixed BEL/ST termination',
   'OSC 3008 hierarchy',
   'OSC 3008 malformed close recovery',
   'tmux passthrough fixture',
@@ -255,6 +259,13 @@ void _validateFixture(String id, Map<String, Object?> fixture) {
     expect(text, contains('Button=type=custom;code=42;icon=star.fill\x1b\\'));
     expect(text, contains('Button=type=custom\x07'));
     expect(text, endsWith('\x1b]2;osc1337-button-corpus-ok\x1b\\'));
+  } else if (id == 'osc1337_report_variable') {
+    final text = latin1.decode(stream);
+    expect(RegExp(r'\x1b]1337;ReportVariable=').allMatches(text), hasLength(4));
+    expect(text, contains('ReportVariable=dXNlci5SRVBPUlRfS0VZ\x07'));
+    expect(text, contains('ReportVariable=c2Vzc2lvbi5jb2x1bW5z\x1b\\'));
+    expect(text, contains('ReportVariable=%%%\x07'));
+    expect(text, endsWith('\x1b]2;osc1337-report-variable-corpus-ok\x1b\\'));
   } else if (id == 'osc133_semantic_prompt_aid') {
     final text = latin1.decode(stream);
     expect(RegExp(r'\x1b]133;').allMatches(text), hasLength(5));

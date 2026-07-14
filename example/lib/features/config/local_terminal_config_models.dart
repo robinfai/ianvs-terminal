@@ -5,6 +5,7 @@ import '../policies/local_terminal_policy_models.dart';
 import '../shell/shell_action_registry.dart';
 
 const int maxLocalTerminalKeyBindingKeyLength = 64;
+const int maxLocalTerminalReportVariableDecisions = 64;
 final int _maxLocalTerminalKeyBindingEntriesToScan =
     TerminalActionId.values.length * 4;
 
@@ -341,19 +342,26 @@ class LocalTerminalHostActionsConfig {
   const LocalTerminalHostActionsConfig({
     this.osc1337OpenUrl = LocalTerminalOpenUrlPolicy.ask,
     this.osc1337RequestAttention = LocalTerminalRequestAttentionPolicy.disabled,
+    this.osc1337ReportVariables =
+        const <String, LocalTerminalReportVariablePolicy>{},
   });
 
   final LocalTerminalOpenUrlPolicy osc1337OpenUrl;
   final LocalTerminalRequestAttentionPolicy osc1337RequestAttention;
+  final Map<String, LocalTerminalReportVariablePolicy> osc1337ReportVariables;
 
   LocalTerminalHostActionsConfig copyWith({
     LocalTerminalOpenUrlPolicy? osc1337OpenUrl,
     LocalTerminalRequestAttentionPolicy? osc1337RequestAttention,
+    Map<String, LocalTerminalReportVariablePolicy>? osc1337ReportVariables,
   }) {
     return LocalTerminalHostActionsConfig(
       osc1337OpenUrl: osc1337OpenUrl ?? this.osc1337OpenUrl,
       osc1337RequestAttention:
           osc1337RequestAttention ?? this.osc1337RequestAttention,
+      osc1337ReportVariables: osc1337ReportVariables == null
+          ? this.osc1337ReportVariables
+          : Map.unmodifiable(osc1337ReportVariables),
     );
   }
 
@@ -361,6 +369,16 @@ class LocalTerminalHostActionsConfig {
     return {
       'osc1337OpenUrl': osc1337OpenUrl.name,
       'osc1337RequestAttention': osc1337RequestAttention.name,
+      'osc1337ReportVariables': {
+        for (final entry
+            in osc1337ReportVariables.entries
+                .where(
+                  (entry) =>
+                      isLocalTerminalReportVariableNameSupported(entry.key),
+                )
+                .take(maxLocalTerminalReportVariableDecisions))
+          entry.key: entry.value.name,
+      },
     };
   }
 
@@ -370,6 +388,9 @@ class LocalTerminalHostActionsConfig {
       osc1337RequestAttention: _requestAttentionPolicy(
         json?['osc1337RequestAttention'],
       ),
+      osc1337ReportVariables: _reportVariablePolicies(
+        json?['osc1337ReportVariables'],
+      ),
     );
   }
 }
@@ -377,6 +398,35 @@ class LocalTerminalHostActionsConfig {
 enum LocalTerminalOpenUrlPolicy { disabled, ask }
 
 enum LocalTerminalRequestAttentionPolicy { disabled, allow }
+
+enum LocalTerminalReportVariablePolicy { deny, allow }
+
+bool isLocalTerminalReportVariableNameSupported(String name) {
+  const sessionVariables = <String>{
+    'session.name',
+    'session.terminalIconName',
+    'session.terminalWindowName',
+    'session.columns',
+    'session.rows',
+    'session.hostname',
+    'session.lastCommand',
+    'session.username',
+    'session.path',
+    'session.shell',
+    'session.badge',
+    'session.profileName',
+  };
+  if (name.isEmpty ||
+      utf8.encode(name).length > 256 ||
+      name.runes.any((rune) => rune < 0x20 || (rune >= 0x7f && rune <= 0x9f))) {
+    return false;
+  }
+  if (sessionVariables.contains(name)) {
+    return true;
+  }
+  final userName = name.startsWith('user.') ? name.substring(5) : null;
+  return userName != null && userName.isNotEmpty && userName.runes.length <= 80;
+}
 
 class LocalTerminalPasteConfig {
   const LocalTerminalPasteConfig({
@@ -666,6 +716,37 @@ LocalTerminalRequestAttentionPolicy _requestAttentionPolicy(Object? value) {
     }
   }
   return LocalTerminalRequestAttentionPolicy.disabled;
+}
+
+Map<String, LocalTerminalReportVariablePolicy> _reportVariablePolicies(
+  Object? value,
+) {
+  if (value is! Map) {
+    return const <String, LocalTerminalReportVariablePolicy>{};
+  }
+  final result = <String, LocalTerminalReportVariablePolicy>{};
+  for (final entry in value.entries) {
+    if (result.length >= maxLocalTerminalReportVariableDecisions) {
+      break;
+    }
+    final name = entry.key;
+    final rawPolicy = entry.value;
+    if (name is! String ||
+        !isLocalTerminalReportVariableNameSupported(name) ||
+        rawPolicy is! String) {
+      continue;
+    }
+    final normalized = rawPolicy.trim().toLowerCase();
+    final policy = switch (normalized) {
+      'allow' => LocalTerminalReportVariablePolicy.allow,
+      'deny' || 'disabled' => LocalTerminalReportVariablePolicy.deny,
+      _ => null,
+    };
+    if (policy != null) {
+      result[name] = policy;
+    }
+  }
+  return Map.unmodifiable(result);
 }
 
 LocalTerminalBracketedPastePolicy _bracketedPastePolicy(Object? value) {

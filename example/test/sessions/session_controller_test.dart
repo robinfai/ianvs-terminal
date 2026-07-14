@@ -1788,6 +1788,105 @@ void main() {
     expect(integration.recentCommands, isEmpty);
   });
 
+  testWidgets(
+    'OSC 1337 ReportVariable denies first then reports allowed product state',
+    (tester) async {
+      final fakeBackend = FakePtyBackend();
+      final bindings = _EventfulPtyBackend(fakeBackend);
+      final configRepository = _TestLocalTerminalConfigRepository(null);
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(bindings),
+          sessionControllerProvider.overrideWith(_TestSessionController.new),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            configRepository,
+          ),
+          sessionPollingEnabledProvider.overrideWithValue(false),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final controller = container.read(sessionControllerProvider.notifier);
+      controller.createSession(
+        defaultTerminalProfile().copyWith(
+          id: 'osc1337-report-variable',
+          name: 'Report profile',
+        ),
+      );
+      final sessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      await tester.pump();
+
+      bindings.enqueueEvent(sessionId, {
+        'kind': 'shell_context',
+        'payload': const <String, Object?>{
+          'source': 'osc1337_current_dir',
+          'cwd': '/product/current',
+          'hostname': 'product.example',
+          'username': 'alice',
+        },
+      });
+      bindings.enqueueEvent(sessionId, {
+        'kind': 'report_variable_request',
+        'payload': const <String, Object?>{
+          'source': 'iterm1337',
+          'name': 'session.path',
+          'value': '/native/stale',
+        },
+      });
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(sessionId);
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(
+        ascii.decode(fakeBackend.writes.last),
+        '\x1b]1337;ReportVariable=\x07',
+      );
+
+      await controller.setOsc1337ReportVariableDecision(
+        'session.path',
+        LocalTerminalReportVariablePolicy.allow,
+      );
+      expect(
+        configRepository
+            .savedDocuments
+            .last
+            .hostActions
+            .osc1337ReportVariables['session.path'],
+        LocalTerminalReportVariablePolicy.allow,
+      );
+      bindings.enqueueEvent(sessionId, {
+        'kind': 'report_variable_request',
+        'payload': const <String, Object?>{
+          'source': 'iterm1337',
+          'name': 'session.path',
+          'value': '/native/stale',
+        },
+      });
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(sessionId);
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(
+        ascii.decode(fakeBackend.writes.last),
+        '\x1b]1337;ReportVariable=L3Byb2R1Y3QvY3VycmVudA==\x07',
+      );
+
+      await controller.setOsc1337ReportVariableDecision('session.path', null);
+      expect(
+        configRepository.savedDocuments.last.hostActions.osc1337ReportVariables,
+        isEmpty,
+      );
+    },
+  );
+
   testWidgets('legacy frames retain shell-hook prompt offsets', (tester) async {
     final bindings = _EventfulPtyBackend(FakePtyBackend());
     final container = ProviderContainer(

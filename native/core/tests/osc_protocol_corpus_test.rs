@@ -402,6 +402,22 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
                 ));
                 assert_eq!(terminal.cursor().col, 8);
             }
+            "osc1337_report_variable" => {
+                assert_eq!(terminal.title(), "osc1337-report-variable-corpus-ok");
+                assert_eq!(terminal.get_user_var("REPORT_KEY"), Some("report-value"));
+                let names = terminal
+                    .poll_events()
+                    .into_iter()
+                    .filter_map(|event| match event {
+                        TerminalEvent::ItermReportVariableRequested { name } => Some(name),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(
+                    names,
+                    vec!["user.REPORT_KEY", "session.columns", "session.environment",]
+                );
+            }
             "osc133_semantic_prompt_aid" => {
                 let events = terminal.poll_events();
                 assert!(events.iter().any(|event| matches!(

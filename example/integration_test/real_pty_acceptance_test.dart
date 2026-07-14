@@ -1253,6 +1253,106 @@ sleep 1
   );
 
   testWidgets(
+    'real PTY OSC 1337 ReportVariable denies first and reports future allowed value',
+    (tester) async {
+      final goFile = _tempSignalFile('osc1337-report-variable');
+      final profile = _scriptProfile(
+        id: 'osc1337-report-variable',
+        name: 'OSC 1337 Report Variable',
+        script: r'''
+python3 - <<'PY'
+import os, select, termios, time, tty
+
+tty_fd = os.open('/dev/tty', os.O_RDWR)
+old = termios.tcgetattr(tty_fd)
+tty.setraw(tty_fd)
+
+def read_report():
+    data = b''
+    deadline = time.time() + 5.0
+    while time.time() < deadline and b'\x07' not in data:
+        ready, _, _ = select.select([tty_fd], [], [], 0.1)
+        if ready:
+            data += os.read(tty_fd, 4096)
+    return data if data else b'TIMEOUT'
+
+try:
+    os.write(tty_fd, b'\x1b]1337;SetUserVar=REPORT_KEY=cmVwb3J0LXZhbHVl\x07')
+    os.write(tty_fd, b'\x1b]1337;ReportVariable=dXNlci5SRVBPUlRfS0VZ\x07')
+    first = read_report()
+    os.write(1, b'OSC1337-REPORT-FIRST:' + first.hex().encode() + b'\r\n')
+    while not os.path.exists(os.environ['GO_FILE']):
+        time.sleep(0.05)
+    os.write(tty_fd, b'\x1b]1337;ReportVariable=dXNlci5SRVBPUlRfS0VZ\x1b\\')
+    allowed = read_report()
+    os.write(1, b'OSC1337-REPORT-ALLOWED:' + allowed.hex().encode() + b'\r\n')
+    os.write(tty_fd, b'\x1b]1337;ReportVariable=c2Vzc2lvbi5lbnZpcm9ubWVudA==\x07')
+    unknown = read_report()
+    os.write(1, b'OSC1337-REPORT-UNKNOWN:' + unknown.hex().encode() + b'\r\n')
+finally:
+    termios.tcsetattr(tty_fd, termios.TCSANOW, old)
+    os.close(tty_fd)
+PY
+sleep 1
+''',
+        env: {'GO_FILE': goFile.path},
+      );
+      final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
+
+      await _waitFor(
+        tester,
+        description: 'OSC 1337 first denied report and future policy prompt',
+        condition: () =>
+            find
+                .byKey(const Key('osc1337-report-variable-dialog'))
+                .evaluate()
+                .isNotEmpty &&
+            _terminalText(harness.container).contains(
+              'OSC1337-REPORT-FIRST:'
+              '1b5d313333373b5265706f72745661726961626c653d07',
+            ),
+        onTimeout: () => 'Terminal text: ${_terminalText(harness.container)}',
+      );
+      expect(find.text('user.REPORT_KEY'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('osc1337-report-variable-allow')));
+      await tester.pumpAndSettle();
+      _signal(goFile);
+
+      await _waitFor(
+        tester,
+        description: 'OSC 1337 allowed and unknown exact report replies',
+        condition: () {
+          final text = _terminalText(harness.container);
+          return text.contains('OSC1337-REPORT-ALLOWED:') &&
+              text.contains('OSC1337-REPORT-UNKNOWN:');
+        },
+        onTimeout: () => 'Terminal text: ${_terminalText(harness.container)}',
+      );
+      final terminalText = _terminalText(harness.container);
+      final compactTerminalText = terminalText.replaceAll('\n', '');
+      expect(
+        compactTerminalText,
+        contains(
+          'OSC1337-REPORT-ALLOWED:'
+          '1b5d313333373b5265706f72745661726961626c653d636d567762334a304c585a686248566c07',
+        ),
+      );
+      expect(
+        compactTerminalText,
+        contains(
+          'OSC1337-REPORT-UNKNOWN:'
+          '1b5d313333373b5265706f72745661726961626c653d07',
+        ),
+      );
+      expect(
+        find.byKey(const Key('osc1337-report-variable-dialog')),
+        findsNothing,
+      );
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
     'real PTY OSC 1337 cursor guide enables, paints, and disables',
     (tester) async {
       final enableFile = _tempSignalFile('osc1337-cursor-guide-enable');

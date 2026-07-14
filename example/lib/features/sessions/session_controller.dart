@@ -1191,6 +1191,9 @@ class SessionController extends Notifier<SessionState> {
       case TerminalSessionCellSizeReportRequestEvent():
         // TerminalRuntimeController owns the immediate protocol reply.
         break;
+      case TerminalSessionReportVariableRequestEvent():
+        _replyToOsc1337ReportVariable(event);
+        break;
       case TerminalSessionOpenUrlRequestEvent():
         // ShellScreen owns active-pane policy and explicit host authorization.
         break;
@@ -1436,6 +1439,98 @@ class SessionController extends Notifier<SessionState> {
       event.sessionId,
       currentPane.copyWith(shellIntegration: nextIntegration),
     );
+  }
+
+  void _replyToOsc1337ReportVariable(
+    TerminalSessionReportVariableRequestEvent event,
+  ) {
+    ({String? value, bool useNativeValue}) resolution = (
+      value: null,
+      useNativeValue: false,
+    );
+    if (event.isSupported &&
+        _localConfigDocument.hostActions.osc1337ReportVariables[event.name!] ==
+            LocalTerminalReportVariablePolicy.allow) {
+      resolution = _resolvedOsc1337ReportVariable(event);
+    }
+    final responded = _runtime.respondToOsc1337ReportVariable(
+      event,
+      value: resolution.value,
+      useNativeResolvedValue: resolution.useNativeValue,
+    );
+    if (!responded && resolution.value != null) {
+      // A product-owned value can still exceed the runtime's defensive reply
+      // bound. The one-shot request remains pending in that case, so end it
+      // with the protocol-defined empty value instead of leaving the caller
+      // waiting indefinitely.
+      _runtime.respondToOsc1337ReportVariable(event);
+    }
+  }
+
+  ({String? value, bool useNativeValue}) _resolvedOsc1337ReportVariable(
+    TerminalSessionReportVariableRequestEvent event,
+  ) {
+    final pane = _paneForSession(event.sessionId);
+    if (pane == null) {
+      return (value: null, useNativeValue: false);
+    }
+    final frame = _runtime.viewportFor(event.sessionId).frame;
+    return switch (event.name) {
+      'session.name' when pane.title.isNotEmpty => (
+        value: pane.title,
+        useNativeValue: false,
+      ),
+      'session.name' => (value: null, useNativeValue: true),
+      'session.terminalIconName' => (
+        value: frame.windowIconName,
+        useNativeValue: false,
+      ),
+      'session.terminalWindowName' => (
+        value: frame.windowTitle,
+        useNativeValue: false,
+      ),
+      'session.columns' when frame.viewportCols > 0 => (
+        value: frame.viewportCols.toString(),
+        useNativeValue: false,
+      ),
+      'session.rows' when frame.viewportRows > 0 => (
+        value: frame.viewportRows.toString(),
+        useNativeValue: false,
+      ),
+      'session.hostname' when pane.shellIntegration.hostname != null => (
+        value: pane.shellIntegration.hostname,
+        useNativeValue: false,
+      ),
+      'session.hostname' => (value: null, useNativeValue: true),
+      'session.lastCommand' => (
+        value: pane.shellIntegration.lastCommand,
+        useNativeValue: false,
+      ),
+      'session.username' when pane.shellIntegration.username != null => (
+        value: pane.shellIntegration.username,
+        useNativeValue: false,
+      ),
+      'session.username' => (value: null, useNativeValue: true),
+      'session.path' when pane.shellIntegration.currentDirectory != null => (
+        value: pane.shellIntegration.currentDirectory,
+        useNativeValue: false,
+      ),
+      'session.path' => (value: null, useNativeValue: true),
+      'session.shell' => (
+        value: pane.shellIntegration.shell,
+        useNativeValue: false,
+      ),
+      'session.badge' => (value: pane.oscBadge, useNativeValue: false),
+      'session.profileName' => (
+        value: pane.profileSnapshot?.name,
+        useNativeValue: false,
+      ),
+      final name? when name.startsWith('user.') => (
+        value: pane.shellIntegration.userVariables[name.substring(5)],
+        useNativeValue: true,
+      ),
+      _ => (value: null, useNativeValue: false),
+    };
   }
 
   void _applySessionNotification(TerminalSessionNotificationEvent event) {
@@ -2903,6 +2998,59 @@ class SessionController extends Notifier<SessionState> {
     _localConfigDocument = latestConfig.copyWith(
       hostActions: latestConfig.hostActions.copyWith(
         osc1337RequestAttention: policy,
+      ),
+    );
+    _configBootstrapSource = LocalTerminalConfigBootstrapSource.localConfig;
+    await repository.save(_localConfigDocument);
+    _preferencesLoadedFromDisk = true;
+  }
+
+  Future<void> setOsc1337ReportVariableDecision(
+    String name,
+    LocalTerminalReportVariablePolicy? policy,
+  ) async {
+    if (!isLocalTerminalReportVariableNameSupported(name)) {
+      return;
+    }
+    final repository = ref.read(localTerminalConfigRepositoryProvider);
+    final latestConfig = await repository.load() ?? _localConfigDocument;
+    final decisions = <String, LocalTerminalReportVariablePolicy>{
+      ...latestConfig.hostActions.osc1337ReportVariables,
+    };
+    decisions.remove(name);
+    if (policy != null) {
+      while (decisions.length >= maxLocalTerminalReportVariableDecisions) {
+        decisions.remove(decisions.keys.first);
+      }
+      decisions[name] = policy;
+    }
+    _localConfigDocument = latestConfig.copyWith(
+      hostActions: latestConfig.hostActions.copyWith(
+        osc1337ReportVariables: Map.unmodifiable(decisions),
+      ),
+    );
+    _configBootstrapSource = LocalTerminalConfigBootstrapSource.localConfig;
+    await repository.save(_localConfigDocument);
+    _preferencesLoadedFromDisk = true;
+  }
+
+  Future<void> replaceOsc1337ReportVariableDecisions(
+    Map<String, LocalTerminalReportVariablePolicy> decisions,
+  ) async {
+    final normalized = <String, LocalTerminalReportVariablePolicy>{};
+    for (final entry in decisions.entries) {
+      if (normalized.length >= maxLocalTerminalReportVariableDecisions) {
+        break;
+      }
+      if (isLocalTerminalReportVariableNameSupported(entry.key)) {
+        normalized[entry.key] = entry.value;
+      }
+    }
+    final repository = ref.read(localTerminalConfigRepositoryProvider);
+    final latestConfig = await repository.load() ?? _localConfigDocument;
+    _localConfigDocument = latestConfig.copyWith(
+      hostActions: latestConfig.hostActions.copyWith(
+        osc1337ReportVariables: Map.unmodifiable(normalized),
       ),
     );
     _configBootstrapSource = LocalTerminalConfigBootstrapSource.localConfig;

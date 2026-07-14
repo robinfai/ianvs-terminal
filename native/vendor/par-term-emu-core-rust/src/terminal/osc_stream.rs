@@ -652,6 +652,7 @@ fn measured_payload_len(content: &[u8], separator: usize, classification: Classi
         (b"1337", OscIntent::UserVariableOrBadge) => payload
             .strip_prefix(b"SetBadgeFormat=")
             .or_else(|| payload.strip_prefix(b"SetUserVar="))
+            .or_else(|| payload.strip_prefix(b"ReportVariable="))
             .unwrap_or(payload)
             .len(),
         (b"52" | b"5522", OscIntent::Clipboard) => payload
@@ -807,6 +808,13 @@ fn classify_osc_1337(
     }
     if payload == b"ReportCellSize" || (!complete && b"ReportCellSize".starts_with(payload)) {
         return Classification::new(OscIntent::Appearance, OscCapability::Appearance);
+    }
+    if payload.starts_with(b"ReportVariable=")
+        || (!complete && b"ReportVariable=".starts_with(payload))
+    {
+        // Parsing the bounded query grants no disclosure authority. The
+        // embedding product owns the per-variable permission decision.
+        return Classification::new(OscIntent::UserVariableOrBadge, OscCapability::Metadata);
     }
     if payload.starts_with(b"OpenURL=:") || (!complete && b"OpenURL=:".starts_with(payload)) {
         // The parser may surface a bounded request, but Hyperlink capability
@@ -1331,6 +1339,75 @@ mod tests {
         assert_eq!(
             gate.diagnostics()
                 .for_intent(OscIntent::ShellIntegration)
+                .oversized,
+            1
+        );
+    }
+
+    #[test]
+    fn osc1337_report_variable_is_bounded_metadata_without_disclosure_authority() {
+        let sequence = b"\x1b]1337;ReportVariable=dXNlci5SRVBPUlRfS0VZ\x1b\\";
+        let classification = classify_osc(
+            &sequence[2..sequence.len() - 2],
+            true,
+            OscClassificationContext::default(),
+        );
+        assert_eq!(classification.intent, OscIntent::UserVariableOrBadge);
+        assert_eq!(classification.capability, OscCapability::Metadata);
+
+        for split in 1..sequence.len() {
+            let mut gate = OscStreamGate::default();
+            let mut output = filter_owned(
+                &mut gate,
+                &sequence[..split],
+                OscCapabilityPolicy::default(),
+                OscClassificationContext::default(),
+            );
+            output.extend(filter_owned(
+                &mut gate,
+                &sequence[split..],
+                OscCapabilityPolicy::default(),
+                OscClassificationContext::default(),
+            ));
+            assert_eq!(output, sequence, "failed at byte split {split}");
+        }
+
+        let mut denied = OscCapabilityPolicy::default();
+        denied.set(OscCapability::Metadata, false);
+        let mut gate = OscStreamGate::default();
+        assert!(filter_owned(
+            &mut gate,
+            sequence,
+            denied,
+            OscClassificationContext::default(),
+        )
+        .is_empty());
+        assert_eq!(
+            gate.diagnostics()
+                .for_intent(OscIntent::UserVariableOrBadge)
+                .policy_denied,
+            1
+        );
+
+        let mut oversized = b"\x1b]1337;ReportVariable=".to_vec();
+        oversized.extend(std::iter::repeat_n(
+            b'A',
+            OscIntent::UserVariableOrBadge.payload_limit() + 1,
+        ));
+        oversized.extend_from_slice(b"\x07recovered");
+        let mut gate = OscStreamGate::default();
+        assert_eq!(
+            filter_owned(
+                &mut gate,
+                &oversized,
+                OscCapabilityPolicy::default(),
+                OscClassificationContext::default(),
+            ),
+            b"recovered",
+        );
+        assert_eq!(
+            gate.diagnostics()
+                .for_intent(OscIntent::UserVariableOrBadge)
                 .oversized,
             1
         );

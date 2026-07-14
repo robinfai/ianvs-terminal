@@ -1,11 +1,12 @@
 # OSC Capability Plan
 
 Status: active support contract. P0/P1 and the promoted P2/P3 OSC families are
-implemented with automated regression coverage. Through Phase 32, the safe
+implemented with automated regression coverage. Through Phase 33, the safe
 incoming OSC 1337 download subset, permission-gated OpenURL subset, and bounded
 RequestAttention actions are promoted alongside report-only OSC 99 notification
-interactions and user-driven OSC 1337 inline buttons; uploads and other
-privileged host actions stay outside the current product.
+interactions, user-driven OSC 1337 inline buttons, and permission-gated
+ReportVariable replies; uploads and other privileged host actions stay outside
+the current product.
 
 This plan turns OSC support from a list of escape-code numbers into product
 capability gates. The current implementation scope is local terminal fidelity
@@ -54,6 +55,7 @@ P0 closes the support contract and prevents accidental regressions.
 | OSC 1337 OpenURL | external URL request | `user-actionable` safe subset | Parse as untrusted Hyperlink-capability metadata; require active-pane Ask policy and exact explicit confirmation; persistent Deny remains available. |
 | OSC 1337 RequestAttention | Dock/cursor attention request | `user-actionable` bounded subset | Exact yes/once/no/fireworks actions; persistent Deny by default, explicit Allow with per-session/global limits and owned cancellation; never focus or activate the app. |
 | OSC 1337 Button | inline copy/custom controls | `user-actionable` fixed-action subset | Four-cell theme-derived controls; explicit copy of retained block text or exact `CSI ? 1337 ; code ~`; stale IDs fail closed. |
+| OSC 1337 ReportVariable | session/user variable disclosure | `user-actionable` permission-gated subset | Reply empty on first, denied, undefined, or unsupported requests; treat malformed wire input as a bounded no-op; persist an exact per-variable future Allow/Deny choice; disclose only bounded Ianvs-owned session state or parser-owned `user.*` values. |
 
 P0 deliverables:
 
@@ -384,6 +386,12 @@ Policy and trust:
   custom controls, custom invalidation, explicit retained-block copy and only
   the fixed custom CSI reply. Icon names remain presentation-only and every
   action revalidates a monotonic live session button ID.
+- OSC 1337 ReportVariable is no longer deferred: Phase 33 supports a bounded
+  Ianvs-owned session-variable subset and `user.*` through exact per-variable
+  future Allow/Deny decisions. The first request, denied/undefined variables,
+  and unsupported names receive the exact empty response; malformed wire input
+  is a bounded no-op. No environment, file, clipboard or ambient process data
+  is read to synthesize a value.
 - Not P0/P1: public custom OSC parser hooks, remote identity, full file
   transfer, notification spam defaults.
 - Not P2/P3: SFTP/SSH session management, remote file browsing, automatic

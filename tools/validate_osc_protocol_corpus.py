@@ -67,6 +67,10 @@ REQUIRED_COVERAGE = {
     "iTerm2 OSC 1337 custom button",
     "iTerm2 OSC 1337 custom button invalidation",
     "iTerm2 OSC 1337 mixed BEL/ST termination",
+    "iTerm2 OSC 1337 ReportVariable Base64 name decoding",
+    "iTerm2 OSC 1337 ReportVariable user and session variable resolution",
+    "iTerm2 OSC 1337 ReportVariable malformed and unknown fail-closed handling",
+    "iTerm2 OSC 1337 ReportVariable mixed BEL/ST termination",
     "OSC 3008 hierarchy",
     "OSC 3008 malformed close recovery",
     "tmux passthrough fixture",
@@ -272,6 +276,35 @@ def validate_case(case: Any) -> set[str]:
         )
         require(b"Button=type=custom\x07" in stream, f"{case_id}: invalidation")
         require(b"osc1337-button-corpus-ok" in stream, f"{case_id}: recovery")
+    elif case_id == "osc1337_report_variable":
+        require(
+            stream.count(b"\x1b]1337;ReportVariable=") == 4,
+            f"{case_id}: report requests",
+        )
+        require(
+            b"SetUserVar=REPORT_KEY=cmVwb3J0LXZhbHVl" in stream,
+            f"{case_id}: user variable setup",
+        )
+        require(
+            b"ReportVariable=dXNlci5SRVBPUlRfS0VZ\x07" in stream,
+            f"{case_id}: user variable query",
+        )
+        require(
+            b"ReportVariable=c2Vzc2lvbi5jb2x1bW5z\x1b\\" in stream,
+            f"{case_id}: split ST session query",
+        )
+        require(
+            b"ReportVariable=%%%\x07" in stream,
+            f"{case_id}: malformed Base64",
+        )
+        require(
+            b"ReportVariable=c2Vzc2lvbi5lbnZpcm9ubWVudA==\x07" in stream,
+            f"{case_id}: unknown variable",
+        )
+        require(
+            b"osc1337-report-variable-corpus-ok" in stream,
+            f"{case_id}: recovery",
+        )
     elif case_id == "tmux_passthrough":
         require(stream.startswith(b"\x1bPtmux;\x1b\x1b]"), f"{case_id}: bad wrapper")
     elif case_id == "screen_passthrough":

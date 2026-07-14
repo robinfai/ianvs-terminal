@@ -22,6 +22,7 @@ const MAX_SET_COLORS_PAIRS: usize = 32;
 const MAX_ANNOTATION_MESSAGE_CHARS: usize = 1024;
 const MAX_ANNOTATION_LENGTH_CELLS: usize = 4096;
 const MAX_OPEN_URL_BYTES: usize = 4096;
+const MAX_REPORT_VARIABLE_NAME_BYTES: usize = 256;
 
 impl Terminal {
     pub(crate) fn handle_osc_iterm(&mut self, _command: &str, params: &[&[u8]]) {
@@ -53,6 +54,8 @@ impl Terminal {
             } else if data == "ReportCellSize" {
                 self.terminal_events
                     .push(TerminalEvent::CellSizeReportRequested);
+            } else if let Some(encoded) = data.strip_prefix("ReportVariable=") {
+                self.handle_iterm_report_variable(encoded);
             } else if let Some(encoded) = data.strip_prefix("OpenURL=:") {
                 self.handle_iterm_open_url(encoded);
             } else if let Some(action) = data.strip_prefix("RequestAttention=") {
@@ -81,6 +84,25 @@ impl Terminal {
                 self.handle_iterm_image(&data);
             }
         }
+    }
+
+    fn handle_iterm_report_variable(&mut self, encoded: &str) {
+        use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+
+        let Ok(decoded) = BASE64.decode(encoded) else {
+            return;
+        };
+        if decoded.is_empty() || decoded.len() > MAX_REPORT_VARIABLE_NAME_BYTES {
+            return;
+        }
+        let Ok(name) = String::from_utf8(decoded) else {
+            return;
+        };
+        if name.chars().any(char::is_control) {
+            return;
+        }
+        self.terminal_events
+            .push(TerminalEvent::ItermReportVariableRequested { name });
     }
 
     fn handle_iterm_button(&mut self, payload: &str) {
@@ -716,6 +738,7 @@ fn parse_annotation_signed(value: &str) -> Option<i64> {
 
 #[cfg(test)]
 mod tests {
+    use super::MAX_REPORT_VARIABLE_NAME_BYTES;
     use crate::color::Color;
     use crate::terminal::event::ShellIntegrationSource;
     use crate::terminal::MAX_ITERM_BLOCK_ID_CHARS;
@@ -979,6 +1002,37 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    #[test]
+    fn report_variable_decodes_exact_bounded_utf8_names() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.process(b"\x1b]1337;ReportVariable=c2Vzc2lvbi5wYXRo\x07");
+        terminal.process(b"\x1b]1337;ReportVariable=dXNlci5JQU5WU19SRVBPUlQ=\x1b\\");
+        terminal.process(b"\x1b]1337;ReportVariable=%%%\x07");
+        terminal.process(b"\x1b]1337;ReportVariable=//4=\x07");
+        terminal.process(b"\x1b]1337;ReportVariable=c2Vzc2lvbi5wYXRoCg==\x07");
+        terminal.process(b"\x1b]1337;ReportVariable=\x07");
+
+        let names = terminal
+            .poll_events()
+            .into_iter()
+            .filter_map(|event| match event {
+                TerminalEvent::ItermReportVariableRequested { name } => Some(name),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(names, ["session.path", "user.IANVS_REPORT"]);
+    }
+
+    #[test]
+    fn report_variable_rejects_names_over_the_decoded_bound() {
+        use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+
+        let mut terminal = Terminal::new(80, 24);
+        let encoded = BASE64.encode("v".repeat(MAX_REPORT_VARIABLE_NAME_BYTES + 1));
+        terminal.process(format!("\x1b]1337;ReportVariable={encoded}\x07").as_bytes());
+        assert!(terminal.poll_events().is_empty());
     }
 
     #[test]
@@ -1523,6 +1577,16 @@ mod tests {
             (b"\x1b]1337;ReportCellSize\x1b\\", |event| {
                 matches!(event, TerminalEvent::CellSizeReportRequested)
             }),
+            (
+                b"\x1b]1337;ReportVariable=c2Vzc2lvbi5yb3dz\x1b\\",
+                |event| {
+                    matches!(
+                        event,
+                        TerminalEvent::ItermReportVariableRequested { name }
+                            if name == "session.rows"
+                    )
+                },
+            ),
             (
                 b"\x1b]1337;OpenURL=:aHR0cHM6Ly9leGFtcGxlLnRlc3QvcGhhc2UyOQ==\x1b\\",
                 |event| matches!(event, TerminalEvent::ItermOpenUrlRequested { .. }),

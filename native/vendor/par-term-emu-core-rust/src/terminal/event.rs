@@ -235,6 +235,16 @@ pub enum TerminalEvent {
     },
     /// iTerm2 requested the current rendered character-cell size.
     CellSizeReportRequested,
+    /// iTerm2 requested the value of a terminal/session variable.
+    ///
+    /// This event carries the decoded variable name only. Embedders must
+    /// resolve it from session-owned state, apply a per-variable disclosure
+    /// policy, and send an OSC 1337 ReportVariable reply even when the value
+    /// is denied or undefined.
+    ItermReportVariableRequested {
+        /// Base64-decoded UTF-8 variable name from the request.
+        name: String,
+    },
     /// iTerm2 requested that the host open a bounded URL.
     ///
     /// This event is an untrusted request only. Embedders must apply their
@@ -407,6 +417,9 @@ impl TerminalEvent {
                 TerminalEventKind::ShellIntegrationVersion
             }
             TerminalEvent::CellSizeReportRequested => TerminalEventKind::CellSizeReportRequested,
+            TerminalEvent::ItermReportVariableRequested { .. } => {
+                TerminalEventKind::ItermReportVariableRequested
+            }
             TerminalEvent::ItermOpenUrlRequested { .. } => TerminalEventKind::ItermOpenUrlRequested,
             TerminalEvent::ItermAttentionRequested { .. } => {
                 TerminalEventKind::ItermAttentionRequested
@@ -480,6 +493,7 @@ impl TerminalEvent {
                 version.len().saturating_add(option_len(shell))
             }
             Self::ItermOpenUrlRequested { url } => url.len(),
+            Self::ItermReportVariableRequested { name } => name.len(),
             Self::ItermAnnotation { message, .. } => message.len(),
             Self::EnvironmentChanged {
                 key,
@@ -542,6 +556,7 @@ pub enum TerminalEventKind {
     ShellIntegrationEvent,
     ShellIntegrationVersion,
     CellSizeReportRequested,
+    ItermReportVariableRequested,
     ItermOpenUrlRequested,
     ItermAttentionRequested,
     ItermAnnotation,

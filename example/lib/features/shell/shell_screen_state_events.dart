@@ -92,6 +92,8 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       case terminal.TerminalSessionCellSizeReportRequestEvent():
         // The reusable runtime already replied using its committed cell metric.
         break;
+      case terminal.TerminalSessionReportVariableRequestEvent():
+        _handleOsc1337ReportVariableRequest(event);
       case terminal.TerminalSessionOpenUrlRequestEvent():
         _handleOsc1337OpenUrlRequest(event);
       case terminal.TerminalSessionAttentionRequestEvent():
@@ -129,6 +131,29 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     _osc1337OpenUrlPromptActive = true;
     _lastOsc1337OpenUrlPromptAt = now;
     unawaited(_confirmOsc1337OpenUrl(event));
+  }
+
+  void _handleOsc1337ReportVariableRequest(
+    terminal.TerminalSessionReportVariableRequestEvent event,
+  ) {
+    final name = event.name;
+    final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
+    final now = _clock();
+    final lastPromptAt = _lastOsc1337ReportVariablePromptAt;
+    if (!event.isSupported ||
+        name == null ||
+        activeSessionId != event.sessionId ||
+        _hostActionsConfig.osc1337ReportVariables.containsKey(name) ||
+        _osc1337ReportVariablePromptActive ||
+        (lastPromptAt != null &&
+            now.difference(lastPromptAt) <
+                _ShellScreenState._osc1337ReportVariablePromptCooldown) ||
+        !mounted) {
+      return;
+    }
+    _osc1337ReportVariablePromptActive = true;
+    _lastOsc1337ReportVariablePromptAt = now;
+    unawaited(_confirmOsc1337ReportVariable(event, name));
   }
 
   void _handleOsc1337AttentionRequest(
@@ -353,6 +378,112 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       url,
       sourceSessionId: event.sessionId,
       filePermissionGranted: true,
+    );
+  }
+
+  Future<void> _confirmOsc1337ReportVariable(
+    terminal.TerminalSessionReportVariableRequestEvent event,
+    String name,
+  ) async {
+    final sourceContext = _sessionIsInMultiPaneTab(event.sessionId)
+        ? _terminalPaneContextLine(event.sessionId)
+        : null;
+    LocalTerminalReportVariablePolicy? decision;
+    try {
+      decision = await showDialog<LocalTerminalReportVariablePolicy>(
+        context: context,
+        builder: (dialogContext) {
+          final appTheme = dialogContext.appTheme;
+          return AlertDialog(
+            key: const Key('osc1337-report-variable-dialog'),
+            title: const Text('Allow future variable reports?'),
+            content: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'The current request was denied and received an empty response. Choose whether future terminal programs may read this variable.',
+                  ),
+                  if (sourceContext != null) ...[
+                    SizedBox(height: appTheme.spacing.md),
+                    Text('Source: $sourceContext'),
+                  ],
+                  SizedBox(height: appTheme.spacing.md),
+                  const Text('Variable'),
+                  SizedBox(height: appTheme.spacing.xs),
+                  SelectableText(
+                    name,
+                    key: const Key('osc1337-report-variable-name'),
+                  ),
+                  SizedBox(height: appTheme.spacing.md),
+                  const Text(
+                    'Ianvs only reports session-owned title, dimensions, shell context, and user.* values. It never reads host environment variables or files for this request.',
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                key: const Key('osc1337-report-variable-not-now'),
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Not Now'),
+              ),
+              TextButton(
+                key: const Key('osc1337-report-variable-allow'),
+                onPressed: () => Navigator.of(
+                  dialogContext,
+                ).pop(LocalTerminalReportVariablePolicy.allow),
+                child: const Text('Always Allow'),
+              ),
+              FilledButton(
+                key: const Key('osc1337-report-variable-deny'),
+                autofocus: true,
+                onPressed: () => Navigator.of(
+                  dialogContext,
+                ).pop(LocalTerminalReportVariablePolicy.deny),
+                child: const Text('Always Deny'),
+              ),
+            ],
+          );
+        },
+      );
+    } finally {
+      _osc1337ReportVariablePromptActive = false;
+    }
+    if (!mounted || decision == null) {
+      return;
+    }
+    if (ref.read(sessionControllerProvider).activeSessionId !=
+        event.sessionId) {
+      _showShellSnackBar(
+        'Variable-reporting decision not saved: source is no longer active',
+      );
+      return;
+    }
+    await ref
+        .read(sessionControllerProvider.notifier)
+        .setOsc1337ReportVariableDecision(name, decision);
+    if (!mounted) {
+      return;
+    }
+    final decisions = <String, LocalTerminalReportVariablePolicy>{
+      ..._hostActionsConfig.osc1337ReportVariables,
+    }..remove(name);
+    while (decisions.length >= maxLocalTerminalReportVariableDecisions) {
+      decisions.remove(decisions.keys.first);
+    }
+    decisions[name] = decision;
+    _mutateState(() {
+      _hostActionsConfig = _hostActionsConfig.copyWith(
+        osc1337ReportVariables: Map.unmodifiable(decisions),
+      );
+    });
+    _showShellSnackBar(
+      decision == LocalTerminalReportVariablePolicy.allow
+          ? 'Future reports of $name are allowed'
+          : 'Future reports of $name are denied',
     );
   }
 

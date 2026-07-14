@@ -138,6 +138,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   static const _activityPreviewMaxCharacters = 512;
   static const _activityNotificationTrailingDelay = Duration(milliseconds: 200);
   static const _osc1337OpenUrlPromptCooldown = Duration(seconds: 5);
+  static const _osc1337ReportVariablePromptCooldown = Duration(seconds: 30);
   static const _osc1337SystemAttentionSessionCooldown = Duration(seconds: 2);
   static const _osc1337SystemAttentionGlobalCooldown = Duration(
     milliseconds: 750,
@@ -208,6 +209,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       const LocalTerminalHostActionsConfig();
   bool _osc1337OpenUrlPromptActive = false;
   DateTime? _lastOsc1337OpenUrlPromptAt;
+  bool _osc1337ReportVariablePromptActive = false;
+  DateTime? _lastOsc1337ReportVariablePromptAt;
   final Map<String, int> _osc1337AttentionRequestIds = <String, int>{};
   final Map<String, int> _osc1337AttentionEpochs = <String, int>{};
   final Set<String> _osc1337AttentionRequestsPending = <String>{};

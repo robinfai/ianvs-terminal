@@ -35,6 +35,9 @@ const int _maxOsc52ClipboardDecodedBytes = 4 * 1024 * 1024;
 const int _maxOsc52ClipboardEncodedLength =
     ((_maxOsc52ClipboardDecodedBytes + 2) ~/ 3) * 4;
 const int _maxPendingOsc1337CellSizeReports = 16;
+const int _maxPendingOsc1337ReportVariableRequests = 128;
+const int _maxOsc1337ReportVariableNameBytes = 256;
+const int _maxOsc1337ReportVariableValueBytes = 16 * 1024;
 const int _maxOsc1337FileDownloadBytes = 16 * 1024 * 1024;
 const int _maxOsc1337OpenUrlBytes = 4096;
 const int _osc5522ChunkBytes = 4096;
@@ -216,6 +219,76 @@ final class TerminalSessionShellCommandEvent extends TerminalSessionEvent {
 final class TerminalSessionCellSizeReportRequestEvent
     extends TerminalSessionEvent {
   const TerminalSessionCellSizeReportRequestEvent(super.sessionId);
+}
+
+/// An untrusted iTerm2 OSC 1337 variable disclosure request.
+///
+/// The native parser has decoded the variable name. A candidate value resolved
+/// from terminal-owned state is retained privately by the runtime and is not
+/// present in [rawPayload]. Product code must apply a persisted per-variable
+/// policy, then consume [requestId] exactly once through
+/// [TerminalRuntimeController.respondToOsc1337ReportVariable].
+final class TerminalSessionReportVariableRequestEvent
+    extends TerminalSessionEvent {
+  TerminalSessionReportVariableRequestEvent(
+    super.sessionId, {
+    required this.requestId,
+    Map<String, Object?>? rawPayload,
+  }) : rawPayload = Map.unmodifiable(rawPayload ?? const <String, Object?>{});
+
+  static const Set<String> supportedSessionVariables = <String>{
+    'session.name',
+    'session.terminalIconName',
+    'session.terminalWindowName',
+    'session.columns',
+    'session.rows',
+    'session.hostname',
+    'session.lastCommand',
+    'session.username',
+    'session.path',
+    'session.shell',
+    'session.badge',
+    'session.profileName',
+  };
+
+  final int requestId;
+  final Map<String, Object?> rawPayload;
+
+  String? get source => _stringValue(rawPayload['source']);
+  String? get name => _stringValue(rawPayload['name']);
+
+  bool get isValid {
+    final value = name;
+    return requestId > 0 &&
+        source == 'iterm1337' &&
+        value != null &&
+        value.isNotEmpty &&
+        utf8.encode(value).length <= _maxOsc1337ReportVariableNameBytes &&
+        !value.runes.any(
+          (rune) => rune < 0x20 || (rune >= 0x7f && rune <= 0x9f),
+        );
+  }
+
+  bool get isSupported => isValid && isSupportedName(name!);
+
+  static bool isSupportedName(String name) {
+    if (name.isEmpty ||
+        utf8.encode(name).length > _maxOsc1337ReportVariableNameBytes ||
+        name.runes.any(
+          (rune) => rune < 0x20 || (rune >= 0x7f && rune <= 0x9f),
+        )) {
+      return false;
+    }
+    if (supportedSessionVariables.contains(name)) {
+      return true;
+    }
+    final userName = name.startsWith('user.') ? name.substring(5) : null;
+    return userName != null &&
+        userName.isNotEmpty &&
+        userName.runes.length <= 80;
+  }
+
+  static String? _stringValue(Object? value) => value is String ? value : null;
 }
 
 /// An untrusted OSC 1337 request to open a URL.
@@ -812,6 +885,9 @@ class TerminalRuntimeController {
       <String, _TerminalRefreshTrace>{};
   final Set<String> _pendingFullPollRequests = <String>{};
   final Map<String, int> _pendingCellSizeReports = <String, int>{};
+  final Map<int, _PendingOsc1337ReportVariableRequest>
+  _pendingReportVariableRequests =
+      <int, _PendingOsc1337ReportVariableRequest>{};
   final Map<String, int> _refreshIdSeeds = <String, int>{};
   final Map<String, int> _sessionEpochs = <String, int>{};
   final Map<String, DateTime> _lastFrameAppliedAt = <String, DateTime>{};
@@ -833,6 +909,7 @@ class TerminalRuntimeController {
   int _wireSessionSeed = 0;
   int _benchmarkFrameId = 0;
   int _sessionEpochSeed = 0;
+  int _reportVariableRequestSeed = 0;
 
   Stream<TerminalSessionEvent> get events => _events.stream;
   Stream<TerminalSessionInputEvent> get inputEvents => _inputEvents.stream;
@@ -930,6 +1007,38 @@ class TerminalRuntimeController {
     _sendInput(sessionId, bytes);
   }
 
+  /// Sends the one exact OSC 1337 ReportVariable reply owned by [event].
+  ///
+  /// A `null` value is the protocol's denied/undefined empty response. Stale,
+  /// duplicate, cross-session, and oversized replies are rejected without
+  /// writing to a PTY. [useNativeResolvedValue] must be true only after the
+  /// product has authorized disclosure of this exact variable name.
+  bool respondToOsc1337ReportVariable(
+    TerminalSessionReportVariableRequestEvent event, {
+    String? value,
+    bool useNativeResolvedValue = false,
+  }) {
+    final pending = _pendingReportVariableRequests[event.requestId];
+    if (pending == null ||
+        pending.sessionId != event.sessionId ||
+        !_isCurrentSession(pending.sessionId, pending.sessionEpoch)) {
+      return false;
+    }
+    final responseValue =
+        value ?? (useNativeResolvedValue ? pending.nativeResolvedValue : null);
+    if (responseValue != null &&
+        utf8.encode(responseValue).length >
+            _maxOsc1337ReportVariableValueBytes) {
+      return false;
+    }
+    _pendingReportVariableRequests.remove(event.requestId);
+    return _sendOsc1337ReportVariableResponse(
+      pending.sessionId,
+      pending.sessionEpoch,
+      responseValue,
+    );
+  }
+
   Future<bool> sendOsc5522PasteEvent(
     String sessionId, {
     String location = 'clipboard',
@@ -991,7 +1100,12 @@ class TerminalRuntimeController {
     return true;
   }
 
-  bool _sendInput(String sessionId, Uint8List bytes, {int? sessionEpoch}) {
+  bool _sendInput(
+    String sessionId,
+    Uint8List bytes, {
+    int? sessionEpoch,
+    bool revealLiveCursor = true,
+  }) {
     if (sessionEpoch != null && !_isCurrentSession(sessionId, sessionEpoch)) {
       return false;
     }
@@ -999,7 +1113,7 @@ class TerminalRuntimeController {
       return false;
     }
     final copiedBytes = Uint8List.fromList(bytes);
-    if (copiedBytes.isNotEmpty) {
+    if (copiedBytes.isNotEmpty && revealLiveCursor) {
       if (!_scrollToLiveCursorIfNeeded(sessionId)) {
         return false;
       }
@@ -2415,6 +2529,8 @@ class TerminalRuntimeController {
           sessionEpoch,
           TerminalSessionCellSizeReportRequestEvent(sessionId),
         );
+      case TerminalImmediateEventKind.reportVariableRequest:
+        _handleReportVariableRequest(sessionId, sessionEpoch, route.payload);
       case TerminalImmediateEventKind.openUrlRequest:
         _emitEventIfCurrent(
           sessionId,
@@ -2595,6 +2711,65 @@ class TerminalRuntimeController {
       sessionId,
       Uint8List.fromList(ascii.encode(response)),
       sessionEpoch: sessionEpoch,
+      revealLiveCursor: false,
+    );
+  }
+
+  void _handleReportVariableRequest(
+    String sessionId,
+    int sessionEpoch,
+    Map<String, Object?>? payload,
+  ) {
+    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+      return;
+    }
+    if (_pendingReportVariableRequests.length >=
+        _maxPendingOsc1337ReportVariableRequests) {
+      _sendOsc1337ReportVariableResponse(sessionId, sessionEpoch, null);
+      return;
+    }
+    _reportVariableRequestSeed += 1;
+    final requestId = _reportVariableRequestSeed;
+    final nativeResolvedValue = switch (payload?['value']) {
+      final String value
+          when utf8.encode(value).length <=
+              _maxOsc1337ReportVariableValueBytes =>
+        value,
+      _ => null,
+    };
+    _pendingReportVariableRequests[requestId] =
+        _PendingOsc1337ReportVariableRequest(
+          sessionId: sessionId,
+          sessionEpoch: sessionEpoch,
+          nativeResolvedValue: nativeResolvedValue,
+        );
+    final publicPayload = <String, Object?>{
+      if (payload?.containsKey('source') ?? false) 'source': payload!['source'],
+      if (payload?.containsKey('name') ?? false) 'name': payload!['name'],
+    };
+    _emitEventIfCurrent(
+      sessionId,
+      sessionEpoch,
+      TerminalSessionReportVariableRequestEvent(
+        sessionId,
+        requestId: requestId,
+        rawPayload: publicPayload,
+      ),
+    );
+  }
+
+  bool _sendOsc1337ReportVariableResponse(
+    String sessionId,
+    int sessionEpoch,
+    String? value,
+  ) {
+    final encoded = value == null ? '' : base64.encode(utf8.encode(value));
+    final response = '\u001b]1337;ReportVariable=$encoded\u0007';
+    return _sendInput(
+      sessionId,
+      Uint8List.fromList(ascii.encode(response)),
+      sessionEpoch: sessionEpoch,
+      revealLiveCursor: false,
     );
   }
 
@@ -3507,6 +3682,9 @@ class TerminalRuntimeController {
     _activeRefreshTraces.remove(sessionId);
     _pendingFullPollRequests.remove(sessionId);
     _pendingCellSizeReports.remove(sessionId);
+    _pendingReportVariableRequests.removeWhere(
+      (_, request) => request.sessionId == sessionId,
+    );
     _refreshIdSeeds.remove(sessionId);
     _sessionEpochs.remove(sessionId);
     _lastFrameAppliedAt.remove(sessionId);
@@ -3566,6 +3744,18 @@ class TerminalRuntimeController {
     _inputEvents.close();
     _resizeEvents.close();
   }
+}
+
+final class _PendingOsc1337ReportVariableRequest {
+  const _PendingOsc1337ReportVariableRequest({
+    required this.sessionId,
+    required this.sessionEpoch,
+    required this.nativeResolvedValue,
+  });
+
+  final String sessionId;
+  final int sessionEpoch;
+  final String? nativeResolvedValue;
 }
 
 final class _TerminalRefreshTrace {

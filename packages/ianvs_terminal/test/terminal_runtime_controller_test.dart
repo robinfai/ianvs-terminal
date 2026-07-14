@@ -6418,6 +6418,224 @@ void main() {
     );
   });
 
+  testWidgets(
+    'OSC 1337 ReportVariable uses a one-shot session-bound exact reply',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+      final events = <TerminalSessionEvent>[];
+      final subscription = runtime.events.listen(events.add);
+      addTearDown(subscription.cancel);
+      runtime
+          .viewportFor(sessionId)
+          .updateFrame(
+            const TerminalFrameDiff(
+              frameKind: TerminalFrameKind.snapshot,
+              rows: <TerminalRow>[],
+              cursor: TerminalCursor(row: 0, col: 0, visible: true),
+              viewportRows: 24,
+              viewportCols: 80,
+              dirtyRanges: <TerminalDirtyRange>[],
+              scrollbackOffset: 3,
+              scrollbackMaxOffset: 3,
+            ),
+          );
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'report_variable_request',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'iterm1337',
+            'name': 'user.gitBranch',
+            'value': 'feature/报告',
+          },
+        ),
+      );
+
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+      final request = events
+          .whereType<TerminalSessionReportVariableRequestEvent>()
+          .single;
+      expect(request.source, 'iterm1337');
+      expect(request.name, 'user.gitBranch');
+      expect(request.rawPayload, isNot(contains('value')));
+      expect(request.isValid, isTrue);
+      expect(request.isSupported, isTrue);
+
+      backend.writeCalls.clear();
+      final wrongSession = TerminalSessionReportVariableRequestEvent(
+        'other-session',
+        requestId: request.requestId,
+        rawPayload: request.rawPayload,
+      );
+      expect(
+        runtime.respondToOsc1337ReportVariable(
+          wrongSession,
+          useNativeResolvedValue: true,
+        ),
+        isFalse,
+      );
+      expect(
+        runtime.respondToOsc1337ReportVariable(
+          request,
+          useNativeResolvedValue: true,
+        ),
+        isTrue,
+      );
+      expect(
+        ascii.decode(backend.writeCalls.single),
+        '\x1b]1337;ReportVariable=ZmVhdHVyZS/miqXlkYo=\x07',
+      );
+      expect(
+        backend.scrollToCalls,
+        isEmpty,
+        reason: 'automatic protocol replies must preserve retained scrollback',
+      );
+      expect(
+        runtime.respondToOsc1337ReportVariable(request, value: 'duplicate'),
+        isFalse,
+      );
+      expect(backend.writeCalls, hasLength(1));
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'report_variable_request',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'iterm1337',
+            'name': 'user.private',
+            'value': 'must-not-leak',
+          },
+        ),
+      );
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+      final denied = events
+          .whereType<TerminalSessionReportVariableRequestEvent>()
+          .last;
+      expect(denied.rawPayload, isNot(contains('value')));
+      backend.writeCalls.clear();
+      expect(runtime.respondToOsc1337ReportVariable(denied), isTrue);
+      expect(
+        ascii.decode(backend.writeCalls.single),
+        '\x1b]1337;ReportVariable=\x07',
+      );
+    },
+  );
+
+  testWidgets(
+    'OSC 1337 ReportVariable validates names and emits denied empty reply',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+      final events = <TerminalSessionEvent>[];
+      final subscription = runtime.events.listen(events.add);
+      addTearDown(subscription.cancel);
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'report_variable_request',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'iterm1337',
+            'name': 'session.environment',
+          },
+        ),
+      );
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+      final request = events
+          .whereType<TerminalSessionReportVariableRequestEvent>()
+          .single;
+      expect(request.isValid, isTrue);
+      expect(request.isSupported, isFalse);
+      backend.writeCalls.clear();
+      expect(runtime.respondToOsc1337ReportVariable(request), isTrue);
+      expect(
+        ascii.decode(backend.writeCalls.single),
+        '\x1b]1337;ReportVariable=\x07',
+      );
+
+      for (final invalid in <Map<String, Object?>>[
+        const {'source': 'unknown', 'name': 'session.path'},
+        const {'source': 'iterm1337', 'name': ''},
+        const {'source': 'iterm1337', 'name': 'session.path\n'},
+      ]) {
+        expect(
+          TerminalSessionReportVariableRequestEvent(
+            sessionId,
+            requestId: 1,
+            rawPayload: invalid,
+          ).isValid,
+          isFalse,
+          reason: '$invalid',
+        );
+      }
+      expect(
+        TerminalSessionReportVariableRequestEvent.isSupportedName(
+          'user.${List<String>.filled(81, 'x').join()}',
+        ),
+        isFalse,
+      );
+      expect(
+        TerminalSessionReportVariableRequestEvent.isSupportedName(
+          'user.${List<String>.filled(64, '😀').join()}',
+        ),
+        isFalse,
+        reason: 'the complete UTF-8 name must remain within 256 bytes',
+      );
+      expect(
+        TerminalSessionReportVariableRequestEvent.isSupportedName(
+          'user.bad\u0085name',
+        ),
+        isFalse,
+        reason: 'C1 controls are not valid variable-name content',
+      );
+      for (final supported in <String>{
+        'session.shell',
+        'session.lastCommand',
+        'session.profileName',
+        'session.badge',
+        'session.terminalIconName',
+        'session.terminalWindowName',
+      }) {
+        expect(
+          TerminalSessionReportVariableRequestEvent.isSupportedName(supported),
+          isTrue,
+          reason: supported,
+        );
+      }
+    },
+  );
+
   testWidgets('OSC 1337 RequestAttention stays a strict typed request', (
     tester,
   ) async {

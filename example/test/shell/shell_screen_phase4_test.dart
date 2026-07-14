@@ -437,6 +437,69 @@ void main() {
     );
   });
 
+  testWidgets('defaults dialog forgets OSC 1337 variable decisions on save', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    final localConfigRepository = _MemoryLocalTerminalConfigRepository(
+      const LocalTerminalConfigDocument(
+        hostActions: LocalTerminalHostActionsConfig(
+          osc1337ReportVariables: <String, LocalTerminalReportVariablePolicy>{
+            'session.path': LocalTerminalReportVariablePolicy.allow,
+            'user.gitBranch': LocalTerminalReportVariablePolicy.deny,
+          },
+        ),
+      ),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      localConfigRepository: localConfigRepository,
+    );
+    await _openCommandMenu(tester);
+    await tester.tap(find.text('Defaults & appearance'));
+    await tester.pumpAndSettle();
+    final forget = find.byKey(
+      const Key('default-osc1337-report-variable-forget-all'),
+    );
+    await tester.ensureVisible(forget);
+    expect(find.text('2 remembered · 1 allowed · 1 denied'), findsOneWidget);
+    expect(find.text('session.path'), findsOneWidget);
+    expect(find.text('user.gitBranch'), findsOneWidget);
+    expect(
+      find.byKey(
+        const ValueKey<String>(
+          'default-osc1337-report-variable-policy-session.path',
+        ),
+      ),
+      findsOneWidget,
+    );
+    final forgetUser = find.byKey(
+      const ValueKey<String>(
+        'default-osc1337-report-variable-forget-user.gitBranch',
+      ),
+    );
+    await tester.tap(forgetUser);
+    await tester.pump();
+    expect(find.text('1 remembered · 1 allowed · 0 denied'), findsOneWidget);
+    expect(find.text('user.gitBranch'), findsNothing);
+    await tester.tap(forget);
+    await tester.pumpAndSettle();
+    expect(find.text('No remembered decisions'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('defaults-save')));
+    await tester.pumpAndSettle();
+
+    expect(
+      localConfigRepository
+          .savedDocuments
+          .last
+          .hostActions
+          .osc1337ReportVariables,
+      isEmpty,
+    );
+  });
+
   testWidgets('OSC 1337 attention defaults to deny without host effects', (
     tester,
   ) async {
@@ -770,6 +833,197 @@ void main() {
     await tester.tap(find.byKey(const Key('osc1337-open-url-approve')));
     await tester.pumpAndSettle();
     expect(opened, <String>['https://example.test/phase29?prompt=visible']);
+  });
+
+  testWidgets(
+    'OSC 1337 ReportVariable denies first and remembers future allow',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      final localConfigRepository = _MemoryLocalTerminalConfigRepository(null);
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        localConfigRepository: localConfigRepository,
+      );
+      fakeBindings.enqueueEvent(
+        1,
+        const PtyEvent(
+          kind: 'shell_context',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'osc1337_current_dir',
+            'cwd': '/product/report-variable',
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        1,
+        const PtyEvent(
+          kind: 'report_variable_request',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'iterm1337',
+            'name': 'session.path',
+            'value': '/native/stale',
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(
+        ascii.decode(fakeBindings.writes.last),
+        '\x1b]1337;ReportVariable=\x07',
+      );
+      expect(
+        find.byKey(const Key('osc1337-report-variable-dialog')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('osc1337-report-variable-name')),
+        findsOneWidget,
+      );
+      expect(find.text('session.path'), findsOneWidget);
+      expect(find.textContaining('current request was denied'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('osc1337-report-variable-allow')));
+      await tester.pumpAndSettle();
+      expect(
+        localConfigRepository
+            .savedDocuments
+            .last
+            .hostActions
+            .osc1337ReportVariables['session.path'],
+        LocalTerminalReportVariablePolicy.allow,
+      );
+
+      fakeBindings.enqueueEvent(
+        1,
+        const PtyEvent(
+          kind: 'report_variable_request',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'iterm1337',
+            'name': 'session.path',
+            'value': '/native/stale',
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(
+        ascii.decode(fakeBindings.writes.last),
+        '\x1b]1337;ReportVariable=L3Byb2R1Y3QvcmVwb3J0LXZhcmlhYmxl\x07',
+      );
+      expect(
+        find.byKey(const Key('osc1337-report-variable-dialog')),
+        findsNothing,
+      );
+    },
+  );
+
+  testWidgets(
+    'OSC 1337 ReportVariable remembered deny and unknown names stay silent',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        localConfigRepository: _MemoryLocalTerminalConfigRepository(
+          const LocalTerminalConfigDocument(
+            hostActions: LocalTerminalHostActionsConfig(
+              osc1337ReportVariables:
+                  <String, LocalTerminalReportVariablePolicy>{
+                    'session.hostname': LocalTerminalReportVariablePolicy.deny,
+                  },
+            ),
+          ),
+        ),
+      );
+      for (final name in <String>['session.hostname', 'session.environment']) {
+        fakeBindings.enqueueEvent(
+          1,
+          PtyEvent(
+            kind: 'report_variable_request',
+            sessionId: '1',
+            payload: <String, Object?>{
+              'source': 'iterm1337',
+              'name': name,
+              'value': 'must-not-leak',
+            },
+          ),
+        );
+      }
+      await tester.pump(const Duration(milliseconds: 40));
+
+      final reportReplies = fakeBindings.writes
+          .map(ascii.decode)
+          .where((value) => value.contains('ReportVariable='))
+          .toList(growable: false);
+      expect(reportReplies, hasLength(2));
+      expect(reportReplies, everyElement('\x1b]1337;ReportVariable=\x07'));
+      expect(
+        find.byKey(const Key('osc1337-report-variable-dialog')),
+        findsNothing,
+      );
+    },
+  );
+
+  testWidgets('OSC 1337 ReportVariable prompt cooldown prevents modal spam', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    var now = DateTime.utc(2026, 7, 13, 12);
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      clock: () => now,
+    );
+
+    void request(String name) {
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'report_variable_request',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'iterm1337',
+            'name': name,
+            'value': 'private-value',
+          },
+        ),
+      );
+    }
+
+    request('session.path');
+    await tester.pump(const Duration(milliseconds: 40));
+    expect(
+      find.byKey(const Key('osc1337-report-variable-dialog')),
+      findsOneWidget,
+    );
+    final denyButton = tester.widget<FilledButton>(
+      find.byKey(const Key('osc1337-report-variable-deny')),
+    );
+    expect(denyButton.autofocus, isTrue);
+    await tester.tap(find.byKey(const Key('osc1337-report-variable-not-now')));
+    await tester.pumpAndSettle();
+
+    request('session.hostname');
+    await tester.pump(const Duration(milliseconds: 40));
+    expect(
+      find.byKey(const Key('osc1337-report-variable-dialog')),
+      findsNothing,
+    );
+    expect(
+      ascii.decode(fakeBindings.writes.last),
+      '\x1b]1337;ReportVariable=\x07',
+    );
+
+    now = now.add(const Duration(seconds: 31));
+    request('session.hostname');
+    await tester.pump(const Duration(milliseconds: 40));
+    expect(
+      find.byKey(const Key('osc1337-report-variable-dialog')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('OSC 1337 OpenURL denial and bursts never invoke the opener', (
