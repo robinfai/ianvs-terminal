@@ -35,6 +35,11 @@ const Set<String> _requiredCoverage = <String>{
   'iTerm2 OSC 4 negative queries',
   'iTerm2 OSC 1337 SetColors',
   'iTerm2 SetColors color spaces and tab reset',
+  'iTerm2 OSC 6 incremental tab color',
+  'iTerm2 OSC 6 profile reset',
+  'iTerm2 and xterm OSC 6 coexistence',
+  'iTerm2 OSC 6 malformed value fail-closed handling',
+  'iTerm2 OSC 6 mixed BEL/ST and fragmented ST termination',
   'OSC 1337 clear buffer',
   'iTerm2 OSC 1337 cursor guide',
   'iTerm2 OSC 1337 clipboard write',
@@ -296,6 +301,16 @@ void _validateFixture(String id, Map<String, Object?> fixture) {
     expect(text, contains('UnicodeVersion=pop corpus\x07'));
     expect(text, contains('UnicodeVersion=10\x07'));
     expect(text, endsWith('\x1b]2;osc1337-unicode-version-corpus-ok\x1b\\'));
+  } else if (id == 'osc6_iterm_tab_color') {
+    final text = latin1.decode(stream);
+    expect(RegExp(r'\x1b]6;1;bg;').allMatches(text), hasLength(6));
+    expect(text, contains('red;brightness;255\x07'));
+    expect(text, contains('green;brightness;128\x1b\\'));
+    expect(text, contains('blue;brightness;64\x07'));
+    expect(text, contains('red;brightness;999\x07'));
+    expect(text, contains('bg;*;default\x1b\\'));
+    expect(text, contains('\x1b]6;0;1\x1b\\'));
+    expect(text, endsWith('\x1b]2;osc6-iterm-tab-color-corpus-ok\x1b\\'));
   } else if (id == 'osc133_semantic_prompt_aid') {
     final text = latin1.decode(stream);
     expect(RegExp(r'\x1b]133;').allMatches(text), hasLength(5));

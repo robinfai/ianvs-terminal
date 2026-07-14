@@ -1,13 +1,15 @@
 # OSC Capability Plan
 
 Status: active support contract. P0/P1 and the promoted P2/P3 OSC families are
-implemented with automated regression coverage. Through Phase 35, the safe
+implemented with automated regression coverage. Through Phase 36, the safe
 incoming OSC 1337 download subset, permission-gated OpenURL subset, and bounded
 RequestAttention actions are promoted alongside report-only OSC 99 notification
 interactions, user-driven OSC 1337 inline buttons, and permission-gated
 ReportVariable replies. Session-local Unicode 8/9 cell-width switching and
 per-session Captured Output clearing are also promoted; uploads and other
-privileged host actions stay outside the current product.
+privileged host actions stay outside the current product. iTerm2's incremental
+OSC 6 tab-color controls now share the existing session-local tab presentation
+path without adding host authority.
 
 This plan turns OSC support from a list of escape-code numbers into product
 capability gates. The current implementation scope is local terminal fidelity
@@ -44,6 +46,7 @@ P0 closes the support contract and prevents accidental regressions.
 | OSC 0/2 | window title | `frame-visible` | Keep xterm-only frame field and tests. |
 | OSC 1 | icon name | `frame-visible` | Keep host observer bridge and xterm-only tests. |
 | OSC 4/104 | ANSI 0-15 palette set/query/reset | `parsed-only` plus native query evidence | Keep 0-15 scope; 16-255 is not P0. |
+| OSC 6 iTerm2 tab color | incremental red/green/blue tab chrome plus profile reset | `frame-visible` and rendered | Compose exact 0-255 components from the current profile/runtime color; preserve xterm OSC 6 attribute-mode behavior outside the iTerm2 namespace. |
 | OSC 10/11 | default foreground/background | `frame-visible` | Keep frame defaults and snapshot fallback on color changes. |
 | OSC 12/112 | cursor color set/query/reset | `frame-visible` and rendered | Promote to P1 polish because it is visible. |
 | OSC 8 | hyperlinks | `user-actionable` | Keep hit-target clearing tests; add product polish in P1. |
@@ -403,6 +406,10 @@ Policy and trust:
   command to the originating session's existing Captured Output collection.
   It has no reply, host action or terminal-grid effect; malformed variants are
   no-ops and resize replay cannot redeliver the clear.
+- iTerm2 OSC 6 tab color is no longer deferred: Phase 36 accepts exact decimal
+  0-255 red/green/blue component updates and the exact profile reset. Malformed
+  iTerm2 forms are no-ops, while the pre-existing xterm OSC 6 attribute-mode
+  namespace remains supported.
 - Not P0/P1: public custom OSC parser hooks, remote identity, full file
   transfer, notification spam defaults.
 - Not P2/P3: SFTP/SSH session management, remote file browsing, automatic

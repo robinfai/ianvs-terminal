@@ -1654,6 +1654,23 @@ fn iterm_set_colors_profile(emulation: TerminalEmulation) -> TerminalProfile {
     )
 }
 
+fn iterm_osc6_tab_color_profile(emulation: TerminalEmulation) -> TerminalProfile {
+    let mut profile = local_profile(
+        "iterm-osc6-tab-color",
+        "iTerm2 OSC 6 Tab Color",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import sys,time; time.sleep(0.2); sys.stdout.buffer.write(b"\x1b]6;1;bg;red;brightness;255\x07\x1b]6;1;bg;green;brightness;128\x1b\\\x1b]6;1;bg;blue;brightness;64\x07\x1b]6;1;bg;red;brightness;999\x07OSC6-TAB-SET\n"); sys.stdout.flush(); token=sys.stdin.buffer.readline().strip(); sys.stdout.buffer.write(b"\x1b]6;1;bg;*;default\x1b\\OSC6-TAB-RESET:"+token+b"\n"); sys.stdout.flush(); time.sleep(0.4)'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        emulation,
+    );
+    profile.appearance.colors.special.tab = Some("#102030".to_string());
+    profile
+}
+
 fn osc22_pointer_shape_profile(emulation: TerminalEmulation) -> TerminalProfile {
     local_profile(
         "osc22-pointer-shape",
@@ -2366,6 +2383,21 @@ fn assert_frame_json_protobuf_iterm_color_parity(frame: &str) {
             .expect("palette foreground")
             .rgb,
         0xaabbcc
+    );
+}
+
+fn assert_frame_json_protobuf_tab_color_parity(frame: &str, expected: u32) {
+    let parsed: serde_json::Value = serde_json::from_str(frame).unwrap();
+    let expected_hex = format!("#{expected:06x}");
+    assert_eq!(parsed["tab_color"].as_str(), Some(expected_hex.as_str()));
+    let frame_model: ianvs_core::model::TerminalFrameDiff = serde_json::from_str(frame).unwrap();
+    let protobuf_bytes = ianvs_core::frame_diff_proto::encode_frame_diff(&frame_model)
+        .expect("encode tab-color frame");
+    let protobuf = ianvs_core::frame_diff_proto::decode_frame_diff_for_test(&protobuf_bytes)
+        .expect("decode tab-color protobuf frame");
+    assert_eq!(
+        protobuf.tab_color.expect("protobuf tab color").rgb,
+        expected
     );
 }
 
@@ -17632,6 +17664,43 @@ fn session_iterm_set_colors_and_negative_osc4_queries_cross_real_pty_and_codecs(
     assert_frame_json_protobuf_foreground_parity(&frame, "BUR ITERM-COLORS", ["#ff00ff"]);
     assert_frame_json_protobuf_selection_color_parity(&frame, 0xff0000, 0x000000);
     assert_frame_json_protobuf_iterm_color_parity(&frame);
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_iterm_osc6_tab_color_crosses_real_pty_replay_and_profile_reset() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&iterm_osc6_tab_color_profile(TerminalEmulation::Xterm256)).unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "OSC6-TAB-SET");
+    assert_frame_json_protobuf_tab_color_parity(&frame, 0xff8040);
+
+    session::resize_session(session_id, 96, 28, 960, 560).unwrap();
+    let replayed = wait_for_frame_where(session_id, |frame| frame.contains("OSC6-TAB-SET"));
+    assert_frame_json_protobuf_tab_color_parity(&replayed, 0xff8040);
+
+    session::write_session(session_id, b"continued\n").unwrap();
+    let reset = wait_for_frame_containing(session_id, "OSC6-TAB-RESET:continued");
+    assert_frame_json_protobuf_tab_color_parity(&reset, 0x102030);
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_sessions_gate_iterm_osc6_tab_color_but_keep_profile_baseline() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&iterm_osc6_tab_color_profile(TerminalEmulation::Vt220)).unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "OSC6-TAB-SET");
+    assert_frame_json_protobuf_tab_color_parity(&frame, 0x102030);
+    session::write_session(session_id, b"continued\n").unwrap();
+    let reset = wait_for_frame_containing(session_id, "OSC6-TAB-RESET:continued");
+    assert_frame_json_protobuf_tab_color_parity(&reset, 0x102030);
 
     session::close_session(session_id).unwrap();
 }

@@ -1050,6 +1050,82 @@ sleep 1
   );
 
   testWidgets(
+    'real PTY iTerm OSC 6 updates tab color incrementally and restores profile',
+    (tester) async {
+      final goFile = _tempSignalFile('iterm-osc6-tab-color');
+      final baseProfile = _scriptProfile(
+        id: 'iterm-osc6-tab-color-real-pty',
+        name: 'iTerm OSC 6 Tab Color Real PTY',
+        script: r'''
+printf 'iterm-osc6-tab-color-ready\n'
+while [ ! -f "$GO_FILE" ]; do sleep 0.05; done
+printf '\033]6;1;bg;red;brightness;255\a'
+printf '\033]6;1;bg;green;brightness;128\033\\'
+printf '\033]6;1;bg;blue;brightness;64\a'
+printf '\033]6;1;bg;red;brightness;999\a'
+printf 'OSC6-TAB-SET\n'
+IFS= read -r token
+printf '\033]6;1;bg;*;default\033\\'
+printf 'OSC6-TAB-RESET:%s\n' "$token"
+sleep 1
+''',
+        env: {'GO_FILE': goFile.path},
+      );
+      final profile = baseProfile.copyWith(
+        appearance: baseProfile.appearance.copyWith(
+          colors: baseProfile.appearance.colors.copyWith(
+            special: baseProfile.appearance.colors.special.copyWith(
+              tab: '#102030',
+            ),
+          ),
+        ),
+      );
+      final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
+
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'iTerm OSC 6 real PTY ready marker',
+        matches: (text) => text.contains('iterm-osc6-tab-color-ready'),
+      );
+      _signal(goFile);
+
+      await _waitFor(
+        tester,
+        description: 'iTerm OSC 6 composed tab color in the product frame',
+        condition: () {
+          final frame = _activeFrame(harness.container);
+          return frame?.tabColor?.toARGB32() == 0xffff8040 &&
+              frame?.rows.any((row) => row.text.contains('OSC6-TAB-SET')) ==
+                  true;
+        },
+        onTimeout: () => _activeFrame(harness.container).toString(),
+      );
+
+      final sessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      harness.container
+          .read(terminalRuntimeControllerProvider)
+          .sendInput(sessionId, Uint8List.fromList(utf8.encode('continued\n')));
+      await _waitFor(
+        tester,
+        description: 'iTerm OSC 6 profile reset and continued real PTY input',
+        condition: () {
+          final frame = _activeFrame(harness.container);
+          return frame?.tabColor?.toARGB32() == 0xff102030 &&
+              frame?.rows.any(
+                    (row) => row.text.contains('OSC6-TAB-RESET:continued'),
+                  ) ==
+                  true;
+        },
+        onTimeout: () => _activeFrame(harness.container).toString(),
+      );
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
     'real PTY OSC 22 updates pointer shape independently of mouse reporting',
     (tester) async {
       final goFile = _tempSignalFile('osc22-pointer-shape');

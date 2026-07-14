@@ -53,6 +53,11 @@ REQUIRED_COVERAGE = {
     "iTerm2 OSC 4 negative queries",
     "iTerm2 OSC 1337 SetColors",
     "iTerm2 SetColors color spaces and tab reset",
+    "iTerm2 OSC 6 incremental tab color",
+    "iTerm2 OSC 6 profile reset",
+    "iTerm2 and xterm OSC 6 coexistence",
+    "iTerm2 OSC 6 malformed value fail-closed handling",
+    "iTerm2 OSC 6 mixed BEL/ST and fragmented ST termination",
     "OSC 1337 clear buffer",
     "iTerm2 OSC 1337 cursor guide",
     "iTerm2 OSC 1337 clipboard write",
@@ -226,6 +231,24 @@ def validate_case(case: Any) -> set[str]:
         require(b"bg=p3:808080" in stream, f"{case_id}: Display-P3 color")
         require(b"\x1b]4;-2;?;-1;?" in stream, f"{case_id}: negative queries")
         require(b"tab=default,preset=Grass" in stream, f"{case_id}: safe reset")
+    elif case_id == "osc6_iterm_tab_color":
+        require(stream.count(b"\x1b]") == 8, f"{case_id}: sequence count")
+        require(
+            stream.count(b"\x1b]6;1;bg;") == 6,
+            f"{case_id}: iTerm2 component/reset count",
+        )
+        require(b"red;brightness;255\x07" in stream, f"{case_id}: BEL component")
+        require(
+            b"green;brightness;128\x1b\\" in stream,
+            f"{case_id}: fragmented ST component",
+        )
+        require(b"red;brightness;999\x07" in stream, f"{case_id}: invalid value")
+        require(b"bg;*;default\x1b\\" in stream, f"{case_id}: profile reset")
+        require(b"\x1b]6;0;1\x1b\\" in stream, f"{case_id}: xterm coexistence")
+        require(
+            stream.endswith(b"\x1b]2;osc6-iterm-tab-color-corpus-ok\x1b\\"),
+            f"{case_id}: parser recovery",
+        )
     elif case_id == "osc1337_clear_buffer":
         require(stream.count(b"\x1b]") == 2, f"{case_id}: sequence count")
         require(b"1337;ClearScrollback" in stream, f"{case_id}: command")

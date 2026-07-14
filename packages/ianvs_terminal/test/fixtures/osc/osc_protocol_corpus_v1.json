@@ -788,6 +788,31 @@
         "reply": "none",
         "must_not_crash": true
       }
+    },
+    {
+      "id": "osc6_iterm_tab_color",
+      "coverage": [
+        "iTerm2 OSC 6 incremental tab color",
+        "iTerm2 OSC 6 profile reset",
+        "iTerm2 and xterm OSC 6 coexistence",
+        "iTerm2 OSC 6 malformed value fail-closed handling",
+        "iTerm2 OSC 6 mixed BEL/ST and fragmented ST termination"
+      ],
+      "protocol": "iTerm2 OSC 6 tab color",
+      "wire": {
+        "sequence_count": 8,
+        "chunks_hex": [
+          "1b5d363b313b62673b7265643b6272696768746e6573733b323535071b5d363b313b62673b677265656e3b6272696768746e6573733b3132381b",
+          "5c1b5d363b313b62673b626c75653b6272696768746e6573733b3634071b5d363b313b62673b7265643b6272696768746e6573733b393939071b5d363b313b62673b2a3b64656661756c741b5c1b5d363b313b62673b7265643b6272696768746e6573733b31071b5d363b303b311b5c1b5d323b6f7363362d697465726d2d7461622d636f6c6f722d636f727075732d6f6b1b5c"
+        ]
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "session_local_tab_color",
+        "state_effect": "RGB components update incrementally, malformed input is ignored, default restores the profile baseline, a later component begins from that baseline, xterm mode 0 remains independent, and later OSC parsing continues",
+        "reply": "none",
+        "must_not_crash": true
+      }
     }
   ]
 }

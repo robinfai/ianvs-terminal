@@ -222,13 +222,28 @@ impl Terminal {
         self.mark_full_repaint("iterm_underline_color_changed");
     }
 
-    /// Runtime iTerm2 tab color from OSC 1337 SetColors.
+    /// Current iTerm2 tab color from the profile baseline or OSC overrides.
     pub fn iterm_tab_color(&self) -> Option<Color> {
         self.osc21_color_state.iterm_tab_color()
     }
 
-    pub(crate) fn set_dynamic_iterm_tab_color(&mut self, color: Option<Color>) {
+    /// Configure the session/profile tab-color baseline used by iTerm2 resets.
+    pub fn set_iterm_tab_color_baseline(&mut self, color: Option<Color>) {
         if self.osc21_color_state.iterm_tab_color() == color {
+            self.osc21_color_state.set_iterm_tab_color_baseline(color);
+            return;
+        }
+        self.osc21_color_state.set_iterm_tab_color_baseline(color);
+        self.mark_full_repaint("iterm_tab_color_baseline_changed");
+    }
+
+    pub(crate) fn set_dynamic_iterm_tab_color(&mut self, color: Option<Color>) {
+        let previous = self.osc21_color_state.iterm_tab_color();
+        let color = match color {
+            Some(color) => Some(color),
+            None => self.osc21_color_state.reset_iterm_tab_color(),
+        };
+        if previous == color {
             return;
         }
         self.osc21_color_state.set_iterm_tab_color(color);

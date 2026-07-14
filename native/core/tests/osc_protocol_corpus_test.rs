@@ -63,6 +63,9 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
         if id == "osc72_drop_target_negotiation" {
             terminal.set_osc_capability_allowed(OscCapability::DragDrop, true);
         }
+        if id == "osc6_iterm_tab_color" {
+            terminal.set_iterm_tab_color_baseline(Some(Color::Rgb(0x10, 0x20, 0x30)));
+        }
 
         for chunk in wire_chunks(case) {
             terminal.process(&chunk);
@@ -199,6 +202,15 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
                     terminal.drain_responses(),
                     b"\x1b]4;-2;rgb:8080/8080/8080\x1b\\\x1b]4;-1;rgb:1111/2222/3333\x1b\\"
                 );
+            }
+            "osc6_iterm_tab_color" => {
+                assert_eq!(
+                    terminal.iterm_tab_color(),
+                    Some(Color::Rgb(0x01, 0x20, 0x30))
+                );
+                assert_eq!(terminal.xterm_special_color_mode(0), Some(true));
+                assert_eq!(terminal.title(), "osc6-iterm-tab-color-corpus-ok");
+                assert!(terminal.drain_responses().is_empty());
             }
             "osc1337_annotations" => {
                 let annotations = terminal

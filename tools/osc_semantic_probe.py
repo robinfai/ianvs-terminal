@@ -278,6 +278,16 @@ PROBES = {
         + osc("4;-2;?;-1;?")
         + osc("1337;SetColors=tab=default,preset=Grass"),
     ),
+    "iterm_tab_color": Probe(
+        "iterm_tab_color",
+        "iTerm2 OSC 6 tab color",
+        "Set the session tab color incrementally through its red, green, and blue brightness components.",
+        "The tab color becomes #ff8040 while terminal text and xterm OSC 6 attribute modes remain unchanged.",
+        "session-local appearance only; no reply or host action",
+        osc("6;1;bg;red;brightness;255", bell=True)
+        + osc("6;1;bg;green;brightness;128")
+        + osc("6;1;bg;blue;brightness;64", bell=True),
+    ),
     "osc23_noop": Probe(
         "osc23_noop",
         "OSC 2 + unsupported OSC 23",
@@ -421,6 +431,7 @@ def self_test() -> None:
         "color_control",
         "xterm_special_colors",
         "iterm_color_extensions",
+        "iterm_tab_color",
         "osc23_noop",
         "pointer_shape",
         "sized_text",
@@ -493,6 +504,10 @@ def self_test() -> None:
         raise ValueError("iTerm color-extension lifecycle fixture is malformed")
     if b"4;-2;?;-1;?" not in PROBES["iterm_color_extensions"].payload:
         raise ValueError("iTerm negative OSC 4 query fixture is malformed")
+    if PROBES["iterm_tab_color"].payload.count(b"\x1b]6;1;bg;") != 3:
+        raise ValueError("iTerm OSC 6 tab-color fixture is malformed")
+    if b"blue;brightness;64" not in PROBES["iterm_tab_color"].payload:
+        raise ValueError("iTerm OSC 6 tab-color blue component is missing")
     if PROBES["osc23_noop"].payload.count(b"\x1b]") != 2:
         raise ValueError("OSC 23 no-op fixture is malformed")
     if PROBES["pointer_shape"].payload.count(b"\x1b]22;") != 3:

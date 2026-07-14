@@ -568,3 +568,25 @@ safety-policy reason documented in `osc_cross_terminal_probe_20260711.md`.
   FFI schema changes. Missing policy defaults to Ask.
 - **Rollback:** revert Phase 29 to restore bounded no-op behavior while leaving
   OSC 8 links and file-download consent unchanged.
+
+## Phase 36 report — iTerm2 OSC 6 incremental tab color
+
+- **Start SHA:** `07de5c6ca649a91a9e7d2c2663ba5fb1fad05f9a`.
+- **Confirmed gap:** documented iTerm2 OSC 6 RGB component requests were routed
+  only through the unrelated xterm attribute-color mode grammar.
+- **Fixes:** exact decimal 0-255 red/green/blue composition, profile-baseline
+  reset and RIS behavior, Appearance/VT220 gates, xterm OSC 6 coexistence,
+  native profile wiring, existing JSON/protobuf tab-color frames and live
+  Flutter shell-chrome rendering.
+- **Review corrections:** reset repaint compares against the pre-reset value;
+  the mirrored Dart corpus checks actual escape bytes; direct Appearance denial
+  complements the profile-level VT220 test.
+- **Security:** session-local appearance only, bounded exact grammar, malformed
+  no-op behavior, no reply, persistence, disclosure or host authority.
+- **Tests/results:** targeted parser, corpus/probe, native real-PTY and resize,
+  frame codec parity, widget pixels and macOS application real-PTY tests pass.
+  Final full-gate and Computer Use evidence is recorded in
+  `osc6_iterm_tab_color_phase36_20260714.md`.
+- **Compatibility:** no schema changes; existing optional tab-color state is
+  reused and xterm OSC 6/106 semantics remain intact.
+- **Rollback:** revert the Phase 36 implementation commit.

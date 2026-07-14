@@ -549,16 +549,18 @@ void main() {
   );
 
   testWidgets(
-    'OSC frame tab color overrides and restores the profile tab color',
+    'OSC 6 tab color components render incrementally and restore the profile color',
     (tester) async {
-      const profileColor = Color(0xFF336699);
-      const dynamicColor = Color(0xFFFF0000);
+      const profileColor = Color(0xFF102030);
+      const redStage = Color(0xFFFF2030);
+      const greenStage = Color(0xFFFF8030);
+      const blueStage = Color(0xFFFF8040);
       final baseProfile = defaultTerminalProfile();
       final profile = baseProfile.copyWith(
         appearance: baseProfile.appearance.copyWith(
           colors: baseProfile.appearance.colors.copyWith(
             special: baseProfile.appearance.colors.special.copyWith(
-              tab: '#336699',
+              tab: '#102030',
             ),
           ),
         ),
@@ -576,15 +578,39 @@ void main() {
       );
 
       fakeBindings.setFrame(1, <String, Object?>{
-        ..._terminalFrameWithTitle('Dynamic Tab'),
+        ..._terminalFrameWithTitle('OSC 6 Red'),
         'window_title': null,
-        'tab_color': '#ff0000',
+        'tab_color': '#ff2030',
       });
       container.read(terminalRuntimeControllerProvider).refreshSession('1');
       await tester.pump();
       expect(
         _decoratedBoxColor(tester, const Key('shell-tab-color-1')),
-        dynamicColor,
+        redStage,
+      );
+
+      fakeBindings.setFrame(1, <String, Object?>{
+        ..._terminalFrameWithTitle('OSC 6 Green'),
+        'window_title': null,
+        'tab_color': '#ff8030',
+      });
+      container.read(terminalRuntimeControllerProvider).refreshSession('1');
+      await tester.pump();
+      expect(
+        _decoratedBoxColor(tester, const Key('shell-tab-color-1')),
+        greenStage,
+      );
+
+      fakeBindings.setFrame(1, <String, Object?>{
+        ..._terminalFrameWithTitle('OSC 6 Blue'),
+        'window_title': null,
+        'tab_color': '#ff8040',
+      });
+      container.read(terminalRuntimeControllerProvider).refreshSession('1');
+      await tester.pump();
+      expect(
+        _decoratedBoxColor(tester, const Key('shell-tab-color-1')),
+        blueStage,
       );
 
       fakeBindings.setFrame(1, <String, Object?>{

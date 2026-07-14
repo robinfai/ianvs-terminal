@@ -87,6 +87,7 @@ pub(crate) struct Osc21ColorControlState {
     iterm_link_color: Option<Color>,
     iterm_underline_color: Option<Color>,
     iterm_tab_color: Option<Color>,
+    iterm_tab_color_baseline: Option<Color>,
 }
 
 impl Default for Osc21ColorControlState {
@@ -131,6 +132,7 @@ impl Default for Osc21ColorControlState {
             iterm_link_color: None,
             iterm_underline_color: None,
             iterm_tab_color: None,
+            iterm_tab_color_baseline: None,
         }
     }
 }
@@ -165,7 +167,7 @@ impl Osc21ColorControlState {
         self.iterm_bold_color = None;
         self.iterm_link_color = None;
         self.iterm_underline_color = None;
-        self.iterm_tab_color = None;
+        self.iterm_tab_color = self.iterm_tab_color_baseline;
     }
 
     pub(crate) fn palette_alpha(&self, index: usize) -> Option<f32> {
@@ -313,5 +315,15 @@ impl Osc21ColorControlState {
 
     pub(crate) fn set_iterm_tab_color(&mut self, color: Option<Color>) {
         self.iterm_tab_color = color;
+    }
+
+    pub(crate) fn set_iterm_tab_color_baseline(&mut self, color: Option<Color>) {
+        self.iterm_tab_color_baseline = color;
+        self.iterm_tab_color = color;
+    }
+
+    pub(crate) fn reset_iterm_tab_color(&mut self) -> Option<Color> {
+        self.iterm_tab_color = self.iterm_tab_color_baseline;
+        self.iterm_tab_color
     }
 }

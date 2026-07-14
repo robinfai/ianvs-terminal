@@ -7336,6 +7336,7 @@ fn apply_profile_colors(terminal: &mut Terminal, colors: &TerminalProfileColors)
     if let Some(color) = colors.special.cursor.as_deref().and_then(parse_hex_color) {
         terminal.set_cursor_color(color);
     }
+    terminal.set_iterm_tab_color_baseline(colors.special.tab.as_deref().and_then(parse_hex_color));
     if let Some(color) = colors
         .special
         .selection

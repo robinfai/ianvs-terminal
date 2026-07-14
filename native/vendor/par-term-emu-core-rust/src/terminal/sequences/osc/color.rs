@@ -7,6 +7,42 @@ use crate::terminal::Terminal;
 const MAX_OSC21_RESPONSE_BYTES: usize = 4 * 1024;
 
 impl Terminal {
+    fn handle_iterm_tab_color_components(&mut self, params: &[&[u8]]) -> bool {
+        if params.get(1) != Some(&b"1".as_slice()) || params.get(2) != Some(&b"bg".as_slice()) {
+            return false;
+        }
+
+        if params.len() == 5 && params[3] == b"*" && params[4] == b"default" {
+            self.set_dynamic_iterm_tab_color(None);
+            return true;
+        }
+
+        if params.len() != 6 || params[4] != b"brightness" {
+            return true;
+        }
+        let Ok(value) = std::str::from_utf8(params[5]) else {
+            return true;
+        };
+        if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+            return true;
+        }
+        let Ok(value) = value.parse::<u8>() else {
+            return true;
+        };
+        let (mut red, mut green, mut blue) = self
+            .iterm_tab_color()
+            .map(|color| self.resolve_color_rgb(color))
+            .unwrap_or((0, 0, 0));
+        match params[3] {
+            b"red" => red = value,
+            b"green" => green = value,
+            b"blue" => blue = value,
+            _ => return true,
+        }
+        self.set_dynamic_iterm_tab_color(Some(Color::Rgb(red, green, blue)));
+        true
+    }
+
     fn parse_color_component(component: &str) -> Option<u8> {
         let component = component.trim();
         if component.is_empty()
@@ -443,7 +479,12 @@ impl Terminal {
         match command {
             "21" => self.handle_osc21_color_control(params),
             "5" => self.handle_xterm_special_color(params),
-            "6" | "106" => self.handle_xterm_special_color_mode(params),
+            "6" => {
+                if !self.handle_iterm_tab_color_components(params) {
+                    self.handle_xterm_special_color_mode(params);
+                }
+            }
+            "106" => self.handle_xterm_special_color_mode(params),
             "4" => {
                 // Set or query ANSI color palette entries (OSC 4).
                 for pair in params[1..].chunks_exact(2) {
@@ -532,6 +573,7 @@ impl Terminal {
 mod tests {
     use super::*;
     use crate::terminal::color_control::Osc21SpecialColor;
+    use crate::terminal::OscCapability;
 
     #[test]
     fn iterm_osc4_negative_indices_query_defaults_without_allowing_mutation() {
@@ -606,6 +648,79 @@ mod tests {
             assert_eq!(terminal.xterm_special_color_mode(index), Some(false));
         }
         assert_eq!(terminal.xterm_special_color(1), Some(Color::Rgb(1, 2, 3)));
+    }
+
+    #[test]
+    fn iterm_osc6_tab_color_updates_incrementally_and_restores_profile_baseline() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.set_iterm_tab_color_baseline(Some(Color::Rgb(0x10, 0x20, 0x30)));
+
+        let sequence = b"\x1b]6;1;bg;red;brightness;255\x07\x1b]6;1;bg;green;brightness;128\x1b\\\x1b]6;1;bg;blue;brightness;64\x07";
+        for byte in sequence.chunks(1) {
+            terminal.process(byte);
+        }
+        assert_eq!(
+            terminal.iterm_tab_color(),
+            Some(Color::Rgb(0xff, 0x80, 0x40))
+        );
+
+        let snapshot = terminal.capture_snapshot();
+        terminal.process(b"\x1b]6;1;bg;red;brightness;1\x07");
+        assert_eq!(
+            terminal.iterm_tab_color(),
+            Some(Color::Rgb(0x01, 0x80, 0x40))
+        );
+        terminal.restore_from_snapshot(snapshot);
+        assert_eq!(
+            terminal.iterm_tab_color(),
+            Some(Color::Rgb(0xff, 0x80, 0x40))
+        );
+
+        terminal.process(b"\x1b]6;1;bg;*;default\x1b\\");
+        assert_eq!(
+            terminal.iterm_tab_color(),
+            Some(Color::Rgb(0x10, 0x20, 0x30))
+        );
+
+        terminal.process(b"\x1b]6;1;bg;blue;brightness;255\x07\x1bc");
+        assert_eq!(
+            terminal.iterm_tab_color(),
+            Some(Color::Rgb(0x10, 0x20, 0x30))
+        );
+    }
+
+    #[test]
+    fn iterm_osc6_tab_color_rejects_near_matches_without_breaking_xterm_modes() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.set_iterm_tab_color_baseline(Some(Color::Rgb(1, 2, 3)));
+        for invalid in [
+            b"\x1b]6;1;bg;red;brightness;256\x07".as_slice(),
+            b"\x1b]6;1;bg;red;brightness;-1\x07".as_slice(),
+            b"\x1b]6;1;bg;red;brightness;1x\x07".as_slice(),
+            b"\x1b]6;1;bg;RED;brightness;1\x07".as_slice(),
+            b"\x1b]6;1;bg;red;Brightness;1\x07".as_slice(),
+            b"\x1b]6;1;bg;*;DEFAULT\x07".as_slice(),
+            b"\x1b]6;1;bg;*;default;extra\x07".as_slice(),
+        ] {
+            terminal.process(invalid);
+        }
+        assert_eq!(terminal.iterm_tab_color(), Some(Color::Rgb(1, 2, 3)));
+
+        terminal.process(b"\x1b]6;0;1;1;0\x1b\\");
+        assert_eq!(terminal.xterm_special_color_mode(0), Some(true));
+        assert_eq!(terminal.xterm_special_color_mode(1), Some(false));
+        assert_eq!(terminal.iterm_tab_color(), Some(Color::Rgb(1, 2, 3)));
+    }
+
+    #[test]
+    fn iterm_osc6_tab_color_respects_the_appearance_policy_gate() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.set_iterm_tab_color_baseline(Some(Color::Rgb(1, 2, 3)));
+        terminal.set_osc_capability_allowed(OscCapability::Appearance, false);
+
+        terminal.process(b"\x1b]6;1;bg;red;brightness;255\x07");
+
+        assert_eq!(terminal.iterm_tab_color(), Some(Color::Rgb(1, 2, 3)));
     }
 
     #[test]

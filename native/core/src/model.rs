@@ -170,6 +170,8 @@ pub struct TerminalProfileSpecialColors {
     pub cursor: Option<String>,
     #[serde(default)]
     pub selection: Option<String>,
+    #[serde(default)]
+    pub tab: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
