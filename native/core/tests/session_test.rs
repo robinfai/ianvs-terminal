@@ -2077,6 +2077,29 @@ fn wait_for_frame_where(session_id: u64, predicate: impl Fn(&str) -> bool) -> St
     panic!("timed out waiting for matching frame");
 }
 
+#[cfg(target_os = "macos")]
+struct SessionGuard {
+    session_id: u64,
+}
+
+#[cfg(target_os = "macos")]
+impl SessionGuard {
+    fn new(session_id: u64) -> Self {
+        Self { session_id }
+    }
+
+    fn id(&self) -> u64 {
+        self.session_id
+    }
+}
+
+#[cfg(target_os = "macos")]
+impl Drop for SessionGuard {
+    fn drop(&mut self) {
+        let _ = session::close_session(self.session_id);
+    }
+}
+
 fn wait_for_event(session_id: u64, kind: &str) -> serde_json::Value {
     for _ in 0..SESSION_WAIT_ATTEMPTS {
         let events = session::poll_events(session_id).unwrap();
@@ -16532,6 +16555,114 @@ fi
     );
 
     session::close_session(session_id).unwrap();
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn zsh_shell_hook_integration_loads_history_from_original_zdotdir() {
+    let original_zdotdir = tempdir().unwrap();
+    let histfile_capture_path = original_zdotdir.path().join("histfile-capture");
+    fs::write(
+        original_zdotdir.path().join(".zsh_history"),
+        ": 1783987200:0;echo ianvs-persisted-history-sentinel\n",
+    )
+    .unwrap();
+    fs::write(
+        original_zdotdir.path().join(".zshrc"),
+        r#"HISTSIZE=50000
+SAVEHIST=50000
+if [[ -z "${HISTFILE:-}" ]]; then
+  HISTFILE="${ZDOTDIR:-$HOME}/.zsh_history"
+fi
+setopt SHARE_HISTORY APPEND_HISTORY INC_APPEND_HISTORY EXTENDED_HISTORY
+PROMPT='ianvs-history-original-zdotdir% '
+"#,
+    )
+    .unwrap();
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOME".to_string(),
+        original_zdotdir.path().to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "ZDOTDIR".to_string(),
+        original_zdotdir.path().to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "IANVS_TEST_HISTFILE_CAPTURE".to_string(),
+        histfile_capture_path.to_string_lossy().into_owned(),
+    );
+    let session_guard = SessionGuard::new(
+        session::create_session(
+            &serde_json::to_string(&local_profile(
+                "zsh-shell-integration-history-original-zdotdir",
+                "Zsh Shell Integration History From Original ZDOTDIR",
+                "/bin/zsh",
+                vec![],
+                env,
+                TerminalEmulation::Xterm256,
+            ))
+            .unwrap(),
+        )
+        .unwrap(),
+    );
+    let session_id = session_guard.id();
+
+    let diagnostics_request = serde_json::json!({
+        "kind": "terminal.export_diagnostics",
+        "maxSamples": 1,
+    });
+    let diagnostics = session::request_session_json(session_id, &diagnostics_request.to_string())
+        .unwrap()
+        .expect("expected diagnostics export response");
+    let diagnostics: serde_json::Value = serde_json::from_str(&diagnostics).unwrap();
+    let started = diagnostics["events"]
+        .as_array()
+        .expect("expected diagnostics events")
+        .iter()
+        .find(|entry| entry["kind"] == "started")
+        .expect("expected started diagnostics event");
+    let shell_integration = &started["payload"]["shell_integration"];
+    assert_eq!(shell_integration["status"].as_str(), Some("enabled"));
+    assert_eq!(shell_integration["reason"].as_str(), Some("applied"));
+    assert_eq!(shell_integration["kind"].as_str(), Some("zsh"));
+
+    let _ = wait_for_frame_containing(session_id, "ianvs-history-original-zdotdir");
+    session::write_session(
+        session_id,
+        b"builtin print -r -- \"$HISTFILE\" >| \"$IANVS_TEST_HISTFILE_CAPTURE\"\nbuiltin print -r -- \"${:-ianvs-histfile-capture}-complete\"\n",
+    )
+    .unwrap();
+    let _ = wait_for_frame_containing(session_id, "ianvs-histfile-capture-complete");
+    let actual_histfile = fs::read_to_string(&histfile_capture_path).unwrap();
+
+    session::write_session(
+        session_id,
+        b"history 1\nbuiltin print -r -- \"${:-ianvs-history-query}-complete\"\n",
+    )
+    .unwrap();
+    let mut history_frames = Vec::new();
+    let mut query_completed = false;
+    for _ in 0..SESSION_WAIT_ATTEMPTS {
+        if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
+            query_completed = frame.contains("ianvs-history-query-complete");
+            history_frames.push(frame);
+            if query_completed {
+                break;
+            }
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+    assert!(
+        query_completed,
+        "timed out waiting for history query completion; actual HISTFILE: {actual_histfile:?}"
+    );
+    assert!(
+        history_frames
+            .iter()
+            .any(|frame| frame.contains("ianvs-persisted-history-sentinel")),
+        "history should be loaded from the original ZDOTDIR; actual HISTFILE: {actual_histfile:?}; history frames: {history_frames:?}"
+    );
 }
 
 #[test]

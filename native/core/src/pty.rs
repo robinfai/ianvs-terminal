@@ -477,7 +477,7 @@ fn write_zsh_proxy_files(dir: &Path) -> std::io::Result<()> {
     fs::write(
         dir.join(".zshrc"),
         format!(
-            "{}\n{}\n__ianvs_source_original_zdotfile \".zshrc\"\n__ianvs_install_shell_hooks >/dev/null 2>&1 || true\n__ianvs_suspend_startup_prompt_sp >/dev/null 2>&1 || true\n__ianvs_restore_zdotdir >/dev/null 2>&1 || true\n",
+            "{}\n{}\n__ianvs_restore_proxy_derived_histfile >/dev/null 2>&1 || true\n__ianvs_source_original_zdotfile \".zshrc\"\n__ianvs_install_shell_hooks >/dev/null 2>&1 || true\n__ianvs_suspend_startup_prompt_sp >/dev/null 2>&1 || true\n__ianvs_restore_zdotdir >/dev/null 2>&1 || true\n",
             ZSH_PROXY_COMMON, ZSH_HOOK_INSTALLER
         ),
     )?;
@@ -510,6 +510,17 @@ __ianvs_original_zdotdir() {
   else
     builtin print -r -- "${HOME:-}"
   fi
+}
+
+__ianvs_restore_proxy_derived_histfile() {
+  emulate -L zsh
+  local __ianvs_proxy_zdotdir="${ZDOTDIR:-}"
+  [[ -n "$__ianvs_proxy_zdotdir" ]] || return 0
+  [[ "${HISTFILE:-}" == "$__ianvs_proxy_zdotdir/.zsh_history" ]] || return 0
+  local __ianvs_user_zdotdir="$(__ianvs_original_zdotdir)"
+  [[ -n "$__ianvs_user_zdotdir" ]] || __ianvs_user_zdotdir="${HOME:-}"
+  [[ -n "$__ianvs_user_zdotdir" ]] || return 0
+  HISTFILE="$__ianvs_user_zdotdir/.zsh_history"
 }
 
 __ianvs_source_original_zdotfile() {
@@ -1010,6 +1021,108 @@ mod tests {
         assert!(zshrc.contains("__ianvs_trim_startup_prompt_newline"));
         assert!(zshrc.contains("__ianvs_restore_startup_prompt_state"));
         assert!(zshrc.contains("__ianvs_source_original_zdotfile \".zshrc\""));
+    }
+
+    #[test]
+    fn zsh_proxy_repairs_proxy_derived_histfile_before_user_zshrc() {
+        if !supports_zdotdir_proxy() || !Path::new("/bin/zsh").exists() {
+            return;
+        }
+
+        let original_zdotdir = tempdir().unwrap();
+        let proxy_base = tempdir().unwrap();
+        let (_helper_dir, helper_path) = helper_path_env();
+        fs::write(
+            original_zdotdir.path().join(".zshrc"),
+            "builtin print -r -- \"$HISTFILE\"\n",
+        )
+        .unwrap();
+        let mut env = BTreeMap::new();
+        env.insert(
+            "ZDOTDIR".to_string(),
+            original_zdotdir.path().to_string_lossy().into_owned(),
+        );
+        env.insert("PATH".to_string(), helper_path);
+        let profile = profile("/bin/zsh", vec![], env, TerminalEmulation::Xterm256, true);
+
+        let plan = build_command_plan_with_proxy_factory(&profile, |kind, _profile, _program| {
+            assert_eq!(kind, ShellIntegrationKind::Zsh);
+            create_shell_integration_proxy_in(kind, proxy_base.path())
+        });
+        let proxy_zdotdir = Path::new(plan.env.get("ZDOTDIR").expect("expected proxy ZDOTDIR"));
+
+        let output = process::Command::new("/bin/zsh")
+            .arg("-f")
+            .arg("-c")
+            .arg(r#"source "$ZDOTDIR/.zshrc""#)
+            .envs(&plan.env)
+            .env("HISTFILE", proxy_zdotdir.join(".zsh_history"))
+            .output()
+            .unwrap();
+
+        assert!(
+            output.status.success(),
+            "zsh exited with status {}: {}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            String::from_utf8(output.stdout).unwrap().trim(),
+            original_zdotdir
+                .path()
+                .join(".zsh_history")
+                .to_string_lossy()
+        );
+    }
+
+    #[test]
+    fn zsh_proxy_preserves_custom_histfile_before_user_zshrc() {
+        if !supports_zdotdir_proxy() || !Path::new("/bin/zsh").exists() {
+            return;
+        }
+
+        let original_zdotdir = tempdir().unwrap();
+        let custom_history_dir = tempdir().unwrap();
+        let proxy_base = tempdir().unwrap();
+        let (_helper_dir, helper_path) = helper_path_env();
+        fs::write(
+            original_zdotdir.path().join(".zshrc"),
+            "builtin print -r -- \"$HISTFILE\"\n",
+        )
+        .unwrap();
+        let mut env = BTreeMap::new();
+        env.insert(
+            "ZDOTDIR".to_string(),
+            original_zdotdir.path().to_string_lossy().into_owned(),
+        );
+        env.insert("PATH".to_string(), helper_path);
+        let profile = profile("/bin/zsh", vec![], env, TerminalEmulation::Xterm256, true);
+
+        let plan = build_command_plan_with_proxy_factory(&profile, |kind, _profile, _program| {
+            assert_eq!(kind, ShellIntegrationKind::Zsh);
+            create_shell_integration_proxy_in(kind, proxy_base.path())
+        });
+        let custom_histfile = custom_history_dir.path().join("custom.zsh_history");
+
+        let output = process::Command::new("/bin/zsh")
+            .arg("-f")
+            .arg("-c")
+            .arg(r#"source "$ZDOTDIR/.zshrc""#)
+            .envs(&plan.env)
+            .env("HISTFILE", &custom_histfile)
+            .output()
+            .unwrap();
+
+        assert!(
+            output.status.success(),
+            "zsh exited with status {}: {}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            String::from_utf8(output.stdout).unwrap().trim(),
+            custom_histfile.to_string_lossy()
+        );
     }
 
     #[test]
