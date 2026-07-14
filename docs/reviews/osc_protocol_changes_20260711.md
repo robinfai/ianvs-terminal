@@ -649,3 +649,32 @@ safety-policy reason documented in `osc_cross_terminal_probe_20260711.md`.
 - **Compatibility:** additive optional JSON field and new protobuf tag 33;
   legacy frames retain the profile family.
 - **Rollback:** revert the Phase 38 implementation commit.
+
+## Phase 39 report — xterm legacy title aliases
+
+- **Start SHA:** `f2d91e07ea342cc24a323b0d2c05eab1ed2317d8`.
+- **Confirmed gaps:** official non-numeric `OSC l/L` aliases were classified as
+  custom and ignored; long aliases hit the 64-byte command limit; OSC 0 updated
+  only the window title; VTE semicolon splitting truncated title text.
+- **Fixes:** byte-one Appearance classification with a 4 KiB payload budget,
+  lowercase-`l` title dispatch, uppercase-`L` native icon tracking, OSC 0 dual
+  state, semicolon reconstruction, and shared UTF-8/control/1,024-scalar bounds.
+- **Review corrections:** icon state remains native-owned and reuses the
+  existing frame schema; window title remains terminal-owned; product pane
+  titles retain window-title-first, icon-label-second precedence.
+- **Security:** session-local appearance metadata only; no reply, disclosure,
+  persistence or host action; Appearance denial, VT220 and overflow fail closed.
+- **Tests/results:** targeted parser, corpus/probe, native unit/real-PTY,
+  JSON/protobuf and macOS application real-PTY coverage pass. Two consecutive
+  full verifier runs passed: 1,723 vendored tests with one existing ignored,
+  native session 509/509, example grouped 954/954, Widget 130/130, macOS smoke
+  4/4, product real PTY 43/43 and RunnerTests 15/15.
+- **Computer Use:** the verifier-built app visibly transitioned through OSC 0
+  `CU39 BOTH`, independent icon fallback `CU39 ICON`, and lowercase-`l`
+  semicolon title `CU39;WINDOW`; it accepted `CU39-AFTER:continued`, returned
+  to zsh for `CU39SHELLAFTER`, and exited through the confirmed Quit action.
+  Full evidence is recorded in
+  `xterm_legacy_title_aliases_phase39_20260714.md`.
+- **Compatibility:** no schema changes; existing OSC 0/1/2 paths remain valid,
+  while semicolon preservation and OSC 0 icon state correct prior omissions.
+- **Rollback:** revert the Phase 39 implementation commit.

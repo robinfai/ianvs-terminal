@@ -58,6 +58,9 @@ REQUIRED_COVERAGE = {
     "iTerm2 and xterm OSC 6 coexistence",
     "iTerm2 OSC 6 malformed value fail-closed handling",
     "iTerm2 OSC 6 mixed BEL/ST and fragmented ST termination",
+    "OSC 0 combined window and icon title",
+    "xterm legacy OSC l window title alias",
+    "xterm legacy OSC L icon label alias",
     "xterm OSC 60 allowed categories",
     "xterm OSC 61 disallowed subcategories",
     "xterm OSC 62 allowable subcategories",
@@ -265,6 +268,12 @@ def validate_case(case: Any) -> set[str]:
             chunks[1].endswith(b"\x1b") and chunks[2].startswith(b"\\"),
             f"{case_id}: fragmented ST",
         )
+    elif case_id == "xterm_legacy_title_aliases":
+        require(stream.count(b"\x1b]") == 4, f"{case_id}: sequence count")
+        require(b"\x1b]0;Combined;title\x07" in stream, f"{case_id}: OSC 0")
+        require(b"\x1b]LLegacy;icon\x1b\\" in stream, f"{case_id}: OSC L")
+        require(b"\x1b]lLegacy;window-" in stream, f"{case_id}: OSC l")
+        require(chunks[2] == b"\xe7", f"{case_id}: split UTF-8 lead byte")
     elif case_id == "osc1337_clear_buffer":
         require(stream.count(b"\x1b]") == 2, f"{case_id}: sequence count")
         require(b"1337;ClearScrollback" in stream, f"{case_id}: command")

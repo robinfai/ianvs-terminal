@@ -330,6 +330,18 @@ impl OscSequence {
         }
 
         self.content.push(byte);
+        // Sun/CDE title operations use a non-numeric command byte and no
+        // command separator: `OSC l <title> ST` and `OSC L <icon> ST`.
+        // Once either prefix is observed, every following byte (including a
+        // semicolon) is payload and must use the bounded Appearance budget.
+        if matches!(self.content.first(), Some(b'l' | b'L')) {
+            self.classification =
+                Classification::new(OscIntent::Appearance, OscCapability::Appearance);
+            if self.content.len().saturating_sub(1) > self.classification.intent.payload_limit() {
+                self.discard_oversized(context);
+            }
+            return;
+        }
         if self.command_separator.is_none() {
             if byte == b';' {
                 let separator = self.content.len() - 1;
@@ -680,6 +692,10 @@ fn classify_osc(
     complete: bool,
     context: OscClassificationContext,
 ) -> Classification {
+    if matches!(content.first(), Some(b'l' | b'L')) {
+        return Classification::new(OscIntent::Appearance, OscCapability::Appearance);
+    }
+
     let (command, payload) = match content.iter().position(|byte| *byte == b';') {
         Some(separator) => (&content[..separator], &content[separator + 1..]),
         None if complete => (content, &[][..]),
@@ -983,6 +999,57 @@ mod tests {
         let diagnostics = gate.diagnostics().for_intent(OscIntent::Appearance);
         assert_eq!(diagnostics.oversized, 1);
         assert_eq!(diagnostics.accepted, 0);
+    }
+
+    #[test]
+    fn legacy_title_aliases_use_bounded_appearance_policy_without_a_separator() {
+        let context = OscClassificationContext::default();
+        for sequence in [
+            &b"\x1b]lwindow;title\x1b\\"[..],
+            &b"\x1b]Licon;label\x07"[..],
+        ] {
+            let classification = classify_osc(
+                &sequence[2..sequence.len() - if sequence.ends_with(b"\x07") { 1 } else { 2 }],
+                true,
+                context,
+            );
+            assert_eq!(classification.intent, OscIntent::Appearance);
+            assert_eq!(classification.capability, OscCapability::Appearance);
+
+            let mut denied = OscCapabilityPolicy::default();
+            denied.set(OscCapability::Appearance, false);
+            let mut gate = OscStreamGate::default();
+            for byte in sequence {
+                assert!(filter_owned(&mut gate, &[*byte], denied, context).is_empty());
+            }
+            assert_eq!(
+                gate.diagnostics().for_intent(OscIntent::Appearance),
+                OscIntentDiagnostics {
+                    policy_denied: 1,
+                    ..OscIntentDiagnostics::default()
+                }
+            );
+        }
+
+        let mut oversized = b"\x1b]l".to_vec();
+        oversized.extend(std::iter::repeat_n(b'x', 4 * KIB + 1));
+        oversized.extend_from_slice(b"\x07recovered");
+        let mut gate = OscStreamGate::default();
+        assert_eq!(
+            filter_owned(
+                &mut gate,
+                &oversized,
+                OscCapabilityPolicy::default(),
+                context,
+            ),
+            b"recovered"
+        );
+        assert_eq!(
+            gate.diagnostics()
+                .for_intent(OscIntent::Appearance)
+                .oversized,
+            1
+        );
     }
 
     #[test]

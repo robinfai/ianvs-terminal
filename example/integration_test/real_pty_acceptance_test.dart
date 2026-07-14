@@ -913,6 +913,84 @@ sleep 1
   );
 
   testWidgets(
+    'real PTY OSC 0 and xterm l L aliases update product titles',
+    (tester) async {
+      final profile = _scriptProfile(
+        id: 'xterm-legacy-title-aliases-real-pty',
+        name: 'xterm Legacy Title Aliases Real PTY',
+        script: r'''
+python3 -c '
+import os
+import sys
+import time
+
+os.write(1, b"\x1b]0;OSC0 product combined\x07OSC0-PRODUCT-READY\n")
+time.sleep(0.5)
+os.write(1, b"\x1b]lLegacy;product window\x1b\\\x1b]LLegacy;product icon\x07LEGACY-TITLE-PRODUCT-READY\n")
+token = sys.stdin.buffer.readline().strip()
+os.write(1, b"LEGACY-TITLE-PRODUCT-AFTER:" + token + b"\n")
+time.sleep(1)
+'
+''',
+      );
+      final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
+
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'OSC 0 combined title marker',
+        matches: (text) => text.contains('OSC0-PRODUCT-READY'),
+      );
+      await _waitFor(
+        tester,
+        description: 'OSC 0 updates window title and icon label together',
+        condition: () {
+          final frame = _activeFrame(harness.container);
+          return frame?.windowTitle == 'OSC0 product combined' &&
+              frame?.windowIconName == 'OSC0 product combined' &&
+              _activePane(harness.container)?.title == 'OSC0 product combined';
+        },
+        onTimeout: () =>
+            'Pane: ${_activePane(harness.container)}\nFrame: ${_activeFrame(harness.container)}',
+      );
+
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'legacy title aliases marker',
+        matches: (text) => text.contains('LEGACY-TITLE-PRODUCT-READY'),
+      );
+      await _waitFor(
+        tester,
+        description: 'legacy title aliases reach frame and pane title',
+        condition: () {
+          final frame = _activeFrame(harness.container);
+          return frame?.windowTitle == 'Legacy;product window' &&
+              frame?.windowIconName == 'Legacy;product icon' &&
+              _activePane(harness.container)?.title == 'Legacy;product window';
+        },
+        onTimeout: () =>
+            'Pane: ${_activePane(harness.container)}\nFrame: ${_activeFrame(harness.container)}',
+      );
+
+      final sessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      harness.container
+          .read(terminalRuntimeControllerProvider)
+          .sendInput(sessionId, Uint8List.fromList(utf8.encode('continued\n')));
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'legacy title aliases continued real PTY input',
+        matches: (text) =>
+            text.contains('LEGACY-TITLE-PRODUCT-AFTER:continued'),
+      );
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
     'real PTY xterm special and selection colors reach the product frame',
     (tester) async {
       final goFile = _tempSignalFile('xterm-special-colors');

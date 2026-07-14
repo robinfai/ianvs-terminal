@@ -56,6 +56,16 @@ PROBES = {
         "none",
         osc("2;Ianvs OSC semantic probe"),
     ),
+    "legacy_title_aliases": Probe(
+        "legacy_title_aliases",
+        "xterm OSC 0/1/2 and Sun/CDE l/L aliases",
+        "Set a combined title, then independently replace the icon label and window title with the legacy non-numeric aliases.",
+        "OSC 0 sets both channels; uppercase L leaves the window title unchanged while replacing the icon label; lowercase l replaces only the window title.",
+        "terminal-local appearance only; no reply or host action",
+        osc("0;Ianvs combined title", bell=True)
+        + osc("LIanvs legacy icon")
+        + osc("lIanvs legacy window", bell=True),
+    ),
     "cwd": Probe(
         "cwd",
         "OSC 7",
@@ -431,6 +441,7 @@ def selected_probes(intents: list[str]) -> list[Probe]:
 def self_test() -> None:
     required = {
         "title",
+        "legacy_title_aliases",
         "cwd",
         "hyperlink_with_id",
         "clipboard_copy",
@@ -536,6 +547,12 @@ def self_test() -> None:
         raise ValueError("xterm OSC 61 BEL query is missing")
     if PROBES["xterm_font_ops"].payload.count(b"\x1b]50;") != 3:
         raise ValueError("xterm OSC 50 font-operation fixture is malformed")
+    if PROBES["legacy_title_aliases"].payload.count(b"\x1b]") != 3:
+        raise ValueError("xterm legacy title-alias fixture is malformed")
+    if b"\x1b]LIanvs legacy icon\x1b\\" not in PROBES["legacy_title_aliases"].payload:
+        raise ValueError("xterm legacy icon-label alias is missing")
+    if b"\x1b]lIanvs legacy window\x07" not in PROBES["legacy_title_aliases"].payload:
+        raise ValueError("xterm legacy window-title alias is missing")
     if b"\x1b]50;?\x07" not in PROBES["xterm_font_ops"].payload:
         raise ValueError("xterm OSC 50 BEL query is missing")
     if PROBES["osc23_noop"].payload.count(b"\x1b]") != 2:

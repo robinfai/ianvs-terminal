@@ -220,6 +220,10 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
                     b"\x1b]50;Courier Prime\x07\x1b]50;#4 Courier Prime\x1b\\"
                 );
             }
+            "xterm_legacy_title_aliases" => {
+                assert_eq!(terminal.title(), "Legacy;window-窗");
+                assert!(terminal.drain_responses().is_empty());
+            }
             "xterm_osc_capability_queries" => {
                 assert_eq!(terminal.title(), "osc60-62-capability-corpus-ok");
                 assert_eq!(

@@ -150,6 +150,18 @@ impl Terminal {
             return;
         }
 
+        // xterm retains the Sun/CDE non-numeric title aliases. VTE splits OSC
+        // parameters at semicolons, so the title handler rejoins all pieces.
+        if params[0].starts_with(b"l") {
+            self.handle_legacy_osc_title(params);
+            return;
+        }
+        if params[0].starts_with(b"L") {
+            // The terminal grid has no icon-label state. The native filtered
+            // host observer consumes this accepted sequence for frame export.
+            return;
+        }
+
         if let Ok(command) = std::str::from_utf8(params[0]) {
             if self.is_insecure_osc(command) {
                 debug::log(

@@ -99,6 +99,42 @@ fn test_set_window_title() {
 }
 
 #[test]
+fn xterm_legacy_title_alias_accepts_bel_st_fragmentation_and_semicolons() {
+    let cases: &[&[u8]] = &[
+        b"\x1b]lLegacy BEL\x07",
+        b"\x1b]lLegacy;ST\x1b\\",
+        "\x1b]lUnicode 你好\x1b\\".as_bytes(),
+    ];
+
+    let mut term = Terminal::new(80, 24);
+    for sequence in cases {
+        for byte in *sequence {
+            term.process(&[*byte]);
+        }
+    }
+
+    assert_eq!(term.title(), "Unicode 你好");
+    let title_events = term
+        .poll_events()
+        .into_iter()
+        .filter(|event| matches!(event, crate::terminal::TerminalEvent::TitleChanged(_)))
+        .count();
+    assert_eq!(title_events, 3);
+
+    term.process(b"\x1b]lLegacy;ST\x1b\\");
+    assert_eq!(term.title(), "Legacy;ST");
+}
+
+#[test]
+fn xterm_legacy_icon_alias_does_not_mutate_window_title() {
+    let mut term = Terminal::new(80, 24);
+    term.process(b"\x1b]2;Stable title\x1b\\");
+    term.process(b"\x1b]LIcon;label\x07");
+
+    assert_eq!(term.title(), "Stable title");
+}
+
+#[test]
 fn osc_21_color_control_and_osc22_do_not_mutate_title_or_title_stack() {
     let mut term = Terminal::new(80, 24);
 

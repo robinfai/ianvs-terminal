@@ -497,6 +497,21 @@ fn icon_name_profile() -> TerminalProfile {
     )
 }
 
+fn legacy_title_alias_profile(emulation: TerminalEmulation) -> TerminalProfile {
+    local_profile(
+        "legacy-title-aliases",
+        "xterm Legacy Title Aliases",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import os,sys,time; os.write(1,b"\x1b]0;OSC0 combined\x07OSC0-READY\n"); time.sleep(0.5); os.write(1,b"\x1b]lLegacy;window\x1b\\\x1b]LLegacy;icon\x07LEGACY-TITLE-READY\n"); token=sys.stdin.buffer.readline().strip(); os.write(1,b"LEGACY-TITLE-AFTER:"+token+b"\n"); time.sleep(0.2)'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        emulation,
+    )
+}
+
 fn resize_request_profile() -> TerminalProfile {
     local_profile(
         "resize-request",
@@ -16260,6 +16275,61 @@ fn session_surfaces_window_icon_name_from_osc_sequences() {
     let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
 
     assert_eq!(parsed["window_icon_name"].as_str(), Some("图标名称"),);
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_surfaces_osc0_and_legacy_title_aliases_from_real_pty() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&legacy_title_alias_profile(TerminalEmulation::Xterm256)).unwrap(),
+    )
+    .unwrap();
+
+    let combined = wait_for_frame_containing(session_id, "OSC0-READY");
+    let combined: serde_json::Value = serde_json::from_str(&combined).unwrap();
+    assert_eq!(combined["window_title"].as_str(), Some("OSC0 combined"));
+    assert_eq!(combined["window_icon_name"].as_str(), Some("OSC0 combined"));
+
+    let legacy = wait_for_frame_containing(session_id, "LEGACY-TITLE-READY");
+    let parsed: serde_json::Value = serde_json::from_str(&legacy).unwrap();
+    assert_eq!(parsed["window_title"].as_str(), Some("Legacy;window"));
+    assert_eq!(parsed["window_icon_name"].as_str(), Some("Legacy;icon"));
+
+    let frame_model: ianvs_core::model::TerminalFrameDiff = serde_json::from_str(&legacy).unwrap();
+    let protobuf_bytes = ianvs_core::frame_diff_proto::encode_frame_diff(&frame_model).unwrap();
+    let protobuf =
+        ianvs_core::frame_diff_proto::decode_frame_diff_for_test(&protobuf_bytes).unwrap();
+    assert_eq!(protobuf.window_title, "Legacy;window");
+    assert_eq!(protobuf.window_icon_name, "Legacy;icon");
+
+    session::resize_session(session_id, 96, 28, 960, 560).unwrap();
+    session::write_session(session_id, b"continued\n").unwrap();
+    let after = wait_for_frame_containing(session_id, "LEGACY-TITLE-AFTER:continued");
+    let after: serde_json::Value = serde_json::from_str(&after).unwrap();
+    assert_eq!(after["window_title"].as_str(), Some("Legacy;window"));
+    assert_eq!(after["window_icon_name"].as_str(), Some("Legacy;icon"));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_sessions_gate_osc0_and_legacy_title_aliases() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&legacy_title_alias_profile(TerminalEmulation::Vt220)).unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "LEGACY-TITLE-READY");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    assert_eq!(parsed["window_title"].as_str(), None);
+    assert_eq!(parsed["window_icon_name"].as_str(), None);
+
+    session::write_session(session_id, b"continued\n").unwrap();
+    let after = wait_for_frame_containing(session_id, "LEGACY-TITLE-AFTER:continued");
+    let after: serde_json::Value = serde_json::from_str(&after).unwrap();
+    assert_eq!(after["window_title"].as_str(), None);
+    assert_eq!(after["window_icon_name"].as_str(), None);
 
     session::close_session(session_id).unwrap();
 }

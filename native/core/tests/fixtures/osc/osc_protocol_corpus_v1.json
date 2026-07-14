@@ -841,6 +841,31 @@
       }
     },
     {
+      "id": "xterm_legacy_title_aliases",
+      "coverage": [
+        "OSC 0 combined window and icon title",
+        "xterm legacy OSC l window title alias",
+        "xterm legacy OSC L icon label alias"
+      ],
+      "protocol": "xterm OSC 0/1/2 and Sun/CDE l/L title aliases",
+      "wire": {
+        "sequence_count": 4,
+        "chunks_hex": [
+          "1b5d303b436f6d62696e65643b7469746c65071b5d4c4c65676163793b69636f6e1b",
+          "5c1b5d323b696e7465726d6564696174651b5c1b5d6c4c65676163793b77696e646f772d",
+          "e7",
+          "aa9707"
+        ]
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "window_and_icon_title",
+        "state_effect": "OSC 0 updates both title channels, uppercase L updates only the icon label, lowercase l preserves semicolons and split UTF-8 in the window title, and mixed BEL/ST framing remains synchronized",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
       "id": "xterm_osc_capability_queries",
       "coverage": [
         "xterm OSC 60 allowed categories",
