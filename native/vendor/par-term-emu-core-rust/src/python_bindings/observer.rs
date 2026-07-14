@@ -289,6 +289,12 @@ pub(crate) fn event_to_dict(event: &TerminalEvent) -> HashMap<String, String> {
         TerminalEvent::TerminalReset => {
             map.insert("type".to_string(), "terminal_reset".to_string());
         }
+        // Product-routed or newer protocol events do not yet have a stable
+        // Python dictionary schema. Keep the optional binding buildable and
+        // fail closed without exposing their payloads.
+        _ => {
+            map.insert("type".to_string(), "unsupported".to_string());
+        }
     }
     map
 }
@@ -360,5 +366,22 @@ impl TerminalObserver for PyQueueObserver {
 
     fn subscriptions(&self) -> Option<&HashSet<TerminalEventKind>> {
         self.subscriptions.as_ref()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unsupported_product_event_is_redacted_to_its_type() {
+        let event = TerminalEvent::ItermReportVariableRequested {
+            name: "user.PRIVATE".to_string(),
+        };
+
+        assert_eq!(
+            event_to_dict(&event),
+            HashMap::from([("type".to_string(), "unsupported".to_string())])
+        );
     }
 }

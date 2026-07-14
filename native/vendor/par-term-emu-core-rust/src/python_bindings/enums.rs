@@ -203,7 +203,9 @@ impl From<PyProgressState> for crate::terminal::ProgressState {
 #[pyclass(name = "UnicodeVersion", eq, from_py_object)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PyUnicodeVersion {
-    /// Unicode 9.0 (June 2016) - Pre-emoji standardization
+    /// Unicode 8.0 (June 2015) - legacy single-cell emoji widths
+    Unicode8 = 8,
+    /// Unicode 9.0 (June 2016) - standardized emoji widths
     Unicode9 = 9,
     /// Unicode 10.0 (June 2017)
     Unicode10 = 10,
@@ -230,6 +232,7 @@ impl PyUnicodeVersion {
     /// Get a human-readable version string
     fn version_string(&self) -> &'static str {
         match self {
+            PyUnicodeVersion::Unicode8 => "8.0",
             PyUnicodeVersion::Unicode9 => "9.0",
             PyUnicodeVersion::Unicode10 => "10.0",
             PyUnicodeVersion::Unicode11 => "11.0",
@@ -259,6 +262,7 @@ impl PyUnicodeVersion {
 impl From<crate::unicode_width_config::UnicodeVersion> for PyUnicodeVersion {
     fn from(version: crate::unicode_width_config::UnicodeVersion) -> Self {
         match version {
+            crate::unicode_width_config::UnicodeVersion::Unicode8 => PyUnicodeVersion::Unicode8,
             crate::unicode_width_config::UnicodeVersion::Unicode9 => PyUnicodeVersion::Unicode9,
             crate::unicode_width_config::UnicodeVersion::Unicode10 => PyUnicodeVersion::Unicode10,
             crate::unicode_width_config::UnicodeVersion::Unicode11 => PyUnicodeVersion::Unicode11,
@@ -278,6 +282,7 @@ impl From<crate::unicode_width_config::UnicodeVersion> for PyUnicodeVersion {
 impl From<PyUnicodeVersion> for crate::unicode_width_config::UnicodeVersion {
     fn from(version: PyUnicodeVersion) -> Self {
         match version {
+            PyUnicodeVersion::Unicode8 => crate::unicode_width_config::UnicodeVersion::Unicode8,
             PyUnicodeVersion::Unicode9 => crate::unicode_width_config::UnicodeVersion::Unicode9,
             PyUnicodeVersion::Unicode10 => crate::unicode_width_config::UnicodeVersion::Unicode10,
             PyUnicodeVersion::Unicode11 => crate::unicode_width_config::UnicodeVersion::Unicode11,

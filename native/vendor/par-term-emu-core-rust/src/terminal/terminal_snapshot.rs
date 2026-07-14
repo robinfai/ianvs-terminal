@@ -13,9 +13,11 @@ use crate::graphics::{GraphicsSnapshot, GraphicsStore, ImageDataRef};
 use crate::mouse::{MouseEncoding, MouseMode};
 use crate::shell_integration::{Osc633ExpectedNonce, ShellIntegration};
 use crate::terminal::{
-    PlainTextParserState, SyncUpdateScanState, TerminalInputBufferDiscardReason,
-    MAX_SYNCHRONIZED_UPDATE_BYTES, SYNCHRONIZED_UPDATE_CSI_SCAN_LIMIT,
+    ItermUnicodeVersionStackEntry, PlainTextParserState, SyncUpdateScanState,
+    TerminalInputBufferDiscardReason, MAX_SYNCHRONIZED_UPDATE_BYTES,
+    SYNCHRONIZED_UPDATE_CSI_SCAN_LIMIT,
 };
+use crate::unicode_width_config::{UnicodeVersion, WidthConfig};
 use crate::zone::Zone;
 
 use super::block::ItermBlockState;
@@ -164,6 +166,11 @@ pub struct TerminalSnapshot {
     pub alt_cursor: Cursor,
     /// Saved cursor (DECSC/DECRC)
     pub saved_cursor: Option<Cursor>,
+    /// Current Unicode width contract and bounded iTerm2 push/pop state.
+    pub(crate) width_config: WidthConfig,
+    pub(crate) iterm_unicode_version_stack: Vec<ItermUnicodeVersionStackEntry>,
+    /// Unicode width version captured with the saved cursor.
+    pub(crate) saved_unicode_version: Option<UnicodeVersion>,
 
     // --- Current colors and attributes ---
     /// Current foreground color
@@ -327,6 +334,11 @@ impl std::fmt::Debug for TerminalSnapshot {
             .field("grid", &self.grid)
             .field("alt_grid", &self.alt_grid)
             .field("alt_screen_active", &self.alt_screen_active)
+            .field("width_config", &self.width_config)
+            .field(
+                "iterm_unicode_version_stack_depth",
+                &self.iterm_unicode_version_stack.len(),
+            )
             .field("shell_state", &self.shell_integration.state())
             .field(
                 "has_pending_parent_lifecycle",
@@ -465,6 +477,14 @@ impl TerminalSnapshot {
         let title_size = self.title.len();
         let keyboard_stack_size = (self.keyboard_stack.len() + self.keyboard_stack_alt.len())
             * std::mem::size_of::<u16>();
+        let unicode_version_stack_size = self
+            .iterm_unicode_version_stack
+            .iter()
+            .map(|entry| {
+                std::mem::size_of::<ItermUnicodeVersionStackEntry>()
+                    + entry.label.as_ref().map_or(0, String::len)
+            })
+            .sum::<usize>();
         let sync_update_size = self.update_buffer.len() + self.sync_update_scan_tail.len();
         let hyperlink_size = self.hyperlinks.values().map(String::len).sum::<usize>()
             + self
@@ -523,6 +543,7 @@ impl TerminalSnapshot {
             + tab_stops_size
             + title_size
             + keyboard_stack_size
+            + unicode_version_stack_size
             + sync_update_size
             + hyperlink_size
             + named_progress_size
@@ -640,6 +661,9 @@ impl Terminal {
             cursor: self.cursor,
             alt_cursor: self.alt_cursor,
             saved_cursor: self.saved_cursor,
+            width_config: self.width_config,
+            iterm_unicode_version_stack: self.iterm_unicode_version_stack.clone(),
+            saved_unicode_version: self.saved_unicode_version,
             fg: self.fg,
             bg: self.bg,
             underline_color: self.underline_color,
@@ -790,6 +814,9 @@ impl Terminal {
         self.cursor = snap.cursor;
         self.alt_cursor = snap.alt_cursor;
         self.saved_cursor = snap.saved_cursor;
+        self.width_config = snap.width_config;
+        self.iterm_unicode_version_stack = snap.iterm_unicode_version_stack;
+        self.saved_unicode_version = snap.saved_unicode_version;
         self.fg = snap.fg;
         self.bg = snap.bg;
         self.underline_color = snap.underline_color;
@@ -923,6 +950,9 @@ mod tests {
             cursor: Cursor::default(),
             alt_cursor: Cursor::default(),
             saved_cursor: None,
+            width_config: WidthConfig::default(),
+            iterm_unicode_version_stack: Vec::new(),
+            saved_unicode_version: None,
             fg: Color::Named(NamedColor::White),
             bg: Color::Named(NamedColor::Black),
             underline_color: None,
@@ -1337,6 +1367,36 @@ mod tests {
             })
             .count();
         assert_eq!(remote_transitions, 0);
+    }
+
+    #[test]
+    fn restore_preserves_unicode_version_stack_and_saved_cursor_version() {
+        let mut source = Terminal::new(20, 2);
+        source.process(b"\x1b]1337;UnicodeVersion=8\x07");
+        source.process(b"\x1b]1337;UnicodeVersion=push outer\x07");
+        source.process(b"\x1b]1337;UnicodeVersion=9\x07\x1b7");
+        source.process(b"\x1b]1337;UnicodeVersion=8\x07");
+
+        let mut restored = Terminal::new(1, 1);
+        restored.restore_from_snapshot(source.capture_snapshot());
+        assert_eq!(
+            restored.width_config.unicode_version,
+            UnicodeVersion::Unicode8
+        );
+        assert_eq!(restored.iterm_unicode_version_stack.len(), 1);
+
+        restored.process(b"\x1b8");
+        assert_eq!(
+            restored.width_config.unicode_version,
+            UnicodeVersion::Unicode9
+        );
+
+        restored.process(b"\x1b]1337;UnicodeVersion=pop outer\x07");
+        assert_eq!(
+            restored.width_config.unicode_version,
+            UnicodeVersion::Unicode8
+        );
+        assert!(restored.iterm_unicode_version_stack.is_empty());
     }
 
     #[test]

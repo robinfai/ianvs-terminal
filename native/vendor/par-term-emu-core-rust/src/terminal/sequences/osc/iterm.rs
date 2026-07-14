@@ -9,7 +9,8 @@ use crate::terminal::block::{
 };
 use crate::terminal::button::bounded_iterm_button_icon;
 use crate::terminal::event::{ItermAttentionAction, ShellIntegrationSource};
-use crate::terminal::{CwdChangeSource, Terminal, TerminalEvent};
+use crate::terminal::{CwdChangeSource, ItermUnicodeVersionStackEntry, Terminal, TerminalEvent};
+use crate::unicode_width_config::UnicodeVersion;
 use crate::zone::ZoneType;
 
 const MAX_USER_VAR_NAME_CHARS: usize = 80;
@@ -23,6 +24,8 @@ const MAX_ANNOTATION_MESSAGE_CHARS: usize = 1024;
 const MAX_ANNOTATION_LENGTH_CELLS: usize = 4096;
 const MAX_OPEN_URL_BYTES: usize = 4096;
 const MAX_REPORT_VARIABLE_NAME_BYTES: usize = 256;
+const MAX_UNICODE_VERSION_LABEL_BYTES: usize = 128;
+const MAX_UNICODE_VERSION_STACK_DEPTH: usize = 64;
 
 impl Terminal {
     pub(crate) fn handle_osc_iterm(&mut self, _command: &str, params: &[&[u8]]) {
@@ -54,6 +57,8 @@ impl Terminal {
             } else if data == "ReportCellSize" {
                 self.terminal_events
                     .push(TerminalEvent::CellSizeReportRequested);
+            } else if let Some(payload) = data.strip_prefix("UnicodeVersion=") {
+                self.handle_iterm_unicode_version(payload);
             } else if let Some(encoded) = data.strip_prefix("ReportVariable=") {
                 self.handle_iterm_report_variable(encoded);
             } else if let Some(encoded) = data.strip_prefix("OpenURL=:") {
@@ -82,6 +87,46 @@ impl Terminal {
                 self.handle_iterm_cursor_guide(value);
             } else {
                 self.handle_iterm_image(&data);
+            }
+        }
+    }
+
+    fn handle_iterm_unicode_version(&mut self, payload: &str) {
+        match payload {
+            "8" => self.set_unicode_version(UnicodeVersion::Unicode8),
+            "9" => self.set_unicode_version(UnicodeVersion::Unicode9),
+            "push" => self.push_iterm_unicode_version(None),
+            "pop" => self.pop_iterm_unicode_version(None),
+            _ => {
+                if let Some(label) = payload.strip_prefix("push ") {
+                    if is_valid_unicode_version_label(label) {
+                        self.push_iterm_unicode_version(Some(label.to_owned()));
+                    }
+                } else if let Some(label) = payload.strip_prefix("pop ") {
+                    if is_valid_unicode_version_label(label) {
+                        self.pop_iterm_unicode_version(Some(label));
+                    }
+                }
+            }
+        }
+    }
+
+    fn push_iterm_unicode_version(&mut self, label: Option<String>) {
+        if self.iterm_unicode_version_stack.len() >= MAX_UNICODE_VERSION_STACK_DEPTH {
+            return;
+        }
+        self.iterm_unicode_version_stack
+            .push(ItermUnicodeVersionStackEntry {
+                label,
+                version: self.width_config.unicode_version,
+            });
+    }
+
+    fn pop_iterm_unicode_version(&mut self, label: Option<&str>) {
+        while let Some(entry) = self.iterm_unicode_version_stack.pop() {
+            if label.is_none() || entry.label.as_deref() == label {
+                self.set_unicode_version(entry.version);
+                return;
             }
         }
     }
@@ -383,6 +428,7 @@ impl Terminal {
         // buffer behavior for wrapped prompts and command input.
         self.cursor.row = preserved_rows.len().saturating_sub(1);
         self.saved_cursor = None;
+        self.saved_unicode_version = None;
         self.scroll_region_top = 0;
         self.scroll_region_bottom = self.size().1.saturating_sub(1);
         self.use_lr_margins = false;
@@ -697,6 +743,12 @@ impl Terminal {
     }
 }
 
+fn is_valid_unicode_version_label(label: &str) -> bool {
+    !label.is_empty()
+        && label.len() <= MAX_UNICODE_VERSION_LABEL_BYTES
+        && label.bytes().all(|byte| matches!(byte, 0x20..=0x7E))
+}
+
 fn is_safe_iterm_open_url(value: &str) -> bool {
     if value.is_empty()
         || value.len() > MAX_OPEN_URL_BYTES
@@ -738,11 +790,15 @@ fn parse_annotation_signed(value: &str) -> Option<i64> {
 
 #[cfg(test)]
 mod tests {
-    use super::MAX_REPORT_VARIABLE_NAME_BYTES;
+    use super::{
+        MAX_REPORT_VARIABLE_NAME_BYTES, MAX_UNICODE_VERSION_LABEL_BYTES,
+        MAX_UNICODE_VERSION_STACK_DEPTH,
+    };
     use crate::color::Color;
     use crate::terminal::event::ShellIntegrationSource;
     use crate::terminal::MAX_ITERM_BLOCK_ID_CHARS;
     use crate::terminal::{ItermAttentionAction, Terminal, TerminalEvent};
+    use crate::unicode_width_config::UnicodeVersion;
     use crate::zone::ZoneType;
     use base64::{engine::general_purpose::STANDARD, Engine};
 
@@ -1001,6 +1057,135 @@ mod tests {
                 .filter(|event| matches!(event, TerminalEvent::CellSizeReportRequested))
                 .count(),
             1
+        );
+    }
+
+    #[test]
+    fn unicode_version_8_and_9_change_terminal_cell_width_with_bel_or_st() {
+        let mut unicode8 = Terminal::new(20, 2);
+        unicode8.process(b"\x1b]1337;UnicodeVersion=8\x07");
+        unicode8.process("☕X".as_bytes());
+        assert_eq!(
+            unicode8.width_config().unicode_version,
+            UnicodeVersion::Unicode8
+        );
+        assert_eq!(unicode8.cursor().col, 2);
+
+        let mut unicode9 = Terminal::new(20, 2);
+        unicode9.process(b"\x1b]1337;UnicodeVersion=9\x1b\\");
+        unicode9.process("☕X".as_bytes());
+        assert_eq!(
+            unicode9.width_config().unicode_version,
+            UnicodeVersion::Unicode9
+        );
+        assert_eq!(unicode9.cursor().col, 3);
+    }
+
+    #[test]
+    fn unicode_version_labeled_and_unlabeled_stacks_match_iterm_semantics() {
+        let mut terminal = Terminal::new(20, 2);
+        terminal.process(b"\x1b]1337;UnicodeVersion=8\x07");
+        terminal.process(b"\x1b]1337;UnicodeVersion=push outer\x07");
+        terminal.process(b"\x1b]1337;UnicodeVersion=9\x07");
+        terminal.process(b"\x1b]1337;UnicodeVersion=push inner\x07");
+        terminal.process(b"\x1b]1337;UnicodeVersion=8\x07");
+        terminal.process(b"\x1b]1337;UnicodeVersion=pop outer\x07");
+        assert_eq!(
+            terminal.width_config().unicode_version,
+            UnicodeVersion::Unicode8
+        );
+        assert!(terminal.iterm_unicode_version_stack.is_empty());
+
+        terminal.process(b"\x1b]1337;UnicodeVersion=push\x07");
+        terminal.process(b"\x1b]1337;UnicodeVersion=9\x07");
+        terminal.process(b"\x1b]1337;UnicodeVersion=pop\x07");
+        assert_eq!(
+            terminal.width_config().unicode_version,
+            UnicodeVersion::Unicode8
+        );
+
+        terminal.process(b"\x1b]1337;UnicodeVersion=push keep\x07");
+        terminal.process(b"\x1b]1337;UnicodeVersion=9\x07");
+        terminal.process(b"\x1b]1337;UnicodeVersion=pop missing\x07");
+        assert_eq!(
+            terminal.width_config().unicode_version,
+            UnicodeVersion::Unicode9
+        );
+        assert!(terminal.iterm_unicode_version_stack.is_empty());
+    }
+
+    #[test]
+    fn unicode_version_rejects_malformed_or_unbounded_operations() {
+        let mut terminal = Terminal::new(20, 2);
+        terminal.process(b"\x1b]1337;UnicodeVersion=8\x07");
+
+        for invalid in [
+            "",
+            "7",
+            "10",
+            "08",
+            "Push",
+            "push ",
+            "pop ",
+            "push café",
+            "push\tlabel",
+        ] {
+            terminal.process(format!("\x1b]1337;UnicodeVersion={invalid}\x07").as_bytes());
+        }
+        let oversized = "x".repeat(MAX_UNICODE_VERSION_LABEL_BYTES + 1);
+        terminal.process(format!("\x1b]1337;UnicodeVersion=push {oversized}\x07").as_bytes());
+        assert_eq!(
+            terminal.width_config().unicode_version,
+            UnicodeVersion::Unicode8
+        );
+        assert!(terminal.iterm_unicode_version_stack.is_empty());
+
+        for index in 0..=MAX_UNICODE_VERSION_STACK_DEPTH {
+            terminal.process(format!("\x1b]1337;UnicodeVersion=push label-{index}\x07").as_bytes());
+        }
+        assert_eq!(
+            terminal.iterm_unicode_version_stack.len(),
+            MAX_UNICODE_VERSION_STACK_DEPTH
+        );
+    }
+
+    #[test]
+    fn unicode_version_survives_every_byte_split_saved_cursor_and_ris() {
+        let sequence = b"\x1b]1337;UnicodeVersion=8\x1b\\";
+        for split in 1..sequence.len() {
+            let mut terminal = Terminal::new(20, 2);
+            terminal.process(&sequence[..split]);
+            terminal.process(&sequence[split..]);
+            terminal.process("☕X".as_bytes());
+            assert_eq!(terminal.cursor().col, 2, "failed at byte split {split}");
+        }
+
+        let mut terminal = Terminal::new(20, 2);
+        terminal.process(b"\x1b]1337;UnicodeVersion=8\x07\x1b7");
+        terminal.process(b"\x1b]1337;UnicodeVersion=9\x07\x1b8");
+        assert_eq!(
+            terminal.width_config().unicode_version,
+            UnicodeVersion::Unicode8
+        );
+
+        terminal.process(b"\x1b]1337;UnicodeVersion=push ris\x07");
+        terminal.process(b"\x1b]1337;UnicodeVersion=9\x07\x1bc");
+        assert_eq!(
+            terminal.width_config().unicode_version,
+            UnicodeVersion::Unicode9
+        );
+        terminal.process(b"\x1b]1337;UnicodeVersion=pop ris\x07");
+        assert_eq!(
+            terminal.width_config().unicode_version,
+            UnicodeVersion::Unicode8
+        );
+
+        terminal.process(b"\x1b7\x1b]1337;UnicodeVersion=9\x07");
+        terminal.process(b"\x1b]1337;ClearScrollback\x1b\\\x1b8");
+        assert_eq!(
+            terminal.width_config().unicode_version,
+            UnicodeVersion::Unicode9,
+            "Clear Buffer must invalidate the saved Unicode version with DECSC"
         );
     }
 

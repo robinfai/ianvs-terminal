@@ -123,6 +123,20 @@ PROBES = {
         + osc("1337;Button=type=copy;block=ianvs-button-probe")
         + osc("1337;Button=type=custom;code=42;icon=star.fill", bell=True),
     ),
+    "iterm_unicode_version": Probe(
+        "iterm_unicode_version",
+        "iTerm2 OSC 1337 UnicodeVersion",
+        "Render the same plain emoji under Unicode 8 and Unicode 9 widths, then restore the labeled Unicode 8 state.",
+        "The marker after the plain hot-beverage glyph advances one cell in Unicode 8, two cells in Unicode 9, and one cell again after labeled pop.",
+        "terminal-local appearance only; no reply or host action",
+        osc("1337;UnicodeVersion=8", bell=True)
+        + "Unicode 8:  ☕|\r\n".encode("utf-8")
+        + osc("1337;UnicodeVersion=push ianvs-probe")
+        + osc("1337;UnicodeVersion=9")
+        + "Unicode 9:  ☕|\r\n".encode("utf-8")
+        + osc("1337;UnicodeVersion=pop ianvs-probe", bell=True)
+        + "Restored 8: ☕|".encode("utf-8"),
+    ),
     "iterm_report_variable": Probe(
         "iterm_report_variable",
         "iTerm2 OSC 1337 ReportVariable",
@@ -385,6 +399,7 @@ def self_test() -> None:
         "iterm_clipboard_copy",
         "iterm_annotations",
         "iterm_inline_buttons",
+        "iterm_unicode_version",
         "iterm_report_variable",
         "iterm_request_attention",
         "clipboard_query",
@@ -428,6 +443,16 @@ def self_test() -> None:
         raise ValueError("iTerm2 OSC 1337 annotation fixture is malformed")
     if PROBES["iterm_inline_buttons"].payload.count(b"\x1b]1337;Button=") != 2:
         raise ValueError("iTerm2 OSC 1337 button fixture is malformed")
+    if PROBES["iterm_unicode_version"].payload.count(
+        b"\x1b]1337;UnicodeVersion="
+    ) != 4:
+        raise ValueError("iTerm2 OSC 1337 UnicodeVersion fixture is malformed")
+    if b"UnicodeVersion=push ianvs-probe" not in PROBES[
+        "iterm_unicode_version"
+    ].payload or b"UnicodeVersion=pop ianvs-probe" not in PROBES[
+        "iterm_unicode_version"
+    ].payload:
+        raise ValueError("iTerm2 OSC 1337 UnicodeVersion labels are malformed")
     if PROBES["iterm_report_variable"].payload.count(
         b"\x1b]1337;ReportVariable="
     ) != 2:

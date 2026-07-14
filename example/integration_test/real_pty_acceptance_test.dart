@@ -1353,6 +1353,96 @@ sleep 1
   );
 
   testWidgets(
+    'real PTY OSC 1337 UnicodeVersion changes visible columns and survives resize input',
+    (tester) async {
+      final profile = _scriptProfile(
+        id: 'osc1337-unicode-version',
+        name: 'OSC 1337 Unicode Version',
+        script: r'''
+printf '\033]1337;UnicodeVersion=8\aU8:☕\033[38;2;255;0;0mX\033[0m\r\n'
+printf '\033]1337;UnicodeVersion=push app-test\033\\'
+printf '\033]1337;UnicodeVersion=9\033\\U9:☕\033[38;2;255;0;0mX\033[0m\r\n'
+printf '\033]1337;UnicodeVersion=pop app-test\aU8R:☕\033[38;2;255;0;0mX\033[0m\r\n'
+printf 'U8-FINAL:☕X'
+IFS= read -r token
+printf '\r\nAFTER:%s:☕X' "$token"
+sleep 1
+''',
+      );
+      final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
+
+      await _waitFor(
+        tester,
+        description: 'Unicode 8/9 visible terminal-column contract',
+        condition: () {
+          final frame = _activeFrame(harness.container);
+          if (frame == null ||
+              !frame.rows.any((row) => row.text.contains('U8-FINAL:☕X'))) {
+            return false;
+          }
+
+          terminal.TerminalRow? rowFor(String marker) {
+            for (final row in frame.rows) {
+              if (row.text.contains(marker)) {
+                return row;
+              }
+            }
+            return null;
+          }
+
+          bool hasRedSpan(String marker, int start, int end) {
+            final row = rowFor(marker);
+            return row != null &&
+                row.styleRuns.any(
+                  (run) =>
+                      run.start == start &&
+                      run.end == end &&
+                      run.foreground?.toARGB32() == 0xffff0000,
+                );
+          }
+
+          return hasRedSpan('U8:', 4, 5) &&
+              hasRedSpan('U9:', 5, 6) &&
+              hasRedSpan('U8R:', 5, 6) &&
+              frame.cursor.col == 11;
+        },
+        onTimeout: () {
+          final frame = _activeFrame(harness.container);
+          return frame == null ? 'No frame' : _frameDebug(frame);
+        },
+      );
+
+      final sessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      harness.container
+          .read(sessionControllerProvider.notifier)
+          .resizeSession(sessionId, const Size(900, 600), 1);
+      harness.container
+          .read(terminalRuntimeControllerProvider)
+          .sendInput(sessionId, Uint8List.fromList(utf8.encode('continued\n')));
+
+      await _waitFor(
+        tester,
+        description: 'Unicode 8 width after resize replay and continued input',
+        condition: () {
+          final frame = _activeFrame(harness.container);
+          return frame != null &&
+              frame.rows.any(
+                (row) => row.text.contains('AFTER:continued:☕X'),
+              ) &&
+              frame.cursor.col == 18;
+        },
+        onTimeout: () {
+          final frame = _activeFrame(harness.container);
+          return frame == null ? 'No frame' : _frameDebug(frame);
+        },
+      );
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
     'real PTY OSC 1337 cursor guide enables, paints, and disables',
     (tester) async {
       final enableFile = _tempSignalFile('osc1337-cursor-guide-enable');

@@ -3,6 +3,7 @@ use par_term_emu_core_rust::terminal::{
     DragDropAction, ItermAttentionAction, OscCapability, Terminal, TerminalContextAction,
     TerminalEvent,
 };
+use par_term_emu_core_rust::unicode_width_config::UnicodeVersion;
 use serde_json::Value;
 
 const CORPUS: &str = include_str!("fixtures/osc/osc_protocol_corpus_v1.json");
@@ -417,6 +418,17 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
                     names,
                     vec!["user.REPORT_KEY", "session.columns", "session.environment",]
                 );
+            }
+            "osc1337_unicode_version" => {
+                assert_eq!(terminal.title(), "osc1337-unicode-version-corpus-ok");
+                assert_eq!(
+                    terminal.width_config().unicode_version,
+                    UnicodeVersion::Unicode8
+                );
+                assert_eq!(terminal.grid().get(1, 0).unwrap().get_grapheme(), "A");
+                assert_eq!(terminal.grid().get(2, 1).unwrap().get_grapheme(), "B");
+                assert_eq!(terminal.grid().get(1, 2).unwrap().get_grapheme(), "C");
+                assert_eq!(terminal.grid().get(1, 3).unwrap().get_grapheme(), "D");
             }
             "osc133_semantic_prompt_aid" => {
                 let events = terminal.poll_events();

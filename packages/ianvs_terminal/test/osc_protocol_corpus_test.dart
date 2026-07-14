@@ -57,6 +57,10 @@ const Set<String> _requiredCoverage = <String>{
   'iTerm2 OSC 1337 ReportVariable user and session variable resolution',
   'iTerm2 OSC 1337 ReportVariable malformed and unknown fail-closed handling',
   'iTerm2 OSC 1337 ReportVariable mixed BEL/ST termination',
+  'iTerm2 OSC 1337 UnicodeVersion 8 and 9 cell widths',
+  'iTerm2 OSC 1337 UnicodeVersion labeled push and pop',
+  'iTerm2 OSC 1337 UnicodeVersion malformed version fail-closed handling',
+  'iTerm2 OSC 1337 UnicodeVersion mixed BEL/ST termination',
   'OSC 3008 hierarchy',
   'OSC 3008 malformed close recovery',
   'tmux passthrough fixture',
@@ -266,6 +270,15 @@ void _validateFixture(String id, Map<String, Object?> fixture) {
     expect(text, contains('ReportVariable=c2Vzc2lvbi5jb2x1bW5z\x1b\\'));
     expect(text, contains('ReportVariable=%%%\x07'));
     expect(text, endsWith('\x1b]2;osc1337-report-variable-corpus-ok\x1b\\'));
+  } else if (id == 'osc1337_unicode_version') {
+    final text = latin1.decode(stream);
+    expect(RegExp(r'\x1b]1337;UnicodeVersion=').allMatches(text), hasLength(5));
+    expect(text, contains('UnicodeVersion=8\x07'));
+    expect(text, contains('UnicodeVersion=push corpus\x1b\\'));
+    expect(text, contains('UnicodeVersion=9\x1b\\'));
+    expect(text, contains('UnicodeVersion=pop corpus\x07'));
+    expect(text, contains('UnicodeVersion=10\x07'));
+    expect(text, endsWith('\x1b]2;osc1337-unicode-version-corpus-ok\x1b\\'));
   } else if (id == 'osc133_semantic_prompt_aid') {
     final text = latin1.decode(stream);
     expect(RegExp(r'\x1b]133;').allMatches(text), hasLength(5));

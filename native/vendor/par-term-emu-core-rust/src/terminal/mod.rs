@@ -771,6 +771,13 @@ impl TerminalInputBufferDiagnostics {
     }
 }
 
+/// One bounded entry in iTerm2's labeled Unicode-width compatibility stack.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ItermUnicodeVersionStackEntry {
+    pub(crate) label: Option<String>,
+    pub(crate) version: crate::unicode_width_config::UnicodeVersion,
+}
+
 // Terminal struct definition
 pub struct Terminal {
     /// The primary terminal grid
@@ -799,6 +806,8 @@ pub struct Terminal {
     pub(crate) flags: CellFlags,
     /// Saved cursor position (for save/restore)
     pub(crate) saved_cursor: Option<Cursor>,
+    /// Unicode width version captured with DECSC for iTerm2 compatibility.
+    pub(crate) saved_unicode_version: Option<crate::unicode_width_config::UnicodeVersion>,
     /// Saved colors and flags
     pub(crate) saved_fg: Color,
     pub(crate) saved_bg: Color,
@@ -1158,6 +1167,8 @@ pub struct Terminal {
 
     /// Unicode width configuration for character width calculations
     pub(crate) width_config: crate::unicode_width_config::WidthConfig,
+    /// Bounded, optionally labeled iTerm2 OSC 1337 Unicode-version stack.
+    pub(crate) iterm_unicode_version_stack: Vec<ItermUnicodeVersionStackEntry>,
 
     /// Unicode normalization form for text stored in cells
     pub(crate) normalization_form: crate::unicode_normalization_config::NormalizationForm,
@@ -1250,6 +1261,7 @@ impl Terminal {
             underline_color: None,
             flags: CellFlags::default(),
             saved_cursor: None,
+            saved_unicode_version: None,
             saved_fg: Color::Named(NamedColor::White),
             saved_bg: Color::Named(NamedColor::Black),
             saved_underline_color: None,
@@ -1446,6 +1458,7 @@ impl Terminal {
             answerback_string: None,
             // Unicode
             width_config: crate::unicode_width_config::WidthConfig::default(),
+            iterm_unicode_version_stack: Vec::new(),
             normalization_form: crate::unicode_normalization_config::NormalizationForm::default(),
             // Badge
             badge_format: None,
@@ -2086,6 +2099,7 @@ impl Terminal {
     /// Save current cursor state
     pub fn save_cursor(&mut self) {
         self.saved_cursor = Some(self.cursor);
+        self.saved_unicode_version = Some(self.width_config.unicode_version);
         self.saved_fg = self.fg;
         self.saved_bg = self.bg;
         self.saved_underline_color = self.underline_color;
@@ -2100,6 +2114,9 @@ impl Terminal {
             self.bg = self.saved_bg;
             self.underline_color = self.saved_underline_color;
             self.flags = self.saved_flags;
+            if let Some(version) = self.saved_unicode_version {
+                self.width_config.unicode_version = version;
+            }
         }
     }
 
@@ -3737,6 +3754,7 @@ impl Terminal {
         let event_subscription = self.event_subscription.take();
         let answerback_string = self.answerback_string.take();
         let width_config = self.width_config;
+        let iterm_unicode_version_stack = std::mem::take(&mut self.iterm_unicode_version_stack);
         let normalization_form = self.normalization_form;
         let conformance_level = self.conformance_level;
         let tmux_control_mode = self.tmux_parser.is_control_mode();
@@ -3816,6 +3834,7 @@ impl Terminal {
         self.event_subscription = event_subscription;
         self.answerback_string = answerback_string;
         self.width_config = width_config;
+        self.iterm_unicode_version_stack = iterm_unicode_version_stack;
         self.normalization_form = normalization_form;
         self.conformance_level = conformance_level;
         self.tmux_parser.set_control_mode(tmux_control_mode);

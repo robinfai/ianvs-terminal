@@ -818,6 +818,21 @@ fn osc1337_report_variable_profile(emulation: TerminalEmulation) -> TerminalProf
     )
 }
 
+fn osc1337_unicode_version_profile(emulation: TerminalEmulation) -> TerminalProfile {
+    local_profile(
+        "osc1337-unicode-version",
+        "OSC1337 Unicode Version",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import sys; sys.stdout.buffer.write("\x1b]1337;UnicodeVersion=8\x07U8:\u2615\x1b[31mX\x1b[0m\r\n\x1b]1337;UnicodeVersion=push real-pty\x1b\\\x1b]1337;UnicodeVersion=9\x1b\\U9:\u2615\x1b[31mX\x1b[0m\r\n\x1b]1337;UnicodeVersion=pop real-pty\x07U8R:\u2615\x1b[31mX\x1b[0m\r\nU8-FINAL:\u2615X".encode()); sys.stdout.flush(); sys.stdin.readline(); sys.stdout.buffer.write("\r\nAFTER:\u2615X".encode()); sys.stdout.flush()'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        emulation,
+    )
+}
+
 fn osc1337_cursor_shape_profile(emulation: TerminalEmulation) -> TerminalProfile {
     local_profile(
         "osc1337-cursor-shape",
@@ -18184,6 +18199,65 @@ fn vt220_sessions_gate_iterm_report_variable_requests() {
     .unwrap();
 
     assert_event_kind_never_arrives(session_id, "report_variable_request");
+    session::write_session(session_id, b"continue\n").unwrap();
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_iterm_unicode_version_crosses_real_pty_and_survives_resize_replay() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc1337_unicode_version_profile(
+            TerminalEmulation::Xterm256,
+        ))
+        .unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "U8-FINAL:");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let colored_span = |marker: &str| {
+        let row = frame_row_with_text(&parsed, marker);
+        let run = row["style_runs"]
+            .as_array()
+            .expect("expected style runs")
+            .iter()
+            .find(|run| run["foreground"].as_str().is_some())
+            .unwrap_or_else(|| panic!("missing colored marker for {marker}: {frame}"));
+        (run["start"].as_u64().unwrap(), run["end"].as_u64().unwrap())
+    };
+    assert_eq!(colored_span("U8:"), (4, 5));
+    assert_eq!(colored_span("U9:"), (5, 6));
+    assert_eq!(colored_span("U8R:"), (5, 6));
+    assert_eq!(parsed["cursor"]["col"].as_u64(), Some(11));
+
+    session::resize_session(session_id, 100, 30, 1000, 600).unwrap();
+    session::write_session(session_id, b"continue\n").unwrap();
+    let after = wait_for_frame_containing(session_id, "AFTER:☕X");
+    let after_parsed: serde_json::Value = serde_json::from_str(&after).unwrap();
+    assert_eq!(
+        after_parsed["cursor"]["col"].as_u64(),
+        Some(8),
+        "resize replay must retain the restored Unicode 8 width: {after}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_sessions_gate_iterm_unicode_version_appearance_changes() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc1337_unicode_version_profile(TerminalEmulation::Vt220)).unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "U8-FINAL:");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    assert_eq!(
+        parsed["cursor"]["col"].as_u64(),
+        Some(12),
+        "VT220 must keep the default modern two-cell emoji width: {frame}"
+    );
+
     session::write_session(session_id, b"continue\n").unwrap();
     session::close_session(session_id).unwrap();
 }

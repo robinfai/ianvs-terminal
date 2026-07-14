@@ -806,7 +806,11 @@ fn classify_osc_1337(
     {
         return Classification::new(OscIntent::ShellIntegration, OscCapability::Metadata);
     }
-    if payload == b"ReportCellSize" || (!complete && b"ReportCellSize".starts_with(payload)) {
+    if payload == b"ReportCellSize"
+        || (!complete && b"ReportCellSize".starts_with(payload))
+        || payload.starts_with(b"UnicodeVersion=")
+        || (!complete && b"UnicodeVersion=".starts_with(payload))
+    {
         return Classification::new(OscIntent::Appearance, OscCapability::Appearance);
     }
     if payload.starts_with(b"ReportVariable=")
@@ -1060,6 +1064,7 @@ mod tests {
         let mark = b"\x1b]1337;SetMark\x1b\\";
         let version = b"\x1b]1337;ShellIntegrationVersion=17;zsh\x07";
         let cell_query = b"\x1b]1337;ReportCellSize\x1b\\";
+        let unicode_version = b"\x1b]1337;UnicodeVersion=8\x1b\\";
 
         let mut metadata_denied = OscCapabilityPolicy::default();
         metadata_denied.set(OscCapability::Metadata, false);
@@ -1076,16 +1081,21 @@ mod tests {
             filter_owned(&mut gate, cell_query, metadata_denied, context),
             cell_query
         );
+        assert_eq!(
+            filter_owned(&mut gate, unicode_version, metadata_denied, context),
+            unicode_version
+        );
 
         let mut appearance_denied = OscCapabilityPolicy::default();
         appearance_denied.set(OscCapability::Appearance, false);
         let mut gate = OscStreamGate::default();
         assert!(filter_owned(&mut gate, cell_query, appearance_denied, context).is_empty());
+        assert!(filter_owned(&mut gate, unicode_version, appearance_denied, context).is_empty());
         assert_eq!(
             gate.diagnostics()
                 .for_intent(OscIntent::Appearance)
                 .policy_denied,
-            1
+            2
         );
         assert_eq!(
             filter_owned(&mut gate, mark, appearance_denied, context),

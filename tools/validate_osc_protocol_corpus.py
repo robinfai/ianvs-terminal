@@ -71,6 +71,10 @@ REQUIRED_COVERAGE = {
     "iTerm2 OSC 1337 ReportVariable user and session variable resolution",
     "iTerm2 OSC 1337 ReportVariable malformed and unknown fail-closed handling",
     "iTerm2 OSC 1337 ReportVariable mixed BEL/ST termination",
+    "iTerm2 OSC 1337 UnicodeVersion 8 and 9 cell widths",
+    "iTerm2 OSC 1337 UnicodeVersion labeled push and pop",
+    "iTerm2 OSC 1337 UnicodeVersion malformed version fail-closed handling",
+    "iTerm2 OSC 1337 UnicodeVersion mixed BEL/ST termination",
     "OSC 3008 hierarchy",
     "OSC 3008 malformed close recovery",
     "tmux passthrough fixture",
@@ -303,6 +307,32 @@ def validate_case(case: Any) -> set[str]:
         )
         require(
             b"osc1337-report-variable-corpus-ok" in stream,
+            f"{case_id}: recovery",
+        )
+    elif case_id == "osc1337_unicode_version":
+        require(
+            stream.count(b"\x1b]1337;UnicodeVersion=") == 5,
+            f"{case_id}: UnicodeVersion operations",
+        )
+        require(b"UnicodeVersion=8\x07" in stream, f"{case_id}: Unicode 8 BEL")
+        require(
+            b"UnicodeVersion=push corpus\x1b\\" in stream,
+            f"{case_id}: labeled push",
+        )
+        require(
+            b"UnicodeVersion=9\x1b\\" in stream,
+            f"{case_id}: split ST Unicode 9",
+        )
+        require(
+            b"UnicodeVersion=pop corpus\x07" in stream,
+            f"{case_id}: labeled pop",
+        )
+        require(
+            b"UnicodeVersion=10\x07" in stream,
+            f"{case_id}: malformed version",
+        )
+        require(
+            b"osc1337-unicode-version-corpus-ok" in stream,
             f"{case_id}: recovery",
         )
     elif case_id == "tmux_passthrough":
