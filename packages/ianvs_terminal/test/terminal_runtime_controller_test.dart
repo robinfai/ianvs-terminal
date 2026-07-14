@@ -1611,6 +1611,49 @@ void main() {
     expect(intent.dirtyEnd, 3);
   });
 
+  test('terminal viewport state retains and replaces OSC 50 font deltas', () {
+    final initial = TerminalViewportState.empty.applySnapshot(
+      const TerminalFrameDiff(
+        rows: [TerminalRow(index: 0, text: 'initial')],
+        cursor: TerminalCursor(row: 0, col: 0, visible: false),
+        viewportRows: 1,
+        viewportCols: 20,
+        dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+        fontFamily: 'Profile Mono',
+      ),
+    );
+    final retained = initial.applyDelta(
+      const TerminalFrameDiff(
+        frameKind: TerminalFrameKind.delta,
+        rows: [TerminalRow(index: 0, text: 'retained')],
+        cursor: TerminalCursor(row: 0, col: 0, visible: false),
+        viewportRows: 1,
+        viewportCols: 20,
+        dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+      ),
+    );
+    final replaced = retained.applyDelta(
+      const TerminalFrameDiff(
+        frameKind: TerminalFrameKind.delta,
+        rows: [TerminalRow(index: 0, text: 'replaced')],
+        cursor: TerminalCursor(row: 0, col: 0, visible: false),
+        viewportRows: 1,
+        viewportCols: 20,
+        dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+        fontFamily: 'Courier Prime',
+      ),
+    );
+
+    expect(retained.frame.fontFamily, 'Profile Mono');
+    expect(replaced.frame.fontFamily, 'Courier Prime');
+  });
+
   test(
     'terminal render intent keeps full rebuild separate from dirty rows',
     () {

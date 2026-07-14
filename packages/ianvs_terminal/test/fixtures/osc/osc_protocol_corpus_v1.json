@@ -815,6 +815,32 @@
       }
     },
     {
+      "id": "xterm_osc50_font_ops",
+      "coverage": [
+        "xterm OSC 50 TrueType family set",
+        "xterm OSC 50 exact BEL/ST query",
+        "xterm OSC 50 menu index expressions",
+        "xterm OSC 50 malformed index fail-closed handling",
+        "xterm OSC 50 fragmented ST termination"
+      ],
+      "protocol": "xterm OSC 50 font operations",
+      "wire": {
+        "sequence_count": 5,
+        "chunks_hex": [
+          "1b5d35303b233420436f7572696572205072696d651b",
+          "5c1b5d35303b3f071b5d35303b2339392052656a65637465641b5c1b5d35303b3f341b",
+          "5c1b5d323b6f736335302d666f6e742d6f70732d636f727075732d6f6b1b5c"
+        ]
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "session_local_font_family",
+        "state_effect": "the indexed TrueType family is applied, plain and indexed queries mirror their terminators, an out-of-range index is ignored, and later OSC parsing continues",
+        "reply": "OSC 50;Courier Prime BEL; OSC 50;#4 Courier Prime ST",
+        "must_not_crash": true
+      }
+    },
+    {
       "id": "xterm_osc_capability_queries",
       "coverage": [
         "xterm OSC 60 allowed categories",
@@ -836,7 +862,7 @@
       "expected": {
         "semantic_intent": "terminal_owned_capability_query",
         "state_effect": "the exact three queries report current top-level permission and official subcategory tables, reply-shaped and unknown payloads stay silent, and later OSC parsing continues",
-        "reply": "OSC 60;allowColorOps,allowTitleOps ST; OSC 61;Locator,VT200Hilite BEL; OSC 62;SetColor,GetColor,GetAnsiColor ST",
+        "reply": "OSC 60;allowColorOps,allowFontOps,allowTitleOps ST; OSC 61;Locator,VT200Hilite BEL; OSC 62;SetColor,GetColor,GetAnsiColor ST",
         "must_not_crash": true
       }
     }

@@ -1162,7 +1162,7 @@ while time.time() < deadline:
         break
 termios.tcsetattr(0, termios.TCSANOW, old)
 expected = (
-    b"\x1b]60;allowColorOps,allowTitleOps\x1b\\"
+    b"\x1b]60;allowColorOps,allowFontOps,allowTitleOps\x1b\\"
     b"\x1b]61;Locator,VT200Hilite\x07"
     b"\x1b]62;SetColor,GetColor,GetAnsiColor\x1b\\"
 )
@@ -1199,6 +1199,93 @@ time.sleep(1)
         harness.container,
         description: 'xterm OSC capability continued real PTY input',
         matches: (text) => text.contains('OSC60-62-AFTER:continued'),
+      );
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
+    'real PTY xterm OSC 50 changes the live render family and replies exactly',
+    (tester) async {
+      final baseProfile = _scriptProfile(
+        id: 'xterm-osc50-font-real-pty',
+        name: 'xterm OSC 50 Font Real PTY',
+        script: r'''
+python3 -c '
+import os
+import select
+import sys
+import termios
+import time
+import tty
+
+os.write(1, b"xterm-osc50-font-ready\n")
+old = termios.tcgetattr(0)
+tty.setraw(0)
+time.sleep(0.2)
+os.write(1, b"\x1b]50;#4 Courier Prime\x1b\\\x1b]50;?\x1b\\")
+ready, _, _ = select.select([0], [], [], 2.0)
+data = os.read(0, 512) if ready else b"TIMEOUT"
+termios.tcsetattr(0, termios.TCSANOW, old)
+expected = b"\x1b]50;Courier Prime\x1b\\"
+os.write(1, b"OSC50-EXACT:" + (b"PASS" if data == expected else repr(data).encode()) + b"\n")
+token = sys.stdin.buffer.readline().strip()
+os.write(1, b"OSC50-AFTER:" + token + b"\n")
+time.sleep(1)
+'
+''',
+      );
+      final profile = baseProfile.copyWith(
+        appearance: baseProfile.appearance.copyWith(
+          font: baseProfile.appearance.font.copyWith(family: 'Profile Mono'),
+        ),
+      );
+      final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
+
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'xterm OSC 50 real PTY ready marker',
+        matches: (text) => text.contains('xterm-osc50-font-ready'),
+      );
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'exact xterm OSC 50 child-side comparison',
+        matches: (text) => text.contains('OSC50-EXACT:PASS'),
+      );
+      await _waitFor(
+        tester,
+        description: 'xterm OSC 50 family reached the product frame',
+        condition: () =>
+            _activeFrame(harness.container)?.fontFamily == 'Courier Prime',
+        onTimeout: () => _activeFrame(harness.container).toString(),
+      );
+
+      if (kDebugMode) {
+        await _waitFor(
+          tester,
+          description: 'xterm OSC 50 family reached the render object',
+          condition: () =>
+              tester.allRenderObjects.whereType<RenderTerminalViewport>().any(
+                (renderObject) =>
+                    renderObject.debugFont.family == 'Courier Prime',
+              ),
+          onTimeout: () => _activeFrame(harness.container).toString(),
+        );
+      }
+
+      final sessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      harness.container
+          .read(terminalRuntimeControllerProvider)
+          .sendInput(sessionId, Uint8List.fromList(utf8.encode('continued\n')));
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'xterm OSC 50 continued real PTY input',
+        matches: (text) => text.contains('OSC50-AFTER:continued'),
       );
     },
     skip: _skipNonRefreshPolicyGateTests,

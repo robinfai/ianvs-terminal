@@ -34,7 +34,7 @@ PTY line-discipline echo from turning a terminal reply into a response loop.
 | Category | OSC 60 | OSC 61 fallback deny-list | OSC 62 allowable table |
 |---|---|---|---|
 | `allowColorOps` | present while the OSC Appearance capability is enabled | `SetColor,GetColor,GetAnsiColor` | the same three official items |
-| `allowFontOps` | absent; OSC 50 font control is not implemented | `SetFont,GetFont` | the same two official items |
+| `allowFontOps` | present while the OSC Appearance capability is enabled | `SetFont,GetFont` | the same two official items |
 | `allowMouseOps` | absent because the whole category is not enabled | `Locator,VT200Hilite` | all 11 official mouse items |
 | `allowPasteControls` | absent; Ianvs does not expose an xterm paste-control permission switch | every canonical C0 item plus `C0,DEL,STTY` | the official table, including the `NL` alias |
 | `allowTcapOps` | absent; xterm termcap set/get is not implemented | `SetTcap,GetTcap` | the same two official items |
@@ -84,6 +84,7 @@ in `charproc.c` (`tblColorOps`, `tblFontOps`, `tblMouseOps`, `tblPasteOps`,
 `tblTcapOps`, and `tblWindowOps`).
 
 Ianvs intentionally maps xterm's X resource booleans and fallback lists onto
-its actual parser/product capabilities. It does not claim unimplemented font,
-termcap, DEC locator, highlight-tracking or host-window operations merely
+its actual parser/product capabilities. OSC 50 TrueType-family set/query is
+implemented; Ianvs still does not claim xterm's bitmap-font menu, termcap, DEC
+locator, highlight-tracking or unsupported host-window operations merely
 because xterm defines their names.

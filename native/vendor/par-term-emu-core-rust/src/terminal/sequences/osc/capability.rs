@@ -97,9 +97,10 @@ impl Terminal {
     }
 
     fn allowed_xterm_operation_categories(&self) -> Vec<&'static str> {
-        let mut result = Vec::with_capacity(2);
+        let mut result = Vec::with_capacity(3);
         if self.osc_capability_allowed(OscCapability::Appearance) {
             result.push("allowColorOps");
+            result.push("allowFontOps");
         }
         if self.osc_capability_allowed(OscCapability::Metadata) {
             result.push("allowTitleOps");
@@ -170,7 +171,7 @@ mod tests {
 
         assert_eq!(
             terminal.drain_responses(),
-            b"\x1b]60;allowColorOps,allowTitleOps\x1b\\\x1b]60;allowColorOps,allowTitleOps\x07"
+            b"\x1b]60;allowColorOps,allowFontOps,allowTitleOps\x1b\\\x1b]60;allowColorOps,allowFontOps,allowTitleOps\x07"
         );
 
         terminal.set_osc_capability_allowed(OscCapability::Appearance, false);

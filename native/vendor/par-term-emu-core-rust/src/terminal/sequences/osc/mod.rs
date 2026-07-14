@@ -5,6 +5,7 @@ mod clipboard;
 mod color;
 mod context;
 mod drag_drop;
+pub(crate) mod font;
 mod iterm;
 mod notify;
 mod pointer;
@@ -169,6 +170,7 @@ impl Terminal {
                 "8" => self.handle_osc_hyperlink(params),
                 "9" | "99" | "777" | "934" => self.handle_osc_notify(command, params),
                 "52" => self.handle_osc_clipboard(command, params),
+                "50" => self.handle_osc_font(params, bell_terminated),
                 "22" => self.handle_osc_pointer_shape(params),
                 "60" | "61" | "62" => {
                     self.handle_osc_capability_query(command, params, bell_terminated)

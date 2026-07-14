@@ -55,6 +55,7 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
     ColorRgb? cursorGuideColor,
     $core.Iterable<TerminalBlock>? blocks,
     $core.Iterable<TerminalInlineButton>? inlineButtons,
+    $core.String? fontFamily,
   }) {
     final result = create();
     if (frameSchemaVersion != null)
@@ -93,6 +94,7 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
     if (cursorGuideColor != null) result.cursorGuideColor = cursorGuideColor;
     if (blocks != null) result.blocks.addAll(blocks);
     if (inlineButtons != null) result.inlineButtons.addAll(inlineButtons);
+    if (fontFamily != null) result.fontFamily = fontFamily;
     return result;
   }
 
@@ -169,6 +171,7 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
         subBuilder: TerminalBlock.create)
     ..pPM<TerminalInlineButton>(32, _omitFieldNames ? '' : 'inlineButtons',
         subBuilder: TerminalInlineButton.create)
+    ..aOS(33, _omitFieldNames ? '' : 'fontFamily')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -453,6 +456,15 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(32)
   $pb.PbList<TerminalInlineButton> get inlineButtons => $_getList(31);
+
+  @$pb.TagNumber(33)
+  $core.String get fontFamily => $_getSZ(32);
+  @$pb.TagNumber(33)
+  set fontFamily($core.String value) => $_setString(32, value);
+  @$pb.TagNumber(33)
+  $core.bool hasFontFamily() => $_has(32);
+  @$pb.TagNumber(33)
+  void clearFontFamily() => $_clearField(33);
 }
 
 class TerminalRow extends $pb.GeneratedMessage {

@@ -273,6 +273,8 @@ class RenderTerminalViewport extends RenderBox {
     markNeedsPaint();
   }
 
+  TerminalFontConfig get debugFont => _font;
+
   set cursor(TerminalCursorConfig value) {
     if (_cursor.shape == value.shape && _cursor.blink == value.blink) {
       return;

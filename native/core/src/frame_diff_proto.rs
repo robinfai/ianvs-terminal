@@ -54,6 +54,7 @@ fn to_proto_frame(frame: &TerminalFrameDiff) -> pb::TerminalFrameDiff {
         modes: Some(to_proto_modes(&frame.modes)),
         window_title: frame.window_title.clone().unwrap_or_default(),
         window_icon_name: frame.window_icon_name.clone().unwrap_or_default(),
+        font_family: frame.font_family.clone(),
         hyperlinks: frame.hyperlinks.iter().map(to_proto_hyperlink).collect(),
         sized_text: frame.sized_text.iter().map(to_proto_sized_text).collect(),
         inline_images: Vec::new(),

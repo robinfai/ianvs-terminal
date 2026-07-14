@@ -217,6 +217,8 @@ pub struct TerminalSnapshot {
     // --- Terminal modes and state ---
     /// Terminal title
     pub title: String,
+    /// Current xterm OSC 50 font family.
+    pub xterm_font_family: String,
     /// Auto-wrap mode (DECAWM)
     pub auto_wrap: bool,
     /// Origin mode (DECOM)
@@ -474,7 +476,7 @@ impl TerminalSnapshot {
             (self.grid.zones.len() + self.alt_grid.zones.len()) * std::mem::size_of::<Zone>();
 
         let tab_stops_size = self.tab_stops.len();
-        let title_size = self.title.len();
+        let title_size = self.title.len() + self.xterm_font_family.len();
         let keyboard_stack_size = (self.keyboard_stack.len() + self.keyboard_stack_alt.len())
             * std::mem::size_of::<u16>();
         let unicode_version_stack_size = self
@@ -686,6 +688,7 @@ impl Terminal {
             saved_underline_color: self.saved_underline_color,
             saved_flags: self.saved_flags,
             title: self.title.clone(),
+            xterm_font_family: self.xterm_font_family.clone(),
             auto_wrap: self.auto_wrap,
             origin_mode: self.origin_mode,
             insert_mode: self.insert_mode,
@@ -840,6 +843,7 @@ impl Terminal {
         self.saved_underline_color = snap.saved_underline_color;
         self.saved_flags = snap.saved_flags;
         self.title = snap.title;
+        self.xterm_font_family = snap.xterm_font_family;
         self.auto_wrap = snap.auto_wrap;
         self.origin_mode = snap.origin_mode;
         self.insert_mode = snap.insert_mode;
@@ -975,6 +979,7 @@ mod tests {
             saved_underline_color: None,
             saved_flags: CellFlags::default(),
             title: String::new(),
+            xterm_font_family: "monospace".to_string(),
             auto_wrap: true,
             origin_mode: false,
             insert_mode: false,

@@ -1805,10 +1805,10 @@ class _TerminalViewportState extends State<TerminalViewport>
                 softWrap: false,
                 overflow: TextOverflow.clip,
                 style: TextStyle(
-                  fontFamily: widget.font.family,
-                  fontFamilyFallback: widget.font.fallback,
-                  fontSize: widget.font.size,
-                  height: widget.font.lineHeight,
+                  fontFamily: _effectiveFont.family,
+                  fontFamilyFallback: _effectiveFont.fallback,
+                  fontSize: _effectiveFont.size,
+                  height: _effectiveFont.lineHeight,
                   color: composingForeground,
                   decoration: TextDecoration.underline,
                   decorationColor: composingForeground,
@@ -1826,6 +1826,11 @@ class _TerminalViewportState extends State<TerminalViewport>
       colors.foreground.withAlpha(0x99),
       colors.canvasBackground,
     );
+  }
+
+  TerminalFontConfig get _effectiveFont {
+    final family = widget.controller.frame.fontFamily;
+    return family == null ? widget.font : widget.font.copyWith(family: family);
   }
 
   @override
@@ -1891,7 +1896,7 @@ class _TerminalViewportState extends State<TerminalViewport>
                                 selectionController: widget.selectionController,
                                 cursorVisible:
                                     _canDisplayFrameCursor && _cursorVisible,
-                                font: widget.font,
+                                font: _effectiveFont,
                                 cursor: widget.cursor,
                                 colors: effectiveColors,
                                 searchMatches: widget.searchMatches,
@@ -2025,9 +2030,9 @@ class _TerminalViewportState extends State<TerminalViewport>
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: foreground,
-                    fontFamily: widget.font.family,
-                    fontFamilyFallback: widget.font.fallback,
-                    fontSize: math.max(11, widget.font.size * 0.82),
+                    fontFamily: _effectiveFont.family,
+                    fontFamilyFallback: _effectiveFont.fallback,
+                    fontSize: math.max(11, _effectiveFont.size * 0.82),
                     height: 1.1,
                   ),
                 ),
@@ -2288,9 +2293,9 @@ class _TerminalViewportState extends State<TerminalViewport>
     }
     final textStyle = TextStyle(
       color: colors.foreground.withValues(alpha: 0.58),
-      fontFamily: widget.font.family,
-      fontFamilyFallback: widget.font.fallback,
-      fontSize: math.max(9.0, math.min(11.0, widget.font.size * 0.72)),
+      fontFamily: _effectiveFont.family,
+      fontFamilyFallback: _effectiveFont.fallback,
+      fontSize: math.max(9.0, math.min(11.0, _effectiveFont.size * 0.72)),
       height: 1,
     );
     final rightInset =

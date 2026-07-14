@@ -35,6 +35,7 @@ message TerminalFrameDiff {
   ColorRgb cursor_guide_color = 30;
   repeated TerminalBlock blocks = 31;
   repeated TerminalInlineButton inline_buttons = 32;
+  optional string font_family = 33;
 }
 
 enum TerminalFrameKind {

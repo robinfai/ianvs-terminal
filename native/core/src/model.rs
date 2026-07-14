@@ -620,6 +620,8 @@ pub struct TerminalFrameDiff {
     pub window_title: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub window_icon_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub font_family: Option<String>,
     #[serde(default)]
     pub hyperlinks: Vec<TerminalHyperlinkRange>,
     #[serde(default)]

@@ -103,6 +103,7 @@ TerminalFrameWireFixture completeTerminalFrameWireFixture({
       },
       'window_title': 'wire title',
       'window_icon_name': 'wire icon',
+      'font_family': 'Courier Prime',
       'hyperlinks': <Object?>[
         <String, Object?>{
           'row': 1,
@@ -270,6 +271,7 @@ TerminalFrameWireFixture completeTerminalFrameWireFixture({
       ),
       windowTitle: 'wire title',
       windowIconName: 'wire icon',
+      fontFamily: 'Courier Prime',
       hyperlinks: <frame_pb.TerminalHyperlinkRange>[
         frame_pb.TerminalHyperlinkRange(
           row: 1,
@@ -448,6 +450,7 @@ Map<String, Object?> terminalFrameProjection(TerminalFrameDiff frame) {
     },
     'windowTitle': frame.windowTitle,
     'windowIconName': frame.windowIconName,
+    'fontFamily': frame.fontFamily,
     'hyperlinks': <Object?>[
       for (final hyperlink in frame.hyperlinks)
         <String, Object?>{

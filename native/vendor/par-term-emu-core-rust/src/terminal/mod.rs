@@ -815,6 +815,8 @@ pub struct Terminal {
     pub(crate) saved_flags: CellFlags,
     /// Terminal title
     pub(crate) title: String,
+    /// Current xterm OSC 50 TrueType family.
+    pub(crate) xterm_font_family: String,
     /// Mouse tracking mode
     pub(crate) mouse_mode: MouseMode,
     /// Mouse tracking mode for the alternate screen.
@@ -1267,6 +1269,7 @@ impl Terminal {
             saved_underline_color: None,
             saved_flags: CellFlags::default(),
             title: String::new(),
+            xterm_font_family: "monospace".to_string(),
             mouse_mode: MouseMode::Off,
             mouse_mode_alt: MouseMode::Off,
             mouse_encoding: MouseEncoding::Default,
@@ -1704,6 +1707,32 @@ impl Terminal {
         // Also update session variables for badge evaluation
         self.session_variables.title = Some(title.clone());
         self.title = title;
+    }
+
+    /// Current session-local TrueType family used by xterm OSC 50.
+    pub fn xterm_font_family(&self) -> &str {
+        &self.xterm_font_family
+    }
+
+    /// Seed the current family from trusted host/profile data.
+    pub fn set_xterm_font_family_from_profile(&mut self, family: &str) -> bool {
+        let Some(family) = sequences::osc::font::normalize_font_family(family) else {
+            return false;
+        };
+        if self.xterm_font_family == family {
+            return true;
+        }
+        self.xterm_font_family = family;
+        self.mark_full_repaint("terminal_font_changed");
+        true
+    }
+
+    pub(crate) fn set_xterm_font_family(&mut self, family: String) {
+        if self.xterm_font_family == family {
+            return;
+        }
+        self.xterm_font_family = family;
+        self.mark_full_repaint("terminal_font_changed");
     }
 
     // === Badge Format Support ===
@@ -3740,6 +3769,7 @@ impl Terminal {
         let baseline_cursor_color = self.baseline_cursor_color;
         let baseline_ansi_palette = self.baseline_ansi_palette;
         let baseline_extended_ansi_palette = self.baseline_extended_ansi_palette;
+        let xterm_font_family = self.xterm_font_family.clone();
         // RIS resets terminal/protocol state, but it must not silently replace
         // host configuration or detach API observers. In particular, resource
         // limits are security boundaries and must not be reset to permissive
@@ -3901,6 +3931,7 @@ impl Terminal {
         self.baseline_cursor_color = baseline_cursor_color;
         self.baseline_ansi_palette = baseline_ansi_palette;
         self.baseline_extended_ansi_palette = baseline_extended_ansi_palette;
+        self.xterm_font_family = xterm_font_family;
         self.default_fg = baseline_default_fg;
         self.default_bg = baseline_default_bg;
         self.cursor_color = baseline_cursor_color;

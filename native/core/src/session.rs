@@ -4,8 +4,8 @@ use crate::model::{
     TerminalCursorShape, TerminalDirtyRange, TerminalEmulation, TerminalEvent, TerminalFrameDiff,
     TerminalFrameKind, TerminalFrameModes, TerminalGraphicPlacement, TerminalHyperlinkRange,
     TerminalInlineButton, TerminalProfile, TerminalProfileAnsiColors, TerminalProfileColors,
-    TerminalRow, TerminalSearchMatch, TerminalSelectionRequest, TerminalSizedTextPlacement,
-    TerminalStyleRun, normalize_scrollback_lines,
+    TerminalProfileFont, TerminalRow, TerminalSearchMatch, TerminalSelectionRequest,
+    TerminalSizedTextPlacement, TerminalStyleRun, normalize_scrollback_lines,
 };
 use crate::pty::spawn_pty;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
@@ -430,6 +430,7 @@ struct CachedFrameMeta {
     modes: TerminalFrameModes,
     window_title: Option<String>,
     window_icon_name: Option<String>,
+    font_family: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -2367,6 +2368,7 @@ pub struct TerminalSession {
     drag_drop_enabled: bool,
     graphics_memory_limits: Option<TerminalGraphicsMemoryLimits>,
     profile_colors: TerminalProfileColors,
+    profile_font: TerminalProfileFont,
     osc633_expected_nonce: Option<String>,
     state: Mutex<TerminalState>,
     writer: Mutex<Box<dyn Write + Send>>,
@@ -2416,6 +2418,7 @@ impl TerminalSession {
             max_total_bytes: profile.terminal.graphics.max_total_bytes,
         });
         let profile_colors = profile.appearance.colors.clone();
+        let profile_font = profile.appearance.font.clone();
         let osc633_expected_nonce = match profile.launch.env.get("VSCODE_NONCE") {
             Some(nonce) if Terminal::is_valid_osc633_nonce(nonce) => Some(nonce.clone()),
             Some(_) => {
@@ -2444,6 +2447,7 @@ impl TerminalSession {
             emulation,
             graphics_memory_limits,
             &profile_colors,
+            &profile_font,
             osc633_expected_nonce.as_deref(),
             drag_drop_enabled,
         );
@@ -2456,6 +2460,7 @@ impl TerminalSession {
             drag_drop_enabled,
             graphics_memory_limits,
             profile_colors,
+            profile_font,
             osc633_expected_nonce,
             state: Mutex::new(TerminalState {
                 terminal,
@@ -2902,6 +2907,7 @@ impl TerminalSession {
                 self.emulation,
                 self.graphics_memory_limits,
                 &self.profile_colors,
+                &self.profile_font,
                 self.osc633_expected_nonce.as_deref(),
                 self.drag_drop_enabled,
             );
@@ -3223,6 +3229,7 @@ impl TerminalSession {
         } else {
             None
         };
+        let font_family = Some(terminal.xterm_font_family().to_string());
         let pointer_shape = if self.emulation == TerminalEmulation::Xterm256 {
             terminal.pointer_shape_name().map(str::to_string)
         } else {
@@ -3299,6 +3306,7 @@ impl TerminalSession {
             modes: modes.clone(),
             window_title: window_title.clone(),
             window_icon_name: window_icon_name.clone(),
+            font_family: font_family.clone(),
         };
         let snapshot_fallback_reason = if display_projection.has_folds() {
             Some("iterm_block_projection".to_string())
@@ -3491,6 +3499,7 @@ impl TerminalSession {
             modes,
             window_title,
             window_icon_name,
+            font_family,
             hyperlinks,
             sized_text,
             graphics,
@@ -7224,6 +7233,9 @@ fn frame_meta_delta_break_reason(
     if previous_frame_meta.window_icon_name != frame_meta.window_icon_name {
         return Some("window_icon_name_changed");
     }
+    if previous_frame_meta.font_family != frame_meta.font_family {
+        return Some("terminal_font_changed");
+    }
     None
 }
 
@@ -7270,6 +7282,7 @@ fn configure_session_terminal(
     emulation: TerminalEmulation,
     graphics_memory_limits: Option<TerminalGraphicsMemoryLimits>,
     profile_colors: &TerminalProfileColors,
+    profile_font: &TerminalProfileFont,
     osc633_expected_nonce: Option<&str>,
     drag_drop_enabled: bool,
 ) {
@@ -7277,6 +7290,7 @@ fn configure_session_terminal(
         terminal.set_graphics_memory_limits(limits.max_image_bytes, limits.max_total_bytes);
     }
     apply_profile_colors(terminal, profile_colors);
+    let _ = terminal.set_xterm_font_family_from_profile(&profile_font.family);
     configure_terminal_protocol_policy(terminal, emulation);
     terminal.set_max_transfer_size(ITERM_FILE_DOWNLOAD_MAX_BYTES);
     terminal.set_osc_capability_allowed(OscCapability::DragDrop, drag_drop_enabled);

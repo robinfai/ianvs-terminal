@@ -268,11 +268,21 @@ PROBES = {
         "xterm_capability_queries",
         "xterm OSC 60/61/62",
         "Query enabled top-level operation categories, disabled mouse subcategories, and all allowable color subcategories.",
-        "The terminal replies with its current color/title categories, Locator/VT200Hilite deny-list, and Set/Get color operation table.",
+        "The terminal replies with its current color/font/title categories, Locator/VT200Hilite deny-list, and Set/Get color operation table.",
         "terminal-owned capability metadata only; cannot mutate policy or authorize an operation",
         osc("60")
         + osc("61;allowMouseOps", bell=True)
         + osc("62;allowColorOps"),
+    ),
+    "xterm_font_ops": Probe(
+        "xterm_font_ops",
+        "xterm OSC 50",
+        "Set an indexed TrueType family, then query the current family with BEL and ST termination.",
+        "The live terminal uses Courier Prime and replies with that bounded family using each request terminator.",
+        "session-local appearance only; no profile persistence or host action",
+        osc("50;#4 Courier Prime")
+        + osc("50;?", bell=True)
+        + osc("50;?4"),
     ),
     "iterm_color_extensions": Probe(
         "iterm_color_extensions",
@@ -441,6 +451,7 @@ def self_test() -> None:
         "color_control",
         "xterm_special_colors",
         "xterm_capability_queries",
+        "xterm_font_ops",
         "iterm_color_extensions",
         "iterm_tab_color",
         "osc23_noop",
@@ -523,6 +534,10 @@ def self_test() -> None:
         raise ValueError("xterm OSC capability query fixture is malformed")
     if b"\x1b]61;allowMouseOps\x07" not in PROBES["xterm_capability_queries"].payload:
         raise ValueError("xterm OSC 61 BEL query is missing")
+    if PROBES["xterm_font_ops"].payload.count(b"\x1b]50;") != 3:
+        raise ValueError("xterm OSC 50 font-operation fixture is malformed")
+    if b"\x1b]50;?\x07" not in PROBES["xterm_font_ops"].payload:
+        raise ValueError("xterm OSC 50 BEL query is missing")
     if PROBES["osc23_noop"].payload.count(b"\x1b]") != 2:
         raise ValueError("OSC 23 no-op fixture is malformed")
     if PROBES["pointer_shape"].payload.count(b"\x1b]22;") != 3:

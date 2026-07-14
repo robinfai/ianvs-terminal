@@ -60,6 +60,7 @@ enum TerminalPointerShape {
 
 const int _maxInlineImageEncodedLength =
     ((TerminalFrameValidationLimits.maxInlineImageDecodedBytes + 2) ~/ 3) * 4;
+const int _maxTerminalFontFamilyBytes = 256;
 
 class TerminalStyleRun {
   const TerminalStyleRun({
@@ -1129,6 +1130,7 @@ class TerminalFrameDiff {
     this.selection,
     this.windowTitle,
     this.windowIconName,
+    this.fontFamily,
     this.hyperlinks = const [],
     this.sizedText = const [],
     this.inlineImages = const [],
@@ -1167,6 +1169,7 @@ class TerminalFrameDiff {
   final TerminalFrameModes modes;
   final String? windowTitle;
   final String? windowIconName;
+  final String? fontFamily;
   final List<TerminalHyperlinkRange> hyperlinks;
   final List<TerminalSizedTextPlacement> sizedText;
   final List<TerminalInlineImage> inlineImages;
@@ -1319,6 +1322,7 @@ class TerminalFrameDiff {
           : TerminalFrameModes.fromJson(modesJson),
       windowTitle: _stringFromJson(json['window_title']),
       windowIconName: _stringFromJson(json['window_icon_name']),
+      fontFamily: _terminalFontFamilyFromWire(json['font_family']),
       hyperlinks: _hyperlinksFromJson(json['hyperlinks'], viewportRows),
       sizedText: _sizedTextFromJson(
         json['sized_text'],
@@ -1662,6 +1666,9 @@ TerminalFrameDiff _terminalFrameDiffFromProtobuf(
         : TerminalFrameModes.empty,
     windowTitle: proto.hasWindowTitle() ? proto.windowTitle : null,
     windowIconName: proto.hasWindowIconName() ? proto.windowIconName : null,
+    fontFamily: proto.hasFontFamily()
+        ? _terminalFontFamilyFromWire(proto.fontFamily)
+        : null,
     hyperlinks: _hyperlinksFromProtobuf(proto.hyperlinks, viewportRows),
     sizedText: _sizedTextFromProtobuf(
       proto.sizedText,
@@ -2516,6 +2523,7 @@ class TerminalViewportState {
         modes: nextFrame.modes,
         windowTitle: nextFrame.windowTitle,
         windowIconName: nextFrame.windowIconName,
+        fontFamily: nextFrame.fontFamily ?? frame.fontFamily,
         hyperlinks: mergedHyperlinks,
         sizedText: nextFrame.sizedText,
         inlineImages: mergedInlineImages,
@@ -2721,6 +2729,19 @@ String? _stringFromJson(Object? value) {
   return null;
 }
 
+String? _terminalFontFamilyFromWire(Object? value) {
+  final family = _stringFromJson(value)?.trim();
+  if (family == null ||
+      family.isEmpty ||
+      utf8.encode(family).length > _maxTerminalFontFamilyBytes ||
+      family.runes.any(
+        (rune) => rune <= 0x1f || (rune >= 0x7f && rune <= 0x9f),
+      )) {
+    return null;
+  }
+  return family;
+}
+
 String? _nonEmptyTrimmedStringFromJson(Object? value) {
   final text = _stringFromJson(value)?.trim();
   return text == null || text.isEmpty ? null : text;
@@ -2819,6 +2840,7 @@ TerminalFrameDiff _normalizeSnapshotFrame(
     modes: frame.modes,
     windowTitle: frame.windowTitle,
     windowIconName: frame.windowIconName,
+    fontFamily: frame.fontFamily,
     hyperlinks: _boundedHyperlinks(
       frame.hyperlinks.where(
         (range) => _isValidHyperlinkInViewport(range, viewportRows),

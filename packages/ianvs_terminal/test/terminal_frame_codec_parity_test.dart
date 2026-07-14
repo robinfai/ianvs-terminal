@@ -61,6 +61,46 @@ void main() {
       expect(zeroProtobuf.globalBottomRow, 0);
     });
 
+    test('OSC 50 font family preserves optional bounded wire semantics', () {
+      final jsonFrame = TerminalFrameDiff.fromJson(<String, Object?>{
+        ..._jsonFrame(),
+        'font_family': '  Courier Prime  ',
+      });
+      final protobufFrame = TerminalFrameDiff.fromProtobufBytes(
+        frame_pb.TerminalFrameDiff(
+          viewportRows: 1,
+          viewportCols: 1,
+          fontFamily: '  Courier Prime  ',
+        ).writeToBuffer(),
+      );
+      final legacyJson = TerminalFrameDiff.fromJson(_jsonFrame());
+      final legacyProtobuf = TerminalFrameDiff.fromProtobufBytes(
+        frame_pb.TerminalFrameDiff(
+          viewportRows: 1,
+          viewportCols: 1,
+        ).writeToBuffer(),
+      );
+      final oversized = List<String>.filled(257, 'x').join();
+      final invalidJson = TerminalFrameDiff.fromJson(<String, Object?>{
+        ..._jsonFrame(),
+        'font_family': oversized,
+      });
+      final invalidProtobuf = TerminalFrameDiff.fromProtobufBytes(
+        frame_pb.TerminalFrameDiff(
+          viewportRows: 1,
+          viewportCols: 1,
+          fontFamily: 'Bad\u0085Font',
+        ).writeToBuffer(),
+      );
+
+      expect(jsonFrame.fontFamily, 'Courier Prime');
+      expect(protobufFrame.fontFamily, 'Courier Prime');
+      expect(legacyJson.fontFamily, isNull);
+      expect(legacyProtobuf.fontFamily, isNull);
+      expect(invalidJson.fontFamily, isNull);
+      expect(invalidProtobuf.fontFamily, isNull);
+    });
+
     test(
       'dynamic cursor overrides preserve optional compatibility semantics',
       () {

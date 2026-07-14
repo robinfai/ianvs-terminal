@@ -620,3 +620,32 @@ safety-policy reason documented in `osc_cross_terminal_probe_20260711.md`.
 - **Compatibility:** no schema changes; exact unknown/malformed/reply-shaped
   forms remain silent, while valid replies return directly to the child PTY.
 - **Rollback:** revert the Phase 37 implementation commit.
+
+## Phase 38 report — xterm OSC 50 font operations
+
+- **Start SHA:** `5a64c0b878ce`.
+- **Confirmed gap:** OSC 50 was a bounded no-op and `allowFontOps` remained
+  absent from OSC 60 despite the official OSC 61/62 table entries.
+- **Fixes:** exact TrueType-family set/query, xterm absolute/relative menu
+  parsing, BEL/ST mirroring, Appearance/VT220 gates, 256-byte/control bounds,
+  RIS/snapshot/resize preservation, optional JSON/protobuf family transport and
+  live Flutter font-metric invalidation.
+- **Review corrections:** Ianvs follows xterm's `renderFont` family path without
+  fabricating a bitmap menu; size, line height, fallback and profile persistence
+  stay product-owned.
+- **Security:** bounded terminal-local appearance state only; no file read,
+  environment disclosure, profile mutation or host authority.
+- **Tests/results:** targeted parser, shared corpus, native real-PTY,
+  JSON/protobuf, delta and Widget render-font coverage pass. Two consecutive
+  full verifier runs passed after the final test repair: 1,719 vendored tests
+  passed with one ignored test, native session 507/507, example grouped
+  954/954, Widget 130/130, macOS smoke 4/4, product real PTY 42/42 and
+  RunnerTests 15/15.
+- **Computer Use:** the verifier-built standalone app visibly reported
+  `CU38-OSC50:PASS` and the exact ST reply for Menlo, accepted
+  `CU38-AFTER:continued`, returned to zsh for `CU38SHELLAFTER`, and exited via
+  the confirmed Quit action. Full evidence is recorded in
+  `xterm_osc50_font_ops_phase38_20260714.md`.
+- **Compatibility:** additive optional JSON field and new protobuf tag 33;
+  legacy frames retain the profile family.
+- **Rollback:** revert the Phase 38 implementation commit.

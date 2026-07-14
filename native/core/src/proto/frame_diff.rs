@@ -65,6 +65,8 @@ pub struct TerminalFrameDiff {
     pub blocks: ::prost::alloc::vec::Vec<TerminalBlock>,
     #[prost(message, repeated, tag = "32")]
     pub inline_buttons: ::prost::alloc::vec::Vec<TerminalInlineButton>,
+    #[prost(string, optional, tag = "33")]
+    pub font_family: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TerminalRow {
