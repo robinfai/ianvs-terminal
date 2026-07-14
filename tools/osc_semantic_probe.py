@@ -66,6 +66,23 @@ PROBES = {
         + osc("LIanvs legacy icon")
         + osc("lIanvs legacy window", bell=True),
     ),
+    "title_window_ops": Probe(
+        "title_window_ops",
+        "xterm CSI 20/21/22/23 t and XTSMTITLE/XTRMTITLE",
+        "Set independent icon/window labels, query raw and hexadecimal reports, restore both labels through the implicit stack, then exercise direct slot 10.",
+        "Queries return OSC L/l with ST; hexadecimal reports are uppercase; both implicit and direct restores return the saved independent labels.",
+        "terminal-local appearance and bounded replies only; no host action",
+        osc("2;Ianvs window")
+        + osc("1;Ianvs icon")
+        + b"\x1b[20t\x1b[21t\x1b[>1t\x1b[20t\x1b[21t\x1b[>1T"
+        + b"\x1b[22;0t"
+        + osc("0;Ianvs changed")
+        + b"\x1b[23;0t\x1b[20t\x1b[21t"
+        + osc("0;Ianvs direct")
+        + b"\x1b[22;0;10t"
+        + osc("0;Ianvs mutated")
+        + b"\x1b[23;0;10t\x1b[20t\x1b[21t",
+    ),
     "cwd": Probe(
         "cwd",
         "OSC 7",
@@ -442,6 +459,7 @@ def self_test() -> None:
     required = {
         "title",
         "legacy_title_aliases",
+        "title_window_ops",
         "cwd",
         "hyperlink_with_id",
         "clipboard_copy",
@@ -553,6 +571,14 @@ def self_test() -> None:
         raise ValueError("xterm legacy icon-label alias is missing")
     if b"\x1b]lIanvs legacy window\x07" not in PROBES["legacy_title_aliases"].payload:
         raise ValueError("xterm legacy window-title alias is missing")
+    if PROBES["title_window_ops"].payload.count(b"\x1b[20t") != 4:
+        raise ValueError("xterm icon-label query fixture is malformed")
+    if PROBES["title_window_ops"].payload.count(b"\x1b[21t") != 4:
+        raise ValueError("xterm window-title query fixture is malformed")
+    if b"\x1b[>1t" not in PROBES["title_window_ops"].payload or b"\x1b[>1T" not in PROBES["title_window_ops"].payload:
+        raise ValueError("xterm title-mode lifecycle fixture is malformed")
+    if b"\x1b[22;0;10t" not in PROBES["title_window_ops"].payload or b"\x1b[23;0;10t" not in PROBES["title_window_ops"].payload:
+        raise ValueError("xterm direct title-stack fixture is malformed")
     if b"\x1b]50;?\x07" not in PROBES["xterm_font_ops"].payload:
         raise ValueError("xterm OSC 50 BEL query is missing")
     if PROBES["osc23_noop"].payload.count(b"\x1b]") != 2:

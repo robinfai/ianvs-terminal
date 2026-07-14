@@ -991,6 +991,105 @@ time.sleep(1)
   );
 
   testWidgets(
+    'real PTY xterm title queries modes and stack round trip exactly',
+    (tester) async {
+      final profile = _scriptProfile(
+        id: 'xterm-title-window-ops-real-pty',
+        name: 'xterm Title Window Ops Real PTY',
+        script: r'''
+python3 -c '
+import os
+import select
+import sys
+import termios
+import time
+import tty
+
+old = termios.tcgetattr(0)
+tty.setraw(0)
+time.sleep(0.2)
+os.write(
+    1,
+    b"\x1b]2;Window;alpha\x1b\\"
+    b"\x1b]1;Icon;beta\x1b\\"
+    b"\x1b[20t\x1b[21t"
+    b"\x1b[>1t\x1b[20t\x1b[21t\x1b[>1T"
+    b"\x1b[22;0t\x1b]0;Changed\x1b\\\x1b[23;0t\x1b[20t\x1b[21t"
+    b"\x1b]0;Direct;both\x1b\\\x1b[22;0;10t"
+    b"\x1b]0;Mutated\x1b\\\x1b[23;0;10t\x1b[20t\x1b[21t",
+)
+data = b""
+deadline = time.time() + 2.0
+while time.time() < deadline:
+    ready, _, _ = select.select([0], [], [], 0.1)
+    if ready:
+        data += os.read(0, 4096)
+    if data.count(b"\x1b\\") >= 8:
+        break
+while True:
+    ready, _, _ = select.select([0], [], [], 0.1)
+    if not ready:
+        break
+    data += os.read(0, 4096)
+termios.tcsetattr(0, termios.TCSANOW, old)
+expected = (
+    b"\x1b]LIcon;beta\x1b\\"
+    b"\x1b]lWindow;alpha\x1b\\"
+    b"\x1b]L49636F6E3B62657461\x1b\\"
+    b"\x1b]l57696E646F773B616C706861\x1b\\"
+    b"\x1b]LIcon;beta\x1b\\"
+    b"\x1b]lWindow;alpha\x1b\\"
+    b"\x1b]LDirect;both\x1b\\"
+    b"\x1b]lDirect;both\x1b\\"
+)
+os.write(1, b"TITLE-WINDOW-OPS-EXACT:" + (b"PASS" if data == expected else repr(data).encode()) + b"\n")
+token = sys.stdin.buffer.readline().strip()
+os.write(1, b"TITLE-WINDOW-OPS-AFTER:" + token + b"\n")
+time.sleep(1)
+'
+''',
+      );
+      final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
+
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'exact xterm title-window child-side comparison',
+        matches: (text) => text.contains('TITLE-WINDOW-OPS-EXACT:PASS'),
+      );
+      await _waitFor(
+        tester,
+        description: 'xterm direct title stack reaches frame and pane',
+        condition: () {
+          final frame = _activeFrame(harness.container);
+          return frame?.windowTitle == 'Direct;both' &&
+              frame?.windowIconName == 'Direct;both' &&
+              _activePane(harness.container)?.title == 'Direct;both';
+        },
+        onTimeout: () =>
+            'Pane: ${_activePane(harness.container)}\nFrame: ${_activeFrame(harness.container)}',
+      );
+
+      final sessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      harness.container
+          .read(terminalRuntimeControllerProvider)
+          .sendInput(sessionId, Uint8List.fromList(utf8.encode('continued\n')));
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'xterm title-window continued real PTY input',
+        matches: (text) => text.contains('TITLE-WINDOW-OPS-AFTER:continued'),
+      );
+      expect(_activeFrame(harness.container)?.windowTitle, 'Direct;both');
+      expect(_activeFrame(harness.container)?.windowIconName, 'Direct;both');
+      expect(_activePane(harness.container)?.title, 'Direct;both');
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
     'real PTY xterm special and selection colors reach the product frame',
     (tester) async {
       final goFile = _tempSignalFile('xterm-special-colors');

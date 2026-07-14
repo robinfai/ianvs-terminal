@@ -1,7 +1,7 @@
 use crate::color::{Color, NamedColor};
 use crate::cursor::CursorStyle;
 use crate::mouse::{MouseEncoding, MouseMode};
-use crate::terminal::{Terminal, TerminalEvent};
+use crate::terminal::{OscCapability, Terminal, TerminalEvent};
 
 fn emit_test_sixel_graphic(term: &mut Terminal) {
     term.process(b"\x1bPq????\x1b\\");
@@ -754,25 +754,171 @@ fn test_xtwinops_title_stack() {
 fn test_xtwinops_title_stack_is_bounded_and_keeps_newest_titles() {
     let mut term = Terminal::new(80, 24);
 
-    for index in 0..40 {
+    for index in 0..20 {
         term.process(format!("\x1b]0;title-{index}\x1b\\\x1b[22t").as_bytes());
     }
 
-    assert_eq!(term.title_stack.len(), 32);
-    assert_eq!(
-        term.title_stack.first().map(String::as_str),
-        Some("title-8")
-    );
-    assert_eq!(
-        term.title_stack.last().map(String::as_str),
-        Some("title-39")
-    );
+    assert_eq!(term.title_stack.depth(), 10);
 
-    for _ in 0..32 {
+    for _ in 0..10 {
         term.process(b"\x1b[23t");
     }
-    assert_eq!(term.title(), "title-8");
-    assert!(term.title_stack.is_empty());
+    assert_eq!(term.title(), "title-10");
+    assert_eq!(term.icon_name(), "title-10");
+    assert_eq!(term.title_stack.depth(), 0);
+}
+
+#[test]
+fn xtwinops_reports_independent_icon_and_window_titles_with_st() {
+    let mut term = Terminal::new(80, 24);
+    term.process(b"\x1b]0;Combined\x07");
+    term.process(b"\x1b]1;Icon;label\x1b\\");
+    term.process(b"\x1b]2;Window;title\x1b\\");
+
+    for byte in b"\x1b[20t\x1b[21t" {
+        term.process(&[*byte]);
+    }
+
+    assert_eq!(
+        term.drain_responses(),
+        b"\x1b]LIcon;label\x1b\\\x1b]lWindow;title\x1b\\"
+    );
+}
+
+#[test]
+fn xtsmtitle_hex_set_and_query_modes_are_strict_and_resettable() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"\x1b[>0;1t");
+    term.process(b"\x1b]2;57696E646F7720E4BDA0E5A5BD\x1b\\");
+    term.process(b"\x1b]L49636F6E3B6C6162656C\x07");
+    assert_eq!(term.title(), "Window 你好");
+    assert_eq!(term.icon_name(), "Icon;label");
+
+    term.process(b"\x1b[20t\x1b[21t");
+    assert_eq!(
+        term.drain_responses(),
+        b"\x1b]L49636F6E3B6C6162656C\x1b\\\x1b]l57696E646F7720E4BDA0E5A5BD\x1b\\"
+    );
+
+    term.process(b"\x1b]2;0\x1b\\\x1b]1;GG\x1b\\");
+    assert_eq!(term.title(), "Window 你好");
+    assert_eq!(term.icon_name(), "Icon;label");
+
+    term.process(b"\x1b[>0;1T");
+    term.process(b"\x1b]2;raw-title\x1b\\\x1b[21t");
+    assert_eq!(term.title(), "raw-title");
+    assert_eq!(term.drain_responses(), b"\x1b]lraw-title\x1b\\");
+
+    term.process(b"\x1b[>0;1;2;3t");
+    assert_eq!(term.title_modes, 0b1111);
+    term.process(b"\x1b[>0;1;2;3T");
+    assert_eq!(term.title_modes, 0);
+}
+
+#[test]
+fn xtwinops_title_stack_preserves_independent_channels_and_partial_fallback() {
+    let mut term = Terminal::new(80, 24);
+    term.process(b"\x1b]0;Base\x1b\\\x1b[22;0t");
+    term.process(b"\x1b]1;Icon-only\x1b\\\x1b[22;1t");
+    term.process(b"\x1b]0;Mutated\x1b\\");
+
+    term.process(b"\x1b[23;0t");
+    assert_eq!(term.title(), "Base");
+    assert_eq!(term.icon_name(), "Icon-only");
+    assert_eq!(term.title_stack.depth(), 1);
+
+    term.process(b"\x1b[23;0t");
+    assert_eq!(term.title(), "Base");
+    assert_eq!(term.icon_name(), "Base");
+    assert_eq!(term.title_stack.depth(), 0);
+
+    term.process(b"\x1b]2;Window-0\x1b\\\x1b]1;Icon-0\x1b\\");
+    term.process(b"\x1b[22;2t\x1b[22;1t");
+    term.process(b"\x1b]0;Changed\x1b\\");
+    term.process(b"\x1b[23;1t");
+    assert_eq!(term.title(), "Changed");
+    assert_eq!(term.icon_name(), "Icon-0");
+    term.process(b"\x1b[23;2t");
+    assert_eq!(term.title(), "Window-0");
+    assert_eq!(term.icon_name(), "Icon-0");
+}
+
+#[test]
+fn xtwinops_direct_title_slots_are_reusable_and_do_not_change_stack_depth() {
+    let mut term = Terminal::new(80, 24);
+    for index in 1..=10 {
+        term.process(
+            format!(
+                "\x1b]2;Slot-window-{index}\x1b\\\x1b]1;Slot-icon-{index}\x1b\\\x1b[22;0;{index}t"
+            )
+            .as_bytes(),
+        );
+    }
+    assert_eq!(term.title_stack.depth(), 0);
+
+    for index in 1..=10 {
+        term.process(format!("\x1b]0;Changed\x1b\\\x1b[23;0;{index}t").as_bytes());
+        assert_eq!(term.title(), format!("Slot-window-{index}"));
+        assert_eq!(term.icon_name(), format!("Slot-icon-{index}"));
+        assert_eq!(term.title_stack.depth(), 0);
+    }
+
+    term.process(b"\x1b]0;Changed\x1b\\\x1b[23;0;10t");
+    assert_eq!(term.title(), "Slot-window-10");
+    assert_eq!(term.icon_name(), "Slot-icon-10");
+
+    term.process(b"\x1b]0;Stable\x1b\\\x1b[22;0;11t");
+    term.process(b"\x1b]0;Changed-again\x1b\\\x1b[23;0;11t");
+    assert_eq!(term.title(), "Changed-again");
+    assert_eq!(term.icon_name(), "Changed-again");
+    assert_eq!(term.title_stack.depth(), 0);
+}
+
+#[test]
+fn xtwinops_invalid_title_selector_does_not_mutate_or_pop() {
+    let mut term = Terminal::new(80, 24);
+    term.process(b"\x1b]0;Saved\x1b\\\x1b[22;0t");
+    term.process(b"\x1b]0;Current\x1b\\\x1b[22;3t\x1b[23;3t");
+
+    assert_eq!(term.title(), "Current");
+    assert_eq!(term.icon_name(), "Current");
+    assert_eq!(term.title_stack.depth(), 1);
+
+    term.process(b"\x1b[23;0t");
+    assert_eq!(term.title(), "Saved");
+    assert_eq!(term.icon_name(), "Saved");
+    assert_eq!(term.title_stack.depth(), 0);
+}
+
+#[test]
+fn appearance_policy_denies_title_queries_modes_and_stack_mutations() {
+    let mut term = Terminal::new(80, 24);
+    term.process(b"\x1b]0;Visible\x1b\\");
+    term.set_osc_capability_allowed(OscCapability::Appearance, false);
+
+    term.process(b"\x1b[>0;1t\x1b[20t\x1b[21t\x1b[22t");
+    assert_eq!(term.title_modes, 0);
+    assert_eq!(term.title_stack.depth(), 0);
+    assert!(term.drain_responses().is_empty());
+
+    term.process(b"\x1b]0;Denied\x1b\\\x1b[23t");
+    assert_eq!(term.title(), "Visible");
+    assert_eq!(term.icon_name(), "Visible");
+}
+
+#[test]
+fn ris_clears_title_channels_modes_and_stack() {
+    let mut term = Terminal::new(80, 24);
+    term.process(b"\x1b]0;Before-reset\x1b\\\x1b[>0;1t\x1b[22t");
+    assert_eq!(term.title_stack.depth(), 1);
+
+    term.process(b"\x1bc");
+
+    assert_eq!(term.title(), "");
+    assert_eq!(term.icon_name(), "");
+    assert_eq!(term.title_modes, 0);
+    assert_eq!(term.title_stack.depth(), 0);
 }
 
 // ========== Insert Mode Tests ==========

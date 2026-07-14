@@ -43,6 +43,13 @@ const Set<String> _requiredCoverage = <String>{
   'OSC 0 combined window and icon title',
   'xterm legacy OSC l window title alias',
   'xterm legacy OSC L icon label alias',
+  'xterm CSI 20 t icon label query',
+  'xterm CSI 21 t window title query',
+  'xterm XTSMTITLE hexadecimal query mode',
+  'xterm XTRMTITLE mode reset',
+  'xterm CSI 22/23 independent title stack',
+  'xterm title stack direct positions',
+  'xterm title query fragmented CSI parsing',
   'xterm OSC 60 allowed categories',
   'xterm OSC 61 disallowed subcategories',
   'xterm OSC 62 allowable subcategories',
@@ -188,6 +195,20 @@ void _validateFixture(String id, Map<String, Object?> fixture) {
       isTrue,
       reason: 'UTF-8 fixture must split inside a scalar',
     );
+  } else if (id == 'xterm_title_window_ops') {
+    final text = latin1.decode(stream);
+    expect(RegExp(r'\x1b\[20t').allMatches(text), hasLength(4));
+    expect(RegExp(r'\x1b\[21t').allMatches(text), hasLength(4));
+    expect(text, contains('\x1b[>1t'));
+    expect(text, contains('\x1b[>1T'));
+    expect(RegExp(r'\x1b\[22;').allMatches(text), hasLength(2));
+    expect(RegExp(r'\x1b\[23;').allMatches(text), hasLength(2));
+    expect(text, contains('\x1b[22;0;10t'));
+    expect(text, contains('\x1b[23;0;10t'));
+    expect(chunks[0].last, 0x1b);
+    expect(chunks[1].first, 0x5b);
+    expect(chunks[1].last, 0x1b);
+    expect(chunks[2].first, 0x5d);
   } else if (id == 'osc3008_malformed_close_recovery') {
     final text = latin1.decode(stream);
     expect(RegExp(r'\x1b]3008;').allMatches(text), hasLength(4));

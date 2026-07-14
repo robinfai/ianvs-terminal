@@ -92,10 +92,17 @@ fn test_set_window_title() {
     // OSC 0 - Set icon name and window title
     term.process(b"\x1b]0;Test Title\x1b\\");
     assert_eq!(term.title(), "Test Title");
+    assert_eq!(term.icon_name(), "Test Title");
+
+    // OSC 1 - Set icon name only
+    term.process(b"\x1b]1;Test Icon\x1b\\");
+    assert_eq!(term.title(), "Test Title");
+    assert_eq!(term.icon_name(), "Test Icon");
 
     // OSC 2 - Set window title
     term.process(b"\x1b]2;Another Title\x1b\\");
     assert_eq!(term.title(), "Another Title");
+    assert_eq!(term.icon_name(), "Test Icon");
 }
 
 #[test]
@@ -132,6 +139,7 @@ fn xterm_legacy_icon_alias_does_not_mutate_window_title() {
     term.process(b"\x1b]LIcon;label\x07");
 
     assert_eq!(term.title(), "Stable title");
+    assert_eq!(term.icon_name(), "Icon;label");
 }
 
 #[test]
@@ -139,7 +147,7 @@ fn osc_21_color_control_and_osc22_do_not_mutate_title_or_title_stack() {
     let mut term = Terminal::new(80, 24);
 
     term.process(b"\x1b]0;Original Title\x1b\\");
-    term.title_stack.push("Saved Title".to_string());
+    term.process(b"\x1b[22t");
 
     // Kitty color control is handled independently from title state. Pointer
     // shapes remain isolated from title handling.
@@ -147,7 +155,7 @@ fn osc_21_color_control_and_osc22_do_not_mutate_title_or_title_stack() {
     term.process(b"\x1b]22;pointer\x07");
     assert_eq!(term.default_fg(), Color::Rgb(0x12, 0x34, 0x56));
     assert_eq!(term.title(), "Original Title");
-    assert_eq!(term.title_stack, vec!["Saved Title"]);
+    assert_eq!(term.title_stack.depth(), 1);
 }
 
 #[test]
@@ -161,19 +169,19 @@ fn split_and_malformed_osc_21_and_22_do_not_mutate_title() {
     term.process(b"\x1b]22;not-a-pointer\x07");
 
     assert_eq!(term.title(), "Stable");
-    assert!(term.title_stack.is_empty());
+    assert_eq!(term.title_stack.depth(), 0);
 }
 
 #[test]
 fn osc23_is_not_a_title_stack_pop() {
     let mut term = Terminal::new(80, 24);
     term.process(b"\x1b]0;Current\x1b\\");
-    term.title_stack.push("Saved".to_string());
+    term.process(b"\x1b[22t");
 
     term.process(b"\x1b]23;legacy-payload\x1b\\");
 
     assert_eq!(term.title(), "Current");
-    assert_eq!(term.title_stack, vec!["Saved"]);
+    assert_eq!(term.title_stack.depth(), 1);
 }
 
 #[test]

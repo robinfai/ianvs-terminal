@@ -222,7 +222,19 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
             }
             "xterm_legacy_title_aliases" => {
                 assert_eq!(terminal.title(), "Legacy;window-窗");
+                assert_eq!(terminal.icon_name(), "Legacy;icon");
                 assert!(terminal.drain_responses().is_empty());
+            }
+            "xterm_title_window_ops" => {
+                assert_eq!(terminal.title(), "Direct;both");
+                assert_eq!(terminal.icon_name(), "Direct;both");
+                assert_eq!(
+                    terminal.drain_responses(),
+                    b"\x1b]LIcon;beta\x1b\\\x1b]lWindow;alpha\x1b\\\
+                      \x1b]L49636F6E3B62657461\x1b\\\x1b]l57696E646F773B616C706861\x1b\\\
+                      \x1b]LIcon;beta\x1b\\\x1b]lWindow;alpha\x1b\\\
+                      \x1b]LDirect;both\x1b\\\x1b]lDirect;both\x1b\\"
+                );
             }
             "xterm_osc_capability_queries" => {
                 assert_eq!(terminal.title(), "osc60-62-capability-corpus-ok");

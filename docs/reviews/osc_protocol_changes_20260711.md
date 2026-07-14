@@ -678,3 +678,38 @@ safety-policy reason documented in `osc_cross_terminal_probe_20260711.md`.
 - **Compatibility:** no schema changes; existing OSC 0/1/2 paths remain valid,
   while semicolon preservation and OSC 0 icon state correct prior omissions.
 - **Rollback:** revert the Phase 39 implementation commit.
+
+## Phase 40 report — xterm title window operations
+
+- **Start SHA:** `935e51101978df34125d6c884bdbbe820b290e7f`.
+- **Confirmed gaps:** CSI 20/21 `t` returned nothing; CSI 22/23 `t` stored only
+  one window-title string in a 32-item LIFO; XTSMTITLE/XTRMTITLE were ignored or
+  routed as scroll operations; icon state was unavailable to terminal queries
+  and snapshots.
+- **Fixes:** terminal-owned window/icon channels, exact OSC L/l ST reports,
+  strict set-hex and uppercase query-hex modes, explicit modes 0–3, independent
+  selector-aware ten-slot stack, xterm partial fallback and direct positions
+  1–10.
+- **Review corrections:** all direct slots and invalid selector/index behavior
+  are asserted; the real-PTY Python child preserves stdin by passing its script
+  through `python3 -c`; snapshot/RIS/policy and VT220 boundaries are explicit.
+- **Security:** Appearance-gated terminal-local state and bounded replies only;
+  no disclosure beyond previously accepted title text, persistence, profile
+  mutation or host action.
+- **Tests/results:** targeted parser, 45-case/85-edge shared corpus, 37 semantic
+  probes, native exact real PTY/VT220, Dart analysis and macOS application real
+  PTY coverage pass. Two consecutive full verifiers passed: vendored Rust
+  1,733 passed/1 ignored, native unit 104/104, native session 512/512,
+  example grouped 954/954,
+  Widget 130/130, macOS smoke 4/4, product real PTY 44/44 and RunnerTests
+  15/15.
+- **Computer Use:** the exact verifier-built executable (SHA-256
+  `d8fdf23501a1beabe3ecb1eb2d96b837112c615e9cb312693f52334ebc91e8a5`)
+  cold-launched and visibly reported `CU40-FINAL-EXACT:PASS` after eight exact
+  raw/hex/implicit/direct replies. Window/tab title `CU40 FINAL`,
+  `CU40-FINAL-AFTER:continued`, `CU40FINALSHELL` and a confirmed clean Quit completed
+  the final gate. Full evidence is recorded in
+  `xterm_title_window_ops_phase40_20260714.md`.
+- **Compatibility:** no frame/protobuf/FFI/configuration schema changes; the
+  existing optional title fields and pane-title precedence are reused.
+- **Rollback:** revert the Phase 40 implementation commit.

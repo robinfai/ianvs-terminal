@@ -1032,13 +1032,10 @@ enum ItermClipboardBoundary {
 #[derive(Clone, Default)]
 struct HostProtocolState {
     buffer: Vec<u8>,
-    window_icon_name: Option<String>,
     application_keypad: bool,
     osc5522_write: Option<Osc5522WriteState>,
     iterm_clipboard_capture: Option<ItermClipboardCaptureState>,
 }
-
-const MAX_WINDOW_ICON_NAME_CHARS: usize = 1024;
 
 fn iterm_clipboard_boundary(payload: &[u8]) -> ItermClipboardBoundary {
     let Some(command) = payload.strip_prefix(b"1337;") else {
@@ -1117,11 +1114,6 @@ impl HostProtocolState {
                     self.append_iterm_clipboard_range(sequence_start, index);
                 }
                 b'c' => {
-                    // Mirror RIS for the small native-side observer state.
-                    // The parser owns the typed TerminalReset event; this
-                    // prevents a previously reported OSC 1 icon from being
-                    // copied back into frames after that reset.
-                    self.window_icon_name = None;
                     self.application_keypad = false;
                     self.osc5522_write = None;
                     self.iterm_clipboard_capture = None;
@@ -1328,21 +1320,11 @@ impl HostProtocolState {
     }
 
     fn handle_osc_payload(&mut self, payload: &[u8], events: &mut Vec<CallbackEvent>) {
-        // xterm's Sun/CDE icon-label alias has no numeric command or
-        // semicolon: `OSC L <label> ST`.
-        if let Some(label) = payload.strip_prefix(b"L") {
-            self.apply_window_icon_name(label);
-            return;
-        }
-
         let mut parts = payload.splitn(2, |byte| *byte == b';');
         let command = parts.next().unwrap_or_default();
         let remainder = parts.next().unwrap_or_default();
 
         match command {
-            // OSC 0 sets both the window title and icon label. The vendored
-            // terminal owns the title while this host observer owns the icon.
-            b"0" | b"1" => self.apply_window_icon_name(remainder),
             b"52" => {
                 let mut args = remainder.splitn(2, |byte| *byte == b';');
                 let selection =
@@ -1385,18 +1367,6 @@ impl HostProtocolState {
             }
             _ => {}
         }
-    }
-
-    fn apply_window_icon_name(&mut self, bytes: &[u8]) {
-        let Ok(value) = std::str::from_utf8(bytes) else {
-            return;
-        };
-        let sanitized = value
-            .chars()
-            .filter(|character| !character.is_control())
-            .take(MAX_WINDOW_ICON_NAME_CHARS)
-            .collect::<String>();
-        self.window_icon_name = (!sanitized.is_empty()).then_some(sanitized);
     }
 
     fn handle_osc5522(&mut self, remainder: &[u8], events: &mut Vec<CallbackEvent>) {
@@ -3243,7 +3213,10 @@ impl TerminalSession {
             None
         };
         let window_icon_name = if self.emulation == TerminalEmulation::Xterm256 {
-            state.host_protocol.window_icon_name.clone()
+            match terminal.icon_name() {
+                "" => None,
+                value => Some(value.to_string()),
+            }
         } else {
             None
         };
@@ -9426,46 +9399,7 @@ mod tests {
         let events = state.observe(b" icon\x07", TerminalEmulation::Xterm256);
 
         assert!(events.is_empty());
-        assert_eq!(state.window_icon_name.as_deref(), Some("build icon"));
         assert!(state.buffer.is_empty());
-    }
-
-    #[test]
-    fn host_protocol_tracks_osc0_and_legacy_icon_alias_with_safe_bounds() {
-        let mut state = HostProtocolState::default();
-
-        for byte in b"\x1b]0;combined title and icon\x1b\\" {
-            assert!(
-                state
-                    .observe(&[*byte], TerminalEmulation::Xterm256)
-                    .is_empty()
-            );
-        }
-        assert_eq!(
-            state.window_icon_name.as_deref(),
-            Some("combined title and icon")
-        );
-
-        for byte in b"\x1b]LLegacy;icon\x07" {
-            assert!(
-                state
-                    .observe(&[*byte], TerminalEmulation::Xterm256)
-                    .is_empty()
-            );
-        }
-        assert_eq!(state.window_icon_name.as_deref(), Some("Legacy;icon"));
-
-        let bounded = format!("Lsafe\u{0085}{}", "界".repeat(1100));
-        state.handle_osc_payload(bounded.as_bytes(), &mut Vec::new());
-        let icon = state.window_icon_name.clone().expect("bounded icon label");
-        assert!(!icon.chars().any(char::is_control));
-        assert_eq!(icon.chars().count(), MAX_WINDOW_ICON_NAME_CHARS);
-        assert!(icon.starts_with("safe界"));
-
-        state.handle_osc_payload(b"Linvalid\xff", &mut Vec::new());
-        assert_eq!(state.window_icon_name.as_deref(), Some(icon.as_str()));
-        state.handle_osc_payload(b"L", &mut Vec::new());
-        assert!(state.window_icon_name.is_none());
     }
 
     #[test]
@@ -9656,16 +9590,14 @@ mod tests {
     }
 
     #[test]
-    fn host_protocol_ris_clears_native_icon_and_keypad_state() {
+    fn host_protocol_ris_clears_native_keypad_state() {
         let mut state = HostProtocolState::default();
-        state.observe(b"\x1b]1;build icon\x07\x1b=", TerminalEmulation::Xterm256);
-        assert_eq!(state.window_icon_name.as_deref(), Some("build icon"));
+        state.observe(b"\x1b=", TerminalEmulation::Xterm256);
         assert!(state.application_keypad);
 
         let events = state.observe(b"\x1bc", TerminalEmulation::Xterm256);
 
         assert!(events.is_empty(), "the parser emits the typed reset event");
-        assert!(state.window_icon_name.is_none());
         assert!(!state.application_keypad);
         assert!(state.buffer.is_empty());
     }
@@ -10028,7 +9960,7 @@ mod tests {
                     .is_empty()
             );
         });
-        assert!(denied_host.window_icon_name.is_none());
+        assert!(denied_terminal.icon_name().is_empty());
         denied_terminal.process_with_filtered_input(
             b"\x1b]0;secret-combined\x1b\\\x1b]Lsecret-legacy\x07",
             |filtered| {
@@ -10040,7 +9972,7 @@ mod tests {
             },
         );
         assert_eq!(denied_terminal.title(), "");
-        assert!(denied_host.window_icon_name.is_none());
+        assert!(denied_terminal.icon_name().is_empty());
 
         let mut oversized_terminal = Terminal::new(80, 24);
         let mut oversized_host = HostProtocolState::default();
@@ -10055,7 +9987,7 @@ mod tests {
                     .is_empty()
             );
         });
-        assert!(oversized_host.window_icon_name.is_none());
+        assert!(oversized_terminal.icon_name().is_empty());
 
         let mut oversized_legacy_terminal = Terminal::new(80, 24);
         let mut oversized_legacy_host = HostProtocolState::default();
@@ -10070,7 +10002,7 @@ mod tests {
                     .is_empty()
             );
         });
-        assert!(oversized_legacy_host.window_icon_name.is_none());
+        assert!(oversized_legacy_terminal.icon_name().is_empty());
     }
 
     #[test]

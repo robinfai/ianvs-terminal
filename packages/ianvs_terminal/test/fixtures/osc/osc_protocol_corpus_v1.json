@@ -866,6 +866,34 @@
       }
     },
     {
+      "id": "xterm_title_window_ops",
+      "coverage": [
+        "xterm CSI 20 t icon label query",
+        "xterm CSI 21 t window title query",
+        "xterm XTSMTITLE hexadecimal query mode",
+        "xterm XTRMTITLE mode reset",
+        "xterm CSI 22/23 independent title stack",
+        "xterm title stack direct positions",
+        "xterm title query fragmented CSI parsing"
+      ],
+      "protocol": "xterm CSI 20/21/22/23 t and XTSMTITLE/XTRMTITLE",
+      "wire": {
+        "sequence_count": 5,
+        "chunks_hex": [
+          "1b5d323b57696e646f773b616c7068611b5c1b5d313b49636f6e3b626574611b5c1b5b3230741b",
+          "5b3231741b5b3e31741b5b3230741b5b3231741b5b3e31541b5b32323b30741b5d303b4368616e6765641b5c1b5b32333b30741b5b3230741b5b3231741b",
+          "5d303b4469726563743b626f74681b5c1b5b32323b303b3130741b5d303b4d7574617465641b5c1b5b32333b303b3130741b5b3230741b5b323174"
+        ]
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "xterm_title_query_and_stack",
+        "state_effect": "raw and uppercase hexadecimal title queries are exact, XTRMTITLE restores raw replies, the implicit stack restores both independent channels, direct slot 10 is reusable without popping, and split CSI parsing remains synchronized",
+        "reply": "OSC L Icon;beta ST; OSC l Window;alpha ST; uppercase hexadecimal variants; restored raw variants; direct-slot raw variants",
+        "must_not_crash": true
+      }
+    },
+    {
       "id": "xterm_osc_capability_queries",
       "coverage": [
         "xterm OSC 60 allowed categories",

@@ -28,6 +28,7 @@ use super::graphics::GraphicsPassthroughState;
 use super::notification::KittyNotificationState;
 use super::osc_stream::OscStreamGate;
 use super::pointer_shape::PointerShapeState;
+use super::sequences::csi::TitleStack;
 use super::{ITermMultipartState, NamedProgressBar, OscCapabilityPolicy, ProgressBar};
 
 /// Snapshot of a single Grid's state (primary or alternate screen).
@@ -217,6 +218,12 @@ pub struct TerminalSnapshot {
     // --- Terminal modes and state ---
     /// Terminal title
     pub title: String,
+    /// Terminal icon label.
+    pub icon_name: String,
+    /// XTSMTITLE/XTRMTITLE mode bits.
+    pub title_modes: u8,
+    /// Independent xterm icon/window title stack.
+    pub(crate) title_stack: TitleStack,
     /// Current xterm OSC 50 font family.
     pub xterm_font_family: String,
     /// Auto-wrap mode (DECAWM)
@@ -476,7 +483,10 @@ impl TerminalSnapshot {
             (self.grid.zones.len() + self.alt_grid.zones.len()) * std::mem::size_of::<Zone>();
 
         let tab_stops_size = self.tab_stops.len();
-        let title_size = self.title.len() + self.xterm_font_family.len();
+        let title_size = self.title.len()
+            + self.icon_name.len()
+            + self.xterm_font_family.len()
+            + self.title_stack.retained_bytes();
         let keyboard_stack_size = (self.keyboard_stack.len() + self.keyboard_stack_alt.len())
             * std::mem::size_of::<u16>();
         let unicode_version_stack_size = self
@@ -688,6 +698,9 @@ impl Terminal {
             saved_underline_color: self.saved_underline_color,
             saved_flags: self.saved_flags,
             title: self.title.clone(),
+            icon_name: self.icon_name.clone(),
+            title_modes: self.title_modes,
+            title_stack: self.title_stack.clone(),
             xterm_font_family: self.xterm_font_family.clone(),
             auto_wrap: self.auto_wrap,
             origin_mode: self.origin_mode,
@@ -843,6 +856,9 @@ impl Terminal {
         self.saved_underline_color = snap.saved_underline_color;
         self.saved_flags = snap.saved_flags;
         self.title = snap.title;
+        self.icon_name = snap.icon_name;
+        self.title_modes = snap.title_modes;
+        self.title_stack = snap.title_stack;
         self.xterm_font_family = snap.xterm_font_family;
         self.auto_wrap = snap.auto_wrap;
         self.origin_mode = snap.origin_mode;
@@ -979,6 +995,9 @@ mod tests {
             saved_underline_color: None,
             saved_flags: CellFlags::default(),
             title: String::new(),
+            icon_name: String::new(),
+            title_modes: 0,
+            title_stack: TitleStack::default(),
             xterm_font_family: "monospace".to_string(),
             auto_wrap: true,
             origin_mode: false,
@@ -1157,6 +1176,28 @@ mod tests {
         assert_eq!(terminal.cursor_guide_color(), Color::Rgb(0x12, 0x34, 0x56));
         terminal.reset();
         assert!(terminal.use_cursor_guide());
+    }
+
+    #[test]
+    fn restore_preserves_xterm_title_channels_modes_and_stack() {
+        let mut terminal = Terminal::new(8, 2);
+        terminal.process(b"\x1b]2;Saved-window\x1b\\\x1b]1;Saved-icon\x1b\\");
+        terminal.process(b"\x1b[>0;1t\x1b[22;0t");
+        let snapshot = terminal.capture_snapshot();
+
+        terminal.process(b"\x1b]0;Mutated\x1b\\\x1b[>0;1T\x1b[23;0t");
+        terminal.restore_from_snapshot(snapshot);
+
+        assert_eq!(terminal.title(), "Saved-window");
+        assert_eq!(terminal.icon_name(), "Saved-icon");
+        assert!(terminal.title_mode_enabled(0));
+        assert!(terminal.title_mode_enabled(1));
+        assert_eq!(terminal.title_stack.depth(), 1);
+
+        terminal.process(b"\x1b]0;4D757461746564\x1b\\\x1b[23;0t");
+        assert_eq!(terminal.title(), "Saved-window");
+        assert_eq!(terminal.icon_name(), "Saved-icon");
+        assert_eq!(terminal.title_stack.depth(), 0);
     }
 
     #[test]

@@ -1,9 +1,120 @@
 //! Window-related CSI sequence handling (XTWINOPS, etc.)
 
-use crate::terminal::Terminal;
+use crate::terminal::{OscCapability, Terminal};
 use vte::Params;
 
-const TITLE_STACK_LIMIT: usize = 32;
+const TITLE_STACK_LIMIT: usize = 10;
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct SavedTitle {
+    window_title: Option<String>,
+    icon_name: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct TitleStack {
+    entries: [SavedTitle; TITLE_STACK_LIMIT],
+    next: usize,
+    depth: usize,
+}
+
+impl Default for TitleStack {
+    fn default() -> Self {
+        Self {
+            entries: std::array::from_fn(|_| SavedTitle::default()),
+            next: 0,
+            depth: 0,
+        }
+    }
+}
+
+impl TitleStack {
+    pub(crate) fn depth(&self) -> usize {
+        self.depth
+    }
+
+    pub(crate) fn retained_bytes(&self) -> usize {
+        self.entries
+            .iter()
+            .map(|entry| {
+                entry.window_title.as_ref().map_or(0, String::len)
+                    + entry.icon_name.as_ref().map_or(0, String::len)
+            })
+            .sum()
+    }
+
+    fn store(&mut self, selector: u16, index: u16, title: &str, icon_name: &str) -> bool {
+        let Some(entry) = selected_title(selector, title, icon_name) else {
+            return false;
+        };
+        let slot = if index == 0 {
+            let slot = self.next;
+            self.next = (self.next + 1) % TITLE_STACK_LIMIT;
+            self.depth = (self.depth + 1).min(TITLE_STACK_LIMIT);
+            slot
+        } else if (1..=TITLE_STACK_LIMIT as u16).contains(&index) {
+            usize::from(index - 1)
+        } else {
+            return false;
+        };
+        self.entries[slot] = entry;
+        true
+    }
+
+    fn restore(&mut self, selector: u16, index: u16) -> Option<SavedTitle> {
+        if selector > 2 {
+            return None;
+        }
+        let (slot, pop) = if index == 0 {
+            if self.depth == 0 {
+                return None;
+            }
+            self.next = (self.next + TITLE_STACK_LIMIT - 1) % TITLE_STACK_LIMIT;
+            self.depth -= 1;
+            (self.next, true)
+        } else if (1..=TITLE_STACK_LIMIT as u16).contains(&index) {
+            (usize::from(index - 1), false)
+        } else {
+            return None;
+        };
+
+        let mut entry = self.entries[slot].clone();
+        for offset in 1..TITLE_STACK_LIMIT {
+            if entry.window_title.is_some() && entry.icon_name.is_some() {
+                break;
+            }
+            let older = (slot + TITLE_STACK_LIMIT - offset) % TITLE_STACK_LIMIT;
+            if entry.window_title.is_none() {
+                entry.window_title = self.entries[older].window_title.clone();
+            }
+            if entry.icon_name.is_none() {
+                entry.icon_name = self.entries[older].icon_name.clone();
+            }
+        }
+        if pop {
+            self.entries[slot] = SavedTitle::default();
+        }
+        Some(entry)
+    }
+}
+
+fn selected_title(selector: u16, title: &str, icon_name: &str) -> Option<SavedTitle> {
+    match selector {
+        0 => Some(SavedTitle {
+            window_title: Some(title.to_string()),
+            icon_name: Some(icon_name.to_string()),
+        }),
+        1 => Some(SavedTitle {
+            window_title: None,
+            icon_name: Some(icon_name.to_string()),
+        }),
+        2 => Some(SavedTitle {
+            window_title: Some(title.to_string()),
+            icon_name: None,
+        }),
+        _ => None,
+    }
+}
 
 impl Terminal {
     pub(crate) fn handle_xtsmgraphics(&mut self, params: &Params) {
@@ -67,6 +178,11 @@ impl Terminal {
         intermediates: &[u8],
     ) {
         let (cols, rows) = self.size();
+
+        if intermediates.contains(&b'>') && matches!(action, 't' | 'T') {
+            self.handle_xterm_title_modes(action == 't', params);
+            return;
+        }
 
         if intermediates.contains(&b'$') {
             match action {
@@ -311,17 +427,40 @@ impl Terminal {
                         let response = format!("\x1b[8;{};{}t", rows, cols);
                         self.push_response(response.as_bytes());
                     }
+                    20 if self.osc_capability_allowed(OscCapability::Appearance) => {
+                        let response =
+                            title_report(b'L', self.icon_name(), self.title_mode_enabled(1));
+                        self.push_response(&response);
+                    }
+                    21 if self.osc_capability_allowed(OscCapability::Appearance) => {
+                        let response = title_report(b'l', self.title(), self.title_mode_enabled(1));
+                        self.push_response(&response);
+                    }
                     22 => {
-                        // Push icon name and window title to stack
-                        if self.title_stack.len() >= TITLE_STACK_LIMIT {
-                            self.title_stack.remove(0);
+                        if self.osc_capability_allowed(OscCapability::Appearance) {
+                            let selector = window_param(params, 1);
+                            let index = window_param(params, 2);
+                            let title = self.title.clone();
+                            let icon_name = self.icon_name.clone();
+                            self.title_stack.store(selector, index, &title, &icon_name);
                         }
-                        self.title_stack.push(self.title.clone());
                     }
                     23 => {
-                        // Pop icon name and window title from stack
-                        if let Some(title) = self.title_stack.pop() {
-                            self.title = title;
+                        if self.osc_capability_allowed(OscCapability::Appearance) {
+                            let selector = window_param(params, 1);
+                            let index = window_param(params, 2);
+                            if let Some(entry) = self.title_stack.restore(selector, index) {
+                                if matches!(selector, 0 | 1) {
+                                    if let Some(icon_name) = entry.icon_name {
+                                        self.set_protocol_icon_name(icon_name);
+                                    }
+                                }
+                                if matches!(selector, 0 | 2) {
+                                    if let Some(title) = entry.window_title {
+                                        self.set_protocol_window_title(title);
+                                    }
+                                }
+                            }
                         }
                     }
                     _ => {}
@@ -369,6 +508,56 @@ impl Terminal {
             _ => {}
         }
     }
+
+    fn handle_xterm_title_modes(&mut self, set: bool, params: &Params) {
+        if !self.osc_capability_allowed(OscCapability::Appearance) {
+            return;
+        }
+        let modes = params
+            .iter()
+            .flat_map(|values| values.iter().copied())
+            .collect::<Vec<_>>();
+        if modes.is_empty() {
+            self.title_modes = 0;
+            return;
+        }
+        for mode in modes {
+            if mode < 4 {
+                let bit = 1 << mode;
+                if set {
+                    self.title_modes |= bit;
+                } else {
+                    self.title_modes &= !bit;
+                }
+            }
+        }
+    }
+}
+
+fn window_param(params: &Params, index: usize) -> u16 {
+    params
+        .iter()
+        .nth(index)
+        .and_then(|values| values.first())
+        .copied()
+        .unwrap_or(0)
+}
+
+fn title_report(command: u8, text: &str, hex_encoded: bool) -> Vec<u8> {
+    let mut response = Vec::with_capacity(5 + text.len() * if hex_encoded { 2 } else { 1 });
+    response.extend_from_slice(b"\x1b]");
+    response.push(command);
+    if hex_encoded {
+        const HEX: &[u8; 16] = b"0123456789ABCDEF";
+        for byte in text.as_bytes() {
+            response.push(HEX[usize::from(byte >> 4)]);
+            response.push(HEX[usize::from(byte & 0x0f)]);
+        }
+    } else {
+        response.extend_from_slice(text.as_bytes());
+    }
+    response.extend_from_slice(b"\x1b\\");
+    response
 }
 
 fn xtsmgraphics_response(item: u16, status: u16, payload: &[u16]) -> String {

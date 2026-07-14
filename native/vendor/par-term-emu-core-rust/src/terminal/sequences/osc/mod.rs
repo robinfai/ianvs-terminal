@@ -152,13 +152,8 @@ impl Terminal {
 
         // xterm retains the Sun/CDE non-numeric title aliases. VTE splits OSC
         // parameters at semicolons, so the title handler rejoins all pieces.
-        if params[0].starts_with(b"l") {
+        if params[0].starts_with(b"l") || params[0].starts_with(b"L") {
             self.handle_legacy_osc_title(params);
-            return;
-        }
-        if params[0].starts_with(b"L") {
-            // The terminal grid has no icon-label state. The native filtered
-            // host observer consumes this accepted sequence for frame export.
             return;
         }
 
@@ -177,7 +172,7 @@ impl Terminal {
 
             match command {
                 // OSC 23 has no title-stack meaning; title push/pop is CSI 22/23 t.
-                "0" | "2" => self.handle_osc_title(command, params),
+                "0" | "1" | "2" => self.handle_osc_title(command, params),
                 "7" | "133" | "633" => self.handle_osc_shell(command, params),
                 "8" => self.handle_osc_hyperlink(params),
                 "9" | "99" | "777" | "934" => self.handle_osc_notify(command, params),

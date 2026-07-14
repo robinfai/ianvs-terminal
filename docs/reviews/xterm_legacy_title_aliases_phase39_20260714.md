@@ -1,5 +1,10 @@
 # Phase 39 review — xterm legacy title aliases — 2026-07-14
 
+> Phase 40 subsequently moved icon-label ownership from the native observer to
+> the vendored terminal so CSI title queries, stack operations and snapshots
+> share one state. Phase 39's acceptance evidence remains historical; current
+> behavior is documented in `xterm_title_window_ops.md`.
+
 ## Result
 
 Accepted. Implementation, targeted compatibility review, two consecutive full

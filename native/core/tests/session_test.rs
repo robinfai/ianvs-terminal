@@ -512,6 +512,74 @@ fn legacy_title_alias_profile(emulation: TerminalEmulation) -> TerminalProfile {
     )
 }
 
+fn xterm_title_window_ops_profile(emulation: TerminalEmulation) -> TerminalProfile {
+    local_profile(
+        "xterm-title-window-ops",
+        "xterm Title Window Ops",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c "$(cat <<'PY'
+import os
+import select
+import sys
+import termios
+import time
+import tty
+
+old = termios.tcgetattr(0)
+tty.setraw(0)
+time.sleep(0.2)
+payload = (
+    b"\x1b]2;Window;alpha\x1b\\"
+    b"\x1b]1;Icon;beta\x1b\\"
+    b"\x1b[20t\x1b[21t"
+    b"\x1b[>1t\x1b[20t\x1b[21t\x1b[>1T"
+    b"\x1b[22;0t\x1b]0;Changed\x1b\\\x1b[23;0t\x1b[20t\x1b[21t"
+    b"\x1b]0;Direct;both\x1b\\\x1b[22;0;10t"
+    b"\x1b]0;Mutated\x1b\\\x1b[23;0;10t\x1b[20t\x1b[21t"
+)
+os.write(1, payload)
+data = b""
+deadline = time.time() + 2.0
+while time.time() < deadline:
+    ready, _, _ = select.select([0], [], [], 0.1)
+    if ready:
+        data += os.read(0, 4096)
+    if data.count(b"\x1b\\") >= 8:
+        break
+
+termios.tcsetattr(0, termios.TCSANOW, old)
+responses = []
+offset = 0
+while True:
+    start = data.find(b"\x1b]", offset)
+    if start < 0:
+        break
+    end = data.find(b"\x1b\\", start + 2)
+    if end < 0:
+        break
+    responses.append(data[start:end + 2])
+    offset = end + 2
+
+if responses:
+    for index, response in enumerate(responses):
+        os.write(1, f"TITLE-OPS-R{index}:{response.hex()}\n".encode())
+else:
+    os.write(1, b"TITLE-OPS-TIMEOUT\n")
+os.write(1, b"TITLE-OPS-READY\n")
+token = sys.stdin.buffer.readline().strip()
+os.write(1, b"TITLE-OPS-AFTER:" + token + b"\n")
+time.sleep(0.2)
+PY
+)""#
+            .to_string(),
+        ],
+        BTreeMap::new(),
+        emulation,
+    )
+}
+
 fn resize_request_profile() -> TerminalProfile {
     local_profile(
         "resize-request",
@@ -16354,6 +16422,76 @@ fn vt220_sessions_gate_osc0_and_legacy_title_aliases() {
     assert_eq!(after["window_title"].as_str(), None);
     assert_eq!(after["window_icon_name"].as_str(), None);
 
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_round_trips_xterm_title_queries_modes_and_stack_from_real_pty() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&xterm_title_window_ops_profile(TerminalEmulation::Xterm256))
+            .unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "TITLE-OPS-READY");
+    let rows = logical_rows_from_frame(&frame);
+    let expected: &[&[u8]] = &[
+        b"\x1b]LIcon;beta\x1b\\",
+        b"\x1b]lWindow;alpha\x1b\\",
+        b"\x1b]L49636F6E3B62657461\x1b\\",
+        b"\x1b]l57696E646F773B616C706861\x1b\\",
+        b"\x1b]LIcon;beta\x1b\\",
+        b"\x1b]lWindow;alpha\x1b\\",
+        b"\x1b]LDirect;both\x1b\\",
+        b"\x1b]lDirect;both\x1b\\",
+    ];
+    for (index, response) in expected.iter().enumerate() {
+        let hex = response
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        let line = format!("TITLE-OPS-R{index}:{hex}");
+        assert!(
+            rows.iter().any(|row| row == &line),
+            "missing exact title response {line}: {rows:?}"
+        );
+    }
+    assert!(!rows.iter().any(|row| row.contains("TITLE-OPS-R8:")));
+
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    assert_eq!(parsed["window_title"].as_str(), Some("Direct;both"));
+    assert_eq!(parsed["window_icon_name"].as_str(), Some("Direct;both"));
+
+    session::resize_session(session_id, 96, 28, 960, 560).unwrap();
+    session::write_session(session_id, b"continued\n").unwrap();
+    let after = wait_for_frame_containing(session_id, "TITLE-OPS-AFTER:continued");
+    let after: serde_json::Value = serde_json::from_str(&after).unwrap();
+    assert_eq!(after["window_title"].as_str(), Some("Direct;both"));
+    assert_eq!(after["window_icon_name"].as_str(), Some("Direct;both"));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_sessions_silence_xterm_title_queries_modes_and_stack() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&xterm_title_window_ops_profile(TerminalEmulation::Vt220)).unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "TITLE-OPS-READY");
+    let rows = logical_rows_from_frame(&frame);
+    assert!(rows.iter().any(|row| row == "TITLE-OPS-TIMEOUT"));
+    assert!(
+        !rows.iter().any(|row| row.starts_with("TITLE-OPS-R0:")),
+        "VT220 unexpectedly returned title replies: {rows:?}"
+    );
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    assert_eq!(parsed["window_title"].as_str(), None);
+    assert_eq!(parsed["window_icon_name"].as_str(), None);
+
+    session::write_session(session_id, b"continued\n").unwrap();
+    wait_for_frame_containing(session_id, "TITLE-OPS-AFTER:continued");
     session::close_session(session_id).unwrap();
 }
 

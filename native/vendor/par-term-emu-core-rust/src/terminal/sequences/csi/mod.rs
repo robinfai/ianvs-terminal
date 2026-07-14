@@ -10,6 +10,8 @@ mod scroll;
 mod style;
 mod window;
 
+pub(crate) use window::TitleStack;
+
 use crate::debug;
 use crate::terminal::Terminal;
 use vte::Params;
@@ -40,6 +42,9 @@ impl Terminal {
             }
             'S' if intermediates.contains(&b'?') => {
                 self.handle_xtsmgraphics(params);
+            }
+            'T' if intermediates.contains(&b'>') => {
+                self.handle_csi_window(action, params, intermediates);
             }
             'S' | 'T' => {
                 self.handle_csi_scroll(action, params, intermediates);

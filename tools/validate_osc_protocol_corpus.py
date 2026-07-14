@@ -61,6 +61,13 @@ REQUIRED_COVERAGE = {
     "OSC 0 combined window and icon title",
     "xterm legacy OSC l window title alias",
     "xterm legacy OSC L icon label alias",
+    "xterm CSI 20 t icon label query",
+    "xterm CSI 21 t window title query",
+    "xterm XTSMTITLE hexadecimal query mode",
+    "xterm XTRMTITLE mode reset",
+    "xterm CSI 22/23 independent title stack",
+    "xterm title stack direct positions",
+    "xterm title query fragmented CSI parsing",
     "xterm OSC 60 allowed categories",
     "xterm OSC 61 disallowed subcategories",
     "xterm OSC 62 allowable subcategories",
@@ -274,6 +281,22 @@ def validate_case(case: Any) -> set[str]:
         require(b"\x1b]LLegacy;icon\x1b\\" in stream, f"{case_id}: OSC L")
         require(b"\x1b]lLegacy;window-" in stream, f"{case_id}: OSC l")
         require(chunks[2] == b"\xe7", f"{case_id}: split UTF-8 lead byte")
+    elif case_id == "xterm_title_window_ops":
+        require(stream.count(b"\x1b[20t") == 4, f"{case_id}: icon query count")
+        require(stream.count(b"\x1b[21t") == 4, f"{case_id}: title query count")
+        require(b"\x1b[>1t" in stream, f"{case_id}: XTSMTITLE mode")
+        require(b"\x1b[>1T" in stream, f"{case_id}: XTRMTITLE reset")
+        require(stream.count(b"\x1b[22;") == 2, f"{case_id}: save count")
+        require(stream.count(b"\x1b[23;") == 2, f"{case_id}: restore count")
+        require(b"\x1b[22;0;10t" in stream, f"{case_id}: direct slot save")
+        require(b"\x1b[23;0;10t" in stream, f"{case_id}: direct slot restore")
+        require(
+            chunks[0].endswith(b"\x1b")
+            and chunks[1].startswith(b"[")
+            and chunks[1].endswith(b"\x1b")
+            and chunks[2].startswith(b"]"),
+            f"{case_id}: fragmented CSI/OSC introducers",
+        )
     elif case_id == "osc1337_clear_buffer":
         require(stream.count(b"\x1b]") == 2, f"{case_id}: sequence count")
         require(b"1337;ClearScrollback" in stream, f"{case_id}: command")

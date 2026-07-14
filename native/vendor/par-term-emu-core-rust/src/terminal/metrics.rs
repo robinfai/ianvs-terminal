@@ -410,7 +410,7 @@ impl Terminal {
             hyperlink_count: self.hyperlinks.len(),
             hyperlink_memory_bytes: 0, // Should be calculated
             color_stack_depth: self.color_stack.len(),
-            title_stack_depth: self.title_stack.len(),
+            title_stack_depth: self.title_stack.depth(),
             keyboard_stack_depth: if self.alt_screen_active {
                 self.keyboard_stack_alt.len()
             } else {

@@ -815,6 +815,10 @@ pub struct Terminal {
     pub(crate) saved_flags: CellFlags,
     /// Terminal title
     pub(crate) title: String,
+    /// Terminal icon label (xterm OSC 0/1/L and XTWINOPS 20/22/23).
+    pub(crate) icon_name: String,
+    /// XTSMTITLE/XTRMTITLE mode bits 0-3.
+    pub(crate) title_modes: u8,
     /// Current xterm OSC 50 TrueType family.
     pub(crate) xterm_font_family: String,
     /// Mouse tracking mode
@@ -989,8 +993,8 @@ pub struct Terminal {
     pub(crate) reverse_video: bool,
     /// Bold brightening - when enabled, bold ANSI colors 0-7 brighten to 8-15
     pub(crate) bold_brightening: bool,
-    /// Window title stack for XTWINOPS 22/23 (push/pop title)
-    pub(crate) title_stack: Vec<String>,
+    /// Independent icon/window title stack for XTWINOPS 22/23.
+    pub(crate) title_stack: sequences::csi::TitleStack,
     /// Accept OSC 7 directory tracking sequences
     pub(crate) accept_osc7: bool,
     /// Disable potentially insecure escape sequences
@@ -1269,6 +1273,8 @@ impl Terminal {
             saved_underline_color: None,
             saved_flags: CellFlags::default(),
             title: String::new(),
+            icon_name: String::new(),
+            title_modes: 0,
             xterm_font_family: "monospace".to_string(),
             mouse_mode: MouseMode::Off,
             mouse_mode_alt: MouseMode::Off,
@@ -1355,7 +1361,7 @@ impl Terminal {
             char_protected: false,
             reverse_video: false,
             bold_brightening: true, // iTerm2 default behavior
-            title_stack: Vec::new(),
+            title_stack: sequences::csi::TitleStack::default(),
             accept_osc7: true,
             disable_insecure_sequences: false,
             osc_capability_policy: OscCapabilityPolicy::default(),
@@ -1700,6 +1706,11 @@ impl Terminal {
     /// Get the title
     pub fn title(&self) -> &str {
         &self.title
+    }
+
+    /// Get the xterm icon label.
+    pub fn icon_name(&self) -> &str {
+        &self.icon_name
     }
 
     /// Set the title

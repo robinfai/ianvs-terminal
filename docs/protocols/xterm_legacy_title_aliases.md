@@ -21,10 +21,12 @@ None of these set operations emits a PTY reply.
 - OSC 0 updates both channels from the same text. OSC 2 and lowercase `l`
   update only the window title. OSC 1 and uppercase `L` update only the icon
   label.
-- The vendored terminal owns the window-title state and emits the existing
-  `TitleChanged` event. The native filtered host observer owns the icon label.
-  Existing optional `window_title` and `window_icon_name` JSON/protobuf fields
-  carry both values; no schema or authority was added.
+- The vendored terminal owns both channels and emits the existing
+  `TitleChanged` event for window-title changes. Existing optional
+  `window_title` and `window_icon_name` JSON/protobuf fields carry both values;
+  no schema or authority was added. Terminal ownership also makes both values
+  available to CSI queries, snapshots and resize reconstruction without a
+  second OSC parser.
 - The product uses a non-empty window title first, then a non-empty icon label,
   then the profile name for its pane/tab title. Independent icon-label updates
   therefore do not unexpectedly replace an active window title.
@@ -44,14 +46,14 @@ None of these set operations emits a PTY reply.
 - Appearance denial and VT220 emulation consume the complete sequence without
   changing either channel. Oversized input is discarded through BEL/ST and
   parsing resumes with following terminal text.
-- RIS clears both current channels. Terminal snapshots and resize transcript
-  replay preserve the existing title behavior without replaying a host action.
+- RIS clears both current channels. Terminal snapshots preserve both values;
+  resize transcript replay reconstructs them without replaying a host action.
 - The aliases are additive wire compatibility. Existing OSC 0/1/2 producers,
   frame fields and pane-title precedence keep their prior APIs.
 
-CSI 20/21 `t` title-report requests and independent icon/title stack semantics
-are window-operation contracts, not OSC set-operation parsing, and are not
-promoted by this phase.
+CSI 20/21 `t` title-report requests, title modes and independent icon/title
+stack semantics are specified separately in
+[xterm title window operations](xterm_title_window_ops.md).
 
 ## Reference comparison
 
