@@ -212,6 +212,13 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
                 assert_eq!(terminal.title(), "osc6-iterm-tab-color-corpus-ok");
                 assert!(terminal.drain_responses().is_empty());
             }
+            "xterm_osc_capability_queries" => {
+                assert_eq!(terminal.title(), "osc60-62-capability-corpus-ok");
+                assert_eq!(
+                    terminal.drain_responses(),
+                    b"\x1b]60;allowColorOps,allowTitleOps\x1b\\\x1b]61;Locator,VT200Hilite\x07\x1b]62;SetColor,GetColor,GetAnsiColor\x1b\\"
+                );
+            }
             "osc1337_annotations" => {
                 let annotations = terminal
                     .poll_events()

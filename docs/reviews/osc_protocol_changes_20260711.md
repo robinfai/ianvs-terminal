@@ -590,3 +590,33 @@ safety-policy reason documented in `osc_cross_terminal_probe_20260711.md`.
 - **Compatibility:** no schema changes; existing optional tab-color state is
   reused and xterm OSC 6/106 semantics remain intact.
 - **Rollback:** revert the Phase 36 implementation commit.
+
+## Phase 37 report — xterm OSC 60/61/62 capability queries
+
+- **Start SHA:** `e860728f150f`.
+- **Confirmed gap:** xterm's read-only XTQALLOWED, XTQDISALLOWED and
+  XTQALLOWABLE queries were classified as custom protocol and consumed without
+  a reply.
+- **Fixes:** exact OSC 60/61/62 query grammar, BEL/ST reply mirroring, official
+  Patch #410 category tables, conservative effective-policy mapping, strict
+  reply-loop suppression and VT220/custom-policy gates.
+- **Review corrections:** OSC 61 follows xterm's parent/fallback model;
+  `SetWinSizeChars` remains denied because the current parser does not implement
+  that request; the macOS real-PTY Python child now retains its TTY by using
+  `python3 -c` instead of a heredoc.
+- **Security:** fixed terminal-owned names and booleans only; no policy grant,
+  user-data disclosure, host action, state mutation or resize replay.
+- **Tests/results:** targeted parser, shared corpus/probe, native real-PTY,
+  VT220 and macOS application integration coverage pass. Two consecutive full
+  repository verifier runs passed after the final fix: 1,712 vendored tests
+  passed with one existing ignored test, native session 505/505, example
+  grouped 954/954, Widget 130/130, macOS smoke 4/4, product real PTY 41/41 and
+  RunnerTests 15/15.
+- **Computer Use:** the verifier-built standalone app visibly reported the
+  child-side exact reply comparison `CU37-OSC60-62:PASS`, accepted
+  `CU37-AFTER:continued`, returned to zsh for `CU37-SHELL-AFTER`, and exited via
+  the confirmed Quit action. Full evidence is recorded in
+  `xterm_osc60_62_capability_queries_phase37_20260714.md`.
+- **Compatibility:** no schema changes; exact unknown/malformed/reply-shaped
+  forms remain silent, while valid replies return directly to the child PTY.
+- **Rollback:** revert the Phase 37 implementation commit.

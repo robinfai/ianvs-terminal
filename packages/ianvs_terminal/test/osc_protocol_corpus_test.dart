@@ -40,6 +40,11 @@ const Set<String> _requiredCoverage = <String>{
   'iTerm2 and xterm OSC 6 coexistence',
   'iTerm2 OSC 6 malformed value fail-closed handling',
   'iTerm2 OSC 6 mixed BEL/ST and fragmented ST termination',
+  'xterm OSC 60 allowed categories',
+  'xterm OSC 61 disallowed subcategories',
+  'xterm OSC 62 allowable subcategories',
+  'xterm OSC capability mixed BEL/ST and fragmented ST termination',
+  'xterm OSC capability reply-loop suppression',
   'OSC 1337 clear buffer',
   'iTerm2 OSC 1337 cursor guide',
   'iTerm2 OSC 1337 clipboard write',
@@ -311,6 +316,16 @@ void _validateFixture(String id, Map<String, Object?> fixture) {
     expect(text, contains('bg;*;default\x1b\\'));
     expect(text, contains('\x1b]6;0;1\x1b\\'));
     expect(text, endsWith('\x1b]2;osc6-iterm-tab-color-corpus-ok\x1b\\'));
+  } else if (id == 'xterm_osc_capability_queries') {
+    final text = latin1.decode(stream);
+    expect(RegExp(r'\x1b]6[012]').allMatches(text), hasLength(5));
+    expect(text, contains('\x1b]60\x1b\\'));
+    expect(text, contains('\x1b]61;allowMouseOps\x07'));
+    expect(text, contains('\x1b]62;allowColorOps\x1b\\'));
+    expect(text, contains('\x1b]60;reply-like\x1b\\'));
+    expect(text, contains('\x1b]61;unknown\x1b\\'));
+    expect(chunks[1].last, 0x1b);
+    expect(chunks[2].first, 0x5c);
   } else if (id == 'osc133_semantic_prompt_aid') {
     final text = latin1.decode(stream);
     expect(RegExp(r'\x1b]133;').allMatches(text), hasLength(5));

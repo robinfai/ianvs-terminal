@@ -58,6 +58,11 @@ REQUIRED_COVERAGE = {
     "iTerm2 and xterm OSC 6 coexistence",
     "iTerm2 OSC 6 malformed value fail-closed handling",
     "iTerm2 OSC 6 mixed BEL/ST and fragmented ST termination",
+    "xterm OSC 60 allowed categories",
+    "xterm OSC 61 disallowed subcategories",
+    "xterm OSC 62 allowable subcategories",
+    "xterm OSC capability mixed BEL/ST and fragmented ST termination",
+    "xterm OSC capability reply-loop suppression",
     "OSC 1337 clear buffer",
     "iTerm2 OSC 1337 cursor guide",
     "iTerm2 OSC 1337 clipboard write",
@@ -248,6 +253,17 @@ def validate_case(case: Any) -> set[str]:
         require(
             stream.endswith(b"\x1b]2;osc6-iterm-tab-color-corpus-ok\x1b\\"),
             f"{case_id}: parser recovery",
+        )
+    elif case_id == "xterm_osc_capability_queries":
+        require(stream.count(b"\x1b]60") == 2, f"{case_id}: OSC 60 count")
+        require(stream.count(b"\x1b]61") == 2, f"{case_id}: OSC 61 count")
+        require(stream.count(b"\x1b]62") == 1, f"{case_id}: OSC 62 count")
+        require(b"\x1b]61;allowMouseOps\x07" in stream, case_id)
+        require(b"\x1b]60;reply-like\x1b\\" in stream, case_id)
+        require(b"\x1b]61;unknown\x1b\\" in stream, case_id)
+        require(
+            chunks[1].endswith(b"\x1b") and chunks[2].startswith(b"\\"),
+            f"{case_id}: fragmented ST",
         )
     elif case_id == "osc1337_clear_buffer":
         require(stream.count(b"\x1b]") == 2, f"{case_id}: sequence count")

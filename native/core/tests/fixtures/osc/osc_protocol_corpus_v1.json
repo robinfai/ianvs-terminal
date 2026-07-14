@@ -813,6 +813,32 @@
         "reply": "none",
         "must_not_crash": true
       }
+    },
+    {
+      "id": "xterm_osc_capability_queries",
+      "coverage": [
+        "xterm OSC 60 allowed categories",
+        "xterm OSC 61 disallowed subcategories",
+        "xterm OSC 62 allowable subcategories",
+        "xterm OSC capability mixed BEL/ST and fragmented ST termination",
+        "xterm OSC capability reply-loop suppression"
+      ],
+      "protocol": "xterm OSC 60/61/62 capability queries",
+      "wire": {
+        "sequence_count": 6,
+        "chunks_hex": [
+          "1b5d36301b5c1b5d36313b616c6c6f774d6f7573654f7073071b",
+          "5d36323b616c6c6f77436f6c6f724f70731b",
+          "5c1b5d36303b7265706c792d6c696b651b5c1b5d36313b756e6b6e6f776e1b5c1b5d323b6f736336302d36322d6361706162696c6974792d636f727075732d6f6b1b5c"
+        ]
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "terminal_owned_capability_query",
+        "state_effect": "the exact three queries report current top-level permission and official subcategory tables, reply-shaped and unknown payloads stay silent, and later OSC parsing continues",
+        "reply": "OSC 60;allowColorOps,allowTitleOps ST; OSC 61;Locator,VT200Hilite BEL; OSC 62;SetColor,GetColor,GetAnsiColor ST",
+        "must_not_crash": true
+      }
     }
   ]
 }

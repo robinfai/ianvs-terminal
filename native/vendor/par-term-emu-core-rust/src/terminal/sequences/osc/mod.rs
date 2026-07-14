@@ -1,5 +1,6 @@
 //! OSC (Operating System Command) sequence handling dispatcher
 
+mod capability;
 mod clipboard;
 mod color;
 mod context;
@@ -127,7 +128,7 @@ impl Terminal {
     pub(in crate::terminal) fn osc_dispatch_impl(
         &mut self,
         params: &[&[u8]],
-        _bell_terminated: bool,
+        bell_terminated: bool,
     ) {
         debug::log_osc_dispatch(params);
         if params.is_empty() {
@@ -169,6 +170,9 @@ impl Terminal {
                 "9" | "99" | "777" | "934" => self.handle_osc_notify(command, params),
                 "52" => self.handle_osc_clipboard(command, params),
                 "22" => self.handle_osc_pointer_shape(params),
+                "60" | "61" | "62" => {
+                    self.handle_osc_capability_query(command, params, bell_terminated)
+                }
                 "66" => self.handle_osc_sized_text(params),
                 "72" => self.handle_osc_drag_drop(params),
                 "4" | "5" | "6" | "10" | "11" | "12" | "13" | "14" | "15" | "16" | "17" | "18"

@@ -264,6 +264,16 @@ PROBES = {
         + osc("17;#112233;#181818;#ddeeff")
         + osc("17;?;?;?"),
     ),
+    "xterm_capability_queries": Probe(
+        "xterm_capability_queries",
+        "xterm OSC 60/61/62",
+        "Query enabled top-level operation categories, disabled mouse subcategories, and all allowable color subcategories.",
+        "The terminal replies with its current color/title categories, Locator/VT200Hilite deny-list, and Set/Get color operation table.",
+        "terminal-owned capability metadata only; cannot mutate policy or authorize an operation",
+        osc("60")
+        + osc("61;allowMouseOps", bell=True)
+        + osc("62;allowColorOps"),
+    ),
     "iterm_color_extensions": Probe(
         "iterm_color_extensions",
         "iTerm2 OSC 4 and OSC 1337 SetColors",
@@ -430,6 +440,7 @@ def self_test() -> None:
         "terminal_context",
         "color_control",
         "xterm_special_colors",
+        "xterm_capability_queries",
         "iterm_color_extensions",
         "iterm_tab_color",
         "osc23_noop",
@@ -508,6 +519,10 @@ def self_test() -> None:
         raise ValueError("iTerm OSC 6 tab-color fixture is malformed")
     if b"blue;brightness;64" not in PROBES["iterm_tab_color"].payload:
         raise ValueError("iTerm OSC 6 tab-color blue component is missing")
+    if PROBES["xterm_capability_queries"].payload.count(b"\x1b]") != 3:
+        raise ValueError("xterm OSC capability query fixture is malformed")
+    if b"\x1b]61;allowMouseOps\x07" not in PROBES["xterm_capability_queries"].payload:
+        raise ValueError("xterm OSC 61 BEL query is missing")
     if PROBES["osc23_noop"].payload.count(b"\x1b]") != 2:
         raise ValueError("OSC 23 no-op fixture is malformed")
     if PROBES["pointer_shape"].payload.count(b"\x1b]22;") != 3:

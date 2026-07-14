@@ -1757,6 +1757,26 @@ fn osc934_query_profile() -> TerminalProfile {
     )
 }
 
+fn xterm_capability_query_profile(emulation: TerminalEmulation) -> TerminalProfile {
+    local_profile(
+        "xterm-capability-query",
+        "xterm OSC Capability Query",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import os,select,sys,termios,time,tty; old=termios.tcgetattr(0); tty.setraw(0); time.sleep(0.2); os.write(1,b"\x1b]60\x1b\\\x1b]61;allowMouseOps\x07\x1b]62;allowColorOps\x1b\\\x1b]60;reply-like\x1b\\\x1b]61;unknown\x1b\\"); sys.stdout.flush(); data=b""; deadline=time.time()+2.0
+while time.time()<deadline:
+ ready,_,_=select.select([0],[],[],0.1)
+ if ready: data+=os.read(0,4096)
+ if data.count(b"\x1b]")>=3 and data.endswith(b"\x1b\\"): break
+termios.tcsetattr(0,termios.TCSANOW,old); data=data or b"TIMEOUT"; os.write(1,b"OSC60-62-RESPONSE:"+repr(data).encode()+b"\n"); token=sys.stdin.buffer.readline(); os.write(1,b"OSC60-62-AFTER:"+repr(token).encode()+b"\n")'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        emulation,
+    )
+}
+
 fn osc99_notification_lifecycle_profile() -> TerminalProfile {
     local_profile(
         "osc99-notification-lifecycle",
@@ -17905,6 +17925,52 @@ fn session_osc934_query_reports_static_versioned_capability() {
             r"OSC934-RESPONSE:b'\x1b]934;capability;ianvs-osc934/1;actions=set,remove,remove_all;states=normal,indeterminate,warning,error,hidden\x1b\\'"
         ),
         "expected OSC 934 query to report only the static versioned capability: {visible}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_xterm_osc60_61_62_queries_round_trip_over_real_pty_without_replay() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&xterm_capability_query_profile(TerminalEmulation::Xterm256))
+            .unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "OSC60-62-RESPONSE");
+    let visible = logical_rows_from_frame(&frame).join("\n");
+    assert!(
+        visible.contains(
+            r"OSC60-62-RESPONSE:b'\x1b]60;allowColorOps,allowTitleOps\x1b\\\x1b]61;Locator,VT200Hilite\x07\x1b]62;SetColor,GetColor,GetAnsiColor\x1b\\'"
+        ),
+        "expected exact OSC 60/61/62 replies and no reply-shaped echo: {visible}"
+    );
+
+    session::resize_session(session_id, 96, 28, 960, 560).unwrap();
+    session::write_session(session_id, b"continued\n").unwrap();
+    let after = wait_for_frame_containing(session_id, "OSC60-62-AFTER");
+    let after_visible = logical_rows_from_frame(&after).join("\n");
+    assert!(
+        after_visible.contains(r"OSC60-62-AFTER:b'continued\n'"),
+        "resize replay must not inject a historical capability response: {after_visible}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_sessions_gate_xterm_osc60_61_62_queries() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&xterm_capability_query_profile(TerminalEmulation::Vt220)).unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "OSC60-62-RESPONSE");
+    let visible = logical_rows_from_frame(&frame).join("\n");
+    assert!(
+        visible.contains("OSC60-62-RESPONSE:b'TIMEOUT'"),
+        "VT220 must not expose xterm OSC capability-query support: {visible}"
     );
 
     session::close_session(session_id).unwrap();

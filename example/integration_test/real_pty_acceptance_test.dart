@@ -1126,6 +1126,85 @@ sleep 1
   );
 
   testWidgets(
+    'real PTY xterm OSC 60 61 62 replies exactly and keeps input interactive',
+    (tester) async {
+      final profile = _scriptProfile(
+        id: 'xterm-osc-capability-real-pty',
+        name: 'xterm OSC Capability Real PTY',
+        script: r'''
+python3 -c '
+import os
+import select
+import sys
+import termios
+import time
+import tty
+
+os.write(1, b"xterm-osc-capability-ready\n")
+old = termios.tcgetattr(0)
+tty.setraw(0)
+time.sleep(0.2)
+os.write(
+    1,
+    b"\x1b]60\x1b\\"
+    b"\x1b]61;allowMouseOps\x07"
+    b"\x1b]62;allowColorOps\x1b\\"
+    b"\x1b]60;reply-like\x1b\\"
+    b"\x1b]61;unknown\x1b\\",
+)
+data = b""
+deadline = time.time() + 2.0
+while time.time() < deadline:
+    ready, _, _ = select.select([0], [], [], 0.1)
+    if ready:
+        data += os.read(0, 4096)
+    if data.count(b"\x1b]") >= 3 and data.endswith(b"\x1b\\"):
+        break
+termios.tcsetattr(0, termios.TCSANOW, old)
+expected = (
+    b"\x1b]60;allowColorOps,allowTitleOps\x1b\\"
+    b"\x1b]61;Locator,VT200Hilite\x07"
+    b"\x1b]62;SetColor,GetColor,GetAnsiColor\x1b\\"
+)
+os.write(1, b"OSC60-62-EXACT:" + (b"PASS" if data == expected else repr(data).encode()) + b"\n")
+token = sys.stdin.buffer.readline().strip()
+os.write(1, b"OSC60-62-AFTER:" + token + b"\n")
+time.sleep(1)
+'
+''',
+      );
+      final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
+
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'xterm OSC capability real PTY ready marker',
+        matches: (text) => text.contains('xterm-osc-capability-ready'),
+      );
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'exact xterm OSC 60 61 62 child-side comparison',
+        matches: (text) => text.contains('OSC60-62-EXACT:PASS'),
+      );
+
+      final sessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      harness.container
+          .read(terminalRuntimeControllerProvider)
+          .sendInput(sessionId, Uint8List.fromList(utf8.encode('continued\n')));
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'xterm OSC capability continued real PTY input',
+        matches: (text) => text.contains('OSC60-62-AFTER:continued'),
+      );
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
     'real PTY OSC 22 updates pointer shape independently of mouse reporting',
     (tester) async {
       final goFile = _tempSignalFile('osc22-pointer-shape');

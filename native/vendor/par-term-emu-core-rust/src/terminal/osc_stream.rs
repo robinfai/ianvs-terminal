@@ -737,6 +737,9 @@ fn classify_osc(
             }
         }
         b"99" | b"777" => Classification::new(OscIntent::Notification, OscCapability::Notification),
+        b"60" | b"61" | b"62" => {
+            Classification::new(OscIntent::Custom, OscCapability::CustomProtocol)
+        }
         // Ianvs-private progress/capability protocol has its own documented
         // 8 KiB bound, independent of the generic custom-protocol limit.
         b"934" => Classification::new(OscIntent::IanvsPrivate, OscCapability::CustomProtocol),
