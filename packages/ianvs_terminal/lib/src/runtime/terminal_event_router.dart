@@ -26,6 +26,7 @@ enum TerminalImmediateEventKind {
   fileDownloadFailed,
   fileUploadDenied,
   cellSizeReportRequest,
+  clearCapturedOutput,
   reportVariableRequest,
   openUrlRequest,
   attentionRequest,
@@ -154,6 +155,10 @@ final class TerminalEventRouter {
       ),
       'cell_size_report_request' => TerminalImmediateEventRoute(
         kind: TerminalImmediateEventKind.cellSizeReportRequest,
+        payload: event.payload,
+      ),
+      'clear_captured_output' => TerminalImmediateEventRoute(
+        kind: TerminalImmediateEventKind.clearCapturedOutput,
         payload: event.payload,
       ),
       'report_variable_request' => TerminalImmediateEventRoute(

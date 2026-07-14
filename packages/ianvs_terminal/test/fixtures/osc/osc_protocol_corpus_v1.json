@@ -738,6 +738,32 @@
       }
     },
     {
+      "id": "osc1337_clear_captured_output",
+      "coverage": [
+        "iTerm2 OSC 1337 ClearCapturedOutput exact command",
+        "iTerm2 OSC 1337 ClearCapturedOutput mixed BEL/ST termination",
+        "iTerm2 OSC 1337 ClearCapturedOutput fragmented ST termination",
+        "iTerm2 OSC 1337 ClearCapturedOutput malformed suffix fail-closed handling"
+      ],
+      "protocol": "iTerm2 OSC 1337 ClearCapturedOutput",
+      "wire": {
+        "sequence_count": 4,
+        "chunks_hex": [
+          "1b5d313333373b436c65617243617074757265644f757470757407434150545552452d434c4541522d410d0a",
+          "1b5d313333373b436c65617243617074757265644f7574",
+          "7075741b",
+          "5c434150545552452d434c4541522d420d0a1b5d313333373b436c65617243617074757265644f75747075743d31071b5d323b6f7363313333372d636c6561722d63617074757265642d6f75747075742d636f727075732d6f6b1b5c"
+        ]
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "clear_session_captured_output",
+        "state_effect": "two exact requests clear only the originating session's product-owned captured-output collection; a suffixed command is ignored and terminal text/title parsing continues",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
       "id": "osc1337_unicode_version",
       "coverage": [
         "iTerm2 OSC 1337 UnicodeVersion 8 and 9 cell widths",

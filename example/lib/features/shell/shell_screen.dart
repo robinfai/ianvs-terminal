@@ -266,6 +266,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   List<_TerminalAnnotation> _annotations = const [];
   final GlobalKey<_AnnotationsSheetState> _annotationSheetKey = GlobalKey();
   List<_CapturedOutputEntry> _capturedOutputEntries = const [];
+  final GlobalKey<_CapturedOutputSheetState> _capturedOutputSheetKey =
+      GlobalKey();
+  String? _capturedOutputSheetSessionId;
   Map<String, _ShellCoprocess> _coprocesses = const {};
   bool _pasteHistoryPersistToDisk = false;
   bool _pasteHistoryLoaded = false;

@@ -137,6 +137,14 @@ PROBES = {
         + osc("1337;UnicodeVersion=pop ianvs-probe", bell=True)
         + "Restored 8: ☕|".encode("utf-8"),
     ),
+    "iterm_clear_captured_output": Probe(
+        "iterm_clear_captured_output",
+        "iTerm2 OSC 1337 ClearCapturedOutput",
+        "Clear the originating session's current product-owned captured-output collection.",
+        "Existing captured-output entries for only the originating session disappear; terminal text, scrollback, and other sessions remain unchanged.",
+        "terminal-local product state only; no reply or host action",
+        osc("1337;ClearCapturedOutput", bell=True),
+    ),
     "iterm_report_variable": Probe(
         "iterm_report_variable",
         "iTerm2 OSC 1337 ReportVariable",
@@ -400,6 +408,7 @@ def self_test() -> None:
         "iterm_annotations",
         "iterm_inline_buttons",
         "iterm_unicode_version",
+        "iterm_clear_captured_output",
         "iterm_report_variable",
         "iterm_request_attention",
         "clipboard_query",
@@ -453,6 +462,10 @@ def self_test() -> None:
         "iterm_unicode_version"
     ].payload:
         raise ValueError("iTerm2 OSC 1337 UnicodeVersion labels are malformed")
+    if PROBES["iterm_clear_captured_output"].payload != osc(
+        "1337;ClearCapturedOutput", bell=True
+    ):
+        raise ValueError("iTerm2 OSC 1337 ClearCapturedOutput fixture is malformed")
     if PROBES["iterm_report_variable"].payload.count(
         b"\x1b]1337;ReportVariable="
     ) != 2:

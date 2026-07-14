@@ -793,6 +793,8 @@ fn classify_osc_1337(
         || (!complete && b"SetMark".starts_with(payload))
         || payload == b"ClearScrollback"
         || (!complete && b"ClearScrollback".starts_with(payload))
+        || payload == b"ClearCapturedOutput"
+        || (!complete && b"ClearCapturedOutput".starts_with(payload))
         || payload.starts_with(b"ShellIntegrationVersion=")
         || (!complete && b"ShellIntegrationVersion=".starts_with(payload))
         || payload.starts_with(b"AddAnnotation=")
@@ -1063,6 +1065,7 @@ mod tests {
         let context = OscClassificationContext::default();
         let mark = b"\x1b]1337;SetMark\x1b\\";
         let version = b"\x1b]1337;ShellIntegrationVersion=17;zsh\x07";
+        let clear_captured = b"\x1b]1337;ClearCapturedOutput\x1b\\";
         let cell_query = b"\x1b]1337;ReportCellSize\x1b\\";
         let unicode_version = b"\x1b]1337;UnicodeVersion=8\x1b\\";
 
@@ -1071,11 +1074,12 @@ mod tests {
         let mut gate = OscStreamGate::default();
         assert!(filter_owned(&mut gate, mark, metadata_denied, context).is_empty());
         assert!(filter_owned(&mut gate, version, metadata_denied, context).is_empty());
+        assert!(filter_owned(&mut gate, clear_captured, metadata_denied, context).is_empty());
         assert_eq!(
             gate.diagnostics()
                 .for_intent(OscIntent::ShellIntegration)
                 .policy_denied,
-            2
+            3
         );
         assert_eq!(
             filter_owned(&mut gate, cell_query, metadata_denied, context),
@@ -1100,6 +1104,10 @@ mod tests {
         assert_eq!(
             filter_owned(&mut gate, mark, appearance_denied, context),
             mark
+        );
+        assert_eq!(
+            filter_owned(&mut gate, clear_captured, appearance_denied, context),
+            clear_captured
         );
     }
 

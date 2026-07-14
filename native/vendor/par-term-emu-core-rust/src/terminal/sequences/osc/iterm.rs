@@ -79,6 +79,9 @@ impl Terminal {
                 self.handle_iterm_update_block(payload);
             } else if let Some(payload) = data.strip_prefix("Button=") {
                 self.handle_iterm_button(payload);
+            } else if data == "ClearCapturedOutput" {
+                self.terminal_events
+                    .push(TerminalEvent::ItermClearCapturedOutputRequested);
             } else if data == "ClearScrollback" {
                 self.handle_iterm_clear_buffer();
             } else if data == "HighlightCursorLine" {
@@ -1057,6 +1060,40 @@ mod tests {
                 .filter(|event| matches!(event, TerminalEvent::CellSizeReportRequested))
                 .count(),
             1
+        );
+    }
+
+    #[test]
+    fn clear_captured_output_is_an_exact_session_event_without_grid_mutation() {
+        let mut terminal = Terminal::new(40, 3);
+        terminal.process(b"retained-output\r\n\x1b]2;captured-sentinel\x07");
+        terminal.poll_events();
+
+        terminal.process(b"\x1b]1337;ClearCapturedOutput\x07");
+        let split = b"\x1b]1337;ClearCapturedOutput\x1b\\";
+        for byte in split {
+            terminal.process(std::slice::from_ref(byte));
+        }
+        for invalid in [
+            b"\x1b]1337;ClearCapturedOutput=1\x07".as_slice(),
+            b"\x1b]1337;ClearCapturedOutput;extra\x1b\\".as_slice(),
+            b"\x1b]1337;clearcapturedoutput\x07".as_slice(),
+        ] {
+            terminal.process(invalid);
+        }
+
+        assert_eq!(terminal.title(), "captured-sentinel");
+        assert!(terminal
+            .active_grid()
+            .row_text(0)
+            .contains("retained-output"));
+        assert_eq!(
+            terminal
+                .poll_events()
+                .into_iter()
+                .filter(|event| matches!(event, TerminalEvent::ItermClearCapturedOutputRequested))
+                .count(),
+            2
         );
     }
 

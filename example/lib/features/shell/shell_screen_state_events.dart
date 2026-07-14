@@ -92,6 +92,10 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       case terminal.TerminalSessionCellSizeReportRequestEvent():
         // The reusable runtime already replied using its committed cell metric.
         break;
+      case terminal.TerminalSessionClearCapturedOutputEvent():
+        if (event.isValid) {
+          _clearCapturedOutput(event.sessionId);
+        }
       case terminal.TerminalSessionReportVariableRequestEvent():
         _handleOsc1337ReportVariableRequest(event);
       case terminal.TerminalSessionOpenUrlRequestEvent():

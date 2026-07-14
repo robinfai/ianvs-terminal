@@ -221,6 +221,27 @@ final class TerminalSessionCellSizeReportRequestEvent
   const TerminalSessionCellSizeReportRequestEvent(super.sessionId);
 }
 
+/// An iTerm2 OSC 1337 request to clear product-owned captured output for the
+/// originating session.
+///
+/// The terminal grid and scrollback are intentionally unaffected. Product
+/// code should ignore malformed/unknown sources and must not clear another
+/// session's collection.
+final class TerminalSessionClearCapturedOutputEvent
+    extends TerminalSessionEvent {
+  TerminalSessionClearCapturedOutputEvent(
+    super.sessionId, {
+    Map<String, Object?>? rawPayload,
+  }) : rawPayload = Map.unmodifiable(rawPayload ?? const <String, Object?>{});
+
+  final Map<String, Object?> rawPayload;
+
+  String? get source =>
+      rawPayload['source'] is String ? rawPayload['source'] as String : null;
+
+  bool get isValid => source == 'iterm1337';
+}
+
 /// An untrusted iTerm2 OSC 1337 variable disclosure request.
 ///
 /// The native parser has decoded the variable name. A candidate value resolved
@@ -2528,6 +2549,15 @@ class TerminalRuntimeController {
           sessionId,
           sessionEpoch,
           TerminalSessionCellSizeReportRequestEvent(sessionId),
+        );
+      case TerminalImmediateEventKind.clearCapturedOutput:
+        _emitEventIfCurrent(
+          sessionId,
+          sessionEpoch,
+          TerminalSessionClearCapturedOutputEvent(
+            sessionId,
+            rawPayload: route.payload,
+          ),
         );
       case TerminalImmediateEventKind.reportVariableRequest:
         _handleReportVariableRequest(sessionId, sessionEpoch, route.payload);

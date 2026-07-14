@@ -364,6 +364,92 @@ sleep 5
   );
 
   testWidgets(
+    'real PTY OSC 1337 ClearCapturedOutput updates the open session sheet',
+    (tester) async {
+      final goFile = _tempSignalFile('osc1337-clear-captured-output');
+      final profile = _scriptProfile(
+        id: 'osc1337-clear-captured-output',
+        name: 'OSC 1337 Clear Captured Output',
+        script: r'''
+printf 'CAPTURE-ME-PHASE35\n'
+while [ ! -f "$GO_FILE" ]; do sleep 0.05; done
+printf '\033]1337;ClearCapturedOutput=1\a'
+printf '\033]1337;ClearCapturedOutput\033\\'
+printf 'OSC1337-CAPTURE-CLEAR-DONE\n'
+IFS= read -r token
+printf 'OSC1337-CAPTURE-CLEAR-AFTER:%s\n' "$token"
+sleep 1
+''',
+        env: {'GO_FILE': goFile.path},
+        triggers: const [TerminalProfileTrigger(pattern: 'CAPTURE-ME-PHASE35')],
+      );
+      final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
+
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'OSC 1337 captured-output source row',
+        matches: (text) => text.contains('CAPTURE-ME-PHASE35'),
+      );
+      await _openToolbelt(tester);
+      await tester.tap(find.byKey(const Key('toolbelt-tab-captured-output')));
+      await _waitFor(
+        tester,
+        description: 'OSC 1337 captured-output panel',
+        condition: () => find
+            .byKey(const Key('toolbelt-panel-captured-output'))
+            .evaluate()
+            .isNotEmpty,
+      );
+      await tester.tap(find.byKey(const Key('toolbelt-captured-output')));
+      await _waitFor(
+        tester,
+        description: 'OSC 1337 captured-output source entry',
+        condition: () => find.text('CAPTURE-ME-PHASE35').evaluate().isNotEmpty,
+      );
+
+      _signal(goFile);
+      await _waitFor(
+        tester,
+        description: 'OSC 1337 cleared open captured-output sheet',
+        condition: () =>
+            find
+                .byKey(const Key('captured-output-sheet'))
+                .evaluate()
+                .isNotEmpty &&
+            find.text('CAPTURE-ME-PHASE35').evaluate().isEmpty &&
+            find
+                .byKey(const Key('captured-output-empty-state'))
+                .evaluate()
+                .isNotEmpty,
+      );
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'OSC 1337 clear leaves terminal output intact',
+        matches: (text) =>
+            text.contains('CAPTURE-ME-PHASE35') &&
+            text.contains('OSC1337-CAPTURE-CLEAR-DONE'),
+      );
+
+      final sessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      harness.container
+          .read(terminalRuntimeControllerProvider)
+          .sendInput(sessionId, Uint8List.fromList(utf8.encode('continued\n')));
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'OSC 1337 clear keeps the real PTY interactive',
+        matches: (text) =>
+            text.contains('OSC1337-CAPTURE-CLEAR-AFTER:continued'),
+      );
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
     'real PTY inactive wrapped output sends a logical activity notification',
     (tester) async {
       final prefixLengthFile = _tempSignalFile('activity-wrapped');

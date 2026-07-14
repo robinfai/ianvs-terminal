@@ -235,6 +235,13 @@ pub enum TerminalEvent {
     },
     /// iTerm2 requested the current rendered character-cell size.
     CellSizeReportRequested,
+    /// iTerm2 requested that the product clear its session-scoped captured
+    /// output collection.
+    ///
+    /// This is intentionally an event rather than a terminal-grid mutation:
+    /// embedders own captured-output presentation and must scope the clear to
+    /// the originating session.
+    ItermClearCapturedOutputRequested,
     /// iTerm2 requested the value of a terminal/session variable.
     ///
     /// This event carries the decoded variable name only. Embedders must
@@ -417,6 +424,9 @@ impl TerminalEvent {
                 TerminalEventKind::ShellIntegrationVersion
             }
             TerminalEvent::CellSizeReportRequested => TerminalEventKind::CellSizeReportRequested,
+            TerminalEvent::ItermClearCapturedOutputRequested => {
+                TerminalEventKind::ItermClearCapturedOutputRequested
+            }
             TerminalEvent::ItermReportVariableRequested { .. } => {
                 TerminalEventKind::ItermReportVariableRequested
             }
@@ -527,6 +537,7 @@ impl TerminalEvent {
             | Self::ZoneScrolledOut { .. }
             | Self::FileTransferProgress { .. }
             | Self::CellSizeReportRequested
+            | Self::ItermClearCapturedOutputRequested
             | Self::ItermAttentionRequested { .. }
             | Self::ScreenCleared { .. }
             | Self::TerminalReset => 0,
@@ -556,6 +567,7 @@ pub enum TerminalEventKind {
     ShellIntegrationEvent,
     ShellIntegrationVersion,
     CellSizeReportRequested,
+    ItermClearCapturedOutputRequested,
     ItermReportVariableRequested,
     ItermOpenUrlRequested,
     ItermAttentionRequested,

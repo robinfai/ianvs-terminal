@@ -275,21 +275,29 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
 
   Future<void> _openCapturedOutput(String sessionId) async {
     final animationsEnabled = ref.read(shellAnimationsEnabledProvider);
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      sheetAnimationStyle: animationsEnabled
-          ? null
-          : AnimationStyle.noAnimation,
-      builder: (sheetContext) {
-        return _CapturedOutputSheet(
-          entries: _capturedOutputForSession(sessionId),
-          onClear: () => _clearCapturedOutput(sessionId),
-          onCopy: (text) => unawaited(ClipboardBridge.copy(text)),
-        );
-      },
-    );
+    _capturedOutputSheetSessionId = sessionId;
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        isScrollControlled: true,
+        sheetAnimationStyle: animationsEnabled
+            ? null
+            : AnimationStyle.noAnimation,
+        builder: (sheetContext) {
+          return _CapturedOutputSheet(
+            key: _capturedOutputSheetKey,
+            entries: _capturedOutputForSession(sessionId),
+            onClear: () => _clearCapturedOutput(sessionId),
+            onCopy: (text) => unawaited(ClipboardBridge.copy(text)),
+          );
+        },
+      );
+    } finally {
+      if (_capturedOutputSheetSessionId == sessionId) {
+        _capturedOutputSheetSessionId = null;
+      }
+    }
   }
 
   void _clearCapturedOutput(String sessionId) {
@@ -298,6 +306,9 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
         for (final entry in _capturedOutputEntries)
           if (entry.sessionId != sessionId) entry,
       ];
+      if (_capturedOutputSheetSessionId == sessionId) {
+        _capturedOutputSheetKey.currentState?.replaceEntries(const []);
+      }
       return;
     }
     _mutateState(() {
@@ -306,6 +317,9 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
           if (entry.sessionId != sessionId) entry,
       ];
     });
+    if (_capturedOutputSheetSessionId == sessionId) {
+      _capturedOutputSheetKey.currentState?.replaceEntries(const []);
+    }
   }
 
   String _selectionTextForSession(

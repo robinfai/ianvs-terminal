@@ -6636,6 +6636,54 @@ void main() {
     },
   );
 
+  testWidgets('OSC 1337 ClearCapturedOutput stays session-scoped and typed', (
+    tester,
+  ) async {
+    final backend = _FakePtyBackend();
+    final runtime = TerminalRuntimeController(
+      backend: backend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    await tester.pump();
+    final events = <TerminalSessionEvent>[];
+    final subscription = runtime.events.listen(events.add);
+    addTearDown(subscription.cancel);
+    backend.enqueueEvent(
+      sessionId,
+      PtyEvent(
+        kind: 'clear_captured_output',
+        sessionId: sessionId,
+        payload: const <String, Object?>{'source': 'iterm1337'},
+      ),
+    );
+
+    runtime.sendInput(sessionId, Uint8List(0));
+    await tester.pump();
+
+    final request = events
+        .whereType<TerminalSessionClearCapturedOutputEvent>()
+        .single;
+    expect(request.sessionId, sessionId);
+    expect(request.source, 'iterm1337');
+    expect(request.isValid, isTrue);
+    expect(
+      TerminalSessionClearCapturedOutputEvent(
+        sessionId,
+        rawPayload: const <String, Object?>{'source': 'unknown'},
+      ).isValid,
+      isFalse,
+    );
+    expect(TerminalSessionClearCapturedOutputEvent(sessionId).isValid, isFalse);
+  });
+
   testWidgets('OSC 1337 RequestAttention stays a strict typed request', (
     tester,
   ) async {

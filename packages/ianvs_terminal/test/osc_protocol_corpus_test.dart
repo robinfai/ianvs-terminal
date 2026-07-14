@@ -61,6 +61,10 @@ const Set<String> _requiredCoverage = <String>{
   'iTerm2 OSC 1337 UnicodeVersion labeled push and pop',
   'iTerm2 OSC 1337 UnicodeVersion malformed version fail-closed handling',
   'iTerm2 OSC 1337 UnicodeVersion mixed BEL/ST termination',
+  'iTerm2 OSC 1337 ClearCapturedOutput exact command',
+  'iTerm2 OSC 1337 ClearCapturedOutput mixed BEL/ST termination',
+  'iTerm2 OSC 1337 ClearCapturedOutput fragmented ST termination',
+  'iTerm2 OSC 1337 ClearCapturedOutput malformed suffix fail-closed handling',
   'OSC 3008 hierarchy',
   'OSC 3008 malformed close recovery',
   'tmux passthrough fixture',
@@ -270,6 +274,19 @@ void _validateFixture(String id, Map<String, Object?> fixture) {
     expect(text, contains('ReportVariable=c2Vzc2lvbi5jb2x1bW5z\x1b\\'));
     expect(text, contains('ReportVariable=%%%\x07'));
     expect(text, endsWith('\x1b]2;osc1337-report-variable-corpus-ok\x1b\\'));
+  } else if (id == 'osc1337_clear_captured_output') {
+    final text = latin1.decode(stream);
+    expect(
+      RegExp(r'\x1b]1337;ClearCapturedOutput').allMatches(text),
+      hasLength(3),
+    );
+    expect(text, contains('ClearCapturedOutput\x07'));
+    expect(text, contains('ClearCapturedOutput\x1b\\'));
+    expect(text, contains('ClearCapturedOutput=1\x07'));
+    expect(
+      text,
+      endsWith('\x1b]2;osc1337-clear-captured-output-corpus-ok\x1b\\'),
+    );
   } else if (id == 'osc1337_unicode_version') {
     final text = latin1.decode(stream);
     expect(RegExp(r'\x1b]1337;UnicodeVersion=').allMatches(text), hasLength(5));

@@ -1191,6 +1191,9 @@ class SessionController extends Notifier<SessionState> {
       case TerminalSessionCellSizeReportRequestEvent():
         // TerminalRuntimeController owns the immediate protocol reply.
         break;
+      case TerminalSessionClearCapturedOutputEvent():
+        // ShellScreen owns the product-scoped captured-output collection.
+        break;
       case TerminalSessionReportVariableRequestEvent():
         _replyToOsc1337ReportVariable(event);
         break;

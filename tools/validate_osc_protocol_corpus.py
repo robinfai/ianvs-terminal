@@ -75,6 +75,10 @@ REQUIRED_COVERAGE = {
     "iTerm2 OSC 1337 UnicodeVersion labeled push and pop",
     "iTerm2 OSC 1337 UnicodeVersion malformed version fail-closed handling",
     "iTerm2 OSC 1337 UnicodeVersion mixed BEL/ST termination",
+    "iTerm2 OSC 1337 ClearCapturedOutput exact command",
+    "iTerm2 OSC 1337 ClearCapturedOutput mixed BEL/ST termination",
+    "iTerm2 OSC 1337 ClearCapturedOutput fragmented ST termination",
+    "iTerm2 OSC 1337 ClearCapturedOutput malformed suffix fail-closed handling",
     "OSC 3008 hierarchy",
     "OSC 3008 malformed close recovery",
     "tmux passthrough fixture",
@@ -307,6 +311,27 @@ def validate_case(case: Any) -> set[str]:
         )
         require(
             b"osc1337-report-variable-corpus-ok" in stream,
+            f"{case_id}: recovery",
+        )
+    elif case_id == "osc1337_clear_captured_output":
+        require(
+            stream.count(b"\x1b]1337;ClearCapturedOutput") == 3,
+            f"{case_id}: exact and malformed requests",
+        )
+        require(
+            stream.count(b"\x1b]1337;ClearCapturedOutput\x07") == 1,
+            f"{case_id}: BEL request",
+        )
+        require(
+            b"\x1b]1337;ClearCapturedOutput\x1b\\" in stream,
+            f"{case_id}: fragmented ST request",
+        )
+        require(
+            b"\x1b]1337;ClearCapturedOutput=1\x07" in stream,
+            f"{case_id}: malformed suffix",
+        )
+        require(
+            b"osc1337-clear-captured-output-corpus-ok" in stream,
             f"{case_id}: recovery",
         )
     elif case_id == "osc1337_unicode_version":

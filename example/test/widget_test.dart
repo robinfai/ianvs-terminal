@@ -2061,7 +2061,7 @@ void main() {
         instantReplayStore: instantReplayStore,
       );
 
-      fakeBindings.setFrame(1, {
+      fakeBindings.enqueueFrame(1, {
         'rows': [
           {
             'index': 0,
@@ -4617,6 +4617,129 @@ void main() {
     expect(find.text('ERROR 42 failed'), findsOneWidget);
     expect(find.textContaining('Pattern ERROR [0-9]+ failed'), findsOneWidget);
   });
+
+  testWidgets(
+    'OSC 1337 ClearCapturedOutput clears only the originating open sheet',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      final profile = defaultTerminalProfile().copyWith(
+        triggers: const [TerminalProfileTrigger(pattern: 'CAPTURE-ME')],
+      );
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [profile]),
+        ),
+        notificationSender:
+            ({required title, body, identifier, expiresAfterMs}) async {},
+      );
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final sessionController = container.read(
+        sessionControllerProvider.notifier,
+      );
+      sessionController.splitActiveSession(
+        profile,
+        TerminalSplitAxis.horizontal,
+      );
+      sessionController.activateSession('1');
+      await tester.pumpAndSettle();
+
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {
+            'index': 0,
+            'text': 'CAPTURE-ME phase35 origin',
+            'style_runs': const [],
+          },
+        ],
+        'cursor': {'row': 0, 'col': 25, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 0, 'end': 1},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+      });
+      fakeBindings.enqueueFrame(2, {
+        'rows': [
+          {
+            'index': 0,
+            'text': 'CAPTURE-ME phase35 neighbor',
+            'style_runs': const [],
+          },
+        ],
+        'cursor': {'row': 0, 'col': 27, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 0, 'end': 1},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+      });
+      await tester.pump(const Duration(milliseconds: 40));
+
+      await _openToolbeltSource(
+        tester,
+        tabKey: const Key('toolbelt-tab-captured-output'),
+        actionKey: const Key('toolbelt-captured-output'),
+      );
+      expect(find.text('CAPTURE-ME phase35 origin'), findsOneWidget);
+      expect(find.text('CAPTURE-ME phase35 neighbor'), findsNothing);
+      expect(find.byKey(const Key('captured-output-entry-0')), findsOneWidget);
+
+      fakeBindings.enqueueEvent(
+        1,
+        const PtyEvent(
+          kind: 'clear_captured_output',
+          sessionId: '1',
+          payload: <String, Object?>{'source': 'unknown'},
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(find.text('CAPTURE-ME phase35 origin'), findsOneWidget);
+
+      fakeBindings.enqueueEvent(
+        1,
+        const PtyEvent(
+          kind: 'clear_captured_output',
+          sessionId: '1',
+          payload: <String, Object?>{'source': 'iterm1337'},
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(find.byKey(const Key('captured-output-sheet')), findsOneWidget);
+      expect(find.text('CAPTURE-ME phase35 origin'), findsNothing);
+      expect(find.text('0 captured lines'), findsOneWidget);
+      expect(
+        find.byKey(const Key('captured-output-empty-state')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byTooltip('Close captured output'));
+      await tester.pumpAndSettle();
+      sessionController.activateSession('2');
+      await tester.pumpAndSettle();
+      await _openToolbeltSource(
+        tester,
+        tabKey: const Key('toolbelt-tab-captured-output'),
+        actionKey: const Key('toolbelt-captured-output'),
+      );
+
+      expect(find.text('CAPTURE-ME phase35 neighbor'), findsOneWidget);
+      expect(find.text('CAPTURE-ME phase35 origin'), findsNothing);
+      expect(find.byKey(const Key('captured-output-entry-0')), findsOneWidget);
+    },
+  );
 
   testWidgets('toolbelt opens a sidebar with terminal tool shortcuts', (
     tester,

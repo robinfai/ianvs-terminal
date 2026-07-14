@@ -167,6 +167,7 @@ enum CallbackEvent {
         value: String,
     },
     CellSizeReportRequest,
+    ClearCapturedOutput,
     ReportVariableRequest {
         payload: serde_json::Value,
     },
@@ -1771,6 +1772,9 @@ fn callback_event_from_parser_event_with_terminal(
             })
         }
         ParserTerminalEvent::CellSizeReportRequested => Some(CallbackEvent::CellSizeReportRequest),
+        ParserTerminalEvent::ItermClearCapturedOutputRequested => {
+            Some(CallbackEvent::ClearCapturedOutput)
+        }
         ParserTerminalEvent::ItermReportVariableRequested { name } => {
             let value =
                 terminal.and_then(|terminal| resolved_iterm_report_variable(terminal, &name));
@@ -3943,6 +3947,12 @@ impl TerminalSession {
             CallbackEvent::CellSizeReportRequest => {
                 self.push_event("cell_size_report_request", None)
             }
+            CallbackEvent::ClearCapturedOutput => self.push_event(
+                "clear_captured_output",
+                Some(serde_json::json!({
+                    "source": "iterm1337",
+                })),
+            ),
             CallbackEvent::ReportVariableRequest { payload } => {
                 self.push_event("report_variable_request", Some(payload))
             }
@@ -7860,6 +7870,17 @@ mod tests {
         assert_eq!(diagnostics["defined"], true);
         assert_eq!(diagnostics["value_chars"], 14);
         assert!(diagnostics.get("value").is_none());
+    }
+
+    #[test]
+    fn osc1337_clear_captured_output_maps_to_a_payload_free_product_action() {
+        let callback = callback_event_from_parser_event(
+            ParserTerminalEvent::ItermClearCapturedOutputRequested,
+            false,
+        )
+        .expect("expected clear-captured-output callback");
+
+        assert!(matches!(callback, CallbackEvent::ClearCapturedOutput));
     }
 
     #[test]

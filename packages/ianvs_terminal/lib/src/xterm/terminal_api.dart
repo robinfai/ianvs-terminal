@@ -536,6 +536,8 @@ class Terminal implements TerminalDisposable {
         break;
       case TerminalSessionCellSizeReportRequestEvent():
         break;
+      case TerminalSessionClearCapturedOutputEvent():
+        break;
       case TerminalSessionReportVariableRequestEvent():
         // The xterm-compatible facade has no product-owned variable
         // permission store, so it fails closed with the required empty reply.

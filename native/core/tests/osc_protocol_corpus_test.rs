@@ -291,6 +291,26 @@ fn shared_osc_corpus_executes_against_the_native_streaming_parser() {
                     }
                 )));
             }
+            "osc1337_clear_captured_output" => {
+                assert_eq!(terminal.title(), "osc1337-clear-captured-output-corpus-ok");
+                let visible = terminal.active_grid().rows();
+                let visible = (0..visible)
+                    .map(|row| terminal.active_grid().row_text(row))
+                    .collect::<String>();
+                assert!(visible.contains("CAPTURE-CLEAR-A"));
+                assert!(visible.contains("CAPTURE-CLEAR-B"));
+                assert_eq!(
+                    terminal
+                        .poll_events()
+                        .iter()
+                        .filter(|event| matches!(
+                            event,
+                            TerminalEvent::ItermClearCapturedOutputRequested
+                        ))
+                        .count(),
+                    2
+                );
+            }
             "osc1337_cursor_guide" => {
                 assert!(terminal.use_cursor_guide());
                 assert_eq!(terminal.title(), "osc1337-cursor-guide-corpus-ok");

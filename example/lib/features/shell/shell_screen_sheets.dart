@@ -181,6 +181,7 @@ class _AdvancedPasteSheetState extends State<_AdvancedPasteSheet> {
 
 class _CapturedOutputSheet extends StatefulWidget {
   const _CapturedOutputSheet({
+    super.key,
     required this.entries,
     required this.onClear,
     required this.onCopy,
@@ -203,6 +204,17 @@ class _CapturedOutputSheetState extends State<_CapturedOutputSheet> {
     _entries = widget.entries
         .take(maxPasswordManagerEntries)
         .toList(growable: false);
+  }
+
+  void replaceEntries(List<_CapturedOutputEntry> entries) {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _entries = entries
+          .take(maxPasswordManagerEntries)
+          .toList(growable: false);
+    });
   }
 
   @override
@@ -263,9 +275,6 @@ class _CapturedOutputSheetState extends State<_CapturedOutputSheet> {
                       onPressed: _entries.isEmpty
                           ? null
                           : () {
-                              setState(() {
-                                _entries = const [];
-                              });
                               widget.onClear();
                             },
                       icon: const Icon(Icons.delete_outline_rounded, size: 16),

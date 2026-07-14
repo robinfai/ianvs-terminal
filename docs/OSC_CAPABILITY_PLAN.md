@@ -1,13 +1,13 @@
 # OSC Capability Plan
 
 Status: active support contract. P0/P1 and the promoted P2/P3 OSC families are
-implemented with automated regression coverage. Through Phase 34, the safe
+implemented with automated regression coverage. Through Phase 35, the safe
 incoming OSC 1337 download subset, permission-gated OpenURL subset, and bounded
 RequestAttention actions are promoted alongside report-only OSC 99 notification
 interactions, user-driven OSC 1337 inline buttons, and permission-gated
-ReportVariable replies. Session-local Unicode 8/9 cell-width switching is also
-promoted; uploads and other privileged host actions stay outside the current
-product.
+ReportVariable replies. Session-local Unicode 8/9 cell-width switching and
+per-session Captured Output clearing are also promoted; uploads and other
+privileged host actions stay outside the current product.
 
 This plan turns OSC support from a list of escape-code numbers into product
 capability gates. The current implementation scope is local terminal fidelity
@@ -58,6 +58,7 @@ P0 closes the support contract and prevents accidental regressions.
 | OSC 1337 Button | inline copy/custom controls | `user-actionable` fixed-action subset | Four-cell theme-derived controls; explicit copy of retained block text or exact `CSI ? 1337 ; code ~`; stale IDs fail closed. |
 | OSC 1337 ReportVariable | session/user variable disclosure | `user-actionable` permission-gated subset | Reply empty on first, denied, undefined, or unsupported requests; treat malformed wire input as a bounded no-op; persist an exact per-variable future Allow/Deny choice; disclose only bounded Ianvs-owned session state or parser-owned `user.*` values. |
 | OSC 1337 UnicodeVersion | Unicode 8/9 terminal cell widths | `frame-visible` through existing rows/cursor | Accept exact `8`, `9`, `push`, `pop`, and bounded printable-ASCII labeled push/pop. Apply real Unicode 8 versus modern widths to written cells, saved cursor, snapshots and resize replay without adding a host action or schema. |
+| OSC 1337 ClearCapturedOutput | clear product-owned captured rows for the emitting session | `event-visible` and product-applied | Accept only the exact command, route it with the current session epoch, refresh an open Captured Output sheet, and leave terminal rows, scrollback and every other session unchanged. |
 
 P0 deliverables:
 
@@ -398,6 +399,10 @@ Policy and trust:
   Unicode 8/9 widths plus bounded unlabeled/labeled push and pop. It changes
   only terminal-local layout state and grants no reply, persistence,
   disclosure, or host authority.
+- OSC 1337 ClearCapturedOutput is no longer deferred: Phase 35 routes the exact
+  command to the originating session's existing Captured Output collection.
+  It has no reply, host action or terminal-grid effect; malformed variants are
+  no-ops and resize replay cannot redeliver the clear.
 - Not P0/P1: public custom OSC parser hooks, remote identity, full file
   transfer, notification spam defaults.
 - Not P2/P3: SFTP/SSH session management, remote file browsing, automatic
