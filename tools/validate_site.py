@@ -13,6 +13,7 @@ PAGES = [
     Path("index.html"),
     Path("features/index.html"),
     Path("technology/index.html"),
+    Path("osc/index.html"),
     Path("roadmap/index.html"),
     Path("open-source/index.html"),
 ]
@@ -43,6 +44,21 @@ REQUIRED_CSS_SNIPPETS = [
     "--on-accent",
     "color: var(--on-accent)",
     ".terminal-hero",
+]
+REQUIRED_OSC_SNIPPETS = [
+    '<html lang="zh-CN"',
+    '<caption>OSC',
+    'scope="col"',
+    'class="matrix-scroll"',
+    'OSC 23',
+    'RequestUpload',
+    'ianvs-osc934/1',
+    '完整证据矩阵',
+]
+REQUIRED_OSC_CSS_SNIPPETS = [
+    ".osc-summary",
+    ".matrix-scroll",
+    ".status-pill",
 ]
 
 
@@ -141,10 +157,27 @@ def validate_assets() -> None:
             fail(f"assets/styles.css missing required snippet: {snippet}")
 
 
+def validate_osc_page() -> None:
+    html = read_text(Path("osc/index.html"))
+    for snippet in REQUIRED_OSC_SNIPPETS:
+        if snippet not in html:
+            fail(f"osc/index.html missing required snippet: {snippet}")
+
+    technology = read_text(Path("technology/index.html"))
+    if "../osc/index.html" not in technology:
+        fail("technology/index.html is missing the OSC matrix link")
+
+    styles = read_text(Path("assets/styles.css"))
+    for snippet in REQUIRED_OSC_CSS_SNIPPETS:
+        if snippet not in styles:
+            fail(f"assets/styles.css missing OSC snippet: {snippet}")
+
+
 def main() -> None:
     for page in PAGES:
         validate_page(page)
     validate_assets()
+    validate_osc_page()
     print("site validation passed")
 
 
