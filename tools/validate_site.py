@@ -47,6 +47,7 @@ REQUIRED_CSS_SNIPPETS = [
 ]
 REQUIRED_OSC_SNIPPETS = [
     '<html lang="zh-CN"',
+    'rel="icon"',
     '<caption>OSC',
     'scope="col"',
     'class="matrix-scroll"',
