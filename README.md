@@ -22,7 +22,7 @@ python3 site/tools/validate_site.py
 
 验证脚本会检查：
 
-- 五个页面是否存在。
+- 六个页面是否存在。
 - 页面是否引用公共 CSS 和 JS。
 - 内部链接是否有效。
 - 是否保留主题切换控件。
@@ -33,5 +33,6 @@ python3 site/tools/validate_site.py
 - `index.html`
 - `features/index.html`
 - `technology/index.html`
+- `osc/index.html`
 - `roadmap/index.html`
 - `open-source/index.html`

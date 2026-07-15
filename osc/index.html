@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="查看 ianvs 当前支持的 OSC 序号、协议来源、核心能力、主要场景和安全边界。">
+    <title>OSC 支持矩阵 - ianvs</title>
+    <link rel="stylesheet" href="../assets/styles.css">
+    <script src="../assets/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">跳到正文</a>
+    <header class="site-header">
+      <div class="header-inner">
+        <a class="brand" href="../index.html" aria-label="ianvs 首页">
+          <img class="brand-mark" src="../assets/images/brand/app-icon.png" alt="" width="32" height="32" aria-hidden="true">
+          <span>ianvs</span>
+        </a>
+        <nav class="nav" aria-label="主导航">
+          <a href="../index.html">首页</a>
+          <a href="../features/index.html">功能</a>
+          <a href="../technology/index.html" aria-current="page">技术</a>
+          <a href="../roadmap/index.html">路线图</a>
+          <a href="../open-source/index.html">开源试用</a>
+          <a href="https://github.com/robinfai/ianvs-terminal">GitHub</a>
+          <button class="theme-toggle" type="button" data-theme-toggle>系统</button>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main-content">
+      <section class="section page-hero">
+        <div class="page-intro">
+          <p class="eyebrow">OSC support</p>
+          <h1 class="page-title">终端程序发来的能力请求，<br>边界要说清楚。</h1>
+          <p>这里整理 ianvs 当前支持的 OSC 序号、协议来源、核心能力和主要场景。解析成功不等于自动获得剪贴板、文件、URL 或系统权限。</p>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="osc-overview-title">
+        <div class="section-header">
+          <div>
+            <p class="kicker">Reading the matrix</p>
+            <h2 id="osc-overview-title">“官方”不是一张统一的序号表。</h2>
+          </div>
+          <p>OSC 定义了控制字符串的基本形式，具体序号大多由终端生态扩展。这里把 xterm 和广泛采用的约定称为事实标准，其余按协议维护者标注。</p>
+        </div>
+        <div class="osc-summary-grid">
+          <article class="osc-summary">
+            <strong>事实标准</strong>
+            <span>xterm 和被多个终端采用的通用约定。</span>
+          </article>
+          <article class="osc-summary">
+            <strong>三方与社区规范</strong>
+            <span>Kitty、iTerm2、VS Code、ConEmu、urxvt 和 UAPI。</span>
+          </article>
+          <article class="osc-summary">
+            <strong>权限边界</strong>
+            <span>剪贴板、文件、URL 和变量披露继续经过产品权限与当前会话校验。</span>
+          </article>
+        </div>
+      </section>
+
+      <section class="section osc-matrix-section" aria-labelledby="xterm-osc-title">
+        <div class="section-header">
+          <div>
+            <p class="kicker">xterm &amp; common</p>
+            <h2 id="xterm-osc-title">xterm 与通用约定</h2>
+          </div>
+          <p>覆盖标题、颜色、目录、链接、通知、字体、文本剪贴板和能力查询。</p>
+        </div>
+        <div class="matrix-scroll" tabindex="0" aria-label="可横向滚动的 xterm 与通用 OSC 支持矩阵">
+          <table class="matrix osc-matrix">
+            <caption>OSC：xterm 与通用约定</caption>
+            <thead>
+              <tr>
+                <th scope="col">OSC</th>
+                <th scope="col">来源</th>
+                <th scope="col">状态</th>
+                <th scope="col">核心能力</th>
+                <th scope="col">主要场景</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>OSC 0/1/2/l/L</td>
+                <td>xterm；l/L 来自 Sun/CDE</td>
+                <td><span class="status-pill" data-status="supported">支持</span></td>
+                <td>设置窗口标题和图标名，保留分号与拆分 UTF-8。</td>
+                <td>Tab 标题、窗口标题、会话识别。</td>
+              </tr>
+              <tr>
+                <td>OSC 4/104</td>
+                <td>xterm + iTerm2 查询别名</td>
+                <td><span class="status-pill" data-status="supported">支持</span></td>
+                <td>0–255 调色板设置、查询和重置；-1/-2 默认色查询。</td>
+                <td>TUI 动态换色、主题探测。</td>
+              </tr>
+              <tr>
+                <td>OSC 5/6/105/106</td>
+                <td>xterm + iTerm2</td>
+                <td><span class="status-pill" data-status="supported">双命名空间支持</span></td>
+                <td>xterm 属性色；iTerm2 增量 Tab RGB 与默认色恢复。</td>
+                <td>搜索高亮、任务 Tab 着色。</td>
+              </tr>
+              <tr>
+                <td>OSC 7</td>
+                <td>iTerm2/VTE 等通用扩展</td>
+                <td><span class="status-pill" data-status="supported">支持</span></td>
+                <td>上报当前目录、主机和用户，拒绝畸形路径。</td>
+                <td>CWD 展示、远程会话标识。</td>
+              </tr>
+              <tr>
+                <td>OSC 8</td>
+                <td>iTerm2/VTE 通用扩展</td>
+                <td><span class="status-pill" data-status="supported">支持</span></td>
+                <td>超链接 URI、id 身份、命中测试和打开目标。</td>
+                <td>编译日志、文档与文件链接。</td>
+              </tr>
+              <tr>
+                <td>OSC 9</td>
+                <td>iTerm2/ConEmu</td>
+                <td><span class="status-pill" data-status="subset">安全子集</span></td>
+                <td>有界纯文本通知。</td>
+                <td>后台命令完成提醒。</td>
+              </tr>
+              <tr>
+                <td>OSC 9;4</td>
+                <td>ConEmu/Windows Terminal</td>
+                <td><span class="status-pill" data-status="supported">支持</span></td>
+                <td>正常、不确定、错误、清除进度，百分比限制 0–100。</td>
+                <td>构建、下载、长任务进度。</td>
+              </tr>
+              <tr>
+                <td>OSC 9;9</td>
+                <td>ConEmu/Windows Terminal</td>
+                <td><span class="status-pill" data-status="subset">适配器支持</span></td>
+                <td>上报绝对 CWD，不覆盖既有远程身份。</td>
+                <td>Windows shell 目录同步。</td>
+              </tr>
+              <tr>
+                <td>OSC 10–19 / 110–119</td>
+                <td>xterm</td>
+                <td><span class="status-pill" data-status="supported">支持</span></td>
+                <td>前景、背景、光标、选择和高亮动态颜色及恢复。</td>
+                <td>应用级主题、选择色和光标色。</td>
+              </tr>
+              <tr>
+                <td>OSC 23</td>
+                <td>安全兼容处理</td>
+                <td><span class="status-pill" data-status="unsupported">不支持</span></td>
+                <td>有界空操作，不修改标题栈。</td>
+                <td>消费旧输入并避免副作用。</td>
+              </tr>
+              <tr>
+                <td>OSC 50</td>
+                <td>xterm</td>
+                <td><span class="status-pill" data-status="supported">支持</span></td>
+                <td>会话级 TrueType 字体族设置和查询。</td>
+                <td>临时切换等宽字体、能力探测。</td>
+              </tr>
+              <tr>
+                <td>OSC 52</td>
+                <td>xterm</td>
+                <td><span class="status-pill" data-status="subset">文本子集</span></td>
+                <td>权限控制的 Base64 文本写入和读取请求。</td>
+                <td>远程程序复制文本、剪贴板同步。</td>
+              </tr>
+              <tr>
+                <td>OSC 60/61/62</td>
+                <td>xterm</td>
+                <td><span class="status-pill" data-status="metadata">只读支持</span></td>
+                <td>查询允许、拒绝和可用 OSC 子能力，不改变权限。</td>
+                <td>子进程启动时能力协商。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section osc-matrix-section" aria-labelledby="kitty-osc-title">
+        <div class="section-header">
+          <div>
+            <p class="kicker">Kitty</p>
+            <h2 id="kitty-osc-title">Kitty 协议</h2>
+          </div>
+          <p>覆盖颜色、指针、多单元格文本、macOS 拖放目标、交互通知和多 MIME 剪贴板。</p>
+        </div>
+        <div class="matrix-scroll" tabindex="0" aria-label="可横向滚动的 Kitty OSC 支持矩阵">
+          <table class="matrix osc-matrix">
+            <caption>OSC：Kitty</caption>
+            <thead>
+              <tr>
+                <th scope="col">OSC</th>
+                <th scope="col">来源</th>
+                <th scope="col">状态</th>
+                <th scope="col">核心能力</th>
+                <th scope="col">主要场景</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>OSC 21</td>
+                <td>Kitty</td>
+                <td><span class="status-pill" data-status="subset">有界子集</span></td>
+                <td>批量颜色设置、查询和重置。</td>
+                <td>Kitty 应用换色、颜色能力探测。</td>
+              </tr>
+              <tr>
+                <td>OSC 22</td>
+                <td>Kitty</td>
+                <td><span class="status-pill" data-status="supported">支持</span></td>
+                <td>30 种指针、设置/重置、栈和状态查询。</td>
+                <td>链接、拖放和文本选择反馈。</td>
+              </tr>
+              <tr>
+                <td>OSC 66</td>
+                <td>Kitty</td>
+                <td><span class="status-pill" data-status="supported">支持</span></td>
+                <td>定宽/自然宽、倍数/小数缩放、对齐和多单元格文本。</td>
+                <td>大标题、数学与富文本式展示。</td>
+              </tr>
+              <tr>
+                <td>OSC 72</td>
+                <td>Kitty</td>
+                <td><span class="status-pill" data-status="subset">macOS 接收端子集</span></td>
+                <td>拖放查询、目标注册和用户放入的 MIME 数据。</td>
+                <td>从 Finder 向当前终端拖入文件或文本。</td>
+              </tr>
+              <tr>
+                <td>OSC 99</td>
+                <td>Kitty</td>
+                <td><span class="status-pill" data-status="subset">安全交互子集</span></td>
+                <td>通知生命周期、查询、纯文字按钮和固定回报。</td>
+                <td>可交互任务通知；不执行通知命令。</td>
+              </tr>
+              <tr>
+                <td>OSC 5522</td>
+                <td>Kitty</td>
+                <td><span class="status-pill" data-status="gated">安全子集</span></td>
+                <td>多 MIME 二进制剪贴板、授权读取、令牌和分块回复。</td>
+                <td>图片、富文本和文件引用粘贴。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section osc-matrix-section" aria-labelledby="iterm-osc-title">
+        <div class="section-header">
+          <div>
+            <p class="kicker">iTerm2</p>
+            <h2 id="iterm-osc-title">iTerm2 协议</h2>
+          </div>
+          <p>OSC 1337 下的能力很多，因此按会话、外观、终端内交互和主机权限边界拆开说明。</p>
+        </div>
+        <div class="matrix-scroll" tabindex="0" aria-label="可横向滚动的 iTerm2 OSC 支持矩阵">
+          <table class="matrix osc-matrix">
+            <caption>OSC：iTerm2</caption>
+            <thead>
+              <tr>
+                <th scope="col">OSC</th>
+                <th scope="col">来源</th>
+                <th scope="col">状态</th>
+                <th scope="col">核心能力</th>
+                <th scope="col">主要场景</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>OSC 133</td>
+                <td>FinalTerm/iTerm2</td>
+                <td><span class="status-pill" data-status="supported">支持</span></td>
+                <td>Prompt、命令、输出生命周期、语义 Prompt 和嵌套 shell 恢复。</td>
+                <td>Prompt 跳转、上次输出、命令块搜索。</td>
+              </tr>
+              <tr>
+                <td>OSC 1337 会话元数据</td>
+                <td>iTerm2</td>
+                <td><span class="status-pill" data-status="subset">支持子集</span></td>
+                <td>CurrentDir、RemoteHost、UserVar、Badge、Mark、版本和单元格尺寸。</td>
+                <td>Shell 集成、目录与远程身份。</td>
+              </tr>
+              <tr>
+                <td>OSC 1337 变量与 Unicode</td>
+                <td>iTerm2</td>
+                <td><span class="status-pill" data-status="gated">权限/外观子集</span></td>
+                <td>ReportVariable 精确授权；Unicode 8/9 宽度切换和栈。</td>
+                <td>安全披露终端变量、兼容旧字符宽度。</td>
+              </tr>
+              <tr>
+                <td>OSC 1337 颜色与光标</td>
+                <td>iTerm2</td>
+                <td><span class="status-pill" data-status="subset">支持子集</span></td>
+                <td>SetColors、CursorShape、光标行高亮和样式恢复。</td>
+                <td>动态主题、光标外观和当前行定位。</td>
+              </tr>
+              <tr>
+                <td>OSC 1337 终端内交互</td>
+                <td>iTerm2</td>
+                <td><span class="status-pill" data-status="subset">支持子集</span></td>
+                <td>剪贴板写入、标注、块折叠/渲染、按钮、清屏和清 Captured Output。</td>
+                <td>命令块、结果折叠、终端内文档与操作。</td>
+              </tr>
+              <tr>
+                <td>OSC 1337 图像/文件/外部动作</td>
+                <td>iTerm2</td>
+                <td><span class="status-pill" data-status="gated">权限控制子集</span></td>
+                <td>内联图像、显式保存下载、确认打开 URL、受限 attention。</td>
+                <td>图片预览、文件下载、链接确认和提醒。</td>
+              </tr>
+              <tr>
+                <td>OSC 1337 RequestUpload 等</td>
+                <td>iTerm2</td>
+                <td><span class="status-pill" data-status="unsupported">明确不授权</span></td>
+                <td>不读取本地文件；StealFocus、SetProfile 不授权。</td>
+                <td>阻止子进程扩大主机权限。</td>
+              </tr>
+              <tr>
+                <td>OSC 21337</td>
+                <td>iTerm2</td>
+                <td><span class="status-pill" data-status="subset">外观子集</span></td>
+                <td>增量 Tab 指示点、状态文本和状态颜色。</td>
+                <td>Tab 上展示构建、部署和连接状态。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section osc-matrix-section" aria-labelledby="other-osc-title">
+        <div class="section-header">
+          <div>
+            <p class="kicker">Other protocols</p>
+            <h2 id="other-osc-title">其他兼容协议与 Ianvs 私有协议</h2>
+          </div>
+          <p>这些能力来自编辑器、其他终端、社区规范或 Ianvs 自身，不能通过终端品牌猜测支持。</p>
+        </div>
+        <div class="matrix-scroll" tabindex="0" aria-label="可横向滚动的其他 OSC 支持矩阵">
+          <table class="matrix osc-matrix">
+            <caption>OSC：其他兼容协议与 Ianvs 私有协议</caption>
+            <thead>
+              <tr>
+                <th scope="col">OSC</th>
+                <th scope="col">来源</th>
+                <th scope="col">状态</th>
+                <th scope="col">核心能力</th>
+                <th scope="col">主要场景</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>OSC 633</td>
+                <td>VS Code</td>
+                <td><span class="status-pill" data-status="subset">适配器子集</span></td>
+                <td>A–E/P 生命周期、命令关联和 CWD 属性。</td>
+                <td>兼容 VS Code shell integration。</td>
+              </tr>
+              <tr>
+                <td>OSC 777</td>
+                <td>urxvt</td>
+                <td><span class="status-pill" data-status="subset">安全子集</span></td>
+                <td>结构化标题和消息通知。</td>
+                <td>兼容已有通知脚本。</td>
+              </tr>
+              <tr>
+                <td>OSC 934</td>
+                <td>Ianvs 私有 ianvs-osc934/1</td>
+                <td><span class="status-pill" data-status="supported">支持</span></td>
+                <td>最多 64 个带 ID/标签的并行进度状态，支持查询和移除。</td>
+                <td>同一 Pane 内展示多个任务。</td>
+              </tr>
+              <tr>
+                <td>OSC 3008</td>
+                <td>UAPI 社区规范</td>
+                <td><span class="status-pill" data-status="metadata">元数据支持</span></td>
+                <td>v1.0 层级上下文、更新、返回、子级关闭和恢复。</td>
+                <td>Shell、容器与远程上下文建模。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="osc-boundaries-title">
+        <div class="section-header">
+          <div>
+            <p class="kicker">Boundaries</p>
+            <h2 id="osc-boundaries-title">支持协议，不等于放开主机权限。</h2>
+          </div>
+        </div>
+        <div class="grid two">
+          <article class="card">
+            <h3>当前产品边界</h3>
+            <ul class="boundary-list">
+              <li>现代 OSC 主要面向 Xterm256；VT220 配置通常会拒绝或静默消费。</li>
+              <li>OSC 23 是安全空操作，不会修改标题或 CSI 标题栈。</li>
+              <li>OSC 72 当前只实现 macOS 接收端，不读取远程文件或目录。</li>
+              <li>OSC 52 只处理文本；多 MIME 数据通过 OSC 5522。</li>
+              <li>OSC 99 不自动聚焦，不播放声音，不接收图标，也不执行通知命令。</li>
+              <li>OSC 1337 RequestUpload、StealFocus 和 SetProfile 不获得主机权限。</li>
+            </ul>
+          </article>
+          <article class="card">
+            <h3>证据口径</h3>
+            <p>表格以产品行为为准，不把单独的解析分支当成完整支持，也不把尚未执行的参考终端对比写成已验证。</p>
+            <p><a class="inline-link" href="https://github.com/robinfai/ianvs-terminal/blob/main/docs/protocols/osc_support_matrix.md">查看完整证据矩阵</a></p>
+            <p>仓库口径：2026-07-14；页面整理：2026-07-15。</p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-inner">
+        <span>ianvs - OSC 支持矩阵</span>
+        <div class="footer-links">
+          <a href="../index.html">首页</a>
+          <a href="../features/index.html">功能</a>
+          <a href="../technology/index.html">技术</a>
+          <a href="../roadmap/index.html">路线图</a>
+          <a href="../open-source/index.html">开源试用</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
