@@ -376,6 +376,7 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                                 );
                               },
                               colors: terminalColors,
+                              useFrameDefaultColors: false,
                               font:
                                   terminalConfig?.display.font ??
                                   const terminal.TerminalFontConfig(),
@@ -741,40 +742,6 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
     );
   }
 
-  String? get _terminalLinkStatusLabel {
-    final target = _hoveredTerminalLink;
-    final uri = target?.uri;
-    if (uri == null || uri.trim().isEmpty) {
-      return null;
-    }
-    final prefix = target?.hasMismatchedVisibleText ?? false
-        ? 'LINK CHECK'
-        : 'LINK';
-    return '$prefix ${_terminalLinkShortLabel(uri)}';
-  }
-
-  String? get _terminalLinkStatusTooltip {
-    final target = _hoveredTerminalLink;
-    final uri = target?.uri.trim();
-    if (target == null || uri == null || uri.isEmpty) {
-      return null;
-    }
-    return [
-      if (target.hasMismatchedVisibleText)
-        'OSC 8 link text differs from the target',
-      if (_hoveredTerminalLinkSessionId case final sessionId?
-          when _sessionIsInMultiPaneTab(sessionId))
-        _terminalPaneContextLine(sessionId),
-      'Target: $uri',
-      if (target.visibleText != null && target.visibleText!.trim().isNotEmpty)
-        'Text: ${target.visibleText!.trim()}',
-      if (_hoveredTerminalLinkSessionId case final sessionId?
-          when _sessionIsInMultiPaneTab(sessionId) &&
-              _sessionNeedsFocus(sessionId))
-        'Click to focus this pane.',
-    ].join('\n');
-  }
-
   double _constrainedPaneSplitRatio(
     SessionController sessionController,
     TerminalPaneLayoutNode node,
@@ -1022,19 +989,6 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
       return 'Link text "$visibleText" opens ${target.uri}';
     }
     return 'Link target: ${target.uri}';
-  }
-
-  String _terminalLinkShortLabel(String value) {
-    final uri = Uri.tryParse(value.trim());
-    final host = uri?.host.trim();
-    if (host != null && host.isNotEmpty) {
-      return host.length <= 22 ? host : '${host.substring(0, 19)}...';
-    }
-    final scheme = uri?.scheme.trim();
-    if (scheme != null && scheme.isNotEmpty) {
-      return scheme.toUpperCase();
-    }
-    return 'TARGET';
   }
 
   List<_TerminalPaneHeaderIndicator> _paneHeaderIndicatorsFor(

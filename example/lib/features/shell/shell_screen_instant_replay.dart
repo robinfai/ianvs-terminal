@@ -584,6 +584,7 @@ class _InstantReplayWorkspaceState extends State<_InstantReplayWorkspace> {
                       inputController: _inputController,
                       contentPadding: const EdgeInsets.all(10),
                       colors: widget.terminalColors,
+                      useFrameDefaultColors: false,
                       font: widget.font,
                       cursor: widget.cursor,
                       copyOnSelect: false,

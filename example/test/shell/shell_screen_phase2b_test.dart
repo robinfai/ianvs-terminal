@@ -114,7 +114,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('Top actions'), findsOneWidget);
+      expect(find.text('Command palette'), findsOneWidget);
       expect(find.text('App actions'), findsOneWidget);
       expect(find.text('Session actions'), findsOneWidget);
       expect(find.text('Defaults & appearance'), findsOneWidget);
@@ -251,12 +251,12 @@ void main() {
 
     await tester.tap(find.byKey(const Key('shell-chrome-menu')));
     await tester.pumpAndSettle();
-    expect(find.text('Top actions'), findsOneWidget);
+    expect(find.text('Command palette'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Close actions'));
+    await tester.tap(find.byTooltip('Close command palette'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Top actions'), findsNothing);
+    expect(find.text('Command palette'), findsNothing);
     expect(find.byKey(const Key('shell-terminal-surface')), findsOneWidget);
 
     await tester.sendKeyDownEvent(LogicalKeyboardKey.keyV, platform: 'macos');
@@ -286,7 +286,7 @@ void main() {
         shift: true,
       );
 
-      expect(find.text('Top actions'), findsOneWidget);
+      expect(find.text('Command palette'), findsOneWidget);
       expect(find.text('App actions'), findsOneWidget);
       expect(find.text('Session actions'), findsOneWidget);
     },

@@ -59,7 +59,6 @@ part 'shell_screen_state_command_actions.dart';
 part 'shell_screen_state_terminal_workspace.dart';
 part 'shell_screen_models.dart';
 part 'shell_screen_toolbelt.dart';
-part 'shell_screen_status_bar.dart';
 part 'shell_screen_chrome.dart';
 part 'shell_screen_search.dart';
 part 'shell_screen_shell_integration.dart';
@@ -244,15 +243,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   String? _lastSearchScopeSessionSignature;
   terminal.TerminalLinkTarget? _hoveredTerminalLink;
   String? _hoveredTerminalLinkSessionId;
-  String? _lastOsc52StatusLabel;
-  terminal.TerminalSessionClipboardEvent? _lastOsc52StatusEvent;
-  String? _lastOsc52StatusSessionId;
-  Timer? _osc52StatusClearTimer;
   String? _copyModeSessionId;
-  String? _lastNotificationFailureLabel;
-  String? _lastNotificationFailureTooltip;
-  Timer? _notificationFailureStatusClearTimer;
-  int _osc52BlockedCount = 0;
   SessionOsc52PromptController? _osc52PromptController;
   String? _autocompleteSessionId;
   String _autocompletePrefix = '';
@@ -323,8 +314,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       timer.cancel();
     }
     _activityNotificationTrailingTimers.clear();
-    _osc52StatusClearTimer?.cancel();
-    _notificationFailureStatusClearTimer?.cancel();
     for (final timer in _osc1337FireworksTimers.values) {
       timer.cancel();
     }
@@ -408,135 +397,20 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         : activeTab?.paneFor(activeSessionId);
     final activeShellIntegration =
         activePane?.shellIntegration ?? TerminalShellIntegrationSnapshot.empty;
-    final statusPane = displayedSessionId == null
+    final displayedPane = displayedSessionId == null
         ? activePane
         : displayedTab?.paneFor(displayedSessionId) ?? activePane;
-    final statusSessionId = statusPane?.sessionId;
-    final statusDirectory = statusPane?.shellIntegration.currentDirectory;
-    final statusRemoteHost = statusPane?.shellIntegration.hostname?.trim();
-    final statusRemoteUser = statusPane?.shellIntegration.username?.trim();
-    final statusBadge = statusPane?.oscBadge?.trim();
-    final statusProgressItems = statusPane == null
-        ? const <TerminalPaneProgressState>[]
-        : _shellPaneActiveProgressItems(statusPane);
-    final statusProgress = statusPane == null
+    final displayedProfile = displayedPane == null
         ? null
-        : _shellPanePrimaryProgress(statusPane);
-    final statusNotifications =
-        statusPane?.recentNotifications ??
-        const <TerminalPaneNotificationState>[];
-    final statusNotification = statusNotifications.isEmpty
-        ? null
-        : statusNotifications.first;
-    final statusNotificationLabel =
-        _lastNotificationFailureLabel ??
-        (statusNotification == null
-            ? null
-            : _notificationStatusLabel(statusNotification));
-    final statusNotificationTooltip =
-        _lastNotificationFailureTooltip ??
-        _statusTooltipForPane(
-          sessionId: statusSessionId,
-          tooltip: statusNotification == null
-              ? null
-              : _notificationStatusTooltip(statusNotification),
-          includeFocusHint: statusNotification != null,
-        );
-    final statusNotificationItems = _lastNotificationFailureLabel == null
-        ? statusNotifications
-        : const <TerminalPaneNotificationState>[];
-    final lastOsc52StatusEvent = _lastOsc52StatusEvent;
-    final lastOsc52StatusTooltip = lastOsc52StatusEvent == null
-        ? null
-        : _osc52StatusTooltipFor(lastOsc52StatusEvent);
-    void focusSessionPane(String? sessionId) {
-      if (sessionId == null) {
-        return;
-      }
-      _activateSession(sessionController, sessionId);
-    }
-
-    void focusStatusPane() => focusSessionPane(statusPane?.sessionId);
-    void focusHoveredLinkPane() =>
-        focusSessionPane(_hoveredTerminalLinkSessionId);
-    void focusOsc52Pane() =>
-        focusSessionPane(_lastOsc52StatusSessionId ?? statusPane?.sessionId);
-
-    final statusProfile = statusPane == null
-        ? null
-        : _profileForPane(statusPane, sessionState.profiles);
-    final statusDisplayDirectory = statusDirectory?.trim().isNotEmpty == true
-        ? statusDirectory!.trim()
-        : statusProfile?.cwd;
-    final statusDirectoryTooltip = _statusTooltipForPane(
-      sessionId: statusSessionId,
-      tooltip: statusDisplayDirectory?.trim().isNotEmpty == true
-          ? _statusDirectoryTooltip(
-              path: statusDisplayDirectory!.trim(),
-              fromShellIntegration: statusDirectory?.trim().isNotEmpty == true,
-              hostname: statusRemoteHost,
-              username: statusRemoteUser,
-            )
-          : null,
-    );
-    final statusShellIntegrationHealth = statusPane == null
-        ? null
-        : _ShellIntegrationHealth.fromSnapshot(statusPane.shellIntegration);
-    final statusShellIntegrationHealthTooltip = _statusTooltipForPane(
-      sessionId: statusSessionId,
-      tooltip: statusShellIntegrationHealth == null
-          ? null
-          : [
-              statusShellIntegrationHealth.tooltip,
-              if (statusPane?.shellIntegration.shell?.trim().isNotEmpty == true)
-                'Shell: ${statusPane!.shellIntegration.shell!.trim()}',
-              if (statusPane?.shellIntegration.integrationVersion
-                      ?.trim()
-                      .isNotEmpty ==
-                  true)
-                'Integration version: '
-                    '${statusPane!.shellIntegration.integrationVersion!.trim()}',
-            ].join('\n'),
-    );
-    final statusRemoteTooltip = _statusTooltipForPane(
-      sessionId: statusSessionId,
-      tooltip: statusRemoteHost != null && statusRemoteHost.isNotEmpty
-          ? [
-              'Remote context reported by shell integration.',
-              'Host: $statusRemoteHost',
-              if (statusRemoteUser != null && statusRemoteUser.isNotEmpty)
-                'User: $statusRemoteUser',
-              'Local file actions stay disabled for remote paths.',
-            ].join('\n')
-          : null,
-      includeFocusHint: statusRemoteHost != null && statusRemoteHost.isNotEmpty,
-    );
-    final statusProgressTooltip = _statusTooltipForPane(
-      sessionId: statusSessionId,
-      tooltip: statusProgress != null && statusProgress.active
-          ? _progressStatusTooltip(statusProgress)
-          : null,
-      includeFocusHint: statusProgress != null && statusProgress.active,
-    );
-    final statusBadgeTooltip = _statusTooltipForPane(
-      sessionId: statusSessionId,
-      tooltip: statusBadge != null && statusBadge.isNotEmpty
-          ? 'OSC 1337 badge: $statusBadge'
-          : null,
-      includeFocusHint: statusBadge != null && statusBadge.isNotEmpty,
-    );
-    final statusViewportLabel = _viewportStatusLabelFor(displayedSessionId);
-    final statusViewportController = displayedSessionId == null
-        ? null
-        : sessionController.viewportFor(displayedSessionId);
-    final shellChromeBackground = statusProfile == null
+        : _profileForPane(displayedPane, sessionState.profiles);
+    final shellChromeBackground = displayedProfile == null
         ? activeTab == null
               ? _terminalColorsForProfile(
                   context,
                   defaultProfile,
                 ).canvasBackground
               : _tabTerminalBackgroundColor(context, sessionState, activeTab)
-        : _terminalColorsForProfile(context, statusProfile).canvasBackground;
+        : _terminalColorsForProfile(context, displayedProfile).canvasBackground;
     final instantReplaySession = _instantReplayWorkspaceSession;
     final instantReplayPane = instantReplaySession == null
         ? null
@@ -547,7 +421,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final instantReplayConfig = instantReplayProfile?.toSessionConfig();
     final instantReplayColors = _terminalColorsForProfile(
       context,
-      instantReplayProfile ?? statusProfile ?? defaultProfile,
+      instantReplayProfile ?? displayedProfile ?? defaultProfile,
     );
 
     KeyEventResult handleShellShortcut(KeyEvent event) {
@@ -1222,123 +1096,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         ),
                 ),
               ),
-              if (statusPane != null)
-                if (statusViewportController == null ||
-                    displayedSessionId == null)
-                  _ShellStatusBar(
-                    key: const Key('shell-status-bar'),
-                    palette: palette,
-                    terminalBackgroundColor: shellChromeBackground,
-                    directory: statusDisplayDirectory,
-                    directoryTooltip: statusDirectoryTooltip,
-                    viewportLabel: statusViewportLabel,
-                    modeItems: const <_ShellStatusModeItem>[],
-                    shellIntegrationHealth: statusShellIntegrationHealth!,
-                    shellIntegrationHealthTooltip:
-                        statusShellIntegrationHealthTooltip,
-                    encodingLabel: 'UTF-8',
-                    linkLabel: _terminalLinkStatusLabel,
-                    linkTooltip: _terminalLinkStatusTooltip,
-                    onLinkPressed: _hoveredTerminalLinkSessionId == null
-                        ? null
-                        : focusHoveredLinkPane,
-                    osc52Label: _lastOsc52StatusLabel,
-                    osc52Tooltip: lastOsc52StatusTooltip,
-                    onOsc52Pressed: _lastOsc52StatusLabel == null
-                        ? null
-                        : focusOsc52Pane,
-                    remoteLabel:
-                        statusRemoteHost != null && statusRemoteHost.isNotEmpty
-                        ? 'REMOTE ${_shortStatusValue(statusRemoteHost)}'
-                        : null,
-                    remoteTooltip: statusRemoteTooltip,
-                    onRemotePressed: focusStatusPane,
-                    progressLabel:
-                        statusProgress != null && statusProgress.active
-                        ? statusProgress.displayLabel
-                        : null,
-                    progressTooltip: statusProgressTooltip,
-                    progressItems: statusProgressItems,
-                    onProgressPressed: focusStatusPane,
-                    notificationLabel: statusNotificationLabel,
-                    notificationTooltip: statusNotificationTooltip,
-                    notifications: statusNotificationItems,
-                    onNotificationPressed: focusStatusPane,
-                    onNotificationInteraction: statusSessionId == null
-                        ? null
-                        : (interaction) => _handleOscNotificationInteraction(
-                            statusSessionId,
-                            interaction,
-                          ),
-                    badgeLabel: statusBadge != null && statusBadge.isNotEmpty
-                        ? 'BADGE ${_shortStatusValue(statusBadge)}'
-                        : null,
-                    badgeTooltip: statusBadgeTooltip,
-                    onBadgePressed: focusStatusPane,
-                  )
-                else
-                  ListenableBuilder(
-                    listenable: statusViewportController,
-                    builder: (context, _) {
-                      return _ShellStatusBar(
-                        key: const Key('shell-status-bar'),
-                        palette: palette,
-                        terminalBackgroundColor: shellChromeBackground,
-                        directory: statusDisplayDirectory,
-                        directoryTooltip: statusDirectoryTooltip,
-                        viewportLabel: statusViewportLabel,
-                        modeItems: _statusModeItemsFor(
-                          displayedSessionId,
-                          statusViewportController.frame.modes,
-                        ),
-                        shellIntegrationHealth: statusShellIntegrationHealth!,
-                        shellIntegrationHealthTooltip:
-                            statusShellIntegrationHealthTooltip,
-                        encodingLabel: 'UTF-8',
-                        linkLabel: _terminalLinkStatusLabel,
-                        linkTooltip: _terminalLinkStatusTooltip,
-                        onLinkPressed: _hoveredTerminalLinkSessionId == null
-                            ? null
-                            : focusHoveredLinkPane,
-                        osc52Label: _lastOsc52StatusLabel,
-                        osc52Tooltip: lastOsc52StatusTooltip,
-                        onOsc52Pressed: _lastOsc52StatusLabel == null
-                            ? null
-                            : focusOsc52Pane,
-                        remoteLabel:
-                            statusRemoteHost != null &&
-                                statusRemoteHost.isNotEmpty
-                            ? 'REMOTE ${_shortStatusValue(statusRemoteHost)}'
-                            : null,
-                        remoteTooltip: statusRemoteTooltip,
-                        onRemotePressed: focusStatusPane,
-                        progressLabel:
-                            statusProgress != null && statusProgress.active
-                            ? statusProgress.displayLabel
-                            : null,
-                        progressTooltip: statusProgressTooltip,
-                        progressItems: statusProgressItems,
-                        onProgressPressed: focusStatusPane,
-                        notificationLabel: statusNotificationLabel,
-                        notificationTooltip: statusNotificationTooltip,
-                        notifications: statusNotificationItems,
-                        onNotificationPressed: focusStatusPane,
-                        onNotificationInteraction: statusSessionId == null
-                            ? null
-                            : (interaction) =>
-                                  _handleOscNotificationInteraction(
-                                    statusSessionId,
-                                    interaction,
-                                  ),
-                        badgeLabel:
-                            statusBadge != null && statusBadge.isNotEmpty
-                            ? 'BADGE ${_shortStatusValue(statusBadge)}'
-                            : null,
-                        badgeTooltip: statusBadgeTooltip,
-                        onBadgePressed: focusStatusPane,
-                      );
-                    },
-                  ),
             ],
           ),
         ),

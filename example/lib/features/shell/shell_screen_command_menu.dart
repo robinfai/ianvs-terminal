@@ -147,7 +147,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           children: [
                             Expanded(
                               child: Text(
-                                'Top actions',
+                                'Command palette',
                                 style: Theme.of(context).textTheme.titleMedium
                                     ?.copyWith(
                                       color: palette.textPrimary,
@@ -158,7 +158,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                             FocusTraversalOrder(
                               order: const NumericFocusOrder(1000),
                               child: _buildSheetCloseButton(
-                                tooltip: 'Close actions',
+                                tooltip: 'Close command palette',
                                 onPressed: () => Navigator.of(context).pop(),
                               ),
                             ),
@@ -216,6 +216,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           ),
                         ),
                       ),
+                      sectionLabel('Quick actions'),
                       commandTile(
                         key: const Key('shell-search-scrollback-top'),
                         actionId: TerminalActionId.search,
@@ -454,7 +455,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
-                                'Open command menu with $launcherShortcutLabel',
+                                'Open command palette with $launcherShortcutLabel',
                                 style: Theme.of(context).textTheme.labelMedium
                                     ?.copyWith(color: palette.textSubtle),
                               ),

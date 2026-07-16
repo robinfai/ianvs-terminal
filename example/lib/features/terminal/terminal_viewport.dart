@@ -48,6 +48,7 @@ class TerminalViewport extends StatelessWidget {
     this.colors,
     this.backgroundColor,
     this.foregroundColor,
+    this.useFrameDefaultColors = true,
     this.font = const terminal.TerminalFontConfig(),
     this.cursor = const terminal.TerminalCursorConfig(),
     this.copyOnSelect = false,
@@ -81,6 +82,7 @@ class TerminalViewport extends StatelessWidget {
   final terminal.TerminalViewportColors? colors;
   final Color? backgroundColor;
   final Color? foregroundColor;
+  final bool useFrameDefaultColors;
   final terminal.TerminalFontConfig font;
   final terminal.TerminalCursorConfig cursor;
   final bool copyOnSelect;
@@ -117,6 +119,7 @@ class TerminalViewport extends StatelessWidget {
       colors: colors,
       backgroundColor: backgroundColor,
       foregroundColor: foregroundColor,
+      useFrameDefaultColors: useFrameDefaultColors,
       font: font,
       cursor: cursor,
       copyOnSelect: copyOnSelect,

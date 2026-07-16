@@ -65,13 +65,13 @@ void main() {
     );
 
     expect(find.byKey(const Key('shell-chrome-menu')), findsOneWidget);
-    expect(find.text('Top actions'), findsNothing);
+    expect(find.text('Command palette'), findsNothing);
     expect(find.byType(TerminalViewport), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('shell-chrome-menu')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Top actions'), findsOneWidget);
+    expect(find.text('Command palette'), findsOneWidget);
     expect(find.byKey(const Key('shell-command-menu-overlay')), findsOneWidget);
     expect(find.byKey(const Key('shell-top-new-tab')), findsOneWidget);
     expect(find.text('Search terminal output'), findsOneWidget);
@@ -90,10 +90,10 @@ void main() {
     expect(shellAcceptanceProbe.current.activeSessionId, '1');
     final openVersion = shellAcceptanceProbe.current.snapshotVersion;
 
-    await tester.tap(find.byTooltip('Close actions'));
+    await tester.tap(find.byTooltip('Close command palette'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Top actions'), findsNothing);
+    expect(find.text('Command palette'), findsNothing);
     expect(find.byType(TerminalViewport), findsOneWidget);
     expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
     expect(shellAcceptanceProbe.current.commandMenuOpen, isFalse);
@@ -170,7 +170,7 @@ void main() {
     await tester.tap(find.byKey(const Key('shell-top-new-tab')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Top actions'), findsNothing);
+    expect(find.text('Command palette'), findsNothing);
     expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
     expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
     expect(find.byType(TerminalViewport), findsOneWidget);

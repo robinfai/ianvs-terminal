@@ -178,6 +178,7 @@ class TerminalViewport extends StatefulWidget {
     this.colors,
     this.backgroundColor,
     this.foregroundColor,
+    this.useFrameDefaultColors = true,
     this.font = const TerminalFontConfig(),
     this.cursor = const TerminalCursorConfig(),
     this.copyOnSelect = false,
@@ -211,6 +212,12 @@ class TerminalViewport extends StatefulWidget {
   final TerminalViewportColors? colors;
   final Color? backgroundColor;
   final Color? foregroundColor;
+
+  /// Whether the backend frame's default foreground and background override
+  /// the viewport's configured colors.
+  ///
+  /// Set this to false when an app-level theme must remain authoritative.
+  final bool useFrameDefaultColors;
   final TerminalFontConfig font;
   final TerminalCursorConfig cursor;
   final bool copyOnSelect;
@@ -1610,6 +1617,9 @@ class _TerminalViewportState extends State<TerminalViewport>
     TerminalViewportColors base,
     TerminalFrameDiff frame,
   ) {
+    if (!widget.useFrameDefaultColors) {
+      return base;
+    }
     return base.copyWith(
       canvasBackground: frame.defaultBackground,
       foreground: frame.defaultForeground,
@@ -1899,6 +1909,8 @@ class _TerminalViewportState extends State<TerminalViewport>
                                 font: _effectiveFont,
                                 cursor: widget.cursor,
                                 colors: effectiveColors,
+                                useFrameDefaultColors:
+                                    widget.useFrameDefaultColors,
                                 searchMatches: widget.searchMatches,
                                 activeSearchMatchIndex:
                                     widget.activeSearchMatchIndex,
@@ -3202,6 +3214,7 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
     required this.font,
     required this.cursor,
     required this.colors,
+    required this.useFrameDefaultColors,
     required this.searchMatches,
     required this.activeSearchMatchIndex,
     required this.searchHighlightStyle,
@@ -3214,6 +3227,7 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
   final TerminalFontConfig font;
   final TerminalCursorConfig cursor;
   final TerminalViewportColors colors;
+  final bool useFrameDefaultColors;
   final List<TerminalSearchMatch> searchMatches;
   final int activeSearchMatchIndex;
   final TerminalSearchHighlightStyle searchHighlightStyle;
@@ -3229,6 +3243,7 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
       cursor: cursor,
       devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
       colors: colors,
+      useFrameDefaultColors: useFrameDefaultColors,
       searchMatches: searchMatches,
       activeSearchMatchIndex: activeSearchMatchIndex,
       searchHighlightStyle: searchHighlightStyle,
@@ -3248,6 +3263,7 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
       ..font = font
       ..cursor = cursor
       ..colors = colors
+      ..useFrameDefaultColors = useFrameDefaultColors
       ..searchMatches = searchMatches
       ..activeSearchMatchIndex = activeSearchMatchIndex
       ..searchHighlightStyle = searchHighlightStyle

@@ -13,20 +13,22 @@ AppTerminalColors resolveTerminalColors(
   BuildContext context, {
   TerminalProfileAppearance? profileAppearance,
 }) {
-  final base = TerminalViewportColors.fromBrightness(
-    Theme.of(context).brightness,
+  final colorScheme = Theme.of(context).colorScheme;
+  final base = TerminalViewportColors(
+    canvasBackground: colorScheme.surfaceContainerLowest,
+    foreground: colorScheme.onSurface,
+    cursor: colorScheme.primary,
+    selection: colorScheme.primary.withValues(alpha: 0.28),
+    scrollbarTrack: colorScheme.outlineVariant.withValues(alpha: 0.32),
+    scrollbarThumb: colorScheme.onSurfaceVariant.withValues(alpha: 0.62),
+    minimumContrastRatio: 4.5,
+    smartCursorColor: true,
   );
   final overrides = profileAppearance?.colors;
   return AppTerminalColors(
     viewport: base.copyWith(
-      canvasBackground: terminalViewportColorFromHex(
-        overrides?.special.background,
-      ),
-      foreground: terminalViewportColorFromHex(overrides?.special.foreground),
       cursor: terminalViewportColorFromHex(overrides?.special.cursor),
       selection: terminalViewportColorFromHex(overrides?.special.selection),
-      minimumContrastRatio: 4.5,
-      smartCursorColor: true,
     ),
   );
 }

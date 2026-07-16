@@ -21,6 +21,8 @@ class AppDialogScaffold extends StatelessWidget {
     this.headerPadding,
     this.bodyPadding,
     this.footerPadding,
+    this.titleTextStyle,
+    this.subtitleTextStyle,
     this.centerInViewport = true,
   });
 
@@ -38,6 +40,8 @@ class AppDialogScaffold extends StatelessWidget {
   final EdgeInsetsGeometry? headerPadding;
   final EdgeInsetsGeometry? bodyPadding;
   final EdgeInsetsGeometry? footerPadding;
+  final TextStyle? titleTextStyle;
+  final TextStyle? subtitleTextStyle;
   final bool centerInViewport;
 
   @override
@@ -61,19 +65,23 @@ class AppDialogScaffold extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: theme.textPrimary,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0,
-                  ),
+                  style:
+                      titleTextStyle ??
+                      Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: theme.textPrimary,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0,
+                      ),
                 ),
                 if (subtitle != null) ...[
                   SizedBox(height: theme.spacing.xs),
                   Text(
                     subtitle!,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
+                    style:
+                        subtitleTextStyle ??
+                        Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: theme.textSubtle,
+                        ),
                   ),
                 ],
               ],

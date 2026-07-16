@@ -45,7 +45,8 @@ class ColorSettingRow extends StatelessWidget {
     );
     return LayoutBuilder(
       builder: (context, constraints) {
-        final stackedActions = constraints.maxWidth < 520;
+        final inlineLabel = constraints.maxWidth >= 620;
+        final stackedActions = constraints.maxWidth < 460;
         final field = _buildField(context);
         final swatch = ColorSwatchButton(
           key: swatchKey,
@@ -70,6 +71,41 @@ class ColorSettingRow extends StatelessWidget {
           tooltip: 'Reset $label color',
           onPressed: enabled ? onReset : null,
         );
+
+        if (inlineLabel) {
+          return ConstrainedBox(
+            constraints: BoxConstraints(minHeight: theme.controls.regular),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 132,
+                  child: Padding(
+                    padding: EdgeInsets.only(top: theme.spacing.sm + 2),
+                    child: Text(label, style: labelStyle),
+                  ),
+                ),
+                SizedBox(width: theme.spacing.md),
+                Expanded(child: field),
+                SizedBox(width: theme.spacing.sm),
+                Padding(
+                  padding: EdgeInsets.only(top: theme.spacing.xs),
+                  child: swatch,
+                ),
+                SizedBox(width: theme.spacing.sm),
+                Padding(
+                  padding: EdgeInsets.only(top: theme.spacing.xs),
+                  child: pickButton,
+                ),
+                SizedBox(width: theme.spacing.sm),
+                Padding(
+                  padding: EdgeInsets.only(top: theme.spacing.xs),
+                  child: resetButton,
+                ),
+              ],
+            ),
+          );
+        }
 
         if (stackedActions) {
           return Column(

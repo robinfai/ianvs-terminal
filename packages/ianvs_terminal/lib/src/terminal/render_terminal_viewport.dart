@@ -147,6 +147,7 @@ class RenderTerminalViewport extends RenderBox {
     required TerminalCursorConfig cursor,
     required double devicePixelRatio,
     required TerminalViewportColors colors,
+    bool useFrameDefaultColors = true,
     List<TerminalSearchMatch> searchMatches = const [],
     int activeSearchMatchIndex = -1,
     TerminalSearchHighlightStyle searchHighlightStyle =
@@ -159,6 +160,7 @@ class RenderTerminalViewport extends RenderBox {
        _cursor = cursor,
        _devicePixelRatio = devicePixelRatio,
        _colors = colors,
+       _useFrameDefaultColors = useFrameDefaultColors,
        _searchMatches = searchMatches,
        _activeSearchMatchIndex = activeSearchMatchIndex,
        _searchHighlightStyle = searchHighlightStyle,
@@ -174,6 +176,7 @@ class RenderTerminalViewport extends RenderBox {
   double _devicePixelRatio;
   bool _cursorVisible = true;
   TerminalViewportColors _colors;
+  bool _useFrameDefaultColors;
   List<TerminalSearchMatch> _searchMatches;
   int _activeSearchMatchIndex;
   TerminalSearchHighlightStyle _searchHighlightStyle;
@@ -296,6 +299,16 @@ class RenderTerminalViewport extends RenderBox {
       return;
     }
     _colors = value;
+    _invalidateVisualCaches();
+    _glyphParagraphCache.clear();
+    markNeedsPaint();
+  }
+
+  set useFrameDefaultColors(bool value) {
+    if (value == _useFrameDefaultColors) {
+      return;
+    }
+    _useFrameDefaultColors = value;
     _invalidateVisualCaches();
     _glyphParagraphCache.clear();
     markNeedsPaint();
@@ -803,7 +816,7 @@ class RenderTerminalViewport extends RenderBox {
       return;
     }
     final color = _foregroundWithMinimumContrast(
-      frame.linkColor ?? frame.defaultForeground ?? _colors.foreground,
+      frame.linkColor ?? _defaultForegroundFor(frame),
       _canvasBackgroundFor(frame),
     ).withValues(alpha: 0.82);
     final devicePixelRatio = _devicePixelRatio.isFinite && _devicePixelRatio > 0
@@ -880,8 +893,8 @@ class RenderTerminalViewport extends RenderBox {
       _colors.foreground.toARGB32(),
       _canvasBackgroundFor(frame).toARGB32(),
       _colors.minimumContrastRatio,
-      frame.defaultForeground?.toARGB32(),
-      frame.defaultBackground?.toARGB32(),
+      _defaultForegroundFor(frame).toARGB32(),
+      _defaultBackgroundFor(frame).toARGB32(),
       renderedDocument?.kind,
       documentPalette?.accent.toARGB32(),
       documentPalette?.secondary.toARGB32(),
@@ -910,9 +923,7 @@ class RenderTerminalViewport extends RenderBox {
     final textCells = TerminalTextCells.fromText(row.text);
     final canvasBackground = _canvasBackgroundFor(frame);
     final defaultRawForeground =
-        documentPalette?.foreground ??
-        frame.defaultForeground ??
-        _colors.foreground;
+        documentPalette?.foreground ?? _defaultForegroundFor(frame);
     final defaultForeground = _foregroundWithMinimumContrast(
       defaultRawForeground,
       canvasBackground,
@@ -942,7 +953,7 @@ class RenderTerminalViewport extends RenderBox {
       final resolvedStyle = _resolvedCellStyleFor(
         run,
         defaultForeground: defaultRawForeground,
-        defaultBackground: frame.defaultBackground,
+        defaultBackground: _defaultBackgroundFor(frame),
         canvasBackground: canvasBackground,
       );
       resolvedStyles?.add(
@@ -1057,7 +1068,7 @@ class RenderTerminalViewport extends RenderBox {
 
   TerminalTextDocumentPalette _documentPaletteFor(TerminalFrameDiff frame) {
     final background = _canvasBackgroundFor(frame);
-    final foreground = frame.defaultForeground ?? _colors.foreground;
+    final foreground = _defaultForegroundFor(frame);
     final accent = frame.cursorColor ?? _colors.cursor;
     return TerminalTextDocumentPalette(
       foreground: foreground,
@@ -1427,7 +1438,21 @@ class RenderTerminalViewport extends RenderBox {
   }
 
   Color _canvasBackgroundFor(TerminalFrameDiff frame) {
-    return frame.defaultBackground ?? _colors.canvasBackground;
+    return _defaultBackgroundFor(frame);
+  }
+
+  Color _defaultForegroundFor(TerminalFrameDiff frame) {
+    if (_useFrameDefaultColors) {
+      return frame.defaultForeground ?? _colors.foreground;
+    }
+    return _colors.foreground;
+  }
+
+  Color _defaultBackgroundFor(TerminalFrameDiff frame) {
+    if (_useFrameDefaultColors) {
+      return frame.defaultBackground ?? _colors.canvasBackground;
+    }
+    return _colors.canvasBackground;
   }
 
   Color _foregroundWithMinimumContrast(Color foreground, Color background) {
@@ -1937,9 +1962,8 @@ class RenderTerminalViewport extends RenderBox {
       defaultForeground:
           foregroundOverride ??
           placement.foreground ??
-          frame.defaultForeground ??
-          _colors.foreground,
-      defaultBackground: placement.background ?? frame.defaultBackground,
+          _defaultForegroundFor(frame),
+      defaultBackground: placement.background ?? _defaultBackgroundFor(frame),
       canvasBackground: canvasBackground,
     );
     final glyph = _glyphParagraphFor(placement.text, resolvedStyle);
