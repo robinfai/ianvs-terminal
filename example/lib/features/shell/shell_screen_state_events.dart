@@ -870,72 +870,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (!mounted) {
       return;
     }
-    if (event.decision == terminal.TerminalClipboardDecision.blocked) {
-      _osc52BlockedCount += 1;
-    }
-    final label = _osc52StatusLabelFor(event);
-    _osc52StatusClearTimer?.cancel();
-    _mutateState(() {
-      _lastOsc52StatusLabel = label;
-      _lastOsc52StatusEvent = event;
-      _lastOsc52StatusSessionId = event.sessionId;
-    });
     _showShellSnackBar(_osc52SnackBarMessageFor(event));
-    _osc52StatusClearTimer = Timer(const Duration(seconds: 6), () {
-      if (!mounted) {
-        return;
-      }
-      _mutateState(() {
-        _lastOsc52StatusLabel = null;
-        _lastOsc52StatusEvent = null;
-        _lastOsc52StatusSessionId = null;
-      });
-    });
-  }
-
-  String _osc52StatusLabelFor(terminal.TerminalSessionClipboardEvent event) {
-    final operation = switch (event.operation) {
-      terminal.TerminalClipboardOperation.copy => 'COPY',
-      terminal.TerminalClipboardOperation.pasteRequest => 'PASTE',
-      terminal.TerminalClipboardOperation.mimeWrite => 'MIME WRITE',
-      terminal.TerminalClipboardOperation.mimeRead => 'MIME READ',
-    };
-    final decision = switch (event.decision) {
-      terminal.TerminalClipboardDecision.allowed => 'OK',
-      terminal.TerminalClipboardDecision.blocked => 'BLOCKED',
-      terminal.TerminalClipboardDecision.invalidPayload => 'INVALID',
-    };
-    return '${event.protocol.toUpperCase()} $operation $decision';
-  }
-
-  String _osc52StatusTooltipFor(terminal.TerminalSessionClipboardEvent event) {
-    final operation = switch (event.operation) {
-      terminal.TerminalClipboardOperation.copy => 'clipboard write',
-      terminal.TerminalClipboardOperation.pasteRequest => 'clipboard read',
-      terminal.TerminalClipboardOperation.mimeWrite =>
-        'multi-format clipboard write',
-      terminal.TerminalClipboardOperation.mimeRead =>
-        'multi-format clipboard read',
-    };
-    final decision = switch (event.decision) {
-      terminal.TerminalClipboardDecision.allowed => 'allowed',
-      terminal.TerminalClipboardDecision.blocked => 'blocked',
-      terminal.TerminalClipboardDecision.invalidPayload => 'invalid payload',
-    };
-    return [
-      '${_oscProtocolDisplayName(event.protocol)} $operation $decision',
-      'Session: ${_osc52SessionDetailValue(event.sessionId)}',
-      if (event.selection != null) 'Selection: ${event.selection}',
-      if (event.characterCount != null) 'Characters: ${event.characterCount}',
-      if (event.byteCount != null) 'Bytes: ${event.byteCount}',
-      if (event.mimeTypes.isNotEmpty)
-        'MIME types: ${event.mimeTypes.join(', ')}',
-      if (event.textPreview != null)
-        'Preview: ${_visibleOsc52Preview(event.textPreview!)}'
-            '${event.textPreviewTruncated ? '\n... preview truncated' : ''}',
-      if (_osc52BlockedCount > 0) 'Blocked in this window: $_osc52BlockedCount',
-      if (_osc52StatusShouldOfferPaneFocus(event)) 'Click to focus this pane.',
-    ].join('\n');
   }
 
   String _oscProtocolDisplayName(String protocol) =>
@@ -1085,35 +1020,6 @@ extension _ShellScreenStateEvents on _ShellScreenState {
           'ianvs-terminal.osc.${event.sessionId}.${DateTime.now().microsecondsSinceEpoch}',
       expiresAfterMs: event.expiresAfterMs,
     );
-  }
-
-  void _handleOscNotificationInteraction(
-    String sessionId,
-    _ShellNotificationInteraction interaction,
-  ) {
-    if (interaction.notification.identifier == null ||
-        interaction.notification.source != 'osc99') {
-      return;
-    }
-    final controller = ref.read(sessionControllerProvider.notifier);
-    switch (interaction.kind) {
-      case _ShellNotificationInteractionKind.activate:
-        controller.reportSessionNotificationAction(
-          sessionId,
-          interaction.notification,
-        );
-      case _ShellNotificationInteractionKind.button:
-        controller.reportSessionNotificationAction(
-          sessionId,
-          interaction.notification,
-          buttonNumber: interaction.buttonNumber,
-        );
-      case _ShellNotificationInteractionKind.dismiss:
-        controller.dismissSessionNotification(
-          sessionId,
-          interaction.notification,
-        );
-    }
   }
 
   String _oscNotificationSnackBarMessage(

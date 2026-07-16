@@ -7,7 +7,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
-import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
@@ -1478,8 +1477,7 @@ void main() {
             .data,
         'Right Pane Title',
       );
-      expect(find.byKey(const Key('shell-status-badge')), findsOneWidget);
-      expect(find.text('BADGE Deploy'), findsOneWidget);
+      expect(find.byKey(const Key('shell-status-badge')), findsNothing);
       expect(find.text('DEPLOY'), findsOneWidget);
       expect(container.read(sessionControllerProvider).activeSessionId, '2');
 
@@ -3192,7 +3190,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('Top actions'), findsOneWidget);
+      expect(find.text('Command palette'), findsOneWidget);
       expect(fakeBindings.writes, isEmpty);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
@@ -3226,7 +3224,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('Top actions'), findsNothing);
+      expect(find.text('Command palette'), findsNothing);
       expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
       expect(fakeBindings.writes, isEmpty);
     },
@@ -3314,7 +3312,7 @@ void main() {
         findsOneWidget,
       );
       expect(fakeBindings.writes, isEmpty);
-      await tester.tap(find.byTooltip('Close actions'));
+      await tester.tap(find.byTooltip('Close command palette'));
       await tester.pumpAndSettle();
 
       await tester.tap(find.byType(TerminalViewport).last);
@@ -3837,7 +3835,7 @@ void main() {
         platform: 'linux',
       );
 
-      expect(find.text('Top actions'), findsNothing);
+      expect(find.text('Command palette'), findsNothing);
       expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
       expect(fakeBindings.writes, isEmpty);
     },
@@ -4119,7 +4117,7 @@ void main() {
         ),
         findsNWidgets(2),
       );
-      await tester.tap(find.byTooltip('Close actions'));
+      await tester.tap(find.byTooltip('Close command palette'));
       await tester.pumpAndSettle();
 
       fakeBindings.enqueueEvent(1, PtyEvent(kind: 'bell', sessionId: '1'));
@@ -4180,7 +4178,7 @@ void main() {
         ),
         findsNWidgets(2),
       );
-      await tester.tap(find.byTooltip('Close actions'));
+      await tester.tap(find.byTooltip('Close command palette'));
       await tester.pumpAndSettle();
 
       shouldFail = false;
@@ -5321,304 +5319,6 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
-  testWidgets('shell status bar shows current shell integration context', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
-
-    await _pumpShellScreen(
-      tester,
-      bindings: fakeBindings,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
-
-    fakeBindings.enqueueEvent(
-      1,
-      PtyEvent(
-        kind: 'shell_hook',
-        sessionId: '1',
-        payload: const <String, Object?>{
-          'hook': 'command_finished',
-          'command': 'git status',
-          'pwd': '/tmp/project',
-          'shell': 'zsh',
-          'host': 'workstation.local',
-          'user': 'dev',
-          'exit_code': 0,
-        },
-      ),
-    );
-    fakeBindings.enqueueEvent(
-      1,
-      PtyEvent(
-        kind: 'shell_command',
-        sessionId: '1',
-        payload: const <String, Object?>{
-          'source': 'osc1337',
-          'eventType': 'integration_version',
-          'version': '17',
-          'shell': 'zsh',
-        },
-      ),
-    );
-    await tester.pump(const Duration(milliseconds: 40));
-
-    expect(find.byKey(const Key('shell-status-bar')), findsOneWidget);
-    expect(find.byKey(const Key('shell-status-directory')), findsOneWidget);
-    expect(find.byKey(const Key('shell-status-shell')), findsNothing);
-    expect(find.byKey(const Key('shell-status-connection')), findsNothing);
-    expect(find.byKey(const Key('shell-status-viewport')), findsOneWidget);
-    expect(find.byKey(const Key('shell-status-encoding')), findsOneWidget);
-    expect(
-      find.byKey(const Key('shell-status-shell-integration')),
-      findsOneWidget,
-    );
-    expect(find.byKey(const Key('terminal-session-badge-1')), findsNothing);
-    expect(find.text('/tmp/project'), findsOneWidget);
-    expect(find.text('zsh'), findsNothing);
-    expect(find.text('Connected'), findsNothing);
-    expect(find.text('UTF-8'), findsOneWidget);
-    expect(find.text('SHELL ACTIVE'), findsOneWidget);
-    expect(
-      find.byTooltip(
-        'Shell integration is active for this pane.\nShell: zsh\nIntegration version: 17',
-      ),
-      findsOneWidget,
-    );
-
-    final directoryMenu = tester.widget<PopupMenuButton<String>>(
-      find.descendant(
-        of: find.byKey(const Key('shell-status-directory')),
-        matching: find.byType(PopupMenuButton<String>),
-      ),
-    );
-    expect(directoryMenu.elevation, 0);
-    expect(directoryMenu.shadowColor, Colors.transparent);
-    expect(directoryMenu.surfaceTintColor, Colors.transparent);
-
-    await tester.tap(find.byKey(const Key('shell-status-directory')));
-    await tester.pumpAndSettle();
-    expect(find.text('Copy full path'), findsOneWidget);
-  });
-
-  testWidgets('shell integration health reports waiting and partial states', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
-
-    await _pumpShellScreen(
-      tester,
-      bindings: fakeBindings,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
-
-    expect(
-      find.byKey(const Key('shell-status-shell-integration')),
-      findsOneWidget,
-    );
-    expect(find.text('SHELL WAITING'), findsOneWidget);
-    expect(
-      find.byTooltip(
-        'Shell integration metadata has not arrived for this pane yet.',
-      ),
-      findsOneWidget,
-    );
-
-    fakeBindings.enqueueEvent(
-      1,
-      PtyEvent(
-        kind: 'shell_hook',
-        sessionId: '1',
-        payload: const <String, Object?>{
-          'hook': 'directory_changed',
-          'pwd': '/tmp/project',
-          'shell': 'zsh',
-          'host': 'workstation.local',
-          'user': 'dev',
-        },
-      ),
-    );
-    await tester.pump(const Duration(milliseconds: 40));
-
-    expect(find.text('SHELL PARTIAL'), findsOneWidget);
-    expect(
-      find.byTooltip(
-        'Shell integration has shell context, but command or prompt metadata has not arrived.\nShell: zsh',
-      ),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('shell status bar shows important active mode tokens', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
-
-    await _pumpShellScreen(
-      tester,
-      bindings: fakeBindings,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
-
-    final modeFrame = terminal.TerminalFrameDiff.fromJson({
-      'rows': [
-        {'index': 0, 'text': 'vim README.md', 'style_runs': const []},
-      ],
-      'cursor': {'row': 0, 'col': 13, 'visible': true},
-      'selection': null,
-      'viewport_rows': 24,
-      'viewport_cols': 80,
-      'dirty_ranges': [
-        {'start': 0, 'end': 1},
-      ],
-      'scrollback_offset': 0,
-      'scrollback_max_offset': 0,
-      'modes': {
-        'alternate_screen': true,
-        'bracketed_paste': true,
-        'focus_tracking': true,
-        'mouse_mode': 'x10',
-        'mouse_encoding': 'sgr_pixels',
-        'kitty_keyboard_flags': 10,
-        'application_cursor': true,
-        'synchronized_output': true,
-      },
-    });
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ShellScreen)),
-    );
-    container
-        .read(terminalRuntimeControllerProvider)
-        .viewportFor('1')
-        .updateFrame(modeFrame);
-    await tester.pump();
-
-    expect(find.byKey(const Key('shell-status-mode-alt')), findsOneWidget);
-    expect(find.byKey(const Key('shell-status-mode-mouse')), findsOneWidget);
-    expect(find.byKey(const Key('shell-status-mode-paste')), findsOneWidget);
-    expect(find.byKey(const Key('shell-status-mode-focus')), findsOneWidget);
-    expect(
-      find.byKey(const Key('shell-status-mode-kitty-keyboard')),
-      findsOneWidget,
-    );
-    expect(find.byKey(const Key('shell-status-mode-sync')), findsOneWidget);
-    expect(find.byKey(const Key('shell-status-mode-read-only')), findsNothing);
-    expect(find.text('ALT'), findsOneWidget);
-    expect(find.text('MOUSE'), findsOneWidget);
-    expect(find.text('PASTE'), findsOneWidget);
-    expect(find.text('FOCUS'), findsOneWidget);
-    expect(find.text('KEYS'), findsOneWidget);
-    expect(find.text('SYNC'), findsOneWidget);
-    expect(find.text('APP CURSOR'), findsNothing);
-    expect(
-      find.byTooltip('Alternate screen buffer is active.'),
-      findsOneWidget,
-    );
-    expect(
-      find.byTooltip(
-        'Mouse reporting is active: X10 tracking, SGR pixels encoding.',
-      ),
-      findsOneWidget,
-    );
-    expect(find.byTooltip('Bracketed paste mode is active.'), findsOneWidget);
-    expect(
-      find.byTooltip(
-        'Focus reporting is active. The application receives focus-in and focus-out events.',
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.byTooltip(
-        [
-          'Kitty keyboard protocol is active.',
-          'Enabled: repeat and release events, all keys.',
-          'Some key combinations are sent as Kitty CSI-u sequences.',
-        ].join('\n'),
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.byTooltip(
-        'Synchronized output mode is active. Intermediate updates are held until the application flushes.',
-      ),
-      findsOneWidget,
-    );
-
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.byKey(const Key('shell-toggle-read-only')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('shell-toggle-read-only')));
-    await tester.pumpAndSettle();
-
-    expect(
-      find.byKey(const Key('shell-status-mode-read-only')),
-      findsOneWidget,
-    );
-    expect(find.text('READ ONLY'), findsOneWidget);
-    expect(
-      find.byTooltip(
-        'Read-only mode is enabled for this pane. Input and paste sends are blocked.',
-      ),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets(
-    'shell status bar keeps the directory item visible in a narrow window',
-    (tester) async {
-      tester.view.devicePixelRatio = 1.0;
-      tester.view.physicalSize = const Size(560, 420);
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
-
-      final fakeBindings = FakePtyBackend();
-
-      await _pumpShellScreen(
-        tester,
-        bindings: fakeBindings,
-        repository: MemoryProfileRepository(
-          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-        ),
-      );
-
-      fakeBindings.enqueueEvent(
-        1,
-        PtyEvent(
-          kind: 'shell_hook',
-          sessionId: '1',
-          payload: const <String, Object?>{
-            'hook': 'command_finished',
-            'command': 'git status',
-            'pwd': '/Users/luobinghui/projects/flutter/ianvs terminal/example',
-            'shell': 'zsh',
-            'host': 'workstation.local',
-            'user': 'dev',
-            'exit_code': 0,
-          },
-        ),
-      );
-      await tester.pump(const Duration(milliseconds: 40));
-
-      final statusBarRect = tester.getRect(
-        find.byKey(const Key('shell-status-bar')),
-      );
-      final directoryRect = tester.getRect(
-        find.byKey(const Key('shell-status-directory')),
-      );
-
-      expect(directoryRect.left >= statusBarRect.left, isTrue);
-      expect(directoryRect.right <= statusBarRect.right, isTrue);
-    },
-  );
-
   testWidgets(
     'shift-command arrows track global prompt marks through new output and caps',
     (tester) async {
@@ -6358,7 +6058,7 @@ void main() {
     expect(find.byKey(const Key('shell-empty-state')), findsNothing);
     expect(find.byType(TerminalViewport), findsOneWidget);
     expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
-    expect(find.byKey(const Key('shell-status-bar')), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-bar')), findsNothing);
   });
 
   testWidgets('terminal exit returns the shell to the empty state', (

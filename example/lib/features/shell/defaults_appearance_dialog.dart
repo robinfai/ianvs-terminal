@@ -61,6 +61,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
 
 class _DefaultsAndAppearanceDialogState
     extends State<DefaultsAndAppearanceDialog> {
+  final ScrollController _scrollController = ScrollController();
   late String? _selectedProfileId;
   late String? _selectedTerminalPresetId;
   late TerminalThemeMode _selectedThemeMode;
@@ -90,6 +91,12 @@ class _DefaultsAndAppearanceDialogState
         effectiveProfileId: widget.effectiveDefaultProfileId,
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   TerminalProfile? _effectiveProfileFor({
@@ -160,10 +167,13 @@ class _DefaultsAndAppearanceDialogState
   @override
   Widget build(BuildContext context) {
     final theme = context.appTheme;
-    final dialogHeight =
-        (MediaQuery.sizeOf(context).height - theme.spacing.xxl * 2)
-            .clamp(440.0, 580.0)
-            .toDouble();
+    final mediaSize = MediaQuery.sizeOf(context);
+    final dialogWidth = (mediaSize.width - theme.spacing.xxl * 2)
+        .clamp(0.0, 720.0)
+        .toDouble();
+    final dialogHeight = (mediaSize.height - theme.spacing.xxl * 2)
+        .clamp(520.0, 720.0)
+        .toDouble();
     final effectiveProfile = _effectiveProfileFor(
       configuredProfileId: _selectedProfileId,
       effectiveProfileId: widget.effectiveDefaultProfileId,
@@ -196,50 +206,54 @@ class _DefaultsAndAppearanceDialogState
           'Pick the default profile for new tabs and choose how the shell follows the app theme.',
       onClose: () => Navigator.of(context).pop(),
       closeTooltip: 'Close defaults',
-      constraints: const BoxConstraints(maxWidth: 520),
+      constraints: const BoxConstraints(maxWidth: 720),
+      width: dialogWidth,
       height: dialogHeight,
       expandBody: true,
       centerInViewport: false,
-      bodyPadding: EdgeInsets.fromLTRB(
-        theme.spacing.lg,
-        theme.spacing.lg,
-        theme.spacing.lg,
+      titleTextStyle: Theme.of(context).textTheme.titleLarge?.copyWith(
+        color: theme.textPrimary,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.2,
+      ),
+      subtitleTextStyle: Theme.of(
+        context,
+      ).textTheme.bodyMedium?.copyWith(color: theme.textSubtle),
+      headerPadding: EdgeInsets.fromLTRB(
+        theme.spacing.xxl,
+        theme.spacing.xl,
+        theme.spacing.xxl,
         theme.spacing.md,
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            AppPanel(
-              tone: AppPanelTone.elevated,
-              padding: EdgeInsets.all(theme.spacing.md),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Detailed terminal settings live in Profiles.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: theme.textPrimary,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  SizedBox(height: theme.spacing.xs),
-                  Text(
-                    'Edit font, colors, cursor, scrollback, and startup arguments from the Profiles editor.',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
-                  ),
-                  if (effectiveProfile != null) ...[
-                    SizedBox(height: theme.spacing.md),
-                    AppActionButton(
-                      buttonKey: const Key('defaults-open-profiles'),
-                      tone: AppActionTone.secondary,
-                      size: AppActionSize.compact,
-                      icon: Icons.tune_rounded,
-                      label: 'Edit ${effectiveProfile.name} in Profiles',
-                      onPressed: () {
+      bodyPadding: EdgeInsets.fromLTRB(
+        theme.spacing.xxl,
+        theme.spacing.xl,
+        theme.spacing.md,
+        theme.spacing.xl,
+      ),
+      footerPadding: EdgeInsets.fromLTRB(
+        theme.spacing.xxl,
+        theme.spacing.md,
+        theme.spacing.xxl,
+        theme.spacing.md,
+      ),
+      body: Scrollbar(
+        controller: _scrollController,
+        thumbVisibility: true,
+        radius: Radius.circular(theme.radius.sm),
+        thickness: theme.spacing.xs,
+        child: SingleChildScrollView(
+          controller: _scrollController,
+          padding: EdgeInsets.only(right: theme.spacing.md),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _ProfilesNotice(
+                effectiveProfile: effectiveProfile,
+                onOpenProfiles: effectiveProfile == null
+                    ? null
+                    : () {
                         Navigator.of(context).pop(
                           DefaultsAndAppearanceSelection(
                             configuredDefaultProfileId: _selectedProfileId,
@@ -257,509 +271,757 @@ class _DefaultsAndAppearanceDialogState
                           ),
                         );
                       },
-                    ),
-                  ],
-                ],
               ),
-            ),
-            SizedBox(height: theme.spacing.xl),
-            const AppSectionHeader(title: 'Default profile'),
-            SizedBox(height: theme.spacing.sm),
-            RadioGroup<String?>(
-              groupValue: _selectedProfileId,
-              onChanged: (value) {
-                setState(() {
-                  _selectedProfileId = value;
-                  _selectedTerminalPresetId = _matchingPresetIdFor(
-                    _effectiveProfileFor(
-                      configuredProfileId: value,
-                      effectiveProfileId: widget.effectiveDefaultProfileId,
-                    ),
-                  );
-                });
-              },
-              child: Column(
-                children: [
-                  AppCompactRadioTile<String?>(
-                    tileKey: const Key('default-profile-option-fallback'),
-                    value: null,
-                    title: const Text('No configured default'),
-                    subtitle: Text(
-                      effectiveProfile == null
-                          ? 'New tabs stay ready even when no default is configured.'
-                          : 'New tabs use ${effectiveProfile.name} until you choose a default.',
-                    ),
-                  ),
-                  for (final profile in widget.profiles)
-                    AppCompactRadioTile<String?>(
-                      tileKey: Key('default-profile-option-${profile.id}'),
-                      value: profile.id,
-                      title: Text(profile.name),
-                      subtitle: Text(profile.shell),
-                    ),
-                ],
-              ),
-            ),
-            AppPanel(
-              tone: AppPanelTone.selected,
-              padding: EdgeInsets.all(theme.spacing.md),
-              child: Text(
-                isUsingFallback
-                    ? 'Current new-tab profile • ${effectiveProfile?.name ?? 'No profile available'}'
-                    : 'Configured default • ${effectiveProfile?.name ?? 'Unknown profile'}',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: theme.textPrimary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            SizedBox(height: theme.spacing.xl),
-            AppSectionHeader(
-              title: 'Terminal preset',
-              description: effectiveProfile == null
-                  ? 'Create a profile before choosing terminal colors.'
-                  : 'Apply a curated terminal color palette to ${effectiveProfile.name}.',
-            ),
-            SizedBox(height: theme.spacing.sm),
-            TextField(
-              key: const Key('defaults-terminal-preset-filter'),
-              autofocus: true,
-              textInputAction: TextInputAction.search,
-              decoration: InputDecoration(
-                isDense: true,
-                prefixIcon: const Icon(Icons.search_rounded),
-                labelText: 'Filter terminal presets',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(theme.radius.lg),
-                ),
-              ),
-              onChanged: (value) {
-                setState(() {
-                  _terminalPresetFilter = value;
-                });
-              },
-            ),
-            SizedBox(height: theme.spacing.sm),
-            Wrap(
-              spacing: theme.spacing.sm,
-              runSpacing: theme.spacing.sm,
-              children: [
-                if (showCurrentPreset)
-                  _TerminalPresetChoice(
-                    key: const Key('defaults-terminal-preset-current'),
-                    label: 'Keep current',
-                    subtitle: selectedPreset == null
-                        ? 'Custom colors'
-                        : 'Currently ${selectedPreset.name}',
-                    selected: _selectedTerminalPresetId == null,
-                    enabled: effectiveProfile != null,
-                    previewColors: effectiveProfile == null
-                        ? const <String>[]
-                        : _previewColorsForPalette(
-                            effectiveProfile.appearance.colors,
+              SizedBox(height: theme.spacing.xl),
+              const AppSectionHeader(title: 'Default profile'),
+              SizedBox(height: theme.spacing.sm),
+              AppPanel(
+                tone: AppPanelTone.panel,
+                child: Column(
+                  children: [
+                    RadioGroup<String?>(
+                      groupValue: _selectedProfileId,
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedProfileId = value;
+                          _selectedTerminalPresetId = _matchingPresetIdFor(
+                            _effectiveProfileFor(
+                              configuredProfileId: value,
+                              effectiveProfileId:
+                                  widget.effectiveDefaultProfileId,
+                            ),
+                          );
+                        });
+                      },
+                      child: Column(
+                        children: [
+                          Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: theme.spacing.md,
+                              vertical: theme.spacing.xs,
+                            ),
+                            child: AppCompactRadioTile<String?>(
+                              tileKey: const Key(
+                                'default-profile-option-fallback',
+                              ),
+                              value: null,
+                              title: const Text('No configured default'),
+                              subtitle: Text(
+                                effectiveProfile == null
+                                    ? 'New tabs stay ready even when no default is configured.'
+                                    : 'New tabs use ${effectiveProfile.name} until you choose a default.',
+                              ),
+                            ),
                           ),
-                    onPressed: () {
-                      setState(() {
-                        _selectedTerminalPresetId = null;
-                      });
-                    },
-                  ),
-                for (final preset in visibleTerminalPresets)
-                  _TerminalPresetChoice(
-                    key: Key('defaults-terminal-preset-${preset.id}'),
-                    label: preset.name,
-                    subtitle: preset.tone.label,
-                    selected: _selectedTerminalPresetId == preset.id,
-                    enabled: effectiveProfile != null,
-                    previewColors: preset.previewColors,
-                    onPressed: () {
-                      setState(() {
-                        _selectedTerminalPresetId = preset.id;
-                      });
-                    },
-                  ),
-                if (!showCurrentPreset && visibleTerminalPresets.isEmpty)
-                  SizedBox(
-                    width: double.infinity,
-                    child: AppPanel(
-                      tone: AppPanelTone.elevated,
-                      padding: EdgeInsets.all(theme.spacing.md),
+                          for (final profile in widget.profiles)
+                            Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: theme.spacing.md,
+                                vertical: theme.spacing.xs,
+                              ),
+                              child: AppCompactRadioTile<String?>(
+                                tileKey: Key(
+                                  'default-profile-option-${profile.id}',
+                                ),
+                                value: profile.id,
+                                title: Text(profile.name),
+                                subtitle: Text(profile.shell),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Container(
+                      key: const Key('defaults-current-profile-summary'),
+                      width: double.infinity,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: theme.spacing.lg,
+                        vertical: theme.spacing.sm + theme.spacing.xs,
+                      ),
+                      decoration: BoxDecoration(
+                        color: theme.selected.withValues(alpha: 0.24),
+                        borderRadius: BorderRadius.vertical(
+                          bottom: Radius.circular(theme.radius.md),
+                        ),
+                      ),
                       child: Text(
-                        'No terminal presets match "$_terminalPresetFilter".',
+                        isUsingFallback
+                            ? 'Current new-tab profile • ${effectiveProfile?.name ?? 'No profile available'}'
+                            : 'Configured default • ${effectiveProfile?.name ?? 'Unknown profile'}',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: theme.textSubtle,
+                          color: theme.textMuted,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
-                  ),
-              ],
-            ),
-            SizedBox(height: theme.spacing.xl),
-            const AppSectionHeader(title: 'Appearance'),
-            SizedBox(height: theme.spacing.sm),
-            RadioGroup<TerminalThemeMode>(
-              groupValue: _selectedThemeMode,
-              onChanged: (value) {
-                if (value == null) {
-                  return;
-                }
-                setState(() {
-                  _selectedThemeMode = value;
-                });
-              },
-              child: Column(
-                children: [
+                  ],
+                ),
+              ),
+              SizedBox(height: theme.spacing.xl),
+              AppSectionHeader(
+                title: 'Terminal preset',
+                description: effectiveProfile == null
+                    ? 'Create a profile before choosing terminal colors.'
+                    : 'Apply a curated terminal color palette to ${effectiveProfile.name}.',
+              ),
+              SizedBox(height: theme.spacing.sm),
+              TextField(
+                key: const Key('defaults-terminal-preset-filter'),
+                textInputAction: TextInputAction.search,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  prefixIcon: Icon(Icons.search_rounded),
+                  hintText: 'Filter terminal presets',
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    _terminalPresetFilter = value;
+                  });
+                },
+              ),
+              SizedBox(height: theme.spacing.sm),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final columnCount = constraints.maxWidth >= 560
+                      ? 3
+                      : constraints.maxWidth >= 340
+                      ? 2
+                      : 1;
+                  final cardWidth =
+                      (constraints.maxWidth -
+                          theme.spacing.sm * (columnCount - 1)) /
+                      columnCount;
+                  return Wrap(
+                    key: const Key('defaults-terminal-preset-grid'),
+                    spacing: theme.spacing.sm,
+                    runSpacing: theme.spacing.sm,
+                    children: [
+                      if (showCurrentPreset)
+                        _TerminalPresetChoice(
+                          key: const Key('defaults-terminal-preset-current'),
+                          width: cardWidth,
+                          label: 'Keep current',
+                          subtitle: selectedPreset == null
+                              ? 'Custom colors'
+                              : 'Currently ${selectedPreset.name}',
+                          selected: _selectedTerminalPresetId == null,
+                          enabled: effectiveProfile != null,
+                          previewColors: effectiveProfile == null
+                              ? const <String>[]
+                              : _previewColorsForPalette(
+                                  effectiveProfile.appearance.colors,
+                                ),
+                          onPressed: () {
+                            setState(() {
+                              _selectedTerminalPresetId = null;
+                            });
+                          },
+                        ),
+                      for (final preset in visibleTerminalPresets)
+                        _TerminalPresetChoice(
+                          key: Key('defaults-terminal-preset-${preset.id}'),
+                          width: cardWidth,
+                          label: preset.name,
+                          subtitle: preset.tone.label,
+                          selected: _selectedTerminalPresetId == preset.id,
+                          enabled: effectiveProfile != null,
+                          previewColors: preset.previewColors,
+                          onPressed: () {
+                            setState(() {
+                              _selectedTerminalPresetId = preset.id;
+                            });
+                          },
+                        ),
+                      if (!showCurrentPreset && visibleTerminalPresets.isEmpty)
+                        SizedBox(
+                          width: constraints.maxWidth,
+                          child: AppPanel(
+                            tone: AppPanelTone.elevated,
+                            padding: EdgeInsets.all(theme.spacing.md),
+                            child: Text(
+                              'No terminal presets match "$_terminalPresetFilter".',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: theme.textSubtle),
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+              SizedBox(height: theme.spacing.xxl),
+              const AppSectionHeader(title: 'Appearance'),
+              SizedBox(height: theme.spacing.sm),
+              _SettingsRadioPanel<TerminalThemeMode>(
+                panelKey: const Key('defaults-appearance-options'),
+                groupValue: _selectedThemeMode,
+                onChanged: (value) {
+                  if (value == null) {
+                    return;
+                  }
+                  setState(() {
+                    _selectedThemeMode = value;
+                  });
+                },
+                options: [
                   for (final themeMode in TerminalThemeMode.values)
-                    AppCompactRadioTile<TerminalThemeMode>(
+                    _SettingsRadioOptionData<TerminalThemeMode>(
                       tileKey: Key('default-theme-option-${themeMode.name}'),
                       value: themeMode,
-                      title: Text(themeModeLabel(themeMode)),
-                      subtitle: Text(_themeModeDescription(themeMode)),
+                      title: themeModeLabel(themeMode),
+                      subtitle: _themeModeDescription(themeMode),
                     ),
                 ],
               ),
-            ),
-            SizedBox(height: theme.spacing.xl),
-            const AppSectionHeader(
-              title: 'OSC 52 clipboard',
-              description:
-                  'Choose how terminal escape sequences may access the system clipboard.',
-            ),
-            SizedBox(height: theme.spacing.sm),
-            RadioGroup<LocalTerminalOsc52Policy>(
-              groupValue: _selectedOsc52Policy,
-              onChanged: (value) {
-                if (value == null) {
-                  return;
-                }
-                setState(() {
-                  _selectedOsc52Policy = value;
-                });
-              },
-              child: Column(
-                children: [
+              SizedBox(height: theme.spacing.xxl),
+              const AppSectionHeader(
+                title: 'OSC 52 clipboard',
+                description:
+                    'Choose how terminal escape sequences may access the system clipboard.',
+              ),
+              SizedBox(height: theme.spacing.sm),
+              _SettingsRadioPanel<LocalTerminalOsc52Policy>(
+                panelKey: const Key('defaults-osc52-options'),
+                groupValue: _selectedOsc52Policy,
+                onChanged: (value) {
+                  if (value == null) {
+                    return;
+                  }
+                  setState(() {
+                    _selectedOsc52Policy = value;
+                  });
+                },
+                options: [
                   for (final policy in LocalTerminalOsc52Policy.values)
-                    AppCompactRadioTile<LocalTerminalOsc52Policy>(
+                    _SettingsRadioOptionData<LocalTerminalOsc52Policy>(
                       tileKey: Key('default-osc52-policy-${policy.name}'),
                       value: policy,
-                      title: Text(osc52PolicyLabel(policy)),
-                      subtitle: Text(osc52PolicyDescription(policy)),
+                      title: osc52PolicyLabel(policy),
+                      subtitle: osc52PolicyDescription(policy),
                     ),
                 ],
               ),
-            ),
-            SizedBox(height: theme.spacing.xl),
-            const AppSectionHeader(
-              title: 'Terminal URL requests',
-              description:
-                  'Choose whether OSC 1337 OpenURL requests may ask for permission. URLs are never opened automatically.',
-            ),
-            SizedBox(height: theme.spacing.sm),
-            RadioGroup<LocalTerminalOpenUrlPolicy>(
-              groupValue: _selectedOpenUrlPolicy,
-              onChanged: (value) {
-                if (value == null) {
-                  return;
-                }
-                setState(() {
-                  _selectedOpenUrlPolicy = value;
-                });
-              },
-              child: Column(
-                children: [
+              SizedBox(height: theme.spacing.xxl),
+              const AppSectionHeader(
+                title: 'Terminal URL requests',
+                description:
+                    'Choose whether OSC 1337 OpenURL requests may ask for permission. URLs are never opened automatically.',
+              ),
+              SizedBox(height: theme.spacing.sm),
+              _SettingsRadioPanel<LocalTerminalOpenUrlPolicy>(
+                panelKey: const Key('defaults-open-url-options'),
+                groupValue: _selectedOpenUrlPolicy,
+                onChanged: (value) {
+                  if (value == null) {
+                    return;
+                  }
+                  setState(() {
+                    _selectedOpenUrlPolicy = value;
+                  });
+                },
+                options: [
                   for (final policy in LocalTerminalOpenUrlPolicy.values)
-                    AppCompactRadioTile<LocalTerminalOpenUrlPolicy>(
+                    _SettingsRadioOptionData<LocalTerminalOpenUrlPolicy>(
                       tileKey: Key(
                         'default-osc1337-open-url-policy-${policy.name}',
                       ),
                       value: policy,
-                      title: Text(openUrlPolicyLabel(policy)),
-                      subtitle: Text(openUrlPolicyDescription(policy)),
+                      title: openUrlPolicyLabel(policy),
+                      subtitle: openUrlPolicyDescription(policy),
                     ),
                 ],
               ),
-            ),
-            SizedBox(height: theme.spacing.xl),
-            const AppSectionHeader(
-              title: 'Terminal attention requests',
-              description:
-                  'Choose whether OSC 1337 RequestAttention may use a bounded Dock alert or a cursor-local visual effect. Requests never activate or focus the app.',
-            ),
-            SizedBox(height: theme.spacing.sm),
-            RadioGroup<LocalTerminalRequestAttentionPolicy>(
-              groupValue: _selectedRequestAttentionPolicy,
-              onChanged: (value) {
-                if (value == null) {
-                  return;
-                }
-                setState(() {
-                  _selectedRequestAttentionPolicy = value;
-                });
-              },
-              child: Column(
-                children: [
+              SizedBox(height: theme.spacing.xxl),
+              const AppSectionHeader(
+                title: 'Terminal attention requests',
+                description:
+                    'Choose whether OSC 1337 RequestAttention may use a bounded Dock alert or a cursor-local visual effect. Requests never activate or focus the app.',
+              ),
+              SizedBox(height: theme.spacing.sm),
+              _SettingsRadioPanel<LocalTerminalRequestAttentionPolicy>(
+                panelKey: const Key('defaults-request-attention-options'),
+                groupValue: _selectedRequestAttentionPolicy,
+                onChanged: (value) {
+                  if (value == null) {
+                    return;
+                  }
+                  setState(() {
+                    _selectedRequestAttentionPolicy = value;
+                  });
+                },
+                options: [
                   for (final policy
                       in LocalTerminalRequestAttentionPolicy.values)
-                    AppCompactRadioTile<LocalTerminalRequestAttentionPolicy>(
+                    _SettingsRadioOptionData<
+                      LocalTerminalRequestAttentionPolicy
+                    >(
                       tileKey: Key(
                         'default-osc1337-request-attention-policy-${policy.name}',
                       ),
                       value: policy,
-                      title: Text(requestAttentionPolicyLabel(policy)),
-                      subtitle: Text(requestAttentionPolicyDescription(policy)),
+                      title: requestAttentionPolicyLabel(policy),
+                      subtitle: requestAttentionPolicyDescription(policy),
                     ),
                 ],
               ),
+              SizedBox(height: theme.spacing.xxl),
+              const AppSectionHeader(
+                title: 'Terminal variable reports',
+                description:
+                    'OSC 1337 ReportVariable requests are denied the first time. Remembered decisions apply only to the named session.* or user.* variable.',
+              ),
+              SizedBox(height: theme.spacing.sm),
+              AppPanel(
+                key: const Key('defaults-report-variable-panel'),
+                tone: AppPanelTone.panel,
+                padding: EdgeInsets.all(theme.spacing.xl),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _selectedReportVariableDecisions.isEmpty
+                          ? 'No remembered decisions'
+                          : '${_selectedReportVariableDecisions.length} remembered · $allowedReportVariables allowed · $deniedReportVariables denied',
+                      key: const Key(
+                        'default-osc1337-report-variable-decision-summary',
+                      ),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: theme.textPrimary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    SizedBox(height: theme.spacing.xs),
+                    Text(
+                      'Forgetting decisions restores the safe first-request denial and lets the app ask again later.',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
+                    ),
+                    if (reportVariableDecisionEntries.isNotEmpty) ...[
+                      SizedBox(height: theme.spacing.md),
+                      for (final entry in reportVariableDecisionEntries)
+                        Padding(
+                          padding: EdgeInsets.only(bottom: theme.spacing.xs),
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: theme.overlay.withValues(alpha: 0.34),
+                              borderRadius: BorderRadius.circular(
+                                theme.radius.md,
+                              ),
+                              border: Border.all(color: theme.border),
+                            ),
+                            child: Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                theme.spacing.md,
+                                theme.spacing.xs,
+                                theme.spacing.xs,
+                                theme.spacing.xs,
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      entry.key,
+                                      key: ValueKey<String>(
+                                        'default-osc1337-report-variable-name-${entry.key}',
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(color: theme.textPrimary),
+                                    ),
+                                  ),
+                                  SizedBox(width: theme.spacing.sm),
+                                  Text(
+                                    entry.value ==
+                                            LocalTerminalReportVariablePolicy
+                                                .allow
+                                        ? 'Allow'
+                                        : 'Deny',
+                                    key: ValueKey<String>(
+                                      'default-osc1337-report-variable-policy-${entry.key}',
+                                    ),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelSmall
+                                        ?.copyWith(color: theme.textSubtle),
+                                  ),
+                                  SizedBox(width: theme.spacing.xs),
+                                  IconButton(
+                                    key: ValueKey<String>(
+                                      'default-osc1337-report-variable-forget-${entry.key}',
+                                    ),
+                                    tooltip: 'Forget decision for ${entry.key}',
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: () {
+                                      setState(() {
+                                        final next =
+                                            <
+                                                String,
+                                                LocalTerminalReportVariablePolicy
+                                              >{..._selectedReportVariableDecisions}
+                                              ..remove(entry.key);
+                                        _selectedReportVariableDecisions =
+                                            Map.unmodifiable(next);
+                                      });
+                                    },
+                                    icon: const Icon(Icons.close_rounded),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                    SizedBox(height: theme.spacing.sm),
+                    AppActionButton(
+                      buttonKey: const Key(
+                        'default-osc1337-report-variable-forget-all',
+                      ),
+                      tone: AppActionTone.secondary,
+                      size: AppActionSize.compact,
+                      icon: Icons.restart_alt_rounded,
+                      label: 'Forget all decisions',
+                      onPressed: _selectedReportVariableDecisions.isEmpty
+                          ? null
+                          : () {
+                              setState(() {
+                                _selectedReportVariableDecisions =
+                                    const <
+                                      String,
+                                      LocalTerminalReportVariablePolicy
+                                    >{};
+                              });
+                            },
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: theme.spacing.xxl),
+              const AppSectionHeader(
+                title: 'Terminal canvas inset',
+                description:
+                    'Adjust the empty space between the shell frame and terminal text.',
+              ),
+              SizedBox(height: theme.spacing.sm),
+              AppPanel(
+                key: const Key('defaults-canvas-inset-panel'),
+                tone: AppPanelTone.panel,
+                padding: EdgeInsets.all(theme.spacing.xl),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Viewport padding',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: theme.textPrimary,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                        ),
+                        Text(
+                          '${_selectedTerminalViewportPadding.round()} px',
+                          style: Theme.of(context).textTheme.labelLarge
+                              ?.copyWith(
+                                color: theme.textMuted,
+                                fontWeight: FontWeight.w700,
+                                fontFamily: 'monospace',
+                              ),
+                        ),
+                      ],
+                    ),
+                    Slider(
+                      key: const Key('default-terminal-viewport-padding'),
+                      value: _selectedTerminalViewportPadding,
+                      min: TerminalAppAppearance.minTerminalViewportPadding,
+                      max: TerminalAppAppearance.maxTerminalViewportPadding,
+                      divisions:
+                          (TerminalAppAppearance.maxTerminalViewportPadding -
+                                  TerminalAppAppearance
+                                      .minTerminalViewportPadding)
+                              .round(),
+                      label: '${_selectedTerminalViewportPadding.round()} px',
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedTerminalViewportPadding = value
+                              .roundToDouble();
+                        });
+                      },
+                    ),
+                    Text(
+                      'Lower values keep the prompt close to the edges; higher values create a larger terminal gutter.',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      footer: LayoutBuilder(
+        builder: (context, constraints) {
+          final resetActions = Wrap(
+            key: const Key('defaults-footer-reset-actions'),
+            spacing: theme.spacing.sm,
+            runSpacing: theme.spacing.sm,
+            children: [
+              AppActionButton(
+                tone: AppActionTone.secondary,
+                size: AppActionSize.compact,
+                label: 'Reset default',
+                onPressed: _selectedProfileId == null
+                    ? null
+                    : () {
+                        setState(() {
+                          _selectedProfileId = null;
+                          _selectedTerminalPresetId = _matchingPresetIdFor(
+                            _effectiveProfileFor(
+                              configuredProfileId: null,
+                              effectiveProfileId:
+                                  widget.effectiveDefaultProfileId,
+                            ),
+                          );
+                        });
+                      },
+              ),
+              AppActionButton(
+                tone: AppActionTone.secondary,
+                size: AppActionSize.compact,
+                label: 'Reset theme',
+                onPressed:
+                    _selectedThemeMode == TerminalThemeMode.system &&
+                        _selectedTerminalViewportPadding ==
+                            TerminalAppAppearance.defaultTerminalViewportPadding
+                    ? null
+                    : () {
+                        setState(() {
+                          _selectedThemeMode = TerminalThemeMode.system;
+                          _selectedTerminalViewportPadding =
+                              TerminalAppAppearance
+                                  .defaultTerminalViewportPadding;
+                        });
+                      },
+              ),
+            ],
+          );
+          final confirmationActions = Wrap(
+            key: const Key('defaults-footer-confirmation-actions'),
+            spacing: theme.spacing.sm,
+            runSpacing: theme.spacing.sm,
+            children: [
+              AppActionButton(
+                tone: AppActionTone.secondary,
+                size: AppActionSize.compact,
+                label: 'Cancel',
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+              AppActionButton(
+                buttonKey: const Key('defaults-save'),
+                label: 'Save changes',
+                onPressed: () {
+                  Navigator.of(context).pop(
+                    DefaultsAndAppearanceSelection(
+                      configuredDefaultProfileId: _selectedProfileId,
+                      themeMode: _selectedThemeMode,
+                      terminalViewportPadding: _selectedTerminalViewportPadding,
+                      osc52Policy: _selectedOsc52Policy,
+                      openUrlPolicy: _selectedOpenUrlPolicy,
+                      requestAttentionPolicy: _selectedRequestAttentionPolicy,
+                      reportVariableDecisions: _selectedReportVariableDecisions,
+                      updatedProfile: _updatedProfileForPreset(
+                        effectiveProfile,
+                      ),
+                      openProfiles: false,
+                    ),
+                  );
+                },
+              ),
+            ],
+          );
+          if (constraints.maxWidth < 440) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Align(alignment: Alignment.centerLeft, child: resetActions),
+                SizedBox(height: theme.spacing.md),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: confirmationActions,
+                ),
+              ],
+            );
+          }
+          return Row(
+            children: [resetActions, const Spacer(), confirmationActions],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ProfilesNotice extends StatelessWidget {
+  const _ProfilesNotice({
+    required this.effectiveProfile,
+    required this.onOpenProfiles,
+  });
+
+  final TerminalProfile? effectiveProfile;
+  final VoidCallback? onOpenProfiles;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    final textTheme = Theme.of(context).textTheme;
+    return DecoratedBox(
+      key: const Key('defaults-profiles-notice'),
+      decoration: BoxDecoration(
+        color: Color.alphaBlend(
+          theme.selected.withValues(alpha: 0.20),
+          theme.panelElevated,
+        ),
+        borderRadius: BorderRadius.circular(theme.radius.lg),
+        border: Border.all(color: theme.focusRing.withValues(alpha: 0.20)),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(theme.spacing.xl),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: EdgeInsets.only(top: theme.spacing.xs),
+              child: Icon(
+                Icons.info_outline_rounded,
+                size: theme.controls.dense - theme.spacing.lg,
+                color: theme.focusRing,
+              ),
             ),
-            SizedBox(height: theme.spacing.xl),
-            const AppSectionHeader(
-              title: 'Terminal variable reports',
-              description:
-                  'OSC 1337 ReportVariable requests are denied the first time. Remembered decisions apply only to the named session.* or user.* variable.',
-            ),
-            SizedBox(height: theme.spacing.sm),
-            AppPanel(
-              tone: AppPanelTone.elevated,
-              padding: EdgeInsets.all(theme.spacing.md),
+            SizedBox(width: theme.spacing.md),
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _selectedReportVariableDecisions.isEmpty
-                        ? 'No remembered decisions'
-                        : '${_selectedReportVariableDecisions.length} remembered · $allowedReportVariables allowed · $deniedReportVariables denied',
-                    key: const Key(
-                      'default-osc1337-report-variable-decision-summary',
-                    ),
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    'Detailed terminal settings live in Profiles.',
+                    style: textTheme.bodyMedium?.copyWith(
                       color: theme.textPrimary,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                   SizedBox(height: theme.spacing.xs),
                   Text(
-                    'Forgetting decisions restores the safe first-request denial and lets the app ask again later.',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
-                  ),
-                  if (reportVariableDecisionEntries.isNotEmpty) ...[
-                    SizedBox(height: theme.spacing.sm),
-                    const Divider(height: 1),
-                    SizedBox(height: theme.spacing.xs),
-                    for (final entry in reportVariableDecisionEntries)
-                      Padding(
-                        padding: EdgeInsets.symmetric(
-                          vertical: theme.spacing.xs,
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                entry.key,
-                                key: ValueKey<String>(
-                                  'default-osc1337-report-variable-name-${entry.key}',
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(color: theme.textPrimary),
-                              ),
-                            ),
-                            SizedBox(width: theme.spacing.sm),
-                            Text(
-                              entry.value ==
-                                      LocalTerminalReportVariablePolicy.allow
-                                  ? 'Allow'
-                                  : 'Deny',
-                              key: ValueKey<String>(
-                                'default-osc1337-report-variable-policy-${entry.key}',
-                              ),
-                              style: Theme.of(context).textTheme.labelSmall
-                                  ?.copyWith(color: theme.textSubtle),
-                            ),
-                            SizedBox(width: theme.spacing.xs),
-                            IconButton(
-                              key: ValueKey<String>(
-                                'default-osc1337-report-variable-forget-${entry.key}',
-                              ),
-                              tooltip: 'Forget decision for ${entry.key}',
-                              visualDensity: VisualDensity.compact,
-                              onPressed: () {
-                                setState(() {
-                                  final next =
-                                      <
-                                          String,
-                                          LocalTerminalReportVariablePolicy
-                                        >{..._selectedReportVariableDecisions}
-                                        ..remove(entry.key);
-                                  _selectedReportVariableDecisions =
-                                      Map.unmodifiable(next);
-                                });
-                              },
-                              icon: const Icon(Icons.close_rounded),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                  SizedBox(height: theme.spacing.sm),
-                  AppActionButton(
-                    buttonKey: const Key(
-                      'default-osc1337-report-variable-forget-all',
+                    'Edit font, colors, cursor, scrollback, and startup arguments from the Profiles editor.',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: theme.textSubtle,
                     ),
-                    tone: AppActionTone.secondary,
-                    size: AppActionSize.compact,
-                    icon: Icons.restart_alt_rounded,
-                    label: 'Forget all decisions',
-                    onPressed: _selectedReportVariableDecisions.isEmpty
-                        ? null
-                        : () {
-                            setState(() {
-                              _selectedReportVariableDecisions =
-                                  const <
-                                    String,
-                                    LocalTerminalReportVariablePolicy
-                                  >{};
-                            });
-                          },
                   ),
-                ],
-              ),
-            ),
-            SizedBox(height: theme.spacing.xl),
-            const AppSectionHeader(
-              title: 'Terminal canvas inset',
-              description:
-                  'Adjust the empty space between the shell frame and terminal text.',
-            ),
-            SizedBox(height: theme.spacing.sm),
-            AppPanel(
-              tone: AppPanelTone.elevated,
-              padding: EdgeInsets.all(theme.spacing.md),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Viewport padding',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: theme.textPrimary,
-                                fontWeight: FontWeight.w700,
-                              ),
-                        ),
-                      ),
-                      Text(
-                        '${_selectedTerminalViewportPadding.round()} px',
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: theme.textMuted,
-                          fontWeight: FontWeight.w700,
-                          fontFamily: 'monospace',
-                        ),
-                      ),
-                    ],
-                  ),
-                  Slider(
-                    key: const Key('default-terminal-viewport-padding'),
-                    value: _selectedTerminalViewportPadding,
-                    min: TerminalAppAppearance.minTerminalViewportPadding,
-                    max: TerminalAppAppearance.maxTerminalViewportPadding,
-                    divisions:
-                        (TerminalAppAppearance.maxTerminalViewportPadding -
-                                TerminalAppAppearance
-                                    .minTerminalViewportPadding)
-                            .round(),
-                    label: '${_selectedTerminalViewportPadding.round()} px',
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedTerminalViewportPadding = value
-                            .roundToDouble();
-                      });
-                    },
-                  ),
-                  Text(
-                    'Lower values keep the prompt close to the edges; higher values create a larger terminal gutter.',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
-                  ),
+                  if (effectiveProfile != null) ...[
+                    SizedBox(height: theme.spacing.md),
+                    AppActionButton(
+                      buttonKey: const Key('defaults-open-profiles'),
+                      tone: AppActionTone.secondary,
+                      size: AppActionSize.compact,
+                      icon: Icons.tune_rounded,
+                      label: 'Edit ${effectiveProfile!.name} in Profiles',
+                      onPressed: onOpenProfiles,
+                    ),
+                  ],
                 ],
               ),
             ),
           ],
         ),
       ),
-      footer: Wrap(
-        alignment: WrapAlignment.end,
-        runAlignment: WrapAlignment.end,
-        spacing: theme.spacing.sm,
-        runSpacing: theme.spacing.sm,
-        children: [
-          AppActionButton(
-            tone: AppActionTone.ghost,
-            size: AppActionSize.compact,
-            label: 'Reset default',
-            onPressed: _selectedProfileId == null
-                ? null
-                : () {
-                    setState(() {
-                      _selectedProfileId = null;
-                      _selectedTerminalPresetId = _matchingPresetIdFor(
-                        _effectiveProfileFor(
-                          configuredProfileId: null,
-                          effectiveProfileId: widget.effectiveDefaultProfileId,
-                        ),
-                      );
-                    });
-                  },
+    );
+  }
+}
+
+class _SettingsRadioOptionData<T> {
+  const _SettingsRadioOptionData({
+    required this.tileKey,
+    required this.value,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final Key tileKey;
+  final T value;
+  final String title;
+  final String subtitle;
+}
+
+class _SettingsRadioPanel<T> extends StatelessWidget {
+  const _SettingsRadioPanel({
+    required this.panelKey,
+    required this.groupValue,
+    required this.onChanged,
+    required this.options,
+  });
+
+  final Key panelKey;
+  final T groupValue;
+  final ValueChanged<T?> onChanged;
+  final List<_SettingsRadioOptionData<T>> options;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    return AppPanel(
+      key: panelKey,
+      tone: AppPanelTone.panel,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(theme.radius.md),
+        child: Theme(
+          data: Theme.of(
+            context,
+          ).copyWith(hoverColor: theme.focusRing.withValues(alpha: 0.05)),
+          child: RadioGroup<T>(
+            groupValue: groupValue,
+            onChanged: onChanged,
+            child: Column(
+              children: [
+                for (var index = 0; index < options.length; index++) ...[
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 120),
+                    curve: Curves.easeOutCubic,
+                    color: options[index].value == groupValue
+                        ? theme.selected.withValues(alpha: 0.56)
+                        : null,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: theme.spacing.md,
+                      vertical: theme.spacing.xs,
+                    ),
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: AppCompactRadioTile<T>(
+                        tileKey: options[index].tileKey,
+                        value: options[index].value,
+                        title: Text(options[index].title),
+                        subtitle: Text(options[index].subtitle),
+                      ),
+                    ),
+                  ),
+                  if (index != options.length - 1)
+                    Divider(
+                      height: 1,
+                      indent: theme.spacing.xl,
+                      endIndent: theme.spacing.xl,
+                    ),
+                ],
+              ],
+            ),
           ),
-          AppActionButton(
-            tone: AppActionTone.ghost,
-            size: AppActionSize.compact,
-            label: 'Reset theme',
-            onPressed:
-                _selectedThemeMode == TerminalThemeMode.system &&
-                    _selectedTerminalViewportPadding ==
-                        TerminalAppAppearance.defaultTerminalViewportPadding
-                ? null
-                : () {
-                    setState(() {
-                      _selectedThemeMode = TerminalThemeMode.system;
-                      _selectedTerminalViewportPadding =
-                          TerminalAppAppearance.defaultTerminalViewportPadding;
-                    });
-                  },
-          ),
-          AppActionButton(
-            tone: AppActionTone.secondary,
-            size: AppActionSize.compact,
-            label: 'Cancel',
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-          AppActionButton(
-            buttonKey: const Key('defaults-save'),
-            icon: Icons.check_rounded,
-            label: 'Save changes',
-            onPressed: () {
-              Navigator.of(context).pop(
-                DefaultsAndAppearanceSelection(
-                  configuredDefaultProfileId: _selectedProfileId,
-                  themeMode: _selectedThemeMode,
-                  terminalViewportPadding: _selectedTerminalViewportPadding,
-                  osc52Policy: _selectedOsc52Policy,
-                  openUrlPolicy: _selectedOpenUrlPolicy,
-                  requestAttentionPolicy: _selectedRequestAttentionPolicy,
-                  reportVariableDecisions: _selectedReportVariableDecisions,
-                  updatedProfile: _updatedProfileForPreset(effectiveProfile),
-                  openProfiles: false,
-                ),
-              );
-            },
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -854,6 +1116,7 @@ List<String> _previewColorsForPalette(TerminalColorPalette palette) {
 class _TerminalPresetChoice extends StatelessWidget {
   const _TerminalPresetChoice({
     super.key,
+    required this.width,
     required this.label,
     required this.subtitle,
     required this.selected,
@@ -862,6 +1125,7 @@ class _TerminalPresetChoice extends StatelessWidget {
     required this.onPressed,
   });
 
+  final double width;
   final String label;
   final String subtitle;
   final bool selected;
@@ -883,12 +1147,15 @@ class _TerminalPresetChoice extends StatelessWidget {
         borderRadius: BorderRadius.circular(theme.radius.md),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
-          width: 150,
-          padding: EdgeInsets.all(theme.spacing.sm),
+          width: width,
+          constraints: BoxConstraints(
+            minHeight: theme.controls.regular * 2 + theme.spacing.lg,
+          ),
+          padding: EdgeInsets.all(theme.spacing.lg),
           decoration: BoxDecoration(
             color: selected
-                ? theme.selected.withValues(alpha: 0.72)
-                : theme.overlay.withValues(alpha: enabled ? 0.82 : 0.38),
+                ? theme.selected.withValues(alpha: 0.46)
+                : theme.overlay.withValues(alpha: enabled ? 0.52 : 0.24),
             borderRadius: BorderRadius.circular(theme.radius.md),
             border: Border.all(
               color: selected ? theme.focusRing : theme.border,

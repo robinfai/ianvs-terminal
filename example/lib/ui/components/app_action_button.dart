@@ -54,61 +54,62 @@ class AppActionButton extends StatelessWidget {
     }
 
     final iconWidget = icon == null ? null : Icon(icon, size: _iconSize);
+    final labelWidget = Text(label!);
 
     return switch (tone) {
       AppActionTone.primary =>
-        label == null
+        iconWidget == null
             ? FilledButton(
                 key: buttonKey ?? key,
                 autofocus: autofocus,
                 onPressed: onPressed,
                 style: _buttonStyle(context, theme),
-                child: iconWidget!,
+                child: labelWidget,
               )
             : FilledButton.icon(
                 key: buttonKey ?? key,
                 autofocus: autofocus,
                 onPressed: onPressed,
                 style: _buttonStyle(context, theme),
-                icon: iconWidget ?? const SizedBox.shrink(),
-                label: Text(label!),
+                icon: iconWidget,
+                label: labelWidget,
               ),
       AppActionTone.secondary =>
-        label == null
+        iconWidget == null
             ? OutlinedButton(
                 key: buttonKey ?? key,
                 autofocus: autofocus,
                 onPressed: onPressed,
                 style: _buttonStyle(context, theme),
-                child: iconWidget!,
+                child: labelWidget,
               )
             : OutlinedButton.icon(
                 key: buttonKey ?? key,
                 autofocus: autofocus,
                 onPressed: onPressed,
                 style: _buttonStyle(context, theme),
-                icon: iconWidget ?? const SizedBox.shrink(),
-                label: Text(label!),
+                icon: iconWidget,
+                label: labelWidget,
               ),
       AppActionTone.ghost =>
-        label == null
+        iconWidget == null
             ? TextButton(
                 key: buttonKey ?? key,
                 autofocus: autofocus,
                 onPressed: onPressed,
                 style: _buttonStyle(context, theme),
-                child: iconWidget!,
+                child: labelWidget,
               )
             : TextButton.icon(
                 key: buttonKey ?? key,
                 autofocus: autofocus,
                 onPressed: onPressed,
                 style: _buttonStyle(context, theme),
-                icon: iconWidget ?? const SizedBox.shrink(),
-                label: Text(label!),
+                icon: iconWidget,
+                label: labelWidget,
               ),
       AppActionTone.danger =>
-        label == null
+        iconWidget == null
             ? FilledButton(
                 key: buttonKey ?? key,
                 autofocus: autofocus,
@@ -119,7 +120,7 @@ class AppActionButton extends StatelessWidget {
                   backgroundColor: theme.danger,
                   foregroundColor: Colors.white,
                 ),
-                child: iconWidget!,
+                child: labelWidget,
               )
             : FilledButton.icon(
                 key: buttonKey ?? key,
@@ -131,8 +132,8 @@ class AppActionButton extends StatelessWidget {
                   backgroundColor: theme.danger,
                   foregroundColor: Colors.white,
                 ),
-                icon: iconWidget ?? const SizedBox.shrink(),
-                label: Text(label!),
+                icon: iconWidget,
+                label: labelWidget,
               ),
     };
   }

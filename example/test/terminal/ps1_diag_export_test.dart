@@ -132,7 +132,8 @@ void main() {
     final shellExport = await _captureFixtureShellExport(tester);
 
     try {
-      const innerCanvasColor = Color(0xFF050608);
+      final innerCanvasColor =
+          ThemeData.dark().colorScheme.surfaceContainerLowest;
       final devicePixelRatio =
           shellExport.metrics['devicePixelRatio'] as double;
       int scale(double logicalValue) =>
@@ -193,7 +194,8 @@ void main() {
     );
 
     try {
-      const innerCanvasColor = Color(0xFFF8F7F2);
+      final innerCanvasColor =
+          ThemeData.light().colorScheme.surfaceContainerLowest;
       final devicePixelRatio =
           shellExport.metrics['devicePixelRatio'] as double;
       int scale(double logicalValue) =>

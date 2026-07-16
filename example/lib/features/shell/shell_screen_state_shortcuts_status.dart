@@ -31,8 +31,6 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
       if (mounted && _notificationsBlockedBySystem) {
         _mutateState(() {
           _notificationsBlockedBySystem = false;
-          _lastNotificationFailureLabel = null;
-          _lastNotificationFailureTooltip = null;
         });
       }
     } on PlatformException catch (error) {
@@ -56,35 +54,11 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
       if (message == null) {
         return;
       }
-      _showNotificationFailureStatus(message);
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(message)));
     }
-  }
-
-  void _showNotificationFailureStatus(String message) {
-    _notificationFailureStatusClearTimer?.cancel();
-    if (!mounted) {
-      return;
-    }
-    _mutateState(() {
-      _lastNotificationFailureLabel = 'NOTIFY BLOCKED';
-      _lastNotificationFailureTooltip = message;
-    });
-    _notificationFailureStatusClearTimer = Timer(
-      const Duration(seconds: 8),
-      () {
-        if (!mounted) {
-          return;
-        }
-        _mutateState(() {
-          _lastNotificationFailureLabel = null;
-          _lastNotificationFailureTooltip = null;
-        });
-      },
-    );
   }
 
   String get _visibleOverlay {
@@ -290,27 +264,6 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
     );
   }
 
-  String? _viewportStatusLabelFor(String? sessionId) {
-    if (sessionId == null) {
-      return null;
-    }
-    final viewportSize =
-        _scheduledViewportSizes[sessionId] ??
-        _committedViewportSizes[sessionId];
-    final cellSize =
-        _measuredTerminalCellSizes[sessionId] ??
-        terminal.terminalFallbackCellSize;
-    if (viewportSize == null || cellSize.width <= 0 || cellSize.height <= 0) {
-      return null;
-    }
-    final cols = (viewportSize.width / cellSize.width).floor();
-    final rows = (viewportSize.height / cellSize.height).floor();
-    if (cols <= 0 || rows <= 0) {
-      return null;
-    }
-    return '$cols×$rows';
-  }
-
   String _shortStatusValue(String value, {int max = 18}) {
     final trimmed = value.trim();
     if (trimmed.length <= max) {
@@ -334,11 +287,6 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
     ].join('\n');
   }
 
-  String _notificationStatusLabel(TerminalPaneNotificationState notification) {
-    final suffix = notification.count > 1 ? ' x${notification.count}' : '';
-    return 'NOTIFY ${_shortStatusValue(notification.title, max: 14)}$suffix';
-  }
-
   String _notificationStatusTooltip(
     TerminalPaneNotificationState notification,
   ) {
@@ -353,46 +301,6 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
         'Remote user: ${notification.remoteUser!.trim()}',
       if (notification.count > 1) 'Count: ${notification.count}',
       'Click to inspect recent notifications for this pane.',
-    ].join('\n');
-  }
-
-  String _statusDirectoryTooltip({
-    required String path,
-    required bool fromShellIntegration,
-    String? hostname,
-    String? username,
-  }) {
-    final remote = _shellHostIsRemote(hostname);
-    return [
-      if (!fromShellIntegration)
-        'Profile default working directory.'
-      else if (remote)
-        'Remote-reported shell integration path.'
-      else
-        'Local shell integration path.',
-      'Path: $path',
-      if (hostname?.trim().isNotEmpty == true) 'Host: ${hostname!.trim()}',
-      if (username?.trim().isNotEmpty == true) 'User: ${username!.trim()}',
-      if (remote) 'Local file actions stay disabled for remote paths.',
-    ].join('\n');
-  }
-
-  String? _statusTooltipForPane({
-    required String? sessionId,
-    required String? tooltip,
-    bool includeFocusHint = false,
-  }) {
-    if (tooltip == null || tooltip.trim().isEmpty) {
-      return tooltip;
-    }
-    if (sessionId == null || !_sessionIsInMultiPaneTab(sessionId)) {
-      return tooltip;
-    }
-    return [
-      _terminalPaneContextLine(sessionId),
-      tooltip,
-      if (includeFocusHint && _sessionNeedsFocus(sessionId))
-        'Click to focus this pane.',
     ].join('\n');
   }
 
@@ -411,123 +319,6 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
         normalized != '::1' &&
         normalized != localHostname &&
         normalized != '$localHostname.local';
-  }
-
-  List<_ShellStatusModeItem> _statusModeItemsFor(
-    String sessionId,
-    terminal.TerminalFrameModes modes,
-  ) {
-    final items = <_ShellStatusModeItem>[];
-    if (modes.alternateScreen) {
-      items.add(
-        _ShellStatusModeItem(
-          key: const Key('shell-status-mode-alt'),
-          label: 'ALT',
-          tooltip: _statusTooltipForPane(
-            sessionId: sessionId,
-            tooltip: 'Alternate screen buffer is active.',
-          )!,
-          semanticsLabel: 'Terminal mode: alternate screen buffer active',
-        ),
-      );
-    }
-    if (modes.mouseMode != 'off') {
-      final mouseMode = _mouseModeStatusLabel(modes.mouseMode);
-      final mouseEncoding = _mouseEncodingStatusLabel(modes.mouseEncoding);
-      items.add(
-        _ShellStatusModeItem(
-          key: const Key('shell-status-mode-mouse'),
-          label: 'MOUSE',
-          tooltip: _statusTooltipForPane(
-            sessionId: sessionId,
-            tooltip: 'Mouse reporting is active: $mouseMode, $mouseEncoding.',
-          )!,
-          semanticsLabel: 'Terminal mode: mouse reporting active',
-        ),
-      );
-    }
-    if (modes.mimePaste) {
-      items.add(
-        _ShellStatusModeItem(
-          key: const Key('shell-status-mode-mime-paste'),
-          label: 'MIME PASTE',
-          tooltip: _statusTooltipForPane(
-            sessionId: sessionId,
-            tooltip:
-                'OSC 5522 paste events are active and take precedence over bracketed paste.',
-          )!,
-          semanticsLabel: 'Terminal mode: OSC 5522 paste events active',
-        ),
-      );
-    } else if (modes.bracketedPaste) {
-      items.add(
-        _ShellStatusModeItem(
-          key: const Key('shell-status-mode-paste'),
-          label: 'PASTE',
-          tooltip: _statusTooltipForPane(
-            sessionId: sessionId,
-            tooltip: 'Bracketed paste mode is active.',
-          )!,
-          semanticsLabel: 'Terminal mode: bracketed paste active',
-        ),
-      );
-    }
-    if (modes.focusTracking) {
-      items.add(
-        _ShellStatusModeItem(
-          key: const Key('shell-status-mode-focus'),
-          label: 'FOCUS',
-          tooltip: _statusTooltipForPane(
-            sessionId: sessionId,
-            tooltip:
-                'Focus reporting is active. The application receives focus-in and focus-out events.',
-          )!,
-          semanticsLabel: 'Terminal mode: focus reporting active',
-        ),
-      );
-    }
-    if (modes.kittyKeyboardFlags != 0) {
-      items.add(
-        _ShellStatusModeItem(
-          key: const Key('shell-status-mode-kitty-keyboard'),
-          label: 'KEYS',
-          tooltip: _statusTooltipForPane(
-            sessionId: sessionId,
-            tooltip: _kittyKeyboardStatusTooltip(modes.kittyKeyboardFlags),
-          )!,
-          semanticsLabel: 'Terminal mode: Kitty keyboard protocol active',
-        ),
-      );
-    }
-    if (modes.synchronizedOutput) {
-      items.add(
-        _ShellStatusModeItem(
-          key: const Key('shell-status-mode-sync'),
-          label: 'SYNC',
-          tooltip: _statusTooltipForPane(
-            sessionId: sessionId,
-            tooltip:
-                'Synchronized output mode is active. Intermediate updates are held until the application flushes.',
-          )!,
-          semanticsLabel: 'Terminal mode: synchronized output active',
-        ),
-      );
-    }
-    if (_isSessionReadOnly(sessionId)) {
-      items.add(
-        _ShellStatusModeItem(
-          key: const Key('shell-status-mode-read-only'),
-          label: 'READ ONLY',
-          tooltip: _statusTooltipForPane(
-            sessionId: sessionId,
-            tooltip:
-                'Read-only mode is enabled for this pane. Input and paste sends are blocked.',
-          )!,
-          semanticsLabel: 'Terminal pane is read-only',
-        ),
-      );
-    }
-    return items;
   }
 
   String _mouseModeStatusLabel(String mode) {

@@ -215,6 +215,42 @@ void main() {
         findsOneWidget,
       );
       expect(find.byKey(const Key('defaults-open-profiles')), findsOneWidget);
+      expect(find.byKey(const Key('defaults-profiles-notice')), findsOneWidget);
+      expect(
+        find.byKey(const Key('defaults-current-profile-summary')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('defaults-terminal-preset-grid')),
+        findsOneWidget,
+      );
+      for (final panelKey in <Key>[
+        const Key('defaults-appearance-options'),
+        const Key('defaults-osc52-options'),
+        const Key('defaults-open-url-options'),
+        const Key('defaults-request-attention-options'),
+        const Key('defaults-report-variable-panel'),
+        const Key('defaults-canvas-inset-panel'),
+      ]) {
+        expect(find.byKey(panelKey), findsOneWidget);
+      }
+
+      final dialogSize = tester.getSize(
+        find.byKey(const Key('defaults-dialog')),
+      );
+      expect(dialogSize.width, greaterThanOrEqualTo(680));
+      expect(
+        tester
+            .widget<TextField>(
+              find.byKey(const Key('defaults-terminal-preset-filter')),
+            )
+            .autofocus,
+        isFalse,
+      );
+      expect(
+        tester.getCenter(find.text('Reset default')).dx,
+        lessThan(tester.getCenter(find.text('Cancel')).dx),
+      );
     },
   );
 
@@ -514,10 +550,14 @@ void main() {
     expect(find.byKey(const Key('profile-editor-dialog')), findsOneWidget);
     expect(find.text('Edit profile'), findsOneWidget);
 
+    await tester.tap(find.byKey(const Key('profile-editor-nav-startup')));
+    await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const Key('profile-editor-shell')),
       '/bin/fish',
     );
+    await tester.tap(find.byKey(const Key('profile-editor-nav-terminal')));
+    await tester.pumpAndSettle();
     await tester.ensureVisible(
       find.byKey(const Key('profile-editor-scrollback')),
     );
@@ -525,6 +565,8 @@ void main() {
       find.byKey(const Key('profile-editor-scrollback')),
       '4096',
     );
+    await tester.tap(find.byKey(const Key('profile-editor-nav-appearance')));
+    await tester.pumpAndSettle();
     await tester.ensureVisible(
       find.byKey(const Key('profile-editor-color-foreground')),
     );
@@ -532,6 +574,8 @@ void main() {
       find.byKey(const Key('profile-editor-color-foreground')),
       '#112233',
     );
+    await tester.tap(find.byKey(const Key('profile-editor-nav-keys')));
+    await tester.pumpAndSettle();
     await tester.ensureVisible(
       find.byKey(const Key('profile-editor-copy-on-select')),
     );

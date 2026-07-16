@@ -69,14 +69,14 @@ void main() {
 
       expect(
         tester
-            .widget<TextFormField>(find.byKey(const Key('profile-editor-name')))
+            .widget<TextFormField>(_findByKey(const Key('profile-editor-name')))
             .controller!
             .text,
         'Local Shell',
       );
       expect(
         tester
-            .widget<TextFormField>(find.byKey(const Key('profile-editor-tags')))
+            .widget<TextFormField>(_findByKey(const Key('profile-editor-tags')))
             .controller!
             .text,
         'work, prod',
@@ -84,104 +84,108 @@ void main() {
       expect(
         tester
             .widget<TextFormField>(
-              find.byKey(const Key('profile-editor-shell')),
+              _findByKey(const Key('profile-editor-shell')),
             )
             .controller!
             .text,
         '/bin/bash',
       );
-      expect(find.text('Colors'), findsOneWidget);
-      expect(find.text('Special'), findsOneWidget);
-      expect(find.text('ANSI normal'), findsOneWidget);
-      expect(find.text('ANSI bright'), findsOneWidget);
-      expect(find.text('Cursor'), findsOneWidget);
+      expect(find.text('Colors', skipOffstage: false), findsOneWidget);
+      expect(find.text('Special', skipOffstage: false), findsOneWidget);
+      expect(find.text('ANSI normal', skipOffstage: false), findsOneWidget);
+      expect(find.text('ANSI bright', skipOffstage: false), findsOneWidget);
+      expect(find.text('Cursor', skipOffstage: false), findsOneWidget);
       expect(find.text('Keys'), findsAtLeastNWidgets(1));
       expect(find.text('Advanced'), findsAtLeastNWidgets(1));
-      expect(find.text('VT220'), findsOneWidget);
-      expect(find.text('Beam'), findsOneWidget);
+      expect(find.text('VT220', skipOffstage: false), findsOneWidget);
+      expect(find.text('Beam', skipOffstage: false), findsOneWidget);
       for (final fieldKey in _allColorFieldKeys) {
-        expect(find.byKey(Key(fieldKey)), findsOneWidget);
+        expect(_findByKey(Key(fieldKey)), findsOneWidget);
       }
       expect(
-        tester.getSize(find.byKey(const Key('profile-editor-save'))).height,
+        tester.getSize(_findByKey(const Key('profile-editor-save'))).height,
         36,
       );
       final shellFieldHeight = tester
-          .getSize(find.byKey(const Key('profile-editor-shell')))
+          .getSize(_findByKey(const Key('profile-editor-shell')))
           .height;
       expect(shellFieldHeight, greaterThanOrEqualTo(36));
       expect(
-        tester.getSize(find.byKey(const Key('profile-editor-add-arg'))).height,
+        tester.getSize(_findByKey(const Key('profile-editor-add-arg'))).height,
         32,
       );
 
       await tester.enterText(
-        find.byKey(const Key('profile-editor-name')),
+        _findByKey(const Key('profile-editor-name')),
         'Workspace Shell',
       );
       await tester.enterText(
-        find.byKey(const Key('profile-editor-tags')),
+        _findByKey(const Key('profile-editor-tags')),
         'work, staging, staging',
       );
+      await _ensureVisible(
+        tester,
+        _findByKey(const Key('profile-editor-shell')),
+      );
       await tester.enterText(
-        find.byKey(const Key('profile-editor-shell')),
+        _findByKey(const Key('profile-editor-shell')),
         '/bin/fish',
       );
-      await tester.enterText(find.byKey(const Key('profile-editor-cwd')), '');
+      await tester.enterText(_findByKey(const Key('profile-editor-cwd')), '');
 
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-arg-0-down')),
+        _findByKey(const Key('profile-editor-arg-0-down')),
       );
-      await tester.tap(find.byKey(const Key('profile-editor-arg-0-down')));
+      await tester.tap(_findByKey(const Key('profile-editor-arg-0-down')));
       await tester.pump();
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-add-arg')),
+        _findByKey(const Key('profile-editor-add-arg')),
       );
-      await tester.tap(find.byKey(const Key('profile-editor-add-arg')));
+      await tester.tap(_findByKey(const Key('profile-editor-add-arg')));
       await tester.pump();
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-arg-2')),
+        _findByKey(const Key('profile-editor-arg-2')),
       );
       await tester.enterText(
-        find.byKey(const Key('profile-editor-arg-2')),
+        _findByKey(const Key('profile-editor-arg-2')),
         '--login',
       );
 
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-add-env')),
+        _findByKey(const Key('profile-editor-add-env')),
       );
-      await tester.tap(find.byKey(const Key('profile-editor-add-env')));
+      await tester.tap(_findByKey(const Key('profile-editor-add-env')));
       await tester.pump();
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-env-key-1')),
+        _findByKey(const Key('profile-editor-env-key-1')),
       );
       await tester.enterText(
-        find.byKey(const Key('profile-editor-env-key-1')),
+        _findByKey(const Key('profile-editor-env-key-1')),
         'COLORTERM',
       );
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-env-value-1')),
+        _findByKey(const Key('profile-editor-env-value-1')),
       );
       await tester.enterText(
-        find.byKey(const Key('profile-editor-env-value-1')),
+        _findByKey(const Key('profile-editor-env-value-1')),
         'truecolor',
       );
 
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-emulation')),
+        _findByKey(const Key('profile-editor-emulation')),
       );
-      await tester.tap(find.byKey(const Key('profile-editor-emulation')));
+      await tester.tap(_findByKey(const Key('profile-editor-emulation')));
       await tester.pumpAndSettle();
       expect(
         tester
-            .getSize(find.byKey(const Key('profile-editor-emulation')))
+            .getSize(_findByKey(const Key('profile-editor-emulation')))
             .height,
         greaterThanOrEqualTo(shellFieldHeight),
       );
@@ -189,114 +193,114 @@ void main() {
       await tester.pumpAndSettle();
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-scrollback')),
+        _findByKey(const Key('profile-editor-scrollback')),
       );
       await tester.enterText(
-        find.byKey(const Key('profile-editor-scrollback')),
+        _findByKey(const Key('profile-editor-scrollback')),
         '12000',
       );
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-shell-integration')),
+        _findByKey(const Key('profile-editor-shell-integration')),
       );
       await tester.tap(
-        find.byKey(const Key('profile-editor-shell-integration')),
+        _findByKey(const Key('profile-editor-shell-integration')),
       );
       await tester.pump();
 
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-font-family')),
+        _findByKey(const Key('profile-editor-font-family')),
       );
       await tester.enterText(
-        find.byKey(const Key('profile-editor-font-family')),
+        _findByKey(const Key('profile-editor-font-family')),
         'JetBrainsMono Nerd Font Mono',
       );
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-fallback-1-remove')),
+        _findByKey(const Key('profile-editor-fallback-1-remove')),
       );
       expect(
         tester
-            .getSize(find.byKey(const Key('profile-editor-fallback-1-remove')))
+            .getSize(_findByKey(const Key('profile-editor-fallback-1-remove')))
             .height,
         28,
       );
       await tester.tap(
-        find.byKey(const Key('profile-editor-fallback-1-remove')),
+        _findByKey(const Key('profile-editor-fallback-1-remove')),
       );
       await tester.pump();
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-add-fallback')),
+        _findByKey(const Key('profile-editor-add-fallback')),
       );
-      await tester.tap(find.byKey(const Key('profile-editor-add-fallback')));
+      await tester.tap(_findByKey(const Key('profile-editor-add-fallback')));
       await tester.pump();
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-fallback-1')),
+        _findByKey(const Key('profile-editor-fallback-1')),
       );
       await tester.enterText(
-        find.byKey(const Key('profile-editor-fallback-1')),
+        _findByKey(const Key('profile-editor-fallback-1')),
         'Menlo',
       );
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-font-size')),
+        _findByKey(const Key('profile-editor-font-size')),
       );
       await tester.enterText(
-        find.byKey(const Key('profile-editor-font-size')),
+        _findByKey(const Key('profile-editor-font-size')),
         '15',
       );
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-font-line-height')),
+        _findByKey(const Key('profile-editor-font-line-height')),
       );
       await tester.enterText(
-        find.byKey(const Key('profile-editor-font-line-height')),
+        _findByKey(const Key('profile-editor-font-line-height')),
         '1.6',
       );
 
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-color-foreground')),
+        _findByKey(const Key('profile-editor-color-foreground')),
       );
       expect(
         tester.getSize(
-          find.byKey(const Key('profile-editor-swatch-foreground')),
+          _findByKey(const Key('profile-editor-swatch-foreground')),
         ),
         const Size(30, 30),
       );
       await tester.enterText(
-        find.byKey(const Key('profile-editor-color-foreground')),
+        _findByKey(const Key('profile-editor-color-foreground')),
         '112233',
       );
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-color-background')),
+        _findByKey(const Key('profile-editor-color-background')),
       );
       await tester.tap(
-        find.byKey(const Key('profile-editor-color-background')),
+        _findByKey(const Key('profile-editor-color-background')),
       );
       await tester.pumpAndSettle();
       expect(
         tester
-            .getCenter(find.byKey(const Key('profile-editor-pick-background')))
+            .getCenter(_findByKey(const Key('profile-editor-pick-background')))
             .dy,
         closeTo(
           tester
               .getCenter(
-                find.byKey(const Key('profile-editor-swatch-background')),
+                _findByKey(const Key('profile-editor-swatch-background')),
               )
               .dy,
           6,
         ),
       );
       final dialogRect = tester.getRect(
-        find.byKey(const Key('profile-editor-dialog')),
+        _findByKey(const Key('profile-editor-dialog')),
       );
       final backgroundSwatchRect = tester.getRect(
-        find.byKey(const Key('profile-editor-swatch-background')),
+        _findByKey(const Key('profile-editor-swatch-background')),
       );
       expect(
         dialogRect.right - backgroundSwatchRect.right,
@@ -305,7 +309,7 @@ void main() {
       expect(
         tester
             .widget<TextFormField>(
-              find.byKey(const Key('profile-editor-color-foreground')),
+              _findByKey(const Key('profile-editor-color-foreground')),
             )
             .controller!
             .text,
@@ -313,97 +317,97 @@ void main() {
       );
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-color-cursor')),
+        _findByKey(const Key('profile-editor-color-cursor')),
       );
       await tester.enterText(
-        find.byKey(const Key('profile-editor-color-cursor')),
+        _findByKey(const Key('profile-editor-color-cursor')),
         '',
       );
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-color-selection')),
+        _findByKey(const Key('profile-editor-color-selection')),
       );
       await tester.enterText(
-        find.byKey(const Key('profile-editor-color-selection')),
+        _findByKey(const Key('profile-editor-color-selection')),
         '#445566',
       );
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-color-tab')),
+        _findByKey(const Key('profile-editor-color-tab')),
       );
       await tester.enterText(
-        find.byKey(const Key('profile-editor-color-tab')),
+        _findByKey(const Key('profile-editor-color-tab')),
         '#556677',
       );
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-color-normal-red')),
+        _findByKey(const Key('profile-editor-color-normal-red')),
       );
       await tester.enterText(
-        find.byKey(const Key('profile-editor-color-normal-red')),
+        _findByKey(const Key('profile-editor-color-normal-red')),
         '#BB5500',
       );
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-color-bright-blue')),
+        _findByKey(const Key('profile-editor-color-bright-blue')),
       );
       await tester.enterText(
-        find.byKey(const Key('profile-editor-color-bright-blue')),
+        _findByKey(const Key('profile-editor-color-bright-blue')),
         '#55AAFF',
       );
 
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-cursor-shape')),
+        _findByKey(const Key('profile-editor-cursor-shape')),
       );
       final cursorShapeRect = tester.getRect(
-        find.byKey(const Key('profile-editor-cursor-shape')),
+        _findByKey(const Key('profile-editor-cursor-shape')),
       );
       expect(
         dialogRect.right - cursorShapeRect.right,
         greaterThanOrEqualTo(20),
       );
-      await tester.tap(find.byKey(const Key('profile-editor-cursor-shape')));
+      await tester.tap(_findByKey(const Key('profile-editor-cursor-shape')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Block').last);
       await tester.pumpAndSettle();
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-cursor-blink')),
+        _findByKey(const Key('profile-editor-cursor-blink')),
       );
       expect(
         tester
-            .getSize(find.byKey(const Key('profile-editor-cursor-blink')))
+            .getSize(_findByKey(const Key('profile-editor-cursor-blink')))
             .height,
         lessThanOrEqualTo(42),
       );
-      await tester.tap(find.byKey(const Key('profile-editor-cursor-blink')));
+      await tester.tap(_findByKey(const Key('profile-editor-cursor-blink')));
       await tester.pump();
 
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-copy-on-select')),
+        _findByKey(const Key('profile-editor-copy-on-select')),
       );
-      await tester.tap(find.byKey(const Key('profile-editor-copy-on-select')));
+      await tester.tap(_findByKey(const Key('profile-editor-copy-on-select')));
       await tester.pump();
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-option-drag-blockSelection')),
+        _findByKey(const Key('profile-editor-option-drag-blockSelection')),
       );
       await tester.tap(
-        find.byKey(const Key('profile-editor-option-drag-blockSelection')),
+        _findByKey(const Key('profile-editor-option-drag-blockSelection')),
       );
       await tester.pump();
       final blockSelectionTile = tester.widget<RadioListTile>(
-        find.byKey(const Key('profile-editor-option-drag-blockSelection')),
+        _findByKey(const Key('profile-editor-option-drag-blockSelection')),
       );
       expect(blockSelectionTile.contentPadding, EdgeInsets.zero);
 
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-save')),
+        _findByKey(const Key('profile-editor-save')),
       );
-      await tester.tap(find.byKey(const Key('profile-editor-save')));
+      await tester.tap(_findByKey(const Key('profile-editor-save')));
       await tester.pumpAndSettle();
 
       expect(savedProfile, isNotNull);
@@ -522,6 +526,10 @@ void main() {
     expect(find.text('Keys'), findsAtLeastNWidgets(1));
     expect(find.text('Automation'), findsAtLeastNWidgets(1));
     expect(find.text('Advanced'), findsAtLeastNWidgets(1));
+    expect(
+      find.text('Existing sessions do not hot-update after profile edits.'),
+      findsNothing,
+    );
     for (final section in [
       'general',
       'startup',
@@ -531,9 +539,65 @@ void main() {
       'automation',
       'advanced',
     ]) {
-      expect(find.byKey(Key('profile-editor-nav-$section')), findsOneWidget);
+      expect(_findByKey(Key('profile-editor-nav-$section')), findsOneWidget);
     }
   });
+
+  testWidgets(
+    'profile editor uses a wide section rail and aligned color controls',
+    (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(1200, 820);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await _pumpEditorHarness(
+        tester,
+        initialValue: TerminalProfile(
+          id: 'default',
+          name: 'Local Shell',
+          shell: '/bin/zsh',
+        ),
+        onSaved: (_) {},
+      );
+
+      final dialog = _findByKey(const Key('profile-editor-dialog'));
+      final generalNav = _findByKey(const Key('profile-editor-nav-general'));
+      final nameField = _findByKey(const Key('profile-editor-name'));
+      expect(tester.getSize(dialog).width, greaterThanOrEqualTo(940));
+      expect(
+        tester.getTopLeft(generalNav).dx,
+        lessThan(tester.getTopLeft(nameField).dx),
+      );
+
+      await tester.tap(_findByKey(const Key('profile-editor-nav-appearance')));
+      await tester.pumpAndSettle();
+      await _ensureVisible(
+        tester,
+        _findByKey(const Key('profile-editor-color-foreground')),
+      );
+
+      final labelLeft = tester.getTopLeft(find.text('Foreground')).dx;
+      final fieldLeft = tester
+          .getTopLeft(_findByKey(const Key('profile-editor-color-foreground')))
+          .dx;
+      final swatchLeft = tester
+          .getTopLeft(_findByKey(const Key('profile-editor-swatch-foreground')))
+          .dx;
+      final pickLeft = tester
+          .getTopLeft(_findByKey(const Key('profile-editor-pick-foreground')))
+          .dx;
+      final resetLeft = tester
+          .getTopLeft(_findByKey(const Key('profile-editor-reset-foreground')))
+          .dx;
+      expect(labelLeft, lessThan(fieldLeft));
+      expect(fieldLeft, lessThan(swatchLeft));
+      expect(swatchLeft, lessThan(pickLeft));
+      expect(pickLeft, lessThan(resetLeft));
+    },
+  );
 
   testWidgets('profile editor section navigation jumps to deep sections', (
     tester,
@@ -556,26 +620,47 @@ void main() {
     );
 
     expect(
-      find.byKey(const Key('profile-editor-section-nav')),
+      _findByKey(const Key('profile-editor-section-nav')),
       findsAtLeastNWidgets(1),
     );
+    expect(
+      find.byKey(const Key('profile-editor-section-general')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('profile-editor-section-startup')),
+      findsNothing,
+    );
 
-    await tester.tap(find.byKey(const Key('profile-editor-nav-advanced')));
+    await tester.tap(_findByKey(const Key('profile-editor-nav-advanced')));
     await tester.pumpAndSettle();
 
+    expect(
+      find.byKey(const Key('profile-editor-section-general')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const Key('profile-editor-section-advanced')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('profile-editor-section-automation')),
+      findsNothing,
+    );
+
     final advancedTop = tester
-        .getTopLeft(find.byKey(const Key('profile-editor-section-advanced')))
+        .getTopLeft(_findByKey(const Key('profile-editor-section-advanced')))
         .dy;
     final footerTop =
-        tester.getTopLeft(find.byKey(const Key('profile-editor-save'))).dy - 12;
+        tester.getTopLeft(_findByKey(const Key('profile-editor-save'))).dy - 12;
     expect(advancedTop, greaterThan(0));
     expect(advancedTop, lessThan(footerTop));
 
-    await tester.tap(find.byKey(const Key('profile-editor-nav-appearance')));
+    await tester.tap(_findByKey(const Key('profile-editor-nav-appearance')));
     await tester.pumpAndSettle();
 
     final appearanceTop = tester
-        .getTopLeft(find.byKey(const Key('profile-editor-section-appearance')))
+        .getTopLeft(_findByKey(const Key('profile-editor-section-appearance')))
         .dy;
     expect(appearanceTop, greaterThan(0));
     expect(appearanceTop, lessThan(footerTop));
@@ -602,27 +687,27 @@ void main() {
       onSaved: (value) => savedProfile = value,
     );
 
-    final searchField = find.byKey(const Key('profile-editor-section-search'));
+    final searchField = _findByKey(const Key('profile-editor-section-search'));
     expect(searchField, findsOneWidget);
 
     await tester.enterText(searchField, 'font');
     await tester.pumpAndSettle();
 
     expect(
-      find.byKey(const Key('profile-editor-nav-appearance')),
+      _findByKey(const Key('profile-editor-nav-appearance')),
       findsOneWidget,
     );
-    expect(find.byKey(const Key('profile-editor-nav-general')), findsNothing);
+    expect(_findByKey(const Key('profile-editor-nav-general')), findsNothing);
     expect(find.text('1 section found'), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('profile-editor-nav-appearance')));
+    await tester.tap(_findByKey(const Key('profile-editor-nav-appearance')));
     await tester.pumpAndSettle();
 
     final appearanceTop = tester
-        .getTopLeft(find.byKey(const Key('profile-editor-section-appearance')))
+        .getTopLeft(_findByKey(const Key('profile-editor-section-appearance')))
         .dy;
     final footerTop =
-        tester.getTopLeft(find.byKey(const Key('profile-editor-save'))).dy - 12;
+        tester.getTopLeft(_findByKey(const Key('profile-editor-save'))).dy - 12;
     expect(appearanceTop, greaterThan(0));
     expect(appearanceTop, lessThan(footerTop));
 
@@ -630,11 +715,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.byKey(const Key('profile-editor-nav-automation')),
+      _findByKey(const Key('profile-editor-nav-automation')),
       findsOneWidget,
     );
     expect(
-      find.byKey(const Key('profile-editor-nav-appearance')),
+      _findByKey(const Key('profile-editor-nav-appearance')),
       findsNothing,
     );
     expect(find.text('1 section found'), findsOneWidget);
@@ -643,19 +728,19 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.byKey(const Key('profile-editor-section-search-empty')),
+      _findByKey(const Key('profile-editor-section-search-empty')),
       findsOneWidget,
     );
     expect(find.text('No settings found'), findsOneWidget);
 
     await tester.tap(
-      find.byKey(const Key('profile-editor-section-search-clear')),
+      _findByKey(const Key('profile-editor-section-search-clear')),
     );
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('profile-editor-nav-general')), findsOneWidget);
+    expect(_findByKey(const Key('profile-editor-nav-general')), findsOneWidget);
     expect(
-      find.byKey(const Key('profile-editor-nav-advanced')),
+      _findByKey(const Key('profile-editor-nav-advanced')),
       findsOneWidget,
     );
 
@@ -663,7 +748,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Discard profile changes?'), findsNothing);
-    expect(find.byKey(const Key('profile-editor-dialog')), findsNothing);
+    expect(_findByKey(const Key('profile-editor-dialog')), findsNothing);
     expect(savedProfile, isNull);
   });
 
@@ -708,7 +793,7 @@ void main() {
         ),
       );
 
-      final searchField = find.byKey(
+      final searchField = _findByKey(
         const Key('profile-editor-section-search'),
       );
       await tester.tap(searchField);
@@ -755,56 +840,56 @@ void main() {
       onSaved: (_) {},
     );
 
-    expect(find.byKey(const Key('profile-editor-dirty-summary')), findsNothing);
+    expect(_findByKey(const Key('profile-editor-dirty-summary')), findsNothing);
 
     await tester.enterText(
-      find.byKey(const Key('profile-editor-name')),
+      _findByKey(const Key('profile-editor-name')),
       'Work Shell',
     );
     await tester.pumpAndSettle();
 
     expect(find.text('1 modified section'), findsOneWidget);
     expect(
-      find.byKey(const Key('profile-editor-reset-general')),
+      _findByKey(const Key('profile-editor-reset-general')),
       findsOneWidget,
     );
 
     await tester.enterText(
-      find.byKey(const Key('profile-editor-section-search')),
+      _findByKey(const Key('profile-editor-section-search')),
       'font',
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('profile-editor-nav-appearance')));
+    await tester.tap(_findByKey(const Key('profile-editor-nav-appearance')));
     await tester.pumpAndSettle();
     await _ensureVisible(
       tester,
-      find.byKey(const Key('profile-editor-font-family')),
+      _findByKey(const Key('profile-editor-font-family')),
     );
     final initialFontFamily = tester
         .widget<TextFormField>(
-          find.byKey(const Key('profile-editor-font-family')),
+          _findByKey(const Key('profile-editor-font-family')),
         )
         .controller!
         .text;
     await tester.enterText(
-      find.byKey(const Key('profile-editor-font-family')),
+      _findByKey(const Key('profile-editor-font-family')),
       'Fira Code',
     );
     await tester.pumpAndSettle();
 
     expect(find.text('2 modified sections'), findsOneWidget);
     expect(
-      find.byKey(const Key('profile-editor-reset-appearance')),
+      _findByKey(const Key('profile-editor-reset-appearance')),
       findsOneWidget,
     );
 
-    await tester.tap(find.byKey(const Key('profile-editor-reset-appearance')));
+    await tester.tap(_findByKey(const Key('profile-editor-reset-appearance')));
     await tester.pumpAndSettle();
 
     expect(
       tester
           .widget<TextFormField>(
-            find.byKey(const Key('profile-editor-font-family')),
+            _findByKey(const Key('profile-editor-font-family')),
           )
           .controller!
           .text,
@@ -813,26 +898,26 @@ void main() {
     expect(find.text('1 modified section'), findsOneWidget);
 
     await tester.tap(
-      find.byKey(const Key('profile-editor-section-search-clear')),
+      _findByKey(const Key('profile-editor-section-search-clear')),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('profile-editor-reset-general')));
+    await tester.tap(_findByKey(const Key('profile-editor-reset-general')));
     await tester.pumpAndSettle();
 
     expect(
       tester
-          .widget<TextFormField>(find.byKey(const Key('profile-editor-name')))
+          .widget<TextFormField>(_findByKey(const Key('profile-editor-name')))
           .controller!
           .text,
       'Local Shell',
     );
-    expect(find.byKey(const Key('profile-editor-dirty-summary')), findsNothing);
+    expect(_findByKey(const Key('profile-editor-dirty-summary')), findsNothing);
 
     await tester.tap(find.byTooltip('Close profile editor'));
     await tester.pumpAndSettle();
 
     expect(find.text('Discard profile changes?'), findsNothing);
-    expect(find.byKey(const Key('profile-editor-dialog')), findsNothing);
+    expect(_findByKey(const Key('profile-editor-dialog')), findsNothing);
   });
 
   testWidgets('profile editor saves notification and send-text triggers', (
@@ -855,7 +940,7 @@ void main() {
     expect(
       tester
           .widget<TextFormField>(
-            find.byKey(const Key('profile-editor-triggers')),
+            _findByKey(const Key('profile-editor-triggers')),
           )
           .controller!
           .text,
@@ -863,11 +948,11 @@ void main() {
     );
 
     await tester.enterText(
-      find.byKey(const Key('profile-editor-triggers')),
+      _findByKey(const Key('profile-editor-triggers')),
       'WARN[0-9]+ => notify\nPassword: => send: secret\\n',
     );
-    await _ensureVisible(tester, find.byKey(const Key('profile-editor-save')));
-    await tester.tap(find.byKey(const Key('profile-editor-save')));
+    await _ensureVisible(tester, _findByKey(const Key('profile-editor-save')));
+    await tester.tap(_findByKey(const Key('profile-editor-save')));
     await tester.pumpAndSettle();
 
     expect(savedProfile, isNotNull);
@@ -906,7 +991,7 @@ void main() {
     expect(
       tester
           .widget<TextFormField>(
-            find.byKey(const Key('profile-editor-switch-rules')),
+            _findByKey(const Key('profile-editor-switch-rules')),
           )
           .controller!
           .text,
@@ -914,11 +999,11 @@ void main() {
     );
 
     await tester.enterText(
-      find.byKey(const Key('profile-editor-switch-rules')),
+      _findByKey(const Key('profile-editor-switch-rules')),
       'user: root\ndir: /srv/app',
     );
-    await _ensureVisible(tester, find.byKey(const Key('profile-editor-save')));
-    await tester.tap(find.byKey(const Key('profile-editor-save')));
+    await _ensureVisible(tester, _findByKey(const Key('profile-editor-save')));
+    await tester.tap(_findByKey(const Key('profile-editor-save')));
     await tester.pumpAndSettle();
 
     expect(savedProfile, isNotNull);
@@ -949,21 +1034,21 @@ void main() {
     );
 
     await tester.enterText(
-      find.byKey(const Key('profile-editor-tags')),
+      _findByKey(const Key('profile-editor-tags')),
       [
         for (var index = 0; index < maxTerminalProfileTags + 1; index += 1)
           'tag-$index',
       ].join(', '),
     );
     await tester.enterText(
-      find.byKey(const Key('profile-editor-triggers')),
+      _findByKey(const Key('profile-editor-triggers')),
       [
         for (var index = 0; index < maxTerminalProfileTriggers + 1; index += 1)
           'TRIGGER_$index => notify',
       ].join('\n'),
     );
     await tester.enterText(
-      find.byKey(const Key('profile-editor-switch-rules')),
+      _findByKey(const Key('profile-editor-switch-rules')),
       [
         for (
           var index = 0;
@@ -974,21 +1059,30 @@ void main() {
       ].join('\n'),
     );
 
-    await _ensureVisible(tester, find.byKey(const Key('profile-editor-save')));
-    await tester.tap(find.byKey(const Key('profile-editor-save')));
+    await _ensureVisible(tester, _findByKey(const Key('profile-editor-save')));
+    await tester.tap(_findByKey(const Key('profile-editor-save')));
     await tester.pumpAndSettle();
 
     expect(savedProfile, isNull);
     expect(
-      find.text('Use $maxTerminalProfileTags tags or fewer.'),
+      find.text(
+        'Use $maxTerminalProfileTags tags or fewer.',
+        skipOffstage: false,
+      ),
       findsOneWidget,
     );
     expect(
-      find.text('Use $maxTerminalProfileTriggers triggers or fewer.'),
+      find.text(
+        'Use $maxTerminalProfileTriggers triggers or fewer.',
+        skipOffstage: false,
+      ),
       findsOneWidget,
     );
     expect(
-      find.text('Use $maxTerminalProfileSwitchRules switching rules or fewer.'),
+      find.text(
+        'Use $maxTerminalProfileSwitchRules switching rules or fewer.',
+        skipOffstage: false,
+      ),
       findsOneWidget,
     );
   });
@@ -1025,19 +1119,23 @@ void main() {
 
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-save')),
+        _findByKey(const Key('profile-editor-save')),
       );
-      await tester.tap(find.byKey(const Key('profile-editor-save')));
+      await tester.tap(_findByKey(const Key('profile-editor-save')));
       await tester.pumpAndSettle();
 
       expect(savedProfile, isNull);
       expect(
-        find.text('Use $maxTerminalLaunchArgs arguments or fewer.'),
+        find.text(
+          'Use $maxTerminalLaunchArgs arguments or fewer.',
+          skipOffstage: false,
+        ),
         findsOneWidget,
       );
       expect(
         find.text(
           'Use $maxTerminalFontFallbackFamilies fallback fonts or fewer.',
+          skipOffstage: false,
         ),
         findsOneWidget,
       );
@@ -1060,84 +1158,99 @@ void main() {
 
     await _ensureVisible(
       tester,
-      find.byKey(const Key('profile-editor-add-env')),
+      _findByKey(const Key('profile-editor-add-env')),
     );
-    await tester.tap(find.byKey(const Key('profile-editor-add-env')));
+    await tester.tap(_findByKey(const Key('profile-editor-add-env')));
     await tester.pump();
     await _ensureVisible(
       tester,
-      find.byKey(const Key('profile-editor-add-env')),
+      _findByKey(const Key('profile-editor-add-env')),
     );
-    await tester.tap(find.byKey(const Key('profile-editor-add-env')));
+    await tester.tap(_findByKey(const Key('profile-editor-add-env')));
     await tester.pump();
     await _ensureVisible(
       tester,
-      find.byKey(const Key('profile-editor-env-key-0')),
+      _findByKey(const Key('profile-editor-env-key-0')),
     );
     await tester.enterText(
-      find.byKey(const Key('profile-editor-env-key-0')),
+      _findByKey(const Key('profile-editor-env-key-0')),
       'TERM',
     );
     await _ensureVisible(
       tester,
-      find.byKey(const Key('profile-editor-env-key-1')),
+      _findByKey(const Key('profile-editor-env-key-1')),
     );
     await tester.enterText(
-      find.byKey(const Key('profile-editor-env-key-1')),
+      _findByKey(const Key('profile-editor-env-key-1')),
       'TERM',
     );
 
-    await tester.enterText(find.byKey(const Key('profile-editor-name')), '');
-    await tester.enterText(find.byKey(const Key('profile-editor-shell')), '');
+    await tester.enterText(_findByKey(const Key('profile-editor-name')), '');
+    await tester.enterText(_findByKey(const Key('profile-editor-shell')), '');
     await _ensureVisible(
       tester,
-      find.byKey(const Key('profile-editor-scrollback')),
+      _findByKey(const Key('profile-editor-scrollback')),
     );
     await tester.enterText(
-      find.byKey(const Key('profile-editor-scrollback')),
+      _findByKey(const Key('profile-editor-scrollback')),
       '0',
     );
     await _ensureVisible(
       tester,
-      find.byKey(const Key('profile-editor-font-size')),
+      _findByKey(const Key('profile-editor-font-size')),
     );
     await tester.enterText(
-      find.byKey(const Key('profile-editor-font-size')),
+      _findByKey(const Key('profile-editor-font-size')),
       '0',
     );
     await _ensureVisible(
       tester,
-      find.byKey(const Key('profile-editor-font-line-height')),
+      _findByKey(const Key('profile-editor-font-line-height')),
     );
     await tester.enterText(
-      find.byKey(const Key('profile-editor-font-line-height')),
+      _findByKey(const Key('profile-editor-font-line-height')),
       '-1',
     );
     await _ensureVisible(
       tester,
-      find.byKey(const Key('profile-editor-color-foreground')),
+      _findByKey(const Key('profile-editor-color-foreground')),
     );
     await tester.enterText(
-      find.byKey(const Key('profile-editor-color-foreground')),
+      _findByKey(const Key('profile-editor-color-foreground')),
       'red',
     );
 
-    await _ensureVisible(tester, find.byKey(const Key('profile-editor-save')));
-    await tester.tap(find.byKey(const Key('profile-editor-save')));
+    await _ensureVisible(tester, _findByKey(const Key('profile-editor-save')));
+    await tester.tap(_findByKey(const Key('profile-editor-save')));
     await tester.pumpAndSettle();
 
     expect(savedProfile, isNull);
-    expect(find.text('Name is required'), findsOneWidget);
-    expect(find.text('Shell is required'), findsOneWidget);
+    expect(find.text('Name is required', skipOffstage: false), findsOneWidget);
+    expect(find.text('Shell is required', skipOffstage: false), findsOneWidget);
     expect(
-      find.text('Scrollback lines must be a positive integer'),
+      find.text(
+        'Scrollback lines must be a positive integer',
+        skipOffstage: false,
+      ),
       findsOneWidget,
     );
-    expect(find.text('Font size must be greater than 0'), findsOneWidget);
-    expect(find.text('Line height must be greater than 0'), findsOneWidget);
-    expect(find.text('Use #RRGGBB or leave empty.'), findsOneWidget);
-    expect(find.text('Key must be unique'), findsNWidgets(2));
-    expect(find.byKey(const Key('profile-editor-dialog')), findsOneWidget);
+    expect(
+      find.text('Font size must be greater than 0', skipOffstage: false),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Line height must be greater than 0', skipOffstage: false),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Use #RRGGBB or leave empty.', skipOffstage: false),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Key must be unique', skipOffstage: false),
+      findsNWidgets(2),
+    );
+    expect(_findByKey(const Key('profile-editor-dialog')), findsOneWidget);
   });
 
   testWidgets('profile editor rejects non-finite typography values', (
@@ -1156,29 +1269,29 @@ void main() {
 
     await _ensureVisible(
       tester,
-      find.byKey(const Key('profile-editor-font-size')),
+      _findByKey(const Key('profile-editor-font-size')),
     );
     await tester.enterText(
-      find.byKey(const Key('profile-editor-font-size')),
+      _findByKey(const Key('profile-editor-font-size')),
       'NaN',
     );
     await _ensureVisible(
       tester,
-      find.byKey(const Key('profile-editor-font-line-height')),
+      _findByKey(const Key('profile-editor-font-line-height')),
     );
     await tester.enterText(
-      find.byKey(const Key('profile-editor-font-line-height')),
+      _findByKey(const Key('profile-editor-font-line-height')),
       'Infinity',
     );
 
-    await _ensureVisible(tester, find.byKey(const Key('profile-editor-save')));
-    await tester.tap(find.byKey(const Key('profile-editor-save')));
+    await _ensureVisible(tester, _findByKey(const Key('profile-editor-save')));
+    await tester.tap(_findByKey(const Key('profile-editor-save')));
     await tester.pumpAndSettle();
 
     expect(savedProfile, isNull);
     expect(find.text('Font size must be greater than 0'), findsOneWidget);
     expect(find.text('Line height must be greater than 0'), findsOneWidget);
-    expect(find.byKey(const Key('profile-editor-dialog')), findsOneWidget);
+    expect(_findByKey(const Key('profile-editor-dialog')), findsOneWidget);
   });
 
   testWidgets('profile editor rejects excessive scrollback retention', (
@@ -1197,14 +1310,14 @@ void main() {
 
     await _ensureVisible(
       tester,
-      find.byKey(const Key('profile-editor-scrollback')),
+      _findByKey(const Key('profile-editor-scrollback')),
     );
     await tester.enterText(
-      find.byKey(const Key('profile-editor-scrollback')),
+      _findByKey(const Key('profile-editor-scrollback')),
       '${terminal.maxTerminalScrollbackLines + 1}',
     );
-    await _ensureVisible(tester, find.byKey(const Key('profile-editor-save')));
-    await tester.tap(find.byKey(const Key('profile-editor-save')));
+    await _ensureVisible(tester, _findByKey(const Key('profile-editor-save')));
+    await tester.tap(_findByKey(const Key('profile-editor-save')));
     await tester.pumpAndSettle();
 
     expect(savedProfile, isNull);
@@ -1214,7 +1327,7 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.byKey(const Key('profile-editor-dialog')), findsOneWidget);
+    expect(_findByKey(const Key('profile-editor-dialog')), findsOneWidget);
   });
 
   testWidgets('profile editor confirms before discarding unsaved changes', (
@@ -1232,29 +1345,29 @@ void main() {
     );
 
     await tester.enterText(
-      find.byKey(const Key('profile-editor-name')),
+      _findByKey(const Key('profile-editor-name')),
       'Edited Shell',
     );
     await tester.tap(find.byTooltip('Close profile editor'));
     await tester.pumpAndSettle();
 
     expect(
-      find.byKey(const Key('profile-editor-discard-dialog')),
+      _findByKey(const Key('profile-editor-discard-dialog')),
       findsOneWidget,
     );
 
-    await tester.tap(find.byKey(const Key('profile-editor-discard-cancel')));
+    await tester.tap(_findByKey(const Key('profile-editor-discard-cancel')));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('profile-editor-dialog')), findsOneWidget);
+    expect(_findByKey(const Key('profile-editor-dialog')), findsOneWidget);
     expect(savedProfile, isNull);
 
-    await tester.tap(find.byKey(const Key('profile-editor-cancel')));
+    await tester.tap(_findByKey(const Key('profile-editor-cancel')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('profile-editor-discard-confirm')));
+    await tester.tap(_findByKey(const Key('profile-editor-discard-confirm')));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('profile-editor-dialog')), findsNothing);
+    expect(_findByKey(const Key('profile-editor-dialog')), findsNothing);
     expect(savedProfile, isNull);
   });
 
@@ -1274,41 +1387,41 @@ void main() {
 
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-swatch-foreground')),
+        _findByKey(const Key('profile-editor-swatch-foreground')),
       );
       await tester.tap(
-        find.byKey(const Key('profile-editor-swatch-foreground')),
+        _findByKey(const Key('profile-editor-swatch-foreground')),
       );
       await tester.pumpAndSettle();
-      expect(find.byKey(const Key('color-picker-dialog')), findsOneWidget);
-      expect(find.byKey(const Key('color-picker-palette')), findsOneWidget);
-      expect(find.byKey(const Key('color-picker-hue-slider')), findsOneWidget);
-      expect(find.byKey(const Key('color-picker-red')), findsNothing);
-      expect(find.byKey(const Key('color-picker-green')), findsNothing);
-      expect(find.byKey(const Key('color-picker-blue')), findsNothing);
+      expect(_findByKey(const Key('color-picker-dialog')), findsOneWidget);
+      expect(_findByKey(const Key('color-picker-palette')), findsOneWidget);
+      expect(_findByKey(const Key('color-picker-hue-slider')), findsOneWidget);
+      expect(_findByKey(const Key('color-picker-red')), findsNothing);
+      expect(_findByKey(const Key('color-picker-green')), findsNothing);
+      expect(_findByKey(const Key('color-picker-blue')), findsNothing);
       expect(
-        tester.getSize(find.byKey(const Key('color-picker-palette'))).height,
+        tester.getSize(_findByKey(const Key('color-picker-palette'))).height,
         lessThanOrEqualTo(260),
       );
       expect(
-        tester.getRect(find.byKey(const Key('color-picker-hue-slider'))).bottom,
+        tester.getRect(_findByKey(const Key('color-picker-hue-slider'))).bottom,
         lessThan(
-          tester.getRect(find.byKey(const Key('color-picker-apply'))).top,
+          tester.getRect(_findByKey(const Key('color-picker-apply'))).top,
         ),
       );
 
       await tester.enterText(
-        find.byKey(const Key('color-picker-hex')),
+        _findByKey(const Key('color-picker-hex')),
         '#123456',
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('color-picker-apply')));
+      await tester.tap(_findByKey(const Key('color-picker-apply')));
       await tester.pumpAndSettle();
 
       expect(
         tester
             .widget<TextFormField>(
-              find.byKey(const Key('profile-editor-color-foreground')),
+              _findByKey(const Key('profile-editor-color-foreground')),
             )
             .controller!
             .text,
@@ -1317,26 +1430,26 @@ void main() {
 
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-pick-foreground')),
+        _findByKey(const Key('profile-editor-pick-foreground')),
       );
-      await tester.tap(find.byKey(const Key('profile-editor-pick-foreground')));
+      await tester.tap(_findByKey(const Key('profile-editor-pick-foreground')));
       await tester.pumpAndSettle();
       await tester.enterText(
-        find.byKey(const Key('color-picker-hex')),
+        _findByKey(const Key('color-picker-hex')),
         '#FFFFFG',
       );
       await tester.pumpAndSettle();
       expect(find.text('Use #RRGGBB or leave empty.'), findsOneWidget);
-      await tester.tap(find.byKey(const Key('color-picker-apply')));
+      await tester.tap(_findByKey(const Key('color-picker-apply')));
       await tester.pumpAndSettle();
-      expect(find.byKey(const Key('color-picker-dialog')), findsOneWidget);
-      await tester.tap(find.byKey(const Key('color-picker-reset')));
+      expect(_findByKey(const Key('color-picker-dialog')), findsOneWidget);
+      await tester.tap(_findByKey(const Key('color-picker-reset')));
       await tester.pumpAndSettle();
 
       expect(
         tester
             .widget<TextFormField>(
-              find.byKey(const Key('profile-editor-color-foreground')),
+              _findByKey(const Key('profile-editor-color-foreground')),
             )
             .controller!
             .text,
@@ -1345,15 +1458,65 @@ void main() {
 
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-save')),
+        _findByKey(const Key('profile-editor-save')),
       );
-      await tester.tap(find.byKey(const Key('profile-editor-save')));
+      await tester.tap(_findByKey(const Key('profile-editor-save')));
       await tester.pumpAndSettle();
 
       expect(savedProfile, isNotNull);
       expect(savedProfile!.appearance.colors.foreground, isNull);
     },
   );
+
+  testWidgets('profile editor can return terminal colors to the app theme', (
+    tester,
+  ) async {
+    await _pumpEditorHarness(
+      tester,
+      initialValue: TerminalProfile(
+        id: 'default',
+        name: 'Local Shell',
+        shell: '/bin/zsh',
+      ),
+      onSaved: (_) {},
+    );
+
+    await _ensureVisible(
+      tester,
+      _findByKey(const Key('profile-editor-theme-presets')),
+    );
+    expect(
+      _findByKey(const Key('profile-editor-theme-preset-selected-follow-app')),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      _findByKey(const Key('profile-editor-theme-preset-graphite-night')),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      _findByKey(const Key('profile-editor-theme-preset-selected-follow-app')),
+      findsNothing,
+    );
+
+    await tester.tap(
+      _findByKey(const Key('profile-editor-theme-preset-follow-app')),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      _findByKey(const Key('profile-editor-theme-preset-selected-follow-app')),
+      findsOneWidget,
+    );
+    for (final fieldKey in _allColorFieldKeys) {
+      expect(
+        tester
+            .widget<TextFormField>(_findByKey(Key(fieldKey)))
+            .controller!
+            .text,
+        isEmpty,
+      );
+    }
+  });
 
   testWidgets(
     'profile editor renders theme presets and applies a preset to all terminal colors',
@@ -1374,7 +1537,7 @@ void main() {
 
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-theme-presets')),
+        _findByKey(const Key('profile-editor-theme-presets')),
       );
       expect(find.text('Theme presets'), findsOneWidget);
       expect(find.text('Dark').evaluate().length, greaterThanOrEqualTo(3));
@@ -1386,7 +1549,7 @@ void main() {
       expect(find.text('Sage Mist'), findsOneWidget);
 
       await tester.tap(
-        find.byKey(const Key('profile-editor-theme-preset-paper-slate')),
+        _findByKey(const Key('profile-editor-theme-preset-paper-slate')),
       );
       await tester.pumpAndSettle();
 
@@ -1422,7 +1585,7 @@ void main() {
         paperSlate.palette.bright.yellow!,
       );
       expect(
-        find.byKey(
+        _findByKey(
           const Key('profile-editor-theme-preset-selected-paper-slate'),
         ),
         findsOneWidget,
@@ -1430,9 +1593,9 @@ void main() {
 
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-save')),
+        _findByKey(const Key('profile-editor-save')),
       );
-      await tester.tap(find.byKey(const Key('profile-editor-save')));
+      await tester.tap(_findByKey(const Key('profile-editor-save')));
       await tester.pumpAndSettle();
 
       expect(savedProfile, isNotNull);
@@ -1467,27 +1630,27 @@ void main() {
 
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-theme-presets')),
+        _findByKey(const Key('profile-editor-theme-presets')),
       );
       await tester.tap(
-        find.byKey(const Key('profile-editor-theme-preset-graphite-night')),
+        _findByKey(const Key('profile-editor-theme-preset-graphite-night')),
       );
       await tester.pumpAndSettle();
 
       expect(
-        find.byKey(
+        _findByKey(
           const Key('profile-editor-theme-preset-selected-graphite-night'),
         ),
         findsOneWidget,
       );
 
       await tester.enterText(
-        find.byKey(const Key('profile-editor-color-cursor')),
+        _findByKey(const Key('profile-editor-color-cursor')),
         '#123456',
       );
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-color-normal-green')),
+        _findByKey(const Key('profile-editor-color-normal-green')),
       );
       _expectColorFieldText(
         tester,
@@ -1496,13 +1659,13 @@ void main() {
       );
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-color-selection')),
+        _findByKey(const Key('profile-editor-color-selection')),
       );
-      await tester.tap(find.byKey(const Key('profile-editor-color-selection')));
+      await tester.tap(_findByKey(const Key('profile-editor-color-selection')));
       await tester.pumpAndSettle();
 
       expect(
-        find.byKey(
+        _findByKey(
           const Key('profile-editor-theme-preset-selected-graphite-night'),
         ),
         findsNothing,
@@ -1510,9 +1673,9 @@ void main() {
 
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-save')),
+        _findByKey(const Key('profile-editor-save')),
       );
-      await tester.tap(find.byKey(const Key('profile-editor-save')));
+      await tester.tap(_findByKey(const Key('profile-editor-save')));
       await tester.pumpAndSettle();
 
       expect(savedProfile, isNotNull);
@@ -1542,26 +1705,26 @@ void main() {
 
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-theme-presets')),
+        _findByKey(const Key('profile-editor-theme-presets')),
       );
       await tester.tap(
-        find.byKey(const Key('profile-editor-theme-preset-sage-mist')),
+        _findByKey(const Key('profile-editor-theme-preset-sage-mist')),
       );
       await tester.pumpAndSettle();
 
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-reset-foreground')),
+        _findByKey(const Key('profile-editor-reset-foreground')),
       );
       await tester.tap(
-        find.byKey(const Key('profile-editor-reset-foreground')),
+        _findByKey(const Key('profile-editor-reset-foreground')),
       );
       await tester.pumpAndSettle();
 
       expect(
         tester
             .widget<TextFormField>(
-              find.byKey(const Key('profile-editor-color-foreground')),
+              _findByKey(const Key('profile-editor-color-foreground')),
             )
             .controller!
             .text,
@@ -1570,7 +1733,7 @@ void main() {
       expect(
         tester
             .widget<TextFormField>(
-              find.byKey(const Key('profile-editor-color-background')),
+              _findByKey(const Key('profile-editor-color-background')),
             )
             .controller!
             .text,
@@ -1579,7 +1742,7 @@ void main() {
       expect(
         tester
             .widget<TextFormField>(
-              find.byKey(const Key('profile-editor-color-cursor')),
+              _findByKey(const Key('profile-editor-color-cursor')),
             )
             .controller!
             .text,
@@ -1593,7 +1756,7 @@ void main() {
       expect(
         tester
             .widget<TextFormField>(
-              find.byKey(const Key('profile-editor-color-selection')),
+              _findByKey(const Key('profile-editor-color-selection')),
             )
             .controller!
             .text,
@@ -1602,9 +1765,9 @@ void main() {
 
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-save')),
+        _findByKey(const Key('profile-editor-save')),
       );
-      await tester.tap(find.byKey(const Key('profile-editor-save')));
+      await tester.tap(_findByKey(const Key('profile-editor-save')));
       await tester.pumpAndSettle();
 
       expect(savedProfile, isNotNull);
@@ -1681,6 +1844,8 @@ Future<void> _pumpEditorHarness(
   await tester.pumpAndSettle();
 }
 
+Finder _findByKey(Key key) => find.byKey(key, skipOffstage: false);
+
 Future<void> _ensureVisible(WidgetTester tester, Finder finder) async {
   final targetElements = finder.evaluate().toList();
   if (targetElements.any((element) {
@@ -1690,6 +1855,40 @@ Future<void> _ensureVisible(WidgetTester tester, Finder finder) async {
     return;
   }
 
+  for (final section in const [
+    'general',
+    'startup',
+    'terminal',
+    'appearance',
+    'keys',
+    'automation',
+    'advanced',
+  ]) {
+    final sectionRoot = _findByKey(Key('profile-editor-section-$section'));
+    final belongsToSection = find
+        .descendant(
+          of: sectionRoot,
+          matching: finder,
+          matchRoot: true,
+          skipOffstage: false,
+        )
+        .evaluate()
+        .isNotEmpty;
+    if (!belongsToSection) {
+      continue;
+    }
+    final navItem = _findByKey(Key('profile-editor-nav-$section'));
+    await Scrollable.ensureVisible(
+      navItem.evaluate().single,
+      duration: Duration.zero,
+      alignment: 0.5,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(navItem);
+    await tester.pumpAndSettle();
+    break;
+  }
+
   await Scrollable.ensureVisible(
     targetElements.single,
     duration: Duration.zero,
@@ -1697,7 +1896,7 @@ Future<void> _ensureVisible(WidgetTester tester, Finder finder) async {
   );
   await tester.pumpAndSettle();
 
-  final saveButton = find.byKey(const Key('profile-editor-save'));
+  final saveButton = _findByKey(const Key('profile-editor-save'));
   if (saveButton.evaluate().isEmpty) {
     return;
   }
@@ -1709,7 +1908,7 @@ Future<void> _ensureVisible(WidgetTester tester, Finder finder) async {
   }
 
   await tester.drag(
-    find.byKey(const Key('profile-editor-scroll-view')),
+    _findByKey(const Key('profile-editor-scroll-view')),
     Offset(0, -(targetCenter.dy - footerTop + 48)),
   );
   await tester.pumpAndSettle();
@@ -1721,14 +1920,18 @@ void _expectColorFieldText(
   String expected,
 ) {
   expect(
-    tester.widget<TextFormField>(find.byKey(Key(fieldKey))).controller!.text,
+    tester.widget<TextFormField>(_findByKey(Key(fieldKey))).controller!.text,
     expected,
   );
 }
 
 void _expectDescendant(Key parentKey, Key childKey) {
   expect(
-    find.descendant(of: find.byKey(parentKey), matching: find.byKey(childKey)),
+    find.descendant(
+      of: _findByKey(parentKey),
+      matching: _findByKey(childKey),
+      skipOffstage: false,
+    ),
     findsOneWidget,
   );
 }

@@ -173,7 +173,7 @@ void main() {
   );
 
   testWidgets(
-    'terminal color bridge keeps theme defaults and applies profile overrides',
+    'terminal color bridge follows the app theme and keeps interaction overrides',
     (tester) async {
       await tester.pumpWidget(
         Theme(
@@ -188,11 +188,11 @@ void main() {
       final lightDefaults = resolveTerminalColors(lightContext).viewport;
       expect(
         lightDefaults.canvasBackground.toARGB32(),
-        const Color(0xFFF8F7F2).toARGB32(),
+        const Color(0xFFF5F5F7).toARGB32(),
       );
       expect(
         lightDefaults.foreground.toARGB32(),
-        const Color(0xFF111111).toARGB32(),
+        const Color(0xFF1D1D1F).toARGB32(),
       );
       expect(lightDefaults.minimumContrastRatio, 4.5);
       expect(lightDefaults.smartCursorColor, isTrue);
@@ -212,11 +212,11 @@ void main() {
       ).viewport;
       expect(
         overridden.canvasBackground.toARGB32(),
-        const Color(0xFF445566).toARGB32(),
+        lightDefaults.canvasBackground.toARGB32(),
       );
       expect(
         overridden.foreground.toARGB32(),
-        const Color(0xFF112233).toARGB32(),
+        lightDefaults.foreground.toARGB32(),
       );
       expect(overridden.cursor.toARGB32(), const Color(0xFF778899).toARGB32());
       expect(
@@ -237,11 +237,11 @@ void main() {
       final darkDefaults = resolveTerminalColors(darkContext).viewport;
       expect(
         darkDefaults.canvasBackground.toARGB32(),
-        const Color(0xFF050608).toARGB32(),
+        const Color(0xFF1D1D1F).toARGB32(),
       );
       expect(
         darkDefaults.foreground.toARGB32(),
-        const Color(0xFFF8FAFC).toARGB32(),
+        const Color(0xFFF5F5F7).toARGB32(),
       );
     },
   );

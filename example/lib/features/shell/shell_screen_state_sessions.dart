@@ -143,13 +143,6 @@ extension _ShellScreenStateSessions on _ShellScreenState {
         _hoveredTerminalLink = null;
         _hoveredTerminalLinkSessionId = null;
       }
-      if (_lastOsc52StatusSessionId == sessionId) {
-        _osc52StatusClearTimer?.cancel();
-        _osc52StatusClearTimer = null;
-        _lastOsc52StatusLabel = null;
-        _lastOsc52StatusEvent = null;
-        _lastOsc52StatusSessionId = null;
-      }
       if (_copyModeSessionId == sessionId) {
         _resetCopyModeState();
       }

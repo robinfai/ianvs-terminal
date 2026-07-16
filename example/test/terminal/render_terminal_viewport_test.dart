@@ -4071,6 +4071,47 @@ void main() {
     );
   });
 
+  testWidgets('configured terminal colors can override frame defaults', (
+    tester,
+  ) async {
+    const configuredColors = TerminalViewportColors(
+      canvasBackground: Color(0xFFF5F5F7),
+      foreground: Color(0xFF1D1D1F),
+      cursor: Color(0xFF007AFF),
+      selection: Color(0x47007AFF),
+      scrollbarTrack: Color(0x22000000),
+      scrollbarThumb: Color(0x66000000),
+      minimumContrastRatio: 4.5,
+      smartCursorColor: true,
+    );
+    final renderObject = await _pumpThemedTerminalViewport(
+      tester,
+      themeMode: ThemeMode.light,
+      colors: configuredColors,
+      useFrameDefaultColors: false,
+      frame: const TerminalFrameDiff(
+        rows: [TerminalRow(index: 0, text: 'theme-owned')],
+        cursor: TerminalCursor(row: 0, col: 0, visible: false),
+        viewportRows: 24,
+        viewportCols: 80,
+        dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+        defaultForeground: Color(0xFFF8FAFC),
+        defaultBackground: Color(0xFF050608),
+      ),
+    );
+
+    expect(
+      renderObject.debugColors.canvasBackground,
+      configuredColors.canvasBackground,
+    );
+    expect(
+      renderObject.debugResolvedCellsForRow(0).first.foreground,
+      configuredColors.foreground,
+    );
+  });
+
   testWidgets(
     'terminal viewport resolves dim foreground as an opaque blend against the effective background',
     (tester) async {
@@ -6981,6 +7022,7 @@ Future<RenderTerminalViewport> _pumpThemedTerminalViewport(
   required ThemeMode themeMode,
   required TerminalFrameDiff frame,
   TerminalViewportColors? colors,
+  bool useFrameDefaultColors = true,
   TerminalFontConfig font = const TerminalFontConfig(),
   TerminalCursorConfig cursor = const TerminalCursorConfig(),
 }) async {
@@ -6990,6 +7032,7 @@ Future<RenderTerminalViewport> _pumpThemedTerminalViewport(
     controller: controller,
     themeMode: themeMode,
     colors: colors,
+    useFrameDefaultColors: useFrameDefaultColors,
     font: font,
     cursor: cursor,
   );
@@ -7001,6 +7044,7 @@ Future<void> _pumpTerminalViewportWithController(
   required TerminalViewportController controller,
   required ThemeMode themeMode,
   TerminalViewportColors? colors,
+  bool useFrameDefaultColors = true,
   TerminalFontConfig font = const TerminalFontConfig(),
   TerminalCursorConfig cursor = const TerminalCursorConfig(),
   bool showLineTimestamps = false,
@@ -7031,6 +7075,7 @@ Future<void> _pumpTerminalViewportWithController(
             selectionController: selectionController,
             inputController: inputController,
             colors: colors,
+            useFrameDefaultColors: useFrameDefaultColors,
             font: font,
             cursor: cursor,
             showLineTimestamps: showLineTimestamps,

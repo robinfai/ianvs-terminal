@@ -225,7 +225,7 @@ class _ShellWindowTitleBar extends StatelessWidget {
                 right: 12,
                 child: _buildChromeIconButton(
                   key: const Key('shell-chrome-menu'),
-                  tooltip: 'Open command menu',
+                  tooltip: 'Open command palette',
                   onPressed: onShowCommandMenu,
                   iconSize: 16,
                   hoverBackgroundColor: tone.hoverBackground,

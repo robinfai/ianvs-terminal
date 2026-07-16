@@ -118,7 +118,7 @@ void main() {
       ),
     );
     expect(find.bySemanticsLabel('New tab'), findsOneWidget);
-    expect(find.bySemanticsLabel('Open command menu'), findsOneWidget);
+    expect(find.bySemanticsLabel('Open command palette'), findsOneWidget);
   });
 
   testWidgets(
@@ -204,7 +204,7 @@ void main() {
     expect(find.byKey(const Key('shell-tab-overflow-button')), findsNothing);
   });
 
-  testWidgets('shell tab background follows terminal profile background', (
+  testWidgets('shell chrome background follows the application theme', (
     tester,
   ) async {
     await pumpShellScreen(
@@ -248,12 +248,9 @@ void main() {
     expect(_channelSpread(newTabHoverBackground), lessThanOrEqualTo(18));
     expect(
       _decoratedBoxColor(tester, const Key('shell-chrome-bar')),
-      const Color(0xFF11141A),
+      const Color(0xFFF5F5F7),
     );
-    expect(
-      _decoratedBoxColor(tester, const Key('shell-status-bar-surface')),
-      const Color(0xFF11141A),
-    );
+    expect(find.byKey(const Key('shell-status-bar')), findsNothing);
 
     await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
     await tester.pumpAndSettle();
