@@ -147,7 +147,7 @@ private func fourCharCode(_ value: String) -> OSType {
   return result
 }
 
-class MainFlutterWindow: NSWindow {
+class MainFlutterWindow: NSWindow, NSWindowDelegate {
   private struct NativeWindowDragState {
     let startFrameOrigin: NSPoint
     let startMouseLocation: NSPoint
@@ -305,6 +305,22 @@ class MainFlutterWindow: NSWindow {
       && (patternParts[1] == "*" || patternParts[1] == mimeParts[1])
   }
 
+  func installWindowCloseConfirmationDelegate() {
+    delegate = self
+  }
+
+  func windowShouldClose(_ sender: NSWindow) -> Bool {
+    let shouldClose = shouldCloseWindowAfterConfirmation()
+    if shouldClose {
+      AppDelegate.suppressNextTerminateConfirmation = true
+    }
+    return shouldClose
+  }
+
+  func shouldCloseWindowAfterConfirmation() -> Bool {
+    AppDelegate.confirmApplicationTermination()
+  }
+
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
     let windowFrame = self.frame
@@ -315,6 +331,7 @@ class MainFlutterWindow: NSWindow {
     self.isMovable = false
     self.isMovableByWindowBackground = false
     self.styleMask.insert(.fullSizeContentView)
+    installWindowCloseConfirmationDelegate()
     observeTrafficLightLayoutChanges()
 
     RegisterGeneratedPlugins(registry: flutterViewController)

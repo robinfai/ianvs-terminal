@@ -4,12 +4,22 @@ import FlutterMacOS
 @main
 class AppDelegate: FlutterAppDelegate {
   static var suppressNextLastWindowTerminate = false
+  static var suppressNextTerminateConfirmation = false
 
   override func applicationDidFinishLaunching(_ notification: Notification) {
     scheduleForegroundMainWindow(for: NSApp)
   }
 
   override func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+    if Self.suppressNextTerminateConfirmation {
+      Self.suppressNextTerminateConfirmation = false
+      return .terminateNow
+    }
+
+    return Self.confirmApplicationTermination() ? .terminateNow : .terminateCancel
+  }
+
+  static func confirmApplicationTermination() -> Bool {
     let alert = NSAlert()
     alert.messageText = "Quit Ianvs Terminal?"
     alert.informativeText = "Active shell sessions will be closed."
@@ -18,7 +28,7 @@ class AppDelegate: FlutterAppDelegate {
     _ = alert.addButton(withTitle: "Quit")
     cancelButton.keyEquivalent = "\u{1b}"
 
-    return alert.runModal() == .alertSecondButtonReturn ? .terminateNow : .terminateCancel
+    return alert.runModal() == .alertSecondButtonReturn
   }
 
   override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

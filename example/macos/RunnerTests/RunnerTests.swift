@@ -3,6 +3,15 @@ import FlutterMacOS
 import XCTest
 @testable import Ianvs_Terminal_Dev
 
+private final class CloseTrackingMainFlutterWindow: MainFlutterWindow {
+  private(set) var didRequestCloseConfirmation = false
+
+  override func shouldCloseWindowAfterConfirmation() -> Bool {
+    didRequestCloseConfirmation = true
+    return false
+  }
+}
+
 class RunnerTests: XCTestCase {
 
   func testExample() {
@@ -16,6 +25,16 @@ class RunnerTests: XCTestCase {
     delegate.applicationDidFinishLaunching(
       Notification(name: NSApplication.didFinishLaunchingNotification)
     )
+  }
+
+  func testMainWindowCloseIsCancelledBeforeTheWindowCloses() {
+    let window = CloseTrackingMainFlutterWindow()
+
+    window.installWindowCloseConfirmationDelegate()
+
+    XCTAssertTrue(window.delegate === window)
+    XCTAssertFalse(window.windowShouldClose(window))
+    XCTAssertTrue(window.didRequestCloseConfirmation)
   }
 
   func testNotificationAuthorizationFailureUsesExpectedErrorCode() {
