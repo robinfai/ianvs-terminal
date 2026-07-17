@@ -30,10 +30,7 @@ class ToggleSettingRow extends StatelessWidget {
           child: ConstrainedBox(
             constraints: BoxConstraints(minHeight: theme.controls.regular),
             child: Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: theme.spacing.sm,
-                vertical: theme.spacing.sm,
-              ),
+              padding: EdgeInsets.symmetric(vertical: theme.spacing.sm),
               child: Row(
                 children: [
                   Expanded(

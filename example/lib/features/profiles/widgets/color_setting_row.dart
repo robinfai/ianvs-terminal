@@ -188,7 +188,7 @@ class ColorSettingRow extends StatelessWidget {
               labelText: null,
               helperText: null,
               filled: true,
-              fillColor: theme.chrome.withValues(alpha: 0.42),
+              fillColor: theme.chrome,
               contentPadding: EdgeInsets.symmetric(
                 horizontal: theme.spacing.md,
                 vertical: theme.spacing.md,

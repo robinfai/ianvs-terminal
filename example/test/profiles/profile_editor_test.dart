@@ -109,7 +109,11 @@ void main() {
       final shellFieldHeight = tester
           .getSize(_findByKey(const Key('profile-editor-shell')))
           .height;
-      expect(shellFieldHeight, greaterThanOrEqualTo(36));
+      expect(
+        tester.getSize(_findByKey(const Key('profile-editor-name'))).height,
+        greaterThanOrEqualTo(64),
+      );
+      expect(shellFieldHeight, greaterThanOrEqualTo(64));
       expect(
         tester.getSize(_findByKey(const Key('profile-editor-add-arg'))).height,
         32,
