@@ -47,6 +47,7 @@ class _DynamicProfilesSheetState extends State<DynamicProfilesSheet> {
   late final TextEditingController _controller;
   String? _errorText;
   _DynamicProfilesImportPreview? _preview;
+  Set<String> _selectedProfileIds = const <String>{};
 
   @override
   void initState() {
@@ -81,6 +82,7 @@ class _DynamicProfilesSheetState extends State<DynamicProfilesSheet> {
     setState(() {
       _preview = null;
       _errorText = null;
+      _selectedProfileIds = const <String>{};
     });
   }
 
@@ -91,6 +93,7 @@ class _DynamicProfilesSheetState extends State<DynamicProfilesSheet> {
         setState(() {
           _errorText = 'Top-level JSON must be an object.';
           _preview = null;
+          _selectedProfileIds = const <String>{};
         });
         return;
       }
@@ -101,6 +104,7 @@ class _DynamicProfilesSheetState extends State<DynamicProfilesSheet> {
         setState(() {
           _errorText = 'No profiles found in JSON.';
           _preview = null;
+          _selectedProfileIds = const <String>{};
         });
         return;
       }
@@ -117,16 +121,21 @@ class _DynamicProfilesSheetState extends State<DynamicProfilesSheet> {
               if (existingIds.contains(profile.id)) profile.id,
           },
         );
+        _selectedProfileIds = {
+          for (final profile in document.profiles) profile.id,
+        };
       });
     } on FormatException catch (error) {
       setState(() {
         _errorText = error.message;
         _preview = null;
+        _selectedProfileIds = const <String>{};
       });
     } on Object catch (error) {
       setState(() {
         _errorText = error.toString();
         _preview = null;
+        _selectedProfileIds = const <String>{};
       });
     }
   }
@@ -136,22 +145,39 @@ class _DynamicProfilesSheetState extends State<DynamicProfilesSheet> {
     if (preview == null) {
       return;
     }
+    final selectedProfiles = preview.profiles
+        .where((profile) => _selectedProfileIds.contains(profile.id))
+        .toList(growable: false);
+    if (selectedProfiles.isEmpty) {
+      return;
+    }
+    final selectedReplacementCount = selectedProfiles
+        .where((profile) => preview.replacementIds.contains(profile.id))
+        .length;
     Navigator.of(context).pop(
       DynamicProfilesImportResult(
-        profiles: preview.profiles,
+        profiles: selectedProfiles,
         warningCount: preview.warningCount,
-        addedCount: preview.addedCount,
-        replacementCount: preview.replacementCount,
+        addedCount: selectedProfiles.length - selectedReplacementCount,
+        replacementCount: selectedReplacementCount,
       ),
     );
   }
 
   Widget _buildPreview(_DynamicProfilesImportPreview preview) {
     final palette = context.appTheme;
+    final selectedProfiles = preview.profiles
+        .where((profile) => _selectedProfileIds.contains(profile.id))
+        .toList(growable: false);
+    final selectedReplacementCount = selectedProfiles
+        .where((profile) => preview.replacementIds.contains(profile.id))
+        .length;
+    final selectedAddedCount =
+        selectedProfiles.length - selectedReplacementCount;
     final summary =
-        '${preview.profiles.length} profile${preview.profiles.length == 1 ? '' : 's'} ready'
-        ' • ${preview.addedCount} new'
-        ' • ${preview.replacementCount} replacement${preview.replacementCount == 1 ? '' : 's'}'
+        '${selectedProfiles.length} of ${preview.profiles.length} profile${preview.profiles.length == 1 ? '' : 's'} selected'
+        ' • $selectedAddedCount new'
+        ' • $selectedReplacementCount replacement${selectedReplacementCount == 1 ? '' : 's'}'
         '${preview.warningCount == 0 ? '' : ' • ${preview.warningCount} warning${preview.warningCount == 1 ? '' : 's'}'}';
     return AppPanel(
       key: const Key('dynamic-profiles-preview'),
@@ -161,57 +187,110 @@ class _DynamicProfilesSheetState extends State<DynamicProfilesSheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            summary,
-            key: const Key('dynamic-profiles-preview-summary'),
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: palette.textPrimary,
-              fontWeight: FontWeight.w800,
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  summary,
+                  key: const Key('dynamic-profiles-preview-summary'),
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              TextButton(
+                key: const Key('dynamic-profiles-toggle-all'),
+                onPressed: () {
+                  setState(() {
+                    _selectedProfileIds =
+                        _selectedProfileIds.length == preview.profiles.length
+                        ? const <String>{}
+                        : Set.unmodifiable({
+                            for (final profile in preview.profiles) profile.id,
+                          });
+                  });
+                },
+                child: Text(
+                  _selectedProfileIds.length == preview.profiles.length
+                      ? 'Clear all'
+                      : 'Select all',
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: palette.spacing.xs),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 180),
+            child: ListView.builder(
+              shrinkWrap: true,
+              padding: EdgeInsets.zero,
+              itemCount: preview.profiles.length,
+              itemBuilder: (context, index) {
+                final profile = preview.profiles[index];
+                final replacesExisting = preview.replacementIds.contains(
+                  profile.id,
+                );
+                return Padding(
+                  padding: EdgeInsets.only(bottom: palette.spacing.xs),
+                  child: Row(
+                    key: Key('dynamic-profiles-preview-${profile.id}'),
+                    children: [
+                      Icon(
+                        replacesExisting
+                            ? Icons.sync_alt_rounded
+                            : Icons.add_circle_outline_rounded,
+                        size: 16,
+                        color: replacesExisting
+                            ? palette.warning
+                            : palette.success,
+                      ),
+                      SizedBox(width: palette.spacing.sm),
+                      Expanded(
+                        child: Text(
+                          profile.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: palette.textPrimary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ),
+                      SizedBox(width: palette.spacing.sm),
+                      Text(
+                        replacesExisting ? 'Replaces existing' : 'New profile',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: replacesExisting
+                              ? palette.warning
+                              : palette.textMuted,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      SizedBox(width: palette.spacing.xs),
+                      Checkbox(
+                        key: Key('dynamic-profiles-select-${profile.id}'),
+                        value: _selectedProfileIds.contains(profile.id),
+                        semanticLabel: 'Import ${profile.name}',
+                        onChanged: (selected) {
+                          setState(() {
+                            final next = <String>{..._selectedProfileIds};
+                            if (selected ?? false) {
+                              next.add(profile.id);
+                            } else {
+                              next.remove(profile.id);
+                            }
+                            _selectedProfileIds = Set.unmodifiable(next);
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
-          SizedBox(height: palette.spacing.sm),
-          for (final profile in preview.profiles)
-            Padding(
-              padding: EdgeInsets.only(bottom: palette.spacing.xs),
-              child: Row(
-                key: Key('dynamic-profiles-preview-${profile.id}'),
-                children: [
-                  Icon(
-                    preview.replacementIds.contains(profile.id)
-                        ? Icons.sync_alt_rounded
-                        : Icons.add_circle_outline_rounded,
-                    size: 16,
-                    color: preview.replacementIds.contains(profile.id)
-                        ? palette.warning
-                        : palette.success,
-                  ),
-                  SizedBox(width: palette.spacing.sm),
-                  Expanded(
-                    child: Text(
-                      profile.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: palette.textPrimary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: palette.spacing.sm),
-                  Text(
-                    preview.replacementIds.contains(profile.id)
-                        ? 'Replaces existing'
-                        : 'New profile',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: preview.replacementIds.contains(profile.id)
-                          ? palette.warning
-                          : palette.textMuted,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
         ],
       ),
     );
@@ -309,7 +388,10 @@ class _DynamicProfilesSheetState extends State<DynamicProfilesSheet> {
                         ),
                         FilledButton.icon(
                           key: const Key('dynamic-profiles-import'),
-                          onPressed: preview == null ? null : _importProfiles,
+                          onPressed:
+                              preview == null || _selectedProfileIds.isEmpty
+                              ? null
+                              : _importProfiles,
                           icon: const Icon(Icons.download_rounded),
                           label: const Text('Import'),
                         ),

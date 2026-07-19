@@ -1533,7 +1533,7 @@ class _TerminalPaneHeaderIndicatorChip extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: foregroundColor,
-                    fontSize: 10.5,
+                    fontSize: 11,
                     height: 1,
                     fontWeight: FontWeight.w800,
                   ),

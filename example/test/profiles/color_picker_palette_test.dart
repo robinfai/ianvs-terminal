@@ -1,5 +1,8 @@
+import 'dart:ui' show SemanticsAction;
+
 import 'package:app/features/profiles/widgets/color_picker_palette.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -77,6 +80,44 @@ void main() {
       );
 
       expect(changed, isFalse);
+    });
+
+    testWidgets('hue slider exposes adjustable semantics and arrow keys', (
+      tester,
+    ) async {
+      var color = const HSVColor.fromAHSV(1, 120, 1, 1);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StatefulBuilder(
+            builder: (context, setState) => Center(
+              child: SizedBox(
+                width: 240,
+                child: HueSlider(
+                  color: color,
+                  onChanged: (value) => setState(() => color = value),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final semantics = tester.getSemantics(find.bySemanticsLabel('Hue'));
+      expect(
+        semantics.getSemanticsData().hasAction(SemanticsAction.increase),
+        isTrue,
+      );
+      expect(
+        semantics.getSemanticsData().hasAction(SemanticsAction.decrease),
+        isTrue,
+      );
+
+      await tester.tap(find.byType(HueSlider));
+      await tester.pump();
+      final hueAfterTap = color.hue;
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(color.hue, (hueAfterTap + 1) % 360);
     });
   });
 }

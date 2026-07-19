@@ -17,6 +17,8 @@ import 'package:app/features/preferences/app_preferences_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_ports.dart';
 import 'package:app/features/sessions/session_state.dart';
+import 'package:app/features/workspace/local_workspace_models.dart';
+import 'package:app/features/workspace/local_workspace_repository.dart';
 
 import '../support/fake_pty_backend.dart';
 
@@ -111,6 +113,22 @@ class _TestLocalTerminalConfigRepository extends LocalTerminalConfigRepository {
   Future<void> save(LocalTerminalConfigDocument document) async {
     savedDocuments.add(document);
     _document = document;
+  }
+}
+
+class _MemoryLocalWorkspaceRepository extends LocalWorkspaceRepository {
+  _MemoryLocalWorkspaceRepository([this.workspace]);
+
+  TerminalWorkspace? workspace;
+  final List<TerminalWorkspace> savedWorkspaces = <TerminalWorkspace>[];
+
+  @override
+  Future<TerminalWorkspace?> load() async => workspace;
+
+  @override
+  Future<void> save(TerminalWorkspace workspace) async {
+    savedWorkspaces.add(workspace);
+    this.workspace = workspace;
   }
 }
 
@@ -4540,6 +4558,165 @@ void main() {
       isFalse,
     );
   });
+
+  test(
+    'bootstrap restores saved tabs panes active pane and working directory',
+    () async {
+      final workspaceRepository = _MemoryLocalWorkspaceRepository(
+        TerminalWorkspace(
+          tabs: <TerminalWorkspaceTab>[
+            TerminalWorkspaceTab(
+              id: 'tab-a',
+              root: TerminalPaneNode.split(
+                id: 'split-a',
+                direction: TerminalPaneSplitDirection.down,
+                ratio: 0.35,
+                first: TerminalPaneNode.leaf(
+                  id: 'pane-a',
+                  sessionIntent: const TerminalPaneSessionIntent(
+                    profileId: 'default',
+                    cwd: '/tmp/restored',
+                  ),
+                ),
+                second: TerminalPaneNode.leaf(
+                  id: 'pane-b',
+                  sessionIntent: const TerminalPaneSessionIntent(
+                    profileId: 'ssh',
+                  ),
+                ),
+              ),
+              activePaneId: 'pane-b',
+            ),
+            TerminalWorkspaceTab(
+              id: 'tab-b',
+              root: TerminalPaneNode.leaf(
+                id: 'pane-c',
+                sessionIntent: const TerminalPaneSessionIntent(
+                  profileId: 'missing-profile',
+                ),
+              ),
+              activePaneId: 'pane-c',
+            ),
+          ],
+          activeTabId: 'tab-a',
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              TerminalProfilesDocument(
+                profiles: <TerminalProfile>[defaultProfile, sshProfile],
+              ),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalConfigRepository(
+              const LocalTerminalConfigDocument(
+                defaultProfileId: 'default',
+                workspace: LocalTerminalWorkspaceConfig(restoreLayout: true),
+              ),
+            ),
+          ),
+          localWorkspaceRepositoryProvider.overrideWithValue(
+            workspaceRepository,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(sessionControllerProvider.notifier);
+      await _waitForCondition(
+        condition: () => container.read(sessionControllerProvider).isReady,
+        description: 'restored workspace bootstrap',
+      );
+
+      final state = container.read(sessionControllerProvider);
+      expect(state.tabs, hasLength(2));
+      final firstTab = state.tabs.first;
+      expect(firstTab.effectivePanes, hasLength(2));
+      expect(
+        firstTab.effectivePaneLayout.splitAxis,
+        TerminalSplitAxis.vertical,
+      );
+      expect(firstTab.effectivePaneLayout.ratio, 0.35);
+      expect(
+        firstTab.effectivePanes.first.profileSnapshot!.cwd,
+        '/tmp/restored',
+      );
+      expect(firstTab.activePane.profileId, 'ssh');
+      expect(state.activeSessionId, firstTab.activeSessionId);
+      expect(state.tabs.last.activePane.profileId, 'default');
+    },
+  );
+
+  test(
+    'workspace persistence saves the current tab and split layout',
+    () async {
+      final workspaceRepository = _MemoryLocalWorkspaceRepository();
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              TerminalProfilesDocument(
+                profiles: <TerminalProfile>[defaultProfile, sshProfile],
+              ),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalConfigRepository(
+              const LocalTerminalConfigDocument(
+                defaultProfileId: 'default',
+                workspace: LocalTerminalWorkspaceConfig(restoreLayout: true),
+              ),
+            ),
+          ),
+          localWorkspaceRepositoryProvider.overrideWithValue(
+            workspaceRepository,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final controller = container.read(sessionControllerProvider.notifier);
+      await _waitForCondition(
+        condition: () => container.read(sessionControllerProvider).isReady,
+        description: 'workspace persistence bootstrap',
+      );
+      controller.splitActiveSession(sshProfile, TerminalSplitAxis.horizontal);
+      controller.scheduleWorkspacePersistence();
+      await _waitForCondition(
+        condition: () => workspaceRepository.savedWorkspaces.isNotEmpty,
+        description: 'workspace persistence',
+      );
+
+      final saved = workspaceRepository.savedWorkspaces.last;
+      expect(saved.tabs, hasLength(1));
+      expect(saved.activeTabId, saved.tabs.single.id);
+      expect(
+        saved.tabs.single.root.direction,
+        TerminalPaneSplitDirection.right,
+      );
+      expect(
+        saved.tabs.single.root.children.map(
+          (node) => node.sessionIntent!.profileId,
+        ),
+        <String>['default', 'ssh'],
+      );
+      expect(
+        saved.tabs.single.activePaneId,
+        container.read(sessionControllerProvider).activeSessionId,
+      );
+    },
+  );
 
   test(
     'setDefaultProfile persists to local config when it supplied bootstrap',

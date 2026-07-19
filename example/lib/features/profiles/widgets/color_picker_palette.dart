@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../ui/app_ui.dart';
 
@@ -71,50 +72,112 @@ class ColorPickerPalette extends StatelessWidget {
   }
 }
 
-class HueSlider extends StatelessWidget {
+class HueSlider extends StatefulWidget {
   const HueSlider({super.key, required this.color, required this.onChanged});
 
   final HSVColor color;
   final ValueChanged<HSVColor> onChanged;
 
   @override
+  State<HueSlider> createState() => _HueSliderState();
+}
+
+class _HueSliderState extends State<HueSlider> {
+  final FocusNode _focusNode = FocusNode(debugLabel: 'hue-slider');
+  bool _focused = false;
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _adjust(double delta) {
+    final hue = (widget.color.hue + delta) % 360;
+    widget.onChanged(widget.color.withHue(hue < 0 ? hue + 360 : hue));
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = context.appTheme;
     return Semantics(
-      label: 'Hue slider',
-      child: SizedBox(
-        height: 16,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(theme.radius.md),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final width = constraints.maxWidth;
+      label: 'Hue',
+      value: '${widget.color.hue.round()} degrees',
+      increasedValue: '${(widget.color.hue + 1).round() % 360} degrees',
+      decreasedValue: '${(widget.color.hue - 1).round() % 360} degrees',
+      slider: true,
+      focusable: true,
+      onIncrease: () => _adjust(1),
+      onDecrease: () => _adjust(-1),
+      child: Focus(
+        focusNode: _focusNode,
+        onFocusChange: (focused) => setState(() => _focused = focused),
+        onKeyEvent: (_, event) {
+          if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+            return KeyEventResult.ignored;
+          }
+          final step = HardwareKeyboard.instance.isShiftPressed ? 10.0 : 1.0;
+          if (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
+              event.logicalKey == LogicalKeyboardKey.arrowDown) {
+            _adjust(-step);
+            return KeyEventResult.handled;
+          }
+          if (event.logicalKey == LogicalKeyboardKey.arrowRight ||
+              event.logicalKey == LogicalKeyboardKey.arrowUp) {
+            _adjust(step);
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          height: 24,
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(theme.radius.md),
+            border: Border.all(
+              color: _focused ? theme.focusRing : Colors.transparent,
+              width: 2,
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(theme.radius.sm),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final width = constraints.maxWidth;
 
-              void update(Offset localPosition) {
-                if (!width.isFinite || width <= 0) {
-                  return;
+                void update(Offset localPosition) {
+                  if (!width.isFinite || width <= 0) {
+                    return;
+                  }
+                  final hue = ((localPosition.dx / width) * 360).clamp(
+                    0.0,
+                    360.0,
+                  );
+                  widget.onChanged(widget.color.withHue(hue == 360 ? 0 : hue));
                 }
-                final hue = ((localPosition.dx / width) * 360).clamp(
-                  0.0,
-                  360.0,
-                );
-                onChanged(color.withHue(hue == 360 ? 0 : hue));
-              }
 
-              return GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTapDown: (details) => update(details.localPosition),
-                onPanStart: (details) => update(details.localPosition),
-                onPanUpdate: (details) => update(details.localPosition),
-                child: CustomPaint(
-                  painter: _HueSliderPainter(
-                    hue: color.hue,
-                    borderColor: theme.border,
+                return GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTapDown: (details) {
+                    _focusNode.requestFocus();
+                    update(details.localPosition);
+                  },
+                  onPanStart: (details) {
+                    _focusNode.requestFocus();
+                    update(details.localPosition);
+                  },
+                  onPanUpdate: (details) => update(details.localPosition),
+                  child: CustomPaint(
+                    painter: _HueSliderPainter(
+                      hue: widget.color.hue,
+                      borderColor: theme.border,
+                    ),
+                    child: const SizedBox.expand(),
                   ),
-                  child: const SizedBox.expand(),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         ),
       ),

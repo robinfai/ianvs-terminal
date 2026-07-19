@@ -1205,6 +1205,11 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       _bellNotificationsEnabled = preferences.notifications.bell;
       _activityNotificationsEnabled = preferences.notifications.activity;
     });
+    unawaited(
+      WindowBridge.setHotkeyWindowEnabled(
+        configBootstrap.config.hotkeyWindow.enabled,
+      ),
+    );
   }
 
   Future<LocalTerminalConfigBootstrapResult> _loadNotificationConfig() async {

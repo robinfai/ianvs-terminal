@@ -10,6 +10,12 @@ class AppDelegate: FlutterAppDelegate {
     scheduleForegroundMainWindow(for: NSApp)
   }
 
+  @IBAction func showSettings(_ sender: Any?) {
+    Self.foregroundMainWindow(in: NSApp)
+    (Self.preferredForegroundWindow(from: NSApp.windows) as? MainFlutterWindow)?
+      .openSettingsFromNativeMenu()
+  }
+
   override func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
     if Self.suppressNextTerminateConfirmation {
       Self.suppressNextTerminateConfirmation = false

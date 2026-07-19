@@ -117,7 +117,7 @@ void main() {
       expect(find.text('Command palette'), findsOneWidget);
       expect(find.text('App actions'), findsOneWidget);
       expect(find.text('Session actions'), findsOneWidget);
-      expect(find.text('Defaults & appearance'), findsOneWidget);
+      expect(find.text('Settings…'), findsOneWidget);
       expect(find.text('Profiles…'), findsOneWidget);
       expect(find.byKey(const Key('shell-top-new-tab')), findsOneWidget);
       expect(find.textContaining('Copy the current selection.'), findsNothing);

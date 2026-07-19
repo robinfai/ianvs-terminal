@@ -9,6 +9,7 @@ class ShellCommandMenuModel {
     TerminalActionId.newTab,
     TerminalActionId.defaults,
     TerminalActionId.profiles,
+    TerminalActionId.dynamicProfiles,
     TerminalActionId.paste,
     TerminalActionId.instantReplay,
     TerminalActionId.search,

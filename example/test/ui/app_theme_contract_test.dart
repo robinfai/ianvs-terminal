@@ -65,7 +65,7 @@ void main() {
       expect(lightTokens.controls.compact, 32);
       expect(lightTokens.controls.regular, 36);
       expect(lightTheme.textTheme.bodyMedium?.fontSize, 12.5);
-      expect(lightTheme.textTheme.bodySmall?.fontSize, 11);
+      expect(lightTheme.textTheme.bodySmall?.fontSize, 12);
       expect(lightTheme.textTheme.titleMedium?.fontSize, 14);
       final lightInputPadding =
           lightTheme.inputDecorationTheme.contentPadding! as EdgeInsets;
@@ -144,7 +144,7 @@ void main() {
         darkTokens.panel.toARGB32(),
       );
       expect(darkTheme.textTheme.bodyMedium?.fontSize, 12.5);
-      expect(darkTheme.textTheme.bodySmall?.fontSize, 11);
+      expect(darkTheme.textTheme.bodySmall?.fontSize, 12);
       expect(
         contrastRatio(darkTokens.textPrimary, darkTokens.panel),
         greaterThanOrEqualTo(4.5),

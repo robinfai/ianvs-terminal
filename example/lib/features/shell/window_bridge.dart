@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
@@ -9,16 +11,27 @@ class WindowBridge {
   static const MethodChannel _channel = MethodChannel('app/window_bridge');
 
   static void setNativeMenuHandlers({
+    Future<void> Function()? onOpenSettings,
     Future<void> Function()? onPaste,
     Future<void> Function(NativeFindAction action)? onFind,
     Future<void> Function(NativeOsc72DragEvent event)? onOsc72DragEvent,
   }) {
-    if (onPaste == null && onFind == null && onOsc72DragEvent == null) {
+    if (onOpenSettings == null &&
+        onPaste == null &&
+        onFind == null &&
+        onOsc72DragEvent == null) {
       _channel.setMethodCallHandler(null);
       return;
     }
     _channel.setMethodCallHandler((call) async {
       switch (call.method) {
+        case 'nativeOpenSettings':
+          final handler = onOpenSettings;
+          if (handler == null) {
+            throw MissingPluginException('No handler for ${call.method}');
+          }
+          unawaited(handler());
+          return;
         case 'nativePaste':
           final handler = onPaste;
           if (handler == null) {
@@ -103,6 +116,19 @@ class WindowBridge {
     }
     try {
       await _channel.invokeMethod<void>('toggleHotkeyWindow');
+    } on MissingPluginException {
+      return;
+    }
+  }
+
+  static Future<void> setHotkeyWindowEnabled(bool enabled) async {
+    if (BindingBase.debugBindingType() == null) {
+      return;
+    }
+    try {
+      await _channel.invokeMethod<void>('setHotkeyWindowEnabled', {
+        'enabled': enabled,
+      });
     } on MissingPluginException {
       return;
     }

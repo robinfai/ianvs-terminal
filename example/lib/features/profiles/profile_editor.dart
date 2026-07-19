@@ -346,9 +346,9 @@ const List<_ProfileEditorSectionSpec> _profileEditorSections =
       ),
       _ProfileEditorSectionSpec(
         section: _ProfileEditorSection.keys,
-        label: 'Keys',
-        icon: Icons.keyboard_outlined,
-        searchTerms: ['selection', 'copy on select', 'option drag'],
+        label: 'Selection & Mouse',
+        icon: Icons.mouse_outlined,
+        searchTerms: ['selection', 'mouse', 'copy on select', 'option drag'],
       ),
       _ProfileEditorSectionSpec(
         section: _ProfileEditorSection.automation,
@@ -652,16 +652,16 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
 
   void _addArg([String initialValue = '']) {
     setState(() {
-      _didEdit = true;
       _argControllers.add(_trackedController(text: initialValue));
+      _didEdit = _hasAnyDirtySection();
     });
   }
 
   void _removeArg(int index) {
     setState(() {
-      _didEdit = true;
       final controller = _argControllers.removeAt(index);
       controller.dispose();
+      _didEdit = _hasAnyDirtySection();
     });
   }
 
@@ -670,39 +670,39 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       return;
     }
     setState(() {
-      _didEdit = true;
       final controller = _argControllers.removeAt(from);
       _argControllers.insert(to, controller);
+      _didEdit = _hasAnyDirtySection();
     });
   }
 
   void _addEnv({String key = '', String value = ''}) {
     setState(() {
-      _didEdit = true;
       _envControllers.add(_trackedEnvEntry(key: key, value: value));
+      _didEdit = _hasAnyDirtySection();
     });
   }
 
   void _removeEnv(int index) {
     setState(() {
-      _didEdit = true;
       final entry = _envControllers.removeAt(index);
       entry.dispose();
+      _didEdit = _hasAnyDirtySection();
     });
   }
 
   void _addFallback([String initialValue = '']) {
     setState(() {
-      _didEdit = true;
       _fallbackControllers.add(_trackedController(text: initialValue));
+      _didEdit = _hasAnyDirtySection();
     });
   }
 
   void _removeFallback(int index) {
     setState(() {
-      _didEdit = true;
       final controller = _fallbackControllers.removeAt(index);
       controller.dispose();
+      _didEdit = _hasAnyDirtySection();
     });
   }
 
@@ -711,9 +711,9 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       return;
     }
     setState(() {
-      _didEdit = true;
       final controller = _fallbackControllers.removeAt(from);
       _fallbackControllers.insert(to, controller);
+      _didEdit = _hasAnyDirtySection();
     });
   }
 
@@ -858,7 +858,6 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   }
 
   void _applyThemePreset(TerminalThemePreset preset) {
-    _didEdit = true;
     for (final spec in _allColorFieldSpecs) {
       _setControllerText(
         _colorControllerForSpec(spec),
@@ -870,11 +869,11 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       for (final spec in _allColorFieldSpecs) {
         _colorErrors[spec.fieldKey] = null;
       }
+      _didEdit = _hasAnyDirtySection();
     });
   }
 
   void _followAppThemeColors() {
-    _didEdit = true;
     for (final spec in _allColorFieldSpecs) {
       _setControllerText(_colorControllerForSpec(spec), '');
     }
@@ -882,6 +881,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       for (final spec in _allColorFieldSpecs) {
         _colorErrors[spec.fieldKey] = null;
       }
+      _didEdit = _hasAnyDirtySection();
     });
   }
 
@@ -1786,7 +1786,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                 final showSideNavigation = constraints.maxWidth >= 680;
                 final sideNavigationWidth = constraints.maxWidth >= 860
                     ? 220.0
-                    : 184.0;
+                    : 204.0;
                 final sectionNavigation = _buildSectionNavigation(
                   vertical: showSideNavigation,
                 );
@@ -2002,9 +2002,10 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                                         return;
                                                       }
                                                       setState(() {
-                                                        _didEdit = true;
                                                         _terminalEmulation =
                                                             value;
+                                                        _didEdit =
+                                                            _hasAnyDirtySection();
                                                       });
                                                     },
                                                   ),
@@ -2058,6 +2059,8 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                               description:
                                   'Control typography, terminal colors, and cursor rendering.',
                               children: [
+                                _buildAppearancePreview(),
+                                SizedBox(height: theme.spacing.md),
                                 _ProfileFormGroup(
                                   key: const Key(
                                     'profile-editor-group-typography',
@@ -2220,8 +2223,9 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                                 return;
                                               }
                                               setState(() {
-                                                _didEdit = true;
                                                 _cursorShape = value;
+                                                _didEdit =
+                                                    _hasAnyDirtySection();
                                               });
                                             },
                                           ),
@@ -2235,8 +2239,8 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                       value: _cursorBlink,
                                       onChanged: (value) {
                                         setState(() {
-                                          _didEdit = true;
                                           _cursorBlink = value;
+                                          _didEdit = _hasAnyDirtySection();
                                         });
                                       },
                                     ),
@@ -2257,9 +2261,9 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                               ),
                               child: SettingsSection(
                                 anchorKey: _keysSectionKey,
-                                title: 'Keys',
+                                title: 'Selection & Mouse',
                                 description:
-                                    'Choose selection defaults for newly opened sessions.',
+                                    'Choose selection and pointer defaults for newly opened sessions. App shortcuts live in Settings → Keyboard.',
                                 children: [
                                   _ProfileFormGroup(
                                     key: const Key(
@@ -2275,8 +2279,8 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                         value: _copyOnSelect,
                                         onChanged: (value) {
                                           setState(() {
-                                            _didEdit = true;
                                             _copyOnSelect = value;
+                                            _didEdit = _hasAnyDirtySection();
                                           });
                                         },
                                       ),
@@ -2319,6 +2323,52 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                               description:
                                   'Match terminal output, then notify you or type a fixed reply.',
                               children: [
+                                AppPanel(
+                                  key: const Key(
+                                    'profile-editor-automation-guidance',
+                                  ),
+                                  tone: AppPanelTone.elevated,
+                                  padding: EdgeInsets.all(theme.spacing.lg),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Icon(
+                                        Icons.security_outlined,
+                                        size: 18,
+                                        color: theme.warning,
+                                      ),
+                                      SizedBox(width: theme.spacing.md),
+                                      Expanded(
+                                        child: Text(
+                                          'Rules run from top to bottom. Fixed replies are stored as plain text in this Profile—never put passwords, tokens, or other secrets here.',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: theme.textSubtle,
+                                              ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                SizedBox(height: theme.spacing.md),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: AppActionButton(
+                                    buttonKey: const Key(
+                                      'profile-editor-test-triggers',
+                                    ),
+                                    tone: AppActionTone.secondary,
+                                    size: AppActionSize.compact,
+                                    icon: Icons.science_outlined,
+                                    label: 'Test output',
+                                    onPressed: () =>
+                                        unawaited(_testTriggerRules()),
+                                  ),
+                                ),
+                                SizedBox(height: theme.spacing.md),
                                 _ProfileFormGroup(
                                   key: const Key(
                                     'profile-editor-group-automation-rules',
@@ -2331,11 +2381,26 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                       ),
                                       label: 'Triggers',
                                       helperText:
-                                          'Examples: ERROR => notify, Password: => send: secret',
+                                          'One rule per line. Examples: BUILD FAILED => notify, Ready> => send: continue',
                                       controller: _triggersController,
                                       focusNode: _triggersFocusNode,
                                       validator: (value) =>
                                           _triggerLinesError(value ?? ''),
+                                    ),
+                                    SizedBox(height: theme.spacing.sm),
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: AppActionButton(
+                                        buttonKey: const Key(
+                                          'profile-editor-add-trigger-rule',
+                                        ),
+                                        tone: AppActionTone.secondary,
+                                        size: AppActionSize.compact,
+                                        icon: Icons.add_rounded,
+                                        label: 'Add trigger…',
+                                        onPressed: () =>
+                                            unawaited(_addTriggerWithBuilder()),
+                                      ),
                                     ),
                                     Padding(
                                       padding: EdgeInsets.symmetric(
@@ -2357,6 +2422,22 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                       focusNode: _switchRulesFocusNode,
                                       validator: (value) =>
                                           _switchRuleLinesError(value ?? ''),
+                                    ),
+                                    SizedBox(height: theme.spacing.sm),
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: AppActionButton(
+                                        buttonKey: const Key(
+                                          'profile-editor-add-switch-rule',
+                                        ),
+                                        tone: AppActionTone.secondary,
+                                        size: AppActionSize.compact,
+                                        icon: Icons.add_rounded,
+                                        label: 'Add switching rule…',
+                                        onPressed: () => unawaited(
+                                          _addSwitchRuleWithBuilder(),
+                                        ),
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -2391,8 +2472,8 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                       value: _shellIntegrationEnabled,
                                       onChanged: (value) {
                                         setState(() {
-                                          _didEdit = true;
                                           _shellIntegrationEnabled = value;
+                                          _didEdit = _hasAnyDirtySection();
                                         });
                                       },
                                     ),
@@ -3006,6 +3087,151 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     );
   }
 
+  Widget _buildAppearancePreview() {
+    final theme = context.appTheme;
+    final palette = _paletteFromControllerValues().resolveWith();
+    final followsAppTheme = _usesAppThemeColors;
+    Color colorOf(String? value, Color fallback) {
+      if (value == null) {
+        return fallback;
+      }
+      try {
+        return parseOptionalHexColor(value) ?? fallback;
+      } on FormatException {
+        return fallback;
+      }
+    }
+
+    final background = followsAppTheme
+        ? theme.canvas
+        : colorOf(palette.special.background, theme.canvas);
+    final foreground = followsAppTheme
+        ? theme.textPrimary
+        : colorOf(palette.special.foreground, theme.textPrimary);
+    final green = followsAppTheme
+        ? theme.success
+        : colorOf(palette.normal.green, theme.success);
+    final blue = followsAppTheme
+        ? theme.focusRing
+        : colorOf(palette.bright.blue, theme.focusRing);
+    final cursor = followsAppTheme
+        ? theme.accent
+        : colorOf(palette.special.cursor, theme.accent);
+    final parsedFontSize = double.tryParse(_fontSizeController.text.trim());
+    final previewFontSize = (parsedFontSize ?? 13).clamp(12.0, 16.0).toDouble();
+    final fontFamily = _fontFamilyController.text.trim().isEmpty
+        ? widget.initialValue.appearance.font.family
+        : _fontFamilyController.text.trim();
+
+    Widget cursorPreview() {
+      return switch (_cursorShape) {
+        TerminalCursorShape.block => Container(
+          width: previewFontSize * 0.62,
+          height: previewFontSize * 1.15,
+          color: cursor,
+        ),
+        TerminalCursorShape.underline => Container(
+          width: previewFontSize * 0.62,
+          height: 2,
+          margin: EdgeInsets.only(top: previewFontSize),
+          color: cursor,
+        ),
+        TerminalCursorShape.beam => Container(
+          width: 2,
+          height: previewFontSize * 1.15,
+          color: cursor,
+        ),
+      };
+    }
+
+    final previewStyle = TextStyle(
+      color: foreground,
+      fontFamily: fontFamily,
+      fontSize: previewFontSize,
+      height: 1.35,
+    );
+    return Semantics(
+      container: true,
+      label: 'Live terminal appearance preview',
+      child: AppPanel(
+        key: const Key('profile-editor-appearance-preview'),
+        tone: AppPanelTone.elevated,
+        padding: EdgeInsets.zero,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(theme.radius.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: theme.spacing.lg,
+                  vertical: theme.spacing.sm,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Live preview',
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: theme.textPrimary,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      'Profile · New sessions',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.labelSmall?.copyWith(color: theme.textSubtle),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                color: background,
+                padding: EdgeInsets.all(theme.spacing.xl),
+                constraints: const BoxConstraints(minHeight: 112),
+                child: DefaultTextStyle(
+                  style: previewStyle,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: 'ianvs',
+                              style: previewStyle.copyWith(color: green),
+                            ),
+                            const TextSpan(text: ' in '),
+                            TextSpan(
+                              text: '~/projects',
+                              style: previewStyle.copyWith(color: blue),
+                            ),
+                            const TextSpan(text: ' on main'),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Text(r'$ echo "Ready"  ', style: previewStyle),
+                          cursorPreview(),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text('Ready', style: previewStyle.copyWith(color: green)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildOptionDragModeField() {
     final theme = context.appTheme;
     final modes = TerminalOptionDragMode.values;
@@ -3025,8 +3251,8 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
           return;
         }
         setState(() {
-          _didEdit = true;
           _optionDragMode = value;
+          _didEdit = _hasAnyDirtySection();
         });
       },
       child: Column(
@@ -3064,6 +3290,53 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
             if (index != modes.length - 1) SizedBox(height: theme.spacing.sm),
           ],
         ],
+      ),
+    );
+  }
+
+  void _appendAutomationLine(TextEditingController controller, String line) {
+    final current = controller.text.trimRight();
+    controller.text = current.isEmpty ? line : '$current\n$line';
+    controller.selection = TextSelection.collapsed(
+      offset: controller.text.length,
+    );
+  }
+
+  Future<void> _addTriggerWithBuilder() async {
+    final trigger = await showDialog<TerminalProfileTrigger>(
+      context: context,
+      builder: (dialogContext) => const _AddTriggerRuleDialog(),
+    );
+    if (trigger == null || !mounted) {
+      return;
+    }
+    _appendAutomationLine(_triggersController, _triggerLineFor(trigger));
+  }
+
+  Future<void> _addSwitchRuleWithBuilder() async {
+    final rule = await showDialog<TerminalProfileSwitchRule>(
+      context: context,
+      builder: (dialogContext) => const _AddSwitchRuleDialog(),
+    );
+    if (rule == null || !mounted) {
+      return;
+    }
+    _appendAutomationLine(_switchRulesController, _switchRuleLineFor(rule));
+  }
+
+  Future<void> _testTriggerRules() async {
+    final error = _triggerLinesError(_triggersController.text);
+    if (error != null) {
+      setState(() {
+        _didAttemptSave = true;
+      });
+      _triggersFocusNode.requestFocus();
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _TestTriggerRulesDialog(
+        triggers: _triggersFromText(_triggersController.text),
       ),
     );
   }
@@ -3229,6 +3502,359 @@ class _ProfileResponsiveFieldPair extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _AddTriggerRuleDialog extends StatefulWidget {
+  const _AddTriggerRuleDialog();
+
+  @override
+  State<_AddTriggerRuleDialog> createState() => _AddTriggerRuleDialogState();
+}
+
+class _AddTriggerRuleDialogState extends State<_AddTriggerRuleDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _patternController = TextEditingController();
+  final _replyController = TextEditingController();
+  TerminalProfileTriggerAction _action = TerminalProfileTriggerAction.notify;
+
+  bool get _canAdd {
+    final pattern = _patternController.text.trim();
+    if (pattern.isEmpty) {
+      return false;
+    }
+    try {
+      RegExp(pattern);
+    } on FormatException {
+      return false;
+    }
+    return _action != TerminalProfileTriggerAction.sendText ||
+        _replyController.text.isNotEmpty;
+  }
+
+  @override
+  void dispose() {
+    _patternController.dispose();
+    _replyController.dispose();
+    super.dispose();
+  }
+
+  String? _patternError(String? value) {
+    final pattern = value?.trim() ?? '';
+    if (pattern.isEmpty) {
+      return 'Enter text or a regular expression to match.';
+    }
+    try {
+      RegExp(pattern);
+      return null;
+    } on FormatException {
+      return 'Enter a valid regular expression.';
+    }
+  }
+
+  void _add() {
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      return;
+    }
+    Navigator.of(context).pop(
+      TerminalProfileTrigger(
+        pattern: _patternController.text.trim(),
+        action: _action,
+        value: _action == TerminalProfileTriggerAction.sendText
+            ? _replyController.text
+            : null,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    return AppDialogScaffold(
+      key: const Key('profile-editor-add-trigger-dialog'),
+      title: 'Add trigger',
+      subtitle: 'When terminal output matches, choose what happens next.',
+      constraints: const BoxConstraints(maxWidth: 520),
+      body: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextFormField(
+              key: const Key('profile-editor-trigger-pattern'),
+              controller: _patternController,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'When output matches',
+                helperText:
+                    'Plain text also works; matching uses a regular expression.',
+              ),
+              onChanged: (_) => setState(() {}),
+              validator: _patternError,
+            ),
+            SizedBox(height: theme.spacing.lg),
+            DropdownButtonFormField<TerminalProfileTriggerAction>(
+              key: const Key('profile-editor-trigger-action'),
+              initialValue: _action,
+              decoration: const InputDecoration(labelText: 'Then'),
+              items: const [
+                DropdownMenuItem(
+                  value: TerminalProfileTriggerAction.notify,
+                  child: Text('Show a notification'),
+                ),
+                DropdownMenuItem(
+                  value: TerminalProfileTriggerAction.sendText,
+                  child: Text('Type a fixed reply'),
+                ),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() => _action = value);
+                }
+              },
+            ),
+            if (_action == TerminalProfileTriggerAction.sendText) ...[
+              SizedBox(height: theme.spacing.lg),
+              TextFormField(
+                key: const Key('profile-editor-trigger-reply'),
+                controller: _replyController,
+                decoration: const InputDecoration(
+                  labelText: 'Fixed reply',
+                  helperText:
+                      'Stored as plain text. Do not enter passwords, tokens, or secrets.',
+                ),
+                onChanged: (_) => setState(() {}),
+                validator: (value) =>
+                    (value ?? '').isEmpty ? 'Enter the text to type.' : null,
+              ),
+            ],
+          ],
+        ),
+      ),
+      footer: Wrap(
+        alignment: WrapAlignment.end,
+        spacing: theme.spacing.sm,
+        children: [
+          AppActionButton(
+            tone: AppActionTone.secondary,
+            label: 'Cancel',
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          AppActionButton(
+            buttonKey: const Key('profile-editor-trigger-add-confirm'),
+            icon: Icons.add_rounded,
+            label: 'Add trigger',
+            onPressed: _canAdd ? _add : null,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AddSwitchRuleDialog extends StatefulWidget {
+  const _AddSwitchRuleDialog();
+
+  @override
+  State<_AddSwitchRuleDialog> createState() => _AddSwitchRuleDialogState();
+}
+
+class _AddSwitchRuleDialogState extends State<_AddSwitchRuleDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _patternController = TextEditingController();
+  TerminalProfileSwitchRuleKind _kind = TerminalProfileSwitchRuleKind.hostname;
+
+  bool get _canAdd => _patternController.text.trim().isNotEmpty;
+
+  @override
+  void dispose() {
+    _patternController.dispose();
+    super.dispose();
+  }
+
+  void _add() {
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      return;
+    }
+    Navigator.of(context).pop(
+      TerminalProfileSwitchRule(
+        kind: _kind,
+        pattern: _patternController.text.trim(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    return AppDialogScaffold(
+      key: const Key('profile-editor-add-switch-rule-dialog'),
+      title: 'Add switching rule',
+      subtitle:
+          'Use this Profile when shell integration reports a matching context.',
+      constraints: const BoxConstraints(maxWidth: 520),
+      body: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            DropdownButtonFormField<TerminalProfileSwitchRuleKind>(
+              key: const Key('profile-editor-switch-rule-kind'),
+              initialValue: _kind,
+              decoration: const InputDecoration(labelText: 'When this changes'),
+              items: const [
+                DropdownMenuItem(
+                  value: TerminalProfileSwitchRuleKind.hostname,
+                  child: Text('Host name'),
+                ),
+                DropdownMenuItem(
+                  value: TerminalProfileSwitchRuleKind.username,
+                  child: Text('User name'),
+                ),
+                DropdownMenuItem(
+                  value: TerminalProfileSwitchRuleKind.directory,
+                  child: Text('Working directory'),
+                ),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() => _kind = value);
+                }
+              },
+            ),
+            SizedBox(height: theme.spacing.lg),
+            TextFormField(
+              key: const Key('profile-editor-switch-rule-pattern'),
+              controller: _patternController,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Matches',
+                helperText: 'Enter a host, user, or directory pattern.',
+              ),
+              onChanged: (_) => setState(() {}),
+              validator: (value) => (value?.trim() ?? '').isEmpty
+                  ? 'Enter a pattern to match.'
+                  : null,
+            ),
+          ],
+        ),
+      ),
+      footer: Wrap(
+        alignment: WrapAlignment.end,
+        spacing: theme.spacing.sm,
+        children: [
+          AppActionButton(
+            tone: AppActionTone.secondary,
+            label: 'Cancel',
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          AppActionButton(
+            buttonKey: const Key('profile-editor-switch-rule-add-confirm'),
+            icon: Icons.add_rounded,
+            label: 'Add rule',
+            onPressed: _canAdd ? _add : null,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TestTriggerRulesDialog extends StatefulWidget {
+  const _TestTriggerRulesDialog({required this.triggers});
+
+  final List<TerminalProfileTrigger> triggers;
+
+  @override
+  State<_TestTriggerRulesDialog> createState() =>
+      _TestTriggerRulesDialogState();
+}
+
+class _TestTriggerRulesDialogState extends State<_TestTriggerRulesDialog> {
+  final _sampleController = TextEditingController();
+
+  @override
+  void dispose() {
+    _sampleController.dispose();
+    super.dispose();
+  }
+
+  TerminalProfileTrigger? get _matchedTrigger {
+    final sample = _sampleController.text;
+    if (sample.isEmpty) {
+      return null;
+    }
+    for (final trigger in widget.triggers) {
+      if (RegExp(
+        trigger.pattern,
+        caseSensitive: trigger.caseSensitive,
+      ).hasMatch(sample)) {
+        return trigger;
+      }
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    final matched = _matchedTrigger;
+    final result = widget.triggers.isEmpty
+        ? 'Add at least one trigger before testing.'
+        : _sampleController.text.isEmpty
+        ? 'Paste or type sample terminal output.'
+        : matched == null
+        ? 'No trigger matched this output.'
+        : matched.action == TerminalProfileTriggerAction.notify
+        ? 'Matched “${matched.pattern}” → Show a notification'
+        : 'Matched “${matched.pattern}” → Type a fixed reply';
+    return AppDialogScaffold(
+      key: const Key('profile-editor-test-triggers-dialog'),
+      title: 'Test trigger rules',
+      subtitle: 'Rules are evaluated from top to bottom; the first match wins.',
+      constraints: const BoxConstraints(maxWidth: 560),
+      body: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            key: const Key('profile-editor-trigger-test-sample'),
+            controller: _sampleController,
+            autofocus: true,
+            minLines: 4,
+            maxLines: 7,
+            decoration: const InputDecoration(
+              labelText: 'Sample terminal output',
+              alignLabelWithHint: true,
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+          SizedBox(height: theme.spacing.lg),
+          AppPanel(
+            key: const Key('profile-editor-trigger-test-result'),
+            tone: matched == null ? AppPanelTone.elevated : AppPanelTone.panel,
+            padding: EdgeInsets.all(theme.spacing.lg),
+            child: Text(
+              result,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: matched == null ? theme.textSubtle : theme.textPrimary,
+                fontWeight: matched == null ? FontWeight.w500 : FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+      footer: Align(
+        alignment: Alignment.centerRight,
+        child: AppActionButton(
+          buttonKey: const Key('profile-editor-trigger-test-close'),
+          label: 'Done',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
     );
   }
 }

@@ -23,6 +23,24 @@ final class CreateProfileResult extends ProfilesSheetResult {
   const CreateProfileResult();
 }
 
+final class ImportProfilesResult extends ProfilesSheetResult {
+  const ImportProfilesResult();
+}
+
+final class DuplicateProfileResult extends ProfilesSheetResult {
+  const DuplicateProfileResult(this.profile);
+
+  final TerminalProfile profile;
+}
+
+final class DeleteProfileResult extends ProfilesSheetResult {
+  const DeleteProfileResult(this.profile);
+
+  final TerminalProfile profile;
+}
+
+enum _ProfileMenuAction { duplicate, delete }
+
 class ProfilesSheet extends StatefulWidget {
   const ProfilesSheet({
     super.key,
@@ -102,6 +120,15 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
                       label: const Text('New'),
                     ),
                     const SizedBox(width: 6),
+                    OutlinedButton.icon(
+                      key: const Key('profiles-import'),
+                      onPressed: () => Navigator.of(
+                        context,
+                      ).pop(const ImportProfilesResult()),
+                      icon: const Icon(Icons.file_download_outlined, size: 18),
+                      label: const Text('Import'),
+                    ),
+                    const SizedBox(width: 6),
                     AppActionButton(
                       tooltip: 'Close profiles',
                       tone: AppActionTone.ghost,
@@ -171,14 +198,58 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
                                 summary: summary,
                                 tags: profile.tags,
                               ),
-                              trailing: AppActionButton(
-                                tooltip: 'Edit ${profile.name}',
-                                tone: AppActionTone.ghost,
-                                size: AppActionSize.dense,
-                                onPressed: () => Navigator.of(
-                                  context,
-                                ).pop(EditProfileResult(profile)),
-                                icon: Icons.edit_outlined,
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  AppActionButton(
+                                    buttonKey: Key(
+                                      'profile-open-${profile.id}',
+                                    ),
+                                    tooltip:
+                                        'Open ${profile.name} in a new tab',
+                                    tone: AppActionTone.secondary,
+                                    size: AppActionSize.dense,
+                                    label: 'Open',
+                                    onPressed: () => Navigator.of(
+                                      context,
+                                    ).pop(OpenProfileResult(profile)),
+                                  ),
+                                  SizedBox(width: palette.spacing.xs),
+                                  AppActionButton(
+                                    tooltip: 'Edit ${profile.name}',
+                                    tone: AppActionTone.ghost,
+                                    size: AppActionSize.dense,
+                                    onPressed: () => Navigator.of(
+                                      context,
+                                    ).pop(EditProfileResult(profile)),
+                                    icon: Icons.edit_outlined,
+                                  ),
+                                  PopupMenuButton<_ProfileMenuAction>(
+                                    key: Key('profile-more-${profile.id}'),
+                                    tooltip: 'More actions for ${profile.name}',
+                                    icon: const Icon(Icons.more_horiz_rounded),
+                                    onSelected: (action) {
+                                      Navigator.of(context).pop(
+                                        switch (action) {
+                                          _ProfileMenuAction.duplicate =>
+                                            DuplicateProfileResult(profile),
+                                          _ProfileMenuAction.delete =>
+                                            DeleteProfileResult(profile),
+                                        },
+                                      );
+                                    },
+                                    itemBuilder: (context) => const [
+                                      PopupMenuItem(
+                                        value: _ProfileMenuAction.duplicate,
+                                        child: Text('Duplicate'),
+                                      ),
+                                      PopupMenuItem(
+                                        value: _ProfileMenuAction.delete,
+                                        child: Text('Delete…'),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
                               onTap: () => Navigator.of(
                                 context,

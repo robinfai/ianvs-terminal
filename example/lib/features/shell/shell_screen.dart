@@ -288,6 +288,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       sendInput: runtime.sendInput,
     );
     WindowBridge.setNativeMenuHandlers(
+      onOpenSettings: () => _openDefaultsAndAppearance(
+        ref.read(sessionControllerProvider.notifier),
+        ref.read(sessionControllerProvider),
+      ),
       onPaste: _handleNativePasteMenu,
       onFind: _handleNativeFindMenu,
       onOsc72DragEvent: _handleNativeOsc72DragEvent,
@@ -355,6 +359,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   }
 
   void _handleSessionStateChanged(SessionState? _, SessionState next) {
+    ref
+        .read(sessionControllerProvider.notifier)
+        .scheduleWorkspacePersistence(next);
     _syncPresentationState(next);
     _publishAcceptanceSnapshot(next);
   }
@@ -935,6 +942,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   tab,
                   position,
                 ),
+                onOpenSettings: () =>
+                    _openDefaultsAndAppearance(sessionController, sessionState),
                 onShowCommandMenu: () =>
                     _openCommandMenu(sessionController, sessionState),
               ),

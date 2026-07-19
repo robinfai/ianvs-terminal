@@ -37,6 +37,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
             openUrlPolicy: _hostActionsConfig.osc1337OpenUrl,
             requestAttentionPolicy: _hostActionsConfig.osc1337RequestAttention,
             reportVariableDecisions: _hostActionsConfig.osc1337ReportVariables,
+            localConfig: sessionController.localConfig,
           ),
         ),
       ),
@@ -158,6 +159,39 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
       if (updatedProfile != null) {
         await sessionController.saveProfile(updatedProfile);
       }
+      await sessionController.setAppSettings(
+        keybindings: selection.keybindings,
+        workspace: selection.workspace,
+        globalCopyOnSelect: selection.globalCopyOnSelect,
+        paste: selection.paste,
+        shellIntegration: selection.shellIntegration,
+        notifications: selection.notifications,
+        hotkeyWindow: selection.hotkeyWindow,
+      );
+      if (!mounted) {
+        return;
+      }
+      final nextConfig = sessionController.localConfig;
+      _mutateState(() {
+        _notificationConfigSource =
+            LocalTerminalConfigBootstrapSource.localConfig;
+        _notificationLocalConfig = nextConfig;
+        _keybindingsConfig = nextConfig.keybindings;
+        _clipboardConfig = nextConfig.clipboard;
+        _bracketedPastePolicy = nextConfig.paste.bracketedPaste;
+        _pastePolicy = _pastePolicyFromConfig(nextConfig.paste);
+        _pasteHistoryPolicy = _pasteHistoryPolicyFromConfig(nextConfig.paste);
+        _pasteHistoryEntries = _pasteHistoryEntries
+            .take(_effectivePasteHistoryLimit)
+            .toList(growable: false);
+        _commandFinishedNotificationsEnabled =
+            nextConfig.notifications.commandFinished;
+        _bellNotificationsEnabled = nextConfig.notifications.bell;
+        _activityNotificationsEnabled = nextConfig.notifications.activity;
+      });
+      await WindowBridge.setHotkeyWindowEnabled(
+        nextConfig.hotkeyWindow.enabled,
+      );
     }
 
     _restoreSessionFocus(
@@ -249,6 +283,78 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
               .activeSessionId,
         );
         return;
+      case ImportProfilesResult():
+        await _openDynamicProfiles(sessionController);
+        _restoreSessionFocus(
+          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+          activeSessionIdAfterClose: ref
+              .read(sessionControllerProvider)
+              .activeSessionId,
+        );
+        return;
+      case DuplicateProfileResult(:final profile):
+        final edited = await showDialog<TerminalProfile>(
+          context: context,
+          builder: (dialogContext) => ProfileEditorDialog(
+            title: 'Duplicate profile',
+            initialValue: _duplicateProfileTemplate(
+              profile,
+              sessionState.profiles,
+            ),
+          ),
+        );
+        if (edited != null) {
+          await sessionController.saveProfile(edited);
+        }
+        _restoreSessionFocus(
+          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+          activeSessionIdAfterClose: ref
+              .read(sessionControllerProvider)
+              .activeSessionId,
+        );
+        return;
+      case DeleteProfileResult(:final profile):
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AppDialogScaffold(
+            key: const Key('delete-profile-confirmation'),
+            title: 'Delete ${profile.name}?',
+            subtitle:
+                'Existing sessions stay open, but this Profile will no longer be available for new tabs.',
+            body: const SizedBox.shrink(),
+            footer: Wrap(
+              alignment: WrapAlignment.end,
+              spacing: dialogContext.appTheme.spacing.sm,
+              children: [
+                AppActionButton(
+                  tone: AppActionTone.secondary,
+                  label: 'Cancel',
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                ),
+                AppActionButton(
+                  buttonKey: const Key('delete-profile-confirm'),
+                  tone: AppActionTone.danger,
+                  icon: Icons.delete_outline,
+                  label: 'Delete profile',
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                ),
+              ],
+            ),
+          ),
+        );
+        if (confirmed == true) {
+          await sessionController.deleteProfile(profile.id);
+          if (mounted) {
+            _showShellSnackBar('${profile.name} deleted.');
+          }
+        }
+        _restoreSessionFocus(
+          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+          activeSessionIdAfterClose: ref
+              .read(sessionControllerProvider)
+              .activeSessionId,
+        );
+        return;
       case null:
         _restoreSessionFocus(
           activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
@@ -269,6 +375,20 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
       id = 'profile-$suffix';
     }
     return defaultTerminalProfile().copyWith(id: id, name: 'New Profile');
+  }
+
+  TerminalProfile _duplicateProfileTemplate(
+    TerminalProfile source,
+    List<TerminalProfile> existingProfiles,
+  ) {
+    final existingIds = {for (final profile in existingProfiles) profile.id};
+    var suffix = 2;
+    var id = '${source.id}-copy';
+    while (existingIds.contains(id)) {
+      id = '${source.id}-copy-$suffix';
+      suffix += 1;
+    }
+    return source.copyWith(id: id, name: '${source.name} Copy');
   }
 
   Future<void> _openDynamicProfiles(SessionController sessionController) async {

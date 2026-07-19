@@ -309,6 +309,10 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     delegate = self
   }
 
+  func openSettingsFromNativeMenu() {
+    windowBridgeChannel?.invokeMethod("nativeOpenSettings", arguments: nil)
+  }
+
   func windowShouldClose(_ sender: NSWindow) -> Bool {
     let shouldClose = shouldCloseWindowAfterConfirmation()
     if shouldClose {
@@ -341,7 +345,6 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     )
     bindNativePasteMenuItems()
     hotkeyWindowController = HotkeyWindowController(window: self)
-    hotkeyWindowController?.register()
     windowBridgeChannel?.setMethodCallHandler { [weak self] call, result in
       guard let self else {
         result(
@@ -395,6 +398,20 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
         result(nil)
       case "toggleHotkeyWindow":
         self.hotkeyWindowController?.toggleWindow()
+        result(nil)
+      case "setHotkeyWindowEnabled":
+        guard
+          let arguments = call.arguments as? [String: Any],
+          let enabled = arguments["enabled"] as? Bool
+        else {
+          result(FlutterMethodNotImplemented)
+          return
+        }
+        if enabled {
+          self.hotkeyWindowController?.register()
+        } else {
+          self.hotkeyWindowController?.unregister()
+        }
         result(nil)
       case "hotkeyStatus":
         var status: [String: Any] = [

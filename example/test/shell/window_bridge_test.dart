@@ -3,6 +3,28 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('native settings menu dispatches to the registered handler', (
+    tester,
+  ) async {
+    var opened = false;
+    WindowBridge.setNativeMenuHandlers(
+      onOpenSettings: () async {
+        opened = true;
+      },
+    );
+    addTearDown(WindowBridge.setNativeMenuHandlers);
+
+    const codec = StandardMethodCodec();
+    await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+      'app/window_bridge',
+      codec.encodeMethodCall(const MethodCall('nativeOpenSettings')),
+      (_) {},
+    );
+    await tester.pump();
+
+    expect(opened, isTrue);
+  });
+
   test('window metrics accepts finite platform sizes', () {
     final metrics = WindowMetrics.fromMap(const <String, Object?>{
       'contentWidth': 900.0,

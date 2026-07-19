@@ -178,6 +178,18 @@ class LocalTerminalKeybindingsConfig {
   final Set<TerminalActionId> disabledDefaultActions;
   final Map<TerminalActionId, LocalTerminalKeyBindingOverride> overrides;
 
+  LocalTerminalKeybindingsConfig copyWith({
+    Set<TerminalActionId>? disabledDefaultActions,
+    Map<TerminalActionId, LocalTerminalKeyBindingOverride>? overrides,
+  }) {
+    return LocalTerminalKeybindingsConfig(
+      disabledDefaultActions: Set.unmodifiable(
+        disabledDefaultActions ?? this.disabledDefaultActions,
+      ),
+      overrides: Map.unmodifiable(overrides ?? this.overrides),
+    );
+  }
+
   Map<String, Object?> toJson() {
     return {
       'disabledDefaultActions': disabledDefaultActions
@@ -292,6 +304,12 @@ class LocalTerminalWorkspaceConfig {
   const LocalTerminalWorkspaceConfig({this.restoreLayout = false});
 
   final bool restoreLayout;
+
+  LocalTerminalWorkspaceConfig copyWith({bool? restoreLayout}) {
+    return LocalTerminalWorkspaceConfig(
+      restoreLayout: restoreLayout ?? this.restoreLayout,
+    );
+  }
 
   Map<String, Object?> toJson() {
     return {'restoreLayout': restoreLayout};
@@ -441,6 +459,21 @@ class LocalTerminalPasteConfig {
   final bool confirmMultilinePaste;
   final int historySize;
 
+  LocalTerminalPasteConfig copyWith({
+    LocalTerminalBracketedPastePolicy? bracketedPaste,
+    bool? confirmLargePaste,
+    bool? confirmMultilinePaste,
+    int? historySize,
+  }) {
+    return LocalTerminalPasteConfig(
+      bracketedPaste: bracketedPaste ?? this.bracketedPaste,
+      confirmLargePaste: confirmLargePaste ?? this.confirmLargePaste,
+      confirmMultilinePaste:
+          confirmMultilinePaste ?? this.confirmMultilinePaste,
+      historySize: historySize ?? this.historySize,
+    );
+  }
+
   Map<String, Object?> toJson() {
     return {
       'bracketedPaste': bracketedPaste.name,
@@ -469,6 +502,12 @@ class LocalTerminalShellIntegrationConfig {
   const LocalTerminalShellIntegrationConfig({this.enabled = true});
 
   final bool enabled;
+
+  LocalTerminalShellIntegrationConfig copyWith({bool? enabled}) {
+    return LocalTerminalShellIntegrationConfig(
+      enabled: enabled ?? this.enabled,
+    );
+  }
 
   Map<String, Object?> toJson() {
     return {'enabled': enabled};
@@ -499,6 +538,23 @@ class LocalTerminalNotificationsConfig {
   final bool bell;
   final bool activity;
 
+  LocalTerminalNotificationsConfig copyWith({
+    bool? enabled,
+    bool? commandFinished,
+    bool? bell,
+    bool? activity,
+  }) {
+    final nextCommandFinished = commandFinished ?? this.commandFinished;
+    final nextBell = bell ?? this.bell;
+    final nextActivity = activity ?? this.activity;
+    return LocalTerminalNotificationsConfig(
+      enabled: enabled ?? nextCommandFinished || nextBell || nextActivity,
+      commandFinished: nextCommandFinished,
+      bell: nextBell,
+      activity: nextActivity,
+    );
+  }
+
   Map<String, Object?> toJson() {
     return {
       'enabled': enabled,
@@ -525,6 +581,10 @@ class LocalTerminalHotkeyWindowConfig {
   const LocalTerminalHotkeyWindowConfig({this.enabled = false});
 
   final bool enabled;
+
+  LocalTerminalHotkeyWindowConfig copyWith({bool? enabled}) {
+    return LocalTerminalHotkeyWindowConfig(enabled: enabled ?? this.enabled);
+  }
 
   Map<String, Object?> toJson() {
     return {'enabled': enabled};

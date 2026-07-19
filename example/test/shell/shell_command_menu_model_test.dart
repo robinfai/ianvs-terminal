@@ -18,6 +18,7 @@ void main() {
         ShellCommandMenuModel.defaultActionOrder,
         containsAll([
           TerminalActionId.profiles,
+          TerminalActionId.dynamicProfiles,
           TerminalActionId.instantReplay,
           TerminalActionId.globalSearch,
         ]),

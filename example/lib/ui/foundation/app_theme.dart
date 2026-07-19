@@ -65,22 +65,22 @@ ThemeData buildIanvsTerminalTheme(Brightness brightness) {
           height: 1.3,
         ),
         bodySmall: baseTextTheme.bodySmall?.copyWith(
-          fontSize: 11,
+          fontSize: 12,
           height: 1.28,
         ),
         labelLarge: baseTextTheme.labelLarge?.copyWith(
-          fontSize: 11.5,
+          fontSize: 12,
           height: 1.12,
           fontWeight: FontWeight.w600,
         ),
         labelMedium: baseTextTheme.labelMedium?.copyWith(
-          fontSize: 10.5,
+          fontSize: 11.5,
           height: 1.1,
           fontWeight: FontWeight.w600,
         ),
         labelSmall: baseTextTheme.labelSmall?.copyWith(
-          fontSize: 9.5,
-          height: 1.08,
+          fontSize: 11,
+          height: 1.12,
           fontWeight: FontWeight.w600,
         ),
       )
@@ -170,7 +170,7 @@ ThemeData buildIanvsTerminalTheme(Brightness brightness) {
       ),
       helperStyle: TextStyle(
         color: tokens.textSubtle,
-        fontSize: 11,
+        fontSize: 12,
         height: 1.25,
       ),
       hintStyle: TextStyle(
@@ -209,13 +209,28 @@ ThemeData buildIanvsTerminalTheme(Brightness brightness) {
         if (states.contains(WidgetState.selected)) {
           return Colors.black;
         }
-        return null;
+        if (states.contains(WidgetState.disabled)) {
+          return tokens.textSubtle.withValues(alpha: 0.54);
+        }
+        return tokens.textPrimary;
       }),
       trackColor: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
           return tokens.accent;
         }
-        return null;
+        if (states.contains(WidgetState.disabled)) {
+          return tokens.chrome.withValues(alpha: 0.54);
+        }
+        return tokens.chrome;
+      }),
+      trackOutlineColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return tokens.accent;
+        }
+        if (states.contains(WidgetState.focused)) {
+          return tokens.focusRing;
+        }
+        return tokens.borderStrong;
       }),
     ),
     textTheme: textTheme,

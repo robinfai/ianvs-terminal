@@ -354,7 +354,7 @@ void main() {
     );
 
     await _openCommandMenu(tester);
-    await tester.tap(find.text('Defaults & appearance'));
+    await tester.tap(find.text('Settings…'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(
       find.byKey(const Key('default-osc52-policy-ask')),
@@ -371,6 +371,119 @@ void main() {
     );
   });
 
+  testWidgets(
+    'settings saves app-wide clipboard notification and advanced options',
+    (tester) async {
+      final localConfigRepository = _MemoryLocalTerminalConfigRepository(
+        const LocalTerminalConfigDocument(),
+      );
+
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: FakePtyBackend(),
+        localConfigRepository: localConfigRepository,
+      );
+
+      await _openCommandMenu(tester);
+      await tester.tap(find.text('Settings…'));
+      await tester.pumpAndSettle();
+
+      for (final key in const <Key>[
+        Key('settings-global-copy-on-select'),
+        Key('settings-confirm-multiline-paste'),
+        Key('settings-notify-bell'),
+        Key('settings-keybinding-enabled-newTab'),
+        Key('settings-global-shell-integration'),
+        Key('settings-hotkey-window'),
+        Key('settings-restore-workspace'),
+      ]) {
+        final control = find.byKey(key);
+        await tester.ensureVisible(control);
+        await tester.pumpAndSettle();
+        await tester.tap(control);
+        await tester.pump();
+      }
+
+      final save = find.byKey(const Key('defaults-save'));
+      await tester.ensureVisible(save);
+      await tester.pumpAndSettle();
+      await tester.tap(save);
+      await tester.pumpAndSettle();
+
+      final saved = localConfigRepository.savedDocuments.last;
+      expect(saved.clipboard.copyOnSelect, isTrue);
+      expect(saved.paste.confirmMultilinePaste, isFalse);
+      expect(saved.notifications.bell, isFalse);
+      expect(
+        saved.keybindings.disabledDefaultActions,
+        contains(TerminalActionId.newTab),
+      );
+      expect(saved.shellIntegration.enabled, isFalse);
+      expect(saved.hotkeyWindow.enabled, isTrue);
+      expect(saved.workspace.restoreLayout, isTrue);
+    },
+  );
+
+  testWidgets('settings records and saves a custom keyboard shortcut', (
+    tester,
+  ) async {
+    final localConfigRepository = _MemoryLocalTerminalConfigRepository(
+      const LocalTerminalConfigDocument(),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: FakePtyBackend(),
+      localConfigRepository: localConfigRepository,
+    );
+
+    await _openCommandMenu(tester);
+    await tester.tap(find.text('Settings…'));
+    await tester.pumpAndSettle();
+
+    final row = find.byKey(const Key('settings-keybinding-newTab'));
+    await tester.ensureVisible(row);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(of: row, matching: find.byTooltip('Edit shortcut')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('settings-keybinding-edit-dialog')),
+      findsOneWidget,
+    );
+    await tester.sendKeyDownEvent(
+      LogicalKeyboardKey.metaLeft,
+      platform: 'macos',
+    );
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyN, platform: 'macos');
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyN, platform: 'macos');
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
+    await tester.pump();
+
+    expect(find.text('⌘N'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('settings-keybinding-save')));
+    await tester.pumpAndSettle();
+
+    final save = find.byKey(const Key('defaults-save'));
+    await tester.ensureVisible(save);
+    await tester.pumpAndSettle();
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+
+    final binding = localConfigRepository
+        .savedDocuments
+        .last
+        .keybindings
+        .overrides[TerminalActionId.newTab]
+        ?.binding;
+    expect(binding, isNotNull);
+    expect(binding!.key, 'Key N');
+    expect(binding.meta, isTrue);
+    expect(binding.scope, TerminalKeyBindingScope.focusedApp);
+  });
+
   testWidgets('defaults dialog saves OSC 1337 OpenURL deny policy', (
     tester,
   ) async {
@@ -385,7 +498,7 @@ void main() {
       localConfigRepository: localConfigRepository,
     );
     await _openCommandMenu(tester);
-    await tester.tap(find.text('Defaults & appearance'));
+    await tester.tap(find.text('Settings…'));
     await tester.pumpAndSettle();
     final deny = find.byKey(
       const Key('default-osc1337-open-url-policy-disabled'),
@@ -416,7 +529,7 @@ void main() {
       localConfigRepository: localConfigRepository,
     );
     await _openCommandMenu(tester);
-    await tester.tap(find.text('Defaults & appearance'));
+    await tester.tap(find.text('Settings…'));
     await tester.pumpAndSettle();
     final allow = find.byKey(
       const Key('default-osc1337-request-attention-policy-allow'),
@@ -458,7 +571,7 @@ void main() {
       localConfigRepository: localConfigRepository,
     );
     await _openCommandMenu(tester);
-    await tester.tap(find.text('Defaults & appearance'));
+    await tester.tap(find.text('Settings…'));
     await tester.pumpAndSettle();
     final forget = find.byKey(
       const Key('default-osc1337-report-variable-forget-all'),
@@ -480,6 +593,8 @@ void main() {
         'default-osc1337-report-variable-forget-user.gitBranch',
       ),
     );
+    await tester.ensureVisible(forgetUser);
+    await tester.pumpAndSettle();
     await tester.tap(forgetUser);
     await tester.pump();
     expect(find.text('1 remembered · 1 allowed · 0 denied'), findsOneWidget);
@@ -703,7 +818,7 @@ void main() {
     ]);
 
     await _openCommandMenu(tester);
-    await tester.tap(find.text('Defaults & appearance'));
+    await tester.tap(find.text('Settings…'));
     await tester.pumpAndSettle();
     final deny = find.byKey(
       const Key('default-osc1337-request-attention-policy-disabled'),
@@ -2535,7 +2650,7 @@ void main() {
 
     debugDefaultTargetPlatformOverride = null;
 
-    expect(find.byTooltip('Close defaults'), findsOneWidget);
+    expect(find.byTooltip('Close settings'), findsOneWidget);
   });
 
   testWidgets('paste clipboard confirms multiline text before sending', (
@@ -3488,9 +3603,9 @@ void main() {
     await tester.pump();
 
     await _openCommandMenu(tester);
-    await tester.tap(find.text('Defaults & appearance'));
+    await tester.tap(find.text('Settings…'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Close defaults'));
+    await tester.tap(find.byTooltip('Close settings'));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('shell-workspace-focus-cue')), findsOneWidget);

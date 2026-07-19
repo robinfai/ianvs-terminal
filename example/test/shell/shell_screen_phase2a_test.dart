@@ -79,7 +79,7 @@ void main() {
     expect(find.text('Search scrollback'), findsNothing);
     expect(find.text('Copy selection'), findsNothing);
     expect(find.byKey(const Key('shell-top-paste-clipboard')), findsOneWidget);
-    expect(find.text('Defaults & appearance'), findsOneWidget);
+    expect(find.text('Settings…'), findsOneWidget);
     expect(find.text('Profiles…'), findsOneWidget);
     expect(find.byKey(const Key('shell-command-defaults')), findsOneWidget);
     expect(find.byKey(const Key('shell-command-profiles')), findsOneWidget);
@@ -130,7 +130,7 @@ void main() {
 
     expect(find.text('Global search'), findsOneWidget);
     expect(find.byKey(const Key('shell-top-new-tab')), findsNothing);
-    expect(find.text('Defaults & appearance'), findsNothing);
+    expect(find.text('Settings…'), findsNothing);
 
     await tester.enterText(
       find.byKey(const Key('shell-command-search-field')),
@@ -140,7 +140,7 @@ void main() {
 
     expect(find.text('Global search'), findsOneWidget);
     expect(find.byKey(const Key('shell-top-new-tab')), findsNothing);
-    expect(find.text('Defaults & appearance'), findsNothing);
+    expect(find.text('Settings…'), findsNothing);
 
     await tester.enterText(
       find.byKey(const Key('shell-command-search-field')),

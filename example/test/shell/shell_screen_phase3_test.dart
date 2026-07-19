@@ -189,7 +189,7 @@ void main() {
 
       await tester.tap(find.byKey(const Key('shell-chrome-menu')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Defaults & appearance'));
+      await tester.tap(find.text('Settings…'));
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('defaults-dialog')), findsOneWidget);
@@ -226,6 +226,11 @@ void main() {
         findsOneWidget,
       );
       for (final panelKey in <Key>[
+        const Key('settings-section-navigation'),
+        const Key('settings-paste-clipboard-panel'),
+        const Key('settings-notifications-panel'),
+        const Key('settings-keybindings-panel'),
+        const Key('settings-advanced-panel'),
         const Key('defaults-appearance-options'),
         const Key('defaults-osc52-options'),
         const Key('defaults-open-url-options'),
@@ -252,8 +257,34 @@ void main() {
         tester.getCenter(find.text('Reset default')).dx,
         lessThan(tester.getCenter(find.text('Cancel')).dx),
       );
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const Key('defaults-save')))
+            .onPressed,
+        isNull,
+      );
     },
   );
+
+  testWidgets('title bar settings button opens Settings directly', (
+    tester,
+  ) async {
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: FakePtyBackend(),
+      profileRepository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+      preferencesRepository: MemoryAppPreferencesRepository(null),
+    );
+
+    await tester.tap(find.byKey(const Key('shell-chrome-settings')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('defaults-dialog')), findsOneWidget);
+    expect(find.byKey(const Key('shell-command-menu-overlay')), findsNothing);
+    expect(find.text('Settings'), findsOneWidget);
+  });
 
   testWidgets(
     'defaults and appearance modal is the only place that mutates default profile and theme',
@@ -277,7 +308,7 @@ void main() {
 
       await tester.tap(find.byKey(const Key('shell-chrome-menu')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Defaults & appearance'));
+      await tester.tap(find.text('Settings…'));
       await tester.pumpAndSettle();
 
       final defaultsVersion = shellAcceptanceProbe.current.snapshotVersion;
@@ -359,11 +390,11 @@ void main() {
 
       await tester.tap(find.byKey(const Key('shell-chrome-menu')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Defaults & appearance'));
+      await tester.tap(find.text('Settings…'));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('defaults-dialog')), findsOneWidget);
 
-      await tester.tap(find.byTooltip('Close defaults'));
+      await tester.tap(find.byTooltip('Close settings'));
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('defaults-dialog')), findsNothing);
@@ -390,7 +421,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('shell-chrome-menu')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Defaults & appearance'));
+    await tester.tap(find.text('Settings…'));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('defaults-dialog')), findsOneWidget);
@@ -667,7 +698,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('shell-chrome-menu')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Defaults & appearance'));
+    await tester.tap(find.text('Settings…'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.byKey(const Key('defaults-save')));
     await tester.ensureVisible(
@@ -707,7 +738,7 @@ void main() {
 
       await tester.tap(find.byKey(const Key('shell-chrome-menu')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Defaults & appearance'));
+      await tester.tap(find.text('Settings…'));
       await tester.pumpAndSettle();
 
       final filterFinder = find.byKey(

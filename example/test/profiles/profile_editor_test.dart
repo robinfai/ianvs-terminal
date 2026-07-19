@@ -95,7 +95,7 @@ void main() {
       expect(find.text('ANSI normal', skipOffstage: false), findsOneWidget);
       expect(find.text('ANSI bright', skipOffstage: false), findsOneWidget);
       expect(find.text('Cursor', skipOffstage: false), findsOneWidget);
-      expect(find.text('Keys'), findsAtLeastNWidgets(1));
+      expect(find.text('Selection & Mouse'), findsAtLeastNWidgets(1));
       expect(find.text('Advanced'), findsAtLeastNWidgets(1));
       expect(find.text('VT220', skipOffstage: false), findsOneWidget);
       expect(find.text('Beam', skipOffstage: false), findsOneWidget);
@@ -515,6 +515,10 @@ void main() {
       const Key('profile-editor-theme-presets'),
     );
     _expectDescendant(
+      const Key('profile-editor-section-appearance'),
+      const Key('profile-editor-appearance-preview'),
+    );
+    _expectDescendant(
       const Key('profile-editor-group-cursor'),
       const Key('profile-editor-cursor-shape'),
     );
@@ -527,8 +531,12 @@ void main() {
     expect(find.text('Startup'), findsAtLeastNWidgets(1));
     expect(find.text('Terminal'), findsAtLeastNWidgets(1));
     expect(find.text('Appearance'), findsAtLeastNWidgets(1));
-    expect(find.text('Keys'), findsAtLeastNWidgets(1));
+    expect(find.text('Selection & Mouse'), findsAtLeastNWidgets(1));
     expect(find.text('Automation'), findsAtLeastNWidgets(1));
+    expect(
+      _findByKey(const Key('profile-editor-automation-guidance')),
+      findsOneWidget,
+    );
     expect(find.text('Advanced'), findsAtLeastNWidgets(1));
     expect(
       find.text('Existing sessions do not hot-update after profile edits.'),
@@ -970,6 +978,112 @@ void main() {
     ]);
   });
 
+  testWidgets('profile editor builds and tests automation rules without DSL', (
+    tester,
+  ) async {
+    await _pumpEditorHarness(
+      tester,
+      initialValue: TerminalProfile(
+        id: 'default',
+        name: 'Local Shell',
+        shell: '/bin/zsh',
+      ),
+      onSaved: (_) {},
+    );
+
+    final addTrigger = _findByKey(const Key('profile-editor-add-trigger-rule'));
+    await _ensureVisible(tester, addTrigger);
+    await tester.tap(addTrigger);
+    await tester.pumpAndSettle();
+    expect(
+      _findByKey(const Key('profile-editor-add-trigger-dialog')),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(
+            _findByKey(const Key('profile-editor-trigger-add-confirm')),
+          )
+          .onPressed,
+      isNull,
+    );
+    await tester.enterText(
+      _findByKey(const Key('profile-editor-trigger-pattern')),
+      'BUILD FAILED',
+    );
+    await tester.pump();
+    expect(
+      tester
+          .widget<FilledButton>(
+            _findByKey(const Key('profile-editor-trigger-add-confirm')),
+          )
+          .onPressed,
+      isNotNull,
+    );
+    await tester.tap(
+      _findByKey(const Key('profile-editor-trigger-add-confirm')),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<TextFormField>(
+            _findByKey(const Key('profile-editor-triggers')),
+          )
+          .controller!
+          .text,
+      'BUILD FAILED => notify',
+    );
+
+    final testTriggers = _findByKey(const Key('profile-editor-test-triggers'));
+    await _ensureVisible(tester, testTriggers);
+    await tester.tap(testTriggers);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      _findByKey(const Key('profile-editor-trigger-test-sample')),
+      'compile: BUILD FAILED after 42s',
+    );
+    await tester.pump();
+    expect(
+      find.text('Matched “BUILD FAILED” → Show a notification'),
+      findsOneWidget,
+    );
+    await tester.tap(
+      _findByKey(const Key('profile-editor-trigger-test-close')),
+    );
+    await tester.pumpAndSettle();
+
+    final addSwitch = _findByKey(const Key('profile-editor-add-switch-rule'));
+    await _ensureVisible(tester, addSwitch);
+    await tester.tap(addSwitch);
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<FilledButton>(
+            _findByKey(const Key('profile-editor-switch-rule-add-confirm')),
+          )
+          .onPressed,
+      isNull,
+    );
+    await tester.enterText(
+      _findByKey(const Key('profile-editor-switch-rule-pattern')),
+      '*.example.com',
+    );
+    await tester.pump();
+    await tester.tap(
+      _findByKey(const Key('profile-editor-switch-rule-add-confirm')),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<TextFormField>(
+            _findByKey(const Key('profile-editor-switch-rules')),
+          )
+          .controller!
+          .text,
+      'host: *.example.com',
+    );
+  });
+
   testWidgets('profile editor saves automatic profile switching rules', (
     tester,
   ) async {
@@ -1374,6 +1488,41 @@ void main() {
     expect(_findByKey(const Key('profile-editor-dialog')), findsNothing);
     expect(savedProfile, isNull);
   });
+
+  testWidgets(
+    'profile editor closes without confirmation after a toggle returns to its original value',
+    (tester) async {
+      TerminalProfile? savedProfile;
+      await _pumpEditorHarness(
+        tester,
+        initialValue: TerminalProfile(
+          id: 'default',
+          name: 'Local Shell',
+          shell: '/bin/zsh',
+        ),
+        onSaved: (value) => savedProfile = value,
+      );
+
+      final shellIntegration = _findByKey(
+        const Key('profile-editor-shell-integration'),
+      );
+      await _ensureVisible(tester, shellIntegration);
+      await tester.tap(shellIntegration);
+      await tester.pump();
+      await tester.tap(shellIntegration);
+      await tester.pump();
+
+      await tester.tap(_findByKey(const Key('profile-editor-cancel')));
+      await tester.pumpAndSettle();
+
+      expect(
+        _findByKey(const Key('profile-editor-discard-dialog')),
+        findsNothing,
+      );
+      expect(_findByKey(const Key('profile-editor-dialog')), findsNothing);
+      expect(savedProfile, isNull);
+    },
+  );
 
   testWidgets(
     'profile editor color picker uses palette controls and resets the color field',

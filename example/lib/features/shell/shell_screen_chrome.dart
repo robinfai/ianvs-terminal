@@ -27,6 +27,7 @@ class _ShellChromeBar extends StatelessWidget {
     required this.onCloseSession,
     required this.onReorderTab,
     required this.onShowTabContextMenu,
+    required this.onOpenSettings,
     required this.onShowCommandMenu,
   });
 
@@ -51,6 +52,7 @@ class _ShellChromeBar extends StatelessWidget {
   final void Function({required int oldIndex, required int newIndex})
   onReorderTab;
   final void Function(TerminalTab tab, Offset position) onShowTabContextMenu;
+  final VoidCallback onOpenSettings;
   final VoidCallback onShowCommandMenu;
 
   @override
@@ -88,6 +90,7 @@ class _ShellChromeBar extends StatelessWidget {
                 tone: chromeTone,
                 backgroundColor: chromeSurface,
                 title: activeTabTitle,
+                onOpenSettings: referenceDemoMode ? null : onOpenSettings,
                 onShowCommandMenu: referenceDemoMode ? null : onShowCommandMenu,
               ),
               SizedBox(
@@ -163,6 +166,7 @@ class _ShellWindowTitleBar extends StatelessWidget {
     required this.tone,
     required this.backgroundColor,
     required this.title,
+    required this.onOpenSettings,
     required this.onShowCommandMenu,
   });
 
@@ -170,6 +174,7 @@ class _ShellWindowTitleBar extends StatelessWidget {
   final _ShellTabTone tone;
   final Color backgroundColor;
   final String title;
+  final VoidCallback? onOpenSettings;
   final VoidCallback? onShowCommandMenu;
 
   @override
@@ -177,7 +182,7 @@ class _ShellWindowTitleBar extends StatelessWidget {
     final titleLeadingInset = defaultTargetPlatform == TargetPlatform.macOS
         ? 158.0
         : palette.spacing.xl;
-    final trailingInset = onShowCommandMenu == null ? 16.0 : 48.0;
+    final trailingInset = onShowCommandMenu == null ? 16.0 : 84.0;
 
     return SizedBox(
       height: _shellChromeTitleHeight,
@@ -222,6 +227,19 @@ class _ShellWindowTitleBar extends StatelessWidget {
             if (onShowCommandMenu != null)
               Positioned(
                 top: 5,
+                right: 44,
+                child: _buildChromeIconButton(
+                  key: const Key('shell-chrome-settings'),
+                  tooltip: 'Open settings (⌘,)',
+                  onPressed: onOpenSettings,
+                  iconSize: 16,
+                  hoverBackgroundColor: tone.hoverBackground,
+                  icon: Icon(Icons.settings_outlined, color: tone.subtleText),
+                ),
+              ),
+            if (onShowCommandMenu != null)
+              Positioned(
+                top: 5,
                 right: 12,
                 child: _buildChromeIconButton(
                   key: const Key('shell-chrome-menu'),
@@ -229,7 +247,7 @@ class _ShellWindowTitleBar extends StatelessWidget {
                   onPressed: onShowCommandMenu,
                   iconSize: 16,
                   hoverBackgroundColor: tone.hoverBackground,
-                  icon: Icon(Icons.tune_rounded, color: tone.subtleText),
+                  icon: Icon(Icons.search_rounded, color: tone.subtleText),
                 ),
               ),
           ],
@@ -1770,7 +1788,7 @@ class _ShellTabBadgeChip extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: foreground,
-                  fontSize: 9.5,
+                  fontSize: 11,
                   height: 1,
                   fontWeight: FontWeight.w800,
                 ),
@@ -2408,7 +2426,7 @@ class _ShellTabStatusLabel extends StatelessWidget {
               ).clamp(maxScaleFactor: 1.6),
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 color: foreground,
-                fontSize: 10.5,
+                fontSize: 11,
                 height: 1,
                 fontWeight: FontWeight.w700,
               ),

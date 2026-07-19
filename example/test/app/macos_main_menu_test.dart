@@ -11,6 +11,8 @@ void main() {
     expect(mainMenu.existsSync(), isTrue);
 
     final xib = mainMenu.readAsStringSync();
+    expect(xib, contains('title="Settings…" keyEquivalent=","'));
+    expect(xib, contains('action selector="showSettings:"'));
     expect(
       xib,
       contains(

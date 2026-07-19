@@ -3471,7 +3471,7 @@ void main() {
     await _openCommandMenu(tester);
 
     expect(find.textContaining('No recently closed tab'), findsOneWidget);
-    expect(find.text('Terminal color presets'), findsOneWidget);
+    expect(find.text('Terminal color presets'), findsNothing);
     expect(find.text('Theme picker'), findsNothing);
 
     await tester.ensureVisible(
@@ -3937,6 +3937,31 @@ void main() {
 
       expect(find.byKey(const Key('terminal-search-bar')), findsOneWidget);
       expect(find.byKey(const Key('terminal-search-field')), findsOneWidget);
+      expect(fakeBindings.writes, isEmpty);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'native settings menu opens the app settings dialog',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _invokeNativeWindowBridge(
+        tester,
+        const MethodCall('nativeOpenSettings'),
+      );
+
+      expect(find.byKey(const Key('defaults-dialog')), findsOneWidget);
+      expect(find.text('Settings'), findsOneWidget);
       expect(fakeBindings.writes, isEmpty);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
@@ -5932,7 +5957,7 @@ void main() {
     expect(fakeBindings.writes.last, utf8.encode('Yes\n'));
   });
 
-  testWidgets('command menu keeps dynamic profiles hidden', (tester) async {
+  testWidgets('command menu opens dynamic profile import', (tester) async {
     final fakeBindings = FakePtyBackend();
 
     await _pumpShellScreen(
@@ -5944,9 +5969,18 @@ void main() {
     );
 
     await _openCommandMenu(tester);
-    expect(find.byKey(const Key('shell-dynamic-profiles')), findsNothing);
-    expect(find.text('Dynamic profiles'), findsNothing);
-    expect(find.byKey(const Key('dynamic-profiles-sheet')), findsNothing);
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'dynamic',
+    );
+    await tester.pump();
+
+    final action = find.byKey(const Key('shell-command-dynamic-profiles'));
+    expect(action, findsOneWidget);
+    await tester.tap(action);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('dynamic-profiles-sheet')), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
   });
 
@@ -6031,7 +6065,7 @@ void main() {
       expect(find.byKey(const Key('defaults-dialog')), findsOneWidget);
       expect(fakeBindings.writes, isEmpty);
 
-      await tester.tap(find.byTooltip('Close defaults'));
+      await tester.tap(find.byTooltip('Close settings'));
       await tester.pumpAndSettle();
 
       await _sendControlShortcut(

@@ -90,6 +90,59 @@ void main() {
     },
   );
 
+  testWidgets('profiles sheet import affordance returns the import result', (
+    tester,
+  ) async {
+    ProfilesSheetResult? result;
+
+    await _pumpProfilesSheetHarness(
+      tester,
+      profiles: [defaultTerminalProfile()],
+      effectiveDefaultProfileId: 'default',
+      onClosed: (value) => result = value,
+    );
+
+    await tester.tap(find.byKey(const Key('profiles-import')));
+    await tester.pumpAndSettle();
+
+    expect(result, isA<ImportProfilesResult>());
+  });
+
+  testWidgets(
+    'profiles sheet exposes duplicate and delete management actions',
+    (tester) async {
+      final profile = defaultTerminalProfile().copyWith(
+        name: 'Workspace Shell',
+      );
+      ProfilesSheetResult? result;
+
+      await _pumpProfilesSheetHarness(
+        tester,
+        profiles: [profile],
+        effectiveDefaultProfileId: profile.id,
+        onClosed: (value) => result = value,
+      );
+      await tester.tap(find.byKey(Key('profile-more-${profile.id}')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Duplicate'));
+      await tester.pumpAndSettle();
+      expect(result, isA<DuplicateProfileResult>());
+
+      result = null;
+      await _pumpProfilesSheetHarness(
+        tester,
+        profiles: [profile],
+        effectiveDefaultProfileId: profile.id,
+        onClosed: (value) => result = value,
+      );
+      await tester.tap(find.byKey(Key('profile-more-${profile.id}')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete…'));
+      await tester.pumpAndSettle();
+      expect(result, isA<DeleteProfileResult>());
+    },
+  );
+
   testWidgets(
     'profiles and dynamic profile sheets inherit shared list and input theming',
     (tester) async {
@@ -175,7 +228,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('1 profile ready • 1 new • 0 replacements'),
+      find.text('1 of 1 profile selected • 1 new • 0 replacements'),
       findsOneWidget,
     );
     expect(
@@ -238,7 +291,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('2 profiles ready • 1 new • 1 replacement'),
+      find.text('2 of 2 profiles selected • 1 new • 1 replacement'),
       findsOneWidget,
     );
     expect(
@@ -259,6 +312,55 @@ void main() {
     expect(result!.profiles, hasLength(2));
     expect(result!.addedCount, 1);
     expect(result!.replacementCount, 1);
+  });
+
+  testWidgets('dynamic profile import can skip an existing profile', (
+    tester,
+  ) async {
+    DynamicProfilesImportResult? result;
+    await _pumpDynamicProfilesSheetHarness(
+      tester,
+      existingProfiles: [
+        TerminalProfile(id: 'prod-host', name: 'Old prod', shell: '/bin/zsh'),
+      ],
+      onClosed: (value) => result = value,
+    );
+
+    await tester.enterText(
+      find.byKey(const Key('dynamic-profiles-json-field')),
+      jsonEncode({
+        'Profiles': [
+          {
+            'Name': 'prod.example.com',
+            'Guid': 'prod-host',
+            'Custom Command': 'Yes',
+            'Command': 'ssh prod.example.com',
+          },
+          {
+            'Name': 'dev.example.com',
+            'Guid': 'dev-host',
+            'Custom Command': 'Yes',
+            'Command': 'ssh dev.example.com',
+          },
+        ],
+      }),
+    );
+    await tester.tap(find.byKey(const Key('dynamic-profiles-preview-action')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const Key('dynamic-profiles-select-prod-host')),
+    );
+    await tester.pump();
+
+    expect(
+      find.text('1 of 2 profiles selected • 1 new • 0 replacements'),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const Key('dynamic-profiles-import')));
+    await tester.pumpAndSettle();
+    expect(result!.profiles.single.id, 'dev-host');
+    expect(result!.addedCount, 1);
+    expect(result!.replacementCount, 0);
   });
 }
 

@@ -276,9 +276,10 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         key: const Key('shell-command-defaults'),
                         actionId: TerminalActionId.defaults,
                         icon: Icons.tune_rounded,
-                        title: 'Defaults & appearance',
+                        title: 'Settings…',
                         subtitle:
-                            'App action • Pick the default profile and theme.',
+                            'App action • Manage general, appearance, keyboard, clipboard, notification, and security settings.',
+                        subtitleMaxLines: 2,
                         enabled: true,
                         onTap: () => Navigator.of(
                           context,
@@ -296,18 +297,6 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         onTap: () => Navigator.of(
                           context,
                         ).pop(TerminalActionId.reopenClosedTab),
-                      ),
-                      commandTile(
-                        key: const Key('shell-theme-picker'),
-                        actionId: TerminalActionId.openThemePicker,
-                        icon: Icons.palette_rounded,
-                        title: 'Terminal color presets',
-                        subtitle:
-                            'App action • Open Defaults & appearance to choose terminal colors.',
-                        enabled: true,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.openThemePicker),
                       ),
                       commandTile(
                         key: const Key('shell-toggle-command-finished-notify'),
@@ -349,6 +338,18 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         onTap: () => Navigator.of(
                           context,
                         ).pop(TerminalActionId.profiles),
+                      ),
+                      commandTile(
+                        key: const Key('shell-command-dynamic-profiles'),
+                        actionId: TerminalActionId.dynamicProfiles,
+                        icon: Icons.file_download_outlined,
+                        title: 'Import profiles…',
+                        subtitle:
+                            'App action • Preview and import Dynamic Profiles JSON.',
+                        enabled: true,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.dynamicProfiles),
                       ),
                       sectionLabel('Session actions'),
                       if (!hasActiveSession)
@@ -478,14 +479,10 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
 const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
   MapEntry('new tab open default shell profile', TerminalActionId.newTab),
   MapEntry(
-    'defaults appearance default profile theme',
+    'settings preferences defaults appearance default profile theme keyboard clipboard notifications security',
     TerminalActionId.defaults,
   ),
   MapEntry('reopen closed tab restore tab', TerminalActionId.reopenClosedTab),
-  MapEntry(
-    'theme picker terminal color presets appearance defaults',
-    TerminalActionId.openThemePicker,
-  ),
   MapEntry('export scrollback save output', TerminalActionId.exportScrollback),
   MapEntry(
     'export diagnostics resource cpu memory evidence bundle',
@@ -500,6 +497,10 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
     TerminalActionId.toggleActivityMonitor,
   ),
   MapEntry('profiles edit shell profiles', TerminalActionId.profiles),
+  MapEntry(
+    'dynamic profiles import json iterm profiles',
+    TerminalActionId.dynamicProfiles,
+  ),
   MapEntry(
     'read only readonly lock block input',
     TerminalActionId.toggleReadOnly,
