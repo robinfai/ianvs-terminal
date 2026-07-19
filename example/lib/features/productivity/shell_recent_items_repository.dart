@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 
 import '../../platform/corrupt_file_quarantine.dart';
+import '../../platform/local_json_file.dart';
 import 'shell_productivity_models.dart';
 
 typedef ShellRecentItemsDirectoryResolver = Future<Directory> Function();
@@ -24,9 +25,9 @@ class ShellRecentItemsRepository {
     try {
       final raw = await file.readAsString();
       return ShellRecentItemsState.fromJson(
-        jsonDecode(raw) as Map<String, Object?>,
+        decodeJsonObject(raw, documentName: 'Recent items'),
       );
-    } on Object {
+    } on FormatException {
       await quarantineCorruptFile(file);
       const repaired = ShellRecentItemsState();
       await save(repaired);
@@ -36,8 +37,7 @@ class ShellRecentItemsRepository {
 
   Future<void> save(ShellRecentItemsState state) async {
     final file = await _recentItemsFile();
-    await file.parent.create(recursive: true);
-    await file.writeAsString(jsonEncode(state.toJson()));
+    await writeStringAtomically(file, jsonEncode(state.toJson()));
   }
 
   Future<File> _recentItemsFile() async {

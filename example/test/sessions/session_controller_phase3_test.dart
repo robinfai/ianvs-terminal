@@ -42,6 +42,8 @@ class _TestAppPreferencesRepository extends AppPreferencesRepository {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   final defaultProfile = TerminalProfile(
     id: 'default',
     name: 'Local Shell',
@@ -77,7 +79,11 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
     final state = container.read(sessionControllerProvider);
-    expect(state.defaultProfileId, 'ssh');
+    expect(
+      state.defaultProfileId,
+      'ssh',
+      reason: 'bootstrap error: ${state.lastError}',
+    );
     expect(state.configuredDefaultProfileId, 'ssh');
     expect(state.themeMode, TerminalThemeMode.system);
     expect(state.tabs.single.profileId, 'ssh');

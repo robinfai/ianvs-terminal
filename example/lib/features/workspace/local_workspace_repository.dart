@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 
 import '../../platform/corrupt_file_quarantine.dart';
+import '../../platform/local_json_file.dart';
 import 'local_workspace_models.dart';
 
 typedef LocalWorkspaceDirectoryResolver = Future<Directory> Function();
@@ -23,9 +24,9 @@ class LocalWorkspaceRepository {
     try {
       final raw = await file.readAsString();
       return TerminalWorkspace.fromJson(
-        jsonDecode(raw) as Map<String, Object?>,
+        decodeJsonObject(raw, documentName: 'Workspace layout'),
       );
-    } on Object {
+    } on FormatException {
       await quarantineCorruptFile(file);
       const repaired = TerminalWorkspace();
       await save(repaired);
@@ -35,8 +36,7 @@ class LocalWorkspaceRepository {
 
   Future<void> save(TerminalWorkspace workspace) async {
     final file = await _workspaceFile();
-    await file.parent.create(recursive: true);
-    await file.writeAsString(jsonEncode(workspace.toJson()));
+    await writeStringAtomically(file, jsonEncode(workspace.toJson()));
   }
 
   Future<File> _workspaceFile() async {

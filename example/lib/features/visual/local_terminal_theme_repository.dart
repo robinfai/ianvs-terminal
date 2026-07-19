@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../platform/corrupt_file_quarantine.dart';
 import '../../platform/local_file_collision.dart';
+import '../../platform/local_json_file.dart';
 import 'local_terminal_visual_models.dart';
 
 const int maxLocalTerminalThemePresets = 100;
@@ -28,10 +29,7 @@ class LocalTerminalThemeRepository {
 
     try {
       final raw = await file.readAsString();
-      final decoded = jsonDecode(raw);
-      if (decoded is! List) {
-        throw const FormatException('Theme preset list must be an array.');
-      }
+      final decoded = decodeJsonArray(raw, documentName: 'Theme preset list');
       return _uniqueUsablePresets(
         decoded
             .take(_maxPersistedThemePresetEntriesToScan)
@@ -39,7 +37,7 @@ class LocalTerminalThemeRepository {
             .whereType<Map<Object?, Object?>>()
             .map(LocalTerminalThemePreset.fromJson),
       );
-    } on Object {
+    } on FormatException {
       await quarantineCorruptFile(file);
       await save(const <LocalTerminalThemePreset>[]);
       return const <LocalTerminalThemePreset>[];
@@ -48,8 +46,8 @@ class LocalTerminalThemeRepository {
 
   Future<void> save(List<LocalTerminalThemePreset> presets) async {
     final file = await _themesFile();
-    await file.parent.create(recursive: true);
-    await file.writeAsString(
+    await writeStringAtomically(
+      file,
       jsonEncode(
         _uniqueUsablePresets(
           presets,
@@ -65,7 +63,7 @@ class LocalTerminalThemeRepository {
     final file = await nextAvailableFile(
       File('${directory.path}/$safePresetId.ianvs-terminal-theme.json'),
     );
-    await file.writeAsString(preset.encode());
+    await writeStringAtomically(file, preset.encode());
     return file;
   }
 

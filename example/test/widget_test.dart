@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show FileSystemException;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -103,6 +104,21 @@ class _DelayedProfileRepository extends MemoryProfileRepository {
   @override
   Future<TerminalProfilesDocument> load() async {
     await ready;
+    return super.load();
+  }
+}
+
+class _FailingOnceProfileRepository extends MemoryProfileRepository {
+  _FailingOnceProfileRepository(super.document);
+
+  int loadAttempts = 0;
+
+  @override
+  Future<TerminalProfilesDocument> load() async {
+    loadAttempts += 1;
+    if (loadAttempts == 1) {
+      throw const FileSystemException('profiles unavailable');
+    }
     return super.load();
   }
 }
@@ -405,6 +421,36 @@ void main() {
 
     expect(find.byKey(const Key('shell-empty-state')), findsNothing);
     expect(find.byType(TerminalViewport), findsOneWidget);
+  });
+
+  testWidgets('shell startup failure presents a retry action', (tester) async {
+    final repository = _FailingOnceProfileRepository(
+      TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      bindings: FakePtyBackend(),
+      repository: repository,
+      settle: false,
+    );
+    await _pumpUntilCondition(
+      tester,
+      condition: () =>
+          find.byKey(const Key('shell-startup-error')).evaluate().isNotEmpty,
+      description: 'startup error surface',
+    );
+
+    expect(find.text('Terminal could not start'), findsOneWidget);
+    expect(find.byKey(const Key('shell-startup-retry')), findsOneWidget);
+    expect(find.byType(TerminalViewport), findsNothing);
+
+    await tester.tap(find.byKey(const Key('shell-startup-retry')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('shell-startup-error')), findsNothing);
+    expect(find.byType(TerminalViewport), findsOneWidget);
+    expect(repository.loadAttempts, 2);
   });
 
   testWidgets('shell screen keeps line timestamp overlays hidden by default', (

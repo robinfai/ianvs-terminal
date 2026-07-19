@@ -29,6 +29,7 @@ Future<void> _pumpShellScreen(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        shellAcceptanceProbeProvider.overrideWithValue(shellAcceptanceProbe),
         ptySessionBackendProvider.overrideWithValue(fakeBindings),
         profileRepositoryProvider.overrideWithValue(profileRepository),
         pasteHistoryRepositoryProvider.overrideWithValue(

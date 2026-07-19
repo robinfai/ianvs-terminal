@@ -8,7 +8,6 @@ PTY_DIR="$ROOT_DIR/packages/ianvs_pty"
 TERMINAL_DIR="$ROOT_DIR/packages/ianvs_terminal"
 EXAMPLE_DIR="$ROOT_DIR/example"
 VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION="${VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION:-0}"
-VERIFY_FLUTTER_TERMINAL_RUN_EXAMPLE_WIDGET_TESTS="${VERIFY_FLUTTER_TERMINAL_RUN_EXAMPLE_WIDGET_TESTS:-0}"
 VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH="${VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH:-0}"
 
 "$ROOT_DIR/tools/build_core.sh"
@@ -67,7 +66,7 @@ fi
 rg -n "Defaults & appearance" "$ROOT_DIR/example/lib/features/shell" >/dev/null
 
 if rg -n "AppPreferencesRepository" "$ROOT_DIR/example/lib" | \
-  rg -v "features/preferences/app_preferences_repository.dart|features/sessions/session_controller.dart|features/config/local_terminal_config_loader.dart"; then
+  rg -v "features/preferences/app_preferences_repository.dart|features/sessions/session_bootstrap.dart|features/sessions/session_controller.dart|features/config/local_terminal_config_loader.dart"; then
   echo "Found AppPreferencesRepository usage outside the approved Phase 3 write/bootstrap paths" >&2
   exit 1
 fi
@@ -88,15 +87,11 @@ fi
     test/terminal_input_controller_test.dart
     test/ui
     test/visual
+    test/widget_test.dart
     test/workspace
   )
   flutter analyze --fatal-infos
   flutter test "${EXAMPLE_CI_TEST_TARGETS[@]}"
-  if [ "$VERIFY_FLUTTER_TERMINAL_RUN_EXAMPLE_WIDGET_TESTS" = "1" ]; then
-    flutter test test/widget_test.dart
-  else
-    echo "Skipping example/test/widget_test.dart because VERIFY_FLUTTER_TERMINAL_RUN_EXAMPLE_WIDGET_TESTS!=1"
-  fi
 )
 
 if [ "$VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION" = "1" ]; then

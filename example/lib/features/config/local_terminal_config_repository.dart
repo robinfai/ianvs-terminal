@@ -1,9 +1,9 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
 import '../../platform/corrupt_file_quarantine.dart';
+import '../../platform/local_json_file.dart';
 import '../preferences/app_preferences_models.dart';
 import 'local_terminal_config_models.dart';
 
@@ -25,9 +25,9 @@ class LocalTerminalConfigRepository {
     try {
       final raw = await file.readAsString();
       return LocalTerminalConfigDocument.fromJson(
-        jsonDecode(raw) as Map<String, Object?>,
+        decodeJsonObject(raw, documentName: 'Local terminal config'),
       );
-    } on Object {
+    } on FormatException {
       await quarantineCorruptFile(file);
       const repaired = LocalTerminalConfigDocument();
       await save(repaired);
@@ -37,8 +37,7 @@ class LocalTerminalConfigRepository {
 
   Future<void> save(LocalTerminalConfigDocument document) async {
     final file = await _configFile();
-    await file.parent.create(recursive: true);
-    await file.writeAsString(document.encode());
+    await writeStringAtomically(file, document.encode());
   }
 
   Future<File> _configFile() async {

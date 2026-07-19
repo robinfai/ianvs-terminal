@@ -37,6 +37,17 @@ void main() {
     expect(script, contains('dart test test/docs_contract_test.dart'));
   });
 
+  test('terminal verification script always runs the Shell widget suite', () {
+    final script = File('tools/verify_flutter_terminal.sh').readAsStringSync();
+
+    expect(script, contains('test/widget_test.dart'));
+    expect(
+      script,
+      isNot(contains('VERIFY_FLUTTER_TERMINAL_RUN_EXAMPLE_WIDGET_TESTS')),
+    );
+    expect(script, isNot(contains('Skipping example/test/widget_test.dart')));
+  });
+
   test('release real PTY gate owns a bounded app process group', () {
     final script = File(
       'tools/run_release_real_pty_refresh_gate.sh',

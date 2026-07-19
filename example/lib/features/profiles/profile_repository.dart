@@ -1,9 +1,9 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
 import '../../platform/corrupt_file_quarantine.dart';
+import '../../platform/local_json_file.dart';
 import 'profile_models.dart';
 
 typedef DirectoryResolver = Future<Directory> Function();
@@ -26,18 +26,7 @@ class ProfileRepository {
 
     final raw = await file.readAsString();
     try {
-      final decoded = jsonDecode(raw);
-      final json = decoded is Map
-          ? decoded.map(
-              (key, value) => MapEntry(key.toString(), value as Object?),
-            )
-          : null;
-      if (json == null) {
-        return _repairInvalidLoad(
-          file,
-          rawValueSummary: 'root value was not an object',
-        );
-      }
+      final json = decodeJsonObject(raw, documentName: 'Profiles document');
       return TerminalProfilesDocument.fromJson(json);
     } on FormatException catch (error) {
       return _repairInvalidLoad(file, rawValueSummary: error.message);
@@ -46,8 +35,7 @@ class ProfileRepository {
 
   Future<void> save(TerminalProfilesDocument document) async {
     final file = await _profilesFile();
-    await file.parent.create(recursive: true);
-    await file.writeAsString(document.encode());
+    await writeStringAtomically(file, document.encode());
   }
 
   Future<File> exportDocument(
@@ -60,7 +48,7 @@ class ProfileRepository {
     final file = File(
       '${directory.path}/$safeBasename.ianvs-terminal-profiles.json',
     );
-    await file.writeAsString(document.encode());
+    await writeStringAtomically(file, document.encode());
     return file;
   }
 

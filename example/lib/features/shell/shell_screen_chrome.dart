@@ -2967,9 +2967,16 @@ class _ShellHiddenTabPaneSignalTarget {
 }
 
 class _ShellStartupSurface extends StatelessWidget {
-  const _ShellStartupSurface({super.key, required this.palette});
+  const _ShellStartupSurface({
+    super.key,
+    required this.palette,
+    required this.errorMessage,
+    required this.onRetry,
+  });
 
   final AppThemeTokens palette;
+  final String? errorMessage;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -2978,7 +2985,30 @@ class _ShellStartupSurface extends StatelessWidget {
         color: palette.terminalSurface,
         border: Border(top: BorderSide(color: palette.terminalFrame)),
       ),
-      child: const SizedBox.expand(),
+      child: errorMessage == null
+          ? const SizedBox.expand()
+          : Semantics(
+              container: true,
+              liveRegion: true,
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: AppEmptyState(
+                    key: const Key('shell-startup-error'),
+                    title: 'Terminal could not start',
+                    message:
+                        'Review the startup error, then try loading the workspace again.',
+                    supportingText: errorMessage!,
+                    action: AppActionButton(
+                      buttonKey: const Key('shell-startup-retry'),
+                      icon: Icons.refresh,
+                      label: 'Retry',
+                      onPressed: onRetry,
+                    ),
+                  ),
+                ),
+              ),
+            ),
     );
   }
 }

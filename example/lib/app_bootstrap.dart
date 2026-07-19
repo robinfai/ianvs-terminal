@@ -15,6 +15,7 @@ Widget buildIanvsTerminalRoot({
   bool enableShellAnimations = true,
   bool enableDriverWarmUpRefresh = false,
   bool enableReferenceDemoMode = false,
+  ShellAcceptanceProbe? acceptanceProbe,
   Map<String, String> sessionEnvironmentOverrides = const <String, String>{},
 }) {
   return ProviderScope(
@@ -47,15 +48,18 @@ Widget buildIanvsTerminalRoot({
         ),
       ),
       sessionWindowTitleWriterProvider.overrideWithValue(WindowBridge.setTitle),
-      sessionTerminalContentPublisherProvider.overrideWithValue(({
-        required terminalHasVisibleContent,
-        required terminalPreview,
-      }) {
-        shellAcceptanceProbe.mergeTerminalContent(
-          terminalHasVisibleContent: terminalHasVisibleContent,
-          terminalPreview: terminalPreview,
-        );
-      }),
+      if (acceptanceProbe != null) ...[
+        shellAcceptanceProbeProvider.overrideWithValue(acceptanceProbe),
+        sessionTerminalContentPublisherProvider.overrideWithValue(({
+          required terminalHasVisibleContent,
+          required terminalPreview,
+        }) {
+          acceptanceProbe.mergeTerminalContent(
+            terminalHasVisibleContent: terminalHasVisibleContent,
+            terminalPreview: terminalPreview,
+          );
+        }),
+      ],
       sessionDemoFixtureProvider.overrideWithValue(
         enableReferenceDemoMode ? referenceDemoFixture : null,
       ),
@@ -70,6 +74,7 @@ void runIanvsTerminalApp({
   bool enableShellAnimations = true,
   bool enableDriverWarmUpRefresh = false,
   bool enableReferenceDemoMode = false,
+  ShellAcceptanceProbe? acceptanceProbe,
   Map<String, String> sessionEnvironmentOverrides = const <String, String>{},
 }) {
   runApp(
@@ -77,6 +82,7 @@ void runIanvsTerminalApp({
       enableSessionPolling: enableSessionPolling,
       enableDriverWarmUpRefresh: enableDriverWarmUpRefresh,
       enableReferenceDemoMode: enableReferenceDemoMode,
+      acceptanceProbe: acceptanceProbe,
       sessionEnvironmentOverrides: sessionEnvironmentOverrides,
       enableShellAnimations: enableShellAnimations,
     ),

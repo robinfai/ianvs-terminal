@@ -4,6 +4,72 @@ import 'package:app/features/sessions/session_state.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  group('Session state immutability', () {
+    test('defensively copies collection constructor inputs', () {
+      final tab = TerminalTab(
+        sessionId: 'session-1',
+        title: 'Session 1',
+        profileId: 'default',
+      );
+      final profile = defaultTerminalProfile();
+      const warning = TerminalProfileLoadWarning(
+        profileId: 'default',
+        profileName: 'Local Shell',
+        path: r'$.profiles[0]',
+        rawValueSummary: 'invalid value',
+        fallbackSummary: 'used defaults',
+      );
+      final tabs = <TerminalTab>[tab];
+      final profiles = <TerminalProfile>[profile];
+      final warnings = <TerminalProfileLoadWarning>[warning];
+
+      final state = SessionState(
+        tabs: tabs,
+        activeSessionId: tab.sessionId,
+        profiles: profiles,
+        defaultProfileId: profile.id,
+        configuredDefaultProfileId: profile.id,
+        configurationWarnings: warnings,
+        themeMode: TerminalThemeMode.system,
+        terminalViewportPadding:
+            TerminalAppAppearance.defaultTerminalViewportPadding,
+        isReady: true,
+      );
+      tabs.clear();
+      profiles.clear();
+      warnings.clear();
+
+      expect(state.tabs, <TerminalTab>[tab]);
+      expect(state.profiles, <TerminalProfile>[profile]);
+      expect(state.configurationWarnings, <TerminalProfileLoadWarning>[
+        warning,
+      ]);
+      expect(() => state.tabs.clear(), throwsUnsupportedError);
+      expect(() => state.profiles.clear(), throwsUnsupportedError);
+      expect(() => state.configurationWarnings.clear(), throwsUnsupportedError);
+    });
+
+    test('copyWith defensively copies replacement collections', () {
+      final tabs = <TerminalTab>[
+        const TerminalTab(
+          sessionId: 'session-1',
+          title: 'Session 1',
+          profileId: 'default',
+        ),
+      ];
+
+      final state = SessionState.initial().copyWith(tabs: tabs);
+      tabs.clear();
+
+      expect(state.tabs, hasLength(1));
+      expect(() => state.tabs.add(state.tabs.single), throwsUnsupportedError);
+      expect(
+        () => SessionState.initial().profiles.add(defaultTerminalProfile()),
+        throwsUnsupportedError,
+      );
+    });
+  });
+
   group('Session state pane layout', () {
     test('split defaults non-finite ratios', () {
       final layout = TerminalPaneLayoutNode.split(

@@ -841,7 +841,33 @@ class TerminalShellIntegrationSnapshot {
 const Object _shellIntegrationNoChange = Object();
 
 class SessionState {
-  const SessionState({
+  factory SessionState({
+    required List<TerminalTab> tabs,
+    required String? activeSessionId,
+    required List<TerminalProfile> profiles,
+    required String? defaultProfileId,
+    required String? configuredDefaultProfileId,
+    required List<TerminalProfileLoadWarning> configurationWarnings,
+    required TerminalThemeMode themeMode,
+    required double terminalViewportPadding,
+    required bool isReady,
+    String? lastError,
+  }) {
+    return SessionState._(
+      tabs: List.unmodifiable(tabs),
+      activeSessionId: activeSessionId,
+      profiles: List.unmodifiable(profiles),
+      defaultProfileId: defaultProfileId,
+      configuredDefaultProfileId: configuredDefaultProfileId,
+      configurationWarnings: List.unmodifiable(configurationWarnings),
+      themeMode: themeMode,
+      terminalViewportPadding: terminalViewportPadding,
+      isReady: isReady,
+      lastError: lastError,
+    );
+  }
+
+  const SessionState._({
     required this.tabs,
     required this.activeSessionId,
     required this.profiles,
@@ -866,13 +892,13 @@ class SessionState {
   final String? lastError;
 
   factory SessionState.initial() {
-    return const SessionState(
-      tabs: [],
+    return const SessionState._(
+      tabs: <TerminalTab>[],
       activeSessionId: null,
-      profiles: [],
+      profiles: <TerminalProfile>[],
       defaultProfileId: null,
       configuredDefaultProfileId: null,
-      configurationWarnings: [],
+      configurationWarnings: <TerminalProfileLoadWarning>[],
       themeMode: TerminalThemeMode.system,
       terminalViewportPadding:
           TerminalAppAppearance.defaultTerminalViewportPadding,
@@ -892,12 +918,12 @@ class SessionState {
     bool? isReady,
     Object? lastError = _sessionStateNoChange,
   }) {
-    return SessionState(
-      tabs: tabs ?? this.tabs,
+    return SessionState._(
+      tabs: tabs == null ? this.tabs : List.unmodifiable(tabs),
       activeSessionId: identical(activeSessionId, _sessionStateNoChange)
           ? this.activeSessionId
           : activeSessionId as String?,
-      profiles: profiles ?? this.profiles,
+      profiles: profiles == null ? this.profiles : List.unmodifiable(profiles),
       defaultProfileId: identical(defaultProfileId, _sessionStateNoChange)
           ? this.defaultProfileId
           : defaultProfileId as String?,
@@ -905,8 +931,9 @@ class SessionState {
           identical(configuredDefaultProfileId, _sessionStateNoChange)
           ? this.configuredDefaultProfileId
           : configuredDefaultProfileId as String?,
-      configurationWarnings:
-          configurationWarnings ?? this.configurationWarnings,
+      configurationWarnings: configurationWarnings == null
+          ? this.configurationWarnings
+          : List.unmodifiable(configurationWarnings),
       themeMode: themeMode ?? this.themeMode,
       terminalViewportPadding:
           TerminalAppAppearance.normalizeTerminalViewportPadding(

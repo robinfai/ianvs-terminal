@@ -4,12 +4,12 @@ import 'dart:io' show File, FileMode, IOSink, Platform;
 import 'dart:typed_data' show Uint8List;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show MissingPluginException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/local_terminal_config_bootstrap.dart';
 import '../config/local_terminal_config_loader.dart';
 import '../config/local_terminal_config_models.dart';
-import '../config/local_terminal_config_preferences_adapter.dart';
 import '../config/local_terminal_config_repository.dart';
 import '../pty/pty.dart';
 import '../preferences/app_preferences_models.dart';
@@ -17,6 +17,7 @@ import '../preferences/app_preferences_repository.dart';
 import '../profiles/profile_models.dart';
 import '../profiles/profile_repository.dart';
 import '../terminal/terminal.dart' hide TerminalEmulation;
+import 'session_bootstrap.dart';
 import 'session_ports.dart';
 import 'session_state.dart';
 
@@ -200,6 +201,19 @@ final localTerminalConfigLoaderProvider = Provider<LocalTerminalConfigLoader>((
   );
 });
 
+final sessionBootstrapServiceProvider = Provider<SessionBootstrapService>((
+  ref,
+) {
+  return SessionBootstrapService(
+    profileRepository: ref.read(profileRepositoryProvider),
+    appPreferencesRepository: ref.read(appPreferencesRepositoryProvider),
+    localConfigRepository: ref.read(localTerminalConfigRepositoryProvider),
+    localConfigLoader: ref.read(localTerminalConfigLoaderProvider),
+    shouldFallbackToLegacyPreferences: (error) =>
+        error is MissingPluginException,
+  );
+});
+
 final sessionPollingEnabledProvider = Provider<bool>((ref) => true);
 final driverWarmUpRefreshEnabledProvider = Provider<bool>((ref) => false);
 final sessionOsc52PromptControllerProvider =
@@ -329,6 +343,7 @@ class _AutomaticProfileBaseline {
 }
 
 class SessionController extends Notifier<SessionState> {
+  final SessionBootstrapRunner _bootstrapRunner = SessionBootstrapRunner();
   final Map<String, TerminalViewportController> _demoViewports =
       <String, TerminalViewportController>{};
   final Map<String, _AutomaticProfileBaseline> _automaticProfileBaselines =
@@ -391,7 +406,7 @@ class SessionController extends Notifier<SessionState> {
 
   @override
   SessionState build() {
-    Future.microtask(_bootstrap);
+    Future.microtask(_runBootstrap);
     ref.onDispose(() {
       _runtimeEventsSubscription?.cancel();
       for (final timer in _progressGraceTimers.values) {
@@ -408,6 +423,29 @@ class SessionController extends Notifier<SessionState> {
       }
     });
     return SessionState.initial();
+  }
+
+  Future<void> retryBootstrap() async {
+    if (state.isReady) {
+      return;
+    }
+    await _runBootstrap();
+  }
+
+  Future<void> _runBootstrap() async {
+    await _bootstrapRunner.run(
+      isMounted: () => ref.mounted,
+      onStarted: () {
+        state = state.copyWith(isReady: false, lastError: null);
+      },
+      operation: _bootstrap,
+      onFailed: (error, _) {
+        state = state.copyWith(
+          isReady: false,
+          lastError: 'Terminal startup failed: $error',
+        );
+      },
+    );
   }
 
   TerminalViewportController viewportFor(String sessionId) {
@@ -467,43 +505,18 @@ class SessionController extends Notifier<SessionState> {
     }
 
     _ensureRuntimeSubscription();
-    final profiles = await ref.read(profileRepositoryProvider).load();
-    final runtimeProfiles = profiles.profiles.isEmpty
-        ? <TerminalProfile>[defaultTerminalProfile()]
-        : profiles.profiles;
-    final preferencesRepository = ref.read(appPreferencesRepositoryProvider);
-    final configBootstrap = await _loadBootstrapConfig();
-    _configBootstrapSource = configBootstrap.source;
-    _localConfigDocument = configBootstrap.config;
-    _preferencesLoadedFromDisk =
-        configBootstrap.source != LocalTerminalConfigBootstrapSource.defaults;
-    final seededPreferences =
-        LocalTerminalConfigPreferencesAdapter.toAppPreferences(
-          configBootstrap.config,
-        );
-    final resolution = _resolveBootstrapPreferences(
-      profiles: runtimeProfiles,
-      preferences: seededPreferences,
-      explicitDefaultProfileId: bootstrapDefaultProfileIdOverride,
-    );
-    _appPreferences = resolution.preferences;
-    if (resolution.shouldRepairWritePreferences) {
-      if (_usesLocalConfigPersistence) {
-        _localConfigDocument = _localConfigDocument.copyWith(
-          defaultProfileId: _appPreferences.defaults.defaultProfileId,
-        );
-        await ref
-            .read(localTerminalConfigRepositoryProvider)
-            .save(_localConfigDocument);
-      } else {
-        await preferencesRepository.save(_appPreferences);
-      }
-      _preferencesLoadedFromDisk = true;
-    }
+    final preparation = await ref
+        .read(sessionBootstrapServiceProvider)
+        .prepare(explicitDefaultProfileId: bootstrapDefaultProfileIdOverride);
+    final runtimeProfiles = preparation.profiles;
+    _configBootstrapSource = preparation.configSource;
+    _localConfigDocument = preparation.localConfig;
+    _preferencesLoadedFromDisk = preparation.preferencesLoadedFromDisk;
+    _appPreferences = preparation.appPreferences;
     if (!ref.mounted) {
       return;
     }
-    final effectiveDefaultProfileId = resolution.effectiveDefaultProfileId;
+    final effectiveDefaultProfileId = preparation.effectiveDefaultProfileId;
     TerminalProfile? initialProfile;
     TerminalProfile? initialLaunchProfile;
     String? initialSessionId;
@@ -537,7 +550,7 @@ class SessionController extends Notifier<SessionState> {
       activeSessionId: initialSessionId,
       defaultProfileId: effectiveDefaultProfileId,
       configuredDefaultProfileId: _configuredDefaultProfileIdForUi(),
-      configurationWarnings: profiles.loadWarnings,
+      configurationWarnings: preparation.configurationWarnings,
       themeMode: _appPreferences.appearance.themeMode,
       terminalViewportPadding:
           _appPreferences.appearance.terminalViewportPadding,
@@ -546,20 +559,6 @@ class SessionController extends Notifier<SessionState> {
     _syncRuntimeSessionActivation();
     if (initialLaunchProfile != null) {
       _setWindowTitle(initialLaunchProfile.name);
-    }
-  }
-
-  Future<LocalTerminalConfigBootstrapResult> _loadBootstrapConfig() async {
-    try {
-      return await ref.read(localTerminalConfigLoaderProvider).load();
-    } on Object {
-      final legacyPreferences = await ref
-          .read(appPreferencesRepositoryProvider)
-          .load();
-      return LocalTerminalConfigBootstrap.resolve(
-        localConfig: null,
-        legacyAppPreferences: legacyPreferences,
-      );
     }
   }
 
@@ -3127,46 +3126,6 @@ class SessionController extends Notifier<SessionState> {
     _preferencesLoadedFromDisk = true;
   }
 
-  _BootstrapPreferencesResolution _resolveBootstrapPreferences({
-    required List<TerminalProfile> profiles,
-    required TerminalAppPreferencesDocument preferences,
-    required String? explicitDefaultProfileId,
-  }) {
-    final explicitDefaultId = _normalizeProfileId(explicitDefaultProfileId);
-    if (_hasProfileId(profiles, explicitDefaultId)) {
-      return _BootstrapPreferencesResolution(
-        effectiveDefaultProfileId: explicitDefaultId,
-        preferences: preferences,
-      );
-    }
-
-    final preferencesDefaultId = _normalizeProfileId(
-      preferences.defaults.defaultProfileId,
-    );
-    if (_hasProfileId(profiles, preferencesDefaultId)) {
-      return _BootstrapPreferencesResolution(
-        effectiveDefaultProfileId: preferencesDefaultId,
-        preferences: preferences,
-      );
-    }
-
-    if (preferencesDefaultId != null) {
-      final repairedPreferences = preferences.copyWith(
-        defaults: preferences.defaults.copyWith(defaultProfileId: null),
-      );
-      return _BootstrapPreferencesResolution(
-        effectiveDefaultProfileId: profiles.isEmpty ? null : profiles.first.id,
-        preferences: repairedPreferences,
-        shouldRepairWritePreferences: true,
-      );
-    }
-
-    return _BootstrapPreferencesResolution(
-      effectiveDefaultProfileId: profiles.isEmpty ? null : profiles.first.id,
-      preferences: preferences,
-    );
-  }
-
   String? _normalizeProfileId(String? profileId) {
     final normalized = profileId?.trim();
     if (normalized == null || normalized.isEmpty) {
@@ -3181,16 +3140,4 @@ class SessionController extends Notifier<SessionState> {
     }
     return profiles.any((profile) => profile.id == profileId);
   }
-}
-
-class _BootstrapPreferencesResolution {
-  const _BootstrapPreferencesResolution({
-    required this.effectiveDefaultProfileId,
-    required this.preferences,
-    this.shouldRepairWritePreferences = false,
-  });
-
-  final String? effectiveDefaultProfileId;
-  final TerminalAppPreferencesDocument preferences;
-  final bool shouldRepairWritePreferences;
 }

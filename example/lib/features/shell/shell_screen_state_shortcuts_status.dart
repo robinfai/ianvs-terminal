@@ -81,6 +81,10 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
   }
 
   void _publishAcceptanceSnapshot([SessionState? state]) {
+    final acceptanceProbe = ref.read(shellAcceptanceProbeProvider);
+    if (acceptanceProbe == null) {
+      return;
+    }
     final SessionState snapshotState =
         state ?? ref.read(sessionControllerProvider);
     final activeSessionId = snapshotState.activeSessionId;
@@ -104,7 +108,7 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
             frameForSession: (sessionId) =>
                 sessionController.viewportFor(sessionId).frame,
           );
-    shellAcceptanceProbe.update(
+    acceptanceProbe.update(
       ShellAcceptanceSnapshot(
         commandMenuOpen: _isCommandMenuOpen,
         defaultsOpen: _isDefaultsOpen,
@@ -115,7 +119,7 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
         activeTabCount: snapshotState.tabs.length,
         activeSessionId: activeSessionId,
         themeMode: snapshotState.themeMode.name,
-        snapshotVersion: shellAcceptanceProbe.current.snapshotVersion,
+        snapshotVersion: acceptanceProbe.current.snapshotVersion,
         terminalFrameSnapshot: terminalFrame == null
             ? null
             : <String, Object?>{

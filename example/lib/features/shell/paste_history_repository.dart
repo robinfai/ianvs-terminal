@@ -1,9 +1,10 @@
-import 'dart:convert';
+import 'dart:convert' show jsonEncode;
 import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
 import '../../platform/corrupt_file_quarantine.dart';
+import '../../platform/local_json_file.dart';
 import '../policies/local_terminal_policy_models.dart';
 
 typedef PasteHistoryDirectoryResolver = Future<Directory> Function();
@@ -145,9 +146,9 @@ class PasteHistoryRepository {
     try {
       final raw = await file.readAsString();
       return PasteHistoryDocument.fromJson(
-        jsonDecode(raw) as Map<String, Object?>,
+        decodeJsonObject(raw, documentName: 'Paste history'),
       );
-    } on Object {
+    } on FormatException {
       await quarantineCorruptFile(file);
       const repaired = PasteHistoryDocument();
       await save(repaired);
@@ -157,8 +158,7 @@ class PasteHistoryRepository {
 
   Future<void> save(PasteHistoryDocument document) async {
     final file = await _historyFile();
-    await file.parent.create(recursive: true);
-    await file.writeAsString(document.encode());
+    await writeStringAtomically(file, document.encode());
   }
 
   Future<void> clearDiskHistory() async {

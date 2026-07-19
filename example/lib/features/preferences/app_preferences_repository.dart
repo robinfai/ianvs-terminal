@@ -1,9 +1,9 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
 import '../../platform/corrupt_file_quarantine.dart';
+import '../../platform/local_json_file.dart';
 import 'app_preferences_models.dart';
 
 typedef AppPreferencesDirectoryResolver = Future<Directory> Function();
@@ -23,9 +23,9 @@ class AppPreferencesRepository {
     try {
       final raw = await file.readAsString();
       return TerminalAppPreferencesDocument.fromJson(
-        jsonDecode(raw) as Map<String, Object?>,
+        decodeJsonObject(raw, documentName: 'App preferences'),
       );
-    } on Object {
+    } on FormatException {
       await quarantineCorruptFile(file);
       const repaired = TerminalAppPreferencesDocument();
       await save(repaired);
@@ -35,8 +35,7 @@ class AppPreferencesRepository {
 
   Future<void> save(TerminalAppPreferencesDocument document) async {
     final file = await _preferencesFile();
-    await file.parent.create(recursive: true);
-    await file.writeAsString(document.encode());
+    await writeStringAtomically(file, document.encode());
   }
 
   Future<File> _preferencesFile() async {

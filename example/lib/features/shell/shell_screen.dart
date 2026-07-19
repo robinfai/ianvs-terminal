@@ -73,6 +73,10 @@ typedef ShellFileDownloadWriter =
 typedef ShellExternalUrlOpener = Future<void> Function(String url);
 typedef ShellClock = DateTime Function();
 
+final shellAcceptanceProbeProvider = Provider<ShellAcceptanceProbe?>((ref) {
+  return null;
+});
+
 abstract interface class ShellUserAttentionBridge {
   Future<int?> request(NativeUserAttentionType type);
 
@@ -295,6 +299,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     _terminalEventSubscription = runtime.events.listen(
       _handleTerminalSessionEvent,
     );
+    ref.listenManual<SessionState>(
+      sessionControllerProvider,
+      _handleSessionStateChanged,
+      fireImmediately: true,
+    );
     Future.microtask(_loadPasteHistory);
     Future.microtask(_loadNotificationPreferences);
   }
@@ -342,6 +351,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   void _mutateState(VoidCallback fn) {
     setState(fn);
+    _publishAcceptanceSnapshot();
+  }
+
+  void _handleSessionStateChanged(SessionState? _, SessionState next) {
+    _syncPresentationState(next);
+    _publishAcceptanceSnapshot(next);
   }
 
   void _showShellSnackBar(String message) {
@@ -358,7 +373,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   @override
   Widget build(BuildContext context) {
     final sessionState = ref.watch(sessionControllerProvider);
-    _syncPresentationState(sessionState);
     final sessionController = ref.read(sessionControllerProvider.notifier);
     final activeSessionId = sessionState.activeSessionId;
     final defaultProfile = _effectiveDefaultProfileFor(
@@ -371,7 +385,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       sessionState.defaultProfileId,
     );
     final referenceDemoMode = ref.watch(referenceDemoModeProvider);
-    _publishAcceptanceSnapshot(sessionState);
     final animationsEnabled = ref.watch(shellAnimationsEnabledProvider);
     TerminalTab? activeTab;
     if (activeSessionId != null) {
@@ -965,6 +978,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                       ? _ShellStartupSurface(
                           key: const Key('shell-startup-state'),
                           palette: palette,
+                          errorMessage: sessionState.isReady
+                              ? null
+                              : sessionState.lastError,
+                          onRetry:
+                              !sessionState.isReady &&
+                                  sessionState.lastError != null
+                              ? sessionController.retryBootstrap
+                              : null,
                         )
                       : activeSessionId == null || activeTab == null
                       ? _ShellEmptyState(

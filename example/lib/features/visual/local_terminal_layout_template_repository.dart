@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 
 import '../../platform/corrupt_file_quarantine.dart';
+import '../../platform/local_json_file.dart';
 import 'local_terminal_visual_models.dart';
 
 const int maxLocalTerminalLayoutTemplates = 100;
@@ -28,10 +29,10 @@ class LocalTerminalLayoutTemplateRepository {
 
     try {
       final raw = await file.readAsString();
-      final decoded = jsonDecode(raw);
-      if (decoded is! List) {
-        throw const FormatException('Layout template list must be an array.');
-      }
+      final decoded = decodeJsonArray(
+        raw,
+        documentName: 'Layout template list',
+      );
       return _uniqueUsableTemplates(
         decoded
             .take(_maxPersistedLayoutTemplateEntriesToScan)
@@ -39,7 +40,7 @@ class LocalTerminalLayoutTemplateRepository {
             .whereType<Map<Object?, Object?>>()
             .map(LocalTerminalLayoutTemplate.fromJson),
       );
-    } on Object {
+    } on FormatException {
       await quarantineCorruptFile(file);
       await save(const <LocalTerminalLayoutTemplate>[]);
       return const <LocalTerminalLayoutTemplate>[];
@@ -48,8 +49,8 @@ class LocalTerminalLayoutTemplateRepository {
 
   Future<void> save(List<LocalTerminalLayoutTemplate> templates) async {
     final file = await _templatesFile();
-    await file.parent.create(recursive: true);
-    await file.writeAsString(
+    await writeStringAtomically(
+      file,
       jsonEncode(
         _uniqueUsableTemplates(
           templates,

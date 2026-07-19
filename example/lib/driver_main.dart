@@ -15,6 +15,7 @@ void main() {
     enableDriverWarmUpRefresh: false,
     enableReferenceDemoMode: true,
     enableShellAnimations: false,
+    acceptanceProbe: shellAcceptanceProbe,
     sessionEnvironmentOverrides: const {
       'TERM': 'xterm-256color',
       'COLORTERM': 'truecolor',

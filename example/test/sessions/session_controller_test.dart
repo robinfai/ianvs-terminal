@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io' show FileSystemException;
 import 'dart:typed_data';
 import 'dart:ui';
 
@@ -44,6 +45,25 @@ class _TestProfileRepository extends ProfileRepository {
     savedDocuments.add(document);
     _document = document;
   }
+}
+
+class _FailingOnceProfileRepository extends ProfileRepository {
+  _FailingOnceProfileRepository(this._document);
+
+  final TerminalProfilesDocument _document;
+  int loadAttempts = 0;
+
+  @override
+  Future<TerminalProfilesDocument> load() async {
+    loadAttempts += 1;
+    if (loadAttempts == 1) {
+      throw const FileSystemException('profiles unavailable');
+    }
+    return _document;
+  }
+
+  @override
+  Future<void> save(TerminalProfilesDocument document) async {}
 }
 
 class _TestSessionController extends SessionController {
@@ -98,7 +118,7 @@ class _ThrowingLocalTerminalConfigRepository
     extends LocalTerminalConfigRepository {
   @override
   Future<LocalTerminalConfigDocument?> load() async {
-    throw const FormatException('broken local terminal config');
+    throw const FileSystemException('local config unavailable');
   }
 
   @override
@@ -4100,6 +4120,78 @@ void main() {
             ),
       ),
     );
+  });
+
+  test('bootstrap publishes an error and succeeds when retried', () async {
+    final profileRepository = _FailingOnceProfileRepository(
+      TerminalProfilesDocument(profiles: [defaultProfile]),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
+        profileRepositoryProvider.overrideWithValue(profileRepository),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(sessionControllerProvider.notifier);
+    await _waitForCondition(
+      condition: () =>
+          container.read(sessionControllerProvider).lastError != null,
+      description: 'bootstrap error',
+    );
+
+    final failedState = container.read(sessionControllerProvider);
+    expect(failedState.isReady, isFalse);
+    expect(failedState.lastError, contains('Terminal startup failed'));
+    expect(profileRepository.loadAttempts, 1);
+
+    await controller.retryBootstrap();
+
+    final recoveredState = container.read(sessionControllerProvider);
+    expect(recoveredState.isReady, isTrue);
+    expect(recoveredState.lastError, isNull);
+    expect(recoveredState.tabs, hasLength(1));
+    expect(profileRepository.loadAttempts, 2);
+  });
+
+  test('bootstrap surfaces local config I/O failures', () async {
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(
+            TerminalProfilesDocument(profiles: [defaultProfile]),
+          ),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(
+            const TerminalAppPreferencesDocument(
+              defaults: TerminalAppDefaults(defaultProfileId: 'default'),
+            ),
+          ),
+        ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _ThrowingLocalTerminalConfigRepository(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container.read(sessionControllerProvider.notifier);
+    await _waitForCondition(
+      condition: () =>
+          container.read(sessionControllerProvider).lastError != null,
+      description: 'local config bootstrap error',
+    );
+
+    final state = container.read(sessionControllerProvider);
+    expect(state.isReady, isFalse);
+    expect(state.tabs, isEmpty);
+    expect(state.lastError, contains('local config unavailable'));
   });
 
   test(
