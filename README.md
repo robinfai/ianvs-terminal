@@ -11,6 +11,17 @@
 
 ## 快速开始
 
+仓库根目录提供常用命令入口；运行 `make help` 查看开发、验证和 macOS
+构建/安装命令。默认安装目录是 `/Applications`，可通过 `INSTALL_DIR` 覆盖。
+
+```bash
+make bootstrap
+make analyze
+make test
+make run
+make install
+```
+
 ```bash
 dart pub get
 ```
