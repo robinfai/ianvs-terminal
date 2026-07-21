@@ -27,6 +27,7 @@ enum TerminalActionId {
   advancedPaste,
   pasteHistory,
   toggleReadOnly,
+  toggleSessionRecording,
   clearScrollback,
   shellIntegrationUtilities,
   selectCommandOutput,
@@ -413,6 +414,13 @@ class ShellActionRegistry {
       label: 'toggle_read_only',
       category: TerminalActionCategory.session,
       icon: Icons.lock,
+      requiresActiveSession: true,
+    ),
+    TerminalActionId.toggleSessionRecording: TerminalActionDescriptor(
+      id: TerminalActionId.toggleSessionRecording,
+      label: 'toggle_session_recording',
+      category: TerminalActionCategory.session,
+      icon: Icons.fiber_manual_record,
       requiresActiveSession: true,
     ),
     TerminalActionId.clearScrollback: TerminalActionDescriptor(

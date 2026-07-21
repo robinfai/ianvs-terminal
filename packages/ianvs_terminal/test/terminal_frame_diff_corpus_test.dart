@@ -72,6 +72,16 @@ void main() {
           reason: fixture.path,
         );
         expect(
+          frame.blocks.length,
+          expected['blocks_count'],
+          reason: fixture.path,
+        );
+        expect(
+          frame.hyperlinks.length,
+          expected['hyperlinks_count'],
+          reason: fixture.path,
+        );
+        expect(
           terminalFrameProjection(
             decoder.decodeJson(jsonEncode(frameJson))!.frame,
           ),

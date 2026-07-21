@@ -1,5 +1,6 @@
 import '../preferences/app_preferences_models.dart';
 import '../profiles/profile_models.dart';
+import '../workspace/local_session_descriptor.dart';
 
 enum TerminalSplitAxis { horizontal, vertical }
 
@@ -9,6 +10,7 @@ class TerminalPane {
     required this.title,
     required this.profileId,
     this.profileSnapshot,
+    this.sessionDescriptor,
     this.isExited = false,
     this.exitCode,
     this.shellIntegration = TerminalShellIntegrationSnapshot.empty,
@@ -23,6 +25,7 @@ class TerminalPane {
   final String title;
   final String profileId;
   final TerminalProfile? profileSnapshot;
+  final TerminalSessionDescriptor? sessionDescriptor;
   final bool isExited;
   final int? exitCode;
   final TerminalShellIntegrationSnapshot shellIntegration;
@@ -36,6 +39,7 @@ class TerminalPane {
     String? title,
     String? profileId,
     Object? profileSnapshot = _terminalPaneNoChange,
+    Object? sessionDescriptor = _terminalPaneNoChange,
     bool? isExited,
     Object? exitCode = _terminalPaneNoChange,
     TerminalShellIntegrationSnapshot? shellIntegration,
@@ -52,6 +56,9 @@ class TerminalPane {
       profileSnapshot: identical(profileSnapshot, _terminalPaneNoChange)
           ? this.profileSnapshot
           : profileSnapshot as TerminalProfile?,
+      sessionDescriptor: identical(sessionDescriptor, _terminalPaneNoChange)
+          ? this.sessionDescriptor
+          : sessionDescriptor as TerminalSessionDescriptor?,
       isExited: isExited ?? this.isExited,
       exitCode: identical(exitCode, _terminalPaneNoChange)
           ? this.exitCode
@@ -505,6 +512,7 @@ class TerminalTab {
     required this.title,
     required this.profileId,
     this.profileSnapshot,
+    this.sessionDescriptor,
     this.isExited = false,
     this.exitCode,
     this.panes = const [],
@@ -523,6 +531,7 @@ class TerminalTab {
   final String title;
   final String profileId;
   final TerminalProfile? profileSnapshot;
+  final TerminalSessionDescriptor? sessionDescriptor;
   final bool isExited;
   final int? exitCode;
   final List<TerminalPane> panes;
@@ -542,6 +551,7 @@ class TerminalTab {
       title: title,
       profileId: profileId,
       profileSnapshot: profileSnapshot,
+      sessionDescriptor: sessionDescriptor,
       isExited: isExited,
       exitCode: exitCode,
       shellIntegration: shellIntegration,
@@ -601,6 +611,7 @@ class TerminalTab {
         title: replacement.title,
         profileId: replacement.profileId,
         profileSnapshot: replacement.profileSnapshot,
+        sessionDescriptor: replacement.sessionDescriptor,
         isExited: replacement.isExited,
         exitCode: replacement.exitCode,
         shellIntegration: replacement.shellIntegration,
@@ -619,6 +630,9 @@ class TerminalTab {
       profileSnapshot: replacingRootPane
           ? replacement.profileSnapshot
           : profileSnapshot,
+      sessionDescriptor: replacingRootPane
+          ? replacement.sessionDescriptor
+          : sessionDescriptor,
       isExited: replacingRootPane ? replacement.isExited : isExited,
       exitCode: replacingRootPane ? replacement.exitCode : exitCode,
       shellIntegration: replacingRootPane
@@ -640,6 +654,7 @@ class TerminalTab {
     String? title,
     String? profileId,
     Object? profileSnapshot = _terminalTabNoChange,
+    Object? sessionDescriptor = _terminalTabNoChange,
     bool? isExited,
     Object? exitCode = _terminalTabNoChange,
     List<TerminalPane>? panes,
@@ -668,6 +683,9 @@ class TerminalTab {
       profileSnapshot: identical(profileSnapshot, _terminalTabNoChange)
           ? this.profileSnapshot
           : profileSnapshot as TerminalProfile?,
+      sessionDescriptor: identical(sessionDescriptor, _terminalTabNoChange)
+          ? this.sessionDescriptor
+          : sessionDescriptor as TerminalSessionDescriptor?,
       isExited: isExited ?? this.isExited,
       exitCode: identical(exitCode, _terminalTabNoChange)
           ? this.exitCode
@@ -851,6 +869,9 @@ class SessionState {
     required TerminalThemeMode themeMode,
     required double terminalViewportPadding,
     required bool isReady,
+    Set<String> recordingSessionIds = const <String>{},
+    Set<String> recordingPendingSaveSessionIds = const <String>{},
+    Set<String> recordingBusySessionIds = const <String>{},
     String? lastError,
   }) {
     return SessionState._(
@@ -863,6 +884,11 @@ class SessionState {
       themeMode: themeMode,
       terminalViewportPadding: terminalViewportPadding,
       isReady: isReady,
+      recordingSessionIds: Set.unmodifiable(recordingSessionIds),
+      recordingPendingSaveSessionIds: Set.unmodifiable(
+        recordingPendingSaveSessionIds,
+      ),
+      recordingBusySessionIds: Set.unmodifiable(recordingBusySessionIds),
       lastError: lastError,
     );
   }
@@ -877,6 +903,9 @@ class SessionState {
     required this.themeMode,
     required this.terminalViewportPadding,
     required this.isReady,
+    required this.recordingSessionIds,
+    required this.recordingPendingSaveSessionIds,
+    required this.recordingBusySessionIds,
     this.lastError,
   });
 
@@ -889,6 +918,9 @@ class SessionState {
   final TerminalThemeMode themeMode;
   final double terminalViewportPadding;
   final bool isReady;
+  final Set<String> recordingSessionIds;
+  final Set<String> recordingPendingSaveSessionIds;
+  final Set<String> recordingBusySessionIds;
   final String? lastError;
 
   factory SessionState.initial() {
@@ -903,6 +935,9 @@ class SessionState {
       terminalViewportPadding:
           TerminalAppAppearance.defaultTerminalViewportPadding,
       isReady: false,
+      recordingSessionIds: <String>{},
+      recordingPendingSaveSessionIds: <String>{},
+      recordingBusySessionIds: <String>{},
     );
   }
 
@@ -916,6 +951,9 @@ class SessionState {
     TerminalThemeMode? themeMode,
     double? terminalViewportPadding,
     bool? isReady,
+    Set<String>? recordingSessionIds,
+    Set<String>? recordingPendingSaveSessionIds,
+    Set<String>? recordingBusySessionIds,
     Object? lastError = _sessionStateNoChange,
   }) {
     return SessionState._(
@@ -940,6 +978,15 @@ class SessionState {
             terminalViewportPadding ?? this.terminalViewportPadding,
           ),
       isReady: isReady ?? this.isReady,
+      recordingSessionIds: recordingSessionIds == null
+          ? this.recordingSessionIds
+          : Set.unmodifiable(recordingSessionIds),
+      recordingPendingSaveSessionIds: recordingPendingSaveSessionIds == null
+          ? this.recordingPendingSaveSessionIds
+          : Set.unmodifiable(recordingPendingSaveSessionIds),
+      recordingBusySessionIds: recordingBusySessionIds == null
+          ? this.recordingBusySessionIds
+          : Set.unmodifiable(recordingBusySessionIds),
       lastError: identical(lastError, _sessionStateNoChange)
           ? this.lastError
           : lastError as String?,

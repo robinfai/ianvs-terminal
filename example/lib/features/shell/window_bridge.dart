@@ -10,10 +10,14 @@ class WindowBridge {
 
   static void setNativeMenuHandlers({
     Future<void> Function()? onPaste,
+    Future<void> Function()? onOpenProject,
     Future<void> Function(NativeFindAction action)? onFind,
     Future<void> Function(NativeOsc72DragEvent event)? onOsc72DragEvent,
   }) {
-    if (onPaste == null && onFind == null && onOsc72DragEvent == null) {
+    if (onPaste == null &&
+        onOpenProject == null &&
+        onFind == null &&
+        onOsc72DragEvent == null) {
       _channel.setMethodCallHandler(null);
       return;
     }
@@ -21,6 +25,12 @@ class WindowBridge {
       switch (call.method) {
         case 'nativePaste':
           final handler = onPaste;
+          if (handler == null) {
+            throw MissingPluginException('No handler for ${call.method}');
+          }
+          await handler();
+        case 'nativeOpenProject':
+          final handler = onOpenProject;
           if (handler == null) {
             throw MissingPluginException('No handler for ${call.method}');
           }
@@ -200,6 +210,21 @@ class WindowBridge {
       final selected = await _channel.invokeMethod<String>(
         'chooseFileDownloadLocation',
         <String, Object?>{'suggestedName': safeName},
+      );
+      final path = selected?.trim();
+      return path == null || path.isEmpty ? null : path;
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
+  static Future<String?> chooseProjectDirectory() async {
+    if (BindingBase.debugBindingType() == null) {
+      return null;
+    }
+    try {
+      final selected = await _channel.invokeMethod<String>(
+        'chooseProjectDirectory',
       );
       final path = selected?.trim();
       return path == null || path.isEmpty ? null : path;

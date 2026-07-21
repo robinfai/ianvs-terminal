@@ -340,6 +340,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
       binaryMessenger: flutterViewController.engine.binaryMessenger
     )
     bindNativePasteMenuItems()
+    bindNativeWorkspaceMenuItems()
     hotkeyWindowController = HotkeyWindowController(window: self)
     hotkeyWindowController?.register()
     windowBridgeChannel?.setMethodCallHandler { [weak self] call, result in
@@ -490,6 +491,18 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
         panel.beginSheetModal(for: self) { response in
           result(response == .OK ? panel.url?.path : nil)
         }
+      case "chooseProjectDirectory":
+        let panel = NSOpenPanel()
+        panel.title = "Open Project"
+        panel.prompt = "Open"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        panel.resolvesAliases = true
+        panel.beginSheetModal(for: self) { response in
+          result(response == .OK ? panel.url?.path : nil)
+        }
       case "showNotification":
         self.showNotification(arguments: call.arguments, result: result)
       case "closeNotification":
@@ -636,6 +649,10 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     windowBridgeChannel?.invokeMethod("nativePaste", arguments: nil)
   }
 
+  @objc func openProject(_ sender: Any?) {
+    windowBridgeChannel?.invokeMethod("nativeOpenProject", arguments: nil)
+  }
+
   @objc func performFindPanelAction(_ sender: Any?) {
     let tag = (sender as? NSMenuItem)?.tag ?? 1
     windowBridgeChannel?.invokeMethod("nativeFind", arguments: ["tag": tag])
@@ -662,6 +679,40 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
         }
       }
     }
+  }
+
+  func bindNativeWorkspaceMenuItems(in providedMenu: NSMenu? = NSApp.mainMenu) {
+    guard let mainMenu = providedMenu else {
+      return
+    }
+    let fileMenuItem: NSMenuItem
+    let fileMenu: NSMenu
+    if let existing = mainMenu.items.first(where: { $0.title == "File" }) {
+      fileMenuItem = existing
+      fileMenu = existing.submenu ?? NSMenu(title: "File")
+      fileMenuItem.submenu = fileMenu
+    } else {
+      fileMenuItem = NSMenuItem(title: "File", action: nil, keyEquivalent: "")
+      fileMenu = NSMenu(title: "File")
+      fileMenuItem.submenu = fileMenu
+      mainMenu.insertItem(fileMenuItem, at: min(1, mainMenu.items.count))
+    }
+
+    let openProjectItem: NSMenuItem
+    if let existing = fileMenu.items.first(where: { $0.title == "Open Project…" }) {
+      openProjectItem = existing
+    } else {
+      openProjectItem = NSMenuItem(
+        title: "Open Project…",
+        action: #selector(openProject(_:)),
+        keyEquivalent: "o"
+      )
+      fileMenu.insertItem(openProjectItem, at: 0)
+    }
+    openProjectItem.target = self
+    openProjectItem.action = #selector(openProject(_:))
+    openProjectItem.keyEquivalent = "o"
+    openProjectItem.keyEquivalentModifierMask = [.command]
   }
 
   private func configureOsc72DropTarget(

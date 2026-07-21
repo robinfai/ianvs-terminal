@@ -1,8 +1,7 @@
-import 'dart:convert';
-
 import 'package:ianvs_pty/ianvs_pty.dart';
 
 import 'terminal_backend_request_error.dart';
+import 'terminal_session_request_transport.dart';
 
 const int _maxDiagnosticsResourceSamples = 60;
 const int _maxDiagnosticsEvents = 200;
@@ -14,10 +13,11 @@ const int _maxDiagnosticsSummaryListStringLength = 512;
 const int _maxDecodedCollectionScanMultiplier = 4;
 
 final class TerminalDiagnosticsClient {
-  const TerminalDiagnosticsClient(
-    this._requestBackend, {
+  TerminalDiagnosticsClient(
+    PtySessionJsonRequestBackend? requestBackend, {
     TerminalBackendRequestErrorHandler? onRequestError,
-  }) : _onRequestError = onRequestError;
+  }) : _requestTransport = TerminalSessionRequestTransport(requestBackend),
+       _onRequestError = onRequestError;
 
   factory TerminalDiagnosticsClient.fromBackend(
     PtySessionBackend backend, {
@@ -31,24 +31,25 @@ final class TerminalDiagnosticsClient {
     );
   }
 
-  final PtySessionJsonRequestBackend? _requestBackend;
+  final TerminalSessionRequestTransport _requestTransport;
   final TerminalBackendRequestErrorHandler? _onRequestError;
 
   TerminalDiagnosticsExport? exportSession(
     String sessionId, {
     TerminalDiagnosticsPolicy policy = const TerminalDiagnosticsPolicy(),
   }) {
-    final backend = _requestBackend;
-    if (backend == null) {
+    if (!_requestTransport.isSupported) {
       return null;
     }
 
-    final String? raw;
     try {
-      raw = backend.requestSessionJson(
+      final decoded = _requestTransport.requestObject(
         sessionId,
-        jsonEncode(policy.toRequestJson()),
+        policy.toRequestJson(),
       );
+      return decoded == null
+          ? null
+          : TerminalDiagnosticsExport.fromJson(decoded);
     } on Object catch (error, stackTrace) {
       _onRequestError?.call(
         sessionId,
@@ -56,19 +57,6 @@ final class TerminalDiagnosticsClient {
         error,
         stackTrace,
       );
-      return null;
-    }
-
-    try {
-      if (raw == null || raw.isEmpty) {
-        return null;
-      }
-      final decoded = jsonDecode(raw);
-      if (decoded is! Map) {
-        return null;
-      }
-      return TerminalDiagnosticsExport.fromJson(_stringKeyedJsonMap(decoded));
-    } on Object {
       return null;
     }
   }

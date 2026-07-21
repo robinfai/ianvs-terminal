@@ -61,14 +61,14 @@ void main() {
       await controller.handleCommand(_command('s2', action: 'm', operation: 2));
       expect(decisions, <int>[2]);
 
-    await controller.handleCommand(_command('s2', action: 'A'));
-    expect(configurations.last.enabled, isFalse);
+      await controller.handleCommand(_command('s2', action: 'A'));
+      expect(configurations.last.enabled, isFalse);
 
-    await controller.handleCommand(_command('s2', action: 'a'));
-    expect(
-      configurations.last.mimeTypes,
-      const <String>['text/plain', 'text/uri-list'],
-    );
+      await controller.handleCommand(_command('s2', action: 'a'));
+      expect(configurations.last.mimeTypes, const <String>[
+        'text/plain',
+        'text/uri-list',
+      ]);
     },
   );
 
@@ -196,24 +196,27 @@ void main() {
     expect(sent, <String>['\x1b]72;t=R:x=2;ENOENT\x1b\\']);
   });
 
-  test('remote URI entry requests are rejected without reading host files', () async {
-    final sent = <String>[];
-    final controller = _controller(sent: sent);
+  test(
+    'remote URI entry requests are rejected without reading host files',
+    () async {
+      final sent = <String>[];
+      final controller = _controller(sent: sent);
 
-    await controller.handleCommand(
-      terminal.TerminalSessionDragDropCommandEvent(
-        's1',
-        rawPayload: const <String, Object?>{
-          'action': 'r',
-          'x': 1,
-          'y': 2,
-          'payload': '',
-        },
-      ),
-    );
+      await controller.handleCommand(
+        terminal.TerminalSessionDragDropCommandEvent(
+          's1',
+          rawPayload: const <String, Object?>{
+            'action': 'r',
+            'x': 1,
+            'y': 2,
+            'payload': '',
+          },
+        ),
+      );
 
-    expect(sent, <String>['\x1b]72;t=R:x=1;EINVAL\x1b\\']);
-  });
+      expect(sent, <String>['\x1b]72;t=R:x=1;EINVAL\x1b\\']);
+    },
+  );
 }
 
 Osc72DragDropController _controller({

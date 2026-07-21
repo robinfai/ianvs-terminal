@@ -17,6 +17,8 @@ import 'package:app/features/preferences/app_preferences_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_ports.dart';
 import 'package:app/features/sessions/session_state.dart';
+import 'package:app/features/workspace/local_workspace_models.dart';
+import 'package:app/features/workspace/local_workspace_repository.dart';
 
 import '../support/fake_pty_backend.dart';
 
@@ -123,6 +125,100 @@ class _ThrowingLocalTerminalConfigRepository
 
   @override
   Future<void> save(LocalTerminalConfigDocument document) async {}
+}
+
+class _TestLocalWorkspaceRepository extends LocalWorkspaceRepository {
+  _TestLocalWorkspaceRepository(this.document);
+
+  TerminalWorkspace? document;
+  int loadAttempts = 0;
+  final List<TerminalWorkspace> savedDocuments = [];
+
+  @override
+  Future<TerminalWorkspace?> load() async {
+    loadAttempts += 1;
+    return document;
+  }
+
+  @override
+  Future<void> save(TerminalWorkspace workspace) async {
+    savedDocuments.add(workspace);
+    document = workspace;
+  }
+}
+
+class _SwitchingLocalWorkspaceRepository extends LocalWorkspaceRepository {
+  _SwitchingLocalWorkspaceRepository({
+    required TerminalWorkspace current,
+    Iterable<TerminalWorkspace> workspaces = const <TerminalWorkspace>[],
+  }) : _current = current,
+       documents = <String, TerminalWorkspace>{
+         current.identity.id: current,
+         for (final workspace in workspaces) workspace.identity.id: workspace,
+       };
+
+  TerminalWorkspace _current;
+  final Map<String, TerminalWorkspace> documents;
+  final List<TerminalWorkspace> savedDocuments = <TerminalWorkspace>[];
+  final List<String> activatedWorkspaceIds = <String>[];
+  Object? loadWorkspaceError;
+  Object? activateWorkspaceError;
+
+  @override
+  Future<TerminalWorkspace?> load() async => _current;
+
+  @override
+  Future<TerminalWorkspace?> loadWorkspace(String workspaceId) async {
+    if (loadWorkspaceError case final error?) {
+      throw error;
+    }
+    return documents[workspaceId];
+  }
+
+  @override
+  Future<TerminalWorkspace> loadOrCreateProject({
+    required String projectPath,
+    String? name,
+  }) async {
+    final identity = TerminalWorkspaceIdentity.forProject(
+      projectPath,
+      name: name,
+    );
+    return documents.putIfAbsent(
+      identity.id,
+      () => TerminalWorkspace(identity: identity),
+    );
+  }
+
+  @override
+  Future<void> activateWorkspace(TerminalWorkspace workspace) async {
+    if (activateWorkspaceError case final error?) {
+      throw error;
+    }
+    documents[workspace.identity.id] = workspace;
+    _current = workspace;
+    activatedWorkspaceIds.add(workspace.identity.id);
+  }
+
+  @override
+  Future<void> save(TerminalWorkspace workspace) async {
+    savedDocuments.add(workspace);
+    documents[workspace.identity.id] = workspace;
+    if (_current.identity.id == workspace.identity.id) {
+      _current = workspace;
+    }
+  }
+
+  @override
+  Future<List<TerminalWorkspaceRecentEntry>> loadRecent() async {
+    return <TerminalWorkspaceRecentEntry>[
+      for (final workspace in documents.values)
+        TerminalWorkspaceRecentEntry(
+          identity: workspace.identity,
+          lastOpenedAtUtc: DateTime.utc(2026, 7, 21),
+        ),
+    ];
+  }
 }
 
 class _EventfulPtyBackend
@@ -4122,6 +4218,487 @@ void main() {
     );
   });
 
+  test(
+    'bootstrap relaunches configured workspace topology with new sessions',
+    () async {
+      final coreClient = FakePtyBackend();
+      final profileRepository = _TestProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
+      );
+      final workspaceRepository = _TestLocalWorkspaceRepository(
+        TerminalWorkspace(
+          identity: TerminalWorkspaceIdentity.forProject(
+            '/workspace/project',
+            name: 'Restored Workspace',
+          ),
+          activeTabId: 'old-tab',
+          tabs: [
+            TerminalWorkspaceTab(
+              id: 'old-tab',
+              activePaneId: 'old-pane-2',
+              root: TerminalPaneNode.split(
+                id: 'old-split',
+                direction: TerminalPaneSplitDirection.down,
+                ratio: 0.64,
+                first: TerminalPaneNode.leaf(
+                  id: 'old-pane-1',
+                  sessionDescriptor: TerminalSessionDescriptor(
+                    id: 'descriptor-1',
+                    profileId: 'default',
+                    command: const TerminalSessionCommand(
+                      program: '/bin/sh',
+                      arguments: ['-l'],
+                    ),
+                    cwd: '/workspace/one',
+                    title: 'Restored shell',
+                    createdAtUtc: DateTime.utc(2026, 7, 21, 4),
+                  ),
+                ),
+                second: TerminalPaneNode.leaf(
+                  id: 'old-pane-2',
+                  sessionDescriptor: TerminalSessionDescriptor(
+                    id: 'descriptor-2',
+                    profileId: 'ssh',
+                    command: const TerminalSessionCommand(
+                      program: '/bin/echo',
+                      arguments: ['restored'],
+                    ),
+                    cwd: '/workspace/two',
+                    title: 'Restored task',
+                    createdAtUtc: DateTime.utc(2026, 7, 21, 4, 1),
+                    recordingPath: '/recordings/descriptor-2.ndjson',
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(coreClient),
+          profileRepositoryProvider.overrideWithValue(profileRepository),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalConfigRepository(
+              const LocalTerminalConfigDocument(
+                workspace: LocalTerminalWorkspaceConfig(restoreLayout: true),
+              ),
+            ),
+          ),
+          localWorkspaceRepositoryProvider.overrideWithValue(
+            workspaceRepository,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(sessionControllerProvider.notifier);
+      await _waitForCondition(
+        condition: () => container.read(sessionControllerProvider).isReady,
+        description: 'workspace restore bootstrap',
+      );
+
+      final state = container.read(sessionControllerProvider);
+      expect(workspaceRepository.loadAttempts, 1);
+      expect(
+        container
+            .read(sessionControllerProvider.notifier)
+            .activeWorkspaceIdentity,
+        TerminalWorkspaceIdentity.forProject(
+          '/workspace/project',
+          name: 'Restored Workspace',
+        ),
+      );
+      expect(state.tabs, hasLength(1));
+      expect(state.tabs.single.effectivePanes, hasLength(2));
+      expect(
+        state.tabs.single.effectivePaneLayout.splitAxis,
+        TerminalSplitAxis.vertical,
+      );
+      expect(state.tabs.single.effectivePaneLayout.ratio, 0.64);
+      expect(state.tabs.single.effectivePanes.map((pane) => pane.profileId), [
+        'default',
+        'ssh',
+      ]);
+      expect(
+        state.tabs.single.effectivePanes.map(
+          (pane) => pane.profileSnapshot!.cwd,
+        ),
+        ['/workspace/one', '/workspace/two'],
+      );
+      expect(
+        state.activeSessionId,
+        state.tabs.single.effectivePanes.last.sessionId,
+      );
+      expect(state.activeSessionId, isNot('old-pane-2'));
+      expect(state.tabs.single.effectivePanes.map((pane) => pane.title), [
+        'Restored shell',
+        'Restored task',
+      ]);
+      expect(
+        state.tabs.single.effectivePanes.map(
+          (pane) => pane.sessionDescriptor!.id,
+        ),
+        ['descriptor-1', 'descriptor-2'],
+      );
+      expect(
+        state.tabs.single.effectivePanes.last.sessionDescriptor!.recordingPath,
+        '/recordings/descriptor-2.ndjson',
+      );
+      expect(coreClient.lastCreatedSessionPayload!['launch'], {
+        'program': '/bin/echo',
+        'args': ['restored'],
+        'env': {'TERM': 'xterm-256color', 'COLORTERM': 'truecolor'},
+        'cwd': '/workspace/two',
+      });
+      expect(state.lastError, isNull);
+    },
+  );
+
+  test(
+    'workspace relaunch failure is retained as a visible state error',
+    () async {
+      final workspaceRepository = _TestLocalWorkspaceRepository(
+        TerminalWorkspace(
+          activeTabId: 'old-tab',
+          tabs: [
+            TerminalWorkspaceTab(
+              id: 'old-tab',
+              activePaneId: 'old-pane',
+              root: TerminalPaneNode.leaf(
+                id: 'old-pane',
+                sessionIntent: const TerminalPaneSessionIntent(
+                  profileId: 'removed-profile',
+                  cwd: '/workspace',
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              TerminalProfilesDocument(profiles: [defaultProfile]),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalConfigRepository(
+              const LocalTerminalConfigDocument(
+                workspace: LocalTerminalWorkspaceConfig(restoreLayout: true),
+              ),
+            ),
+          ),
+          localWorkspaceRepositoryProvider.overrideWithValue(
+            workspaceRepository,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(sessionControllerProvider.notifier);
+      await _waitForCondition(
+        condition: () => container.read(sessionControllerProvider).isReady,
+        description: 'fallback after workspace relaunch failure',
+      );
+
+      final state = container.read(sessionControllerProvider);
+      expect(state.tabs, hasLength(1));
+      expect(state.tabs.single.profileId, defaultProfile.id);
+      expect(state.lastError, contains('Workspace restore skipped 1 pane'));
+      expect(state.lastError, contains('removed-profile'));
+      expect(workspaceRepository.savedDocuments, isEmpty);
+    },
+  );
+
+  test('workspace-enabled session mutations persist relaunch intent', () async {
+    final identity = TerminalWorkspaceIdentity.forProject(
+      '/workspace/project',
+      name: 'Project Workspace',
+    );
+    final workspaceRepository = _TestLocalWorkspaceRepository(
+      TerminalWorkspace(identity: identity),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(
+            TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
+          ),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalConfigRepository(
+            const LocalTerminalConfigDocument(
+              workspace: LocalTerminalWorkspaceConfig(restoreLayout: true),
+            ),
+          ),
+        ),
+        localWorkspaceRepositoryProvider.overrideWithValue(workspaceRepository),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(sessionControllerProvider.notifier);
+    await _waitForCondition(
+      condition: () => container.read(sessionControllerProvider).isReady,
+      description: 'workspace persistence bootstrap',
+    );
+    controller.splitActiveSession(sshProfile, TerminalSplitAxis.horizontal);
+    await _waitForCondition(
+      condition: () => workspaceRepository.savedDocuments.isNotEmpty,
+      description: 'workspace persistence',
+    );
+
+    final saved = workspaceRepository.savedDocuments.last;
+    expect(saved.identity, identity);
+    expect(saved.tabs, hasLength(1));
+    expect(saved.tabs.single.root.direction, TerminalPaneSplitDirection.right);
+    expect(saved.tabs.single.root.children, hasLength(2));
+    expect(
+      saved.tabs.single.root.children.map(
+        (pane) => pane.sessionIntent!.profileId,
+      ),
+      ['default', 'ssh'],
+    );
+  });
+
+  test(
+    'opening a recent workspace prepares target before closing old sessions',
+    () async {
+      final projectA = TerminalWorkspaceIdentity.forProject(
+        '/workspace/a',
+        name: 'Project A',
+      );
+      final projectB = TerminalWorkspaceIdentity.forProject(
+        '/workspace/b',
+        name: 'Project B',
+      );
+      final targetWorkspace = TerminalWorkspace(
+        identity: projectB,
+        activeTabId: 'tab-b',
+        tabs: <TerminalWorkspaceTab>[
+          TerminalWorkspaceTab(
+            id: 'tab-b',
+            activePaneId: 'pane-b',
+            root: TerminalPaneNode.leaf(
+              id: 'pane-b',
+              sessionDescriptor: TerminalSessionDescriptor(
+                id: 'descriptor-b',
+                profileId: defaultProfile.id,
+                cwd: '/workspace/b',
+              ),
+            ),
+          ),
+        ],
+      );
+      final workspaceRepository = _SwitchingLocalWorkspaceRepository(
+        current: TerminalWorkspace(identity: projectA),
+        workspaces: <TerminalWorkspace>[targetWorkspace],
+      );
+      final backend = FakePtyBackend();
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(backend),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              TerminalProfilesDocument(
+                profiles: <TerminalProfile>[defaultProfile],
+              ),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalConfigRepository(
+              const LocalTerminalConfigDocument(
+                workspace: LocalTerminalWorkspaceConfig(restoreLayout: true),
+              ),
+            ),
+          ),
+          localWorkspaceRepositoryProvider.overrideWithValue(
+            workspaceRepository,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final controller = container.read(sessionControllerProvider.notifier);
+      await _waitForCondition(
+        condition: () => container.read(sessionControllerProvider).isReady,
+        description: 'initial project workspace',
+      );
+      final oldSessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+
+      expect(await controller.openRecentWorkspace(projectB.id), isTrue);
+
+      final switched = container.read(sessionControllerProvider);
+      expect(controller.activeWorkspaceIdentity, projectB);
+      expect(switched.tabs, hasLength(1));
+      expect(switched.activeSessionId, isNot(oldSessionId));
+      expect(
+        switched.tabs.single.effectivePanes.single.sessionDescriptor?.id,
+        'descriptor-b',
+      );
+      expect(backend.closedSessionIds, contains(oldSessionId));
+      expect(
+        container
+            .read(terminalRuntimeControllerProvider)
+            .hasSession(oldSessionId),
+        isFalse,
+      );
+      expect(workspaceRepository.savedDocuments, isNotEmpty);
+      expect(workspaceRepository.savedDocuments.first.identity, projectA);
+      expect(workspaceRepository.activatedWorkspaceIds, <String>[projectB.id]);
+      expect(backend.lastCreatedSessionPayload!['launch'], <String, Object?>{
+        'program': '/bin/zsh',
+        'args': <String>[],
+        'env': <String, String>{
+          'TERM': 'xterm-256color',
+          'COLORTERM': 'truecolor',
+        },
+        'cwd': '/workspace/b',
+      });
+    },
+  );
+
+  test(
+    'opening a new project launches its first shell at the project path',
+    () async {
+      final workspaceRepository = _SwitchingLocalWorkspaceRepository(
+        current: const TerminalWorkspace(),
+      );
+      final backend = FakePtyBackend();
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(backend),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              TerminalProfilesDocument(
+                profiles: <TerminalProfile>[defaultProfile],
+              ),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalConfigRepository(null),
+          ),
+          localWorkspaceRepositoryProvider.overrideWithValue(
+            workspaceRepository,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final controller = container.read(sessionControllerProvider.notifier);
+      await _waitForCondition(
+        condition: () => container.read(sessionControllerProvider).isReady,
+        description: 'default workspace bootstrap',
+      );
+
+      expect(
+        await controller.openProjectWorkspace('/workspace/new-project'),
+        isTrue,
+      );
+
+      expect(
+        controller.activeWorkspaceIdentity,
+        TerminalWorkspaceIdentity.forProject('/workspace/new-project'),
+      );
+      expect(
+        backend.lastCreatedSessionPayload!['launch'],
+        containsPair('cwd', '/workspace/new-project'),
+      );
+      expect(workspaceRepository.activatedWorkspaceIds, <String>[
+        controller.activeWorkspaceIdentity.id,
+      ]);
+    },
+  );
+
+  test(
+    'failed target activation keeps the current workspace and PTY alive',
+    () async {
+      final projectA = TerminalWorkspaceIdentity.forProject('/workspace/a');
+      final projectB = TerminalWorkspaceIdentity.forProject('/workspace/b');
+      final workspaceRepository =
+          _SwitchingLocalWorkspaceRepository(
+              current: TerminalWorkspace(identity: projectA),
+              workspaces: <TerminalWorkspace>[
+                TerminalWorkspace(identity: projectB),
+              ],
+            )
+            ..activateWorkspaceError = const FileSystemException(
+              'index unavailable',
+            );
+      final backend = FakePtyBackend();
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(backend),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              TerminalProfilesDocument(
+                profiles: <TerminalProfile>[defaultProfile],
+              ),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalConfigRepository(
+              const LocalTerminalConfigDocument(
+                workspace: LocalTerminalWorkspaceConfig(restoreLayout: true),
+              ),
+            ),
+          ),
+          localWorkspaceRepositoryProvider.overrideWithValue(
+            workspaceRepository,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final controller = container.read(sessionControllerProvider.notifier);
+      await _waitForCondition(
+        condition: () => container.read(sessionControllerProvider).isReady,
+        description: 'workspace activation failure bootstrap',
+      );
+      final before = container.read(sessionControllerProvider);
+      final oldSessionId = before.activeSessionId!;
+
+      expect(await controller.openRecentWorkspace(projectB.id), isFalse);
+
+      final after = container.read(sessionControllerProvider);
+      expect(controller.activeWorkspaceIdentity, projectA);
+      expect(after.tabs, before.tabs);
+      expect(after.activeSessionId, oldSessionId);
+      expect(after.lastError, contains('Workspace switch failed'));
+      expect(
+        container
+            .read(terminalRuntimeControllerProvider)
+            .hasSession(oldSessionId),
+        isTrue,
+      );
+      expect(backend.closedSessionIds, isNot(contains(oldSessionId)));
+    },
+  );
+
   test('bootstrap publishes an error and succeeds when retried', () async {
     final profileRepository = _FailingOnceProfileRepository(
       TerminalProfilesDocument(profiles: [defaultProfile]),
@@ -4563,6 +5140,9 @@ void main() {
           ),
           localTerminalConfigRepositoryProvider.overrideWithValue(
             localConfigRepository,
+          ),
+          localWorkspaceRepositoryProvider.overrideWithValue(
+            _TestLocalWorkspaceRepository(null),
           ),
         ],
       );

@@ -16,10 +16,16 @@ import '../preferences/app_preferences_models.dart';
 import '../preferences/app_preferences_repository.dart';
 import '../profiles/profile_models.dart';
 import '../profiles/profile_repository.dart';
+import '../recording/local_session_recording_repository.dart';
 import '../terminal/terminal.dart' hide TerminalEmulation;
+import '../workspace/local_session_workspace_codec.dart';
+import '../workspace/local_workspace_models.dart';
+import '../workspace/local_workspace_repository.dart';
 import 'session_bootstrap.dart';
 import 'session_ports.dart';
 import 'session_state.dart';
+
+const Object _recordingLastErrorNoChange = Object();
 
 final ptySessionBackendProvider = Provider<PtySessionBackend>((ref) {
   return loadDefaultPtySessionBackend();
@@ -201,6 +207,25 @@ final localTerminalConfigLoaderProvider = Provider<LocalTerminalConfigLoader>((
   );
 });
 
+final localWorkspaceRepositoryProvider = Provider<LocalWorkspaceRepository>((
+  ref,
+) {
+  return LocalWorkspaceRepository();
+});
+
+final localSessionRecordingRepositoryProvider =
+    Provider<LocalSessionRecordingRepository>((ref) {
+      return LocalSessionRecordingRepository();
+    });
+
+final terminalLiveRecorderProvider = Provider<TerminalLiveRecorder?>((ref) {
+  final backend = ref.read(ptySessionBackendProvider);
+  if (backend is! PtySessionJsonRequestBackend) {
+    return null;
+  }
+  return TerminalLiveRecorder(backend: backend as PtySessionJsonRequestBackend);
+});
+
 final sessionBootstrapServiceProvider = Provider<SessionBootstrapService>((
   ref,
 ) {
@@ -343,6 +368,8 @@ class _AutomaticProfileBaseline {
 }
 
 class SessionController extends Notifier<SessionState> {
+  static const _workspacePersistenceDebounce = Duration(milliseconds: 60);
+
   final SessionBootstrapRunner _bootstrapRunner = SessionBootstrapRunner();
   final Map<String, TerminalViewportController> _demoViewports =
       <String, TerminalViewportController>{};
@@ -356,6 +383,10 @@ class SessionController extends Notifier<SessionState> {
   final List<TerminalTab> _recentlyClosedTabs = <TerminalTab>[];
   final Map<String, List<TerminalPane>> _recentlyClosedPanesByTab =
       <String, List<TerminalPane>>{};
+  final Map<String, LocalSessionRecordingDestination> _recordingDestinations =
+      <String, LocalSessionRecordingDestination>{};
+  final Map<String, TerminalRecording> _pendingRecordings =
+      <String, TerminalRecording>{};
   TerminalAppPreferencesDocument _appPreferences =
       const TerminalAppPreferencesDocument();
   LocalTerminalConfigDocument _localConfigDocument =
@@ -367,6 +398,13 @@ class SessionController extends Notifier<SessionState> {
   final Map<String, bool> _runtimeSessionActivation = <String, bool>{};
   bool _progressFlushScheduled = false;
   int _progressEventOrder = 0;
+  bool _workspacePersistenceEnabled = false;
+  bool _workspaceSwitchInProgress = false;
+  TerminalWorkspaceIdentity _activeWorkspaceIdentity =
+      TerminalWorkspaceIdentity.defaultWorkspace;
+  Timer? _workspacePersistenceTimer;
+  String? _lastWorkspaceSnapshot;
+  Future<void> _workspaceSaveChain = Future<void>.value();
 
   @protected
   String? get bootstrapDefaultProfileIdOverride => null;
@@ -375,6 +413,11 @@ class SessionController extends Notifier<SessionState> {
       ref.read(terminalRuntimeControllerProvider);
 
   bool get canReopenClosedTab => _recentlyClosedTabs.isNotEmpty;
+
+  TerminalWorkspaceIdentity get activeWorkspaceIdentity =>
+      _activeWorkspaceIdentity;
+
+  bool get workspaceSwitchInProgress => _workspaceSwitchInProgress;
 
   bool get canReopenClosedPane {
     final activeSessionId = state.activeSessionId;
@@ -406,8 +449,15 @@ class SessionController extends Notifier<SessionState> {
 
   @override
   SessionState build() {
+    listenSelf(_handleWorkspaceStateChanged);
     Future.microtask(_runBootstrap);
+    final liveRecorder = ref.read(terminalLiveRecorderProvider);
+    final recordingRepository = ref.read(
+      localSessionRecordingRepositoryProvider,
+    );
     ref.onDispose(() {
+      _disposeRecordingsBestEffort(liveRecorder, recordingRepository);
+      _workspacePersistenceTimer?.cancel();
       _runtimeEventsSubscription?.cancel();
       for (final timer in _progressGraceTimers.values) {
         timer.cancel();
@@ -517,36 +567,64 @@ class SessionController extends Notifier<SessionState> {
       return;
     }
     final effectiveDefaultProfileId = preparation.effectiveDefaultProfileId;
-    TerminalProfile? initialProfile;
-    TerminalProfile? initialLaunchProfile;
+    var initialTabs = <TerminalTab>[];
     String? initialSessionId;
-    if (effectiveDefaultProfileId != null) {
-      initialProfile = runtimeProfiles.firstWhere(
+    String? workspaceRestoreError;
+    if (_localConfigDocument.workspace.restoreLayout) {
+      final workspace = await ref.read(localWorkspaceRepositoryProvider).load();
+      if (workspace != null) {
+        _activeWorkspaceIdentity = workspace.identity;
+      }
+      if (workspace != null && !workspace.isEmpty) {
+        final restored = _restoreWorkspace(
+          workspace,
+          profiles: runtimeProfiles,
+        );
+        initialTabs = restored.tabs;
+        initialSessionId = restored.activeSessionId;
+        if (restored.failures.isNotEmpty) {
+          workspaceRestoreError = _workspaceRestoreFailureMessage(
+            restored.failures,
+          );
+        }
+      }
+    }
+
+    if (initialTabs.isEmpty && effectiveDefaultProfileId != null) {
+      final initialProfile = runtimeProfiles.firstWhere(
         (profile) => profile.id == effectiveDefaultProfileId,
         orElse: () => runtimeProfiles.first,
       );
       final environmentOverrides = ref.read(
         sessionEnvironmentOverridesProvider,
       );
-      initialLaunchProfile = _profileWithSessionEnvironment(
+      final initialLaunchProfile = _profileWithSessionEnvironment(
         initialProfile,
         environmentOverrides,
       );
       initialSessionId = _createRuntimeSession(initialLaunchProfile);
+      if (initialSessionId != null) {
+        final descriptor = _sessionDescriptorForLaunch(
+          sessionId: initialSessionId,
+          profileId: initialProfile.id,
+          launchProfile: initialLaunchProfile,
+          title: initialLaunchProfile.name,
+        );
+        initialTabs = <TerminalTab>[
+          TerminalTab(
+            sessionId: initialSessionId,
+            title: initialLaunchProfile.name,
+            profileId: initialProfile.id,
+            profileSnapshot: initialLaunchProfile,
+            sessionDescriptor: descriptor,
+          ),
+        ];
+      }
     }
 
     state = state.copyWith(
       profiles: runtimeProfiles,
-      tabs: initialSessionId == null || initialLaunchProfile == null
-          ? state.tabs
-          : <TerminalTab>[
-              TerminalTab(
-                sessionId: initialSessionId,
-                title: initialLaunchProfile.name,
-                profileId: initialProfile!.id,
-                profileSnapshot: initialLaunchProfile,
-              ),
-            ],
+      tabs: initialTabs.isEmpty ? state.tabs : initialTabs,
       activeSessionId: initialSessionId,
       defaultProfileId: effectiveDefaultProfileId,
       configuredDefaultProfileId: _configuredDefaultProfileIdForUi(),
@@ -555,11 +633,425 @@ class SessionController extends Notifier<SessionState> {
       terminalViewportPadding:
           _appPreferences.appearance.terminalViewportPadding,
       isReady: true,
+      lastError: workspaceRestoreError ?? state.lastError,
     );
     _syncRuntimeSessionActivation();
-    if (initialLaunchProfile != null) {
-      _setWindowTitle(initialLaunchProfile.name);
+    final activePane = initialSessionId == null
+        ? null
+        : _paneForSession(initialSessionId);
+    if (activePane != null) {
+      _setWindowTitle(activePane.title);
     }
+    _enableWorkspacePersistence();
+  }
+
+  LocalWorkspaceRestoreResult _restoreWorkspace(
+    TerminalWorkspace workspace, {
+    required List<TerminalProfile> profiles,
+  }) {
+    final profilesById = <String, TerminalProfile>{
+      for (final profile in profiles) profile.id: profile,
+    };
+    final environmentOverrides = ref.read(sessionEnvironmentOverridesProvider);
+    return LocalSessionWorkspaceCodec.restore(
+      workspace,
+      relaunch: (descriptor) {
+        final profile = profilesById[descriptor.profileId];
+        if (profile == null) {
+          return null;
+        }
+        var descriptorProfile = profile;
+        final command = descriptor.command;
+        if (command != null) {
+          descriptorProfile = descriptorProfile.copyWith(
+            shell: command.program,
+            args: command.arguments,
+          );
+        }
+        if (descriptor.cwd != null) {
+          descriptorProfile = descriptorProfile.copyWith(cwd: descriptor.cwd);
+        }
+        final launchProfile = _profileWithSessionEnvironment(
+          descriptorProfile,
+          environmentOverrides,
+        );
+        final sessionId = _createRuntimeSession(launchProfile);
+        if (sessionId == null) {
+          return null;
+        }
+        final title = descriptor.title ?? launchProfile.name;
+        return TerminalPane(
+          sessionId: sessionId,
+          title: title,
+          profileId: profile.id,
+          profileSnapshot: launchProfile,
+          sessionDescriptor: _sessionDescriptorForLaunch(
+            sessionId: sessionId,
+            profileId: profile.id,
+            launchProfile: launchProfile,
+            title: title,
+            restoredDescriptor: descriptor,
+          ),
+        );
+      },
+    );
+  }
+
+  String _workspaceRestoreFailureMessage(
+    List<LocalWorkspaceRelaunchFailure> failures,
+  ) {
+    final profileIds = failures
+        .map((failure) => failure.intent.profileId)
+        .where((profileId) => profileId.trim().isNotEmpty)
+        .toSet()
+        .take(3)
+        .join(', ');
+    return 'Workspace restore skipped ${failures.length} pane(s)'
+        '${profileIds.isEmpty ? '' : ' for profile(s): $profileIds'}.';
+  }
+
+  void _enableWorkspacePersistence() {
+    _workspacePersistenceEnabled = _localConfigDocument.workspace.restoreLayout;
+    if (!_workspacePersistenceEnabled) {
+      return;
+    }
+    _lastWorkspaceSnapshot = jsonEncode(
+      LocalSessionWorkspaceCodec.capture(
+        state,
+        identity: _activeWorkspaceIdentity,
+      ).toJson(),
+    );
+  }
+
+  void _handleWorkspaceStateChanged(SessionState? previous, SessionState next) {
+    if (!_workspacePersistenceEnabled || !next.isReady) {
+      return;
+    }
+    final workspace = LocalSessionWorkspaceCodec.capture(
+      next,
+      identity: _activeWorkspaceIdentity,
+    );
+    final snapshot = jsonEncode(workspace.toJson());
+    if (snapshot == _lastWorkspaceSnapshot) {
+      return;
+    }
+    _lastWorkspaceSnapshot = snapshot;
+    _workspacePersistenceTimer?.cancel();
+    _workspacePersistenceTimer = Timer(_workspacePersistenceDebounce, () {
+      _workspacePersistenceTimer = null;
+      final previousSave = _workspaceSaveChain;
+      _workspaceSaveChain = _saveWorkspaceAfter(previousSave, workspace);
+    });
+  }
+
+  Future<void> _saveWorkspaceAfter(
+    Future<void> previousSave,
+    TerminalWorkspace workspace,
+  ) async {
+    try {
+      await previousSave;
+      await ref.read(localWorkspaceRepositoryProvider).save(workspace);
+    } on Object catch (error) {
+      if (ref.mounted) {
+        final detail = _boundedShellMetadata(error.toString(), 240);
+        state = state.copyWith(
+          lastError:
+              'Workspace save failed'
+              '${detail == null ? '' : ': $detail'}',
+        );
+      }
+    }
+  }
+
+  Future<List<TerminalWorkspaceRecentEntry>> recentWorkspaces() {
+    return ref.read(localWorkspaceRepositoryProvider).loadRecent();
+  }
+
+  Future<bool> openProjectWorkspace(String projectPath, {String? name}) {
+    return _openWorkspace(
+      () => ref
+          .read(localWorkspaceRepositoryProvider)
+          .loadOrCreateProject(projectPath: projectPath, name: name),
+    );
+  }
+
+  Future<bool> openRecentWorkspace(String workspaceId) {
+    return _openWorkspace(
+      () => ref
+          .read(localWorkspaceRepositoryProvider)
+          .loadWorkspace(workspaceId)
+          .then((workspace) {
+            if (workspace == null) {
+              throw StateError('Recent Workspace is no longer available.');
+            }
+            return workspace;
+          }),
+    );
+  }
+
+  Future<bool> _openWorkspace(
+    Future<TerminalWorkspace> Function() loadTarget,
+  ) async {
+    if (_workspaceSwitchInProgress || !state.isReady) {
+      return false;
+    }
+    if (ref.read(sessionDemoFixtureProvider) != null) {
+      state = state.copyWith(
+        lastError: 'Workspace switching is unavailable in reference demo mode.',
+      );
+      return false;
+    }
+
+    _workspaceSwitchInProgress = true;
+    try {
+      if (!await _flushActiveWorkspaceForSwitch()) {
+        return false;
+      }
+      final workspace = await loadTarget();
+      if (!ref.mounted) {
+        return false;
+      }
+      return await _switchToWorkspace(workspace);
+    } on Object catch (error) {
+      _reportWorkspaceSwitchFailure(error);
+      return false;
+    } finally {
+      _workspaceSwitchInProgress = false;
+    }
+  }
+
+  Future<bool> _flushActiveWorkspaceForSwitch() async {
+    final recordingSessionIds = <String>[
+      for (final tab in state.tabs)
+        for (final pane in tab.effectivePanes)
+          if (_recordingNeedsFinalization(pane.sessionId)) pane.sessionId,
+    ];
+    if (recordingSessionIds.isNotEmpty &&
+        !await _finalizeSessionRecordings(recordingSessionIds)) {
+      return false;
+    }
+    if (!_workspacePersistenceEnabled) {
+      return true;
+    }
+    _workspacePersistenceTimer?.cancel();
+    _workspacePersistenceTimer = null;
+    try {
+      await _workspaceSaveChain;
+      final workspace = LocalSessionWorkspaceCodec.capture(
+        state,
+        identity: _activeWorkspaceIdentity,
+      );
+      await ref.read(localWorkspaceRepositoryProvider).save(workspace);
+      _lastWorkspaceSnapshot = jsonEncode(workspace.toJson());
+      return true;
+    } on Object catch (error) {
+      _reportWorkspaceSwitchFailure(error, prefix: 'Workspace save failed');
+      return false;
+    }
+  }
+
+  Future<bool> _switchToWorkspace(TerminalWorkspace workspace) async {
+    final previousState = state;
+    final previousSessionIds = <String>{
+      for (final tab in previousState.tabs)
+        for (final pane in tab.effectivePanes) pane.sessionId,
+    };
+
+    if (workspace.identity.id == _activeWorkspaceIdentity.id) {
+      try {
+        final captured = LocalSessionWorkspaceCodec.capture(
+          previousState,
+          identity: workspace.identity,
+        );
+        await ref
+            .read(localWorkspaceRepositoryProvider)
+            .activateWorkspace(captured);
+        _activeWorkspaceIdentity = workspace.identity;
+        _workspacePersistenceEnabled = true;
+        _lastWorkspaceSnapshot = jsonEncode(captured.toJson());
+        state = previousState.copyWith(lastError: null);
+        return true;
+      } on Object catch (error) {
+        _reportWorkspaceSwitchFailure(error);
+        return false;
+      }
+    }
+
+    var restored = workspace.isEmpty
+        ? LocalWorkspaceRestoreResult(
+            tabs: const <TerminalTab>[],
+            activeSessionId: null,
+            failures: const <LocalWorkspaceRelaunchFailure>[],
+          )
+        : _restoreWorkspace(workspace, profiles: previousState.profiles);
+    var targetTabs = restored.tabs;
+    var targetActiveSessionId = restored.activeSessionId;
+
+    if (targetTabs.isEmpty) {
+      final defaultProfile = _effectiveDefaultProfileForWorkspaceSwitch();
+      if (defaultProfile == null) {
+        _closePreparedWorkspaceSessions(restored.tabs);
+        state = previousState.copyWith(
+          lastError:
+              'Workspace switch failed: no default profile is available.',
+        );
+        return false;
+      }
+      final environmentOverrides = ref.read(
+        sessionEnvironmentOverridesProvider,
+      );
+      final projectPath = workspace.identity.projectPath;
+      final projectProfile = projectPath == null
+          ? defaultProfile
+          : defaultProfile.copyWith(cwd: projectPath);
+      final launchProfile = _profileWithSessionEnvironment(
+        projectProfile,
+        environmentOverrides,
+      );
+      final sessionId = _createRuntimeSession(launchProfile);
+      if (sessionId == null) {
+        _closePreparedWorkspaceSessions(restored.tabs);
+        state = previousState.copyWith(
+          lastError:
+              state.lastError ??
+              'Workspace switch failed: session launch failed.',
+        );
+        return false;
+      }
+      final pane = TerminalPane(
+        sessionId: sessionId,
+        title: launchProfile.name,
+        profileId: defaultProfile.id,
+        profileSnapshot: launchProfile,
+        sessionDescriptor: _sessionDescriptorForLaunch(
+          sessionId: sessionId,
+          profileId: defaultProfile.id,
+          launchProfile: launchProfile,
+          title: launchProfile.name,
+        ),
+      );
+      targetTabs = <TerminalTab>[
+        TerminalTab(
+          sessionId: sessionId,
+          title: pane.title,
+          profileId: pane.profileId,
+          profileSnapshot: pane.profileSnapshot,
+          sessionDescriptor: pane.sessionDescriptor,
+        ),
+      ];
+      targetActiveSessionId = sessionId;
+      restored = LocalWorkspaceRestoreResult(
+        tabs: targetTabs,
+        activeSessionId: targetActiveSessionId,
+        failures: restored.failures,
+      );
+    }
+
+    final restoreError = restored.failures.isEmpty
+        ? null
+        : _workspaceRestoreFailureMessage(restored.failures);
+    final targetState = previousState.copyWith(
+      tabs: targetTabs,
+      activeSessionId: targetActiveSessionId,
+      lastError: restoreError,
+    );
+    final capturedTarget = LocalSessionWorkspaceCodec.capture(
+      targetState,
+      identity: workspace.identity,
+    );
+
+    if (!ref.mounted) {
+      _closePreparedWorkspaceSessions(targetTabs);
+      return false;
+    }
+    try {
+      await ref
+          .read(localWorkspaceRepositoryProvider)
+          .activateWorkspace(capturedTarget);
+    } on Object catch (error) {
+      _closePreparedWorkspaceSessions(targetTabs);
+      state = previousState;
+      _reportWorkspaceSwitchFailure(error);
+      return false;
+    }
+    if (!ref.mounted) {
+      _closePreparedWorkspaceSessions(targetTabs);
+      return false;
+    }
+
+    for (final sessionId in previousSessionIds) {
+      _clearProgressTrackingForSession(sessionId);
+      _clearNotificationTrackingForSession(sessionId);
+      _automaticProfileBaselines.remove(sessionId);
+    }
+    _recentlyClosedTabs.clear();
+    _recentlyClosedPanesByTab.clear();
+    _activeWorkspaceIdentity = workspace.identity;
+    _workspacePersistenceEnabled = true;
+    _lastWorkspaceSnapshot = jsonEncode(capturedTarget.toJson());
+    state = targetState;
+    _syncRuntimeSessionActivation();
+
+    final activePane = targetActiveSessionId == null
+        ? null
+        : _paneForSession(targetActiveSessionId);
+    if (activePane == null) {
+      _publishTerminalContent(
+        terminalHasVisibleContent: false,
+        terminalPreview: null,
+      );
+    } else {
+      _setWindowTitle(activePane.title);
+      _publishActiveTabTerminalContent();
+    }
+
+    for (final sessionId in previousSessionIds) {
+      if (_runtime.hasSession(sessionId)) {
+        _runtime.closeSession(sessionId);
+      }
+    }
+    return true;
+  }
+
+  TerminalProfile? _effectiveDefaultProfileForWorkspaceSwitch() {
+    if (state.profiles.isEmpty) {
+      return null;
+    }
+    final defaultProfileId = state.defaultProfileId;
+    if (defaultProfileId == null) {
+      return state.profiles.first;
+    }
+    return state.profiles.firstWhere(
+      (profile) => profile.id == defaultProfileId,
+      orElse: () => state.profiles.first,
+    );
+  }
+
+  void _closePreparedWorkspaceSessions(Iterable<TerminalTab> tabs) {
+    for (final tab in tabs) {
+      for (final pane in tab.effectivePanes) {
+        final sessionId = pane.sessionId;
+        _automaticProfileBaselines.remove(sessionId);
+        _clearProgressTrackingForSession(sessionId);
+        _clearNotificationTrackingForSession(sessionId);
+        if (_runtime.hasSession(sessionId)) {
+          _runtime.closeSession(sessionId);
+        }
+      }
+    }
+  }
+
+  void _reportWorkspaceSwitchFailure(
+    Object error, {
+    String prefix = 'Workspace switch failed',
+  }) {
+    if (!ref.mounted) {
+      return;
+    }
+    final detail = _boundedShellMetadata(error.toString(), 240);
+    state = state.copyWith(
+      lastError: '$prefix${detail == null ? '' : ': $detail'}',
+    );
   }
 
   void _ensureRuntimeSubscription() {
@@ -580,6 +1072,12 @@ class SessionController extends Notifier<SessionState> {
     if (sessionId == null) {
       return;
     }
+    final descriptor = _sessionDescriptorForLaunch(
+      sessionId: sessionId,
+      profileId: profile.id,
+      launchProfile: launchProfile,
+      title: launchProfile.name,
+    );
     state = state.copyWith(
       tabs: <TerminalTab>[
         ...state.tabs,
@@ -588,6 +1086,7 @@ class SessionController extends Notifier<SessionState> {
           title: launchProfile.name,
           profileId: profile.id,
           profileSnapshot: launchProfile,
+          sessionDescriptor: descriptor,
         ),
       ],
       activeSessionId: sessionId,
@@ -635,6 +1134,12 @@ class SessionController extends Notifier<SessionState> {
       title: launchProfile.name,
       profileId: profile.id,
       profileSnapshot: launchProfile,
+      sessionDescriptor: _sessionDescriptorForLaunch(
+        sessionId: sessionId,
+        profileId: profile.id,
+        launchProfile: launchProfile,
+        title: launchProfile.name,
+      ),
     );
     final targetTab = state.tabs[targetTabIndex];
     final nextPaneLayout = targetTab.effectivePaneLayout.splitPane(
@@ -688,6 +1193,35 @@ class SessionController extends Notifier<SessionState> {
       },
       TerminalEmulation.vt220 => const <String, String>{'TERM': 'vt220'},
     };
+  }
+
+  TerminalSessionDescriptor _sessionDescriptorForLaunch({
+    required String sessionId,
+    required String profileId,
+    required TerminalProfile launchProfile,
+    required String title,
+    TerminalSessionDescriptor? restoredDescriptor,
+  }) {
+    final restoredId = restoredDescriptor?.id.trim();
+    return TerminalSessionDescriptor(
+      id: restoredId == null || restoredId.isEmpty ? sessionId : restoredId,
+      profileId: profileId,
+      command: TerminalSessionCommand(
+        program: launchProfile.shell,
+        arguments: launchProfile.args,
+      ),
+      cwd: launchProfile.cwd,
+      environment: TerminalSessionEnvironmentMetadata(
+        keys: launchProfile.env.keys.toList(growable: false),
+      ),
+      title: title,
+      createdAtUtc: restoredDescriptor?.createdAtUtc ?? DateTime.now().toUtc(),
+      exitState: TerminalSessionExitState.running,
+      recordingPath: restoredDescriptor?.recordingPath,
+      restartPolicy:
+          restoredDescriptor?.restartPolicy ??
+          TerminalSessionRestartPolicy.relaunch,
+    );
   }
 
   String? _createRuntimeSession(TerminalProfile launchProfile) {
@@ -841,13 +1375,317 @@ class SessionController extends Notifier<SessionState> {
     state = state.copyWith(tabs: nextTabs);
   }
 
-  void closeSession(String sessionId) {
+  Future<bool> startSessionRecording(
+    String sessionId, {
+    TerminalRecordingInputPolicy inputPolicy =
+        TerminalRecordingInputPolicy.redact,
+  }) async {
+    if (ref.read(sessionDemoFixtureProvider) != null) {
+      state = state.copyWith(
+        lastError: 'Session recording is unavailable in reference demo mode.',
+      );
+      return false;
+    }
+    final pane = _paneForSession(sessionId);
+    if (!state.isReady ||
+        pane == null ||
+        pane.isExited ||
+        !_runtime.hasSession(sessionId) ||
+        state.recordingSessionIds.contains(sessionId) ||
+        state.recordingPendingSaveSessionIds.contains(sessionId) ||
+        state.recordingBusySessionIds.contains(sessionId)) {
+      return false;
+    }
+    final recorder = ref.read(terminalLiveRecorderProvider);
+    if (recorder == null) {
+      state = state.copyWith(
+        lastError: 'The active PTY backend does not support session recording.',
+      );
+      return false;
+    }
+
+    final repository = ref.read(localSessionRecordingRepositoryProvider);
+    _setRecordingStatus(sessionId, busy: true, lastError: null);
+    LocalSessionRecordingDestination? destination;
+    try {
+      final descriptorId = pane.sessionDescriptor?.id.trim();
+      destination = await repository.reserve(
+        workspaceId: _activeWorkspaceIdentity.id,
+        descriptorId: descriptorId == null || descriptorId.isEmpty
+            ? sessionId
+            : descriptorId,
+        runtimeSessionId: sessionId,
+        createdAtUtc: DateTime.now().toUtc(),
+      );
+      if (!ref.mounted) {
+        repository.release(destination);
+        return false;
+      }
+      recorder.start(sessionId, inputPolicy: inputPolicy);
+      _recordingDestinations[sessionId] = destination;
+      _setRecordingStatus(
+        sessionId,
+        active: true,
+        pendingSave: false,
+        busy: false,
+        lastError: null,
+      );
+      return true;
+    } on Object catch (error) {
+      if (destination != null) {
+        repository.release(destination);
+      }
+      if (ref.mounted) {
+        _setRecordingStatus(
+          sessionId,
+          active: false,
+          pendingSave: false,
+          busy: false,
+          lastError: _recordingError('Recording start failed', error),
+        );
+      }
+      return false;
+    }
+  }
+
+  Future<String?> stopSessionRecording(String sessionId) async {
+    if (state.recordingBusySessionIds.contains(sessionId) ||
+        (!state.recordingSessionIds.contains(sessionId) &&
+            !state.recordingPendingSaveSessionIds.contains(sessionId))) {
+      return null;
+    }
+    final recorder = ref.read(terminalLiveRecorderProvider);
+    final repository = ref.read(localSessionRecordingRepositoryProvider);
+    final destination = _recordingDestinations[sessionId];
+    if (recorder == null || destination == null) {
+      _setRecordingStatus(
+        sessionId,
+        active: false,
+        pendingSave: false,
+        busy: false,
+        lastError: 'Recording save state is unavailable.',
+      );
+      return null;
+    }
+
+    _setRecordingStatus(sessionId, busy: true, lastError: null);
+    try {
+      var recording = _pendingRecordings[sessionId];
+      if (recording == null) {
+        recording = recorder.stop(sessionId);
+        _pendingRecordings[sessionId] = recording;
+        _setRecordingStatus(
+          sessionId,
+          active: false,
+          pendingSave: true,
+          busy: true,
+        );
+      }
+      final path = await repository.save(destination, recording);
+      if (!ref.mounted) {
+        return path;
+      }
+      final pane = _paneForSession(sessionId);
+      final descriptor = pane?.sessionDescriptor;
+      if (pane != null && descriptor != null) {
+        _replaceSessionPane(
+          sessionId,
+          pane.copyWith(
+            sessionDescriptor: descriptor.copyWith(recordingPath: path),
+          ),
+        );
+      }
+      _pendingRecordings.remove(sessionId);
+      _recordingDestinations.remove(sessionId);
+      _setRecordingStatus(
+        sessionId,
+        active: false,
+        pendingSave: false,
+        busy: false,
+        lastError: null,
+      );
+      return path;
+    } on Object catch (error) {
+      if (!ref.mounted) {
+        return null;
+      }
+      final hasCompleteRecording = _pendingRecordings.containsKey(sessionId);
+      if (!hasCompleteRecording) {
+        repository.release(destination);
+        _recordingDestinations.remove(sessionId);
+      }
+      _setRecordingStatus(
+        sessionId,
+        active: false,
+        pendingSave: hasCompleteRecording,
+        busy: false,
+        lastError: _recordingError(
+          hasCompleteRecording
+              ? 'Recording save failed'
+              : 'Recording stop failed',
+          error,
+        ),
+      );
+      return null;
+    }
+  }
+
+  bool _recordingNeedsFinalization(String sessionId) {
+    return state.recordingSessionIds.contains(sessionId) ||
+        state.recordingPendingSaveSessionIds.contains(sessionId) ||
+        state.recordingBusySessionIds.contains(sessionId);
+  }
+
+  Future<bool> _finalizeSessionRecordings(Iterable<String> sessionIds) async {
+    for (final sessionId in sessionIds) {
+      if (state.recordingBusySessionIds.contains(sessionId)) {
+        state = state.copyWith(
+          lastError: 'Recording operation is still in progress. Try again.',
+        );
+        return false;
+      }
+      if ((state.recordingSessionIds.contains(sessionId) ||
+              state.recordingPendingSaveSessionIds.contains(sessionId)) &&
+          await stopSessionRecording(sessionId) == null) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  void _setRecordingStatus(
+    String sessionId, {
+    bool? active,
+    bool? pendingSave,
+    bool? busy,
+    Object? lastError = _recordingLastErrorNoChange,
+  }) {
+    final activeIds = <String>{...state.recordingSessionIds};
+    final pendingSaveIds = <String>{...state.recordingPendingSaveSessionIds};
+    final busyIds = <String>{...state.recordingBusySessionIds};
+    _updateMembership(activeIds, sessionId, active);
+    _updateMembership(pendingSaveIds, sessionId, pendingSave);
+    _updateMembership(busyIds, sessionId, busy);
+    state = state.copyWith(
+      recordingSessionIds: activeIds,
+      recordingPendingSaveSessionIds: pendingSaveIds,
+      recordingBusySessionIds: busyIds,
+      lastError: identical(lastError, _recordingLastErrorNoChange)
+          ? state.lastError
+          : lastError as String?,
+    );
+  }
+
+  void _updateMembership(Set<String> values, String sessionId, bool? included) {
+    if (included == true) {
+      values.add(sessionId);
+    } else if (included == false) {
+      values.remove(sessionId);
+    }
+  }
+
+  String _recordingError(String prefix, Object error) {
+    final detail = _boundedShellMetadata(error.toString(), 240);
+    return '$prefix${detail == null ? '' : ': $detail'}';
+  }
+
+  void _finalizeRecordingOnRuntimeExitBestEffort(String sessionId) {
+    if (!_recordingNeedsFinalization(sessionId)) {
+      return;
+    }
+    final recorder = ref.read(terminalLiveRecorderProvider);
+    final repository = ref.read(localSessionRecordingRepositoryProvider);
+    final destination = _recordingDestinations[sessionId];
+    try {
+      final recording =
+          _pendingRecordings[sessionId] ??
+          (recorder?.isRecording(sessionId) == true
+              ? recorder!.stop(sessionId)
+              : null);
+      if (recording != null && destination != null) {
+        final path = repository.saveSync(destination, recording);
+        final pane = _paneForSession(sessionId);
+        final descriptor = pane?.sessionDescriptor;
+        if (pane != null && descriptor != null) {
+          _replaceSessionPane(
+            sessionId,
+            pane.copyWith(
+              sessionDescriptor: descriptor.copyWith(recordingPath: path),
+            ),
+          );
+        }
+      }
+    } on Object catch (error) {
+      state = state.copyWith(
+        lastError: _recordingError('Recording exit save failed', error),
+      );
+    } finally {
+      _forgetRecording(sessionId, repository: repository);
+    }
+  }
+
+  void _disposeRecordingsBestEffort(
+    TerminalLiveRecorder? recorder,
+    LocalSessionRecordingRepository repository,
+  ) {
+    final sessionIds = _recordingDestinations.keys.toList(growable: false);
+    for (final sessionId in sessionIds) {
+      final destination = _recordingDestinations[sessionId];
+      try {
+        final recording =
+            _pendingRecordings[sessionId] ??
+            (recorder?.isRecording(sessionId) == true
+                ? recorder!.stop(sessionId)
+                : null);
+        if (recording != null && destination != null) {
+          repository.saveSync(destination, recording);
+        } else if (destination != null) {
+          repository.release(destination);
+        }
+      } on Object {
+        try {
+          recorder?.cancel(sessionId);
+        } on Object {
+          // Disposal is best effort and cannot report through state.
+        }
+      }
+    }
+    _recordingDestinations.clear();
+    _pendingRecordings.clear();
+  }
+
+  void _forgetRecording(
+    String sessionId, {
+    LocalSessionRecordingRepository? repository,
+  }) {
+    final destination = _recordingDestinations.remove(sessionId);
+    if (destination != null) {
+      repository?.release(destination);
+    }
+    _pendingRecordings.remove(sessionId);
+    if (!ref.mounted) {
+      return;
+    }
+    _setRecordingStatus(
+      sessionId,
+      active: false,
+      pendingSave: false,
+      busy: false,
+    );
+  }
+
+  Future<bool> closeSession(String sessionId) async {
     if (ref.read(sessionDemoFixtureProvider) != null) {
       _removeSessionState(sessionId);
-      return;
+      return true;
+    }
+    if (_recordingNeedsFinalization(sessionId) &&
+        !await _finalizeSessionRecordings(<String>[sessionId])) {
+      return false;
     }
     _runtime.closeSession(sessionId);
     _removeSessionState(sessionId);
+    return true;
   }
 
   void clearPromptMarks(String sessionId) {
@@ -865,15 +1703,23 @@ class SessionController extends Notifier<SessionState> {
     );
   }
 
-  void closeTab(String tabSessionId) {
+  Future<bool> closeTab(String tabSessionId) async {
     final tabIndex = state.tabs.indexWhere(
       (tab) => tab.sessionId == tabSessionId,
     );
     if (tabIndex == -1) {
-      return;
+      return false;
     }
 
     final closingTab = state.tabs[tabIndex];
+    final recordingSessionIds = closingTab.effectivePanes
+        .map((pane) => pane.sessionId)
+        .where(_recordingNeedsFinalization)
+        .toList(growable: false);
+    if (recordingSessionIds.isNotEmpty &&
+        !await _finalizeSessionRecordings(recordingSessionIds)) {
+      return false;
+    }
     final demoFixture = ref.read(sessionDemoFixtureProvider);
     if (demoFixture == null) {
       for (final pane in closingTab.effectivePanes) {
@@ -896,20 +1742,21 @@ class SessionController extends Notifier<SessionState> {
       } else {
         _publishDemoContent(demoFixture, state.activeSessionId);
       }
-      return;
+      return true;
     }
     if (state.activeSessionId == null) {
       _publishTerminalContent(
         terminalHasVisibleContent: false,
         terminalPreview: null,
       );
-      return;
+      return true;
     }
     final activePane = _paneForSession(state.activeSessionId!);
     if (activePane != null) {
       _setWindowTitle(activePane.title);
       _publishActiveTabTerminalContent();
     }
+    return true;
   }
 
   void reopenClosedTab() {
@@ -946,6 +1793,12 @@ class SessionController extends Notifier<SessionState> {
           title: sourcePane.title,
           profileId: profile.id,
           profileSnapshot: launchProfile,
+          sessionDescriptor: _sessionDescriptorForLaunch(
+            sessionId: sessionId,
+            profileId: profile.id,
+            launchProfile: launchProfile,
+            title: sourcePane.title,
+          ),
         ),
       );
       replacementsBySourceSessionId[sourcePane.sessionId] = reopenedPanes.last;
@@ -970,6 +1823,7 @@ class SessionController extends Notifier<SessionState> {
       title: closedTab.title,
       profileId: reopenedPanes.first.profileId,
       profileSnapshot: reopenedPanes.first.profileSnapshot,
+      sessionDescriptor: reopenedPanes.first.sessionDescriptor,
       panes: layoutPanes,
       paneLayout: reopenedLayout,
       activePaneSessionId: activeSessionId == tabSessionId
@@ -1029,6 +1883,12 @@ class SessionController extends Notifier<SessionState> {
       title: sourcePane.title,
       profileId: profile.id,
       profileSnapshot: launchProfile,
+      sessionDescriptor: _sessionDescriptorForLaunch(
+        sessionId: sessionId,
+        profileId: profile.id,
+        launchProfile: launchProfile,
+        title: sourcePane.title,
+      ),
     );
     final nextPaneLayout = activeTab.effectivePaneLayout.splitPane(
       sessionId: activeSessionId,
@@ -1133,6 +1993,7 @@ class SessionController extends Notifier<SessionState> {
         _applyFrame(event.sessionId, event.frame);
         break;
       case TerminalSessionExitEvent():
+        _finalizeRecordingOnRuntimeExitBestEffort(event.sessionId);
         _removeSessionState(event.sessionId, runtimeAlreadyClosed: true);
         break;
       case TerminalSessionBellEvent():
@@ -2249,23 +3110,7 @@ class SessionController extends Notifier<SessionState> {
     }
     final currentTab = state.tabs[tabIndex];
     final nextTabs = <TerminalTab>[...state.tabs];
-    if (currentTab.panes.isEmpty && currentTab.sessionId == sessionId) {
-      nextTabs[tabIndex] = currentTab.copyWith(
-        title: replacement.title,
-        profileId: replacement.profileId,
-        profileSnapshot: replacement.profileSnapshot,
-        isExited: replacement.isExited,
-        exitCode: replacement.exitCode,
-        shellIntegration: replacement.shellIntegration,
-        oscBadge: replacement.oscBadge,
-        tabStatus: replacement.tabStatus,
-        progress: replacement.progress,
-        namedProgress: replacement.namedProgress,
-        recentNotifications: replacement.recentNotifications,
-      );
-    } else {
-      nextTabs[tabIndex] = currentTab.replacePane(replacement);
-    }
+    nextTabs[tabIndex] = currentTab.replacePane(replacement);
     state = state.copyWith(tabs: nextTabs);
   }
 
@@ -2668,6 +3513,11 @@ class SessionController extends Notifier<SessionState> {
       return windowIconName;
     }
 
+    final descriptorTitle = pane.sessionDescriptor?.title;
+    if (descriptorTitle != null && descriptorTitle.isNotEmpty) {
+      return descriptorTitle;
+    }
+
     final profileSnapshot = pane.profileSnapshot;
     if (profileSnapshot != null) {
       return profileSnapshot.name;
@@ -2905,6 +3755,13 @@ class SessionController extends Notifier<SessionState> {
       return;
     }
     state = state.copyWith(configurationWarnings: const []);
+  }
+
+  void dismissLastError() {
+    if (state.lastError == null) {
+      return;
+    }
+    state = state.copyWith(lastError: null);
   }
 
   Future<void> setDefaultProfile(String profileId) async {

@@ -32,6 +32,7 @@ import '../terminal/terminal_viewport_colors.dart';
 import '../visual/local_terminal_diagnostics_exporter.dart';
 import '../visual/local_terminal_scrollback_exporter.dart';
 import '../visual/local_terminal_visual_models.dart';
+import '../workspace/local_workspace_models.dart';
 import 'advanced_paste_transformer.dart';
 import 'defaults_appearance_dialog.dart';
 import 'instant_replay_store.dart';
@@ -57,6 +58,8 @@ part 'shell_screen_state_search_completion.dart';
 part 'shell_screen_state_profile_actions.dart';
 part 'shell_screen_state_command_actions.dart';
 part 'shell_screen_state_terminal_workspace.dart';
+part 'shell_screen_state_workspaces.dart';
+part 'shell_screen_state_recording.dart';
 part 'shell_screen_models.dart';
 part 'shell_screen_toolbelt.dart';
 part 'shell_screen_chrome.dart';
@@ -192,6 +195,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _isAutoComposerOpen = false;
   bool _isCopyModeOpen = false;
   bool _isToolbeltOpen = false;
+  bool _workspaceSwitchBusy = false;
+  List<TerminalWorkspaceRecentEntry> _recentWorkspaces =
+      const <TerminalWorkspaceRecentEntry>[];
   bool _activeTerminalHasFocus = false;
   bool _recentlyClosedLastSession = false;
   bool _showWorkspaceCue = false;
@@ -289,6 +295,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     );
     WindowBridge.setNativeMenuHandlers(
       onPaste: _handleNativePasteMenu,
+      onOpenProject: _openProjectWorkspaceFromPicker,
       onFind: _handleNativeFindMenu,
       onOsc72DragEvent: _handleNativeOsc72DragEvent,
     );
@@ -306,6 +313,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     );
     Future.microtask(_loadPasteHistory);
     Future.microtask(_loadNotificationPreferences);
+    Future.microtask(_loadRecentWorkspaces);
   }
 
   @override
@@ -374,6 +382,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   Widget build(BuildContext context) {
     final sessionState = ref.watch(sessionControllerProvider);
     final sessionController = ref.read(sessionControllerProvider.notifier);
+    final activeWorkspaceIdentity = sessionController.activeWorkspaceIdentity;
     final activeSessionId = sessionState.activeSessionId;
     final defaultProfile = _effectiveDefaultProfileFor(
       sessionState.profiles,
@@ -898,6 +907,22 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 tabs: sessionState.tabs,
                 activeSessionId: activeSessionId,
                 activeTabTitle: activeChromeTitle,
+                activeWorkspaceIdentity: activeWorkspaceIdentity,
+                recentWorkspaces: _recentWorkspaces,
+                workspaceSwitchBusy: _workspaceSwitchBusy,
+                activeSessionRecording:
+                    activeSessionId != null &&
+                    sessionState.recordingSessionIds.contains(activeSessionId),
+                activeRecordingPendingSave:
+                    activeSessionId != null &&
+                    sessionState.recordingPendingSaveSessionIds.contains(
+                      activeSessionId,
+                    ),
+                recordingBusy:
+                    activeSessionId != null &&
+                    sessionState.recordingBusySessionIds.contains(
+                      activeSessionId,
+                    ),
                 tabHasNewOutput: _tabHasNewOutput,
                 tabNewOutputTooltip: _tabNewOutputTooltip,
                 hiddenTabsNewOutputTooltip: _hiddenTabsNewOutputTooltip,
@@ -919,6 +944,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     _activateSession(sessionController, sessionId),
                 onActivateBadgePane: (sessionId) =>
                     _activateSession(sessionController, sessionId),
+                onNotificationInteraction: _handleOscNotificationInteraction,
                 onActivateNewOutputPane: (sessionId) =>
                     _activateSession(sessionController, sessionId),
                 onCloseSession: (sessionId) =>
@@ -937,6 +963,17 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 ),
                 onShowCommandMenu: () =>
                     _openCommandMenu(sessionController, sessionState),
+                onToggleSessionRecording: activeSessionId == null
+                    ? null
+                    : () => unawaited(
+                        _toggleActiveSessionRecording(
+                          sessionController,
+                          activeSessionId,
+                        ),
+                      ),
+                onOpenProject: _openProjectWorkspaceFromPicker,
+                onOpenRecentWorkspace: _openRecentWorkspace,
+                onRefreshRecentWorkspaces: _loadRecentWorkspaces,
               ),
               if (sessionState.configurationWarnings.isNotEmpty)
                 _ShellConfigurationWarningsBanner(
@@ -947,6 +984,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     ref.read(sessionControllerProvider),
                   ),
                   onDismiss: sessionController.dismissConfigurationWarnings,
+                ),
+              if (sessionState.isReady && sessionState.lastError != null)
+                _ShellRuntimeErrorBanner(
+                  palette: palette,
+                  message: sessionState.lastError!,
+                  onDismiss: sessionController.dismissLastError,
                 ),
               Expanded(
                 child: AnimatedSwitcher(

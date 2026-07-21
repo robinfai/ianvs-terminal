@@ -44,10 +44,15 @@ final class TerminalExitEventRoute extends TerminalEventRoute {
 }
 
 final class TerminalAsyncEventRoute extends TerminalEventRoute {
-  const TerminalAsyncEventRoute({required this.kind, this.payload});
+  const TerminalAsyncEventRoute({
+    required this.kind,
+    this.payload,
+    this.hostRequest,
+  });
 
   final TerminalAsyncEventKind kind;
   final Map<String, Object?>? payload;
+  final PtyHostRequestV1? hostRequest;
 }
 
 final class TerminalImmediateEventRoute extends TerminalEventRoute {
@@ -80,6 +85,7 @@ final class TerminalEventRouter {
       'clipboard_paste_request' => TerminalAsyncEventRoute(
         kind: TerminalAsyncEventKind.clipboardPasteRequest,
         payload: event.payload,
+        hostRequest: event.hostRequest,
       ),
       'clipboard_mime_write' => TerminalAsyncEventRoute(
         kind: TerminalAsyncEventKind.clipboardMimeWrite,

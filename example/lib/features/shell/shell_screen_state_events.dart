@@ -1022,6 +1022,34 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     );
   }
 
+  void _handleOscNotificationInteraction(
+    _ShellNotificationInteraction interaction,
+  ) {
+    if (interaction.notification.identifier == null ||
+        interaction.notification.source != 'osc99') {
+      return;
+    }
+    final controller = ref.read(sessionControllerProvider.notifier);
+    switch (interaction.kind) {
+      case _ShellNotificationInteractionKind.activate:
+        controller.reportSessionNotificationAction(
+          interaction.sessionId,
+          interaction.notification,
+        );
+      case _ShellNotificationInteractionKind.button:
+        controller.reportSessionNotificationAction(
+          interaction.sessionId,
+          interaction.notification,
+          buttonNumber: interaction.buttonNumber,
+        );
+      case _ShellNotificationInteractionKind.dismiss:
+        controller.dismissSessionNotification(
+          interaction.sessionId,
+          interaction.notification,
+        );
+    }
+  }
+
   String _oscNotificationSnackBarMessage(
     terminal.TerminalSessionNotificationEvent event, {
     required String title,

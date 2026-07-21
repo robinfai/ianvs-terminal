@@ -5,8 +5,16 @@ import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
 
+import 'pty_diagnostic_event_v1.dart';
+import 'pty_graphic_asset_packet_v1.dart';
+import 'pty_host_request_v1.dart';
+import 'pty_runtime_capabilities.dart';
+import 'pty_runtime_envelope.dart';
+
 typedef _PingNative = ffi.Int32 Function();
 typedef _PingDart = int Function();
+typedef _RuntimeCapabilitiesNative = ffi.Pointer<Utf8> Function();
+typedef _RuntimeCapabilitiesDart = ffi.Pointer<Utf8> Function();
 typedef _CreateSessionNative = ffi.Uint64 Function(ffi.Pointer<Utf8>);
 typedef _CreateSessionDart = int Function(ffi.Pointer<Utf8>);
 typedef _CloseSessionNative = ffi.Int32 Function(ffi.Uint64);
@@ -37,6 +45,14 @@ typedef _ResizeSessionWithCellSizeDart =
 typedef _WriteSessionNative =
     ffi.Int32 Function(ffi.Uint64, ffi.Pointer<ffi.Uint8>, ffi.Size);
 typedef _WriteSessionDart = int Function(int, ffi.Pointer<ffi.Uint8>, int);
+typedef _ReplayExitNative =
+    ffi.Int32 Function(ffi.Uint64, ffi.Int32, ffi.Int32);
+typedef _ReplayExitDart = int Function(int, int, int);
+typedef _ReplayCheckpointCaptureNative = ffi.Uint64 Function(ffi.Uint64);
+typedef _ReplayCheckpointCaptureDart = int Function(int);
+typedef _ReplayCheckpointRestoreNative =
+    ffi.Int32 Function(ffi.Uint64, ffi.Uint64);
+typedef _ReplayCheckpointRestoreDart = int Function(int, int);
 typedef _ScrollSessionNative = ffi.Int32 Function(ffi.Uint64, ffi.Int32);
 typedef _ScrollSessionDart = int Function(int, int);
 typedef _ScrollToSessionNative = ffi.Int32 Function(ffi.Uint64, ffi.Size);
@@ -45,6 +61,8 @@ typedef _RequestSessionNative =
     ffi.Pointer<Utf8> Function(ffi.Uint64, ffi.Pointer<Utf8>);
 typedef _RequestSessionDart =
     ffi.Pointer<Utf8> Function(int, ffi.Pointer<Utf8>);
+typedef _HostResponseNative = ffi.Int32 Function(ffi.Uint64, ffi.Pointer<Utf8>);
+typedef _HostResponseDart = int Function(int, ffi.Pointer<Utf8>);
 typedef _StringReturningNative = ffi.Pointer<Utf8> Function(ffi.Uint64);
 typedef _StringReturningDart = ffi.Pointer<Utf8> Function(int);
 typedef _FreeStringNative = ffi.Void Function(ffi.Pointer<Utf8>);
@@ -53,6 +71,24 @@ typedef _BytesReturningNative =
     ffi.Pointer<ffi.Uint8> Function(ffi.Uint64, ffi.Pointer<ffi.Size>);
 typedef _BytesReturningDart =
     ffi.Pointer<ffi.Uint8> Function(int, ffi.Pointer<ffi.Size>);
+typedef _FramePacketV1Native =
+    ffi.Pointer<ffi.Uint8> Function(
+      ffi.Uint64,
+      ffi.Uint64,
+      ffi.Uint8,
+      ffi.Pointer<ffi.Size>,
+    );
+typedef _FramePacketV1Dart =
+    ffi.Pointer<ffi.Uint8> Function(int, int, int, ffi.Pointer<ffi.Size>);
+typedef _GraphicAssetPacketV1Native =
+    ffi.Pointer<ffi.Uint8> Function(
+      ffi.Uint64,
+      ffi.Uint64,
+      ffi.Uint64,
+      ffi.Pointer<ffi.Size>,
+    );
+typedef _GraphicAssetPacketV1Dart =
+    ffi.Pointer<ffi.Uint8> Function(int, int, int, ffi.Pointer<ffi.Size>);
 typedef _FreeBytesNative = ffi.Void Function(ffi.Pointer<ffi.Uint8>, ffi.Size);
 typedef _FreeBytesDart = void Function(ffi.Pointer<ffi.Uint8>, int);
 typedef _GraphicAssetMetaNative =
@@ -122,6 +158,32 @@ _StringReturningDart? _lookupOptionalStringReturning(
   }
 }
 
+_RuntimeCapabilitiesDart? _lookupOptionalRuntimeCapabilities(
+  ffi.DynamicLibrary library,
+) {
+  try {
+    return library
+        .lookupFunction<_RuntimeCapabilitiesNative, _RuntimeCapabilitiesDart>(
+          'ianvs_runtime_capabilities_json',
+        );
+  } on ArgumentError {
+    return null;
+  }
+}
+
+_CreateSessionDart? _lookupOptionalSessionCreate(
+  ffi.DynamicLibrary library,
+  String symbolName,
+) {
+  try {
+    return library.lookupFunction<_CreateSessionNative, _CreateSessionDart>(
+      symbolName,
+    );
+  } on ArgumentError {
+    return null;
+  }
+}
+
 _RequestSessionDart? _lookupOptionalRequestSession(
   ffi.DynamicLibrary library,
   String symbolName,
@@ -129,6 +191,16 @@ _RequestSessionDart? _lookupOptionalRequestSession(
   try {
     return library.lookupFunction<_RequestSessionNative, _RequestSessionDart>(
       symbolName,
+    );
+  } on ArgumentError {
+    return null;
+  }
+}
+
+_HostResponseDart? _lookupOptionalHostResponse(ffi.DynamicLibrary library) {
+  try {
+    return library.lookupFunction<_HostResponseNative, _HostResponseDart>(
+      'ianvs_session_host_response_v1_json',
     );
   } on ArgumentError {
     return null;
@@ -143,6 +215,29 @@ _BytesReturningDart? _lookupOptionalBytesReturning(
     return library.lookupFunction<_BytesReturningNative, _BytesReturningDart>(
       symbolName,
     );
+  } on ArgumentError {
+    return null;
+  }
+}
+
+_FramePacketV1Dart? _lookupOptionalFramePacketV1(ffi.DynamicLibrary library) {
+  try {
+    return library.lookupFunction<_FramePacketV1Native, _FramePacketV1Dart>(
+      'ianvs_session_take_frame_packet_v1_protobuf',
+    );
+  } on ArgumentError {
+    return null;
+  }
+}
+
+_GraphicAssetPacketV1Dart? _lookupOptionalGraphicAssetPacketV1(
+  ffi.DynamicLibrary library,
+) {
+  try {
+    return library
+        .lookupFunction<_GraphicAssetPacketV1Native, _GraphicAssetPacketV1Dart>(
+          'ianvs_session_graphic_asset_packet_v1_protobuf',
+        );
   } on ArgumentError {
     return null;
   }
@@ -234,6 +329,62 @@ _RefreshHintDart? _lookupOptionalRefreshHint(ffi.DynamicLibrary library) {
   }
 }
 
+_CreateSessionDart? _lookupOptionalReplayCreate(ffi.DynamicLibrary library) {
+  try {
+    return library.lookupFunction<_CreateSessionNative, _CreateSessionDart>(
+      'ianvs_replay_session_create',
+    );
+  } on ArgumentError {
+    return null;
+  }
+}
+
+_WriteSessionDart? _lookupOptionalReplayOutput(ffi.DynamicLibrary library) {
+  try {
+    return library.lookupFunction<_WriteSessionNative, _WriteSessionDart>(
+      'ianvs_replay_session_output',
+    );
+  } on ArgumentError {
+    return null;
+  }
+}
+
+_ReplayExitDart? _lookupOptionalReplayExit(ffi.DynamicLibrary library) {
+  try {
+    return library.lookupFunction<_ReplayExitNative, _ReplayExitDart>(
+      'ianvs_replay_session_exit',
+    );
+  } on ArgumentError {
+    return null;
+  }
+}
+
+_ReplayCheckpointCaptureDart? _lookupOptionalReplayCheckpointCapture(
+  ffi.DynamicLibrary library,
+) {
+  try {
+    return library.lookupFunction<
+      _ReplayCheckpointCaptureNative,
+      _ReplayCheckpointCaptureDart
+    >('ianvs_replay_session_checkpoint_capture');
+  } on ArgumentError {
+    return null;
+  }
+}
+
+_ReplayCheckpointRestoreDart? _lookupOptionalReplayCheckpointRestore(
+  ffi.DynamicLibrary library,
+) {
+  try {
+    return library.lookupFunction<
+      _ReplayCheckpointRestoreNative,
+      _ReplayCheckpointRestoreDart
+    >('ianvs_replay_session_checkpoint_restore');
+  } on ArgumentError {
+    return null;
+  }
+}
+
 class PtyGraphicAsset {
   const PtyGraphicAsset({
     required this.assetId,
@@ -269,11 +420,23 @@ class PtyNativeCallException implements Exception {
 }
 
 class PtyEvent {
-  const PtyEvent({required this.kind, required this.sessionId, this.payload});
+  const PtyEvent({
+    required this.kind,
+    required this.sessionId,
+    this.payload,
+    this.sequence,
+    this.timestampMicros,
+    this.wireSchemaVersion,
+    this.hostRequest,
+  });
 
   final String kind;
   final String sessionId;
   final Map<String, Object?>? payload;
+  final int? sequence;
+  final int? timestampMicros;
+  final int? wireSchemaVersion;
+  final PtyHostRequestV1? hostRequest;
 
   factory PtyEvent.fromJson(Map<String, Object?> json) {
     final event = PtyEvent.tryFromJson(json);
@@ -411,19 +574,115 @@ abstract interface class PtyFileDownloadBindings {
   bool sessionDiscardFileDownload(int sessionId, int downloadId);
 }
 
+abstract interface class PtyReplayBindings {
+  bool get supportsReplaySessions;
+  int replaySessionCreateJson(String sessionConfigJson);
+  int replaySessionOutput(int sessionId, List<int> bytes);
+  int replaySessionExit(int sessionId, int? exitCode);
+}
+
+/// Optional native binding surface for complete in-memory replay snapshots.
+abstract interface class PtyReplayCheckpointBindings {
+  bool get supportsReplayCheckpoints;
+  int replaySessionCheckpointCapture(int sessionId);
+  bool replaySessionCheckpointRestore(int sessionId, int checkpointId);
+}
+
+/// Optional binding surface for the versioned, product-neutral SessionConfig
+/// contract. Legacy create methods remain available during the compatibility
+/// window.
+abstract interface class PtySessionConfigV1Bindings {
+  bool get supportsSessionConfigV1;
+  bool get supportsReplaySessionConfigV1;
+  int sessionCreateV1Json(String sessionConfigV1Json);
+  int replaySessionCreateV1Json(String sessionConfigV1Json);
+}
+
+abstract interface class PtyRuntimeCapabilityBindings {
+  String? runtimeCapabilitiesJson();
+}
+
+abstract interface class PtyRuntimeEventBindings {
+  bool get supportsRuntimeEventEnvelopes;
+  String? sessionPollEventEnvelopesJson(int sessionId);
+}
+
+abstract interface class PtySessionRequestV1Bindings {
+  bool get supportsSessionRequestV1;
+  String? sessionRequestV1Json(int sessionId, String requestV1Json);
+}
+
+abstract interface class PtyHostResponseV1Bindings {
+  bool get supportsHostResponseV1;
+  bool sessionHostResponseV1Json(int sessionId, String responseV1Json);
+}
+
+abstract interface class PtyDiagnosticEventV1Bindings {
+  bool get supportsDiagnosticEventV1;
+  String? sessionTakeDiagnosticEventV1Json(int sessionId, String name);
+}
+
+abstract interface class PtyFramePacketV1Bindings {
+  bool get supportsFramePacketV1;
+  Uint8List? sessionTakeFramePacketV1Protobuf(
+    int sessionId, {
+    required int? afterSequence,
+  });
+}
+
+abstract interface class PtyGraphicAssetPacketV1Bindings {
+  bool get supportsGraphicAssetPacketV1;
+  Uint8List? sessionGraphicAssetPacketV1Protobuf(
+    int sessionId,
+    int assetId,
+    int assetVersion,
+  );
+}
+
 abstract final class PtyRefreshHintFlags {
   static const int none = 0;
   static const int frameDirty = 1 << 0;
 }
 
 class NativePtyBindings
-    implements PtyBindings, PtyRefreshHintBindings, PtyFileDownloadBindings {
+    implements
+        PtyBindings,
+        PtyRefreshHintBindings,
+        PtyFileDownloadBindings,
+        PtyReplayBindings,
+        PtyReplayCheckpointBindings,
+        PtySessionConfigV1Bindings,
+        PtySessionRequestV1Bindings,
+        PtyHostResponseV1Bindings,
+        PtyDiagnosticEventV1Bindings,
+        PtyFramePacketV1Bindings,
+        PtyGraphicAssetPacketV1Bindings,
+        PtyRuntimeCapabilityBindings,
+        PtyRuntimeEventBindings {
   NativePtyBindings(ffi.DynamicLibrary library)
     : _ping = library.lookupFunction<_PingNative, _PingDart>('ianvs_ping'),
+      _runtimeCapabilities = _lookupOptionalRuntimeCapabilities(library),
       _createSession = library
           .lookupFunction<_CreateSessionNative, _CreateSessionDart>(
             'ianvs_session_create',
           ),
+      _createSessionV1 = _lookupOptionalSessionCreate(
+        library,
+        'ianvs_session_create_v1',
+      ),
+      _replaySessionCreate = _lookupOptionalReplayCreate(library),
+      _replaySessionCreateV1 = _lookupOptionalSessionCreate(
+        library,
+        'ianvs_replay_session_create_v1',
+      ),
+      _replaySessionOutput = _lookupOptionalReplayOutput(library),
+      _replaySessionExit = _lookupOptionalReplayExit(library),
+      _replayCheckpointCapture = _lookupOptionalReplayCheckpointCapture(
+        library,
+      ),
+      _replayCheckpointRestore = _lookupOptionalReplayCheckpointRestore(
+        library,
+      ),
       _closeSession = library
           .lookupFunction<_CloseSessionNative, _CloseSessionDart>(
             'ianvs_session_close',
@@ -452,6 +711,15 @@ class NativePtyBindings
         library,
         'ianvs_session_request_json',
       ),
+      _requestSessionV1Json = _lookupOptionalRequestSession(
+        library,
+        'ianvs_session_request_v1_json',
+      ),
+      _hostResponseV1 = _lookupOptionalHostResponse(library),
+      _takeDiagnosticEventV1Json = _lookupOptionalRequestSession(
+        library,
+        'ianvs_session_take_diagnostic_event_v1_json',
+      ),
       _takeFrameDiffJson = library
           .lookupFunction<_StringReturningNative, _StringReturningDart>(
             'ianvs_session_take_frame_diff_json',
@@ -460,6 +728,10 @@ class NativePtyBindings
         library,
         'ianvs_session_take_frame_diff_protobuf',
       ),
+      _takeFramePacketV1Protobuf = _lookupOptionalFramePacketV1(library),
+      _graphicAssetPacketV1Protobuf = _lookupOptionalGraphicAssetPacketV1(
+        library,
+      ),
       _takeFrameDebugStatsJson = _lookupOptionalStringReturning(
         library,
         'ianvs_session_take_frame_debug_stats_json',
@@ -467,6 +739,10 @@ class NativePtyBindings
       _takeSessionDebugStatsJson = _lookupOptionalStringReturning(
         library,
         'ianvs_session_take_session_debug_stats_json',
+      ),
+      _pollEventEnvelopesJson = _lookupOptionalStringReturning(
+        library,
+        'ianvs_session_poll_event_envelopes_json',
       ),
       _pollEventsJson = library
           .lookupFunction<_StringReturningNative, _StringReturningDart>(
@@ -482,7 +758,15 @@ class NativePtyBindings
       _bytesFree = _lookupOptionalFreeBytes(library, 'ianvs_bytes_free');
 
   final _PingDart _ping;
+  final _RuntimeCapabilitiesDart? _runtimeCapabilities;
   final _CreateSessionDart _createSession;
+  final _CreateSessionDart? _createSessionV1;
+  final _CreateSessionDart? _replaySessionCreate;
+  final _CreateSessionDart? _replaySessionCreateV1;
+  final _WriteSessionDart? _replaySessionOutput;
+  final _ReplayExitDart? _replaySessionExit;
+  final _ReplayCheckpointCaptureDart? _replayCheckpointCapture;
+  final _ReplayCheckpointRestoreDart? _replayCheckpointRestore;
   final _CloseSessionDart _closeSession;
   final _RefreshHintDart? _refreshHint;
   final _ResizeSessionDart _resizeSession;
@@ -491,10 +775,16 @@ class NativePtyBindings
   final _ScrollSessionDart _scrollSession;
   final _ScrollToSessionDart _scrollToSession;
   final _RequestSessionDart? _requestSessionJson;
+  final _RequestSessionDart? _requestSessionV1Json;
+  final _HostResponseDart? _hostResponseV1;
+  final _RequestSessionDart? _takeDiagnosticEventV1Json;
   final _StringReturningDart _takeFrameDiffJson;
   final _BytesReturningDart? _takeFrameDiffProtobuf;
+  final _FramePacketV1Dart? _takeFramePacketV1Protobuf;
+  final _GraphicAssetPacketV1Dart? _graphicAssetPacketV1Protobuf;
   final _StringReturningDart? _takeFrameDebugStatsJson;
   final _StringReturningDart? _takeSessionDebugStatsJson;
+  final _StringReturningDart? _pollEventEnvelopesJson;
   final _StringReturningDart _pollEventsJson;
   final _GraphicAssetMetaDart? _graphicAssetMeta;
   final _GraphicAssetRgbaCopyDart? _graphicAssetRgbaCopy;
@@ -507,7 +797,46 @@ class NativePtyBindings
   bool get supportsFrameDiffProtobuf => _takeFrameDiffProtobuf != null;
 
   @override
+  bool get supportsFramePacketV1 =>
+      _takeFramePacketV1Protobuf != null && _bytesFree != null;
+
+  @override
+  bool get supportsGraphicAssetPacketV1 =>
+      _graphicAssetPacketV1Protobuf != null && _bytesFree != null;
+
+  @override
   bool get supportsRefreshHints => _refreshHint != null;
+
+  @override
+  bool get supportsReplaySessions =>
+      _replaySessionCreate != null &&
+      _replaySessionOutput != null &&
+      _replaySessionExit != null;
+
+  @override
+  bool get supportsReplayCheckpoints =>
+      _replayCheckpointCapture != null && _replayCheckpointRestore != null;
+
+  @override
+  bool get supportsSessionConfigV1 => _createSessionV1 != null;
+
+  @override
+  bool get supportsReplaySessionConfigV1 =>
+      _replaySessionCreateV1 != null &&
+      _replaySessionOutput != null &&
+      _replaySessionExit != null;
+
+  @override
+  bool get supportsRuntimeEventEnvelopes => _pollEventEnvelopesJson != null;
+
+  @override
+  bool get supportsSessionRequestV1 => _requestSessionV1Json != null;
+
+  @override
+  bool get supportsHostResponseV1 => _hostResponseV1 != null;
+
+  @override
+  bool get supportsDiagnosticEventV1 => _takeDiagnosticEventV1Json != null;
 
   factory NativePtyBindings.load() {
     return NativePtyBindings(
@@ -519,6 +848,23 @@ class NativePtyBindings
   int ping() => _ping();
 
   @override
+  String? runtimeCapabilitiesJson() {
+    final binding = _runtimeCapabilities;
+    if (binding == null) {
+      return null;
+    }
+    final resultPointer = binding();
+    if (resultPointer == ffi.nullptr) {
+      return null;
+    }
+    try {
+      return resultPointer.toDartString();
+    } finally {
+      _stringFree(resultPointer);
+    }
+  }
+
+  @override
   int sessionCreateJson(String sessionConfigJson) {
     final pointer = sessionConfigJson.toNativeUtf8();
     try {
@@ -526,6 +872,84 @@ class NativePtyBindings
     } finally {
       malloc.free(pointer);
     }
+  }
+
+  @override
+  int sessionCreateV1Json(String sessionConfigV1Json) {
+    final binding = _createSessionV1;
+    if (binding == null) {
+      return 0;
+    }
+    final pointer = sessionConfigV1Json.toNativeUtf8();
+    try {
+      return binding(pointer);
+    } finally {
+      malloc.free(pointer);
+    }
+  }
+
+  @override
+  int replaySessionCreateJson(String sessionConfigJson) {
+    final binding = _replaySessionCreate;
+    if (binding == null) {
+      return 0;
+    }
+    final pointer = sessionConfigJson.toNativeUtf8();
+    try {
+      return binding(pointer);
+    } finally {
+      malloc.free(pointer);
+    }
+  }
+
+  @override
+  int replaySessionCreateV1Json(String sessionConfigV1Json) {
+    final binding = _replaySessionCreateV1;
+    if (binding == null) {
+      return 0;
+    }
+    final pointer = sessionConfigV1Json.toNativeUtf8();
+    try {
+      return binding(pointer);
+    } finally {
+      malloc.free(pointer);
+    }
+  }
+
+  @override
+  int replaySessionOutput(int sessionId, List<int> bytes) {
+    final binding = _replaySessionOutput;
+    if (binding == null) {
+      return -1;
+    }
+    final pointer = malloc<ffi.Uint8>(bytes.isEmpty ? 1 : bytes.length);
+    try {
+      if (bytes.isNotEmpty) {
+        pointer.asTypedList(bytes.length).setAll(0, bytes);
+      }
+      return binding(sessionId, pointer, bytes.length);
+    } finally {
+      malloc.free(pointer);
+    }
+  }
+
+  @override
+  int replaySessionExit(int sessionId, int? exitCode) {
+    final binding = _replaySessionExit;
+    if (binding == null) {
+      return -1;
+    }
+    return binding(sessionId, exitCode ?? 0, exitCode == null ? 0 : 1);
+  }
+
+  @override
+  int replaySessionCheckpointCapture(int sessionId) {
+    return _replayCheckpointCapture?.call(sessionId) ?? 0;
+  }
+
+  @override
+  bool replaySessionCheckpointRestore(int sessionId, int checkpointId) {
+    return _replayCheckpointRestore?.call(sessionId, checkpointId) == 0;
   }
 
   @override
@@ -581,14 +1005,45 @@ class NativePtyBindings
 
   @override
   String? sessionRequestJson(int sessionId, String requestJson) {
-    final requestSessionJson = _requestSessionJson;
-    if (requestSessionJson == null) {
+    return _callSessionRequest(_requestSessionJson, sessionId, requestJson);
+  }
+
+  @override
+  String? sessionRequestV1Json(int sessionId, String requestV1Json) {
+    return _callSessionRequest(_requestSessionV1Json, sessionId, requestV1Json);
+  }
+
+  @override
+  bool sessionHostResponseV1Json(int sessionId, String responseV1Json) {
+    final binding = _hostResponseV1;
+    if (binding == null) {
+      return false;
+    }
+    final responsePointer = responseV1Json.toNativeUtf8();
+    try {
+      return binding(sessionId, responsePointer) == 0;
+    } finally {
+      malloc.free(responsePointer);
+    }
+  }
+
+  @override
+  String? sessionTakeDiagnosticEventV1Json(int sessionId, String name) {
+    return _callSessionRequest(_takeDiagnosticEventV1Json, sessionId, name);
+  }
+
+  String? _callSessionRequest(
+    _RequestSessionDart? binding,
+    int sessionId,
+    String requestJson,
+  ) {
+    if (binding == null) {
       return null;
     }
     final requestPointer = requestJson.toNativeUtf8();
     ffi.Pointer<Utf8> resultPointer = ffi.nullptr;
     try {
-      resultPointer = requestSessionJson(sessionId, requestPointer);
+      resultPointer = binding(sessionId, requestPointer);
       if (resultPointer == ffi.nullptr) {
         return null;
       }
@@ -620,6 +1075,79 @@ class NativePtyBindings
       final len = lenPointer.value;
       if (resultPointer == ffi.nullptr || len <= 0) {
         return null;
+      }
+      return Uint8List.fromList(resultPointer.asTypedList(len));
+    } finally {
+      if (resultPointer != ffi.nullptr) {
+        freeBytes(resultPointer, lenPointer.value);
+      }
+      calloc.free(lenPointer);
+    }
+  }
+
+  @override
+  Uint8List? sessionTakeFramePacketV1Protobuf(
+    int sessionId, {
+    required int? afterSequence,
+  }) {
+    final binding = _takeFramePacketV1Protobuf;
+    final freeBytes = _bytesFree;
+    if (binding == null || freeBytes == null) {
+      return null;
+    }
+    if (afterSequence != null && afterSequence < 0) {
+      throw ArgumentError.value(
+        afterSequence,
+        'afterSequence',
+        'must be non-negative',
+      );
+    }
+    final lenPointer = calloc<ffi.Size>();
+    ffi.Pointer<ffi.Uint8> resultPointer = ffi.nullptr;
+    try {
+      resultPointer = binding(
+        sessionId,
+        afterSequence ?? 0,
+        afterSequence == null ? 0 : 1,
+        lenPointer,
+      );
+      final len = lenPointer.value;
+      if (resultPointer == ffi.nullptr || len <= 0) {
+        return null;
+      }
+      return Uint8List.fromList(resultPointer.asTypedList(len));
+    } finally {
+      if (resultPointer != ffi.nullptr) {
+        freeBytes(resultPointer, lenPointer.value);
+      }
+      calloc.free(lenPointer);
+    }
+  }
+
+  @override
+  Uint8List? sessionGraphicAssetPacketV1Protobuf(
+    int sessionId,
+    int assetId,
+    int assetVersion,
+  ) {
+    final binding = _graphicAssetPacketV1Protobuf;
+    final freeBytes = _bytesFree;
+    if (binding == null || freeBytes == null) {
+      return null;
+    }
+    final lenPointer = calloc<ffi.Size>();
+    ffi.Pointer<ffi.Uint8> resultPointer = ffi.nullptr;
+    try {
+      resultPointer = binding(sessionId, assetId, assetVersion, lenPointer);
+      final len = lenPointer.value;
+      if (resultPointer == ffi.nullptr || len <= 0) {
+        return null;
+      }
+      if (len > ptyGraphicAssetPacketMaxEncodedBytes) {
+        throw const PtyGraphicAssetPacketFormatException(
+          code: PtyGraphicAssetPacketErrorCode.capacityExceeded,
+          message: 'Native Graphic Asset Packet exceeds its encoded byte limit',
+        );
       }
       return Uint8List.fromList(resultPointer.asTypedList(len));
     } finally {
@@ -669,6 +1197,12 @@ class NativePtyBindings
     } finally {
       _stringFree(resultPointer);
     }
+  }
+
+  @override
+  String? sessionPollEventEnvelopesJson(int sessionId) {
+    final binding = _pollEventEnvelopesJson;
+    return binding == null ? null : _callStringReturning(binding, sessionId);
   }
 
   @override
@@ -780,12 +1314,55 @@ abstract class PtySessionBackend {
   List<PtyEvent> pollEvents(String sessionId);
 }
 
+/// Optional capability for sessions fed by deterministic recorded PTY output
+/// instead of a live child process.
+abstract interface class PtyReplaySessionBackend {
+  String createReplaySession(String sessionConfigJson);
+  void replayOutput(String sessionId, List<int> bytes);
+  void replayExit(String sessionId, {int? exitCode});
+}
+
+/// Optional capability for capturing and restoring complete replay terminal
+/// state. Checkpoint IDs are scoped to one replay session.
+abstract interface class PtyReplayCheckpointBackend {
+  bool get supportsReplayCheckpoints;
+  int captureReplayCheckpoint(String sessionId);
+  bool restoreReplayCheckpoint(String sessionId, int checkpointId);
+}
+
+/// Optional live-session creation path for SessionConfig v1.
+abstract interface class PtySessionConfigV1Backend {
+  bool get supportsSessionConfigV1;
+  String createSessionV1(String sessionConfigV1Json);
+}
+
+/// Optional replay-session creation path for SessionConfig v1.
+abstract interface class PtyReplaySessionConfigV1Backend {
+  bool get supportsReplaySessionConfigV1;
+  String createReplaySessionV1(String sessionConfigV1Json);
+}
+
 abstract class PtySessionJsonRequestBackend {
   String? requestSessionJson(String sessionId, String requestJson);
 }
 
+abstract interface class PtySessionRequestV1Backend {
+  bool get supportsSessionRequestV1;
+  String? requestSessionV1Json(String sessionId, String requestV1Json);
+}
+
+abstract interface class PtyHostResponseV1Backend {
+  bool get supportsHostResponseV1;
+  bool respondToHostRequestV1(String sessionId, String responseV1Json);
+}
+
 abstract class PtySessionDiagnosticsBackend {
   String? takeDiagnosticsJson(String sessionId, String kind);
+}
+
+abstract interface class PtySessionDiagnosticEventV1Backend {
+  bool get supportsDiagnosticEventV1;
+  PtyDiagnosticEventV1? takeDiagnosticEventV1(String sessionId, String name);
 }
 
 abstract class PtySessionGraphicAssetBackend {
@@ -811,24 +1388,50 @@ abstract class PtySessionProtobufFrameBackend {
   Uint8List? takeFrameDiffProtobuf(String sessionId);
 }
 
+abstract interface class PtySessionFramePacketV1Backend {
+  bool get supportsFramePacketV1;
+  Uint8List? takeFramePacketV1Protobuf(
+    String sessionId, {
+    required int? afterSequence,
+  });
+}
+
 abstract interface class PtySessionRefreshHintBackend {
   bool get supportsRefreshHints;
   int refreshHintFlags(String sessionId);
 }
 
+abstract interface class PtyRuntimeCapabilityBackend {
+  PtyRuntimeCapabilities? get runtimeCapabilities;
+}
+
 class NativePtyBackend
     implements
         PtySessionBackend,
+        PtyReplaySessionBackend,
+        PtyReplayCheckpointBackend,
+        PtySessionConfigV1Backend,
+        PtyReplaySessionConfigV1Backend,
         PtySessionJsonRequestBackend,
+        PtySessionRequestV1Backend,
+        PtyHostResponseV1Backend,
         PtySessionDiagnosticsBackend,
+        PtySessionDiagnosticEventV1Backend,
         PtySessionGraphicAssetBackend,
         PtySessionFileDownloadBackend,
         PtySessionProtobufFrameBackend,
-        PtySessionRefreshHintBackend {
+        PtySessionFramePacketV1Backend,
+        PtySessionRefreshHintBackend,
+        PtyRuntimeCapabilityBackend {
   NativePtyBackend(this._bindings);
 
   final PtyBindings _bindings;
   final Map<String, int> _nativeSessionIds = <String, int>{};
+  final Map<int, int> _nextEventSequenceBySession = <int, int>{};
+
+  @override
+  late final PtyRuntimeCapabilities? runtimeCapabilities =
+      _loadRuntimeCapabilities();
 
   factory NativePtyBackend.load() => NativePtyBackend(NativePtyBindings.load());
 
@@ -838,15 +1441,185 @@ class NativePtyBackend
   @override
   int ping() => _bindings.ping();
 
+  PtyRuntimeCapabilities? _loadRuntimeCapabilities() {
+    final bindings = _bindings;
+    final capabilityBindings = bindings is PtyRuntimeCapabilityBindings
+        ? bindings as PtyRuntimeCapabilityBindings
+        : null;
+    final raw = capabilityBindings?.runtimeCapabilitiesJson();
+    return raw == null ? null : PtyRuntimeCapabilities.fromJsonString(raw);
+  }
+
   @override
   String createSession(String sessionConfigJson) {
     final createdSessionId = _bindings.sessionCreateJson(sessionConfigJson);
+    return _registerCreatedSession(createdSessionId, 'session');
+  }
+
+  @override
+  bool get supportsSessionConfigV1 {
+    final bindings = _bindings;
+    final configBindings = bindings is PtySessionConfigV1Bindings
+        ? bindings as PtySessionConfigV1Bindings
+        : null;
+    return configBindings?.supportsSessionConfigV1 ?? false;
+  }
+
+  @override
+  String createSessionV1(String sessionConfigV1Json) {
+    final bindings = _bindings;
+    final configBindings = bindings is PtySessionConfigV1Bindings
+        ? bindings as PtySessionConfigV1Bindings
+        : null;
+    if (configBindings == null || !configBindings.supportsSessionConfigV1) {
+      throw UnsupportedError('Native SessionConfig v1 is not supported');
+    }
+    return _registerCreatedSession(
+      configBindings.sessionCreateV1Json(sessionConfigV1Json),
+      'SessionConfig v1 session',
+    );
+  }
+
+  @override
+  String createReplaySession(String sessionConfigJson) {
+    final bindings = _bindings;
+    final replayBindings = bindings is PtyReplayBindings
+        ? bindings as PtyReplayBindings
+        : null;
+    if (replayBindings == null || !replayBindings.supportsReplaySessions) {
+      throw UnsupportedError('Native replay sessions are not supported');
+    }
+    final createdSessionId = replayBindings.replaySessionCreateJson(
+      sessionConfigJson,
+    );
+    return _registerCreatedSession(createdSessionId, 'replay session');
+  }
+
+  @override
+  bool get supportsReplaySessionConfigV1 {
+    final bindings = _bindings;
+    final configBindings = bindings is PtySessionConfigV1Bindings
+        ? bindings as PtySessionConfigV1Bindings
+        : null;
+    return configBindings?.supportsReplaySessionConfigV1 ?? false;
+  }
+
+  @override
+  String createReplaySessionV1(String sessionConfigV1Json) {
+    final bindings = _bindings;
+    final configBindings = bindings is PtySessionConfigV1Bindings
+        ? bindings as PtySessionConfigV1Bindings
+        : null;
+    if (configBindings == null ||
+        !configBindings.supportsReplaySessionConfigV1) {
+      throw UnsupportedError('Native replay SessionConfig v1 is not supported');
+    }
+    return _registerCreatedSession(
+      configBindings.replaySessionCreateV1Json(sessionConfigV1Json),
+      'SessionConfig v1 replay session',
+    );
+  }
+
+  String _registerCreatedSession(int createdSessionId, String description) {
     if (createdSessionId == 0) {
-      throw StateError('Failed to create session');
+      throw StateError('Failed to create $description');
     }
     final sessionId = createdSessionId.toString();
     _nativeSessionIds[sessionId] = createdSessionId;
+    _nextEventSequenceBySession[createdSessionId] = 0;
     return sessionId;
+  }
+
+  @override
+  void replayOutput(String sessionId, List<int> bytes) {
+    final bindings = _bindings;
+    final replayBindings = bindings is PtyReplayBindings
+        ? bindings as PtyReplayBindings
+        : null;
+    if (replayBindings == null || !replayBindings.supportsReplaySessions) {
+      throw UnsupportedError('Native replay sessions are not supported');
+    }
+    _validateNativeBytes(bytes);
+    _checkNativeStatus(
+      'replayOutput',
+      sessionId,
+      replayBindings.replaySessionOutput(_nativeSessionIdFor(sessionId), bytes),
+    );
+  }
+
+  @override
+  void replayExit(String sessionId, {int? exitCode}) {
+    final bindings = _bindings;
+    final replayBindings = bindings is PtyReplayBindings
+        ? bindings as PtyReplayBindings
+        : null;
+    if (replayBindings == null || !replayBindings.supportsReplaySessions) {
+      throw UnsupportedError('Native replay sessions are not supported');
+    }
+    final nativeExitCode = exitCode == null
+        ? null
+        : _nativeInt32('exitCode', exitCode);
+    _checkNativeStatus(
+      'replayExit',
+      sessionId,
+      replayBindings.replaySessionExit(
+        _nativeSessionIdFor(sessionId),
+        nativeExitCode,
+      ),
+    );
+  }
+
+  @override
+  bool get supportsReplayCheckpoints {
+    final bindings = _bindings;
+    return bindings is PtyReplayCheckpointBindings &&
+        (bindings as PtyReplayCheckpointBindings).supportsReplayCheckpoints;
+  }
+
+  @override
+  int captureReplayCheckpoint(String sessionId) {
+    final bindings = _bindings;
+    final checkpointBindings = bindings is PtyReplayCheckpointBindings
+        ? bindings as PtyReplayCheckpointBindings
+        : null;
+    if (checkpointBindings == null ||
+        !checkpointBindings.supportsReplayCheckpoints) {
+      throw UnsupportedError('Native replay checkpoints are not supported');
+    }
+    final checkpointId = checkpointBindings.replaySessionCheckpointCapture(
+      _nativeSessionIdFor(sessionId),
+    );
+    if (checkpointId == 0) {
+      throw PtyNativeCallException(
+        operation: 'captureReplayCheckpoint',
+        sessionId: sessionId,
+        statusCode: -1,
+      );
+    }
+    return checkpointId;
+  }
+
+  @override
+  bool restoreReplayCheckpoint(String sessionId, int checkpointId) {
+    final bindings = _bindings;
+    final checkpointBindings = bindings is PtyReplayCheckpointBindings
+        ? bindings as PtyReplayCheckpointBindings
+        : null;
+    if (checkpointBindings == null ||
+        !checkpointBindings.supportsReplayCheckpoints) {
+      throw UnsupportedError('Native replay checkpoints are not supported');
+    }
+    if (checkpointId <= 0) {
+      throw ArgumentError.value(
+        checkpointId,
+        'checkpointId',
+        'must be positive',
+      );
+    }
+    return checkpointBindings.replaySessionCheckpointRestore(
+      _nativeSessionIdFor(sessionId),
+      checkpointId,
+    );
   }
 
   @override
@@ -862,6 +1635,7 @@ class NativePtyBackend
       _nativeSessionIds
         ..remove(sessionId)
         ..remove(nativeSessionId.toString());
+      _nextEventSequenceBySession.remove(nativeSessionId);
     }
   }
 
@@ -941,6 +1715,54 @@ class NativePtyBackend
   }
 
   @override
+  bool get supportsSessionRequestV1 {
+    final bindings = _bindings;
+    final requestBindings = bindings is PtySessionRequestV1Bindings
+        ? bindings as PtySessionRequestV1Bindings
+        : null;
+    return requestBindings?.supportsSessionRequestV1 ?? false;
+  }
+
+  @override
+  String? requestSessionV1Json(String sessionId, String requestV1Json) {
+    final bindings = _bindings;
+    final requestBindings = bindings is PtySessionRequestV1Bindings
+        ? bindings as PtySessionRequestV1Bindings
+        : null;
+    if (requestBindings == null || !requestBindings.supportsSessionRequestV1) {
+      throw UnsupportedError('Native Session Request v1 is not supported');
+    }
+    return requestBindings.sessionRequestV1Json(
+      _nativeSessionIdFor(sessionId),
+      requestV1Json,
+    );
+  }
+
+  @override
+  bool get supportsHostResponseV1 {
+    final bindings = _bindings;
+    final hostBindings = bindings is PtyHostResponseV1Bindings
+        ? bindings as PtyHostResponseV1Bindings
+        : null;
+    return hostBindings?.supportsHostResponseV1 ?? false;
+  }
+
+  @override
+  bool respondToHostRequestV1(String sessionId, String responseV1Json) {
+    final bindings = _bindings;
+    final hostBindings = bindings is PtyHostResponseV1Bindings
+        ? bindings as PtyHostResponseV1Bindings
+        : null;
+    if (hostBindings == null || !hostBindings.supportsHostResponseV1) {
+      throw UnsupportedError('Native Host Response v1 is not supported');
+    }
+    return hostBindings.sessionHostResponseV1Json(
+      _nativeSessionIdFor(sessionId),
+      responseV1Json,
+    );
+  }
+
+  @override
   String? takeFrameDiffJson(String sessionId) {
     return _bindings.sessionTakeFrameDiffJson(_nativeSessionIdFor(sessionId));
   }
@@ -977,6 +1799,33 @@ class NativePtyBackend
   }
 
   @override
+  bool get supportsFramePacketV1 {
+    final bindings = _bindings;
+    final packetBindings = bindings is PtyFramePacketV1Bindings
+        ? bindings as PtyFramePacketV1Bindings
+        : null;
+    return packetBindings?.supportsFramePacketV1 ?? false;
+  }
+
+  @override
+  Uint8List? takeFramePacketV1Protobuf(
+    String sessionId, {
+    required int? afterSequence,
+  }) {
+    final bindings = _bindings;
+    final packetBindings = bindings is PtyFramePacketV1Bindings
+        ? bindings as PtyFramePacketV1Bindings
+        : null;
+    if (packetBindings == null || !packetBindings.supportsFramePacketV1) {
+      throw UnsupportedError('Native Frame Packet v1 is not supported');
+    }
+    return packetBindings.sessionTakeFramePacketV1Protobuf(
+      _nativeSessionIdFor(sessionId),
+      afterSequence: afterSequence,
+    );
+  }
+
+  @override
   String? takeDiagnosticsJson(String sessionId, String kind) {
     return _bindings.sessionDiagnosticsJson(
       _nativeSessionIdFor(sessionId),
@@ -985,8 +1834,118 @@ class NativePtyBackend
   }
 
   @override
+  bool get supportsDiagnosticEventV1 {
+    final bindings = _bindings;
+    final diagnosticBindings = bindings is PtyDiagnosticEventV1Bindings
+        ? bindings as PtyDiagnosticEventV1Bindings
+        : null;
+    return diagnosticBindings?.supportsDiagnosticEventV1 ?? false;
+  }
+
+  @override
+  PtyDiagnosticEventV1? takeDiagnosticEventV1(String sessionId, String name) {
+    final bindings = _bindings;
+    final diagnosticBindings = bindings is PtyDiagnosticEventV1Bindings
+        ? bindings as PtyDiagnosticEventV1Bindings
+        : null;
+    if (diagnosticBindings == null ||
+        !diagnosticBindings.supportsDiagnosticEventV1) {
+      throw UnsupportedError('Native Diagnostic Event v1 is not supported');
+    }
+    final nativeSessionId = _nativeSessionIdFor(sessionId);
+    final raw = diagnosticBindings.sessionTakeDiagnosticEventV1Json(
+      nativeSessionId,
+      name,
+    );
+    return raw == null
+        ? null
+        : PtyDiagnosticEventV1.fromJsonString(
+            raw,
+            expectedSessionId: nativeSessionId.toString(),
+            expectedName: name,
+          );
+  }
+
+  @override
   List<PtyEvent> pollEvents(String sessionId) {
-    return _bindings.sessionPollEvents(_nativeSessionIdFor(sessionId));
+    final nativeSessionId = _nativeSessionIdFor(sessionId);
+    final bindings = _bindings;
+    final eventBindings = bindings is PtyRuntimeEventBindings
+        ? bindings as PtyRuntimeEventBindings
+        : null;
+    if (eventBindings == null || !eventBindings.supportsRuntimeEventEnvelopes) {
+      return bindings.sessionPollEvents(nativeSessionId);
+    }
+
+    final raw = eventBindings.sessionPollEventEnvelopesJson(nativeSessionId);
+    if (raw == null) {
+      return const <PtyEvent>[];
+    }
+    final batch = PtyRuntimeEventBatch.fromJsonString(raw);
+    if (batch.sessionId != nativeSessionId.toString()) {
+      throw PtyRuntimeContractException(
+        code: 'event_session_mismatch',
+        path: r'$.session_id',
+        message: 'Runtime Event batch does not belong to session $sessionId',
+      );
+    }
+
+    var expectedSequence =
+        _nextEventSequenceBySession[nativeSessionId] ??
+        (batch.messages.isEmpty
+            ? batch.nextSequence
+            : batch.messages.first.sequence!);
+    var sequenceGap = batch.droppedCount > 0;
+    for (final message in batch.messages) {
+      final sequence = message.sequence!;
+      if (sequence != expectedSequence) {
+        sequenceGap = true;
+      }
+      expectedSequence = sequence + 1;
+    }
+    if (expectedSequence != batch.nextSequence) {
+      sequenceGap = true;
+    }
+    _nextEventSequenceBySession[nativeSessionId] = batch.nextSequence;
+    if (sequenceGap) {
+      throw PtyRuntimeContractException(
+        code: 'event_sequence_gap',
+        path: r'$.messages',
+        message:
+            'Runtime Event loss or reordering detected for session $sessionId',
+      );
+    }
+
+    return List<PtyEvent>.unmodifiable(
+      batch.messages.map(_eventFromRuntimeEnvelope),
+    );
+  }
+
+  PtyEvent _eventFromRuntimeEnvelope(PtyRuntimeEnvelope message) {
+    PtyHostRequestV1? hostRequest;
+    var kind = message.messageName;
+    var payload = _stringKeyedJsonMap(message.payload);
+    if (message.messageName == 'host_request') {
+      hostRequest = PtyHostRequestV1.fromJson(
+        message.payload,
+        expectedSessionId: message.sessionId!,
+        expectedSequence: message.sequence!,
+        expectedTimestampMicros: message.timestampMicros,
+      );
+      payload = hostRequest.payload;
+      if (hostRequest.operation == 'clipboard.read_text') {
+        kind = 'clipboard_paste_request';
+      }
+    }
+    return PtyEvent(
+      kind: kind,
+      sessionId: message.sessionId!,
+      payload: payload,
+      sequence: message.sequence,
+      timestampMicros: message.timestampMicros,
+      wireSchemaVersion: message.schemaVersion,
+      hostRequest: hostRequest,
+    );
   }
 
   @override
@@ -1005,11 +1964,35 @@ class NativePtyBackend
         'must be positive',
       );
     }
-    return _bindings.sessionGraphicAsset(
-      _nativeSessionIdFor(sessionId),
-      assetId,
-      assetVersion,
-    );
+    final nativeSessionId = _nativeSessionIdFor(sessionId);
+    final bindings = _bindings;
+    final packetBindings = bindings is PtyGraphicAssetPacketV1Bindings
+        ? bindings as PtyGraphicAssetPacketV1Bindings
+        : null;
+    if (packetBindings?.supportsGraphicAssetPacketV1 ?? false) {
+      final bytes = packetBindings!.sessionGraphicAssetPacketV1Protobuf(
+        nativeSessionId,
+        assetId,
+        assetVersion,
+      );
+      if (bytes == null) {
+        return null;
+      }
+      final packet = PtyGraphicAssetPacketV1.decode(
+        bytes,
+        expectedSessionId: '$nativeSessionId',
+        expectedAssetId: assetId,
+        expectedAssetVersion: assetVersion,
+      );
+      return PtyGraphicAsset(
+        assetId: packet.assetId,
+        assetVersion: packet.assetVersion,
+        width: packet.width,
+        height: packet.height,
+        rgba: packet.rgba,
+      );
+    }
+    return bindings.sessionGraphicAsset(nativeSessionId, assetId, assetVersion);
   }
 
   @override

@@ -13,6 +13,12 @@ class _ShellChromeBar extends StatelessWidget {
     required this.tabs,
     required this.activeSessionId,
     required this.activeTabTitle,
+    required this.activeWorkspaceIdentity,
+    required this.recentWorkspaces,
+    required this.workspaceSwitchBusy,
+    required this.activeSessionRecording,
+    required this.activeRecordingPendingSave,
+    required this.recordingBusy,
     required this.tabHasNewOutput,
     required this.tabNewOutputTooltip,
     required this.hiddenTabsNewOutputTooltip,
@@ -23,11 +29,16 @@ class _ShellChromeBar extends StatelessWidget {
     required this.onNewTab,
     required this.onActivateSession,
     required this.onActivateBadgePane,
+    required this.onNotificationInteraction,
     required this.onActivateNewOutputPane,
     required this.onCloseSession,
     required this.onReorderTab,
     required this.onShowTabContextMenu,
     required this.onShowCommandMenu,
+    required this.onToggleSessionRecording,
+    required this.onOpenProject,
+    required this.onOpenRecentWorkspace,
+    required this.onRefreshRecentWorkspaces,
   });
 
   final AppThemeTokens palette;
@@ -35,6 +46,12 @@ class _ShellChromeBar extends StatelessWidget {
   final List<TerminalTab> tabs;
   final String? activeSessionId;
   final String activeTabTitle;
+  final TerminalWorkspaceIdentity activeWorkspaceIdentity;
+  final List<TerminalWorkspaceRecentEntry> recentWorkspaces;
+  final bool workspaceSwitchBusy;
+  final bool activeSessionRecording;
+  final bool activeRecordingPendingSave;
+  final bool recordingBusy;
   final bool Function(TerminalTab tab) tabHasNewOutput;
   final String Function(TerminalTab tab) tabNewOutputTooltip;
   final String Function(Iterable<TerminalTab> tabs) hiddenTabsNewOutputTooltip;
@@ -46,12 +63,17 @@ class _ShellChromeBar extends StatelessWidget {
   final VoidCallback? onNewTab;
   final ValueChanged<String> onActivateSession;
   final ValueChanged<String> onActivateBadgePane;
+  final ValueChanged<_ShellNotificationInteraction> onNotificationInteraction;
   final ValueChanged<String> onActivateNewOutputPane;
   final ValueChanged<String> onCloseSession;
   final void Function({required int oldIndex, required int newIndex})
   onReorderTab;
   final void Function(TerminalTab tab, Offset position) onShowTabContextMenu;
   final VoidCallback onShowCommandMenu;
+  final VoidCallback? onToggleSessionRecording;
+  final Future<void> Function() onOpenProject;
+  final Future<void> Function(String workspaceId) onOpenRecentWorkspace;
+  final Future<void> Function() onRefreshRecentWorkspaces;
 
   @override
   Widget build(BuildContext context) {
@@ -89,6 +111,18 @@ class _ShellChromeBar extends StatelessWidget {
                 backgroundColor: chromeSurface,
                 title: activeTabTitle,
                 onShowCommandMenu: referenceDemoMode ? null : onShowCommandMenu,
+                activeWorkspaceIdentity: activeWorkspaceIdentity,
+                recentWorkspaces: recentWorkspaces,
+                workspaceSwitchBusy: workspaceSwitchBusy,
+                activeSessionRecording: activeSessionRecording,
+                activeRecordingPendingSave: activeRecordingPendingSave,
+                recordingBusy: recordingBusy,
+                onToggleSessionRecording: referenceDemoMode
+                    ? null
+                    : onToggleSessionRecording,
+                onOpenProject: referenceDemoMode ? null : onOpenProject,
+                onOpenRecentWorkspace: onOpenRecentWorkspace,
+                onRefreshRecentWorkspaces: onRefreshRecentWorkspaces,
               ),
               SizedBox(
                 height: _shellChromeTabRailHeight,
@@ -140,6 +174,8 @@ class _ShellChromeBar extends StatelessWidget {
                               onNewTab: onNewTab,
                               onActivateSession: onActivateSession,
                               onActivateBadgePane: onActivateBadgePane,
+                              onNotificationInteraction:
+                                  onNotificationInteraction,
                               onActivateNewOutputPane: onActivateNewOutputPane,
                               onCloseSession: onCloseSession,
                               onReorderTab: onReorderTab,
@@ -164,6 +200,16 @@ class _ShellWindowTitleBar extends StatelessWidget {
     required this.backgroundColor,
     required this.title,
     required this.onShowCommandMenu,
+    required this.activeWorkspaceIdentity,
+    required this.recentWorkspaces,
+    required this.workspaceSwitchBusy,
+    required this.activeSessionRecording,
+    required this.activeRecordingPendingSave,
+    required this.recordingBusy,
+    required this.onToggleSessionRecording,
+    required this.onOpenProject,
+    required this.onOpenRecentWorkspace,
+    required this.onRefreshRecentWorkspaces,
   });
 
   final AppThemeTokens palette;
@@ -171,13 +217,23 @@ class _ShellWindowTitleBar extends StatelessWidget {
   final Color backgroundColor;
   final String title;
   final VoidCallback? onShowCommandMenu;
+  final TerminalWorkspaceIdentity activeWorkspaceIdentity;
+  final List<TerminalWorkspaceRecentEntry> recentWorkspaces;
+  final bool workspaceSwitchBusy;
+  final bool activeSessionRecording;
+  final bool activeRecordingPendingSave;
+  final bool recordingBusy;
+  final VoidCallback? onToggleSessionRecording;
+  final Future<void> Function()? onOpenProject;
+  final Future<void> Function(String workspaceId) onOpenRecentWorkspace;
+  final Future<void> Function() onRefreshRecentWorkspaces;
 
   @override
   Widget build(BuildContext context) {
     final titleLeadingInset = defaultTargetPlatform == TargetPlatform.macOS
         ? 158.0
         : palette.spacing.xl;
-    final trailingInset = onShowCommandMenu == null ? 16.0 : 48.0;
+    final trailingInset = onShowCommandMenu == null ? 16.0 : 288.0;
 
     return SizedBox(
       height: _shellChromeTitleHeight,
@@ -222,6 +278,34 @@ class _ShellWindowTitleBar extends StatelessWidget {
             if (onShowCommandMenu != null)
               Positioned(
                 top: 5,
+                right: 252,
+                child: _ShellSessionRecordingButton(
+                  palette: palette,
+                  tone: tone,
+                  recording: activeSessionRecording,
+                  pendingSave: activeRecordingPendingSave,
+                  busy: recordingBusy,
+                  onPressed: onToggleSessionRecording,
+                ),
+              ),
+            if (onShowCommandMenu != null)
+              Positioned(
+                top: 5,
+                right: 48,
+                child: _ShellWorkspaceMenuButton(
+                  palette: palette,
+                  tone: tone,
+                  activeWorkspaceIdentity: activeWorkspaceIdentity,
+                  recentWorkspaces: recentWorkspaces,
+                  busy: workspaceSwitchBusy,
+                  onOpenProject: onOpenProject!,
+                  onOpenRecentWorkspace: onOpenRecentWorkspace,
+                  onRefreshRecentWorkspaces: onRefreshRecentWorkspaces,
+                ),
+              ),
+            if (onShowCommandMenu != null)
+              Positioned(
+                top: 5,
                 right: 12,
                 child: _buildChromeIconButton(
                   key: const Key('shell-chrome-menu'),
@@ -233,6 +317,187 @@ class _ShellWindowTitleBar extends StatelessWidget {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ShellSessionRecordingButton extends StatelessWidget {
+  const _ShellSessionRecordingButton({
+    required this.palette,
+    required this.tone,
+    required this.recording,
+    required this.pendingSave,
+    required this.busy,
+    required this.onPressed,
+  });
+
+  final AppThemeTokens palette;
+  final _ShellTabTone tone;
+  final bool recording;
+  final bool pendingSave;
+  final bool busy;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final tooltip = recording
+        ? 'Stop and save recording'
+        : pendingSave
+        ? 'Retry saving recording'
+        : 'Start recording (input redacted)';
+    final color = recording
+        ? palette.danger
+        : pendingSave
+        ? palette.warning
+        : tone.subtleText;
+    return _buildChromeIconButton(
+      key: const Key('shell-chrome-session-recording'),
+      tooltip: tooltip,
+      onPressed: busy ? null : onPressed,
+      iconSize: 16,
+      hoverBackgroundColor: tone.hoverBackground,
+      icon: busy
+          ? SizedBox.square(
+              dimension: 14,
+              child: CircularProgressIndicator(strokeWidth: 1.5, color: color),
+            )
+          : Icon(
+              pendingSave
+                  ? Icons.save_outlined
+                  : Icons.fiber_manual_record_rounded,
+              color: color,
+            ),
+    );
+  }
+}
+
+enum _ShellWorkspaceMenuAction { openProject }
+
+class _ShellWorkspaceMenuButton extends StatelessWidget {
+  const _ShellWorkspaceMenuButton({
+    required this.palette,
+    required this.tone,
+    required this.activeWorkspaceIdentity,
+    required this.recentWorkspaces,
+    required this.busy,
+    required this.onOpenProject,
+    required this.onOpenRecentWorkspace,
+    required this.onRefreshRecentWorkspaces,
+  });
+
+  final AppThemeTokens palette;
+  final _ShellTabTone tone;
+  final TerminalWorkspaceIdentity activeWorkspaceIdentity;
+  final List<TerminalWorkspaceRecentEntry> recentWorkspaces;
+  final bool busy;
+  final Future<void> Function() onOpenProject;
+  final Future<void> Function(String workspaceId) onOpenRecentWorkspace;
+  final Future<void> Function() onRefreshRecentWorkspaces;
+
+  @override
+  Widget build(BuildContext context) {
+    final inactiveRecent = recentWorkspaces
+        .where((entry) => entry.identity.id != activeWorkspaceIdentity.id)
+        .toList(growable: false);
+    return Semantics(
+      label: 'Workspace: ${activeWorkspaceIdentity.name}. Open workspace menu.',
+      button: true,
+      child: Tooltip(
+        message: 'Workspace: ${activeWorkspaceIdentity.name}',
+        child: PopupMenuButton<Object>(
+          key: const Key('shell-chrome-workspaces'),
+          enabled: !busy,
+          tooltip: 'Open workspace menu',
+          onOpened: () => unawaited(onRefreshRecentWorkspaces()),
+          onSelected: (value) {
+            switch (value) {
+              case _ShellWorkspaceMenuAction.openProject:
+                unawaited(onOpenProject());
+              case TerminalWorkspaceRecentEntry entry:
+                unawaited(onOpenRecentWorkspace(entry.identity.id));
+            }
+          },
+          itemBuilder: (context) => <PopupMenuEntry<Object>>[
+            PopupMenuItem<Object>(
+              key: const Key('shell-workspace-open-project'),
+              value: _ShellWorkspaceMenuAction.openProject,
+              child: const ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.folder_open_rounded),
+                title: Text('Open Project…'),
+                trailing: Text('⌘O'),
+              ),
+            ),
+            if (inactiveRecent.isNotEmpty) const PopupMenuDivider(),
+            for (final entry in inactiveRecent)
+              PopupMenuItem<Object>(
+                key: Key('shell-workspace-recent-${entry.identity.id}'),
+                value: entry,
+                child: ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.history_rounded),
+                  title: Text(
+                    entry.identity.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: entry.identity.projectPath == null
+                      ? null
+                      : Text(
+                          entry.identity.projectPath!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                ),
+              ),
+          ],
+          child: Container(
+            height: 28,
+            constraints: const BoxConstraints(maxWidth: 196),
+            padding: const EdgeInsets.symmetric(horizontal: 9),
+            decoration: BoxDecoration(
+              color: tone.hoverBackground,
+              borderRadius: BorderRadius.circular(palette.radius.md),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (busy)
+                  SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.5,
+                      color: tone.subtleText,
+                    ),
+                  )
+                else
+                  Icon(Icons.folder_outlined, size: 15, color: tone.subtleText),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    activeWorkspaceIdentity.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: tone.mutedText,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 3),
+                Icon(
+                  Icons.arrow_drop_down_rounded,
+                  size: 16,
+                  color: tone.subtleText,
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -371,6 +636,52 @@ class _ShellConfigurationWarningsBanner extends StatelessWidget {
   }
 }
 
+class _ShellRuntimeErrorBanner extends StatelessWidget {
+  const _ShellRuntimeErrorBanner({
+    required this.palette,
+    required this.message,
+    required this.onDismiss,
+  });
+
+  final AppThemeTokens palette;
+  final String message;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      key: const Key('shell-runtime-error'),
+      decoration: BoxDecoration(
+        color: palette.dangerContainer,
+        border: Border(bottom: BorderSide(color: palette.danger)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+        child: Row(
+          children: [
+            Icon(Icons.error_outline_rounded, color: palette.danger),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                message,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: palette.textPrimary),
+              ),
+            ),
+            _buildCompactActionButton(
+              key: const Key('shell-runtime-error-dismiss'),
+              tooltip: 'Dismiss runtime error',
+              onPressed: onDismiss,
+              icon: Icon(Icons.close_rounded, color: palette.textSubtle),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ReferenceDemoTabStrip extends StatelessWidget {
   const _ReferenceDemoTabStrip({
     required this.palette,
@@ -488,6 +799,7 @@ class _ShellTabStrip extends StatefulWidget {
     required this.onNewTab,
     required this.onActivateSession,
     required this.onActivateBadgePane,
+    required this.onNotificationInteraction,
     required this.onActivateNewOutputPane,
     required this.onCloseSession,
     required this.onReorderTab,
@@ -508,6 +820,7 @@ class _ShellTabStrip extends StatefulWidget {
   final VoidCallback? onNewTab;
   final ValueChanged<String> onActivateSession;
   final ValueChanged<String> onActivateBadgePane;
+  final ValueChanged<_ShellNotificationInteraction> onNotificationInteraction;
   final ValueChanged<String> onActivateNewOutputPane;
   final ValueChanged<String> onCloseSession;
   final void Function({required int oldIndex, required int newIndex})
@@ -686,6 +999,8 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
                                   ),
                                   onActivateBadgePane: (sessionId) =>
                                       widget.onActivateBadgePane(sessionId),
+                                  onNotificationInteraction:
+                                      widget.onNotificationInteraction,
                                   onActivateNewOutputPane: (sessionId) =>
                                       widget.onActivateNewOutputPane(sessionId),
                                   onClose: () =>
@@ -717,6 +1032,7 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
                     tabColor: widget.tabColor,
                     onActivateSession: widget.onActivateSession,
                     onActivateBadgePane: widget.onActivateBadgePane,
+                    onNotificationInteraction: widget.onNotificationInteraction,
                     onActivateNewOutputPane: widget.onActivateNewOutputPane,
                     width: actionButtonWidth,
                   ),
@@ -918,6 +1234,7 @@ class _ShellTabOverflowMenu extends StatefulWidget {
     required this.tabColor,
     required this.onActivateSession,
     required this.onActivateBadgePane,
+    required this.onNotificationInteraction,
     required this.onActivateNewOutputPane,
     required this.width,
   });
@@ -936,6 +1253,7 @@ class _ShellTabOverflowMenu extends StatefulWidget {
   final Color? Function(TerminalTab tab) tabColor;
   final ValueChanged<String> onActivateSession;
   final ValueChanged<String> onActivateBadgePane;
+  final ValueChanged<_ShellNotificationInteraction> onNotificationInteraction;
   final ValueChanged<String> onActivateNewOutputPane;
   final double width;
 
@@ -1018,6 +1336,10 @@ class _ShellTabOverflowMenuState extends State<_ShellTabOverflowMenu> {
               onBadgeSelected: (sessionId) {
                 _closeMenu();
                 widget.onActivateBadgePane(sessionId);
+              },
+              onNotificationInteraction: (interaction) {
+                _closeMenu();
+                widget.onNotificationInteraction(interaction);
               },
               onNewOutputPaneSelected: (sessionId) {
                 _closeMenu();
@@ -1241,6 +1563,7 @@ class _ShellTabOverflowPanel extends StatelessWidget {
     required this.tabColor,
     required this.onSelected,
     required this.onBadgeSelected,
+    required this.onNotificationInteraction,
     required this.onNewOutputPaneSelected,
   });
 
@@ -1256,6 +1579,7 @@ class _ShellTabOverflowPanel extends StatelessWidget {
   final Color? Function(TerminalTab tab) tabColor;
   final ValueChanged<String> onSelected;
   final ValueChanged<String> onBadgeSelected;
+  final ValueChanged<_ShellNotificationInteraction> onNotificationInteraction;
   final ValueChanged<String> onNewOutputPaneSelected;
 
   @override
@@ -1312,6 +1636,7 @@ class _ShellTabOverflowPanel extends StatelessWidget {
                           tabColor: tabColor(tab),
                           onSelected: () => onSelected(tab.activeSessionId),
                           onBadgeSelected: onBadgeSelected,
+                          onNotificationInteraction: onNotificationInteraction,
                           onNewOutputPaneSelected: onNewOutputPaneSelected,
                         ),
                     ],
@@ -1339,6 +1664,7 @@ class _ShellTabOverflowRow extends StatefulWidget {
     required this.tabColor,
     required this.onSelected,
     required this.onBadgeSelected,
+    required this.onNotificationInteraction,
     required this.onNewOutputPaneSelected,
   });
 
@@ -1352,6 +1678,7 @@ class _ShellTabOverflowRow extends StatefulWidget {
   final Color? tabColor;
   final VoidCallback onSelected;
   final ValueChanged<String> onBadgeSelected;
+  final ValueChanged<_ShellNotificationInteraction> onNotificationInteraction;
   final ValueChanged<String> onNewOutputPaneSelected;
 
   @override
@@ -1529,28 +1856,17 @@ class _ShellTabOverflowRowState extends State<_ShellTabOverflowRow> {
               ),
               if (paneSignalInfo != null) ...[
                 const SizedBox(width: 6),
-                _ShellTabBadgeChip(
-                  key: Key(
+                _ShellTabPaneSignalChip(
+                  itemKey: Key(
                     'shell-tab-overflow-pane-signal-${widget.tab.sessionId}',
                   ),
                   palette: widget.palette,
-                  text: _shellTabPaneSignalLabel(paneSignalInfos),
-                  tooltip: _shellTabPaneSignalTooltip(
-                    widget.tab,
-                    paneSignalInfo,
-                    paneSignalInfos,
-                    primaryNeedsFocus:
-                        !(widget.isActive && paneSignalInfo.isActivePane),
-                  ),
-                  semanticsLabel: _shellTabPaneSignalSemanticsLabel(
-                    widget.tab,
-                    paneSignalInfo,
-                    paneSignalInfos,
-                    primaryNeedsFocus:
-                        !(widget.isActive && paneSignalInfo.isActivePane),
-                  ),
-                  onPressed: () =>
-                      widget.onBadgeSelected(paneSignalInfo.sessionId),
+                  tab: widget.tab,
+                  signals: paneSignalInfos,
+                  primaryNeedsFocus:
+                      !(widget.isActive && paneSignalInfo.isActivePane),
+                  onActivatePane: widget.onBadgeSelected,
+                  onNotificationInteraction: widget.onNotificationInteraction,
                   foreground: textColor,
                   background: widget.palette.focusRing.withValues(
                     alpha: widget.isActive ? 0.34 : 0.58,
@@ -1731,6 +2047,7 @@ class _ShellTabBadgeChip extends StatelessWidget {
     required this.background,
     required this.border,
     this.maxWidth = 72,
+    this.semanticsButton = false,
     this.onPressed,
   });
 
@@ -1742,6 +2059,7 @@ class _ShellTabBadgeChip extends StatelessWidget {
   final Color background;
   final Color border;
   final double maxWidth;
+  final bool semanticsButton;
   final VoidCallback? onPressed;
 
   @override
@@ -1752,7 +2070,7 @@ class _ShellTabBadgeChip extends StatelessWidget {
       child: Semantics(
         container: true,
         label: semanticsLabel,
-        button: onPressed != null,
+        button: onPressed != null || semanticsButton,
         onTap: onPressed,
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: maxWidth),
@@ -1790,6 +2108,211 @@ class _ShellTabBadgeChip extends StatelessWidget {
         onTap: onPressed,
         child: chip,
       ),
+    );
+  }
+}
+
+class _ShellTabPaneSignalChip extends StatelessWidget {
+  const _ShellTabPaneSignalChip({
+    required this.itemKey,
+    required this.palette,
+    required this.tab,
+    required this.signals,
+    required this.primaryNeedsFocus,
+    required this.onActivatePane,
+    required this.onNotificationInteraction,
+    required this.foreground,
+    required this.background,
+    required this.border,
+  });
+
+  final Key itemKey;
+  final AppThemeTokens palette;
+  final TerminalTab tab;
+  final List<_ShellTabPaneSignalInfo> signals;
+  final bool primaryNeedsFocus;
+  final ValueChanged<String> onActivatePane;
+  final ValueChanged<_ShellNotificationInteraction> onNotificationInteraction;
+  final Color foreground;
+  final Color background;
+  final Color border;
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = signals.first;
+    final notificationTargets = _shellTabNotificationTargets(tab);
+    final tooltip = _shellTabPaneSignalTooltip(
+      tab,
+      primary,
+      signals,
+      primaryNeedsFocus: primaryNeedsFocus,
+    );
+    final semanticsLabel = _shellTabPaneSignalSemanticsLabel(
+      tab,
+      primary,
+      signals,
+      primaryNeedsFocus: primaryNeedsFocus,
+    );
+    final chip = _ShellTabBadgeChip(
+      key: notificationTargets.isEmpty ? itemKey : null,
+      palette: palette,
+      text: _shellTabPaneSignalLabel(signals),
+      tooltip: tooltip,
+      semanticsLabel: semanticsLabel,
+      semanticsButton: notificationTargets.isNotEmpty,
+      onPressed: notificationTargets.isEmpty
+          ? () => onActivatePane(primary.sessionId)
+          : null,
+      foreground: foreground,
+      background: background,
+      border: border,
+    );
+    if (notificationTargets.isEmpty) {
+      return chip;
+    }
+
+    final menuShape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(palette.radius.md),
+      side: BorderSide(color: palette.borderStrong.withValues(alpha: 0.58)),
+    );
+    return Theme(
+      data: Theme.of(context).copyWith(
+        popupMenuTheme: PopupMenuThemeData(
+          color: palette.panelElevated,
+          elevation: 0,
+          shadowColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          shape: menuShape,
+        ),
+      ),
+      child: PopupMenuButton<_ShellNotificationInteraction>(
+        key: itemKey,
+        tooltip: tooltip,
+        padding: EdgeInsets.zero,
+        position: PopupMenuPosition.under,
+        offset: Offset(0, palette.spacing.xs),
+        constraints: const BoxConstraints(minWidth: 260, maxWidth: 360),
+        color: palette.panelElevated,
+        elevation: 0,
+        shadowColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        shape: menuShape,
+        onSelected: onNotificationInteraction,
+        itemBuilder: (context) =>
+            _shellTabNotificationMenuEntries(notificationTargets, palette),
+        child: chip,
+      ),
+    );
+  }
+}
+
+List<PopupMenuEntry<_ShellNotificationInteraction>>
+_shellTabNotificationMenuEntries(
+  List<_ShellTabNotificationTarget> targets,
+  AppThemeTokens palette,
+) {
+  final visibleTargets = targets.take(6).toList(growable: false);
+  return <PopupMenuEntry<_ShellNotificationInteraction>>[
+    for (var index = 0; index < visibleTargets.length; index += 1) ...[
+      if (index > 0) const PopupMenuDivider(height: 8),
+      PopupMenuItem<_ShellNotificationInteraction>(
+        key: Key('shell-tab-notification-$index-activate'),
+        value: _ShellNotificationInteraction.activate(
+          visibleTargets[index].sessionId,
+          visibleTargets[index].notification,
+        ),
+        enabled: visibleTargets[index].notification.reportActivation,
+        height: 52,
+        child: _ShellTabNotificationMenuText(
+          title: _shellTabNotificationMenuTitle(
+            visibleTargets[index].notification,
+          ),
+          subtitle: _shellTabNotificationMenuSubtitle(visibleTargets[index]),
+          palette: palette,
+        ),
+      ),
+      for (
+        var buttonIndex = 0;
+        buttonIndex < visibleTargets[index].notification.buttons.length;
+        buttonIndex += 1
+      )
+        PopupMenuItem<_ShellNotificationInteraction>(
+          key: Key('shell-tab-notification-$index-button-${buttonIndex + 1}'),
+          value: _ShellNotificationInteraction.button(
+            visibleTargets[index].sessionId,
+            visibleTargets[index].notification,
+            buttonIndex + 1,
+          ),
+          enabled: visibleTargets[index].notification.reportActivation,
+          height: 40,
+          child: _ShellTabNotificationMenuText(
+            title:
+                visibleTargets[index].notification.buttons[buttonIndex].isEmpty
+                ? 'Button ${buttonIndex + 1}'
+                : visibleTargets[index].notification.buttons[buttonIndex],
+            subtitle: 'Notification action ${buttonIndex + 1}',
+            palette: palette,
+          ),
+        ),
+      if (visibleTargets[index].notification.source == 'osc99' &&
+          visibleTargets[index].notification.identifier != null)
+        PopupMenuItem<_ShellNotificationInteraction>(
+          key: Key('shell-tab-notification-$index-dismiss'),
+          value: _ShellNotificationInteraction.dismiss(
+            visibleTargets[index].sessionId,
+            visibleTargets[index].notification,
+          ),
+          height: 40,
+          child: _ShellTabNotificationMenuText(
+            title: 'Dismiss',
+            subtitle: visibleTargets[index].notification.reportClose
+                ? 'Close and report to the terminal process'
+                : 'Remove this notification',
+            palette: palette,
+          ),
+        ),
+    ],
+  ];
+}
+
+class _ShellTabNotificationMenuText extends StatelessWidget {
+  const _ShellTabNotificationMenuText({
+    required this.title,
+    required this.subtitle,
+    required this.palette,
+  });
+
+  final String title;
+  final String subtitle;
+  final AppThemeTokens palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            color: palette.textPrimary,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        if (subtitle.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: palette.textMuted),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -1893,6 +2416,7 @@ class _ShellTabButton extends StatefulWidget {
     required this.dragRegionBuilder,
     required this.onActivate,
     required this.onActivateBadgePane,
+    required this.onNotificationInteraction,
     required this.onActivateNewOutputPane,
     required this.onClose,
     required this.onShowContextMenu,
@@ -1912,6 +2436,7 @@ class _ShellTabButton extends StatefulWidget {
   final Widget Function(Widget child) dragRegionBuilder;
   final VoidCallback onActivate;
   final ValueChanged<String> onActivateBadgePane;
+  final ValueChanged<_ShellNotificationInteraction> onNotificationInteraction;
   final ValueChanged<String> onActivateNewOutputPane;
   final VoidCallback onClose;
   final ValueChanged<Offset> onShowContextMenu;
@@ -2104,34 +2629,19 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                                 ),
                                 if (paneSignalInfo != null) ...[
                                   const SizedBox(width: 6),
-                                  _ShellTabBadgeChip(
-                                    key: Key(
+                                  _ShellTabPaneSignalChip(
+                                    itemKey: Key(
                                       'shell-tab-pane-signal-${widget.tab.sessionId}',
                                     ),
                                     palette: widget.palette,
-                                    text: _shellTabPaneSignalLabel(
-                                      paneSignalInfos,
-                                    ),
-                                    tooltip: _shellTabPaneSignalTooltip(
-                                      widget.tab,
-                                      paneSignalInfo,
-                                      paneSignalInfos,
-                                      primaryNeedsFocus:
-                                          !(widget.isActive &&
-                                              paneSignalInfo.isActivePane),
-                                    ),
-                                    semanticsLabel:
-                                        _shellTabPaneSignalSemanticsLabel(
-                                          widget.tab,
-                                          paneSignalInfo,
-                                          paneSignalInfos,
-                                          primaryNeedsFocus:
-                                              !(widget.isActive &&
-                                                  paneSignalInfo.isActivePane),
-                                        ),
-                                    onPressed: () => widget.onActivateBadgePane(
-                                      paneSignalInfo.sessionId,
-                                    ),
+                                    tab: widget.tab,
+                                    signals: paneSignalInfos,
+                                    primaryNeedsFocus:
+                                        !(widget.isActive &&
+                                            paneSignalInfo.isActivePane),
+                                    onActivatePane: widget.onActivateBadgePane,
+                                    onNotificationInteraction:
+                                        widget.onNotificationInteraction,
                                     foreground: widget.isActive
                                         ? tone.primaryText
                                         : tone.mutedText,
@@ -2575,6 +3085,43 @@ class _ShellTabBadgeInfo {
 
 enum _ShellTabPaneSignalKind { progress, notification }
 
+class _ShellTabNotificationTarget {
+  const _ShellTabNotificationTarget({
+    required this.sessionId,
+    required this.paneTitle,
+    required this.notification,
+  });
+
+  final String sessionId;
+  final String paneTitle;
+  final TerminalPaneNotificationState notification;
+}
+
+enum _ShellNotificationInteractionKind { activate, button, dismiss }
+
+class _ShellNotificationInteraction {
+  const _ShellNotificationInteraction.activate(
+    this.sessionId,
+    this.notification,
+  ) : kind = _ShellNotificationInteractionKind.activate,
+      buttonNumber = null;
+
+  const _ShellNotificationInteraction.button(
+    this.sessionId,
+    this.notification,
+    this.buttonNumber,
+  ) : kind = _ShellNotificationInteractionKind.button;
+
+  const _ShellNotificationInteraction.dismiss(this.sessionId, this.notification)
+    : kind = _ShellNotificationInteractionKind.dismiss,
+      buttonNumber = null;
+
+  final String sessionId;
+  final TerminalPaneNotificationState notification;
+  final _ShellNotificationInteractionKind kind;
+  final int? buttonNumber;
+}
+
 class _ShellTabPaneSignalInfo {
   const _ShellTabPaneSignalInfo({
     required this.kind,
@@ -2697,6 +3244,40 @@ List<_ShellTabPaneSignalInfo> _shellTabPaneSignalInfos(TerminalTab tab) {
   return signals;
 }
 
+List<_ShellTabNotificationTarget> _shellTabNotificationTargets(
+  TerminalTab tab,
+) {
+  return <_ShellTabNotificationTarget>[
+    for (final pane in tab.effectivePanes)
+      for (final notification in pane.recentNotifications)
+        _ShellTabNotificationTarget(
+          sessionId: pane.sessionId,
+          paneTitle: pane.title,
+          notification: notification,
+        ),
+  ];
+}
+
+String _shellTabNotificationMenuTitle(
+  TerminalPaneNotificationState notification,
+) {
+  final count = notification.count > 1 ? ' x${notification.count}' : '';
+  return '${notification.title}$count';
+}
+
+String _shellTabNotificationMenuSubtitle(_ShellTabNotificationTarget target) {
+  final notification = target.notification;
+  return [
+    if (notification.message.trim().isNotEmpty) notification.message.trim(),
+    if (target.paneTitle.trim().isNotEmpty) target.paneTitle.trim(),
+    if (notification.remoteHost?.trim().isNotEmpty == true)
+      notification.remoteUser?.trim().isNotEmpty == true
+          ? '${notification.remoteUser!.trim()}@${notification.remoteHost!.trim()}'
+          : notification.remoteHost!.trim(),
+    notification.source,
+  ].join(' · ');
+}
+
 String _shellTabPaneSignalLabel(List<_ShellTabPaneSignalInfo> signals) {
   if (signals.isEmpty) {
     return 'PANE';
@@ -2714,8 +3295,15 @@ String _shellTabPaneSignalTooltip(
   final otherSignals = signals
       .where((candidate) => candidate != primary)
       .toList(growable: false);
+  final hasNotifications = signals.any(
+    (signal) => signal.kind == _ShellTabPaneSignalKind.notification,
+  );
   if (tab.effectivePanes.length < 2 && otherSignals.isEmpty) {
-    return [primary.title, primary.detail].join('\n');
+    return [
+      primary.title,
+      primary.detail,
+      if (hasNotifications) 'Click to inspect recent notifications.',
+    ].join('\n');
   }
   return [
     '${primary.title} in a split pane.',
@@ -2727,7 +3315,9 @@ String _shellTabPaneSignalTooltip(
         '${_shellTabPaneSignalContext(otherSignal)}: '
             '${otherSignal.label} ${otherSignal.summary}',
     ],
-    if (primaryNeedsFocus)
+    if (hasNotifications)
+      'Click to inspect recent notifications.'
+    else if (primaryNeedsFocus)
       otherSignals.isEmpty
           ? 'Click to focus this pane.'
           : 'Click to focus the first pane with a signal.',
@@ -2740,8 +3330,16 @@ String _shellTabPaneSignalSemanticsLabel(
   List<_ShellTabPaneSignalInfo> signals, {
   required bool primaryNeedsFocus,
 }) {
+  final hasNotifications = signals.any(
+    (signal) => signal.kind == _ShellTabPaneSignalKind.notification,
+  );
   if (tab.effectivePanes.length < 2) {
-    return '${primary.title}: ${primary.summary}';
+    return '${primary.title}: ${primary.summary}; '
+        '${hasNotifications
+            ? 'click to inspect notification actions'
+            : primaryNeedsFocus
+            ? 'click to focus this pane'
+            : 'pane already focused'}';
   }
   final otherSignalCount = signals.length - 1;
   final otherSignalLabel = otherSignalCount <= 0
@@ -2749,7 +3347,11 @@ String _shellTabPaneSignalSemanticsLabel(
       : '; $otherSignalCount other pane signal${otherSignalCount == 1 ? '' : 's'}';
   return '${primary.title}: ${primary.summary}; '
       '${_shellTabPaneSignalContext(primary)}$otherSignalLabel; '
-      '${primaryNeedsFocus ? 'click to focus this pane' : 'pane already focused'}';
+      '${hasNotifications
+          ? 'click to inspect notification actions'
+          : primaryNeedsFocus
+          ? 'click to focus this pane'
+          : 'pane already focused'}';
 }
 
 String _shellTabPaneSignalContext(_ShellTabPaneSignalInfo signal) {

@@ -1,0 +1,1021 @@
+{
+  "schema_version": 1,
+  "calibrated_at": "2026-07-21",
+  "source_of_truth": "docs/ROADMAP.md",
+  "current_target": "runtime-contract-stability",
+  "lanes": [
+    {
+      "id": "documentation-contracts",
+      "status": "achieved",
+      "goal": "Keep the current execution target, its repository evidence, and authoritative documentation links machine-verifiable.",
+      "evidence": [
+        {
+          "path": "test/docs_contract_test.dart",
+          "contains": [
+            "execution target manifest matches repository evidence",
+            "authoritative documentation links resolve"
+          ]
+        },
+        {
+          "path": "tools/verify_flutter_terminal.sh",
+          "contains": [
+            "dart test test/docs_contract_test.dart"
+          ]
+        }
+      ],
+      "verification_commands": [
+        "dart test test/docs_contract_test.dart"
+      ]
+    },
+    {
+      "id": "audited-xterm-automation",
+      "status": "achieved",
+      "goal": "Preserve the already closed automated portion of the xterm compatibility audit without reopening deferred product scope.",
+      "evidence": [
+        {
+          "path": "docs/TERMINAL_XTERM_RECENT_FIX_AUDIT.md",
+          "contains": [
+            "| Covered |",
+            "| Deferred |"
+          ],
+          "not_contains": [
+            "| Gap |"
+          ]
+        },
+        {
+          "path": "packages/ianvs_terminal/lib/src/terminal/terminal_input_controller.dart",
+          "contains": [
+            "_kittyKeyboardBytesFor",
+            "_kittyKeyboardReportAssociatedTextFlag"
+          ]
+        },
+        {
+          "path": "native/core/src/pty.rs",
+          "contains": [
+            "apply_bash_shell_integration",
+            "apply_fish_shell_integration"
+          ]
+        }
+      ],
+      "verification_commands": [
+        "cd native/core && cargo test",
+        "cd packages/ianvs_terminal && flutter test"
+      ]
+    },
+    {
+      "id": "local-workspace-stability",
+      "status": "achieved",
+      "goal": "Stabilize the existing macOS local workspace, profile, session bootstrap, persistence, and lifecycle paths before adding another broad capability lane.",
+      "evidence": [
+        {
+          "path": "example/lib/features/shell/shell_action_registry.dart",
+          "contains": [
+            "enum TerminalActionId",
+            "class ShellActionRegistry"
+          ]
+        },
+        {
+          "path": "example/lib/features/workspace/local_workspace_repository.dart",
+          "contains": [
+            "class LocalWorkspaceRepository",
+            "needsMigration",
+            "loadOrCreateProject",
+            "activateWorkspace"
+          ]
+        },
+        {
+          "path": "example/lib/features/workspace/local_session_descriptor.dart",
+          "contains": [
+            "class TerminalSessionDescriptor",
+            "currentTerminalSessionDescriptorVersion",
+            "valuesRedacted"
+          ]
+        },
+        {
+          "path": "example/lib/features/workspace/local_session_workspace_codec.dart",
+          "contains": [
+            "class LocalSessionWorkspaceCodec",
+            "LocalWorkspaceRestoreResult"
+          ]
+        },
+        {
+          "path": "example/lib/features/sessions/session_controller.dart",
+          "contains": [
+            "localWorkspaceRepositoryProvider",
+            "_restoreWorkspace",
+            "_handleWorkspaceStateChanged",
+            "openProjectWorkspace",
+            "_switchToWorkspace",
+            "startSessionRecording",
+            "stopSessionRecording"
+          ]
+        },
+        {
+          "path": "example/lib/features/shell/shell_screen_chrome.dart",
+          "contains": [
+            "_ShellWorkspaceMenuButton",
+            "shell-chrome-workspaces",
+            "_ShellSessionRecordingButton",
+            "shell-chrome-session-recording"
+          ]
+        },
+        {
+          "path": "example/lib/features/shell/window_bridge.dart",
+          "contains": [
+            "chooseProjectDirectory",
+            "nativeOpenProject"
+          ]
+        },
+        {
+          "path": "example/macos/Runner/MainFlutterWindow.swift",
+          "contains": [
+            "chooseProjectDirectory",
+            "bindNativeWorkspaceMenuItems"
+          ]
+        },
+        {
+          "path": "example/lib/features/profiles/profile_repository.dart",
+          "contains": [
+            "class ProfileRepository"
+          ]
+        },
+        {
+          "path": "example/lib/features/sessions/session_bootstrap.dart",
+          "contains": [
+            "class SessionBootstrapService"
+          ]
+        },
+        {
+          "path": "example/test/workspace/local_workspace_action_reducer_test.dart",
+          "contains": [
+            "split actions update active tab pane tree"
+          ]
+        },
+        {
+          "path": ".github/workflows/verify.yml",
+          "contains": [
+            "./tools/verify_flutter_terminal.sh"
+          ]
+        },
+        {
+          "path": "docs/tasks/verification-gates/T-301-osc99-notification-menu-regression.md",
+          "contains": [
+            "The final `make verify` run passed all 44 real PTY tests",
+            "all 16 Runner XCTest cases"
+          ]
+        },
+        {
+          "path": "docs/tasks/verification-gates/T-302-compatibility-baseline.md",
+          "contains": [
+            "real PTY 46/46",
+            "Iteration 02 frame-pipeline refactoring",
+            "Iteration 03 recording/replay"
+          ]
+        },
+        {
+          "path": "docs/tasks/verification-gates/T-303-vttest-gui-gate-determinism.md",
+          "contains": [
+            "cargo test vt220 -- --test-threads=1",
+            "20260721T013423+0800/summary.json"
+          ]
+        },
+        {
+          "path": "docs/tasks/shell-product/T-313-local-workspace-session-restore.md",
+          "contains": [
+            "T-313 is closed",
+            "build/bench-results-ci/20260721T041743Z",
+            "Recent Workspaces/project identity"
+          ]
+        },
+        {
+          "path": "docs/tasks/shell-product/T-314-versioned-session-descriptor.md",
+          "contains": [
+            "Session Descriptor v1 and Workspace schema v2 are implemented",
+            "environment values remain deliberately excluded",
+            "build/bench-results-ci/20260721T044538Z",
+            "T-314 is closed"
+          ]
+        },
+        {
+          "path": "docs/tasks/shell-product/T-315-project-workspace-identity-and-recent-index.md",
+          "contains": [
+            "Workspace schema v3, stable project identity, Recent index v1",
+            "complete Workspace plus",
+            "build/bench-results-ci/20260721T051058Z",
+            "T-315 is closed"
+          ]
+        },
+        {
+          "path": "docs/tasks/shell-product/T-316-project-workspace-switcher.md",
+          "contains": [
+            "native `File > Open Project…`",
+            "closes old PTYs only after activation succeeds",
+            "build/bench-results-ci/20260721T053640Z",
+            "T-316 is closed"
+          ]
+        },
+        {
+          "path": "example/lib/features/recording/local_session_recording_repository.dart",
+          "contains": [
+            "class LocalSessionRecordingRepository",
+            "writeStringAtomically",
+            "TerminalRecordingCodec"
+          ]
+        },
+        {
+          "path": "docs/tasks/shell-product/T-317-session-recording-lifecycle-and-workspace-association.md",
+          "contains": [
+            "retries without issuing a second native stop",
+            "1,102 selected example CI tests",
+            "build/bench-results-ci/20260721T062119Z",
+            "T-317 is closed"
+          ]
+        }
+      ],
+      "verification_commands": [
+        "make format-check",
+        "make analyze",
+        "make test",
+        "make verify"
+      ],
+      "exit_criteria": [
+        "Profile, preferences, workspace, and session restoration have focused automated coverage.",
+        "App lifecycle and persistence failures fail closed without corrupting local state.",
+        "The complete macOS verification entrypoint passes on the current implementation.",
+        "Any remaining GUI-only behavior is recorded with current manual evidence or an explicit blocker."
+      ],
+      "reason": "T-312 through T-317 passed the complete repository gate. Workspace schema v3, stable project identity, independent collection storage, Recent index v1, native project selection, failure-safe runtime switching, and retryable recording association now form the closed local Workspace baseline; the next stability slice must remain separately scoped."
+    },
+    {
+      "id": "runtime-contract-stability",
+      "status": "active",
+      "goal": "Make the native/Dart runtime boundary versioned and capability-driven through backward-compatible, independently verified wire slices with explicit fallback before any old-wire removal.",
+      "evidence": [
+        {
+          "path": "native/core/src/runtime_contract.rs",
+          "contains": [
+            "RUNTIME_CAPABILITIES_SCHEMA_VERSION",
+            "ianvs-runtime-contract-v1",
+            "RuntimeCapabilities",
+            "RuntimeEventBatchV1",
+            "RUNTIME_EVENT_BATCH_CONTRACT",
+            "FRAME_PACKET_SCHEMA_VERSION",
+            "ianvs-terminal-frame-packet-v1",
+            "GRAPHIC_ASSET_PACKET_SCHEMA_VERSION",
+            "ianvs-graphic-asset-packet-v1",
+            "frame_schema_versions",
+            "recording_schema_versions"
+          ]
+        },
+        {
+          "path": "native/core/src/ffi.rs",
+          "contains": [
+            "ianvs_runtime_capabilities_json",
+        "ianvs_session_poll_event_envelopes_json",
+        "ianvs_session_create_v1",
+        "ianvs_replay_session_create_v1",
+        "ianvs_session_request_v1_json",
+        "ianvs_session_take_diagnostic_event_v1_json",
+        "ianvs_session_take_frame_packet_v1_protobuf",
+        "ianvs_session_graphic_asset_packet_v1_protobuf",
+        "runtime_capabilities_json"
+          ]
+        },
+        {
+          "path": "packages/ianvs_pty/lib/src/pty_runtime_capabilities.dart",
+          "contains": [
+            "class PtyRuntimeCapabilities",
+            "UnsupportedPtyRuntimeCapabilitiesSchemaVersion",
+            "maxEncodedBytes"
+          ]
+        },
+        {
+          "path": "packages/ianvs_pty/lib/src/native_pty_backend.dart",
+          "contains": [
+            "PtyRuntimeCapabilityBindings",
+            "PtyRuntimeCapabilityBackend",
+            "PtyRuntimeEventBindings",
+        "PtyRuntimeEventBatch",
+        "PtySessionConfigV1Backend",
+        "PtyReplaySessionConfigV1Backend",
+        "PtySessionRequestV1Backend",
+        "PtySessionDiagnosticEventV1Backend",
+        "PtySessionFramePacketV1Backend",
+        "PtyFramePacketV1Bindings",
+        "PtyGraphicAssetPacketV1Bindings",
+        "_lookupOptionalRuntimeCapabilities"
+          ]
+        },
+        {
+          "path": "docs/protocols/RUNTIME_CAPABILITIES_V1.md",
+          "contains": [
+            "Runtime Capabilities V1",
+            "ianvs_runtime_capabilities_json",
+            "existing symbol-probing paths"
+          ]
+        },
+        {
+          "path": "docs/tasks/runtime-pty/T-318-versioned-runtime-capability-query.md",
+          "contains": [
+            "Versioned Runtime Capability Query",
+            "older binding",
+            "Do not remove, rename or migrate existing FFI symbols",
+            "T-318 is closed"
+          ]
+        },
+        {
+          "path": "docs/protocols/RUNTIME_EVENT_ENVELOPE_V1.md",
+          "contains": [
+            "Runtime Event Envelope V1",
+            "next_sequence",
+            "dropped_count",
+            "legacy event-array symbol"
+          ]
+        },
+        {
+          "path": "docs/tasks/runtime-pty/T-319-runtime-event-envelope-v1-and-dual-stack.md",
+          "contains": [
+            "Runtime Event Envelope V1 And Dual Stack",
+            "older native libraries",
+            "T-319 is closed",
+            "T-320 should migrate SessionConfig/Profile wire"
+          ]
+        },
+        {
+          "path": "native/core/src/session_config.rs",
+          "contains": [
+            "SESSION_CONFIG_SCHEMA_VERSION",
+            "ianvs-session-config-v1",
+            "MAX_SESSION_CONFIG_BYTES",
+            "SessionConfigV1"
+          ]
+        },
+        {
+          "path": "packages/ianvs_terminal/lib/src/config/terminal_session_config_v1.dart",
+          "contains": [
+            "class TerminalSessionConfigV1",
+            "TerminalSessionConfigContractException",
+            "maxEncodedBytes",
+            "ianvs-session-config-v1"
+          ]
+        },
+        {
+          "path": "docs/protocols/SESSION_CONFIG_V1.md",
+          "contains": [
+            "SessionConfig V1",
+            "ianvs_session_create_v1",
+            "session-config.json.v1",
+            "Profile-shaped wire"
+          ]
+        },
+      {
+        "path": "docs/tasks/runtime-pty/T-320-session-config-v1-and-profile-wire-migration.md",
+          "contains": [
+            "SessionConfig V1 And Profile Wire Migration",
+            "new Dart usable with old native libraries",
+            "T-320 is closed",
+          "build/bench-results-ci/20260721T073713Z"
+        ]
+      },
+      {
+        "path": "native/core/src/session_request.rs",
+        "contains": [
+          "SESSION_REQUEST_SCHEMA_VERSION",
+          "ianvs-session-request-v1",
+          "ianvs-session-response-v1",
+          "MAX_SESSION_REQUEST_BYTES",
+          "SessionResponseV1"
+        ]
+      },
+      {
+        "path": "packages/ianvs_pty/lib/src/pty_session_request_v1.dart",
+        "contains": [
+          "class PtySessionRequestV1",
+          "class PtySessionResponseV1",
+          "PtySessionRequestContractException",
+          "correlation_mismatch"
+        ]
+      },
+      {
+        "path": "packages/ianvs_terminal/lib/src/runtime/terminal_session_request_transport.dart",
+        "contains": [
+          "class TerminalSessionRequestTransport",
+          "supportsSessionRequestV1",
+          "requestSessionV1Json",
+          "jsonEncode(legacyRequest)"
+        ]
+      },
+      {
+        "path": "docs/protocols/SESSION_REQUEST_RESPONSE_V1.md",
+        "contains": [
+          "Session Request/Response V1",
+          "ianvs_session_request_v1_json",
+          "session-request-envelope.json.v1",
+          "legacy discriminated `{kind, ...payload}` channel"
+        ]
+      },
+      {
+        "path": "docs/tasks/runtime-pty/T-321-session-request-response-v1-and-dual-stack.md",
+        "contains": [
+          "Session Request/Response V1 And Dual Stack",
+          "New Dart with an old native library",
+          "Live and replay real-native integration",
+          "T-321 is closed",
+          "build/bench-results-ci/20260721T082801Z"
+        ]
+      },
+      {
+        "path": "native/core/src/host_request.rs",
+        "contains": [
+          "HOST_REQUEST_CONTRACT",
+          "ianvs-host-response-v1",
+          "MAX_HOST_RESPONSE_BYTES",
+          "HostResponseV1"
+        ]
+      },
+      {
+        "path": "packages/ianvs_pty/lib/src/pty_host_request_v1.dart",
+        "contains": [
+          "class PtyHostRequestV1",
+          "class PtyHostResponseV1",
+          "PtyHostRequestContractException",
+          "correlation_mismatch"
+        ]
+      },
+      {
+        "path": "docs/protocols/HOST_REQUEST_RESPONSE_V1.md",
+        "contains": [
+          "Host Request/Response V1",
+          "ianvs_session_host_response_v1_json",
+          "host-request-response.json.v1",
+          "old Dart/new native"
+        ]
+      },
+    {
+      "path": "docs/tasks/runtime-pty/T-322-host-request-response-v1-clipboard-read.md",
+        "contains": [
+          "Host Request/Response V1 Clipboard Read",
+          "New Dart/new native",
+          "exactly once",
+          "T-322 is closed",
+        "build/bench-results-ci/20260721T085840Z"
+      ]
+    },
+    {
+      "path": "packages/ianvs_pty/lib/src/pty_diagnostic_event_v1.dart",
+      "contains": [
+        "class PtyDiagnosticEventV1",
+        "PtyRuntimeMessageClass.diagnostic",
+        "diagnostic_session_mismatch",
+        "maxEncodedBytes"
+      ]
+    },
+    {
+      "path": "docs/protocols/DIAGNOSTIC_EVENT_V1.md",
+      "contains": [
+        "Diagnostic Event V1",
+        "ianvs_session_take_diagnostic_event_v1_json",
+        "diagnostic-event.json.v1",
+        "new Dart/old native"
+      ]
+    },
+    {
+      "path": "docs/tasks/runtime-pty/T-323-diagnostic-event-v1-and-dual-stack.md",
+      "contains": [
+        "Diagnostic Event V1 And Dual Stack",
+        "frame_stats",
+        "session_stats",
+        "old Dart/new native",
+        "T-323 is closed",
+        "build/bench-results-ci/20260721T094417Z"
+      ]
+    },
+    {
+      "path": "packages/ianvs_terminal/lib/src/runtime/terminal_frame_packet_v1.dart",
+      "contains": [
+        "class TerminalFramePacketV1Decoder",
+        "ianvs-terminal-frame-packet-v1",
+        "frame_packet_sequence_gap",
+        "TerminalFrameKind.snapshot"
+      ]
+    },
+    {
+      "path": "docs/protocols/TERMINAL_FRAME_PACKET_V1.md",
+      "contains": [
+        "Terminal Frame Packet V1",
+        "ianvs_session_take_frame_packet_v1_protobuf",
+        "frame-packet.protobuf.v1",
+        "old Dart/new native"
+      ]
+    },
+    {
+      "path": "docs/tasks/runtime-pty/T-324-terminal-frame-packet-v1-and-dual-stack.md",
+      "contains": [
+        "Terminal Frame Packet V1 And Dual Stack",
+        "stale acknowledgement",
+        "old native",
+        "T-324 is closed",
+        "build/bench-results-ci/20260721T101427Z"
+      ]
+    },
+    {
+      "path": "packages/ianvs_pty/lib/src/pty_graphic_asset_packet_v1.dart",
+      "contains": [
+        "class PtyGraphicAssetPacketV1",
+        "ianvs-graphic-asset-packet-v1",
+        "ptyGraphicAssetPacketMaxRgbaBytes",
+        "PtyGraphicAssetPacketFormatException"
+      ]
+    },
+    {
+      "path": "docs/protocols/GRAPHIC_ASSET_PACKET_V1.md",
+      "contains": [
+        "Graphic Asset Packet V1",
+        "ianvs_session_graphic_asset_packet_v1_protobuf",
+        "graphic-asset-packet.protobuf.v1",
+        "old Dart/new native"
+      ]
+    },
+    {
+      "path": "docs/tasks/runtime-pty/T-330-graphic-asset-packet-v1-and-dual-stack.md",
+      "contains": [
+        "Graphic Asset Packet V1 And Dual Stack",
+        "New Dart/old native",
+        "does not downgrade",
+        "T-330 is closed",
+        "build/bench-results-ci/20260721T125256Z"
+      ]
+    }
+      ],
+      "verification_commands": [
+        "cargo test --manifest-path native/core/Cargo.toml --test runtime_capabilities_test",
+        "cargo test --manifest-path native/core/Cargo.toml --test runtime_event_envelope_test",
+    "cargo test --manifest-path native/core/Cargo.toml --test runtime_session_config_test",
+    "cargo test --manifest-path native/core/Cargo.toml --test runtime_session_request_test",
+    "cargo test --manifest-path native/core/Cargo.toml --test runtime_host_request_test",
+    "cargo test --manifest-path native/core/Cargo.toml --test runtime_diagnostic_event_test",
+    "cargo test --manifest-path native/core/Cargo.toml --test runtime_frame_packet_test",
+    "cargo test --manifest-path native/core/Cargo.toml --test runtime_graphic_asset_packet_test",
+    "cd packages/ianvs_pty && dart analyze && dart test",
+    "cd packages/ianvs_terminal && flutter test test/terminal_session_config_v1_test.dart test/terminal_runtime_controller_test.dart test/terminal_json_request_client_test.dart test/terminal_diagnostics_test.dart test/terminal_frame_packet_v1_test.dart test/terminal_live_recorder_test.dart test/terminal_replay_backend_test.dart",
+        "dart test test/docs_contract_test.dart",
+        "make verify"
+      ],
+      "exit_criteria": [
+        "The loaded native core exposes a versioned, bounded capability manifest without making the symbol mandatory for older libraries.",
+        "Dart retains additive v1 features, rejects unsupported schemas explicitly, and preserves existing fallback behavior.",
+        "Each later command, event, frame, or asset contract migration is separately scoped and compatibility-tested before old wire removal.",
+        "The complete repository verification entrypoint passes after every cross-boundary slice."
+      ],
+  "reason": "T-318 through T-324 closed the capability, Event, SessionConfig, Session Request/Response, Host Request/Response, Diagnostic Event and Terminal Frame Packet slices with explicit fallbacks. T-330 closes the independently scoped Graphic Asset Packet v1 migration while retaining the legacy metadata/copy symbols; focused compatibility, real-FFI tests and the complete repository gate pass. Other Host operations, file-download migration and any old-wire removal remain separately scoped; the Runtime Contract lane stays active."
+    },
+    {
+      "id": "frame-pipeline-modularity",
+      "status": "achieved",
+      "goal": "Reduce native Session Frame responsibilities through schema-preserving, golden-tested slices before starting Runtime Contract or Recording / Replay work.",
+      "evidence": [
+        {
+          "path": "native/core/src/session/frame/damage.rs",
+          "contains": [
+            "struct CachedFrameMeta",
+            "fn delta_candidate_row_indexes",
+            "fn snapshot_fallback_reason"
+          ]
+        },
+        {
+          "path": "packages/ianvs_terminal/test/fixtures/frame_diff_corpus/snapshot_blocks_v1.json",
+          "contains": [
+            "\"blocks_count\": 1",
+            "\"hyperlinks_count\": 1"
+          ]
+        },
+        {
+          "path": "docs/tasks/runtime-pty/T-304-frame-pipeline-damage-extraction.md",
+          "contains": [
+            "Reduced `session.rs` from 10,303 to 9,814 lines",
+            "All six hash comparisons were `true`",
+            "real PTY passed 46/46"
+          ]
+        },
+        {
+          "path": "native/core/src/session/frame/context.rs",
+          "contains": [
+            "struct FrameBuildContext",
+            "viewport_display_start_row",
+            "alt_screen_active"
+          ]
+        },
+        {
+          "path": "native/core/src/session/frame/snapshot.rs",
+          "contains": [
+            "fn build_snapshot_frame",
+            "fn build_projected_snapshot_frame",
+            "contiguous_snapshot_emits_and_caches_the_full_viewport"
+          ]
+        },
+        {
+          "path": "docs/tasks/runtime-pty/T-305-frame-build-context-snapshot-extraction.md",
+          "contains": [
+            "Reduced `session.rs` from 9,814 to 9,696 lines",
+            "byte-identical correctness files for all six",
+            "Frame golden and JSON/Protobuf parity tests passed 35/35",
+            "real PTY passed 46/46"
+          ]
+        },
+        {
+          "path": "native/core/src/session/frame/delta.rs",
+          "contains": [
+            "struct DeltaFrameContext",
+            "fn build_delta_frame",
+            "delta_emits_only_a_changed_candidate_row_and_updates_its_cache"
+          ]
+        },
+        {
+          "path": "docs/tasks/runtime-pty/T-306-frame-delta-builder-extraction.md",
+          "contains": [
+            "Reduced `session.rs` from 9,696 to 9,630 lines",
+            "byte-identical correctness files for all six",
+            "Frame golden and JSON/Protobuf parity tests passed 35/35",
+            "512 session tests and 3 vttest regressions"
+          ]
+        },
+        {
+          "path": "native/core/src/session/frame/projection.rs",
+          "contains": [
+            "struct DisplayProjection",
+            "fn display_projection_for_terminal",
+            "identity_projection_preserves_source_indexes_and_viewport_span",
+            "nested_fold_projection_keeps_the_outer_summary_mapping"
+          ]
+        },
+        {
+          "path": "docs/tasks/runtime-pty/T-307-frame-display-projection-extraction.md",
+          "contains": [
+            "Reduced `session.rs` from 9,630 to 9,468 lines",
+            "byte-identical correctness files for all six",
+            "Frame golden and JSON/Protobuf parity tests passed 35/35",
+            "512 session tests and 3 vttest regressions"
+          ]
+        },
+        {
+          "path": "native/core/src/session/frame/graphics.rs",
+          "contains": [
+            "struct GraphicAssetSnapshot",
+            "fn build_projected_graphic_placements",
+            "identity_projection_preserves_graphic_placement",
+            "folded_source_range_hides_intersecting_graphic"
+          ]
+        },
+        {
+          "path": "docs/tasks/runtime-pty/T-308-frame-graphics-projection-extraction.md",
+          "contains": [
+            "Reduced `session.rs` from 9,468 to 8,930 lines",
+            "byte-identical correctness files for all six",
+            "Frame golden and JSON/Protobuf parity tests passed 35/35",
+            "real PTY passed 46/46",
+            "Iteration 02 is complete"
+          ]
+        }
+      ],
+      "verification_commands": [
+        "cd native/core && cargo fmt --all -- --check",
+        "cd native/core && cargo clippy --all-targets -- -D warnings",
+        "cd native/core && cargo test",
+        "cd packages/ianvs_terminal && flutter test test/terminal_frame_diff_corpus_test.dart test/terminal_frame_codec_parity_test.dart",
+        "make verify"
+      ],
+      "exit_criteria": [
+        "FrameBuildContext makes snapshot and delta builder inputs explicit.",
+        "Snapshot and delta builders no longer live in session.rs and retain independent golden coverage.",
+        "Damage, display and graphics projection responsibilities live behind the private session::frame boundary.",
+        "JSON and Protobuf Frame schemas remain compatible and deterministic benchmark hashes stay equal.",
+        "The complete repository verification entrypoint passes after the final extraction slice."
+      ]
+    },
+    {
+      "id": "recording-replay-mvp",
+      "status": "achieved",
+      "goal": "Create a deterministic, privacy-explicit session recording event stream and a ReplayBackend compatible with the current runtime boundary.",
+      "evidence": [
+        {
+          "path": "packages/ianvs_terminal/lib/src/recording/terminal_recording.dart",
+          "contains": [
+            "terminalRecordingSchemaVersion",
+            "enum TerminalRecordingEventKind",
+            "class TerminalRecordingCodec",
+            "TerminalRecordingFormatException"
+          ]
+        },
+        {
+          "path": "packages/ianvs_terminal/test/terminal_recording_codec_test.dart",
+          "contains": [
+            "canonically re-encodes the v1 fixture",
+            "redacted input never serializes sensitive bytes",
+            "reports truncated JSON with a structured error",
+            "rejects missing sequence entries and decreasing timestamps"
+          ]
+        },
+        {
+          "path": "docs/recording/FORMAT_V1.md",
+          "contains": [
+            "Terminal Recording Format V1",
+            "Input And Output Privacy",
+            "ReplayBackend"
+          ]
+        },
+        {
+          "path": "docs/tasks/runtime-pty/T-309-recording-event-format-v1.md",
+          "contains": [
+            "Recording Event Format V1",
+            "Seven focused codec/privacy tests pass",
+            "T-310 must add a bounded output-recording seam",
+            "T-309 is closed"
+          ]
+        },
+        {
+          "path": "native/core/src/session/recording.rs",
+          "contains": [
+            "RECORDING_MAX_EVENTS",
+            "RECORDING_MAX_PAYLOAD_BYTES",
+            "record_pty_output",
+            "capacity_exceeded"
+          ]
+        },
+        {
+          "path": "packages/ianvs_terminal/lib/src/recording/terminal_live_recorder.dart",
+          "contains": [
+            "class TerminalLiveRecorder",
+            "terminal.recording_start",
+            "terminal.recording_stop",
+            "TerminalRecordingBackendException"
+          ]
+        },
+        {
+          "path": "packages/ianvs_terminal/test/terminal_live_recorder_test.dart",
+          "contains": [
+            "starts native capture and decodes the stopped v1 recording",
+            "reports bounded native overflow without returning a partial recording"
+          ]
+        },
+        {
+          "path": "docs/tasks/runtime-pty/T-310-live-recording-seam.md",
+          "contains": [
+            "Live Recording Seam",
+            "Capacity overflow never returns a plausible partial recording",
+            "T-310 is closed"
+          ]
+        },
+        {
+          "path": "packages/ianvs_terminal/lib/src/recording/terminal_replay_backend.dart",
+          "contains": [
+            "class TerminalReplayBackend",
+            "TerminalReplayTimingMode.realtime",
+            "TerminalReplayTimingMode.noDelay",
+            "static const double minPlaybackSpeed",
+            "_scaledPlaybackOffset",
+            "Replay sessions are read-only"
+          ]
+        },
+        {
+          "path": "packages/ianvs_terminal/test/terminal_replay_backend_test.dart",
+          "contains": [
+            "no-delay mode replays the same ordered event stream every time",
+            "realtime mode honors offsets and stable same-offset ordering",
+            "realtime mode scales the absolute schedule by playback speed",
+            "speed scaling does not accumulate per-segment rounding drift",
+            "historical input is never written"
+          ]
+        },
+        {
+          "path": "packages/ianvs_terminal/lib/src/recording/terminal_replay_frame_hash_comparator.dart",
+          "contains": [
+            "class TerminalReplayFrameHashComparator",
+            "TerminalReplayFrameHashDivergence",
+            "maxFrames = 4096",
+            "TerminalViewportState.empty"
+          ]
+        },
+        {
+          "path": "packages/ianvs_terminal/test/terminal_replay_frame_hash_comparator_test.dart",
+          "contains": [
+            "compares applied state rather than raw Frame partitioning",
+            "reports the first applied viewport hash mismatch",
+            "accepts a stricter applied-Frame hash projection"
+          ]
+        },
+        {
+          "path": "docs/tasks/runtime-pty/T-311-replay-backend.md",
+          "contains": [
+            "T-311 ReplayBackend",
+            "Same-offset events retain recording sequence order",
+            "T-311 and Recording / Replay MVP Iteration 03 are closed"
+          ]
+        },
+        {
+          "path": "docs/tasks/runtime-pty/T-325-replay-speed-control.md",
+          "contains": [
+            "T-325 Replay Speed Control",
+            "0.25x through 4x",
+            "scaled absolute recording offsets",
+            "T-325 is closed",
+            "build/bench-results-ci/20260721T102918Z"
+          ]
+        },
+        {
+          "path": "docs/tasks/runtime-pty/T-326-replay-frame-hash-comparison.md",
+          "contains": [
+            "T-326 Replay Frame Hash Comparison",
+            "T-326 is closed",
+            "build/bench-results-ci/20260721T104233Z"
+          ]
+        },
+        {
+          "path": "packages/ianvs_terminal/lib/src/recording/terminal_recording.dart",
+          "contains": [
+            "terminalRecordingCheckpointSchemaVersion",
+            "TerminalRecordingEventKind.checkpoint",
+            "class TerminalRecordingCheckpointPlanner",
+            "playableEventsPerCheckpoint"
+          ]
+        },
+        {
+          "path": "native/core/src/session.rs",
+          "contains": [
+            "MAX_REPLAY_CHECKPOINTS",
+            "MAX_REPLAY_CHECKPOINT_BYTES",
+            "UnsafeReplayCheckpoint",
+            "capture_replay_checkpoint"
+          ]
+        },
+        {
+          "path": "packages/ianvs_pty/lib/src/native_pty_backend.dart",
+          "contains": [
+            "class PtyReplayCheckpointBackend",
+            "ianvs_replay_session_checkpoint_capture",
+            "ianvs_replay_session_checkpoint_restore"
+          ]
+        },
+        {
+          "path": "packages/ianvs_terminal/lib/src/recording/terminal_replay_backend.dart",
+          "contains": [
+            "class TerminalReplayCheckpoint",
+            "supportsReplayCheckpoints",
+            "checkpointsForSession",
+            "captureReplayCheckpoint"
+          ]
+        },
+        {
+          "path": "docs/recording/FORMAT_V2.md",
+          "contains": [
+            "Terminal Recording Format V2 Checkpoints",
+            "Safe Parser Boundaries",
+            "at most 64 checkpoints",
+            "32 MiB"
+          ]
+        },
+        {
+          "path": "docs/tasks/runtime-pty/T-327-replay-checkpoint-contract-v1.md",
+          "contains": [
+            "T-327 Replay Checkpoint Contract v1",
+            "T-327 is closed",
+            "build/bench-results-ci/20260721T111849Z"
+          ]
+        },
+        {
+          "path": "packages/ianvs_terminal/lib/src/recording/terminal_replay_backend.dart",
+          "contains": [
+            "class TerminalReplaySeekResult",
+            "class TerminalReplaySeekException",
+            "supportsReplaySeek",
+            "replayOffsetForSession",
+            "seekSession",
+            "discardedSeekEventCount"
+          ]
+        },
+        {
+          "path": "packages/ianvs_terminal/test/terminal_replay_backend_test.dart",
+          "contains": [
+            "seeks backward by restoring and replaying from a checkpoint",
+            "exact seek uses the latest checkpoint at the target offset",
+            "seek preserves pending events and discards regenerated lifecycle",
+            "realtime seek replaces the timer from the requested offset",
+            "seek restores the expected Frame through the real native core"
+          ]
+        },
+        {
+          "path": "docs/tasks/runtime-pty/T-328-replay-checkpoint-seek.md",
+          "contains": [
+            "T-328 Replay Checkpoint Seek",
+            "T-328 is closed",
+            "build/bench-results-ci/20260721T115621Z"
+          ]
+        },
+        {
+          "path": "packages/ianvs_terminal/lib/src/recording/terminal_recording.dart",
+          "contains": [
+            "terminalRecordingGraphicAssetMaxCount",
+            "terminalRecordingGraphicAssetMaxBytes",
+            "class TerminalRecordingGraphicAsset",
+            "class TerminalRecordingGraphicAssetBundler",
+            "graphic_asset_blob"
+          ]
+        },
+        {
+          "path": "packages/ianvs_terminal/test/fixtures/recording/graphics_v2.ndjson",
+          "contains": [
+            "graphic_asset_blob",
+            "sha256:0a6b6c68bc93e59b462b904b82daa7ee682deb5e293609553becaa4f8b0c43a0",
+            "graphic_asset"
+          ]
+        },
+        {
+          "path": "packages/ianvs_terminal/test/terminal_replay_backend_test.dart",
+          "contains": [
+            "serves bundled graphic assets before the native fallback"
+          ]
+        },
+        {
+          "path": "docs/tasks/runtime-pty/T-329-replay-graphic-asset-bundle.md",
+          "contains": [
+            "T-329 Replay Graphic Asset Bundle",
+            "T-329 is closed",
+            "build/bench-results-ci/20260721T122846Z"
+          ]
+        }
+      ],
+      "verification_commands": [
+        "cargo test --manifest-path native/core/Cargo.toml session::recording::tests --lib",
+        "cargo test --manifest-path native/core/Cargo.toml --test session_test live_recording_captures_raw_pty_output_redacted_input_and_resize -- --exact",
+        "cd packages/ianvs_terminal && flutter analyze",
+        "cd packages/ianvs_pty && dart test",
+        "cd packages/ianvs_terminal && flutter test test/terminal_replay_backend_test.dart",
+        "cd packages/ianvs_terminal && flutter test test/terminal_replay_frame_hash_comparator_test.dart",
+        "cargo test --manifest-path native/core/Cargo.toml --test session_test replay_checkpoint -- --nocapture",
+        "cd packages/ianvs_pty && dart test test/native_pty_backend_test.dart",
+        "cd packages/ianvs_terminal && flutter test test/terminal_recording_checkpoint_test.dart test/terminal_recording_codec_test.dart test/terminal_replay_backend_test.dart",
+        "cd packages/ianvs_terminal && flutter test test/terminal_recording_codec_test.dart test/terminal_replay_backend_test.dart",
+        "cd packages/ianvs_terminal && flutter test test/terminal_live_recorder_test.dart test/terminal_recording_codec_test.dart",
+        "cd packages/ianvs_terminal && flutter test",
+        "make verify"
+      ],
+      "exit_criteria": [
+        "Recording metadata and events have an explicit schema version, session id, sequence and monotonic offset.",
+        "Session start, raw PTY output, user input, resize and exit are captured under a documented input privacy policy.",
+        "ReplayBackend implements the current backend abstraction and supports realtime and no-delay playback.",
+        "Realtime replay validates a bounded speed and scales absolute recording offsets without cumulative interval-rounding drift.",
+        "Bounded applied-viewport Frame hash comparison reports the first hash or frame-count divergence without changing Recording v1.",
+        "Recording v2 checkpoint markers materialize bounded native terminal snapshots only at safe control-sequence boundaries while v1 and old delegates remain compatible.",
+        "Replay seek restores the latest materialized checkpoint at or before an inclusive target, fast-forwards deterministically and preserves monotonic Runtime Event ordering.",
+        "Recording v2 stores bounded content-addressed graphic assets, rejects corrupt or missing blobs and lets ReplayBackend prefer exact bundled identities before native fallback.",
+        "Repeated fixture playback produces a stable event sequence.",
+        "Truncated, corrupt and unsupported recordings return structured errors.",
+        "The complete repository verification entrypoint passes after live recording and replay are connected."
+      ]
+    },
+    {
+      "id": "cross-platform-host-evidence",
+      "status": "blocked",
+      "goal": "Obtain real Linux or Windows desktop host evidence before claiming or implementing broad cross-platform support.",
+      "evidence": [
+        {
+          "path": "docs/KNOWN_ISSUES.md",
+          "contains": [
+            "当前只支持 macOS",
+            "还没有跨平台验证"
+          ]
+        },
+        {
+          "path": "docs/tasks/verification-gates/T-065-phase4-windows-linux-validation-gate.md",
+          "contains": [
+            "Windows",
+            "Linux",
+            "blocked"
+          ]
+        }
+      ],
+      "verification_commands": [
+        "Follow docs/tasks/verification-gates/T-065-phase4-windows-linux-validation-gate.md on a target host"
+      ],
+      "blockers": [
+        "No current Windows or Linux desktop host run proves build, PTY spawn, resize, input, and runnable app behavior."
+      ]
+    },
+    {
+      "id": "remote-plugin-renderer-expansion",
+      "status": "deferred",
+      "goal": "Keep SSH, plugins, and renderer replacement outside the active lane until the local workspace stability gate closes.",
+      "evidence": [
+        {
+          "path": "docs/KNOWN_ISSUES.md",
+          "contains": [
+            "还没有 SSH 会话链路",
+            "还没有插件系统",
+            "当前没有 native renderer"
+          ]
+        }
+      ],
+      "verification_commands": [],
+      "reason": "These are product expansion choices, not blockers for the current macOS local-terminal product."
+    }
+  ]
+}

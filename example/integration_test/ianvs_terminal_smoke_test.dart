@@ -44,6 +44,22 @@ Future<void> _openCommandMenu(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> _waitForWidget(
+  WidgetTester tester,
+  Finder finder, {
+  required String description,
+}) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 10));
+  while (DateTime.now().isBefore(deadline)) {
+    if (finder.evaluate().isNotEmpty) {
+      expect(finder, findsOneWidget);
+      return;
+    }
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+  fail('Timed out waiting for $description.');
+}
+
 void _expectSelectedTab(WidgetTester tester, String sessionId) {
   expect(
     tester.getSemantics(find.bySemanticsIdentifier('shell-tab-$sessionId')),
@@ -100,10 +116,11 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
     await tester.pump();
 
-    expect(find.text('Top actions'), findsOneWidget);
-    expect(find.text('Defaults & appearance'), findsOneWidget);
+    expect(find.text('Command palette'), findsOneWidget);
+    expect(find.text('Quick actions'), findsOneWidget);
+    expect(find.byKey(const Key('shell-command-defaults')), findsOneWidget);
 
-    await tester.tap(find.text('Defaults & appearance'));
+    await tester.tap(find.byKey(const Key('shell-command-defaults')));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('defaults-dialog')), findsOneWidget);
@@ -138,11 +155,19 @@ void main() {
     await tester.tap(find.text('Profiles…'));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('profiles-sheet')), findsOneWidget);
+    await _waitForWidget(
+      tester,
+      find.byKey(const Key('profiles-sheet')),
+      description: 'the profiles sheet to open',
+    );
     await tester.tap(find.text('Shell B').last);
     await tester.pumpAndSettle();
 
-    expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
+    await _waitForWidget(
+      tester,
+      find.bySemanticsIdentifier('shell-tab-2'),
+      description: 'the second profile tab to open',
+    );
     _expectSelectedTab(tester, '2');
   });
 

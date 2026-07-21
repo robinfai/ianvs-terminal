@@ -1,19 +1,19 @@
-import 'dart:convert';
-
 import 'package:ianvs_pty/ianvs_pty.dart';
 
 import '../config/terminal_defaults.dart';
 import '../terminal/terminal_models.dart';
 import 'terminal_backend_request_error.dart';
+import 'terminal_session_request_transport.dart';
 
 const int _maxSearchMatchesPerResponse = 1000;
 const int _maxDecodedCollectionScanMultiplier = 4;
 
 final class TerminalJsonRequestClient {
-  const TerminalJsonRequestClient(
-    this._backend, {
+  TerminalJsonRequestClient(
+    PtySessionJsonRequestBackend? backend, {
     TerminalBackendRequestErrorHandler? onRequestError,
-  }) : _onRequestError = onRequestError;
+  }) : _transport = TerminalSessionRequestTransport(backend),
+       _onRequestError = onRequestError;
 
   factory TerminalJsonRequestClient.fromBackend(
     PtySessionBackend backend, {
@@ -27,7 +27,7 @@ final class TerminalJsonRequestClient {
     );
   }
 
-  final PtySessionJsonRequestBackend? _backend;
+  final TerminalSessionRequestTransport _transport;
   final TerminalBackendRequestErrorHandler? _onRequestError;
 
   String? selectionText(
@@ -132,21 +132,15 @@ final class TerminalJsonRequestClient {
     String operation,
     Map<String, Object?> request,
   ) {
-    final backend = _backend;
-    if (backend == null) {
+    if (!_transport.isSupported) {
       return null;
     }
-    final String? raw;
     try {
-      raw = backend.requestSessionJson(sessionId, jsonEncode(request));
+      return _transport.requestObject(sessionId, request);
     } on Object catch (error, stackTrace) {
       _onRequestError?.call(sessionId, operation, error, stackTrace);
       return null;
     }
-    if (raw == null || raw.isEmpty) {
-      return null;
-    }
-    return _tryDecodeJsonObject(raw);
   }
 
   TerminalSearchResult _decodeSearchResult(Map<String, Object?> json) {
@@ -197,18 +191,6 @@ int? _boundedScrollbackExportMaxLines(int? value) {
     return maxTerminalScrollbackLines;
   }
   return value;
-}
-
-Map<String, Object?>? _tryDecodeJsonObject(String raw) {
-  try {
-    final decoded = jsonDecode(raw);
-    if (decoded is! Map) {
-      return null;
-    }
-    return _stringKeyedJsonMap(decoded);
-  } on Object {
-    return null;
-  }
 }
 
 Map<String, Object?> _stringKeyedJsonMap(Map<dynamic, dynamic> decoded) {

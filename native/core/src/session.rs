@@ -1,32 +1,41 @@
 use crate::frame_diff_proto;
+use crate::graphic_asset_proto;
+use crate::host_request::{
+    HOST_REQUEST_EVENT_NAME, HostResponseError, HostResponseV1, PendingHostRequestV1,
+    host_request_v1_from_event, pending_host_request, resolve_host_response,
+};
 use crate::model::{
     MAX_SCROLLBACK_LINES, TERMINAL_FRAME_SCHEMA_VERSION, TerminalBlock, TerminalCursor,
-    TerminalCursorShape, TerminalDirtyRange, TerminalEmulation, TerminalEvent, TerminalFrameDiff,
-    TerminalFrameKind, TerminalFrameModes, TerminalGraphicPlacement, TerminalHyperlinkRange,
-    TerminalInlineButton, TerminalProfile, TerminalProfileAnsiColors, TerminalProfileColors,
-    TerminalProfileFont, TerminalRow, TerminalSearchMatch, TerminalSelectionRequest,
-    TerminalSizedTextPlacement, TerminalStyleRun, normalize_scrollback_lines,
+    TerminalCursorShape, TerminalEmulation, TerminalEvent, TerminalFrameDiff, TerminalFrameKind,
+    TerminalFrameModes, TerminalHyperlinkRange, TerminalInlineButton, TerminalProfile,
+    TerminalProfileAnsiColors, TerminalProfileColors, TerminalProfileFont, TerminalRow,
+    TerminalSearchMatch, TerminalSelectionRequest, TerminalSizedTextPlacement, TerminalStyleRun,
+    normalize_scrollback_lines,
 };
 use crate::pty::spawn_pty;
+use crate::runtime_contract::{
+    GRAPHIC_ASSET_PACKET_MAX_RGBA_BYTES, RuntimeEnvelopeV1, RuntimeEventBatchV1,
+};
+use crate::session_config::SessionConfigV1;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use par_term_emu_core_rust::cell::{Cell, CellFlags};
 use par_term_emu_core_rust::color::Color;
-use par_term_emu_core_rust::graphics::placeholder::{PlaceholderInfo, parse_diacritics};
-use par_term_emu_core_rust::graphics::{
-    ImageDimension, ImageSizeUnit, PLACEHOLDER_CHAR, TerminalGraphic,
-};
-use par_term_emu_core_rust::grid::{Grid, ScrollRegionDamage};
+use par_term_emu_core_rust::graphics::PLACEHOLDER_CHAR;
+#[cfg(test)]
+use par_term_emu_core_rust::graphics::{ImageDimension, TerminalGraphic};
+use par_term_emu_core_rust::grid::Grid;
 use par_term_emu_core_rust::mouse::{MouseEncoding, MouseMode};
 #[cfg(test)]
 use par_term_emu_core_rust::terminal::ItermAttentionAction;
+use par_term_emu_core_rust::terminal::terminal_snapshot::TerminalSnapshot;
 use par_term_emu_core_rust::terminal::{
-    ItermButtonKind, OscCapability, Terminal, TerminalDamage, TerminalEvent as ParserTerminalEvent,
+    ItermButtonKind, OscCapability, Terminal, TerminalEvent as ParserTerminalEvent,
     TerminalProcessDebugStats, TransferDirection, TransferStatus, snapshot::ExportFormat,
 };
 use par_term_emu_core_rust::{WidthConfig, str_width};
 use parking_lot::Mutex;
 use regex::RegexBuilder;
-use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::{Read, Write};
 use std::sync::{
@@ -36,12 +45,30 @@ use std::sync::{
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+mod frame;
+mod recording;
+
+use frame::{
+    CachedFrameMeta, CachedRowState, CollapsedBlockRange, DeltaFrameContext, DisplayProjection,
+    FrameBuildContext, GraphicAssetSnapshot, PendingFrameWork, build_delta_frame,
+    build_projected_graphic_placements, build_snapshot_frame, display_projection_for_terminal,
+    graphic_asset_snapshots, projection_source_span, resolve_viewport_row_shift,
+    snapshot_fallback_reason,
+};
+#[cfg(test)]
+use frame::{
+    PendingScrollRegion, build_graphic_placements, delta_candidate_row_indexes,
+    graphic_placement_for_viewport,
+};
+use recording::{RecordingError, RecordingInputPolicy, SessionRecording};
+
 const DEFAULT_ROWS: u16 = 32;
 const DEFAULT_COLS: u16 = 120;
 const MAX_TRANSCRIPT_BYTES: usize = 256 * 1024;
 const RESOURCE_SAMPLE_CAPACITY: usize = 60;
 const MAX_PENDING_SESSION_EVENTS: usize = 1024;
 const MAX_PENDING_SESSION_EVENT_BYTES: usize = 8 * 1024 * 1024;
+const MAX_PENDING_HOST_REQUESTS: usize = 64;
 const MAX_DIAGNOSTIC_EVENTS: usize = 256;
 const EVENT_QUEUE_OVERFLOW_DIAGNOSTIC_KIND: &str = "event_queue_overflow";
 const RESOURCE_SAMPLE_INTERVAL: Duration = Duration::from_secs(1);
@@ -60,6 +87,8 @@ const OSC5522_MAX_APPLICATION_NAME_BYTES: usize = 256;
 const ITERM_CLIPBOARD_MAX_BYTES: usize = 4 * 1024 * 1024;
 const ITERM_FILE_DOWNLOAD_MAX_BYTES: usize = 16 * 1024 * 1024;
 const ITERM_FILE_DOWNLOAD_MAX_PENDING: usize = 8;
+const MAX_REPLAY_CHECKPOINTS: usize = 64;
+const MAX_REPLAY_CHECKPOINT_BYTES: usize = 32 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum TerminalSearchMode {
@@ -240,6 +269,8 @@ impl Default for PendingEventLimits {
 struct QueuedTerminalEvent {
     event: TerminalEvent,
     wire_bytes: usize,
+    sequence: u64,
+    timestamp_micros: u64,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -250,8 +281,11 @@ struct PendingEventPushResult {
 #[derive(Debug, Default)]
 struct PendingEventQueue {
     entries: VecDeque<QueuedTerminalEvent>,
+    pending_host_requests: VecDeque<PendingHostRequestV1>,
     aggregate_bytes: usize,
     dropped_count: u64,
+    dropped_since_last_drain: u64,
+    next_sequence: u64,
     overflow_diagnostic_emitted: bool,
     limits: PendingEventLimits,
 }
@@ -275,6 +309,9 @@ impl PendingEventQueue {
     }
 
     fn push(&mut self, event: TerminalEvent) -> PendingEventPushResult {
+        let sequence = self.next_sequence;
+        self.next_sequence = self.next_sequence.saturating_add(1);
+        let timestamp_micros = unix_timestamp_micros();
         let wire_bytes = terminal_event_wire_size(&event);
         if self.limits.max_count == 0
             || self.limits.max_bytes == 0
@@ -284,8 +321,12 @@ impl PendingEventQueue {
         }
 
         self.aggregate_bytes = self.aggregate_bytes.saturating_add(wire_bytes);
-        self.entries
-            .push_back(QueuedTerminalEvent { event, wire_bytes });
+        self.entries.push_back(QueuedTerminalEvent {
+            event,
+            wire_bytes,
+            sequence,
+            timestamp_micros,
+        });
 
         let mut result = PendingEventPushResult::default();
         while self.entries.len() > self.limits.max_count
@@ -325,6 +366,7 @@ impl PendingEventQueue {
 
     fn record_drop(&mut self) -> PendingEventPushResult {
         self.dropped_count = self.dropped_count.saturating_add(1);
+        self.dropped_since_last_drain = self.dropped_since_last_drain.saturating_add(1);
         let emit_overflow_diagnostic = !self.overflow_diagnostic_emitted;
         self.overflow_diagnostic_emitted = true;
         PendingEventPushResult {
@@ -334,7 +376,75 @@ impl PendingEventQueue {
 
     fn drain(&mut self) -> Vec<TerminalEvent> {
         self.aggregate_bytes = 0;
+        self.dropped_since_last_drain = 0;
         self.entries.drain(..).map(|entry| entry.event).collect()
+    }
+
+    fn drain_event_batch(&mut self, session_id: u64) -> Option<RuntimeEventBatchV1> {
+        if self.entries.is_empty() && self.dropped_since_last_drain == 0 {
+            return None;
+        }
+
+        self.aggregate_bytes = 0;
+        let dropped_count = std::mem::take(&mut self.dropped_since_last_drain);
+        let entries = self.entries.drain(..).collect::<Vec<_>>();
+        let messages = entries
+            .into_iter()
+            .map(|entry| {
+                let request = host_request_v1_from_event(
+                    session_id,
+                    entry.sequence,
+                    entry.timestamp_micros,
+                    &entry.event.kind,
+                    entry.event.payload.clone(),
+                );
+                if let Some(request) = request
+                    && let Some(pending) = pending_host_request(&request)
+                    && let Ok(payload) = serde_json::to_value(request)
+                {
+                    self.pending_host_requests.push_back(pending);
+                    while self.pending_host_requests.len() > MAX_PENDING_HOST_REQUESTS {
+                        self.pending_host_requests.pop_front();
+                    }
+                    return RuntimeEnvelopeV1::event(
+                        session_id,
+                        entry.sequence,
+                        entry.timestamp_micros,
+                        HOST_REQUEST_EVENT_NAME.to_string(),
+                        Some(payload),
+                    );
+                }
+                RuntimeEnvelopeV1::event(
+                    session_id,
+                    entry.sequence,
+                    entry.timestamp_micros,
+                    entry.event.kind,
+                    entry.event.payload,
+                )
+            })
+            .collect();
+        Some(RuntimeEventBatchV1::new(
+            session_id,
+            self.next_sequence,
+            dropped_count,
+            messages,
+        ))
+    }
+
+    fn resolve_host_response(
+        &mut self,
+        session_id: u64,
+        raw: &str,
+    ) -> Result<Option<Vec<u8>>, HostResponseError> {
+        let response = HostResponseV1::decode_json(raw, session_id)?;
+        let index = self
+            .pending_host_requests
+            .iter()
+            .position(|pending| pending.request_id == response.request_id)
+            .ok_or(HostResponseError::CorrelationMismatch)?;
+        let bytes = resolve_host_response(&response, &self.pending_host_requests[index])?;
+        self.pending_host_requests.remove(index);
+        Ok(bytes)
     }
 
     fn len(&self) -> usize {
@@ -400,209 +510,10 @@ fn json_string_wire_size(value: &str) -> usize {
     })
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-struct CachedRowState {
-    text: String,
-    wrapped: bool,
-    continues_from_previous: bool,
-    style_signature: u64,
-    hyperlink_signature: u64,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct CachedFrameMeta {
-    viewport_rows: usize,
-    viewport_cols: usize,
-    scrollback_offset: usize,
-    viewport_start_row: usize,
-    alt_screen_active: bool,
-    default_foreground_rgb: (u8, u8, u8),
-    default_background_rgb: (u8, u8, u8),
-    cursor_color_rgb: (u8, u8, u8),
-    cursor_guide_color_rgb: (u8, u8, u8),
-    selection_background_rgb: (u8, u8, u8),
-    selection_foreground_rgb: Option<(u8, u8, u8)>,
-    link_color_rgb: Option<(u8, u8, u8)>,
-    cursor_text_color_rgb: Option<(u8, u8, u8)>,
-    tab_color_rgb: Option<(u8, u8, u8)>,
-    pointer_shape: Option<String>,
-    ansi_palette: [Color; 256],
-    modes: TerminalFrameModes,
-    window_title: Option<String>,
-    window_icon_name: Option<String>,
-    font_family: Option<String>,
-}
-
-#[derive(Clone, Debug)]
-enum DisplayProjectionRow {
-    Source(usize),
-    FoldSummary(usize),
-}
-
-#[derive(Clone, Debug)]
-struct CollapsedBlockRange {
-    id: String,
-    source_start_row: usize,
-    source_end_row: usize,
-    has_summary: bool,
-}
-
-#[derive(Clone, Debug)]
-struct DisplayProjection {
-    rows: Vec<DisplayProjectionRow>,
-    collapsed: Vec<CollapsedBlockRange>,
-}
-
-impl DisplayProjection {
-    fn identity(total_rows: usize) -> Self {
-        Self {
-            rows: (0..total_rows).map(DisplayProjectionRow::Source).collect(),
-            collapsed: Vec::new(),
-        }
-    }
-
-    fn has_folds(&self) -> bool {
-        !self.collapsed.is_empty()
-    }
-
-    fn source_range(&self, row: &DisplayProjectionRow) -> (usize, usize) {
-        match row {
-            DisplayProjectionRow::Source(source) => (*source, *source),
-            DisplayProjectionRow::FoldSummary(index) => {
-                let range = &self.collapsed[*index];
-                (range.source_start_row, range.source_end_row)
-            }
-        }
-    }
-
-    fn display_index_for_source(&self, source_row: usize) -> Option<usize> {
-        let index = self.rows.partition_point(|row| {
-            let (_, end) = self.source_range(row);
-            end < source_row
-        });
-        self.rows.get(index).and_then(|row| {
-            let (start, end) = self.source_range(row);
-            (source_row >= start && source_row <= end).then_some(index)
-        })
-    }
-
-    fn summary_id_for_source(&self, source_row: usize) -> Option<&str> {
-        let index = self.display_index_for_source(source_row)?;
-        let DisplayProjectionRow::FoldSummary(range_index) = self.rows.get(index)? else {
-            return None;
-        };
-        Some(self.collapsed[*range_index].id.as_str())
-    }
-
-    fn intersects_collapsed_range(&self, start_row: usize, end_row_exclusive: usize) -> bool {
-        self.collapsed.iter().any(|range| {
-            start_row <= range.source_end_row && end_row_exclusive > range.source_start_row
-        })
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct PendingScrollRegion {
-    top: usize,
-    bottom_exclusive: usize,
-    delta_rows: i32,
-}
-
-impl From<ScrollRegionDamage> for PendingScrollRegion {
-    fn from(value: ScrollRegionDamage) -> Self {
-        Self {
-            top: value.top,
-            bottom_exclusive: value.bottom_exclusive,
-            delta_rows: value.delta_rows,
-        }
-    }
-}
-
 #[derive(Clone, Debug)]
 struct DeferredFrameGrace {
     damage_generation: u64,
     started_at: Instant,
-}
-
-#[derive(Clone, Debug, Default)]
-struct PendingFrameWork {
-    full_repaint: bool,
-    snapshot_fallback_reason: Option<String>,
-    dirty_rows: BTreeSet<usize>,
-    scroll_region: Option<PendingScrollRegion>,
-    cursor_before: Option<TerminalCursor>,
-    cursor_after: Option<TerminalCursor>,
-    damage_generation: u64,
-}
-
-impl PendingFrameWork {
-    fn is_empty(&self) -> bool {
-        !self.full_repaint
-            && self.snapshot_fallback_reason.is_none()
-            && self.dirty_rows.is_empty()
-            && self.scroll_region.is_none()
-            && self.cursor_before.is_none()
-            && self.cursor_after.is_none()
-            && self.damage_generation == 0
-    }
-
-    fn mark_full_repaint(&mut self, reason: &str) {
-        self.full_repaint = true;
-        self.dirty_rows.clear();
-        self.scroll_region = None;
-        self.bump_generation();
-        if self.snapshot_fallback_reason.is_none() {
-            self.snapshot_fallback_reason = Some(reason.to_string());
-        }
-    }
-
-    fn merge_terminal_damage(
-        &mut self,
-        damage: TerminalDamage,
-        cursor_before: TerminalCursor,
-        cursor_after: TerminalCursor,
-    ) {
-        self.bump_generation();
-        if self.cursor_before.is_none() {
-            self.cursor_before = Some(cursor_before);
-        }
-        self.cursor_after = Some(cursor_after);
-
-        if damage.full_repaint {
-            self.full_repaint = true;
-            self.dirty_rows.clear();
-            self.scroll_region = None;
-            if self.snapshot_fallback_reason.is_none() {
-                self.snapshot_fallback_reason = damage.snapshot_fallback_reason;
-            }
-            return;
-        }
-
-        self.dirty_rows.extend(damage.dirty_rows);
-        if let Some(scroll_region) = damage.scroll_region {
-            self.merge_scroll_region(scroll_region.into());
-        }
-    }
-
-    fn merge_scroll_region(&mut self, scroll_region: PendingScrollRegion) {
-        match self.scroll_region.as_mut() {
-            None => {
-                self.scroll_region = Some(scroll_region);
-            }
-            Some(existing)
-                if existing.top == scroll_region.top
-                    && existing.bottom_exclusive == scroll_region.bottom_exclusive
-                    && existing.delta_rows.signum() == scroll_region.delta_rows.signum() =>
-            {
-                existing.delta_rows = existing.delta_rows.saturating_add(scroll_region.delta_rows);
-            }
-            Some(_) => self.mark_full_repaint("conflicting_scroll_regions"),
-        }
-    }
-
-    fn bump_generation(&mut self) {
-        self.damage_generation = self.damage_generation.saturating_add(1);
-    }
 }
 
 struct PendingFrameSignal {
@@ -749,6 +660,10 @@ struct SessionDebugStats {
     response_write_micros: u64,
     transcript_bytes: usize,
     transcript_truncated: bool,
+    resize_replay_count: u64,
+    resize_replay_bytes: u64,
+    resize_replay_micros: u64,
+    resize_replay_skipped_truncated_count: u64,
     osc_ingress_accepted: u64,
     osc_ingress_oversized: u64,
     osc_ingress_policy_denied: u64,
@@ -857,6 +772,13 @@ impl SessionStore {
         Ok(session_id)
     }
 
+    pub fn create_replay_session(&self, profile: TerminalProfile) -> Result<u64, SessionError> {
+        let session_id = self.next_session_id();
+        let session = TerminalSession::spawn_replay(session_id, profile)?;
+        self.sessions.lock().insert(session_id, session);
+        Ok(session_id)
+    }
+
     pub fn get(&self, session_id: u64) -> Result<Arc<TerminalSession>, SessionError> {
         self.sessions
             .lock()
@@ -879,18 +801,32 @@ pub enum SessionError {
     MissingSession(u64),
     #[error("invalid profile JSON: {0}")]
     InvalidProfile(String),
+    #[error("invalid SessionConfig: {0}")]
+    InvalidSessionConfig(String),
     #[error("invalid selection JSON: {0}")]
     InvalidSelection(String),
     #[error("pty error: {0}")]
     Pty(String),
     #[error("io error: {0}")]
     Io(String),
+    #[error("session {0} is not a replay session")]
+    NotReplaySession(u64),
+    #[error("replay session {0} is read-only")]
+    ReadOnlyReplaySession(u64),
+    #[error("replay checkpoint {checkpoint_id} is unavailable for session {session_id}")]
+    MissingReplayCheckpoint { session_id: u64, checkpoint_id: u64 },
+    #[error("replay checkpoint capacity exceeded")]
+    ReplayCheckpointCapacity,
+    #[error("replay checkpoint requires a complete control-sequence boundary")]
+    UnsafeReplayCheckpoint,
     #[error("serialization error: {0}")]
     Serialize(String),
     #[error("graphic asset error: {0}")]
     GraphicAsset(String),
     #[error("file download error: {0}")]
     FileDownload(String),
+    #[error("Host Response error: {0}")]
+    HostResponse(String),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -901,18 +837,89 @@ pub struct GraphicAssetMeta {
     pub version: u64,
 }
 
-struct GraphicAssetSnapshot {
-    asset_id: u64,
-    asset_version: u64,
-    width: usize,
-    height: usize,
-    pixels: Arc<Vec<u8>>,
-}
-
 #[derive(Debug)]
 struct PendingFileDownload {
     id: u64,
     data: Vec<u8>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum ReplayCheckpointBoundary {
+    #[default]
+    Ground,
+    Escape,
+    Csi,
+    Osc,
+    ControlString,
+    OscEscape,
+    ControlStringEscape,
+}
+
+impl ReplayCheckpointBoundary {
+    fn add(&mut self, bytes: &[u8]) {
+        for &byte in bytes {
+            self.add_byte(byte);
+        }
+    }
+
+    fn add_byte(&mut self, byte: u8) {
+        if matches!(byte, 0x18 | 0x1a | 0x9c) {
+            *self = Self::Ground;
+            return;
+        }
+        *self = match *self {
+            Self::Ground => match byte {
+                0x1b => Self::Escape,
+                0x9b => Self::Csi,
+                0x9d => Self::Osc,
+                0x90 | 0x98 | 0x9e | 0x9f => Self::ControlString,
+                _ => Self::Ground,
+            },
+            Self::Escape => match byte {
+                0x1b => Self::Escape,
+                b'[' => Self::Csi,
+                b']' => Self::Osc,
+                b'P' | b'X' | b'^' | b'_' => Self::ControlString,
+                0x20..=0x2f => Self::Escape,
+                _ => Self::Ground,
+            },
+            Self::Csi => {
+                if byte == 0x1b {
+                    Self::Escape
+                } else if (0x40..=0x7e).contains(&byte) {
+                    Self::Ground
+                } else {
+                    Self::Csi
+                }
+            }
+            Self::Osc => match byte {
+                0x07 => Self::Ground,
+                0x1b => Self::OscEscape,
+                _ => Self::Osc,
+            },
+            Self::ControlString => {
+                if byte == 0x1b {
+                    Self::ControlStringEscape
+                } else {
+                    Self::ControlString
+                }
+            }
+            Self::OscEscape => match byte {
+                b'\\' | 0x07 => Self::Ground,
+                0x1b => Self::OscEscape,
+                _ => Self::Osc,
+            },
+            Self::ControlStringEscape => match byte {
+                b'\\' => Self::Ground,
+                0x1b => Self::ControlStringEscape,
+                _ => Self::ControlString,
+            },
+        };
+    }
+
+    fn is_safe(self) -> bool {
+        self == Self::Ground
+    }
 }
 
 struct TerminalState {
@@ -927,6 +934,7 @@ struct TerminalState {
     pending_file_downloads: VecDeque<PendingFileDownload>,
     pending_file_download_bytes: usize,
     next_file_download_id: u64,
+    replay_checkpoint_boundary: ReplayCheckpointBoundary,
 }
 
 impl TerminalState {
@@ -1653,6 +1661,71 @@ impl HostProtocolState {
     }
 }
 
+#[derive(Clone)]
+struct ReplayCheckpoint {
+    id: u64,
+    snapshot: TerminalSnapshot,
+    transcript: Vec<u8>,
+    transcript_truncated: bool,
+    scrollback_offset: usize,
+    host_protocol: HostProtocolState,
+    estimated_size_bytes: usize,
+}
+
+#[derive(Default)]
+struct ReplayCheckpointStore {
+    entries: VecDeque<ReplayCheckpoint>,
+    retained_bytes: usize,
+    next_id: u64,
+}
+
+impl ReplayCheckpointStore {
+    fn capture(&mut self, state: &TerminalState) -> Result<u64, SessionError> {
+        if !state.replay_checkpoint_boundary.is_safe() {
+            return Err(SessionError::UnsafeReplayCheckpoint);
+        }
+        let snapshot = state.terminal.capture_snapshot();
+        let estimated_size_bytes = snapshot
+            .estimated_size_bytes
+            .saturating_add(state.transcript.len())
+            .saturating_add(state.host_protocol.buffer.len());
+        if estimated_size_bytes > MAX_REPLAY_CHECKPOINT_BYTES {
+            return Err(SessionError::ReplayCheckpointCapacity);
+        }
+        while self.entries.len() >= MAX_REPLAY_CHECKPOINTS
+            || self.retained_bytes.saturating_add(estimated_size_bytes)
+                > MAX_REPLAY_CHECKPOINT_BYTES
+        {
+            let Some(removed) = self.entries.pop_front() else {
+                break;
+            };
+            self.retained_bytes = self
+                .retained_bytes
+                .saturating_sub(removed.estimated_size_bytes);
+        }
+        self.next_id = self.next_id.saturating_add(1).max(1);
+        let id = self.next_id;
+        self.entries.push_back(ReplayCheckpoint {
+            id,
+            snapshot,
+            transcript: state.transcript.clone(),
+            transcript_truncated: state.transcript_truncated,
+            scrollback_offset: state.scrollback_offset,
+            host_protocol: state.host_protocol.clone(),
+            estimated_size_bytes,
+        });
+        self.retained_bytes = self.retained_bytes.saturating_add(estimated_size_bytes);
+        Ok(id)
+    }
+
+    fn get(&self, checkpoint_id: u64) -> Option<ReplayCheckpoint> {
+        self.entries
+            .iter()
+            .find(|entry| entry.id == checkpoint_id)
+            .cloned()
+    }
+}
+
 #[cfg(test)]
 fn callback_event_from_parser_event(
     event: ParserTerminalEvent,
@@ -2359,13 +2432,18 @@ pub struct TerminalSession {
     profile_font: TerminalProfileFont,
     osc633_expected_nonce: Option<String>,
     state: Mutex<TerminalState>,
-    writer: Mutex<Box<dyn Write + Send>>,
-    master: Mutex<Box<dyn portable_pty::MasterPty + Send>>,
-    child: Mutex<Box<dyn portable_pty::Child + Send + Sync>>,
+    writer: Mutex<Option<Box<dyn Write + Send>>>,
+    master: Mutex<Option<Box<dyn portable_pty::MasterPty + Send>>>,
+    child: Mutex<Option<Box<dyn portable_pty::Child + Send + Sync>>>,
     child_pid: Option<u32>,
     process_name: String,
+    is_replay: bool,
     events: Mutex<PendingEventQueue>,
+    recording: Mutex<SessionRecording>,
+    replay_checkpoints: Mutex<ReplayCheckpointStore>,
     diagnostic_events: Mutex<VecDeque<TerminalDiagnosticEvent>>,
+    diagnostic_wire_sequence: Mutex<u64>,
+    frame_packet_sequence: Mutex<u64>,
     resource_samples: Mutex<VecDeque<ResourceSample>>,
     resource_sampler_state: Mutex<ResourceSamplerState>,
     pending_frame_signal: PendingFrameSignal,
@@ -2395,6 +2473,102 @@ struct SessionWorkerHandles {
 
 impl TerminalSession {
     pub fn spawn(session_id: u64, profile: TerminalProfile) -> Result<Arc<Self>, SessionError> {
+        let osc633_expected_nonce = Self::validate_osc633_nonce(&profile)?;
+        let runtime = spawn_pty(&profile, DEFAULT_ROWS, DEFAULT_COLS)
+            .map_err(|error: anyhow::Error| SessionError::Pty(error.to_string()))?;
+        let child_pid = runtime.child_pid;
+        let process_name = process_name_for_profile(&profile);
+        let reader = runtime.reader;
+        let shell_integration_diagnostics = runtime.shell_integration.to_diagnostic_json();
+        let shell_integration_proxy = runtime.shell_integration_proxy;
+        let session = Self::new(
+            session_id,
+            profile,
+            osc633_expected_nonce,
+            Some(runtime.writer),
+            Some(runtime.master),
+            Some(runtime.child),
+            child_pid,
+            process_name,
+            shell_integration_diagnostics,
+            false,
+        );
+
+        let reader_session = Arc::clone(&session);
+        let reader_handle = thread::spawn(move || {
+            let _shell_integration_proxy = shell_integration_proxy;
+            let mut reader = reader;
+            let mut buf = [0_u8; 4096];
+            loop {
+                match reader.read(&mut buf) {
+                    Ok(0) => break,
+                    Ok(read) => {
+                        reader_session
+                            .recording
+                            .lock()
+                            .record_pty_output(&buf[..read]);
+                        reader_session.ingest_pty_output(&buf[..read], true);
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
+        let resource_sampler_handle = Self::start_resource_sampler(&session);
+        {
+            let mut worker_handles = session.worker_handles.lock();
+            worker_handles.reader = Some(reader_handle);
+            worker_handles.resource_sampler = Some(resource_sampler_handle);
+        }
+
+        Ok(session)
+    }
+
+    pub fn spawn_replay(
+        session_id: u64,
+        profile: TerminalProfile,
+    ) -> Result<Arc<Self>, SessionError> {
+        let osc633_expected_nonce = Self::validate_osc633_nonce(&profile)?;
+        let process_name = process_name_for_profile(&profile);
+        Ok(Self::new(
+            session_id,
+            profile,
+            osc633_expected_nonce,
+            None,
+            None,
+            None,
+            None,
+            process_name,
+            serde_json::json!({
+                "mode": "replay",
+                "child_spawned": false,
+            }),
+            true,
+        ))
+    }
+
+    fn validate_osc633_nonce(profile: &TerminalProfile) -> Result<Option<String>, SessionError> {
+        match profile.launch.env.get("VSCODE_NONCE") {
+            Some(nonce) if Terminal::is_valid_osc633_nonce(nonce) => Ok(Some(nonce.clone())),
+            Some(_) => Err(SessionError::InvalidProfile(
+                "VSCODE_NONCE must be 1-256 UTF-8 bytes without controls or semicolons".to_string(),
+            )),
+            None => Ok(None),
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        session_id: u64,
+        profile: TerminalProfile,
+        osc633_expected_nonce: Option<String>,
+        writer: Option<Box<dyn Write + Send>>,
+        master: Option<Box<dyn portable_pty::MasterPty + Send>>,
+        child: Option<Box<dyn portable_pty::Child + Send + Sync>>,
+        child_pid: Option<u32>,
+        process_name: String,
+        shell_integration_diagnostics: serde_json::Value,
+        is_replay: bool,
+    ) -> Arc<Self> {
         let emulation = profile.terminal.emulation;
         let scrollback_lines = normalize_scrollback_lines(profile.terminal.scrollback_lines);
         let graphics_enabled =
@@ -2407,24 +2581,6 @@ impl TerminalSession {
         });
         let profile_colors = profile.appearance.colors.clone();
         let profile_font = profile.appearance.font.clone();
-        let osc633_expected_nonce = match profile.launch.env.get("VSCODE_NONCE") {
-            Some(nonce) if Terminal::is_valid_osc633_nonce(nonce) => Some(nonce.clone()),
-            Some(_) => {
-                return Err(SessionError::InvalidProfile(
-                    "VSCODE_NONCE must be 1-256 UTF-8 bytes without controls or semicolons"
-                        .to_string(),
-                ));
-            }
-            None => None,
-        };
-        let runtime = spawn_pty(&profile, DEFAULT_ROWS, DEFAULT_COLS)
-            .map_err(|error: anyhow::Error| SessionError::Pty(error.to_string()))?;
-        let child_pid = runtime.child_pid;
-        let process_name = process_name_for_profile(&profile);
-        let reader = runtime.reader;
-        let shell_integration_diagnostics = runtime.shell_integration.to_diagnostic_json();
-        let shell_integration_proxy = runtime.shell_integration_proxy;
-
         let mut terminal = Terminal::with_scrollback(
             DEFAULT_COLS as usize,
             DEFAULT_ROWS as usize,
@@ -2440,7 +2596,7 @@ impl TerminalSession {
             drag_drop_enabled,
         );
 
-        let session = Arc::new(Self {
+        Arc::new(Self {
             session_id,
             emulation,
             scrollback_lines,
@@ -2462,25 +2618,32 @@ impl TerminalSession {
                 pending_file_downloads: VecDeque::new(),
                 pending_file_download_bytes: 0,
                 next_file_download_id: 1,
+                replay_checkpoint_boundary: ReplayCheckpointBoundary::default(),
             }),
-            writer: Mutex::new(runtime.writer),
-            master: Mutex::new(runtime.master),
-            child: Mutex::new(runtime.child),
+            writer: Mutex::new(writer),
+            master: Mutex::new(master),
+            child: Mutex::new(child),
             child_pid,
             process_name,
+            is_replay,
             events: Mutex::new(PendingEventQueue::with_initial(TerminalEvent {
                 kind: "started".to_string(),
                 session_id,
                 payload: None,
             })),
+            recording: Mutex::new(SessionRecording::bounded()),
+            replay_checkpoints: Mutex::new(ReplayCheckpointStore::default()),
             diagnostic_events: Mutex::new(VecDeque::from([TerminalDiagnosticEvent {
                 timestamp_micros: unix_timestamp_micros(),
                 session_id,
                 kind: "started".to_string(),
                 payload: Some(serde_json::json!({
                     "shell_integration": shell_integration_diagnostics,
+                    "replay": is_replay,
                 })),
             }])),
+            diagnostic_wire_sequence: Mutex::new(0),
+            frame_packet_sequence: Mutex::new(0),
             resource_samples: Mutex::new(VecDeque::new()),
             resource_sampler_state: Mutex::new(ResourceSamplerState::default()),
             pending_frame_signal: PendingFrameSignal::new(true),
@@ -2494,186 +2657,226 @@ impl TerminalSession {
             deferred_inline_clear_frame: Mutex::new(None),
             worker_handles: Mutex::new(SessionWorkerHandles::default()),
             exited: AtomicBool::new(false),
-        });
+        })
+    }
 
-        let reader_session = Arc::clone(&session);
-        let reader_handle = thread::spawn(move || {
-            let _shell_integration_proxy = shell_integration_proxy;
-            let mut reader = reader;
-            let mut buf = [0_u8; 4096];
-            loop {
-                match reader.read(&mut buf) {
-                    Ok(0) => break,
-                    Ok(read) => {
-                        let (
-                            callback_events,
-                            responses,
-                            damage,
-                            cursor_before,
-                            cursor_after,
-                            cleared_scrollback,
-                            host_protocol_micros,
-                            terminal_process_micros,
-                            terminal_process_breakdown,
-                        ) = {
-                            let mut state = reader_session.state.lock();
-                            let cursor_before =
-                                terminal_cursor_snapshot(&state.terminal, state.terminal.cursor());
-                            let process_started_at = Instant::now();
-                            let was_alt_screen_active = state.terminal.is_alt_screen_active();
-                            let input_enters_alt_screen = input_sets_alt_screen(&buf[..read]);
-                            let mut callback_events = Vec::new();
-                            let mut host_protocol_micros = 0_u64;
-                            let TerminalState {
-                                terminal,
-                                host_protocol,
-                                ..
-                            } = &mut *state;
-                            terminal.process_with_filtered_input(&buf[..read], |filtered| {
-                                let host_started_at = Instant::now();
-                                callback_events =
-                                    host_protocol.observe(filtered, reader_session.emulation);
-                                host_protocol_micros = host_started_at.elapsed().as_micros() as u64;
-                            });
-                            let parser_events = state.terminal.poll_events();
-                            let cleared_scrollback = parser_events.iter().any(|event| {
-                                matches!(
-                                    event,
-                                    ParserTerminalEvent::ScreenCleared {
-                                        include_scrollback: true
-                                    }
-                                )
-                            });
-                            let notifications = state.terminal.take_notifications();
-                            if reader_session.emulation == TerminalEmulation::Xterm256 {
-                                let suppress_shell_zones = was_alt_screen_active
-                                    || input_enters_alt_screen
-                                    || state.terminal.is_alt_screen_active();
-                                callback_events.extend(callback_events_from_parser_events(
-                                    &mut state,
-                                    parser_events,
-                                    suppress_shell_zones,
-                                ));
-                                callback_events.extend(notifications.into_iter().map(
-                                    |notification| {
-                                        CallbackEvent::SessionNotification {
-                                            source: notification.source.to_string(),
-                                            action: notification.action.as_str().to_string(),
-                                            identifier: notification.identifier.map(|identifier| {
-                                                sanitize_protocol_text(&identifier, 128)
-                                            }),
-                                            title: sanitize_protocol_text(&notification.title, 160),
-                                            message: sanitize_protocol_text(
-                                                &notification.message,
-                                                512,
-                                            ),
-                                            application_name: notification.application_name.map(
-                                                |application_name| {
-                                                    sanitize_protocol_text(&application_name, 160)
-                                                },
-                                            ),
-                                            notification_types: notification
-                                                .notification_types
-                                                .into_iter()
-                                                .take(8)
-                                                .map(|notification_type| {
-                                                    sanitize_protocol_text(&notification_type, 64)
-                                                })
-                                                .collect(),
-                                            expires_after_ms: notification.expires_after_ms,
-                                            report_activation: notification.report_activation,
-                                            report_close: notification.report_close,
-                                            buttons: notification
-                                                .buttons
-                                                .into_iter()
-                                                .take(5)
-                                                .map(|button| sanitize_protocol_text(&button, 64))
-                                                .collect(),
-                                        }
-                                    },
-                                ));
-                            }
-                            if cleared_scrollback {
-                                // Terminal-originated CSI 3 J and iTerm2 OSC
-                                // 1337 ClearScrollback invalidate replay and
-                                // navigation history just like the host API.
-                                state.scrollback_offset = 0;
-                                state.transcript.clear();
-                                state.transcript_truncated = true;
-                            }
-                            let terminal_process_micros = (process_started_at.elapsed().as_micros()
-                                as u64)
-                                .saturating_sub(host_protocol_micros);
-                            let terminal_process_breakdown =
-                                state.terminal.take_process_debug_stats();
-                            if !cleared_scrollback {
-                                append_transcript(&mut state, &buf[..read]);
-                            }
-                            let damage = state.terminal.drain_active_screen_damage();
-                            let cursor_after =
-                                terminal_cursor_snapshot(&state.terminal, state.terminal.cursor());
-                            let responses = normalize_responses(
-                                reader_session.emulation,
-                                state.terminal.drain_responses(),
-                            );
-                            (
-                                callback_events,
-                                responses,
-                                damage,
-                                cursor_before,
-                                cursor_after,
-                                cleared_scrollback,
-                                host_protocol_micros,
-                                terminal_process_micros,
-                                terminal_process_breakdown,
-                            )
-                        };
-
-                        let damage_merge_started_at = Instant::now();
-                        reader_session.pending_frame_signal.mutate_reader(|work| {
-                            work.merge_terminal_damage(damage, cursor_before, cursor_after);
-                        });
-                        let damage_merge_micros =
-                            damage_merge_started_at.elapsed().as_micros() as u64;
-
-                        if cleared_scrollback {
-                            reader_session.last_rows.lock().clear();
-                            *reader_session.last_frame_meta.lock() = None;
-                            reader_session
-                                .pending_frame_signal
-                                .mutate(|work| work.mark_full_repaint("terminal_clear_scrollback"));
-                        }
-
-                        for event in callback_events {
-                            reader_session.push_callback_event(event);
-                        }
-                        let response_write_started_at = Instant::now();
-                        if !responses.is_empty() {
-                            let _ = reader_session.writer.lock().write_all(&responses);
-                        }
-                        let response_write_micros =
-                            response_write_started_at.elapsed().as_micros() as u64;
-                        reader_session.record_input_debug_stats(
-                            read,
-                            host_protocol_micros,
-                            terminal_process_micros,
-                            terminal_process_breakdown,
-                            damage_merge_micros,
-                            response_write_micros,
-                        );
+    fn ingest_pty_output(&self, bytes: &[u8], allow_host_effects: bool) {
+        let (
+            callback_events,
+            responses,
+            damage,
+            cursor_before,
+            cursor_after,
+            cleared_scrollback,
+            host_protocol_micros,
+            terminal_process_micros,
+            terminal_process_breakdown,
+        ) = {
+            let mut state = self.state.lock();
+            state.replay_checkpoint_boundary.add(bytes);
+            let cursor_before = terminal_cursor_snapshot(&state.terminal, state.terminal.cursor());
+            let process_started_at = Instant::now();
+            let was_alt_screen_active = state.terminal.is_alt_screen_active();
+            let input_enters_alt_screen = input_sets_alt_screen(bytes);
+            let mut callback_events = Vec::new();
+            let mut host_protocol_micros = 0_u64;
+            let TerminalState {
+                terminal,
+                host_protocol,
+                ..
+            } = &mut *state;
+            terminal.process_with_filtered_input(bytes, |filtered| {
+                let host_started_at = Instant::now();
+                callback_events = host_protocol.observe(filtered, self.emulation);
+                host_protocol_micros = host_started_at.elapsed().as_micros() as u64;
+            });
+            let parser_events = state.terminal.poll_events();
+            let cleared_scrollback = parser_events.iter().any(|event| {
+                matches!(
+                    event,
+                    ParserTerminalEvent::ScreenCleared {
+                        include_scrollback: true
                     }
-                    Err(_) => break,
-                }
+                )
+            });
+            let notifications = state.terminal.take_notifications();
+            if self.emulation == TerminalEmulation::Xterm256 {
+                let suppress_shell_zones = was_alt_screen_active
+                    || input_enters_alt_screen
+                    || state.terminal.is_alt_screen_active();
+                callback_events.extend(callback_events_from_parser_events(
+                    &mut state,
+                    parser_events,
+                    suppress_shell_zones,
+                ));
+                callback_events.extend(notifications.into_iter().map(|notification| {
+                    CallbackEvent::SessionNotification {
+                        source: notification.source.to_string(),
+                        action: notification.action.as_str().to_string(),
+                        identifier: notification
+                            .identifier
+                            .map(|identifier| sanitize_protocol_text(&identifier, 128)),
+                        title: sanitize_protocol_text(&notification.title, 160),
+                        message: sanitize_protocol_text(&notification.message, 512),
+                        application_name: notification
+                            .application_name
+                            .map(|application_name| sanitize_protocol_text(&application_name, 160)),
+                        notification_types: notification
+                            .notification_types
+                            .into_iter()
+                            .take(8)
+                            .map(|notification_type| sanitize_protocol_text(&notification_type, 64))
+                            .collect(),
+                        expires_after_ms: notification.expires_after_ms,
+                        report_activation: notification.report_activation,
+                        report_close: notification.report_close,
+                        buttons: notification
+                            .buttons
+                            .into_iter()
+                            .take(5)
+                            .map(|button| sanitize_protocol_text(&button, 64))
+                            .collect(),
+                    }
+                }));
             }
+            if cleared_scrollback {
+                // Terminal-originated CSI 3 J and iTerm2 OSC 1337
+                // ClearScrollback invalidate replay and navigation history.
+                state.scrollback_offset = 0;
+                state.transcript.clear();
+                state.transcript_truncated = true;
+            }
+            let terminal_process_micros = (process_started_at.elapsed().as_micros() as u64)
+                .saturating_sub(host_protocol_micros);
+            let terminal_process_breakdown = state.terminal.take_process_debug_stats();
+            if !cleared_scrollback {
+                append_transcript(&mut state, bytes);
+            }
+            let damage = state.terminal.drain_active_screen_damage();
+            let cursor_after = terminal_cursor_snapshot(&state.terminal, state.terminal.cursor());
+            let responses = normalize_responses(self.emulation, state.terminal.drain_responses());
+            (
+                callback_events,
+                responses,
+                damage,
+                cursor_before,
+                cursor_after,
+                cleared_scrollback,
+                host_protocol_micros,
+                terminal_process_micros,
+                terminal_process_breakdown,
+            )
+        };
+
+        let damage_merge_started_at = Instant::now();
+        self.pending_frame_signal.mutate_reader(|work| {
+            work.merge_terminal_damage(damage, cursor_before, cursor_after);
         });
-        let resource_sampler_handle = Self::start_resource_sampler(&session);
-        {
-            let mut worker_handles = session.worker_handles.lock();
-            worker_handles.reader = Some(reader_handle);
-            worker_handles.resource_sampler = Some(resource_sampler_handle);
+        let damage_merge_micros = damage_merge_started_at.elapsed().as_micros() as u64;
+
+        if cleared_scrollback {
+            self.last_rows.lock().clear();
+            *self.last_frame_meta.lock() = None;
+            self.pending_frame_signal
+                .mutate(|work| work.mark_full_repaint("terminal_clear_scrollback"));
         }
 
-        Ok(session)
+        if allow_host_effects {
+            for event in callback_events {
+                self.push_callback_event(event);
+            }
+        }
+        let response_write_started_at = Instant::now();
+        if allow_host_effects
+            && !responses.is_empty()
+            && let Some(writer) = self.writer.lock().as_mut()
+        {
+            let _ = writer.write_all(&responses);
+        }
+        let response_write_micros = response_write_started_at.elapsed().as_micros() as u64;
+        self.record_input_debug_stats(
+            bytes.len(),
+            host_protocol_micros,
+            terminal_process_micros,
+            terminal_process_breakdown,
+            damage_merge_micros,
+            response_write_micros,
+        );
+    }
+
+    pub fn replay_output(&self, bytes: &[u8]) -> Result<(), SessionError> {
+        if !self.is_replay {
+            return Err(SessionError::NotReplaySession(self.session_id));
+        }
+        if self.exited.load(Ordering::SeqCst) {
+            return Err(SessionError::ReadOnlyReplaySession(self.session_id));
+        }
+        self.ingest_pty_output(bytes, false);
+        Ok(())
+    }
+
+    pub fn replay_exit(&self, exit_code: Option<i32>) -> Result<(), SessionError> {
+        if !self.is_replay {
+            return Err(SessionError::NotReplaySession(self.session_id));
+        }
+        if !self.exited.swap(true, Ordering::SeqCst) {
+            self.push_event(
+                "exit",
+                Some(serde_json::json!({
+                    "code": exit_code,
+                    "success": exit_code == Some(0),
+                    "signal": null,
+                })),
+            );
+        }
+        Ok(())
+    }
+
+    pub fn capture_replay_checkpoint(&self) -> Result<u64, SessionError> {
+        if !self.is_replay {
+            return Err(SessionError::NotReplaySession(self.session_id));
+        }
+        if self.exited.load(Ordering::SeqCst) {
+            return Err(SessionError::ReadOnlyReplaySession(self.session_id));
+        }
+        let state = self.state.lock();
+        self.replay_checkpoints.lock().capture(&state)
+    }
+
+    pub fn restore_replay_checkpoint(&self, checkpoint_id: u64) -> Result<(), SessionError> {
+        if !self.is_replay {
+            return Err(SessionError::NotReplaySession(self.session_id));
+        }
+        let checkpoint = self.replay_checkpoints.lock().get(checkpoint_id).ok_or(
+            SessionError::MissingReplayCheckpoint {
+                session_id: self.session_id,
+                checkpoint_id,
+            },
+        )?;
+        {
+            let mut state = self.state.lock();
+            state.terminal.restore_from_snapshot(checkpoint.snapshot);
+            state.transcript = checkpoint.transcript;
+            state.transcript_truncated = checkpoint.transcript_truncated;
+            state.scrollback_offset = checkpoint.scrollback_offset;
+            state.host_protocol = checkpoint.host_protocol;
+            state.graphic_assets.clear();
+            state.graphic_asset_bytes = 0;
+            state.pending_file_downloads.clear();
+            state.pending_file_download_bytes = 0;
+            state.replay_checkpoint_boundary = ReplayCheckpointBoundary::default();
+        }
+        self.last_rows.lock().clear();
+        *self.last_frame_meta.lock() = None;
+        *self.last_frame_debug_stats.lock() = None;
+        *self.last_frame_had_graphics.lock() = false;
+        *self.deferred_clear_graphics_frame.lock() = None;
+        *self.deferred_kitty_delete_graphics_frame.lock() = None;
+        *self.deferred_inline_clear_frame.lock() = None;
+        self.exited.store(false, Ordering::SeqCst);
+        self.pending_frame_signal
+            .mutate(|work| work.mark_full_repaint("replay_checkpoint_restore"));
+        Ok(())
     }
 
     pub fn ping(&self) -> i32 {
@@ -2690,7 +2893,9 @@ impl TerminalSession {
 
     pub fn close(&self) -> Result<(), SessionError> {
         self.exited.store(true, Ordering::SeqCst);
-        let _ = self.child.lock().kill();
+        if let Some(child) = self.child.lock().as_mut() {
+            let _ = child.kill();
+        }
         self.join_worker_threads();
         Ok(())
     }
@@ -2845,7 +3050,10 @@ impl TerminalSession {
         cell_width: u16,
         cell_height: u16,
     ) -> Result<(), SessionError> {
+        let mut recording = self.recording.lock();
         let mut state = self.state.lock();
+        let mut resize_replay_observation = None;
+        let mut resize_replay_skipped_truncated = false;
         let (current_cols, current_rows) = state.terminal.size();
         let size_changed = current_cols != cols as usize || current_rows != rows as usize;
 
@@ -2859,6 +3067,16 @@ impl TerminalSession {
                 cell_width,
                 cell_height,
             );
+            if !self.is_replay {
+                recording.record_resize(
+                    cols,
+                    rows,
+                    pixel_width,
+                    pixel_height,
+                    cell_width,
+                    cell_height,
+                );
+            }
             return Ok(());
         }
 
@@ -2867,15 +3085,16 @@ impl TerminalSession {
         // Keep SIGWINCH-triggered redraw output from being processed between
         // the PTY resize and the internal reflow/replay. Otherwise readline can
         // leak transient prompt redraws into the replay transcript.
-        self.master
-            .lock()
-            .resize(portable_pty::PtySize {
-                rows,
-                cols,
-                pixel_width,
-                pixel_height,
-            })
-            .map_err(|error| SessionError::Pty(error.to_string()))?;
+        if let Some(master) = self.master.lock().as_mut() {
+            master
+                .resize(portable_pty::PtySize {
+                    rows,
+                    cols,
+                    pixel_width,
+                    pixel_height,
+                })
+                .map_err(|error| SessionError::Pty(error.to_string()))?;
+        }
 
         let should_rebuild_main_screen = !state.terminal.is_alt_screen_active();
 
@@ -2910,7 +3129,12 @@ impl TerminalSession {
                     cell_height,
                 );
             }
+            let replay_started_at = Instant::now();
             terminal.process(&transcript);
+            resize_replay_observation = Some((
+                transcript.len() as u64,
+                replay_started_at.elapsed().as_micros() as u64,
+            ));
             // Replaying the transcript rebuilds terminal state only. Historical
             // host-facing effects must not be delivered again on the next PTY
             // read after resize.
@@ -2926,6 +3150,8 @@ impl TerminalSession {
             }
             state.terminal = terminal;
         } else {
+            resize_replay_skipped_truncated =
+                should_rebuild_main_screen && state.transcript_truncated;
             state.terminal.resize(cols as usize, rows as usize);
             apply_terminal_pixel_metrics(
                 &mut state.terminal,
@@ -2945,18 +3171,63 @@ impl TerminalSession {
         }
         drop(state);
 
+        {
+            let mut stats = self.session_debug_stats.lock();
+            if let Some((bytes, micros)) = resize_replay_observation {
+                stats.resize_replay_count = stats.resize_replay_count.saturating_add(1);
+                stats.resize_replay_bytes = stats.resize_replay_bytes.saturating_add(bytes);
+                stats.resize_replay_micros = stats.resize_replay_micros.saturating_add(micros);
+            }
+            if resize_replay_skipped_truncated {
+                stats.resize_replay_skipped_truncated_count = stats
+                    .resize_replay_skipped_truncated_count
+                    .saturating_add(1);
+            }
+        }
+
         self.last_rows.lock().clear();
         *self.last_frame_meta.lock() = None;
         self.pending_frame_signal
             .mutate(|work| work.mark_full_repaint("resize"));
+        if !self.is_replay {
+            recording.record_resize(
+                cols,
+                rows,
+                pixel_width,
+                pixel_height,
+                cell_width,
+                cell_height,
+            );
+        }
         Ok(())
     }
 
     pub fn write(&self, bytes: &[u8]) -> Result<(), SessionError> {
-        self.writer
-            .lock()
+        if self.is_replay {
+            return Err(SessionError::ReadOnlyReplaySession(self.session_id));
+        }
+        let mut recording = self.recording.lock();
+        let mut writer = self.writer.lock();
+        let writer = writer
+            .as_mut()
+            .ok_or(SessionError::ReadOnlyReplaySession(self.session_id))?;
+        writer
             .write_all(bytes)
-            .map_err(|error| SessionError::Io(error.to_string()))
+            .map_err(|error| SessionError::Io(error.to_string()))?;
+        recording.record_user_input(bytes);
+        Ok(())
+    }
+
+    pub fn respond_host_v1(&self, raw: &str) -> Result<(), SessionError> {
+        let response = self
+            .events
+            .lock()
+            .resolve_host_response(self.session_id, raw)
+            .map_err(|error| SessionError::HostResponse(error.to_string()))?;
+        if let Some(bytes) = response {
+            self.write(&bytes)?;
+        }
+        Ok(())
     }
 
     pub fn scroll(&self, delta_lines: i32) {
@@ -3095,8 +3366,11 @@ impl TerminalSession {
                     .iterm_button_copy_text(id)
                     .map(ItermButtonActivation::Copy),
                 ItermButtonKind::Custom { code, .. } => {
-                    self.writer
-                        .lock()
+                    let mut writer = self.writer.lock();
+                    let Some(writer) = writer.as_mut() else {
+                        return Ok(serde_json::json!({ "activated": false }));
+                    };
+                    writer
                         .write_all(format!("\x1b[?1337;{code}~").as_bytes())
                         .map_err(|error| SessionError::Io(error.to_string()))?;
                     Some(ItermButtonActivation::Custom)
@@ -3241,6 +3515,17 @@ impl TerminalSession {
         } else {
             terminal.grid().scrollback_len()
         };
+        let frame_build_context = FrameBuildContext {
+            terminal,
+            emulation: self.emulation,
+            display_projection: &display_projection,
+            viewport_start_row,
+            viewport_display_start_row,
+            viewport_rows,
+            viewport_cols,
+            scrollback_len,
+            alt_screen_active,
+        };
         let mut cursor_snapshot = terminal_cursor_snapshot(terminal, cursor);
         if display_projection.has_folds() && !alt_screen_active {
             let cursor_source_row = scrollback_len.saturating_add(cursor.row);
@@ -3326,31 +3611,10 @@ impl TerminalSession {
         };
         let (rows, hyperlinks, current_rows, dirty_ranges, rows_scanned, rows_emitted) =
             if frame_kind == TerminalFrameKind::Snapshot {
-                if display_projection.has_folds() {
-                    build_projected_snapshot_frame(
-                        terminal,
-                        self.emulation,
-                        &display_projection,
-                        viewport_display_start_row,
-                        viewport_rows,
-                        viewport_cols,
-                    )
-                } else {
-                    build_snapshot_frame(
-                        terminal,
-                        self.emulation,
-                        viewport_start_row,
-                        viewport_rows,
-                    )
-                }
+                build_snapshot_frame(&frame_build_context)
             } else {
                 build_delta_frame(DeltaFrameContext {
-                    terminal,
-                    emulation: self.emulation,
-                    viewport_start_row,
-                    viewport_rows,
-                    scrollback_len,
-                    alt_screen_active,
+                    build: &frame_build_context,
                     pending_frame_work: &pending_frame_work,
                     previous_rows: &last_rows,
                     viewport_row_shift,
@@ -3499,6 +3763,39 @@ impl TerminalSession {
         }))
     }
 
+    pub fn take_frame_packet_v1_protobuf(
+        &self,
+        after_sequence: Option<u64>,
+    ) -> Result<Option<Vec<u8>>, SessionError> {
+        let mut next_sequence = self.frame_packet_sequence.lock();
+        let sequence = *next_sequence;
+        let following_sequence = sequence.checked_add(1).ok_or_else(|| {
+            SessionError::Serialize("Frame Packet v1 sequence is exhausted".to_owned())
+        })?;
+        let acknowledgement_matches = sequence
+            .checked_sub(1)
+            .is_none_or(|last_emitted| after_sequence == Some(last_emitted));
+        if !acknowledgement_matches {
+            self.pending_frame_signal
+                .mutate(|work| work.mark_full_repaint("frame_packet_sequence_resync"));
+        }
+
+        let Some(frame) = self.take_frame_diff()? else {
+            return Ok(None);
+        };
+        let encode_started_at = Instant::now();
+        let bytes = frame_diff_proto::encode_frame_packet_v1(
+            self.session_id,
+            sequence,
+            unix_timestamp_micros(),
+            &frame,
+        )
+        .map_err(|error| SessionError::Serialize(error.to_string()))?;
+        self.record_frame_protobuf_encode_micros(encode_started_at.elapsed().as_micros() as u64);
+        *next_sequence = following_sequence;
+        Ok(Some(bytes))
+    }
+
     fn should_defer_clear_graphics_frame(
         &self,
         pending_frame_work: &PendingFrameWork,
@@ -3612,6 +3909,46 @@ impl TerminalSession {
         })
     }
 
+    pub fn graphic_asset_packet_v1_protobuf(
+        &self,
+        asset_id: u64,
+        asset_version: u64,
+    ) -> Result<Vec<u8>, SessionError> {
+        if !self.graphics_enabled {
+            return Err(SessionError::GraphicAsset("graphics disabled".to_string()));
+        }
+        let state = self.state.lock();
+        let graphic = find_cached_graphic_asset(&state, asset_id, asset_version)?;
+        let width = u32::try_from(graphic.width)
+            .map_err(|_| SessionError::GraphicAsset("width exceeds u32".to_string()))?;
+        let height = u32::try_from(graphic.height)
+            .map_err(|_| SessionError::GraphicAsset("height exceeds u32".to_string()))?;
+        let expected_rgba_len = graphic
+            .width
+            .checked_mul(graphic.height)
+            .and_then(|pixels| pixels.checked_mul(4))
+            .ok_or_else(|| SessionError::GraphicAsset("RGBA dimensions overflow".to_string()))?;
+        if graphic.pixels.len() != expected_rgba_len {
+            return Err(SessionError::GraphicAsset(
+                "RGBA length does not match dimensions".to_string(),
+            ));
+        }
+        if graphic.pixels.len() > GRAPHIC_ASSET_PACKET_MAX_RGBA_BYTES {
+            return Err(SessionError::GraphicAsset(
+                "RGBA exceeds Graphic Asset Packet v1 limit".to_string(),
+            ));
+        }
+        graphic_asset_proto::encode_graphic_asset_packet_v1(
+            self.session_id,
+            graphic.asset_id,
+            graphic.asset_version,
+            width,
+            height,
+            graphic.pixels.as_ref(),
+        )
+        .map_err(|error| SessionError::Serialize(error.to_string()))
+    }
+
     pub fn copy_graphic_asset_rgba(
         &self,
         asset_id: u64,
@@ -3718,16 +4055,23 @@ impl TerminalSession {
         selection_text_for_state(&state, request)
     }
 
-    pub fn poll_events(&self) -> Result<Vec<TerminalEvent>, SessionError> {
-        if !self.exited.load(Ordering::SeqCst) {
-            let maybe_exit = self
-                .child
-                .lock()
-                .try_wait()
-                .map_err(|error| SessionError::Io(error.to_string()))?;
+    fn observe_child_exit(&self) -> Result<(), SessionError> {
+        if !self.exited.load(Ordering::SeqCst) && !self.is_replay {
+            let maybe_exit = {
+                let mut child = self.child.lock();
+                let Some(child) = child.as_mut() else {
+                    return Ok(());
+                };
+                child
+                    .try_wait()
+                    .map_err(|error| SessionError::Io(error.to_string()))?
+            };
 
             if let Some(exit) = maybe_exit {
                 self.exited.store(true, Ordering::SeqCst);
+                self.recording
+                    .lock()
+                    .record_session_exited(i32::try_from(exit.exit_code()).ok());
                 self.push_event(
                     "exit",
                     Some(serde_json::json!({
@@ -3739,7 +4083,19 @@ impl TerminalSession {
             }
         }
 
+        Ok(())
+    }
+
+    pub fn poll_events(&self) -> Result<Vec<TerminalEvent>, SessionError> {
+        self.observe_child_exit()?;
+
         Ok(self.events.lock().drain())
+    }
+
+    pub fn poll_event_envelopes(&self) -> Result<Option<RuntimeEventBatchV1>, SessionError> {
+        self.observe_child_exit()?;
+
+        Ok(self.events.lock().drain_event_batch(self.session_id))
     }
 
     pub fn take_frame_debug_stats_json(&self) -> Result<Option<String>, SessionError> {
@@ -3768,6 +4124,45 @@ impl TerminalSession {
     pub fn take_session_debug_stats_json(&self) -> Result<Option<String>, SessionError> {
         let stats = self.session_debug_stats_snapshot();
         serde_json::to_string(&stats)
+            .map(Some)
+            .map_err(|error| SessionError::Serialize(error.to_string()))
+    }
+
+    pub fn take_diagnostic_event_v1_json(
+        &self,
+        name: &str,
+    ) -> Result<Option<String>, SessionError> {
+        let payload = match name {
+            "frame_stats" => self
+                .last_frame_debug_stats
+                .lock()
+                .take()
+                .map(serde_json::to_value)
+                .transpose()
+                .map_err(|error| SessionError::Serialize(error.to_string()))?,
+            "session_stats" => Some(
+                serde_json::to_value(self.session_debug_stats_snapshot())
+                    .map_err(|error| SessionError::Serialize(error.to_string()))?,
+            ),
+            _ => return Ok(None),
+        };
+        let Some(payload) = payload else {
+            return Ok(None);
+        };
+        let sequence = {
+            let mut next = self.diagnostic_wire_sequence.lock();
+            let sequence = *next;
+            *next = next.saturating_add(1);
+            sequence
+        };
+        let event = RuntimeEnvelopeV1::diagnostic(
+            self.session_id,
+            sequence,
+            unix_timestamp_micros(),
+            name.to_owned(),
+            payload,
+        );
+        serde_json::to_string(&event)
             .map(Some)
             .map_err(|error| SessionError::Serialize(error.to_string()))
     }
@@ -5033,71 +5428,6 @@ fn extract_source_row(
     }
 }
 
-fn build_projected_snapshot_frame(
-    terminal: &Terminal,
-    emulation: TerminalEmulation,
-    projection: &DisplayProjection,
-    display_start_row: usize,
-    viewport_rows: usize,
-    viewport_cols: usize,
-) -> (
-    Vec<TerminalRow>,
-    Vec<TerminalHyperlinkRange>,
-    Vec<CachedRowState>,
-    Vec<TerminalDirtyRange>,
-    usize,
-    usize,
-) {
-    let mut rows = Vec::with_capacity(viewport_rows);
-    let mut hyperlinks = Vec::new();
-    let mut current_rows = Vec::with_capacity(viewport_rows);
-    for viewport_row in 0..viewport_rows {
-        let display_row = display_start_row.saturating_add(viewport_row);
-        let extracted = match projection.rows.get(display_row) {
-            Some(DisplayProjectionRow::Source(source_row)) => {
-                extract_source_row(terminal, emulation, *source_row, viewport_row)
-            }
-            Some(DisplayProjectionRow::FoldSummary(range_index)) => extract_fold_summary_row(
-                terminal,
-                &projection.collapsed[*range_index],
-                viewport_row,
-                viewport_cols,
-            ),
-            None => ExtractedVisibleRow {
-                row: TerminalRow {
-                    index: viewport_row,
-                    text: String::new(),
-                    wrapped: false,
-                    style_runs: Vec::new(),
-                    source_row: None,
-                    source_end_row: None,
-                },
-                continues_from_previous: false,
-                hyperlinks: Vec::new(),
-            },
-        };
-        current_rows.push(cached_row_state_for(&extracted));
-        hyperlinks.extend(extracted.hyperlinks.clone());
-        rows.push(extracted.row);
-    }
-    let dirty_ranges = if viewport_rows == 0 {
-        Vec::new()
-    } else {
-        vec![TerminalDirtyRange {
-            start: 0,
-            end: viewport_rows,
-        }]
-    };
-    (
-        rows,
-        hyperlinks,
-        current_rows,
-        dirty_ranges,
-        viewport_rows,
-        viewport_rows,
-    )
-}
-
 fn build_terminal_blocks(
     terminal: &Terminal,
     projection: &DisplayProjection,
@@ -5328,578 +5658,6 @@ fn truncate_to_display_width(value: &str, max_width: usize, width_config: &Width
     output
 }
 
-fn shift_cached_rows(
-    previous_rows: &[CachedRowState],
-    viewport_rows: usize,
-    viewport_row_shift: i32,
-) -> Vec<CachedRowState> {
-    let mut shifted = vec![CachedRowState::default(); viewport_rows];
-    for (row, shifted_row) in shifted.iter_mut().enumerate() {
-        let previous_index = row as isize - viewport_row_shift as isize;
-        let Some(previous_index) = usize::try_from(previous_index).ok() else {
-            continue;
-        };
-        if let Some(previous_row) = previous_rows.get(previous_index) {
-            *shifted_row = previous_row.clone();
-        }
-    }
-    shifted
-}
-
-fn build_snapshot_frame(
-    terminal: &Terminal,
-    emulation: TerminalEmulation,
-    viewport_start_row: usize,
-    viewport_rows: usize,
-) -> (
-    Vec<TerminalRow>,
-    Vec<TerminalHyperlinkRange>,
-    Vec<CachedRowState>,
-    Vec<TerminalDirtyRange>,
-    usize,
-    usize,
-) {
-    let mut rows = Vec::with_capacity(viewport_rows);
-    let mut hyperlinks = Vec::new();
-    let mut current_rows = Vec::with_capacity(viewport_rows);
-
-    for row in 0..viewport_rows {
-        let extracted = extract_viewport_row(terminal, emulation, viewport_start_row, row);
-        current_rows.push(cached_row_state_for(&extracted));
-        hyperlinks.extend(extracted.hyperlinks.clone());
-        rows.push(extracted.row);
-    }
-
-    let dirty_ranges = if viewport_rows == 0 {
-        Vec::new()
-    } else {
-        vec![TerminalDirtyRange {
-            start: 0,
-            end: viewport_rows,
-        }]
-    };
-
-    (
-        rows,
-        hyperlinks,
-        current_rows,
-        dirty_ranges,
-        viewport_rows,
-        viewport_rows,
-    )
-}
-
-struct DeltaFrameContext<'a> {
-    terminal: &'a Terminal,
-    emulation: TerminalEmulation,
-    viewport_start_row: usize,
-    viewport_rows: usize,
-    scrollback_len: usize,
-    alt_screen_active: bool,
-    pending_frame_work: &'a PendingFrameWork,
-    previous_rows: &'a [CachedRowState],
-    viewport_row_shift: i32,
-}
-
-fn build_delta_frame(
-    context: DeltaFrameContext<'_>,
-) -> (
-    Vec<TerminalRow>,
-    Vec<TerminalHyperlinkRange>,
-    Vec<CachedRowState>,
-    Vec<TerminalDirtyRange>,
-    usize,
-    usize,
-) {
-    let DeltaFrameContext {
-        terminal,
-        emulation,
-        viewport_start_row,
-        viewport_rows,
-        scrollback_len,
-        alt_screen_active,
-        pending_frame_work,
-        previous_rows,
-        viewport_row_shift,
-    } = context;
-    let candidate_row_indexes = delta_candidate_row_indexes(
-        pending_frame_work,
-        viewport_rows,
-        viewport_start_row,
-        scrollback_len,
-        alt_screen_active,
-        viewport_row_shift,
-    );
-    let mut next_rows = shift_cached_rows(previous_rows, viewport_rows, viewport_row_shift);
-    let mut dirty_row_indexes = Vec::new();
-    let mut rows = Vec::new();
-    let mut hyperlinks = Vec::new();
-
-    for row_index in &candidate_row_indexes {
-        let extracted = extract_viewport_row(terminal, emulation, viewport_start_row, *row_index);
-        let row_state = cached_row_state_for(&extracted);
-        if next_rows.get(*row_index) != Some(&row_state) {
-            dirty_row_indexes.push(*row_index);
-            hyperlinks.extend(extracted.hyperlinks.clone());
-            rows.push(extracted.row);
-        }
-        next_rows[*row_index] = row_state;
-    }
-
-    let dirty_ranges = merge_dirty_ranges(&dirty_row_indexes);
-    let rows_emitted = rows.len();
-
-    (
-        rows,
-        hyperlinks,
-        next_rows,
-        dirty_ranges,
-        candidate_row_indexes.len(),
-        rows_emitted,
-    )
-}
-
-fn build_graphic_placements(
-    terminal: &Terminal,
-    viewport_start_row: usize,
-    viewport_rows: usize,
-    scrollback_len: usize,
-    alt_screen_active: bool,
-    include_pending_cleared_kitty: bool,
-) -> Vec<TerminalGraphicPlacement> {
-    if viewport_rows == 0 {
-        return Vec::new();
-    }
-    let (viewport_cols, total_viewport_rows) = terminal.size();
-    let viewport_end_row = viewport_start_row.saturating_add(viewport_rows);
-    let active_row_base = if alt_screen_active { 0 } else { scrollback_len };
-    let mut placements = Vec::new();
-
-    for graphic in terminal.all_graphics() {
-        if graphic.alternate_screen != alt_screen_active {
-            continue;
-        }
-        if let Some(placement) = graphic_placement_for_viewport(
-            graphic,
-            active_row_base.saturating_add(graphic.position.1),
-            viewport_start_row,
-            viewport_end_row,
-            viewport_cols,
-            total_viewport_rows,
-            graphic.scroll_offset_rows,
-        ) {
-            placements.push(placement);
-        }
-    }
-
-    if include_pending_cleared_kitty {
-        for graphic in terminal.pending_cleared_kitty_graphics() {
-            if graphic.alternate_screen != alt_screen_active {
-                continue;
-            }
-            if let Some(placement) = graphic_placement_for_viewport(
-                graphic,
-                active_row_base.saturating_add(graphic.position.1),
-                viewport_start_row,
-                viewport_end_row,
-                viewport_cols,
-                total_viewport_rows,
-                graphic.scroll_offset_rows,
-            ) {
-                placements.push(placement);
-            }
-        }
-    }
-
-    if !alt_screen_active {
-        for graphic in terminal.all_scrollback_graphics() {
-            let Some(scrollback_row) = graphic.scrollback_row else {
-                continue;
-            };
-            if let Some(placement) = graphic_placement_for_viewport(
-                graphic,
-                scrollback_row,
-                viewport_start_row,
-                viewport_end_row,
-                viewport_cols,
-                total_viewport_rows,
-                0,
-            ) {
-                placements.push(placement);
-            }
-        }
-    }
-
-    let theme = terminal_theme_snapshot(terminal);
-    push_kitty_placeholder_graphic_placements(
-        terminal,
-        &theme,
-        viewport_start_row,
-        viewport_rows,
-        viewport_end_row,
-        viewport_cols,
-        total_viewport_rows,
-        alt_screen_active,
-        &mut placements,
-    );
-
-    placements
-}
-
-fn projection_source_span(
-    projection: &DisplayProjection,
-    display_start_row: usize,
-    viewport_rows: usize,
-) -> Option<(usize, usize)> {
-    let mut ranges = projection
-        .rows
-        .iter()
-        .skip(display_start_row)
-        .take(viewport_rows)
-        .map(|row| projection.source_range(row));
-    let first = ranges.next()?;
-    Some(ranges.fold(first, |(start, end), (next_start, next_end)| {
-        (start.min(next_start), end.max(next_end))
-    }))
-}
-
-#[allow(clippy::too_many_arguments)]
-fn build_projected_graphic_placements(
-    terminal: &Terminal,
-    projection: &DisplayProjection,
-    display_start_row: usize,
-    viewport_rows: usize,
-    scrollback_len: usize,
-    alt_screen_active: bool,
-    include_pending_cleared_kitty: bool,
-) -> Vec<TerminalGraphicPlacement> {
-    if !projection.has_folds() {
-        return build_graphic_placements(
-            terminal,
-            display_start_row,
-            viewport_rows,
-            scrollback_len,
-            alt_screen_active,
-            include_pending_cleared_kitty,
-        );
-    }
-    let Some((source_start_row, source_end_row)) =
-        projection_source_span(projection, display_start_row, viewport_rows)
-    else {
-        return Vec::new();
-    };
-    let physical_rows = source_end_row
-        .saturating_sub(source_start_row)
-        .saturating_add(1);
-    build_graphic_placements(
-        terminal,
-        source_start_row,
-        physical_rows,
-        scrollback_len,
-        alt_screen_active,
-        include_pending_cleared_kitty,
-    )
-    .into_iter()
-    .filter_map(|mut placement| {
-        let source_row = source_start_row.saturating_add(placement.row);
-        let source_end_exclusive = source_row.saturating_add(placement.height_cells.max(1));
-        if projection.intersects_collapsed_range(source_row, source_end_exclusive) {
-            return None;
-        }
-        let display_row = projection.display_index_for_source(source_row)?;
-        if display_row < display_start_row
-            || display_row >= display_start_row.saturating_add(viewport_rows)
-        {
-            return None;
-        }
-        placement.row = display_row.saturating_sub(display_start_row);
-        Some(placement)
-    })
-    .collect()
-}
-
-#[allow(clippy::too_many_arguments)]
-fn push_kitty_placeholder_graphic_placements(
-    terminal: &Terminal,
-    theme: &TerminalThemeSnapshot,
-    viewport_start_row: usize,
-    viewport_rows: usize,
-    viewport_end_row: usize,
-    viewport_cols: usize,
-    total_viewport_rows: usize,
-    alt_screen_active: bool,
-    placements: &mut Vec<TerminalGraphicPlacement>,
-) {
-    for viewport_row in 0..viewport_rows {
-        let visible_index = viewport_start_row.saturating_add(viewport_row);
-        let (cells, _) = row_cells_for_visible_index(terminal, visible_index);
-        let mut column_offset = 0usize;
-        let mut previous_placeholder: Option<PlaceholderInfo> = None;
-
-        for cell in cells.unwrap_or_default() {
-            if cell.flags.wide_char_spacer() {
-                continue;
-            }
-
-            let column_start = column_offset;
-            column_offset = column_offset.saturating_add(cell.width());
-            let Some(mut placeholder_info) = placeholder_info_from_cell(cell, theme) else {
-                previous_placeholder = None;
-                continue;
-            };
-
-            if let Some(previous) = previous_placeholder {
-                let expected_col = previous.col.unwrap_or(0).saturating_add(1);
-                if placeholder_info.can_inherit_from(&previous, expected_col) {
-                    placeholder_info.inherit_from(&previous);
-                }
-            }
-            previous_placeholder = Some(placeholder_info);
-
-            let Some(graphic) = terminal
-                .graphics_store()
-                .get_placeholder_graphic(&placeholder_info)
-            else {
-                continue;
-            };
-            if graphic.alternate_screen != alt_screen_active || graphic.pixels.is_empty() {
-                continue;
-            }
-            if let Some(placement) = kitty_placeholder_placement_for_viewport(
-                graphic,
-                placeholder_info,
-                column_start,
-                visible_index,
-                viewport_start_row,
-                viewport_end_row,
-                viewport_cols,
-                total_viewport_rows,
-            ) {
-                placements.push(placement);
-            }
-        }
-    }
-}
-
-fn placeholder_info_from_cell(
-    cell: &Cell,
-    theme: &TerminalThemeSnapshot,
-) -> Option<PlaceholderInfo> {
-    let grapheme = cell.get_grapheme();
-    if !grapheme.starts_with(PLACEHOLDER_CHAR) {
-        return None;
-    }
-
-    let diacritics: String = grapheme.chars().skip(1).collect();
-    let (row, col, msb) = parse_diacritics(&diacritics);
-    Some(
-        PlaceholderInfo::from_color(color_to_u24(cell.fg, theme))
-            .with_placement_id(
-                cell.underline_color
-                    .map_or(0, |color| color_to_u24(color, theme)),
-            )
-            .with_diacritics(row, col, msb),
-    )
-}
-
-fn color_to_u24(color: Color, theme: &TerminalThemeSnapshot) -> u32 {
-    let (red, green, blue) = resolve_color_rgb(color, &theme.ansi_palette);
-    ((red as u32) << 16) | ((green as u32) << 8) | blue as u32
-}
-
-#[allow(clippy::too_many_arguments)]
-fn kitty_placeholder_placement_for_viewport(
-    graphic: &TerminalGraphic,
-    placeholder_info: PlaceholderInfo,
-    placeholder_col: usize,
-    absolute_row: usize,
-    viewport_start_row: usize,
-    viewport_end_row: usize,
-    viewport_cols: usize,
-    total_viewport_rows: usize,
-) -> Option<TerminalGraphicPlacement> {
-    let row = placeholder_info.row? as usize;
-    let col = placeholder_info.col? as usize;
-    let (source_x, source_y, source_width, source_height) = graphic.source_rect_pixels()?;
-    let (span_cols, span_rows) = graphic.display_cell_span.unwrap_or_else(|| {
-        graphic.resolved_cell_span(Some(viewport_cols), Some(total_viewport_rows))
-    });
-    if col >= span_cols || row >= span_rows {
-        return None;
-    }
-
-    let tile_start_x = source_width.saturating_mul(col) / span_cols.max(1);
-    let tile_end_x = source_width.saturating_mul(col.saturating_add(1)) / span_cols.max(1);
-    let tile_start_y = source_height.saturating_mul(row) / span_rows.max(1);
-    let tile_end_y = source_height.saturating_mul(row.saturating_add(1)) / span_rows.max(1);
-    let tile_width = tile_end_x.saturating_sub(tile_start_x).max(1);
-    let tile_height = tile_end_y.saturating_sub(tile_start_y).max(1);
-
-    let mut placeholder_graphic = graphic.clone();
-    placeholder_graphic.position = (placeholder_col, 0);
-    placeholder_graphic.placement.source_x_offset =
-        source_x.saturating_add(tile_start_x).min(u32::MAX as usize) as u32;
-    placeholder_graphic.placement.source_y_offset =
-        source_y.saturating_add(tile_start_y).min(u32::MAX as usize) as u32;
-    placeholder_graphic.placement.source_width = Some(tile_width.min(u32::MAX as usize) as u32);
-    placeholder_graphic.placement.source_height = Some(tile_height.min(u32::MAX as usize) as u32);
-    placeholder_graphic.placement.requested_width = ImageDimension::cells(1.0);
-    placeholder_graphic.placement.requested_height = ImageDimension::cells(1.0);
-    placeholder_graphic.placement.columns = Some(1);
-    placeholder_graphic.placement.rows = Some(1);
-    placeholder_graphic.placement.x_offset = 0;
-    placeholder_graphic.placement.y_offset = 0;
-    placeholder_graphic.set_display_cell_span(1, 1);
-
-    graphic_placement_for_viewport(
-        &placeholder_graphic,
-        absolute_row,
-        viewport_start_row,
-        viewport_end_row,
-        viewport_cols,
-        total_viewport_rows,
-        0,
-    )
-}
-
-fn graphic_placement_for_viewport(
-    graphic: &TerminalGraphic,
-    absolute_start_row: usize,
-    viewport_start_row: usize,
-    viewport_end_row: usize,
-    viewport_cols: usize,
-    total_viewport_rows: usize,
-    scrolled_top_rows: usize,
-) -> Option<TerminalGraphicPlacement> {
-    let geometry = graphic_display_geometry(graphic, viewport_cols, total_viewport_rows)?;
-    let width_px = geometry.width_px;
-    let height_px = geometry.height_px;
-    let width_cells = geometry.width_cells;
-    let height_cells = geometry.height_cells;
-    let (cell_width_px, cell_height_px) = graphic_cell_dimensions_px(graphic);
-    let terminal_width_px = viewport_cols.saturating_mul(cell_width_px);
-    let x_offset_px = graphic.placement.x_offset as usize;
-    let graphic_left_px = graphic
-        .position
-        .0
-        .saturating_mul(cell_width_px)
-        .saturating_add(x_offset_px);
-    if terminal_width_px == 0 || graphic_left_px >= terminal_width_px {
-        return None;
-    }
-    let source_x_offset_px = geometry.source_x_offset_px;
-    let visible_width_px = geometry
-        .visible_width_px
-        .min(terminal_width_px.saturating_sub(graphic_left_px))
-        .max(1);
-    let scrolled_top_rows = scrolled_top_rows.min(height_cells);
-    let displayed_height_cells = height_cells.saturating_sub(scrolled_top_rows);
-    if displayed_height_cells == 0 {
-        return None;
-    }
-    let absolute_end_row = absolute_start_row.saturating_add(displayed_height_cells);
-    if absolute_end_row <= viewport_start_row || absolute_start_row >= viewport_end_row {
-        return None;
-    }
-    let row = absolute_start_row.saturating_sub(viewport_start_row);
-    let viewport_hidden_rows = viewport_start_row
-        .saturating_sub(absolute_start_row)
-        .min(displayed_height_cells);
-    let hidden_rows = scrolled_top_rows.saturating_add(viewport_hidden_rows);
-    let visible_height_cells = displayed_height_cells
-        .saturating_sub(viewport_hidden_rows)
-        .min(viewport_end_row.saturating_sub(absolute_start_row.max(viewport_start_row)));
-    if visible_height_cells == 0 {
-        return None;
-    }
-    let y_offset_px = graphic.placement.y_offset as usize;
-    let hidden_px = hidden_rows.saturating_mul(cell_height_px);
-    let visible_window_top_px = hidden_px;
-    let visible_window_bottom_px =
-        hidden_px.saturating_add(visible_height_cells.saturating_mul(cell_height_px));
-    let image_top_px = y_offset_px;
-    let image_bottom_px = y_offset_px.saturating_add(geometry.visible_height_px);
-    let visible_image_top_px = image_top_px.max(visible_window_top_px);
-    let visible_image_bottom_px = image_bottom_px.min(visible_window_bottom_px);
-    if visible_image_bottom_px <= visible_image_top_px {
-        return None;
-    }
-    let image_hidden_px = visible_image_top_px.saturating_sub(image_top_px);
-    let source_y_offset_px = geometry
-        .source_y_offset_px
-        .saturating_add(image_hidden_px)
-        .min(height_px.saturating_sub(1));
-    let visible_height_px = visible_image_bottom_px.saturating_sub(visible_image_top_px);
-    let effective_y_offset_px = visible_image_top_px.saturating_sub(hidden_px);
-    let placement_id = graphic_placement_id(graphic);
-    Some(TerminalGraphicPlacement {
-        render_id: placement_id,
-        placement_id,
-        asset_id: graphic_asset_id(graphic),
-        asset_version: graphic_asset_version(graphic),
-        protocol: graphic.protocol.as_str().to_string(),
-        row,
-        col: graphic.position.0,
-        width_px,
-        height_px,
-        width_cells: width_cells.max(1),
-        height_cells: height_cells.max(1),
-        source_x_offset_px,
-        visible_width_px,
-        source_y_offset_px,
-        visible_height_px,
-        z_index: graphic.placement.z_index,
-        x_offset_px: graphic.placement.x_offset,
-        y_offset_px: effective_y_offset_px.min(u32::MAX as usize) as u32,
-        preserve_aspect_ratio: graphic.placement.preserve_aspect_ratio,
-    })
-}
-
-struct GraphicDisplayGeometry {
-    width_px: usize,
-    height_px: usize,
-    width_cells: usize,
-    height_cells: usize,
-    source_x_offset_px: usize,
-    visible_width_px: usize,
-    source_y_offset_px: usize,
-    visible_height_px: usize,
-}
-
-fn graphic_placement_id(graphic: &TerminalGraphic) -> u64 {
-    graphic.id
-}
-
-fn graphic_asset_id(graphic: &TerminalGraphic) -> u64 {
-    graphic
-        .kitty_image_id
-        .or(graphic.animation_id)
-        .map(u64::from)
-        .unwrap_or(graphic.id)
-}
-
-fn graphic_asset_version(graphic: &TerminalGraphic) -> u64 {
-    graphic.asset_version
-}
-
-fn graphic_asset_snapshots(terminal: &Terminal) -> Vec<GraphicAssetSnapshot> {
-    terminal
-        .all_graphics()
-        .iter()
-        .chain(terminal.pending_cleared_kitty_graphics().iter())
-        .chain(terminal.all_scrollback_graphics().iter())
-        .chain(terminal.graphics_store().all_virtual_placements().values())
-        .filter(|graphic| !graphic.pixels.is_empty())
-        .map(|graphic| GraphicAssetSnapshot {
-            asset_id: graphic_asset_id(graphic),
-            asset_version: graphic_asset_version(graphic),
-            width: graphic.width,
-            height: graphic.height,
-            pixels: Arc::clone(&graphic.pixels),
-        })
-        .collect()
-}
-
 fn cache_graphic_asset_snapshots(state: &mut TerminalState, snapshots: Vec<GraphicAssetSnapshot>) {
     for snapshot in snapshots {
         if state.graphic_assets.iter().any(|cached| {
@@ -5951,312 +5709,6 @@ fn find_cached_graphic_asset(
     } else {
         Err(SessionError::GraphicAsset("missing asset".to_string()))
     }
-}
-
-fn graphic_display_geometry(
-    graphic: &TerminalGraphic,
-    viewport_cols: usize,
-    viewport_rows: usize,
-) -> Option<GraphicDisplayGeometry> {
-    let (cell_width_px, cell_height_px) = graphic_cell_dimensions_px(graphic);
-    let terminal_width_px = viewport_cols
-        .saturating_mul(cell_width_px)
-        .max(cell_width_px);
-    let terminal_height_px = viewport_rows
-        .saturating_mul(cell_height_px)
-        .max(cell_height_px);
-    let (source_x, source_y, source_width, source_height) = graphic.source_rect_pixels()?;
-
-    let requested_width = graphic_dimension_px(
-        graphic.placement.requested_width,
-        source_width,
-        cell_width_px,
-        terminal_width_px,
-    );
-    let requested_height = graphic_dimension_px(
-        graphic.placement.requested_height,
-        source_height,
-        cell_height_px,
-        terminal_height_px,
-    );
-
-    let (visible_width_px, visible_height_px) = match (requested_width, requested_height) {
-        (Some(width), Some(height)) => (width, height),
-        (Some(width), None) if graphic.placement.preserve_aspect_ratio && source_width > 0 => {
-            let height = ((width as f64 * source_height as f64) / source_width as f64)
-                .round()
-                .max(1.0) as usize;
-            (width, height)
-        }
-        (None, Some(height)) if graphic.placement.preserve_aspect_ratio && source_height > 0 => {
-            let width = ((height as f64 * source_width as f64) / source_height as f64)
-                .round()
-                .max(1.0) as usize;
-            (width, height)
-        }
-        (Some(width), None) => (width, source_height.max(1)),
-        (None, Some(height)) => (source_width.max(1), height),
-        _ => (source_width.max(1), source_height.max(1)),
-    };
-
-    let scale_x = visible_width_px as f64 / source_width as f64;
-    let scale_y = visible_height_px as f64 / source_height as f64;
-    let width_px = ((graphic.width as f64) * scale_x).round().max(1.0) as usize;
-    let height_px = ((graphic.height as f64) * scale_y).round().max(1.0) as usize;
-    let source_x_offset_px = ((source_x as f64) * scale_x).round() as usize;
-    let source_y_offset_px = ((source_y as f64) * scale_y).round() as usize;
-    let source_x_offset_px = source_x_offset_px.min(width_px.saturating_sub(1));
-    let source_y_offset_px = source_y_offset_px.min(height_px.saturating_sub(1));
-    let visible_width_px = visible_width_px
-        .min(width_px.saturating_sub(source_x_offset_px))
-        .max(1);
-    let visible_height_px = visible_height_px
-        .min(height_px.saturating_sub(source_y_offset_px))
-        .max(1);
-    let x_offset_px = graphic.placement.x_offset as usize;
-    let y_offset_px = graphic.placement.y_offset as usize;
-    let width_cells = x_offset_px
-        .saturating_add(visible_width_px)
-        .div_ceil(cell_width_px)
-        .max(1);
-    let height_cells = y_offset_px
-        .saturating_add(visible_height_px)
-        .div_ceil(cell_height_px)
-        .max(1);
-    Some(GraphicDisplayGeometry {
-        width_px,
-        height_px,
-        width_cells,
-        height_cells,
-        source_x_offset_px,
-        visible_width_px,
-        source_y_offset_px,
-        visible_height_px,
-    })
-}
-
-fn graphic_cell_dimensions_px(graphic: &TerminalGraphic) -> (usize, usize) {
-    let (cell_width_px, cell_height_px) = graphic.cell_dimensions.unwrap_or((1, 1));
-    (
-        (cell_width_px as usize).max(1),
-        (cell_height_px as usize).max(1),
-    )
-}
-
-fn graphic_dimension_px(
-    dimension: ImageDimension,
-    fallback_px: usize,
-    cell_px: usize,
-    terminal_px: usize,
-) -> Option<usize> {
-    if dimension.is_auto() {
-        return None;
-    }
-    let value = dimension.value.max(0.0);
-    let px = match dimension.unit {
-        ImageSizeUnit::Auto => fallback_px,
-        ImageSizeUnit::Cells => (value * cell_px as f64).round() as usize,
-        ImageSizeUnit::Pixels => value.round() as usize,
-        ImageSizeUnit::Percent => ((value / 100.0) * terminal_px as f64).round() as usize,
-    };
-    Some(px.max(1))
-}
-
-fn delta_candidate_row_indexes(
-    pending_frame_work: &PendingFrameWork,
-    viewport_rows: usize,
-    viewport_start_row: usize,
-    scrollback_len: usize,
-    alt_screen_active: bool,
-    viewport_row_shift: i32,
-) -> Vec<usize> {
-    let mut candidates = BTreeSet::new();
-    let uses_viewport_shift =
-        pending_frame_work
-            .scroll_region
-            .as_ref()
-            .is_some_and(|scroll_region| {
-                viewport_row_shift != 0
-                    && scroll_region_covers_full_active_screen(scroll_region, viewport_rows)
-            });
-
-    add_shift_exposed_rows(&mut candidates, viewport_rows, viewport_row_shift);
-    for row in &pending_frame_work.dirty_rows {
-        if uses_viewport_shift
-            && !row_is_exposed_by_viewport_shift(*row, viewport_rows, viewport_row_shift)
-        {
-            continue;
-        }
-        if let Some(visible_row) = visible_row_for_screen_row(
-            *row,
-            viewport_start_row,
-            viewport_rows,
-            scrollback_len,
-            alt_screen_active,
-        ) {
-            candidates.insert(visible_row);
-        }
-        if uses_viewport_shift {
-            let shifted_row = *row as isize + viewport_row_shift as isize;
-            let Some(shifted_row) = usize::try_from(shifted_row).ok() else {
-                continue;
-            };
-            if let Some(visible_row) = visible_row_for_screen_row(
-                shifted_row,
-                viewport_start_row,
-                viewport_rows,
-                scrollback_len,
-                alt_screen_active,
-            ) {
-                candidates.insert(visible_row);
-            }
-        }
-    }
-
-    if let Some(scroll_region) = pending_frame_work.scroll_region.as_ref()
-        && !uses_viewport_shift
-    {
-        add_visible_rows_for_scroll_region(
-            &mut candidates,
-            scroll_region,
-            viewport_start_row,
-            viewport_rows,
-            scrollback_len,
-            alt_screen_active,
-        );
-    }
-
-    add_visible_cursor_row(
-        &mut candidates,
-        pending_frame_work.cursor_before.as_ref(),
-        viewport_start_row,
-        viewport_rows,
-        scrollback_len,
-        alt_screen_active,
-    );
-    add_visible_cursor_row(
-        &mut candidates,
-        pending_frame_work.cursor_after.as_ref(),
-        viewport_start_row,
-        viewport_rows,
-        scrollback_len,
-        alt_screen_active,
-    );
-
-    candidates.into_iter().collect()
-}
-
-fn row_is_exposed_by_viewport_shift(
-    row: usize,
-    viewport_rows: usize,
-    viewport_row_shift: i32,
-) -> bool {
-    if viewport_row_shift == 0 || viewport_rows == 0 {
-        return false;
-    }
-
-    let shift = viewport_row_shift.unsigned_abs() as usize;
-    if viewport_row_shift < 0 {
-        return row >= viewport_rows.saturating_sub(shift);
-    }
-
-    row < shift.min(viewport_rows)
-}
-
-fn add_shift_exposed_rows(
-    candidates: &mut BTreeSet<usize>,
-    viewport_rows: usize,
-    viewport_row_shift: i32,
-) {
-    if viewport_row_shift == 0 || viewport_rows == 0 {
-        return;
-    }
-
-    let shift = viewport_row_shift.unsigned_abs() as usize;
-    if viewport_row_shift < 0 {
-        let start = viewport_rows.saturating_sub(shift);
-        for row in start..viewport_rows {
-            candidates.insert(row);
-        }
-        return;
-    }
-
-    for row in 0..shift.min(viewport_rows) {
-        candidates.insert(row);
-    }
-}
-
-fn add_visible_rows_for_scroll_region(
-    candidates: &mut BTreeSet<usize>,
-    scroll_region: &PendingScrollRegion,
-    viewport_start_row: usize,
-    viewport_rows: usize,
-    scrollback_len: usize,
-    alt_screen_active: bool,
-) {
-    if viewport_rows == 0 || scroll_region.top >= scroll_region.bottom_exclusive {
-        return;
-    }
-
-    if alt_screen_active {
-        let start = scroll_region.top.min(viewport_rows);
-        let end = scroll_region.bottom_exclusive.min(viewport_rows);
-        for row in start..end {
-            candidates.insert(row);
-        }
-        return;
-    }
-
-    let region_start = scrollback_len.saturating_add(scroll_region.top);
-    let region_end = scrollback_len.saturating_add(scroll_region.bottom_exclusive);
-    let viewport_end = viewport_start_row.saturating_add(viewport_rows);
-    let visible_start = region_start.max(viewport_start_row);
-    let visible_end = region_end.min(viewport_end);
-    for absolute_row in visible_start..visible_end {
-        candidates.insert(absolute_row.saturating_sub(viewport_start_row));
-    }
-}
-
-fn add_visible_cursor_row(
-    candidates: &mut BTreeSet<usize>,
-    cursor: Option<&TerminalCursor>,
-    viewport_start_row: usize,
-    viewport_rows: usize,
-    scrollback_len: usize,
-    alt_screen_active: bool,
-) {
-    let Some(cursor) = cursor else {
-        return;
-    };
-
-    if let Some(visible_row) = visible_row_for_screen_row(
-        cursor.row,
-        viewport_start_row,
-        viewport_rows,
-        scrollback_len,
-        alt_screen_active,
-    ) {
-        candidates.insert(visible_row);
-    }
-}
-
-fn visible_row_for_screen_row(
-    screen_row: usize,
-    viewport_start_row: usize,
-    viewport_rows: usize,
-    scrollback_len: usize,
-    alt_screen_active: bool,
-) -> Option<usize> {
-    if alt_screen_active {
-        return (screen_row < viewport_rows).then_some(screen_row);
-    }
-
-    let absolute_row = scrollback_len.saturating_add(screen_row);
-    let viewport_end = viewport_start_row.saturating_add(viewport_rows);
-    if absolute_row < viewport_start_row || absolute_row >= viewport_end {
-        return None;
-    }
-    Some(absolute_row.saturating_sub(viewport_start_row))
 }
 
 fn build_sized_text_placements(
@@ -6362,13 +5814,6 @@ fn build_projected_sized_text_placements(
             Some(placement)
         })
         .collect()
-}
-
-fn scroll_region_covers_full_active_screen(
-    scroll_region: &PendingScrollRegion,
-    viewport_rows: usize,
-) -> bool {
-    scroll_region.top == 0 && scroll_region.bottom_exclusive >= viewport_rows
 }
 
 fn extract_hyperlinks_for_row(
@@ -6963,85 +6408,6 @@ fn normalize_responses(emulation: TerminalEmulation, responses: Vec<u8>) -> Vec<
         .into_bytes()
 }
 
-fn display_projection_for_terminal(terminal: &Terminal) -> DisplayProjection {
-    let (_, viewport_rows) = terminal.size();
-    if terminal.is_alt_screen_active() {
-        return DisplayProjection::identity(viewport_rows);
-    }
-
-    let grid = terminal.grid();
-    let scrollback_len = grid.scrollback_len();
-    let total_rows = scrollback_len.saturating_add(viewport_rows);
-    if total_rows == 0 {
-        return DisplayProjection::identity(0);
-    }
-    let first_retained_abs_row = grid.total_lines_scrolled().saturating_sub(scrollback_len);
-    let last_retained_abs_row = first_retained_abs_row.saturating_add(total_rows - 1);
-    let mut collapsed = terminal
-        .iterm_blocks()
-        .iter()
-        .filter(|block| block.complete && block.folded && block.end_abs_row > block.start_abs_row)
-        .filter(|block| {
-            block.end_abs_row >= first_retained_abs_row
-                && block.start_abs_row <= last_retained_abs_row
-        })
-        .map(|block| CollapsedBlockRange {
-            id: block.id.clone(),
-            source_start_row: block
-                .start_abs_row
-                .saturating_sub(first_retained_abs_row)
-                .min(total_rows - 1),
-            source_end_row: block
-                .end_abs_row
-                .saturating_sub(first_retained_abs_row)
-                .min(total_rows - 1),
-            has_summary: block.start_abs_row >= first_retained_abs_row,
-        })
-        .collect::<Vec<_>>();
-    collapsed.sort_by(|left, right| {
-        left.source_start_row
-            .cmp(&right.source_start_row)
-            .then_with(|| right.source_end_row.cmp(&left.source_end_row))
-            .then_with(|| left.id.cmp(&right.id))
-    });
-
-    let mut merged: Vec<CollapsedBlockRange> = Vec::with_capacity(collapsed.len());
-    for candidate in collapsed {
-        if let Some(previous) = merged.last_mut()
-            && candidate.source_start_row <= previous.source_end_row
-        {
-            previous.source_end_row = previous.source_end_row.max(candidate.source_end_row);
-            continue;
-        }
-        merged.push(candidate);
-    }
-    if merged.is_empty() {
-        return DisplayProjection::identity(total_rows);
-    }
-
-    let mut rows = Vec::with_capacity(total_rows);
-    let mut source_row = 0usize;
-    for (range_index, range) in merged.iter().enumerate() {
-        while source_row < range.source_start_row {
-            rows.push(DisplayProjectionRow::Source(source_row));
-            source_row += 1;
-        }
-        if range.has_summary {
-            rows.push(DisplayProjectionRow::FoldSummary(range_index));
-        }
-        source_row = range.source_end_row.saturating_add(1);
-    }
-    while source_row < total_rows {
-        rows.push(DisplayProjectionRow::Source(source_row));
-        source_row += 1;
-    }
-
-    DisplayProjection {
-        rows,
-        collapsed: merged,
-    }
-}
-
 fn current_scrollback_max(state: &TerminalState) -> usize {
     if state.terminal.is_alt_screen_active() {
         0
@@ -7110,151 +6476,6 @@ fn hyperlink_signature(hyperlinks: &[TerminalHyperlinkRange]) -> u64 {
         hyperlink.protocol_id.hash(&mut hasher);
     }
     hasher.finish()
-}
-
-fn viewport_row_shift_for(
-    previous_frame_meta: Option<&CachedFrameMeta>,
-    viewport_start_row: usize,
-    frame_meta: &CachedFrameMeta,
-) -> i32 {
-    let Some(previous_frame_meta) = previous_frame_meta else {
-        return 0;
-    };
-    if !frame_meta_is_delta_compatible(Some(previous_frame_meta), frame_meta) {
-        return 0;
-    }
-    let row_shift = previous_frame_meta.viewport_start_row as i64 - viewport_start_row as i64;
-    row_shift.clamp(i32::MIN as i64, i32::MAX as i64) as i32
-}
-
-fn resolve_viewport_row_shift(
-    previous_frame_meta: Option<&CachedFrameMeta>,
-    viewport_start_row: usize,
-    frame_meta: &CachedFrameMeta,
-    scroll_region: Option<&PendingScrollRegion>,
-) -> i32 {
-    let frame_meta_shift =
-        viewport_row_shift_for(previous_frame_meta, viewport_start_row, frame_meta);
-    if frame_meta_shift != 0 {
-        return frame_meta_shift;
-    }
-
-    let Some(scroll_region) = scroll_region else {
-        return 0;
-    };
-    if !scroll_region_covers_full_active_screen(scroll_region, frame_meta.viewport_rows) {
-        return 0;
-    }
-    scroll_region.delta_rows.clamp(
-        -(frame_meta.viewport_rows as i32),
-        frame_meta.viewport_rows as i32,
-    )
-}
-
-fn snapshot_fallback_reason(
-    pending_frame_work: &PendingFrameWork,
-    previous_rows: &[CachedRowState],
-    previous_frame_meta: Option<&CachedFrameMeta>,
-    frame_meta: &CachedFrameMeta,
-) -> Option<String> {
-    if pending_frame_work.full_repaint {
-        return Some(
-            pending_frame_work
-                .snapshot_fallback_reason
-                .clone()
-                .unwrap_or_else(|| "pending_full_repaint".to_string()),
-        );
-    }
-    if previous_rows.is_empty() {
-        return Some("no_previous_frame".to_string());
-    }
-    if previous_rows.len() != frame_meta.viewport_rows {
-        return Some("viewport_row_count_changed".to_string());
-    }
-    frame_meta_delta_break_reason(previous_frame_meta, frame_meta).map(str::to_string)
-}
-
-fn frame_meta_delta_break_reason(
-    previous_frame_meta: Option<&CachedFrameMeta>,
-    frame_meta: &CachedFrameMeta,
-) -> Option<&'static str> {
-    let previous_frame_meta = previous_frame_meta?;
-    if previous_frame_meta.viewport_rows != frame_meta.viewport_rows
-        || previous_frame_meta.viewport_cols != frame_meta.viewport_cols
-    {
-        return Some("viewport_metrics_changed");
-    }
-    if previous_frame_meta.scrollback_offset != frame_meta.scrollback_offset {
-        return Some("scrollback_offset_changed");
-    }
-    if previous_frame_meta.alt_screen_active != frame_meta.alt_screen_active {
-        return Some("alternate_screen_changed");
-    }
-    if previous_frame_meta.default_foreground_rgb != frame_meta.default_foreground_rgb
-        || previous_frame_meta.default_background_rgb != frame_meta.default_background_rgb
-    {
-        return Some("terminal_default_colors_changed");
-    }
-    if previous_frame_meta.cursor_color_rgb != frame_meta.cursor_color_rgb {
-        return Some("terminal_cursor_color_changed");
-    }
-    if previous_frame_meta.selection_background_rgb != frame_meta.selection_background_rgb
-        || previous_frame_meta.selection_foreground_rgb != frame_meta.selection_foreground_rgb
-    {
-        return Some("terminal_selection_colors_changed");
-    }
-    if previous_frame_meta.link_color_rgb != frame_meta.link_color_rgb
-        || previous_frame_meta.cursor_text_color_rgb != frame_meta.cursor_text_color_rgb
-        || previous_frame_meta.tab_color_rgb != frame_meta.tab_color_rgb
-    {
-        return Some("terminal_iterm_colors_changed");
-    }
-    if previous_frame_meta.pointer_shape != frame_meta.pointer_shape {
-        return Some("terminal_pointer_shape_changed");
-    }
-    if previous_frame_meta.ansi_palette != frame_meta.ansi_palette {
-        return Some("terminal_palette_changed");
-    }
-    if previous_frame_meta.modes != frame_meta.modes {
-        return Some("terminal_modes_changed");
-    }
-    if previous_frame_meta.window_title != frame_meta.window_title {
-        return Some("window_title_changed");
-    }
-    if previous_frame_meta.window_icon_name != frame_meta.window_icon_name {
-        return Some("window_icon_name_changed");
-    }
-    if previous_frame_meta.font_family != frame_meta.font_family {
-        return Some("terminal_font_changed");
-    }
-    None
-}
-
-fn frame_meta_is_delta_compatible(
-    previous_frame_meta: Option<&CachedFrameMeta>,
-    frame_meta: &CachedFrameMeta,
-) -> bool {
-    frame_meta_delta_break_reason(previous_frame_meta, frame_meta).is_none()
-}
-
-fn merge_dirty_ranges(dirty_row_indexes: &[usize]) -> Vec<TerminalDirtyRange> {
-    let mut ranges = Vec::new();
-    let Some((&first, rest)) = dirty_row_indexes.split_first() else {
-        return ranges;
-    };
-    let mut start = first;
-    let mut end = first + 1;
-    for index in rest {
-        if *index == end {
-            end += 1;
-            continue;
-        }
-        ranges.push(TerminalDirtyRange { start, end });
-        start = *index;
-        end = *index + 1;
-    }
-    ranges.push(TerminalDirtyRange { start, end });
-    ranges
 }
 
 fn parse_hex_color(value: &str) -> Option<Color> {
@@ -7430,6 +6651,45 @@ pub fn create_session(profile_json: &str) -> Result<u64, SessionError> {
     STORE.create_session(profile)
 }
 
+pub fn create_session_v1(session_config_json: &str) -> Result<u64, SessionError> {
+    let config = SessionConfigV1::decode_json(session_config_json)
+        .map_err(|error| SessionError::InvalidSessionConfig(error.to_string()))?;
+    STORE.create_session(config.into_terminal_profile())
+}
+
+pub fn create_replay_session(profile_json: &str) -> Result<u64, SessionError> {
+    let profile: TerminalProfile = serde_json::from_str(profile_json)
+        .map_err(|error| SessionError::InvalidProfile(error.to_string()))?;
+    STORE.create_replay_session(profile)
+}
+
+pub fn create_replay_session_v1(session_config_json: &str) -> Result<u64, SessionError> {
+    let config = SessionConfigV1::decode_json(session_config_json)
+        .map_err(|error| SessionError::InvalidSessionConfig(error.to_string()))?;
+    STORE.create_replay_session(config.into_terminal_profile())
+}
+
+pub fn replay_session_output(session_id: u64, bytes: &[u8]) -> Result<(), SessionError> {
+    STORE.get(session_id)?.replay_output(bytes)
+}
+
+pub fn replay_session_exit(session_id: u64, exit_code: Option<i32>) -> Result<(), SessionError> {
+    STORE.get(session_id)?.replay_exit(exit_code)
+}
+
+pub fn replay_session_capture_checkpoint(session_id: u64) -> Result<u64, SessionError> {
+    STORE.get(session_id)?.capture_replay_checkpoint()
+}
+
+pub fn replay_session_restore_checkpoint(
+    session_id: u64,
+    checkpoint_id: u64,
+) -> Result<(), SessionError> {
+    STORE
+        .get(session_id)?
+        .restore_replay_checkpoint(checkpoint_id)
+}
+
 pub fn close_session(session_id: u64) -> Result<(), SessionError> {
     STORE.close_session(session_id)
 }
@@ -7471,6 +6731,10 @@ pub fn resize_session_with_cell_size(
 
 pub fn write_session(session_id: u64, bytes: &[u8]) -> Result<(), SessionError> {
     STORE.get(session_id)?.write(bytes)
+}
+
+pub fn respond_host_v1_json(session_id: u64, raw: &str) -> Result<(), SessionError> {
+    STORE.get(session_id)?.respond_host_v1(raw)
 }
 
 pub fn scroll_session(session_id: u64, delta_lines: i32) -> Result<(), SessionError> {
@@ -7541,6 +6805,29 @@ fn export_diagnostics_session(
     STORE.get(session_id)?.export_diagnostics_json(request)
 }
 
+fn request_json_response(value: serde_json::Value) -> Result<Option<String>, SessionError> {
+    serde_json::to_string(&value)
+        .map(Some)
+        .map_err(|error| SessionError::Serialize(error.to_string()))
+}
+
+fn recording_error_response(error: RecordingError) -> Result<Option<String>, SessionError> {
+    request_json_response(serde_json::json!({
+        "ok": false,
+        "error": {
+            "code": error.code,
+            "message": error.message,
+        },
+    }))
+}
+
+fn invalid_recording_request(message: &'static str) -> Result<Option<String>, SessionError> {
+    recording_error_response(RecordingError {
+        code: "invalid_request",
+        message,
+    })
+}
+
 pub fn request_session_json(
     session_id: u64,
     request_json: &str,
@@ -7552,6 +6839,74 @@ pub fn request_session_json(
     };
 
     match kind {
+        "terminal.recording_start" => {
+            if request
+                .get("schema_version")
+                .and_then(serde_json::Value::as_u64)
+                != Some(recording::RECORDING_SCHEMA_VERSION.into())
+            {
+                return invalid_recording_request("schema_version must be 1");
+            }
+            let Some(created_at_utc) = request
+                .get("created_at_utc")
+                .and_then(serde_json::Value::as_str)
+                .filter(|value| !value.is_empty() && value.ends_with('Z'))
+            else {
+                return invalid_recording_request(
+                    "created_at_utc must be a non-empty UTC timestamp",
+                );
+            };
+            let Some(input_policy) = request
+                .get("input_policy")
+                .and_then(serde_json::Value::as_str)
+                .and_then(RecordingInputPolicy::parse)
+            else {
+                return invalid_recording_request("input_policy must be record or redact");
+            };
+            let session = STORE.get(session_id)?;
+            let mut recording = session.recording.lock();
+            let state = session.state.lock();
+            let (cols, rows) = state.terminal.size();
+            let terminal_emulation = match session.emulation {
+                TerminalEmulation::Xterm256 => "xterm256",
+                TerminalEmulation::Vt220 => "vt220",
+            };
+            let result = recording.start(
+                session_id,
+                created_at_utc.to_string(),
+                input_policy,
+                terminal_emulation,
+                cols as u16,
+                rows as u16,
+            );
+            drop(state);
+            match result {
+                Ok(started) => request_json_response(serde_json::json!({
+                    "ok": true,
+                    "max_events": started.max_events,
+                    "max_payload_bytes": started.max_payload_bytes,
+                })),
+                Err(error) => recording_error_response(error),
+            }
+        }
+        "terminal.recording_stop" => {
+            let session = STORE.get(session_id)?;
+            session.observe_child_exit()?;
+            match session.recording.lock().stop() {
+                Ok(recording_ndjson) => request_json_response(serde_json::json!({
+                    "ok": true,
+                    "recording_ndjson": recording_ndjson,
+                })),
+                Err(error) => recording_error_response(error),
+            }
+        }
+        "terminal.recording_cancel" => {
+            let session = STORE.get(session_id)?;
+            match session.recording.lock().cancel() {
+                Ok(()) => request_json_response(serde_json::json!({ "ok": true })),
+                Err(error) => recording_error_response(error),
+            }
+        }
         "terminal.search_text" => {
             let query = request
                 .get("query")
@@ -7716,12 +7071,28 @@ pub fn take_frame_diff_protobuf(session_id: u64) -> Result<Option<Vec<u8>>, Sess
     Ok(Some(bytes))
 }
 
+pub fn take_frame_packet_v1_protobuf(
+    session_id: u64,
+    after_sequence: Option<u64>,
+) -> Result<Option<Vec<u8>>, SessionError> {
+    STORE
+        .get(session_id)?
+        .take_frame_packet_v1_protobuf(after_sequence)
+}
+
 pub fn take_frame_debug_stats_json(session_id: u64) -> Result<Option<String>, SessionError> {
     STORE.get(session_id)?.take_frame_debug_stats_json()
 }
 
 pub fn take_session_debug_stats_json(session_id: u64) -> Result<Option<String>, SessionError> {
     STORE.get(session_id)?.take_session_debug_stats_json()
+}
+
+pub fn take_diagnostic_event_v1_json(
+    session_id: u64,
+    name: &str,
+) -> Result<Option<String>, SessionError> {
+    STORE.get(session_id)?.take_diagnostic_event_v1_json(name)
 }
 
 pub fn poll_events(session_id: u64) -> Result<String, SessionError> {
@@ -7733,6 +7104,17 @@ pub fn take_events(session_id: u64) -> Result<Vec<TerminalEvent>, SessionError> 
     STORE.get(session_id)?.poll_events()
 }
 
+pub fn poll_event_envelopes(session_id: u64) -> Result<Option<String>, SessionError> {
+    STORE
+        .get(session_id)?
+        .poll_event_envelopes()?
+        .map(|batch| {
+            serde_json::to_string(&batch)
+                .map_err(|error| SessionError::Serialize(error.to_string()))
+        })
+        .transpose()
+}
+
 pub fn graphic_asset_meta(
     session_id: u64,
     asset_id: u64,
@@ -7741,6 +7123,16 @@ pub fn graphic_asset_meta(
     STORE
         .get(session_id)?
         .graphic_asset_meta(asset_id, asset_version)
+}
+
+pub fn graphic_asset_packet_v1_protobuf(
+    session_id: u64,
+    asset_id: u64,
+    asset_version: u64,
+) -> Result<Vec<u8>, SessionError> {
+    STORE
+        .get(session_id)?
+        .graphic_asset_packet_v1_protobuf(asset_id, asset_version)
 }
 
 pub fn copy_graphic_asset_rgba(
@@ -7801,6 +7193,7 @@ mod tests {
             pending_file_downloads: VecDeque::new(),
             pending_file_download_bytes: 0,
             next_file_download_id: 1,
+            replay_checkpoint_boundary: ReplayCheckpointBoundary::default(),
         }
     }
 
@@ -8043,14 +7436,18 @@ mod tests {
         assert_eq!(projection.display_index_for_source(2), Some(0));
         assert_eq!(projection.display_index_for_source(3), Some(1));
 
-        let (rows, hyperlinks, _, dirty, _, _) = build_projected_snapshot_frame(
-            &terminal,
-            TerminalEmulation::Xterm256,
-            &projection,
-            0,
-            6,
-            24,
-        );
+        let context = FrameBuildContext {
+            terminal: &terminal,
+            emulation: TerminalEmulation::Xterm256,
+            display_projection: &projection,
+            viewport_start_row: 0,
+            viewport_display_start_row: 0,
+            viewport_rows: 6,
+            viewport_cols: 24,
+            scrollback_len: terminal.grid().scrollback_len(),
+            alt_screen_active: false,
+        };
+        let (rows, hyperlinks, _, dirty, _, _) = build_snapshot_frame(&context);
         assert!(hyperlinks.is_empty());
         assert_eq!(dirty.len(), 1);
         assert_eq!((dirty[0].start, dirty[0].end), (0, 6));
@@ -8212,6 +7609,102 @@ mod tests {
                 .entries
                 .iter()
                 .any(|entry| entry.event.kind == "clipboard_paste_request")
+        );
+    }
+
+    #[test]
+    fn pending_event_queue_assigns_sequences_before_loss_and_reports_empty_batch() {
+        let mut queue = PendingEventQueue::with_limits(0, usize::MAX);
+
+        let result = queue.push(pending_test_event("bell", None));
+        let batch = queue
+            .drain_event_batch(7)
+            .expect("a dropped event must still produce loss metadata");
+
+        assert!(result.emit_overflow_diagnostic);
+        assert!(batch.messages.is_empty());
+        assert_eq!(batch.session_id, "7");
+        assert_eq!(batch.next_sequence, 1);
+        assert_eq!(batch.dropped_count, 1);
+        assert!(queue.drain_event_batch(7).is_none());
+    }
+
+    #[test]
+    fn event_envelope_path_correlates_and_consumes_clipboard_host_response_once() {
+        let mut queue = PendingEventQueue::default();
+        let _ = queue.push(pending_test_event(
+            "clipboard_paste_request",
+            Some(serde_json::json!({"selection": "c"})),
+        ));
+
+        let batch = queue.drain_event_batch(7).expect("Host Request batch");
+        assert_eq!(batch.messages.len(), 1);
+        assert_eq!(batch.messages[0].message_name, "host_request");
+        assert_eq!(
+            batch.messages[0].payload.as_ref().unwrap()["request_id"],
+            "host:7:0"
+        );
+        assert_eq!(queue.pending_host_requests.len(), 1);
+
+        let wrong = serde_json::json!({
+            "schema_version": 1,
+            "contract": "ianvs-host-response-v1",
+            "request_id": "host:7:99",
+            "session_id": "7",
+            "operation": "clipboard.read_text",
+            "ok": true,
+            "timestamp_micros": 1_300,
+            "payload": {"data_base64": "aGVsbG8="}
+        })
+        .to_string();
+        assert!(queue.resolve_host_response(7, &wrong).is_err());
+        assert_eq!(queue.pending_host_requests.len(), 1);
+
+        let response = wrong.replace("host:7:99", "host:7:0");
+        assert_eq!(
+            queue.resolve_host_response(7, &response).unwrap(),
+            Some(b"\x1b]52;c;aGVsbG8=\x07".to_vec())
+        );
+        assert!(queue.resolve_host_response(7, &response).is_err());
+        assert!(queue.pending_host_requests.is_empty());
+    }
+
+    #[test]
+    fn legacy_event_drain_keeps_clipboard_request_shape_and_registers_no_v1_request() {
+        let mut queue = PendingEventQueue::default();
+        let _ = queue.push(pending_test_event(
+            "clipboard_paste_request",
+            Some(serde_json::json!({"selection": "c"})),
+        ));
+
+        let events = queue.drain();
+        assert_eq!(events[0].kind, "clipboard_paste_request");
+        assert_eq!(
+            events[0].payload,
+            Some(serde_json::json!({"selection": "c"}))
+        );
+        assert!(queue.pending_host_requests.is_empty());
+    }
+
+    #[test]
+    fn pending_host_request_queue_is_bounded_and_evicts_the_oldest_identity() {
+        let mut queue = PendingEventQueue::default();
+        for _ in 0..=MAX_PENDING_HOST_REQUESTS {
+            let _ = queue.push(pending_test_event(
+                "clipboard_paste_request",
+                Some(serde_json::json!({"selection": "c"})),
+            ));
+            let _ = queue.drain_event_batch(7).expect("Host Request batch");
+        }
+
+        assert_eq!(queue.pending_host_requests.len(), MAX_PENDING_HOST_REQUESTS);
+        assert_eq!(
+            queue.pending_host_requests.front().unwrap().request_id,
+            "host:7:1"
+        );
+        assert_eq!(
+            queue.pending_host_requests.back().unwrap().request_id,
+            "host:7:64"
         );
     }
 
@@ -9285,6 +8778,7 @@ mod tests {
             pending_file_downloads: VecDeque::new(),
             pending_file_download_bytes: 0,
             next_file_download_id: 1,
+            replay_checkpoint_boundary: ReplayCheckpointBoundary::default(),
         };
         state
             .terminal

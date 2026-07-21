@@ -8,6 +8,103 @@
 
 ## 当前执行口径
 
+2026-07-21 完成兼容性基线、真实 `vttest` 补充门禁和 Frame Pipeline Iteration 02
+后，按 foundation handoff 顺序完成 Recording / Replay MVP 和本地 Workspace 基线，
+当前进入 **`runtime-contract-stability`**。权威说明和机器可读
+证据见：
+
+- [CURRENT_EXECUTION_TARGET.md](CURRENT_EXECUTION_TARGET.md)
+- [CURRENT_EXECUTION_TARGETS.json](CURRENT_EXECUTION_TARGETS.json)
+- [T-298](tasks/verification-gates/T-298-current-execution-target-contract.md)
+- [T-302](tasks/verification-gates/T-302-compatibility-baseline.md)：当前六层兼容性基线、真实 PTY/TUI 与 Resize Replay 证据
+- [T-303](tasks/verification-gates/T-303-vttest-gui-gate-determinism.md)：真实 macOS GUI + PTY + `vttest` 补充门禁已通过
+- [T-304](tasks/runtime-pty/T-304-frame-pipeline-damage-extraction.md)：Frame golden 加固与 cache/damage 首次模块抽取
+- [T-305](tasks/runtime-pty/T-305-frame-build-context-snapshot-extraction.md)：共同构建上下文与 Snapshot Builder 抽取
+- [T-306](tasks/runtime-pty/T-306-frame-delta-builder-extraction.md)：Delta Builder 与独立候选行回归抽取
+- [T-307](tasks/runtime-pty/T-307-frame-display-projection-extraction.md)：Display Projection 与 source/display 映射抽取
+- [T-308](tasks/runtime-pty/T-308-frame-graphics-projection-extraction.md)：Graphics Projection、viewport 几何与资产快照收集抽取
+- [T-309](tasks/runtime-pty/T-309-recording-event-format-v1.md)：已关闭；版本化 Recording Metadata/Event、确定性 codec 与输入隐私契约
+- [T-310](tasks/runtime-pty/T-310-live-recording-seam.md)：已关闭；有界 native raw PTY capture、live recorder 与结构化 overflow
+- [T-311](tasks/runtime-pty/T-311-replay-backend.md)：已关闭；无子进程 ReplayBackend、实时/无延迟调度与副作用隔离
+- [T-312](tasks/shell-product/T-312-versioned-local-workspace-schema.md)：已关闭；Workspace schema v1、旧格式迁移与未来版本保护
+- [T-313](tasks/shell-product/T-313-local-workspace-session-restore.md)：已关闭；真实 SessionController 重启恢复、自动持久化与可见失败处理
+- [T-314](tasks/shell-product/T-314-versioned-session-descriptor.md)：已关闭；Session Descriptor v1、Workspace schema v2 迁移与真实命令重启接线
+- [T-315](tasks/shell-product/T-315-project-workspace-identity-and-recent-index.md)：已关闭；Workspace schema v3、稳定 project identity、多 Workspace 文件集合与 Recent index v1
+- [T-316](tasks/shell-product/T-316-project-workspace-switcher.md)：已关闭；原生项目选择、Recent Workspace 菜单与失败安全的运行时切换
+- [T-317](tasks/shell-product/T-317-session-recording-lifecycle-and-workspace-association.md)：已关闭；脱敏录制生命周期、原子落盘、失败重试与 Workspace Session Descriptor 关联
+- [T-318](tasks/runtime-pty/T-318-versioned-runtime-capability-query.md)：已关闭；Runtime Capabilities v1、可选 FFI 查询与旧动态库回退
+- [T-319](tasks/runtime-pty/T-319-runtime-event-envelope-v1-and-dual-stack.md)：已关闭；Runtime Event Envelope v1、序号/丢失检测与旧事件数组回退
+- [T-320](tasks/runtime-pty/T-320-session-config-v1-and-profile-wire-migration.md)：已关闭；产品中立 SessionConfig v1、live/replay 可选 FFI 与旧 Profile wire 双向回退
+- [T-321](tasks/runtime-pty/T-321-session-request-response-v1-and-dual-stack.md)：已关闭；有关联 identity 的 Session Request/Response v1、结构化错误与旧 request wire 双栈
+- [T-322](tasks/runtime-pty/T-322-host-request-response-v1-clipboard-read.md)：已关闭；Host Request/Response v1、OSC 52 文本读取首个双向切片与旧事件/直接回复双栈
+- [T-323](tasks/runtime-pty/T-323-diagnostic-event-v1-and-dual-stack.md)：已关闭；Frame/Session Diagnostic Event v1、关联序号与旧 debug-stat FFI 双栈
+- [T-324](tasks/runtime-pty/T-324-terminal-frame-packet-v1-and-dual-stack.md)：已关闭；Terminal Frame Packet v1、序号确认/快照重同步与旧 Protobuf/JSON 双栈
+- [T-325](tasks/runtime-pty/T-325-replay-speed-control.md)：已关闭；Realtime Replay 0.25x–4x 有界速度与绝对时间轴调度
+- [T-326](tasks/runtime-pty/T-326-replay-frame-hash-comparison.md)：已关闭；有界 applied-viewport Frame hash 比较与首个差异定位
+- [T-327](tasks/runtime-pty/T-327-replay-checkpoint-contract-v1.md)：已关闭；Recording v2 checkpoint marker、安全 parser 边界与有界 native snapshot materialization
+- [T-328](tasks/runtime-pty/T-328-replay-checkpoint-seek.md)：已关闭；基于已物化 checkpoint 的确定性 seek、Event cursor 协调与 realtime 重新调度
+- [T-329](tasks/runtime-pty/T-329-replay-graphic-asset-bundle.md)：已关闭；Recording v2 内容寻址 RGBA asset bundle、有界校验与 ReplayBackend native fallback
+- [T-330](tasks/runtime-pty/T-330-graphic-asset-packet-v1-and-dual-stack.md)：已关闭；原子 Graphic Asset Packet v1、精确 identity/RGBA 校验与旧 meta/copy 双栈
+
+当前执行顺序：
+
+1. Frame Pipeline Iteration 02 已通过最终 `make verify` 关闭；golden、schema parity
+   和六组 benchmark correctness hash 均保持不变。
+2. Recording Metadata/Event v1 格式已由 T-309 关闭；raw PTY output、input、resize、
+   exit 的有界 live recorder seam 已由 T-310 通过最终全仓门禁关闭。
+3. ReplayBackend 已由 T-311 通过最终 `make verify` 关闭，支持无延迟确定性测试和
+   1x 实时调度；Iteration 03 完成。T-325 已以独立后续切片增加 0.25x–4x 速度控制，
+   T-326 再增加有界 applied-viewport Frame hash 比较与首个差异定位。T-327 已增加
+   Recording v2 checkpoint marker 与安全、有界的 native snapshot materialization。T-328 已在
+   其上关闭确定性 backend seek；T-329 再增加有界、内容寻址的 decoded RGBA asset bundle，
+   ReplayBackend 对精确录制 identity 优先并保留 native fallback。这些切片不同时引入 pause、
+   scrubber、Replay UI 或 live asset capture 产品接线。现有 viewport
+   `InstantReplayStore` 仍不等于
+   raw session replay。
+4. 每轮使用 focused regression 和 `make verify` 形成新鲜证据；不同时扩张 Host
+   Protocol、Frame Wire、live asset capture、remote、plugin 或 renderer。
+5. Local Workspace stability 的存储、产品切换与录制关联基础已由 T-312/T-317 关闭：版本化 layout 会迁移，
+   `SessionController` 在配置启用时用新进程恢复 topology，并自动保存后续变化；失败会在
+   产品内可见。独立 Session Descriptor v1、Workspace schema v3、多 Workspace 文件集合和
+   Recent index v1 已落地；标题栏和原生 `File > Open Project…` 共用目录选择与切换路径，
+   目标 topology/PTY 会在替换旧 Workspace 前完成准备，失败保留原状态。环境值不写盘，
+   恢复仍只创建新 PTY。真实录制默认脱敏输入，文件原子落盘后才写入 Session Descriptor；
+   关闭 Session/Tab 或切换 Workspace 前会先完成保存，写盘失败则保留 PTY 和拓扑供重试。
+   Local Workspace 基线到此关闭，不自动扩张到录制库、Replay UI 或 checkpoint/seek。
+6. Runtime Contract 已由 T-318 增加只读、版本化 capability query，由 T-319 完成
+   Event Batch/Envelope 的 identity、sequence、timestamp 和丢失检测，再由 T-320 将
+   session create 主路径迁移到产品中立、带上限的 SessionConfig v1。T-321 再把通用
+   Dart-to-native session command 主路径迁移到有关联 identity、带上限和结构化错误的
+   Request/Response v1。T-322 再把首个真实 native-to-product 双向请求限定为 OSC 52
+   `clipboard.read_text`，加入 Host Request/Response v1、精确一次消费和旧事件/直接回复双栈。
+   T-323 再把 Frame/Session 运行指标迁移到有关联 identity、sequence 和 timestamp 的
+   Diagnostic Event v1，保留旧 debug-stat FFI，并且不改诊断导出包。
+   T-324 继续为现有 `terminal-frame-diff-v1` Protobuf 增加 session identity、sequence、
+   timestamp 和确认漂移后的 Snapshot 重同步，不改变 Frame payload 或资产通道。
+   T-330 再把 decoded RGBA 资产主路径迁移到有关联 identity、带 100 MiB 上限的原子
+   Protobuf packet，同时保留旧 meta/copy symbols 和旧动态库回退。
+   旧事件数组、Profile-shaped create symbols、旧 `{kind, ...payload}` request symbol、旧
+   Frame Protobuf/JSON 和 debug-stat symbols 仍作为可验证的升级回退；其他 Host operation、
+   asset 等 wire 的后续迁移必须
+   分别立项并先补兼容测试。
+7. Linux / Windows 仍由 T-065 的真实目标机证据驱动；Ubuntu CI 中的 package
+   验证不能替代 desktop app 验收。
+
+旧 M1-M5 仍保留在下文作为历史目标和依赖说明，但不再代表尚未启动的当前状态：
+
+- M1 的审计自动化切片已经收口；当前 xterm 审计没有 `Gap` 行，未实现能力已明确
+  标成 `Deferred`。
+- M2 的 macOS 手工/性能证据已有历史记录，Windows、Android 和 fractional-DPR
+  宿主证据仍是明确 blocker 或后续 smoke。
+- M3 的 typed shell-hook、bash/fish 和 kitty keyboard 路径已经落地；T-064 的
+  generic row-range annotation candidate API 没有按原设计实现，后续 block 能力走了
+  `TerminalBlock` frame/viewport 路径。
+- M4 已经实际展开到统一 action、split workspace、profiles、preferences、session
+  restore 和本地持久化，当前需要收敛稳定性而不是再次“启动”。
+- M5 仍未满足真实 Linux / Windows desktop host 证据门槛。
+
+### 历史口径
+
 Hyper-like `Phase 0` 到 `Phase 4` 连同 defaults 清理已经进入历史阶段，不再沿
 这套编号继续新增后续阶段。依据包括：
 
@@ -23,8 +120,7 @@ Hyper-like `Phase 0` 到 `Phase 4` 连同 defaults 清理已经进入历史阶�
 [T-063](tasks/runtime-pty/T-063-shell-hook-typed-runtime-event-and-multi-shell-contract.md)
 已经把后续工作迁移到终端契约、证据和扩展基座，不再继续沿旧 shell 产品化阶段编号展开。
 
-因此，近期执行顺序固定为 `M1` 到 `M5`。旧的 `Phase 3/4` 保留为长期方向，
-但实际启动条件以下面的里程碑为准。
+下列 M1-M5 内容保留原始目标、范围和完成条件，供追溯与后续拆任务使用。
 
 ## M1: 终端一致性自动化收口
 
@@ -141,9 +237,10 @@ Hyper-like `Phase 0` 到 `Phase 4` 连同 defaults 清理已经进入历史阶�
 
 ## 公共接口和约束
 
-- 现阶段唯一稳定、可供后续产品层依赖的新公共 runtime 接口，是
+- 稳定的公共 runtime 接口包括
   [T-063](tasks/runtime-pty/T-063-shell-hook-typed-runtime-event-and-multi-shell-contract.md)
-  落地的 `TerminalSessionShellHookEvent`。
+  落地的 `TerminalSessionShellHookEvent`，以及 T-318 的只读 Runtime Capabilities v1；
+  capability query 只描述编译进 native core 的 wire surface，不等于产品或宿主已启用。
 - kitty keyboard protocol 仍由
   [T-070](tasks/terminal-interaction/T-070-kitty-keyboard-protocol-scope.md)
   做 scope decision。未完成决策前，不把它写成默认支持面。

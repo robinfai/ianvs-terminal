@@ -89,10 +89,12 @@ Future<void> main(List<String> args) async {
       if (rawFrame != null && rawFrame.isNotEmpty) {
         emptyPollsAfterExit = 0;
         final frameJson = (jsonDecode(rawFrame) as Map).cast<String, Object?>();
-        final rawDebugStats = backend.takeDiagnosticsJson(sessionId, 'frame');
-        final debugStats = rawDebugStats == null || rawDebugStats.isEmpty
-            ? const <String, Object?>{}
-            : (jsonDecode(rawDebugStats) as Map).cast<String, Object?>();
+        final debugStats = _takeDiagnosticPayload(
+          backend,
+          sessionId,
+          v1Name: 'frame_stats',
+          legacyKind: 'frame',
+        );
         final rows = (frameJson['rows'] as List<dynamic>? ?? const []).length;
         final dirtyRanges =
             (frameJson['dirty_ranges'] as List<dynamic>? ?? const []).length;
@@ -118,7 +120,7 @@ Future<void> main(List<String> args) async {
         };
         if (options.includeRawFrames) {
           traceFrame['raw'] = rawFrame;
-          traceFrame['rawDebugStats'] = rawDebugStats;
+          traceFrame['rawDebugStats'] = jsonEncode(debugStats);
           traceFrame['debugStats'] = debugStats;
         }
         traceFrames.add(traceFrame);
@@ -177,14 +179,12 @@ Future<void> main(List<String> args) async {
       searchProbe = _runSearchProbe(backend, sessionId);
     }
   } finally {
-    final rawSessionDebugStats = backend.takeDiagnosticsJson(
+    sessionDebugStats = _takeDiagnosticPayload(
+      backend,
       sessionId,
-      'session',
+      v1Name: 'session_stats',
+      legacyKind: 'session',
     );
-    if (rawSessionDebugStats != null && rawSessionDebugStats.isNotEmpty) {
-      sessionDebugStats = (jsonDecode(rawSessionDebugStats) as Map)
-          .cast<String, Object?>();
-    }
     backend.closeSession(sessionId);
   }
 
@@ -208,6 +208,35 @@ Future<void> main(List<String> args) async {
   if (timedOut) {
     exitCode = 1;
   }
+}
+
+Map<String, Object?> _takeDiagnosticPayload(
+  PtySessionBackend backend,
+  String sessionId, {
+  required String v1Name,
+  required String legacyKind,
+}) {
+  if (backend case final PtySessionDiagnosticEventV1Backend v1Backend
+      when v1Backend.supportsDiagnosticEventV1) {
+    try {
+      return v1Backend.takeDiagnosticEventV1(sessionId, v1Name)?.payload ??
+          const <String, Object?>{};
+    } on Object {
+      return const <String, Object?>{};
+    }
+  }
+  if (backend case final PtySessionDiagnosticsBackend legacyBackend) {
+    final raw = legacyBackend.takeDiagnosticsJson(sessionId, legacyKind);
+    if (raw == null || raw.isEmpty) {
+      return const <String, Object?>{};
+    }
+    try {
+      return (jsonDecode(raw) as Map).cast<String, Object?>();
+    } on Object {
+      return const <String, Object?>{};
+    }
+  }
+  return const <String, Object?>{};
 }
 
 void _writeTrace({

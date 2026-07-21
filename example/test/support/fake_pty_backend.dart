@@ -35,6 +35,7 @@ class FakePtyBackend
       <(String, int), Uint8List>{};
   final List<(String, int)> takenFileDownloads = <(String, int)>[];
   final List<(String, int)> discardedFileDownloads = <(String, int)>[];
+  final List<String> closedSessionIds = <String>[];
   Map<String, Object?>? lastCreatedSessionPayload;
   bool pingCalled = false;
 
@@ -119,6 +120,7 @@ class FakePtyBackend
 
   @override
   void closeSession(String sessionId) {
+    closedSessionIds.add(sessionId);
     _frames.remove(sessionId);
     _events.remove(sessionId);
   }

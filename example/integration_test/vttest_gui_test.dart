@@ -139,7 +139,13 @@ Future<void> _waitForActiveSession(
 }
 
 Future<void> _focusTerminal(WidgetTester tester) async {
-  await tester.tap(find.byType(TerminalViewport));
+  final terminalViewport = find.byType(TerminalViewport);
+  await _waitFor(
+    tester,
+    description: 'terminal viewport',
+    condition: () => terminalViewport.evaluate().isNotEmpty,
+  );
+  await tester.tap(terminalViewport);
   await tester.pump();
 }
 

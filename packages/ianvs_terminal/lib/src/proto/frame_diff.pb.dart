@@ -21,6 +21,166 @@ export 'package:protobuf/protobuf.dart' show GeneratedMessageGenericExtensions;
 
 export 'frame_diff.pbenum.dart';
 
+class TerminalFramePacketV1 extends $pb.GeneratedMessage {
+  factory TerminalFramePacketV1({
+    $core.int? schemaVersion,
+    $core.String? contract,
+    $core.String? messageClass,
+    $core.String? messageName,
+    $core.String? sessionId,
+    $fixnum.Int64? sequence,
+    $fixnum.Int64? timestampMicros,
+    $core.String? frameSchemaVersion,
+    TerminalFrameDiff? frame,
+  }) {
+    final result = create();
+    if (schemaVersion != null) result.schemaVersion = schemaVersion;
+    if (contract != null) result.contract = contract;
+    if (messageClass != null) result.messageClass = messageClass;
+    if (messageName != null) result.messageName = messageName;
+    if (sessionId != null) result.sessionId = sessionId;
+    if (sequence != null) result.sequence = sequence;
+    if (timestampMicros != null) result.timestampMicros = timestampMicros;
+    if (frameSchemaVersion != null)
+      result.frameSchemaVersion = frameSchemaVersion;
+    if (frame != null) result.frame = frame;
+    return result;
+  }
+
+  TerminalFramePacketV1._();
+
+  factory TerminalFramePacketV1.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory TerminalFramePacketV1.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'TerminalFramePacketV1',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'frame_diff'),
+      createEmptyInstance: create)
+    ..aI(1, _omitFieldNames ? '' : 'schemaVersion',
+        fieldType: $pb.PbFieldType.OU3)
+    ..aOS(2, _omitFieldNames ? '' : 'contract')
+    ..aOS(3, _omitFieldNames ? '' : 'messageClass')
+    ..aOS(4, _omitFieldNames ? '' : 'messageName')
+    ..aOS(5, _omitFieldNames ? '' : 'sessionId')
+    ..a<$fixnum.Int64>(
+        6, _omitFieldNames ? '' : 'sequence', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..a<$fixnum.Int64>(
+        7, _omitFieldNames ? '' : 'timestampMicros', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..aOS(8, _omitFieldNames ? '' : 'frameSchemaVersion')
+    ..aOM<TerminalFrameDiff>(9, _omitFieldNames ? '' : 'frame',
+        subBuilder: TerminalFrameDiff.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TerminalFramePacketV1 clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TerminalFramePacketV1 copyWith(
+          void Function(TerminalFramePacketV1) updates) =>
+      super.copyWith((message) => updates(message as TerminalFramePacketV1))
+          as TerminalFramePacketV1;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static TerminalFramePacketV1 create() => TerminalFramePacketV1._();
+  @$core.override
+  TerminalFramePacketV1 createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static TerminalFramePacketV1 getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<TerminalFramePacketV1>(create);
+  static TerminalFramePacketV1? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.int get schemaVersion => $_getIZ(0);
+  @$pb.TagNumber(1)
+  set schemaVersion($core.int value) => $_setUnsignedInt32(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasSchemaVersion() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSchemaVersion() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get contract => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set contract($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasContract() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearContract() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get messageClass => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set messageClass($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasMessageClass() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearMessageClass() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get messageName => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set messageName($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasMessageName() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearMessageName() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get sessionId => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set sessionId($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasSessionId() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearSessionId() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $fixnum.Int64 get sequence => $_getI64(5);
+  @$pb.TagNumber(6)
+  set sequence($fixnum.Int64 value) => $_setInt64(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasSequence() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearSequence() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $fixnum.Int64 get timestampMicros => $_getI64(6);
+  @$pb.TagNumber(7)
+  set timestampMicros($fixnum.Int64 value) => $_setInt64(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasTimestampMicros() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearTimestampMicros() => $_clearField(7);
+
+  @$pb.TagNumber(8)
+  $core.String get frameSchemaVersion => $_getSZ(7);
+  @$pb.TagNumber(8)
+  set frameSchemaVersion($core.String value) => $_setString(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasFrameSchemaVersion() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearFrameSchemaVersion() => $_clearField(8);
+
+  @$pb.TagNumber(9)
+  TerminalFrameDiff get frame => $_getN(8);
+  @$pb.TagNumber(9)
+  set frame(TerminalFrameDiff value) => $_setField(9, value);
+  @$pb.TagNumber(9)
+  $core.bool hasFrame() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearFrame() => $_clearField(9);
+  @$pb.TagNumber(9)
+  TerminalFrameDiff ensureFrame() => $_ensure(8);
+}
+
 class TerminalFrameDiff extends $pb.GeneratedMessage {
   factory TerminalFrameDiff({
     $core.String? frameSchemaVersion,

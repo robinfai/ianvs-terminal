@@ -2,6 +2,18 @@ syntax = "proto3";
 
 package frame_diff;
 
+message TerminalFramePacketV1 {
+  uint32 schema_version = 1;
+  string contract = 2;
+  string message_class = 3;
+  string message_name = 4;
+  string session_id = 5;
+  uint64 sequence = 6;
+  uint64 timestamp_micros = 7;
+  string frame_schema_version = 8;
+  TerminalFrameDiff frame = 9;
+}
+
 message TerminalFrameDiff {
   string frame_schema_version = 1;
   TerminalFrameKind frame_kind = 2;

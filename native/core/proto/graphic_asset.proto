@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package graphic_asset;
+
+message GraphicAssetPacketV1 {
+  uint32 schema_version = 1;
+  string contract = 2;
+  string message_class = 3;
+  string message_name = 4;
+  string session_id = 5;
+  string asset_id = 6;
+  string asset_version = 7;
+  uint32 width = 8;
+  uint32 height = 9;
+  bytes rgba = 10;
+}

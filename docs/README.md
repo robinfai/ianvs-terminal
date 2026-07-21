@@ -7,10 +7,11 @@
 新迭代建议先读：
 
 1. [../README.md](../README.md)
-2. [ROADMAP.md](ROADMAP.md)
-3. [tasks/README.md](tasks/README.md)，再选择具体任务或从 [tasks/TEMPLATE.md](tasks/TEMPLATE.md) 新建任务
-4. [ACCEPTANCE.md](ACCEPTANCE.md)
-5. [TESTING.md](TESTING.md)
+2. [CURRENT_EXECUTION_TARGET.md](CURRENT_EXECUTION_TARGET.md)
+3. [ROADMAP.md](ROADMAP.md)
+4. [tasks/README.md](tasks/README.md)，再选择具体任务或从 [tasks/TEMPLATE.md](tasks/TEMPLATE.md) 新建任务
+5. [ACCEPTANCE.md](ACCEPTANCE.md)
+6. [TESTING.md](TESTING.md)
 
 推荐任务 prompt：
 
@@ -27,6 +28,17 @@
 
 - [ARCHITECTURE.md](ARCHITECTURE.md)：稳定设计、模块职责、公开接口和长期约束。
 - [FRAME_DIFF.md](FRAME_DIFF.md)：terminal frame diff 的原理图、生命周期、Snapshot/Delta 对比和收益说明。
+- [recording/FORMAT_V1.md](recording/FORMAT_V1.md)：Iteration 03 的 Recording Metadata/Event v1 格式、兼容错误和输入隐私边界。
+- [recording/FORMAT_V2.md](recording/FORMAT_V2.md)：Recording v2 checkpoint marker、安全 parser 边界、有界 native materialization 与兼容规则。
+- [protocols/RUNTIME_CAPABILITIES_V1.md](protocols/RUNTIME_CAPABILITIES_V1.md)：native Runtime Capabilities v1 查询、可选符号和特性清单。
+- [protocols/RUNTIME_EVENT_ENVELOPE_V1.md](protocols/RUNTIME_EVENT_ENVELOPE_V1.md)：Event Envelope/Batch v1、序号、丢失检测和旧协议回退。
+- [protocols/SESSION_CONFIG_V1.md](protocols/SESSION_CONFIG_V1.md)：live/replay 会话创建的 SessionConfig v1、输入边界和旧 Profile wire 双向兼容。
+- [protocols/SESSION_REQUEST_RESPONSE_V1.md](protocols/SESSION_REQUEST_RESPONSE_V1.md)：同步 Dart/native Session Request/Response v1、关联校验、结构化错误与旧 `{kind, ...payload}` 回退。
+- [protocols/HOST_REQUEST_RESPONSE_V1.md](protocols/HOST_REQUEST_RESPONSE_V1.md)：native-to-product Host Request/Response v1、OSC 52 首个双向切片、精确一次响应与旧事件回退。
+- [protocols/DIAGNOSTIC_EVENT_V1.md](protocols/DIAGNOSTIC_EVENT_V1.md)：Frame/Session Diagnostic Event v1、序号/关联校验与旧 debug-stat FFI 回退。
+- [protocols/TERMINAL_FRAME_PACKET_V1.md](protocols/TERMINAL_FRAME_PACKET_V1.md)：现有 Frame Protobuf 的 session/sequence/timestamp 包装、ACK 与 Snapshot 重同步、旧 Frame 双栈。
+- [protocols/GRAPHIC_ASSET_PACKET_V1.md](protocols/GRAPHIC_ASSET_PACKET_V1.md)：原子 Graphic Asset Packet v1、精确 identity/RGBA 校验与旧 meta/copy 双栈。
+- [protocols/RUNTIME_WIRE_INVENTORY.md](protocols/RUNTIME_WIRE_INVENTORY.md)：当前 FFI 边界分类与后续迁移债务清单。
 - [TERMINAL_XTERM_API_ALIGNMENT.md](TERMINAL_XTERM_API_ALIGNMENT.md)：xterm.js 风格 API 对齐现状和剩余语义缺口。
 - [TERMINAL_XTERM_RECENT_FIX_AUDIT.md](TERMINAL_XTERM_RECENT_FIX_AUDIT.md)：xterm.js 最近一年修复项对照审计、证据矩阵和后续排查计划。
 - [XTERM_MANUAL_CONFIRMATION_QUEUE.md](XTERM_MANUAL_CONFIRMATION_QUEUE.md)：需要平台、视觉或人工判断的 xterm.js 对照风险确认队列。
@@ -40,12 +52,18 @@
 
 - [ACCEPTANCE.md](ACCEPTANCE.md)：全局完成定义、任务字段、失败处理和文档同步规则。
 - [TESTING.md](TESTING.md)：当前真实可用的验证命令和人工检查入口。
+- [compatibility/CAPABILITY_MATRIX.md](compatibility/CAPABILITY_MATRIX.md)：Iteration 01 的六层兼容性证据矩阵。
+- [compatibility/TEST_ASSET_INVENTORY.md](compatibility/TEST_ASSET_INVENTORY.md)：可复用测试与本地验证 helper 清单。
+- [compatibility/KNOWN_ISSUES.md](compatibility/KNOWN_ISSUES.md)：兼容性基线暴露的平台、宿主与截断边界。
+- [compatibility/MANUAL_VERIFICATION.md](compatibility/MANUAL_VERIFICATION.md)：字体、DPI、物理输入与真实 `vttest` 人工步骤。
 
 任务完成前必须执行对应验证命令；如果某项验收暂时跳过，必须在任务文档或 [KNOWN_ISSUES.md](KNOWN_ISSUES.md) 里说明原因。
 
 ## 路线图
 
-- [ROADMAP.md](ROADMAP.md)：当前 `M1-M5` 执行顺序、长期阶段方向、进入条件和完成条件。
+- [CURRENT_EXECUTION_TARGET.md](CURRENT_EXECUTION_TARGET.md)：根据当前仓库校准的 live lane、证据、执行顺序和边界。
+- [CURRENT_EXECUTION_TARGETS.json](CURRENT_EXECUTION_TARGETS.json)：由 docs contract test 校验的机器可读目标、状态、证据和验收命令。
+- [ROADMAP.md](ROADMAP.md)：当前 live lane、历史 `M1-M5` 目标和长期阶段方向。
 - [HYPER_LIKE_TARGET.md](HYPER_LIKE_TARGET.md)：Hyper-inspired 产品目标。
 - [HYPER_LIKE_GAP_MATRIX.md](HYPER_LIKE_GAP_MATRIX.md)：Hyper-inspired 缺口矩阵和阶段优先级。
 - [LOCAL_TERMINAL_MILESTONE_EXECUTION_INDEX_2026-05.md](LOCAL_TERMINAL_MILESTONE_EXECUTION_INDEX_2026-05.md)：P0-P5 执行计划索引，以及竞品可吸收功能到各里程碑的映射说明。
@@ -97,16 +115,9 @@
 
 任务文档按主题分目录，不按完成状态分目录。目录位置只表示主题归属，不表示任务已经完成或通过验收。
 
-## AI 学习日志
-
-- [ai/learning-log/](ai/learning-log/)：记录 AI 会话中有价值但尚不足以提升为 AGENTS 或 skill 规则的候选经验。
-
-这些日志只保留可复用判断和验证摘要，不作为产品需求、验收证据或当前任务状态来源。
-
 ## 工程复盘
 
-- [retros/](retros/)：跨多轮实现、调试、验证形成的复盘记录。
-- [retros/2026-06-terminal-graphics-pets/SUMMARY.md](retros/2026-06-terminal-graphics-pets/SUMMARY.md)：terminal graphics 和 Codex pets 闪烁修复复盘。
+- [retros/README.md](retros/README.md)：跨多轮实现、调试、验证形成的复盘记录入口。
 
 复盘文档记录历史过程、证据和改进点；它不替代任务文档、架构权威文档或当前验证状态。
 

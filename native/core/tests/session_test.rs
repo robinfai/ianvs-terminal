@@ -1,3 +1,4 @@
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use ianvs_core::model::{
     TerminalEmulation, TerminalProfile, TerminalProfileAppearance, TerminalProfileInteraction,
     TerminalProfileLaunch, TerminalProfileTerminal, TerminalShellIntegration,
@@ -15672,6 +15673,139 @@ fn session_can_resize() {
     session::close_session(session_id).unwrap();
 }
 
+fn replay_fixture_frame() -> serde_json::Value {
+    let mut profile = test_profile();
+    profile.launch.program = "/definitely/not/a/real/replay-child".to_string();
+    let session_id =
+        session::create_replay_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let started = session::take_events(session_id).unwrap();
+    assert_eq!(started.len(), 1);
+    assert_eq!(started[0].kind, "started");
+
+    session::replay_session_output(session_id, b"\x1b[2J\x1b[Hreplay-one\n\x1b[31mred\x1b[0m\n")
+        .unwrap();
+    session::resize_session_with_cell_size(session_id, 100, 30, 1000, 600, 10, 20).unwrap();
+    session::replay_session_output(session_id, b"replay-two\n").unwrap();
+
+    let frame = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("expected replay frame");
+    assert!(frame.contains("replay-one"));
+    assert!(frame.contains("replay-two"));
+    assert!(frame.contains("\"viewport_cols\":100"));
+    assert!(frame.contains("\"viewport_rows\":30"));
+
+    session::replay_session_output(
+        session_id,
+        b"\x1b]52;c;c2VjcmV0\x07\x1b]1337;OpenURL=:aHR0cHM6Ly9leGFtcGxlLnRlc3Q=\x1b\\",
+    )
+    .unwrap();
+    assert!(session::take_events(session_id).unwrap().is_empty());
+    assert!(matches!(
+        session::write_session(session_id, b"must-not-run"),
+        Err(session::SessionError::ReadOnlyReplaySession(id)) if id == session_id
+    ));
+
+    session::replay_session_exit(session_id, Some(7)).unwrap();
+    let exit_events = session::take_events(session_id).unwrap();
+    assert_eq!(exit_events.len(), 1);
+    assert_eq!(exit_events[0].kind, "exit");
+    assert_eq!(exit_events[0].payload.as_ref().unwrap()["code"], 7);
+    assert!(session::replay_session_output(session_id, b"late").is_err());
+
+    session::close_session(session_id).unwrap();
+    serde_json::from_str(&frame).unwrap()
+}
+
+#[test]
+fn replay_session_is_headless_read_only_and_suppresses_host_effects() {
+    let _ = replay_fixture_frame();
+}
+
+#[test]
+fn repeated_replay_produces_byte_stable_frames() {
+    let first = serde_json::to_vec(&replay_fixture_frame()).unwrap();
+    let second = serde_json::to_vec(&replay_fixture_frame()).unwrap();
+    assert_eq!(first, second);
+}
+
+#[test]
+fn replay_checkpoint_restores_full_terminal_state_and_accepts_incremental_output() {
+    let mut profile = test_profile();
+    profile.launch.program = "/definitely/not/a/real/checkpoint-child".to_string();
+    let session_id =
+        session::create_replay_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+    let _ = session::take_events(session_id).unwrap();
+
+    session::replay_session_output(session_id, b"\x1b[2J\x1b[Hbefore-checkpoint").unwrap();
+    let checkpoint_id = session::replay_session_capture_checkpoint(session_id).unwrap();
+    assert!(checkpoint_id > 0);
+
+    session::replay_session_output(session_id, b"\r\x1b[Kafter-checkpoint").unwrap();
+    let changed = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("expected changed replay frame");
+    assert!(changed.contains("after-checkpoint"));
+
+    session::replay_session_restore_checkpoint(session_id, checkpoint_id).unwrap();
+    let restored = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("expected restored replay frame");
+    assert!(restored.contains("before-checkpoint"));
+    assert!(!restored.contains("after-checkpoint"));
+    assert!(restored.contains("\"frame_kind\":\"snapshot\""));
+
+    session::replay_session_output(session_id, b"-tail").unwrap();
+    let continued = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("expected incremental frame after restore");
+    assert!(continued.contains("before-checkpoint-tail"));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn replay_checkpoints_are_session_scoped_and_evict_beyond_the_count_limit() {
+    let profile_json = serde_json::to_string(&test_profile()).unwrap();
+    let first_session = session::create_replay_session(&profile_json).unwrap();
+    let second_session = session::create_replay_session(&profile_json).unwrap();
+
+    let checkpoint_ids = (0..65)
+        .map(|_| session::replay_session_capture_checkpoint(first_session).unwrap())
+        .collect::<Vec<_>>();
+
+    assert!(matches!(
+        session::replay_session_restore_checkpoint(first_session, checkpoint_ids[0]),
+        Err(session::SessionError::MissingReplayCheckpoint { .. })
+    ));
+    session::replay_session_restore_checkpoint(first_session, checkpoint_ids[64]).unwrap();
+    assert!(matches!(
+        session::replay_session_restore_checkpoint(second_session, checkpoint_ids[64]),
+        Err(session::SessionError::MissingReplayCheckpoint { .. })
+    ));
+
+    session::close_session(first_session).unwrap();
+    session::close_session(second_session).unwrap();
+}
+
+#[test]
+fn replay_checkpoint_rejects_incomplete_control_string_boundaries() {
+    let session_id =
+        session::create_replay_session(&serde_json::to_string(&test_profile()).unwrap()).unwrap();
+
+    session::replay_session_output(session_id, b"\x1b]0;partial").unwrap();
+    assert!(matches!(
+        session::replay_session_capture_checkpoint(session_id),
+        Err(session::SessionError::UnsafeReplayCheckpoint)
+    ));
+
+    session::replay_session_output(session_id, b" title\x07safe").unwrap();
+    assert!(session::replay_session_capture_checkpoint(session_id).is_ok());
+
+    session::close_session(session_id).unwrap();
+}
+
 #[test]
 fn resize_stress_returns_snapshots_with_current_dimensions() {
     let session_id =
@@ -15909,6 +16043,23 @@ fn session_reflows_single_long_line_across_resize() {
         logical_rows_from_frame(&after)
             .iter()
             .any(|row| row.starts_with("reflow-") && row.len() == 137)
+    );
+
+    let stats = session::take_session_debug_stats_json(session_id)
+        .unwrap()
+        .expect("expected session debug stats after resize replay");
+    let parsed_stats: serde_json::Value = serde_json::from_str(&stats).unwrap();
+    assert_eq!(parsed_stats["resize_replay_count"].as_u64(), Some(1));
+    assert!(
+        parsed_stats["resize_replay_bytes"]
+            .as_u64()
+            .unwrap_or_default()
+            > 0
+    );
+    assert!(parsed_stats["resize_replay_micros"].as_u64().is_some());
+    assert_eq!(
+        parsed_stats["resize_replay_skipped_truncated_count"].as_u64(),
+        Some(0)
     );
 
     session::close_session(session_id).unwrap();
@@ -17192,6 +17343,95 @@ fn session_output_does_not_emit_activity_events() {
         "output should not enqueue activity events: {}",
         serde_json::to_string_pretty(&parsed).unwrap()
     );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn live_recording_captures_raw_pty_output_redacted_input_and_resize() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&interactive_profile()).unwrap()).unwrap();
+    thread::sleep(Duration::from_millis(250));
+    let _ = session::take_frame_diff(session_id).unwrap();
+    let _ = session::poll_events(session_id).unwrap();
+
+    let start_request = serde_json::json!({
+        "kind": "terminal.recording_start",
+        "schema_version": 1,
+        "created_at_utc": "2026-07-21T00:00:00.000Z",
+        "input_policy": "redact",
+    });
+    let start_response = session::request_session_json(session_id, &start_request.to_string())
+        .unwrap()
+        .expect("expected recording start response");
+    let start_response: serde_json::Value = serde_json::from_str(&start_response).unwrap();
+    assert_eq!(start_response["ok"], true);
+    assert_eq!(start_response["max_events"], 4096);
+    assert_eq!(start_response["max_payload_bytes"], 8 * 1024 * 1024);
+
+    let input = b"printf 'T310-RAW-OUTPUT\\n'\n";
+    session::write_session(session_id, input).unwrap();
+    let _ = wait_for_frame_containing(session_id, "T310-RAW-OUTPUT");
+    session::resize_session_with_cell_size(session_id, 100, 30, 1000, 600, 10, 20).unwrap();
+    session::write_session(session_id, b"exit 7\n").unwrap();
+    thread::sleep(Duration::from_millis(250));
+
+    let stop_request = serde_json::json!({ "kind": "terminal.recording_stop" });
+    let stop_response = session::request_session_json(session_id, &stop_request.to_string())
+        .unwrap()
+        .expect("expected recording stop response");
+    let stop_response: serde_json::Value = serde_json::from_str(&stop_response).unwrap();
+    assert_eq!(stop_response["ok"], true);
+    let source = stop_response["recording_ndjson"]
+        .as_str()
+        .expect("expected v1 NDJSON recording");
+    let records = source
+        .lines()
+        .map(|line| serde_json::from_str::<serde_json::Value>(line).unwrap())
+        .collect::<Vec<_>>();
+    let events = &records[1..];
+
+    assert_eq!(records[0]["session_id"], session_id.to_string());
+    assert_eq!(records[0]["input_policy"], "redact");
+    assert_eq!(events[0]["event_kind"], "session_started");
+    let input_event = events
+        .iter()
+        .find(|event| event["event_kind"] == "user_input")
+        .expect("expected redacted input event");
+    assert_eq!(input_event["payload"]["byte_length"], input.len());
+    assert_eq!(input_event["payload"]["redacted"], true);
+    assert!(input_event["payload"].get("bytes_base64").is_none());
+
+    let raw_output = events
+        .iter()
+        .filter(|event| event["event_kind"] == "pty_output")
+        .filter_map(|event| event["payload"]["bytes_base64"].as_str())
+        .flat_map(|encoded| BASE64_STANDARD.decode(encoded).unwrap())
+        .collect::<Vec<_>>();
+    assert!(
+        raw_output
+            .windows(b"T310-RAW-OUTPUT".len())
+            .any(|window| window == b"T310-RAW-OUTPUT"),
+        "expected exact PTY output bytes in recording: {raw_output:?}"
+    );
+    assert!(events.iter().any(|event| {
+        event["event_kind"] == "resize"
+            && event["payload"]["cols"] == 100
+            && event["payload"]["rows"] == 30
+            && event["payload"]["cell_width"] == 10
+            && event["payload"]["cell_height"] == 20
+    }));
+    assert!(events.iter().any(|event| {
+        event["event_kind"] == "session_exited" && event["payload"]["exit_code"] == 7
+    }));
+
+    let mut previous_offset = 0;
+    for (sequence, event) in events.iter().enumerate() {
+        assert_eq!(event["sequence"], sequence);
+        let offset = event["monotonic_offset_micros"].as_u64().unwrap();
+        assert!(offset >= previous_offset);
+        previous_offset = offset;
+    }
 
     session::close_session(session_id).unwrap();
 }
@@ -21368,6 +21608,18 @@ fn scrollback_heavy_transcript_is_bounded_and_resize_still_returns_snapshot() {
         .expect("expected frame after resize");
     let parsed_frame: serde_json::Value = serde_json::from_str(&frame).unwrap();
     assert_eq!(parsed_frame["frame_kind"].as_str(), Some("snapshot"));
+
+    let stats = session::take_session_debug_stats_json(session_id)
+        .unwrap()
+        .expect("expected session debug stats after truncated resize");
+    let parsed: serde_json::Value = serde_json::from_str(&stats).unwrap();
+    assert_eq!(parsed["resize_replay_count"].as_u64(), Some(0));
+    assert_eq!(parsed["resize_replay_bytes"].as_u64(), Some(0));
+    assert_eq!(parsed["resize_replay_micros"].as_u64(), Some(0));
+    assert_eq!(
+        parsed["resize_replay_skipped_truncated_count"].as_u64(),
+        Some(1)
+    );
 
     session::close_session(session_id).unwrap();
 }

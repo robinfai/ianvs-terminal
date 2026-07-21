@@ -28,6 +28,11 @@
 ### `ianvs_pty`
 
 - `PtySessionBackend`
+- `PtySessionConfigV1Backend`
+- `PtyReplaySessionConfigV1Backend`
+- `PtySessionRequestV1Backend`
+- `PtySessionRequestV1`
+- `PtySessionResponseV1`
 - `PtyBindings`
 - `PtyEvent`
 - `NativePtyBackend`
@@ -37,6 +42,7 @@
 ### `ianvs_terminal`
 
 - `TerminalSessionConfig`
+- `TerminalSessionConfigV1`
 - `TerminalLaunchConfig`
 - `TerminalDisplayConfig`
 - `TerminalRuntimeController`
@@ -44,7 +50,23 @@
 - `TerminalViewport`
 - `TerminalViewportController`
 
-这里不暴露 `Profile` 这个 app 词汇。对 native/core 仍需旧 wire 形状的地方，由 package 内部适配，不把这个兼容债务抛给上层。
+这里不暴露 `Profile` 这个 app 词汇。session create 主路径使用有版本、带上限的
+SessionConfig v1；旧 Profile-shaped wire 只保留在 package 内部的兼容回退中，供新
+Dart/旧 native 和旧 Dart/新 native 的升级窗口使用，不把这个兼容债务抛给上层。
+通用 session command 则由 `ianvs_terminal` 内部的单一兼容 transport 优先发送有关联
+identity 的 Session Request/Response v1；旧 `{kind, ...payload}` 对象只在 capability
+缺失时原样回退。operation-specific client 仍拥有各自 payload 和返回语义。
+native-to-product 的 Host Request/Response v1 只承载确实需要关联响应的 child 请求；
+当前首个 operation 是 OSC 52 `clipboard.read_text`。URL、attention、notification 和
+asset transfer 继续保持单向事件或专用通道，不因名字里带 request 就自动归入双向合同。
+Frame/Session 运行指标优先使用 Runtime Envelope v1 的 Diagnostic Event 专用形态；旧
+debug-stat FFI 只作为双栈兼容面。`terminal.export_diagnostics` 的隐私证据包是独立合同，
+不因运行指标迁移而改变。高频 Frame 主路径优先使用带 session identity、sequence 和
+timestamp 的 Protobuf Frame Packet v1；只有成功解码和接受的序号才会被确认，确认漂移由
+native Snapshot 重同步。旧 Frame Protobuf/JSON 符号继续作为升级兼容面，Frame payload 和
+资产传输合同不随外层 packet 改动。decoded RGBA 资产传输优先使用原子 Graphic Asset
+Packet v1；Dart 校验 session/asset/version、尺寸和 100 MiB 上限，旧 meta/copy symbols 只在
+新 packet symbol 缺失时回退。
 
 ### `example/` 本地边界入口
 
@@ -85,6 +107,15 @@
 
 ## 当前约束
 
-- `native/core` 现在还吃旧的 profile wire，所以 `ianvs_terminal` 内部保留了一层 native wire 适配。
+- `native/core` 仍接受旧 Profile-shaped create wire 和旧 session request wire，但两者都只是
+  显式兼容面；产品主路径分别使用 SessionConfig v1 和 Session Request/Response v1。
+- Host Request/Response v1 当前只迁移 OSC 52 文本剪贴板读取；旧 Dart/new native 仍走
+  `clipboard_paste_request`，new Dart/old native 仍走直接 PTY response，不删除旧 wire。
+- Diagnostic Event v1 当前只迁移 `frame_stats` / `session_stats`；旧 Dart/new native 和
+  new Dart/old native 仍可使用两个 legacy debug-stat symbols，诊断导出包保持独立。
+- Terminal Frame Packet v1 只包装现有 `terminal-frame-diff-v1`；旧 Protobuf/JSON Frame
+  symbols、graphic RGBA 和 file-download bytes 均不删除或迁入 packet。
+- Graphic Asset Packet v1 只迁移 decoded RGBA 读取；旧 meta/copy symbols 保留，且 null 或
+  malformed packet 不在同一次调用中静默降级。file-download 和 Recording wire 不变。
 - `example/` 目录里的 Flutter package 现阶段仍保留 `name: app`，这是为了稳定既有 `package:app/...` import 面；macOS bundle identity 由 Runner project 单独维护。
 - 本次边界调整不处理 pub.dev 发布、插件系统和跨平台扩展。

@@ -52,6 +52,19 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     final isActiveSessionReadOnly =
         activeSessionIdBeforeOpen != null &&
         _isSessionReadOnly(activeSessionIdBeforeOpen);
+    final isActiveSessionRecording =
+        activeSessionIdBeforeOpen != null &&
+        sessionState.recordingSessionIds.contains(activeSessionIdBeforeOpen);
+    final isActiveRecordingPendingSave =
+        activeSessionIdBeforeOpen != null &&
+        sessionState.recordingPendingSaveSessionIds.contains(
+          activeSessionIdBeforeOpen,
+        );
+    final isActiveRecordingBusy =
+        activeSessionIdBeforeOpen != null &&
+        sessionState.recordingBusySessionIds.contains(
+          activeSessionIdBeforeOpen,
+        );
     Widget commandMenu() {
       return _ShellCommandMenu(
         launcherShortcutLabel: _launcherShortcutLabel(),
@@ -63,6 +76,9 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         hasActiveSession: hasActiveSession,
         canReopenClosedTab: sessionController.canReopenClosedTab,
         isActiveSessionReadOnly: isActiveSessionReadOnly,
+        isActiveSessionRecording: isActiveSessionRecording,
+        isActiveRecordingPendingSave: isActiveRecordingPendingSave,
+        isActiveRecordingBusy: isActiveRecordingBusy,
         notificationsBlockedBySystem: _notificationsBlockedBySystem,
         commandFinishedNotificationsEnabled:
             _commandFinishedNotificationsEnabled,
@@ -1215,6 +1231,12 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           return;
         }
         await _openInstantReplay(sessionState);
+        return;
+      case TerminalActionId.toggleSessionRecording:
+        await _toggleActiveSessionRecording(
+          sessionController,
+          currentSessionId,
+        );
         return;
       case TerminalActionId.search:
         if (currentSessionId == null) {

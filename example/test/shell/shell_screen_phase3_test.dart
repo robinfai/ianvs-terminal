@@ -6,12 +6,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
+import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/shell/shell_acceptance.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/terminal/terminal_viewport.dart';
+import 'package:app/features/workspace/local_workspace_models.dart';
+import 'package:app/features/workspace/local_workspace_repository.dart';
 import 'package:app/ui/app_ui.dart';
 
 import '../support/fake_pty_backend.dart';
@@ -25,6 +28,8 @@ Future<void> _pumpShellScreen(
   required FakePtyBackend fakeBindings,
   required MemoryProfileRepository profileRepository,
   required MemoryAppPreferencesRepository preferencesRepository,
+  LocalTerminalConfigDocument? localConfig,
+  LocalWorkspaceRepository? workspaceRepository,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -39,8 +44,12 @@ Future<void> _pumpShellScreen(
           preferencesRepository,
         ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
-          MemoryLocalTerminalConfigRepository(null),
+          MemoryLocalTerminalConfigRepository(localConfig),
         ),
+        if (workspaceRepository != null)
+          localWorkspaceRepositoryProvider.overrideWithValue(
+            workspaceRepository,
+          ),
       ],
       child: MaterialApp(
         theme: buildIanvsTerminalTheme(Brightness.light),
@@ -51,6 +60,20 @@ Future<void> _pumpShellScreen(
   );
   await tester.pump();
   await tester.pumpAndSettle();
+}
+
+class _MemoryWorkspaceRepository extends LocalWorkspaceRepository {
+  _MemoryWorkspaceRepository(this.workspace);
+
+  TerminalWorkspace? workspace;
+
+  @override
+  Future<TerminalWorkspace?> load() async => workspace;
+
+  @override
+  Future<void> save(TerminalWorkspace workspace) async {
+    this.workspace = workspace;
+  }
 }
 
 void main() {
@@ -167,6 +190,52 @@ void main() {
       expect(shellAcceptanceProbe.current.activeTabCount, 1);
     },
   );
+
+  testWidgets('workspace relaunch failures stay visible and can be dismissed', (
+    tester,
+  ) async {
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: FakePtyBackend(),
+      profileRepository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+      preferencesRepository: MemoryAppPreferencesRepository(null),
+      localConfig: const LocalTerminalConfigDocument(
+        workspace: LocalTerminalWorkspaceConfig(restoreLayout: true),
+      ),
+      workspaceRepository: _MemoryWorkspaceRepository(
+        TerminalWorkspace(
+          activeTabId: 'old-tab',
+          tabs: [
+            TerminalWorkspaceTab(
+              id: 'old-tab',
+              activePaneId: 'old-pane',
+              root: TerminalPaneNode.leaf(
+                id: 'old-pane',
+                sessionIntent: const TerminalPaneSessionIntent(
+                  profileId: 'removed-profile',
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    expect(find.byKey(const Key('shell-runtime-error')), findsOneWidget);
+    expect(
+      find.textContaining('Workspace restore skipped 1 pane'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('removed-profile'), findsOneWidget);
+    expect(find.byKey(const Key('shell-empty-state')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('shell-runtime-error-dismiss')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('shell-runtime-error')), findsNothing);
+  });
 
   testWidgets(
     'defaults dialog shows the current new-tab profile when no default is configured',

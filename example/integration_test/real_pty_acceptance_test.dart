@@ -51,6 +51,150 @@ void main() {
   _ignoreKnownDesktopKeyStateNoise();
 
   testWidgets(
+    'real PTY shell starts, accepts input, emits output, and exits',
+    (tester) async {
+      final profile = _scriptProfile(
+        id: 'compatibility-shell-lifecycle',
+        name: 'Compatibility Shell Lifecycle',
+        script: r'''
+printf 'foundation-shell-ready\n'
+IFS= read -r token
+printf 'foundation-shell-output:%s\n' "$token"
+sleep 1
+exit 7
+''',
+      );
+      final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
+
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'real shell startup marker',
+        matches: (text) => text.contains('foundation-shell-ready'),
+      );
+
+      final sessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      harness.container
+          .read(terminalRuntimeControllerProvider)
+          .sendInput(
+            sessionId,
+            Uint8List.fromList(utf8.encode('compatibility-input\n')),
+          );
+
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'real shell output after PTY input',
+        matches: (text) =>
+            text.contains('foundation-shell-output:compatibility-input'),
+      );
+      await _waitFor(
+        tester,
+        description: 'real shell process exit removes the terminal session',
+        condition: () =>
+            harness.container.read(sessionControllerProvider).tabs.isEmpty,
+      );
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
+    'real PTY alternate-screen TUI starts, resizes, accepts input, and exits',
+    (tester) async {
+      final profile = _scriptProfile(
+        id: 'compatibility-alternate-screen',
+        name: 'Compatibility Alternate Screen',
+        script: r'''
+printf '\033[?1049h\033[2J\033[Hfoundation-tui-ready'
+IFS= read -r resize_token
+printf '\033[2J\033[Hfoundation-tui-resized:%s' "$resize_token"
+IFS= read -r exit_token
+printf '\033[?1049l'
+printf 'foundation-tui-exit:%s\n' "$exit_token"
+sleep 1
+''',
+      );
+      final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
+
+      await _waitFor(
+        tester,
+        description: 'alternate-screen TUI startup frame',
+        condition: () {
+          final frame = _activeFrame(harness.container);
+          return frame != null &&
+              frame.modes.alternateScreen &&
+              frame.rows.any(
+                (row) => row.text.contains('foundation-tui-ready'),
+              );
+        },
+      );
+      final initialCols = await _waitForViewportColumns(
+        tester,
+        harness.container,
+      );
+      final sessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+
+      harness.container
+          .read(sessionControllerProvider.notifier)
+          .resizeSession(sessionId, const Size(640, 400), 1);
+      await _waitFor(
+        tester,
+        description: 'alternate-screen TUI resize frame',
+        condition: () {
+          final frame = _activeFrame(harness.container);
+          return frame != null &&
+              frame.modes.alternateScreen &&
+              frame.viewportCols != initialCols;
+        },
+        onTimeout: () {
+          final frame = _activeFrame(harness.container);
+          return frame == null ? 'No frame' : _frameDebug(frame);
+        },
+      );
+
+      final runtime = harness.container.read(terminalRuntimeControllerProvider);
+      runtime.sendInput(
+        sessionId,
+        Uint8List.fromList(utf8.encode('after-resize\n')),
+      );
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'alternate-screen TUI input after resize',
+        matches: (text) => text.contains('foundation-tui-resized:after-resize'),
+      );
+
+      runtime.sendInput(
+        sessionId,
+        Uint8List.fromList(utf8.encode('leave-tui\n')),
+      );
+      await _waitFor(
+        tester,
+        description: 'alternate-screen TUI restores primary screen',
+        condition: () {
+          final frame = _activeFrame(harness.container);
+          return frame != null &&
+              !frame.modes.alternateScreen &&
+              frame.rows.any(
+                (row) => row.text.contains('foundation-tui-exit:leave-tui'),
+              );
+        },
+      );
+      await _waitFor(
+        tester,
+        description: 'alternate-screen TUI process exit',
+        condition: () =>
+            harness.container.read(sessionControllerProvider).tabs.isEmpty,
+      );
+    },
+    skip: _skipNonRefreshPolicyGateTests,
+  );
+
+  testWidgets(
     'real PTY shell keeps line timestamp overlays hidden by default',
     (tester) async {
       final profile = _scriptProfile(
@@ -695,14 +839,18 @@ sleep 1
       ).hideCurrentSnackBar();
       await tester.pumpAndSettle();
 
+      final sessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+
       Future<void> openNotificationMenu() async {
-        await tester.tap(find.byKey(const Key('shell-status-notification')));
+        await tester.tap(find.byKey(Key('shell-tab-pane-signal-$sessionId')));
         await tester.pumpAndSettle();
       }
 
       await openNotificationMenu();
       await tester.tap(
-        find.byKey(const Key('shell-status-notification-0-button-2')),
+        find.byKey(const Key('shell-tab-notification-0-button-2')),
       );
       await _waitForTerminalText(
         tester,
@@ -713,25 +861,9 @@ sleep 1
         ),
       );
 
-      final sessionId = harness.container
-          .read(sessionControllerProvider)
-          .activeSessionId!;
-      final controller = harness.container.read(
-        sessionControllerProvider.notifier,
-      );
-      var currentNotification = harness.container
-          .read(sessionControllerProvider)
-          .tabs
-          .single
-          .activePane
-          .recentNotifications
-          .single;
-      expect(
-        controller.reportSessionNotificationAction(
-          sessionId,
-          currentNotification,
-        ),
-        isTrue,
+      await openNotificationMenu();
+      await tester.tap(
+        find.byKey(const Key('shell-tab-notification-0-activate')),
       );
       await _waitForTerminalText(
         tester,
@@ -742,16 +874,9 @@ sleep 1
         ),
       );
 
-      currentNotification = harness.container
-          .read(sessionControllerProvider)
-          .tabs
-          .single
-          .activePane
-          .recentNotifications
-          .single;
-      expect(
-        controller.dismissSessionNotification(sessionId, currentNotification),
-        isTrue,
+      await openNotificationMenu();
+      await tester.tap(
+        find.byKey(const Key('shell-tab-notification-0-dismiss')),
       );
       await _waitForTerminalText(
         tester,
@@ -2862,10 +2987,11 @@ sleep 4
 : > "$IDLE_DONE_FILE"
 IFS= read -r token < "$WAKE_FIFO"
 printf 'idle-wake:%s\n' "$token"
-sleep 1
+while [ ! -f "$RELEASE_FILE" ]; do sleep 0.05; done
 ''',
     env: <String, String>{
       'IDLE_DONE_FILE': fixture.idleDone.path,
+      'RELEASE_FILE': fixture.release.path,
       'WAKE_FIFO': fixture.wakeFifo.path,
     },
   );
@@ -2990,6 +3116,7 @@ sleep 1
         'hard_ceiling_micros=${ceiling.inMicroseconds}; '
         'nominal_target_micros=${nominal.inMicroseconds}',
   );
+  _signal(fixture.release);
 }
 
 Future<void> _verifyIdleWakePolicy(
@@ -3008,10 +3135,11 @@ sleep 4
 : > "$IDLE_DONE_FILE"
 IFS= read -r token < "$WAKE_FIFO"
 printf 'idle-wake:%s\n' "$token"
-sleep 1
+while [ ! -f "$RELEASE_FILE" ]; do sleep 0.05; done
 ''',
     env: <String, String>{
       'IDLE_DONE_FILE': fixture.idleDone.path,
+      'RELEASE_FILE': fixture.release.path,
       'WAKE_FIFO': fixture.wakeFifo.path,
     },
   );
@@ -3241,6 +3369,7 @@ sleep 1
         'hard_ceiling_micros=${ceiling.inMicroseconds}; '
         'nominal_target_micros=${nominal.inMicroseconds}',
   );
+  _signal(fixture.release);
 }
 
 _IdleWakeFixture _createIdleWakeFixture(String name) {
@@ -3261,6 +3390,7 @@ _IdleWakeFixture _createIdleWakeFixture(String name) {
   );
   return _IdleWakeFixture(
     idleDone: File('${directory.path}/idle.done'),
+    release: File('${directory.path}/release'),
     wakeFifo: wakeFifo,
   );
 }
@@ -3695,8 +3825,13 @@ class _RealPtyHarness {
 }
 
 class _IdleWakeFixture {
-  const _IdleWakeFixture({required this.idleDone, required this.wakeFifo});
+  const _IdleWakeFixture({
+    required this.idleDone,
+    required this.release,
+    required this.wakeFifo,
+  });
 
   final File idleDone;
+  final File release;
   final File wakeFifo;
 }

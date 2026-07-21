@@ -49,6 +49,26 @@ void main() {
       });
     });
 
+    test('prefers the correlated Session Request v1 envelope', () {
+      final backend = _JsonRequestBackend(
+        jsonEncode(<String, Object?>{
+          'manifest': <String, Object?>{'schema_version': 1},
+          'summary': <String, Object?>{'conclusion': 'ok'},
+        }),
+        supportsV1: true,
+      );
+      final client = TerminalDiagnosticsClient(backend);
+
+      expect(client.exportSession('7')!.conclusion, 'ok');
+      expect(backend.requests, isEmpty);
+      expect(backend.v1Requests, hasLength(1));
+      expect(
+        backend.v1Requests.single['operation'],
+        'terminal.export_diagnostics',
+      );
+      expect(backend.v1Requests.single['session_id'], '7');
+    });
+
     test('returns null when backend response cannot be decoded', () {
       final backend = _JsonRequestBackend('{');
       final client = TerminalDiagnosticsClient(backend);
@@ -90,12 +110,43 @@ void main() {
   });
 }
 
-final class _JsonRequestBackend implements PtySessionJsonRequestBackend {
-  _JsonRequestBackend(this.response);
+final class _JsonRequestBackend
+    implements PtySessionJsonRequestBackend, PtySessionRequestV1Backend {
+  _JsonRequestBackend(this.response, {this.supportsV1 = false});
 
   String? response;
   Object? requestError;
+  final bool supportsV1;
   final List<Map<String, Object?>> requests = <Map<String, Object?>>[];
+  final List<Map<String, Object?>> v1Requests = <Map<String, Object?>>[];
+
+  @override
+  bool get supportsSessionRequestV1 => supportsV1;
+
+  @override
+  String? requestSessionV1Json(String sessionId, String requestV1Json) {
+    final request = (jsonDecode(requestV1Json) as Map).cast<String, Object?>();
+    v1Requests.add(request);
+    final error = requestError;
+    if (error != null) {
+      throw error;
+    }
+    final legacyResponse = response;
+    if (legacyResponse == null || legacyResponse.isEmpty) {
+      return legacyResponse;
+    }
+    final payload = jsonDecode(legacyResponse);
+    return jsonEncode(<String, Object?>{
+      'schema_version': 1,
+      'contract': 'ianvs-session-response-v1',
+      'request_id': request['request_id'],
+      'session_id': sessionId,
+      'operation': request['operation'],
+      'ok': true,
+      'timestamp_micros': 1234,
+      'payload': payload,
+    });
+  }
 
   @override
   String? requestSessionJson(String sessionId, String requestJson) {

@@ -218,15 +218,21 @@ void main() {
       expect(workspace.closedTabs.single.activeSessionIntent!.cwd, isNull);
     });
 
-    test('workspace session intent JSON normalizes persisted fields', () {
+    test('workspace compatibility intent writes descriptor fields', () {
       const intent = TerminalPaneSessionIntent(
         profileId: ' default ',
         cwd: ' /repo ',
       );
       const blank = TerminalPaneSessionIntent(profileId: '   ', cwd: '   ');
 
-      expect(intent.toJson(), {'profileId': 'default', 'cwd': '/repo'});
-      expect(blank.toJson(), {'profileId': '', 'cwd': null});
+      expect(intent.toJson(), containsPair('profileId', 'default'));
+      expect(intent.toJson(), containsPair('cwd', '/repo'));
+      expect(
+        intent.toJson(),
+        containsPair('schemaVersion', currentTerminalSessionDescriptorVersion),
+      );
+      expect(blank.toJson(), containsPair('profileId', ''));
+      expect(blank.toJson(), containsPair('cwd', null));
     });
 
     test('workspace JSON normalizes direct tab and pane identifiers', () {

@@ -1,0 +1,6 @@
+{"record_type":"metadata","schema_version":1,"session_id":"fixture-session","created_at_utc":"2026-07-21T00:00:00.000Z","input_policy":"redact"}
+{"record_type":"event","schema_version":1,"session_id":"fixture-session","sequence":0,"monotonic_offset_micros":0,"event_kind":"session_started","payload":{"terminal_emulation":"xterm256","cols":80,"rows":24}}
+{"record_type":"event","schema_version":1,"session_id":"fixture-session","sequence":1,"monotonic_offset_micros":1000,"event_kind":"pty_output","payload":{"bytes_base64":"aGVsbG8NCg=="}}
+{"record_type":"event","schema_version":1,"session_id":"fixture-session","sequence":2,"monotonic_offset_micros":2000,"event_kind":"user_input","payload":{"byte_length":6,"redacted":true}}
+{"record_type":"event","schema_version":1,"session_id":"fixture-session","sequence":3,"monotonic_offset_micros":3000,"event_kind":"resize","payload":{"cols":100,"rows":30,"pixel_width":1000,"pixel_height":600,"cell_width":10,"cell_height":20}}
+{"record_type":"event","schema_version":1,"session_id":"fixture-session","sequence":4,"monotonic_offset_micros":4000,"event_kind":"session_exited","payload":{"exit_code":0}}

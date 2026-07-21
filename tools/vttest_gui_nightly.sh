@@ -284,7 +284,7 @@ if ! (
     "cargo.vt220" \
     "$command_timeout" \
     "$out_dir/cargo-vt220.log" \
-    cargo test vt220
+    cargo test vt220 -- --test-threads=1
 ); then
   write_summary "failed" 1 "cargo.vt220" >/dev/null
   echo "vttest GUI gate failed; summary: $out_dir/summary.json" >&2

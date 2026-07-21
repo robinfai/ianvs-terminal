@@ -11,6 +11,9 @@ class _ShellCommandMenu extends StatefulWidget {
     required this.hasActiveSession,
     required this.canReopenClosedTab,
     required this.isActiveSessionReadOnly,
+    required this.isActiveSessionRecording,
+    required this.isActiveRecordingPendingSave,
+    required this.isActiveRecordingBusy,
     required this.notificationsBlockedBySystem,
     required this.commandFinishedNotificationsEnabled,
     required this.activityMonitorEnabled,
@@ -25,6 +28,9 @@ class _ShellCommandMenu extends StatefulWidget {
   final bool hasActiveSession;
   final bool canReopenClosedTab;
   final bool isActiveSessionReadOnly;
+  final bool isActiveSessionRecording;
+  final bool isActiveRecordingPendingSave;
+  final bool isActiveRecordingBusy;
   final bool notificationsBlockedBySystem;
   final bool commandFinishedNotificationsEnabled;
   final bool activityMonitorEnabled;
@@ -51,6 +57,9 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
     final hasActiveSession = widget.hasActiveSession;
     final canReopenClosedTab = widget.canReopenClosedTab;
     final isActiveSessionReadOnly = widget.isActiveSessionReadOnly;
+    final isActiveSessionRecording = widget.isActiveSessionRecording;
+    final isActiveRecordingPendingSave = widget.isActiveRecordingPendingSave;
+    final isActiveRecordingBusy = widget.isActiveRecordingBusy;
     final notificationsBlockedBySystem = widget.notificationsBlockedBySystem;
     final commandFinishedNotificationsEnabled =
         widget.commandFinishedNotificationsEnabled;
@@ -378,6 +387,30 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         ).pop(TerminalActionId.toggleReadOnly),
                       ),
                       commandTile(
+                        key: const Key('shell-toggle-session-recording'),
+                        actionId: TerminalActionId.toggleSessionRecording,
+                        icon: isActiveSessionRecording
+                            ? Icons.stop_circle_outlined
+                            : isActiveRecordingPendingSave
+                            ? Icons.save_outlined
+                            : Icons.fiber_manual_record_outlined,
+                        title: isActiveSessionRecording
+                            ? 'Stop & save recording'
+                            : isActiveRecordingPendingSave
+                            ? 'Retry saving recording'
+                            : 'Start recording',
+                        subtitle:
+                            'Session action • Capture PTY output and lifecycle events. Input bytes are redacted.',
+                        subtitleMaxLines: 2,
+                        enabled: hasActiveSession && !isActiveRecordingBusy,
+                        disabledReason: hasActiveSession
+                            ? 'A recording operation is already in progress.'
+                            : activeSessionRequired,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.toggleSessionRecording),
+                      ),
+                      commandTile(
                         key: const Key('shell-clear-scrollback'),
                         actionId: TerminalActionId.clearScrollback,
                         icon: Icons.clear_all_rounded,
@@ -503,6 +536,10 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
   MapEntry(
     'read only readonly lock block input',
     TerminalActionId.toggleReadOnly,
+  ),
+  MapEntry(
+    'record recording capture pty output redact input save',
+    TerminalActionId.toggleSessionRecording,
   ),
   MapEntry('clear scrollback clear output', TerminalActionId.clearScrollback),
   MapEntry('paste clipboard', TerminalActionId.paste),

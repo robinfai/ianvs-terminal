@@ -7,6 +7,7 @@ import 'dart:ui';
 import 'package:ianvs_pty/ianvs_pty.dart';
 
 import '../config/terminal_config.dart';
+import '../config/terminal_session_config_v1.dart';
 import '../terminal/selection_controller.dart';
 import '../terminal/terminal_graphics_cache.dart';
 import '../terminal/terminal_graphics_diagnostics.dart';
@@ -840,6 +841,9 @@ class TerminalRuntimeController {
         ? backend as PtySessionRefreshHintBackend
         : null;
     _refreshHintBackend = refreshHintBackend;
+    _hostResponseBackend = backend is PtyHostResponseV1Backend
+        ? backend as PtyHostResponseV1Backend
+        : null;
     _diagnosticsClient = TerminalDiagnosticsClient.fromBackend(
       backend,
       onRequestError: _emitBackendRequestError,
@@ -865,6 +869,7 @@ class TerminalRuntimeController {
 
   final PtySessionBackend _backend;
   late final PtySessionRefreshHintBackend? _refreshHintBackend;
+  late final PtyHostResponseV1Backend? _hostResponseBackend;
   final Set<String> _refreshHintDisabledSessions = <String>{};
   late final TerminalDiagnosticsClient _diagnosticsClient;
   late final TerminalJsonRequestClient _jsonRequestClient;
@@ -958,9 +963,32 @@ class TerminalRuntimeController {
   bool hasSession(String sessionId) => _sessions.hasSession(sessionId);
 
   String createSession(TerminalSessionConfig config) {
-    final sessionId = _backend.createSession(
-      _encodeNativeSessionConfig(_resolveColorsForRuntime(config)),
-    );
+    final resolvedConfig = _resolveColorsForRuntime(config);
+    _wireSessionSeed += 1;
+    final wireId = 'runtime-$_wireSessionSeed';
+    final program = resolvedConfig.launch.program.trim();
+    final wireName = program.isEmpty
+        ? 'Terminal Session'
+        : program.split('/').last;
+    final backend = _backend;
+    final configBackend = backend is PtySessionConfigV1Backend
+        ? backend as PtySessionConfigV1Backend
+        : null;
+    final sessionId = (configBackend?.supportsSessionConfigV1 ?? false)
+        ? configBackend!.createSessionV1(
+            TerminalSessionConfigV1(
+              sessionId: wireId,
+              displayName: wireName,
+              config: resolvedConfig,
+            ).toJsonString(),
+          )
+        : backend.createSession(
+            _encodeLegacyNativeProfile(
+              resolvedConfig,
+              wireId: wireId,
+              wireName: wireName,
+            ),
+          );
     _sessions.register(sessionId);
     _sessionEpochSeed += 1;
     _sessionEpochs[sessionId] = _sessionEpochSeed;
@@ -2175,6 +2203,19 @@ class TerminalRuntimeController {
 
   Map<String, Object?> _takeNativeFrameDebugStats(String sessionId) {
     final backend = _backend;
+    final diagnosticEventBackend = backend is PtySessionDiagnosticEventV1Backend
+        ? backend as PtySessionDiagnosticEventV1Backend
+        : null;
+    if (diagnosticEventBackend?.supportsDiagnosticEventV1 ?? false) {
+      try {
+        return diagnosticEventBackend!
+                .takeDiagnosticEventV1(sessionId, 'frame_stats')
+                ?.payload ??
+            const <String, Object?>{};
+      } on Object {
+        return const <String, Object?>{};
+      }
+    }
     final diagnosticsBackend = backend is PtySessionDiagnosticsBackend
         ? backend as PtySessionDiagnosticsBackend
         : null;
@@ -2407,6 +2448,7 @@ class TerminalRuntimeController {
           sessionId,
           sessionEpoch,
           route.payload,
+          route.hostRequest,
         ),
       TerminalAsyncEventKind.clipboardMimeWrite => _handleClipboardMimeWrite(
         sessionId,
@@ -2995,6 +3037,7 @@ class TerminalRuntimeController {
     String sessionId,
     int sessionEpoch,
     Map<String, Object?>? payload,
+    PtyHostRequestV1? hostRequest,
   ) async {
     if (!_isCurrentSession(sessionId, sessionEpoch)) {
       return;
@@ -3023,6 +3066,12 @@ class TerminalRuntimeController {
       return;
     }
     if (!allowed) {
+      _respondToHostRequestIfSupported(
+        hostRequest,
+        sessionId: sessionId,
+        errorCode: 'permission_denied',
+        errorMessage: 'clipboard access was denied',
+      );
       _emitEventIfCurrent(
         sessionId,
         sessionEpoch,
@@ -3044,6 +3093,12 @@ class TerminalRuntimeController {
       _maxOsc52ClipboardDecodedBytes,
     );
     if (clipboardBytes == null) {
+      _respondToHostRequestIfSupported(
+        hostRequest,
+        sessionId: sessionId,
+        errorCode: 'invalid_payload',
+        errorMessage: 'clipboard text exceeds the OSC 52 limit',
+      );
       _emitEventIfCurrent(
         sessionId,
         sessionEpoch,
@@ -3061,12 +3116,25 @@ class TerminalRuntimeController {
       byteCount: clipboardBytes.length,
     );
     final encoded = base64.encode(clipboardBytes);
-    final response = '\x1B]52;$selection;$encoded\x07';
-    if (!_sendInput(
-      sessionId,
-      Uint8List.fromList(utf8.encode(response)),
-      sessionEpoch: sessionEpoch,
-    )) {
+    final hostResponseSent = _respondToHostRequestIfSupported(
+      hostRequest,
+      sessionId: sessionId,
+      payload: <String, Object?>{'data_base64': encoded},
+    );
+    if (hostResponseSent == false) {
+      return;
+    }
+    if (hostResponseSent == null) {
+      final response = '\x1B]52;$selection;$encoded\x07';
+      if (!_sendInput(
+        sessionId,
+        Uint8List.fromList(utf8.encode(response)),
+        sessionEpoch: sessionEpoch,
+      )) {
+        return;
+      }
+    }
+    if (!_isCurrentSession(sessionId, sessionEpoch)) {
       return;
     }
     _emitEventIfCurrent(
@@ -3083,6 +3151,50 @@ class TerminalRuntimeController {
         textPreviewTruncated: summary.previewTruncated,
       ),
     );
+  }
+
+  bool? _respondToHostRequestIfSupported(
+    PtyHostRequestV1? request, {
+    required String sessionId,
+    Map<String, Object?>? payload,
+    String? errorCode,
+    String? errorMessage,
+  }) {
+    final backend = _hostResponseBackend;
+    if (request == null || backend == null || !backend.supportsHostResponseV1) {
+      return null;
+    }
+    try {
+      final timestampMicros = DateTime.now().microsecondsSinceEpoch;
+      final response = errorCode == null
+          ? PtyHostResponseV1.success(
+              request: request,
+              timestampMicros: timestampMicros,
+              payload: payload ?? const <String, Object?>{},
+            )
+          : PtyHostResponseV1.failure(
+              request: request,
+              timestampMicros: timestampMicros,
+              code: errorCode,
+              message: errorMessage ?? errorCode,
+            );
+      final accepted = backend.respondToHostRequestV1(
+        sessionId,
+        response.toJsonString(),
+      );
+      if (!accepted) {
+        throw StateError('native runtime rejected Host Response v1');
+      }
+      return true;
+    } on Object catch (error, stackTrace) {
+      _emitBackendRequestError(
+        sessionId,
+        'respondToHostRequestV1',
+        error,
+        stackTrace,
+      );
+      return false;
+    }
   }
 
   Future<void> _handleClipboardMimeWrite(
@@ -3705,6 +3817,7 @@ class TerminalRuntimeController {
   }
 
   void _removeSessionState(String sessionId) {
+    _frameTransportCoordinator.removeSession(sessionId);
     _refreshScheduler.remove(sessionId);
     _framePumpController.remove(sessionId);
     _refreshHintDisabledSessions.remove(sessionId);
@@ -3731,15 +3844,14 @@ class TerminalRuntimeController {
     }
   }
 
-  String _encodeNativeSessionConfig(TerminalSessionConfig config) {
-    _wireSessionSeed += 1;
-    final program = config.launch.program.trim();
-    final wireName = program.isEmpty
-        ? 'Terminal Session'
-        : program.split('/').last;
+  String _encodeLegacyNativeProfile(
+    TerminalSessionConfig config, {
+    required String wireId,
+    required String wireName,
+  }) {
     final json = config.toJson();
     return jsonEncode(<String, Object?>{
-      'id': 'runtime-$_wireSessionSeed',
+      'id': wireId,
       'name': wireName,
       ...json,
     });

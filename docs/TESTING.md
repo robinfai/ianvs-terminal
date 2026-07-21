@@ -2,6 +2,16 @@
 
 这份文档只保留当前工作区真实可用的验证入口。
 
+## 文档与执行目标契约
+
+```bash
+dart test test/docs_contract_test.dart
+```
+
+该测试会校验 `docs/CURRENT_EXECUTION_TARGETS.json` 的唯一 active lane、状态字段、
+证据文件和关键 token，同时检查权威文档入口里的本地 Markdown 链接。它只能证明
+目标描述与仓库静态证据仍一致，不能替代后续代码测试、macOS integration 或人工 QA。
+
 ## 默认顺序
 
 ```bash
@@ -10,6 +20,48 @@ cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cargo test
 ```
+
+## Compatibility Baseline (Iteration 01)
+
+兼容性基线的权威证据入口：
+
+- [compatibility/CAPABILITY_MATRIX.md](compatibility/CAPABILITY_MATRIX.md)
+- [compatibility/TEST_ASSET_INVENTORY.md](compatibility/TEST_ASSET_INVENTORY.md)
+- [compatibility/KNOWN_ISSUES.md](compatibility/KNOWN_ISSUES.md)
+- [compatibility/MANUAL_VERIFICATION.md](compatibility/MANUAL_VERIFICATION.md)
+
+完整基线必须按顺序执行并在
+[T-302](tasks/verification-gates/T-302-compatibility-baseline.md) 回填真实结果：
+
+```bash
+make bootstrap
+make analyze
+make test
+make verify
+```
+
+Resize Replay 的聚焦诊断门禁：
+
+```bash
+cd native/core
+cargo test --test session_test session_reflows_single_long_line_across_resize -- --exact
+cargo test --test session_test scrollback_heavy_transcript_is_bounded_and_resize_still_returns_snapshot -- --exact
+```
+
+真实 PTY、alternate-screen TUI 和 Unicode/Width/Cursor 聚焦门禁：
+
+```bash
+cd example
+flutter test -d macos integration_test/real_pty_acceptance_test.dart \
+  --plain-name "real PTY shell starts, accepts input, emits output, and exits"
+flutter test -d macos integration_test/real_pty_acceptance_test.dart \
+  --plain-name "real PTY alternate-screen TUI starts, resizes, accepts input, and exits"
+flutter test -d macos integration_test/real_pty_acceptance_test.dart \
+  --plain-name "real PTY OSC 1337 UnicodeVersion changes visible columns and survives resize input"
+```
+
+真实 `vttest` 是补充 GUI/nightly gate；缺少外部二进制时必须记为 `blocked`，不能
+替代或否定上面的确定性 alternate-screen TUI 门禁。
 
 Shell integration 改动的最小聚焦验证：
 
@@ -148,7 +200,7 @@ capture wrapper 会在 `build/local-terminal-verification/` 下写出 `output.lo
 ```bash
 cd native/core
 cargo test --test vttest_regression_test
-cargo test vt220
+cargo test vt220 -- --test-threads=1
 
 cd ../../example
 flutter test test/terminal/render_terminal_viewport_test.dart --plain-name "terminal viewport repaints consecutive full-width wrapped rows without leaving a shorter middle row"
@@ -167,7 +219,7 @@ flutter test test/terminal/render_terminal_viewport_test.dart --plain-name "term
 
 这条 gate 分三层：
 
-- fast deterministic regression：`cargo test --test vttest_regression_test`、`cargo test vt220`、Flutter wraparound viewport 单测
+- fast deterministic regression：`cargo test --test vttest_regression_test`、串行执行的 `cargo test vt220 -- --test-threads=1`、Flutter wraparound viewport 单测；VT220 用例密集创建 PTY，串行化可避免并发 `openpty` 引发宿主资源竞争，但不会重试或放宽产品断言
 - GUI full-chain vttest：`flutter test -d macos integration_test/vttest_gui_test.dart`，使用真实 `NativePtyBackend` 和 VT220 profile 启动 `vttest`
 - still manual：真实 trackpad、DPI/font-metric 切换、以及外部宿主条件仍按 `T-059` 人工矩阵记录
 

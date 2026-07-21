@@ -4,6 +4,7 @@ use crate::model::{
     TerminalRow, TerminalSelection, TerminalSizedTextPlacement, TerminalStyleRun,
 };
 use crate::proto::frame_diff as pb;
+use crate::runtime_contract::{FRAME_PACKET_CONTRACT, FRAME_PACKET_SCHEMA_VERSION};
 use prost::Message;
 
 pub fn encode_frame_diff(frame: &TerminalFrameDiff) -> Result<Vec<u8>, prost::EncodeError> {
@@ -17,6 +18,34 @@ pub fn decode_frame_diff_for_test(
     bytes: &[u8],
 ) -> Result<pb::TerminalFrameDiff, prost::DecodeError> {
     pb::TerminalFrameDiff::decode(bytes)
+}
+
+pub fn encode_frame_packet_v1(
+    session_id: u64,
+    sequence: u64,
+    timestamp_micros: u64,
+    frame: &TerminalFrameDiff,
+) -> Result<Vec<u8>, prost::EncodeError> {
+    let message = pb::TerminalFramePacketV1 {
+        schema_version: FRAME_PACKET_SCHEMA_VERSION,
+        contract: FRAME_PACKET_CONTRACT.to_owned(),
+        message_class: "frame".to_owned(),
+        message_name: "frame_diff".to_owned(),
+        session_id: session_id.to_string(),
+        sequence,
+        timestamp_micros,
+        frame_schema_version: frame.frame_schema_version.clone(),
+        frame: Some(to_proto_frame(frame)),
+    };
+    let mut bytes = Vec::with_capacity(message.encoded_len());
+    message.encode(&mut bytes)?;
+    Ok(bytes)
+}
+
+pub fn decode_frame_packet_v1_for_test(
+    bytes: &[u8],
+) -> Result<pb::TerminalFramePacketV1, prost::DecodeError> {
+    pb::TerminalFramePacketV1::decode(bytes)
 }
 
 fn to_proto_frame(frame: &TerminalFrameDiff) -> pb::TerminalFrameDiff {

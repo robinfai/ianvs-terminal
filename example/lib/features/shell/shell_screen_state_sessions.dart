@@ -995,14 +995,30 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     SessionState sessionState,
     String sessionId,
   ) {
+    unawaited(
+      _closeSessionAfterRecordingGate(
+        sessionController,
+        sessionState,
+        sessionId,
+      ),
+    );
+  }
+
+  Future<void> _closeSessionAfterRecordingGate(
+    SessionController sessionController,
+    SessionState sessionState,
+    String sessionId,
+  ) async {
     final closesLastSession =
         sessionState.tabs.length == 1 &&
         sessionState.tabs.single.effectivePanes.length == 1;
+    if (!await sessionController.closeSession(sessionId)) {
+      return;
+    }
     if (closesLastSession) {
       _recentlyClosedLastSession = true;
     }
     _clearPresentationStateForSession(sessionId);
-    sessionController.closeSession(sessionId);
     final nextActiveSessionId = ref
         .read(sessionControllerProvider)
         .activeSessionId;
@@ -1017,18 +1033,34 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     SessionState sessionState,
     String tabSessionId,
   ) {
+    unawaited(
+      _closeTabAfterRecordingGate(
+        sessionController,
+        sessionState,
+        tabSessionId,
+      ),
+    );
+  }
+
+  Future<void> _closeTabAfterRecordingGate(
+    SessionController sessionController,
+    SessionState sessionState,
+    String tabSessionId,
+  ) async {
     final closesLastTab = sessionState.tabs.length == 1;
     final closingTab = sessionState.tabs.firstWhere(
       (tab) => tab.sessionId == tabSessionId,
       orElse: () => sessionState.tabs.first,
     );
+    if (!await sessionController.closeTab(tabSessionId)) {
+      return;
+    }
     if (closesLastTab) {
       _recentlyClosedLastSession = true;
     }
     _clearPresentationStateForSessions(
       closingTab.effectivePanes.map((pane) => pane.sessionId),
     );
-    sessionController.closeTab(tabSessionId);
     final nextActiveSessionId = ref
         .read(sessionControllerProvider)
         .activeSessionId;

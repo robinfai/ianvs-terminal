@@ -7,6 +7,63 @@ import 'package:ianvs_terminal/src/terminal/terminal_models.dart';
 
 void main() {
   group('TerminalJsonRequestClient', () {
+    test('prefers correlated v1 and preserves the exact legacy fallback', () {
+      final versioned = _VersionedJsonRequestBackend(supportsV1: true);
+      final versionedClient = TerminalJsonRequestClient(versioned);
+
+      final versionedText = versionedClient.selectionText(
+        '7',
+        const TerminalSelection(startRow: 0, startCol: 0, endRow: 0, endCol: 2),
+        block: false,
+      );
+
+      expect(versionedText, 'versioned');
+      expect(versioned.v1Requests, hasLength(1));
+      expect(versioned.legacyRequests, isEmpty);
+      final v1 = versioned.v1Requests.single;
+      expect(v1['schema_version'], 1);
+      expect(v1['contract'], 'ianvs-session-request-v1');
+      expect(v1['session_id'], '7');
+      expect(v1['operation'], 'terminal.selection_text');
+      expect(v1['request_id'], startsWith('dart-'));
+      expect(v1['payload'], <String, Object?>{
+        'selection': <String, Object?>{
+          'start_row': 0,
+          'start_col': 0,
+          'end_row': 0,
+          'end_col': 2,
+        },
+        'block': false,
+      });
+
+      final fallback = _VersionedJsonRequestBackend(supportsV1: false);
+      final fallbackClient = TerminalJsonRequestClient(fallback);
+      expect(
+        fallbackClient.selectionText(
+          'session-a',
+          const TerminalSelection(
+            startRow: 0,
+            startCol: 0,
+            endRow: 0,
+            endCol: 2,
+          ),
+          block: true,
+        ),
+        'legacy',
+      );
+      expect(fallback.v1Requests, isEmpty);
+      expect(fallback.legacyRequests.single, <String, Object?>{
+        'kind': 'terminal.selection_text',
+        'selection': <String, Object?>{
+          'start_row': 0,
+          'start_col': 0,
+          'end_row': 0,
+          'end_col': 2,
+        },
+        'block': true,
+      });
+    });
+
     test('requests backend selection text and decodes the response', () {
       final backend = _JsonRequestBackend('{"text":"hello\\n"}');
       final client = TerminalJsonRequestClient(backend);
@@ -159,7 +216,7 @@ void main() {
     );
 
     test('returns empty values without a JSON request backend', () {
-      const client = TerminalJsonRequestClient(null);
+      final client = TerminalJsonRequestClient(null);
 
       expect(client.searchTextResult('session-a', 'hit').matches, isEmpty);
       expect(client.clearScrollback('session-a'), isFalse);
@@ -233,6 +290,42 @@ final class _JsonRequestBackend implements PtySessionJsonRequestBackend {
       throw error;
     }
     return response;
+  }
+}
+
+final class _VersionedJsonRequestBackend
+    implements PtySessionJsonRequestBackend, PtySessionRequestV1Backend {
+  _VersionedJsonRequestBackend({required this.supportsV1});
+
+  final bool supportsV1;
+  final List<Map<String, Object?>> v1Requests = <Map<String, Object?>>[];
+  final List<Map<String, Object?>> legacyRequests = <Map<String, Object?>>[];
+
+  @override
+  bool get supportsSessionRequestV1 => supportsV1;
+
+  @override
+  String? requestSessionV1Json(String sessionId, String requestV1Json) {
+    final request = (jsonDecode(requestV1Json) as Map).cast<String, Object?>();
+    v1Requests.add(request);
+    return jsonEncode(<String, Object?>{
+      'schema_version': 1,
+      'contract': 'ianvs-session-response-v1',
+      'request_id': request['request_id'],
+      'session_id': sessionId,
+      'operation': request['operation'],
+      'ok': true,
+      'timestamp_micros': 1234,
+      'payload': <String, Object?>{'text': 'versioned'},
+    });
+  }
+
+  @override
+  String? requestSessionJson(String sessionId, String requestJson) {
+    legacyRequests.add(
+      (jsonDecode(requestJson) as Map).cast<String, Object?>(),
+    );
+    return '{"text":"legacy"}';
   }
 }
 

@@ -8823,6 +8823,135 @@ void main() {
   });
 
   testWidgets(
+    'terminal runtime responds to correlated OSC 52 Host Request v1 without a raw reply',
+    (tester) async {
+      final runtimeBackend = _FakePtyBackend()..hostResponseV1Supported = true;
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => 'host response',
+        allowClipboardPasteRequest: () async => true,
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final hostRequest = PtyHostRequestV1.fromJson(
+        <String, Object?>{
+          'schema_version': 1,
+          'contract': 'ianvs-host-request-v1',
+          'request_id': 'host:$sessionId:3',
+          'session_id': sessionId,
+          'operation': 'clipboard.read_text',
+          'sequence': 3,
+          'timestamp_micros': 1200,
+          'payload': <String, Object?>{'selection': 'c'},
+        },
+        expectedSessionId: sessionId,
+        expectedSequence: 3,
+        expectedTimestampMicros: 1200,
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_paste_request',
+          sessionId: sessionId,
+          payload: hostRequest.payload,
+          sequence: 3,
+          timestampMicros: 1200,
+          wireSchemaVersion: 1,
+          hostRequest: hostRequest,
+        ),
+      );
+
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+
+      expect(runtimeBackend.hostResponses, hasLength(1));
+      final response =
+          jsonDecode(runtimeBackend.hostResponses.single.$2)
+              as Map<String, Object?>;
+      expect(response['request_id'], 'host:$sessionId:3');
+      expect(response['operation'], 'clipboard.read_text');
+      expect(response['ok'], isTrue);
+      expect(
+        (response['payload'] as Map<String, Object?>)['data_base64'],
+        base64.encode(utf8.encode('host response')),
+      );
+      expect(runtimeBackend.writeCalls, hasLength(1));
+      expect(runtimeBackend.writeCalls.single, isEmpty);
+    },
+  );
+
+  testWidgets('terminal runtime returns structured Host Response v1 denial', (
+    tester,
+  ) async {
+    var readClipboardCount = 0;
+    final runtimeBackend = _FakePtyBackend()..hostResponseV1Supported = true;
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async {
+        readClipboardCount += 1;
+        return 'secret';
+      },
+      allowClipboardPasteRequest: () async => false,
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    final hostRequest = PtyHostRequestV1.fromJson(
+      <String, Object?>{
+        'schema_version': 1,
+        'contract': 'ianvs-host-request-v1',
+        'request_id': 'host:$sessionId:4',
+        'session_id': sessionId,
+        'operation': 'clipboard.read_text',
+        'sequence': 4,
+        'timestamp_micros': 1201,
+        'payload': <String, Object?>{'selection': 'c'},
+      },
+      expectedSessionId: sessionId,
+      expectedSequence: 4,
+      expectedTimestampMicros: 1201,
+    );
+    runtimeBackend.enqueueEvent(
+      sessionId,
+      PtyEvent(
+        kind: 'clipboard_paste_request',
+        sessionId: sessionId,
+        payload: hostRequest.payload,
+        hostRequest: hostRequest,
+      ),
+    );
+
+    runtime.sendInput(sessionId, Uint8List(0));
+    await tester.pump();
+
+    expect(readClipboardCount, 0);
+    final response =
+        jsonDecode(runtimeBackend.hostResponses.single.$2)
+            as Map<String, Object?>;
+    expect(response['ok'], isFalse);
+    expect(response['payload'], isNull);
+    expect(
+      (response['error'] as Map<String, Object?>)['code'],
+      'permission_denied',
+    );
+    expect(runtimeBackend.writeCalls, hasLength(1));
+    expect(runtimeBackend.writeCalls.single, isEmpty);
+  });
+
+  testWidgets(
     'terminal runtime controller skips oversized OSC 52 paste request responses',
     (tester) async {
       var readClipboardCount = 0;
@@ -9508,6 +9637,53 @@ void main() {
     expect(event['native_rows_emitted'], 8);
   });
 
+  test('terminal runtime prefers Diagnostic Event v1 frame stats', () async {
+    final runtimeBackend =
+        _ProtobufFramePtyBackend(
+            initialFrame: _singleRowProtobuf('diagnostic v1 stats'),
+          )
+          ..diagnosticEventV1Supported = true
+          ..frameDiagnosticV1Payload = <String, Object?>{
+            'rows_scanned': 41,
+            'rows_emitted': 9,
+            'frame_build_micros': 654,
+            'json_encode_micros': 0,
+            'protobuf_encode_micros': 21,
+          }
+          ..frameDiagnosticsRawResponse = jsonEncode(<String, Object?>{
+            'rows_scanned': 1,
+            'frame_build_micros': 1,
+          });
+    final benchmarkEvents = <Map<String, Object?>>[];
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+      benchmarkEventSink: benchmarkEvents.add,
+    );
+    addTearDown(runtime.dispose);
+
+    runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    final event = benchmarkEvents.singleWhere(
+      (event) => event['schema_version'] == 'ianvs-bench-dart-runtime-v1',
+    );
+    expect(event['native_frame_build_micros'], 654);
+    expect(event['native_protobuf_encode_micros'], 21);
+    expect(event['native_rows_scanned'], 41);
+    expect(event['native_rows_emitted'], 9);
+    expect(runtimeBackend.diagnosticEventV1Requests, <(String, String)>[
+      ('1', 'frame_stats'),
+    ]);
+    expect(runtimeBackend.legacyDiagnosticRequests, isEmpty);
+  });
+
   testWidgets(
     'OSC 5522 writes multiple binary MIME representations and replies DONE',
     (tester) async {
@@ -10042,7 +10218,9 @@ class _FakePtyBackend
         PtySessionJsonRequestBackend,
         PtySessionGraphicAssetBackend,
         PtySessionFileDownloadBackend,
-        PtySessionDiagnosticsBackend {
+        PtySessionDiagnosticsBackend,
+        PtySessionDiagnosticEventV1Backend,
+        PtyHostResponseV1Backend {
   String? lastCreateSessionJson;
   int takeFrameDiffCalls = 0;
   int pollEventsCalls = 0;
@@ -10079,8 +10257,15 @@ class _FakePtyBackend
   String? diagnosticsRawResponse;
   String? frameDiagnosticsRawResponse;
   String? sessionDiagnosticsRawResponse;
+  bool diagnosticEventV1Supported = false;
+  Map<String, Object?>? frameDiagnosticV1Payload;
+  Map<String, Object?>? sessionDiagnosticV1Payload;
+  final List<(String, String)> diagnosticEventV1Requests = <(String, String)>[];
+  final List<(String, String)> legacyDiagnosticRequests = <(String, String)>[];
   String? forcedSessionId;
   bool returnNullJsonRequests = false;
+  bool hostResponseV1Supported = false;
+  final List<(String, String)> hostResponses = <(String, String)>[];
 
   final Map<String, Map<String, Object?>> _frames =
       <String, Map<String, Object?>>{};
@@ -10298,11 +10483,54 @@ class _FakePtyBackend
 
   @override
   String? takeDiagnosticsJson(String sessionId, String kind) {
+    legacyDiagnosticRequests.add((sessionId, kind));
     return switch (kind) {
       'frame' => frameDiagnosticsRawResponse,
       'session' => sessionDiagnosticsRawResponse,
       _ => null,
     };
+  }
+
+  @override
+  bool get supportsDiagnosticEventV1 => diagnosticEventV1Supported;
+
+  @override
+  PtyDiagnosticEventV1? takeDiagnosticEventV1(String sessionId, String name) {
+    if (!diagnosticEventV1Supported) {
+      throw UnsupportedError('Diagnostic Event v1 is not supported');
+    }
+    diagnosticEventV1Requests.add((sessionId, name));
+    final payload = switch (name) {
+      'frame_stats' => frameDiagnosticV1Payload,
+      'session_stats' => sessionDiagnosticV1Payload,
+      _ => null,
+    };
+    if (payload == null) {
+      return null;
+    }
+    return PtyDiagnosticEventV1.fromJson(<String, Object?>{
+      'schema_version': 1,
+      'contract': 'ianvs-runtime-envelope-v1',
+      'message_class': 'diagnostic',
+      'message_name': name,
+      'session_id': sessionId,
+      'sequence': diagnosticEventV1Requests.length - 1,
+      'timestamp_micros': 1,
+      'payload': payload,
+    });
+  }
+
+  @override
+  bool get supportsHostResponseV1 => hostResponseV1Supported;
+
+  @override
+  bool respondToHostRequestV1(String sessionId, String responseV1Json) {
+    _throwIfFailing('respondToHostRequestV1');
+    if (!hostResponseV1Supported) {
+      throw UnsupportedError('Host Response v1 is not supported');
+    }
+    hostResponses.add((sessionId, responseV1Json));
+    return true;
   }
 
   void _throwIfFailing(String operation) {
