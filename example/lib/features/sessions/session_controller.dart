@@ -1481,7 +1481,11 @@ class SessionController extends Notifier<SessionState> {
           busy: true,
         );
       }
-      final path = await repository.save(destination, recording);
+      final path = await repository.save(
+        destination,
+        recording,
+        displayName: _paneForSession(sessionId)?.title,
+      );
       if (!ref.mounted) {
         return path;
       }
@@ -1603,7 +1607,11 @@ class SessionController extends Notifier<SessionState> {
               ? recorder!.stop(sessionId)
               : null);
       if (recording != null && destination != null) {
-        final path = repository.saveSync(destination, recording);
+        final path = repository.saveSync(
+          destination,
+          recording,
+          displayName: _paneForSession(sessionId)?.title,
+        );
         final pane = _paneForSession(sessionId);
         final descriptor = pane?.sessionDescriptor;
         if (pane != null && descriptor != null) {
@@ -3112,6 +3120,37 @@ class SessionController extends Notifier<SessionState> {
     final nextTabs = <TerminalTab>[...state.tabs];
     nextTabs[tabIndex] = currentTab.replacePane(replacement);
     state = state.copyWith(tabs: nextTabs);
+  }
+
+  void detachRecordingPath(String recordingPath) {
+    final normalizedPath = recordingPath.trim();
+    if (normalizedPath.isEmpty) {
+      return;
+    }
+    final nextTabs = <TerminalTab>[...state.tabs];
+    var changed = false;
+    for (var index = 0; index < state.tabs.length; index += 1) {
+      final tab = state.tabs[index];
+      var nextTab = tab;
+      for (final pane in tab.effectivePanes) {
+        final descriptor = pane.sessionDescriptor;
+        if (descriptor?.recordingPath != normalizedPath) {
+          continue;
+        }
+        nextTab = nextTab.replacePane(
+          pane.copyWith(
+            sessionDescriptor: descriptor!.copyWith(recordingPath: null),
+          ),
+        );
+        changed = true;
+      }
+      if (!identical(nextTab, tab)) {
+        nextTabs[index] = nextTab;
+      }
+    }
+    if (changed) {
+      state = state.copyWith(tabs: nextTabs);
+    }
   }
 
   bool _oscUserVarAllowed(String name) {

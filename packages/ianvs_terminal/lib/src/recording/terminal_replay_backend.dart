@@ -88,7 +88,7 @@ final class TerminalReplayBackend
   }) : _delegate = delegate,
        _replayDelegate = _requireReplayDelegate(delegate),
        _recording = _validatedRecording(recording),
-       playbackSpeed = _validatedPlaybackSpeed(playbackSpeed),
+       _playbackSpeed = _validatedPlaybackSpeed(playbackSpeed),
        _timerFactory = timerFactory ?? _defaultTimerFactory;
 
   final PtySessionBackend _delegate;
@@ -100,7 +100,7 @@ final class TerminalReplayBackend
       (asset.assetId, asset.assetVersion): asset,
   };
   final TerminalReplayTimingMode timingMode;
-  final double playbackSpeed;
+  double _playbackSpeed;
   final TerminalReplayTimerFactory _timerFactory;
   final Map<String, _ReplaySessionState> _sessions =
       <String, _ReplaySessionState>{};
@@ -117,7 +117,51 @@ final class TerminalReplayBackend
         (event) => event.kind == TerminalRecordingEventKind.checkpoint,
       );
 
+  double get playbackSpeed => _playbackSpeed;
+
   Duration get replayDuration => _recording.events.last.monotonicOffset;
+
+  bool isSessionPaused(String sessionId) => _requireSession(sessionId).paused;
+
+  void pauseSession(String sessionId) {
+    final state = _requireSession(sessionId);
+    if (state.paused) {
+      return;
+    }
+    state.paused = true;
+    state.timer?.cancel();
+    state.timer = null;
+  }
+
+  void resumeSession(String sessionId) {
+    final state = _requireSession(sessionId);
+    if (!state.paused) {
+      return;
+    }
+    state.paused = false;
+    if (timingMode == TerminalReplayTimingMode.realtime) {
+      _scheduleNext(state);
+    }
+  }
+
+  void setPlaybackSpeed(double value) {
+    final nextSpeed = _validatedPlaybackSpeed(value);
+    if (_playbackSpeed == nextSpeed) {
+      return;
+    }
+    _playbackSpeed = nextSpeed;
+    if (timingMode != TerminalReplayTimingMode.realtime) {
+      return;
+    }
+    for (final state in _sessions.values) {
+      if (state.paused || state.nextEventIndex >= state.events.length) {
+        continue;
+      }
+      state.timer?.cancel();
+      state.timer = null;
+      _scheduleNext(state);
+    }
+  }
 
   List<TerminalReplayCheckpoint> checkpointsForSession(String sessionId) {
     final state = _sessions[sessionId];
@@ -213,7 +257,7 @@ final class TerminalReplayBackend
     }
     state.deliveredThrough = targetOffset;
     final discardedSeekEventCount = _delegate.pollEvents(sessionId).length;
-    if (timingMode == TerminalReplayTimingMode.realtime) {
+    if (timingMode == TerminalReplayTimingMode.realtime && !state.paused) {
       _scheduleNext(state);
     }
     return TerminalReplaySeekResult._(
@@ -518,7 +562,9 @@ final class TerminalReplayBackend
   }
 
   void _scheduleNext(_ReplaySessionState state) {
-    if (!_isCurrent(state) || state.nextEventIndex >= state.events.length) {
+    if (!_isCurrent(state) ||
+        state.paused ||
+        state.nextEventIndex >= state.events.length) {
       return;
     }
     final nextOffset = state.events[state.nextEventIndex].monotonicOffset;
@@ -527,7 +573,7 @@ final class TerminalReplayBackend
         _scaledPlaybackOffset(state.deliveredThrough);
     state.timer = _timerFactory(delay, () {
       state.timer = null;
-      if (!_isCurrent(state)) {
+      if (!_isCurrent(state) || state.paused) {
         return;
       }
       _deliverAtOffset(state, nextOffset);
@@ -536,7 +582,7 @@ final class TerminalReplayBackend
   }
 
   Duration _scaledPlaybackOffset(Duration recordingOffset) => Duration(
-    microseconds: (recordingOffset.inMicroseconds / playbackSpeed).round(),
+    microseconds: (recordingOffset.inMicroseconds / _playbackSpeed).round(),
   );
 
   void _deliver(_ReplaySessionState state, TerminalRecordingEvent event) {
@@ -599,10 +645,12 @@ final class TerminalReplayBackend
     );
   }
 
-  void _requireSession(String sessionId) {
-    if (!_sessions.containsKey(sessionId)) {
+  _ReplaySessionState _requireSession(String sessionId) {
+    final state = _sessions[sessionId];
+    if (state == null) {
       throw StateError('Unknown replay session $sessionId');
     }
+    return state;
   }
 
   bool _isCurrent(_ReplaySessionState state) =>
@@ -619,6 +667,7 @@ final class _ReplaySessionState {
   final List<PtyEvent> bufferedEvents = <PtyEvent>[];
   int nextEventIndex = 0;
   Duration deliveredThrough = Duration.zero;
+  bool paused = false;
   Timer? timer;
 }
 

@@ -8,6 +8,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ianvs_pty/ianvs_pty.dart' as pty;
 import 'package:path_provider/path_provider.dart';
 
 import '../../platform/clipboard_bridge.dart';
@@ -22,6 +23,7 @@ import '../profiles/dynamic_profiles_sheet.dart';
 import '../profiles/profile_editor.dart';
 import '../profiles/profile_models.dart';
 import '../profiles/profiles_sheet.dart';
+import '../recording/local_session_recording_repository.dart';
 import '../sessions/session_controller.dart';
 import '../sessions/session_state.dart';
 import '../terminal/selection_controller.dart';
@@ -60,6 +62,7 @@ part 'shell_screen_state_command_actions.dart';
 part 'shell_screen_state_terminal_workspace.dart';
 part 'shell_screen_state_workspaces.dart';
 part 'shell_screen_state_recording.dart';
+part 'shell_screen_state_recording_library.dart';
 part 'shell_screen_models.dart';
 part 'shell_screen_toolbelt.dart';
 part 'shell_screen_chrome.dart';
@@ -67,6 +70,7 @@ part 'shell_screen_search.dart';
 part 'shell_screen_shell_integration.dart';
 part 'shell_screen_completion.dart';
 part 'shell_screen_instant_replay.dart';
+part 'shell_screen_recording_library.dart';
 part 'shell_screen_sheets.dart';
 part 'shell_screen_command_menu.dart';
 part 'shell_screen_shared_buttons.dart';
@@ -75,6 +79,11 @@ typedef ShellFileDownloadWriter =
     Future<void> Function(String path, List<int> bytes);
 typedef ShellExternalUrlOpener = Future<void> Function(String url);
 typedef ShellClock = DateTime Function();
+typedef ShellRecordingFilePicker = Future<String?> Function();
+typedef ShellRecordingPathAction = Future<void> Function(String path);
+typedef ShellRecordingTrashAction = Future<bool> Function(String path);
+typedef ShellRecordingExportPicker =
+    Future<String?> Function(String suggestedName);
 
 final shellAcceptanceProbeProvider = Provider<ShellAcceptanceProbe?>((ref) {
   return null;
@@ -117,6 +126,27 @@ final shellUserAttentionBridgeProvider = Provider<ShellUserAttentionBridge>((
 });
 
 final shellClockProvider = Provider<ShellClock>((ref) => DateTime.now);
+
+final shellRecordingFilePickerProvider = Provider<ShellRecordingFilePicker>((
+  ref,
+) {
+  return WindowBridge.chooseRecordingFile;
+});
+
+final shellRecordingRevealProvider = Provider<ShellRecordingPathAction>((ref) {
+  return WindowBridge.revealInFinder;
+});
+
+final shellRecordingTrashProvider = Provider<ShellRecordingTrashAction>((ref) {
+  return WindowBridge.movePathToTrash;
+});
+
+final shellRecordingExportPickerProvider = Provider<ShellRecordingExportPicker>(
+  (ref) {
+    return (suggestedName) =>
+        WindowBridge.chooseFileDownloadLocation(suggestedName: suggestedName);
+  },
+);
 
 class ShellScreen extends ConsumerStatefulWidget {
   const ShellScreen({super.key});
@@ -265,6 +295,17 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   List<PasteHistoryEntry> _pasteHistoryEntries = const [];
   _InstantReplayWorkspaceSession? _instantReplayWorkspaceSession;
   List<_TerminalAnnotation> _annotations = const [];
+  bool _recordingsShelfOpen = false;
+  bool _recordingLibraryLoading = false;
+  bool _recordingSelectionLoading = false;
+  String? _recordingLibraryError;
+  List<LocalSessionRecordingEntry> _recordingEntries = const [];
+  String _recordingSearchQuery = '';
+  _RecordingLibrarySort _recordingLibrarySort = _RecordingLibrarySort.newest;
+  bool _recordingLibraryGroupByWorkspace = true;
+  bool _recordingLibraryPlayableOnly = false;
+  LocalSessionRecordingEntry? _selectedRecordingEntry;
+  terminal.TerminalRecording? _selectedRecording;
   final GlobalKey<_AnnotationsSheetState> _annotationSheetKey = GlobalKey();
   List<_CapturedOutputEntry> _capturedOutputEntries = const [];
   final GlobalKey<_CapturedOutputSheetState> _capturedOutputSheetKey =
@@ -445,6 +486,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       context,
       instantReplayProfile ?? displayedProfile ?? defaultProfile,
     );
+    final recordingReplayProfile = displayedProfile ?? defaultProfile;
+    final recordingReplayConfig =
+        recordingReplayProfile?.toSessionConfig() ??
+        defaultTerminalProfile().toSessionConfig();
 
     KeyEventResult handleShellShortcut(KeyEvent event) {
       if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
@@ -923,6 +968,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     sessionState.recordingBusySessionIds.contains(
                       activeSessionId,
                     ),
+                recordingsShelfOpen: _recordingsShelfOpen,
                 tabHasNewOutput: _tabHasNewOutput,
                 tabNewOutputTooltip: _tabNewOutputTooltip,
                 hiddenTabsNewOutputTooltip: _hiddenTabsNewOutputTooltip,
@@ -971,6 +1017,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                           activeSessionId,
                         ),
                       ),
+                onToggleRecordingsShelf: () =>
+                    unawaited(_toggleRecordingLibrary()),
                 onOpenProject: _openProjectWorkspaceFromPicker,
                 onOpenRecentWorkspace: _openRecentWorkspace,
                 onRefreshRecentWorkspaces: _loadRecentWorkspaces,
@@ -992,172 +1040,248 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   onDismiss: sessionController.dismissLastError,
                 ),
               Expanded(
-                child: AnimatedSwitcher(
-                  duration: animationsEnabled
-                      ? const Duration(milliseconds: 160)
-                      : Duration.zero,
-                  switchInCurve: Curves.easeOutCubic,
-                  switchOutCurve: Curves.easeInCubic,
-                  child: instantReplaySession != null
-                      ? _InstantReplayWorkspace(
-                          key: const Key('instant-replay-workspace'),
-                          workspace: instantReplaySession,
-                          palette: palette,
-                          runtime: ref.read(terminalRuntimeControllerProvider),
-                          terminalColors: instantReplayColors,
-                          font:
-                              instantReplayConfig?.display.font ??
-                              const terminal.TerminalFontConfig(),
-                          cursor:
-                              instantReplayConfig?.display.cursor ??
-                              const terminal.TerminalCursorConfig(),
-                          onCopyVisible: _copyInstantReplayVisibleText,
-                          onClear: _clearInstantReplayHistory,
-                          onExit: _closeInstantReplayWorkspace,
-                        )
-                      : !sessionState.isReady ||
-                            (activeSessionId != null &&
-                                displayedSessionId == null)
-                      ? _ShellStartupSurface(
-                          key: const Key('shell-startup-state'),
-                          palette: palette,
-                          errorMessage: sessionState.isReady
-                              ? null
-                              : sessionState.lastError,
-                          onRetry:
-                              !sessionState.isReady &&
-                                  sessionState.lastError != null
-                              ? sessionController.retryBootstrap
-                              : null,
-                        )
-                      : activeSessionId == null || activeTab == null
-                      ? _ShellEmptyState(
-                          key: const Key('shell-empty-state'),
-                          palette: palette,
-                          title: _emptyStateTitle,
-                          message: _emptyStateMessage,
-                          defaultSummary: defaultSummary,
-                          onNewTab: defaultProfile == null
-                              ? null
-                              : () {
-                                  _createSession(
-                                    sessionController,
-                                    defaultProfile,
-                                    returningToWorkspace: true,
-                                  );
-                                },
-                        )
-                      : KeyedSubtree(
-                          key: ValueKey((displayedTab ?? activeTab).sessionId),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: _buildTerminalWorkspace(
-                                  context: context,
-                                  sessionController: sessionController,
-                                  sessionState: sessionState,
-                                  activeTab: displayedTab ?? activeTab,
-                                  activeSessionId:
-                                      displayedSessionId ?? activeSessionId,
-                                  palette: palette,
-                                  onHostKeyEvent: handleShellShortcut,
+                child: _RecordingLibraryLayout(
+                  palette: palette,
+                  shelfOpen: _recordingsShelfOpen && !referenceDemoMode,
+                  workspace: AnimatedSwitcher(
+                    duration: animationsEnabled
+                        ? const Duration(milliseconds: 160)
+                        : Duration.zero,
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    child:
+                        _selectedRecordingEntry != null &&
+                            _selectedRecording != null
+                        ? _RecordingReplayWorkspace(
+                            key: ValueKey(_selectedRecordingEntry!.path),
+                            palette: palette,
+                            entry: _selectedRecordingEntry!,
+                            workspaceName:
+                                _selectedRecordingEntry!.workspaceId ==
+                                    activeWorkspaceIdentity.id
+                                ? activeWorkspaceIdentity.name
+                                : _selectedRecordingEntry!.workspaceId,
+                            recording: _selectedRecording!,
+                            delegate: ref.read(ptySessionBackendProvider),
+                            sessionConfig: recordingReplayConfig,
+                            terminalColors: instantReplayColors,
+                            font: recordingReplayConfig.display.font,
+                            cursor: recordingReplayConfig.display.cursor,
+                            onClose: _closeRecordingReplay,
+                          )
+                        : instantReplaySession != null
+                        ? _InstantReplayWorkspace(
+                            key: const Key('instant-replay-workspace'),
+                            workspace: instantReplaySession,
+                            palette: palette,
+                            runtime: ref.read(
+                              terminalRuntimeControllerProvider,
+                            ),
+                            terminalColors: instantReplayColors,
+                            font:
+                                instantReplayConfig?.display.font ??
+                                const terminal.TerminalFontConfig(),
+                            cursor:
+                                instantReplayConfig?.display.cursor ??
+                                const terminal.TerminalCursorConfig(),
+                            onCopyVisible: _copyInstantReplayVisibleText,
+                            onClear: _clearInstantReplayHistory,
+                            onExit: _closeInstantReplayWorkspace,
+                          )
+                        : !sessionState.isReady ||
+                              (activeSessionId != null &&
+                                  displayedSessionId == null)
+                        ? _ShellStartupSurface(
+                            key: const Key('shell-startup-state'),
+                            palette: palette,
+                            errorMessage: sessionState.isReady
+                                ? null
+                                : sessionState.lastError,
+                            onRetry:
+                                !sessionState.isReady &&
+                                    sessionState.lastError != null
+                                ? sessionController.retryBootstrap
+                                : null,
+                          )
+                        : activeSessionId == null || activeTab == null
+                        ? _ShellEmptyState(
+                            key: const Key('shell-empty-state'),
+                            palette: palette,
+                            title: _emptyStateTitle,
+                            message: _emptyStateMessage,
+                            defaultSummary: defaultSummary,
+                            onNewTab: defaultProfile == null
+                                ? null
+                                : () {
+                                    _createSession(
+                                      sessionController,
+                                      defaultProfile,
+                                      returningToWorkspace: true,
+                                    );
+                                  },
+                          )
+                        : KeyedSubtree(
+                            key: ValueKey(
+                              (displayedTab ?? activeTab).sessionId,
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: _buildTerminalWorkspace(
+                                    context: context,
+                                    sessionController: sessionController,
+                                    sessionState: sessionState,
+                                    activeTab: displayedTab ?? activeTab,
+                                    activeSessionId:
+                                        displayedSessionId ?? activeSessionId,
+                                    palette: palette,
+                                    onHostKeyEvent: handleShellShortcut,
+                                  ),
                                 ),
-                              ),
-                              if (_isToolbeltOpen)
-                                _ShellToolbelt(
-                                  capturedOutputEntries:
-                                      _capturedOutputForSession(
-                                        activeSessionId,
-                                      ),
-                                  pasteHistoryEntries: _pasteHistoryEntries,
-                                  shellIntegration: activeShellIntegration,
-                                  promptMarkCount:
-                                      _effectivePromptMarksForSession(
-                                        activeSessionId,
-                                        sessionState: sessionState,
-                                      ).length,
-                                  tmuxControlModeActive: _tmuxControlModeActive(
-                                    activeSessionId,
-                                  ),
-                                  coprocessActive: _coprocesses.containsKey(
-                                    activeSessionId,
-                                  ),
-                                  annotationCount: _annotationsForSession(
-                                    activeSessionId,
-                                  ).length,
-                                  completionDiagnosticsSnapshot:
-                                      _completionDiagnosticsSnapshot,
-                                  palette: palette,
-                                  onClose: () {
-                                    _closeToolbelt();
-                                  },
-                                  onOpenCapturedOutput: () =>
-                                      _openToolbeltChild(
-                                        () => _openCapturedOutput(
+                                if (_isToolbeltOpen)
+                                  _ShellToolbelt(
+                                    capturedOutputEntries:
+                                        _capturedOutputForSession(
                                           activeSessionId,
                                         ),
-                                      ),
-                                  onOpenPasteHistory: () => _openToolbeltChild(
-                                    () => _openPasteHistory(sessionState),
-                                  ),
-                                  onOpenShellIntegrationUtilities: () =>
-                                      _openToolbeltChild(
-                                        () => _openShellIntegrationUtilities(
-                                          sessionState,
+                                    pasteHistoryEntries: _pasteHistoryEntries,
+                                    shellIntegration: activeShellIntegration,
+                                    promptMarkCount:
+                                        _effectivePromptMarksForSession(
                                           activeSessionId,
-                                        ),
-                                      ),
-                                  onInsertCommand: (command) {
-                                    _closeToolbelt();
-                                    _sendPlainTextToSession(
+                                          sessionState: sessionState,
+                                        ).length,
+                                    tmuxControlModeActive:
+                                        _tmuxControlModeActive(activeSessionId),
+                                    coprocessActive: _coprocesses.containsKey(
                                       activeSessionId,
-                                      command,
-                                    );
-                                  },
-                                  onChangeDirectory: (directory) {
-                                    _closeToolbelt();
-                                    _sendPlainTextToSession(
+                                    ),
+                                    annotationCount: _annotationsForSession(
                                       activeSessionId,
-                                      'cd ${_shellQuotedPath(directory)}',
-                                    );
-                                  },
-                                  onOpenTmuxIntegration: () =>
-                                      _openToolbeltChild(
-                                        () => _openTmuxIntegration(
-                                          activeSessionId,
+                                    ).length,
+                                    completionDiagnosticsSnapshot:
+                                        _completionDiagnosticsSnapshot,
+                                    palette: palette,
+                                    onClose: () {
+                                      _closeToolbelt();
+                                    },
+                                    onOpenCapturedOutput: () =>
+                                        _openToolbeltChild(
+                                          () => _openCapturedOutput(
+                                            activeSessionId,
+                                          ),
                                         ),
-                                      ),
-                                  onOpenCoprocess: () => _openToolbeltChild(
-                                    () => _openCoprocess(activeSessionId),
-                                  ),
-                                  onOpenAnnotations: () {
-                                    final selectionController =
-                                        _selectionControllers.putIfAbsent(
-                                          activeSessionId,
-                                          SelectionController.new,
-                                        );
-                                    _openToolbeltChild(
-                                      () => _openAnnotations(
-                                        sessionController,
+                                    onOpenPasteHistory: () =>
+                                        _openToolbeltChild(
+                                          () => _openPasteHistory(sessionState),
+                                        ),
+                                    onOpenShellIntegrationUtilities: () =>
+                                        _openToolbeltChild(
+                                          () => _openShellIntegrationUtilities(
+                                            sessionState,
+                                            activeSessionId,
+                                          ),
+                                        ),
+                                    onInsertCommand: (command) {
+                                      _closeToolbelt();
+                                      _sendPlainTextToSession(
                                         activeSessionId,
-                                        selectionController,
-                                      ),
-                                    );
-                                  },
-                                  onOpenInstantReplay: () => _openToolbeltChild(
-                                    () => _openInstantReplay(sessionState),
-                                  ),
-                                  onOpenPasswordManager: () =>
+                                        command,
+                                      );
+                                    },
+                                    onChangeDirectory: (directory) {
+                                      _closeToolbelt();
+                                      _sendPlainTextToSession(
+                                        activeSessionId,
+                                        'cd ${_shellQuotedPath(directory)}',
+                                      );
+                                    },
+                                    onOpenTmuxIntegration: () =>
+                                        _openToolbeltChild(
+                                          () => _openTmuxIntegration(
+                                            activeSessionId,
+                                          ),
+                                        ),
+                                    onOpenCoprocess: () => _openToolbeltChild(
+                                      () => _openCoprocess(activeSessionId),
+                                    ),
+                                    onOpenAnnotations: () {
+                                      final selectionController =
+                                          _selectionControllers.putIfAbsent(
+                                            activeSessionId,
+                                            SelectionController.new,
+                                          );
                                       _openToolbeltChild(
-                                        () => _openPasswordManager(
+                                        () => _openAnnotations(
                                           sessionController,
                                           activeSessionId,
+                                          selectionController,
                                         ),
-                                      ),
-                                ),
-                            ],
+                                      );
+                                    },
+                                    onOpenInstantReplay: () =>
+                                        _openToolbeltChild(
+                                          () =>
+                                              _openInstantReplay(sessionState),
+                                        ),
+                                    onOpenPasswordManager: () =>
+                                        _openToolbeltChild(
+                                          () => _openPasswordManager(
+                                            sessionController,
+                                            activeSessionId,
+                                          ),
+                                        ),
+                                  ),
+                              ],
+                            ),
                           ),
-                        ),
+                  ),
+                  shelf: _SavedRecordingsShelf(
+                    palette: palette,
+                    entries: _recordingEntries,
+                    selectedPath: _selectedRecordingEntry?.path,
+                    activeWorkspaceIdentity: activeWorkspaceIdentity,
+                    recentWorkspaces: _recentWorkspaces,
+                    searchQuery: _recordingSearchQuery,
+                    sort: _recordingLibrarySort,
+                    groupByWorkspace: _recordingLibraryGroupByWorkspace,
+                    playableOnly: _recordingLibraryPlayableOnly,
+                    loading: _recordingLibraryLoading,
+                    selectionLoading: _recordingSelectionLoading,
+                    error: _recordingLibraryError,
+                    onSearchChanged: (value) {
+                      _mutateState(() {
+                        _recordingSearchQuery = value;
+                      });
+                    },
+                    onSortChanged: (value) {
+                      _mutateState(() {
+                        _recordingLibrarySort = value;
+                      });
+                    },
+                    onGroupByWorkspaceChanged: (value) {
+                      _mutateState(() {
+                        _recordingLibraryGroupByWorkspace = value;
+                      });
+                    },
+                    onPlayableOnlyChanged: (value) {
+                      _mutateState(() {
+                        _recordingLibraryPlayableOnly = value;
+                      });
+                    },
+                    onRefresh: () => unawaited(_loadRecordingLibrary()),
+                    onImport: () => unawaited(_importRecording()),
+                    onSelect: (entry) => unawaited(_selectRecording(entry)),
+                    onRename: (entry) => unawaited(_renameRecording(entry)),
+                    onReveal: (entry) => unawaited(_revealRecording(entry)),
+                    onExport: (entry) => unawaited(_exportRecording(entry)),
+                    onDelete: (entry) => unawaited(_deleteRecording(entry)),
+                    onClose: () {
+                      _mutateState(() {
+                        _recordingsShelfOpen = false;
+                      });
+                    },
+                  ),
                 ),
               ),
             ],

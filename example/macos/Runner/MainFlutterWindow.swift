@@ -503,6 +503,77 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
         panel.beginSheetModal(for: self) { response in
           result(response == .OK ? panel.url?.path : nil)
         }
+      case "chooseRecordingFile":
+        let panel = NSOpenPanel()
+        panel.title = "Import Terminal Recording"
+        panel.prompt = "Import"
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.resolvesAliases = true
+        panel.allowedFileTypes = ["ndjson"]
+        panel.beginSheetModal(for: self) { response in
+          result(response == .OK ? panel.url?.path : nil)
+        }
+      case "revealInFinder":
+        guard
+          let arguments = call.arguments as? [String: Any],
+          let rawPath = arguments["path"] as? String
+        else {
+          result(FlutterMethodNotImplemented)
+          return
+        }
+        let path = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !path.isEmpty, FileManager.default.fileExists(atPath: path) else {
+          result(
+            FlutterError(
+              code: "recording_path_missing",
+              message: "The recording file does not exist",
+              details: path
+            )
+          )
+          return
+        }
+        NSWorkspace.shared.activateFileViewerSelecting([
+          URL(fileURLWithPath: path).standardizedFileURL
+        ])
+        result(nil)
+      case "movePathToTrash":
+        guard
+          let arguments = call.arguments as? [String: Any],
+          let rawPath = arguments["path"] as? String
+        else {
+          result(FlutterMethodNotImplemented)
+          return
+        }
+        let path = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        let url = URL(fileURLWithPath: path).standardizedFileURL
+        guard !path.isEmpty, FileManager.default.fileExists(atPath: url.path) else {
+          result(
+            FlutterError(
+              code: "recording_path_missing",
+              message: "The recording file does not exist",
+              details: path
+            )
+          )
+          return
+        }
+        do {
+          var resultingURL: NSURL?
+          try FileManager.default.trashItem(
+            at: url,
+            resultingItemURL: &resultingURL
+          )
+          result(true)
+        } catch {
+          result(
+            FlutterError(
+              code: "recording_trash_failed",
+              message: "The recording could not be moved to Trash",
+              details: error.localizedDescription
+            )
+          )
+        }
       case "showNotification":
         self.showNotification(arguments: call.arguments, result: result)
       case "closeNotification":

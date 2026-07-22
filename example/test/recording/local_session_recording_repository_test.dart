@@ -76,6 +76,67 @@ void main() {
         expect(directory.listSync(), isEmpty);
       },
     );
+
+    test('lists, renames, imports, and exports validated recordings', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-recording-library',
+      );
+      final externalDirectory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-recording-library-external',
+      );
+      addTearDown(() async {
+        await directory.delete(recursive: true);
+        await externalDirectory.delete(recursive: true);
+      });
+      final repository = LocalSessionRecordingRepository(
+        directoryResolver: () async => directory,
+      );
+      final recording = _recording('runtime-library');
+      final destination = await repository.reserve(
+        workspaceId: 'workspace-library',
+        descriptorId: 'descriptor-library',
+        runtimeSessionId: 'runtime-library',
+        createdAtUtc: recording.metadata.createdAtUtc,
+      );
+      await repository.save(
+        destination,
+        recording,
+        displayName: 'Foundation shell debug',
+      );
+
+      var entries = await repository.listRecordings();
+
+      expect(entries, hasLength(1));
+      expect(entries.single.workspaceId, 'workspace-library');
+      expect(entries.single.displayName, 'Foundation shell debug');
+      expect(entries.single.duration, const Duration(microseconds: 10));
+      expect(entries.single.inputPolicy, TerminalRecordingInputPolicy.redact);
+
+      await repository.renameRecording(
+        entries.single.path,
+        'vttest regression',
+      );
+      entries = await repository.listRecordings();
+      expect(entries.single.displayName, 'vttest regression');
+
+      final source = File('${externalDirectory.path}/import.ndjson');
+      await source.writeAsString(
+        const TerminalRecordingCodec().encode(_recording('runtime-import')),
+      );
+      final imported = await repository.importRecording(
+        sourcePath: source.path,
+        workspaceId: 'workspace-library',
+        displayName: 'Imported recording',
+      );
+
+      expect(imported.displayName, 'Imported recording');
+      expect(await File(imported.path).exists(), isTrue);
+
+      final exportPath = '${externalDirectory.path}/export.ndjson';
+      await repository.exportRecording(imported.path, exportPath);
+      final exported = await repository.load(exportPath);
+      expect(exported.metadata.sessionId, 'runtime-import');
+    });
   });
 }
 

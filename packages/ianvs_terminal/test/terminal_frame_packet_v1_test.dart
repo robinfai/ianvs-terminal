@@ -39,6 +39,22 @@ void main() {
       },
     );
 
+    test('accepts proto3 omission of the initial zero sequence', () {
+      final packet = const TerminalFramePacketV1Decoder().decode(
+        _packetBytes(
+          sessionId: '7',
+          sequence: 0,
+          frame: _snapshotFrame(),
+          omitSequenceField: true,
+        ),
+        expectedSessionId: '7',
+        afterSequence: null,
+      );
+
+      expect(packet.sequence, 0);
+      expect(packet.frame.frameKind.name, 'snapshot');
+    });
+
     test('rejects cross-session data and a gapped Delta', () {
       final delta = completeTerminalFrameWireFixture().protobuf.deepCopy()
         ..frameKind = frame_pb.TerminalFrameKind.TERMINAL_FRAME_KIND_DELTA;
@@ -142,6 +158,7 @@ Uint8List _packetBytes({
   required String sessionId,
   required int sequence,
   required frame_pb.TerminalFrameDiff frame,
+  bool omitSequenceField = false,
 }) {
   final packet = frame_pb.TerminalFramePacketV1(
     schemaVersion: 1,
@@ -154,6 +171,9 @@ Uint8List _packetBytes({
     frameSchemaVersion: 'terminal-frame-diff-v1',
     frame: frame,
   );
+  if (omitSequenceField) {
+    packet.clearSequence();
+  }
   return Uint8List.fromList(packet.writeToBuffer());
 }
 

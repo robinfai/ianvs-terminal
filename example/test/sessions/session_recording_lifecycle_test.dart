@@ -79,13 +79,14 @@ class _FailingOnceRecordingRepository extends LocalSessionRecordingRepository {
   @override
   Future<String> save(
     LocalSessionRecordingDestination destination,
-    terminal.TerminalRecording recording,
-  ) async {
+    terminal.TerminalRecording recording, {
+    String? displayName,
+  }) async {
     if (failNextSave) {
       failNextSave = false;
       throw const FileSystemException('recording disk unavailable');
     }
-    return super.save(destination, recording);
+    return super.save(destination, recording, displayName: displayName);
   }
 }
 

@@ -72,6 +72,11 @@ exit 7
         description: 'real shell startup marker',
         matches: (text) => text.contains('foundation-shell-ready'),
       );
+      expect(find.byKey(const Key('shell-runtime-error')), findsNothing);
+      expect(
+        find.textContaining('frame_packet_sequence_invalid'),
+        findsNothing,
+      );
 
       final sessionId = harness.container
           .read(sessionControllerProvider)

@@ -106,6 +106,36 @@ void main() {
       expect(scheduler.hasPending, isFalse);
     });
 
+    test('realtime playback can pause, resume, and change speed', () {
+      final driver = _ReplayDriver();
+      final scheduler = _ReplayScheduler();
+      final backend = TerminalReplayBackend(
+        delegate: driver,
+        recording: _recording(),
+        timingMode: TerminalReplayTimingMode.realtime,
+        timerFactory: scheduler.createTimer,
+      );
+      final sessionId = backend.createSession('{}');
+
+      expect(backend.isSessionPaused(sessionId), isFalse);
+      expect(scheduler.nextDelay, const Duration(milliseconds: 10));
+
+      backend.pauseSession(sessionId);
+
+      expect(backend.isSessionPaused(sessionId), isTrue);
+      expect(scheduler.hasPending, isFalse);
+      expect(() => scheduler.runNext(), throwsStateError);
+
+      backend.setPlaybackSpeed(2);
+      backend.resumeSession(sessionId);
+
+      expect(backend.playbackSpeed, 2);
+      expect(backend.isSessionPaused(sessionId), isFalse);
+      expect(scheduler.nextDelay, const Duration(milliseconds: 5));
+      scheduler.runNext();
+      expect(driver.calls.last, 'output:replay-1:first');
+    });
+
     test('speed scaling does not accumulate per-segment rounding drift', () {
       final scheduler = _ReplayScheduler();
       final backend = TerminalReplayBackend(

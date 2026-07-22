@@ -233,6 +233,57 @@ class WindowBridge {
     }
   }
 
+  static Future<String?> chooseRecordingFile() async {
+    if (BindingBase.debugBindingType() == null) {
+      return null;
+    }
+    try {
+      final selected = await _channel.invokeMethod<String>(
+        'chooseRecordingFile',
+      );
+      final path = selected?.trim();
+      return path == null || path.isEmpty ? null : path;
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
+  static Future<void> revealInFinder(String value) async {
+    if (BindingBase.debugBindingType() == null) {
+      return;
+    }
+    final path = value.trim();
+    if (path.isEmpty) {
+      throw const FormatException('Finder path must not be empty.');
+    }
+    try {
+      await _channel.invokeMethod<void>('revealInFinder', <String, Object?>{
+        'path': path,
+      });
+    } on MissingPluginException {
+      return;
+    }
+  }
+
+  static Future<bool> movePathToTrash(String value) async {
+    if (BindingBase.debugBindingType() == null) {
+      return false;
+    }
+    final path = value.trim();
+    if (path.isEmpty) {
+      throw const FormatException('Trash path must not be empty.');
+    }
+    try {
+      return await _channel.invokeMethod<bool>(
+            'movePathToTrash',
+            <String, Object?>{'path': path},
+          ) ??
+          false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
   static String _safeSuggestedFileName(String value) {
     final basename = value.split(RegExp(r'[/\\]')).last;
     final runes = basename.runes

@@ -111,7 +111,7 @@ final class TerminalFramePacketV1Decoder {
             '$expectedSessionId',
       );
     }
-    if (!packet.hasSequence() || packet.sequence.isNegative) {
+    if (packet.sequence.isNegative) {
       throw const TerminalFramePacketContractException(
         'frame_packet_sequence_invalid',
         'Frame Packet sequence must be a uint64',

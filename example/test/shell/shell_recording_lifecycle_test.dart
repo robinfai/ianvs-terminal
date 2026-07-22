@@ -76,8 +76,9 @@ class _WidgetRecordingRepository extends LocalSessionRecordingRepository {
   @override
   Future<String> save(
     LocalSessionRecordingDestination destination,
-    TerminalRecording recording,
-  ) {
+    TerminalRecording recording, {
+    String? displayName,
+  }) {
     destination.file.writeAsStringSync(
       const TerminalRecordingCodec().encode(recording),
       flush: true,

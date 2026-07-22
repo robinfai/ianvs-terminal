@@ -159,6 +159,47 @@ void main() {
     expect(seen?.arguments, <String, Object?>{'suggestedName': 'report.txt'});
   });
 
+  testWidgets('recording file management forwards normalized paths', (
+    tester,
+  ) async {
+    const channel = MethodChannel('app/window_bridge');
+    final calls = <MethodCall>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+      call,
+    ) async {
+      calls.add(call);
+      return switch (call.method) {
+        'chooseRecordingFile' => ' /tmp/session.ndjson ',
+        'movePathToTrash' => true,
+        _ => null,
+      };
+    });
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      ),
+    );
+
+    final selected = await WindowBridge.chooseRecordingFile();
+    await WindowBridge.revealInFinder(' /tmp/session.ndjson ');
+    final moved = await WindowBridge.movePathToTrash(' /tmp/session.ndjson ');
+
+    expect(selected, '/tmp/session.ndjson');
+    expect(moved, isTrue);
+    expect(calls.map((call) => call.method), <String>[
+      'chooseRecordingFile',
+      'revealInFinder',
+      'movePathToTrash',
+    ]);
+    expect(calls[1].arguments, <String, Object?>{
+      'path': '/tmp/session.ndjson',
+    });
+    expect(calls[2].arguments, <String, Object?>{
+      'path': '/tmp/session.ndjson',
+    });
+  });
+
   testWidgets(
     'OSC 72 bridge sends bounded target, decision, read and release calls',
     (tester) async {

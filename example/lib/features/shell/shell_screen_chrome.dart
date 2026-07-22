@@ -19,6 +19,7 @@ class _ShellChromeBar extends StatelessWidget {
     required this.activeSessionRecording,
     required this.activeRecordingPendingSave,
     required this.recordingBusy,
+    required this.recordingsShelfOpen,
     required this.tabHasNewOutput,
     required this.tabNewOutputTooltip,
     required this.hiddenTabsNewOutputTooltip,
@@ -36,6 +37,7 @@ class _ShellChromeBar extends StatelessWidget {
     required this.onShowTabContextMenu,
     required this.onShowCommandMenu,
     required this.onToggleSessionRecording,
+    required this.onToggleRecordingsShelf,
     required this.onOpenProject,
     required this.onOpenRecentWorkspace,
     required this.onRefreshRecentWorkspaces,
@@ -52,6 +54,7 @@ class _ShellChromeBar extends StatelessWidget {
   final bool activeSessionRecording;
   final bool activeRecordingPendingSave;
   final bool recordingBusy;
+  final bool recordingsShelfOpen;
   final bool Function(TerminalTab tab) tabHasNewOutput;
   final String Function(TerminalTab tab) tabNewOutputTooltip;
   final String Function(Iterable<TerminalTab> tabs) hiddenTabsNewOutputTooltip;
@@ -71,6 +74,7 @@ class _ShellChromeBar extends StatelessWidget {
   final void Function(TerminalTab tab, Offset position) onShowTabContextMenu;
   final VoidCallback onShowCommandMenu;
   final VoidCallback? onToggleSessionRecording;
+  final VoidCallback onToggleRecordingsShelf;
   final Future<void> Function() onOpenProject;
   final Future<void> Function(String workspaceId) onOpenRecentWorkspace;
   final Future<void> Function() onRefreshRecentWorkspaces;
@@ -117,9 +121,13 @@ class _ShellChromeBar extends StatelessWidget {
                 activeSessionRecording: activeSessionRecording,
                 activeRecordingPendingSave: activeRecordingPendingSave,
                 recordingBusy: recordingBusy,
+                recordingsShelfOpen: recordingsShelfOpen,
                 onToggleSessionRecording: referenceDemoMode
                     ? null
                     : onToggleSessionRecording,
+                onToggleRecordingsShelf: referenceDemoMode
+                    ? null
+                    : onToggleRecordingsShelf,
                 onOpenProject: referenceDemoMode ? null : onOpenProject,
                 onOpenRecentWorkspace: onOpenRecentWorkspace,
                 onRefreshRecentWorkspaces: onRefreshRecentWorkspaces,
@@ -206,7 +214,9 @@ class _ShellWindowTitleBar extends StatelessWidget {
     required this.activeSessionRecording,
     required this.activeRecordingPendingSave,
     required this.recordingBusy,
+    required this.recordingsShelfOpen,
     required this.onToggleSessionRecording,
+    required this.onToggleRecordingsShelf,
     required this.onOpenProject,
     required this.onOpenRecentWorkspace,
     required this.onRefreshRecentWorkspaces,
@@ -223,7 +233,9 @@ class _ShellWindowTitleBar extends StatelessWidget {
   final bool activeSessionRecording;
   final bool activeRecordingPendingSave;
   final bool recordingBusy;
+  final bool recordingsShelfOpen;
   final VoidCallback? onToggleSessionRecording;
+  final VoidCallback? onToggleRecordingsShelf;
   final Future<void> Function()? onOpenProject;
   final Future<void> Function(String workspaceId) onOpenRecentWorkspace;
   final Future<void> Function() onRefreshRecentWorkspaces;
@@ -233,7 +245,7 @@ class _ShellWindowTitleBar extends StatelessWidget {
     final titleLeadingInset = defaultTargetPlatform == TargetPlatform.macOS
         ? 158.0
         : palette.spacing.xl;
-    final trailingInset = onShowCommandMenu == null ? 16.0 : 288.0;
+    final trailingInset = onShowCommandMenu == null ? 16.0 : 400.0;
 
     return SizedBox(
       height: _shellChromeTitleHeight,
@@ -278,7 +290,7 @@ class _ShellWindowTitleBar extends StatelessWidget {
             if (onShowCommandMenu != null)
               Positioned(
                 top: 5,
-                right: 252,
+                right: 360,
                 child: _ShellSessionRecordingButton(
                   palette: palette,
                   tone: tone,
@@ -286,6 +298,17 @@ class _ShellWindowTitleBar extends StatelessWidget {
                   pendingSave: activeRecordingPendingSave,
                   busy: recordingBusy,
                   onPressed: onToggleSessionRecording,
+                ),
+              ),
+            if (onToggleRecordingsShelf != null)
+              Positioned(
+                top: 5,
+                right: 252,
+                child: _ShellRecordingsButton(
+                  palette: palette,
+                  tone: tone,
+                  active: recordingsShelfOpen,
+                  onPressed: onToggleRecordingsShelf!,
                 ),
               ),
             if (onShowCommandMenu != null)
@@ -317,6 +340,58 @@ class _ShellWindowTitleBar extends StatelessWidget {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ShellRecordingsButton extends StatelessWidget {
+  const _ShellRecordingsButton({
+    required this.palette,
+    required this.tone,
+    required this.active,
+    required this.onPressed,
+  });
+
+  final AppThemeTokens palette;
+  final _ShellTabTone tone;
+  final bool active;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: active ? 'Close Saved Recordings' : 'Open Saved Recordings',
+      child: SizedBox(
+        height: 28,
+        width: 100,
+        child: TextButton.icon(
+          key: const Key('shell-chrome-recordings'),
+          onPressed: onPressed,
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 7),
+            foregroundColor: active ? palette.accent : tone.mutedText,
+            backgroundColor: active
+                ? palette.accent.withValues(alpha: 0.18)
+                : tone.hoverBackground,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(palette.radius.md),
+            ),
+          ),
+          icon: Icon(
+            Icons.video_library_outlined,
+            size: 15,
+            color: active ? palette.accent : tone.subtleText,
+          ),
+          label: Text(
+            'Recordings',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w700),
+          ),
         ),
       ),
     );
