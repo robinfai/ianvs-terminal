@@ -271,10 +271,12 @@ void main() {
       expect(shellAcceptanceProbe.current.terminalHasVisibleContent, isTrue);
       expect(shellAcceptanceProbe.current.terminalPreview, isNotNull);
       expect(
-        find.text('New tabs use Local Shell until you choose a default.'),
+        find.text(
+          'New tabs use Local Shell automatically until you choose a fixed default.',
+        ),
         findsOneWidget,
       );
-      expect(find.text('Current new-tab profile • Local Shell'), findsWidgets);
+      expect(find.text('Automatic fallback • Local Shell'), findsWidgets);
       expect(
         find.text('Detailed terminal settings live in Profiles.'),
         findsOneWidget,
@@ -352,7 +354,7 @@ void main() {
 
       final defaultsVersion = shellAcceptanceProbe.current.snapshotVersion;
       expect(find.byKey(const Key('defaults-dialog')), findsOneWidget);
-      expect(find.text('No configured default'), findsOneWidget);
+      expect(find.text('Use automatic fallback'), findsOneWidget);
       expect(
         find.byKey(const Key('default-theme-option-dark')),
         findsOneWidget,

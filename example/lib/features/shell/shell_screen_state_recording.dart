@@ -15,7 +15,7 @@ extension _ShellScreenStateRecording on _ShellScreenState {
     if (shouldStop) {
       final path = await sessionController.stopSessionRecording(sessionId);
       if (path != null) {
-        _showShellSnackBar('Recording saved to $path');
+        _showShellPathSnackBar(message: 'Recording saved', path: path);
       }
       return;
     }

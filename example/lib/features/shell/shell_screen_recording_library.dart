@@ -892,7 +892,7 @@ class _RecordingReplayWorkspaceState extends State<_RecordingReplayWorkspace> {
     final duration = backend?.replayDuration ?? widget.entry.duration;
     final maxMicros = math.max(1, duration.inMicroseconds);
     final sliderValue = _position.inMicroseconds.clamp(0, maxMicros).toDouble();
-    return ColoredBox(
+    final replayWorkspace = ColoredBox(
       key: const Key('recording-replay-workspace'),
       color: palette.canvas,
       child: Padding(
@@ -1013,6 +1013,21 @@ class _RecordingReplayWorkspaceState extends State<_RecordingReplayWorkspace> {
               onClose: widget.onClose,
             ),
           ],
+        ),
+      ),
+    );
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): widget.onClose,
+      },
+      child: Semantics(
+        identifier: 'recording-replay-workspace',
+        container: true,
+        explicitChildNodes: true,
+        label: 'Recording replay workspace for ${widget.entry.displayName}',
+        child: FocusTraversalGroup(
+          policy: OrderedTraversalPolicy(),
+          child: replayWorkspace,
         ),
       ),
     );
@@ -1188,7 +1203,7 @@ class _RecordingReplayDock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
+    final replayControls = DecoratedBox(
       decoration: BoxDecoration(
         color: palette.chrome,
         borderRadius: BorderRadius.circular(palette.radius.lg),
@@ -1302,10 +1317,12 @@ class _RecordingReplayDock extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.fromLTRB(8, 2, 8, 4),
                 child: TextField(
+                  key: const Key('recording-replay-search'),
                   autofocus: true,
                   onChanged: onSearchChanged,
                   decoration: InputDecoration(
                     isDense: true,
+                    labelText: 'Search replay output',
                     hintText: 'Search visible replay output',
                     suffixText: '$searchMatchCount matches',
                     prefixIcon: const Icon(Icons.search_rounded, size: 17),
@@ -1315,6 +1332,13 @@ class _RecordingReplayDock extends StatelessWidget {
           ],
         ),
       ),
+    );
+    return Semantics(
+      identifier: 'recording-replay-controls',
+      container: true,
+      explicitChildNodes: true,
+      label: 'Recording replay controls',
+      child: replayControls,
     );
   }
 }

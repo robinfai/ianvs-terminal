@@ -332,6 +332,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     WindowBridge.setNativeMenuHandlers(
       onPaste: _handleNativePasteMenu,
       onOpenTerminalAtFolder: _openTerminalAtFolderFromPicker,
+      onAppAction: _handleNativeAppMenuAction,
       onFind: _handleNativeFindMenu,
       onOsc72DragEvent: _handleNativeOsc72DragEvent,
     );
@@ -411,6 +412,32 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       ..showSnackBar(
         SnackBar(content: Text(message), duration: const Duration(seconds: 3)),
       );
+  }
+
+  void _showShellPathSnackBar({required String message, required String path}) {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          duration: const Duration(seconds: 4),
+          action: SnackBarAction(
+            label: 'Reveal',
+            onPressed: () => unawaited(_revealShellPath(path)),
+          ),
+        ),
+      );
+  }
+
+  Future<void> _revealShellPath(String path) async {
+    try {
+      await WindowBridge.revealInFinder(path);
+    } on Object catch (error) {
+      _showShellSnackBar('Could not reveal export: $error');
+    }
   }
 
   @override
@@ -1069,7 +1096,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                 instantReplayConfig?.display.cursor ??
                                 const terminal.TerminalCursorConfig(),
                             onCopyVisible: _copyInstantReplayVisibleText,
-                            onClear: _clearInstantReplayHistory,
+                            onClear: _confirmClearInstantReplayHistory,
                             onExit: _closeInstantReplayWorkspace,
                           )
                         : !sessionState.isReady ||

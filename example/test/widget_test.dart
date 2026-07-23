@@ -2171,8 +2171,11 @@ void main() {
       await tester.pump();
       await _sendMetaAltShortcut(tester, LogicalKeyboardKey.keyB);
 
+      final semantics = tester.ensureSemantics();
       expect(find.byKey(const Key('instant-replay-sheet')), findsNothing);
       expect(find.byKey(const Key('instant-replay-workspace')), findsOneWidget);
+      expect(find.bySemanticsLabel('Instant Replay workspace'), findsOneWidget);
+      expect(find.bySemanticsLabel('Instant Replay controls'), findsOneWidget);
       expect(
         find.descendant(
           of: find.byKey(const Key('instant-replay-workspace')),
@@ -2372,6 +2375,25 @@ void main() {
 
       expect(copiedText, '󰀵ab important output important');
       expect(fakeBindings.writes, isEmpty);
+
+      await tester.tap(find.byKey(const Key('instant-replay-clear')));
+      await tester.pumpAndSettle();
+      expect(find.text('Clear instant replay history?'), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('instant-replay-workspace')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('instant-replay-search')));
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('instant-replay-workspace')), findsNothing);
+      expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
+      expect(
+        find.bySemanticsLabel('Start recording (input redacted)'),
+        findsOneWidget,
+      );
+      semantics.dispose();
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
@@ -6029,6 +6051,12 @@ void main() {
       await _sendMetaShortcut(tester, LogicalKeyboardKey.comma);
 
       expect(find.byKey(const Key('defaults-dialog')), findsOneWidget);
+      final semantics = tester.ensureSemantics();
+      expect(
+        find.bySemanticsLabel('Defaults & appearance dialog'),
+        findsOneWidget,
+      );
+      semantics.dispose();
       expect(fakeBindings.writes, isEmpty);
 
       await tester.tap(find.byTooltip('Close defaults'));
@@ -6045,6 +6073,32 @@ void main() {
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
+
+  testWidgets('native Settings menu opens defaults', (tester) async {
+    await _pumpShellScreen(
+      tester,
+      bindings: FakePtyBackend(),
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _invokeNativeWindowBridge(
+      tester,
+      const MethodCall('nativeAppAction', <String, Object?>{
+        'action': 'settings',
+      }),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('defaults-dialog')), findsOneWidget);
+    final semantics = tester.ensureSemantics();
+    expect(
+      find.bySemanticsLabel('Defaults & appearance dialog'),
+      findsOneWidget,
+    );
+    semantics.dispose();
+  });
 
   testWidgets('closing the last tab can recover from the empty state', (
     tester,

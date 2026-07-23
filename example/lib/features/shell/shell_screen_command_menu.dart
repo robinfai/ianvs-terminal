@@ -97,7 +97,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
       required String subtitle,
       required bool enabled,
       String? disabledReason,
-      int subtitleMaxLines = 1,
+      int subtitleMaxLines = 2,
       String? shortcutLabel,
       VoidCallback? onTap,
     }) {
@@ -134,7 +134,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
       child: FocusTraversalGroup(
         policy: OrderedTraversalPolicy(),
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: 320, maxHeight: maxMenuHeight),
+          constraints: BoxConstraints(maxWidth: 400, maxHeight: maxMenuHeight),
           child: DecoratedBox(
             decoration: BoxDecoration(
               color: palette.overlay,

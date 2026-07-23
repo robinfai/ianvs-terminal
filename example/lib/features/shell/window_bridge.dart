@@ -3,6 +3,21 @@ import 'package:flutter/services.dart';
 
 enum NativeUserAttentionType { critical, informational }
 
+enum NativeAppMenuAction {
+  settings;
+
+  static NativeAppMenuAction fromPlatform(Object? arguments) {
+    final action = arguments is Map ? arguments['action'] : null;
+    return switch (action) {
+      'settings' => NativeAppMenuAction.settings,
+      _ => throw PlatformException(
+        code: 'unknown_native_app_action',
+        message: 'Unknown native app action: $action',
+      ),
+    };
+  }
+}
+
 class WindowBridge {
   const WindowBridge._();
 
@@ -11,11 +26,13 @@ class WindowBridge {
   static void setNativeMenuHandlers({
     Future<void> Function()? onPaste,
     Future<void> Function()? onOpenTerminalAtFolder,
+    Future<void> Function(NativeAppMenuAction action)? onAppAction,
     Future<void> Function(NativeFindAction action)? onFind,
     Future<void> Function(NativeOsc72DragEvent event)? onOsc72DragEvent,
   }) {
     if (onPaste == null &&
         onOpenTerminalAtFolder == null &&
+        onAppAction == null &&
         onFind == null &&
         onOsc72DragEvent == null) {
       _channel.setMethodCallHandler(null);
@@ -35,6 +52,12 @@ class WindowBridge {
             throw MissingPluginException('No handler for ${call.method}');
           }
           await handler();
+        case 'nativeAppAction':
+          final handler = onAppAction;
+          if (handler == null) {
+            throw MissingPluginException('No handler for ${call.method}');
+          }
+          await handler(NativeAppMenuAction.fromPlatform(call.arguments));
         case 'nativeFind':
           final handler = onFind;
           if (handler == null) {

@@ -204,7 +204,7 @@ void main() {
       await tester.tap(recordingAction);
       await _pumpUntil(
         tester,
-        () => find.textContaining('Recording saved to').evaluate().isNotEmpty,
+        () => find.text('Recording saved').evaluate().isNotEmpty,
         phase: 'recording saved feedback',
       );
 
@@ -224,7 +224,9 @@ void main() {
         container.read(sessionControllerProvider).recordingSessionIds,
         isEmpty,
       );
-      expect(find.textContaining('Recording saved to'), findsOneWidget);
+      expect(find.text('Recording saved'), findsOneWidget);
+      expect(find.text(directory.path), findsNothing);
+      expect(find.text('Reveal'), findsOneWidget);
     },
   );
 }

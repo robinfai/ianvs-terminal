@@ -917,19 +917,9 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
             );
           }
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Scrollback exported to ${file.path}'),
-                duration: const Duration(seconds: 8),
-                action: SnackBarAction(
-                  label: 'Copy path',
-                  onPressed: () {
-                    unawaited(
-                      Clipboard.setData(ClipboardData(text: file.path)),
-                    );
-                  },
-                ),
-              ),
+            _showShellPathSnackBar(
+              message: 'Scrollback exported',
+              path: file.path,
             );
           }
           return const ShellActionBindingResult.completed(
@@ -967,19 +957,9 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
             );
           }
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Diagnostics exported to ${directory.path}'),
-                duration: const Duration(seconds: 8),
-                action: SnackBarAction(
-                  label: 'Copy path',
-                  onPressed: () {
-                    unawaited(
-                      Clipboard.setData(ClipboardData(text: directory.path)),
-                    );
-                  },
-                ),
-              ),
+            _showShellPathSnackBar(
+              message: 'Diagnostics exported',
+              path: directory.path,
             );
           }
           return const ShellActionBindingResult.completed(

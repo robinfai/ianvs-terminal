@@ -625,38 +625,45 @@ class _InstantReplayWorkspaceState extends State<_InstantReplayWorkspace> {
       );
     }
 
-    return Semantics(
-      container: true,
-      explicitChildNodes: true,
-      scopesRoute: true,
-      namesRoute: true,
-      label: 'Instant Replay workspace',
-      child: ColoredBox(
-        color: palette.canvas,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final controlsHeight = math.min(
-                      260.0,
-                      math.max(220.0, constraints.maxHeight * 0.38),
-                    );
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(child: replayViewport()),
-                        const SizedBox(height: 12),
-                        SizedBox(height: controlsHeight, child: controls),
-                      ],
-                    );
-                  },
-                ),
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): widget.onExit,
+      },
+      child: Semantics(
+        identifier: 'instant-replay-workspace',
+        container: true,
+        explicitChildNodes: true,
+        label: 'Instant Replay workspace',
+        child: FocusTraversalGroup(
+          policy: OrderedTraversalPolicy(),
+          child: ColoredBox(
+            color: palette.canvas,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final controlsHeight = math.min(
+                          260.0,
+                          math.max(220.0, constraints.maxHeight * 0.38),
+                        );
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(child: replayViewport()),
+                            const SizedBox(height: 12),
+                            SizedBox(height: controlsHeight, child: controls),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -727,109 +734,119 @@ class _InstantReplayWorkspaceControls extends StatelessWidget {
     final frameDetail = timestamp == null
         ? frameLabel
         : '$frameLabel • ${_frameTimeLabel(timestamp)}';
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Color.alphaBlend(
-          palette.canvas.withValues(alpha: 0.24),
-          palette.overlay,
-        ),
-        borderRadius: BorderRadius.circular(palette.radius.lg),
-        border: Border.all(color: palette.borderStrong.withValues(alpha: 0.72)),
-        boxShadow: [
-          BoxShadow(
-            color: palette.canvas.withValues(alpha: 0.42),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
+    return Semantics(
+      identifier: 'instant-replay-controls',
+      container: true,
+      explicitChildNodes: true,
+      label: 'Instant Replay controls',
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Color.alphaBlend(
+            palette.canvas.withValues(alpha: 0.24),
+            palette.overlay,
           ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final compact = constraints.maxWidth < 820;
-            final playbackControls = _InstantReplayPlaybackControls(
-              isPlaying: isPlaying,
-              onStepBack: onStepBack,
-              onTogglePlay: onTogglePlay,
-              onStepForward: onStepForward,
-              palette: palette,
-            );
-            final actions = _InstantReplayActionControls(
-              activeFrame: frame,
-              frameCount: frameCount,
-              onFitRecordedSize: onFitRecordedSize,
-              onCopyVisible: onCopyVisible,
-              onCopySelection: onCopySelection,
-              onClear: onClear,
-              onExit: onExit,
-              includeClose: !compact,
-              palette: palette,
-            );
-            final header = _InstantReplayControlHeader(
-              sourceLabel: sourceLabel,
-              frameDetail: frameDetail,
-              retentionPolicyLabel: _retentionPolicyLabel(retentionFrameLimit),
-              palette: palette,
-            );
-            final timeline = _InstantReplayTimelineDeck(
-              frameCount: frameCount,
-              activeIndex: activeIndex,
-              timelineValue: timelineValue,
-              timelineMax: timelineMax,
-              onSliderChanged: onSliderChanged,
-              changeMarkerValues: changeMarkerValues,
-              idleGapMarkers: idleGapMarkers,
-              palette: palette,
-            );
-            final search = _InstantReplaySearchControls(
-              enabled: frameCount > 0,
-              searchSummary: searchSummary,
-              onSearchChanged: onSearchChanged,
-              onSearchPrevious: onSearchPrevious,
-              onSearchNext: onSearchNext,
-              palette: palette,
-            );
+          borderRadius: BorderRadius.circular(palette.radius.lg),
+          border: Border.all(
+            color: palette.borderStrong.withValues(alpha: 0.72),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: palette.canvas.withValues(alpha: 0.42),
+              blurRadius: 24,
+              offset: const Offset(0, 12),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 820;
+              final playbackControls = _InstantReplayPlaybackControls(
+                isPlaying: isPlaying,
+                onStepBack: onStepBack,
+                onTogglePlay: onTogglePlay,
+                onStepForward: onStepForward,
+                palette: palette,
+              );
+              final actions = _InstantReplayActionControls(
+                activeFrame: frame,
+                frameCount: frameCount,
+                onFitRecordedSize: onFitRecordedSize,
+                onCopyVisible: onCopyVisible,
+                onCopySelection: onCopySelection,
+                onClear: onClear,
+                onExit: onExit,
+                includeClose: !compact,
+                palette: palette,
+              );
+              final header = _InstantReplayControlHeader(
+                sourceLabel: sourceLabel,
+                frameDetail: frameDetail,
+                retentionPolicyLabel: _retentionPolicyLabel(
+                  retentionFrameLimit,
+                ),
+                palette: palette,
+              );
+              final timeline = _InstantReplayTimelineDeck(
+                frameCount: frameCount,
+                activeIndex: activeIndex,
+                timelineValue: timelineValue,
+                timelineMax: timelineMax,
+                onSliderChanged: onSliderChanged,
+                changeMarkerValues: changeMarkerValues,
+                idleGapMarkers: idleGapMarkers,
+                palette: palette,
+              );
+              final search = _InstantReplaySearchControls(
+                enabled: frameCount > 0,
+                searchSummary: searchSummary,
+                onSearchChanged: onSearchChanged,
+                onSearchPrevious: onSearchPrevious,
+                onSearchNext: onSearchNext,
+                palette: palette,
+              );
 
-            if (compact) {
+              if (compact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(child: header),
+                        actions.closeButton,
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(children: [playbackControls, const Spacer(), actions]),
+                    const SizedBox(height: 8),
+                    timeline,
+                    const SizedBox(height: 8),
+                    search,
+                  ],
+                );
+              }
+
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Row(
                     children: [
                       Expanded(child: header),
-                      actions.closeButton,
+                      const SizedBox(width: 12),
+                      playbackControls,
+                      const SizedBox(width: 8),
+                      actions,
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  Row(children: [playbackControls, const Spacer(), actions]),
                   const SizedBox(height: 8),
                   timeline,
                   const SizedBox(height: 8),
                   search,
                 ],
               );
-            }
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    Expanded(child: header),
-                    const SizedBox(width: 12),
-                    playbackControls,
-                    const SizedBox(width: 8),
-                    actions,
-                  ],
-                ),
-                const SizedBox(height: 8),
-                timeline,
-                const SizedBox(height: 8),
-                search,
-              ],
-            );
-          },
+            },
+          ),
         ),
       ),
     );

@@ -162,10 +162,20 @@ class AppDialogScaffold extends StatelessWidget {
       child: panel,
     );
 
+    final accessibleDialog = Semantics(
+      container: true,
+      explicitChildNodes: true,
+      label: '$title dialog',
+      child: FocusTraversalGroup(
+        policy: OrderedTraversalPolicy(),
+        child: paddedPanel,
+      ),
+    );
+
     if (!centerInViewport) {
-      return paddedPanel;
+      return accessibleDialog;
     }
 
-    return FocusTraversalGroup(child: Center(child: paddedPanel));
+    return Center(child: accessibleDialog);
   }
 }

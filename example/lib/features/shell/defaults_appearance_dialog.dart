@@ -305,11 +305,11 @@ class _DefaultsAndAppearanceDialogState
                                 'default-profile-option-fallback',
                               ),
                               value: null,
-                              title: const Text('No configured default'),
+                              title: const Text('Use automatic fallback'),
                               subtitle: Text(
                                 effectiveProfile == null
-                                    ? 'New tabs stay ready even when no default is configured.'
-                                    : 'New tabs use ${effectiveProfile.name} until you choose a default.',
+                                    ? 'No profile is available for new tabs.'
+                                    : 'New tabs use ${effectiveProfile.name} automatically until you choose a fixed default.',
                               ),
                             ),
                           ),
@@ -347,7 +347,7 @@ class _DefaultsAndAppearanceDialogState
                       ),
                       child: Text(
                         isUsingFallback
-                            ? 'Current new-tab profile • ${effectiveProfile?.name ?? 'No profile available'}'
+                            ? 'Automatic fallback • ${effectiveProfile?.name ?? 'No profile available'}'
                             : 'Configured default • ${effectiveProfile?.name ?? 'Unknown profile'}',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: theme.textMuted,

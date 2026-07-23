@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
@@ -192,6 +193,7 @@ void main() {
             .isNotEmpty,
         phase: 'recording replay workspace',
       );
+      final semantics = tester.ensureSemantics();
       expect(find.byKey(const Key('recording-replay-toggle')), findsOneWidget);
       expect(find.text('Input redacted'), findsOneWidget);
 
@@ -202,10 +204,24 @@ void main() {
         find.byKey(const Key('recording-replay-workspace')),
         findsOneWidget,
       );
+      expect(
+        find.bySemanticsLabel(
+          'Recording replay workspace for vttest regression',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsLabel('Recording replay controls'),
+        findsOneWidget,
+      );
+      expect(find.bySemanticsLabel('Close replay'), findsOneWidget);
+      semantics.dispose();
 
-      await tester.tap(find.byKey(const Key('recording-replay-close')));
+      await tester.tap(find.byTooltip('Search replay'));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 200));
+      await tester.tap(find.byKey(const Key('recording-replay-search')));
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
       expect(find.byKey(const Key('recording-replay-workspace')), findsNothing);
       expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
     },

@@ -1,6 +1,7 @@
 .omx/
 .omx-last.txt
 .omx-run.log
+.DS_Store
 /.dart_tool/
 /.tmp-home/
 /build/

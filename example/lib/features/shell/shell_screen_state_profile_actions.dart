@@ -1,6 +1,19 @@
 part of 'shell_screen.dart';
 
 extension _ShellScreenStateProfileActions on _ShellScreenState {
+  Future<void> _handleNativeAppMenuAction(NativeAppMenuAction action) {
+    switch (action) {
+      case NativeAppMenuAction.settings:
+        unawaited(
+          _openDefaultsAndAppearance(
+            ref.read(sessionControllerProvider.notifier),
+            ref.read(sessionControllerProvider),
+          ),
+        );
+    }
+    return Future<void>.value();
+  }
+
   Future<void> _openDefaultsAndAppearance(
     SessionController sessionController,
     SessionState sessionState,

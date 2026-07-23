@@ -59,6 +59,53 @@ class RunnerTests: XCTestCase {
     XCTAssertEqual(openItem.action, #selector(MainFlutterWindow.openTerminalAtFolder(_:)))
   }
 
+  func testSettingsMenuIsEnabledStandardAndIdempotent() throws {
+    let window = MainFlutterWindow()
+    let mainMenu = NSMenu(title: "Main Menu")
+    let appMenuItem = NSMenuItem(
+      title: "Ianvs Terminal",
+      action: nil,
+      keyEquivalent: ""
+    )
+    let appMenu = NSMenu(title: "Ianvs Terminal")
+    appMenu.addItem(
+      NSMenuItem(title: "About Ianvs Terminal", action: nil, keyEquivalent: "")
+    )
+    appMenu.addItem(
+      NSMenuItem(title: "Preferences…", action: nil, keyEquivalent: ",")
+    )
+    appMenuItem.submenu = appMenu
+    mainMenu.addItem(appMenuItem)
+
+    window.bindNativeSettingsMenuItem(in: mainMenu)
+    window.bindNativeSettingsMenuItem(in: mainMenu)
+
+    let settingsItems = appMenu.items.filter { $0.title == "Settings…" }
+    let settingsItem = try XCTUnwrap(settingsItems.first)
+    XCTAssertEqual(settingsItems.count, 1)
+    XCTAssertEqual(settingsItem.keyEquivalent, ",")
+    XCTAssertEqual(settingsItem.keyEquivalentModifierMask, [.command])
+    XCTAssertTrue(settingsItem.isEnabled)
+    XCTAssertTrue(settingsItem.target === window)
+    XCTAssertEqual(
+      settingsItem.action,
+      #selector(MainFlutterWindow.openSettings(_:))
+    )
+  }
+
+  func testMainWindowFrameUsesStableAutosaveName() {
+    let window =
+      NSApp.windows.compactMap { $0 as? MainFlutterWindow }.first
+      ?? MainFlutterWindow()
+
+    window.installMainWindowFrameAutosave()
+
+    XCTAssertEqual(
+      window.frameAutosaveName,
+      MainFlutterWindow.mainWindowFrameAutosaveName
+    )
+  }
+
   func testNotificationAuthorizationFailureUsesExpectedErrorCode() {
     let window = MainFlutterWindow()
 

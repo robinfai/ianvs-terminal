@@ -147,6 +147,33 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
     );
   }
 
+  Future<void> _confirmClearInstantReplayHistory(String sessionId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Clear instant replay history?'),
+        content: const Text(
+          'Recent replay frames for this pane will be removed. '
+          'This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Clear history'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) {
+      return;
+    }
+    _clearInstantReplayHistory(sessionId);
+  }
+
   void _clearInstantReplayHistory(String sessionId) {
     ref.read(instantReplayStoreProvider).clear(sessionId);
     _mutateState(() {

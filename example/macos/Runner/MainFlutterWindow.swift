@@ -167,6 +167,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
   private static let leadingWindowDragWidth: CGFloat = 132
   private static let maxOsc72DropBytes = 64 * 1024 * 1024
   private static let mimePasteboardTypePrefix = "dev.ianvs.terminal.mime."
+  static let mainWindowFrameAutosaveName = "IanvsTerminalMainWindow"
 
   private var windowBridgeChannel: FlutterMethodChannel?
   private var hotkeyWindowController: HotkeyWindowController?
@@ -321,11 +322,19 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     AppDelegate.confirmApplicationTermination()
   }
 
+  @discardableResult
+  func installMainWindowFrameAutosave() -> Bool {
+    let restored = setFrameUsingName(Self.mainWindowFrameAutosaveName)
+    setFrameAutosaveName(Self.mainWindowFrameAutosaveName)
+    return restored
+  }
+
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
     let windowFrame = self.frame
     self.contentViewController = flutterViewController
     self.setFrame(windowFrame, display: true)
+    installMainWindowFrameAutosave()
     self.titleVisibility = .hidden
     self.titlebarAppearsTransparent = true
     self.isMovable = false
@@ -340,6 +349,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
       binaryMessenger: flutterViewController.engine.binaryMessenger
     )
     bindNativePasteMenuItems()
+    bindNativeSettingsMenuItem()
     bindNativeTerminalFolderMenuItem()
     hotkeyWindowController = HotkeyWindowController(window: self)
     hotkeyWindowController?.register()
@@ -724,6 +734,13 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     windowBridgeChannel?.invokeMethod("nativeOpenTerminalAtFolder", arguments: nil)
   }
 
+  @objc func openSettings(_ sender: Any?) {
+    windowBridgeChannel?.invokeMethod(
+      "nativeAppAction",
+      arguments: ["action": "settings"]
+    )
+  }
+
   @objc func performFindPanelAction(_ sender: Any?) {
     let tag = (sender as? NSMenuItem)?.tag ?? 1
     windowBridgeChannel?.invokeMethod("nativeFind", arguments: ["tag": tag])
@@ -750,6 +767,40 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
         }
       }
     }
+  }
+
+  func bindNativeSettingsMenuItem(in providedMenu: NSMenu? = NSApp.mainMenu) {
+    guard
+      let mainMenu = providedMenu,
+      let appMenuItem = mainMenu.items.first
+    else {
+      return
+    }
+    let appMenu = appMenuItem.submenu ?? NSMenu(title: appMenuItem.title)
+    appMenuItem.submenu = appMenu
+    let settingsTitles = Set([
+      "Settings…",
+      "Settings...",
+      "Preferences…",
+      "Preferences..."
+    ])
+    let settingsItem: NSMenuItem
+    if let existing = appMenu.items.first(where: { settingsTitles.contains($0.title) }) {
+      settingsItem = existing
+    } else {
+      settingsItem = NSMenuItem(
+        title: "Settings…",
+        action: #selector(openSettings(_:)),
+        keyEquivalent: ","
+      )
+      appMenu.insertItem(settingsItem, at: min(1, appMenu.items.count))
+    }
+    settingsItem.title = "Settings…"
+    settingsItem.target = self
+    settingsItem.action = #selector(openSettings(_:))
+    settingsItem.keyEquivalent = ","
+    settingsItem.keyEquivalentModifierMask = [.command]
+    settingsItem.isEnabled = true
   }
 
   func bindNativeTerminalFolderMenuItem(in providedMenu: NSMenu? = NSApp.mainMenu) {
