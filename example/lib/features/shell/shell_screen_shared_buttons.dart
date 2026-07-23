@@ -126,3 +126,64 @@ Widget _buildChromeIconButton({
     ),
   );
 }
+
+class _ReplaySourceMark extends StatelessWidget {
+  const _ReplaySourceMark({required this.palette, required this.sourceLabel});
+
+  final AppThemeTokens palette;
+  final String sourceLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: 'Replay source: $sourceLabel',
+      container: true,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: palette.accent.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(palette.radius.md),
+              border: Border.all(color: palette.accent.withValues(alpha: 0.34)),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(5),
+              child: Icon(
+                Icons.replay_rounded,
+                size: 17,
+                color: palette.accent,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'Replay',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: palette.textPrimary,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(width: 8),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: palette.overlay,
+              borderRadius: BorderRadius.circular(palette.radius.sm),
+              border: Border.all(color: palette.border),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              child: Text(
+                sourceLabel,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: palette.textSubtle,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

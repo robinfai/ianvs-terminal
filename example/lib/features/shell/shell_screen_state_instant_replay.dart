@@ -93,6 +93,8 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
       return;
     }
     _mutateState(() {
+      _selectedRecordingEntry = null;
+      _selectedRecording = null;
       _instantReplayLayoutSession = _InstantReplayLayoutSession(
         sourceSessionId: activeSessionIdBeforeOpen,
         sourceLabel: _instantReplaySourceLabelFor(
@@ -151,9 +153,9 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Clear instant replay history?'),
+        title: const Text('Clear recent replay history?'),
         content: const Text(
-          'Recent replay frames for this pane will be removed. '
+          'Recent activity frames for this pane will be removed from Replay. '
           'This action cannot be undone.',
         ),
         actions: [

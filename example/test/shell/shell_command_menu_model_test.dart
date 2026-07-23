@@ -17,8 +17,11 @@ void main() {
       expect(
         ShellCommandMenuModel.defaultActionOrder,
         containsAll([
+          TerminalActionId.openTerminalAtFolder,
           TerminalActionId.profiles,
           TerminalActionId.instantReplay,
+          TerminalActionId.toggleSessionRecording,
+          TerminalActionId.openRecording,
           TerminalActionId.search,
         ]),
       );

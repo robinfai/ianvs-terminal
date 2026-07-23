@@ -67,6 +67,7 @@ enum TerminalActionId {
 enum TerminalActionCategory {
   app,
   session,
+  replay,
   pane,
   layout,
   navigation,
@@ -186,15 +187,15 @@ class ShellActionRegistry {
     ),
     TerminalActionId.openTerminalAtFolder: TerminalActionDescriptor(
       id: TerminalActionId.openTerminalAtFolder,
-      label: 'open_terminal_at_folder',
+      label: 'new_tab_at_folder',
       category: TerminalActionCategory.app,
       icon: Icons.create_new_folder_outlined,
       requiresActiveSession: false,
     ),
     TerminalActionId.openRecording: TerminalActionDescriptor(
       id: TerminalActionId.openRecording,
-      label: 'open_recording',
-      category: TerminalActionCategory.app,
+      label: 'open_recording_for_replay',
+      category: TerminalActionCategory.replay,
       icon: Icons.video_file_outlined,
       requiresActiveSession: false,
     ),
@@ -443,8 +444,8 @@ class ShellActionRegistry {
     ),
     TerminalActionId.toggleSessionRecording: TerminalActionDescriptor(
       id: TerminalActionId.toggleSessionRecording,
-      label: 'toggle_session_recording',
-      category: TerminalActionCategory.session,
+      label: 'toggle_replay_recording',
+      category: TerminalActionCategory.replay,
       icon: Icons.fiber_manual_record,
       requiresActiveSession: true,
     ),
@@ -516,8 +517,8 @@ class ShellActionRegistry {
     ),
     TerminalActionId.instantReplay: TerminalActionDescriptor(
       id: TerminalActionId.instantReplay,
-      label: 'instant_replay',
-      category: TerminalActionCategory.session,
+      label: 'replay_recent_activity',
+      category: TerminalActionCategory.replay,
       shortcutHint: 'alt+cmd+B',
       defaultKeyBinding: TerminalKeyBinding(
         scope: TerminalKeyBindingScope.terminalFocused,

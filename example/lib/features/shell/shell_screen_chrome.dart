@@ -33,8 +33,6 @@ class _ShellChromeBar extends StatelessWidget {
     required this.onShowTabContextMenu,
     required this.onShowCommandMenu,
     required this.onToggleSessionRecording,
-    required this.onOpenRecording,
-    required this.onOpenTerminalAtFolder,
   });
 
   final AppThemeTokens palette;
@@ -64,8 +62,6 @@ class _ShellChromeBar extends StatelessWidget {
   final void Function(TerminalTab tab, Offset position) onShowTabContextMenu;
   final VoidCallback onShowCommandMenu;
   final VoidCallback? onToggleSessionRecording;
-  final VoidCallback? onOpenRecording;
-  final Future<void> Function()? onOpenTerminalAtFolder;
 
   @override
   Widget build(BuildContext context) {
@@ -109,10 +105,6 @@ class _ShellChromeBar extends StatelessWidget {
                 onToggleSessionRecording: referenceDemoMode
                     ? null
                     : onToggleSessionRecording,
-                onOpenRecording: referenceDemoMode ? null : onOpenRecording,
-                onOpenTerminalAtFolder: referenceDemoMode
-                    ? null
-                    : onOpenTerminalAtFolder,
               ),
               SizedBox(
                 height: _shellChromeTabRailHeight,
@@ -194,8 +186,6 @@ class _ShellWindowTitleBar extends StatelessWidget {
     required this.activeRecordingPendingSave,
     required this.recordingBusy,
     required this.onToggleSessionRecording,
-    required this.onOpenRecording,
-    required this.onOpenTerminalAtFolder,
   });
 
   final AppThemeTokens palette;
@@ -207,15 +197,13 @@ class _ShellWindowTitleBar extends StatelessWidget {
   final bool activeRecordingPendingSave;
   final bool recordingBusy;
   final VoidCallback? onToggleSessionRecording;
-  final VoidCallback? onOpenRecording;
-  final Future<void> Function()? onOpenTerminalAtFolder;
 
   @override
   Widget build(BuildContext context) {
     final titleLeadingInset = defaultTargetPlatform == TargetPlatform.macOS
         ? 158.0
         : palette.spacing.xl;
-    final trailingInset = onShowCommandMenu == null ? 16.0 : 400.0;
+    final trailingInset = onShowCommandMenu == null ? 16.0 : 84.0;
 
     return SizedBox(
       height: _shellChromeTitleHeight,
@@ -260,7 +248,7 @@ class _ShellWindowTitleBar extends StatelessWidget {
             if (onShowCommandMenu != null)
               Positioned(
                 top: 5,
-                right: 360,
+                right: 48,
                 child: _ShellSessionRecordingButton(
                   palette: palette,
                   tone: tone,
@@ -268,26 +256,6 @@ class _ShellWindowTitleBar extends StatelessWidget {
                   pendingSave: activeRecordingPendingSave,
                   busy: recordingBusy,
                   onPressed: onToggleSessionRecording,
-                ),
-              ),
-            if (onOpenRecording != null)
-              Positioned(
-                top: 5,
-                right: 252,
-                child: _ShellRecordingsButton(
-                  palette: palette,
-                  tone: tone,
-                  onPressed: onOpenRecording!,
-                ),
-              ),
-            if (onOpenTerminalAtFolder != null)
-              Positioned(
-                top: 5,
-                right: 48,
-                child: _ShellFolderButton(
-                  palette: palette,
-                  tone: tone,
-                  onOpenTerminalAtFolder: onOpenTerminalAtFolder!,
                 ),
               ),
             if (onShowCommandMenu != null)
@@ -304,54 +272,6 @@ class _ShellWindowTitleBar extends StatelessWidget {
                 ),
               ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ShellRecordingsButton extends StatelessWidget {
-  const _ShellRecordingsButton({
-    required this.palette,
-    required this.tone,
-    required this.onPressed,
-  });
-
-  final AppThemeTokens palette;
-  final _ShellTabTone tone;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: 'Open recording',
-      child: SizedBox(
-        height: 28,
-        width: 100,
-        child: TextButton.icon(
-          key: const Key('shell-chrome-recordings'),
-          onPressed: onPressed,
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 7),
-            foregroundColor: tone.mutedText,
-            backgroundColor: tone.hoverBackground,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(palette.radius.md),
-            ),
-          ),
-          icon: Icon(
-            Icons.video_library_outlined,
-            size: 15,
-            color: tone.subtleText,
-          ),
-          label: Text(
-            'Open recording…',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(
-              context,
-            ).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w700),
-          ),
         ),
       ),
     );
@@ -378,10 +298,10 @@ class _ShellSessionRecordingButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tooltip = recording
-        ? 'Stop and save recording'
+        ? 'Stop recording and save for Replay'
         : pendingSave
-        ? 'Retry saving recording'
-        : 'Start recording (input redacted)';
+        ? 'Retry saving Replay recording'
+        : 'Start recording for Replay (input redacted)';
     final color = recording
         ? palette.danger
         : pendingSave
@@ -404,38 +324,6 @@ class _ShellSessionRecordingButton extends StatelessWidget {
                   : Icons.fiber_manual_record_rounded,
               color: color,
             ),
-    );
-  }
-}
-
-class _ShellFolderButton extends StatelessWidget {
-  const _ShellFolderButton({
-    required this.palette,
-    required this.tone,
-    required this.onOpenTerminalAtFolder,
-  });
-
-  final AppThemeTokens palette;
-  final _ShellTabTone tone;
-  final Future<void> Function() onOpenTerminalAtFolder;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      label: 'Open terminal at folder',
-      button: true,
-      child: IconButton(
-        key: const Key('shell-open-terminal-at-folder'),
-        tooltip: 'Open Terminal at Folder…  ⌘O',
-        onPressed: () => unawaited(onOpenTerminalAtFolder()),
-        icon: Icon(Icons.folder_open_rounded, size: 17, color: tone.subtleText),
-        style: IconButton.styleFrom(
-          backgroundColor: tone.hoverBackground,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(palette.radius.md),
-          ),
-        ),
-      ),
     );
   }
 }

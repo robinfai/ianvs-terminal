@@ -4,6 +4,7 @@ class _ShellCommandMenu extends StatefulWidget {
   const _ShellCommandMenu({
     required this.launcherShortcutLabel,
     required this.newTabShortcutLabel,
+    required this.newTabAtFolderShortcutLabel,
     required this.sessionPasteShortcutLabel,
     required this.instantReplayShortcutLabel,
     required this.searchShortcutLabel,
@@ -21,6 +22,7 @@ class _ShellCommandMenu extends StatefulWidget {
 
   final String launcherShortcutLabel;
   final String newTabShortcutLabel;
+  final String newTabAtFolderShortcutLabel;
   final String sessionPasteShortcutLabel;
   final String instantReplayShortcutLabel;
   final String searchShortcutLabel;
@@ -50,6 +52,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
         .toDouble();
     final launcherShortcutLabel = widget.launcherShortcutLabel;
     final newTabShortcutLabel = widget.newTabShortcutLabel;
+    final newTabAtFolderShortcutLabel = widget.newTabAtFolderShortcutLabel;
     final sessionPasteShortcutLabel = widget.sessionPasteShortcutLabel;
     final instantReplayShortcutLabel = widget.instantReplayShortcutLabel;
     final searchShortcutLabel = widget.searchShortcutLabel;
@@ -310,6 +313,20 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         ).pop(TerminalActionId.reopenClosedTab),
                       ),
                       commandTile(
+                        key: const Key('shell-new-tab-at-folder'),
+                        actionId: TerminalActionId.openTerminalAtFolder,
+                        icon: Icons.create_new_folder_outlined,
+                        title: 'New tab at folder…',
+                        subtitle:
+                            'App action • Choose a folder and start the default shell there.',
+                        shortcutLabel: newTabAtFolderShortcutLabel,
+                        enabled: hasDefaultProfile,
+                        disabledReason: defaultProfileRequired,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.openTerminalAtFolder),
+                      ),
+                      commandTile(
                         key: const Key('shell-theme-picker'),
                         actionId: TerminalActionId.openThemePicker,
                         icon: Icons.palette_rounded,
@@ -390,42 +407,6 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         ).pop(TerminalActionId.toggleReadOnly),
                       ),
                       commandTile(
-                        key: const Key('shell-toggle-session-recording'),
-                        actionId: TerminalActionId.toggleSessionRecording,
-                        icon: isActiveSessionRecording
-                            ? Icons.stop_circle_outlined
-                            : isActiveRecordingPendingSave
-                            ? Icons.save_outlined
-                            : Icons.fiber_manual_record_outlined,
-                        title: isActiveSessionRecording
-                            ? 'Stop & save recording'
-                            : isActiveRecordingPendingSave
-                            ? 'Retry saving recording'
-                            : 'Start recording',
-                        subtitle:
-                            'Session action • Capture PTY output and lifecycle events. Input bytes are redacted.',
-                        subtitleMaxLines: 2,
-                        enabled: hasActiveSession && !isActiveRecordingBusy,
-                        disabledReason: hasActiveSession
-                            ? 'A recording operation is already in progress.'
-                            : activeSessionRequired,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.toggleSessionRecording),
-                      ),
-                      commandTile(
-                        key: const Key('shell-open-recording'),
-                        actionId: TerminalActionId.openRecording,
-                        icon: Icons.video_file_outlined,
-                        title: 'Open recording…',
-                        subtitle:
-                            'Session action • Open one terminal recording for replay.',
-                        enabled: true,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.openRecording),
-                      ),
-                      commandTile(
                         key: const Key('shell-clear-scrollback'),
                         actionId: TerminalActionId.clearScrollback,
                         icon: Icons.clear_all_rounded,
@@ -464,14 +445,14 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           context,
                         ).pop(TerminalActionId.exportDiagnostics),
                       ),
-                      sectionLabel('Shell tools'),
+                      sectionLabel('Replay'),
                       commandTile(
-                        key: const Key('shell-instant-replay'),
+                        key: const Key('shell-replay-recent-activity'),
                         actionId: TerminalActionId.instantReplay,
                         icon: Icons.replay_rounded,
-                        title: 'Instant replay',
+                        title: 'Replay recent activity',
                         subtitle:
-                            'Shell tool • Recover text from recent terminal frames.',
+                            'Replay • Review the current pane’s rolling frame history.',
                         shortcutLabel: instantReplayShortcutLabel,
                         enabled: hasActiveSession,
                         disabledReason: activeSessionRequired,
@@ -479,6 +460,43 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           context,
                         ).pop(TerminalActionId.instantReplay),
                       ),
+                      commandTile(
+                        key: const Key('shell-toggle-session-recording'),
+                        actionId: TerminalActionId.toggleSessionRecording,
+                        icon: isActiveSessionRecording
+                            ? Icons.stop_circle_outlined
+                            : isActiveRecordingPendingSave
+                            ? Icons.save_outlined
+                            : Icons.fiber_manual_record_outlined,
+                        title: isActiveSessionRecording
+                            ? 'Stop & save recording'
+                            : isActiveRecordingPendingSave
+                            ? 'Retry saving recording'
+                            : 'Start recording for Replay',
+                        subtitle:
+                            'Replay • Capture this session as a durable recording. Input bytes are redacted.',
+                        subtitleMaxLines: 2,
+                        enabled: hasActiveSession && !isActiveRecordingBusy,
+                        disabledReason: hasActiveSession
+                            ? 'A recording operation is already in progress.'
+                            : activeSessionRequired,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.toggleSessionRecording),
+                      ),
+                      commandTile(
+                        key: const Key('shell-open-recording'),
+                        actionId: TerminalActionId.openRecording,
+                        icon: Icons.video_file_outlined,
+                        title: 'Open recording in Replay…',
+                        subtitle:
+                            'Replay • Open one saved terminal recording without importing it.',
+                        enabled: true,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.openRecording),
+                      ),
+                      sectionLabel('Shell tools'),
                       commandTile(
                         key: const Key('shell-global-search'),
                         actionId: TerminalActionId.globalSearch,
@@ -525,7 +543,14 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
 
 const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
   MapEntry('new tab open default shell profile', TerminalActionId.newTab),
-  MapEntry('open recording replay ndjson file', TerminalActionId.openRecording),
+  MapEntry(
+    'new tab at folder open terminal directory project cwd',
+    TerminalActionId.openTerminalAtFolder,
+  ),
+  MapEntry(
+    'open recording in replay saved ndjson file',
+    TerminalActionId.openRecording,
+  ),
   MapEntry(
     'defaults appearance default profile theme',
     TerminalActionId.defaults,
@@ -554,14 +579,14 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
     TerminalActionId.toggleReadOnly,
   ),
   MapEntry(
-    'record recording capture pty output redact input save',
+    'record recording capture replay pty output redact input save',
     TerminalActionId.toggleSessionRecording,
   ),
   MapEntry('clear scrollback clear output', TerminalActionId.clearScrollback),
   MapEntry('paste clipboard', TerminalActionId.paste),
   MapEntry('toolbelt terminal tools sidebar', TerminalActionId.toolbelt),
   MapEntry(
-    'instant replay recent terminal frames',
+    'replay recent activity instant terminal frames',
     TerminalActionId.instantReplay,
   ),
   MapEntry('search scrollback find local output', TerminalActionId.search),

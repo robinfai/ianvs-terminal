@@ -20,7 +20,7 @@ extension _ShellScreenStateFolders on _ShellScreenState {
     if (!mounted || !opened) {
       return;
     }
-    _scheduleLayoutCue('Opened terminal at folder');
+    _scheduleLayoutCue('New tab opened at folder');
     final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
     if (activeSessionId != null) {
       _focusSession(activeSessionId);

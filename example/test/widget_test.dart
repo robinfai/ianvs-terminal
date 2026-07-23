@@ -2177,8 +2177,16 @@ void main() {
       final semantics = tester.ensureSemantics();
       expect(find.byKey(const Key('instant-replay-sheet')), findsNothing);
       expect(find.byKey(const Key('instant-replay-layout')), findsOneWidget);
-      expect(find.bySemanticsLabel('Instant Replay layout'), findsOneWidget);
-      expect(find.bySemanticsLabel('Instant Replay controls'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel('Replay recent activity layout'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsLabel('Replay controls for recent activity'),
+        findsOneWidget,
+      );
+      expect(find.text('Replay'), findsOneWidget);
+      expect(find.text('Recent activity'), findsOneWidget);
       expect(
         find.descendant(
           of: find.byKey(const Key('instant-replay-layout')),
@@ -2381,7 +2389,7 @@ void main() {
 
       await tester.tap(find.byKey(const Key('instant-replay-clear')));
       await tester.pumpAndSettle();
-      expect(find.text('Clear instant replay history?'), findsOneWidget);
+      expect(find.text('Clear recent replay history?'), findsOneWidget);
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('instant-replay-layout')), findsOneWidget);
@@ -2393,7 +2401,7 @@ void main() {
       expect(find.byKey(const Key('instant-replay-layout')), findsNothing);
       expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
       expect(
-        find.bySemanticsLabel('Start recording (input redacted)'),
+        find.bySemanticsLabel('Start recording for Replay (input redacted)'),
         findsOneWidget,
       );
       semantics.dispose();
@@ -3406,7 +3414,7 @@ void main() {
       await _sendMetaAltShortcut(tester, LogicalKeyboardKey.keyB);
       expect(find.byKey(const Key('instant-replay-layout')), findsOneWidget);
       expect(fakeBindings.writes, isEmpty);
-      await tester.tap(find.byTooltip('Exit instant replay'));
+      await tester.tap(find.byTooltip('Close replay'));
       await tester.pumpAndSettle();
 
       await _sendMetaAltShortcut(tester, LogicalKeyboardKey.space);

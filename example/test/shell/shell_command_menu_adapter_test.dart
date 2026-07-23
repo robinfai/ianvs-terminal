@@ -31,6 +31,12 @@ void main() {
         items.any((item) => item.actionId == TerminalActionId.openRecording),
         isTrue,
       );
+      expect(
+        items.any(
+          (item) => item.actionId == TerminalActionId.openTerminalAtFolder,
+        ),
+        isTrue,
+      );
     });
 
     test('select runs action through runtime controller', () async {

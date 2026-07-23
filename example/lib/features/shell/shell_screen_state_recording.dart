@@ -15,12 +15,67 @@ extension _ShellScreenStateRecording on _ShellScreenState {
     if (shouldStop) {
       final path = await sessionController.stopSessionRecording(sessionId);
       if (path != null) {
-        _showShellPathSnackBar(message: 'Recording saved', path: path);
+        _showRecordingSavedSnackBar(path);
       }
       return;
     }
     if (await sessionController.startSessionRecording(sessionId)) {
-      _showShellSnackBar('Recording started. Input bytes are redacted.');
+      _showShellSnackBar(
+        'Recording for Replay started. Input bytes are redacted.',
+      );
     }
+  }
+
+  void _showRecordingSavedSnackBar(String path) {
+    if (!mounted) {
+      return;
+    }
+    final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
+    final fileName = File(path).uri.pathSegments.last;
+    messenger.showSnackBar(
+      SnackBar(
+        duration: const Duration(seconds: 6),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Recording saved · $fileName',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 2),
+            Wrap(
+              spacing: 8,
+              children: [
+                TextButton(
+                  key: const Key('recording-saved-replay'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Theme.of(
+                      context,
+                    ).colorScheme.inversePrimary,
+                  ),
+                  onPressed: () {
+                    messenger.hideCurrentSnackBar();
+                    unawaited(_openRecordingAtPath(path));
+                  },
+                  child: const Text('Replay'),
+                ),
+                TextButton(
+                  key: const Key('recording-saved-reveal'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Theme.of(
+                      context,
+                    ).colorScheme.inversePrimary,
+                  ),
+                  onPressed: () => unawaited(_revealShellPath(path)),
+                  child: const Text('Reveal'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

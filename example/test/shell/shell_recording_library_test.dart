@@ -159,14 +159,19 @@ void main() {
     );
     await _pumpUntil(
       tester,
-      () => find
-          .byKey(const Key('shell-chrome-recordings'))
-          .evaluate()
-          .isNotEmpty,
-      phase: 'recordings chrome control',
+      () => find.byKey(const Key('shell-chrome-menu')).evaluate().isNotEmpty,
+      phase: 'command palette control',
     );
-
-    await tester.tap(find.byKey(const Key('shell-chrome-recordings')));
+    expect(find.byKey(const Key('shell-chrome-recordings')), findsNothing);
+    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'open recording',
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Open recording in Replay…'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('shell-open-recording')));
     await _pumpUntil(
       tester,
       () => find
@@ -180,13 +185,15 @@ void main() {
     final semantics = tester.ensureSemantics();
     await tester.pump();
     expect(find.byKey(const Key('recording-replay-toggle')), findsOneWidget);
+    expect(find.text('Replay'), findsOneWidget);
+    expect(find.text('Recording'), findsOneWidget);
     expect(find.text('Input redacted'), findsOneWidget);
     expect(
       find.byWidgetPredicate(
         (widget) =>
             widget is Semantics &&
             widget.properties.label ==
-                'Recording replay layout for vttest regression',
+                'Replay recording layout for vttest regression',
       ),
       findsOneWidget,
     );
@@ -194,7 +201,7 @@ void main() {
       find.byWidgetPredicate(
         (widget) =>
             widget is Semantics &&
-            widget.properties.label == 'Recording replay controls',
+            widget.properties.label == 'Replay controls for recording',
       ),
       findsOneWidget,
     );
@@ -233,8 +240,7 @@ Future<void> _pumpUntil(
     'ShellScreen=${find.byType(ShellScreen).evaluate().length}, '
     'chrome=${find.byKey(const Key('shell-chrome-bar')).evaluate().length}, '
     'recordingButton=${find.byKey(const Key('shell-chrome-session-recording')).evaluate().length}, '
-    'recordingsButton=${find.byKey(const Key('shell-chrome-recordings')).evaluate().length}, '
-    'recordingsTooltip=${find.byTooltip('Open recording').evaluate().length}.',
+    'commandMenuButton=${find.byKey(const Key('shell-chrome-menu')).evaluate().length}.',
   );
 }
 

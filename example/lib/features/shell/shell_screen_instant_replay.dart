@@ -630,7 +630,7 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
         identifier: 'instant-replay-layout',
         container: true,
         explicitChildNodes: true,
-        label: 'Instant Replay layout',
+        label: 'Replay recent activity layout',
         child: FocusTraversalGroup(
           policy: OrderedTraversalPolicy(),
           child: ColoredBox(
@@ -735,7 +735,7 @@ class _InstantReplayLayoutControls extends StatelessWidget {
       identifier: 'instant-replay-controls',
       container: true,
       explicitChildNodes: true,
-      label: 'Instant Replay controls',
+      label: 'Replay controls for recent activity',
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: Color.alphaBlend(
@@ -879,25 +879,7 @@ class _InstantReplayControlHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: palette.accent.withValues(alpha: 0.16),
-            borderRadius: BorderRadius.circular(palette.radius.md),
-            border: Border.all(color: palette.accent.withValues(alpha: 0.34)),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(5),
-            child: Icon(Icons.replay_rounded, size: 17, color: palette.accent),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          'Replay mode',
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            color: palette.textPrimary,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
+        _ReplaySourceMark(palette: palette, sourceLabel: 'Recent activity'),
         const SizedBox(width: 10),
         Expanded(
           child: Column(
@@ -1000,7 +982,7 @@ class _InstantReplayActionControls extends StatelessWidget {
 
   Widget get closeButton {
     return _InstantReplayControlButton(
-      tooltip: 'Exit instant replay',
+      tooltip: 'Close replay',
       onPressed: onExit,
       icon: Icons.close_rounded,
       palette: palette,

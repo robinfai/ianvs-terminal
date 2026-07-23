@@ -69,6 +69,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       return _ShellCommandMenu(
         launcherShortcutLabel: _launcherShortcutLabel(),
         newTabShortcutLabel: _newTabShortcutLabel(),
+        newTabAtFolderShortcutLabel: _newTabAtFolderShortcutLabel(),
         sessionPasteShortcutLabel: _sessionPasteShortcutLabel(),
         instantReplayShortcutLabel: _instantReplayShortcutLabel(),
         searchShortcutLabel: _searchShortcutLabel(),
@@ -605,7 +606,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         instantReplay: (_) async {
           if (currentSessionId == null) {
             return const ShellActionBindingResult.skipped(
-              'Instant replay requires an active session.',
+              'Replay recent activity requires an active session.',
             );
           }
           await _openInstantReplay(sessionState);

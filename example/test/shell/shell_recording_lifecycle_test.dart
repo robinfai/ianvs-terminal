@@ -59,6 +59,8 @@ class _WidgetRecordingRepository extends LocalSessionRecordingRepository {
 
   final Directory directory;
   int _serial = 0;
+  int openedCount = 0;
+  TerminalRecording? savedRecording;
 
   @override
   Future<LocalSessionRecordingDestination> reserve({
@@ -77,11 +79,34 @@ class _WidgetRecordingRepository extends LocalSessionRecordingRepository {
     TerminalRecording recording, {
     String? displayName,
   }) {
+    savedRecording = recording;
     destination.file.writeAsStringSync(
       const TerminalRecordingCodec().encode(recording),
       flush: true,
     );
     return Future<String>.value(destination.file.absolute.path);
+  }
+
+  @override
+  Future<LocalSessionOpenedRecording> openRecording(String recordingPath) {
+    openedCount += 1;
+    final recording = savedRecording!;
+    final file = File(recordingPath);
+    return Future<LocalSessionOpenedRecording>.value(
+      LocalSessionOpenedRecording(
+        entry: LocalSessionRecordingEntry(
+          path: file.absolute.path,
+          displayName: file.uri.pathSegments.last.replaceAll('.ndjson', ''),
+          createdAtUtc: recording.metadata.createdAtUtc,
+          duration: recording.events.last.monotonicOffset,
+          fileSizeBytes: file.lengthSync(),
+          sessionId: recording.metadata.sessionId,
+          schemaVersion: recording.metadata.schemaVersion,
+          inputPolicy: recording.metadata.inputPolicy,
+        ),
+        recording: recording,
+      ),
+    );
   }
 }
 
@@ -166,7 +191,7 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.byTooltip('Start recording (input redacted)'),
+        find.byTooltip('Start recording for Replay (input redacted)'),
         findsOneWidget,
       );
 
@@ -184,7 +209,10 @@ void main() {
         container.read(sessionControllerProvider).recordingSessionIds,
         contains(sessionId),
       );
-      expect(find.byTooltip('Stop and save recording'), findsOneWidget);
+      expect(
+        find.byTooltip('Stop recording and save for Replay'),
+        findsOneWidget,
+      );
 
       await tester.tap(find.byKey(const Key('shell-chrome-menu')));
       await _pumpUntil(
@@ -192,6 +220,9 @@ void main() {
         () => find.text('Stop & save recording').evaluate().isNotEmpty,
         phase: 'command palette open',
       );
+      expect(find.text('Replay'), findsOneWidget);
+      expect(find.text('Replay recent activity'), findsOneWidget);
+      expect(find.text('Open recording in Replay…'), findsOneWidget);
       await tester.enterText(
         find.byKey(const Key('shell-command-search-field')),
         'recording',
@@ -204,7 +235,7 @@ void main() {
       await tester.tap(recordingAction);
       await _pumpUntil(
         tester,
-        () => find.text('Recording saved').evaluate().isNotEmpty,
+        () => find.textContaining('Recording saved ·').evaluate().isNotEmpty,
         phase: 'recording saved feedback',
       );
 
@@ -224,9 +255,26 @@ void main() {
         container.read(sessionControllerProvider).recordingSessionIds,
         isEmpty,
       );
-      expect(find.text('Recording saved'), findsOneWidget);
+      expect(find.textContaining('Recording saved ·'), findsOneWidget);
+      expect(find.text('Replay'), findsOneWidget);
       expect(find.text(directory.path), findsNothing);
       expect(find.text('Reveal'), findsOneWidget);
+
+      await tester.pump(const Duration(milliseconds: 300));
+      tester
+          .widget<TextButton>(find.byKey(const Key('recording-saved-replay')))
+          .onPressed!();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(recordingRepository.openedCount, 1);
+      await _pumpUntil(
+        tester,
+        () => find
+            .byKey(const Key('recording-replay-layout'))
+            .evaluate()
+            .isNotEmpty,
+        phase: 'saved recording replay',
+      );
+      expect(find.text('Recording'), findsOneWidget);
     },
   );
 }

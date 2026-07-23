@@ -149,5 +149,18 @@ void main() {
         );
       }
     });
+
+    test('recording and replay actions share one product category', () {
+      for (final actionId in const <TerminalActionId>[
+        TerminalActionId.instantReplay,
+        TerminalActionId.toggleSessionRecording,
+        TerminalActionId.openRecording,
+      ]) {
+        expect(
+          ShellActionRegistry.actions[actionId]!.category,
+          TerminalActionCategory.replay,
+        );
+      }
+    });
   });
 }

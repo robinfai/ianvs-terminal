@@ -221,7 +221,7 @@ class _ShellToolbeltState extends State<_ShellToolbelt> {
                               _ToolbeltActionRow(
                                 key: const Key('toolbelt-instant-replay'),
                                 icon: Icons.replay_rounded,
-                                title: 'Instant replay',
+                                title: 'Replay recent activity',
                                 countLabel: 'Recent frames',
                                 palette: palette,
                                 onTap: widget.onOpenInstantReplay,

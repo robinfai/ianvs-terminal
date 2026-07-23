@@ -137,14 +137,18 @@
         {
           "path": "example/lib/features/shell/shell_screen_chrome.dart",
           "contains": [
-            "_ShellFolderButton",
-            "shell-open-terminal-at-folder",
             "_ShellSessionRecordingButton",
-            "shell-chrome-session-recording"
+            "shell-chrome-session-recording",
+            "shell-chrome-menu",
+            "Open command palette"
           ],
           "not_contains": [
             "Recent Workspaces",
-            "Open Project"
+            "Open Project",
+            "_ShellFolderButton",
+            "shell-open-terminal-at-folder",
+            "_ShellRecordingsButton",
+            "shell-open-recording"
           ]
         },
         {

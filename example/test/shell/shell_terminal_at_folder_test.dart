@@ -88,7 +88,9 @@ Future<void> _invokeNativeWindowBridge(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('chrome opens a terminal at a selected folder', (tester) async {
+  testWidgets('command palette opens a new tab at a selected folder', (
+    tester,
+  ) async {
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       const MethodChannel('app/window_bridge'),
       (call) async => call.method == 'chooseTerminalFolder'
@@ -105,12 +107,20 @@ void main() {
 
     expect(
       find.byKey(const Key('shell-open-terminal-at-folder')),
-      findsOneWidget,
+      findsNothing,
     );
     expect(find.text('Open Project…'), findsNothing);
     expect(find.textContaining('Recent Layout'), findsNothing);
 
-    await tester.tap(find.byKey(const Key('shell-open-terminal-at-folder')));
+    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'folder',
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('New tab at folder…'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('shell-new-tab-at-folder')));
     await tester.pumpAndSettle();
 
     final state = container.read(sessionControllerProvider);

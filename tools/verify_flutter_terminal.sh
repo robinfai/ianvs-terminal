@@ -76,11 +76,13 @@ fi
   EXAMPLE_CI_TEST_TARGETS=(
     test/app
     test/config
+    test/layout
     test/platform
     test/policies
     test/preferences
     test/productivity
     test/profiles
+    test/recording
     test/sessions
     test/shell
     test/terminal
@@ -88,7 +90,6 @@ fi
     test/ui
     test/visual
     test/widget_test.dart
-    test/workspace
   )
   flutter analyze --fatal-infos
   flutter test "${EXAMPLE_CI_TEST_TARGETS[@]}"

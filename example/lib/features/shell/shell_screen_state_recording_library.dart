@@ -9,6 +9,13 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
     if (!mounted || sourcePath == null) {
       return;
     }
+    await _openRecordingAtPath(sourcePath);
+  }
+
+  Future<bool> _openRecordingAtPath(String sourcePath) async {
+    if (_recordingSelectionLoading) {
+      return false;
+    }
     _mutateState(() {
       _recordingSelectionLoading = true;
       _recordingLibraryError = null;
@@ -18,16 +25,19 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
           .read(localSessionRecordingRepositoryProvider)
           .openRecording(sourcePath);
       if (!mounted) {
-        return;
+        return false;
       }
       _mutateState(() {
+        _instantReplayLayoutSession = null;
         _selectedRecordingEntry = opened.entry;
         _selectedRecording = opened.recording;
       });
+      return true;
     } on Object catch (error) {
       if (mounted) {
         _showShellSnackBar('Could not open recording: $error');
       }
+      return false;
     } finally {
       if (mounted) {
         _mutateState(() {

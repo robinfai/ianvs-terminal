@@ -74,8 +74,8 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
     if (_isToolbeltOpen) {
       return 'toolbelt';
     }
-    if (_instantReplayLayoutSession != null) {
-      return 'instantReplay';
+    if (_selectedRecording != null || _instantReplayLayoutSession != null) {
+      return 'replay';
     }
     return 'none';
   }
@@ -180,6 +180,10 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
 
   String _newTabShortcutLabel() {
     return _usesMetaShortcuts ? '⌘T' : 'Ctrl+T';
+  }
+
+  String _newTabAtFolderShortcutLabel() {
+    return _usesMetaShortcuts ? '⌘O' : 'Ctrl+O';
   }
 
   String _sessionPasteShortcutLabel() {

@@ -776,14 +776,14 @@ class SessionController extends Notifier<SessionState> {
     }
     if (ref.read(sessionDemoFixtureProvider) != null) {
       state = state.copyWith(
-        lastError: 'Opening a folder is unavailable in reference demo mode.',
+        lastError: 'New tab at folder is unavailable in reference demo mode.',
       );
       return false;
     }
     final defaultProfile = _effectiveDefaultProfile();
     if (defaultProfile == null) {
       state = state.copyWith(
-        lastError: 'Opening a folder requires an available terminal profile.',
+        lastError: 'New tab at folder requires an available terminal profile.',
       );
       return false;
     }

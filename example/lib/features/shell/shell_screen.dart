@@ -819,7 +819,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           instantReplay: (_) async {
             if (activeSessionId == null) {
               return const ShellActionBindingResult.skipped(
-                'Instant replay requires an active session.',
+                'Replay recent activity requires an active session.',
               );
             }
             await _openInstantReplay(sessionState);
@@ -1049,18 +1049,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                           activeSessionId,
                         ),
                       ),
-                onOpenRecording:
-                    ShellActionRegistry.hasUserEntryPoint(
-                      TerminalActionId.openRecording,
-                    )
-                    ? () => unawaited(_openRecordingFromPicker())
-                    : null,
-                onOpenTerminalAtFolder:
-                    ShellActionRegistry.hasUserEntryPoint(
-                      TerminalActionId.openTerminalAtFolder,
-                    )
-                    ? _openTerminalAtFolderFromPicker
-                    : null,
               ),
               if (sessionState.configurationWarnings.isNotEmpty)
                 _ShellConfigurationWarningsBanner(
@@ -1095,7 +1083,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                             key: ValueKey(_selectedRecordingEntry!.path),
                             palette: palette,
                             entry: _selectedRecordingEntry!,
-                            layoutName: 'Recording',
                             recording: _selectedRecording!,
                             delegate: ref.read(ptySessionBackendProvider),
                             sessionConfig: recordingReplayConfig,

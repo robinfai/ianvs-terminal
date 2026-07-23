@@ -503,7 +503,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
         }
       case "chooseTerminalFolder":
         let panel = NSOpenPanel()
-        panel.title = "Open Terminal at Folder"
+        panel.title = "New Tab at Folder"
         panel.prompt = "Open"
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
@@ -820,21 +820,26 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
       mainMenu.insertItem(fileMenuItem, at: min(1, mainMenu.items.count))
     }
 
-    let openTerminalAtFolderItem: NSMenuItem
-    if let existing = fileMenu.items.first(where: { $0.title == "Open Terminal at Folder…" }) {
-      openTerminalAtFolderItem = existing
+    let folderItemTitles = Set([
+      "New Tab at Folder…",
+      "Open Terminal at Folder…"
+    ])
+    let newTabAtFolderItem: NSMenuItem
+    if let existing = fileMenu.items.first(where: { folderItemTitles.contains($0.title) }) {
+      newTabAtFolderItem = existing
     } else {
-      openTerminalAtFolderItem = NSMenuItem(
-        title: "Open Terminal at Folder…",
+      newTabAtFolderItem = NSMenuItem(
+        title: "New Tab at Folder…",
         action: #selector(openTerminalAtFolder(_:)),
         keyEquivalent: "o"
       )
-      fileMenu.insertItem(openTerminalAtFolderItem, at: 0)
+      fileMenu.insertItem(newTabAtFolderItem, at: 0)
     }
-    openTerminalAtFolderItem.target = self
-    openTerminalAtFolderItem.action = #selector(openTerminalAtFolder(_:))
-    openTerminalAtFolderItem.keyEquivalent = "o"
-    openTerminalAtFolderItem.keyEquivalentModifierMask = [.command]
+    newTabAtFolderItem.title = "New Tab at Folder…"
+    newTabAtFolderItem.target = self
+    newTabAtFolderItem.action = #selector(openTerminalAtFolder(_:))
+    newTabAtFolderItem.keyEquivalent = "o"
+    newTabAtFolderItem.keyEquivalentModifierMask = [.command]
   }
 
   private func configureOsc72DropTarget(

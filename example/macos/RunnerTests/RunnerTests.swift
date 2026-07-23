@@ -48,7 +48,7 @@ class RunnerTests: XCTestCase {
     let fileItems = mainMenu.items.filter { $0.title == "File" }
     let fileItem = try XCTUnwrap(fileItems.first)
     let openItems = try XCTUnwrap(fileItem.submenu).items.filter {
-      $0.title == "Open Terminal at Folder…"
+      $0.title == "New Tab at Folder…"
     }
     let openItem = try XCTUnwrap(openItems.first)
     XCTAssertEqual(fileItems.count, 1)

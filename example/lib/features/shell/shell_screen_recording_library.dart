@@ -678,7 +678,6 @@ class _RecordingReplayLayout extends StatefulWidget {
     super.key,
     required this.palette,
     required this.entry,
-    required this.layoutName,
     required this.recording,
     required this.delegate,
     required this.sessionConfig,
@@ -690,7 +689,6 @@ class _RecordingReplayLayout extends StatefulWidget {
 
   final AppThemeTokens palette;
   final LocalSessionRecordingEntry entry;
-  final String layoutName;
   final terminal.TerminalRecording recording;
   final pty.PtySessionBackend delegate;
   final terminal.TerminalSessionConfig sessionConfig;
@@ -899,11 +897,7 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _RecordingReplayMetadataBar(
-              palette: palette,
-              entry: widget.entry,
-              layoutName: widget.layoutName,
-            ),
+            _RecordingReplayMetadataBar(palette: palette, entry: widget.entry),
             const SizedBox(height: 8),
             Expanded(
               child: DecoratedBox(
@@ -1023,7 +1017,7 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
         identifier: 'recording-replay-layout',
         container: true,
         explicitChildNodes: true,
-        label: 'Recording replay layout for ${widget.entry.displayName}',
+        label: 'Replay recording layout for ${widget.entry.displayName}',
         child: FocusTraversalGroup(
           policy: OrderedTraversalPolicy(),
           child: replayLayout,
@@ -1037,12 +1031,10 @@ class _RecordingReplayMetadataBar extends StatelessWidget {
   const _RecordingReplayMetadataBar({
     required this.palette,
     required this.entry,
-    required this.layoutName,
   });
 
   final AppThemeTokens palette;
   final LocalSessionRecordingEntry entry;
-  final String layoutName;
 
   @override
   Widget build(BuildContext context) {
@@ -1056,48 +1048,51 @@ class _RecordingReplayMetadataBar extends StatelessWidget {
           border: Border.all(color: palette.border),
           borderRadius: BorderRadius.circular(palette.radius.md),
         ),
-        child: Row(
-          children: [
-            Flexible(
-              flex: 2,
-              child: Text(
-                entry.displayName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: palette.textPrimary,
-                  fontWeight: FontWeight.w700,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 720;
+            return Row(
+              children: [
+                _ReplaySourceMark(palette: palette, sourceLabel: 'Recording'),
+                _ReplayMetadataDivider(palette: palette),
+                Flexible(
+                  flex: 2,
+                  child: Text(
+                    entry.displayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: palette.textPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            _ReplayMetadataDivider(palette: palette),
-            _ReplayMetadataItem(
-              palette: palette,
-              icon: Icons.folder_outlined,
-              label: layoutName,
-            ),
-            _ReplayMetadataDivider(palette: palette),
-            _ReplayMetadataItem(
-              palette: palette,
-              icon: Icons.calendar_today_outlined,
-              label:
-                  '${_monthName(date.month)} ${date.day} at ${_twoDigits(date.hour)}:${_twoDigits(date.minute)}',
-            ),
-            _ReplayMetadataDivider(palette: palette),
-            _ReplayMetadataItem(
-              palette: palette,
-              icon:
-                  entry.inputPolicy ==
-                      terminal.TerminalRecordingInputPolicy.record
-                  ? Icons.keyboard_alt_outlined
-                  : Icons.shield_outlined,
-              label:
-                  entry.inputPolicy ==
-                      terminal.TerminalRecordingInputPolicy.record
-                  ? 'Input included'
-                  : 'Input redacted',
-            ),
-          ],
+                if (!compact) ...[
+                  _ReplayMetadataDivider(palette: palette),
+                  _ReplayMetadataItem(
+                    palette: palette,
+                    icon: Icons.calendar_today_outlined,
+                    label:
+                        '${_monthName(date.month)} ${date.day} at ${_twoDigits(date.hour)}:${_twoDigits(date.minute)}',
+                  ),
+                ],
+                _ReplayMetadataDivider(palette: palette),
+                _ReplayMetadataItem(
+                  palette: palette,
+                  icon:
+                      entry.inputPolicy ==
+                          terminal.TerminalRecordingInputPolicy.record
+                      ? Icons.keyboard_alt_outlined
+                      : Icons.shield_outlined,
+                  label:
+                      entry.inputPolicy ==
+                          terminal.TerminalRecordingInputPolicy.record
+                      ? 'Input included'
+                      : 'Input redacted',
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -1336,7 +1331,7 @@ class _RecordingReplayDock extends StatelessWidget {
       identifier: 'recording-replay-controls',
       container: true,
       explicitChildNodes: true,
-      label: 'Recording replay controls',
+      label: 'Replay controls for recording',
       child: replayControls,
     );
   }
