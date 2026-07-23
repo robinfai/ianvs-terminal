@@ -1,6 +1,6 @@
 # ianvs terminal
 
-`ianvs terminal` 现在按 workspace 组织：
+`ianvs terminal` 现在按 package 与 host 边界组织：
 
 - `packages/ianvs_pty`：PTY 会话传输和 FFI 包装
 - `packages/ianvs_terminal`：session runtime、viewport、输入/选区/滚动适配
@@ -55,6 +55,7 @@ ianvs terminal/
 
 ## 文档入口
 
+- 产品范围： [docs/TERMINAL_PRODUCT_SCOPE.md](docs/TERMINAL_PRODUCT_SCOPE.md)
 - 仓库边界： [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - 当前执行目标： [docs/CURRENT_EXECUTION_TARGET.md](docs/CURRENT_EXECUTION_TARGET.md)
 - 测试命令： [docs/TESTING.md](docs/TESTING.md)

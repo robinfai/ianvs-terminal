@@ -62,18 +62,14 @@ class _SavedRecordingsShelf extends StatelessWidget {
     required this.palette,
     required this.entries,
     required this.selectedPath,
-    required this.activeWorkspaceIdentity,
-    required this.recentWorkspaces,
     required this.searchQuery,
     required this.sort,
-    required this.groupByWorkspace,
     required this.playableOnly,
     required this.loading,
     required this.selectionLoading,
     required this.error,
     required this.onSearchChanged,
     required this.onSortChanged,
-    required this.onGroupByWorkspaceChanged,
     required this.onPlayableOnlyChanged,
     required this.onRefresh,
     required this.onImport,
@@ -88,18 +84,14 @@ class _SavedRecordingsShelf extends StatelessWidget {
   final AppThemeTokens palette;
   final List<LocalSessionRecordingEntry> entries;
   final String? selectedPath;
-  final TerminalWorkspaceIdentity activeWorkspaceIdentity;
-  final List<TerminalWorkspaceRecentEntry> recentWorkspaces;
   final String searchQuery;
   final _RecordingLibrarySort sort;
-  final bool groupByWorkspace;
   final bool playableOnly;
   final bool loading;
   final bool selectionLoading;
   final String? error;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<_RecordingLibrarySort> onSortChanged;
-  final ValueChanged<bool> onGroupByWorkspaceChanged;
   final ValueChanged<bool> onPlayableOnlyChanged;
   final VoidCallback onRefresh;
   final VoidCallback onImport;
@@ -230,45 +222,6 @@ class _SavedRecordingsShelf extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(12, 0, 8, 8),
               child: Row(
                 children: [
-                  Semantics(
-                    label: groupByWorkspace
-                        ? 'Grouping: Workspace'
-                        : 'Grouping: None',
-                    button: true,
-                    child: PopupMenuButton<bool>(
-                      tooltip: 'Recording grouping',
-                      initialValue: groupByWorkspace,
-                      onSelected: onGroupByWorkspaceChanged,
-                      itemBuilder: (context) => const [
-                        PopupMenuItem(
-                          value: true,
-                          child: Text('Group by Workspace'),
-                        ),
-                        PopupMenuItem(value: false, child: Text('No grouping')),
-                      ],
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              groupByWorkspace
-                                  ? 'Group by Workspace'
-                                  : 'No grouping',
-                              style: Theme.of(context).textTheme.labelMedium
-                                  ?.copyWith(color: palette.textMuted),
-                            ),
-                            const SizedBox(width: 3),
-                            Icon(
-                              Icons.arrow_drop_down_rounded,
-                              size: 17,
-                              color: palette.textSubtle,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
                   const Spacer(),
                   Semantics(
                     label: 'Sort: ${_recordingSortLabel(sort)}',
@@ -337,14 +290,12 @@ class _SavedRecordingsShelf extends StatelessWidget {
                     )
                   : ListView.builder(
                       padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
-                      itemCount: grouped.length,
+                      itemCount: 1,
                       itemBuilder: (context, index) {
-                        final group = grouped[index];
-                        return _RecordingWorkspaceGroup(
+                        return _RecordingGroup(
                           palette: palette,
-                          title: _workspaceName(group.$1),
-                          active: group.$1 == activeWorkspaceIdentity.id,
-                          entries: group.$2,
+                          title: 'All Recordings',
+                          entries: grouped,
                           selectedPath: selectedPath,
                           selectionLoading: selectionLoading,
                           onSelect: onSelect,
@@ -416,7 +367,7 @@ class _SavedRecordingsShelf extends StatelessWidget {
     );
   }
 
-  List<(String, List<LocalSessionRecordingEntry>)> _groupedEntries() {
+  List<LocalSessionRecordingEntry> _groupedEntries() {
     final needle = searchQuery.trim().toLowerCase();
     final filtered = entries
         .where((entry) {
@@ -425,7 +376,6 @@ class _SavedRecordingsShelf extends StatelessWidget {
           }
           return needle.isEmpty ||
               entry.displayName.toLowerCase().contains(needle) ||
-              entry.workspaceId.toLowerCase().contains(needle) ||
               (entry.sessionId?.toLowerCase().contains(needle) ?? false);
         })
         .toList(growable: false);
@@ -442,39 +392,7 @@ class _SavedRecordingsShelf extends StatelessWidget {
         ),
       },
     );
-    final byWorkspace = <String, List<LocalSessionRecordingEntry>>{};
-    for (final entry in filtered) {
-      final groupKey = groupByWorkspace ? entry.workspaceId : '__all__';
-      byWorkspace.putIfAbsent(groupKey, () => []).add(entry);
-    }
-    final groups = byWorkspace.entries
-        .map((entry) => (entry.key, entry.value))
-        .toList(growable: false);
-    groups.sort((left, right) {
-      if (left.$1 == activeWorkspaceIdentity.id) {
-        return -1;
-      }
-      if (right.$1 == activeWorkspaceIdentity.id) {
-        return 1;
-      }
-      return _workspaceName(left.$1).compareTo(_workspaceName(right.$1));
-    });
-    return groups;
-  }
-
-  String _workspaceName(String id) {
-    if (id == '__all__') {
-      return 'All Recordings';
-    }
-    if (id == activeWorkspaceIdentity.id) {
-      return '${activeWorkspaceIdentity.name} · Active';
-    }
-    for (final entry in recentWorkspaces) {
-      if (entry.identity.id == id) {
-        return entry.identity.name;
-      }
-    }
-    return id == 'unassigned' ? 'Imported' : id;
+    return filtered;
   }
 }
 
@@ -525,11 +443,10 @@ class _RecordingLibraryEmptyState extends StatelessWidget {
   }
 }
 
-class _RecordingWorkspaceGroup extends StatelessWidget {
-  const _RecordingWorkspaceGroup({
+class _RecordingGroup extends StatelessWidget {
+  const _RecordingGroup({
     required this.palette,
     required this.title,
-    required this.active,
     required this.entries,
     required this.selectedPath,
     required this.selectionLoading,
@@ -542,7 +459,6 @@ class _RecordingWorkspaceGroup extends StatelessWidget {
 
   final AppThemeTokens palette;
   final String title;
-  final bool active;
   final List<LocalSessionRecordingEntry> entries;
   final String? selectedPath;
   final bool selectionLoading;
@@ -563,17 +479,6 @@ class _RecordingWorkspaceGroup extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
             child: Row(
               children: [
-                if (active) ...[
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: palette.success,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 7),
-                ],
                 Expanded(
                   child: Text(
                     title.toUpperCase(),

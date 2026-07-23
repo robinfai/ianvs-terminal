@@ -1,5 +1,5 @@
 import '../shell/shell_action_registry.dart';
-import 'local_workspace_models.dart';
+import 'local_terminal_layout_models.dart';
 
 class LocalWorkspaceActionContext {
   const LocalWorkspaceActionContext({
@@ -13,15 +13,15 @@ class LocalWorkspaceActionContext {
   final String nextTabId;
   final String nextPaneId;
   final String nextSplitId;
-  final TerminalPaneSessionIntent fallbackIntent;
+  final TerminalRelaunchSpec fallbackIntent;
   final double paneResizeDelta;
 }
 
 class LocalWorkspaceActionReducer {
   const LocalWorkspaceActionReducer._();
 
-  static TerminalWorkspace reduce({
-    required TerminalWorkspace workspace,
+  static TerminalLayout reduce({
+    required TerminalLayout workspace,
     required TerminalActionId actionId,
     required LocalWorkspaceActionContext context,
   }) {

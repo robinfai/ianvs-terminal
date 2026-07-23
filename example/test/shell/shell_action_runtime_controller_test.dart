@@ -16,7 +16,7 @@ import 'package:app/features/visual/local_terminal_layout_template_applier.dart'
 import 'package:app/features/visual/local_terminal_visual_models.dart';
 import 'package:app/features/visual/local_terminal_visual_action_reducer.dart';
 import 'package:app/features/workspace/local_workspace_action_reducer.dart';
-import 'package:app/features/workspace/local_workspace_models.dart';
+import 'package:app/features/workspace/local_terminal_layout_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -84,7 +84,7 @@ void main() {
 
     test('updates workspace state for workspace actions', () async {
       final controller = ShellActionRuntimeController();
-      final persisted = <TerminalWorkspace>[];
+      final persisted = <TerminalLayout>[];
 
       await controller.run(
         actionId: TerminalActionId.newTab,
@@ -138,7 +138,7 @@ void main() {
 
     test('applies layout template visual action to workspace state', () async {
       final controller = ShellActionRuntimeController();
-      final persisted = <TerminalWorkspace>[];
+      final persisted = <TerminalLayout>[];
 
       await controller.run(
         actionId: TerminalActionId.applyLayoutTemplate,
@@ -156,7 +156,7 @@ void main() {
               firstPaneId: 'pane-1',
               secondPaneId: 'pane-2',
               splitNodeId: 'split-1',
-              sessionIntent: TerminalPaneSessionIntent(profileId: 'default'),
+              sessionIntent: TerminalRelaunchSpec(profileId: 'default'),
             ),
         persistWorkspace: (workspace) async => persisted.add(workspace),
       );
@@ -392,7 +392,7 @@ ShellActionDispatchContext _context({
       nextTabId: 'tab-next',
       nextPaneId: 'pane-next',
       nextSplitId: 'split-next',
-      fallbackIntent: TerminalPaneSessionIntent(profileId: 'default'),
+      fallbackIntent: TerminalRelaunchSpec(profileId: 'default'),
     ),
     productivity: ShellProductivityActionContext(
       currentRow: currentRow,

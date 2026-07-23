@@ -34,7 +34,6 @@ import '../terminal/terminal_viewport_colors.dart';
 import '../visual/local_terminal_diagnostics_exporter.dart';
 import '../visual/local_terminal_scrollback_exporter.dart';
 import '../visual/local_terminal_visual_models.dart';
-import '../workspace/local_workspace_models.dart';
 import 'advanced_paste_transformer.dart';
 import 'defaults_appearance_dialog.dart';
 import 'instant_replay_store.dart';
@@ -60,7 +59,7 @@ part 'shell_screen_state_search_completion.dart';
 part 'shell_screen_state_profile_actions.dart';
 part 'shell_screen_state_command_actions.dart';
 part 'shell_screen_state_terminal_workspace.dart';
-part 'shell_screen_state_workspaces.dart';
+part 'shell_screen_state_folders.dart';
 part 'shell_screen_state_recording.dart';
 part 'shell_screen_state_recording_library.dart';
 part 'shell_screen_models.dart';
@@ -225,9 +224,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _isAutoComposerOpen = false;
   bool _isCopyModeOpen = false;
   bool _isToolbeltOpen = false;
-  bool _workspaceSwitchBusy = false;
-  List<TerminalWorkspaceRecentEntry> _recentWorkspaces =
-      const <TerminalWorkspaceRecentEntry>[];
   bool _activeTerminalHasFocus = false;
   bool _recentlyClosedLastSession = false;
   bool _showWorkspaceCue = false;
@@ -302,7 +298,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   List<LocalSessionRecordingEntry> _recordingEntries = const [];
   String _recordingSearchQuery = '';
   _RecordingLibrarySort _recordingLibrarySort = _RecordingLibrarySort.newest;
-  bool _recordingLibraryGroupByWorkspace = true;
   bool _recordingLibraryPlayableOnly = false;
   LocalSessionRecordingEntry? _selectedRecordingEntry;
   terminal.TerminalRecording? _selectedRecording;
@@ -336,7 +331,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     );
     WindowBridge.setNativeMenuHandlers(
       onPaste: _handleNativePasteMenu,
-      onOpenProject: _openProjectWorkspaceFromPicker,
+      onOpenTerminalAtFolder: _openTerminalAtFolderFromPicker,
       onFind: _handleNativeFindMenu,
       onOsc72DragEvent: _handleNativeOsc72DragEvent,
     );
@@ -354,7 +349,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     );
     Future.microtask(_loadPasteHistory);
     Future.microtask(_loadNotificationPreferences);
-    Future.microtask(_loadRecentWorkspaces);
   }
 
   @override
@@ -423,7 +417,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   Widget build(BuildContext context) {
     final sessionState = ref.watch(sessionControllerProvider);
     final sessionController = ref.read(sessionControllerProvider.notifier);
-    final activeWorkspaceIdentity = sessionController.activeWorkspaceIdentity;
     final activeSessionId = sessionState.activeSessionId;
     final defaultProfile = _effectiveDefaultProfileFor(
       sessionState.profiles,
@@ -952,9 +945,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 tabs: sessionState.tabs,
                 activeSessionId: activeSessionId,
                 activeTabTitle: activeChromeTitle,
-                activeWorkspaceIdentity: activeWorkspaceIdentity,
-                recentWorkspaces: _recentWorkspaces,
-                workspaceSwitchBusy: _workspaceSwitchBusy,
                 activeSessionRecording:
                     activeSessionId != null &&
                     sessionState.recordingSessionIds.contains(activeSessionId),
@@ -1019,9 +1009,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                       ),
                 onToggleRecordingsShelf: () =>
                     unawaited(_toggleRecordingLibrary()),
-                onOpenProject: _openProjectWorkspaceFromPicker,
-                onOpenRecentWorkspace: _openRecentWorkspace,
-                onRefreshRecentWorkspaces: _loadRecentWorkspaces,
+                onOpenTerminalAtFolder: _openTerminalAtFolderFromPicker,
               ),
               if (sessionState.configurationWarnings.isNotEmpty)
                 _ShellConfigurationWarningsBanner(
@@ -1056,11 +1044,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                             key: ValueKey(_selectedRecordingEntry!.path),
                             palette: palette,
                             entry: _selectedRecordingEntry!,
-                            workspaceName:
-                                _selectedRecordingEntry!.workspaceId ==
-                                    activeWorkspaceIdentity.id
-                                ? activeWorkspaceIdentity.name
-                                : _selectedRecordingEntry!.workspaceId,
+                            workspaceName: 'Recording Library',
                             recording: _selectedRecording!,
                             delegate: ref.read(ptySessionBackendProvider),
                             sessionConfig: recordingReplayConfig,
@@ -1127,7 +1111,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                             child: Row(
                               children: [
                                 Expanded(
-                                  child: _buildTerminalWorkspace(
+                                  child: _buildTerminalLayout(
                                     context: context,
                                     sessionController: sessionController,
                                     sessionState: sessionState,
@@ -1240,11 +1224,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     palette: palette,
                     entries: _recordingEntries,
                     selectedPath: _selectedRecordingEntry?.path,
-                    activeWorkspaceIdentity: activeWorkspaceIdentity,
-                    recentWorkspaces: _recentWorkspaces,
                     searchQuery: _recordingSearchQuery,
                     sort: _recordingLibrarySort,
-                    groupByWorkspace: _recordingLibraryGroupByWorkspace,
                     playableOnly: _recordingLibraryPlayableOnly,
                     loading: _recordingLibraryLoading,
                     selectionLoading: _recordingSelectionLoading,
@@ -1257,11 +1238,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     onSortChanged: (value) {
                       _mutateState(() {
                         _recordingLibrarySort = value;
-                      });
-                    },
-                    onGroupByWorkspaceChanged: (value) {
-                      _mutateState(() {
-                        _recordingLibraryGroupByWorkspace = value;
                       });
                     },
                     onPlayableOnlyChanged: (value) {

@@ -232,14 +232,17 @@ class _ShellToolbeltState extends State<_ShellToolbelt> {
                                 palette: palette,
                                 onTap: widget.onOpenPasswordManager,
                               ),
-                              Divider(color: palette.border, height: 18),
-                              LocalTerminalCompletionDiagnosticsPanel(
-                                key: const Key(
-                                  'toolbelt-completion-diagnostics',
+                              if (kDebugMode) ...[
+                                Divider(color: palette.border, height: 18),
+                                LocalTerminalCompletionDiagnosticsPanel(
+                                  key: const Key(
+                                    'toolbelt-completion-diagnostics',
+                                  ),
+                                  snapshot:
+                                      widget.completionDiagnosticsSnapshot,
+                                  maxItemsPerSection: 4,
                                 ),
-                                snapshot: widget.completionDiagnosticsSnapshot,
-                                maxItemsPerSection: 4,
-                              ),
+                              ],
                             ],
                           ),
                         ),

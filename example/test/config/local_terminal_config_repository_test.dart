@@ -41,6 +41,47 @@ void main() {
       expect(loaded!.defaultProfileId, 'local-dev');
       expect(loaded.appearance.themeMode, TerminalThemeMode.dark);
       expect(loaded.hotkeyWindow.enabled, isTrue);
+      final persisted =
+          jsonDecode(
+                await File(
+                  '${directory.path}/ianvs_config.json',
+                ).readAsString(),
+              )
+              as Map<String, Object?>;
+      expect(
+        persisted['schemaVersion'],
+        LocalTerminalConfigDocument.currentSchemaVersion,
+      );
+      expect(persisted, contains('layout'));
+      expect(persisted, isNot(contains('workspace')));
+    });
+
+    test('rewrites the legacy workspace setting as layout config', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-config-workspace-migration',
+      );
+      final file = File('${directory.path}/ianvs_config.json');
+      await file.writeAsString(
+        jsonEncode(<String, Object?>{
+          'schemaVersion': 1,
+          'workspace': <String, Object?>{'restoreLayout': true},
+        }),
+      );
+      final repository = LocalTerminalConfigRepository(
+        directoryResolver: () async => directory,
+      );
+
+      final loaded = await repository.load();
+
+      expect(loaded!.layout.restoreLayout, isTrue);
+      final migrated =
+          jsonDecode(await file.readAsString()) as Map<String, Object?>;
+      expect(
+        migrated['schemaVersion'],
+        LocalTerminalConfigDocument.currentSchemaVersion,
+      );
+      expect(migrated['layout'], <String, Object?>{'restoreLayout': true});
+      expect(migrated, isNot(contains('workspace')));
     });
 
     test('keeps config values when only schema version is invalid', () async {
@@ -131,7 +172,7 @@ void main() {
           loaded.keybindings.overrides[TerminalActionId.newTab]?.binding,
           isNull,
         );
-        expect(loaded.workspace.restoreLayout, isFalse);
+        expect(loaded.layout.restoreLayout, isFalse);
         expect(loaded.clipboard.copyOnSelect, isFalse);
         expect(loaded.clipboard.osc52, LocalTerminalOsc52Policy.allow);
         expect(

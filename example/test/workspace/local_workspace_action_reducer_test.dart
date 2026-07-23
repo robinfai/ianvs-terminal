@@ -1,13 +1,13 @@
 import 'package:app/features/shell/shell_action_registry.dart';
 import 'package:app/features/workspace/local_workspace_action_reducer.dart';
-import 'package:app/features/workspace/local_workspace_models.dart';
+import 'package:app/features/workspace/local_terminal_layout_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('Local workspace action reducer', () {
     test('new tab action creates a local tab from fallback intent', () {
       final workspace = LocalWorkspaceActionReducer.reduce(
-        workspace: const TerminalWorkspace(),
+        workspace: const TerminalLayout(),
         actionId: TerminalActionId.newTab,
         context: _context(tab: 'tab-1', pane: 'pane-1'),
       );
@@ -18,7 +18,7 @@ void main() {
 
     test('split actions update active tab pane tree', () {
       final initial = LocalWorkspaceActionReducer.reduce(
-        workspace: const TerminalWorkspace(),
+        workspace: const TerminalLayout(),
         actionId: TerminalActionId.newTab,
         context: _context(tab: 'tab-1', pane: 'pane-1'),
       );
@@ -34,14 +34,14 @@ void main() {
     });
 
     test('split action recovers a stale active pane id', () {
-      final workspace = TerminalWorkspace(
+      final workspace = TerminalLayout(
         tabs: [
-          TerminalWorkspaceTab(
+          TerminalLayoutTab(
             id: 'tab-1',
             activePaneId: 'missing-pane',
             root: TerminalPaneNode.leaf(
               id: 'pane-1',
-              sessionIntent: const TerminalPaneSessionIntent(
+              sessionIntent: const TerminalRelaunchSpec(
                 profileId: 'default',
                 cwd: '/project',
               ),
@@ -68,7 +68,7 @@ void main() {
 
     test('focus and resize pane actions update active tab pane state', () {
       final initial = LocalWorkspaceActionReducer.reduce(
-        workspace: const TerminalWorkspace(),
+        workspace: const TerminalLayout(),
         actionId: TerminalActionId.newTab,
         context: _context(tab: 'tab-1', pane: 'pane-1'),
       );
@@ -102,7 +102,7 @@ void main() {
 
     test('close and reopen tab actions roundtrip closed tab stack', () {
       final initial = LocalWorkspaceActionReducer.reduce(
-        workspace: const TerminalWorkspace(),
+        workspace: const TerminalLayout(),
         actionId: TerminalActionId.newTab,
         context: _context(tab: 'tab-1', pane: 'pane-1'),
       );
@@ -122,7 +122,7 @@ void main() {
     });
 
     test('unhandled action leaves workspace unchanged', () {
-      const workspace = TerminalWorkspace();
+      const workspace = TerminalLayout();
       final reduced = LocalWorkspaceActionReducer.reduce(
         workspace: workspace,
         actionId: TerminalActionId.openThemePicker,
@@ -143,6 +143,6 @@ LocalWorkspaceActionContext _context({
     nextTabId: tab,
     nextPaneId: pane,
     nextSplitId: split,
-    fallbackIntent: const TerminalPaneSessionIntent(profileId: 'default'),
+    fallbackIntent: const TerminalRelaunchSpec(profileId: 'default'),
   );
 }

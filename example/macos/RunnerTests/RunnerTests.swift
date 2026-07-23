@@ -37,18 +37,18 @@ class RunnerTests: XCTestCase {
     XCTAssertTrue(window.didRequestCloseConfirmation)
   }
 
-  func testWorkspaceFileMenuIsStandardAndIdempotent() throws {
+  func testTerminalFolderFileMenuIsStandardAndIdempotent() throws {
     let window = MainFlutterWindow()
     let mainMenu = NSMenu(title: "Main Menu")
     mainMenu.addItem(NSMenuItem(title: "Ianvs Terminal", action: nil, keyEquivalent: ""))
 
-    window.bindNativeWorkspaceMenuItems(in: mainMenu)
-    window.bindNativeWorkspaceMenuItems(in: mainMenu)
+    window.bindNativeTerminalFolderMenuItem(in: mainMenu)
+    window.bindNativeTerminalFolderMenuItem(in: mainMenu)
 
     let fileItems = mainMenu.items.filter { $0.title == "File" }
     let fileItem = try XCTUnwrap(fileItems.first)
     let openItems = try XCTUnwrap(fileItem.submenu).items.filter {
-      $0.title == "Open Project…"
+      $0.title == "Open Terminal at Folder…"
     }
     let openItem = try XCTUnwrap(openItems.first)
     XCTAssertEqual(fileItems.count, 1)
@@ -56,7 +56,7 @@ class RunnerTests: XCTestCase {
     XCTAssertEqual(openItem.keyEquivalent, "o")
     XCTAssertEqual(openItem.keyEquivalentModifierMask, [.command])
     XCTAssertTrue(openItem.target === window)
-    XCTAssertEqual(openItem.action, #selector(MainFlutterWindow.openProject(_:)))
+    XCTAssertEqual(openItem.action, #selector(MainFlutterWindow.openTerminalAtFolder(_:)))
   }
 
   func testNotificationAuthorizationFailureUsesExpectedErrorCode() {

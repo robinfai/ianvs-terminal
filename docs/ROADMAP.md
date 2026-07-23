@@ -8,9 +8,10 @@
 
 ## 当前执行口径
 
-2026-07-21 完成兼容性基线、真实 `vttest` 补充门禁和 Frame Pipeline Iteration 02
-后，按 foundation handoff 顺序完成 Recording / Replay MVP 和本地 Workspace 基线，
-当前进入 **`runtime-contract-stability`**。权威说明和机器可读
+2026-07-23 完成兼容性基线、Recording / Replay、Frame Pipeline Iteration 02
+以及 Terminal scope convergence 后，当前继续 **`runtime-contract-stability`**。
+产品边界以 Terminal Layout、最小 Relaunch Spec、Recording Library 和
+Open Terminal at Folder 为准。权威说明和机器可读
 证据见：
 
 - [CURRENT_EXECUTION_TARGET.md](CURRENT_EXECUTION_TARGET.md)
@@ -45,6 +46,10 @@
 - [T-328](tasks/runtime-pty/T-328-replay-checkpoint-seek.md)：已关闭；基于已物化 checkpoint 的确定性 seek、Event cursor 协调与 realtime 重新调度
 - [T-329](tasks/runtime-pty/T-329-replay-graphic-asset-bundle.md)：已关闭；Recording v2 内容寻址 RGBA asset bundle、有界校验与 ReplayBackend native fallback
 - [T-330](tasks/runtime-pty/T-330-graphic-asset-packet-v1-and-dual-stack.md)：已关闭；原子 Graphic Asset Packet v1、精确 identity/RGBA 校验与旧 meta/copy 双栈
+- [T-331](tasks/shell-product/T-331-terminal-scope-convergence.md)：已关闭；Project Workspace 收敛为 Terminal Layout、最小 Relaunch Spec、独立 Recording Library 与 Open Terminal at Folder
+
+T-312 到 T-317 保留为历史实现记录；其中 Project Workspace、Recent Workspace、
+Session Descriptor 录制关联等当前产品声明由 T-331 取代。
 
 当前执行顺序：
 
@@ -63,14 +68,12 @@
    raw session replay。
 4. 每轮使用 focused regression 和 `make verify` 形成新鲜证据；不同时扩张 Host
    Protocol、Frame Wire、live asset capture、remote、plugin 或 renderer。
-5. Local Workspace stability 的存储、产品切换与录制关联基础已由 T-312/T-317 关闭：版本化 layout 会迁移，
-   `SessionController` 在配置启用时用新进程恢复 topology，并自动保存后续变化；失败会在
-   产品内可见。独立 Session Descriptor v1、Workspace schema v3、多 Workspace 文件集合和
-   Recent index v1 已落地；标题栏和原生 `File > Open Project…` 共用目录选择与切换路径，
-   目标 topology/PTY 会在替换旧 Workspace 前完成准备，失败保留原状态。环境值不写盘，
-   恢复仍只创建新 PTY。真实录制默认脱敏输入，文件原子落盘后才写入 Session Descriptor；
-   关闭 Session/Tab 或切换 Workspace 前会先完成保存，写盘失败则保留 PTY 和拓扑供重试。
-   Local Workspace 基线到此关闭，不自动扩张到录制库、Replay UI 或 checkpoint/seek。
+5. T-331 已将旧 Local/Project Workspace 基线收敛为单一 Terminal Layout：恢复仍只
+   创建新 PTY，Relaunch Spec 只含 profile/command/cwd；`Open Terminal at Folder`
+   只新增 cwd 指向所选目录的 Session，不切换容器。新录制写入独立平面库，旧嵌套录制
+   仍可发现。Workspace v1-v3、project index 与旧 `workspace` config 只读迁移且不删除。
+   Project/Recent Workspace、IDE/project context、plugin/cloud/collaboration 不再是当前能力；
+   SSH 保持延期扩展，并必须基于 Profile/Session 设计。
 6. Runtime Contract 已由 T-318 增加只读、版本化 capability query，由 T-319 完成
    Event Batch/Envelope 的 identity、sequence、timestamp 和丢失检测，再由 T-320 将
    session create 主路径迁移到产品中立、带上限的 SessionConfig v1。T-321 再把通用

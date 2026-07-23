@@ -2,8 +2,8 @@ part of 'shell_screen.dart';
 
 enum _TerminalLinkMenuAction { open, copy, copyText, inspect }
 
-extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
-  Widget _buildTerminalWorkspace({
+extension _ShellScreenStateTerminalLayout on _ShellScreenState {
+  Widget _buildTerminalLayout({
     required BuildContext context,
     required SessionController sessionController,
     required SessionState sessionState,

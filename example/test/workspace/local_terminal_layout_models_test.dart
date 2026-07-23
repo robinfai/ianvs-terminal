@@ -1,10 +1,10 @@
-import 'package:app/features/workspace/local_workspace_models.dart';
+import 'package:app/features/workspace/local_terminal_layout_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('Local workspace model', () {
     test('workspace starts empty and can add an active tab', () {
-      final workspace = const TerminalWorkspace().addTab(_tab('tab-1'));
+      final workspace = const TerminalLayout().addTab(_tab('tab-1'));
 
       expect(workspace.isEmpty, isFalse);
       expect(workspace.activeTabId, 'tab-1');
@@ -15,7 +15,7 @@ void main() {
       final tab = _tab('tab-1').splitActivePane(
         splitNodeId: 'split-1',
         newPaneId: 'pane-2',
-        sessionIntent: const TerminalPaneSessionIntent(
+        sessionIntent: const TerminalRelaunchSpec(
           profileId: 'default',
           cwd: '/tmp',
         ),
@@ -34,9 +34,7 @@ void main() {
           .splitActivePane(
             splitNodeId: 'split-1',
             newPaneId: 'pane-2',
-            sessionIntent: const TerminalPaneSessionIntent(
-              profileId: 'default',
-            ),
+            sessionIntent: const TerminalRelaunchSpec(profileId: 'default'),
             direction: TerminalPaneSplitDirection.down,
           )
           .closeActivePane();
@@ -51,9 +49,7 @@ void main() {
           .splitActivePane(
             splitNodeId: 'split-1',
             newPaneId: 'pane-2',
-            sessionIntent: const TerminalPaneSessionIntent(
-              profileId: 'default',
-            ),
+            sessionIntent: const TerminalRelaunchSpec(profileId: 'default'),
             direction: TerminalPaneSplitDirection.down,
           )
           .closeActivePane()
@@ -66,7 +62,7 @@ void main() {
     });
 
     test('close last tab enters empty state and can reopen it', () {
-      final closed = const TerminalWorkspace()
+      final closed = const TerminalLayout()
           .addTab(_tab('tab-1'))
           .closeActiveTab();
 
@@ -81,8 +77,8 @@ void main() {
     });
 
     test('workspace keeps a bounded closed tab history', () {
-      var workspace = const TerminalWorkspace();
-      for (var index = 0; index < maxWorkspaceClosedTabs + 3; index += 1) {
+      var workspace = const TerminalLayout();
+      for (var index = 0; index < maxTerminalLayoutClosedTabs + 3; index += 1) {
         workspace = workspace.addTab(_tab('tab-$index'));
       }
 
@@ -90,22 +86,22 @@ void main() {
         workspace = workspace.closeActiveTab();
       }
 
-      expect(workspace.closedTabs, hasLength(maxWorkspaceClosedTabs));
+      expect(workspace.closedTabs, hasLength(maxTerminalLayoutClosedTabs));
       expect(
         workspace.closedTabs.map((tab) => tab.id).toList(growable: false),
         [
-          for (var index = 0; index < maxWorkspaceClosedTabs; index += 1)
+          for (var index = 0; index < maxTerminalLayoutClosedTabs; index += 1)
             'tab-$index',
         ],
       );
       expect(
         (workspace.toJson()['closedTabs'] as List<Object?>),
-        hasLength(maxWorkspaceClosedTabs),
+        hasLength(maxTerminalLayoutClosedTabs),
       );
     });
 
     test('workspace JSON excludes closed tabs by normalized active ids', () {
-      final workspace = TerminalWorkspace(
+      final workspace = TerminalLayout(
         tabs: [_tab(' tab-1 ')],
         activeTabId: ' tab-1 ',
         closedTabs: [_tab('tab-1'), _tab('closed')],
@@ -119,11 +115,11 @@ void main() {
     });
 
     test('workspace layout roundtrips local pane topology', () {
-      final workspace = const TerminalWorkspace().addTab(
+      final workspace = const TerminalLayout().addTab(
         _tab('tab-1').splitActivePane(
           splitNodeId: 'split-1',
           newPaneId: 'pane-2',
-          sessionIntent: const TerminalPaneSessionIntent(
+          sessionIntent: const TerminalRelaunchSpec(
             profileId: 'default',
             cwd: '/tmp',
           ),
@@ -131,7 +127,7 @@ void main() {
         ),
       );
 
-      final decoded = TerminalWorkspace.fromJson(workspace.toJson());
+      final decoded = TerminalLayout.fromJson(workspace.toJson());
 
       expect(decoded.activeTabId, 'tab-1');
       expect(
@@ -147,7 +143,7 @@ void main() {
     });
 
     test('workspace layout normalizes invalid active ids', () {
-      final workspace = TerminalWorkspace.fromJson(const {
+      final workspace = TerminalLayout.fromLegacyWorkspaceJson(const {
         'activeTabId': 'missing-tab',
         'tabs': [
           {
@@ -179,7 +175,7 @@ void main() {
     });
 
     test('workspace layout trims persisted identifiers', () {
-      final workspace = TerminalWorkspace.fromJson(const {
+      final workspace = TerminalLayout.fromLegacyWorkspaceJson(const {
         'activeTabId': ' tab-1 ',
         'tabs': [
           {
@@ -219,34 +215,34 @@ void main() {
     });
 
     test('workspace compatibility intent writes descriptor fields', () {
-      const intent = TerminalPaneSessionIntent(
+      const intent = TerminalRelaunchSpec(
         profileId: ' default ',
         cwd: ' /repo ',
       );
-      const blank = TerminalPaneSessionIntent(profileId: '   ', cwd: '   ');
+      const blank = TerminalRelaunchSpec(profileId: '   ', cwd: '   ');
 
       expect(intent.toJson(), containsPair('profileId', 'default'));
       expect(intent.toJson(), containsPair('cwd', '/repo'));
       expect(
         intent.toJson(),
-        containsPair('schemaVersion', currentTerminalSessionDescriptorVersion),
+        containsPair('schemaVersion', currentTerminalRelaunchSpecVersion),
       );
       expect(blank.toJson(), containsPair('profileId', ''));
       expect(blank.toJson(), containsPair('cwd', null));
     });
 
     test('workspace JSON normalizes direct tab and pane identifiers', () {
-      final workspace = TerminalWorkspace(
+      final workspace = TerminalLayout(
         activeTabId: 'tab-1',
         tabs: [
           _tab(' other '),
-          TerminalWorkspaceTab(
+          TerminalLayoutTab(
             id: ' tab-1 ',
             activePaneId: ' pane-1 ',
             zoomedPaneId: ' pane-1 ',
             root: TerminalPaneNode.leaf(
               id: ' pane-1 ',
-              sessionIntent: const TerminalPaneSessionIntent(
+              sessionIntent: const TerminalRelaunchSpec(
                 profileId: ' default ',
                 cwd: ' /repo ',
               ),
@@ -254,13 +250,11 @@ void main() {
             closedPanes: [
               TerminalPaneNode.leaf(
                 id: '   ',
-                sessionIntent: const TerminalPaneSessionIntent(
-                  profileId: 'ignored',
-                ),
+                sessionIntent: const TerminalRelaunchSpec(profileId: 'ignored'),
               ),
               TerminalPaneNode.leaf(
                 id: ' closed-pane ',
-                sessionIntent: const TerminalPaneSessionIntent(
+                sessionIntent: const TerminalRelaunchSpec(
                   profileId: ' default ',
                 ),
               ),
@@ -292,7 +286,7 @@ void main() {
     });
 
     test('workspace layout skips malformed tabs and panes', () {
-      final workspace = TerminalWorkspace.fromJson(const {
+      final workspace = TerminalLayout.fromLegacyWorkspaceJson(const {
         'activeTabId': 'missing-tab',
         'tabs': [
           {
@@ -356,7 +350,7 @@ void main() {
     });
 
     test('workspace layout collapses malformed split children', () {
-      final workspace = TerminalWorkspace.fromJson(const {
+      final workspace = TerminalLayout.fromLegacyWorkspaceJson(const {
         'activeTabId': 'tab-1',
         'tabs': [
           {
@@ -390,7 +384,7 @@ void main() {
     });
 
     test('workspace layout skips malformed closed panes before reopen', () {
-      final workspace = TerminalWorkspace.fromJson(const {
+      final workspace = TerminalLayout.fromLegacyWorkspaceJson(const {
         'activeTabId': 'tab-1',
         'tabs': [
           {
@@ -427,9 +421,9 @@ void main() {
     });
 
     test('workspace layout limits persisted closed history scans', () {
-      final tooManyMalformedClosedTabs = maxWorkspaceClosedTabs * 4 + 1;
-      final tooManyMalformedClosedPanes = maxWorkspaceClosedPanes * 4 + 1;
-      final workspace = TerminalWorkspace.fromJson({
+      final tooManyMalformedClosedTabs = maxTerminalLayoutClosedTabs * 4 + 1;
+      final tooManyMalformedClosedPanes = maxTerminalLayoutClosedPanes * 4 + 1;
+      final workspace = TerminalLayout.fromLegacyWorkspaceJson({
         'activeTabId': 'tab-1',
         'tabs': [
           {
@@ -459,7 +453,7 @@ void main() {
     });
 
     test('workspace layout limits persisted split child scans', () {
-      final workspace = TerminalWorkspace.fromJson({
+      final workspace = TerminalLayout.fromLegacyWorkspaceJson({
         'activeTabId': 'tab-1',
         'tabs': [
           {
@@ -484,35 +478,41 @@ void main() {
 
     test('workspace keeps a bounded closed pane history', () {
       var tab = _tab('tab-1');
-      for (var index = 0; index < maxWorkspaceClosedPanes + 3; index += 1) {
+      for (
+        var index = 0;
+        index < maxTerminalLayoutClosedPanes + 3;
+        index += 1
+      ) {
         tab = tab
             .splitActivePane(
               splitNodeId: 'split-$index',
               newPaneId: 'closed-pane-$index',
-              sessionIntent: const TerminalPaneSessionIntent(
-                profileId: 'default',
-              ),
+              sessionIntent: const TerminalRelaunchSpec(profileId: 'default'),
               direction: TerminalPaneSplitDirection.right,
             )
             .closeActivePane();
       }
 
-      expect(tab.closedPanes, hasLength(maxWorkspaceClosedPanes));
+      expect(tab.closedPanes, hasLength(maxTerminalLayoutClosedPanes));
       expect(
         tab.closedPanes.map((pane) => pane.firstLeafId).toList(growable: false),
         [
-          for (var index = maxWorkspaceClosedPanes + 2; index >= 3; index -= 1)
+          for (
+            var index = maxTerminalLayoutClosedPanes + 2;
+            index >= 3;
+            index -= 1
+          )
             'closed-pane-$index',
         ],
       );
       expect(
         (tab.toJson()['closedPanes'] as List<Object?>),
-        hasLength(maxWorkspaceClosedPanes),
+        hasLength(maxTerminalLayoutClosedPanes),
       );
     });
 
     test('workspace layout skips duplicate and blank tab ids', () {
-      final workspace = TerminalWorkspace.fromJson(const {
+      final workspace = TerminalLayout.fromLegacyWorkspaceJson(const {
         'activeTabId': 'tab-1',
         'tabs': [
           {
@@ -597,7 +597,7 @@ void main() {
 
     test('workspace layout rejects remote-only fields', () {
       expect(
-        () => TerminalWorkspace.fromJson(const {
+        () => TerminalLayout.fromLegacyWorkspaceJson(const {
           'tabs': [],
           'remoteDomain': 'prod',
         }),
@@ -606,7 +606,7 @@ void main() {
     });
 
     test('workspace layout clamps persisted split ratios', () {
-      final workspace = TerminalWorkspace.fromJson(const {
+      final workspace = TerminalLayout.fromLegacyWorkspaceJson(const {
         'tabs': [
           {
             'id': 'tab-1',
@@ -636,7 +636,7 @@ void main() {
     });
 
     test('workspace layout normalizes persisted split direction', () {
-      final workspace = TerminalWorkspace.fromJson(const {
+      final workspace = TerminalLayout.fromLegacyWorkspaceJson(const {
         'tabs': [
           {
             'id': 'tab-1',
@@ -670,11 +670,11 @@ void main() {
     test('split nodes normalize direct ratio values', () {
       final first = TerminalPaneNode.leaf(
         id: 'pane-1',
-        sessionIntent: const TerminalPaneSessionIntent(profileId: 'default'),
+        sessionIntent: const TerminalRelaunchSpec(profileId: 'default'),
       );
       final second = TerminalPaneNode.leaf(
         id: 'pane-2',
-        sessionIntent: const TerminalPaneSessionIntent(profileId: 'default'),
+        sessionIntent: const TerminalRelaunchSpec(profileId: 'default'),
       );
 
       final high = TerminalPaneNode.split(
@@ -708,7 +708,7 @@ void main() {
       final splitTab = _tab('tab-1').splitActivePane(
         splitNodeId: 'split-1',
         newPaneId: 'pane-2',
-        sessionIntent: const TerminalPaneSessionIntent(profileId: 'default'),
+        sessionIntent: const TerminalRelaunchSpec(profileId: 'default'),
         direction: TerminalPaneSplitDirection.right,
       );
 
@@ -726,13 +726,13 @@ void main() {
     });
 
     test('direct tab operations recover from a stale active pane id', () {
-      final staleTab = TerminalWorkspaceTab(
+      final staleTab = TerminalLayoutTab(
         id: 'tab-1',
         activePaneId: 'missing-pane',
         zoomedPaneId: 'missing-pane',
         root: TerminalPaneNode.leaf(
           id: 'pane-1',
-          sessionIntent: const TerminalPaneSessionIntent(
+          sessionIntent: const TerminalRelaunchSpec(
             profileId: 'default',
             cwd: '/project',
           ),
@@ -763,18 +763,14 @@ void main() {
           .splitActivePane(
             splitNodeId: 'root-split',
             newPaneId: 'pane-2',
-            sessionIntent: const TerminalPaneSessionIntent(
-              profileId: 'default',
-            ),
+            sessionIntent: const TerminalRelaunchSpec(profileId: 'default'),
             direction: TerminalPaneSplitDirection.right,
           )
           .focusPane('pane-1')
           .splitActivePane(
             splitNodeId: 'nested-split',
             newPaneId: 'pane-3',
-            sessionIntent: const TerminalPaneSessionIntent(
-              profileId: 'default',
-            ),
+            sessionIntent: const TerminalRelaunchSpec(profileId: 'default'),
             direction: TerminalPaneSplitDirection.down,
           );
 
@@ -796,7 +792,7 @@ void main() {
       final splitTab = _tab('tab-1').splitActivePane(
         splitNodeId: 'split-1',
         newPaneId: 'pane-2',
-        sessionIntent: const TerminalPaneSessionIntent(profileId: 'default'),
+        sessionIntent: const TerminalRelaunchSpec(profileId: 'default'),
         direction: TerminalPaneSplitDirection.right,
       );
 
@@ -805,12 +801,12 @@ void main() {
     });
 
     test('new tab and split can inherit active cwd intent', () {
-      final workspace = const TerminalWorkspace()
+      final workspace = const TerminalLayout()
           .addTab(_tab('tab-1', cwd: '/project'))
           .addTabFromActivePane(
             tabId: 'tab-2',
             paneId: 'pane-2',
-            fallbackIntent: const TerminalPaneSessionIntent(
+            fallbackIntent: const TerminalRelaunchSpec(
               profileId: 'fallback',
               cwd: '/fallback',
             ),
@@ -819,7 +815,7 @@ void main() {
             splitNodeId: 'split-1',
             newPaneId: 'pane-3',
             direction: TerminalPaneSplitDirection.down,
-            fallbackIntent: const TerminalPaneSessionIntent(
+            fallbackIntent: const TerminalRelaunchSpec(
               profileId: 'fallback',
               cwd: '/fallback',
             ),
@@ -838,13 +834,13 @@ void main() {
   });
 }
 
-TerminalWorkspaceTab _tab(String id, {String? cwd}) {
-  return TerminalWorkspaceTab(
+TerminalLayoutTab _tab(String id, {String? cwd}) {
+  return TerminalLayoutTab(
     id: id,
     activePaneId: 'pane-1',
     root: TerminalPaneNode.leaf(
       id: 'pane-1',
-      sessionIntent: TerminalPaneSessionIntent(profileId: 'default', cwd: cwd),
+      sessionIntent: TerminalRelaunchSpec(profileId: 'default', cwd: cwd),
     ),
   );
 }

@@ -12,8 +12,8 @@ import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/recording/local_session_recording_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/shell/shell_screen.dart';
-import 'package:app/features/workspace/local_workspace_models.dart';
-import 'package:app/features/workspace/local_workspace_repository.dart';
+import 'package:app/features/workspace/local_terminal_layout_models.dart';
+import 'package:app/features/workspace/local_terminal_layout_repository.dart';
 
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
@@ -45,7 +45,7 @@ class _RecordingShellConfigRepository extends LocalTerminalConfigRepository {
   @override
   Future<LocalTerminalConfigDocument?> load() async {
     return const LocalTerminalConfigDocument(
-      workspace: LocalTerminalWorkspaceConfig(restoreLayout: true),
+      layout: LocalTerminalLayoutConfig(restoreLayout: true),
     );
   }
 
@@ -62,8 +62,6 @@ class _WidgetRecordingRepository extends LocalSessionRecordingRepository {
 
   @override
   Future<LocalSessionRecordingDestination> reserve({
-    required String workspaceId,
-    required String descriptorId,
     required String runtimeSessionId,
     required DateTime createdAtUtc,
   }) {
@@ -87,23 +85,16 @@ class _WidgetRecordingRepository extends LocalSessionRecordingRepository {
   }
 }
 
-class _MemoryWorkspaceRepository extends LocalWorkspaceRepository {
-  TerminalWorkspace? workspace;
+class _MemoryWorkspaceRepository extends LocalTerminalLayoutRepository {
+  TerminalLayout? workspace;
 
   @override
-  Future<TerminalWorkspace?> load() => Future.value(workspace);
+  Future<TerminalLayout?> load() => Future.value(workspace);
 
   @override
-  Future<void> save(TerminalWorkspace workspace) {
+  Future<void> save(TerminalLayout workspace) {
     this.workspace = workspace;
     return Future<void>.value();
-  }
-
-  @override
-  Future<List<TerminalWorkspaceRecentEntry>> loadRecent() {
-    return Future<List<TerminalWorkspaceRecentEntry>>.value(
-      const <TerminalWorkspaceRecentEntry>[],
-    );
   }
 }
 
@@ -139,7 +130,7 @@ void main() {
             localTerminalConfigRepositoryProvider.overrideWithValue(
               _RecordingShellConfigRepository(),
             ),
-            localWorkspaceRepositoryProvider.overrideWithValue(
+            localTerminalLayoutRepositoryProvider.overrideWithValue(
               _MemoryWorkspaceRepository(),
             ),
             localSessionRecordingRepositoryProvider.overrideWithValue(
@@ -211,28 +202,24 @@ void main() {
         const Key('shell-toggle-session-recording'),
       );
       await tester.tap(recordingAction);
-      await _pumpUntil(tester, () {
-        final state = container.read(sessionControllerProvider);
-        return state.tabs.single
-                .paneFor(sessionId)
-                ?.sessionDescriptor
-                ?.recordingPath !=
-            null;
-      }, phase: 'recording stop and save');
       await _pumpUntil(
         tester,
         () => find.textContaining('Recording saved to').evaluate().isNotEmpty,
         phase: 'recording saved feedback',
       );
 
+      final recordingFiles = directory
+          .listSync()
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.ndjson'))
+          .toList(growable: false);
+      expect(recordingFiles, hasLength(1));
       final pane = container
           .read(sessionControllerProvider)
           .tabs
           .single
           .paneFor(sessionId)!;
-      final path = pane.sessionDescriptor!.recordingPath;
-      expect(path, isNotNull);
-      expect(File(path!).existsSync(), isTrue);
+      expect(pane.relaunchSpec!.toJson(), isNot(contains('recordingPath')));
       expect(
         container.read(sessionControllerProvider).recordingSessionIds,
         isEmpty,

@@ -11,8 +11,7 @@ import 'package:app/features/config/local_terminal_config_repository.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/recording/local_session_recording_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
-import 'package:app/features/workspace/local_workspace_identity.dart';
-import 'package:app/features/workspace/local_workspace_repository.dart';
+import 'package:app/features/workspace/local_terminal_layout_repository.dart';
 
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
@@ -22,7 +21,7 @@ class _RecordingConfigRepository extends LocalTerminalConfigRepository {
   @override
   Future<LocalTerminalConfigDocument?> load() async {
     return const LocalTerminalConfigDocument(
-      workspace: LocalTerminalWorkspaceConfig(restoreLayout: true),
+      layout: LocalTerminalLayoutConfig(restoreLayout: true),
     );
   }
 
@@ -94,14 +93,12 @@ class _RecordingHarness {
   const _RecordingHarness({
     required this.container,
     required this.backend,
-    required this.workspaceRepository,
     required this.recordingRepository,
     required this.directory,
   });
 
   final ProviderContainer container;
   final _RecordingPtyBackend backend;
-  final LocalWorkspaceRepository workspaceRepository;
   final LocalSessionRecordingRepository recordingRepository;
   final Directory directory;
 }
@@ -114,7 +111,7 @@ Future<_RecordingHarness> _createHarness({
     'ianvs terminal-session-recording',
   );
   final backend = _RecordingPtyBackend();
-  final workspaceRepository = LocalWorkspaceRepository(
+  final layoutRepository = LocalTerminalLayoutRepository(
     directoryResolver: () async => directory,
   );
   final recordingRepository =
@@ -136,7 +133,7 @@ Future<_RecordingHarness> _createHarness({
       localTerminalConfigRepositoryProvider.overrideWithValue(
         _RecordingConfigRepository(),
       ),
-      localWorkspaceRepositoryProvider.overrideWithValue(workspaceRepository),
+      localTerminalLayoutRepositoryProvider.overrideWithValue(layoutRepository),
       localSessionRecordingRepositoryProvider.overrideWithValue(
         recordingRepository,
       ),
@@ -153,7 +150,6 @@ Future<_RecordingHarness> _createHarness({
   return _RecordingHarness(
     container: container,
     backend: backend,
-    workspaceRepository: workspaceRepository,
     recordingRepository: recordingRepository,
     directory: directory,
   );
@@ -161,7 +157,7 @@ Future<_RecordingHarness> _createHarness({
 
 void main() {
   test(
-    'start and stop save redacted v1 data and associate the descriptor',
+    'start and stop save redacted v1 data outside relaunch intent',
     () async {
       final harness = await _createHarness();
       final controller = harness.container.read(
@@ -186,7 +182,8 @@ void main() {
           .tabs
           .single
           .paneFor(sessionId)!;
-      expect(pane.sessionDescriptor!.recordingPath, path);
+      expect(pane.relaunchSpec!.profileId, isNotEmpty);
+      expect(pane.relaunchSpec!.toJson(), isNot(contains('recordingPath')));
       expect(
         harness.container.read(sessionControllerProvider).recordingSessionIds,
         isEmpty,
@@ -243,7 +240,7 @@ void main() {
   );
 
   test(
-    'workspace switch saves and associates recording before old PTY close',
+    'opening a terminal at a folder keeps existing recording and PTY alive',
     () async {
       final harness = await _createHarness();
       final controller = harness.container.read(
@@ -255,27 +252,15 @@ void main() {
       await controller.startSessionRecording(oldSessionId);
 
       expect(
-        await controller.openProjectWorkspace('/projects/recorded'),
+        await controller.openTerminalAtFolder('/projects/recorded'),
         isTrue,
       );
 
-      final stopIndex = harness.backend.timeline.indexOf('stop:$oldSessionId');
-      final closeIndex = harness.backend.timeline.indexOf(
-        'close:$oldSessionId',
-      );
-      expect(stopIndex, greaterThanOrEqualTo(0));
-      expect(closeIndex, greaterThan(stopIndex));
-      final previousWorkspace = await harness.workspaceRepository.loadWorkspace(
-        TerminalWorkspaceIdentity.defaultWorkspace.id,
-      );
-      expect(
-        previousWorkspace!.tabs.single.root.sessionDescriptor!.recordingPath,
-        isNotNull,
-      );
-      expect(
-        controller.activeWorkspaceIdentity,
-        TerminalWorkspaceIdentity.forProject('/projects/recorded'),
-      );
+      expect(harness.backend.timeline, isNot(contains('stop:$oldSessionId')));
+      expect(harness.backend.timeline, isNot(contains('close:$oldSessionId')));
+      final state = harness.container.read(sessionControllerProvider);
+      expect(state.tabs, hasLength(2));
+      expect(state.recordingSessionIds, contains(oldSessionId));
     },
   );
 

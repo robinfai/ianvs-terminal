@@ -93,6 +93,21 @@ Packet v1；Dart 校验 session/asset/version、尺寸和 100 MiB 上限，旧 m
 3. `ianvs_pty` 下发给 Rust。
 4. `TerminalRuntimeController` 消费 frame diff / event，驱动 `TerminalViewportController`。
 
+## App 侧终端状态
+
+当前产品状态边界由 [TERMINAL_PRODUCT_SCOPE.md](TERMINAL_PRODUCT_SCOPE.md)
+定义：
+
+- `Profile` 提供可复用启动默认值；
+- `Session` 拥有 live PTY 和运行态；
+- `Terminal Layout` 只保存 tab/pane topology、焦点和最小 Relaunch Spec；
+- `Relaunch Spec` 只保存 `profileId`、可选 command/arguments 和可选 `cwd`；
+- `Recording Library` 独立保存录制，不把 recording path 写回重启意图。
+
+`Open Terminal at Folder` 只以所选目录作为新 Session 的初始 `cwd`。它不创建
+Project Workspace identity，不切换现有 tab/PTY，也不维护 Recent Workspace。
+旧 Workspace v1-v3、project index 和 `workspace` config 只作为单向迁移输入。
+
 ## 不属于 package 的内容
 
 以下能力明确留在 `example/`：
@@ -119,3 +134,5 @@ Packet v1；Dart 校验 session/asset/version、尺寸和 100 MiB 上限，旧 m
   malformed packet 不在同一次调用中静默降级。file-download 和 Recording wire 不变。
 - `example/` 目录里的 Flutter package 现阶段仍保留 `name: app`，这是为了稳定既有 `package:app/...` import 面；macOS bundle identity 由 Runner project 单独维护。
 - 本次边界调整不处理 pub.dev 发布、插件系统和跨平台扩展。
+- SSH 是延期扩展；若后续实现，只扩展 Profile/Session，不恢复 Project Workspace。
+- completion/wiring 诊断面板只在 debug build 的 Toolbelt 中出现；用户诊断导出保持独立。

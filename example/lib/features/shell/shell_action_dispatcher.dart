@@ -3,7 +3,7 @@ import '../productivity/shell_productivity_action_reducer.dart';
 import '../productivity/shell_productivity_models.dart';
 import '../visual/local_terminal_visual_action_reducer.dart';
 import '../workspace/local_workspace_action_reducer.dart';
-import '../workspace/local_workspace_models.dart';
+import '../workspace/local_terminal_layout_models.dart';
 import 'shell_action_registry.dart';
 
 sealed class ShellActionDispatchResult {
@@ -13,7 +13,7 @@ sealed class ShellActionDispatchResult {
 class ShellWorkspaceDispatchResult extends ShellActionDispatchResult {
   const ShellWorkspaceDispatchResult(this.workspace);
 
-  final TerminalWorkspace workspace;
+  final TerminalLayout workspace;
 }
 
 class ShellProductivityDispatchResult extends ShellActionDispatchResult {
@@ -40,13 +40,13 @@ class ShellUnhandledDispatchResult extends ShellActionDispatchResult {
 
 class ShellActionDispatchState {
   const ShellActionDispatchState({
-    this.workspace = const TerminalWorkspace(),
+    this.workspace = const TerminalLayout(),
     this.productivity = const ShellProductivityState(),
     this.policies = const LocalTerminalPolicyBundle(),
     this.visual = const LocalTerminalVisualActionContext(),
   });
 
-  final TerminalWorkspace workspace;
+  final TerminalLayout workspace;
   final ShellProductivityState productivity;
   final LocalTerminalPolicyBundle policies;
   final LocalTerminalVisualActionContext visual;

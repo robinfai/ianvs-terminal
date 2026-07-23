@@ -13,8 +13,8 @@ import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/recording/local_session_recording_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/shell/shell_screen.dart';
-import 'package:app/features/workspace/local_workspace_models.dart';
-import 'package:app/features/workspace/local_workspace_repository.dart';
+import 'package:app/features/workspace/local_terminal_layout_models.dart';
+import 'package:app/features/workspace/local_terminal_layout_repository.dart';
 
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
@@ -47,7 +47,7 @@ class _RecordingLibraryConfigRepository extends LocalTerminalConfigRepository {
   @override
   Future<LocalTerminalConfigDocument?> load() async {
     return const LocalTerminalConfigDocument(
-      workspace: LocalTerminalWorkspaceConfig(restoreLayout: true),
+      layout: LocalTerminalLayoutConfig(restoreLayout: true),
     );
   }
 
@@ -55,20 +55,16 @@ class _RecordingLibraryConfigRepository extends LocalTerminalConfigRepository {
   Future<void> save(LocalTerminalConfigDocument document) async {}
 }
 
-class _RecordingLibraryWorkspaceRepository extends LocalWorkspaceRepository {
-  TerminalWorkspace? workspace;
+class _RecordingLibraryWorkspaceRepository
+    extends LocalTerminalLayoutRepository {
+  TerminalLayout? workspace;
 
   @override
-  Future<TerminalWorkspace?> load() => Future.value(workspace);
+  Future<TerminalLayout?> load() => Future.value(workspace);
 
   @override
-  Future<void> save(TerminalWorkspace workspace) async {
+  Future<void> save(TerminalLayout workspace) async {
     this.workspace = workspace;
-  }
-
-  @override
-  Future<List<TerminalWorkspaceRecentEntry>> loadRecent() async {
-    return const <TerminalWorkspaceRecentEntry>[];
   }
 }
 
@@ -79,7 +75,6 @@ class _WidgetRecordingLibraryRepository
     required this.recording,
   }) : entry = LocalSessionRecordingEntry(
          path: '${directory.path}/vttest-regression.ndjson',
-         workspaceId: 'default',
          displayName: 'vttest regression',
          createdAtUtc: DateTime.utc(2026, 7, 21, 6),
          duration: const Duration(milliseconds: 400),
@@ -140,7 +135,7 @@ void main() {
             localTerminalConfigRepositoryProvider.overrideWithValue(
               _RecordingLibraryConfigRepository(),
             ),
-            localWorkspaceRepositoryProvider.overrideWithValue(
+            localTerminalLayoutRepositoryProvider.overrideWithValue(
               _RecordingLibraryWorkspaceRepository(),
             ),
             localSessionRecordingRepositoryProvider.overrideWithValue(
@@ -185,11 +180,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Oldest'), findsOneWidget);
 
-      await tester.tap(find.text('Group by Workspace'));
-      await tester.pumpAndSettle();
-      await tester.tap(_popupItemWithText('No grouping'));
-      await tester.pumpAndSettle();
       expect(find.text('ALL RECORDINGS'), findsOneWidget);
+      expect(find.textContaining('Workspace'), findsNothing);
 
       await tester.tap(find.text('vttest regression'));
       await _pumpUntil(

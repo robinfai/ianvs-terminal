@@ -26,6 +26,7 @@
 
 ## 架构边界
 
+- [TERMINAL_PRODUCT_SCOPE.md](TERMINAL_PRODUCT_SCOPE.md)：Profile、Session、Terminal Layout、Relaunch Spec、Recording Library 与延期/非目标边界。
 - [ARCHITECTURE.md](ARCHITECTURE.md)：稳定设计、模块职责、公开接口和长期约束。
 - [FRAME_DIFF.md](FRAME_DIFF.md)：terminal frame diff 的原理图、生命周期、Snapshot/Delta 对比和收益说明。
 - [recording/FORMAT_V1.md](recording/FORMAT_V1.md)：Iteration 03 的 Recording Metadata/Event v1 格式、兼容错误和输入隐私边界。
@@ -99,6 +100,7 @@
 - [DECISIONS/README.md](DECISIONS/README.md)：ADR 写作规则。
 - [DECISIONS/ADR-0001-hyper-phase0-shell-boundaries.md](DECISIONS/ADR-0001-hyper-phase0-shell-boundaries.md)：Hyper-inspired shell 边界与 terminal protected contracts。
 - [DECISIONS/ADR-0002-terminal-core-fork-rationale.md](DECISIONS/ADR-0002-terminal-core-fork-rationale.md)：保留 vendored terminal core fork 的理由。
+- [DECISIONS/ADR-0003-terminal-scope-convergence.md](DECISIONS/ADR-0003-terminal-scope-convergence.md)：从 Project Workspace 收敛到 Terminal Layout 与最小 Relaunch Spec。
 
 重要且长期影响后续边界的选择写 ADR；一次性实现细节留在任务文档。
 

@@ -10,12 +10,12 @@ class WindowBridge {
 
   static void setNativeMenuHandlers({
     Future<void> Function()? onPaste,
-    Future<void> Function()? onOpenProject,
+    Future<void> Function()? onOpenTerminalAtFolder,
     Future<void> Function(NativeFindAction action)? onFind,
     Future<void> Function(NativeOsc72DragEvent event)? onOsc72DragEvent,
   }) {
     if (onPaste == null &&
-        onOpenProject == null &&
+        onOpenTerminalAtFolder == null &&
         onFind == null &&
         onOsc72DragEvent == null) {
       _channel.setMethodCallHandler(null);
@@ -29,8 +29,8 @@ class WindowBridge {
             throw MissingPluginException('No handler for ${call.method}');
           }
           await handler();
-        case 'nativeOpenProject':
-          final handler = onOpenProject;
+        case 'nativeOpenTerminalAtFolder':
+          final handler = onOpenTerminalAtFolder;
           if (handler == null) {
             throw MissingPluginException('No handler for ${call.method}');
           }
@@ -218,13 +218,13 @@ class WindowBridge {
     }
   }
 
-  static Future<String?> chooseProjectDirectory() async {
+  static Future<String?> chooseTerminalFolder() async {
     if (BindingBase.debugBindingType() == null) {
       return null;
     }
     try {
       final selected = await _channel.invokeMethod<String>(
-        'chooseProjectDirectory',
+        'chooseTerminalFolder',
       );
       final path = selected?.trim();
       return path == null || path.isEmpty ? null : path;

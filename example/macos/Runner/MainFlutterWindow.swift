@@ -340,7 +340,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
       binaryMessenger: flutterViewController.engine.binaryMessenger
     )
     bindNativePasteMenuItems()
-    bindNativeWorkspaceMenuItems()
+    bindNativeTerminalFolderMenuItem()
     hotkeyWindowController = HotkeyWindowController(window: self)
     hotkeyWindowController?.register()
     windowBridgeChannel?.setMethodCallHandler { [weak self] call, result in
@@ -491,9 +491,9 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
         panel.beginSheetModal(for: self) { response in
           result(response == .OK ? panel.url?.path : nil)
         }
-      case "chooseProjectDirectory":
+      case "chooseTerminalFolder":
         let panel = NSOpenPanel()
-        panel.title = "Open Project"
+        panel.title = "Open Terminal at Folder"
         panel.prompt = "Open"
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
@@ -720,8 +720,8 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     windowBridgeChannel?.invokeMethod("nativePaste", arguments: nil)
   }
 
-  @objc func openProject(_ sender: Any?) {
-    windowBridgeChannel?.invokeMethod("nativeOpenProject", arguments: nil)
+  @objc func openTerminalAtFolder(_ sender: Any?) {
+    windowBridgeChannel?.invokeMethod("nativeOpenTerminalAtFolder", arguments: nil)
   }
 
   @objc func performFindPanelAction(_ sender: Any?) {
@@ -752,7 +752,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     }
   }
 
-  func bindNativeWorkspaceMenuItems(in providedMenu: NSMenu? = NSApp.mainMenu) {
+  func bindNativeTerminalFolderMenuItem(in providedMenu: NSMenu? = NSApp.mainMenu) {
     guard let mainMenu = providedMenu else {
       return
     }
@@ -769,21 +769,21 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
       mainMenu.insertItem(fileMenuItem, at: min(1, mainMenu.items.count))
     }
 
-    let openProjectItem: NSMenuItem
-    if let existing = fileMenu.items.first(where: { $0.title == "Open Project…" }) {
-      openProjectItem = existing
+    let openTerminalAtFolderItem: NSMenuItem
+    if let existing = fileMenu.items.first(where: { $0.title == "Open Terminal at Folder…" }) {
+      openTerminalAtFolderItem = existing
     } else {
-      openProjectItem = NSMenuItem(
-        title: "Open Project…",
-        action: #selector(openProject(_:)),
+      openTerminalAtFolderItem = NSMenuItem(
+        title: "Open Terminal at Folder…",
+        action: #selector(openTerminalAtFolder(_:)),
         keyEquivalent: "o"
       )
-      fileMenu.insertItem(openProjectItem, at: 0)
+      fileMenu.insertItem(openTerminalAtFolderItem, at: 0)
     }
-    openProjectItem.target = self
-    openProjectItem.action = #selector(openProject(_:))
-    openProjectItem.keyEquivalent = "o"
-    openProjectItem.keyEquivalentModifierMask = [.command]
+    openTerminalAtFolderItem.target = self
+    openTerminalAtFolderItem.action = #selector(openTerminalAtFolder(_:))
+    openTerminalAtFolderItem.keyEquivalent = "o"
+    openTerminalAtFolderItem.keyEquivalentModifierMask = [.command]
   }
 
   private func configureOsc72DropTarget(

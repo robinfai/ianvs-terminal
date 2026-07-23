@@ -20,15 +20,11 @@ void main() {
         final recording = _recording('runtime-1');
 
         final first = await repository.reserve(
-          workspaceId: 'workspace-1',
-          descriptorId: 'descriptor-1',
           runtimeSessionId: 'runtime-1',
           createdAtUtc: recording.metadata.createdAtUtc,
         );
         final firstPath = await repository.save(first, recording);
         final second = await repository.reserve(
-          workspaceId: 'workspace-1',
-          descriptorId: 'descriptor-1',
           runtimeSessionId: 'runtime-1',
           createdAtUtc: recording.metadata.createdAtUtc,
         );
@@ -37,6 +33,8 @@ void main() {
         expect(await first.file.exists(), isTrue);
         expect(second.file.path, isNot(first.file.path));
         expect(first.file.path, endsWith('.ndjson'));
+        expect(first.file.parent.path, endsWith('ianvs_recordings'));
+        expect(first.file.path, isNot(contains('workspace-')));
         final loaded = await repository.load(firstPath);
         expect(loaded.metadata.sessionId, 'runtime-1');
         expect(
@@ -53,29 +51,24 @@ void main() {
       },
     );
 
-    test(
-      'rejects invalid identity segments before creating a destination',
-      () async {
-        final directory = await Directory.systemTemp.createTemp(
-          'ianvs terminal-recording-invalid',
-        );
-        addTearDown(() => directory.delete(recursive: true));
-        final repository = LocalSessionRecordingRepository(
-          directoryResolver: () async => directory,
-        );
+    test('rejects an invalid runtime session id', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-recording-invalid',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final repository = LocalSessionRecordingRepository(
+        directoryResolver: () async => directory,
+      );
 
-        await expectLater(
-          repository.reserve(
-            workspaceId: '',
-            descriptorId: 'descriptor-1',
-            runtimeSessionId: 'runtime-1',
-            createdAtUtc: DateTime.utc(2026, 7, 21),
-          ),
-          throwsFormatException,
-        );
-        expect(directory.listSync(), isEmpty);
-      },
-    );
+      await expectLater(
+        repository.reserve(
+          runtimeSessionId: '',
+          createdAtUtc: DateTime.utc(2026, 7, 21),
+        ),
+        throwsFormatException,
+      );
+      expect(directory.listSync(), isEmpty);
+    });
 
     test('lists, renames, imports, and exports validated recordings', () async {
       final directory = await Directory.systemTemp.createTemp(
@@ -93,8 +86,6 @@ void main() {
       );
       final recording = _recording('runtime-library');
       final destination = await repository.reserve(
-        workspaceId: 'workspace-library',
-        descriptorId: 'descriptor-library',
         runtimeSessionId: 'runtime-library',
         createdAtUtc: recording.metadata.createdAtUtc,
       );
@@ -107,7 +98,6 @@ void main() {
       var entries = await repository.listRecordings();
 
       expect(entries, hasLength(1));
-      expect(entries.single.workspaceId, 'workspace-library');
       expect(entries.single.displayName, 'Foundation shell debug');
       expect(entries.single.duration, const Duration(microseconds: 10));
       expect(entries.single.inputPolicy, TerminalRecordingInputPolicy.redact);
@@ -125,7 +115,6 @@ void main() {
       );
       final imported = await repository.importRecording(
         sourcePath: source.path,
-        workspaceId: 'workspace-library',
         displayName: 'Imported recording',
       );
 
@@ -137,6 +126,33 @@ void main() {
       final exported = await repository.load(exportPath);
       expect(exported.metadata.sessionId, 'runtime-import');
     });
+
+    test(
+      'keeps legacy workspace-partitioned recordings discoverable',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'ianvs terminal-recording-legacy-library',
+        );
+        addTearDown(() => directory.delete(recursive: true));
+        final legacyFile = File(
+          '${directory.path}/ianvs_recordings/workspace-project-old/'
+          'legacy.ndjson',
+        );
+        await legacyFile.parent.create(recursive: true);
+        await legacyFile.writeAsString(
+          const TerminalRecordingCodec().encode(_recording('legacy-runtime')),
+        );
+        final repository = LocalSessionRecordingRepository(
+          directoryResolver: () async => directory,
+        );
+
+        final entries = await repository.listRecordings();
+
+        expect(entries, hasLength(1));
+        expect(entries.single.path, legacyFile.absolute.path);
+        expect(entries.single.sessionId, 'legacy-runtime');
+      },
+    );
   });
 }
 

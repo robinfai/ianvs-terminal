@@ -2394,7 +2394,7 @@ void main() {
     );
     final localConfigRepository = _MemoryLocalTerminalConfigRepository(
       const LocalTerminalConfigDocument(
-        workspace: LocalTerminalWorkspaceConfig(restoreLayout: true),
+        layout: LocalTerminalLayoutConfig(restoreLayout: true),
         notifications: LocalTerminalNotificationsConfig(
           enabled: true,
           commandFinished: false,
@@ -2431,7 +2431,7 @@ void main() {
     expect(legacyPreferencesRepository.savedDocuments, isEmpty);
     expect(localConfigRepository.savedDocuments, hasLength(1));
     final savedConfig = localConfigRepository.savedDocuments.single;
-    expect(savedConfig.workspace.restoreLayout, isTrue);
+    expect(savedConfig.layout.restoreLayout, isTrue);
     expect(savedConfig.notifications.enabled, isTrue);
     expect(savedConfig.notifications.commandFinished, isTrue);
     expect(savedConfig.notifications.bell, isTrue);

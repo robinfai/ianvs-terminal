@@ -15,7 +15,7 @@ class LocalTerminalConfigDocument {
     this.defaultProfileId,
     this.appearance = const TerminalAppAppearance(),
     this.keybindings = const LocalTerminalKeybindingsConfig(),
-    this.workspace = const LocalTerminalWorkspaceConfig(),
+    this.layout = const LocalTerminalLayoutConfig(),
     this.clipboard = const LocalTerminalClipboardConfig(),
     this.hostActions = const LocalTerminalHostActionsConfig(),
     this.paste = const LocalTerminalPasteConfig(),
@@ -24,7 +24,7 @@ class LocalTerminalConfigDocument {
     this.hotkeyWindow = const LocalTerminalHotkeyWindowConfig(),
   });
 
-  static const int currentSchemaVersion = 1;
+  static const int currentSchemaVersion = 2;
 
   static const Set<String> forbiddenTopLevelKeys = {
     'ssh',
@@ -42,7 +42,7 @@ class LocalTerminalConfigDocument {
   final String? defaultProfileId;
   final TerminalAppAppearance appearance;
   final LocalTerminalKeybindingsConfig keybindings;
-  final LocalTerminalWorkspaceConfig workspace;
+  final LocalTerminalLayoutConfig layout;
   final LocalTerminalClipboardConfig clipboard;
   final LocalTerminalHostActionsConfig hostActions;
   final LocalTerminalPasteConfig paste;
@@ -55,7 +55,7 @@ class LocalTerminalConfigDocument {
     Object? defaultProfileId = _localTerminalConfigNoChange,
     TerminalAppAppearance? appearance,
     LocalTerminalKeybindingsConfig? keybindings,
-    LocalTerminalWorkspaceConfig? workspace,
+    LocalTerminalLayoutConfig? layout,
     LocalTerminalClipboardConfig? clipboard,
     LocalTerminalHostActionsConfig? hostActions,
     LocalTerminalPasteConfig? paste,
@@ -74,7 +74,7 @@ class LocalTerminalConfigDocument {
           : _nonEmptyTrimmedStringOrNull(defaultProfileId as String?),
       appearance: appearance ?? this.appearance,
       keybindings: keybindings ?? this.keybindings,
-      workspace: workspace ?? this.workspace,
+      layout: layout ?? this.layout,
       clipboard: clipboard ?? this.clipboard,
       hostActions: hostActions ?? this.hostActions,
       paste: paste ?? this.paste,
@@ -86,14 +86,11 @@ class LocalTerminalConfigDocument {
 
   Map<String, Object?> toJson() {
     return {
-      'schemaVersion': _schemaVersionFromJson(
-        schemaVersion,
-        currentSchemaVersion,
-      ),
+      'schemaVersion': currentSchemaVersion,
       'defaultProfileId': _nonEmptyTrimmedStringOrNull(defaultProfileId),
       'appearance': appearance.toJson(),
       'keybindings': keybindings.toJson(),
-      'workspace': workspace.toJson(),
+      'layout': layout.toJson(),
       'clipboard': clipboard.toJson(),
       'hostActions': hostActions.toJson(),
       'paste': paste.toJson(),
@@ -118,10 +115,7 @@ class LocalTerminalConfigDocument {
     _rejectForbiddenTopLevelKeys(json);
 
     return LocalTerminalConfigDocument(
-      schemaVersion: _schemaVersionFromJson(
-        json['schemaVersion'],
-        currentSchemaVersion,
-      ),
+      schemaVersion: currentSchemaVersion,
       defaultProfileId: _nonEmptyTrimmedStringOrNull(json['defaultProfileId']),
       appearance: TerminalAppAppearance.fromJson(
         _objectMap(json['appearance']),
@@ -129,8 +123,8 @@ class LocalTerminalConfigDocument {
       keybindings: LocalTerminalKeybindingsConfig.fromJson(
         _objectMap(json['keybindings']),
       ),
-      workspace: LocalTerminalWorkspaceConfig.fromJson(
-        _objectMap(json['workspace']),
+      layout: LocalTerminalLayoutConfig.fromJson(
+        _objectMap(json['layout']) ?? _objectMap(json['workspace']),
       ),
       clipboard: LocalTerminalClipboardConfig.fromJson(
         _objectMap(json['clipboard']),
@@ -288,8 +282,8 @@ class LocalTerminalKeyBinding {
   }
 }
 
-class LocalTerminalWorkspaceConfig {
-  const LocalTerminalWorkspaceConfig({this.restoreLayout = false});
+class LocalTerminalLayoutConfig {
+  const LocalTerminalLayoutConfig({this.restoreLayout = false});
 
   final bool restoreLayout;
 
@@ -297,8 +291,8 @@ class LocalTerminalWorkspaceConfig {
     return {'restoreLayout': restoreLayout};
   }
 
-  static LocalTerminalWorkspaceConfig fromJson(Map<Object?, Object?>? json) {
-    return LocalTerminalWorkspaceConfig(
+  static LocalTerminalLayoutConfig fromJson(Map<Object?, Object?>? json) {
+    return LocalTerminalLayoutConfig(
       restoreLayout: _boolFromJson(json?['restoreLayout'], false),
     );
   }

@@ -18,9 +18,9 @@ import '../profiles/profile_models.dart';
 import '../profiles/profile_repository.dart';
 import '../recording/local_session_recording_repository.dart';
 import '../terminal/terminal.dart' hide TerminalEmulation;
-import '../workspace/local_session_workspace_codec.dart';
-import '../workspace/local_workspace_models.dart';
-import '../workspace/local_workspace_repository.dart';
+import '../workspace/local_session_layout_codec.dart';
+import '../workspace/local_terminal_layout_models.dart';
+import '../workspace/local_terminal_layout_repository.dart';
 import 'session_bootstrap.dart';
 import 'session_ports.dart';
 import 'session_state.dart';
@@ -207,11 +207,10 @@ final localTerminalConfigLoaderProvider = Provider<LocalTerminalConfigLoader>((
   );
 });
 
-final localWorkspaceRepositoryProvider = Provider<LocalWorkspaceRepository>((
-  ref,
-) {
-  return LocalWorkspaceRepository();
-});
+final localTerminalLayoutRepositoryProvider =
+    Provider<LocalTerminalLayoutRepository>((ref) {
+      return LocalTerminalLayoutRepository();
+    });
 
 final localSessionRecordingRepositoryProvider =
     Provider<LocalSessionRecordingRepository>((ref) {
@@ -368,7 +367,7 @@ class _AutomaticProfileBaseline {
 }
 
 class SessionController extends Notifier<SessionState> {
-  static const _workspacePersistenceDebounce = Duration(milliseconds: 60);
+  static const _layoutPersistenceDebounce = Duration(milliseconds: 60);
 
   final SessionBootstrapRunner _bootstrapRunner = SessionBootstrapRunner();
   final Map<String, TerminalViewportController> _demoViewports =
@@ -398,13 +397,10 @@ class SessionController extends Notifier<SessionState> {
   final Map<String, bool> _runtimeSessionActivation = <String, bool>{};
   bool _progressFlushScheduled = false;
   int _progressEventOrder = 0;
-  bool _workspacePersistenceEnabled = false;
-  bool _workspaceSwitchInProgress = false;
-  TerminalWorkspaceIdentity _activeWorkspaceIdentity =
-      TerminalWorkspaceIdentity.defaultWorkspace;
-  Timer? _workspacePersistenceTimer;
-  String? _lastWorkspaceSnapshot;
-  Future<void> _workspaceSaveChain = Future<void>.value();
+  bool _layoutPersistenceEnabled = false;
+  Timer? _layoutPersistenceTimer;
+  String? _lastLayoutSnapshot;
+  Future<void> _layoutSaveChain = Future<void>.value();
 
   @protected
   String? get bootstrapDefaultProfileIdOverride => null;
@@ -413,11 +409,6 @@ class SessionController extends Notifier<SessionState> {
       ref.read(terminalRuntimeControllerProvider);
 
   bool get canReopenClosedTab => _recentlyClosedTabs.isNotEmpty;
-
-  TerminalWorkspaceIdentity get activeWorkspaceIdentity =>
-      _activeWorkspaceIdentity;
-
-  bool get workspaceSwitchInProgress => _workspaceSwitchInProgress;
 
   bool get canReopenClosedPane {
     final activeSessionId = state.activeSessionId;
@@ -449,7 +440,7 @@ class SessionController extends Notifier<SessionState> {
 
   @override
   SessionState build() {
-    listenSelf(_handleWorkspaceStateChanged);
+    listenSelf(_handleLayoutStateChanged);
     Future.microtask(_runBootstrap);
     final liveRecorder = ref.read(terminalLiveRecorderProvider);
     final recordingRepository = ref.read(
@@ -457,7 +448,7 @@ class SessionController extends Notifier<SessionState> {
     );
     ref.onDispose(() {
       _disposeRecordingsBestEffort(liveRecorder, recordingRepository);
-      _workspacePersistenceTimer?.cancel();
+      _layoutPersistenceTimer?.cancel();
       _runtimeEventsSubscription?.cancel();
       for (final timer in _progressGraceTimers.values) {
         timer.cancel();
@@ -569,23 +560,20 @@ class SessionController extends Notifier<SessionState> {
     final effectiveDefaultProfileId = preparation.effectiveDefaultProfileId;
     var initialTabs = <TerminalTab>[];
     String? initialSessionId;
-    String? workspaceRestoreError;
-    if (_localConfigDocument.workspace.restoreLayout) {
-      final workspace = await ref.read(localWorkspaceRepositoryProvider).load();
-      if (workspace != null) {
-        _activeWorkspaceIdentity = workspace.identity;
-      }
+    String? layoutRestoreError;
+    if (_localConfigDocument.layout.restoreLayout) {
+      final workspace = await ref
+          .read(localTerminalLayoutRepositoryProvider)
+          .load();
       if (workspace != null && !workspace.isEmpty) {
-        final restored = _restoreWorkspace(
+        final restored = _restoreTerminalLayout(
           workspace,
           profiles: runtimeProfiles,
         );
         initialTabs = restored.tabs;
         initialSessionId = restored.activeSessionId;
         if (restored.failures.isNotEmpty) {
-          workspaceRestoreError = _workspaceRestoreFailureMessage(
-            restored.failures,
-          );
+          layoutRestoreError = _layoutRestoreFailureMessage(restored.failures);
         }
       }
     }
@@ -604,11 +592,9 @@ class SessionController extends Notifier<SessionState> {
       );
       initialSessionId = _createRuntimeSession(initialLaunchProfile);
       if (initialSessionId != null) {
-        final descriptor = _sessionDescriptorForLaunch(
-          sessionId: initialSessionId,
+        final descriptor = _relaunchSpecForLaunch(
           profileId: initialProfile.id,
           launchProfile: initialLaunchProfile,
-          title: initialLaunchProfile.name,
         );
         initialTabs = <TerminalTab>[
           TerminalTab(
@@ -616,7 +602,7 @@ class SessionController extends Notifier<SessionState> {
             title: initialLaunchProfile.name,
             profileId: initialProfile.id,
             profileSnapshot: initialLaunchProfile,
-            sessionDescriptor: descriptor,
+            relaunchSpec: descriptor,
           ),
         ];
       }
@@ -633,7 +619,7 @@ class SessionController extends Notifier<SessionState> {
       terminalViewportPadding:
           _appPreferences.appearance.terminalViewportPadding,
       isReady: true,
-      lastError: workspaceRestoreError ?? state.lastError,
+      lastError: layoutRestoreError ?? state.lastError,
     );
     _syncRuntimeSessionActivation();
     final activePane = initialSessionId == null
@@ -642,18 +628,18 @@ class SessionController extends Notifier<SessionState> {
     if (activePane != null) {
       _setWindowTitle(activePane.title);
     }
-    _enableWorkspacePersistence();
+    _enableLayoutPersistence();
   }
 
-  LocalWorkspaceRestoreResult _restoreWorkspace(
-    TerminalWorkspace workspace, {
+  LocalTerminalLayoutRestoreResult _restoreTerminalLayout(
+    TerminalLayout workspace, {
     required List<TerminalProfile> profiles,
   }) {
     final profilesById = <String, TerminalProfile>{
       for (final profile in profiles) profile.id: profile,
     };
     final environmentOverrides = ref.read(sessionEnvironmentOverridesProvider);
-    return LocalSessionWorkspaceCodec.restore(
+    return LocalSessionLayoutCodec.restore(
       workspace,
       relaunch: (descriptor) {
         final profile = profilesById[descriptor.profileId];
@@ -679,26 +665,23 @@ class SessionController extends Notifier<SessionState> {
         if (sessionId == null) {
           return null;
         }
-        final title = descriptor.title ?? launchProfile.name;
+        final title = launchProfile.name;
         return TerminalPane(
           sessionId: sessionId,
           title: title,
           profileId: profile.id,
           profileSnapshot: launchProfile,
-          sessionDescriptor: _sessionDescriptorForLaunch(
-            sessionId: sessionId,
+          relaunchSpec: _relaunchSpecForLaunch(
             profileId: profile.id,
             launchProfile: launchProfile,
-            title: title,
-            restoredDescriptor: descriptor,
           ),
         );
       },
     );
   }
 
-  String _workspaceRestoreFailureMessage(
-    List<LocalWorkspaceRelaunchFailure> failures,
+  String _layoutRestoreFailureMessage(
+    List<LocalTerminalLayoutRelaunchFailure> failures,
   ) {
     final profileIds = failures
         .map((failure) => failure.intent.profileId)
@@ -706,314 +689,82 @@ class SessionController extends Notifier<SessionState> {
         .toSet()
         .take(3)
         .join(', ');
-    return 'Workspace restore skipped ${failures.length} pane(s)'
+    return 'Terminal layout restore skipped ${failures.length} pane(s)'
         '${profileIds.isEmpty ? '' : ' for profile(s): $profileIds'}.';
   }
 
-  void _enableWorkspacePersistence() {
-    _workspacePersistenceEnabled = _localConfigDocument.workspace.restoreLayout;
-    if (!_workspacePersistenceEnabled) {
+  void _enableLayoutPersistence() {
+    _layoutPersistenceEnabled = _localConfigDocument.layout.restoreLayout;
+    if (!_layoutPersistenceEnabled) {
       return;
     }
-    _lastWorkspaceSnapshot = jsonEncode(
-      LocalSessionWorkspaceCodec.capture(
-        state,
-        identity: _activeWorkspaceIdentity,
-      ).toJson(),
+    _lastLayoutSnapshot = jsonEncode(
+      LocalSessionLayoutCodec.capture(state).toJson(),
     );
   }
 
-  void _handleWorkspaceStateChanged(SessionState? previous, SessionState next) {
-    if (!_workspacePersistenceEnabled || !next.isReady) {
+  void _handleLayoutStateChanged(SessionState? previous, SessionState next) {
+    if (!_layoutPersistenceEnabled || !next.isReady) {
       return;
     }
-    final workspace = LocalSessionWorkspaceCodec.capture(
-      next,
-      identity: _activeWorkspaceIdentity,
-    );
+    final workspace = LocalSessionLayoutCodec.capture(next);
     final snapshot = jsonEncode(workspace.toJson());
-    if (snapshot == _lastWorkspaceSnapshot) {
+    if (snapshot == _lastLayoutSnapshot) {
       return;
     }
-    _lastWorkspaceSnapshot = snapshot;
-    _workspacePersistenceTimer?.cancel();
-    _workspacePersistenceTimer = Timer(_workspacePersistenceDebounce, () {
-      _workspacePersistenceTimer = null;
-      final previousSave = _workspaceSaveChain;
-      _workspaceSaveChain = _saveWorkspaceAfter(previousSave, workspace);
+    _lastLayoutSnapshot = snapshot;
+    _layoutPersistenceTimer?.cancel();
+    _layoutPersistenceTimer = Timer(_layoutPersistenceDebounce, () {
+      _layoutPersistenceTimer = null;
+      final previousSave = _layoutSaveChain;
+      _layoutSaveChain = _saveLayoutAfter(previousSave, workspace);
     });
   }
 
-  Future<void> _saveWorkspaceAfter(
+  Future<void> _saveLayoutAfter(
     Future<void> previousSave,
-    TerminalWorkspace workspace,
+    TerminalLayout workspace,
   ) async {
     try {
       await previousSave;
-      await ref.read(localWorkspaceRepositoryProvider).save(workspace);
+      await ref.read(localTerminalLayoutRepositoryProvider).save(workspace);
     } on Object catch (error) {
       if (ref.mounted) {
         final detail = _boundedShellMetadata(error.toString(), 240);
         state = state.copyWith(
           lastError:
-              'Workspace save failed'
+              'Terminal layout save failed'
               '${detail == null ? '' : ': $detail'}',
         );
       }
     }
   }
 
-  Future<List<TerminalWorkspaceRecentEntry>> recentWorkspaces() {
-    return ref.read(localWorkspaceRepositoryProvider).loadRecent();
-  }
-
-  Future<bool> openProjectWorkspace(String projectPath, {String? name}) {
-    return _openWorkspace(
-      () => ref
-          .read(localWorkspaceRepositoryProvider)
-          .loadOrCreateProject(projectPath: projectPath, name: name),
-    );
-  }
-
-  Future<bool> openRecentWorkspace(String workspaceId) {
-    return _openWorkspace(
-      () => ref
-          .read(localWorkspaceRepositoryProvider)
-          .loadWorkspace(workspaceId)
-          .then((workspace) {
-            if (workspace == null) {
-              throw StateError('Recent Workspace is no longer available.');
-            }
-            return workspace;
-          }),
-    );
-  }
-
-  Future<bool> _openWorkspace(
-    Future<TerminalWorkspace> Function() loadTarget,
-  ) async {
-    if (_workspaceSwitchInProgress || !state.isReady) {
+  Future<bool> openTerminalAtFolder(String folderPath) async {
+    final normalizedPath = folderPath.trim();
+    if (!state.isReady || normalizedPath.isEmpty) {
       return false;
     }
     if (ref.read(sessionDemoFixtureProvider) != null) {
       state = state.copyWith(
-        lastError: 'Workspace switching is unavailable in reference demo mode.',
+        lastError: 'Opening a folder is unavailable in reference demo mode.',
       );
       return false;
     }
-
-    _workspaceSwitchInProgress = true;
-    try {
-      if (!await _flushActiveWorkspaceForSwitch()) {
-        return false;
-      }
-      final workspace = await loadTarget();
-      if (!ref.mounted) {
-        return false;
-      }
-      return await _switchToWorkspace(workspace);
-    } on Object catch (error) {
-      _reportWorkspaceSwitchFailure(error);
+    final defaultProfile = _effectiveDefaultProfile();
+    if (defaultProfile == null) {
+      state = state.copyWith(
+        lastError: 'Opening a folder requires an available terminal profile.',
+      );
       return false;
-    } finally {
-      _workspaceSwitchInProgress = false;
     }
+    final previousSessionId = state.activeSessionId;
+    createSession(defaultProfile.copyWith(cwd: normalizedPath));
+    return state.activeSessionId != null &&
+        state.activeSessionId != previousSessionId;
   }
 
-  Future<bool> _flushActiveWorkspaceForSwitch() async {
-    final recordingSessionIds = <String>[
-      for (final tab in state.tabs)
-        for (final pane in tab.effectivePanes)
-          if (_recordingNeedsFinalization(pane.sessionId)) pane.sessionId,
-    ];
-    if (recordingSessionIds.isNotEmpty &&
-        !await _finalizeSessionRecordings(recordingSessionIds)) {
-      return false;
-    }
-    if (!_workspacePersistenceEnabled) {
-      return true;
-    }
-    _workspacePersistenceTimer?.cancel();
-    _workspacePersistenceTimer = null;
-    try {
-      await _workspaceSaveChain;
-      final workspace = LocalSessionWorkspaceCodec.capture(
-        state,
-        identity: _activeWorkspaceIdentity,
-      );
-      await ref.read(localWorkspaceRepositoryProvider).save(workspace);
-      _lastWorkspaceSnapshot = jsonEncode(workspace.toJson());
-      return true;
-    } on Object catch (error) {
-      _reportWorkspaceSwitchFailure(error, prefix: 'Workspace save failed');
-      return false;
-    }
-  }
-
-  Future<bool> _switchToWorkspace(TerminalWorkspace workspace) async {
-    final previousState = state;
-    final previousSessionIds = <String>{
-      for (final tab in previousState.tabs)
-        for (final pane in tab.effectivePanes) pane.sessionId,
-    };
-
-    if (workspace.identity.id == _activeWorkspaceIdentity.id) {
-      try {
-        final captured = LocalSessionWorkspaceCodec.capture(
-          previousState,
-          identity: workspace.identity,
-        );
-        await ref
-            .read(localWorkspaceRepositoryProvider)
-            .activateWorkspace(captured);
-        _activeWorkspaceIdentity = workspace.identity;
-        _workspacePersistenceEnabled = true;
-        _lastWorkspaceSnapshot = jsonEncode(captured.toJson());
-        state = previousState.copyWith(lastError: null);
-        return true;
-      } on Object catch (error) {
-        _reportWorkspaceSwitchFailure(error);
-        return false;
-      }
-    }
-
-    var restored = workspace.isEmpty
-        ? LocalWorkspaceRestoreResult(
-            tabs: const <TerminalTab>[],
-            activeSessionId: null,
-            failures: const <LocalWorkspaceRelaunchFailure>[],
-          )
-        : _restoreWorkspace(workspace, profiles: previousState.profiles);
-    var targetTabs = restored.tabs;
-    var targetActiveSessionId = restored.activeSessionId;
-
-    if (targetTabs.isEmpty) {
-      final defaultProfile = _effectiveDefaultProfileForWorkspaceSwitch();
-      if (defaultProfile == null) {
-        _closePreparedWorkspaceSessions(restored.tabs);
-        state = previousState.copyWith(
-          lastError:
-              'Workspace switch failed: no default profile is available.',
-        );
-        return false;
-      }
-      final environmentOverrides = ref.read(
-        sessionEnvironmentOverridesProvider,
-      );
-      final projectPath = workspace.identity.projectPath;
-      final projectProfile = projectPath == null
-          ? defaultProfile
-          : defaultProfile.copyWith(cwd: projectPath);
-      final launchProfile = _profileWithSessionEnvironment(
-        projectProfile,
-        environmentOverrides,
-      );
-      final sessionId = _createRuntimeSession(launchProfile);
-      if (sessionId == null) {
-        _closePreparedWorkspaceSessions(restored.tabs);
-        state = previousState.copyWith(
-          lastError:
-              state.lastError ??
-              'Workspace switch failed: session launch failed.',
-        );
-        return false;
-      }
-      final pane = TerminalPane(
-        sessionId: sessionId,
-        title: launchProfile.name,
-        profileId: defaultProfile.id,
-        profileSnapshot: launchProfile,
-        sessionDescriptor: _sessionDescriptorForLaunch(
-          sessionId: sessionId,
-          profileId: defaultProfile.id,
-          launchProfile: launchProfile,
-          title: launchProfile.name,
-        ),
-      );
-      targetTabs = <TerminalTab>[
-        TerminalTab(
-          sessionId: sessionId,
-          title: pane.title,
-          profileId: pane.profileId,
-          profileSnapshot: pane.profileSnapshot,
-          sessionDescriptor: pane.sessionDescriptor,
-        ),
-      ];
-      targetActiveSessionId = sessionId;
-      restored = LocalWorkspaceRestoreResult(
-        tabs: targetTabs,
-        activeSessionId: targetActiveSessionId,
-        failures: restored.failures,
-      );
-    }
-
-    final restoreError = restored.failures.isEmpty
-        ? null
-        : _workspaceRestoreFailureMessage(restored.failures);
-    final targetState = previousState.copyWith(
-      tabs: targetTabs,
-      activeSessionId: targetActiveSessionId,
-      lastError: restoreError,
-    );
-    final capturedTarget = LocalSessionWorkspaceCodec.capture(
-      targetState,
-      identity: workspace.identity,
-    );
-
-    if (!ref.mounted) {
-      _closePreparedWorkspaceSessions(targetTabs);
-      return false;
-    }
-    try {
-      await ref
-          .read(localWorkspaceRepositoryProvider)
-          .activateWorkspace(capturedTarget);
-    } on Object catch (error) {
-      _closePreparedWorkspaceSessions(targetTabs);
-      state = previousState;
-      _reportWorkspaceSwitchFailure(error);
-      return false;
-    }
-    if (!ref.mounted) {
-      _closePreparedWorkspaceSessions(targetTabs);
-      return false;
-    }
-
-    for (final sessionId in previousSessionIds) {
-      _clearProgressTrackingForSession(sessionId);
-      _clearNotificationTrackingForSession(sessionId);
-      _automaticProfileBaselines.remove(sessionId);
-    }
-    _recentlyClosedTabs.clear();
-    _recentlyClosedPanesByTab.clear();
-    _activeWorkspaceIdentity = workspace.identity;
-    _workspacePersistenceEnabled = true;
-    _lastWorkspaceSnapshot = jsonEncode(capturedTarget.toJson());
-    state = targetState;
-    _syncRuntimeSessionActivation();
-
-    final activePane = targetActiveSessionId == null
-        ? null
-        : _paneForSession(targetActiveSessionId);
-    if (activePane == null) {
-      _publishTerminalContent(
-        terminalHasVisibleContent: false,
-        terminalPreview: null,
-      );
-    } else {
-      _setWindowTitle(activePane.title);
-      _publishActiveTabTerminalContent();
-    }
-
-    for (final sessionId in previousSessionIds) {
-      if (_runtime.hasSession(sessionId)) {
-        _runtime.closeSession(sessionId);
-      }
-    }
-    return true;
-  }
-
-  TerminalProfile? _effectiveDefaultProfileForWorkspaceSwitch() {
+  TerminalProfile? _effectiveDefaultProfile() {
     if (state.profiles.isEmpty) {
       return null;
     }
@@ -1024,33 +775,6 @@ class SessionController extends Notifier<SessionState> {
     return state.profiles.firstWhere(
       (profile) => profile.id == defaultProfileId,
       orElse: () => state.profiles.first,
-    );
-  }
-
-  void _closePreparedWorkspaceSessions(Iterable<TerminalTab> tabs) {
-    for (final tab in tabs) {
-      for (final pane in tab.effectivePanes) {
-        final sessionId = pane.sessionId;
-        _automaticProfileBaselines.remove(sessionId);
-        _clearProgressTrackingForSession(sessionId);
-        _clearNotificationTrackingForSession(sessionId);
-        if (_runtime.hasSession(sessionId)) {
-          _runtime.closeSession(sessionId);
-        }
-      }
-    }
-  }
-
-  void _reportWorkspaceSwitchFailure(
-    Object error, {
-    String prefix = 'Workspace switch failed',
-  }) {
-    if (!ref.mounted) {
-      return;
-    }
-    final detail = _boundedShellMetadata(error.toString(), 240);
-    state = state.copyWith(
-      lastError: '$prefix${detail == null ? '' : ': $detail'}',
     );
   }
 
@@ -1072,11 +796,9 @@ class SessionController extends Notifier<SessionState> {
     if (sessionId == null) {
       return;
     }
-    final descriptor = _sessionDescriptorForLaunch(
-      sessionId: sessionId,
+    final descriptor = _relaunchSpecForLaunch(
       profileId: profile.id,
       launchProfile: launchProfile,
-      title: launchProfile.name,
     );
     state = state.copyWith(
       tabs: <TerminalTab>[
@@ -1086,7 +808,7 @@ class SessionController extends Notifier<SessionState> {
           title: launchProfile.name,
           profileId: profile.id,
           profileSnapshot: launchProfile,
-          sessionDescriptor: descriptor,
+          relaunchSpec: descriptor,
         ),
       ],
       activeSessionId: sessionId,
@@ -1134,11 +856,9 @@ class SessionController extends Notifier<SessionState> {
       title: launchProfile.name,
       profileId: profile.id,
       profileSnapshot: launchProfile,
-      sessionDescriptor: _sessionDescriptorForLaunch(
-        sessionId: sessionId,
+      relaunchSpec: _relaunchSpecForLaunch(
         profileId: profile.id,
         launchProfile: launchProfile,
-        title: launchProfile.name,
       ),
     );
     final targetTab = state.tabs[targetTabIndex];
@@ -1195,32 +915,17 @@ class SessionController extends Notifier<SessionState> {
     };
   }
 
-  TerminalSessionDescriptor _sessionDescriptorForLaunch({
-    required String sessionId,
+  TerminalRelaunchSpec _relaunchSpecForLaunch({
     required String profileId,
     required TerminalProfile launchProfile,
-    required String title,
-    TerminalSessionDescriptor? restoredDescriptor,
   }) {
-    final restoredId = restoredDescriptor?.id.trim();
-    return TerminalSessionDescriptor(
-      id: restoredId == null || restoredId.isEmpty ? sessionId : restoredId,
+    return TerminalRelaunchSpec(
       profileId: profileId,
-      command: TerminalSessionCommand(
+      command: TerminalRelaunchCommand(
         program: launchProfile.shell,
         arguments: launchProfile.args,
       ),
       cwd: launchProfile.cwd,
-      environment: TerminalSessionEnvironmentMetadata(
-        keys: launchProfile.env.keys.toList(growable: false),
-      ),
-      title: title,
-      createdAtUtc: restoredDescriptor?.createdAtUtc ?? DateTime.now().toUtc(),
-      exitState: TerminalSessionExitState.running,
-      recordingPath: restoredDescriptor?.recordingPath,
-      restartPolicy:
-          restoredDescriptor?.restartPolicy ??
-          TerminalSessionRestartPolicy.relaunch,
     );
   }
 
@@ -1408,12 +1113,7 @@ class SessionController extends Notifier<SessionState> {
     _setRecordingStatus(sessionId, busy: true, lastError: null);
     LocalSessionRecordingDestination? destination;
     try {
-      final descriptorId = pane.sessionDescriptor?.id.trim();
       destination = await repository.reserve(
-        workspaceId: _activeWorkspaceIdentity.id,
-        descriptorId: descriptorId == null || descriptorId.isEmpty
-            ? sessionId
-            : descriptorId,
         runtimeSessionId: sessionId,
         createdAtUtc: DateTime.now().toUtc(),
       );
@@ -1488,16 +1188,6 @@ class SessionController extends Notifier<SessionState> {
       );
       if (!ref.mounted) {
         return path;
-      }
-      final pane = _paneForSession(sessionId);
-      final descriptor = pane?.sessionDescriptor;
-      if (pane != null && descriptor != null) {
-        _replaceSessionPane(
-          sessionId,
-          pane.copyWith(
-            sessionDescriptor: descriptor.copyWith(recordingPath: path),
-          ),
-        );
       }
       _pendingRecordings.remove(sessionId);
       _recordingDestinations.remove(sessionId);
@@ -1607,21 +1297,11 @@ class SessionController extends Notifier<SessionState> {
               ? recorder!.stop(sessionId)
               : null);
       if (recording != null && destination != null) {
-        final path = repository.saveSync(
+        repository.saveSync(
           destination,
           recording,
           displayName: _paneForSession(sessionId)?.title,
         );
-        final pane = _paneForSession(sessionId);
-        final descriptor = pane?.sessionDescriptor;
-        if (pane != null && descriptor != null) {
-          _replaceSessionPane(
-            sessionId,
-            pane.copyWith(
-              sessionDescriptor: descriptor.copyWith(recordingPath: path),
-            ),
-          );
-        }
       }
     } on Object catch (error) {
       state = state.copyWith(
@@ -1801,11 +1481,9 @@ class SessionController extends Notifier<SessionState> {
           title: sourcePane.title,
           profileId: profile.id,
           profileSnapshot: launchProfile,
-          sessionDescriptor: _sessionDescriptorForLaunch(
-            sessionId: sessionId,
+          relaunchSpec: _relaunchSpecForLaunch(
             profileId: profile.id,
             launchProfile: launchProfile,
-            title: sourcePane.title,
           ),
         ),
       );
@@ -1831,7 +1509,7 @@ class SessionController extends Notifier<SessionState> {
       title: closedTab.title,
       profileId: reopenedPanes.first.profileId,
       profileSnapshot: reopenedPanes.first.profileSnapshot,
-      sessionDescriptor: reopenedPanes.first.sessionDescriptor,
+      relaunchSpec: reopenedPanes.first.relaunchSpec,
       panes: layoutPanes,
       paneLayout: reopenedLayout,
       activePaneSessionId: activeSessionId == tabSessionId
@@ -1891,11 +1569,9 @@ class SessionController extends Notifier<SessionState> {
       title: sourcePane.title,
       profileId: profile.id,
       profileSnapshot: launchProfile,
-      sessionDescriptor: _sessionDescriptorForLaunch(
-        sessionId: sessionId,
+      relaunchSpec: _relaunchSpecForLaunch(
         profileId: profile.id,
         launchProfile: launchProfile,
-        title: sourcePane.title,
       ),
     );
     final nextPaneLayout = activeTab.effectivePaneLayout.splitPane(
@@ -3122,37 +2798,6 @@ class SessionController extends Notifier<SessionState> {
     state = state.copyWith(tabs: nextTabs);
   }
 
-  void detachRecordingPath(String recordingPath) {
-    final normalizedPath = recordingPath.trim();
-    if (normalizedPath.isEmpty) {
-      return;
-    }
-    final nextTabs = <TerminalTab>[...state.tabs];
-    var changed = false;
-    for (var index = 0; index < state.tabs.length; index += 1) {
-      final tab = state.tabs[index];
-      var nextTab = tab;
-      for (final pane in tab.effectivePanes) {
-        final descriptor = pane.sessionDescriptor;
-        if (descriptor?.recordingPath != normalizedPath) {
-          continue;
-        }
-        nextTab = nextTab.replacePane(
-          pane.copyWith(
-            sessionDescriptor: descriptor!.copyWith(recordingPath: null),
-          ),
-        );
-        changed = true;
-      }
-      if (!identical(nextTab, tab)) {
-        nextTabs[index] = nextTab;
-      }
-    }
-    if (changed) {
-      state = state.copyWith(tabs: nextTabs);
-    }
-  }
-
   bool _oscUserVarAllowed(String name) {
     return name.startsWith('IANVS_');
   }
@@ -3550,11 +3195,6 @@ class SessionController extends Notifier<SessionState> {
     }
     if (windowIconName != null && windowIconName.isNotEmpty) {
       return windowIconName;
-    }
-
-    final descriptorTitle = pane.sessionDescriptor?.title;
-    if (descriptorTitle != null && descriptorTitle.isNotEmpty) {
-      return descriptorTitle;
     }
 
     final profileSnapshot = pane.profileSnapshot;

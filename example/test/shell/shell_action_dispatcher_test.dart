@@ -5,7 +5,7 @@ import 'package:app/features/shell/shell_action_dispatcher.dart';
 import 'package:app/features/shell/shell_action_registry.dart';
 import 'package:app/features/visual/local_terminal_visual_action_reducer.dart';
 import 'package:app/features/workspace/local_workspace_action_reducer.dart';
-import 'package:app/features/workspace/local_workspace_models.dart';
+import 'package:app/features/workspace/local_terminal_layout_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -25,8 +25,8 @@ void main() {
     });
 
     test('dispatches pane focus actions through workspace reducer', () {
-      final workspace = const TerminalWorkspace().addTab(
-        TerminalWorkspaceTab(
+      final workspace = const TerminalLayout().addTab(
+        TerminalLayoutTab(
           id: 'tab-1',
           activePaneId: 'pane-2',
           root: TerminalPaneNode.split(
@@ -34,11 +34,11 @@ void main() {
             direction: TerminalPaneSplitDirection.right,
             first: TerminalPaneNode.leaf(
               id: 'pane-1',
-              sessionIntent: TerminalPaneSessionIntent(profileId: 'default'),
+              sessionIntent: TerminalRelaunchSpec(profileId: 'default'),
             ),
             second: TerminalPaneNode.leaf(
               id: 'pane-2',
-              sessionIntent: TerminalPaneSessionIntent(profileId: 'default'),
+              sessionIntent: TerminalRelaunchSpec(profileId: 'default'),
             ),
           ),
         ),
@@ -123,7 +123,7 @@ ShellActionDispatchContext _context({String pasteText = ''}) {
       nextTabId: 'tab-next',
       nextPaneId: 'pane-next',
       nextSplitId: 'split-next',
-      fallbackIntent: TerminalPaneSessionIntent(profileId: 'default'),
+      fallbackIntent: TerminalRelaunchSpec(profileId: 'default'),
     ),
     productivity: const ShellProductivityActionContext(
       currentRow: 0,

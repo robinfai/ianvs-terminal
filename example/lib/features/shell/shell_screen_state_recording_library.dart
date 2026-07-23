@@ -97,13 +97,9 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
       return;
     }
     try {
-      final workspaceId = ref
-          .read(sessionControllerProvider.notifier)
-          .activeWorkspaceIdentity
-          .id;
       final entry = await ref
           .read(localSessionRecordingRepositoryProvider)
-          .importRecording(sourcePath: sourcePath, workspaceId: workspaceId);
+          .importRecording(sourcePath: sourcePath);
       await _loadRecordingLibrary();
       if (mounted) {
         await _selectRecording(entry);
@@ -214,9 +210,6 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
       await ref
           .read(localSessionRecordingRepositoryProvider)
           .forgetRecording(entry.path);
-      ref
-          .read(sessionControllerProvider.notifier)
-          .detachRecordingPath(entry.path);
       if (_selectedRecordingEntry?.path == entry.path) {
         _closeRecordingReplay();
       }

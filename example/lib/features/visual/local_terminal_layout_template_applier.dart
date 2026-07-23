@@ -1,4 +1,4 @@
-import '../workspace/local_workspace_models.dart';
+import '../workspace/local_terminal_layout_models.dart';
 import 'local_terminal_visual_models.dart';
 
 class LocalTerminalLayoutTemplateApplyContext {
@@ -14,13 +14,13 @@ class LocalTerminalLayoutTemplateApplyContext {
   final String firstPaneId;
   final String secondPaneId;
   final String splitNodeId;
-  final TerminalPaneSessionIntent sessionIntent;
+  final TerminalRelaunchSpec sessionIntent;
 }
 
 class LocalTerminalLayoutTemplateApplier {
   const LocalTerminalLayoutTemplateApplier._();
 
-  static TerminalWorkspace? apply({
+  static TerminalLayout? apply({
     required LocalTerminalLayoutTemplate template,
     required LocalTerminalLayoutTemplateApplyContext context,
   }) {
@@ -46,8 +46,8 @@ class LocalTerminalLayoutTemplateApplier {
             ),
           );
 
-    return TerminalWorkspace().addTab(
-      TerminalWorkspaceTab(
+    return TerminalLayout().addTab(
+      TerminalLayoutTab(
         id: context.tabId,
         root: root,
         activePaneId: context.firstPaneId,

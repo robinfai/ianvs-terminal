@@ -15,7 +15,6 @@ const String _recordingLibraryIndexFileName = 'library-v1.json';
 final class LocalSessionRecordingEntry {
   const LocalSessionRecordingEntry({
     required this.path,
-    required this.workspaceId,
     required this.displayName,
     required this.createdAtUtc,
     required this.duration,
@@ -27,7 +26,6 @@ final class LocalSessionRecordingEntry {
   });
 
   final String path;
-  final String workspaceId;
   final String displayName;
   final DateTime createdAtUtc;
   final Duration duration;
@@ -56,33 +54,25 @@ class LocalSessionRecordingRepository {
   final TerminalRecordingCodec _codec = const TerminalRecordingCodec();
 
   Future<LocalSessionRecordingDestination> reserve({
-    required String workspaceId,
-    required String descriptorId,
     required String runtimeSessionId,
     required DateTime createdAtUtc,
   }) async {
-    final workspaceSegment = _identitySegment(workspaceId, 'Workspace');
-    final descriptorSegment = _identitySegment(descriptorId, 'Descriptor');
     final runtimeSegment = _identitySegment(
       runtimeSessionId,
       'Runtime session',
     );
     final rootDirectory = await _recordingRoot();
-    final recordingDirectory = Directory(
-      '${rootDirectory.path}${Platform.pathSeparator}'
-      'workspace-$workspaceSegment',
-    );
-    await recordingDirectory.create(recursive: true);
+    await rootDirectory.create(recursive: true);
 
     final timestamp = createdAtUtc.toUtc().microsecondsSinceEpoch;
-    final basename = '$timestamp-$descriptorSegment-$runtimeSegment';
+    final basename = '$timestamp-$runtimeSegment';
     var suffix = 1;
     while (true) {
       final candidateName = suffix == 1
           ? '$basename.ndjson'
           : '$basename-$suffix.ndjson';
       final candidate = File(
-        '${recordingDirectory.path}${Platform.pathSeparator}$candidateName',
+        '${rootDirectory.path}${Platform.pathSeparator}$candidateName',
       );
       final candidatePath = candidate.absolute.path;
       if (!_reservedPaths.contains(candidatePath) &&
@@ -197,15 +187,12 @@ class LocalSessionRecordingRepository {
 
   Future<LocalSessionRecordingEntry> importRecording({
     required String sourcePath,
-    required String workspaceId,
     String? displayName,
   }) async {
     final source = File(sourcePath.trim());
     final recording = await load(source.path);
     final sourceName = source.uri.pathSegments.last;
     final destination = await reserve(
-      workspaceId: workspaceId,
-      descriptorId: 'import-${DateTime.now().microsecondsSinceEpoch}',
       runtimeSessionId: recording.metadata.sessionId,
       createdAtUtc: recording.metadata.createdAtUtc,
     );
@@ -263,7 +250,6 @@ class LocalSessionRecordingRepository {
       absolute.uri.pathSegments.last,
     );
     final displayName = displayNames[absolute.path] ?? fallbackName;
-    final workspaceId = _workspaceIdFor(absolute);
     try {
       final recording = await load(absolute.path);
       final duration = recording.events.isEmpty
@@ -271,7 +257,6 @@ class LocalSessionRecordingRepository {
           : recording.events.last.monotonicOffset;
       return LocalSessionRecordingEntry(
         path: absolute.path,
-        workspaceId: workspaceId,
         displayName: displayName,
         createdAtUtc: recording.metadata.createdAtUtc,
         duration: duration,
@@ -283,7 +268,6 @@ class LocalSessionRecordingRepository {
     } on Object catch (error) {
       return LocalSessionRecordingEntry(
         path: absolute.path,
-        workspaceId: workspaceId,
         displayName: displayName,
         createdAtUtc: stat.modified.toUtc(),
         duration: Duration.zero,
@@ -327,14 +311,14 @@ class LocalSessionRecordingRepository {
 
   void _setDisplayNameSync(String path, String displayName) {
     final recordingFile = File(path).absolute;
-    final workspaceDirectory = recordingFile.parent;
-    final workspaceName = workspaceDirectory.uri.pathSegments
+    final parent = recordingFile.parent;
+    final parentName = parent.uri.pathSegments
         .where((segment) => segment.isNotEmpty)
         .last;
-    if (!workspaceName.startsWith('workspace-')) {
-      return;
-    }
-    final root = workspaceDirectory.parent.absolute;
+    // Existing workspace-* directories remain readable migration input.
+    final root = parentName.startsWith('workspace-')
+        ? parent.parent.absolute
+        : parent.absolute;
     final index = File(
       '${root.path}${Platform.pathSeparator}$_recordingLibraryIndexFileName',
     );
@@ -398,22 +382,6 @@ class LocalSessionRecordingRepository {
       throw FormatException('Recording path is outside the library: $path');
     }
     return path;
-  }
-
-  String _workspaceIdFor(File file) {
-    final parentSegments = file.parent.uri.pathSegments
-        .where((segment) => segment.isNotEmpty)
-        .toList(growable: false);
-    final parentName = parentSegments.isEmpty ? null : parentSegments.last;
-    if (parentName == null || !parentName.startsWith('workspace-')) {
-      return 'unassigned';
-    }
-    final encoded = parentName.substring('workspace-'.length);
-    try {
-      return utf8.decode(base64Url.decode(base64Url.normalize(encoded)));
-    } on Object {
-      return encoded;
-    }
   }
 }
 

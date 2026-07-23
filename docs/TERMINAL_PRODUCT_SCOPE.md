@@ -1,0 +1,60 @@
+# Ianvs Terminal Product Scope
+
+This document is the authoritative product boundary for Ianvs Terminal after
+the 2026-07-23 scope convergence.
+
+## Product center
+
+Ianvs Terminal is a terminal application. Its durable product concepts are:
+
+- **Profile**: reusable launch defaults such as program, arguments,
+  environment and initial working directory.
+- **Session**: one live PTY process. Runtime title, timestamps and exit state
+  belong to the live session and are not restart intent.
+- **Terminal Layout**: local tab/pane topology plus the active tab and pane.
+- **Relaunch Spec**: the minimum data needed to start a fresh terminal:
+  `profileId`, optional command/arguments and optional `cwd`.
+- **Recording Library**: a recording index and recording files independent of
+  layout and relaunch persistence.
+
+The primary folder workflow is **Open Terminal at Folder**. Selecting a folder
+opens a new terminal whose initial `cwd` is that folder; it does not create,
+switch or remember a project container.
+
+## Persistence contracts
+
+- `ianvs_terminal_layout.json` stores Terminal Layout v1.
+- `ianvs_config.json` stores the `layout.restoreLayout` preference.
+- `ianvs_recordings/` stores new recordings in one flat library. Existing
+  nested legacy recording files remain readable.
+- Legacy Workspace v1-v3, project identity/index and `workspace` config are
+  read-only migration inputs. New writes never recreate them.
+
+Runtime titles, creation/exit timestamps, exit codes, environment metadata,
+recording paths and restart policy are excluded from Relaunch Spec.
+
+## Explicit non-goals
+
+The current product does not define:
+
+- Project Workspace identity, Recent Workspace or project switching;
+- project explorer, Git context, IDE project model or project task model;
+- plugin marketplace/runtime, cloud sync or collaboration;
+- remote-domain or multi-host Workspace abstractions.
+
+SSH remains a **deferred extension**. If introduced, it must extend Profile and
+Session launch/runtime contracts without reintroducing a project container.
+
+## Diagnostics boundary
+
+User-facing diagnostics export remains supported. Internal completion/wiring
+diagnostics are compiled into the Toolbelt only in debug builds and are not a
+release product panel.
+
+## Historical terminology
+
+Older task records T-312 through T-317 describe the superseded Project
+Workspace implementation and remain unchanged as history. Some internal pane
+action types still use the generic word `Workspace`; they model the terminal
+canvas, not a persisted project identity. Product UI, persistence and current
+capability claims use Terminal Layout.

@@ -8,7 +8,7 @@ import 'package:app/features/shell/shell_action_side_effect_executor.dart';
 import 'package:app/features/shell/shell_action_side_effect_plan.dart';
 import 'package:app/features/visual/local_terminal_visual_action_reducer.dart';
 import 'package:app/features/workspace/local_workspace_action_reducer.dart';
-import 'package:app/features/workspace/local_workspace_models.dart';
+import 'package:app/features/workspace/local_terminal_layout_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -122,7 +122,7 @@ ShellActionDispatchContext _context({String pasteText = ''}) {
       nextTabId: 'tab-next',
       nextPaneId: 'pane-next',
       nextSplitId: 'split-next',
-      fallbackIntent: TerminalPaneSessionIntent(profileId: 'default'),
+      fallbackIntent: TerminalRelaunchSpec(profileId: 'default'),
     ),
     productivity: const ShellProductivityActionContext(
       currentRow: 0,

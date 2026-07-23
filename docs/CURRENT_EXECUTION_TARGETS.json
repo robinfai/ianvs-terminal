@@ -63,9 +63,9 @@
       ]
     },
     {
-      "id": "local-workspace-stability",
+      "id": "terminal-scope-convergence",
       "status": "achieved",
-      "goal": "Stabilize the existing macOS local workspace, profile, session bootstrap, persistence, and lifecycle paths before adding another broad capability lane.",
+      "goal": "Keep the product centered on Profile, Session, Terminal Layout, minimal Relaunch Spec and an independent Recording Library without Project Workspace behavior.",
       "evidence": [
         {
           "path": "example/lib/features/shell/shell_action_registry.dart",
@@ -75,53 +75,85 @@
           ]
         },
         {
-          "path": "example/lib/features/workspace/local_workspace_repository.dart",
+          "path": "example/lib/features/workspace/local_terminal_layout_repository.dart",
           "contains": [
-            "class LocalWorkspaceRepository",
-            "needsMigration",
+            "class LocalTerminalLayoutRepository",
+            "ianvs_terminal_layout.json",
+            "_loadLegacyWorkspace"
+          ],
+          "not_contains": [
             "loadOrCreateProject",
             "activateWorkspace"
           ]
         },
         {
-          "path": "example/lib/features/workspace/local_session_descriptor.dart",
+          "path": "example/lib/features/workspace/local_terminal_layout_models.dart",
           "contains": [
-            "class TerminalSessionDescriptor",
-            "currentTerminalSessionDescriptorVersion",
-            "valuesRedacted"
+            "class TerminalLayout",
+            "class TerminalLayoutTab",
+            "ianvs-terminal-layout-v1",
+            "fromLegacyWorkspaceJson"
+          ],
+          "not_contains": [
+            "projectPath",
+            "TerminalWorkspaceIdentity"
           ]
         },
         {
-          "path": "example/lib/features/workspace/local_session_workspace_codec.dart",
+          "path": "example/lib/features/workspace/local_terminal_relaunch_spec.dart",
           "contains": [
-            "class LocalSessionWorkspaceCodec",
-            "LocalWorkspaceRestoreResult"
+            "class TerminalRelaunchSpec",
+            "terminalRelaunchSpecContract",
+            "Runtime state (title, timestamps and exit information)"
+          ],
+          "not_contains": [
+            "recordingPath",
+            "restartPolicy"
+          ]
+        },
+        {
+          "path": "example/lib/features/workspace/local_session_layout_codec.dart",
+          "contains": [
+            "class LocalSessionLayoutCodec",
+            "LocalTerminalLayoutRestoreResult"
           ]
         },
         {
           "path": "example/lib/features/sessions/session_controller.dart",
           "contains": [
-            "localWorkspaceRepositoryProvider",
-            "_restoreWorkspace",
-            "_handleWorkspaceStateChanged",
-            "openProjectWorkspace",
-            "_switchToWorkspace",
+            "localTerminalLayoutRepositoryProvider",
+            "_restoreTerminalLayout",
+            "_handleLayoutStateChanged",
+            "openTerminalAtFolder",
             "startSessionRecording",
             "stopSessionRecording"
+          ],
+          "not_contains": [
+            "openProjectWorkspace",
+            "openRecentWorkspace",
+            "activeWorkspaceIdentity"
           ]
         },
         {
           "path": "example/lib/features/shell/shell_screen_chrome.dart",
           "contains": [
-            "_ShellWorkspaceMenuButton",
-            "shell-chrome-workspaces",
+            "_ShellFolderButton",
+            "shell-open-terminal-at-folder",
             "_ShellSessionRecordingButton",
             "shell-chrome-session-recording"
+          ],
+          "not_contains": [
+            "Recent Workspaces",
+            "Open Project"
           ]
         },
         {
           "path": "example/lib/features/shell/window_bridge.dart",
           "contains": [
+            "chooseTerminalFolder",
+            "nativeOpenTerminalAtFolder"
+          ],
+          "not_contains": [
             "chooseProjectDirectory",
             "nativeOpenProject"
           ]
@@ -129,8 +161,27 @@
         {
           "path": "example/macos/Runner/MainFlutterWindow.swift",
           "contains": [
-            "chooseProjectDirectory",
+            "Open Terminal at Folder…",
+            "bindNativeTerminalFolderMenuItem"
+          ],
+          "not_contains": [
+            "Open Project…",
             "bindNativeWorkspaceMenuItems"
+          ]
+        },
+        {
+          "path": "example/lib/features/config/local_terminal_config_models.dart",
+          "contains": [
+            "this.layout = const LocalTerminalLayoutConfig()",
+            "'layout': layout.toJson()",
+            "_objectMap(json['layout']) ?? _objectMap(json['workspace'])"
+          ]
+        },
+        {
+          "path": "example/lib/features/shell/shell_screen_toolbelt.dart",
+          "contains": [
+            "if (kDebugMode)",
+            "LocalTerminalCompletionDiagnosticsPanel"
           ]
         },
         {
@@ -218,6 +269,8 @@
           "path": "example/lib/features/recording/local_session_recording_repository.dart",
           "contains": [
             "class LocalSessionRecordingRepository",
+            "root.list(recursive: true",
+            "ianvs_recordings",
             "writeStringAtomically",
             "TerminalRecordingCodec"
           ]
@@ -230,6 +283,22 @@
             "build/bench-results-ci/20260721T062119Z",
             "T-317 is closed"
           ]
+        },
+        {
+          "path": "docs/TERMINAL_PRODUCT_SCOPE.md",
+          "contains": [
+            "Open Terminal at Folder",
+            "Legacy Workspace v1-v3",
+            "SSH remains a **deferred extension**"
+          ]
+        },
+        {
+          "path": "docs/tasks/shell-product/T-331-terminal-scope-convergence.md",
+          "contains": [
+            "Terminal Scope Convergence",
+            "Project Workspace product model",
+            "Final repository-gate evidence"
+          ]
         }
       ],
       "verification_commands": [
@@ -239,12 +308,12 @@
         "make verify"
       ],
       "exit_criteria": [
-        "Profile, preferences, workspace, and session restoration have focused automated coverage.",
-        "App lifecycle and persistence failures fail closed without corrupting local state.",
-        "The complete macOS verification entrypoint passes on the current implementation.",
-        "Any remaining GUI-only behavior is recorded with current manual evidence or an explicit blocker."
+        "Terminal Layout and Relaunch Spec have focused schema, migration and controller coverage.",
+        "Project identity, Recent Workspace and project switching are absent from the current app source.",
+        "Recording persistence is independent while legacy nested recordings remain discoverable.",
+        "The complete macOS verification entrypoint passes on the current implementation."
       ],
-      "reason": "T-312 through T-317 passed the complete repository gate. Workspace schema v3, stable project identity, independent collection storage, Recent index v1, native project selection, failure-safe runtime switching, and retryable recording association now form the closed local Workspace baseline; the next stability slice must remain separately scoped."
+      "reason": "T-331 supersedes the Project Workspace product claims from T-312 through T-317 while retaining their files as migration/history. The current product persists one Terminal Layout, minimal Relaunch Specs and a separate Recording Library; folder opening launches a terminal rather than switching a project container."
     },
     {
       "id": "runtime-contract-stability",
@@ -1003,7 +1072,7 @@
     {
       "id": "remote-plugin-renderer-expansion",
       "status": "deferred",
-      "goal": "Keep SSH, plugins, and renderer replacement outside the active lane until the local workspace stability gate closes.",
+      "goal": "Keep SSH, plugins, cloud/collaboration and renderer replacement outside the active runtime-contract lane and current terminal-only product surface.",
       "evidence": [
         {
           "path": "docs/KNOWN_ISSUES.md",
@@ -1015,7 +1084,7 @@
         }
       ],
       "verification_commands": [],
-      "reason": "These are product expansion choices, not blockers for the current macOS local-terminal product."
+      "reason": "SSH is a deferred Profile/Session extension; project/remote Workspace, plugin infrastructure, cloud collaboration and renderer replacement are not part of the current terminal product."
     }
   ]
 }

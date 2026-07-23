@@ -1,63 +1,53 @@
-import 'local_session_descriptor.dart';
-import 'local_workspace_identity.dart';
+import 'local_terminal_relaunch_spec.dart';
 
-export 'local_session_descriptor.dart';
-export 'local_workspace_identity.dart';
+export 'local_terminal_relaunch_spec.dart';
 
 enum TerminalPaneSplitDirection { right, down }
 
-const int currentTerminalWorkspaceSchemaVersion = 3;
+const int currentTerminalLayoutSchemaVersion = 1;
+const String terminalLayoutContract = 'ianvs-terminal-layout-v1';
 
-final class UnsupportedTerminalWorkspaceSchemaVersion implements Exception {
-  const UnsupportedTerminalWorkspaceSchemaVersion(this.version);
+final class UnsupportedTerminalLayoutSchemaVersion implements Exception {
+  const UnsupportedTerminalLayoutSchemaVersion(this.version);
 
   final int version;
 
   @override
   String toString() {
-    return 'Unsupported terminal workspace schema version: $version '
-        '(current: $currentTerminalWorkspaceSchemaVersion)';
+    return 'Unsupported terminal layout schema version: $version '
+        '(current: $currentTerminalLayoutSchemaVersion)';
   }
 }
 
-const int maxWorkspaceClosedTabs = 10;
-const int maxWorkspaceClosedPanes = 10;
-const int _maxWorkspaceClosedTabsToScan = maxWorkspaceClosedTabs * 4;
-const int _maxWorkspaceClosedPanesToScan = maxWorkspaceClosedPanes * 4;
-const int _maxWorkspaceSplitChildrenToScan = 8;
+const int maxTerminalLayoutClosedTabs = 10;
+const int maxTerminalLayoutClosedPanes = 10;
+const int _maxTerminalLayoutClosedTabsToScan = maxTerminalLayoutClosedTabs * 4;
+const int _maxTerminalLayoutClosedPanesToScan =
+    maxTerminalLayoutClosedPanes * 4;
+const int _maxTerminalLayoutSplitChildrenToScan = 8;
 
-@Deprecated('Use TerminalSessionDescriptor for versioned persistence.')
-class TerminalPaneSessionIntent extends TerminalSessionDescriptor {
-  const TerminalPaneSessionIntent({required super.profileId, super.cwd});
-}
-
-class TerminalWorkspace {
-  const TerminalWorkspace({
-    this.identity = TerminalWorkspaceIdentity.defaultWorkspace,
-    this.tabs = const <TerminalWorkspaceTab>[],
+class TerminalLayout {
+  const TerminalLayout({
+    this.tabs = const <TerminalLayoutTab>[],
     this.activeTabId,
-    this.closedTabs = const <TerminalWorkspaceTab>[],
+    this.closedTabs = const <TerminalLayoutTab>[],
   });
 
-  final TerminalWorkspaceIdentity identity;
-  final List<TerminalWorkspaceTab> tabs;
+  final List<TerminalLayoutTab> tabs;
   final String? activeTabId;
-  final List<TerminalWorkspaceTab> closedTabs;
+  final List<TerminalLayoutTab> closedTabs;
 
-  int get schemaVersion => currentTerminalWorkspaceSchemaVersion;
+  int get schemaVersion => currentTerminalLayoutSchemaVersion;
 
   bool get isEmpty => tabs.isEmpty;
 
   Map<String, Object?> toJson() {
-    final identity = this.identity.normalized();
     final restorableTabs = _uniqueRestorableTabs(tabs);
     final activeTabId = _activeTabFrom(restorableTabs, this.activeTabId)?.id;
     final activeIds = _normalizedIds(restorableTabs.map((tab) => tab.id));
     return {
       'schemaVersion': schemaVersion,
-      'id': identity.id,
-      'name': identity.name,
-      'projectPath': identity.projectPath,
+      'contract': terminalLayoutContract,
       'tabs': restorableTabs.map((tab) => tab.toJson()).toList(growable: false),
       'activeTabId': activeTabId?.trim(),
       'closedTabs': _boundedClosedTabs(
@@ -67,20 +57,36 @@ class TerminalWorkspace {
     };
   }
 
-  static TerminalWorkspace fromJson(Map<Object?, Object?> json) {
-    final schemaVersion = _validateTerminalWorkspaceSchemaVersion(
-      json['schemaVersion'],
-    );
+  static TerminalLayout fromJson(Map<Object?, Object?> json) {
+    _validateTerminalLayoutSchemaVersion(json);
+    return _fromShape(json, legacy: false);
+  }
+
+  /// Reads the former unversioned/Workspace v1-v3 shapes during migration.
+  static TerminalLayout fromLegacyWorkspaceJson(Map<Object?, Object?> json) {
+    _validateLegacyWorkspaceSchemaVersion(json['schemaVersion']);
+    return _fromShape(json, legacy: true);
+  }
+
+  static TerminalLayout _fromShape(
+    Map<Object?, Object?> json, {
+    required bool legacy,
+  }) {
     _rejectRemoteWorkspaceKeys(json);
 
     final tabs = _uniqueRestorableTabs(
-      _workspaceTabsFromJson(json['tabs'], fallbackPrefix: 'tab'),
+      _terminalLayoutTabsFromJson(
+        json['tabs'],
+        fallbackPrefix: 'tab',
+        legacy: legacy,
+      ),
     );
     final closedTabs = _boundedClosedTabs(
-      _workspaceTabsFromJson(
+      _terminalLayoutTabsFromJson(
         json['closedTabs'],
         fallbackPrefix: 'closed-tab',
-        maxEntries: _maxWorkspaceClosedTabsToScan,
+        maxEntries: _maxTerminalLayoutClosedTabsToScan,
+        legacy: legacy,
       ),
       excludedIds: {for (final tab in tabs) tab.id},
     );
@@ -91,37 +97,33 @@ class TerminalWorkspace {
         ? rawActiveTabId
         : _lastNonEmptyTabId(tabs);
 
-    return TerminalWorkspace(
-      identity: schemaVersion == currentTerminalWorkspaceSchemaVersion
-          ? _terminalWorkspaceIdentityFromJson(json)
-          : TerminalWorkspaceIdentity.defaultWorkspace,
+    return TerminalLayout(
       tabs: tabs,
       activeTabId: activeTabId,
       closedTabs: closedTabs,
     );
   }
 
-  TerminalWorkspaceTab? get activeTab {
+  TerminalLayoutTab? get activeTab {
     return _activeTabFrom(tabs, activeTabId);
   }
 
-  TerminalWorkspace addTab(TerminalWorkspaceTab tab) {
-    return TerminalWorkspace(
-      identity: identity,
+  TerminalLayout addTab(TerminalLayoutTab tab) {
+    return TerminalLayout(
       tabs: [...tabs, tab],
       activeTabId: tab.id,
       closedTabs: closedTabs,
     );
   }
 
-  TerminalWorkspace addTabFromActivePane({
+  TerminalLayout addTabFromActivePane({
     required String tabId,
     required String paneId,
-    required TerminalPaneSessionIntent fallbackIntent,
+    required TerminalRelaunchSpec fallbackIntent,
   }) {
     final intent = activeTab?.activeSessionIntent ?? fallbackIntent;
     return addTab(
-      TerminalWorkspaceTab(
+      TerminalLayoutTab(
         id: tabId,
         activePaneId: paneId,
         root: TerminalPaneNode.leaf(id: paneId, sessionIntent: intent),
@@ -129,11 +131,11 @@ class TerminalWorkspace {
     );
   }
 
-  TerminalWorkspace splitActivePaneFromActiveCwd({
+  TerminalLayout splitActivePaneFromActiveCwd({
     required String splitNodeId,
     required String newPaneId,
     required TerminalPaneSplitDirection direction,
-    required TerminalPaneSessionIntent fallbackIntent,
+    required TerminalRelaunchSpec fallbackIntent,
   }) {
     final tab = activeTab;
     if (tab == null) {
@@ -151,37 +153,35 @@ class TerminalWorkspace {
     );
   }
 
-  TerminalWorkspace closeActiveTab() {
+  TerminalLayout closeActiveTab() {
     final tab = activeTab;
     if (tab == null) {
       return this;
     }
 
     final nextTabs = tabs.where((candidate) => candidate.id != tab.id).toList();
-    return TerminalWorkspace(
-      identity: identity,
+    return TerminalLayout(
       tabs: nextTabs,
       activeTabId: nextTabs.isEmpty ? null : nextTabs.last.id,
       closedTabs: _boundedClosedTabs([tab, ...closedTabs]),
     );
   }
 
-  TerminalWorkspace reopenClosedTab() {
+  TerminalLayout reopenClosedTab() {
     if (closedTabs.isEmpty) {
       return this;
     }
 
     final tab = closedTabs.first;
-    return TerminalWorkspace(
-      identity: identity,
+    return TerminalLayout(
       tabs: [...tabs, tab],
       activeTabId: tab.id,
       closedTabs: closedTabs.skip(1).toList(),
     );
   }
 
-  TerminalWorkspace updateActiveTab(
-    TerminalWorkspaceTab Function(TerminalWorkspaceTab tab) update,
+  TerminalLayout updateActiveTab(
+    TerminalLayoutTab Function(TerminalLayoutTab tab) update,
   ) {
     final tab = activeTab;
     if (tab == null) {
@@ -189,8 +189,7 @@ class TerminalWorkspace {
     }
 
     final updatedTab = update(tab);
-    return TerminalWorkspace(
-      identity: identity,
+    return TerminalLayout(
       tabs: [
         for (final candidate in tabs)
           if (candidate.id == tab.id) updatedTab else candidate,
@@ -199,54 +198,39 @@ class TerminalWorkspace {
       closedTabs: closedTabs,
     );
   }
-
-  TerminalWorkspace withIdentity(TerminalWorkspaceIdentity identity) {
-    return TerminalWorkspace(
-      identity: identity.normalized(),
-      tabs: tabs,
-      activeTabId: activeTabId,
-      closedTabs: closedTabs,
-    );
-  }
 }
 
-TerminalWorkspaceIdentity _terminalWorkspaceIdentityFromJson(
-  Map<Object?, Object?> json,
-) {
-  final id = _nonEmptyStringOrNull(json['id']);
-  final name = _nonEmptyStringOrNull(json['name']);
-  if (id == null || name == null) {
+void _validateTerminalLayoutSchemaVersion(Map<Object?, Object?> json) {
+  final value = json['schemaVersion'];
+  if (value is! int) {
     throw const FormatException(
-      'Workspace schema v3 requires non-empty id and name fields.',
+      'Terminal layout schemaVersion must be an integer.',
     );
   }
-  return TerminalWorkspaceIdentity(
-    id: id,
-    name: name,
-    projectPath: normalizeTerminalWorkspaceProjectPath(json['projectPath']),
-  ).normalized();
+  if (value != currentTerminalLayoutSchemaVersion) {
+    throw UnsupportedTerminalLayoutSchemaVersion(value);
+  }
+  if (json['contract'] != terminalLayoutContract) {
+    throw const FormatException('Unsupported terminal layout contract.');
+  }
 }
 
-int? _validateTerminalWorkspaceSchemaVersion(Object? value) {
+void _validateLegacyWorkspaceSchemaVersion(Object? value) {
   if (value == null) {
-    // Layouts written before v1 were unversioned and have the same field shape.
-    return null;
+    return;
   }
   if (value is! int) {
     throw const FormatException(
       'Workspace layout schemaVersion must be an integer.',
     );
   }
-  if (value != 1 &&
-      value != 2 &&
-      value != currentTerminalWorkspaceSchemaVersion) {
-    throw UnsupportedTerminalWorkspaceSchemaVersion(value);
+  if (value != 1 && value != 2 && value != 3) {
+    throw UnsupportedTerminalLayoutSchemaVersion(value);
   }
-  return value;
 }
 
-class TerminalWorkspaceTab {
-  const TerminalWorkspaceTab({
+class TerminalLayoutTab {
+  const TerminalLayoutTab({
     required this.id,
     required this.root,
     required this.activePaneId,
@@ -276,12 +260,12 @@ class TerminalWorkspaceTab {
   }
 
   bool get isZoomed => effectiveZoomedPaneId != null;
-  TerminalSessionDescriptor? get activeSessionIntent {
-    return root.findPane(effectiveActivePaneId)?.sessionIntent;
+  TerminalRelaunchSpec? get activeSessionIntent {
+    return root.findPane(effectiveActivePaneId)?.relaunchSpec;
   }
 
-  TerminalSessionDescriptor? get activeSessionDescriptor {
-    return root.findPane(effectiveActivePaneId)?.sessionDescriptor;
+  TerminalRelaunchSpec? get activeRelaunchSpec {
+    return root.findPane(effectiveActivePaneId)?.relaunchSpec;
   }
 
   Map<String, Object?> toJson() {
@@ -296,12 +280,14 @@ class TerminalWorkspaceTab {
     };
   }
 
-  static TerminalWorkspaceTab fromJson(
+  static TerminalLayoutTab fromJson(
     Map<Object?, Object?> json, {
     String? fallbackId,
+    bool legacy = false,
   }) {
     final root = TerminalPaneNode.fromJson(
       _objectMap(json['root']) ?? const {},
+      legacy: legacy,
     );
     final rawActivePaneId = _nonEmptyStringOrNull(json['activePaneId']);
     final activePaneId =
@@ -317,29 +303,29 @@ class TerminalWorkspaceTab {
     final id =
         _nonEmptyStringOrNull(rawId) ??
         (rawId is String ? '' : fallbackId ?? '');
-    return TerminalWorkspaceTab(
+    return TerminalLayoutTab(
       id: id,
       root: root,
       activePaneId: activePaneId,
       closedPanes:
           _objectList(
                 json['closedPanes'],
-                maxEntries: _maxWorkspaceClosedPanesToScan,
+                maxEntries: _maxTerminalLayoutClosedPanesToScan,
               )
-              .map(TerminalPaneNode.fromJson)
+              .map((value) => TerminalPaneNode.fromJson(value, legacy: legacy))
               .where((pane) => pane.hasRestorablePane)
-              .take(maxWorkspaceClosedPanes)
+              .take(maxTerminalLayoutClosedPanes)
               .toList(growable: false),
       zoomedPaneId: zoomedPaneId,
     );
   }
 
-  TerminalWorkspaceTab focusPane(String paneId) {
+  TerminalLayoutTab focusPane(String paneId) {
     if (!root.containsPane(paneId)) {
       return this;
     }
 
-    return TerminalWorkspaceTab(
+    return TerminalLayoutTab(
       id: id,
       root: root,
       activePaneId: paneId,
@@ -348,7 +334,7 @@ class TerminalWorkspaceTab {
     );
   }
 
-  TerminalWorkspaceTab focusRelativePane(int delta) {
+  TerminalLayoutTab focusRelativePane(int delta) {
     final paneIds = root.leafPaneIds;
     if (paneIds.length < 2) {
       return this;
@@ -364,9 +350,9 @@ class TerminalWorkspaceTab {
     return focusPane(paneIds[normalizedIndex]);
   }
 
-  TerminalWorkspaceTab growActivePane(double delta) {
+  TerminalLayoutTab growActivePane(double delta) {
     final targetPaneId = effectiveActivePaneId;
-    return TerminalWorkspaceTab(
+    return TerminalLayoutTab(
       id: id,
       root: root.growPane(targetPaneId, delta),
       activePaneId: targetPaneId,
@@ -375,9 +361,9 @@ class TerminalWorkspaceTab {
     );
   }
 
-  TerminalWorkspaceTab resizeActiveSplit(double ratio) {
+  TerminalLayoutTab resizeActiveSplit(double ratio) {
     final targetPaneId = effectiveActivePaneId;
-    return TerminalWorkspaceTab(
+    return TerminalLayoutTab(
       id: id,
       root: root.resizeSplitContainingPane(targetPaneId, ratio),
       activePaneId: targetPaneId,
@@ -386,9 +372,9 @@ class TerminalWorkspaceTab {
     );
   }
 
-  TerminalWorkspaceTab swapActivePaneWithSibling() {
+  TerminalLayoutTab swapActivePaneWithSibling() {
     final targetPaneId = effectiveActivePaneId;
-    return TerminalWorkspaceTab(
+    return TerminalLayoutTab(
       id: id,
       root: root.swapPaneWithSibling(targetPaneId),
       activePaneId: targetPaneId,
@@ -397,10 +383,10 @@ class TerminalWorkspaceTab {
     );
   }
 
-  TerminalWorkspaceTab toggleZoomActivePane() {
+  TerminalLayoutTab toggleZoomActivePane() {
     final targetPaneId = effectiveActivePaneId;
     final currentZoomedPaneId = effectiveZoomedPaneId;
-    return TerminalWorkspaceTab(
+    return TerminalLayoutTab(
       id: id,
       root: root,
       activePaneId: targetPaneId,
@@ -409,10 +395,10 @@ class TerminalWorkspaceTab {
     );
   }
 
-  TerminalWorkspaceTab splitActivePane({
+  TerminalLayoutTab splitActivePane({
     required String splitNodeId,
     required String newPaneId,
-    required TerminalSessionDescriptor sessionIntent,
+    required TerminalRelaunchSpec sessionIntent,
     required TerminalPaneSplitDirection direction,
   }) {
     final targetPaneId = effectiveActivePaneId;
@@ -431,7 +417,7 @@ class TerminalWorkspaceTab {
       ),
     );
 
-    return TerminalWorkspaceTab(
+    return TerminalLayoutTab(
       id: id,
       root: root.replacePane(targetPaneId, replacement),
       activePaneId: newPaneId,
@@ -440,14 +426,14 @@ class TerminalWorkspaceTab {
     );
   }
 
-  TerminalWorkspaceTab closeActivePane() {
+  TerminalLayoutTab closeActivePane() {
     final targetPaneId = effectiveActivePaneId;
     final currentZoomedPaneId = effectiveZoomedPaneId;
     if (root.isLeaf) {
       if (targetPaneId == activePaneId) {
         return this;
       }
-      return TerminalWorkspaceTab(
+      return TerminalLayoutTab(
         id: id,
         root: root,
         activePaneId: targetPaneId,
@@ -462,7 +448,7 @@ class TerminalWorkspaceTab {
       return this;
     }
 
-    return TerminalWorkspaceTab(
+    return TerminalLayoutTab(
       id: id,
       root: nextRoot,
       activePaneId: nextRoot.firstLeafId,
@@ -473,7 +459,7 @@ class TerminalWorkspaceTab {
     );
   }
 
-  TerminalWorkspaceTab reopenClosedPane({
+  TerminalLayoutTab reopenClosedPane({
     required String splitNodeId,
     TerminalPaneSplitDirection direction = TerminalPaneSplitDirection.right,
   }) {
@@ -489,7 +475,7 @@ class TerminalWorkspaceTab {
       second: pane,
     );
 
-    return TerminalWorkspaceTab(
+    return TerminalLayoutTab(
       id: id,
       root: replacement,
       activePaneId: pane.firstLeafId,
@@ -504,27 +490,24 @@ class TerminalPaneNode {
     required this.id,
     required this.direction,
     required this.children,
-    required this.sessionDescriptor,
+    required this.relaunchSpec,
     required this.ratio,
   });
 
   factory TerminalPaneNode.leaf({
     required String id,
-    TerminalSessionDescriptor? sessionDescriptor,
-    TerminalSessionDescriptor? sessionIntent,
+    TerminalRelaunchSpec? relaunchSpec,
+    TerminalRelaunchSpec? sessionIntent,
   }) {
-    final descriptor = sessionDescriptor ?? sessionIntent;
-    if (descriptor == null) {
-      throw ArgumentError.notNull('sessionDescriptor');
+    final intent = relaunchSpec ?? sessionIntent;
+    if (intent == null) {
+      throw ArgumentError.notNull('relaunchSpec');
     }
-    final normalizedDescriptor = descriptor.id.trim().isEmpty
-        ? descriptor.copyWith(id: id)
-        : descriptor;
     return TerminalPaneNode._(
       id: id,
       direction: null,
       children: const <TerminalPaneNode>[],
-      sessionDescriptor: normalizedDescriptor,
+      relaunchSpec: intent,
       ratio: 0.5,
     );
   }
@@ -540,7 +523,7 @@ class TerminalPaneNode {
       id: id,
       direction: direction,
       children: [first, second],
-      sessionDescriptor: null,
+      relaunchSpec: null,
       ratio: _normalizeSplitRatio(ratio, 0.5),
     );
   }
@@ -548,13 +531,12 @@ class TerminalPaneNode {
   final String id;
   final TerminalPaneSplitDirection? direction;
   final List<TerminalPaneNode> children;
-  final TerminalSessionDescriptor? sessionDescriptor;
+  final TerminalRelaunchSpec? relaunchSpec;
   final double ratio;
 
-  @Deprecated('Use sessionDescriptor.')
-  TerminalSessionDescriptor? get sessionIntent => sessionDescriptor;
+  TerminalRelaunchSpec? get sessionIntent => relaunchSpec;
 
-  bool get isLeaf => sessionDescriptor != null;
+  bool get isLeaf => relaunchSpec != null;
   bool get hasRestorablePane {
     if (isLeaf) {
       return id.trim().isNotEmpty;
@@ -567,7 +549,7 @@ class TerminalPaneNode {
       return {
         'id': id.trim(),
         'type': 'leaf',
-        'sessionDescriptor': sessionDescriptor!.toJson(fallbackId: id),
+        'relaunchSpec': relaunchSpec!.toJson(),
       };
     }
 
@@ -582,14 +564,17 @@ class TerminalPaneNode {
     };
   }
 
-  static TerminalPaneNode fromJson(Map<Object?, Object?> json) {
+  static TerminalPaneNode fromJson(
+    Map<Object?, Object?> json, {
+    bool legacy = false,
+  }) {
     if (json['type'] == 'split') {
       final children =
           _objectList(
                 json['children'],
-                maxEntries: _maxWorkspaceSplitChildrenToScan,
+                maxEntries: _maxTerminalLayoutSplitChildrenToScan,
               )
-              .map(TerminalPaneNode.fromJson)
+              .map((value) => TerminalPaneNode.fromJson(value, legacy: legacy))
               .where((child) => child.hasRestorablePane)
               .toList(growable: false);
       if (children.isEmpty) {
@@ -608,15 +593,21 @@ class TerminalPaneNode {
     }
 
     final id = _nonEmptyStringOrNull(json['id']) ?? '';
-    final descriptorJson = _objectMap(json['sessionDescriptor']);
+    final relaunchJson = legacy
+        ? _objectMap(json['sessionDescriptor']) ??
+              _objectMap(json['sessionIntent']) ??
+              const <Object?, Object?>{}
+        : _objectMap(json['relaunchSpec']);
+    if (relaunchJson == null) {
+      throw const FormatException(
+        'Terminal layout leaf requires relaunchSpec.',
+      );
+    }
     return TerminalPaneNode.leaf(
       id: id,
-      sessionDescriptor: descriptorJson == null
-          ? TerminalSessionDescriptor.fromLegacyIntent(
-              _objectMap(json['sessionIntent']) ?? const {},
-              fallbackId: id,
-            )
-          : TerminalSessionDescriptor.fromJson(descriptorJson),
+      relaunchSpec: legacy
+          ? TerminalRelaunchSpec.fromLegacyJson(relaunchJson)
+          : TerminalRelaunchSpec.fromJson(relaunchJson),
     );
   }
 
@@ -833,17 +824,19 @@ class TerminalPaneNode {
   }
 }
 
-List<TerminalWorkspaceTab> _workspaceTabsFromJson(
+List<TerminalLayoutTab> _terminalLayoutTabsFromJson(
   Object? value, {
   required String fallbackPrefix,
   int? maxEntries,
+  required bool legacy,
 }) {
   final tabJson = _objectList(value, maxEntries: maxEntries);
   return [
     for (var index = 0; index < tabJson.length; index += 1)
-      TerminalWorkspaceTab.fromJson(
+      TerminalLayoutTab.fromJson(
         tabJson[index],
         fallbackId: '$fallbackPrefix-${index + 1}',
+        legacy: legacy,
       ),
   ];
 }
@@ -870,7 +863,7 @@ String? _nonEmptyStringOrNull(Object? value) {
   return text;
 }
 
-String? _lastNonEmptyTabId(List<TerminalWorkspaceTab> tabs) {
+String? _lastNonEmptyTabId(List<TerminalLayoutTab> tabs) {
   for (final tab in tabs.reversed) {
     if (tab.id.isNotEmpty) {
       return tab.id;
@@ -879,8 +872,8 @@ String? _lastNonEmptyTabId(List<TerminalWorkspaceTab> tabs) {
   return null;
 }
 
-TerminalWorkspaceTab? _activeTabFrom(
-  List<TerminalWorkspaceTab> tabs,
+TerminalLayoutTab? _activeTabFrom(
+  List<TerminalLayoutTab> tabs,
   String? activeTabId,
 ) {
   final normalizedActiveTabId = activeTabId?.trim();
@@ -894,12 +887,12 @@ TerminalWorkspaceTab? _activeTabFrom(
   return tabs.isEmpty ? null : tabs.last;
 }
 
-List<TerminalWorkspaceTab> _uniqueRestorableTabs(
-  Iterable<TerminalWorkspaceTab> tabs, {
+List<TerminalLayoutTab> _uniqueRestorableTabs(
+  Iterable<TerminalLayoutTab> tabs, {
   Set<String> excludedIds = const <String>{},
 }) {
   final seenIds = _normalizedIds(excludedIds);
-  final unique = <TerminalWorkspaceTab>[];
+  final unique = <TerminalLayoutTab>[];
   for (final tab in tabs) {
     final id = tab.id.trim();
     if (!tab.isRestorable || !seenIds.add(id)) {
@@ -910,19 +903,19 @@ List<TerminalWorkspaceTab> _uniqueRestorableTabs(
   return unique;
 }
 
-List<TerminalWorkspaceTab> _boundedClosedTabs(
-  Iterable<TerminalWorkspaceTab> tabs, {
+List<TerminalLayoutTab> _boundedClosedTabs(
+  Iterable<TerminalLayoutTab> tabs, {
   Set<String> excludedIds = const <String>{},
 }) {
   final seenIds = _normalizedIds(excludedIds);
-  final bounded = <TerminalWorkspaceTab>[];
+  final bounded = <TerminalLayoutTab>[];
   for (final tab in tabs) {
     final id = tab.id.trim();
     if (!tab.isRestorable || !seenIds.add(id)) {
       continue;
     }
     bounded.add(tab);
-    if (bounded.length == maxWorkspaceClosedTabs) {
+    if (bounded.length == maxTerminalLayoutClosedTabs) {
       break;
     }
   }
@@ -943,7 +936,7 @@ List<TerminalPaneNode> _boundedClosedPanes(Iterable<TerminalPaneNode> panes) {
       continue;
     }
     bounded.add(pane);
-    if (bounded.length >= maxWorkspaceClosedPanes) {
+    if (bounded.length >= maxTerminalLayoutClosedPanes) {
       break;
     }
   }
@@ -991,7 +984,7 @@ TerminalPaneSplitDirection _splitDirection(Object? value) {
 TerminalPaneNode _emptyLeaf() {
   return TerminalPaneNode.leaf(
     id: '',
-    sessionIntent: const TerminalPaneSessionIntent(profileId: ''),
+    sessionIntent: const TerminalRelaunchSpec(profileId: ''),
   );
 }
 
@@ -1011,7 +1004,7 @@ void _rejectRemoteWorkspaceKeys(Map<Object?, Object?> json) {
   }
 
   throw FormatException(
-    'TerminalWorkspace layout does not accept remote-only fields: '
+    'Terminal layout does not accept remote-only fields: '
     '${matches.join(', ')}',
   );
 }

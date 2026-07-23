@@ -13,9 +13,6 @@ class _ShellChromeBar extends StatelessWidget {
     required this.tabs,
     required this.activeSessionId,
     required this.activeTabTitle,
-    required this.activeWorkspaceIdentity,
-    required this.recentWorkspaces,
-    required this.workspaceSwitchBusy,
     required this.activeSessionRecording,
     required this.activeRecordingPendingSave,
     required this.recordingBusy,
@@ -38,9 +35,7 @@ class _ShellChromeBar extends StatelessWidget {
     required this.onShowCommandMenu,
     required this.onToggleSessionRecording,
     required this.onToggleRecordingsShelf,
-    required this.onOpenProject,
-    required this.onOpenRecentWorkspace,
-    required this.onRefreshRecentWorkspaces,
+    required this.onOpenTerminalAtFolder,
   });
 
   final AppThemeTokens palette;
@@ -48,9 +43,6 @@ class _ShellChromeBar extends StatelessWidget {
   final List<TerminalTab> tabs;
   final String? activeSessionId;
   final String activeTabTitle;
-  final TerminalWorkspaceIdentity activeWorkspaceIdentity;
-  final List<TerminalWorkspaceRecentEntry> recentWorkspaces;
-  final bool workspaceSwitchBusy;
   final bool activeSessionRecording;
   final bool activeRecordingPendingSave;
   final bool recordingBusy;
@@ -75,9 +67,7 @@ class _ShellChromeBar extends StatelessWidget {
   final VoidCallback onShowCommandMenu;
   final VoidCallback? onToggleSessionRecording;
   final VoidCallback onToggleRecordingsShelf;
-  final Future<void> Function() onOpenProject;
-  final Future<void> Function(String workspaceId) onOpenRecentWorkspace;
-  final Future<void> Function() onRefreshRecentWorkspaces;
+  final Future<void> Function() onOpenTerminalAtFolder;
 
   @override
   Widget build(BuildContext context) {
@@ -115,9 +105,6 @@ class _ShellChromeBar extends StatelessWidget {
                 backgroundColor: chromeSurface,
                 title: activeTabTitle,
                 onShowCommandMenu: referenceDemoMode ? null : onShowCommandMenu,
-                activeWorkspaceIdentity: activeWorkspaceIdentity,
-                recentWorkspaces: recentWorkspaces,
-                workspaceSwitchBusy: workspaceSwitchBusy,
                 activeSessionRecording: activeSessionRecording,
                 activeRecordingPendingSave: activeRecordingPendingSave,
                 recordingBusy: recordingBusy,
@@ -128,9 +115,9 @@ class _ShellChromeBar extends StatelessWidget {
                 onToggleRecordingsShelf: referenceDemoMode
                     ? null
                     : onToggleRecordingsShelf,
-                onOpenProject: referenceDemoMode ? null : onOpenProject,
-                onOpenRecentWorkspace: onOpenRecentWorkspace,
-                onRefreshRecentWorkspaces: onRefreshRecentWorkspaces,
+                onOpenTerminalAtFolder: referenceDemoMode
+                    ? null
+                    : onOpenTerminalAtFolder,
               ),
               SizedBox(
                 height: _shellChromeTabRailHeight,
@@ -208,18 +195,13 @@ class _ShellWindowTitleBar extends StatelessWidget {
     required this.backgroundColor,
     required this.title,
     required this.onShowCommandMenu,
-    required this.activeWorkspaceIdentity,
-    required this.recentWorkspaces,
-    required this.workspaceSwitchBusy,
     required this.activeSessionRecording,
     required this.activeRecordingPendingSave,
     required this.recordingBusy,
     required this.recordingsShelfOpen,
     required this.onToggleSessionRecording,
     required this.onToggleRecordingsShelf,
-    required this.onOpenProject,
-    required this.onOpenRecentWorkspace,
-    required this.onRefreshRecentWorkspaces,
+    required this.onOpenTerminalAtFolder,
   });
 
   final AppThemeTokens palette;
@@ -227,18 +209,13 @@ class _ShellWindowTitleBar extends StatelessWidget {
   final Color backgroundColor;
   final String title;
   final VoidCallback? onShowCommandMenu;
-  final TerminalWorkspaceIdentity activeWorkspaceIdentity;
-  final List<TerminalWorkspaceRecentEntry> recentWorkspaces;
-  final bool workspaceSwitchBusy;
   final bool activeSessionRecording;
   final bool activeRecordingPendingSave;
   final bool recordingBusy;
   final bool recordingsShelfOpen;
   final VoidCallback? onToggleSessionRecording;
   final VoidCallback? onToggleRecordingsShelf;
-  final Future<void> Function()? onOpenProject;
-  final Future<void> Function(String workspaceId) onOpenRecentWorkspace;
-  final Future<void> Function() onRefreshRecentWorkspaces;
+  final Future<void> Function()? onOpenTerminalAtFolder;
 
   @override
   Widget build(BuildContext context) {
@@ -311,19 +288,14 @@ class _ShellWindowTitleBar extends StatelessWidget {
                   onPressed: onToggleRecordingsShelf!,
                 ),
               ),
-            if (onShowCommandMenu != null)
+            if (onOpenTerminalAtFolder != null)
               Positioned(
                 top: 5,
                 right: 48,
-                child: _ShellWorkspaceMenuButton(
+                child: _ShellFolderButton(
                   palette: palette,
                   tone: tone,
-                  activeWorkspaceIdentity: activeWorkspaceIdentity,
-                  recentWorkspaces: recentWorkspaces,
-                  busy: workspaceSwitchBusy,
-                  onOpenProject: onOpenProject!,
-                  onOpenRecentWorkspace: onOpenRecentWorkspace,
-                  onRefreshRecentWorkspaces: onRefreshRecentWorkspaces,
+                  onOpenTerminalAtFolder: onOpenTerminalAtFolder!,
                 ),
               ),
             if (onShowCommandMenu != null)
@@ -448,130 +420,31 @@ class _ShellSessionRecordingButton extends StatelessWidget {
   }
 }
 
-enum _ShellWorkspaceMenuAction { openProject }
-
-class _ShellWorkspaceMenuButton extends StatelessWidget {
-  const _ShellWorkspaceMenuButton({
+class _ShellFolderButton extends StatelessWidget {
+  const _ShellFolderButton({
     required this.palette,
     required this.tone,
-    required this.activeWorkspaceIdentity,
-    required this.recentWorkspaces,
-    required this.busy,
-    required this.onOpenProject,
-    required this.onOpenRecentWorkspace,
-    required this.onRefreshRecentWorkspaces,
+    required this.onOpenTerminalAtFolder,
   });
 
   final AppThemeTokens palette;
   final _ShellTabTone tone;
-  final TerminalWorkspaceIdentity activeWorkspaceIdentity;
-  final List<TerminalWorkspaceRecentEntry> recentWorkspaces;
-  final bool busy;
-  final Future<void> Function() onOpenProject;
-  final Future<void> Function(String workspaceId) onOpenRecentWorkspace;
-  final Future<void> Function() onRefreshRecentWorkspaces;
+  final Future<void> Function() onOpenTerminalAtFolder;
 
   @override
   Widget build(BuildContext context) {
-    final inactiveRecent = recentWorkspaces
-        .where((entry) => entry.identity.id != activeWorkspaceIdentity.id)
-        .toList(growable: false);
     return Semantics(
-      label: 'Workspace: ${activeWorkspaceIdentity.name}. Open workspace menu.',
+      label: 'Open terminal at folder',
       button: true,
-      child: Tooltip(
-        message: 'Workspace: ${activeWorkspaceIdentity.name}',
-        child: PopupMenuButton<Object>(
-          key: const Key('shell-chrome-workspaces'),
-          enabled: !busy,
-          tooltip: 'Open workspace menu',
-          onOpened: () => unawaited(onRefreshRecentWorkspaces()),
-          onSelected: (value) {
-            switch (value) {
-              case _ShellWorkspaceMenuAction.openProject:
-                unawaited(onOpenProject());
-              case TerminalWorkspaceRecentEntry entry:
-                unawaited(onOpenRecentWorkspace(entry.identity.id));
-            }
-          },
-          itemBuilder: (context) => <PopupMenuEntry<Object>>[
-            PopupMenuItem<Object>(
-              key: const Key('shell-workspace-open-project'),
-              value: _ShellWorkspaceMenuAction.openProject,
-              child: const ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.folder_open_rounded),
-                title: Text('Open Project…'),
-                trailing: Text('⌘O'),
-              ),
-            ),
-            if (inactiveRecent.isNotEmpty) const PopupMenuDivider(),
-            for (final entry in inactiveRecent)
-              PopupMenuItem<Object>(
-                key: Key('shell-workspace-recent-${entry.identity.id}'),
-                value: entry,
-                child: ListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.history_rounded),
-                  title: Text(
-                    entry.identity.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: entry.identity.projectPath == null
-                      ? null
-                      : Text(
-                          entry.identity.projectPath!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                ),
-              ),
-          ],
-          child: Container(
-            height: 28,
-            constraints: const BoxConstraints(maxWidth: 196),
-            padding: const EdgeInsets.symmetric(horizontal: 9),
-            decoration: BoxDecoration(
-              color: tone.hoverBackground,
-              borderRadius: BorderRadius.circular(palette.radius.md),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (busy)
-                  SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 1.5,
-                      color: tone.subtleText,
-                    ),
-                  )
-                else
-                  Icon(Icons.folder_outlined, size: 15, color: tone.subtleText),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    activeWorkspaceIdentity.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: tone.mutedText,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 3),
-                Icon(
-                  Icons.arrow_drop_down_rounded,
-                  size: 16,
-                  color: tone.subtleText,
-                ),
-              ],
-            ),
+      child: IconButton(
+        key: const Key('shell-open-terminal-at-folder'),
+        tooltip: 'Open Terminal at Folder…  ⌘O',
+        onPressed: () => unawaited(onOpenTerminalAtFolder()),
+        icon: Icon(Icons.folder_open_rounded, size: 17, color: tone.subtleText),
+        style: IconButton.styleFrom(
+          backgroundColor: tone.hoverBackground,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(palette.radius.md),
           ),
         ),
       ),

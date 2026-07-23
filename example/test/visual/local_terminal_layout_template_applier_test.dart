@@ -1,6 +1,6 @@
 import 'package:app/features/visual/local_terminal_layout_template_applier.dart';
 import 'package:app/features/visual/local_terminal_visual_models.dart';
-import 'package:app/features/workspace/local_workspace_models.dart';
+import 'package:app/features/workspace/local_terminal_layout_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -73,6 +73,6 @@ LocalTerminalLayoutTemplateApplyContext _context() {
     firstPaneId: 'pane-1',
     secondPaneId: 'pane-2',
     splitNodeId: 'split-1',
-    sessionIntent: TerminalPaneSessionIntent(profileId: 'default'),
+    sessionIntent: TerminalRelaunchSpec(profileId: 'default'),
   );
 }

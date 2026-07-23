@@ -1,49 +1,45 @@
 import '../profiles/profile_models.dart';
 import '../sessions/session_state.dart';
-import 'local_workspace_models.dart';
+import 'local_terminal_layout_models.dart';
 
-typedef LocalWorkspaceSessionRelauncher =
-    TerminalPane? Function(TerminalSessionDescriptor descriptor);
+typedef LocalTerminalLayoutSessionRelauncher =
+    TerminalPane? Function(TerminalRelaunchSpec spec);
 
-class LocalWorkspaceRelaunchFailure {
-  const LocalWorkspaceRelaunchFailure({
+class LocalTerminalLayoutRelaunchFailure {
+  const LocalTerminalLayoutRelaunchFailure({
     required this.paneId,
     required this.intent,
     this.error,
   });
 
   final String paneId;
-  final TerminalSessionDescriptor intent;
+  final TerminalRelaunchSpec intent;
   final Object? error;
 }
 
-class LocalWorkspaceRestoreResult {
-  LocalWorkspaceRestoreResult({
+class LocalTerminalLayoutRestoreResult {
+  LocalTerminalLayoutRestoreResult({
     required List<TerminalTab> tabs,
     required this.activeSessionId,
-    required List<LocalWorkspaceRelaunchFailure> failures,
+    required List<LocalTerminalLayoutRelaunchFailure> failures,
   }) : tabs = List.unmodifiable(tabs),
        failures = List.unmodifiable(failures);
 
   final List<TerminalTab> tabs;
   final String? activeSessionId;
-  final List<LocalWorkspaceRelaunchFailure> failures;
+  final List<LocalTerminalLayoutRelaunchFailure> failures;
 }
 
-class LocalSessionWorkspaceCodec {
-  const LocalSessionWorkspaceCodec._();
+class LocalSessionLayoutCodec {
+  const LocalSessionLayoutCodec._();
 
-  static TerminalWorkspace capture(
-    SessionState state, {
-    TerminalWorkspaceIdentity identity =
-        TerminalWorkspaceIdentity.defaultWorkspace,
-  }) {
+  static TerminalLayout capture(SessionState state) {
     final profilesById = <String, TerminalProfile>{
       for (final profile in state.profiles) profile.id: profile,
     };
-    final tabs = <TerminalWorkspaceTab>[
+    final tabs = <TerminalLayoutTab>[
       for (final tab in state.tabs)
-        TerminalWorkspaceTab(
+        TerminalLayoutTab(
           id: tab.sessionId,
           root: _captureNode(tab.effectivePaneLayout, profilesById),
           activePaneId: tab.activeSessionId,
@@ -55,18 +51,14 @@ class LocalSessionWorkspaceCodec {
               .where((tab) => tab.containsSession(state.activeSessionId!))
               .firstOrNull
               ?.sessionId;
-    return TerminalWorkspace(
-      identity: identity,
-      tabs: tabs,
-      activeTabId: activeTabId,
-    );
+    return TerminalLayout(tabs: tabs, activeTabId: activeTabId);
   }
 
-  static LocalWorkspaceRestoreResult restore(
-    TerminalWorkspace workspace, {
-    required LocalWorkspaceSessionRelauncher relaunch,
+  static LocalTerminalLayoutRestoreResult restore(
+    TerminalLayout workspace, {
+    required LocalTerminalLayoutSessionRelauncher relaunch,
   }) {
-    final failures = <LocalWorkspaceRelaunchFailure>[];
+    final failures = <LocalTerminalLayoutRelaunchFailure>[];
     final tabs = <TerminalTab>[];
     final activeSessionIdByOldTabId = <String, String>{};
 
@@ -106,7 +98,7 @@ class LocalSessionWorkspaceCodec {
     final activeSessionId =
         activeSessionIdByOldTabId[workspace.activeTabId] ??
         (tabs.isEmpty ? null : tabs.first.activeSessionId);
-    return LocalWorkspaceRestoreResult(
+    return LocalTerminalLayoutRestoreResult(
       tabs: tabs,
       activeSessionId: activeSessionId,
       failures: failures,
@@ -121,42 +113,22 @@ class LocalSessionWorkspaceCodec {
       final pane = node.pane!;
       final profile = pane.profileSnapshot ?? profilesById[pane.profileId];
       final configuredProfile = profilesById[pane.profileId];
-      final priorDescriptor = pane.sessionDescriptor;
+      final priorSpec = pane.relaunchSpec;
       final commandProfile = profile ?? configuredProfile;
-      final descriptor = TerminalSessionDescriptor(
-        id: _nonEmpty(priorDescriptor?.id) ?? pane.sessionId,
+      final spec = TerminalRelaunchSpec(
         profileId: pane.profileId,
         command: commandProfile == null
-            ? priorDescriptor?.command
-            : TerminalSessionCommand(
+            ? priorSpec?.command
+            : TerminalRelaunchCommand(
                 program: commandProfile.shell,
                 arguments: commandProfile.args,
               ),
         cwd:
             _nonEmpty(pane.shellIntegration.currentDirectory) ??
             _nonEmpty(profile?.cwd) ??
-            priorDescriptor?.cwd,
-        environment: commandProfile == null
-            ? priorDescriptor?.environment ??
-                  const TerminalSessionEnvironmentMetadata()
-            : TerminalSessionEnvironmentMetadata(
-                keys: (commandProfile.env.keys.toList(growable: false)..sort()),
-              ),
-        title: _nonEmpty(pane.title),
-        createdAtUtc: priorDescriptor?.createdAtUtc,
-        exitState: pane.isExited
-            ? TerminalSessionExitState.exited
-            : TerminalSessionExitState.running,
-        exitCode: pane.isExited ? pane.exitCode : null,
-        recordingPath: priorDescriptor?.recordingPath,
-        restartPolicy:
-            priorDescriptor?.restartPolicy ??
-            TerminalSessionRestartPolicy.relaunch,
+            priorSpec?.cwd,
       );
-      return TerminalPaneNode.leaf(
-        id: pane.sessionId,
-        sessionDescriptor: descriptor,
-      );
+      return TerminalPaneNode.leaf(id: pane.sessionId, relaunchSpec: spec);
     }
     return TerminalPaneNode.split(
       id: node.id,
@@ -171,19 +143,16 @@ class LocalSessionWorkspaceCodec {
 
   static _RestoredPaneNode? _restoreNode(
     TerminalPaneNode node, {
-    required LocalWorkspaceSessionRelauncher relaunch,
-    required List<LocalWorkspaceRelaunchFailure> failures,
+    required LocalTerminalLayoutSessionRelauncher relaunch,
+    required List<LocalTerminalLayoutRelaunchFailure> failures,
   }) {
     if (node.isLeaf) {
-      final intent = node.sessionDescriptor!;
+      final intent = node.relaunchSpec!;
       try {
-        if (intent.restartPolicy == TerminalSessionRestartPolicy.never) {
-          throw StateError('Session restart policy is never.');
-        }
         final pane = relaunch(intent);
         if (pane == null) {
           failures.add(
-            LocalWorkspaceRelaunchFailure(paneId: node.id, intent: intent),
+            LocalTerminalLayoutRelaunchFailure(paneId: node.id, intent: intent),
           );
           return null;
         }
@@ -193,7 +162,7 @@ class LocalSessionWorkspaceCodec {
         );
       } on Object catch (error) {
         failures.add(
-          LocalWorkspaceRelaunchFailure(
+          LocalTerminalLayoutRelaunchFailure(
             paneId: node.id,
             intent: intent,
             error: error,

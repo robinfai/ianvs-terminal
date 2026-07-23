@@ -8,7 +8,7 @@ import '../productivity/shell_productivity_models.dart';
 import '../visual/local_terminal_layout_template_applier.dart';
 import '../visual/local_terminal_scrollback_exporter.dart';
 import '../visual/local_terminal_visual_models.dart';
-import '../workspace/local_workspace_models.dart';
+import '../workspace/local_terminal_layout_models.dart';
 import 'shell_action_dispatcher.dart';
 import 'shell_action_pipeline.dart';
 import 'shell_action_registry.dart';
@@ -19,7 +19,7 @@ const Object _copyWithUnset = Object();
 
 class ShellActionRuntimeState {
   const ShellActionRuntimeState({
-    this.workspace = const TerminalWorkspace(),
+    this.workspace = const TerminalLayout(),
     this.productivity = const ShellProductivityState(),
     this.policies = const LocalTerminalPolicyBundle(),
     this.lastPlan,
@@ -33,7 +33,7 @@ class ShellActionRuntimeState {
     this.lastExternalExecutorError,
   });
 
-  final TerminalWorkspace workspace;
+  final TerminalLayout workspace;
   final ShellProductivityState productivity;
   final LocalTerminalPolicyBundle policies;
   final ShellActionSideEffectPlan? lastPlan;
@@ -47,7 +47,7 @@ class ShellActionRuntimeState {
   final Object? lastExternalExecutorError;
 
   ShellActionRuntimeState copyWith({
-    TerminalWorkspace? workspace,
+    TerminalLayout? workspace,
     ShellProductivityState? productivity,
     LocalTerminalPolicyBundle? policies,
     Object? lastPlan = _copyWithUnset,
@@ -113,7 +113,7 @@ class ShellActionRuntimeController {
     LocalTerminalScrollbackExportPolicy scrollbackExportPolicy =
         const LocalTerminalScrollbackExportPolicy(),
     Future<void> Function(String text)? recordPasteHistory,
-    Future<void> Function(TerminalWorkspace workspace)? persistWorkspace,
+    Future<void> Function(TerminalLayout workspace)? persistWorkspace,
     ShellActionSideEffectExecutor? externalExecutor,
   }) async {
     late final ShellActionSideEffectPlan planned;
@@ -121,7 +121,7 @@ class ShellActionRuntimeController {
       executor: ShellActionSideEffectExecutor(
         ShellActionSideEffectHandlers(
           updateWorkspace: (payload) async {
-            if (payload is TerminalWorkspace) {
+            if (payload is TerminalLayout) {
               _state = _state.copyWith(workspace: payload);
               await persistWorkspace?.call(payload);
             }

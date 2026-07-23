@@ -1,6 +1,6 @@
 import '../preferences/app_preferences_models.dart';
 import '../profiles/profile_models.dart';
-import '../workspace/local_session_descriptor.dart';
+import '../workspace/local_terminal_relaunch_spec.dart';
 
 enum TerminalSplitAxis { horizontal, vertical }
 
@@ -10,7 +10,7 @@ class TerminalPane {
     required this.title,
     required this.profileId,
     this.profileSnapshot,
-    this.sessionDescriptor,
+    this.relaunchSpec,
     this.isExited = false,
     this.exitCode,
     this.shellIntegration = TerminalShellIntegrationSnapshot.empty,
@@ -25,7 +25,7 @@ class TerminalPane {
   final String title;
   final String profileId;
   final TerminalProfile? profileSnapshot;
-  final TerminalSessionDescriptor? sessionDescriptor;
+  final TerminalRelaunchSpec? relaunchSpec;
   final bool isExited;
   final int? exitCode;
   final TerminalShellIntegrationSnapshot shellIntegration;
@@ -39,7 +39,7 @@ class TerminalPane {
     String? title,
     String? profileId,
     Object? profileSnapshot = _terminalPaneNoChange,
-    Object? sessionDescriptor = _terminalPaneNoChange,
+    Object? relaunchSpec = _terminalPaneNoChange,
     bool? isExited,
     Object? exitCode = _terminalPaneNoChange,
     TerminalShellIntegrationSnapshot? shellIntegration,
@@ -56,9 +56,9 @@ class TerminalPane {
       profileSnapshot: identical(profileSnapshot, _terminalPaneNoChange)
           ? this.profileSnapshot
           : profileSnapshot as TerminalProfile?,
-      sessionDescriptor: identical(sessionDescriptor, _terminalPaneNoChange)
-          ? this.sessionDescriptor
-          : sessionDescriptor as TerminalSessionDescriptor?,
+      relaunchSpec: identical(relaunchSpec, _terminalPaneNoChange)
+          ? this.relaunchSpec
+          : relaunchSpec as TerminalRelaunchSpec?,
       isExited: isExited ?? this.isExited,
       exitCode: identical(exitCode, _terminalPaneNoChange)
           ? this.exitCode
@@ -512,7 +512,7 @@ class TerminalTab {
     required this.title,
     required this.profileId,
     this.profileSnapshot,
-    this.sessionDescriptor,
+    this.relaunchSpec,
     this.isExited = false,
     this.exitCode,
     this.panes = const [],
@@ -531,7 +531,7 @@ class TerminalTab {
   final String title;
   final String profileId;
   final TerminalProfile? profileSnapshot;
-  final TerminalSessionDescriptor? sessionDescriptor;
+  final TerminalRelaunchSpec? relaunchSpec;
   final bool isExited;
   final int? exitCode;
   final List<TerminalPane> panes;
@@ -551,7 +551,7 @@ class TerminalTab {
       title: title,
       profileId: profileId,
       profileSnapshot: profileSnapshot,
-      sessionDescriptor: sessionDescriptor,
+      relaunchSpec: relaunchSpec,
       isExited: isExited,
       exitCode: exitCode,
       shellIntegration: shellIntegration,
@@ -611,7 +611,7 @@ class TerminalTab {
         title: replacement.title,
         profileId: replacement.profileId,
         profileSnapshot: replacement.profileSnapshot,
-        sessionDescriptor: replacement.sessionDescriptor,
+        relaunchSpec: replacement.relaunchSpec,
         isExited: replacement.isExited,
         exitCode: replacement.exitCode,
         shellIntegration: replacement.shellIntegration,
@@ -630,9 +630,7 @@ class TerminalTab {
       profileSnapshot: replacingRootPane
           ? replacement.profileSnapshot
           : profileSnapshot,
-      sessionDescriptor: replacingRootPane
-          ? replacement.sessionDescriptor
-          : sessionDescriptor,
+      relaunchSpec: replacingRootPane ? replacement.relaunchSpec : relaunchSpec,
       isExited: replacingRootPane ? replacement.isExited : isExited,
       exitCode: replacingRootPane ? replacement.exitCode : exitCode,
       shellIntegration: replacingRootPane
@@ -654,7 +652,7 @@ class TerminalTab {
     String? title,
     String? profileId,
     Object? profileSnapshot = _terminalTabNoChange,
-    Object? sessionDescriptor = _terminalTabNoChange,
+    Object? relaunchSpec = _terminalTabNoChange,
     bool? isExited,
     Object? exitCode = _terminalTabNoChange,
     List<TerminalPane>? panes,
@@ -683,9 +681,9 @@ class TerminalTab {
       profileSnapshot: identical(profileSnapshot, _terminalTabNoChange)
           ? this.profileSnapshot
           : profileSnapshot as TerminalProfile?,
-      sessionDescriptor: identical(sessionDescriptor, _terminalTabNoChange)
-          ? this.sessionDescriptor
-          : sessionDescriptor as TerminalSessionDescriptor?,
+      relaunchSpec: identical(relaunchSpec, _terminalTabNoChange)
+          ? this.relaunchSpec
+          : relaunchSpec as TerminalRelaunchSpec?,
       isExited: isExited ?? this.isExited,
       exitCode: identical(exitCode, _terminalTabNoChange)
           ? this.exitCode

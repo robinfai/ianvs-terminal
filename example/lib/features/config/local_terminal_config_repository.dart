@@ -24,9 +24,14 @@ class LocalTerminalConfigRepository {
 
     try {
       final raw = await file.readAsString();
-      return LocalTerminalConfigDocument.fromJson(
-        decodeJsonObject(raw, documentName: 'Local terminal config'),
-      );
+      final json = decodeJsonObject(raw, documentName: 'Local terminal config');
+      final document = LocalTerminalConfigDocument.fromJson(json);
+      if (json.containsKey('workspace') ||
+          json['schemaVersion'] !=
+              LocalTerminalConfigDocument.currentSchemaVersion) {
+        await save(document);
+      }
+      return document;
     } on FormatException {
       await quarantineCorruptFile(file);
       const repaired = LocalTerminalConfigDocument();
