@@ -590,6 +590,7 @@ final class TerminalReplayBackend
     switch (event.kind) {
       case TerminalRecordingEventKind.sessionStarted:
       case TerminalRecordingEventKind.userInput:
+      case TerminalRecordingEventKind.shellSemantic:
         return;
       case TerminalRecordingEventKind.ptyOutput:
         _replayDelegate.replayOutput(sessionId, event.bytes!);

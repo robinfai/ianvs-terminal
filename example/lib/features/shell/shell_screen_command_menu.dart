@@ -474,7 +474,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                             ? 'Retry saving recording'
                             : 'Start recording for Replay',
                         subtitle:
-                            'Replay • Capture this session as a durable recording. Input bytes are redacted.',
+                            'Replay • Capture this session as a durable recording. Keystrokes are redacted; shell command metadata is included when available.',
                         subtitleMaxLines: 2,
                         enabled: hasActiveSession && !isActiveRecordingBusy,
                         disabledReason: hasActiveSession

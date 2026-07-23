@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 
 const int terminalRecordingSchemaVersion = 1;
 const int terminalRecordingCheckpointSchemaVersion = 2;
+const int terminalRecordingSemanticSchemaVersion = 3;
 const int terminalRecordingGraphicAssetMaxCount = 128;
 const int terminalRecordingGraphicAssetMaxBytes = 32 * 1024 * 1024;
 
@@ -17,6 +18,16 @@ enum TerminalRecordingEventKind {
   resize,
   sessionExited,
   checkpoint,
+  shellSemantic,
+}
+
+enum TerminalRecordingSemanticKind {
+  commandStarted,
+  commandFinished,
+  directoryChanged,
+  prompt,
+  remoteSessionStarted,
+  remoteSessionFinished,
 }
 
 enum TerminalRecordingFormatErrorCode {
@@ -203,6 +214,7 @@ final class TerminalRecordingEvent {
   }
 
   factory TerminalRecordingEvent.checkpoint({
+    int schemaVersion = terminalRecordingCheckpointSchemaVersion,
     required String sessionId,
     required int sequence,
     required Duration monotonicOffset,
@@ -210,7 +222,7 @@ final class TerminalRecordingEvent {
     required int sourceSequence,
   }) {
     return TerminalRecordingEvent._(
-      schemaVersion: terminalRecordingCheckpointSchemaVersion,
+      schemaVersion: schemaVersion,
       sessionId: sessionId,
       sequence: sequence,
       monotonicOffset: monotonicOffset,
@@ -218,6 +230,35 @@ final class TerminalRecordingEvent {
       payload: <String, Object?>{
         'checkpoint_id': checkpointId,
         'source_sequence': sourceSequence,
+      },
+    );
+  }
+
+  factory TerminalRecordingEvent.shellSemantic({
+    int schemaVersion = terminalRecordingSemanticSchemaVersion,
+    required String sessionId,
+    required int sequence,
+    required Duration monotonicOffset,
+    required TerminalRecordingSemanticKind semanticKind,
+    String? command,
+    String? cwd,
+    String? hostname,
+    int? exitCode,
+    bool remote = false,
+  }) {
+    return TerminalRecordingEvent._(
+      schemaVersion: schemaVersion,
+      sessionId: sessionId,
+      sequence: sequence,
+      monotonicOffset: monotonicOffset,
+      kind: TerminalRecordingEventKind.shellSemantic,
+      payload: <String, Object?>{
+        'semantic_kind': _semanticKindName(semanticKind),
+        'command': ?command,
+        'cwd': ?cwd,
+        'hostname': ?hostname,
+        'exit_code': ?exitCode,
+        'remote': remote,
       },
     );
   }
@@ -264,6 +305,45 @@ final class TerminalRecordingEvent {
     final value = payload['source_sequence'];
     return value is int ? value : null;
   }
+
+  TerminalRecordingSemanticKind? get semanticKind =>
+      kind == TerminalRecordingEventKind.shellSemantic
+      ? _semanticKindFromName(payload['semantic_kind'])
+      : null;
+
+  String? get semanticCommand =>
+      payload['command'] is String ? payload['command']! as String : null;
+
+  String? get semanticCwd =>
+      payload['cwd'] is String ? payload['cwd']! as String : null;
+
+  String? get semanticHostname =>
+      payload['hostname'] is String ? payload['hostname']! as String : null;
+
+  int? get semanticExitCode =>
+      payload['exit_code'] is int ? payload['exit_code']! as int : null;
+
+  bool get semanticRemote => payload['remote'] == true;
+}
+
+final class TerminalRecordingSemanticEvent {
+  const TerminalRecordingSemanticEvent({
+    required this.monotonicOffset,
+    required this.kind,
+    this.command,
+    this.cwd,
+    this.hostname,
+    this.exitCode,
+    this.remote = false,
+  });
+
+  final Duration monotonicOffset;
+  final TerminalRecordingSemanticKind kind;
+  final String? command;
+  final String? cwd;
+  final String? hostname;
+  final int? exitCode;
+  final bool remote;
 }
 
 final class TerminalRecordingGraphicAsset {
@@ -305,8 +385,127 @@ final class TerminalRecording {
   final List<TerminalRecordingEvent> events;
 }
 
-/// Upgrades a validated v1/v2 recording to v2 and attaches a bounded,
-/// content-addressed set of decoded RGBA graphic assets.
+/// Merges trusted shell-integration metadata into an otherwise byte-oriented
+/// native recording. Recordings without semantics are returned unchanged.
+final class TerminalRecordingSemanticMerger {
+  const TerminalRecordingSemanticMerger();
+
+  TerminalRecording merge(
+    TerminalRecording recording,
+    Iterable<TerminalRecordingSemanticEvent> semanticEvents,
+  ) {
+    final semantics = semanticEvents.toList(growable: false);
+    if (semantics.isEmpty) {
+      return recording;
+    }
+    final duration = recording.events.isEmpty
+        ? Duration.zero
+        : recording.events.last.monotonicOffset;
+    final candidates =
+        <_TerminalRecordingMergeCandidate>[
+          for (var index = 0; index < recording.events.length; index += 1)
+            if (recording.events[index].kind !=
+                TerminalRecordingEventKind.checkpoint)
+              _TerminalRecordingMergeCandidate(
+                offset: recording.events[index].monotonicOffset,
+                sourceOrder: index * 2,
+                kind: recording.events[index].kind,
+                payload: recording.events[index].payload,
+              ),
+          for (var index = 0; index < semantics.length; index += 1)
+            _TerminalRecordingMergeCandidate(
+              offset: _clampRecordingOffset(
+                semantics[index].monotonicOffset,
+                duration,
+              ),
+              sourceOrder: index * 2 + 1,
+              semantic: semantics[index],
+            ),
+        ]..sort((left, right) {
+          final byOffset = left.offset.compareTo(right.offset);
+          if (byOffset != 0) {
+            return byOffset;
+          }
+          if (left.kind == TerminalRecordingEventKind.sessionStarted) {
+            return -1;
+          }
+          if (right.kind == TerminalRecordingEventKind.sessionStarted) {
+            return 1;
+          }
+          return left.sourceOrder.compareTo(right.sourceOrder);
+        });
+    final events = <TerminalRecordingEvent>[];
+    for (final candidate in candidates) {
+      final semantic = candidate.semantic;
+      if (semantic != null) {
+        events.add(
+          TerminalRecordingEvent.shellSemantic(
+            sessionId: recording.metadata.sessionId,
+            sequence: events.length,
+            monotonicOffset: candidate.offset,
+            semanticKind: semantic.kind,
+            command: semantic.command,
+            cwd: semantic.cwd,
+            hostname: semantic.hostname,
+            exitCode: semantic.exitCode,
+            remote: semantic.remote,
+          ),
+        );
+        continue;
+      }
+      events.add(
+        TerminalRecordingEvent._(
+          schemaVersion: terminalRecordingSemanticSchemaVersion,
+          sessionId: recording.metadata.sessionId,
+          sequence: events.length,
+          monotonicOffset: candidate.offset,
+          kind: candidate.kind!,
+          payload: candidate.payload!,
+        ),
+      );
+    }
+    return TerminalRecording(
+      metadata: TerminalRecordingMetadata(
+        schemaVersion: terminalRecordingSemanticSchemaVersion,
+        sessionId: recording.metadata.sessionId,
+        createdAtUtc: recording.metadata.createdAtUtc,
+        inputPolicy: recording.metadata.inputPolicy,
+      ),
+      graphicAssets: recording.graphicAssets,
+      events: events,
+    );
+  }
+}
+
+final class _TerminalRecordingMergeCandidate {
+  const _TerminalRecordingMergeCandidate({
+    required this.offset,
+    required this.sourceOrder,
+    this.kind,
+    this.payload,
+    this.semantic,
+  });
+
+  final Duration offset;
+  final int sourceOrder;
+  final TerminalRecordingEventKind? kind;
+  final Map<String, Object?>? payload;
+  final TerminalRecordingSemanticEvent? semantic;
+}
+
+Duration _clampRecordingOffset(Duration value, Duration max) {
+  if (value < Duration.zero) {
+    return Duration.zero;
+  }
+  if (value > max) {
+    return max;
+  }
+  return value;
+}
+
+/// Upgrades a validated recording to at least v2 and attaches a bounded,
+/// content-addressed set of decoded RGBA graphic assets while preserving
+/// newer schema features such as shell semantics.
 final class TerminalRecordingGraphicAssetBundler {
   const TerminalRecordingGraphicAssetBundler();
 
@@ -347,9 +546,14 @@ final class TerminalRecordingGraphicAssetBundler {
     for (final asset in graphicAssets) {
       addAsset(asset);
     }
+    final targetSchemaVersion =
+        validated.metadata.schemaVersion <
+            terminalRecordingCheckpointSchemaVersion
+        ? terminalRecordingCheckpointSchemaVersion
+        : validated.metadata.schemaVersion;
     final bundled = TerminalRecording(
       metadata: TerminalRecordingMetadata(
-        schemaVersion: terminalRecordingCheckpointSchemaVersion,
+        schemaVersion: targetSchemaVersion,
         sessionId: validated.metadata.sessionId,
         createdAtUtc: validated.metadata.createdAtUtc,
         inputPolicy: validated.metadata.inputPolicy,
@@ -358,7 +562,7 @@ final class TerminalRecordingGraphicAssetBundler {
       events: <TerminalRecordingEvent>[
         for (final event in validated.events)
           TerminalRecordingEvent._(
-            schemaVersion: terminalRecordingCheckpointSchemaVersion,
+            schemaVersion: targetSchemaVersion,
             sessionId: event.sessionId,
             sequence: event.sequence,
             monotonicOffset: event.monotonicOffset,
@@ -598,7 +802,7 @@ List<Map<String, Object?>> _canonicalGraphicAssetRecords(
   for (final blob in sortedBlobs) {
     records.add(<String, Object?>{
       'record_type': 'graphic_asset_blob',
-      'schema_version': terminalRecordingCheckpointSchemaVersion,
+      'schema_version': recording.metadata.schemaVersion,
       'blob_id': blob.blobId,
       'width': blob.width,
       'height': blob.height,
@@ -608,7 +812,7 @@ List<Map<String, Object?>> _canonicalGraphicAssetRecords(
   for (final asset in assets) {
     records.add(<String, Object?>{
       'record_type': 'graphic_asset',
-      'schema_version': terminalRecordingCheckpointSchemaVersion,
+      'schema_version': recording.metadata.schemaVersion,
       'session_id': recording.metadata.sessionId,
       'asset_id': asset.assetId,
       'asset_version': asset.assetVersion,
@@ -1095,6 +1299,20 @@ void _validatePayload(
           'checkpoint requires a bounded checkpoint_id and an earlier source_sequence',
         );
       }
+    case TerminalRecordingEventKind.shellSemantic:
+      final semanticKind = _semanticKindFromName(payload['semantic_kind']);
+      if (event.schemaVersion < terminalRecordingSemanticSchemaVersion ||
+          semanticKind == null ||
+          !_isOptionalBoundedString(payload['command'], 512) ||
+          !_isOptionalBoundedString(payload['cwd'], 1024) ||
+          !_isOptionalBoundedString(payload['hostname'], 255) ||
+          (payload['exit_code'] != null && payload['exit_code'] is! int) ||
+          payload['remote'] is! bool) {
+        _throwInvalidPayload(
+          lineNumber,
+          'shell_semantic requires bounded semantic metadata',
+        );
+      }
   }
 }
 
@@ -1138,6 +1356,14 @@ Map<String, Object?> _canonicalPayload(
     TerminalRecordingEventKind.checkpoint => <String, Object?>{
       'checkpoint_id': payload['checkpoint_id'],
       'source_sequence': payload['source_sequence'],
+    },
+    TerminalRecordingEventKind.shellSemantic => <String, Object?>{
+      'semantic_kind': payload['semantic_kind'],
+      if (payload['command'] != null) 'command': payload['command'],
+      if (payload['cwd'] != null) 'cwd': payload['cwd'],
+      if (payload['hostname'] != null) 'hostname': payload['hostname'],
+      if (payload['exit_code'] != null) 'exit_code': payload['exit_code'],
+      'remote': payload['remote'],
     },
   };
 }
@@ -1237,6 +1463,7 @@ String _eventKindName(TerminalRecordingEventKind kind) {
     TerminalRecordingEventKind.resize => 'resize',
     TerminalRecordingEventKind.sessionExited => 'session_exited',
     TerminalRecordingEventKind.checkpoint => 'checkpoint',
+    TerminalRecordingEventKind.shellSemantic => 'shell_semantic',
   };
 }
 
@@ -1253,13 +1480,51 @@ TerminalRecordingEventKind? _eventKindFromName(
     'checkpoint'
         when schemaVersion >= terminalRecordingCheckpointSchemaVersion =>
       TerminalRecordingEventKind.checkpoint,
+    'shell_semantic'
+        when schemaVersion >= terminalRecordingSemanticSchemaVersion =>
+      TerminalRecordingEventKind.shellSemantic,
     _ => null,
   };
 }
 
 bool _isSupportedSchemaVersion(int version) {
   return version == terminalRecordingSchemaVersion ||
-      version == terminalRecordingCheckpointSchemaVersion;
+      version == terminalRecordingCheckpointSchemaVersion ||
+      version == terminalRecordingSemanticSchemaVersion;
+}
+
+String _semanticKindName(TerminalRecordingSemanticKind kind) {
+  return switch (kind) {
+    TerminalRecordingSemanticKind.commandStarted => 'command_started',
+    TerminalRecordingSemanticKind.commandFinished => 'command_finished',
+    TerminalRecordingSemanticKind.directoryChanged => 'directory_changed',
+    TerminalRecordingSemanticKind.prompt => 'prompt',
+    TerminalRecordingSemanticKind.remoteSessionStarted =>
+      'remote_session_started',
+    TerminalRecordingSemanticKind.remoteSessionFinished =>
+      'remote_session_finished',
+  };
+}
+
+TerminalRecordingSemanticKind? _semanticKindFromName(Object? value) {
+  return switch (value) {
+    'command_started' => TerminalRecordingSemanticKind.commandStarted,
+    'command_finished' => TerminalRecordingSemanticKind.commandFinished,
+    'directory_changed' => TerminalRecordingSemanticKind.directoryChanged,
+    'prompt' => TerminalRecordingSemanticKind.prompt,
+    'remote_session_started' =>
+      TerminalRecordingSemanticKind.remoteSessionStarted,
+    'remote_session_finished' =>
+      TerminalRecordingSemanticKind.remoteSessionFinished,
+    _ => null,
+  };
+}
+
+bool _isOptionalBoundedString(Object? value, int maxBytes) {
+  return value == null ||
+      (value is String &&
+          value.trim().isNotEmpty &&
+          utf8.encode(value).length <= maxBytes);
 }
 
 /// Deterministically upgrades a validated Recording v1/v2 stream with
@@ -1343,6 +1608,11 @@ final class TerminalRecordingCheckpointPlanner {
       );
     }
 
+    final targetSchemaVersion =
+        validated.metadata.schemaVersion <
+            terminalRecordingCheckpointSchemaVersion
+        ? terminalRecordingCheckpointSchemaVersion
+        : validated.metadata.schemaVersion;
     final plannedEvents = <TerminalRecordingEvent>[];
     final checkpointSourceSet = checkpointSources.toSet();
     for (
@@ -1353,7 +1623,7 @@ final class TerminalRecordingCheckpointPlanner {
       final event = sourceEvents[sourceSequence];
       plannedEvents.add(
         TerminalRecordingEvent._(
-          schemaVersion: terminalRecordingCheckpointSchemaVersion,
+          schemaVersion: targetSchemaVersion,
           sessionId: event.sessionId,
           sequence: plannedEvents.length,
           monotonicOffset: event.monotonicOffset,
@@ -1364,6 +1634,7 @@ final class TerminalRecordingCheckpointPlanner {
       if (checkpointSourceSet.contains(sourceSequence)) {
         plannedEvents.add(
           TerminalRecordingEvent.checkpoint(
+            schemaVersion: targetSchemaVersion,
             sessionId: event.sessionId,
             sequence: plannedEvents.length,
             monotonicOffset: event.monotonicOffset,
@@ -1376,7 +1647,7 @@ final class TerminalRecordingCheckpointPlanner {
 
     return TerminalRecording(
       metadata: TerminalRecordingMetadata(
-        schemaVersion: terminalRecordingCheckpointSchemaVersion,
+        schemaVersion: targetSchemaVersion,
         sessionId: validated.metadata.sessionId,
         createdAtUtc: validated.metadata.createdAtUtc,
         inputPolicy: validated.metadata.inputPolicy,

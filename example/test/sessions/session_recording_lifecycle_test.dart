@@ -201,6 +201,127 @@ void main() {
   );
 
   test(
+    'recording merges local SSH and nested remote command semantics',
+    () async {
+      final harness = await _createHarness();
+      final controller = harness.container.read(
+        sessionControllerProvider.notifier,
+      );
+      final sessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      await controller.startSessionRecording(sessionId);
+
+      harness.backend
+        ..enqueueEvent(
+          sessionId,
+          PtyEvent(
+            kind: 'shell_hook',
+            sessionId: sessionId,
+            payload: const <String, Object?>{
+              'hook': 'preexec',
+              'command': 'ssh prod-server',
+              'pwd': '/Users/dev/project',
+            },
+          ),
+        )
+        ..enqueueEvent(
+          sessionId,
+          PtyEvent(
+            kind: 'shell_command',
+            sessionId: sessionId,
+            payload: const <String, Object?>{
+              'source': 'osc633',
+              'eventType': 'command_start',
+              'command': 'ssh prod-server',
+            },
+          ),
+        )
+        ..enqueueEvent(
+          sessionId,
+          PtyEvent(
+            kind: 'shell_command',
+            sessionId: sessionId,
+            payload: const <String, Object?>{
+              'source': 'osc633',
+              'eventType': 'command_start',
+              'command': 'ls -la',
+            },
+          ),
+        )
+        ..enqueueEvent(
+          sessionId,
+          PtyEvent(
+            kind: 'shell_command',
+            sessionId: sessionId,
+            payload: const <String, Object?>{
+              'source': 'osc633',
+              'eventType': 'command_finished',
+              'command': 'ls -la',
+              'exitCode': 0,
+            },
+          ),
+        )
+        ..enqueueEvent(
+          sessionId,
+          PtyEvent(
+            kind: 'shell_command',
+            sessionId: sessionId,
+            payload: const <String, Object?>{
+              'source': 'osc633',
+              'eventType': 'command_finished',
+              'command': 'ssh prod-server',
+              'exitCode': 0,
+            },
+          ),
+        )
+        ..enqueueEvent(
+          sessionId,
+          PtyEvent(
+            kind: 'shell_hook',
+            sessionId: sessionId,
+            payload: const <String, Object?>{
+              'hook': 'command_finished',
+              'command': 'ssh prod-server',
+              'pwd': '/Users/dev/project',
+              'exit_code': 0,
+            },
+          ),
+        );
+      harness.container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(sessionId);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      final path = await controller.stopSessionRecording(sessionId);
+      final recording = await harness.recordingRepository.load(path!);
+      final semantics = recording.events
+          .where(
+            (event) =>
+                event.kind == terminal.TerminalRecordingEventKind.shellSemantic,
+          )
+          .toList(growable: false);
+
+      expect(
+        recording.metadata.schemaVersion,
+        terminal.terminalRecordingSemanticSchemaVersion,
+      );
+      expect(
+        semantics.map((event) => event.semanticKind),
+        <terminal.TerminalRecordingSemanticKind>[
+          terminal.TerminalRecordingSemanticKind.remoteSessionStarted,
+          terminal.TerminalRecordingSemanticKind.commandStarted,
+          terminal.TerminalRecordingSemanticKind.commandFinished,
+          terminal.TerminalRecordingSemanticKind.remoteSessionFinished,
+        ],
+      );
+      expect(semantics[1].semanticCommand, 'ls -la');
+      expect(semantics[1].semanticRemote, isTrue);
+      expect(semantics[3].semanticCommand, 'ssh prod-server');
+    },
+  );
+
+  test(
     'failed save keeps the PTY alive and retries without a second stop',
     () async {
       final harness = await _createHarness(

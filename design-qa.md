@@ -1,52 +1,96 @@
-# Recording replay direction 2 design QA
+# Replay Player Design QA
 
-## Source of truth and evidence
+## Target and implementation
 
-- Selected product-design reference: `/Users/robinfai/.codex/generated_images/019f802e-929f-71d2-90be-a9b8d9e0dc9f/exec-bea38880-ff77-4203-b6c2-12e853da243b.png` (1448 x 1086).
-- Final native implementation capture: `docs/audits/recording-replay-direction-2-final.png` (1225 x 768).
-- Normalized full-view comparison, source left and implementation right: `docs/audits/recording-replay-direction-2-comparison.png`.
-- Focused Saved Recordings shelf comparison, source left and implementation right: `docs/audits/recording-replay-direction-2-shelf-comparison.png`.
+- Design reference: `/Users/luobinghui/.codex/generated_images/019f8f89-028e-7c81-804c-40d62b3d1dd4/call_H8pYqc6GqRxB0cUzmISDc3f6.png`
+- Implementation capture: `design-qa-assets/replay-command-review.png`
+- Full comparison: `design-qa-assets/replay-command-review-comparison.png`
+- Timeline comparison: `design-qa-assets/replay-command-review-timeline-comparison.png`
+- Viewport: 1622 × 970 logical pixels at DPR 1
+- State: light theme, saved replay, local command segments plus an SSH parent segment with a nested remote command
 
-## Audited viewport and state
-
-- macOS dark theme at a 1225 x 768 captured application window.
-- Default Workspace is active; the Saved Recordings shelf is open and one real NDJSON recording is selected.
-- Replay is at 00:17 / 00:17 with metadata, terminal output, transport controls, speed, search, copy, fit, and close actions visible.
-- The generated reference uses a taller 4:3-style canvas while the native product capture is a wider 16:10-style window. Full-view evidence therefore uses contained normalization instead of stretching either image.
+The implementation capture is produced by a deterministic Flutter widget test. Its
+Ahem test font intentionally renders text as blocks, so typography was also checked
+in the running macOS application. The comparison focuses on the replay player's
+layout, density, hierarchy, controls, and semantic timeline.
 
 ## Fidelity review
 
-- Layout and rhythm: the implementation preserves the direction's three-level hierarchy: product chrome, replay theater, and persistent right recording shelf. The metadata strip and elevated bottom playback dock restore the vertical rhythm missing in the first implementation pass.
-- Typography: existing application and terminal fonts are retained, with stronger recording titles, restrained metadata, monospace terminal content, and compact macOS desktop labels matching the reference's information hierarchy.
-- Color and tokens: all surfaces use the existing dark theme tokens. Blue is reserved for selection and active playback, neutral borders separate chrome layers, green marks the active workspace, and the warning footer keeps low visual priority.
-- Assets and image quality: no bespoke raster asset is required by this interface. Material/system icons render natively and remain sharp at the audited viewport.
-- Copy and content: `Saved Recordings`, `Import…`, workspace grouping, `Newest`, the sensitive-output warning, recording totals, metadata labels, and playback controls are present. Dynamic recording names, durations, sizes, and terminal output intentionally reflect real local data rather than the generated mock content.
-- Responsive behavior: wide windows use a side-by-side 372 px shelf; widths below 960 px use a right-aligned overlay capped at 400 px, preserving terminal readability.
+| Surface | Result | Evidence |
+| --- | --- | --- |
+| Layout and spacing | Pass | The terminal remains the dominant surface. The semantic timeline, legend, session metadata, transport controls, and utility actions keep the same vertical order and grouping as the reference. Both instant and saved replay use the same shared dock. |
+| Typography | Pass | Production uses the app's themed UI and terminal typefaces with the same label hierarchy. The implementation screenshot's block glyphs are a deterministic-test artifact rather than production styling. |
+| Colors and tokens | Pass | Light-theme surfaces, borders, primary blue, directory blue, activity gray, and remote amber are derived from `ColorScheme` or shared replay tokens. |
+| Shape and surfaces | Pass | Command cards, active outlines, track markers, dividers, and compact toolbar controls match the reference's restrained rounded treatment without adding decorative surfaces. |
+| Icons | Pass | Material icons are consistently sized and aligned for playback, search, fit, copy, close, directory, and remote states. No handcrafted SVG or placeholder icon substitutes are used. |
+| Image quality | N/A | The target contains no raster product imagery. The implementation uses Flutter text, dividers, and library icons at device resolution. |
+| Copy and content | Pass | Command labels, path metadata, remote host context, playback time, speed, frame count, and privacy disclosure are coherent in the standalone replay state. |
+| Responsiveness | Pass | The dock switches to a compact control layout below 960 logical pixels; timeline labels truncate instead of colliding, and controls retain usable targets. |
+| Accessibility | Pass | Buttons have tooltips/semantic labels, keyboard Escape closes replay, contrast follows the active theme, and controls remain keyboard reachable. |
 
-## Focused interaction review
+## Interaction and semantic-state review
 
-- Top `Recordings` toggles the shelf without changing the live terminal session.
-- Search, playable-only filtering, workspace/no-group mode, and newest/oldest/name sorting update the library view.
-- Import, rename, reveal in Finder, export, move to Trash, refresh, and independent shelf close are wired.
-- Selecting an NDJSON file loads a separate replay backend and displays recording metadata without mutating the live session.
-- Play/pause, seek slider, back/forward 10 seconds, 0.25–4x speed, search, copy, fit, and replay close are present and keyboard/accessibility semantics were inspected in the native app.
-- The footer reports recording count and bytes and warns that recordings may contain sensitive output.
+- Clicking a command card seeks to that segment.
+- Scrubbing, play/pause, previous/next step, speed selection, search, fit, copy,
+  and close are covered by widget tests.
+- Local shell-hook events produce named command cards and directory changes.
+- Prompt-only metadata produces anonymous command ranges without inventing labels.
+- With no hook or prompt semantics, the same timeline shows `Activity` fallback
+  ranges rather than guessing command boundaries.
+- `ssh` or `mosh` is shown as a remote parent segment. Remote commands are nested
+  only when remote OSC semantic events exist; otherwise the parent contains one
+  `Remote activity` range.
+- Overlapping native-hook and OSC events are deduplicated.
+- Input privacy is explicit: keystrokes can be redacted while command metadata is
+  still included.
 
-## Comparison history
+## Comparison passes
 
-1. P2: the first implementation did not expose a recording metadata band above the terminal. Added name, workspace, timestamp, and input-policy metadata; verified in `recording-replay-direction-2-final.png`.
-2. P2: the initial playback strip was too compressed to read as the direction's replay dock. Increased vertical padding and promoted the primary play control; verified in the full-view comparison.
-3. P2: the first shelf omitted visible grouping, sorting, capacity summary, and a labeled import action. Added all four and verified them in the focused shelf comparison.
-4. Final comparison found no remaining P0, P1, or P2 issue. Remaining differences are P3-level integration details: the production window is wider than the generated concept, and the evidence contains one real recording instead of three mock recordings.
+### Iteration 1
 
-## Verification
+- P1 · Layout: the first implementation compressed commands into thin markers,
+  which weakened the command-review hierarchy visible in the target.
+- P2 · Content and behavior: the first pass lacked the target's command legend,
+  larger command cards, visible remote nesting, and card-to-seek interaction.
+- Fix: enlarged the semantic lane, added major/minor/directory/remote states,
+  nested SSH children, added the legend, made cards seekable, and moved both
+  replay modes onto the same timeline and control dock.
 
-- `dart analyze`: no issues.
-- Recording shelf, lifecycle, repository, and native window-bridge tests: 21 passed.
-- Replay scheduler and frame-packet regression tests: 28 passed.
-- Native macOS debug build: passed.
-- `git diff --check`: passed.
+### Iteration 2
 
-## Final result
+- Full-view comparison: `design-qa-assets/replay-command-review-comparison.png`
+- Focused timeline comparison:
+  `design-qa-assets/replay-command-review-timeline-comparison.png`
+- P0: none.
+- P1: none.
+- P2: none.
+- P3: the implementation dock is about 55 pixels more compact vertically than the
+  mock. This preserves the intended hierarchy and gives the terminal slightly more
+  working space, so no further change is required.
+- Intentional content difference: the QA fixture uses fewer local commands and an
+  SSH example to verify the remote-session behavior requested after the mock was
+  selected.
 
-passed
+### Iteration 3 — Actual runtime evidence
+
+- User-supplied runtime capture:
+  `design-qa-assets/actual-replay-audit/01-actual-replay.png`
+- Source/runtime comparison:
+  `design-qa-assets/actual-replay-audit/02-source-actual-comparison.png`
+- P1 · Duplicate semantic sources produced overlapping cards for `top` and the
+  SSH session.
+- P1 · Remote title, status, and time collided inside the SSH card.
+- P2 · Anonymous labels exposed raw event numbering and tiny semantic noise.
+- Fix: reconcile hook and OSC events into one open command per lane, enrich
+  anonymous segments with later named metadata, promote anonymous wrappers into
+  SSH parents, discard sub-100 ms anonymous cards, renumber visible anonymous
+  commands, and split remote status from the SSH title.
+- Fixed deterministic capture:
+  `design-qa-assets/actual-replay-audit/03-fixed-replay.png`
+- Before/after comparison:
+  `design-qa-assets/actual-replay-audit/04-before-after-comparison.png`
+- Regression fixture covers overlapping anonymous/named starts, duplicate
+  finishes, and anonymous-to-SSH promotion. No remaining P0, P1, or P2 issue was
+  found in the corrected reproduction.
+
+final result: passed

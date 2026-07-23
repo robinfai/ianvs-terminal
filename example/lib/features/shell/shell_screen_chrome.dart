@@ -294,7 +294,7 @@ class _ShellSessionRecordingButton extends StatelessWidget {
         ? 'Stop recording and save for Replay'
         : pendingSave
         ? 'Retry saving Replay recording'
-        : 'Start recording for Replay (input redacted)';
+        : 'Start recording for Replay (keystrokes redacted; command metadata included when available)';
     final color = recording
         ? palette.danger
         : pendingSave

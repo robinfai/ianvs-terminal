@@ -339,6 +339,47 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
     return elapsed;
   }
 
+  Duration _elapsedForCapturedAt(DateTime capturedAt) {
+    final frames = widget.layout.frames;
+    if (frames.length <= 1 || !capturedAt.isAfter(frames.first.capturedAt)) {
+      return Duration.zero;
+    }
+    for (var index = 1; index < frames.length; index += 1) {
+      final current = frames[index];
+      if (capturedAt.isAfter(current.capturedAt)) {
+        continue;
+      }
+      final previous = frames[index - 1];
+      final actualGap = current.capturedAt.difference(previous.capturedAt);
+      final playbackGap = _playbackGapBeforeFrameIndex(index);
+      if (actualGap <= Duration.zero) {
+        return _elapsedForFrameIndex(index);
+      }
+      final elapsedIntoGap = capturedAt.difference(previous.capturedAt);
+      final fraction = elapsedIntoGap.inMicroseconds / actualGap.inMicroseconds;
+      return _elapsedForFrameIndex(index - 1) +
+          Duration(
+            microseconds: (playbackGap.inMicroseconds * fraction).round(),
+          );
+    }
+    return _timelineDuration;
+  }
+
+  List<_ReplaySemanticPoint> _instantReplaySemanticPoints() {
+    return [
+      for (final event in widget.layout.semanticEvents)
+        _ReplaySemanticPoint(
+          offset: _elapsedForCapturedAt(event.capturedAt),
+          kind: event.kind,
+          command: event.command,
+          cwd: event.cwd,
+          hostname: event.hostname,
+          exitCode: event.exitCode,
+          remote: event.remote,
+        ),
+    ];
+  }
+
   Duration _playbackGapBeforeFrameIndex(int index) {
     final actualGap = _actualGapBeforeFrameIndex(index);
     if (actualGap > Duration.zero) {
@@ -515,7 +556,6 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
       frameLabel: frameLabel,
       retentionFrameLimit: widget.layout.retentionFrameLimit,
       frameCount: widget.layout.frames.length,
-      activeIndex: _activeIndex,
       timelineValue: _timelineValueForDuration(_playheadElapsed),
       timelineMax: math.max(
         _timelineValueForDuration(_timelineDuration),
@@ -526,6 +566,9 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
           _timelineValueForDuration(_elapsedForFrameIndex(index)),
       ],
       idleGapMarkers: _idleGapMarkers(),
+      semanticPoints: _instantReplaySemanticPoints(),
+      position: _playheadElapsed,
+      duration: _timelineDuration,
       activeFrame: activeFrame,
       isPlaying: _isPlaying,
       playbackSpeed: _playbackSpeed,
@@ -656,21 +699,13 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Expanded(
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final controlsHeight = math.min(
-                          260.0,
-                          math.max(220.0, constraints.maxHeight * 0.38),
-                        );
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Expanded(child: replayViewport()),
-                            const SizedBox(height: 12),
-                            SizedBox(height: controlsHeight, child: controls),
-                          ],
-                        );
-                      },
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(child: replayViewport()),
+                        const SizedBox(height: 10),
+                        controls,
+                      ],
                     ),
                   ),
                 ],
@@ -690,11 +725,13 @@ class _InstantReplayLayoutControls extends StatelessWidget {
     required this.frameLabel,
     required this.retentionFrameLimit,
     required this.frameCount,
-    required this.activeIndex,
     required this.timelineValue,
     required this.timelineMax,
     required this.changeMarkerValues,
     required this.idleGapMarkers,
+    required this.semanticPoints,
+    required this.position,
+    required this.duration,
     required this.activeFrame,
     required this.isPlaying,
     required this.playbackSpeed,
@@ -719,11 +756,13 @@ class _InstantReplayLayoutControls extends StatelessWidget {
   final String frameLabel;
   final int retentionFrameLimit;
   final int frameCount;
-  final int activeIndex;
   final double timelineValue;
   final double timelineMax;
   final List<double> changeMarkerValues;
   final List<_InstantReplayIdleGapMarker> idleGapMarkers;
+  final List<_ReplaySemanticPoint> semanticPoints;
+  final Duration position;
+  final Duration duration;
   final InstantReplayFrame? activeFrame;
   final bool isPlaying;
   final double playbackSpeed;
@@ -750,122 +789,83 @@ class _InstantReplayLayoutControls extends StatelessWidget {
     final frameDetail = timestamp == null
         ? frameLabel
         : '$frameLabel • ${_frameTimeLabel(timestamp)}';
+    final playbackControls = _InstantReplayPlaybackControls(
+      isPlaying: isPlaying,
+      speed: playbackSpeed,
+      onStepBack: onStepBack,
+      onTogglePlay: onTogglePlay,
+      onStepForward: onStepForward,
+      onSpeedChanged: onSpeedChanged,
+      palette: palette,
+    );
+    final actions = _InstantReplayActionControls(
+      activeFrame: frame,
+      frameCount: frameCount,
+      onFitRecordedSize: onFitRecordedSize,
+      onCopyVisible: onCopyVisible,
+      onCopySelection: onCopySelection,
+      onClear: onClear,
+      onExit: onExit,
+      includeClose: true,
+      palette: palette,
+    );
+    final header = _InstantReplayControlHeader(
+      sourceLabel: sourceLabel,
+      frameDetail: frameDetail,
+      retentionPolicyLabel: _retentionPolicyLabel(retentionFrameLimit),
+      palette: palette,
+    );
+    final timeline = _ReplaySemanticTimeline(
+      timelineKey: const Key('instant-replay-timeline'),
+      effectsKey: const Key('instant-replay-timeline-effects'),
+      changeMarkerKey: const Key('instant-replay-change-marker'),
+      idleMarkerKey: const Key('instant-replay-idle-marker'),
+      quietTrackKey: const Key('instant-replay-quiet-track'),
+      value: timelineValue,
+      max: timelineMax <= 0 ? 1 : timelineMax,
+      position: position,
+      duration: duration,
+      model: _buildReplayTimelineModel(
+        points: semanticPoints,
+        duration: duration,
+      ),
+      markers: [
+        for (final value in changeMarkerValues)
+          _ReplayTimelineMarker(
+            value: value,
+            kind: _ReplayTimelineMarkerKind.output,
+            tooltip: 'Terminal changed',
+          ),
+        for (final marker in idleGapMarkers)
+          _ReplayTimelineMarker(
+            value: marker.value,
+            kind: _ReplayTimelineMarkerKind.idle,
+            tooltip: marker.tooltip,
+          ),
+      ],
+      onChanged: onSliderChanged,
+      palette: palette,
+    );
+    final search = _InstantReplaySearchControls(
+      enabled: frameCount > 0,
+      searchSummary: searchSummary,
+      onSearchChanged: onSearchChanged,
+      onSearchPrevious: onSearchPrevious,
+      onSearchNext: onSearchNext,
+      palette: palette,
+    );
     return Semantics(
       identifier: 'instant-replay-controls',
       container: true,
       explicitChildNodes: true,
       label: 'Replay controls for recent activity',
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Color.alphaBlend(
-            palette.canvas.withValues(alpha: 0.24),
-            palette.overlay,
-          ),
-          borderRadius: BorderRadius.circular(palette.radius.lg),
-          border: Border.all(
-            color: palette.borderStrong.withValues(alpha: 0.72),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: palette.canvas.withValues(alpha: 0.42),
-              blurRadius: 24,
-              offset: const Offset(0, 12),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final compact = constraints.maxWidth < 820;
-              final playbackControls = _InstantReplayPlaybackControls(
-                isPlaying: isPlaying,
-                speed: playbackSpeed,
-                onStepBack: onStepBack,
-                onTogglePlay: onTogglePlay,
-                onStepForward: onStepForward,
-                onSpeedChanged: onSpeedChanged,
-                palette: palette,
-              );
-              final actions = _InstantReplayActionControls(
-                activeFrame: frame,
-                frameCount: frameCount,
-                onFitRecordedSize: onFitRecordedSize,
-                onCopyVisible: onCopyVisible,
-                onCopySelection: onCopySelection,
-                onClear: onClear,
-                onExit: onExit,
-                includeClose: !compact,
-                palette: palette,
-              );
-              final header = _InstantReplayControlHeader(
-                sourceLabel: sourceLabel,
-                frameDetail: frameDetail,
-                retentionPolicyLabel: _retentionPolicyLabel(
-                  retentionFrameLimit,
-                ),
-                palette: palette,
-              );
-              final timeline = _InstantReplayTimelineDeck(
-                frameCount: frameCount,
-                activeIndex: activeIndex,
-                timelineValue: timelineValue,
-                timelineMax: timelineMax,
-                onSliderChanged: onSliderChanged,
-                changeMarkerValues: changeMarkerValues,
-                idleGapMarkers: idleGapMarkers,
-                palette: palette,
-              );
-              final search = _InstantReplaySearchControls(
-                enabled: frameCount > 0,
-                searchSummary: searchSummary,
-                onSearchChanged: onSearchChanged,
-                onSearchPrevious: onSearchPrevious,
-                onSearchNext: onSearchNext,
-                palette: palette,
-              );
-
-              if (compact) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(child: header),
-                        actions.closeButton,
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Row(children: [playbackControls, const Spacer(), actions]),
-                    const SizedBox(height: 8),
-                    timeline,
-                    const SizedBox(height: 8),
-                    search,
-                  ],
-                );
-              }
-
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(child: header),
-                      const SizedBox(width: 12),
-                      playbackControls,
-                      const SizedBox(width: 8),
-                      actions,
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  timeline,
-                  const SizedBox(height: 8),
-                  search,
-                ],
-              );
-            },
-          ),
-        ),
+      child: _ReplayDockLayout(
+        timeline: timeline,
+        metadata: header,
+        transport: playbackControls,
+        search: search,
+        actions: actions,
+        palette: palette,
       ),
     );
   }
@@ -1124,86 +1124,6 @@ class _InstantReplayActionControls extends StatelessWidget {
   }
 }
 
-class _InstantReplayTimelineDeck extends StatelessWidget {
-  const _InstantReplayTimelineDeck({
-    required this.frameCount,
-    required this.activeIndex,
-    required this.timelineValue,
-    required this.timelineMax,
-    required this.onSliderChanged,
-    required this.changeMarkerValues,
-    required this.idleGapMarkers,
-    required this.palette,
-  });
-
-  final int frameCount;
-  final int activeIndex;
-  final double timelineValue;
-  final double timelineMax;
-  final ValueChanged<double>? onSliderChanged;
-  final List<double> changeMarkerValues;
-  final List<_InstantReplayIdleGapMarker> idleGapMarkers;
-  final AppThemeTokens palette;
-
-  @override
-  Widget build(BuildContext context) {
-    final safeMax = timelineMax <= 0 ? 1.0 : timelineMax;
-    final safeValue = timelineValue.clamp(0.0, timelineMax).toDouble();
-    return SizedBox(
-      height: 40,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Positioned.fill(
-            child: _InstantReplayTimelineMarkers(
-              timelineMax: safeMax,
-              timelineValue: safeValue,
-              changeMarkerValues: changeMarkerValues,
-              idleGapMarkers: idleGapMarkers,
-              palette: palette,
-            ),
-          ),
-          Positioned.fill(
-            child: SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                trackHeight: 0,
-                activeTrackColor: Colors.transparent,
-                inactiveTrackColor: Colors.transparent,
-                thumbColor: palette.textPrimary,
-                overlayColor: palette.accent.withValues(alpha: 0.16),
-                disabledActiveTrackColor: Colors.transparent,
-                disabledInactiveTrackColor: Colors.transparent,
-                disabledThumbColor: palette.textSubtle,
-                thumbShape: const RoundSliderThumbShape(
-                  enabledThumbRadius: 6,
-                  disabledThumbRadius: 6,
-                ),
-                overlayShape: const RoundSliderOverlayShape(overlayRadius: 15),
-              ),
-              child: Slider(
-                key: const Key('instant-replay-timeline'),
-                value: safeValue,
-                min: 0,
-                max: timelineMax,
-                label: frameCount <= 1
-                    ? 'Latest frame'
-                    : '${activeIndex + 1} of $frameCount',
-                onChanged: onSliderChanged,
-              ),
-            ),
-          ),
-          Positioned.fill(
-            child: _InstantReplayIdleGapTooltipOverlay(
-              timelineMax: safeMax,
-              idleGapMarkers: idleGapMarkers,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _InstantReplaySearchControls extends StatelessWidget {
   const _InstantReplaySearchControls({
     this.searchKey = const Key('instant-replay-search'),
@@ -1406,175 +1326,6 @@ class _SearchSummaryText extends StatelessWidget {
       style: Theme.of(context).textTheme.bodySmall?.copyWith(
         color: palette.textSubtle,
         fontWeight: FontWeight.w700,
-      ),
-    );
-  }
-}
-
-class _InstantReplayIdleGapTooltipOverlay extends StatelessWidget {
-  const _InstantReplayIdleGapTooltipOverlay({
-    required this.timelineMax,
-    required this.idleGapMarkers,
-  });
-
-  final double timelineMax;
-  final List<_InstantReplayIdleGapMarker> idleGapMarkers;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        const horizontalInset = 16.0;
-        const hitWidth = 18.0;
-        final width = constraints.maxWidth;
-        final usableWidth = math.max(0.0, width - horizontalInset * 2);
-        final safeMax = timelineMax <= 0 ? 1.0 : timelineMax;
-        return Stack(
-          children: [
-            for (final marker in idleGapMarkers)
-              Positioned(
-                left:
-                    (horizontalInset +
-                            (marker.value / safeMax).clamp(0.0, 1.0) *
-                                usableWidth -
-                            (hitWidth - 10) / 2)
-                        .clamp(0.0, math.max(0.0, width - hitWidth)),
-                top: 8,
-                child: Tooltip(
-                  key: const Key('instant-replay-idle-marker'),
-                  message: marker.tooltip,
-                  child: const ColoredBox(
-                    color: Colors.transparent,
-                    child: SizedBox(width: hitWidth, height: 24),
-                  ),
-                ),
-              ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _InstantReplayTimelineMarkers extends StatelessWidget {
-  const _InstantReplayTimelineMarkers({
-    required this.timelineMax,
-    required this.timelineValue,
-    required this.changeMarkerValues,
-    required this.idleGapMarkers,
-    required this.palette,
-  });
-
-  final double timelineMax;
-  final double timelineValue;
-  final List<double> changeMarkerValues;
-  final List<_InstantReplayIdleGapMarker> idleGapMarkers;
-  final AppThemeTokens palette;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 40,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final width = constraints.maxWidth;
-          const horizontalInset = 16.0;
-          final usableWidth = math.max(0.0, width - horizontalInset * 2);
-          final safeMax = timelineMax <= 0 ? 1.0 : timelineMax;
-          final progress = (timelineValue / safeMax).clamp(0.0, 1.0);
-          return Stack(
-            alignment: Alignment.centerLeft,
-            children: [
-              Positioned(
-                left: horizontalInset,
-                right: horizontalInset,
-                top: 16,
-                bottom: 16,
-                child: DecoratedBox(
-                  key: const Key('instant-replay-quiet-track'),
-                  decoration: BoxDecoration(
-                    color: palette.border.withValues(alpha: 0.72),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: horizontalInset,
-                top: 16,
-                bottom: 16,
-                width: usableWidth * progress,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        palette.accent,
-                        Color.lerp(palette.accent, palette.success, 0.55)!,
-                        palette.success,
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(999),
-                    boxShadow: [
-                      BoxShadow(
-                        color: palette.accent.withValues(alpha: 0.20),
-                        blurRadius: 8,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Stack(
-                key: const Key('instant-replay-change-marker'),
-                children: [
-                  for (final value in changeMarkerValues)
-                    Positioned(
-                      left:
-                          horizontalInset +
-                          (value / safeMax).clamp(0.0, 1.0) * usableWidth,
-                      top: 14,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: value <= timelineValue
-                              ? palette.textPrimary
-                              : palette.textSubtle,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: const SizedBox(width: 5, height: 10),
-                      ),
-                    ),
-                ],
-              ),
-              Stack(
-                children: [
-                  for (final marker in idleGapMarkers)
-                    Positioned(
-                      left:
-                          horizontalInset +
-                          (marker.value / safeMax).clamp(0.0, 1.0) *
-                              usableWidth,
-                      top: 12,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: palette.warning,
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(
-                            color: palette.canvas.withValues(alpha: 0.82),
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: palette.warning.withValues(alpha: 0.28),
-                              blurRadius: 6,
-                              spreadRadius: 1,
-                            ),
-                          ],
-                        ),
-                        child: const SizedBox(width: 10, height: 14),
-                      ),
-                    ),
-                ],
-              ),
-            ],
-          );
-        },
       ),
     );
   }

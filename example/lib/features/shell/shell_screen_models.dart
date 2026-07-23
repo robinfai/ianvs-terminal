@@ -87,12 +87,14 @@ final class _InstantReplayLayoutSession {
     required this.sourceLabel,
     required this.retentionFrameLimit,
     required this.frames,
+    this.semanticEvents = const <InstantReplaySemanticEvent>[],
   });
 
   final String sourceSessionId;
   final String sourceLabel;
   final int retentionFrameLimit;
   final List<InstantReplayFrame> frames;
+  final List<InstantReplaySemanticEvent> semanticEvents;
 }
 
 final class _InstantReplaySearchHit {

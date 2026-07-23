@@ -21,7 +21,7 @@ extension _ShellScreenStateRecording on _ShellScreenState {
     }
     if (await sessionController.startSessionRecording(sessionId)) {
       _showShellSnackBar(
-        'Recording for Replay started. Input bytes are redacted.',
+        'Recording for Replay started. Keystrokes are redacted; shell command metadata is included when available.',
       );
     }
   }

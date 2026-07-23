@@ -424,7 +424,7 @@ void main() {
 
     test('reports unsupported versions with a structured error', () {
       const source =
-          '{"record_type":"metadata","schema_version":3,'
+          '{"record_type":"metadata","schema_version":4,'
           '"session_id":"s","created_at_utc":"2026-07-21T00:00:00.000Z",'
           '"input_policy":"redact"}\n';
 
@@ -439,6 +439,96 @@ void main() {
               )
               .having((error) => error.lineNumber, 'lineNumber', 1),
         ),
+      );
+    });
+
+    test('merges and round trips shell semantics including nested SSH', () {
+      final source = codec.decode(
+        _fixture('basic_v1.ndjson').readAsStringSync(),
+      );
+      final enriched = const TerminalRecordingSemanticMerger()
+          .merge(source, <TerminalRecordingSemanticEvent>[
+            const TerminalRecordingSemanticEvent(
+              monotonicOffset: Duration(microseconds: 500),
+              kind: TerminalRecordingSemanticKind.remoteSessionStarted,
+              command: 'ssh prod-server',
+              cwd: '~/project',
+            ),
+            const TerminalRecordingSemanticEvent(
+              monotonicOffset: Duration(microseconds: 1200),
+              kind: TerminalRecordingSemanticKind.commandStarted,
+              command: 'ls -la',
+              cwd: '/srv/app',
+              remote: true,
+            ),
+            const TerminalRecordingSemanticEvent(
+              monotonicOffset: Duration(microseconds: 2200),
+              kind: TerminalRecordingSemanticKind.commandFinished,
+              command: 'ls -la',
+              cwd: '/srv/app',
+              exitCode: 0,
+              remote: true,
+            ),
+            const TerminalRecordingSemanticEvent(
+              monotonicOffset: Duration(microseconds: 3500),
+              kind: TerminalRecordingSemanticKind.remoteSessionFinished,
+              command: 'ssh prod-server',
+              exitCode: 0,
+            ),
+          ]);
+
+      final decoded = codec.decode(codec.encode(enriched));
+      final semantics = decoded.events
+          .where(
+            (event) => event.kind == TerminalRecordingEventKind.shellSemantic,
+          )
+          .toList(growable: false);
+
+      expect(
+        decoded.metadata.schemaVersion,
+        terminalRecordingSemanticSchemaVersion,
+      );
+      expect(
+        decoded.events.map((event) => event.sequence),
+        List<int>.generate(decoded.events.length, (index) => index),
+      );
+      expect(
+        semantics.map((event) => event.semanticKind),
+        <TerminalRecordingSemanticKind>[
+          TerminalRecordingSemanticKind.remoteSessionStarted,
+          TerminalRecordingSemanticKind.commandStarted,
+          TerminalRecordingSemanticKind.commandFinished,
+          TerminalRecordingSemanticKind.remoteSessionFinished,
+        ],
+      );
+      expect(semantics[1].semanticCommand, 'ls -la');
+      expect(semantics[1].semanticCwd, '/srv/app');
+      expect(semantics[1].semanticRemote, isTrue);
+      expect(semantics[2].semanticExitCode, 0);
+
+      final bundled = const TerminalRecordingGraphicAssetBundler().bundle(
+        decoded,
+        graphicAssets: <TerminalRecordingGraphicAsset>[
+          TerminalRecordingGraphicAsset(
+            assetId: 11,
+            assetVersion: 1,
+            width: 1,
+            height: 1,
+            rgba: <int>[18, 52, 86, 255],
+          ),
+        ],
+      );
+      final bundledDecoded = codec.decode(codec.encode(bundled));
+      expect(
+        bundledDecoded.metadata.schemaVersion,
+        terminalRecordingSemanticSchemaVersion,
+      );
+      expect(bundledDecoded.graphicAssets, hasLength(1));
+      expect(
+        bundledDecoded.events.where(
+          (event) => event.kind == TerminalRecordingEventKind.shellSemantic,
+        ),
+        hasLength(4),
       );
     });
 

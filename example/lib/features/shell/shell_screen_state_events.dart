@@ -62,11 +62,12 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       case terminal.TerminalSessionBellEvent():
         _notifyBell(event.sessionId);
       case terminal.TerminalSessionShellHookEvent():
+        _recordInstantReplayShellHook(event);
         _notifyShellHook(event);
       case terminal.TerminalSessionShellContextEvent():
-        break;
+        _recordInstantReplayShellContext(event);
       case terminal.TerminalSessionShellCommandEvent():
-        break;
+        _recordInstantReplayShellCommand(event);
       case terminal.TerminalSessionShellUserVarEvent():
         break;
       case terminal.TerminalSessionAnnotationEvent():

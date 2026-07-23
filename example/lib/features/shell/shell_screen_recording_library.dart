@@ -962,6 +962,18 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
     final duration = backend?.replayDuration ?? widget.entry.duration;
     final maxMicros = math.max(1, duration.inMicroseconds);
     final sliderValue = _position.inMicroseconds.clamp(0, maxMicros).toDouble();
+    final hasCommandMetadata = widget.recording.events.any(
+      (event) =>
+          event.kind == terminal.TerminalRecordingEventKind.shellSemantic &&
+          event.semanticCommand != null,
+    );
+    final inputDisclosure =
+        widget.recording.metadata.inputPolicy ==
+            terminal.TerminalRecordingInputPolicy.record
+        ? 'Input included'
+        : hasCommandMetadata
+        ? 'Keystrokes redacted · command metadata included'
+        : 'Keystrokes redacted';
     final replayLayout = ColoredBox(
       key: const Key('recording-replay-layout'),
       color: palette.canvas,
@@ -970,8 +982,6 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _RecordingReplayMetadataBar(palette: palette, entry: widget.entry),
-            const SizedBox(height: 8),
             Expanded(
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -1042,6 +1052,10 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
             const SizedBox(height: 10),
             _RecordingReplayDock(
               palette: palette,
+              sourceLabel: widget.entry.displayName,
+              detailLabel:
+                  '${widget.entry.sessionId ?? 'Recorded session'} · '
+                  '$inputDisclosure',
               position: _position,
               duration: duration,
               sliderValue: sliderValue,
@@ -1049,6 +1063,10 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
               timelineMarkers: _recordingTimelineMarkers(
                 widget.recording,
                 duration,
+              ),
+              timelineModel: _buildReplayTimelineModel(
+                points: _recordingSemanticPoints(widget.recording),
+                duration: duration,
               ),
               seekEnabled: seekEnabled,
               isPlaying: _isPlaying,
@@ -1098,137 +1116,17 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
   }
 }
 
-class _RecordingReplayMetadataBar extends StatelessWidget {
-  const _RecordingReplayMetadataBar({
-    required this.palette,
-    required this.entry,
-  });
-
-  final AppThemeTokens palette;
-  final LocalSessionRecordingEntry entry;
-
-  @override
-  Widget build(BuildContext context) {
-    final date = entry.createdAtUtc.toLocal();
-    return SizedBox(
-      height: 48,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 13),
-        decoration: BoxDecoration(
-          color: palette.chrome,
-          border: Border.all(color: palette.border),
-          borderRadius: BorderRadius.circular(palette.radius.md),
-        ),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final compact = constraints.maxWidth < 720;
-            return Row(
-              children: [
-                _ReplaySourceMark(palette: palette, sourceLabel: 'Recording'),
-                _ReplayMetadataDivider(palette: palette),
-                Flexible(
-                  flex: 2,
-                  child: Text(
-                    entry.displayName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: palette.textPrimary,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                if (!compact) ...[
-                  _ReplayMetadataDivider(palette: palette),
-                  _ReplayMetadataItem(
-                    palette: palette,
-                    icon: Icons.calendar_today_outlined,
-                    label:
-                        '${_monthName(date.month)} ${date.day} at ${_twoDigits(date.hour)}:${_twoDigits(date.minute)}',
-                  ),
-                ],
-                _ReplayMetadataDivider(palette: palette),
-                _ReplayMetadataItem(
-                  palette: palette,
-                  icon:
-                      entry.inputPolicy ==
-                          terminal.TerminalRecordingInputPolicy.record
-                      ? Icons.keyboard_alt_outlined
-                      : Icons.shield_outlined,
-                  label:
-                      entry.inputPolicy ==
-                          terminal.TerminalRecordingInputPolicy.record
-                      ? 'Input included'
-                      : 'Input redacted',
-                ),
-              ],
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
-
-class _ReplayMetadataItem extends StatelessWidget {
-  const _ReplayMetadataItem({
-    required this.palette,
-    required this.icon,
-    required this.label,
-  });
-
-  final AppThemeTokens palette;
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Flexible(
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: palette.textSubtle),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(
-                context,
-              ).textTheme.labelMedium?.copyWith(color: palette.textMuted),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ReplayMetadataDivider extends StatelessWidget {
-  const _ReplayMetadataDivider({required this.palette});
-
-  final AppThemeTokens palette;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 1,
-      height: 20,
-      margin: const EdgeInsets.symmetric(horizontal: 12),
-      color: palette.border,
-    );
-  }
-}
-
 class _RecordingReplayDock extends StatelessWidget {
   const _RecordingReplayDock({
     required this.palette,
+    required this.sourceLabel,
+    required this.detailLabel,
     required this.position,
     required this.duration,
     required this.sliderValue,
     required this.sliderMax,
     required this.timelineMarkers,
+    required this.timelineModel,
     required this.seekEnabled,
     required this.isPlaying,
     required this.speed,
@@ -1248,11 +1146,14 @@ class _RecordingReplayDock extends StatelessWidget {
   });
 
   final AppThemeTokens palette;
+  final String sourceLabel;
+  final String detailLabel;
   final Duration position;
   final Duration duration;
   final double sliderValue;
   final double sliderMax;
-  final List<_RecordingTimelineMarker> timelineMarkers;
+  final List<_ReplayTimelineMarker> timelineMarkers;
+  final _ReplayTimelineModel timelineModel;
   final bool seekEnabled;
   final bool isPlaying;
   final double speed;
@@ -1272,16 +1173,34 @@ class _RecordingReplayDock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final header = Row(
+    final metadata = Row(
       children: [
-        Icon(Icons.schedule_rounded, size: 16, color: palette.textMuted),
-        const SizedBox(width: 6),
-        Text(
-          '${_formatRecordingDuration(position)} / ${_formatRecordingDuration(duration)}',
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: palette.textMuted,
-            fontFeatures: const [FontFeature.tabularFigures()],
-            fontWeight: FontWeight.w600,
+        _ReplaySourceMark(palette: palette, sourceLabel: 'Recording'),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                sourceLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: palette.textPrimary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Text(
+                detailLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: palette.textMuted,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -1352,10 +1271,15 @@ class _RecordingReplayDock extends StatelessWidget {
         ),
       ],
     );
-    final timeline = _RecordingReplayTimeline(
+    final timeline = _ReplaySemanticTimeline(
+      timelineKey: const Key('recording-replay-timeline'),
+      effectsKey: const Key('recording-replay-timeline-effects'),
       palette: palette,
       value: sliderValue,
       max: sliderMax,
+      position: position,
+      duration: duration,
+      model: timelineModel,
       markers: timelineMarkers,
       onChanged: seekEnabled ? onSeek : null,
     );
@@ -1377,68 +1301,19 @@ class _RecordingReplayDock extends StatelessWidget {
       container: true,
       explicitChildNodes: true,
       label: 'Replay controls for recording',
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Color.alphaBlend(
-            palette.canvas.withValues(alpha: 0.24),
-            palette.overlay,
-          ),
-          borderRadius: BorderRadius.circular(palette.radius.lg),
-          border: Border.all(
-            color: palette.borderStrong.withValues(alpha: 0.72),
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final compact = constraints.maxWidth < 820;
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (compact) ...[
-                    Row(
-                      children: [
-                        Expanded(child: header),
-                        actions,
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    transport,
-                  ] else
-                    Row(
-                      children: [
-                        Expanded(child: header),
-                        transport,
-                        const SizedBox(width: 8),
-                        actions,
-                      ],
-                    ),
-                  const SizedBox(height: 8),
-                  timeline,
-                  const SizedBox(height: 8),
-                  search,
-                ],
-              );
-            },
-          ),
-        ),
+      child: _ReplayDockLayout(
+        timeline: timeline,
+        metadata: metadata,
+        transport: transport,
+        search: search,
+        actions: actions,
+        palette: palette,
       ),
     );
   }
 }
 
-enum _RecordingTimelineMarkerKind { output, input, resize, exit, idle }
-
-final class _RecordingTimelineMarker {
-  const _RecordingTimelineMarker({required this.value, required this.kind});
-
-  final double value;
-  final _RecordingTimelineMarkerKind kind;
-}
-
-List<_RecordingTimelineMarker> _recordingTimelineMarkers(
+List<_ReplayTimelineMarker> _recordingTimelineMarkers(
   terminal.TerminalRecording recording,
   Duration duration,
 ) {
@@ -1449,10 +1324,11 @@ List<_RecordingTimelineMarker> _recordingTimelineMarkers(
       .where(
         (event) =>
             event.kind != terminal.TerminalRecordingEventKind.checkpoint &&
-            event.kind != terminal.TerminalRecordingEventKind.sessionStarted,
+            event.kind != terminal.TerminalRecordingEventKind.sessionStarted &&
+            event.kind != terminal.TerminalRecordingEventKind.shellSemantic,
       )
       .toList(growable: false);
-  final candidates = <_RecordingTimelineMarker>[];
+  final candidates = <_ReplayTimelineMarker>[];
   terminal.TerminalRecordingEvent? previous;
   for (final event in events) {
     final previousEvent = previous;
@@ -1460,29 +1336,36 @@ List<_RecordingTimelineMarker> _recordingTimelineMarkers(
       final gap = event.monotonicOffset - previousEvent.monotonicOffset;
       if (gap >= minimumIdleGap) {
         candidates.add(
-          _RecordingTimelineMarker(
+          _ReplayTimelineMarker(
             value:
                 previousEvent.monotonicOffset.inMicroseconds +
                 gap.inMicroseconds / 2,
-            kind: _RecordingTimelineMarkerKind.idle,
+            kind: _ReplayTimelineMarkerKind.idle,
+            tooltip: 'Idle interval',
           ),
         );
       }
     }
     previous = event;
     candidates.add(
-      _RecordingTimelineMarker(
+      _ReplayTimelineMarker(
         value: event.monotonicOffset.inMicroseconds
             .clamp(0, durationMicros)
             .toDouble(),
         kind: switch (event.kind) {
           terminal.TerminalRecordingEventKind.userInput =>
-            _RecordingTimelineMarkerKind.input,
+            _ReplayTimelineMarkerKind.input,
           terminal.TerminalRecordingEventKind.resize =>
-            _RecordingTimelineMarkerKind.resize,
+            _ReplayTimelineMarkerKind.resize,
           terminal.TerminalRecordingEventKind.sessionExited =>
-            _RecordingTimelineMarkerKind.exit,
-          _ => _RecordingTimelineMarkerKind.output,
+            _ReplayTimelineMarkerKind.exit,
+          _ => _ReplayTimelineMarkerKind.output,
+        },
+        tooltip: switch (event.kind) {
+          terminal.TerminalRecordingEventKind.userInput => 'Input event',
+          terminal.TerminalRecordingEventKind.resize => 'Terminal resized',
+          terminal.TerminalRecordingEventKind.sessionExited => 'Session exited',
+          _ => 'Output event',
         },
       ),
     );
@@ -1492,10 +1375,10 @@ List<_RecordingTimelineMarker> _recordingTimelineMarkers(
   }
 
   final important = candidates
-      .where((marker) => marker.kind != _RecordingTimelineMarkerKind.output)
+      .where((marker) => marker.kind != _ReplayTimelineMarkerKind.output)
       .toList(growable: false);
   final output = candidates
-      .where((marker) => marker.kind == _RecordingTimelineMarkerKind.output)
+      .where((marker) => marker.kind == _ReplayTimelineMarkerKind.output)
       .toList(growable: false);
   final outputBudget = math.max(
     0,
@@ -1504,7 +1387,7 @@ List<_RecordingTimelineMarker> _recordingTimelineMarkers(
   if (outputBudget == 0) {
     return important.take(maximumVisibleEventMarkers).toList(growable: false);
   }
-  final sampled = <_RecordingTimelineMarker>[...important];
+  final sampled = <_ReplayTimelineMarker>[...important];
   for (var index = 0; index < outputBudget; index += 1) {
     final sourceIndex = outputBudget == 1
         ? output.length - 1
@@ -1515,210 +1398,26 @@ List<_RecordingTimelineMarker> _recordingTimelineMarkers(
   return sampled;
 }
 
-class _RecordingReplayTimeline extends StatelessWidget {
-  const _RecordingReplayTimeline({
-    required this.palette,
-    required this.value,
-    required this.max,
-    required this.markers,
-    required this.onChanged,
-  });
-
-  final AppThemeTokens palette;
-  final double value;
-  final double max;
-  final List<_RecordingTimelineMarker> markers;
-  final ValueChanged<double>? onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final safeMax = max <= 0 ? 1.0 : max;
-    final safeValue = value.clamp(0.0, safeMax).toDouble();
-    return SizedBox(
-      height: 40,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Positioned.fill(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                const horizontalInset = 16.0;
-                final usableWidth = math.max(
-                  0.0,
-                  constraints.maxWidth - horizontalInset * 2,
-                );
-                final progress = (safeValue / safeMax).clamp(0.0, 1.0);
-                return Stack(
-                  key: const Key('recording-replay-timeline-effects'),
-                  alignment: Alignment.centerLeft,
-                  children: [
-                    Positioned(
-                      left: horizontalInset,
-                      right: horizontalInset,
-                      top: 17,
-                      bottom: 17,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: palette.border.withValues(alpha: 0.76),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      left: horizontalInset,
-                      top: 17,
-                      bottom: 17,
-                      width: usableWidth * progress,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              palette.accent,
-                              Color.lerp(
-                                palette.accent,
-                                palette.success,
-                                0.58,
-                              )!,
-                              palette.success,
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(999),
-                          boxShadow: [
-                            BoxShadow(
-                              color: palette.accent.withValues(alpha: 0.22),
-                              blurRadius: 8,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    for (final marker in markers)
-                      Positioned(
-                        left:
-                            horizontalInset +
-                            (marker.value / safeMax).clamp(0.0, 1.0) *
-                                usableWidth -
-                            _markerWidth(marker.kind) / 2,
-                        top: _markerTop(marker.kind),
-                        child: Tooltip(
-                          message: _markerTooltip(marker.kind),
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: _markerColor(marker.kind, palette),
-                              borderRadius: BorderRadius.circular(999),
-                              border:
-                                  marker.kind ==
-                                      _RecordingTimelineMarkerKind.idle
-                                  ? Border.all(
-                                      color: palette.canvas.withValues(
-                                        alpha: 0.84,
-                                      ),
-                                    )
-                                  : null,
-                              boxShadow:
-                                  marker.kind ==
-                                      _RecordingTimelineMarkerKind.idle
-                                  ? [
-                                      BoxShadow(
-                                        color: palette.warning.withValues(
-                                          alpha: 0.28,
-                                        ),
-                                        blurRadius: 6,
-                                      ),
-                                    ]
-                                  : null,
-                            ),
-                            child: SizedBox(
-                              width: _markerWidth(marker.kind),
-                              height: _markerHeight(marker.kind),
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                );
-              },
-            ),
-          ),
-          Positioned.fill(
-            child: SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                trackHeight: 0,
-                activeTrackColor: Colors.transparent,
-                inactiveTrackColor: Colors.transparent,
-                disabledActiveTrackColor: Colors.transparent,
-                disabledInactiveTrackColor: Colors.transparent,
-                thumbColor: palette.textPrimary,
-                disabledThumbColor: palette.textSubtle,
-                overlayColor: palette.accent.withValues(alpha: 0.16),
-                thumbShape: const RoundSliderThumbShape(
-                  enabledThumbRadius: 6,
-                  disabledThumbRadius: 6,
-                ),
-                overlayShape: const RoundSliderOverlayShape(overlayRadius: 15),
-              ),
-              child: Slider(
-                key: const Key('recording-replay-timeline'),
-                value: safeValue,
-                max: safeMax,
-                onChanged: onChanged,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  static double _markerWidth(_RecordingTimelineMarkerKind kind) =>
-      kind == _RecordingTimelineMarkerKind.idle ? 9 : 4;
-
-  static double _markerHeight(_RecordingTimelineMarkerKind kind) =>
-      kind == _RecordingTimelineMarkerKind.idle ? 14 : 9;
-
-  static double _markerTop(_RecordingTimelineMarkerKind kind) =>
-      kind == _RecordingTimelineMarkerKind.idle ? 13 : 15.5;
-
-  static Color _markerColor(
-    _RecordingTimelineMarkerKind kind,
-    AppThemeTokens palette,
-  ) {
-    return switch (kind) {
-      _RecordingTimelineMarkerKind.input => palette.accent,
-      _RecordingTimelineMarkerKind.resize => palette.textPrimary,
-      _RecordingTimelineMarkerKind.exit => palette.danger,
-      _RecordingTimelineMarkerKind.idle => palette.warning,
-      _RecordingTimelineMarkerKind.output => palette.textSubtle,
-    };
-  }
-
-  static String _markerTooltip(_RecordingTimelineMarkerKind kind) {
-    return switch (kind) {
-      _RecordingTimelineMarkerKind.input => 'Input event',
-      _RecordingTimelineMarkerKind.resize => 'Terminal resized',
-      _RecordingTimelineMarkerKind.exit => 'Session exited',
-      _RecordingTimelineMarkerKind.idle => 'Idle interval',
-      _RecordingTimelineMarkerKind.output => 'Output event',
-    };
-  }
+List<_ReplaySemanticPoint> _recordingSemanticPoints(
+  terminal.TerminalRecording recording,
+) {
+  return [
+    for (final event in recording.events)
+      if (event.kind == terminal.TerminalRecordingEventKind.shellSemantic &&
+          event.semanticKind != null)
+        _ReplaySemanticPoint(
+          offset: event.monotonicOffset,
+          kind: event.semanticKind!,
+          command: event.semanticCommand,
+          cwd: event.semanticCwd,
+          hostname: event.semanticHostname,
+          exitCode: event.semanticExitCode,
+          remote: event.semanticRemote,
+        ),
+  ];
 }
 
 String _twoDigits(int value) => value.toString().padLeft(2, '0');
-
-String _monthName(int value) => const <String>[
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-][value.clamp(1, 12) - 1];
 
 String _recordingSortLabel(_RecordingLibrarySort value) => switch (value) {
   _RecordingLibrarySort.newest => 'Newest',

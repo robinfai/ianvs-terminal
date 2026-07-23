@@ -2196,6 +2196,11 @@ void main() {
       );
       expect(find.byKey(const Key('instant-replay-controls')), findsOneWidget);
       expect(
+        find.byKey(const Key('replay-semantic-segment-0')),
+        findsOneWidget,
+      );
+      expect(find.text('Activity'), findsWidgets);
+      expect(
         tester.getTopLeft(find.byKey(const Key('instant-replay-controls'))).dy,
         greaterThanOrEqualTo(
           tester
@@ -2406,7 +2411,9 @@ void main() {
       expect(find.byKey(const Key('instant-replay-layout')), findsNothing);
       expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
       expect(
-        find.bySemanticsLabel('Start recording for Replay (input redacted)'),
+        find.bySemanticsLabel(
+          'Start recording for Replay (keystrokes redacted; command metadata included when available)',
+        ),
         findsOneWidget,
       );
       semantics.dispose();

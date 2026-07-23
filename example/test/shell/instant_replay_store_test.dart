@@ -232,6 +232,49 @@ void main() {
     expect(frames.last.text, 'frame 1');
   });
 
+  test('retains semantic SSH and remote command events with replay frames', () {
+    var now = DateTime.utc(2026, 7, 24, 1);
+    final store = InstantReplayStore(now: () => now);
+
+    store.record('1', frameWithRows(['connecting']));
+    now = now.add(const Duration(milliseconds: 100));
+    store.recordSemantic(
+      '1',
+      kind: TerminalRecordingSemanticKind.remoteSessionStarted,
+      command: 'ssh prod-server',
+    );
+    now = now.add(const Duration(milliseconds: 100));
+    store.recordSemantic(
+      '1',
+      kind: TerminalRecordingSemanticKind.commandStarted,
+      command: 'ls -la',
+      remote: true,
+    );
+    now = now.add(const Duration(milliseconds: 40));
+    store.recordSemantic(
+      '1',
+      kind: TerminalRecordingSemanticKind.commandStarted,
+      command: 'ls -la',
+      cwd: '/srv/app',
+      remote: true,
+    );
+    now = now.add(const Duration(milliseconds: 60));
+    store.record('1', frameWithRows(['remote output']));
+
+    final semantics = store.semanticsForReplay('1');
+
+    expect(
+      semantics.map((event) => event.kind),
+      <TerminalRecordingSemanticKind>[
+        TerminalRecordingSemanticKind.remoteSessionStarted,
+        TerminalRecordingSemanticKind.commandStarted,
+      ],
+    );
+    expect(semantics.last.command, 'ls -la');
+    expect(semantics.last.cwd, '/srv/app');
+    expect(semantics.last.remote, isTrue);
+  });
+
   test('clear removes only the requested session', () {
     final store = InstantReplayStore();
 

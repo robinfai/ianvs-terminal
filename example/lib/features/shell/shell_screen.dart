@@ -74,6 +74,7 @@ part 'shell_screen_recording_library.dart';
 part 'shell_screen_sheets.dart';
 part 'shell_screen_command_menu.dart';
 part 'shell_screen_shared_buttons.dart';
+part 'shell_screen_replay_timeline.dart';
 
 typedef ShellFileDownloadWriter =
     Future<void> Function(String path, List<int> bytes);
@@ -203,6 +204,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, Set<String>> _triggerMatchesBySession = {};
   final Map<String, RegExp?> _profileTriggerRegexCache = {};
   final Map<String, int> _terminalFrameSequenceBySession = {};
+  final Map<String, String> _instantReplayRemoteCommands = <String, String>{};
   final Map<String, String> _searchRefreshFrameSignatures = {};
   final TextEditingController _autoComposerController = TextEditingController();
   final FocusNode _autoComposerFocusNode = FocusNode();

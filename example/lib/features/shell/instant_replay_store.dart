@@ -28,6 +28,28 @@ class InstantReplayFrame {
   String get text => _textForFrame(snapshot);
 }
 
+class InstantReplaySemanticEvent {
+  const InstantReplaySemanticEvent({
+    required this.sessionId,
+    required this.capturedAt,
+    required this.kind,
+    this.command,
+    this.cwd,
+    this.hostname,
+    this.exitCode,
+    this.remote = false,
+  });
+
+  final String sessionId;
+  final DateTime capturedAt;
+  final terminal.TerminalRecordingSemanticKind kind;
+  final String? command;
+  final String? cwd;
+  final String? hostname;
+  final int? exitCode;
+  final bool remote;
+}
+
 class InstantReplayStore {
   InstantReplayStore({this.frameLimit = 60, DateTime Function()? now})
     : _now = now ?? DateTime.now;
@@ -38,6 +60,8 @@ class InstantReplayStore {
       <String, List<InstantReplayFrame>>{};
   final Map<String, terminal.TerminalViewportState> _stateBySession =
       <String, terminal.TerminalViewportState>{};
+  final Map<String, List<InstantReplaySemanticEvent>> _semanticsBySession =
+      <String, List<InstantReplaySemanticEvent>>{};
 
   List<InstantReplayFrame> framesFor(String sessionId) {
     return List<InstantReplayFrame>.unmodifiable(
@@ -47,6 +71,84 @@ class InstantReplayStore {
 
   List<InstantReplayFrame> framesForReplay(String sessionId) {
     return List<InstantReplayFrame>.unmodifiable(framesFor(sessionId).reversed);
+  }
+
+  List<InstantReplaySemanticEvent> semanticsForReplay(String sessionId) {
+    final frames = _framesBySession[sessionId];
+    final semantics = _semanticsBySession[sessionId];
+    if (frames == null ||
+        frames.isEmpty ||
+        semantics == null ||
+        semantics.isEmpty) {
+      return const <InstantReplaySemanticEvent>[];
+    }
+    final oldest = frames.last.capturedAt;
+    final newest = frames.first.capturedAt;
+    return List<InstantReplaySemanticEvent>.unmodifiable(
+      semantics.where(
+        (event) =>
+            !event.capturedAt.isBefore(oldest) &&
+            !event.capturedAt.isAfter(newest),
+      ),
+    );
+  }
+
+  void recordSemantic(
+    String sessionId, {
+    required terminal.TerminalRecordingSemanticKind kind,
+    String? command,
+    String? cwd,
+    String? hostname,
+    int? exitCode,
+    bool remote = false,
+  }) {
+    if (frameLimit <= 0) {
+      _semanticsBySession.remove(sessionId);
+      return;
+    }
+    final events = _semanticsBySession.putIfAbsent(
+      sessionId,
+      () => <InstantReplaySemanticEvent>[],
+    );
+    final candidate = InstantReplaySemanticEvent(
+      sessionId: sessionId,
+      capturedAt: _now(),
+      kind: kind,
+      command: command,
+      cwd: cwd,
+      hostname: hostname,
+      exitCode: exitCode,
+      remote: remote,
+    );
+    if (events.isNotEmpty) {
+      final previous = events.last;
+      final sameCommand =
+          previous.command == candidate.command ||
+          previous.command == null ||
+          candidate.command == null;
+      if (previous.kind == candidate.kind &&
+          sameCommand &&
+          previous.remote == candidate.remote &&
+          candidate.capturedAt.difference(previous.capturedAt) <
+              const Duration(milliseconds: 80)) {
+        events[events.length - 1] = InstantReplaySemanticEvent(
+          sessionId: sessionId,
+          capturedAt: previous.capturedAt,
+          kind: candidate.kind,
+          command: candidate.command ?? previous.command,
+          cwd: candidate.cwd ?? previous.cwd,
+          hostname: candidate.hostname ?? previous.hostname,
+          exitCode: candidate.exitCode ?? previous.exitCode,
+          remote: candidate.remote,
+        );
+        return;
+      }
+    }
+    events.add(candidate);
+    final maximumSemanticEvents = frameLimit * 4;
+    if (events.length > maximumSemanticEvents) {
+      events.removeRange(0, events.length - maximumSemanticEvents);
+    }
   }
 
   void record(
@@ -64,6 +166,7 @@ class InstantReplayStore {
     if (frameLimit <= 0) {
       _framesBySession.remove(sessionId);
       _stateBySession.remove(sessionId);
+      _semanticsBySession.remove(sessionId);
       return;
     }
     final capturedAt = _now();
@@ -107,11 +210,17 @@ class InstantReplayStore {
     if (frames.length > frameLimit) {
       frames.removeRange(frameLimit, frames.length);
     }
+    final semantics = _semanticsBySession[sessionId];
+    if (semantics != null && frames.isNotEmpty) {
+      final oldest = frames.last.capturedAt;
+      semantics.removeWhere((event) => event.capturedAt.isBefore(oldest));
+    }
   }
 
   void clear(String sessionId) {
     _framesBySession.remove(sessionId);
     _stateBySession.remove(sessionId);
+    _semanticsBySession.remove(sessionId);
   }
 
   void enrichSessionMetadata(

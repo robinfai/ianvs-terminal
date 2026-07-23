@@ -191,7 +191,9 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.byTooltip('Start recording for Replay (input redacted)'),
+        find.byTooltip(
+          'Start recording for Replay (keystrokes redacted; command metadata included when available)',
+        ),
         findsOneWidget,
       );
 
@@ -275,6 +277,11 @@ void main() {
         phase: 'saved recording replay',
       );
       expect(find.text('Recording'), findsOneWidget);
+      expect(
+        find.byKey(const Key('replay-semantic-segment-0')),
+        findsOneWidget,
+      );
+      expect(find.text('Activity'), findsWidgets);
     },
   );
 }

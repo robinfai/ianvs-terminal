@@ -386,6 +386,10 @@ class SessionController extends Notifier<SessionState> {
       <String, LocalSessionRecordingDestination>{};
   final Map<String, TerminalRecording> _pendingRecordings =
       <String, TerminalRecording>{};
+  final Map<String, Stopwatch> _recordingStopwatches = <String, Stopwatch>{};
+  final Map<String, List<TerminalRecordingSemanticEvent>>
+  _recordingSemanticEvents = <String, List<TerminalRecordingSemanticEvent>>{};
+  final Map<String, String> _recordingRemoteCommands = <String, String>{};
   TerminalAppPreferencesDocument _appPreferences =
       const TerminalAppPreferencesDocument();
   LocalTerminalConfigDocument _localConfigDocument =
@@ -1152,6 +1156,8 @@ class SessionController extends Notifier<SessionState> {
       }
       recorder.start(sessionId, inputPolicy: inputPolicy);
       _recordingDestinations[sessionId] = destination;
+      _recordingStopwatches[sessionId] = Stopwatch()..start();
+      _recordingSemanticEvents[sessionId] = <TerminalRecordingSemanticEvent>[];
       _setRecordingStatus(
         sessionId,
         active: true,
@@ -1201,7 +1207,10 @@ class SessionController extends Notifier<SessionState> {
     try {
       var recording = _pendingRecordings[sessionId];
       if (recording == null) {
-        recording = recorder.stop(sessionId);
+        recording = _recordingWithSemantics(
+          sessionId,
+          recorder.stop(sessionId),
+        );
         _pendingRecordings[sessionId] = recording;
         _setRecordingStatus(
           sessionId,
@@ -1236,6 +1245,9 @@ class SessionController extends Notifier<SessionState> {
       if (!hasCompleteRecording) {
         repository.release(destination);
         _recordingDestinations.remove(sessionId);
+        _recordingStopwatches.remove(sessionId)?.stop();
+        _recordingSemanticEvents.remove(sessionId);
+        _recordingRemoteCommands.remove(sessionId);
       }
       _setRecordingStatus(
         sessionId,
@@ -1312,6 +1324,209 @@ class SessionController extends Notifier<SessionState> {
     return '$prefix${detail == null ? '' : ': $detail'}';
   }
 
+  void _captureRecordingShellHook(TerminalSessionShellHookEvent event) {
+    final hook = event.hook?.trim().toLowerCase();
+    if (hook == null) {
+      return;
+    }
+    final command = _boundedShellMetadata(event.command, 512);
+    final cwd = _boundedShellMetadata(event.cwd, 1024);
+    switch (hook) {
+      case 'preexec':
+        final remote = command != null && _isRemoteShellCommand(command);
+        if (remote) {
+          final activeRemote = _recordingRemoteCommands[event.sessionId];
+          if (activeRemote != null &&
+              _sameSemanticCommand(activeRemote, command)) {
+            return;
+          }
+          _recordingRemoteCommands[event.sessionId] = command;
+        }
+        _appendRecordingSemantic(
+          event.sessionId,
+          kind: remote
+              ? TerminalRecordingSemanticKind.remoteSessionStarted
+              : TerminalRecordingSemanticKind.commandStarted,
+          command: command,
+          cwd: cwd,
+        );
+      case 'command_finished':
+        final remoteCommand = _recordingRemoteCommands.remove(event.sessionId);
+        if (remoteCommand == null &&
+            command != null &&
+            _isRemoteShellCommand(command)) {
+          return;
+        }
+        _appendRecordingSemantic(
+          event.sessionId,
+          kind: remoteCommand == null
+              ? TerminalRecordingSemanticKind.commandFinished
+              : TerminalRecordingSemanticKind.remoteSessionFinished,
+          command: remoteCommand ?? command,
+          cwd: cwd,
+          exitCode: event.exitCode,
+        );
+      case 'precmd.pwd':
+        _appendRecordingSemantic(
+          event.sessionId,
+          kind: TerminalRecordingSemanticKind.directoryChanged,
+          cwd: cwd,
+          remote: _recordingRemoteCommands.containsKey(event.sessionId),
+        );
+      case 'precmd':
+        _appendRecordingSemantic(
+          event.sessionId,
+          kind: TerminalRecordingSemanticKind.prompt,
+          cwd: cwd,
+          remote: _recordingRemoteCommands.containsKey(event.sessionId),
+        );
+    }
+  }
+
+  void _captureRecordingShellContext(TerminalSessionShellContextEvent event) {
+    _appendRecordingSemantic(
+      event.sessionId,
+      kind: TerminalRecordingSemanticKind.directoryChanged,
+      cwd: _boundedShellMetadata(event.cwd, 1024),
+      hostname: _boundedShellMetadata(event.hostname, 255),
+      remote: _recordingRemoteCommands.containsKey(event.sessionId),
+    );
+  }
+
+  void _captureRecordingShellCommand(TerminalSessionShellCommandEvent event) {
+    final eventType = event.eventType?.trim().toLowerCase();
+    if (eventType == null) {
+      return;
+    }
+    final command = _boundedShellMetadata(event.command, 512);
+    final remoteCommand = _recordingRemoteCommands[event.sessionId];
+    switch (eventType) {
+      case 'command_start':
+      case 'command_executed':
+        if (command != null && _isRemoteShellCommand(command)) {
+          if (remoteCommand == null) {
+            _recordingRemoteCommands[event.sessionId] = command;
+            _appendRecordingSemantic(
+              event.sessionId,
+              kind: TerminalRecordingSemanticKind.remoteSessionStarted,
+              command: command,
+            );
+            return;
+          }
+          if (_sameSemanticCommand(remoteCommand, command)) {
+            return;
+          }
+        }
+        _appendRecordingSemantic(
+          event.sessionId,
+          kind: TerminalRecordingSemanticKind.commandStarted,
+          command: command,
+          remote: remoteCommand != null,
+        );
+      case 'command_finished':
+        if (remoteCommand != null &&
+            command != null &&
+            _sameSemanticCommand(remoteCommand, command)) {
+          _recordingRemoteCommands.remove(event.sessionId);
+          _appendRecordingSemantic(
+            event.sessionId,
+            kind: TerminalRecordingSemanticKind.remoteSessionFinished,
+            command: remoteCommand,
+            exitCode: event.exitCode,
+          );
+          return;
+        }
+        _appendRecordingSemantic(
+          event.sessionId,
+          kind: TerminalRecordingSemanticKind.commandFinished,
+          command: command,
+          exitCode: event.exitCode,
+          remote: remoteCommand != null,
+        );
+      case 'prompt_start':
+      case 'mark':
+        _appendRecordingSemantic(
+          event.sessionId,
+          kind: TerminalRecordingSemanticKind.prompt,
+          command: command,
+          remote: remoteCommand != null,
+        );
+    }
+  }
+
+  void _appendRecordingSemantic(
+    String sessionId, {
+    required TerminalRecordingSemanticKind kind,
+    String? command,
+    String? cwd,
+    String? hostname,
+    int? exitCode,
+    bool remote = false,
+  }) {
+    final stopwatch = _recordingStopwatches[sessionId];
+    final events = _recordingSemanticEvents[sessionId];
+    if (stopwatch == null || events == null) {
+      return;
+    }
+    final candidate = TerminalRecordingSemanticEvent(
+      monotonicOffset: stopwatch.elapsed,
+      kind: kind,
+      command: command,
+      cwd: cwd,
+      hostname: hostname,
+      exitCode: exitCode,
+      remote: remote,
+    );
+    if (events.isNotEmpty) {
+      final previous = events.last;
+      final sameCommand =
+          previous.command == candidate.command ||
+          previous.command == null ||
+          candidate.command == null;
+      if (previous.kind == candidate.kind &&
+          sameCommand &&
+          previous.remote == candidate.remote &&
+          candidate.monotonicOffset - previous.monotonicOffset <
+              const Duration(milliseconds: 80)) {
+        events[events.length - 1] = TerminalRecordingSemanticEvent(
+          monotonicOffset: previous.monotonicOffset,
+          kind: candidate.kind,
+          command: candidate.command ?? previous.command,
+          cwd: candidate.cwd ?? previous.cwd,
+          hostname: candidate.hostname ?? previous.hostname,
+          exitCode: candidate.exitCode ?? previous.exitCode,
+          remote: candidate.remote,
+        );
+        return;
+      }
+    }
+    events.add(candidate);
+  }
+
+  TerminalRecording _recordingWithSemantics(
+    String sessionId,
+    TerminalRecording recording,
+  ) {
+    _recordingStopwatches.remove(sessionId)?.stop();
+    final semantics =
+        _recordingSemanticEvents.remove(sessionId) ??
+        const <TerminalRecordingSemanticEvent>[];
+    _recordingRemoteCommands.remove(sessionId);
+    return const TerminalRecordingSemanticMerger().merge(recording, semantics);
+  }
+
+  bool _isRemoteShellCommand(String command) {
+    return RegExp(
+      r'^\s*(?:(?:command|exec|sudo)\s+)?(?:ssh|mosh)(?:\s|$)',
+    ).hasMatch(command);
+  }
+
+  bool _sameSemanticCommand(String left, String right) {
+    String normalize(String value) =>
+        value.trim().replaceAll(RegExp(r'\s+'), ' ');
+    return normalize(left) == normalize(right);
+  }
+
   void _finalizeRecordingOnRuntimeExitBestEffort(String sessionId) {
     if (!_recordingNeedsFinalization(sessionId)) {
       return;
@@ -1323,7 +1538,7 @@ class SessionController extends Notifier<SessionState> {
       final recording =
           _pendingRecordings[sessionId] ??
           (recorder?.isRecording(sessionId) == true
-              ? recorder!.stop(sessionId)
+              ? _recordingWithSemantics(sessionId, recorder!.stop(sessionId))
               : null);
       if (recording != null && destination != null) {
         repository.saveSync(
@@ -1352,7 +1567,7 @@ class SessionController extends Notifier<SessionState> {
         final recording =
             _pendingRecordings[sessionId] ??
             (recorder?.isRecording(sessionId) == true
-                ? recorder!.stop(sessionId)
+                ? _recordingWithSemantics(sessionId, recorder!.stop(sessionId))
                 : null);
         if (recording != null && destination != null) {
           repository.saveSync(destination, recording);
@@ -1369,6 +1584,12 @@ class SessionController extends Notifier<SessionState> {
     }
     _recordingDestinations.clear();
     _pendingRecordings.clear();
+    for (final stopwatch in _recordingStopwatches.values) {
+      stopwatch.stop();
+    }
+    _recordingStopwatches.clear();
+    _recordingSemanticEvents.clear();
+    _recordingRemoteCommands.clear();
   }
 
   void _forgetRecording(
@@ -1380,6 +1601,9 @@ class SessionController extends Notifier<SessionState> {
       repository?.release(destination);
     }
     _pendingRecordings.remove(sessionId);
+    _recordingStopwatches.remove(sessionId)?.stop();
+    _recordingSemanticEvents.remove(sessionId);
+    _recordingRemoteCommands.remove(sessionId);
     if (!ref.mounted) {
       return;
     }
@@ -1715,18 +1939,21 @@ class SessionController extends Notifier<SessionState> {
         if (!_sessionShellIntegrationEnabled(event.sessionId)) {
           return;
         }
+        _captureRecordingShellHook(event);
         _applyShellHook(event);
         break;
       case TerminalSessionShellContextEvent():
         if (!_sessionShellIntegrationEnabled(event.sessionId)) {
           return;
         }
+        _captureRecordingShellContext(event);
         _applyShellContext(event);
         break;
       case TerminalSessionShellCommandEvent():
         if (!_sessionShellIntegrationEnabled(event.sessionId)) {
           return;
         }
+        _captureRecordingShellCommand(event);
         _applyShellCommand(event);
         break;
       case TerminalSessionShellUserVarEvent():
