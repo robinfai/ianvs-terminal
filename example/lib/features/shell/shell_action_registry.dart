@@ -71,6 +71,12 @@ enum TerminalActionCategory {
   integration,
 }
 
+enum TerminalActionReleaseVisibility {
+  product,
+  hiddenExperimental,
+  hiddenPendingRedesign,
+}
+
 enum TerminalKeyBindingScope {
   global,
   focusedApp,
@@ -136,6 +142,7 @@ class TerminalActionDescriptor {
     required this.category,
     this.enabledByDefault = true,
     this.commandPaletteVisible = true,
+    this.releaseVisibility = TerminalActionReleaseVisibility.product,
     this.shortcutHint,
     this.defaultKeyBinding,
     this.terminalInputPolicy = TerminalInputPolicy.performableOnly,
@@ -148,11 +155,15 @@ class TerminalActionDescriptor {
   final TerminalActionCategory category;
   final bool enabledByDefault;
   final bool commandPaletteVisible;
+  final TerminalActionReleaseVisibility releaseVisibility;
   final String? shortcutHint;
   final TerminalKeyBinding? defaultKeyBinding;
   final TerminalInputPolicy terminalInputPolicy;
   final IconData? icon;
   final bool requiresActiveSession;
+
+  bool get hasUserEntryPoint =>
+      releaseVisibility == TerminalActionReleaseVisibility.product;
 }
 
 class ShellActionRegistry {
@@ -483,6 +494,9 @@ class ShellActionRegistry {
       id: TerminalActionId.passwordManager,
       label: 'password_manager',
       category: TerminalActionCategory.session,
+      enabledByDefault: false,
+      commandPaletteVisible: false,
+      releaseVisibility: TerminalActionReleaseVisibility.hiddenPendingRedesign,
       icon: Icons.password,
       requiresActiveSession: true,
     ),
@@ -561,6 +575,9 @@ class ShellActionRegistry {
       id: TerminalActionId.autoComposer,
       label: 'auto_composer',
       category: TerminalActionCategory.session,
+      enabledByDefault: false,
+      commandPaletteVisible: false,
+      releaseVisibility: TerminalActionReleaseVisibility.hiddenExperimental,
       icon: Icons.edit_note,
       requiresActiveSession: true,
     ),
@@ -713,7 +730,14 @@ class ShellActionRegistry {
   }
 
   static bool commandPaletteVisible(TerminalActionId id) {
-    return actions[id]?.commandPaletteVisible ?? false;
+    final descriptor = actions[id];
+    return descriptor != null &&
+        descriptor.hasUserEntryPoint &&
+        descriptor.commandPaletteVisible;
+  }
+
+  static bool hasUserEntryPoint(TerminalActionId id) {
+    return actions[id]?.hasUserEntryPoint ?? false;
   }
 
   static List<TerminalKeyBindingConflict> defaultKeyBindingConflicts() {

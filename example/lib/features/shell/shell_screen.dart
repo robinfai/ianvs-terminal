@@ -1242,6 +1242,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                             activeSessionId,
                                           ),
                                         ),
+                                    showHiddenRedesignEntryPointsForTesting: ref
+                                        .watch(
+                                          shellHiddenRedesignEntryPointsProvider,
+                                        ),
                                   ),
                               ],
                             ),

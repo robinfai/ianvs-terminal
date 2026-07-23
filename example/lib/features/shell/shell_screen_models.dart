@@ -21,6 +21,9 @@ final passwordManagerStoreProvider = Provider<PasswordManagerStore>((ref) {
   return PasswordManagerStore();
 });
 
+@visibleForTesting
+final shellHiddenRedesignEntryPointsProvider = Provider<bool>((ref) => false);
+
 final RegExp _passwordPromptPattern = RegExp(
   r'(?:password|passphrase)(?:\s+for\s+[^:]+)?\s*:\s*$',
   caseSensitive: false,

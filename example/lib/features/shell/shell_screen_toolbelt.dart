@@ -29,6 +29,7 @@ class _ShellToolbelt extends StatefulWidget {
     required this.onOpenAnnotations,
     required this.onOpenInstantReplay,
     required this.onOpenPasswordManager,
+    this.showHiddenRedesignEntryPointsForTesting = false,
   });
 
   final List<_CapturedOutputEntry> capturedOutputEntries;
@@ -51,6 +52,7 @@ class _ShellToolbelt extends StatefulWidget {
   final VoidCallback onOpenAnnotations;
   final VoidCallback onOpenInstantReplay;
   final VoidCallback onOpenPasswordManager;
+  final bool showHiddenRedesignEntryPointsForTesting;
 
   @override
   State<_ShellToolbelt> createState() => _ShellToolbeltState();
@@ -224,14 +226,16 @@ class _ShellToolbeltState extends State<_ShellToolbelt> {
                                 palette: palette,
                                 onTap: widget.onOpenInstantReplay,
                               ),
-                              _ToolbeltActionRow(
-                                key: const Key('toolbelt-password-manager'),
-                                icon: Icons.password_rounded,
-                                title: 'Password manager',
-                                countLabel: 'Prompt-gated sends',
-                                palette: palette,
-                                onTap: widget.onOpenPasswordManager,
-                              ),
+                              if (widget
+                                  .showHiddenRedesignEntryPointsForTesting)
+                                _ToolbeltActionRow(
+                                  key: const Key('toolbelt-password-manager'),
+                                  icon: Icons.password_rounded,
+                                  title: 'Password manager',
+                                  countLabel: 'Prompt-gated sends',
+                                  palette: palette,
+                                  onTap: widget.onOpenPasswordManager,
+                                ),
                               if (kDebugMode) ...[
                                 Divider(color: palette.border, height: 18),
                                 LocalTerminalCompletionDiagnosticsPanel(

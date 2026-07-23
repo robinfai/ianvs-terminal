@@ -37,6 +37,9 @@ class LocalTerminalKeyBindingResolver {
 
     for (final entry in registry.entries) {
       final actionId = entry.key;
+      if (!entry.value.hasUserEntryPoint) {
+        continue;
+      }
       if (config.disabledDefaultActions.contains(actionId)) {
         continue;
       }

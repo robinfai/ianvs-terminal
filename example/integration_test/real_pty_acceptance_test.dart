@@ -272,67 +272,38 @@ sleep 1
   );
 
   testWidgets(
-    'real PTY password manager blocks stale prompt sends',
+    'real PTY keeps redesign feature entry points hidden',
     (tester) async {
-      final goFile = _tempSignalFile('password-stale');
-      final passwordStore = PasswordManagerStore()
-        ..add(label: 'staging sudo', password: 's3cr3t!');
       final profile = _scriptProfile(
-        id: 'password-stale',
-        name: 'Password Stale',
+        id: 'hidden-redesign-features',
+        name: 'Hidden Redesign Features',
         script: r'''
-printf '[sudo] password for dev:'
-while [ ! -f "$GO_FILE" ]; do sleep 0.05; done
-printf '\r\033[2Kdev $ '
+printf 'hidden-redesign-features-ready\n'
 sleep 5
 ''',
-        env: {'GO_FILE': goFile.path},
       );
-      final harness = await _pumpRealPtyApp(
-        tester,
-        profiles: [profile],
-        passwordStore: passwordStore,
-      );
+      final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
 
       await _waitForTerminalText(
         tester,
         harness.container,
-        description: 'initial password prompt',
-        matches: (text) => text.contains('[sudo] password for dev:'),
+        description: 'hidden redesign feature session',
+        matches: (text) => text.contains('hidden-redesign-features-ready'),
       );
 
-      await _openToolbelt(tester);
-      await tester.ensureVisible(
-        find.byKey(const Key('toolbelt-password-manager')),
-      );
-      await tester.tap(find.byKey(const Key('toolbelt-password-manager')));
+      await _openCommandMenu(tester);
+      expect(find.text('Auto Composer'), findsNothing);
+      expect(find.text('Password manager'), findsNothing);
+
+      await tester.ensureVisible(find.byKey(const Key('shell-top-toolbelt')));
+      await tester.tap(find.byKey(const Key('shell-top-toolbelt')));
       await _waitFor(
         tester,
-        description: 'password manager sheet',
-        condition: () => find
-            .byKey(const Key('password-manager-sheet'))
-            .evaluate()
-            .isNotEmpty,
+        description: 'toolbelt panel without hidden redesign features',
+        condition: () =>
+            find.byKey(const Key('shell-toolbelt-panel')).evaluate().isNotEmpty,
       );
-
-      _signal(goFile);
-      await _waitForTerminalText(
-        tester,
-        harness.container,
-        description: 'ordinary prompt after password prompt disappeared',
-        matches: (text) => !text.contains('[sudo] password for dev:'),
-      );
-
-      await tester.tap(find.byKey(const Key('password-manager-send-0')));
-      await tester.pump(_pollStep);
-      await tester.pump(_pollStep);
-
-      await _waitForTerminalText(
-        tester,
-        harness.container,
-        description: 'terminal remains free of stale password text',
-        matches: (text) => !text.contains('s3cr3t!'),
-      );
+      expect(find.byKey(const Key('toolbelt-password-manager')), findsNothing);
     },
     skip: _skipNonRefreshPolicyGateTests,
   );

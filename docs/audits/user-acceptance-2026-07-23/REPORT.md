@@ -4,6 +4,8 @@
 验收版本：`a200a232`（macOS Debug build）
 验收范围：`docs/TERMINAL_PRODUCT_SCOPE.md` 定义的本地终端产品，以及当前界面实际可见或动作注册表中声明的功能。
 
+> 后续决策（2026-07-23）：Command Composer 已标记为隐藏实验功能，Password Manager 已标记为待重新设计的隐藏功能。两项均保留代码，但不进入技术预览的菜单、命令面板、Toolbelt、Settings、默认快捷键、功能口径或验收范围。详见 [DISCUSSION.md](DISCUSSION.md)。
+
 ## 结论
 
 Ianvs Terminal 的核心价值已经成立：本地 shell、标签页与分屏、按文件夹打开、搜索、Profile、录屏与回放都能完成真实任务，而且录屏/回放、Shell Integration、只读模式等能力有明显差异化价值。

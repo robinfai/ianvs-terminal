@@ -19,6 +19,14 @@ void main() {
         items.any((item) => item.actionId == TerminalActionId.previousPrompt),
         isFalse,
       );
+      expect(
+        items.any((item) => item.actionId == TerminalActionId.autoComposer),
+        isFalse,
+      );
+      expect(
+        items.any((item) => item.actionId == TerminalActionId.passwordManager),
+        isFalse,
+      );
     });
 
     test('view model carries disabled copy', () {

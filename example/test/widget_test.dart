@@ -130,6 +130,7 @@ Future<void> _pumpShellScreen(
   PasteHistoryRepository? pasteHistoryRepository,
   InstantReplayStore? instantReplayStore,
   ShellNotificationSender? notificationSender,
+  bool showHiddenRedesignEntryPointsForTesting = false,
   bool settle = true,
 }) async {
   await tester.pumpWidget(
@@ -150,6 +151,8 @@ Future<void> _pumpShellScreen(
         ),
         if (notificationSender != null)
           shellNotificationSenderProvider.overrideWithValue(notificationSender),
+        if (showHiddenRedesignEntryPointsForTesting)
+          shellHiddenRedesignEntryPointsProvider.overrideWithValue(true),
       ],
       child: MaterialApp(
         theme: buildIanvsTerminalTheme(Brightness.light),
@@ -2409,6 +2412,7 @@ void main() {
       repository: MemoryProfileRepository(
         TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       ),
+      showHiddenRedesignEntryPointsForTesting: true,
     );
 
     await _tapToolbeltAction(tester, const Key('toolbelt-password-manager'));
@@ -2490,6 +2494,7 @@ void main() {
       repository: MemoryProfileRepository(
         TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       ),
+      showHiddenRedesignEntryPointsForTesting: true,
     );
 
     await _tapToolbeltAction(tester, const Key('toolbelt-password-manager'));
@@ -2532,6 +2537,7 @@ void main() {
       repository: MemoryProfileRepository(
         TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       ),
+      showHiddenRedesignEntryPointsForTesting: true,
     );
 
     await _tapToolbeltAction(tester, const Key('toolbelt-password-manager'));
@@ -2581,6 +2587,7 @@ void main() {
       repository: MemoryProfileRepository(
         TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       ),
+      showHiddenRedesignEntryPointsForTesting: true,
     );
 
     await _tapToolbeltAction(tester, const Key('toolbelt-password-manager'));
@@ -2658,6 +2665,7 @@ void main() {
         repository: MemoryProfileRepository(
           TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
         ),
+        showHiddenRedesignEntryPointsForTesting: true,
       );
 
       await _tapToolbeltAction(tester, const Key('toolbelt-password-manager'));
@@ -2712,6 +2720,7 @@ void main() {
         repository: MemoryProfileRepository(
           TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
         ),
+        showHiddenRedesignEntryPointsForTesting: true,
       );
 
       await _tapToolbeltAction(tester, const Key('toolbelt-password-manager'));
@@ -5349,7 +5358,9 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets('command menu keeps auto composer hidden', (tester) async {
+  testWidgets('redesign features stay hidden from product entry points', (
+    tester,
+  ) async {
     final fakeBindings = FakePtyBackend();
 
     await _pumpShellScreen(
@@ -5363,6 +5374,15 @@ void main() {
     await _openCommandMenu(tester);
     expect(find.byKey(const Key('shell-auto-composer')), findsNothing);
     expect(find.byKey(const Key('terminal-auto-composer')), findsNothing);
+    expect(find.text('Auto Composer'), findsNothing);
+    expect(find.text('Password manager'), findsNothing);
+
+    await tester.tap(find.byKey(const Key('shell-top-toolbelt')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('shell-toolbelt-panel')), findsOneWidget);
+    expect(find.byKey(const Key('toolbelt-password-manager')), findsNothing);
+    expect(find.text('Password manager'), findsNothing);
     expect(fakeBindings.writes, isEmpty);
   });
 

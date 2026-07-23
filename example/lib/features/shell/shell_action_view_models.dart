@@ -28,7 +28,10 @@ class ShellActionViewModelBuilder {
     required ShellProductivityState productivity,
   }) {
     return ShellActionRegistry.actions.values
-        .where((descriptor) => descriptor.commandPaletteVisible)
+        .where(
+          (descriptor) =>
+              descriptor.hasUserEntryPoint && descriptor.commandPaletteVisible,
+        )
         .map(
           (descriptor) => forDescriptor(
             descriptor: descriptor,

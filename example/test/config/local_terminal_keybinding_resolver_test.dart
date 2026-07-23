@@ -86,6 +86,41 @@ void main() {
       expect(newTab.signature, 'focusedApp+meta+Key N');
     });
 
+    test(
+      'hidden redesign actions cannot be restored by keybinding overrides',
+      () {
+        final resolved = LocalTerminalKeyBindingResolver.resolve(
+          config: const LocalTerminalKeybindingsConfig(
+            overrides: {
+              TerminalActionId.autoComposer: LocalTerminalKeyBindingOverride(
+                binding: LocalTerminalKeyBinding(
+                  scope: TerminalKeyBindingScope.focusedApp,
+                  key: 'KeyM',
+                  meta: true,
+                ),
+              ),
+              TerminalActionId.passwordManager: LocalTerminalKeyBindingOverride(
+                binding: LocalTerminalKeyBinding(
+                  scope: TerminalKeyBindingScope.focusedApp,
+                  key: 'KeyP',
+                  meta: true,
+                ),
+              ),
+            },
+          ),
+        );
+
+        expect(
+          resolved.where(
+            (binding) =>
+                binding.actionId == TerminalActionId.autoComposer ||
+                binding.actionId == TerminalActionId.passwordManager,
+          ),
+          isEmpty,
+        );
+      },
+    );
+
     test('detects resolved override conflicts', () {
       final resolved = LocalTerminalKeyBindingResolver.resolve(
         config: const LocalTerminalKeybindingsConfig(

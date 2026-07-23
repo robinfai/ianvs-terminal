@@ -85,5 +85,31 @@ void main() {
     test('default keybindings do not contain hidden conflicts', () {
       expect(ShellActionRegistry.defaultKeyBindingConflicts(), isEmpty);
     });
+
+    test('redesign features stay registered without user entry points', () {
+      final composer =
+          ShellActionRegistry.actions[TerminalActionId.autoComposer]!;
+      final passwordManager =
+          ShellActionRegistry.actions[TerminalActionId.passwordManager]!;
+
+      expect(
+        composer.releaseVisibility,
+        TerminalActionReleaseVisibility.hiddenExperimental,
+      );
+      expect(
+        passwordManager.releaseVisibility,
+        TerminalActionReleaseVisibility.hiddenPendingRedesign,
+      );
+      for (final descriptor in [composer, passwordManager]) {
+        expect(descriptor.enabledByDefault, isFalse);
+        expect(descriptor.commandPaletteVisible, isFalse);
+        expect(descriptor.defaultKeyBinding, isNull);
+        expect(descriptor.hasUserEntryPoint, isFalse);
+        expect(
+          ShellActionRegistry.commandPaletteVisible(descriptor.id),
+          isFalse,
+        );
+      }
+    });
   });
 }
