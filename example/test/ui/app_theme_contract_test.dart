@@ -51,6 +51,25 @@ void main() {
         lightTokens.inactiveScrim.toARGB32(),
         const Color(0x66000000).toARGB32(),
       );
+      expect(
+        lightTokens.shellChrome.surface.toARGB32(),
+        const Color(0xFFF9FAFB).toARGB32(),
+      );
+      expect(
+        lightTokens.shellChrome.rail.toARGB32(),
+        const Color(0xFFEDEEF2).toARGB32(),
+      );
+      expect(
+        lightTokens.shellChrome.tabActiveBackground.toARGB32(),
+        const Color(0xFFFFFFFF).toARGB32(),
+      );
+      expect(
+        contrastRatio(
+          lightTokens.shellChrome.tabTextPrimary,
+          lightTokens.shellChrome.tabActiveBackground,
+        ),
+        greaterThanOrEqualTo(4.5),
+      );
       expect(lightTokens.spacing.xs, 3);
       expect(lightTokens.spacing.sm, 5);
       expect(lightTokens.spacing.md, 7);
@@ -134,6 +153,14 @@ void main() {
       expect(
         darkTokens.borderStrong.toARGB32(),
         const Color(0xFF636366).toARGB32(),
+      );
+      expect(
+        darkTokens.shellChrome.surface.toARGB32(),
+        const Color(0xFF202528).toARGB32(),
+      );
+      expect(
+        lightTokens.shellChrome.surface.computeLuminance(),
+        greaterThan(darkTokens.shellChrome.surface.computeLuminance()),
       );
       expect(
         darkTheme.scaffoldBackgroundColor.toARGB32(),

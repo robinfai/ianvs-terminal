@@ -250,6 +250,18 @@ void main() {
       _decoratedBoxColor(tester, const Key('shell-chrome-bar')),
       const Color(0xFFF5F5F7),
     );
+    expect(
+      _decoratedBoxColor(tester, const Key('shell-chrome-title-surface')),
+      const Color(0xFFF9FAFB),
+    );
+    expect(
+      _decoratedBoxColor(tester, const Key('shell-chrome-tab-rail-surface')),
+      const Color(0xFFEDEEF2),
+    );
+    expect(
+      _decoratedBoxColor(tester, const Key('shell-chrome-tab-track')),
+      const Color(0xB3D9DBE1),
+    );
     expect(find.byKey(const Key('shell-status-bar')), findsNothing);
 
     await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));

@@ -75,6 +75,21 @@ void main() {
       76,
     );
     expect(find.byKey(const Key('shell-chrome-window-title')), findsOneWidget);
+    expect(
+      tester
+          .widget<Text>(find.byKey(const Key('shell-chrome-window-title')))
+          .data,
+      'Ianvs Terminal',
+    );
+    expect(
+      tester.getCenter(find.byKey(const Key('shell-chrome-window-title'))).dx,
+      closeTo(
+        tester
+            .getCenter(find.byKey(const Key('shell-chrome-title-surface')))
+            .dx,
+        0.5,
+      ),
+    );
     expect(find.byKey(const Key('shell-chrome-window-shortcut')), findsNothing);
     expect(find.byType(TerminalViewport), findsOneWidget);
     expect(find.byType(FloatingActionButton), findsNothing);

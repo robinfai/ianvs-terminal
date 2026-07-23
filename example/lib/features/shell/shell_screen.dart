@@ -481,9 +481,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         }
       }
     }
-    final activeChromeTitle = activeTab == null
-        ? defaultProfile?.name ?? 'Ianvs Terminal'
-        : _shellTabDisplayTitle(activeTab);
     final displayedSessionId = _displayedSessionIdFor(
       sessionController,
       sessionState,
@@ -987,7 +984,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 terminalBackgroundColor: shellChromeBackground,
                 tabs: sessionState.tabs,
                 activeSessionId: activeSessionId,
-                activeTabTitle: activeChromeTitle,
                 activeSessionRecording:
                     activeSessionId != null &&
                     sessionState.recordingSessionIds.contains(activeSessionId),

@@ -251,7 +251,20 @@ class AppThemeTokens extends ThemeExtension<AppThemeTokens> {
     required this.shellChrome,
   });
 
-  static const _defaultShellChrome = AppShellChromeColors(
+  static const _lightShellChrome = AppShellChromeColors(
+    base: Color(0xFFF5F5F7),
+    surface: Color(0xFFF9FAFB),
+    rail: Color(0xFFEDEEF2),
+    tabActiveBackground: Color(0xFFFFFFFF),
+    tabTrackBackground: Color(0xB3D9DBE1),
+    tabHoverBackground: Color(0xFFE1E3E8),
+    tabBorder: Color(0xFFA7A7AD),
+    tabTextPrimary: Color(0xFF1D1D1F),
+    tabTextMuted: Color(0xFF55565A),
+    tabTextSubtle: Color(0xFF6E6E73),
+  );
+
+  static const _darkShellChrome = AppShellChromeColors(
     base: Color(0xFF151A1E),
     surface: Color(0xFF202528),
     rail: Color(0xFF171C20),
@@ -292,7 +305,7 @@ class AppThemeTokens extends ThemeExtension<AppThemeTokens> {
     spacing: AppThemeSpacing(xs: 3, sm: 5, md: 7, lg: 10, xl: 14, xxl: 20),
     radius: AppThemeRadius(sm: 4, md: 6, lg: 8, xl: 10),
     controls: AppThemeControls(dense: 28, compact: 32, regular: 36),
-    shellChrome: _defaultShellChrome,
+    shellChrome: _lightShellChrome,
     elevation: AppThemeElevation(
       floating: [
         BoxShadow(
@@ -339,7 +352,7 @@ class AppThemeTokens extends ThemeExtension<AppThemeTokens> {
     spacing: AppThemeSpacing(xs: 3, sm: 5, md: 7, lg: 10, xl: 14, xxl: 20),
     radius: AppThemeRadius(sm: 4, md: 6, lg: 8, xl: 10),
     controls: AppThemeControls(dense: 28, compact: 32, regular: 36),
-    shellChrome: _defaultShellChrome,
+    shellChrome: _darkShellChrome,
     elevation: AppThemeElevation(
       floating: [
         BoxShadow(

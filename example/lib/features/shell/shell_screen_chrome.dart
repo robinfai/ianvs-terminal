@@ -5,6 +5,7 @@ const double _shellChromeTabRailHeight = 38;
 const double _shellChromeHeight =
     _shellChromeTitleHeight + _shellChromeTabRailHeight;
 const double _shellChromeHorizontalInset = 12;
+const String _shellApplicationTitle = 'Ianvs Terminal';
 
 class _ShellChromeBar extends StatelessWidget {
   const _ShellChromeBar({
@@ -12,7 +13,6 @@ class _ShellChromeBar extends StatelessWidget {
     required this.terminalBackgroundColor,
     required this.tabs,
     required this.activeSessionId,
-    required this.activeTabTitle,
     required this.activeSessionRecording,
     required this.activeRecordingPendingSave,
     required this.recordingBusy,
@@ -39,7 +39,6 @@ class _ShellChromeBar extends StatelessWidget {
   final Color terminalBackgroundColor;
   final List<TerminalTab> tabs;
   final String? activeSessionId;
-  final String activeTabTitle;
   final bool activeSessionRecording;
   final bool activeRecordingPendingSave;
   final bool recordingBusy;
@@ -97,7 +96,6 @@ class _ShellChromeBar extends StatelessWidget {
                 palette: palette,
                 tone: chromeTone,
                 backgroundColor: chromeSurface,
-                title: activeTabTitle,
                 onShowCommandMenu: referenceDemoMode ? null : onShowCommandMenu,
                 activeSessionRecording: activeSessionRecording,
                 activeRecordingPendingSave: activeRecordingPendingSave,
@@ -109,6 +107,7 @@ class _ShellChromeBar extends StatelessWidget {
               SizedBox(
                 height: _shellChromeTabRailHeight,
                 child: DecoratedBox(
+                  key: const Key('shell-chrome-tab-rail-surface'),
                   decoration: BoxDecoration(
                     color: railSurface,
                     border: Border(
@@ -128,6 +127,7 @@ class _ShellChromeBar extends StatelessWidget {
                       5,
                     ),
                     child: DecoratedBox(
+                      key: const Key('shell-chrome-tab-track'),
                       decoration: BoxDecoration(
                         color: chromeTone.trackBackground,
                         borderRadius: BorderRadius.circular(15),
@@ -180,7 +180,6 @@ class _ShellWindowTitleBar extends StatelessWidget {
     required this.palette,
     required this.tone,
     required this.backgroundColor,
-    required this.title,
     required this.onShowCommandMenu,
     required this.activeSessionRecording,
     required this.activeRecordingPendingSave,
@@ -191,7 +190,6 @@ class _ShellWindowTitleBar extends StatelessWidget {
   final AppThemeTokens palette;
   final _ShellTabTone tone;
   final Color backgroundColor;
-  final String title;
   final VoidCallback? onShowCommandMenu;
   final bool activeSessionRecording;
   final bool activeRecordingPendingSave;
@@ -204,10 +202,12 @@ class _ShellWindowTitleBar extends StatelessWidget {
         ? 158.0
         : palette.spacing.xl;
     final trailingInset = onShowCommandMenu == null ? 16.0 : 84.0;
+    final titleSafeInset = math.max(titleLeadingInset, trailingInset);
 
     return SizedBox(
       height: _shellChromeTitleHeight,
       child: DecoratedBox(
+        key: const Key('shell-chrome-title-surface'),
         decoration: BoxDecoration(color: backgroundColor),
         child: Stack(
           children: [
@@ -220,27 +220,20 @@ class _ShellWindowTitleBar extends StatelessWidget {
             Positioned.fill(
               child: IgnorePointer(
                 child: Padding(
-                  padding: EdgeInsets.only(
-                    left: titleLeadingInset,
-                    right: trailingInset,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          title,
-                          key: const Key('shell-chrome-window-title'),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                color: tone.mutedText,
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w700,
-                              ),
-                        ),
+                  padding: EdgeInsets.symmetric(horizontal: titleSafeInset),
+                  child: Center(
+                    child: Text(
+                      _shellApplicationTitle,
+                      key: const Key('shell-chrome-window-title'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: tone.mutedText,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),

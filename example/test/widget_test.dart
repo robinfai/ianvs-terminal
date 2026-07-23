@@ -1418,7 +1418,7 @@ void main() {
         tester
             .widget<Text>(find.byKey(const Key('shell-chrome-window-title')))
             .data,
-        'Right Pane Title',
+        'Ianvs Terminal',
       );
 
       await tester.tap(find.byKey(const Key('shell-pane-1')));
@@ -1435,7 +1435,7 @@ void main() {
         tester
             .widget<Text>(find.byKey(const Key('shell-chrome-window-title')))
             .data,
-        'Left Pane Title',
+        'Ianvs Terminal',
       );
       expect(fakeBindings.writes, isEmpty);
     },
@@ -1519,12 +1519,12 @@ void main() {
       expect(find.byKey(const Key('shell-pane-2')), findsOneWidget);
       expect(find.byKey(const Key('shell-pane-header-2')), findsNothing);
       expect(find.text('Left Pane Title'), findsNothing);
-      expect(find.text('Right Pane Title'), findsNWidgets(2));
+      expect(find.text('Right Pane Title'), findsOneWidget);
       expect(
         tester
             .widget<Text>(find.byKey(const Key('shell-chrome-window-title')))
             .data,
-        'Right Pane Title',
+        'Ianvs Terminal',
       );
       expect(find.byKey(const Key('shell-status-badge')), findsNothing);
       expect(find.text('DEPLOY'), findsOneWidget);
