@@ -81,8 +81,8 @@ final class _PasswordManagerSendResult extends _PasswordManagerSheetResult {
   final PasswordManagerEntry entry;
 }
 
-final class _InstantReplayWorkspaceSession {
-  const _InstantReplayWorkspaceSession({
+final class _InstantReplayLayoutSession {
+  const _InstantReplayLayoutSession({
     required this.sourceSessionId,
     required this.sourceLabel,
     required this.retentionFrameLimit,

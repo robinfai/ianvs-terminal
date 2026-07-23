@@ -1421,8 +1421,8 @@ class _TerminalAnnotationBadge extends StatelessWidget {
   }
 }
 
-class _ShellWorkspaceCue extends StatelessWidget {
-  const _ShellWorkspaceCue({required this.title, required this.palette});
+class _ShellLayoutCue extends StatelessWidget {
+  const _ShellLayoutCue({required this.title, required this.palette});
 
   final String title;
   final AppThemeTokens palette;
@@ -1430,7 +1430,7 @@ class _ShellWorkspaceCue extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      key: const Key('shell-workspace-focus-cue'),
+      key: const Key('shell-layout-focus-cue'),
       decoration: BoxDecoration(
         color: palette.overlay.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(palette.radius.lg),

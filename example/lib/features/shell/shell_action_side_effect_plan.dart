@@ -5,7 +5,7 @@ import '../visual/local_terminal_visual_action_reducer.dart';
 import 'shell_action_dispatcher.dart';
 
 enum ShellActionSideEffectKind {
-  updateWorkspace,
+  updateLayout,
   updateProductivityState,
   scrollToPrompt,
   selectCommandOutput,
@@ -33,9 +33,9 @@ class ShellActionSideEffectPlanner {
 
   static ShellActionSideEffectPlan plan(ShellActionDispatchResult result) {
     return switch (result) {
-      ShellWorkspaceDispatchResult() => ShellActionSideEffectPlan(
-        kind: ShellActionSideEffectKind.updateWorkspace,
-        payload: result.workspace,
+      ShellLayoutDispatchResult() => ShellActionSideEffectPlan(
+        kind: ShellActionSideEffectKind.updateLayout,
+        payload: result.layout,
       ),
       ShellProductivityDispatchResult() => _productivity(result.result),
       ShellPolicyDispatchResult() => _policy(result.result),

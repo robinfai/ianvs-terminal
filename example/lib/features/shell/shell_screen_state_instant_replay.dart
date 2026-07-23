@@ -93,7 +93,7 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
       return;
     }
     _mutateState(() {
-      _instantReplayWorkspaceSession = _InstantReplayWorkspaceSession(
+      _instantReplayLayoutSession = _InstantReplayLayoutSession(
         sourceSessionId: activeSessionIdBeforeOpen,
         sourceLabel: _instantReplaySourceLabelFor(
           sessionState,
@@ -131,10 +131,10 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
     await _recordPasteHistory(text, PasteHistoryKind.copy);
   }
 
-  void _closeInstantReplayWorkspace() {
-    final sourceSessionId = _instantReplayWorkspaceSession?.sourceSessionId;
+  void _closeInstantReplayLayout() {
+    final sourceSessionId = _instantReplayLayoutSession?.sourceSessionId;
     _mutateState(() {
-      _instantReplayWorkspaceSession = null;
+      _instantReplayLayoutSession = null;
     });
     if (sourceSessionId == null) {
       return;
@@ -177,11 +177,11 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
   void _clearInstantReplayHistory(String sessionId) {
     ref.read(instantReplayStoreProvider).clear(sessionId);
     _mutateState(() {
-      final current = _instantReplayWorkspaceSession;
+      final current = _instantReplayLayoutSession;
       if (current == null || current.sourceSessionId != sessionId) {
         return;
       }
-      _instantReplayWorkspaceSession = _InstantReplayWorkspaceSession(
+      _instantReplayLayoutSession = _InstantReplayLayoutSession(
         sourceSessionId: current.sourceSessionId,
         sourceLabel: current.sourceLabel,
         retentionFrameLimit: current.retentionFrameLimit,

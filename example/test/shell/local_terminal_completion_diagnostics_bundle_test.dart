@@ -28,7 +28,7 @@ void main() {
         capturedAt: DateTime.utc(2026, 5, 16),
         p0BoundaryManifest: const LocalTerminalP0BoundaryClosureManifest(
           localTerminalPlanDocumented: true,
-          roadmapLocalWorkspaceAligned: true,
+          roadmapTerminalLayoutAligned: true,
           remoteScopeExcluded: true,
           perMilestoneExecutionPlansCreated: true,
           competitorCoverageMapped: true,

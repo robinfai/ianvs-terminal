@@ -12,7 +12,7 @@ class LocalTerminalCompletionController {
     LocalTerminalP0BoundaryClosureManifest p0BoundaryManifest =
         const LocalTerminalP0BoundaryClosureManifest(
           localTerminalPlanDocumented: false,
-          roadmapLocalWorkspaceAligned: false,
+          roadmapTerminalLayoutAligned: false,
           remoteScopeExcluded: false,
           perMilestoneExecutionPlansCreated: false,
           competitorCoverageMapped: false,

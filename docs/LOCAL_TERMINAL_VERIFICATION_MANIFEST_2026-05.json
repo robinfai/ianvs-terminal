@@ -224,7 +224,7 @@
     },
     {
       "id": "p2-workspace",
-      "command": "flutter test example/test/workspace",
+      "command": "flutter test example/test/layout",
       "recordsGates": [
         "unitTests"
       ],

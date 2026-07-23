@@ -30,6 +30,7 @@ class LocalTerminalKeyBindingResolver {
 
   static List<ResolvedLocalTerminalKeyBinding> resolve({
     required LocalTerminalKeybindingsConfig config,
+    bool includeInternalActions = false,
     Map<TerminalActionId, TerminalActionDescriptor> registry =
         ShellActionRegistry.actions,
   }) {
@@ -37,7 +38,11 @@ class LocalTerminalKeyBindingResolver {
 
     for (final entry in registry.entries) {
       final actionId = entry.key;
-      if (!entry.value.hasUserEntryPoint) {
+      final hasUserEntryPoint = identical(registry, ShellActionRegistry.actions)
+          ? ShellActionRegistry.hasUserEntryPoint(actionId)
+          : entry.value.releaseVisibility ==
+                TerminalActionReleaseVisibility.product;
+      if (!hasUserEntryPoint && !includeInternalActions) {
         continue;
       }
       if (config.disabledDefaultActions.contains(actionId)) {

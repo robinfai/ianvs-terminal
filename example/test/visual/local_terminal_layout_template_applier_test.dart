@@ -1,6 +1,6 @@
 import 'package:app/features/visual/local_terminal_layout_template_applier.dart';
 import 'package:app/features/visual/local_terminal_visual_models.dart';
-import 'package:app/features/workspace/local_terminal_layout_models.dart';
+import 'package:app/features/layout/local_terminal_layout_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

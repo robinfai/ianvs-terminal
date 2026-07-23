@@ -13,8 +13,8 @@ import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/shell/shell_acceptance.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/terminal/terminal_viewport.dart';
-import 'package:app/features/workspace/local_terminal_layout_models.dart';
-import 'package:app/features/workspace/local_terminal_layout_repository.dart';
+import 'package:app/features/layout/local_terminal_layout_models.dart';
+import 'package:app/features/layout/local_terminal_layout_repository.dart';
 import 'package:app/ui/app_ui.dart';
 
 import '../support/fake_pty_backend.dart';
@@ -62,23 +62,23 @@ Future<void> _pumpShellScreen(
   await tester.pumpAndSettle();
 }
 
-class _MemoryWorkspaceRepository extends LocalTerminalLayoutRepository {
-  _MemoryWorkspaceRepository(this.workspace);
+class _MemoryLayoutRepository extends LocalTerminalLayoutRepository {
+  _MemoryLayoutRepository(this.layout);
 
-  TerminalLayout? workspace;
-
-  @override
-  Future<TerminalLayout?> load() async => workspace;
+  TerminalLayout? layout;
 
   @override
-  Future<void> save(TerminalLayout workspace) async {
-    this.workspace = workspace;
+  Future<TerminalLayout?> load() async => layout;
+
+  @override
+  Future<void> save(TerminalLayout layout) async {
+    this.layout = layout;
   }
 }
 
 void main() {
   testWidgets(
-    'defaults remain hidden from the shell workspace until the user opens tools',
+    'defaults remain hidden from the shell layout until the user opens tools',
     (tester) async {
       final profileRepository = MemoryProfileRepository(
         TerminalProfilesDocument(
@@ -204,7 +204,7 @@ void main() {
         localConfig: const LocalTerminalConfigDocument(
           layout: LocalTerminalLayoutConfig(restoreLayout: true),
         ),
-        workspaceRepository: _MemoryWorkspaceRepository(
+        workspaceRepository: _MemoryLayoutRepository(
           TerminalLayout(
             activeTabId: 'old-tab',
             tabs: [

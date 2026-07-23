@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:app/features/workspace/local_terminal_layout_models.dart';
-import 'package:app/features/workspace/local_terminal_layout_repository.dart';
+import 'package:app/features/layout/local_terminal_layout_models.dart';
+import 'package:app/features/layout/local_terminal_layout_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

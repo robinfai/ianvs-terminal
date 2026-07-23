@@ -16,7 +16,6 @@ class _ShellChromeBar extends StatelessWidget {
     required this.activeSessionRecording,
     required this.activeRecordingPendingSave,
     required this.recordingBusy,
-    required this.recordingsShelfOpen,
     required this.tabHasNewOutput,
     required this.tabNewOutputTooltip,
     required this.hiddenTabsNewOutputTooltip,
@@ -34,7 +33,7 @@ class _ShellChromeBar extends StatelessWidget {
     required this.onShowTabContextMenu,
     required this.onShowCommandMenu,
     required this.onToggleSessionRecording,
-    required this.onToggleRecordingsShelf,
+    required this.onOpenRecording,
     required this.onOpenTerminalAtFolder,
   });
 
@@ -46,7 +45,6 @@ class _ShellChromeBar extends StatelessWidget {
   final bool activeSessionRecording;
   final bool activeRecordingPendingSave;
   final bool recordingBusy;
-  final bool recordingsShelfOpen;
   final bool Function(TerminalTab tab) tabHasNewOutput;
   final String Function(TerminalTab tab) tabNewOutputTooltip;
   final String Function(Iterable<TerminalTab> tabs) hiddenTabsNewOutputTooltip;
@@ -66,8 +64,8 @@ class _ShellChromeBar extends StatelessWidget {
   final void Function(TerminalTab tab, Offset position) onShowTabContextMenu;
   final VoidCallback onShowCommandMenu;
   final VoidCallback? onToggleSessionRecording;
-  final VoidCallback onToggleRecordingsShelf;
-  final Future<void> Function() onOpenTerminalAtFolder;
+  final VoidCallback? onOpenRecording;
+  final Future<void> Function()? onOpenTerminalAtFolder;
 
   @override
   Widget build(BuildContext context) {
@@ -108,13 +106,10 @@ class _ShellChromeBar extends StatelessWidget {
                 activeSessionRecording: activeSessionRecording,
                 activeRecordingPendingSave: activeRecordingPendingSave,
                 recordingBusy: recordingBusy,
-                recordingsShelfOpen: recordingsShelfOpen,
                 onToggleSessionRecording: referenceDemoMode
                     ? null
                     : onToggleSessionRecording,
-                onToggleRecordingsShelf: referenceDemoMode
-                    ? null
-                    : onToggleRecordingsShelf,
+                onOpenRecording: referenceDemoMode ? null : onOpenRecording,
                 onOpenTerminalAtFolder: referenceDemoMode
                     ? null
                     : onOpenTerminalAtFolder,
@@ -198,9 +193,8 @@ class _ShellWindowTitleBar extends StatelessWidget {
     required this.activeSessionRecording,
     required this.activeRecordingPendingSave,
     required this.recordingBusy,
-    required this.recordingsShelfOpen,
     required this.onToggleSessionRecording,
-    required this.onToggleRecordingsShelf,
+    required this.onOpenRecording,
     required this.onOpenTerminalAtFolder,
   });
 
@@ -212,9 +206,8 @@ class _ShellWindowTitleBar extends StatelessWidget {
   final bool activeSessionRecording;
   final bool activeRecordingPendingSave;
   final bool recordingBusy;
-  final bool recordingsShelfOpen;
   final VoidCallback? onToggleSessionRecording;
-  final VoidCallback? onToggleRecordingsShelf;
+  final VoidCallback? onOpenRecording;
   final Future<void> Function()? onOpenTerminalAtFolder;
 
   @override
@@ -277,15 +270,14 @@ class _ShellWindowTitleBar extends StatelessWidget {
                   onPressed: onToggleSessionRecording,
                 ),
               ),
-            if (onToggleRecordingsShelf != null)
+            if (onOpenRecording != null)
               Positioned(
                 top: 5,
                 right: 252,
                 child: _ShellRecordingsButton(
                   palette: palette,
                   tone: tone,
-                  active: recordingsShelfOpen,
-                  onPressed: onToggleRecordingsShelf!,
+                  onPressed: onOpenRecording!,
                 ),
               ),
             if (onOpenTerminalAtFolder != null)
@@ -322,19 +314,17 @@ class _ShellRecordingsButton extends StatelessWidget {
   const _ShellRecordingsButton({
     required this.palette,
     required this.tone,
-    required this.active,
     required this.onPressed,
   });
 
   final AppThemeTokens palette;
   final _ShellTabTone tone;
-  final bool active;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: active ? 'Close Saved Recordings' : 'Open Saved Recordings',
+      message: 'Open recording',
       child: SizedBox(
         height: 28,
         width: 100,
@@ -343,10 +333,8 @@ class _ShellRecordingsButton extends StatelessWidget {
           onPressed: onPressed,
           style: TextButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 7),
-            foregroundColor: active ? palette.accent : tone.mutedText,
-            backgroundColor: active
-                ? palette.accent.withValues(alpha: 0.18)
-                : tone.hoverBackground,
+            foregroundColor: tone.mutedText,
+            backgroundColor: tone.hoverBackground,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(palette.radius.md),
             ),
@@ -354,10 +342,10 @@ class _ShellRecordingsButton extends StatelessWidget {
           icon: Icon(
             Icons.video_library_outlined,
             size: 15,
-            color: active ? palette.accent : tone.subtleText,
+            color: tone.subtleText,
           ),
           label: Text(
-            'Recordings',
+            'Open recording…',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(
@@ -3547,7 +3535,7 @@ class _ShellStartupSurface extends StatelessWidget {
                     key: const Key('shell-startup-error'),
                     title: 'Terminal could not start',
                     message:
-                        'Review the startup error, then try loading the workspace again.',
+                        'Review the startup error, then try loading the layout again.',
                     supportingText: errorMessage!,
                     action: AppActionButton(
                       buttonKey: const Key('shell-startup-retry'),

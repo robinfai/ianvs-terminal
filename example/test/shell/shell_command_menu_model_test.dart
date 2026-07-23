@@ -12,14 +12,14 @@ void main() {
       );
       expect(
         ShellCommandMenuModel.defaultActionOrder.last,
-        TerminalActionId.globalSearch,
+        TerminalActionId.search,
       );
       expect(
         ShellCommandMenuModel.defaultActionOrder,
         containsAll([
           TerminalActionId.profiles,
           TerminalActionId.instantReplay,
-          TerminalActionId.globalSearch,
+          TerminalActionId.search,
         ]),
       );
     });
@@ -31,7 +31,7 @@ void main() {
       );
 
       expect(items.first.actionId, TerminalActionId.newTab);
-      expect(items.last.actionId, TerminalActionId.globalSearch);
+      expect(items.last.actionId, TerminalActionId.search);
       expect(items.length, ShellCommandMenuModel.defaultActionOrder.length);
     });
 
@@ -41,12 +41,12 @@ void main() {
         productivity: const ShellProductivityState(),
       );
 
-      final globalSearch = items.singleWhere(
-        (item) => item.actionId == TerminalActionId.globalSearch,
+      final search = items.singleWhere(
+        (item) => item.actionId == TerminalActionId.search,
       );
 
-      expect(globalSearch.enabled, isFalse);
-      expect(globalSearch.disabledTitle, 'No active session');
+      expect(search.enabled, isFalse);
+      expect(search.disabledTitle, 'No active session');
     });
   });
 }

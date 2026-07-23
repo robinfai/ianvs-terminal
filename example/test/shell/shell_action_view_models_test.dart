@@ -27,6 +27,14 @@ void main() {
         items.any((item) => item.actionId == TerminalActionId.passwordManager),
         isFalse,
       );
+      expect(
+        items.any((item) => item.actionId == TerminalActionId.toolbelt),
+        isFalse,
+      );
+      expect(
+        items.any((item) => item.actionId == TerminalActionId.globalSearch),
+        isFalse,
+      );
     });
 
     test('view model carries disabled copy', () {

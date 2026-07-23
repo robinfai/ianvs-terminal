@@ -72,7 +72,6 @@ class TerminalRelaunchSpec {
       'schemaVersion': schemaVersion,
       'contract': terminalRelaunchSpecContract,
       'profileId': _nonEmptyString(profileId) ?? '',
-      'command': command?.toJson(),
       'cwd': _nonEmptyString(cwd),
     };
   }

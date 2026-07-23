@@ -75,7 +75,7 @@
           ]
         },
         {
-          "path": "example/lib/features/workspace/local_terminal_layout_repository.dart",
+          "path": "example/lib/features/layout/local_terminal_layout_repository.dart",
           "contains": [
             "class LocalTerminalLayoutRepository",
             "ianvs_terminal_layout.json",
@@ -87,7 +87,7 @@
           ]
         },
         {
-          "path": "example/lib/features/workspace/local_terminal_layout_models.dart",
+          "path": "example/lib/features/layout/local_terminal_layout_models.dart",
           "contains": [
             "class TerminalLayout",
             "class TerminalLayoutTab",
@@ -100,7 +100,7 @@
           ]
         },
         {
-          "path": "example/lib/features/workspace/local_terminal_relaunch_spec.dart",
+          "path": "example/lib/features/layout/local_terminal_relaunch_spec.dart",
           "contains": [
             "class TerminalRelaunchSpec",
             "terminalRelaunchSpecContract",
@@ -112,7 +112,7 @@
           ]
         },
         {
-          "path": "example/lib/features/workspace/local_session_layout_codec.dart",
+          "path": "example/lib/features/layout/local_session_layout_codec.dart",
           "contains": [
             "class LocalSessionLayoutCodec",
             "LocalTerminalLayoutRestoreResult"
@@ -197,7 +197,7 @@
           ]
         },
         {
-          "path": "example/test/workspace/local_workspace_action_reducer_test.dart",
+          "path": "example/test/layout/terminal_layout_action_reducer_test.dart",
           "contains": [
             "split actions update active tab pane tree"
           ]

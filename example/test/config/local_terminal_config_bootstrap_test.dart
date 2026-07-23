@@ -47,6 +47,7 @@ void main() {
       expect(result.config.appearance.themeMode, TerminalThemeMode.dark);
       expect(result.config.appearance.terminalViewportPadding, 18);
       expect(result.config.notifications.enabled, isFalse);
+      expect(result.config.layout.restoreLayout, isFalse);
     });
 
     test('falls back to defaults when no config sources exist', () {
@@ -62,6 +63,7 @@ void main() {
         result.config.appearance.terminalViewportPadding,
         TerminalAppAppearance.defaultTerminalViewportPadding,
       );
+      expect(result.config.layout.restoreLayout, isTrue);
     });
   });
 }

@@ -8,7 +8,7 @@ import '../productivity/shell_productivity_models.dart';
 import '../visual/local_terminal_layout_template_applier.dart';
 import '../visual/local_terminal_scrollback_exporter.dart';
 import '../visual/local_terminal_visual_models.dart';
-import '../workspace/local_terminal_layout_models.dart';
+import '../layout/local_terminal_layout_models.dart';
 import 'shell_action_dispatcher.dart';
 import 'shell_action_pipeline.dart';
 import 'shell_action_registry.dart';
@@ -19,7 +19,7 @@ const Object _copyWithUnset = Object();
 
 class ShellActionRuntimeState {
   const ShellActionRuntimeState({
-    this.workspace = const TerminalLayout(),
+    this.layout = const TerminalLayout(),
     this.productivity = const ShellProductivityState(),
     this.policies = const LocalTerminalPolicyBundle(),
     this.lastPlan,
@@ -33,7 +33,7 @@ class ShellActionRuntimeState {
     this.lastExternalExecutorError,
   });
 
-  final TerminalLayout workspace;
+  final TerminalLayout layout;
   final ShellProductivityState productivity;
   final LocalTerminalPolicyBundle policies;
   final ShellActionSideEffectPlan? lastPlan;
@@ -47,7 +47,7 @@ class ShellActionRuntimeState {
   final Object? lastExternalExecutorError;
 
   ShellActionRuntimeState copyWith({
-    TerminalLayout? workspace,
+    TerminalLayout? layout,
     ShellProductivityState? productivity,
     LocalTerminalPolicyBundle? policies,
     Object? lastPlan = _copyWithUnset,
@@ -61,7 +61,7 @@ class ShellActionRuntimeState {
     Object? lastExternalExecutorError = _copyWithUnset,
   }) {
     return ShellActionRuntimeState(
-      workspace: workspace ?? this.workspace,
+      layout: layout ?? this.layout,
       productivity: productivity ?? this.productivity,
       policies: policies ?? this.policies,
       lastPlan: identical(lastPlan, _copyWithUnset)
@@ -113,17 +113,17 @@ class ShellActionRuntimeController {
     LocalTerminalScrollbackExportPolicy scrollbackExportPolicy =
         const LocalTerminalScrollbackExportPolicy(),
     Future<void> Function(String text)? recordPasteHistory,
-    Future<void> Function(TerminalLayout workspace)? persistWorkspace,
+    Future<void> Function(TerminalLayout layout)? persistLayout,
     ShellActionSideEffectExecutor? externalExecutor,
   }) async {
     late final ShellActionSideEffectPlan planned;
     final pipeline = ShellActionPipeline(
       executor: ShellActionSideEffectExecutor(
         ShellActionSideEffectHandlers(
-          updateWorkspace: (payload) async {
+          updateLayout: (payload) async {
             if (payload is TerminalLayout) {
-              _state = _state.copyWith(workspace: payload);
-              await persistWorkspace?.call(payload);
+              _state = _state.copyWith(layout: payload);
+              await persistLayout?.call(payload);
             }
           },
           updateProductivityState: (payload) async {
@@ -206,13 +206,13 @@ class ShellActionRuntimeController {
                 layoutTemplateApplyContext == null) {
               return;
             }
-            final workspace = LocalTerminalLayoutTemplateApplier.apply(
+            final layout = LocalTerminalLayoutTemplateApplier.apply(
               template: payload,
               context: layoutTemplateApplyContext,
             );
-            if (workspace != null) {
-              _state = _state.copyWith(workspace: workspace);
-              await persistWorkspace?.call(workspace);
+            if (layout != null) {
+              _state = _state.copyWith(layout: layout);
+              await persistLayout?.call(layout);
             }
           },
         ),
@@ -222,7 +222,7 @@ class ShellActionRuntimeController {
     final result = await pipeline.run(
       actionId: actionId,
       state: ShellActionDispatchState(
-        workspace: _state.workspace,
+        layout: _state.layout,
         productivity: _state.productivity,
         policies: _state.policies,
       ),

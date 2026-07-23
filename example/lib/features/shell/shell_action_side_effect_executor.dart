@@ -4,7 +4,7 @@ typedef ShellActionSideEffectHandler = Future<void> Function(Object? payload);
 
 class ShellActionSideEffectHandlers {
   const ShellActionSideEffectHandlers({
-    this.updateWorkspace,
+    this.updateLayout,
     this.updateProductivityState,
     this.scrollToPrompt,
     this.selectCommandOutput,
@@ -19,7 +19,7 @@ class ShellActionSideEffectHandlers {
     this.applyLayoutTemplate,
   });
 
-  final ShellActionSideEffectHandler? updateWorkspace;
+  final ShellActionSideEffectHandler? updateLayout;
   final ShellActionSideEffectHandler? updateProductivityState;
   final ShellActionSideEffectHandler? scrollToPrompt;
   final ShellActionSideEffectHandler? selectCommandOutput;
@@ -41,7 +41,7 @@ class ShellActionSideEffectExecutor {
 
   Future<void> execute(ShellActionSideEffectPlan plan) async {
     final handler = switch (plan.kind) {
-      ShellActionSideEffectKind.updateWorkspace => handlers.updateWorkspace,
+      ShellActionSideEffectKind.updateLayout => handlers.updateLayout,
       ShellActionSideEffectKind.updateProductivityState =>
         handlers.updateProductivityState,
       ShellActionSideEffectKind.scrollToPrompt => handlers.scrollToPrompt,

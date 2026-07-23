@@ -7,8 +7,8 @@ class LocalTerminalRealWiringBacklogEvidence {
     this.shellActionWiring = const LocalTerminalRealWiringTaskEvidence.pending(
       LocalTerminalRealWiringTask.shellActionProductionWiring,
     ),
-    this.workspaceWiring = const LocalTerminalRealWiringTaskEvidence.pending(
-      LocalTerminalRealWiringTask.localWorkspaceProductionWiring,
+    this.layoutWiring = const LocalTerminalRealWiringTaskEvidence.pending(
+      LocalTerminalRealWiringTask.localLayoutProductionWiring,
     ),
     this.productivityWiring = const LocalTerminalRealWiringTaskEvidence.pending(
       LocalTerminalRealWiringTask.shellProductivityProductionWiring,
@@ -37,11 +37,11 @@ class LocalTerminalRealWiringBacklogEvidence {
           'Native clear scrollback and historical scrollback export request plumbing exist.',
         ],
       ),
-      workspaceWiring: LocalTerminalRealWiringTaskEvidence.implementedButUnverified(
-        task: LocalTerminalRealWiringTask.localWorkspaceProductionWiring,
+      layoutWiring: LocalTerminalRealWiringTaskEvidence.implementedButUnverified(
+        task: LocalTerminalRealWiringTask.localLayoutProductionWiring,
         evidence: const [
           'Split, pane focus, close, resize, swap, zoom, duplicate cwd, and reopen closed tab have live ShellScreen/session wiring.',
-          'Workspace production tasks T-215, T-227, T-228, T-229, and T-231 are represented in wiring.',
+          'Layout production tasks T-215, T-227, T-228, T-229, and T-231 are represented in wiring.',
         ],
       ),
       productivityWiring: LocalTerminalRealWiringTaskEvidence.implementedButUnverified(
@@ -83,11 +83,11 @@ class LocalTerminalRealWiringBacklogEvidence {
           'P1 action/config closure passed focused, broader, integration, and manual command-menu evidence.',
         ],
       ),
-      workspaceWiring: LocalTerminalRealWiringTaskEvidence.verified(
-        task: LocalTerminalRealWiringTask.localWorkspaceProductionWiring,
+      layoutWiring: LocalTerminalRealWiringTaskEvidence.verified(
+        task: LocalTerminalRealWiringTask.localLayoutProductionWiring,
         evidence: const [
           'Split, pane focus, close, resize, swap, zoom, duplicate cwd, and reopen closed tab have live ShellScreen/session wiring.',
-          'Workspace behavior passed focused phase4, broader, integration, and manual pane evidence.',
+          'Layout behavior passed focused phase4, broader, integration, and manual pane evidence.',
         ],
       ),
       productivityWiring: LocalTerminalRealWiringTaskEvidence.verified(
@@ -119,7 +119,7 @@ class LocalTerminalRealWiringBacklogEvidence {
   }
 
   final LocalTerminalRealWiringTaskEvidence shellActionWiring;
-  final LocalTerminalRealWiringTaskEvidence workspaceWiring;
+  final LocalTerminalRealWiringTaskEvidence layoutWiring;
   final LocalTerminalRealWiringTaskEvidence productivityWiring;
   final LocalTerminalRealWiringTaskEvidence policyWiring;
   final LocalTerminalRealWiringTaskEvidence visualWiring;
@@ -128,7 +128,7 @@ class LocalTerminalRealWiringBacklogEvidence {
   List<LocalTerminalRealWiringTaskEvidence> get tasks {
     return [
       shellActionWiring,
-      workspaceWiring,
+      layoutWiring,
       productivityWiring,
       policyWiring,
       visualWiring,
@@ -222,7 +222,7 @@ class LocalTerminalRealWiringTaskEvidence {
 
 enum LocalTerminalRealWiringTask {
   shellActionProductionWiring,
-  localWorkspaceProductionWiring,
+  localLayoutProductionWiring,
   shellProductivityProductionWiring,
   localTerminalPolicyProductionWiring,
   localTerminalVisualProductionWiring,
@@ -233,7 +233,7 @@ extension LocalTerminalRealWiringTaskX on LocalTerminalRealWiringTask {
   String get taskId {
     return switch (this) {
       LocalTerminalRealWiringTask.shellActionProductionWiring => 'T-164',
-      LocalTerminalRealWiringTask.localWorkspaceProductionWiring => 'T-165',
+      LocalTerminalRealWiringTask.localLayoutProductionWiring => 'T-165',
       LocalTerminalRealWiringTask.shellProductivityProductionWiring => 'T-166',
       LocalTerminalRealWiringTask.localTerminalPolicyProductionWiring =>
         'T-167',
@@ -248,8 +248,8 @@ extension LocalTerminalRealWiringTaskX on LocalTerminalRealWiringTask {
     return switch (this) {
       LocalTerminalRealWiringTask.shellActionProductionWiring =>
         'Shell action production wiring',
-      LocalTerminalRealWiringTask.localWorkspaceProductionWiring =>
-        'Local workspace production wiring',
+      LocalTerminalRealWiringTask.localLayoutProductionWiring =>
+        'Local layout production wiring',
       LocalTerminalRealWiringTask.shellProductivityProductionWiring =>
         'Shell productivity production wiring',
       LocalTerminalRealWiringTask.localTerminalPolicyProductionWiring =>

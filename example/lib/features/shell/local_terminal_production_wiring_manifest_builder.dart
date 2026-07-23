@@ -9,8 +9,8 @@ class LocalTerminalProductionWiringManifestBuilder {
     required this.actionClosureManifest,
     this.p0BoundaryManifest,
     this.p0Verification = LocalTerminalMilestoneVerificationStatus.notVerified,
-    this.workspaceSummary,
-    this.workspaceVerification =
+    this.layoutSummary,
+    this.layoutVerification =
         LocalTerminalMilestoneVerificationStatus.notVerified,
     this.productivitySummary,
     this.productivityVerification =
@@ -27,8 +27,8 @@ class LocalTerminalProductionWiringManifestBuilder {
   final ShellActionProductionClosureManifest actionClosureManifest;
   final LocalTerminalP0BoundaryClosureManifest? p0BoundaryManifest;
   final LocalTerminalMilestoneVerificationStatus p0Verification;
-  final LocalTerminalDomainWiringSummary? workspaceSummary;
-  final LocalTerminalMilestoneVerificationStatus workspaceVerification;
+  final LocalTerminalDomainWiringSummary? layoutSummary;
+  final LocalTerminalMilestoneVerificationStatus layoutVerification;
   final LocalTerminalDomainWiringSummary? productivitySummary;
   final LocalTerminalMilestoneVerificationStatus productivityVerification;
   final LocalTerminalDomainWiringSummary? policySummary;
@@ -43,9 +43,9 @@ class LocalTerminalProductionWiringManifestBuilder {
         _p0MilestoneManifest(),
         _actionMilestoneManifest(),
         _domainMilestoneManifest(
-          milestone: LocalTerminalProductionMilestone.p2Workspace,
-          summary: workspaceSummary,
-          verification: workspaceVerification,
+          milestone: LocalTerminalProductionMilestone.p2Layout,
+          summary: layoutSummary,
+          verification: layoutVerification,
         ),
         _domainMilestoneManifest(
           milestone: LocalTerminalProductionMilestone.p3Productivity,

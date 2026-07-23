@@ -11,6 +11,7 @@ class DefaultsAndAppearanceSelection {
     required this.configuredDefaultProfileId,
     required this.themeMode,
     required this.terminalViewportPadding,
+    required this.restoreLayout,
     required this.osc52Policy,
     required this.openUrlPolicy,
     required this.requestAttentionPolicy,
@@ -22,6 +23,7 @@ class DefaultsAndAppearanceSelection {
   final String? configuredDefaultProfileId;
   final TerminalThemeMode themeMode;
   final double terminalViewportPadding;
+  final bool restoreLayout;
   final LocalTerminalOsc52Policy osc52Policy;
   final LocalTerminalOpenUrlPolicy openUrlPolicy;
   final LocalTerminalRequestAttentionPolicy requestAttentionPolicy;
@@ -38,6 +40,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
     required this.effectiveDefaultProfileId,
     required this.themeMode,
     required this.terminalViewportPadding,
+    required this.restoreLayout,
     required this.osc52Policy,
     required this.openUrlPolicy,
     required this.requestAttentionPolicy,
@@ -49,6 +52,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
   final String? effectiveDefaultProfileId;
   final TerminalThemeMode themeMode;
   final double terminalViewportPadding;
+  final bool restoreLayout;
   final LocalTerminalOsc52Policy osc52Policy;
   final LocalTerminalOpenUrlPolicy openUrlPolicy;
   final LocalTerminalRequestAttentionPolicy requestAttentionPolicy;
@@ -66,6 +70,7 @@ class _DefaultsAndAppearanceDialogState
   late String? _selectedTerminalPresetId;
   late TerminalThemeMode _selectedThemeMode;
   late double _selectedTerminalViewportPadding;
+  late bool _selectedRestoreLayout;
   late LocalTerminalOsc52Policy _selectedOsc52Policy;
   late LocalTerminalOpenUrlPolicy _selectedOpenUrlPolicy;
   late LocalTerminalRequestAttentionPolicy _selectedRequestAttentionPolicy;
@@ -79,6 +84,7 @@ class _DefaultsAndAppearanceDialogState
     _selectedProfileId = widget.configuredDefaultProfileId;
     _selectedThemeMode = widget.themeMode;
     _selectedTerminalViewportPadding = widget.terminalViewportPadding;
+    _selectedRestoreLayout = widget.restoreLayout;
     _selectedOsc52Policy = widget.osc52Policy;
     _selectedOpenUrlPolicy = widget.openUrlPolicy;
     _selectedRequestAttentionPolicy = widget.requestAttentionPolicy;
@@ -260,6 +266,7 @@ class _DefaultsAndAppearanceDialogState
                             themeMode: _selectedThemeMode,
                             terminalViewportPadding:
                                 _selectedTerminalViewportPadding,
+                            restoreLayout: _selectedRestoreLayout,
                             osc52Policy: _selectedOsc52Policy,
                             openUrlPolicy: _selectedOpenUrlPolicy,
                             requestAttentionPolicy:
@@ -449,6 +456,46 @@ class _DefaultsAndAppearanceDialogState
                     ],
                   );
                 },
+              ),
+              SizedBox(height: theme.spacing.xxl),
+              const AppSectionHeader(
+                title: 'Startup',
+                description:
+                    'Choose whether the terminal should rebuild your last tab and pane arrangement.',
+              ),
+              SizedBox(height: theme.spacing.sm),
+              AppPanel(
+                key: const Key('defaults-layout-restore-panel'),
+                tone: AppPanelTone.panel,
+                padding: EdgeInsets.symmetric(
+                  horizontal: theme.spacing.lg,
+                  vertical: theme.spacing.sm,
+                ),
+                child: MergeSemantics(
+                  child: SwitchListTile(
+                    key: const Key('default-restore-layout'),
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      'Restore tabs and panes on launch',
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: theme.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Starts new shell processes and restores their folders. Running processes are not resumed.',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
+                    ),
+                    value: _selectedRestoreLayout,
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedRestoreLayout = value;
+                      });
+                    },
+                  ),
+                ),
               ),
               SizedBox(height: theme.spacing.xxl),
               const AppSectionHeader(title: 'Appearance'),
@@ -834,6 +881,7 @@ class _DefaultsAndAppearanceDialogState
                       configuredDefaultProfileId: _selectedProfileId,
                       themeMode: _selectedThemeMode,
                       terminalViewportPadding: _selectedTerminalViewportPadding,
+                      restoreLayout: _selectedRestoreLayout,
                       osc52Policy: _selectedOsc52Policy,
                       openUrlPolicy: _selectedOpenUrlPolicy,
                       requestAttentionPolicy: _selectedRequestAttentionPolicy,

@@ -12,7 +12,6 @@ class ShellCommandMenuModel {
     TerminalActionId.paste,
     TerminalActionId.instantReplay,
     TerminalActionId.search,
-    TerminalActionId.globalSearch,
   ];
 
   static List<ShellActionMenuItemViewModel> defaultItems({
@@ -21,12 +20,13 @@ class ShellCommandMenuModel {
   }) {
     return [
       for (final actionId in defaultActionOrder)
-        if (ShellActionRegistry.actions[actionId] case final descriptor?)
-          ShellActionViewModelBuilder.forDescriptor(
-            descriptor: descriptor,
-            hasActiveSession: hasActiveSession,
-            productivity: productivity,
-          ),
+        if (ShellActionRegistry.commandPaletteVisible(actionId))
+          if (ShellActionRegistry.actions[actionId] case final descriptor?)
+            ShellActionViewModelBuilder.forDescriptor(
+              descriptor: descriptor,
+              hasActiveSession: hasActiveSession,
+              productivity: productivity,
+            ),
     ];
   }
 }

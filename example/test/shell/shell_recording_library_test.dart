@@ -14,8 +14,8 @@ import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/recording/local_session_recording_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/shell/shell_screen.dart';
-import 'package:app/features/workspace/local_terminal_layout_models.dart';
-import 'package:app/features/workspace/local_terminal_layout_repository.dart';
+import 'package:app/features/layout/local_terminal_layout_models.dart';
+import 'package:app/features/layout/local_terminal_layout_repository.dart';
 
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
@@ -56,16 +56,15 @@ class _RecordingLibraryConfigRepository extends LocalTerminalConfigRepository {
   Future<void> save(LocalTerminalConfigDocument document) async {}
 }
 
-class _RecordingLibraryWorkspaceRepository
-    extends LocalTerminalLayoutRepository {
-  TerminalLayout? workspace;
+class _RecordingLibraryLayoutRepository extends LocalTerminalLayoutRepository {
+  TerminalLayout? layout;
 
   @override
-  Future<TerminalLayout?> load() => Future.value(workspace);
+  Future<TerminalLayout?> load() => Future.value(layout);
 
   @override
-  Future<void> save(TerminalLayout workspace) async {
-    this.workspace = workspace;
+  Future<void> save(TerminalLayout layout) async {
+    this.layout = layout;
   }
 }
 
@@ -98,143 +97,124 @@ class _WidgetRecordingLibraryRepository
   Future<TerminalRecording> load(String recordingPath) {
     return Future.value(recording);
   }
+
+  @override
+  Future<LocalSessionOpenedRecording> openRecording(String recordingPath) {
+    return Future.value(
+      LocalSessionOpenedRecording(entry: entry, recording: recording),
+    );
+  }
 }
 
 void main() {
-  testWidgets(
-    'recording shelf opens a recording in the replay theater and closes independently',
-    (tester) async {
-      final directory = Directory.systemTemp.createTempSync(
-        'ianvs-recording-library-widget',
-      );
-      addTearDown(() {
-        if (directory.existsSync()) {
-          directory.deleteSync(recursive: true);
-        }
-      });
-      final repository = _WidgetRecordingLibraryRepository(
-        directory: directory,
-        recording: const TerminalRecordingCodec().decode(
-          _recordingFixture('recorded-session'),
-        ),
-      );
+  testWidgets('open recording loads one file directly into replay', (
+    tester,
+  ) async {
+    final directory = Directory.systemTemp.createTempSync(
+      'ianvs-recording-library-widget',
+    );
+    addTearDown(() {
+      if (directory.existsSync()) {
+        directory.deleteSync(recursive: true);
+      }
+    });
+    final repository = _WidgetRecordingLibraryRepository(
+      directory: directory,
+      recording: const TerminalRecordingCodec().decode(
+        _recordingFixture('recorded-session'),
+      ),
+    );
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            ptySessionBackendProvider.overrideWithValue(_ReplayShellBackend()),
-            profileRepositoryProvider.overrideWithValue(
-              MemoryProfileRepository(
-                TerminalProfilesDocument(
-                  profiles: <TerminalProfile>[defaultTerminalProfile()],
-                ),
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(_ReplayShellBackend()),
+          profileRepositoryProvider.overrideWithValue(
+            MemoryProfileRepository(
+              TerminalProfilesDocument(
+                profiles: <TerminalProfile>[defaultTerminalProfile()],
               ),
             ),
-            appPreferencesRepositoryProvider.overrideWithValue(
-              MemoryAppPreferencesRepository(null),
-            ),
-            localTerminalConfigRepositoryProvider.overrideWithValue(
-              _RecordingLibraryConfigRepository(),
-            ),
-            localTerminalLayoutRepositoryProvider.overrideWithValue(
-              _RecordingLibraryWorkspaceRepository(),
-            ),
-            localSessionRecordingRepositoryProvider.overrideWithValue(
-              repository,
-            ),
-          ],
-          child: MaterialApp(
-            theme: ThemeData.light(),
-            darkTheme: ThemeData.dark(),
-            home: const ShellScreen(),
           ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            MemoryAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _RecordingLibraryConfigRepository(),
+          ),
+          localTerminalLayoutRepositoryProvider.overrideWithValue(
+            _RecordingLibraryLayoutRepository(),
+          ),
+          localSessionRecordingRepositoryProvider.overrideWithValue(repository),
+          shellRecordingFilePickerProvider.overrideWithValue(
+            () async => repository.entry.path,
+          ),
+        ],
+        child: MaterialApp(
+          theme: ThemeData.light(),
+          darkTheme: ThemeData.dark(),
+          home: const ShellScreen(),
         ),
-      );
-      await _pumpUntil(
-        tester,
-        () => find
-            .byKey(const Key('shell-chrome-recordings'))
-            .evaluate()
-            .isNotEmpty,
-        phase: 'recordings chrome control',
-      );
+      ),
+    );
+    await _pumpUntil(
+      tester,
+      () => find
+          .byKey(const Key('shell-chrome-recordings'))
+          .evaluate()
+          .isNotEmpty,
+      phase: 'recordings chrome control',
+    );
 
-      await tester.tap(find.byKey(const Key('shell-chrome-recordings')));
-      await _pumpUntil(
-        tester,
-        () => find
-            .byKey(const Key('saved-recordings-shelf'))
-            .evaluate()
-            .isNotEmpty,
-        phase: 'saved recordings shelf',
-      );
-      expect(find.text('Saved Recordings'), findsOneWidget);
-      expect(find.text('vttest regression'), findsOneWidget);
-      expect(
-        find.byKey(const Key('saved-recordings-shelf-compact')),
-        findsOneWidget,
-      );
+    await tester.tap(find.byKey(const Key('shell-chrome-recordings')));
+    await _pumpUntil(
+      tester,
+      () => find
+          .byKey(const Key('recording-replay-layout'))
+          .evaluate()
+          .isNotEmpty,
+      phase: 'recording replay layout',
+    );
+    expect(find.byKey(const Key('saved-recordings-shelf')), findsNothing);
+    expect(find.text('vttest regression'), findsOneWidget);
+    final semantics = tester.ensureSemantics();
+    await tester.pump();
+    expect(find.byKey(const Key('recording-replay-toggle')), findsOneWidget);
+    expect(find.text('Input redacted'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics &&
+            widget.properties.label ==
+                'Recording replay layout for vttest regression',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics &&
+            widget.properties.label == 'Recording replay controls',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics && widget.properties.label == 'Close replay',
+      ),
+      findsOneWidget,
+    );
+    semantics.dispose();
 
-      await tester.tap(find.text('Newest'));
-      await tester.pumpAndSettle();
-      await tester.tap(_popupItemWithText('Oldest'));
-      await tester.pumpAndSettle();
-      expect(find.text('Oldest'), findsOneWidget);
-
-      expect(find.text('ALL RECORDINGS'), findsOneWidget);
-      expect(find.textContaining('Workspace'), findsNothing);
-
-      await tester.tap(find.text('vttest regression'));
-      await _pumpUntil(
-        tester,
-        () => find
-            .byKey(const Key('recording-replay-workspace'))
-            .evaluate()
-            .isNotEmpty,
-        phase: 'recording replay workspace',
-      );
-      final semantics = tester.ensureSemantics();
-      expect(find.byKey(const Key('recording-replay-toggle')), findsOneWidget);
-      expect(find.text('Input redacted'), findsOneWidget);
-
-      await tester.tap(find.byKey(const Key('saved-recordings-shelf-close')));
-      await tester.pump();
-      expect(find.byKey(const Key('saved-recordings-shelf')), findsNothing);
-      expect(
-        find.byKey(const Key('recording-replay-workspace')),
-        findsOneWidget,
-      );
-      expect(
-        find.bySemanticsLabel(
-          'Recording replay workspace for vttest regression',
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.bySemanticsLabel('Recording replay controls'),
-        findsOneWidget,
-      );
-      expect(find.bySemanticsLabel('Close replay'), findsOneWidget);
-      semantics.dispose();
-
-      await tester.tap(find.byTooltip('Search replay'));
-      await tester.pump();
-      await tester.tap(find.byKey(const Key('recording-replay-search')));
-      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-      await tester.pumpAndSettle();
-      expect(find.byKey(const Key('recording-replay-workspace')), findsNothing);
-      expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
-    },
-  );
-}
-
-Finder _popupItemWithText(String text) {
-  return find
-      .ancestor(
-        of: find.text(text),
-        matching: find.byWidgetPredicate((widget) => widget is PopupMenuItem),
-      )
-      .first;
+    await tester.tap(find.byTooltip('Search replay'));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('recording-replay-search')));
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('recording-replay-layout')), findsNothing);
+    expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
+  });
 }
 
 Future<void> _pumpUntil(
@@ -254,7 +234,7 @@ Future<void> _pumpUntil(
     'chrome=${find.byKey(const Key('shell-chrome-bar')).evaluate().length}, '
     'recordingButton=${find.byKey(const Key('shell-chrome-session-recording')).evaluate().length}, '
     'recordingsButton=${find.byKey(const Key('shell-chrome-recordings')).evaluate().length}, '
-    'recordingsTooltip=${find.byTooltip('Open Saved Recordings').evaluate().length}.',
+    'recordingsTooltip=${find.byTooltip('Open recording').evaluate().length}.',
   );
 }
 

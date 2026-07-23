@@ -5,27 +5,27 @@ import 'package:app/features/productivity/shell_productivity_production_callback
 import 'package:app/features/shell/local_terminal_domain_wiring_summary.dart';
 import 'package:app/features/shell/local_terminal_production_wiring_manifest.dart';
 import 'package:app/features/visual/local_terminal_visual_production_callbacks.dart';
-import 'package:app/features/workspace/local_workspace_production_callbacks.dart';
+import 'package:app/features/layout/terminal_layout_production_callbacks.dart';
 
 void main() {
-  test('converts workspace wiring into a milestone manifest', () {
-    final wiring = LocalWorkspaceProductionWiring(
+  test('converts layout wiring into a milestone manifest', () {
+    final wiring = TerminalLayoutProductionWiring(
       requiredOperations: const [
-        LocalWorkspaceProductionOperation.newTab,
-        LocalWorkspaceProductionOperation.closeTab,
+        TerminalLayoutProductionOperation.newTab,
+        TerminalLayoutProductionOperation.closeTab,
       ],
-      callbacks: LocalWorkspaceProductionCallbacks(
-        newTab: (_) => const LocalWorkspaceBindingResult.completed(),
+      callbacks: TerminalLayoutProductionCallbacks(
+        newTab: (_) => const TerminalLayoutBindingResult.completed(),
       ),
     );
 
-    final summary = LocalTerminalDomainWiringSummary.fromWorkspace(wiring);
+    final summary = LocalTerminalDomainWiringSummary.fromLayout(wiring);
     final manifest = summary.toMilestoneManifest(
       testsPassed: false,
       analysisPassed: false,
     );
 
-    expect(summary.milestone, LocalTerminalProductionMilestone.p2Workspace);
+    expect(summary.milestone, LocalTerminalProductionMilestone.p2Layout);
     expect(summary.ready, isFalse);
     expect(summary.missingOperationNames, ['closeTab']);
     expect(manifest.canClose, isFalse);
@@ -62,10 +62,10 @@ void main() {
 
   test('summarizes current P2-P5 core baselines as ready', () {
     final summaries = [
-      LocalTerminalDomainWiringSummary.fromWorkspace(
-        LocalWorkspaceProductionWiring(
-          requiredOperations: _coreWorkspaceOperations,
-          callbacks: _coreWorkspaceCallbacks(),
+      LocalTerminalDomainWiringSummary.fromLayout(
+        TerminalLayoutProductionWiring(
+          requiredOperations: _coreLayoutOperations,
+          callbacks: _coreLayoutCallbacks(),
         ),
       ),
       LocalTerminalDomainWiringSummary.fromProductivity(
@@ -102,8 +102,8 @@ void main() {
   });
 
   test('summarizes advanced gaps when all operations are required', () {
-    final workspaceSummary = LocalTerminalDomainWiringSummary.fromWorkspace(
-      LocalWorkspaceProductionWiring(callbacks: _coreWorkspaceCallbacks()),
+    final layoutSummary = LocalTerminalDomainWiringSummary.fromLayout(
+      TerminalLayoutProductionWiring(callbacks: _coreLayoutCallbacks()),
     );
     final productivitySummary =
         LocalTerminalDomainWiringSummary.fromProductivity(
@@ -118,8 +118,8 @@ void main() {
       LocalTerminalVisualProductionWiring(callbacks: _coreVisualCallbacks()),
     );
 
-    expect(workspaceSummary.ready, isFalse);
-    expect(workspaceSummary.missingOperationNames, contains('saveLayout'));
+    expect(layoutSummary.ready, isFalse);
+    expect(layoutSummary.missingOperationNames, contains('saveLayout'));
     expect(productivitySummary.ready, isFalse);
     expect(
       productivitySummary.missingOperationNames,
@@ -135,44 +135,44 @@ void main() {
   });
 }
 
-const _coreWorkspaceOperations = [
-  LocalWorkspaceProductionOperation.newTab,
-  LocalWorkspaceProductionOperation.closeTab,
-  LocalWorkspaceProductionOperation.reopenClosedTab,
-  LocalWorkspaceProductionOperation.reopenClosedPane,
-  LocalWorkspaceProductionOperation.duplicateCurrentCwd,
-  LocalWorkspaceProductionOperation.splitRight,
-  LocalWorkspaceProductionOperation.splitDown,
-  LocalWorkspaceProductionOperation.closePane,
-  LocalWorkspaceProductionOperation.focusNextPane,
-  LocalWorkspaceProductionOperation.focusPreviousPane,
-  LocalWorkspaceProductionOperation.resizePane,
-  LocalWorkspaceProductionOperation.swapPane,
-  LocalWorkspaceProductionOperation.zoomPane,
+const _coreLayoutOperations = [
+  TerminalLayoutProductionOperation.newTab,
+  TerminalLayoutProductionOperation.closeTab,
+  TerminalLayoutProductionOperation.reopenClosedTab,
+  TerminalLayoutProductionOperation.reopenClosedPane,
+  TerminalLayoutProductionOperation.duplicateCurrentCwd,
+  TerminalLayoutProductionOperation.splitRight,
+  TerminalLayoutProductionOperation.splitDown,
+  TerminalLayoutProductionOperation.closePane,
+  TerminalLayoutProductionOperation.focusNextPane,
+  TerminalLayoutProductionOperation.focusPreviousPane,
+  TerminalLayoutProductionOperation.resizePane,
+  TerminalLayoutProductionOperation.swapPane,
+  TerminalLayoutProductionOperation.zoomPane,
 ];
 
-LocalWorkspaceProductionCallbacks _coreWorkspaceCallbacks() {
-  return LocalWorkspaceProductionCallbacks(
-    newTab: _completeWorkspace,
-    closeTab: _completeWorkspace,
-    reopenClosedTab: _completeWorkspace,
-    reopenClosedPane: _completeWorkspace,
-    duplicateCurrentCwd: _completeWorkspace,
-    splitRight: _completeWorkspace,
-    splitDown: _completeWorkspace,
-    closePane: _completeWorkspace,
-    focusNextPane: _completeWorkspace,
-    focusPreviousPane: _completeWorkspace,
-    resizePane: _completeWorkspace,
-    swapPane: _completeWorkspace,
-    zoomPane: _completeWorkspace,
+TerminalLayoutProductionCallbacks _coreLayoutCallbacks() {
+  return TerminalLayoutProductionCallbacks(
+    newTab: _completeLayout,
+    closeTab: _completeLayout,
+    reopenClosedTab: _completeLayout,
+    reopenClosedPane: _completeLayout,
+    duplicateCurrentCwd: _completeLayout,
+    splitRight: _completeLayout,
+    splitDown: _completeLayout,
+    closePane: _completeLayout,
+    focusNextPane: _completeLayout,
+    focusPreviousPane: _completeLayout,
+    resizePane: _completeLayout,
+    swapPane: _completeLayout,
+    zoomPane: _completeLayout,
   );
 }
 
-LocalWorkspaceBindingResult _completeWorkspace(
-  LocalWorkspaceBindingContext context,
+TerminalLayoutBindingResult _completeLayout(
+  TerminalLayoutBindingContext context,
 ) {
-  return const LocalWorkspaceBindingResult.completed();
+  return const TerminalLayoutBindingResult.completed();
 }
 
 const _coreProductivityOperations = [

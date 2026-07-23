@@ -1,20 +1,20 @@
 import '../policies/local_terminal_policy_production_callbacks.dart';
 import '../productivity/shell_productivity_production_callbacks.dart';
 import '../visual/local_terminal_visual_production_callbacks.dart';
-import '../workspace/local_workspace_production_callbacks.dart';
+import '../layout/terminal_layout_production_callbacks.dart';
 import 'shell_action_production_callbacks.dart';
 import 'shell_action_runtime_bindings.dart';
 
 class LocalTerminalActionDomainRouter {
   const LocalTerminalActionDomainRouter({
-    this.workspace,
+    this.layout,
     this.productivity,
     this.policy,
     this.visual,
     this.toggleCommandPalette,
   });
 
-  final LocalWorkspaceProductionWiring? workspace;
+  final TerminalLayoutProductionWiring? layout;
   final ShellProductivityProductionWiring? productivity;
   final LocalTerminalPolicyProductionWiring? policy;
   final LocalTerminalVisualProductionWiring? visual;
@@ -22,25 +22,23 @@ class LocalTerminalActionDomainRouter {
 
   ShellActionProductionCallbacks toActionCallbacks() {
     return ShellActionProductionCallbacks(
-      newTab: _workspace(LocalWorkspaceProductionOperation.newTab),
-      closeTab: _workspace(LocalWorkspaceProductionOperation.closeTab),
-      reopenClosedTab: _workspace(
-        LocalWorkspaceProductionOperation.reopenClosedTab,
+      newTab: _layout(TerminalLayoutProductionOperation.newTab),
+      closeTab: _layout(TerminalLayoutProductionOperation.closeTab),
+      reopenClosedTab: _layout(
+        TerminalLayoutProductionOperation.reopenClosedTab,
       ),
-      reopenClosedPane: _workspace(
-        LocalWorkspaceProductionOperation.reopenClosedPane,
+      reopenClosedPane: _layout(
+        TerminalLayoutProductionOperation.reopenClosedPane,
       ),
-      duplicateCurrentCwd: _workspace(
-        LocalWorkspaceProductionOperation.duplicateCurrentCwd,
+      duplicateCurrentCwd: _layout(
+        TerminalLayoutProductionOperation.duplicateCurrentCwd,
       ),
-      splitRight: _workspace(LocalWorkspaceProductionOperation.splitRight),
-      splitDown: _workspace(LocalWorkspaceProductionOperation.splitDown),
-      closePane: _workspace(LocalWorkspaceProductionOperation.closePane),
-      focusNextPane: _workspace(
-        LocalWorkspaceProductionOperation.focusNextPane,
-      ),
-      focusPreviousPane: _workspace(
-        LocalWorkspaceProductionOperation.focusPreviousPane,
+      splitRight: _layout(TerminalLayoutProductionOperation.splitRight),
+      splitDown: _layout(TerminalLayoutProductionOperation.splitDown),
+      closePane: _layout(TerminalLayoutProductionOperation.closePane),
+      focusNextPane: _layout(TerminalLayoutProductionOperation.focusNextPane),
+      focusPreviousPane: _layout(
+        TerminalLayoutProductionOperation.focusPreviousPane,
       ),
       copy: _policy(LocalTerminalPolicyProductionOperation.copy),
       paste: _policy(LocalTerminalPolicyProductionOperation.paste),
@@ -93,18 +91,18 @@ class LocalTerminalActionDomainRouter {
       exportScrollback: _visual(
         LocalTerminalVisualProductionOperation.exportScrollback,
       ),
-      resizePaneLeft: _workspace(LocalWorkspaceProductionOperation.resizePane),
-      resizePaneRight: _workspace(LocalWorkspaceProductionOperation.resizePane),
-      resizePaneUp: _workspace(LocalWorkspaceProductionOperation.resizePane),
-      resizePaneDown: _workspace(LocalWorkspaceProductionOperation.resizePane),
-      swapPane: _workspace(LocalWorkspaceProductionOperation.swapPane),
-      zoomPane: _workspace(LocalWorkspaceProductionOperation.zoomPane),
+      resizePaneLeft: _layout(TerminalLayoutProductionOperation.resizePane),
+      resizePaneRight: _layout(TerminalLayoutProductionOperation.resizePane),
+      resizePaneUp: _layout(TerminalLayoutProductionOperation.resizePane),
+      resizePaneDown: _layout(TerminalLayoutProductionOperation.resizePane),
+      swapPane: _layout(TerminalLayoutProductionOperation.swapPane),
+      zoomPane: _layout(TerminalLayoutProductionOperation.zoomPane),
       applyTheme: _visual(LocalTerminalVisualProductionOperation.applyTheme),
     );
   }
 
-  ShellActionBinding? _workspace(LocalWorkspaceProductionOperation operation) {
-    final wiring = workspace;
+  ShellActionBinding? _layout(TerminalLayoutProductionOperation operation) {
+    final wiring = layout;
     if (wiring == null || !wiring.registeredOperations.contains(operation)) {
       return null;
     }
@@ -116,7 +114,7 @@ class LocalTerminalActionDomainRouter {
         cwd: context.cwd,
         payload: context.payload,
       );
-      return _fromWorkspaceResult(result);
+      return _fromLayoutResult(result);
     };
   }
 
@@ -183,14 +181,14 @@ class LocalTerminalActionDomainRouter {
     };
   }
 
-  ShellActionBindingResult _fromWorkspaceResult(
-    LocalWorkspaceBindingResult result,
+  ShellActionBindingResult _fromLayoutResult(
+    TerminalLayoutBindingResult result,
   ) {
     if (result.completed) {
       return ShellActionBindingResult.completed(result.message);
     }
     return ShellActionBindingResult.failed(
-      failureCode: _workspaceFailure(result.failureCode),
+      failureCode: _layoutFailure(result.failureCode),
       message: result.message,
     );
   }
@@ -231,17 +229,17 @@ class LocalTerminalActionDomainRouter {
     );
   }
 
-  ShellActionBindingFailureCode _workspaceFailure(
-    LocalWorkspaceBindingFailureCode? failureCode,
+  ShellActionBindingFailureCode _layoutFailure(
+    TerminalLayoutBindingFailureCode? failureCode,
   ) {
     return switch (failureCode) {
-      LocalWorkspaceBindingFailureCode.unavailable =>
+      TerminalLayoutBindingFailureCode.unavailable =>
         ShellActionBindingFailureCode.unavailable,
-      LocalWorkspaceBindingFailureCode.unsupported =>
+      TerminalLayoutBindingFailureCode.unsupported =>
         ShellActionBindingFailureCode.unsupported,
-      LocalWorkspaceBindingFailureCode.rejected =>
+      TerminalLayoutBindingFailureCode.rejected =>
         ShellActionBindingFailureCode.rejected,
-      LocalWorkspaceBindingFailureCode.platformFailure =>
+      TerminalLayoutBindingFailureCode.platformFailure =>
         ShellActionBindingFailureCode.platformFailure,
       null => ShellActionBindingFailureCode.platformFailure,
     };

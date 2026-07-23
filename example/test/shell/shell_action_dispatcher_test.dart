@@ -4,28 +4,28 @@ import 'package:app/features/productivity/shell_productivity_models.dart';
 import 'package:app/features/shell/shell_action_dispatcher.dart';
 import 'package:app/features/shell/shell_action_registry.dart';
 import 'package:app/features/visual/local_terminal_visual_action_reducer.dart';
-import 'package:app/features/workspace/local_workspace_action_reducer.dart';
-import 'package:app/features/workspace/local_terminal_layout_models.dart';
+import 'package:app/features/layout/terminal_layout_action_reducer.dart';
+import 'package:app/features/layout/local_terminal_layout_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('Shell action dispatcher', () {
-    test('dispatches workspace actions first', () {
+    test('dispatches layout actions first', () {
       final result = ShellActionDispatcher.dispatch(
         actionId: TerminalActionId.newTab,
         state: const ShellActionDispatchState(),
         context: _context(),
       );
 
-      expect(result, isA<ShellWorkspaceDispatchResult>());
+      expect(result, isA<ShellLayoutDispatchResult>());
       expect(
-        (result as ShellWorkspaceDispatchResult).workspace.activeTabId,
+        (result as ShellLayoutDispatchResult).layout.activeTabId,
         'tab-next',
       );
     });
 
-    test('dispatches pane focus actions through workspace reducer', () {
-      final workspace = const TerminalLayout().addTab(
+    test('dispatches pane focus actions through layout reducer', () {
+      final layout = const TerminalLayout().addTab(
         TerminalLayoutTab(
           id: 'tab-1',
           activePaneId: 'pane-2',
@@ -46,21 +46,18 @@ void main() {
 
       final result = ShellActionDispatcher.dispatch(
         actionId: TerminalActionId.focusPreviousPane,
-        state: ShellActionDispatchState(workspace: workspace),
+        state: ShellActionDispatchState(layout: layout),
         context: _context(),
       );
 
-      expect(result, isA<ShellWorkspaceDispatchResult>());
+      expect(result, isA<ShellLayoutDispatchResult>());
       expect(
-        (result as ShellWorkspaceDispatchResult)
-            .workspace
-            .activeTab!
-            .activePaneId,
+        (result as ShellLayoutDispatchResult).layout.activeTab!.activePaneId,
         'pane-1',
       );
     });
 
-    test('dispatches productivity actions when workspace is unchanged', () {
+    test('dispatches productivity actions when layout is unchanged', () {
       final result = ShellActionDispatcher.dispatch(
         actionId: TerminalActionId.toggleReadOnly,
         state: const ShellActionDispatchState(),
@@ -74,22 +71,19 @@ void main() {
       );
     });
 
-    test(
-      'dispatches policy actions when workspace and productivity are noop',
-      () {
-        final result = ShellActionDispatcher.dispatch(
-          actionId: TerminalActionId.paste,
-          state: const ShellActionDispatchState(),
-          context: _context(pasteText: 'hello'),
-        );
+    test('dispatches policy actions when layout and productivity are noop', () {
+      final result = ShellActionDispatcher.dispatch(
+        actionId: TerminalActionId.paste,
+        state: const ShellActionDispatchState(),
+        context: _context(pasteText: 'hello'),
+      );
 
-        expect(result, isA<ShellPolicyDispatchResult>());
-        expect(
-          (result as ShellPolicyDispatchResult).result,
-          isA<LocalTerminalPasteActionResult>(),
-        );
-      },
-    );
+      expect(result, isA<ShellPolicyDispatchResult>());
+      expect(
+        (result as ShellPolicyDispatchResult).result,
+        isA<LocalTerminalPasteActionResult>(),
+      );
+    });
 
     test('dispatches visual actions when other reducers are noop', () {
       final result = ShellActionDispatcher.dispatch(
@@ -119,7 +113,7 @@ void main() {
 
 ShellActionDispatchContext _context({String pasteText = ''}) {
   return ShellActionDispatchContext(
-    workspace: const LocalWorkspaceActionContext(
+    layout: const TerminalLayoutActionContext(
       nextTabId: 'tab-next',
       nextPaneId: 'pane-next',
       nextSplitId: 'split-next',

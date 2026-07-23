@@ -8,13 +8,13 @@ class _RecordingLibraryLayout extends StatelessWidget {
   const _RecordingLibraryLayout({
     required this.palette,
     required this.shelfOpen,
-    required this.workspace,
+    required this.layout,
     required this.shelf,
   });
 
   final AppThemeTokens palette;
   final bool shelfOpen;
-  final Widget workspace;
+  final Widget layout;
   final Widget shelf;
 
   @override
@@ -23,12 +23,12 @@ class _RecordingLibraryLayout extends StatelessWidget {
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 960;
         if (!shelfOpen) {
-          return workspace;
+          return layout;
         }
         if (compact) {
           return Stack(
             children: [
-              Positioned.fill(child: workspace),
+              Positioned.fill(child: layout),
               Positioned.fill(
                 child: ColoredBox(
                   color: palette.inactiveScrim.withValues(alpha: 0.58),
@@ -48,7 +48,7 @@ class _RecordingLibraryLayout extends StatelessWidget {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(child: workspace),
+            Expanded(child: layout),
             SizedBox(width: 372, child: shelf),
           ],
         );
@@ -673,12 +673,12 @@ class _RecordingLibraryRow extends StatelessWidget {
   }
 }
 
-class _RecordingReplayWorkspace extends StatefulWidget {
-  const _RecordingReplayWorkspace({
+class _RecordingReplayLayout extends StatefulWidget {
+  const _RecordingReplayLayout({
     super.key,
     required this.palette,
     required this.entry,
-    required this.workspaceName,
+    required this.layoutName,
     required this.recording,
     required this.delegate,
     required this.sessionConfig,
@@ -690,7 +690,7 @@ class _RecordingReplayWorkspace extends StatefulWidget {
 
   final AppThemeTokens palette;
   final LocalSessionRecordingEntry entry;
-  final String workspaceName;
+  final String layoutName;
   final terminal.TerminalRecording recording;
   final pty.PtySessionBackend delegate;
   final terminal.TerminalSessionConfig sessionConfig;
@@ -700,11 +700,10 @@ class _RecordingReplayWorkspace extends StatefulWidget {
   final VoidCallback onClose;
 
   @override
-  State<_RecordingReplayWorkspace> createState() =>
-      _RecordingReplayWorkspaceState();
+  State<_RecordingReplayLayout> createState() => _RecordingReplayLayoutState();
 }
 
-class _RecordingReplayWorkspaceState extends State<_RecordingReplayWorkspace> {
+class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
   static const _speeds = <double>[0.25, 0.5, 1, 2, 4];
 
   terminal.TerminalReplayBackend? _backend;
@@ -892,8 +891,8 @@ class _RecordingReplayWorkspaceState extends State<_RecordingReplayWorkspace> {
     final duration = backend?.replayDuration ?? widget.entry.duration;
     final maxMicros = math.max(1, duration.inMicroseconds);
     final sliderValue = _position.inMicroseconds.clamp(0, maxMicros).toDouble();
-    final replayWorkspace = ColoredBox(
-      key: const Key('recording-replay-workspace'),
+    final replayLayout = ColoredBox(
+      key: const Key('recording-replay-layout'),
       color: palette.canvas,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
@@ -903,7 +902,7 @@ class _RecordingReplayWorkspaceState extends State<_RecordingReplayWorkspace> {
             _RecordingReplayMetadataBar(
               palette: palette,
               entry: widget.entry,
-              workspaceName: widget.workspaceName,
+              layoutName: widget.layoutName,
             ),
             const SizedBox(height: 8),
             Expanded(
@@ -1021,13 +1020,13 @@ class _RecordingReplayWorkspaceState extends State<_RecordingReplayWorkspace> {
         const SingleActivator(LogicalKeyboardKey.escape): widget.onClose,
       },
       child: Semantics(
-        identifier: 'recording-replay-workspace',
+        identifier: 'recording-replay-layout',
         container: true,
         explicitChildNodes: true,
-        label: 'Recording replay workspace for ${widget.entry.displayName}',
+        label: 'Recording replay layout for ${widget.entry.displayName}',
         child: FocusTraversalGroup(
           policy: OrderedTraversalPolicy(),
-          child: replayWorkspace,
+          child: replayLayout,
         ),
       ),
     );
@@ -1038,12 +1037,12 @@ class _RecordingReplayMetadataBar extends StatelessWidget {
   const _RecordingReplayMetadataBar({
     required this.palette,
     required this.entry,
-    required this.workspaceName,
+    required this.layoutName,
   });
 
   final AppThemeTokens palette;
   final LocalSessionRecordingEntry entry;
-  final String workspaceName;
+  final String layoutName;
 
   @override
   Widget build(BuildContext context) {
@@ -1075,7 +1074,7 @@ class _RecordingReplayMetadataBar extends StatelessWidget {
             _ReplayMetadataItem(
               palette: palette,
               icon: Icons.folder_outlined,
-              label: workspaceName,
+              label: layoutName,
             ),
             _ReplayMetadataDivider(palette: palette),
             _ReplayMetadataItem(
@@ -1272,7 +1271,7 @@ class _RecordingReplayDock extends StatelessWidget {
                     tooltip: 'Playback speed',
                     onSelected: onSpeedChanged,
                     itemBuilder: (context) => [
-                      for (final item in _RecordingReplayWorkspaceState._speeds)
+                      for (final item in _RecordingReplayLayoutState._speeds)
                         PopupMenuItem(
                           value: item,
                           child: Text(

@@ -3,17 +3,17 @@ import 'package:app/features/policies/local_terminal_policy_action_reducer.dart'
 import 'package:app/features/shell/shell_action_dispatcher.dart';
 import 'package:app/features/shell/shell_action_side_effect_plan.dart';
 import 'package:app/features/visual/local_terminal_visual_action_reducer.dart';
-import 'package:app/features/workspace/local_terminal_layout_models.dart';
+import 'package:app/features/layout/local_terminal_layout_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('Shell action side effect planner', () {
-    test('maps workspace dispatch to update workspace plan', () {
+    test('maps layout dispatch to update layout plan', () {
       final plan = ShellActionSideEffectPlanner.plan(
-        const ShellWorkspaceDispatchResult(TerminalLayout()),
+        const ShellLayoutDispatchResult(TerminalLayout()),
       );
 
-      expect(plan.kind, ShellActionSideEffectKind.updateWorkspace);
+      expect(plan.kind, ShellActionSideEffectKind.updateLayout);
     });
 
     test('maps paste decision to paste side effect kinds', () {

@@ -2176,12 +2176,12 @@ void main() {
 
       final semantics = tester.ensureSemantics();
       expect(find.byKey(const Key('instant-replay-sheet')), findsNothing);
-      expect(find.byKey(const Key('instant-replay-workspace')), findsOneWidget);
-      expect(find.bySemanticsLabel('Instant Replay workspace'), findsOneWidget);
+      expect(find.byKey(const Key('instant-replay-layout')), findsOneWidget);
+      expect(find.bySemanticsLabel('Instant Replay layout'), findsOneWidget);
       expect(find.bySemanticsLabel('Instant Replay controls'), findsOneWidget);
       expect(
         find.descendant(
-          of: find.byKey(const Key('instant-replay-workspace')),
+          of: find.byKey(const Key('instant-replay-layout')),
           matching: find.byKey(const Key('instant-replay-viewport')),
         ),
         findsOneWidget,
@@ -2384,13 +2384,13 @@ void main() {
       expect(find.text('Clear instant replay history?'), findsOneWidget);
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
-      expect(find.byKey(const Key('instant-replay-workspace')), findsOneWidget);
+      expect(find.byKey(const Key('instant-replay-layout')), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('instant-replay-search')));
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('instant-replay-workspace')), findsNothing);
+      expect(find.byKey(const Key('instant-replay-layout')), findsNothing);
       expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
       expect(
         find.bySemanticsLabel('Start recording (input redacted)'),
@@ -3404,7 +3404,7 @@ void main() {
       await tester.tap(find.byType(TerminalViewport).last);
       await tester.pump();
       await _sendMetaAltShortcut(tester, LogicalKeyboardKey.keyB);
-      expect(find.byKey(const Key('instant-replay-workspace')), findsOneWidget);
+      expect(find.byKey(const Key('instant-replay-layout')), findsOneWidget);
       expect(fakeBindings.writes, isEmpty);
       await tester.tap(find.byTooltip('Exit instant replay'));
       await tester.pumpAndSettle();
@@ -6137,10 +6137,10 @@ void main() {
 
     expect(find.byKey(const Key('shell-empty-state')), findsOneWidget);
     expect(find.byType(TerminalViewport), findsNothing);
-    expect(find.text('Shell workspace is idle'), findsOneWidget);
+    expect(find.text('Shell layout is idle'), findsOneWidget);
     expect(
       find.text(
-        'The last session has closed. Open a new tab to keep working in the shell workspace.',
+        'The last session has closed. Open a new tab to keep working in the shell layout.',
       ),
       findsOneWidget,
     );
@@ -6222,10 +6222,10 @@ void main() {
     expect(instantReplayStore.framesFor('1'), isEmpty);
     expect(find.byKey(const Key('shell-empty-state')), findsOneWidget);
     expect(find.byType(TerminalViewport), findsNothing);
-    expect(find.text('Shell workspace is idle'), findsOneWidget);
+    expect(find.text('Shell layout is idle'), findsOneWidget);
     expect(
       find.text(
-        'The last session has closed. Open a new tab to keep working in the shell workspace.',
+        'The last session has closed. Open a new tab to keep working in the shell layout.',
       ),
       findsOneWidget,
     );

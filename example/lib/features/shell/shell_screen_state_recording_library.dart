@@ -1,12 +1,39 @@
 part of 'shell_screen.dart';
 
 extension _ShellScreenRecordingLibraryState on _ShellScreenState {
-  Future<void> _toggleRecordingLibrary() async {
+  Future<void> _openRecordingFromPicker() async {
+    if (_recordingSelectionLoading) {
+      return;
+    }
+    final sourcePath = await ref.read(shellRecordingFilePickerProvider)();
+    if (!mounted || sourcePath == null) {
+      return;
+    }
     _mutateState(() {
-      _recordingsShelfOpen = !_recordingsShelfOpen;
+      _recordingSelectionLoading = true;
+      _recordingLibraryError = null;
     });
-    if (_recordingsShelfOpen) {
-      await _loadRecordingLibrary();
+    try {
+      final opened = await ref
+          .read(localSessionRecordingRepositoryProvider)
+          .openRecording(sourcePath);
+      if (!mounted) {
+        return;
+      }
+      _mutateState(() {
+        _selectedRecordingEntry = opened.entry;
+        _selectedRecording = opened.recording;
+      });
+    } on Object catch (error) {
+      if (mounted) {
+        _showShellSnackBar('Could not open recording: $error');
+      }
+    } finally {
+      if (mounted) {
+        _mutateState(() {
+          _recordingSelectionLoading = false;
+        });
+      }
     }
   }
 

@@ -34,7 +34,9 @@ class LocalTerminalConfigRepository {
       return document;
     } on FormatException {
       await quarantineCorruptFile(file);
-      const repaired = LocalTerminalConfigDocument();
+      const repaired = LocalTerminalConfigDocument(
+        layout: LocalTerminalLayoutConfig(restoreLayout: false),
+      );
       await save(repaired);
       return repaired;
     }
@@ -65,6 +67,7 @@ class LocalTerminalConfigMigration {
     return LocalTerminalConfigDocument(
       defaultProfileId: preferences.defaults.defaultProfileId,
       appearance: preferences.appearance,
+      layout: const LocalTerminalLayoutConfig(restoreLayout: false),
       notifications: LocalTerminalNotificationsConfig(
         enabled:
             notifications.commandFinished ||

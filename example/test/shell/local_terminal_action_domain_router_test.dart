@@ -4,16 +4,16 @@ import 'package:app/features/productivity/shell_productivity_production_callback
 import 'package:app/features/shell/local_terminal_action_domain_router.dart';
 import 'package:app/features/shell/shell_action_production_action_set.dart';
 import 'package:app/features/shell/shell_action_registry.dart';
-import 'package:app/features/workspace/local_workspace_production_callbacks.dart';
+import 'package:app/features/layout/terminal_layout_production_callbacks.dart';
 
 void main() {
   test('routes shell actions to registered domain callbacks', () async {
-    final workspace = LocalWorkspaceProductionWiring(
-      requiredOperations: const [LocalWorkspaceProductionOperation.newTab],
-      callbacks: LocalWorkspaceProductionCallbacks(
+    final layout = TerminalLayoutProductionWiring(
+      requiredOperations: const [TerminalLayoutProductionOperation.newTab],
+      callbacks: TerminalLayoutProductionCallbacks(
         newTab: (context) {
           expect(context.cwd, '/tmp/project');
-          return const LocalWorkspaceBindingResult.completed('created');
+          return const TerminalLayoutBindingResult.completed('created');
         },
       ),
     );
@@ -30,7 +30,7 @@ void main() {
     );
 
     final callbacks = LocalTerminalActionDomainRouter(
-      workspace: workspace,
+      layout: layout,
       productivity: productivity,
     ).toActionCallbacks();
     final buildResult = callbacks.build(
@@ -55,9 +55,9 @@ void main() {
 
   test('omits action callbacks for missing domain operations', () {
     final callbacks = LocalTerminalActionDomainRouter(
-      workspace: LocalWorkspaceProductionWiring(
+      layout: TerminalLayoutProductionWiring(
         requiredOperations: const [],
-        callbacks: const LocalWorkspaceProductionCallbacks(),
+        callbacks: const TerminalLayoutProductionCallbacks(),
       ),
     ).toActionCallbacks();
     final buildResult = callbacks.build(

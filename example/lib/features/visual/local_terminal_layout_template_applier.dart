@@ -1,4 +1,4 @@
-import '../workspace/local_terminal_layout_models.dart';
+import '../layout/local_terminal_layout_models.dart';
 import 'local_terminal_visual_models.dart';
 
 class LocalTerminalLayoutTemplateApplyContext {

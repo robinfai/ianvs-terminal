@@ -11,7 +11,7 @@ import 'package:app/features/config/local_terminal_config_repository.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/recording/local_session_recording_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
-import 'package:app/features/workspace/local_terminal_layout_repository.dart';
+import 'package:app/features/layout/local_terminal_layout_repository.dart';
 
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';

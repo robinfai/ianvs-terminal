@@ -6,8 +6,8 @@ import 'package:app/features/shell/shell_action_registry.dart';
 import 'package:app/features/shell/shell_command_menu_adapter.dart';
 import 'package:app/features/shell/shell_action_runtime_controller.dart';
 import 'package:app/features/visual/local_terminal_visual_action_reducer.dart';
-import 'package:app/features/workspace/local_workspace_action_reducer.dart';
-import 'package:app/features/workspace/local_terminal_layout_models.dart';
+import 'package:app/features/layout/terminal_layout_action_reducer.dart';
+import 'package:app/features/layout/local_terminal_layout_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -25,6 +25,10 @@ void main() {
       );
       expect(
         items.any((item) => item.actionId == TerminalActionId.openThemePicker),
+        isFalse,
+      );
+      expect(
+        items.any((item) => item.actionId == TerminalActionId.openRecording),
         isTrue,
       );
     });
@@ -39,14 +43,14 @@ void main() {
         context: _context(),
       );
 
-      expect(state.workspace.activeTabId, 'tab-next');
+      expect(state.layout.activeTabId, 'tab-next');
     });
   });
 }
 
 ShellActionDispatchContext _context() {
   return ShellActionDispatchContext(
-    workspace: const LocalWorkspaceActionContext(
+    layout: const TerminalLayoutActionContext(
       nextTabId: 'tab-next',
       nextPaneId: 'pane-next',
       nextSplitId: 'split-next',

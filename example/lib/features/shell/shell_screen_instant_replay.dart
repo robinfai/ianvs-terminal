@@ -1,9 +1,9 @@
 part of 'shell_screen.dart';
 
-class _InstantReplayWorkspace extends StatefulWidget {
-  const _InstantReplayWorkspace({
+class _InstantReplayLayout extends StatefulWidget {
+  const _InstantReplayLayout({
     super.key,
-    required this.workspace,
+    required this.layout,
     required this.palette,
     required this.runtime,
     required this.terminalColors,
@@ -14,7 +14,7 @@ class _InstantReplayWorkspace extends StatefulWidget {
     required this.onExit,
   });
 
-  final _InstantReplayWorkspaceSession workspace;
+  final _InstantReplayLayoutSession layout;
   final AppThemeTokens palette;
   final terminal.TerminalRuntimeController runtime;
   final terminal.TerminalViewportColors terminalColors;
@@ -25,11 +25,10 @@ class _InstantReplayWorkspace extends StatefulWidget {
   final VoidCallback onExit;
 
   @override
-  State<_InstantReplayWorkspace> createState() =>
-      _InstantReplayWorkspaceState();
+  State<_InstantReplayLayout> createState() => _InstantReplayLayoutState();
 }
 
-class _InstantReplayWorkspaceState extends State<_InstantReplayWorkspace> {
+class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
   static const _playbackTick = Duration(milliseconds: 16);
   static const _maxPlaybackFrameGap = Duration(seconds: 2);
 
@@ -50,7 +49,7 @@ class _InstantReplayWorkspaceState extends State<_InstantReplayWorkspace> {
   List<terminal.TerminalSearchMatch> _activeSearchMatches = const [];
 
   InstantReplayFrame? get _activeFrame {
-    final frames = widget.workspace.frames;
+    final frames = widget.layout.frames;
     if (frames.isEmpty) {
       return null;
     }
@@ -61,13 +60,13 @@ class _InstantReplayWorkspaceState extends State<_InstantReplayWorkspace> {
   @override
   void initState() {
     super.initState();
-    _activeIndex = _initialActiveIndex(widget.workspace.frames);
+    _activeIndex = _initialActiveIndex(widget.layout.frames);
     _playheadElapsed = _elapsedForFrameIndex(_activeIndex);
     _viewportController = terminal.TerminalViewportController();
     _selectionController = SelectionController();
-    _focusNode = FocusNode(debugLabel: 'instant-replay-workspace');
+    _focusNode = FocusNode(debugLabel: 'instant-replay-layout');
     _inputController = TerminalInputController(
-      sessionId: widget.workspace.sourceSessionId,
+      sessionId: widget.layout.sourceSessionId,
       runtime: widget.runtime,
       readFrame: () => _viewportController.frame,
       readSelection: () =>
@@ -80,14 +79,13 @@ class _InstantReplayWorkspaceState extends State<_InstantReplayWorkspace> {
   }
 
   @override
-  void didUpdateWidget(covariant _InstantReplayWorkspace oldWidget) {
+  void didUpdateWidget(covariant _InstantReplayLayout oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.workspace.frames.length != oldWidget.workspace.frames.length ||
-        widget.workspace.sourceSessionId !=
-            oldWidget.workspace.sourceSessionId) {
-      _activeIndex = _initialActiveIndex(widget.workspace.frames);
+    if (widget.layout.frames.length != oldWidget.layout.frames.length ||
+        widget.layout.sourceSessionId != oldWidget.layout.sourceSessionId) {
+      _activeIndex = _initialActiveIndex(widget.layout.frames);
       _playheadElapsed = _elapsedForFrameIndex(_activeIndex);
-      if (widget.workspace.frames.isEmpty) {
+      if (widget.layout.frames.isEmpty) {
         _stopPlayback();
       }
       _applyActiveFrame();
@@ -135,8 +133,8 @@ class _InstantReplayWorkspaceState extends State<_InstantReplayWorkspace> {
       _searchResultCount = 0;
       _activeSearchMatchIndex = 0;
       int? firstMatchingIndex;
-      for (var index = 0; index < widget.workspace.frames.length; index += 1) {
-        final matches = _matchesForFrame(widget.workspace.frames[index], query);
+      for (var index = 0; index < widget.layout.frames.length; index += 1) {
+        final matches = _matchesForFrame(widget.layout.frames[index], query);
         if (matches.isNotEmpty && firstMatchingIndex == null) {
           firstMatchingIndex = index;
         }
@@ -188,11 +186,11 @@ class _InstantReplayWorkspaceState extends State<_InstantReplayWorkspace> {
     final hits = <_InstantReplaySearchHit>[];
     for (
       var frameIndex = 0;
-      frameIndex < widget.workspace.frames.length;
+      frameIndex < widget.layout.frames.length;
       frameIndex += 1
     ) {
       final matches = _matchesForFrame(
-        widget.workspace.frames[frameIndex],
+        widget.layout.frames[frameIndex],
         _searchQuery,
       );
       for (var matchIndex = 0; matchIndex < matches.length; matchIndex += 1) {
@@ -240,15 +238,15 @@ class _InstantReplayWorkspaceState extends State<_InstantReplayWorkspace> {
       return 'No matches in replay history.';
     }
     final matchLabel = _searchResultCount == 1 ? 'match' : 'matches';
-    final frameLabel = widget.workspace.frames.length == 1 ? 'frame' : 'frames';
-    return '$_searchResultCount $matchLabel across ${widget.workspace.frames.length} $frameLabel';
+    final frameLabel = widget.layout.frames.length == 1 ? 'frame' : 'frames';
+    return '$_searchResultCount $matchLabel across ${widget.layout.frames.length} $frameLabel';
   }
 
   void _setActiveIndex(int index) {
     setState(() {
       _stopPlayback();
       _activeIndex = index
-          .clamp(0, math.max(0, widget.workspace.frames.length - 1))
+          .clamp(0, math.max(0, widget.layout.frames.length - 1))
           .toInt();
       _activeSearchMatchIndex = 0;
       _playheadElapsed = _elapsedForFrameIndex(_activeIndex);
@@ -306,7 +304,7 @@ class _InstantReplayWorkspaceState extends State<_InstantReplayWorkspace> {
   }
 
   Duration get _timelineDuration {
-    final frames = widget.workspace.frames;
+    final frames = widget.layout.frames;
     if (frames.length <= 1) {
       return Duration.zero;
     }
@@ -314,7 +312,7 @@ class _InstantReplayWorkspaceState extends State<_InstantReplayWorkspace> {
   }
 
   Duration _elapsedForFrameIndex(int index) {
-    final frames = widget.workspace.frames;
+    final frames = widget.layout.frames;
     if (frames.isEmpty || index <= 0) {
       return Duration.zero;
     }
@@ -337,7 +335,7 @@ class _InstantReplayWorkspaceState extends State<_InstantReplayWorkspace> {
   }
 
   Duration _actualGapBeforeFrameIndex(int index) {
-    final frames = widget.workspace.frames;
+    final frames = widget.layout.frames;
     if (index <= 0 || index >= frames.length) {
       return Duration.zero;
     }
@@ -345,7 +343,7 @@ class _InstantReplayWorkspaceState extends State<_InstantReplayWorkspace> {
   }
 
   List<_InstantReplayIdleGapMarker> _idleGapMarkers() {
-    final frames = widget.workspace.frames;
+    final frames = widget.layout.frames;
     if (frames.length <= 1) {
       return const <_InstantReplayIdleGapMarker>[];
     }
@@ -370,7 +368,7 @@ class _InstantReplayWorkspaceState extends State<_InstantReplayWorkspace> {
   }
 
   int _frameIndexForElapsed(Duration elapsed) {
-    final frames = widget.workspace.frames;
+    final frames = widget.layout.frames;
     if (frames.isEmpty) {
       return 0;
     }
@@ -491,20 +489,19 @@ class _InstantReplayWorkspaceState extends State<_InstantReplayWorkspace> {
     final frameLabel = activeFrame == null
         ? 'No replay frames'
         : 'Recorded at ${activeFrame.snapshot.viewportCols}x${activeFrame.snapshot.viewportRows}';
-    final hasMultipleFrames = widget.workspace.frames.length > 1;
+    final hasMultipleFrames = widget.layout.frames.length > 1;
     final canStepBack = activeFrame != null && _activeIndex > 0;
     final canStepForward =
-        activeFrame != null &&
-        _activeIndex < widget.workspace.frames.length - 1;
+        activeFrame != null && _activeIndex < widget.layout.frames.length - 1;
     final canPlay =
         activeFrame != null &&
         (_isPlaying || _playheadElapsed < _timelineDuration);
-    final controls = _InstantReplayWorkspaceControls(
+    final controls = _InstantReplayLayoutControls(
       key: const Key('instant-replay-controls'),
-      sourceLabel: widget.workspace.sourceLabel,
+      sourceLabel: widget.layout.sourceLabel,
       frameLabel: frameLabel,
-      retentionFrameLimit: widget.workspace.retentionFrameLimit,
-      frameCount: widget.workspace.frames.length,
+      retentionFrameLimit: widget.layout.retentionFrameLimit,
+      frameCount: widget.layout.frames.length,
       activeIndex: _activeIndex,
       timelineValue: _timelineValueForDuration(_playheadElapsed),
       timelineMax: math.max(
@@ -512,7 +509,7 @@ class _InstantReplayWorkspaceState extends State<_InstantReplayWorkspace> {
         hasMultipleFrames ? 1.0 : 0.0,
       ),
       changeMarkerValues: [
-        for (var index = 0; index < widget.workspace.frames.length; index += 1)
+        for (var index = 0; index < widget.layout.frames.length; index += 1)
           _timelineValueForDuration(_elapsedForFrameIndex(index)),
       ],
       idleGapMarkers: _idleGapMarkers(),
@@ -527,7 +524,7 @@ class _InstantReplayWorkspaceState extends State<_InstantReplayWorkspace> {
           ? () => _setActiveIndex(_activeIndex + 1)
           : null,
       onTogglePlay: canPlay ? _togglePlayback : null,
-      onClear: () => widget.onClear(widget.workspace.sourceSessionId),
+      onClear: () => widget.onClear(widget.layout.sourceSessionId),
       searchSummary: _searchSummary(),
       onSearchChanged: _updateSearch,
       onSearchPrevious: _searchResultCount == 0
@@ -630,10 +627,10 @@ class _InstantReplayWorkspaceState extends State<_InstantReplayWorkspace> {
         const SingleActivator(LogicalKeyboardKey.escape): widget.onExit,
       },
       child: Semantics(
-        identifier: 'instant-replay-workspace',
+        identifier: 'instant-replay-layout',
         container: true,
         explicitChildNodes: true,
-        label: 'Instant Replay workspace',
+        label: 'Instant Replay layout',
         child: FocusTraversalGroup(
           policy: OrderedTraversalPolicy(),
           child: ColoredBox(
@@ -671,8 +668,8 @@ class _InstantReplayWorkspaceState extends State<_InstantReplayWorkspace> {
   }
 }
 
-class _InstantReplayWorkspaceControls extends StatelessWidget {
-  const _InstantReplayWorkspaceControls({
+class _InstantReplayLayoutControls extends StatelessWidget {
+  const _InstantReplayLayoutControls({
     super.key,
     required this.sourceLabel,
     required this.frameLabel,

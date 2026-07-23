@@ -74,7 +74,7 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
     if (_isToolbeltOpen) {
       return 'toolbelt';
     }
-    if (_instantReplayWorkspaceSession != null) {
+    if (_instantReplayLayoutSession != null) {
       return 'instantReplay';
     }
     return 'none';

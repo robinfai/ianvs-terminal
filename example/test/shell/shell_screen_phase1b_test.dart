@@ -935,10 +935,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('shell-empty-state')), findsOneWidget);
-    expect(find.text('Shell workspace is idle'), findsOneWidget);
+    expect(find.text('Shell layout is idle'), findsOneWidget);
     expect(
       find.text(
-        'The last session has closed. Open a new tab to keep working in the shell workspace.',
+        'The last session has closed. Open a new tab to keep working in the shell layout.',
       ),
       findsOneWidget,
     );

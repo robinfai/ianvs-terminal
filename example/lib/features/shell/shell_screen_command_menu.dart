@@ -101,6 +101,9 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
       String? shortcutLabel,
       VoidCallback? onTap,
     }) {
+      if (!ShellActionRegistry.commandPaletteVisible(actionId) && !kDebugMode) {
+        return const SizedBox.shrink();
+      }
       if (!_commandMenuActionMatchesQuery(
         actionId,
         _query,
@@ -411,6 +414,18 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         ).pop(TerminalActionId.toggleSessionRecording),
                       ),
                       commandTile(
+                        key: const Key('shell-open-recording'),
+                        actionId: TerminalActionId.openRecording,
+                        icon: Icons.video_file_outlined,
+                        title: 'Open recording…',
+                        subtitle:
+                            'Session action • Open one terminal recording for replay.',
+                        enabled: true,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.openRecording),
+                      ),
+                      commandTile(
                         key: const Key('shell-clear-scrollback'),
                         actionId: TerminalActionId.clearScrollback,
                         icon: Icons.clear_all_rounded,
@@ -510,6 +525,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
 
 const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
   MapEntry('new tab open default shell profile', TerminalActionId.newTab),
+  MapEntry('open recording replay ndjson file', TerminalActionId.openRecording),
   MapEntry(
     'defaults appearance default profile theme',
     TerminalActionId.defaults,
@@ -549,7 +565,7 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
     TerminalActionId.instantReplay,
   ),
   MapEntry('search scrollback find local output', TerminalActionId.search),
-  MapEntry('global search workspace all tabs', TerminalActionId.globalSearch),
+  MapEntry('global search layout all tabs', TerminalActionId.globalSearch),
 ];
 
 TerminalActionId? _commandMenuActionForQuery(String query) {

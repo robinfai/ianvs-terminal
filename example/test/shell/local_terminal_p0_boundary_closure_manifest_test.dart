@@ -7,7 +7,7 @@ void main() {
   test('converts ready P0 boundary state into a closeable manifest input', () {
     const p0 = LocalTerminalP0BoundaryClosureManifest(
       localTerminalPlanDocumented: true,
-      roadmapLocalWorkspaceAligned: true,
+      roadmapTerminalLayoutAligned: true,
       remoteScopeExcluded: true,
       perMilestoneExecutionPlansCreated: true,
       competitorCoverageMapped: true,
@@ -30,7 +30,7 @@ void main() {
   test('keeps missing P0 boundary artifacts as blockers', () {
     const p0 = LocalTerminalP0BoundaryClosureManifest(
       localTerminalPlanDocumented: false,
-      roadmapLocalWorkspaceAligned: true,
+      roadmapTerminalLayoutAligned: true,
       remoteScopeExcluded: false,
       perMilestoneExecutionPlansCreated: true,
       competitorCoverageMapped: true,

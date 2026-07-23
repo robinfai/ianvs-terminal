@@ -18,9 +18,9 @@ import '../profiles/profile_models.dart';
 import '../profiles/profile_repository.dart';
 import '../recording/local_session_recording_repository.dart';
 import '../terminal/terminal.dart' hide TerminalEmulation;
-import '../workspace/local_session_layout_codec.dart';
-import '../workspace/local_terminal_layout_models.dart';
-import '../workspace/local_terminal_layout_repository.dart';
+import '../layout/local_session_layout_codec.dart';
+import '../layout/local_terminal_layout_models.dart';
+import '../layout/local_terminal_layout_repository.dart';
 import 'session_bootstrap.dart';
 import 'session_ports.dart';
 import 'session_state.dart';
@@ -561,20 +561,32 @@ class SessionController extends Notifier<SessionState> {
     var initialTabs = <TerminalTab>[];
     String? initialSessionId;
     String? layoutRestoreError;
-    if (_localConfigDocument.layout.restoreLayout) {
-      final workspace = await ref
-          .read(localTerminalLayoutRepositoryProvider)
-          .load();
-      if (workspace != null && !workspace.isEmpty) {
-        final restored = _restoreTerminalLayout(
-          workspace,
-          profiles: runtimeProfiles,
-        );
-        initialTabs = restored.tabs;
-        initialSessionId = restored.activeSessionId;
-        if (restored.failures.isNotEmpty) {
-          layoutRestoreError = _layoutRestoreFailureMessage(restored.failures);
+    final canHaveSavedLayout =
+        _configBootstrapSource != LocalTerminalConfigBootstrapSource.defaults;
+    if (_localConfigDocument.layout.restoreLayout && canHaveSavedLayout) {
+      try {
+        final layout = await ref
+            .read(localTerminalLayoutRepositoryProvider)
+            .load();
+        if (layout != null && !layout.isEmpty) {
+          final restored = _restoreTerminalLayout(
+            layout,
+            profiles: runtimeProfiles,
+          );
+          initialTabs = restored.tabs;
+          initialSessionId = restored.activeSessionId;
+          if (restored.failures.isNotEmpty) {
+            layoutRestoreError = _layoutRestoreFailureMessage(
+              restored.failures,
+            );
+          }
         }
+      } on MissingPluginException {
+        // Platform persistence is unavailable in unit/widget hosts.
+      } on Object catch (error) {
+        layoutRestoreError =
+            'Terminal layout could not be loaded: '
+            '${_boundedShellMetadata(error.toString(), 240)}';
       }
     }
 
@@ -632,7 +644,7 @@ class SessionController extends Notifier<SessionState> {
   }
 
   LocalTerminalLayoutRestoreResult _restoreTerminalLayout(
-    TerminalLayout workspace, {
+    TerminalLayout layout, {
     required List<TerminalProfile> profiles,
   }) {
     final profilesById = <String, TerminalProfile>{
@@ -640,28 +652,28 @@ class SessionController extends Notifier<SessionState> {
     };
     final environmentOverrides = ref.read(sessionEnvironmentOverridesProvider);
     return LocalSessionLayoutCodec.restore(
-      workspace,
+      layout,
       relaunch: (descriptor) {
         final profile = profilesById[descriptor.profileId];
         if (profile == null) {
           return null;
         }
         var descriptorProfile = profile;
-        final command = descriptor.command;
-        if (command != null) {
-          descriptorProfile = descriptorProfile.copyWith(
-            shell: command.program,
-            args: command.arguments,
-          );
-        }
         if (descriptor.cwd != null) {
           descriptorProfile = descriptorProfile.copyWith(cwd: descriptor.cwd);
         }
-        final launchProfile = _profileWithSessionEnvironment(
+        var launchProfile = _profileWithSessionEnvironment(
           descriptorProfile,
           environmentOverrides,
         );
-        final sessionId = _createRuntimeSession(launchProfile);
+        var sessionId = _createRuntimeSession(launchProfile);
+        if (sessionId == null && descriptor.cwd != null) {
+          launchProfile = _profileWithSessionEnvironment(
+            profile,
+            environmentOverrides,
+          );
+          sessionId = _createRuntimeSession(launchProfile);
+        }
         if (sessionId == null) {
           return null;
         }
@@ -696,6 +708,7 @@ class SessionController extends Notifier<SessionState> {
   void _enableLayoutPersistence() {
     _layoutPersistenceEnabled = _localConfigDocument.layout.restoreLayout;
     if (!_layoutPersistenceEnabled) {
+      _lastLayoutSnapshot = null;
       return;
     }
     _lastLayoutSnapshot = jsonEncode(
@@ -707,8 +720,8 @@ class SessionController extends Notifier<SessionState> {
     if (!_layoutPersistenceEnabled || !next.isReady) {
       return;
     }
-    final workspace = LocalSessionLayoutCodec.capture(next);
-    final snapshot = jsonEncode(workspace.toJson());
+    final layout = LocalSessionLayoutCodec.capture(next);
+    final snapshot = jsonEncode(layout.toJson());
     if (snapshot == _lastLayoutSnapshot) {
       return;
     }
@@ -716,18 +729,34 @@ class SessionController extends Notifier<SessionState> {
     _layoutPersistenceTimer?.cancel();
     _layoutPersistenceTimer = Timer(_layoutPersistenceDebounce, () {
       _layoutPersistenceTimer = null;
-      final previousSave = _layoutSaveChain;
-      _layoutSaveChain = _saveLayoutAfter(previousSave, workspace);
+      _queueLayoutSave(layout);
     });
+  }
+
+  void _queueLayoutSave(TerminalLayout layout) {
+    final previousSave = _layoutSaveChain;
+    _layoutSaveChain = _saveLayoutAfter(previousSave, layout);
+  }
+
+  Future<void> flushLayoutPersistence() async {
+    if (!_layoutPersistenceEnabled || !state.isReady) {
+      return;
+    }
+    _layoutPersistenceTimer?.cancel();
+    _layoutPersistenceTimer = null;
+    final layout = LocalSessionLayoutCodec.capture(state);
+    _lastLayoutSnapshot = jsonEncode(layout.toJson());
+    _queueLayoutSave(layout);
+    await _layoutSaveChain;
   }
 
   Future<void> _saveLayoutAfter(
     Future<void> previousSave,
-    TerminalLayout workspace,
+    TerminalLayout layout,
   ) async {
     try {
       await previousSave;
-      await ref.read(localTerminalLayoutRepositoryProvider).save(workspace);
+      await ref.read(localTerminalLayoutRepositoryProvider).save(layout);
     } on Object catch (error) {
       if (ref.mounted) {
         final detail = _boundedShellMetadata(error.toString(), 240);
@@ -3502,6 +3531,25 @@ class SessionController extends Notifier<SessionState> {
       terminalViewportPadding:
           _appPreferences.appearance.terminalViewportPadding,
     );
+  }
+
+  Future<void> setRestoreLayout(bool restoreLayout) async {
+    final repository = ref.read(localTerminalConfigRepositoryProvider);
+    final latestConfig = await repository.load() ?? _localConfigDocument;
+    _localConfigDocument = latestConfig.copyWith(
+      layout: LocalTerminalLayoutConfig(restoreLayout: restoreLayout),
+    );
+    _configBootstrapSource = LocalTerminalConfigBootstrapSource.localConfig;
+    await repository.save(_localConfigDocument);
+    _preferencesLoadedFromDisk = true;
+
+    _layoutPersistenceTimer?.cancel();
+    _layoutPersistenceTimer = null;
+    _layoutPersistenceEnabled = restoreLayout;
+    _lastLayoutSnapshot = null;
+    if (restoreLayout && state.isReady) {
+      await flushLayoutPersistence();
+    }
   }
 
   Future<void> setOsc52Policy(LocalTerminalOsc52Policy policy) async {

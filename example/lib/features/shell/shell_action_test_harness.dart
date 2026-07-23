@@ -16,7 +16,7 @@ class ShellActionTestHarness {
   ShellActionSideEffectExecutor executor() {
     return ShellActionSideEffectExecutor(
       ShellActionSideEffectHandlers(
-        updateWorkspace: _record(ShellActionSideEffectKind.updateWorkspace),
+        updateLayout: _record(ShellActionSideEffectKind.updateLayout),
         updateProductivityState: _record(
           ShellActionSideEffectKind.updateProductivityState,
         ),

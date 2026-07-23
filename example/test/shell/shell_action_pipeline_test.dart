@@ -7,19 +7,19 @@ import 'package:app/features/shell/shell_action_registry.dart';
 import 'package:app/features/shell/shell_action_side_effect_executor.dart';
 import 'package:app/features/shell/shell_action_side_effect_plan.dart';
 import 'package:app/features/visual/local_terminal_visual_action_reducer.dart';
-import 'package:app/features/workspace/local_workspace_action_reducer.dart';
-import 'package:app/features/workspace/local_terminal_layout_models.dart';
+import 'package:app/features/layout/terminal_layout_action_reducer.dart';
+import 'package:app/features/layout/local_terminal_layout_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('Shell action pipeline', () {
-    test('dispatches, plans, and executes workspace action', () async {
+    test('dispatches, plans, and executes layout action', () async {
       final calls = <ShellActionSideEffectKind>[];
       final pipeline = ShellActionPipeline(
         executor: ShellActionSideEffectExecutor(
           ShellActionSideEffectHandlers(
-            updateWorkspace: (_) async {
-              calls.add(ShellActionSideEffectKind.updateWorkspace);
+            updateLayout: (_) async {
+              calls.add(ShellActionSideEffectKind.updateLayout);
             },
           ),
         ),
@@ -31,9 +31,9 @@ void main() {
         context: _context(),
       );
 
-      expect(result.dispatch, isA<ShellWorkspaceDispatchResult>());
-      expect(result.plan.kind, ShellActionSideEffectKind.updateWorkspace);
-      expect(calls, [ShellActionSideEffectKind.updateWorkspace]);
+      expect(result.dispatch, isA<ShellLayoutDispatchResult>());
+      expect(result.plan.kind, ShellActionSideEffectKind.updateLayout);
+      expect(calls, [ShellActionSideEffectKind.updateLayout]);
     });
 
     test('dispatches productivity action through executor', () async {
@@ -118,7 +118,7 @@ void main() {
 
 ShellActionDispatchContext _context({String pasteText = ''}) {
   return ShellActionDispatchContext(
-    workspace: const LocalWorkspaceActionContext(
+    layout: const TerminalLayoutActionContext(
       nextTabId: 'tab-next',
       nextPaneId: 'pane-next',
       nextSplitId: 'split-next',

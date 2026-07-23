@@ -622,7 +622,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                   ._terminalOverlayPadding
                                   .left,
                               child: IgnorePointer(
-                                child: _ShellWorkspaceCue(
+                                child: _ShellLayoutCue(
                                   title: 'Copy mode',
                                   palette: palette,
                                 ),
@@ -653,7 +653,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                 ),
                               ),
                             ),
-                          if (isActive && _showWorkspaceCue)
+                          if (isActive && _showLayoutCue)
                             Positioned(
                               top:
                                   _ShellScreenState._terminalOverlayPadding.top,
@@ -661,8 +661,8 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                   ._terminalOverlayPadding
                                   .right,
                               child: IgnorePointer(
-                                child: _ShellWorkspaceCue(
-                                  title: _workspaceCueTitle,
+                                child: _ShellLayoutCue(
+                                  title: _layoutCueTitle,
                                   palette: palette,
                                 ),
                               ),

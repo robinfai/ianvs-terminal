@@ -5,6 +5,8 @@ enum TerminalActionId {
   openLauncher,
   openCommandMenu,
   newTab,
+  openTerminalAtFolder,
+  openRecording,
   duplicateCurrentCwd,
   reopenClosedTab,
   toolbelt,
@@ -66,13 +68,14 @@ enum TerminalActionCategory {
   app,
   session,
   pane,
-  workspace,
+  layout,
   navigation,
   integration,
 }
 
 enum TerminalActionReleaseVisibility {
   product,
+  hiddenByDefault,
   hiddenExperimental,
   hiddenPendingRedesign,
 }
@@ -142,7 +145,7 @@ class TerminalActionDescriptor {
     required this.category,
     this.enabledByDefault = true,
     this.commandPaletteVisible = true,
-    this.releaseVisibility = TerminalActionReleaseVisibility.product,
+    this.releaseVisibility = TerminalActionReleaseVisibility.hiddenByDefault,
     this.shortcutHint,
     this.defaultKeyBinding,
     this.terminalInputPolicy = TerminalInputPolicy.performableOnly,
@@ -161,9 +164,6 @@ class TerminalActionDescriptor {
   final TerminalInputPolicy terminalInputPolicy;
   final IconData? icon;
   final bool requiresActiveSession;
-
-  bool get hasUserEntryPoint =>
-      releaseVisibility == TerminalActionReleaseVisibility.product;
 }
 
 class ShellActionRegistry {
@@ -182,6 +182,20 @@ class ShellActionRegistry {
       ),
       terminalInputPolicy: TerminalInputPolicy.appFirst,
       icon: Icons.add,
+      requiresActiveSession: false,
+    ),
+    TerminalActionId.openTerminalAtFolder: TerminalActionDescriptor(
+      id: TerminalActionId.openTerminalAtFolder,
+      label: 'open_terminal_at_folder',
+      category: TerminalActionCategory.app,
+      icon: Icons.create_new_folder_outlined,
+      requiresActiveSession: false,
+    ),
+    TerminalActionId.openRecording: TerminalActionDescriptor(
+      id: TerminalActionId.openRecording,
+      label: 'open_recording',
+      category: TerminalActionCategory.app,
+      icon: Icons.video_file_outlined,
       requiresActiveSession: false,
     ),
     TerminalActionId.duplicateCurrentCwd: TerminalActionDescriptor(
@@ -340,7 +354,7 @@ class ShellActionRegistry {
     TerminalActionId.activateTab: TerminalActionDescriptor(
       id: TerminalActionId.activateTab,
       label: 'activate_tab',
-      category: TerminalActionCategory.workspace,
+      category: TerminalActionCategory.layout,
       enabledByDefault: false,
       commandPaletteVisible: false,
       terminalInputPolicy: TerminalInputPolicy.appFirst,
@@ -437,7 +451,7 @@ class ShellActionRegistry {
     TerminalActionId.clearScrollback: TerminalActionDescriptor(
       id: TerminalActionId.clearScrollback,
       label: 'clear_scrollback',
-      category: TerminalActionCategory.workspace,
+      category: TerminalActionCategory.layout,
       icon: Icons.clear_all,
       requiresActiveSession: true,
     ),
@@ -518,7 +532,7 @@ class ShellActionRegistry {
     TerminalActionId.search: TerminalActionDescriptor(
       id: TerminalActionId.search,
       label: 'search_scrollback',
-      category: TerminalActionCategory.workspace,
+      category: TerminalActionCategory.layout,
       shortcutHint: 'cmd+F',
       defaultKeyBinding: TerminalKeyBinding(
         scope: TerminalKeyBindingScope.terminalFocused,
@@ -532,28 +546,28 @@ class ShellActionRegistry {
     TerminalActionId.nextSearchMatch: TerminalActionDescriptor(
       id: TerminalActionId.nextSearchMatch,
       label: 'next_search_match',
-      category: TerminalActionCategory.workspace,
+      category: TerminalActionCategory.layout,
       icon: Icons.keyboard_arrow_down,
       requiresActiveSession: true,
     ),
     TerminalActionId.previousSearchMatch: TerminalActionDescriptor(
       id: TerminalActionId.previousSearchMatch,
       label: 'previous_search_match',
-      category: TerminalActionCategory.workspace,
+      category: TerminalActionCategory.layout,
       icon: Icons.keyboard_arrow_up,
       requiresActiveSession: true,
     ),
     TerminalActionId.clearSearch: TerminalActionDescriptor(
       id: TerminalActionId.clearSearch,
       label: 'clear_search',
-      category: TerminalActionCategory.workspace,
+      category: TerminalActionCategory.layout,
       icon: Icons.search_off,
       requiresActiveSession: true,
     ),
     TerminalActionId.globalSearch: TerminalActionDescriptor(
       id: TerminalActionId.globalSearch,
       label: 'global_search',
-      category: TerminalActionCategory.workspace,
+      category: TerminalActionCategory.layout,
       icon: Icons.manage_search,
       requiresActiveSession: true,
     ),
@@ -687,14 +701,14 @@ class ShellActionRegistry {
     TerminalActionId.exportScrollback: TerminalActionDescriptor(
       id: TerminalActionId.exportScrollback,
       label: 'export_scrollback',
-      category: TerminalActionCategory.workspace,
+      category: TerminalActionCategory.layout,
       icon: Icons.ios_share,
       requiresActiveSession: true,
     ),
     TerminalActionId.exportDiagnostics: TerminalActionDescriptor(
       id: TerminalActionId.exportDiagnostics,
       label: 'export_diagnostics',
-      category: TerminalActionCategory.workspace,
+      category: TerminalActionCategory.layout,
       icon: Icons.bug_report,
       requiresActiveSession: true,
     ),
@@ -715,10 +729,50 @@ class ShellActionRegistry {
     TerminalActionId.applyLayoutTemplate: TerminalActionDescriptor(
       id: TerminalActionId.applyLayoutTemplate,
       label: 'apply_layout_template',
-      category: TerminalActionCategory.workspace,
+      category: TerminalActionCategory.layout,
       icon: Icons.dashboard,
       requiresActiveSession: false,
     ),
+  };
+
+  static const Set<TerminalActionId> releaseActionIds = {
+    TerminalActionId.openLauncher,
+    TerminalActionId.openCommandMenu,
+    TerminalActionId.newTab,
+    TerminalActionId.openTerminalAtFolder,
+    TerminalActionId.openRecording,
+    TerminalActionId.duplicateCurrentCwd,
+    TerminalActionId.reopenClosedTab,
+    TerminalActionId.splitRight,
+    TerminalActionId.splitDown,
+    TerminalActionId.focusNextPane,
+    TerminalActionId.focusPreviousPane,
+    TerminalActionId.resizePane,
+    TerminalActionId.swapPane,
+    TerminalActionId.zoomPane,
+    TerminalActionId.closePane,
+    TerminalActionId.reopenClosedPane,
+    TerminalActionId.closeActiveTab,
+    TerminalActionId.openDefaults,
+    TerminalActionId.activateTab,
+    TerminalActionId.copy,
+    TerminalActionId.copyCommandOutput,
+    TerminalActionId.paste,
+    TerminalActionId.toggleReadOnly,
+    TerminalActionId.toggleSessionRecording,
+    TerminalActionId.clearScrollback,
+    TerminalActionId.instantReplay,
+    TerminalActionId.search,
+    TerminalActionId.nextSearchMatch,
+    TerminalActionId.previousSearchMatch,
+    TerminalActionId.clearSearch,
+    TerminalActionId.defaults,
+    TerminalActionId.profiles,
+    TerminalActionId.requestQuitConfirmation,
+    TerminalActionId.previousPrompt,
+    TerminalActionId.nextPrompt,
+    TerminalActionId.exportScrollback,
+    TerminalActionId.exportDiagnostics,
   };
 
   static bool has(TerminalActionId id) {
@@ -732,12 +786,22 @@ class ShellActionRegistry {
   static bool commandPaletteVisible(TerminalActionId id) {
     final descriptor = actions[id];
     return descriptor != null &&
-        descriptor.hasUserEntryPoint &&
+        hasUserEntryPoint(id) &&
         descriptor.commandPaletteVisible;
   }
 
   static bool hasUserEntryPoint(TerminalActionId id) {
-    return actions[id]?.hasUserEntryPoint ?? false;
+    return actions.containsKey(id) && releaseActionIds.contains(id);
+  }
+
+  static TerminalActionReleaseVisibility releaseVisibility(
+    TerminalActionId id,
+  ) {
+    if (hasUserEntryPoint(id)) {
+      return TerminalActionReleaseVisibility.product;
+    }
+    return actions[id]?.releaseVisibility ??
+        TerminalActionReleaseVisibility.hiddenByDefault;
   }
 
   static List<TerminalKeyBindingConflict> defaultKeyBindingConflicts() {
@@ -745,6 +809,9 @@ class ShellActionRegistry {
         <String, MapEntry<TerminalKeyBinding, Set<TerminalActionId>>>{};
 
     for (final entry in actions.entries) {
+      if (!hasUserEntryPoint(entry.key)) {
+        continue;
+      }
       final binding = entry.value.defaultKeyBinding;
       if (binding == null) {
         continue;

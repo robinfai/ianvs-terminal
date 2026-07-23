@@ -30,7 +30,8 @@ class ShellActionViewModelBuilder {
     return ShellActionRegistry.actions.values
         .where(
           (descriptor) =>
-              descriptor.hasUserEntryPoint && descriptor.commandPaletteVisible,
+              ShellActionRegistry.hasUserEntryPoint(descriptor.id) &&
+              descriptor.commandPaletteVisible,
         )
         .map(
           (descriptor) => forDescriptor(

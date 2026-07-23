@@ -1,29 +1,29 @@
 import 'package:app/features/shell/shell_action_registry.dart';
-import 'package:app/features/workspace/local_workspace_action_reducer.dart';
-import 'package:app/features/workspace/local_terminal_layout_models.dart';
+import 'package:app/features/layout/terminal_layout_action_reducer.dart';
+import 'package:app/features/layout/local_terminal_layout_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  group('Local workspace action reducer', () {
+  group('Local layout action reducer', () {
     test('new tab action creates a local tab from fallback intent', () {
-      final workspace = LocalWorkspaceActionReducer.reduce(
-        workspace: const TerminalLayout(),
+      final layout = TerminalLayoutActionReducer.reduce(
+        layout: const TerminalLayout(),
         actionId: TerminalActionId.newTab,
         context: _context(tab: 'tab-1', pane: 'pane-1'),
       );
 
-      expect(workspace.activeTabId, 'tab-1');
-      expect(workspace.activeTab!.activeSessionIntent!.profileId, 'default');
+      expect(layout.activeTabId, 'tab-1');
+      expect(layout.activeTab!.activeSessionIntent!.profileId, 'default');
     });
 
     test('split actions update active tab pane tree', () {
-      final initial = LocalWorkspaceActionReducer.reduce(
-        workspace: const TerminalLayout(),
+      final initial = TerminalLayoutActionReducer.reduce(
+        layout: const TerminalLayout(),
         actionId: TerminalActionId.newTab,
         context: _context(tab: 'tab-1', pane: 'pane-1'),
       );
-      final split = LocalWorkspaceActionReducer.reduce(
-        workspace: initial,
+      final split = TerminalLayoutActionReducer.reduce(
+        layout: initial,
         actionId: TerminalActionId.splitRight,
         context: _context(tab: 'unused', pane: 'pane-2', split: 'split-1'),
       );
@@ -34,7 +34,7 @@ void main() {
     });
 
     test('split action recovers a stale active pane id', () {
-      final workspace = TerminalLayout(
+      final layout = TerminalLayout(
         tabs: [
           TerminalLayoutTab(
             id: 'tab-1',
@@ -51,8 +51,8 @@ void main() {
         activeTabId: 'tab-1',
       );
 
-      final split = LocalWorkspaceActionReducer.reduce(
-        workspace: workspace,
+      final split = TerminalLayoutActionReducer.reduce(
+        layout: layout,
         actionId: TerminalActionId.splitDown,
         context: _context(pane: 'pane-2', split: 'split-1'),
       );
@@ -67,29 +67,29 @@ void main() {
     });
 
     test('focus and resize pane actions update active tab pane state', () {
-      final initial = LocalWorkspaceActionReducer.reduce(
-        workspace: const TerminalLayout(),
+      final initial = TerminalLayoutActionReducer.reduce(
+        layout: const TerminalLayout(),
         actionId: TerminalActionId.newTab,
         context: _context(tab: 'tab-1', pane: 'pane-1'),
       );
-      final split = LocalWorkspaceActionReducer.reduce(
-        workspace: initial,
+      final split = TerminalLayoutActionReducer.reduce(
+        layout: initial,
         actionId: TerminalActionId.splitRight,
         context: _context(pane: 'pane-2', split: 'split-1'),
       );
 
-      final previous = LocalWorkspaceActionReducer.reduce(
-        workspace: split,
+      final previous = TerminalLayoutActionReducer.reduce(
+        layout: split,
         actionId: TerminalActionId.focusPreviousPane,
         context: _context(),
       );
-      final next = LocalWorkspaceActionReducer.reduce(
-        workspace: previous,
+      final next = TerminalLayoutActionReducer.reduce(
+        layout: previous,
         actionId: TerminalActionId.focusNextPane,
         context: _context(),
       );
-      final resized = LocalWorkspaceActionReducer.reduce(
-        workspace: next,
+      final resized = TerminalLayoutActionReducer.reduce(
+        layout: next,
         actionId: TerminalActionId.resizePane,
         context: _context(),
       );
@@ -101,18 +101,18 @@ void main() {
     });
 
     test('close and reopen tab actions roundtrip closed tab stack', () {
-      final initial = LocalWorkspaceActionReducer.reduce(
-        workspace: const TerminalLayout(),
+      final initial = TerminalLayoutActionReducer.reduce(
+        layout: const TerminalLayout(),
         actionId: TerminalActionId.newTab,
         context: _context(tab: 'tab-1', pane: 'pane-1'),
       );
-      final closed = LocalWorkspaceActionReducer.reduce(
-        workspace: initial,
+      final closed = TerminalLayoutActionReducer.reduce(
+        layout: initial,
         actionId: TerminalActionId.closeActiveTab,
         context: _context(),
       );
-      final reopened = LocalWorkspaceActionReducer.reduce(
-        workspace: closed,
+      final reopened = TerminalLayoutActionReducer.reduce(
+        layout: closed,
         actionId: TerminalActionId.reopenClosedTab,
         context: _context(),
       );
@@ -121,25 +121,25 @@ void main() {
       expect(reopened.activeTabId, 'tab-1');
     });
 
-    test('unhandled action leaves workspace unchanged', () {
-      const workspace = TerminalLayout();
-      final reduced = LocalWorkspaceActionReducer.reduce(
-        workspace: workspace,
+    test('unhandled action leaves layout unchanged', () {
+      const layout = TerminalLayout();
+      final reduced = TerminalLayoutActionReducer.reduce(
+        layout: layout,
         actionId: TerminalActionId.openThemePicker,
         context: _context(),
       );
 
-      expect(identical(reduced, workspace), isTrue);
+      expect(identical(reduced, layout), isTrue);
     });
   });
 }
 
-LocalWorkspaceActionContext _context({
+TerminalLayoutActionContext _context({
   String tab = 'tab-next',
   String pane = 'pane-next',
   String split = 'split-next',
 }) {
-  return LocalWorkspaceActionContext(
+  return TerminalLayoutActionContext(
     nextTabId: tab,
     nextPaneId: pane,
     nextSplitId: split,

@@ -1,6 +1,6 @@
 import '../preferences/app_preferences_models.dart';
 import '../profiles/profile_models.dart';
-import '../workspace/local_terminal_relaunch_spec.dart';
+import '../layout/local_terminal_relaunch_spec.dart';
 
 enum TerminalSplitAxis { horizontal, vertical }
 

@@ -46,6 +46,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
             effectiveDefaultProfileId: sessionState.defaultProfileId,
             themeMode: sessionState.themeMode,
             terminalViewportPadding: sessionState.terminalViewportPadding,
+            restoreLayout: _notificationLocalConfig.layout.restoreLayout,
             osc52Policy: _clipboardConfig.osc52,
             openUrlPolicy: _hostActionsConfig.osc1337OpenUrl,
             requestAttentionPolicy: _hostActionsConfig.osc1337RequestAttention,
@@ -106,6 +107,22 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         await sessionController.setTerminalViewportPadding(
           selection.terminalViewportPadding,
         );
+      }
+      if (selection.restoreLayout !=
+          _notificationLocalConfig.layout.restoreLayout) {
+        await sessionController.setRestoreLayout(selection.restoreLayout);
+        if (!mounted) {
+          return;
+        }
+        _mutateState(() {
+          _notificationConfigSource =
+              LocalTerminalConfigBootstrapSource.localConfig;
+          _notificationLocalConfig = _notificationLocalConfig.copyWith(
+            layout: LocalTerminalLayoutConfig(
+              restoreLayout: selection.restoreLayout,
+            ),
+          );
+        });
       }
       if (selection.osc52Policy != _clipboardConfig.osc52) {
         await sessionController.setOsc52Policy(selection.osc52Policy);
@@ -225,7 +242,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         _createSession(
           sessionController,
           profile,
-          returningToWorkspace: activeSessionIdBeforeOpen == null,
+          returningToLayout: activeSessionIdBeforeOpen == null,
         );
         return;
       case EditProfileResult(:final profile):

@@ -10,7 +10,7 @@ class LocalTerminalProductionWiringManifest {
   static const requiredMilestones = [
     LocalTerminalProductionMilestone.p0Documentation,
     LocalTerminalProductionMilestone.p1ActionConfig,
-    LocalTerminalProductionMilestone.p2Workspace,
+    LocalTerminalProductionMilestone.p2Layout,
     LocalTerminalProductionMilestone.p3Productivity,
     LocalTerminalProductionMilestone.p4Policy,
     LocalTerminalProductionMilestone.p5Visual,
@@ -110,7 +110,7 @@ class LocalTerminalProductionMilestoneManifest {
 enum LocalTerminalProductionMilestone {
   p0Documentation,
   p1ActionConfig,
-  p2Workspace,
+  p2Layout,
   p3Productivity,
   p4Policy,
   p5Visual,

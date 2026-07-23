@@ -42,7 +42,9 @@ class LocalTerminalConfigBootstrap {
     }
 
     return const LocalTerminalConfigBootstrapResult(
-      config: LocalTerminalConfigDocument(),
+      config: LocalTerminalConfigDocument(
+        layout: LocalTerminalLayoutConfig(restoreLayout: true),
+      ),
       source: LocalTerminalConfigBootstrapSource.defaults,
     );
   }

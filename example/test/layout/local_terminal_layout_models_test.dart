@@ -1,4 +1,4 @@
-import 'package:app/features/workspace/local_terminal_layout_models.dart';
+import 'package:app/features/layout/local_terminal_layout_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -94,13 +94,10 @@ void main() {
             'tab-$index',
         ],
       );
-      expect(
-        (workspace.toJson()['closedTabs'] as List<Object?>),
-        hasLength(maxTerminalLayoutClosedTabs),
-      );
+      expect(workspace.toJson(), isNot(contains('closedTabs')));
     });
 
-    test('workspace JSON excludes closed tabs by normalized active ids', () {
+    test('workspace JSON omits closed tab history', () {
       final workspace = TerminalLayout(
         tabs: [_tab(' tab-1 ')],
         activeTabId: ' tab-1 ',
@@ -108,10 +105,8 @@ void main() {
       );
 
       final json = workspace.toJson();
-      final closedTabs = json['closedTabs'] as List<Object?>;
 
-      expect(closedTabs, hasLength(1));
-      expect(closedTabs.single, containsPair('id', 'closed'));
+      expect(json, isNot(contains('closedTabs')));
     });
 
     test('workspace layout roundtrips local pane topology', () {
@@ -270,8 +265,6 @@ void main() {
       final tabs = json['tabs']! as List<Object?>;
       final activeTab = tabs.last! as Map<String, Object?>;
       final activeRoot = activeTab['root']! as Map<String, Object?>;
-      final closedPanes = activeTab['closedPanes']! as List<Object?>;
-      final closedTabs = json['closedTabs']! as List<Object?>;
 
       expect(json['activeTabId'], 'tab-1');
       expect(tabs.first, containsPair('id', 'other'));
@@ -279,10 +272,8 @@ void main() {
       expect(activeTab['activePaneId'], 'pane-1');
       expect(activeTab['zoomedPaneId'], 'pane-1');
       expect(activeRoot['id'], 'pane-1');
-      expect(closedPanes, hasLength(1));
-      expect(closedPanes.single, containsPair('id', 'closed-pane'));
-      expect(closedTabs, hasLength(1));
-      expect(closedTabs.single, containsPair('id', 'closed'));
+      expect(activeTab, isNot(contains('closedPanes')));
+      expect(json, isNot(contains('closedTabs')));
     });
 
     test('workspace layout skips malformed tabs and panes', () {
@@ -505,10 +496,7 @@ void main() {
             'closed-pane-$index',
         ],
       );
-      expect(
-        (tab.toJson()['closedPanes'] as List<Object?>),
-        hasLength(maxTerminalLayoutClosedPanes),
-      );
+      expect(tab.toJson(), isNot(contains('closedPanes')));
     });
 
     test('workspace layout skips duplicate and blank tab ids', () {

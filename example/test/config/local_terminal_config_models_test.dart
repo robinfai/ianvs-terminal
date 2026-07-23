@@ -30,6 +30,7 @@ void main() {
         LocalTerminalBracketedPastePolicy.auto,
       );
       expect(config.shellIntegration.enabled, isTrue);
+      expect(config.layout.restoreLayout, isFalse);
       expect(config.notifications.enabled, isTrue);
       expect(config.notifications.commandFinished, isTrue);
       expect(config.notifications.bell, isTrue);

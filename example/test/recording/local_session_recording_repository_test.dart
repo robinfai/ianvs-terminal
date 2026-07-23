@@ -70,6 +70,37 @@ void main() {
       expect(directory.listSync(), isEmpty);
     });
 
+    test('opens an external recording without importing it', () async {
+      final supportDirectory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-recording-open-support',
+      );
+      final externalDirectory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-recording-open-external',
+      );
+      addTearDown(() async {
+        await supportDirectory.delete(recursive: true);
+        await externalDirectory.delete(recursive: true);
+      });
+      final source = File('${externalDirectory.path}/direct-replay.ndjson');
+      await source.writeAsString(
+        const TerminalRecordingCodec().encode(_recording('runtime-direct')),
+      );
+      final repository = LocalSessionRecordingRepository(
+        directoryResolver: () async => supportDirectory,
+      );
+
+      final opened = await repository.openRecording(source.path);
+
+      expect(opened.entry.path, source.absolute.path);
+      expect(opened.entry.displayName, 'direct-replay');
+      expect(opened.entry.sessionId, 'runtime-direct');
+      expect(opened.recording.metadata.sessionId, 'runtime-direct');
+      expect(
+        Directory('${supportDirectory.path}/ianvs_recordings').existsSync(),
+        isFalse,
+      );
+    });
+
     test('lists, renames, imports, and exports validated recordings', () async {
       final directory = await Directory.systemTemp.createTemp(
         'ianvs terminal-recording-library',

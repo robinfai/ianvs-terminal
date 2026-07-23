@@ -3,7 +3,7 @@ import 'local_terminal_production_wiring_manifest.dart';
 class LocalTerminalP0BoundaryClosureManifest {
   const LocalTerminalP0BoundaryClosureManifest({
     required this.localTerminalPlanDocumented,
-    required this.roadmapLocalWorkspaceAligned,
+    required this.roadmapTerminalLayoutAligned,
     required this.remoteScopeExcluded,
     required this.perMilestoneExecutionPlansCreated,
     required this.competitorCoverageMapped,
@@ -12,7 +12,7 @@ class LocalTerminalP0BoundaryClosureManifest {
   });
 
   final bool localTerminalPlanDocumented;
-  final bool roadmapLocalWorkspaceAligned;
+  final bool roadmapTerminalLayoutAligned;
   final bool remoteScopeExcluded;
   final bool perMilestoneExecutionPlansCreated;
   final bool competitorCoverageMapped;
@@ -21,7 +21,7 @@ class LocalTerminalP0BoundaryClosureManifest {
 
   bool get boundaryReady {
     return localTerminalPlanDocumented &&
-        roadmapLocalWorkspaceAligned &&
+        roadmapTerminalLayoutAligned &&
         remoteScopeExcluded &&
         perMilestoneExecutionPlansCreated &&
         competitorCoverageMapped &&
@@ -33,8 +33,8 @@ class LocalTerminalP0BoundaryClosureManifest {
     if (!localTerminalPlanDocumented) {
       result.add('Local terminal feature plan is missing.');
     }
-    if (!roadmapLocalWorkspaceAligned) {
-      result.add('Roadmap is not aligned to local workspace expansion.');
+    if (!roadmapTerminalLayoutAligned) {
+      result.add('Roadmap is not aligned to local layout expansion.');
     }
     if (!remoteScopeExcluded) {
       result.add('SSH/remote/serial/SFTP exclusions are not documented.');
@@ -70,7 +70,7 @@ class LocalTerminalP0BoundaryClosureManifest {
     return {
       'boundaryReady': boundaryReady,
       'localTerminalPlanDocumented': localTerminalPlanDocumented,
-      'roadmapLocalWorkspaceAligned': roadmapLocalWorkspaceAligned,
+      'roadmapTerminalLayoutAligned': roadmapTerminalLayoutAligned,
       'remoteScopeExcluded': remoteScopeExcluded,
       'perMilestoneExecutionPlansCreated': perMilestoneExecutionPlansCreated,
       'competitorCoverageMapped': competitorCoverageMapped,

@@ -44,16 +44,11 @@ class TerminalLayout {
   Map<String, Object?> toJson() {
     final restorableTabs = _uniqueRestorableTabs(tabs);
     final activeTabId = _activeTabFrom(restorableTabs, this.activeTabId)?.id;
-    final activeIds = _normalizedIds(restorableTabs.map((tab) => tab.id));
     return {
       'schemaVersion': schemaVersion,
       'contract': terminalLayoutContract,
       'tabs': restorableTabs.map((tab) => tab.toJson()).toList(growable: false),
       'activeTabId': activeTabId?.trim(),
-      'closedTabs': _boundedClosedTabs(
-        closedTabs,
-        excludedIds: activeIds,
-      ).map((tab) => tab.toJson()).toList(growable: false),
     };
   }
 
@@ -273,9 +268,6 @@ class TerminalLayoutTab {
       'id': id.trim(),
       'activePaneId': effectiveActivePaneId.trim(),
       'root': root.toJson(),
-      'closedPanes': _boundedClosedPanes(
-        closedPanes,
-      ).map((pane) => pane.toJson()).toList(growable: false),
       'zoomedPaneId': effectiveZoomedPaneId?.trim(),
     };
   }

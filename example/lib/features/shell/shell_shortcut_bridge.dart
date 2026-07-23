@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../config/local_terminal_config_models.dart';
@@ -19,7 +20,10 @@ class ShellShortcutBridge {
     LocalTerminalKeybindingsConfig config =
         const LocalTerminalKeybindingsConfig(),
   }) {
-    final bindings = LocalTerminalKeyBindingResolver.resolve(config: config);
+    final bindings = LocalTerminalKeyBindingResolver.resolve(
+      config: config,
+      includeInternalActions: kDebugMode,
+    );
     final exactSnapshot = LocalTerminalKeyEventSnapshot(
       key: key,
       scope: scope,

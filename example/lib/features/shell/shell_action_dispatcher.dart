@@ -2,18 +2,18 @@ import '../policies/local_terminal_policy_action_reducer.dart';
 import '../productivity/shell_productivity_action_reducer.dart';
 import '../productivity/shell_productivity_models.dart';
 import '../visual/local_terminal_visual_action_reducer.dart';
-import '../workspace/local_workspace_action_reducer.dart';
-import '../workspace/local_terminal_layout_models.dart';
+import '../layout/terminal_layout_action_reducer.dart';
+import '../layout/local_terminal_layout_models.dart';
 import 'shell_action_registry.dart';
 
 sealed class ShellActionDispatchResult {
   const ShellActionDispatchResult();
 }
 
-class ShellWorkspaceDispatchResult extends ShellActionDispatchResult {
-  const ShellWorkspaceDispatchResult(this.workspace);
+class ShellLayoutDispatchResult extends ShellActionDispatchResult {
+  const ShellLayoutDispatchResult(this.layout);
 
-  final TerminalLayout workspace;
+  final TerminalLayout layout;
 }
 
 class ShellProductivityDispatchResult extends ShellActionDispatchResult {
@@ -40,13 +40,13 @@ class ShellUnhandledDispatchResult extends ShellActionDispatchResult {
 
 class ShellActionDispatchState {
   const ShellActionDispatchState({
-    this.workspace = const TerminalLayout(),
+    this.layout = const TerminalLayout(),
     this.productivity = const ShellProductivityState(),
     this.policies = const LocalTerminalPolicyBundle(),
     this.visual = const LocalTerminalVisualActionContext(),
   });
 
-  final TerminalLayout workspace;
+  final TerminalLayout layout;
   final ShellProductivityState productivity;
   final LocalTerminalPolicyBundle policies;
   final LocalTerminalVisualActionContext visual;
@@ -54,13 +54,13 @@ class ShellActionDispatchState {
 
 class ShellActionDispatchContext {
   const ShellActionDispatchContext({
-    required this.workspace,
+    required this.layout,
     required this.productivity,
     required this.policy,
     required this.visual,
   });
 
-  final LocalWorkspaceActionContext workspace;
+  final TerminalLayoutActionContext layout;
   final ShellProductivityActionContext productivity;
   final LocalTerminalPolicyActionContext policy;
   final LocalTerminalVisualActionContext visual;
@@ -74,13 +74,13 @@ class ShellActionDispatcher {
     required ShellActionDispatchState state,
     required ShellActionDispatchContext context,
   }) {
-    final workspace = LocalWorkspaceActionReducer.reduce(
-      workspace: state.workspace,
+    final layout = TerminalLayoutActionReducer.reduce(
+      layout: state.layout,
       actionId: actionId,
-      context: context.workspace,
+      context: context.layout,
     );
-    if (!identical(workspace, state.workspace)) {
-      return ShellWorkspaceDispatchResult(workspace);
+    if (!identical(layout, state.layout)) {
+      return ShellLayoutDispatchResult(layout);
     }
 
     final productivity = ShellProductivityActionReducer.reduce(

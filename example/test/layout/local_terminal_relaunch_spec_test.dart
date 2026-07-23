@@ -1,11 +1,11 @@
 import 'dart:convert';
 
-import 'package:app/features/workspace/local_terminal_relaunch_spec.dart';
+import 'package:app/features/layout/local_terminal_relaunch_spec.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('TerminalRelaunchSpec', () {
-    test('roundtrips only the launch contract', () {
+    test('canonical writes omit compatibility command data', () {
       const spec = TerminalRelaunchSpec(
         profileId: ' default ',
         command: TerminalRelaunchCommand(
@@ -22,15 +22,30 @@ void main() {
         'schemaVersion',
         'contract',
         'profileId',
-        'command',
         'cwd',
       });
       expect(json['schemaVersion'], currentTerminalRelaunchSpecVersion);
       expect(json['contract'], terminalRelaunchSpecContract);
       expect(decoded.profileId, 'default');
-      expect(decoded.command!.program, '/bin/zsh');
-      expect(decoded.command!.arguments, <String>['-l', '--no-rcs']);
+      expect(decoded.command, isNull);
       expect(decoded.cwd, '/repo');
+    });
+
+    test('reads command data from existing version one documents', () {
+      final decoded = TerminalRelaunchSpec.fromJson(const {
+        'schemaVersion': currentTerminalRelaunchSpecVersion,
+        'contract': terminalRelaunchSpecContract,
+        'profileId': 'default',
+        'command': {
+          'program': '/bin/zsh',
+          'arguments': ['-l'],
+        },
+        'cwd': '/repo',
+      });
+
+      expect(decoded.command!.program, '/bin/zsh');
+      expect(decoded.command!.arguments, ['-l']);
+      expect(decoded.toJson(), isNot(contains('command')));
     });
 
     test('legacy descriptors shed runtime and recording metadata', () {

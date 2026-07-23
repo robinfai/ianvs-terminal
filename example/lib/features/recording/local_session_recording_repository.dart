@@ -44,6 +44,16 @@ final class LocalSessionRecordingDestination {
   final File file;
 }
 
+final class LocalSessionOpenedRecording {
+  const LocalSessionOpenedRecording({
+    required this.entry,
+    required this.recording,
+  });
+
+  final LocalSessionRecordingEntry entry;
+  final TerminalRecording recording;
+}
+
 class LocalSessionRecordingRepository {
   LocalSessionRecordingRepository({
     LocalSessionRecordingDirectoryResolver? directoryResolver,
@@ -144,6 +154,30 @@ class LocalSessionRecordingRepository {
       throw const FormatException('Recording file exceeds the library limit.');
     }
     return _codec.decode(await file.readAsString());
+  }
+
+  Future<LocalSessionOpenedRecording> openRecording(
+    String recordingPath,
+  ) async {
+    final file = File(recordingPath.trim()).absolute;
+    final recording = await load(file.path);
+    final stat = await file.stat();
+    final duration = recording.events.isEmpty
+        ? Duration.zero
+        : recording.events.last.monotonicOffset;
+    return LocalSessionOpenedRecording(
+      entry: LocalSessionRecordingEntry(
+        path: file.path,
+        displayName: _basenameWithoutExtension(file.uri.pathSegments.last),
+        createdAtUtc: recording.metadata.createdAtUtc,
+        duration: duration,
+        fileSizeBytes: stat.size,
+        sessionId: recording.metadata.sessionId,
+        schemaVersion: recording.metadata.schemaVersion,
+        inputPolicy: recording.metadata.inputPolicy,
+      ),
+      recording: recording,
+    );
   }
 
   Future<List<LocalSessionRecordingEntry>> listRecordings() async {

@@ -55,14 +55,14 @@ class LocalSessionLayoutCodec {
   }
 
   static LocalTerminalLayoutRestoreResult restore(
-    TerminalLayout workspace, {
+    TerminalLayout layout, {
     required LocalTerminalLayoutSessionRelauncher relaunch,
   }) {
     final failures = <LocalTerminalLayoutRelaunchFailure>[];
     final tabs = <TerminalTab>[];
     final activeSessionIdByOldTabId = <String, String>{};
 
-    for (final sourceTab in workspace.tabs) {
+    for (final sourceTab in layout.tabs) {
       final restored = _restoreNode(
         sourceTab.root,
         relaunch: relaunch,
@@ -96,7 +96,7 @@ class LocalSessionLayoutCodec {
     }
 
     final activeSessionId =
-        activeSessionIdByOldTabId[workspace.activeTabId] ??
+        activeSessionIdByOldTabId[layout.activeTabId] ??
         (tabs.isEmpty ? null : tabs.first.activeSessionId);
     return LocalTerminalLayoutRestoreResult(
       tabs: tabs,
@@ -111,21 +111,13 @@ class LocalSessionLayoutCodec {
   ) {
     if (node.isLeaf) {
       final pane = node.pane!;
-      final profile = pane.profileSnapshot ?? profilesById[pane.profileId];
-      final configuredProfile = profilesById[pane.profileId];
       final priorSpec = pane.relaunchSpec;
-      final commandProfile = profile ?? configuredProfile;
       final spec = TerminalRelaunchSpec(
         profileId: pane.profileId,
-        command: commandProfile == null
-            ? priorSpec?.command
-            : TerminalRelaunchCommand(
-                program: commandProfile.shell,
-                arguments: commandProfile.args,
-              ),
         cwd:
             _nonEmpty(pane.shellIntegration.currentDirectory) ??
-            _nonEmpty(profile?.cwd) ??
+            _nonEmpty(pane.profileSnapshot?.cwd) ??
+            _nonEmpty(profilesById[pane.profileId]?.cwd) ??
             priorSpec?.cwd,
       );
       return TerminalPaneNode.leaf(id: pane.sessionId, relaunchSpec: spec);

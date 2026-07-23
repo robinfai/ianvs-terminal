@@ -104,10 +104,48 @@ void main() {
         expect(descriptor.enabledByDefault, isFalse);
         expect(descriptor.commandPaletteVisible, isFalse);
         expect(descriptor.defaultKeyBinding, isNull);
-        expect(descriptor.hasUserEntryPoint, isFalse);
+        expect(ShellActionRegistry.hasUserEntryPoint(descriptor.id), isFalse);
         expect(
           ShellActionRegistry.commandPaletteVisible(descriptor.id),
           isFalse,
+        );
+      }
+    });
+
+    test('release actions are an explicit allowlist', () {
+      expect(
+        ShellActionRegistry.releaseActionIds,
+        containsAll(<TerminalActionId>{
+          TerminalActionId.newTab,
+          TerminalActionId.openTerminalAtFolder,
+          TerminalActionId.openRecording,
+          TerminalActionId.splitRight,
+          TerminalActionId.splitDown,
+          TerminalActionId.copy,
+          TerminalActionId.paste,
+          TerminalActionId.search,
+          TerminalActionId.toggleSessionRecording,
+          TerminalActionId.instantReplay,
+          TerminalActionId.exportDiagnostics,
+        }),
+      );
+      expect(
+        ShellActionRegistry.releaseActionIds,
+        isNot(
+          containsAll(<TerminalActionId>{
+            TerminalActionId.toolbelt,
+            TerminalActionId.globalSearch,
+            TerminalActionId.autocomplete,
+            TerminalActionId.pasteHistory,
+          }),
+        ),
+      );
+      for (final actionId in TerminalActionId.values) {
+        expect(
+          ShellActionRegistry.releaseVisibility(actionId) ==
+              TerminalActionReleaseVisibility.product,
+          ShellActionRegistry.releaseActionIds.contains(actionId),
+          reason: '$actionId must derive visibility from the release allowlist',
         );
       }
     });

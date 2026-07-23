@@ -12,8 +12,8 @@ import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/recording/local_session_recording_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/shell/shell_screen.dart';
-import 'package:app/features/workspace/local_terminal_layout_models.dart';
-import 'package:app/features/workspace/local_terminal_layout_repository.dart';
+import 'package:app/features/layout/local_terminal_layout_models.dart';
+import 'package:app/features/layout/local_terminal_layout_repository.dart';
 
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
@@ -85,15 +85,15 @@ class _WidgetRecordingRepository extends LocalSessionRecordingRepository {
   }
 }
 
-class _MemoryWorkspaceRepository extends LocalTerminalLayoutRepository {
-  TerminalLayout? workspace;
+class _MemoryLayoutRepository extends LocalTerminalLayoutRepository {
+  TerminalLayout? layout;
 
   @override
-  Future<TerminalLayout?> load() => Future.value(workspace);
+  Future<TerminalLayout?> load() => Future.value(layout);
 
   @override
-  Future<void> save(TerminalLayout workspace) {
-    this.workspace = workspace;
+  Future<void> save(TerminalLayout layout) {
+    this.layout = layout;
     return Future<void>.value();
   }
 }
@@ -131,7 +131,7 @@ void main() {
               _RecordingShellConfigRepository(),
             ),
             localTerminalLayoutRepositoryProvider.overrideWithValue(
-              _MemoryWorkspaceRepository(),
+              _MemoryLayoutRepository(),
             ),
             localSessionRecordingRepositoryProvider.overrideWithValue(
               recordingRepository,

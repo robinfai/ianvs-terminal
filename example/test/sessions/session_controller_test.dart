@@ -17,8 +17,8 @@ import 'package:app/features/preferences/app_preferences_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_ports.dart';
 import 'package:app/features/sessions/session_state.dart';
-import 'package:app/features/workspace/local_terminal_layout_models.dart';
-import 'package:app/features/workspace/local_terminal_layout_repository.dart';
+import 'package:app/features/layout/local_terminal_layout_models.dart';
+import 'package:app/features/layout/local_terminal_layout_repository.dart';
 
 import '../support/fake_pty_backend.dart';
 
@@ -1507,7 +1507,14 @@ void main() {
           _TestAppPreferencesRepository(null),
         ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
-          _TestLocalTerminalConfigRepository(null),
+          _TestLocalTerminalConfigRepository(
+            const LocalTerminalConfigDocument(
+              layout: LocalTerminalLayoutConfig(restoreLayout: false),
+            ),
+          ),
+        ),
+        localTerminalLayoutRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalLayoutRepository(null),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
@@ -1583,7 +1590,14 @@ void main() {
           _TestAppPreferencesRepository(null),
         ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
-          _TestLocalTerminalConfigRepository(null),
+          _TestLocalTerminalConfigRepository(
+            const LocalTerminalConfigDocument(
+              layout: LocalTerminalLayoutConfig(restoreLayout: false),
+            ),
+          ),
+        ),
+        localTerminalLayoutRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalLayoutRepository(null),
         ),
         sessionTerminalContentPublisherProvider.overrideWithValue(({
           required terminalHasVisibleContent,
@@ -2021,7 +2035,14 @@ void main() {
           _TestAppPreferencesRepository(null),
         ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
-          _TestLocalTerminalConfigRepository(null),
+          _TestLocalTerminalConfigRepository(
+            const LocalTerminalConfigDocument(
+              layout: LocalTerminalLayoutConfig(restoreLayout: false),
+            ),
+          ),
+        ),
+        localTerminalLayoutRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalLayoutRepository(null),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
@@ -2087,7 +2108,14 @@ void main() {
           _TestAppPreferencesRepository(null),
         ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
-          _TestLocalTerminalConfigRepository(null),
+          _TestLocalTerminalConfigRepository(
+            const LocalTerminalConfigDocument(
+              layout: LocalTerminalLayoutConfig(restoreLayout: false),
+            ),
+          ),
+        ),
+        localTerminalLayoutRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalLayoutRepository(null),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
@@ -2175,7 +2203,14 @@ void main() {
           _TestAppPreferencesRepository(null),
         ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
-          _TestLocalTerminalConfigRepository(null),
+          _TestLocalTerminalConfigRepository(
+            const LocalTerminalConfigDocument(
+              layout: LocalTerminalLayoutConfig(restoreLayout: false),
+            ),
+          ),
+        ),
+        localTerminalLayoutRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalLayoutRepository(null),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
@@ -2306,7 +2341,14 @@ void main() {
             _TestAppPreferencesRepository(null),
           ),
           localTerminalConfigRepositoryProvider.overrideWithValue(
-            _TestLocalTerminalConfigRepository(null),
+            _TestLocalTerminalConfigRepository(
+              const LocalTerminalConfigDocument(
+                layout: LocalTerminalLayoutConfig(restoreLayout: false),
+              ),
+            ),
+          ),
+          localTerminalLayoutRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalLayoutRepository(null),
           ),
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
@@ -2376,7 +2418,14 @@ void main() {
             _TestAppPreferencesRepository(null),
           ),
           localTerminalConfigRepositoryProvider.overrideWithValue(
-            _TestLocalTerminalConfigRepository(null),
+            _TestLocalTerminalConfigRepository(
+              const LocalTerminalConfigDocument(
+                layout: LocalTerminalLayoutConfig(restoreLayout: false),
+              ),
+            ),
+          ),
+          localTerminalLayoutRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalLayoutRepository(null),
           ),
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
@@ -2450,6 +2499,9 @@ void main() {
         ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
           _TestLocalTerminalConfigRepository(null),
+        ),
+        localTerminalLayoutRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalLayoutRepository(null),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
@@ -2554,6 +2606,9 @@ void main() {
         localTerminalConfigRepositoryProvider.overrideWithValue(
           _TestLocalTerminalConfigRepository(null),
         ),
+        localTerminalLayoutRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalLayoutRepository(null),
+        ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
@@ -2612,6 +2667,9 @@ void main() {
           localTerminalConfigRepositoryProvider.overrideWithValue(
             _TestLocalTerminalConfigRepository(null),
           ),
+          localTerminalLayoutRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalLayoutRepository(null),
+          ),
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
       );
@@ -2669,6 +2727,9 @@ void main() {
         ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
           _TestLocalTerminalConfigRepository(null),
+        ),
+        localTerminalLayoutRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalLayoutRepository(null),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
@@ -2772,6 +2833,9 @@ void main() {
           ),
           localTerminalConfigRepositoryProvider.overrideWithValue(
             _TestLocalTerminalConfigRepository(null),
+          ),
+          localTerminalLayoutRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalLayoutRepository(null),
           ),
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
@@ -2961,6 +3025,9 @@ void main() {
         localTerminalConfigRepositoryProvider.overrideWithValue(
           _TestLocalTerminalConfigRepository(null),
         ),
+        localTerminalLayoutRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalLayoutRepository(null),
+        ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
@@ -3050,6 +3117,9 @@ void main() {
         ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
           _TestLocalTerminalConfigRepository(null),
+        ),
+        localTerminalLayoutRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalLayoutRepository(null),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
@@ -3242,6 +3312,9 @@ void main() {
         localTerminalConfigRepositoryProvider.overrideWithValue(
           _TestLocalTerminalConfigRepository(null),
         ),
+        localTerminalLayoutRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalLayoutRepository(null),
+        ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
@@ -3394,6 +3467,9 @@ void main() {
           ),
           localTerminalConfigRepositoryProvider.overrideWithValue(
             _TestLocalTerminalConfigRepository(null),
+          ),
+          localTerminalLayoutRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalLayoutRepository(null),
           ),
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
@@ -4247,8 +4323,8 @@ void main() {
         ['default', 'ssh'],
       );
       expect(coreClient.lastCreatedSessionPayload!['launch'], {
-        'program': '/bin/echo',
-        'args': ['restored'],
+        'program': '/usr/bin/ssh',
+        'args': <String>[],
         'env': {'TERM': 'xterm-256color', 'COLORTERM': 'truecolor'},
         'cwd': '/workspace/two',
       });
@@ -4951,6 +5027,57 @@ void main() {
       expect(saved.paste.confirmMultilinePaste, isFalse);
     },
   );
+
+  test('enabling layout restore persists and immediately snapshots', () async {
+    final localConfigRepository = _TestLocalTerminalConfigRepository(
+      const LocalTerminalConfigDocument(
+        layout: LocalTerminalLayoutConfig(restoreLayout: false),
+      ),
+    );
+    final layoutRepository = _TestLocalTerminalLayoutRepository(null);
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(
+            TerminalProfilesDocument(profiles: [defaultProfile]),
+          ),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          localConfigRepository,
+        ),
+        localTerminalLayoutRepositoryProvider.overrideWithValue(
+          layoutRepository,
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(sessionControllerProvider.notifier);
+    await _waitForCondition(
+      condition: () => container.read(sessionControllerProvider).isReady,
+      description: 'layout preference bootstrap',
+    );
+    await controller.setRestoreLayout(true);
+
+    expect(
+      localConfigRepository.savedDocuments.last.layout.restoreLayout,
+      isTrue,
+    );
+    expect(layoutRepository.savedDocuments, hasLength(1));
+    expect(layoutRepository.savedDocuments.single.tabs, hasLength(1));
+
+    await controller.setRestoreLayout(false);
+    expect(
+      localConfigRepository.savedDocuments.last.layout.restoreLayout,
+      isFalse,
+    );
+    await controller.flushLayoutPersistence();
+    expect(layoutRepository.savedDocuments, hasLength(1));
+  });
 
   test(
     'appearance settings persist to local config when it supplied bootstrap',

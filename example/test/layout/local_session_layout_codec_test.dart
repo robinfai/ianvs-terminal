@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_state.dart';
-import 'package:app/features/workspace/local_session_layout_codec.dart';
-import 'package:app/features/workspace/local_terminal_layout_models.dart';
+import 'package:app/features/layout/local_session_layout_codec.dart';
+import 'package:app/features/layout/local_terminal_layout_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -72,8 +72,7 @@ void main() {
       final firstSpec = layout.activeTab!.root
           .findPane(first.sessionId)!
           .relaunchSpec!;
-      expect(firstSpec.command!.program, '/bin/zsh');
-      expect(firstSpec.command!.arguments, <String>['-l']);
+      expect(firstSpec.command, isNull);
       expect(firstSpec.cwd, '/current-cwd');
       expect(
         layout.activeTab!.root.findPane(second.sessionId)!.relaunchSpec!.cwd,
@@ -84,6 +83,7 @@ void main() {
       expect(encoded, isNot(contains('secret-value')));
       expect(encoded, isNot(contains('exitCode')));
       expect(encoded, isNot(contains('recordingPath')));
+      expect(encoded, isNot(contains('"command"')));
     });
 
     test('restores topology with newly relaunched session ids', () {

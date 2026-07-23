@@ -9,7 +9,7 @@ class LocalTerminalPendingCompletionSnapshotFactory {
   const LocalTerminalPendingCompletionSnapshotFactory({
     this.p0BoundaryManifest = const LocalTerminalP0BoundaryClosureManifest(
       localTerminalPlanDocumented: false,
-      roadmapLocalWorkspaceAligned: false,
+      roadmapTerminalLayoutAligned: false,
       remoteScopeExcluded: false,
       perMilestoneExecutionPlansCreated: false,
       competitorCoverageMapped: false,

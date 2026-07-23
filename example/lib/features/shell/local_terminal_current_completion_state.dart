@@ -1,7 +1,7 @@
 import '../policies/local_terminal_policy_production_callbacks.dart';
 import '../productivity/shell_productivity_production_callbacks.dart';
 import '../visual/local_terminal_visual_production_callbacks.dart';
-import '../workspace/local_workspace_production_callbacks.dart';
+import '../layout/terminal_layout_production_callbacks.dart';
 import 'local_terminal_completion_evidence_report.dart';
 import 'local_terminal_p0_boundary_closure_manifest.dart';
 import 'local_terminal_production_wiring_bundle.dart';
@@ -23,7 +23,7 @@ class LocalTerminalCurrentCompletionState {
     LocalTerminalP0BoundaryClosureManifest p0BoundaryManifest =
         const LocalTerminalP0BoundaryClosureManifest(
           localTerminalPlanDocumented: false,
-          roadmapLocalWorkspaceAligned: false,
+          roadmapTerminalLayoutAligned: false,
           remoteScopeExcluded: false,
           perMilestoneExecutionPlansCreated: false,
           competitorCoverageMapped: false,
@@ -62,7 +62,7 @@ class LocalTerminalCurrentCompletionState {
       capturedAt: capturedAt,
       p0BoundaryManifest: const LocalTerminalP0BoundaryClosureManifest(
         localTerminalPlanDocumented: true,
-        roadmapLocalWorkspaceAligned: true,
+        roadmapTerminalLayoutAligned: true,
         remoteScopeExcluded: true,
         perMilestoneExecutionPlansCreated: true,
         competitorCoverageMapped: true,
@@ -78,13 +78,13 @@ class LocalTerminalCurrentCompletionState {
         },
       ),
       actionVerification: LocalTerminalMilestoneVerificationStatus.verified,
-      workspaceCallbacks: LocalWorkspaceProductionCallbacks(
-        newTab: (_) => const LocalWorkspaceBindingResult.completed(),
+      layoutCallbacks: TerminalLayoutProductionCallbacks(
+        newTab: (_) => const TerminalLayoutBindingResult.completed(),
       ),
-      workspaceRequiredOperations: const [
-        LocalWorkspaceProductionOperation.newTab,
+      layoutRequiredOperations: const [
+        TerminalLayoutProductionOperation.newTab,
       ],
-      workspaceVerification: LocalTerminalMilestoneVerificationStatus.verified,
+      layoutVerification: LocalTerminalMilestoneVerificationStatus.verified,
       productivityCallbacks: ShellProductivityProductionCallbacks(
         searchScrollback: (_) =>
             const ShellProductivityBindingResult.completed(),

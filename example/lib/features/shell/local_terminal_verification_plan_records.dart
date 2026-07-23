@@ -150,7 +150,7 @@ class LocalTerminalVerificationPlanRecords {
         _passed(
           LocalTerminalVerificationGate.manualMultipaneBehavior,
           output: const [
-            '2026-06-27 all-automated broader rerun passed pane focus, close/reopen, tab overflow, and multipane workspace regressions; integration smoke passed close/empty-state recovery.',
+            '2026-06-27 all-automated broader rerun passed pane focus, close/reopen, tab overflow, and multipane layout regressions; integration smoke passed close/empty-state recovery.',
             'Manual macOS product app observation: split, focus next, grow, and swap worked; zoom gap was fixed and covered by focused phase4 plus broader.',
           ],
         ),

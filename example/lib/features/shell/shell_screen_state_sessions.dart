@@ -164,14 +164,14 @@ extension _ShellScreenStateSessions on _ShellScreenState {
 
   String get _emptyStateTitle {
     return _recentlyClosedLastSession
-        ? 'Shell workspace is idle'
-        : 'Start a shell workspace';
+        ? 'Shell layout is idle'
+        : 'Start a shell layout';
   }
 
   String get _emptyStateMessage {
     return _recentlyClosedLastSession
-        ? 'The last session has closed. Open a new tab to keep working in the shell workspace.'
-        : 'Open a new tab to start working in the shell workspace.';
+        ? 'The last session has closed. Open a new tab to keep working in the shell layout.'
+        : 'Open a new tab to start working in the shell layout.';
   }
 
   FocusNode _focusNodeFor(String sessionId) {
@@ -201,60 +201,60 @@ extension _ShellScreenStateSessions on _ShellScreenState {
 
     final shouldShowCue = hasFocus && _showReturningCueOnNextFocus;
     if (_activeTerminalHasFocus == hasFocus &&
-        _showWorkspaceCue == shouldShowCue) {
+        _showLayoutCue == shouldShowCue) {
       return;
     }
 
-    _workspaceCueTimer?.cancel();
-    _workspaceCueTimer = null;
+    _layoutCueTimer?.cancel();
+    _layoutCueTimer = null;
     _mutateState(() {
       _activeTerminalHasFocus = hasFocus;
       if (hasFocus) {
-        _showWorkspaceCue = shouldShowCue;
+        _showLayoutCue = shouldShowCue;
         _showReturningCueOnNextFocus = false;
       } else {
-        _showWorkspaceCue = false;
+        _showLayoutCue = false;
       }
     });
 
     if (shouldShowCue) {
-      _workspaceCueTimer = Timer(_ShellScreenState._workspaceCueDuration, () {
-        if (!mounted || !_showWorkspaceCue) {
+      _layoutCueTimer = Timer(_ShellScreenState._layoutCueDuration, () {
+        if (!mounted || !_showLayoutCue) {
           return;
         }
         _mutateState(() {
-          _showWorkspaceCue = false;
+          _showLayoutCue = false;
         });
       });
     }
   }
 
-  void _scheduleWorkspaceCue(String title) {
+  void _scheduleLayoutCue(String title) {
     _showReturningCueOnNextFocus = true;
-    _workspaceCueTitle = title;
+    _layoutCueTitle = title;
     _recentlyClosedLastSession = false;
   }
 
   void _scheduleReturningCue() {
-    _scheduleWorkspaceCue('Back in shell');
+    _scheduleLayoutCue('Back in shell');
   }
 
-  void _showScheduledWorkspaceCueNow() {
+  void _showScheduledLayoutCueNow() {
     if (!_showReturningCueOnNextFocus) {
       return;
     }
-    _workspaceCueTimer?.cancel();
-    _workspaceCueTimer = null;
+    _layoutCueTimer?.cancel();
+    _layoutCueTimer = null;
     _mutateState(() {
-      _showWorkspaceCue = true;
+      _showLayoutCue = true;
       _showReturningCueOnNextFocus = false;
     });
-    _workspaceCueTimer = Timer(_ShellScreenState._workspaceCueDuration, () {
-      if (!mounted || !_showWorkspaceCue) {
+    _layoutCueTimer = Timer(_ShellScreenState._layoutCueDuration, () {
+      if (!mounted || !_showLayoutCue) {
         return;
       }
       _mutateState(() {
-        _showWorkspaceCue = false;
+        _showLayoutCue = false;
       });
     });
   }
@@ -268,13 +268,13 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     if (currentTabCount == 0 && _lastObservedTabCount > 0) {
       _recentlyClosedLastSession = true;
       _activeTerminalHasFocus = false;
-      _showWorkspaceCue = false;
+      _showLayoutCue = false;
     } else if (currentTabCount > 0 && _lastObservedTabCount == 0) {
       _recentlyClosedLastSession = false;
     }
     if (sessionState.activeSessionId == null) {
       _activeTerminalHasFocus = false;
-      _showWorkspaceCue = false;
+      _showLayoutCue = false;
       _isSearchOpen = false;
       _isAutocompleteOpen = false;
       _isAutoComposerOpen = false;
@@ -295,8 +295,8 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       _autoComposerSuggestions = const [];
       _activeAutoComposerIndex = 0;
       _resetCopyModeState();
-      _workspaceCueTimer?.cancel();
-      _workspaceCueTimer = null;
+      _layoutCueTimer?.cancel();
+      _layoutCueTimer = null;
     } else {
       final copyModeSessionId = _copyModeSessionId;
       if (_isCopyModeOpen &&
@@ -401,17 +401,14 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     if (sessionId == null) {
       return;
     }
-    if (_sessionIsVisibleInWorkspace(sessionState, sessionId)) {
+    if (_sessionIsVisibleInLayout(sessionState, sessionId)) {
       return;
     }
     _hoveredTerminalLink = null;
     _hoveredTerminalLinkSessionId = null;
   }
 
-  bool _sessionIsVisibleInWorkspace(
-    SessionState sessionState,
-    String sessionId,
-  ) {
+  bool _sessionIsVisibleInLayout(SessionState sessionState, String sessionId) {
     final activeSessionId = sessionState.activeSessionId;
     if (activeSessionId == null) {
       return false;
@@ -443,9 +440,9 @@ extension _ShellScreenStateSessions on _ShellScreenState {
   void _createSession(
     SessionController sessionController,
     TerminalProfile profile, {
-    required bool returningToWorkspace,
+    required bool returningToLayout,
   }) {
-    if (returningToWorkspace) {
+    if (returningToLayout) {
       _scheduleReturningCue();
     }
     sessionController.createSession(profile);
@@ -771,7 +768,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     final normalizedIndex = nextIndex < 0
         ? nextIndex + panes.length
         : nextIndex;
-    _scheduleWorkspaceCue('Pane ${normalizedIndex + 1} of ${panes.length}');
+    _scheduleLayoutCue('Pane ${normalizedIndex + 1} of ${panes.length}');
     _activateSession(sessionController, panes[normalizedIndex].sessionId);
     return true;
   }
@@ -1097,7 +1094,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     _scheduleReturningCue();
     final focusNode = _focusNodeFor(activeSessionIdBeforeOpen);
     if (focusNode.hasFocus) {
-      _showScheduledWorkspaceCueNow();
+      _showScheduledLayoutCueNow();
       return;
     }
     _focusSession(activeSessionIdBeforeOpen);

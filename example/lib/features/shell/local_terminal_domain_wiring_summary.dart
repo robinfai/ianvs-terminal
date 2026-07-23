@@ -1,7 +1,7 @@
 import '../policies/local_terminal_policy_production_callbacks.dart';
 import '../productivity/shell_productivity_production_callbacks.dart';
 import '../visual/local_terminal_visual_production_callbacks.dart';
-import '../workspace/local_workspace_production_callbacks.dart';
+import '../layout/terminal_layout_production_callbacks.dart';
 import 'local_terminal_production_wiring_manifest.dart';
 
 class LocalTerminalDomainWiringSummary {
@@ -12,11 +12,11 @@ class LocalTerminalDomainWiringSummary {
     required this.missingOperationNames,
   });
 
-  factory LocalTerminalDomainWiringSummary.fromWorkspace(
-    LocalWorkspaceProductionWiring wiring,
+  factory LocalTerminalDomainWiringSummary.fromLayout(
+    TerminalLayoutProductionWiring wiring,
   ) {
     return LocalTerminalDomainWiringSummary(
-      milestone: LocalTerminalProductionMilestone.p2Workspace,
+      milestone: LocalTerminalProductionMilestone.p2Layout,
       ready: wiring.isReady,
       registeredOperationNames: wiring.registeredOperations
           .map((operation) => operation.name)

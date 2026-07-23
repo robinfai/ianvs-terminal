@@ -10,7 +10,7 @@ import 'package:app/features/shell/local_terminal_real_wiring_backlog_evidence.d
 import 'package:app/features/shell/local_terminal_verification_evidence.dart';
 import 'package:app/features/shell/shell_action_production_action_set.dart';
 import 'package:app/features/visual/local_terminal_visual_production_callbacks.dart';
-import 'package:app/features/workspace/local_workspace_production_callbacks.dart';
+import 'package:app/features/layout/terminal_layout_production_callbacks.dart';
 
 void main() {
   test('defaults all real wiring backlog tasks to pending', () {
@@ -108,8 +108,8 @@ void main() {
         shellActionWiring: _verified(
           LocalTerminalRealWiringTask.shellActionProductionWiring,
         ),
-        workspaceWiring: _verified(
-          LocalTerminalRealWiringTask.localWorkspaceProductionWiring,
+        layoutWiring: _verified(
+          LocalTerminalRealWiringTask.localLayoutProductionWiring,
         ),
         productivityWiring: _verified(
           LocalTerminalRealWiringTask.shellProductivityProductionWiring,
@@ -180,7 +180,7 @@ LocalTerminalProductionWiringBundle _readyBundle() {
     capturedAt: DateTime.utc(2026, 5, 16),
     p0BoundaryManifest: const LocalTerminalP0BoundaryClosureManifest(
       localTerminalPlanDocumented: true,
-      roadmapLocalWorkspaceAligned: true,
+      roadmapTerminalLayoutAligned: true,
       remoteScopeExcluded: true,
       perMilestoneExecutionPlansCreated: true,
       competitorCoverageMapped: true,
@@ -196,13 +196,11 @@ LocalTerminalProductionWiringBundle _readyBundle() {
       },
     ),
     actionVerification: LocalTerminalMilestoneVerificationStatus.verified,
-    workspaceCallbacks: LocalWorkspaceProductionCallbacks(
-      newTab: (_) => const LocalWorkspaceBindingResult.completed(),
+    layoutCallbacks: TerminalLayoutProductionCallbacks(
+      newTab: (_) => const TerminalLayoutBindingResult.completed(),
     ),
-    workspaceRequiredOperations: const [
-      LocalWorkspaceProductionOperation.newTab,
-    ],
-    workspaceVerification: LocalTerminalMilestoneVerificationStatus.verified,
+    layoutRequiredOperations: const [TerminalLayoutProductionOperation.newTab],
+    layoutVerification: LocalTerminalMilestoneVerificationStatus.verified,
     productivityCallbacks: ShellProductivityProductionCallbacks(
       searchScrollback: (_) => const ShellProductivityBindingResult.completed(),
     ),

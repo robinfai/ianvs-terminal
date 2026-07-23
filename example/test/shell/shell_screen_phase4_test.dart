@@ -371,6 +371,48 @@ void main() {
     );
   });
 
+  testWidgets('defaults dialog enables layout restore with clear process copy', (
+    tester,
+  ) async {
+    final localConfigRepository = _MemoryLocalTerminalConfigRepository(
+      const LocalTerminalConfigDocument(
+        layout: LocalTerminalLayoutConfig(restoreLayout: false),
+      ),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: FakePtyBackend(),
+      localConfigRepository: localConfigRepository,
+    );
+
+    await _openCommandMenu(tester);
+    await tester.tap(find.text('Defaults & appearance'));
+    await tester.pumpAndSettle();
+    final restoreToggle = find.byKey(const Key('default-restore-layout'));
+    await tester.ensureVisible(restoreToggle);
+
+    expect(find.text('Restore tabs and panes on launch'), findsOneWidget);
+    expect(
+      find.text(
+        'Starts new shell processes and restores their folders. Running processes are not resumed.',
+      ),
+      findsOneWidget,
+    );
+    expect(tester.widget<SwitchListTile>(restoreToggle).value, isFalse);
+
+    await tester.tap(restoreToggle);
+    await tester.pump();
+    expect(tester.widget<SwitchListTile>(restoreToggle).value, isTrue);
+    await tester.tap(find.byKey(const Key('defaults-save')));
+    await tester.pumpAndSettle();
+
+    expect(
+      localConfigRepository.savedDocuments.last.layout.restoreLayout,
+      isTrue,
+    );
+  });
+
   testWidgets('defaults dialog saves OSC 1337 OpenURL deny policy', (
     tester,
   ) async {
@@ -3391,7 +3433,7 @@ void main() {
     }
   });
 
-  testWidgets('terminal focus alone does not show the shell workspace cue', (
+  testWidgets('terminal focus alone does not show the shell layout cue', (
     tester,
   ) async {
     await _pumpShellScreen(tester, fakeBindings: FakePtyBackend());
@@ -3399,7 +3441,7 @@ void main() {
     await tester.tap(find.byType(TerminalViewport));
     await tester.pump();
 
-    expect(find.byKey(const Key('shell-workspace-focus-cue')), findsNothing);
+    expect(find.byKey(const Key('shell-layout-focus-cue')), findsNothing);
   });
 
   testWidgets('shell passes theme-aware terminal colors into the viewport', (
@@ -3451,13 +3493,13 @@ void main() {
 
       await tester.tap(find.byType(TerminalViewport));
       await tester.pump();
-      expect(find.byKey(const Key('shell-workspace-focus-cue')), findsNothing);
+      expect(find.byKey(const Key('shell-layout-focus-cue')), findsNothing);
 
       await _openCommandMenu(tester);
       await tester.tap(find.byTooltip('Close command palette'));
       await tester.pumpAndSettle();
 
-      final cueFinder = find.byKey(const Key('shell-workspace-focus-cue'));
+      final cueFinder = find.byKey(const Key('shell-layout-focus-cue'));
       expect(cueFinder, findsOneWidget);
       expect(find.text('Back in shell'), findsOneWidget);
 
@@ -3477,7 +3519,7 @@ void main() {
     },
   );
 
-  testWidgets('defaults close restores the workspace cue and keyboard path', (
+  testWidgets('defaults close restores the layout cue and keyboard path', (
     tester,
   ) async {
     final fakeBindings = FakePtyBackend();
@@ -3493,7 +3535,7 @@ void main() {
     await tester.tap(find.byTooltip('Close defaults'));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('shell-workspace-focus-cue')), findsOneWidget);
+    expect(find.byKey(const Key('shell-layout-focus-cue')), findsOneWidget);
     expect(find.text('Back in shell'), findsOneWidget);
 
     await tester.sendKeyDownEvent(LogicalKeyboardKey.keyV, platform: 'macos');

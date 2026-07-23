@@ -79,7 +79,7 @@ void main() {
     expect(find.byType(TerminalViewport), findsOneWidget);
     expect(find.byType(FloatingActionButton), findsNothing);
     expect(find.byType(InputChip), findsNothing);
-    expect(find.text('Shell workspace'), findsNothing);
+    expect(find.text('Shell layout'), findsNothing);
     expect(find.text('Session tabs'), findsNothing);
     expect(find.text('Copy'), findsNothing);
     expect(find.text('Paste'), findsNothing);
@@ -104,14 +104,14 @@ void main() {
 
       expect(find.byType(TerminalViewport), findsNothing);
       expect(find.byKey(const Key('shell-empty-state')), findsOneWidget);
-      expect(find.text('Shell workspace is idle'), findsOneWidget);
+      expect(find.text('Shell layout is idle'), findsOneWidget);
       expect(
         find.text('Current new-tab profile • Local Shell'),
         findsOneWidget,
       );
       expect(
         find.text(
-          'The last session has closed. Open a new tab to keep working in the shell workspace.',
+          'The last session has closed. Open a new tab to keep working in the shell layout.',
         ),
         findsOneWidget,
       );

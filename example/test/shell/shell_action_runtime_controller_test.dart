@@ -15,8 +15,8 @@ import 'package:app/features/shell/shell_action_test_harness.dart';
 import 'package:app/features/visual/local_terminal_layout_template_applier.dart';
 import 'package:app/features/visual/local_terminal_visual_models.dart';
 import 'package:app/features/visual/local_terminal_visual_action_reducer.dart';
-import 'package:app/features/workspace/local_workspace_action_reducer.dart';
-import 'package:app/features/workspace/local_terminal_layout_models.dart';
+import 'package:app/features/layout/terminal_layout_action_reducer.dart';
+import 'package:app/features/layout/local_terminal_layout_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -82,20 +82,20 @@ void main() {
       expect(cleared.lastExternalExecutorError, isNull);
     });
 
-    test('updates workspace state for workspace actions', () async {
+    test('updates layout state for layout actions', () async {
       final controller = ShellActionRuntimeController();
       final persisted = <TerminalLayout>[];
 
       await controller.run(
         actionId: TerminalActionId.newTab,
         context: _context(),
-        persistWorkspace: (workspace) async => persisted.add(workspace),
+        persistLayout: (layout) async => persisted.add(layout),
       );
 
-      expect(controller.state.workspace.activeTabId, 'tab-next');
+      expect(controller.state.layout.activeTabId, 'tab-next');
       expect(
         controller.state.lastPlan!.kind,
-        ShellActionSideEffectKind.updateWorkspace,
+        ShellActionSideEffectKind.updateLayout,
       );
       expect(persisted.single.activeTabId, 'tab-next');
     });
@@ -136,7 +136,7 @@ void main() {
       );
     });
 
-    test('applies layout template visual action to workspace state', () async {
+    test('applies layout template visual action to layout state', () async {
       final controller = ShellActionRuntimeController();
       final persisted = <TerminalLayout>[];
 
@@ -158,12 +158,12 @@ void main() {
               splitNodeId: 'split-1',
               sessionIntent: TerminalRelaunchSpec(profileId: 'default'),
             ),
-        persistWorkspace: (workspace) async => persisted.add(workspace),
+        persistLayout: (layout) async => persisted.add(layout),
       );
 
-      expect(controller.state.workspace.activeTabId, 'tab-template');
+      expect(controller.state.layout.activeTabId, 'tab-template');
       expect(
-        controller.state.workspace.activeTab!.root.containsPane('pane-2'),
+        controller.state.layout.activeTab!.root.containsPane('pane-2'),
         isTrue,
       );
       expect(
@@ -388,7 +388,7 @@ ShellActionDispatchContext _context({
   int currentRow = 0,
 }) {
   return ShellActionDispatchContext(
-    workspace: const LocalWorkspaceActionContext(
+    layout: const TerminalLayoutActionContext(
       nextTabId: 'tab-next',
       nextPaneId: 'pane-next',
       nextSplitId: 'split-next',

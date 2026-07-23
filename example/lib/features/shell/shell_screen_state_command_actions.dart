@@ -207,7 +207,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           _createSession(
             sessionController,
             defaultProfile,
-            returningToWorkspace: activeSessionIdBeforeOpen == null,
+            returningToLayout: activeSessionIdBeforeOpen == null,
           );
           return const ShellActionBindingResult.completed();
         },
@@ -248,7 +248,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           _createSession(
             sessionController,
             defaultProfile,
-            returningToWorkspace: activeSessionIdBeforeOpen == null,
+            returningToLayout: activeSessionIdBeforeOpen == null,
           );
           final duplicateSessionId = ref
               .read(sessionControllerProvider)
@@ -1025,6 +1025,12 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       return;
     }
     switch (action) {
+      case TerminalActionId.openRecording:
+        await _openRecordingFromPicker();
+        return;
+      case TerminalActionId.openTerminalAtFolder:
+        await _openTerminalAtFolderFromPicker();
+        return;
       case TerminalActionId.newTab:
         if (defaultProfile == null) {
           return;
@@ -1032,7 +1038,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         _createSession(
           sessionController,
           defaultProfile,
-          returningToWorkspace: activeSessionIdBeforeOpen == null,
+          returningToLayout: activeSessionIdBeforeOpen == null,
         );
         return;
       case TerminalActionId.toolbelt:
@@ -1504,7 +1510,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         _createSession(
           sessionController,
           defaultProfile,
-          returningToWorkspace: false,
+          returningToLayout: false,
         );
         final duplicateSessionId = ref
             .read(sessionControllerProvider)

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert' show utf8;
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui' show AppExitResponse;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -58,7 +59,7 @@ part 'shell_screen_state_instant_replay.dart';
 part 'shell_screen_state_search_completion.dart';
 part 'shell_screen_state_profile_actions.dart';
 part 'shell_screen_state_command_actions.dart';
-part 'shell_screen_state_terminal_workspace.dart';
+part 'shell_screen_state_terminal_layout.dart';
 part 'shell_screen_state_folders.dart';
 part 'shell_screen_state_recording.dart';
 part 'shell_screen_state_recording_library.dart';
@@ -155,7 +156,7 @@ class ShellScreen extends ConsumerStatefulWidget {
 }
 
 class _ShellScreenState extends ConsumerState<ShellScreen> {
-  static const _workspaceCueDuration = Duration(milliseconds: 1400);
+  static const _layoutCueDuration = Duration(milliseconds: 1400);
   static const _viewportResizeDebounce = Duration(milliseconds: 240);
   static const _terminalOverlayPadding = EdgeInsets.fromLTRB(12, 10, 14, 12);
   static const _pasteHistoryLimit = maxPasteHistoryEntries;
@@ -214,7 +215,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   late final Osc72DragDropController _osc72DragDropController;
   late final ShellUserAttentionBridge _userAttentionBridge;
   late final ShellClock _clock;
-  Timer? _workspaceCueTimer;
+  late final AppLifecycleListener _appLifecycleListener;
+  Timer? _layoutCueTimer;
   final Map<String, Timer> _viewportResizeTimers = {};
   bool _isCommandMenuOpen = false;
   bool _isDefaultsOpen = false;
@@ -226,9 +228,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _isToolbeltOpen = false;
   bool _activeTerminalHasFocus = false;
   bool _recentlyClosedLastSession = false;
-  bool _showWorkspaceCue = false;
+  bool _showLayoutCue = false;
   bool _showReturningCueOnNextFocus = false;
-  String _workspaceCueTitle = 'Back in shell';
+  String _layoutCueTitle = 'Back in shell';
   bool _commandFinishedNotificationsEnabled = true;
   bool _bellNotificationsEnabled = true;
   bool _activityNotificationsEnabled = true;
@@ -289,9 +291,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   List<String> _autoComposerSuggestions = const [];
   int _activeAutoComposerIndex = 0;
   List<PasteHistoryEntry> _pasteHistoryEntries = const [];
-  _InstantReplayWorkspaceSession? _instantReplayWorkspaceSession;
+  _InstantReplayLayoutSession? _instantReplayLayoutSession;
   List<_TerminalAnnotation> _annotations = const [];
-  bool _recordingsShelfOpen = false;
   bool _recordingLibraryLoading = false;
   bool _recordingSelectionLoading = false;
   String? _recordingLibraryError;
@@ -329,6 +330,20 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     _osc72DragDropController = Osc72DragDropController(
       sendInput: runtime.sendInput,
     );
+    _appLifecycleListener = AppLifecycleListener(
+      onPause: () => unawaited(
+        ref.read(sessionControllerProvider.notifier).flushLayoutPersistence(),
+      ),
+      onDetach: () => unawaited(
+        ref.read(sessionControllerProvider.notifier).flushLayoutPersistence(),
+      ),
+      onExitRequested: () async {
+        await ref
+            .read(sessionControllerProvider.notifier)
+            .flushLayoutPersistence();
+        return AppExitResponse.exit;
+      },
+    );
     WindowBridge.setNativeMenuHandlers(
       onPaste: _handleNativePasteMenu,
       onOpenTerminalAtFolder: _openTerminalAtFolderFromPicker,
@@ -355,10 +370,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   @override
   void dispose() {
     WindowBridge.setNativeMenuHandlers();
+    _appLifecycleListener.dispose();
     unawaited(_osc72DragDropController.dispose());
     _osc52PromptController?.clearAuthorizationHandler();
     _terminalEventSubscription?.cancel();
-    _workspaceCueTimer?.cancel();
+    _layoutCueTimer?.cancel();
     for (final timer in _viewportResizeTimers.values) {
       timer.cancel();
     }
@@ -494,7 +510,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 ).canvasBackground
               : _tabTerminalBackgroundColor(context, sessionState, activeTab)
         : _terminalColorsForProfile(context, displayedProfile).canvasBackground;
-    final instantReplaySession = _instantReplayWorkspaceSession;
+    final instantReplaySession = _instantReplayLayoutSession;
     final instantReplayPane = instantReplaySession == null
         ? null
         : _paneForSession(sessionState, instantReplaySession.sourceSessionId);
@@ -583,7 +599,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             _createSession(
               sessionController,
               defaultProfile,
-              returningToWorkspace: activeSessionId == null,
+              returningToLayout: activeSessionId == null,
             );
             return const ShellActionBindingResult.completed();
           },
@@ -850,7 +866,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           _createSession(
             sessionController,
             defaultProfile,
-            returningToWorkspace: activeSessionId == null,
+            returningToLayout: activeSessionId == null,
           );
           return KeyEventResult.handled;
         case TerminalActionId.splitRight:
@@ -985,7 +1001,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     sessionState.recordingBusySessionIds.contains(
                       activeSessionId,
                     ),
-                recordingsShelfOpen: _recordingsShelfOpen,
                 tabHasNewOutput: _tabHasNewOutput,
                 tabNewOutputTooltip: _tabNewOutputTooltip,
                 hiddenTabsNewOutputTooltip: _hiddenTabsNewOutputTooltip,
@@ -1000,7 +1015,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         _createSession(
                           sessionController,
                           defaultProfile,
-                          returningToWorkspace: activeSessionId == null,
+                          returningToLayout: activeSessionId == null,
                         );
                       },
                 onActivateSession: (sessionId) =>
@@ -1034,9 +1049,18 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                           activeSessionId,
                         ),
                       ),
-                onToggleRecordingsShelf: () =>
-                    unawaited(_toggleRecordingLibrary()),
-                onOpenTerminalAtFolder: _openTerminalAtFolderFromPicker,
+                onOpenRecording:
+                    ShellActionRegistry.hasUserEntryPoint(
+                      TerminalActionId.openRecording,
+                    )
+                    ? () => unawaited(_openRecordingFromPicker())
+                    : null,
+                onOpenTerminalAtFolder:
+                    ShellActionRegistry.hasUserEntryPoint(
+                      TerminalActionId.openTerminalAtFolder,
+                    )
+                    ? _openTerminalAtFolderFromPicker
+                    : null,
               ),
               if (sessionState.configurationWarnings.isNotEmpty)
                 _ShellConfigurationWarningsBanner(
@@ -1057,8 +1081,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
               Expanded(
                 child: _RecordingLibraryLayout(
                   palette: palette,
-                  shelfOpen: _recordingsShelfOpen && !referenceDemoMode,
-                  workspace: AnimatedSwitcher(
+                  shelfOpen: false,
+                  layout: AnimatedSwitcher(
                     duration: animationsEnabled
                         ? const Duration(milliseconds: 160)
                         : Duration.zero,
@@ -1067,11 +1091,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     child:
                         _selectedRecordingEntry != null &&
                             _selectedRecording != null
-                        ? _RecordingReplayWorkspace(
+                        ? _RecordingReplayLayout(
                             key: ValueKey(_selectedRecordingEntry!.path),
                             palette: palette,
                             entry: _selectedRecordingEntry!,
-                            workspaceName: 'Recording Library',
+                            layoutName: 'Recording',
                             recording: _selectedRecording!,
                             delegate: ref.read(ptySessionBackendProvider),
                             sessionConfig: recordingReplayConfig,
@@ -1081,9 +1105,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                             onClose: _closeRecordingReplay,
                           )
                         : instantReplaySession != null
-                        ? _InstantReplayWorkspace(
-                            key: const Key('instant-replay-workspace'),
-                            workspace: instantReplaySession,
+                        ? _InstantReplayLayout(
+                            key: const Key('instant-replay-layout'),
+                            layout: instantReplaySession,
                             palette: palette,
                             runtime: ref.read(
                               terminalRuntimeControllerProvider,
@@ -1097,7 +1121,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                 const terminal.TerminalCursorConfig(),
                             onCopyVisible: _copyInstantReplayVisibleText,
                             onClear: _confirmClearInstantReplayHistory,
-                            onExit: _closeInstantReplayWorkspace,
+                            onExit: _closeInstantReplayLayout,
                           )
                         : !sessionState.isReady ||
                               (activeSessionId != null &&
@@ -1127,7 +1151,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                     _createSession(
                                       sessionController,
                                       defaultProfile,
-                                      returningToWorkspace: true,
+                                      returningToLayout: true,
                                     );
                                   },
                           )
@@ -1283,11 +1307,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     onReveal: (entry) => unawaited(_revealRecording(entry)),
                     onExport: (entry) => unawaited(_exportRecording(entry)),
                     onDelete: (entry) => unawaited(_deleteRecording(entry)),
-                    onClose: () {
-                      _mutateState(() {
-                        _recordingsShelfOpen = false;
-                      });
-                    },
+                    onClose: () {},
                   ),
                 ),
               ),

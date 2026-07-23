@@ -126,7 +126,7 @@ EOF
       ;;
     p2-workspace)
       cat <<'EOF'
-flutter test example/test/workspace
+flutter test example/test/layout
 EOF
       ;;
     p3-productivity)
@@ -264,7 +264,7 @@ run_batch() {
         example/test/shell/local_terminal_production_wiring_manifest_builder_test.dart
       ;;
     p2-workspace)
-      flutter test example/test/workspace
+      flutter test example/test/layout
       ;;
     p3-productivity)
       flutter test example/test/productivity

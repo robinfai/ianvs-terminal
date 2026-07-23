@@ -1,7 +1,7 @@
 import '../policies/local_terminal_policy_production_callbacks.dart';
 import '../productivity/shell_productivity_production_callbacks.dart';
 import '../visual/local_terminal_visual_production_callbacks.dart';
-import '../workspace/local_workspace_production_callbacks.dart';
+import '../layout/terminal_layout_production_callbacks.dart';
 import 'local_terminal_action_domain_router.dart';
 import 'local_terminal_domain_wiring_summary.dart';
 import 'local_terminal_p0_boundary_closure_manifest.dart';
@@ -20,11 +20,11 @@ class LocalTerminalProductionWiringBundle {
     required this.actionCallbacks,
     required this.actionWiringState,
     required this.actionClosureManifest,
-    required this.workspaceWiring,
+    required this.layoutWiring,
     required this.productivityWiring,
     required this.policyWiring,
     required this.visualWiring,
-    required this.workspaceSummary,
+    required this.layoutSummary,
     required this.productivitySummary,
     required this.policySummary,
     required this.visualSummary,
@@ -40,10 +40,10 @@ class LocalTerminalProductionWiringBundle {
     LocalTerminalMilestoneVerificationStatus actionVerification =
         LocalTerminalMilestoneVerificationStatus.notVerified,
     ShellActionBinding? toggleCommandPalette,
-    LocalWorkspaceProductionCallbacks workspaceCallbacks =
-        const LocalWorkspaceProductionCallbacks(),
-    Iterable<LocalWorkspaceProductionOperation>? workspaceRequiredOperations,
-    LocalTerminalMilestoneVerificationStatus workspaceVerification =
+    TerminalLayoutProductionCallbacks layoutCallbacks =
+        const TerminalLayoutProductionCallbacks(),
+    Iterable<TerminalLayoutProductionOperation>? layoutRequiredOperations,
+    LocalTerminalMilestoneVerificationStatus layoutVerification =
         LocalTerminalMilestoneVerificationStatus.notVerified,
     ShellProductivityProductionCallbacks productivityCallbacks =
         const ShellProductivityProductionCallbacks(),
@@ -62,9 +62,9 @@ class LocalTerminalProductionWiringBundle {
     LocalTerminalMilestoneVerificationStatus visualVerification =
         LocalTerminalMilestoneVerificationStatus.notVerified,
   }) {
-    final workspaceWiring = LocalWorkspaceProductionWiring(
-      callbacks: workspaceCallbacks,
-      requiredOperations: workspaceRequiredOperations,
+    final layoutWiring = TerminalLayoutProductionWiring(
+      callbacks: layoutCallbacks,
+      requiredOperations: layoutRequiredOperations,
     );
     final productivityWiring = ShellProductivityProductionWiring(
       callbacks: productivityCallbacks,
@@ -80,7 +80,7 @@ class LocalTerminalProductionWiringBundle {
     );
 
     final actionCallbacks = LocalTerminalActionDomainRouter(
-      workspace: workspaceWiring,
+      layout: layoutWiring,
       productivity: productivityWiring,
       policy: policyWiring,
       visual: visualWiring,
@@ -102,8 +102,8 @@ class LocalTerminalProductionWiringBundle {
       notes: actionVerification.notes,
     );
 
-    final workspaceSummary = LocalTerminalDomainWiringSummary.fromWorkspace(
-      workspaceWiring,
+    final layoutSummary = LocalTerminalDomainWiringSummary.fromLayout(
+      layoutWiring,
     );
     final productivitySummary =
         LocalTerminalDomainWiringSummary.fromProductivity(productivityWiring);
@@ -119,8 +119,8 @@ class LocalTerminalProductionWiringBundle {
       p0BoundaryManifest: p0BoundaryManifest,
       p0Verification: p0Verification,
       actionClosureManifest: actionClosureManifest,
-      workspaceSummary: workspaceSummary,
-      workspaceVerification: workspaceVerification,
+      layoutSummary: layoutSummary,
+      layoutVerification: layoutVerification,
       productivitySummary: productivitySummary,
       productivityVerification: productivityVerification,
       policySummary: policySummary,
@@ -133,11 +133,11 @@ class LocalTerminalProductionWiringBundle {
       actionCallbacks: actionCallbacks,
       actionWiringState: actionWiringState,
       actionClosureManifest: actionClosureManifest,
-      workspaceWiring: workspaceWiring,
+      layoutWiring: layoutWiring,
       productivityWiring: productivityWiring,
       policyWiring: policyWiring,
       visualWiring: visualWiring,
-      workspaceSummary: workspaceSummary,
+      layoutSummary: layoutSummary,
       productivitySummary: productivitySummary,
       policySummary: policySummary,
       visualSummary: visualSummary,
@@ -148,11 +148,11 @@ class LocalTerminalProductionWiringBundle {
   final ShellActionProductionCallbacks actionCallbacks;
   final ShellActionProductionWiringState actionWiringState;
   final ShellActionProductionClosureManifest actionClosureManifest;
-  final LocalWorkspaceProductionWiring workspaceWiring;
+  final TerminalLayoutProductionWiring layoutWiring;
   final ShellProductivityProductionWiring productivityWiring;
   final LocalTerminalPolicyProductionWiring policyWiring;
   final LocalTerminalVisualProductionWiring visualWiring;
-  final LocalTerminalDomainWiringSummary workspaceSummary;
+  final LocalTerminalDomainWiringSummary layoutSummary;
   final LocalTerminalDomainWiringSummary productivitySummary;
   final LocalTerminalDomainWiringSummary policySummary;
   final LocalTerminalDomainWiringSummary visualSummary;
