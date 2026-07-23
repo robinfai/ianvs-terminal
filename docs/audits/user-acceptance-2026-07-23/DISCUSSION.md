@@ -3,6 +3,12 @@
 日期：2026-07-23
 来源：[用户视角功能验收](REPORT.md)
 
+相关交付：
+
+- `a200a232`：收敛 Terminal 产品范围，移除 Project Workspace 等越界概念。
+- `4f1a9796`：直接处置验收中不需要产品决策的缺口。
+- `04d5ff5e`：落实 Command Composer 与 Password Manager 的隐藏决策。
+
 ## 本轮已直接处置
 
 以下问题有明确的平台规范、可访问性或安全反馈依据，不涉及产品定位选择，已直接调整：
@@ -24,9 +30,29 @@
 6. **仓库卫生**
    - 忽略 `.DS_Store`。
 
-## 需要讨论后再决定
+## 讨论结论
 
-下列调整会改变产品定位、默认行为或信息架构，不宜在本轮单方面落地。
+讨论以“技术预览”为当前发布对象。以下结论已经确认；“后续实施”表示产品方向已定，但不代表当前代码已经交付。
+
+| 议题 | 已确认结论 | 边界与理由 | 当前状态 |
+|---|---|---|---|
+| 发布对象与验收线 | 当前为技术预览；新增或修改流程以 WCAG 2.1 AA、Desktop/macOS 键盘与 VoiceOver 为目标 | 完整应用 AA 认证留到公开发布门槛，不把技术预览表述为已完成全量认证 | 决策已确认；本轮回放、弹窗与键盘退出阻断已修复，专项全量审计后续继续 |
+| 原生菜单与多窗口 | 原生菜单只承载稳定、高频动作；不伪造 `⌘N`，真正多窗口单独设计生命周期 | 避免菜单堆满高级动作，也避免用新标签假装新窗口 | Settings、Open Terminal at Folder 已实现；其余精选 App/File/Edit/View/Window/Help 动作后续实施；多窗口明确延期 |
+| 统一动作入口 | 原生菜单与命令面板都从统一动作注册表派生；命令面板覆盖全部产品可见且已接线动作，并区分产品动作、隐藏实验动作与内部动作 | 解决动作已经实现但入口不一致，同时避免把实验或内部能力意外暴露 | 发布可见性门禁已用于隐藏两项功能；完整注册表驱动的菜单与命令面板后续实施 |
+| Settings 信息架构 | 将 Defaults & appearance 升级为真正 Settings；管理默认 Profile、应用外观、布局恢复、通知和 Hotkey Window，并链接 Manage Profiles | 全局设置留在 Settings，Profile 只管理新 Session 的启动和行为 | 后续实施；当前仍是 Defaults & appearance |
+| 通知设置 | Command finished、Bell、Activity 统一到 Settings > Notifications；显示系统权限状态并提供测试通知 | 全局通知与 Profile Automation 的触发通知分开，避免作用域混淆 | 后续实施 |
+| Hotkey Window | Settings 中 opt-in，默认关闭；展示注册/冲突状态并提供测试动作 | 全局快捷键可能冲突，技术预览不应无提示抢占 | 后续实施；当前原生端仍会启动时注册，实施时必须改为显式开启 |
+| Relaunch 范围 | 窗口尺寸和位置始终恢复；Pane/Session 布局恢复默认关闭，由 Settings 显式开启 | 避免意外恢复失效 cwd、进程意图或敏感上下文 | 已符合：窗口 frame 使用稳定 autosave 名称，`restoreLayout` 默认 `false`；Settings 说明后续补齐 |
+| Toolbelt 信息架构 | 分为 History（Commands、Directories、Prompt Marks、Captured Output、Paste History）、Review（Instant Replay、Annotations）和 Advanced（tmux、Coprocess） | 先按用户任务分层，再放专业工具；隐藏功能不占入口 | Password Manager 已移除；其余分组后续实施 |
+| Profile 渐进披露 | General、Startup 默认展开；Terminal、Keys、Automation、Advanced 默认折叠，并记忆用户展开状态 | 降低首次编辑密度，同时保留高级用户效率 | 后续实施 |
+| Profile 导入 | 将当前 Dynamic Profiles 定位为一次性导入：`Profiles > Import Profiles… > iTerm2 JSON`；预览支持/忽略字段、冲突、shell/command/cwd；默认仅新增，覆盖必须再次确认 | 当前实现不是后台同步，继续称 Dynamic Profiles 会产生错误预期 | 后续实施；“Dynamic Profiles”名称保留给未来真正同步能力 |
+| Read-only 与粘贴状态 | Pane 标题显示只读文本和锁图标；`PASTE` 改为 `Bracketed paste`；`MIME PASTE` 改为 `MIME paste` 并解释含义；状态不能只依赖颜色 | 让协议状态转成用户语言，并提高防误输入状态的显著性 | 后续实施 |
+| Command Composer | 作为隐藏实验功能保留代码，等待重新设计；不进入技术预览功能口径或验收范围 | 用途和目标用户尚未收敛 | 已实现并回归验证 |
+| Password Manager | 作为待重新设计的隐藏功能保留代码；本轮不改名 Session Secrets | 后续设计必须先明确 Keychain、生命周期和授权模型 | 已实现并回归验证 |
+
+## 原始讨论题与选项
+
+下表保留讨论时的原始选项、建议和影响，用于追溯上述结论如何形成；执行状态以上一节为准。
 
 | 议题 | 需要决定什么 | 可选方向 | 当前建议 | 影响 |
 |---|---|---|---|---|
@@ -43,7 +69,7 @@
 | Profile 渐进披露 | 编辑器默认展开哪些区块 | 全部展开；记忆用户状态；基础展开高级折叠 | General/Startup 默认展开，高级区折叠并记忆用户选择 | 影响新手负担与高级用户效率 |
 | 可访问性验收线 | 发布采用哪个标准和平台范围 | WCAG A；WCAG 2.1 AA；加入多平台矩阵 | 以 WCAG 2.1 AA + macOS 键盘/VoiceOver 为发布验收线 | 决定后续组件改造、测试成本与发布定义 |
 
-## 已确认的功能隐藏决策
+## 已落地的功能隐藏决策
 
 2026-07-23 已确认以下两项不进入技术预览的用户可见范围：
 
@@ -58,9 +84,9 @@
 
 动作注册表仍保留两项内部动作，并以发布可见性元数据阻止产品入口和用户快捷键重新暴露；回归测试覆盖默认入口隐藏。
 
-## 建议讨论顺序
+## 后续执行顺序
 
-1. 先确定发布对象与可访问性验收线。
-2. 再确定原生菜单、统一动作入口和多窗口范围。
-3. 然后收敛 Toolbelt、Profile、通知与 Hotkey Window 的信息架构。
-4. 最后决定 Auto Composer、Dynamic Profiles、Secrets 等差异化能力的发布身份。
+1. 先完成统一动作可见性、注册表驱动命令面板和精选 macOS 原生菜单；真正多窗口继续延期。
+2. 再将 Defaults & appearance 升级为 Settings，集中通知、Hotkey Window 和布局恢复说明。
+3. 然后重组 Toolbelt、Profile 渐进披露和一次性 Profile 导入，并调整 Read-only/粘贴状态表达。
+4. 每个新增或修改流程按 WCAG 2.1 AA + macOS 键盘/VoiceOver 回归；公开发布前再做完整应用认证。

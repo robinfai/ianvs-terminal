@@ -4,7 +4,7 @@
 验收版本：`a200a232`（macOS Debug build）
 验收范围：`docs/TERMINAL_PRODUCT_SCOPE.md` 定义的本地终端产品，以及当前界面实际可见或动作注册表中声明的功能。
 
-> 后续决策（2026-07-23）：Command Composer 已标记为隐藏实验功能，Password Manager 已标记为待重新设计的隐藏功能。两项均保留代码，但不进入技术预览的菜单、命令面板、Toolbelt、Settings、默认快捷键、功能口径或验收范围。详见 [DISCUSSION.md](DISCUSSION.md)。
+> 后续讨论（2026-07-23）：当前发布对象确定为技术预览，并已确认原生菜单/动作入口、Settings、通知、Hotkey Window、布局恢复、Toolbelt、Profile、导入和状态表达的后续方向。Command Composer 与 Password Manager 的隐藏决策已落地；其余结论明确标记为后续实施或延期，不能视为当前已交付。详见 [DISCUSSION.md](DISCUSSION.md)。
 
 ## 结论
 
