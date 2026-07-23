@@ -41,6 +41,7 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
   int _activeIndex = 0;
   Duration _playheadElapsed = Duration.zero;
   Duration _playbackBaseElapsed = Duration.zero;
+  double _playbackSpeed = 1;
   bool _isPlaying = false;
   Timer? _playTimer;
   String _searchQuery = '';
@@ -259,13 +260,25 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
       setState(_stopPlayback);
       return;
     }
-    if (_playheadElapsed >= _timelineDuration) {
-      return;
-    }
     setState(() {
+      if (_playheadElapsed >= _timelineDuration) {
+        _playheadElapsed = Duration.zero;
+        _activeIndex = 0;
+        _activeSearchMatchIndex = 0;
+        _applyActiveFrame();
+      }
       _isPlaying = true;
     });
     _startPlaybackTimer();
+  }
+
+  void _setPlaybackSpeed(double speed) {
+    setState(() {
+      _playbackSpeed = speed;
+      if (_isPlaying) {
+        _startPlaybackTimer();
+      }
+    });
   }
 
   void _startPlaybackTimer() {
@@ -281,7 +294,9 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
         return;
       }
       final tickElapsed = Duration(
-        microseconds: _playbackTick.inMicroseconds * timer.tick,
+        microseconds:
+            (_playbackTick.inMicroseconds * timer.tick * _playbackSpeed)
+                .round(),
       );
       final nextPlayhead = _playbackBaseElapsed + tickElapsed;
       final timelineDuration = _timelineDuration;
@@ -493,9 +508,7 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
     final canStepBack = activeFrame != null && _activeIndex > 0;
     final canStepForward =
         activeFrame != null && _activeIndex < widget.layout.frames.length - 1;
-    final canPlay =
-        activeFrame != null &&
-        (_isPlaying || _playheadElapsed < _timelineDuration);
+    final canPlay = activeFrame != null && hasMultipleFrames;
     final controls = _InstantReplayLayoutControls(
       key: const Key('instant-replay-controls'),
       sourceLabel: widget.layout.sourceLabel,
@@ -515,6 +528,7 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
       idleGapMarkers: _idleGapMarkers(),
       activeFrame: activeFrame,
       isPlaying: _isPlaying,
+      playbackSpeed: _playbackSpeed,
       onFitRecordedSize: activeFrame == null
           ? null
           : () => _fitRecordedSize(activeFrame),
@@ -524,6 +538,7 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
           ? () => _setActiveIndex(_activeIndex + 1)
           : null,
       onTogglePlay: canPlay ? _togglePlayback : null,
+      onSpeedChanged: _setPlaybackSpeed,
       onClear: () => widget.onClear(widget.layout.sourceSessionId),
       searchSummary: _searchSummary(),
       onSearchChanged: _updateSearch,
@@ -682,11 +697,13 @@ class _InstantReplayLayoutControls extends StatelessWidget {
     required this.idleGapMarkers,
     required this.activeFrame,
     required this.isPlaying,
+    required this.playbackSpeed,
     required this.onFitRecordedSize,
     required this.onExit,
     required this.onStepBack,
     required this.onStepForward,
     required this.onTogglePlay,
+    required this.onSpeedChanged,
     required this.onClear,
     required this.searchSummary,
     required this.onSearchChanged,
@@ -709,11 +726,13 @@ class _InstantReplayLayoutControls extends StatelessWidget {
   final List<_InstantReplayIdleGapMarker> idleGapMarkers;
   final InstantReplayFrame? activeFrame;
   final bool isPlaying;
+  final double playbackSpeed;
   final VoidCallback? onFitRecordedSize;
   final VoidCallback onExit;
   final VoidCallback? onStepBack;
   final VoidCallback? onStepForward;
   final VoidCallback? onTogglePlay;
+  final ValueChanged<double> onSpeedChanged;
   final VoidCallback onClear;
   final String? searchSummary;
   final ValueChanged<String> onSearchChanged;
@@ -761,9 +780,11 @@ class _InstantReplayLayoutControls extends StatelessWidget {
               final compact = constraints.maxWidth < 820;
               final playbackControls = _InstantReplayPlaybackControls(
                 isPlaying: isPlaying,
+                speed: playbackSpeed,
                 onStepBack: onStepBack,
                 onTogglePlay: onTogglePlay,
                 onStepForward: onStepForward,
+                onSpeedChanged: onSpeedChanged,
                 palette: palette,
               );
               final actions = _InstantReplayActionControls(
@@ -914,16 +935,20 @@ class _InstantReplayControlHeader extends StatelessWidget {
 class _InstantReplayPlaybackControls extends StatelessWidget {
   const _InstantReplayPlaybackControls({
     required this.isPlaying,
+    required this.speed,
     required this.onStepBack,
     required this.onTogglePlay,
     required this.onStepForward,
+    required this.onSpeedChanged,
     required this.palette,
   });
 
   final bool isPlaying;
+  final double speed;
   final VoidCallback? onStepBack;
   final VoidCallback? onTogglePlay;
   final VoidCallback? onStepForward;
+  final ValueChanged<double> onSpeedChanged;
   final AppThemeTokens palette;
 
   @override
@@ -952,7 +977,73 @@ class _InstantReplayPlaybackControls extends StatelessWidget {
           icon: Icons.skip_next_rounded,
           palette: palette,
         ),
+        const SizedBox(width: 4),
+        _ReplaySpeedControl(
+          key: const Key('instant-replay-speed'),
+          speed: speed,
+          onSpeedChanged: onSpeedChanged,
+          palette: palette,
+        ),
       ],
+    );
+  }
+}
+
+const _replayPlaybackSpeeds = <double>[0.25, 0.5, 1, 2, 4];
+
+class _ReplaySpeedControl extends StatelessWidget {
+  const _ReplaySpeedControl({
+    super.key,
+    required this.speed,
+    required this.onSpeedChanged,
+    required this.palette,
+  });
+
+  final double speed;
+  final ValueChanged<double> onSpeedChanged;
+  final AppThemeTokens palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final speedLabel = speed == speed.roundToDouble()
+        ? speed.toInt().toString()
+        : speed.toString();
+    return Semantics(
+      label: 'Playback speed $speedLabel times',
+      button: true,
+      child: PopupMenuButton<double>(
+        tooltip: 'Playback speed',
+        onSelected: onSpeedChanged,
+        itemBuilder: (context) => [
+          for (final item in _replayPlaybackSpeeds)
+            PopupMenuItem(
+              value: item,
+              child: Text(
+                '${item == item.roundToDouble() ? item.toInt() : item}×',
+              ),
+            ),
+        ],
+        child: Container(
+          height: 36,
+          constraints: const BoxConstraints(minWidth: 46),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          decoration: BoxDecoration(
+            color: palette.canvas.withValues(alpha: 0.18),
+            borderRadius: BorderRadius.circular(palette.radius.md),
+            border: Border.all(
+              color: palette.borderStrong.withValues(alpha: 0.54),
+            ),
+          ),
+          child: Text(
+            '$speedLabel×',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: palette.textSubtle,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1115,6 +1206,9 @@ class _InstantReplayTimelineDeck extends StatelessWidget {
 
 class _InstantReplaySearchControls extends StatelessWidget {
   const _InstantReplaySearchControls({
+    this.searchKey = const Key('instant-replay-search'),
+    this.previousKey = const Key('instant-replay-search-previous'),
+    this.nextKey = const Key('instant-replay-search-next'),
     required this.enabled,
     required this.searchSummary,
     required this.onSearchChanged,
@@ -1123,6 +1217,9 @@ class _InstantReplaySearchControls extends StatelessWidget {
     required this.palette,
   });
 
+  final Key searchKey;
+  final Key previousKey;
+  final Key nextKey;
   final bool enabled;
   final String? searchSummary;
   final ValueChanged<String> onSearchChanged;
@@ -1148,7 +1245,7 @@ class _InstantReplaySearchControls extends StatelessWidget {
         return KeyEventResult.handled;
       },
       child: TextField(
-        key: const Key('instant-replay-search'),
+        key: searchKey,
         enabled: enabled,
         onChanged: onSearchChanged,
         textInputAction: TextInputAction.search,
@@ -1193,7 +1290,7 @@ class _InstantReplaySearchControls extends StatelessWidget {
         Expanded(child: searchField),
         const SizedBox(width: 6),
         _InstantReplayControlButton(
-          key: const Key('instant-replay-search-previous'),
+          key: previousKey,
           tooltip: 'Previous search match',
           onPressed: onSearchPrevious,
           icon: Icons.keyboard_arrow_up_rounded,
@@ -1201,7 +1298,7 @@ class _InstantReplaySearchControls extends StatelessWidget {
         ),
         const SizedBox(width: 4),
         _InstantReplayControlButton(
-          key: const Key('instant-replay-search-next'),
+          key: nextKey,
           tooltip: 'Next search match',
           onPressed: onSearchNext,
           icon: Icons.keyboard_arrow_down_rounded,
@@ -1253,33 +1350,38 @@ class _InstantReplayControlButton extends StatelessWidget {
         ? palette.accent.withValues(alpha: 0.68)
         : palette.borderStrong.withValues(alpha: 0.54);
 
-    return IconButton(
-      tooltip: tooltip,
-      onPressed: onPressed,
-      icon: Icon(icon, size: 19),
-      style: ButtonStyle(
-        fixedSize: const WidgetStatePropertyAll(Size.square(36)),
-        minimumSize: const WidgetStatePropertyAll(Size.square(36)),
-        maximumSize: const WidgetStatePropertyAll(Size.square(36)),
-        padding: const WidgetStatePropertyAll(EdgeInsets.zero),
-        visualDensity: VisualDensity.compact,
-        backgroundColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.disabled)) {
-            return palette.canvas.withValues(alpha: 0.08);
-          }
-          if (states.contains(WidgetState.hovered) && !active) {
-            return palette.accent.withValues(alpha: 0.14);
-          }
-          return background;
-        }),
-        foregroundColor: WidgetStatePropertyAll(foreground),
-        overlayColor: WidgetStatePropertyAll(
-          palette.accent.withValues(alpha: active ? 0.20 : 0.12),
-        ),
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(palette.radius.md),
-            side: BorderSide(color: borderColor),
+    return Semantics(
+      label: tooltip,
+      button: true,
+      enabled: enabled,
+      child: IconButton(
+        tooltip: tooltip,
+        onPressed: onPressed,
+        icon: Icon(icon, size: 19),
+        style: ButtonStyle(
+          fixedSize: const WidgetStatePropertyAll(Size.square(36)),
+          minimumSize: const WidgetStatePropertyAll(Size.square(36)),
+          maximumSize: const WidgetStatePropertyAll(Size.square(36)),
+          padding: const WidgetStatePropertyAll(EdgeInsets.zero),
+          visualDensity: VisualDensity.compact,
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.disabled)) {
+              return palette.canvas.withValues(alpha: 0.08);
+            }
+            if (states.contains(WidgetState.hovered) && !active) {
+              return palette.accent.withValues(alpha: 0.14);
+            }
+            return background;
+          }),
+          foregroundColor: WidgetStatePropertyAll(foreground),
+          overlayColor: WidgetStatePropertyAll(
+            palette.accent.withValues(alpha: active ? 0.20 : 0.12),
+          ),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(palette.radius.md),
+              side: BorderSide(color: borderColor),
+            ),
           ),
         ),
       ),

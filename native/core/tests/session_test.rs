@@ -17354,6 +17354,8 @@ fn live_recording_captures_raw_pty_output_redacted_input_and_resize() {
     thread::sleep(Duration::from_millis(250));
     let _ = session::take_frame_diff(session_id).unwrap();
     let _ = session::poll_events(session_id).unwrap();
+    session::write_session(session_id, b"printf 'T310-PREEXISTING-SCREEN\\n'\n").unwrap();
+    let _ = wait_for_frame_containing(session_id, "T310-PREEXISTING-SCREEN");
 
     let start_request = serde_json::json!({
         "kind": "terminal.recording_start",
@@ -17394,6 +17396,21 @@ fn live_recording_captures_raw_pty_output_redacted_input_and_resize() {
     assert_eq!(records[0]["session_id"], session_id.to_string());
     assert_eq!(records[0]["input_policy"], "redact");
     assert_eq!(events[0]["event_kind"], "session_started");
+    assert_eq!(events[1]["event_kind"], "pty_output");
+    assert_eq!(events[1]["monotonic_offset_micros"], 0);
+    let initial_screen = BASE64_STANDARD
+        .decode(
+            events[1]["payload"]["bytes_base64"]
+                .as_str()
+                .expect("expected initial screen payload"),
+        )
+        .unwrap();
+    assert!(
+        initial_screen
+            .windows(b"T310-PREEXISTING-SCREEN".len())
+            .any(|window| window == b"T310-PREEXISTING-SCREEN"),
+        "recording must seed the visible screen before later PTY output"
+    );
     let input_event = events
         .iter()
         .find(|event| event["event_kind"] == "user_input")

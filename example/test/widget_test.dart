@@ -2209,6 +2209,11 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Retains latest 60 frames'), findsOneWidget);
+      expect(find.byKey(const Key('instant-replay-speed')), findsOneWidget);
+      expect(find.byTooltip('Step back in replay'), findsOneWidget);
+      expect(find.byTooltip('Step forward in replay'), findsOneWidget);
+      expect(find.byTooltip('Copy visible'), findsOneWidget);
+      expect(find.byTooltip('Copy selection'), findsOneWidget);
       expect(fakeBindings.writes, isEmpty);
       expect(
         windowBridgeCalls.where((call) => call.method == 'windowMetrics'),

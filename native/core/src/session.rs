@@ -6821,6 +6821,23 @@ fn recording_error_response(error: RecordingError) -> Result<Option<String>, Ses
     }))
 }
 
+fn recording_initial_screen(terminal: &Terminal) -> Vec<u8> {
+    let cursor = terminal.cursor();
+    let mut screen = String::new();
+    if terminal.is_alt_screen_active() {
+        screen.push_str("\x1b[?1049h");
+    }
+    screen.push_str("\x1b[2J");
+    screen.push_str(&terminal.export_visible_screen_styled());
+    screen.push_str(&format!("\x1b[{};{}H", cursor.row + 1, cursor.col + 1));
+    screen.push_str(if cursor.visible {
+        "\x1b[?25h"
+    } else {
+        "\x1b[?25l"
+    });
+    screen.into_bytes()
+}
+
 fn invalid_recording_request(message: &'static str) -> Result<Option<String>, SessionError> {
     recording_error_response(RecordingError {
         code: "invalid_request",
@@ -6871,6 +6888,7 @@ pub fn request_session_json(
                 TerminalEmulation::Xterm256 => "xterm256",
                 TerminalEmulation::Vt220 => "vt220",
             };
+            let initial_screen = recording_initial_screen(&state.terminal);
             let result = recording.start(
                 session_id,
                 created_at_utc.to_string(),
@@ -6878,6 +6896,7 @@ pub fn request_session_json(
                 terminal_emulation,
                 cols as u16,
                 rows as u16,
+                initial_screen,
             );
             drop(state);
             match result {

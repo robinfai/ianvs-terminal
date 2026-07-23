@@ -99,6 +99,7 @@ impl SessionRecording {
         terminal_emulation: &'static str,
         cols: u16,
         rows: u16,
+        initial_screen: Vec<u8>,
     ) -> Result<RecordingStartResult, RecordingError> {
         if self.active.is_some() {
             return Err(RecordingError::already_active());
@@ -114,11 +115,17 @@ impl SessionRecording {
             max_events: self.max_events,
             max_payload_bytes: self.max_payload_bytes,
         };
-        active.push(RecordingEventPayload::SessionStarted {
-            terminal_emulation,
-            cols,
-            rows,
-        });
+        active.push_at(
+            RecordingEventPayload::SessionStarted {
+                terminal_emulation,
+                cols,
+                rows,
+            },
+            0,
+        );
+        if !initial_screen.is_empty() {
+            active.push_at(RecordingEventPayload::PtyOutput(initial_screen), 0);
+        }
         self.active = Some(active);
         Ok(RecordingStartResult {
             max_events: self.max_events,
@@ -207,6 +214,10 @@ struct ActiveRecording {
 
 impl ActiveRecording {
     fn push(&mut self, payload: RecordingEventPayload) {
+        self.push_at(payload, self.started_at.elapsed().as_micros() as u64);
+    }
+
+    fn push_at(&mut self, payload: RecordingEventPayload, monotonic_offset_micros: u64) {
         if self.overflowed {
             return;
         }
@@ -219,7 +230,7 @@ impl ActiveRecording {
         }
         self.payload_bytes += payload_bytes;
         self.events.push(RecordingEvent {
-            monotonic_offset_micros: self.started_at.elapsed().as_micros() as u64,
+            monotonic_offset_micros,
             payload,
         });
     }
@@ -364,6 +375,7 @@ mod tests {
                 "xterm256",
                 120,
                 32,
+                b"\x1b[2J\x1b[Hexisting screen\x1b[3;5H".to_vec(),
             )
             .unwrap();
         recording.record_pty_output(b"ready\r\n");
@@ -377,16 +389,23 @@ mod tests {
             .map(|line| serde_json::from_str::<Value>(line).unwrap())
             .collect::<Vec<_>>();
 
-        assert_eq!(lines.len(), 6);
+        assert_eq!(lines.len(), 7);
         assert_eq!(lines[0]["input_policy"], "redact");
         assert_eq!(lines[2]["event_kind"], "pty_output");
-        assert_eq!(lines[3]["event_kind"], "user_input");
-        assert_eq!(lines[3]["payload"]["redacted"], true);
-        assert_eq!(lines[3]["payload"]["byte_length"], 6);
-        assert!(lines[3]["payload"].get("bytes_base64").is_none());
-        assert_eq!(lines[4]["event_kind"], "resize");
-        assert_eq!(lines[5]["event_kind"], "session_exited");
-        assert_eq!(lines[5]["payload"]["exit_code"], 0);
+        assert_eq!(lines[2]["monotonic_offset_micros"], 0);
+        assert_eq!(
+            BASE64_STANDARD
+                .decode(lines[2]["payload"]["bytes_base64"].as_str().unwrap())
+                .unwrap(),
+            b"\x1b[2J\x1b[Hexisting screen\x1b[3;5H"
+        );
+        assert_eq!(lines[4]["event_kind"], "user_input");
+        assert_eq!(lines[4]["payload"]["redacted"], true);
+        assert_eq!(lines[4]["payload"]["byte_length"], 6);
+        assert!(lines[4]["payload"].get("bytes_base64").is_none());
+        assert_eq!(lines[5]["event_kind"], "resize");
+        assert_eq!(lines[6]["event_kind"], "session_exited");
+        assert_eq!(lines[6]["payload"]["exit_code"], 0);
         for (sequence, line) in lines.iter().skip(1).enumerate() {
             assert_eq!(line["sequence"], sequence);
         }
@@ -403,6 +422,7 @@ mod tests {
                 "vt220",
                 80,
                 24,
+                Vec::new(),
             )
             .unwrap();
         recording.record_pty_output(b"abc");

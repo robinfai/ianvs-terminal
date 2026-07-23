@@ -702,8 +702,6 @@ class _RecordingReplayLayout extends StatefulWidget {
 }
 
 class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
-  static const _speeds = <double>[0.25, 0.5, 1, 2, 4];
-
   terminal.TerminalReplayBackend? _backend;
   terminal.TerminalRuntimeController? _runtime;
   String? _sessionId;
@@ -714,9 +712,10 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
   Duration _position = Duration.zero;
   double _speed = 1;
   bool _isPlaying = true;
-  bool _searchOpen = false;
   String? _error;
+  String _searchQuery = '';
   List<terminal.TerminalSearchMatch> _searchMatches = const [];
+  int _activeSearchMatchIndex = 0;
 
   terminal.TerminalViewportController? get _viewportController {
     final runtime = _runtime;
@@ -781,9 +780,16 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
             nextPosition < backend.replayDuration &&
             !backend.isSessionPaused(sessionId);
         if (nextPosition != _position || playing != _isPlaying) {
+          final nextMatches = _searchMatchesFor(_searchQuery);
           setState(() {
             _position = nextPosition;
             _isPlaying = playing;
+            _searchMatches = nextMatches;
+            _activeSearchMatchIndex = _searchMatches.isEmpty
+                ? 0
+                : _activeSearchMatchIndex
+                      .clamp(0, _searchMatches.length - 1)
+                      .toInt();
           });
         }
       });
@@ -845,8 +851,15 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
     try {
       backend.seekSession(sessionId, clamped);
       runtime.refreshSession(sessionId);
+      final nextMatches = _searchMatchesFor(_searchQuery);
       setState(() {
         _position = clamped;
+        _searchMatches = nextMatches;
+        _activeSearchMatchIndex = _searchMatches.isEmpty
+            ? 0
+            : _activeSearchMatchIndex
+                  .clamp(0, _searchMatches.length - 1)
+                  .toInt();
       });
     } on Object catch (error) {
       setState(() {
@@ -856,18 +869,65 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
   }
 
   void _updateSearch(String query) {
+    setState(() {
+      _searchQuery = query;
+      _searchMatches = _searchMatchesFor(query);
+      _activeSearchMatchIndex = 0;
+    });
+  }
+
+  List<terminal.TerminalSearchMatch> _searchMatchesFor(String query) {
     final runtime = _runtime;
     final sessionId = _sessionId;
     if (runtime == null || sessionId == null || query.trim().isEmpty) {
-      setState(() {
-        _searchMatches = const [];
-      });
+      return const [];
+    }
+    return runtime.searchTextResult(sessionId, query).matches;
+  }
+
+  void _moveSearchMatch(int delta) {
+    if (_searchMatches.isEmpty) {
       return;
     }
-    final result = runtime.searchTextResult(sessionId, query);
     setState(() {
-      _searchMatches = result.matches;
+      _activeSearchMatchIndex =
+          (_activeSearchMatchIndex + delta) % _searchMatches.length;
+      if (_activeSearchMatchIndex < 0) {
+        _activeSearchMatchIndex += _searchMatches.length;
+      }
     });
+  }
+
+  void _seekToAdjacentEvent(int delta) {
+    final offsets =
+        widget.recording.events
+            .where(
+              (event) =>
+                  event.kind !=
+                      terminal.TerminalRecordingEventKind.checkpoint &&
+                  event.kind !=
+                      terminal.TerminalRecordingEventKind.sessionStarted,
+            )
+            .map((event) => event.monotonicOffset)
+            .toSet()
+            .toList()
+          ..sort();
+    if (offsets.isEmpty) {
+      return;
+    }
+    if (delta < 0) {
+      final target = offsets.lastWhere(
+        (offset) => offset < _position,
+        orElse: () => Duration.zero,
+      );
+      _seek(target);
+      return;
+    }
+    final target = offsets.firstWhere(
+      (offset) => offset > _position,
+      orElse: () => offsets.last,
+    );
+    _seek(target);
   }
 
   Future<void> _copyVisible() async {
@@ -876,6 +936,19 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
       return;
     }
     await ClipboardBridge.copy(frame.rows.map((row) => row.text).join('\n'));
+  }
+
+  Future<void> _copySelection() async {
+    final selectionController = _selectionController;
+    final frame = _viewportController?.frame;
+    if (selectionController == null || frame == null) {
+      return;
+    }
+    final selectedText = selectionController.textForFrame(frame);
+    if (selectedText.trim().isEmpty) {
+      return;
+    }
+    await ClipboardBridge.copy(selectedText);
   }
 
   @override
@@ -951,7 +1024,7 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
                                 searchMatches: _searchMatches,
                                 activeSearchMatchIndex: _searchMatches.isEmpty
                                     ? -1
-                                    : 0,
+                                    : _activeSearchMatchIndex,
                                 onScrollLines: (delta) =>
                                     runtime.scrollViewport(sessionId, delta),
                                 onScrollToOffset: (offset) =>
@@ -973,30 +1046,28 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
               duration: duration,
               sliderValue: sliderValue,
               sliderMax: maxMicros.toDouble(),
+              timelineMarkers: _recordingTimelineMarkers(
+                widget.recording,
+                duration,
+              ),
               seekEnabled: seekEnabled,
               isPlaying: _isPlaying,
               speed: _speed,
-              searchOpen: _searchOpen,
               searchMatchCount: _searchMatches.length,
               onToggle: _togglePlayback,
               onSeek: (value) => _seek(Duration(microseconds: value.round())),
-              onJumpBack: seekEnabled
-                  ? () => _seek(_position - const Duration(seconds: 10))
-                  : null,
-              onJumpForward: seekEnabled
-                  ? () => _seek(_position + const Duration(seconds: 10))
-                  : null,
+              onStepBack: seekEnabled ? () => _seekToAdjacentEvent(-1) : null,
+              onStepForward: seekEnabled ? () => _seekToAdjacentEvent(1) : null,
               onSpeedChanged: _setSpeed,
-              onToggleSearch: () {
-                setState(() {
-                  _searchOpen = !_searchOpen;
-                  if (!_searchOpen) {
-                    _searchMatches = const [];
-                  }
-                });
-              },
               onSearchChanged: _updateSearch,
-              onCopy: _copyVisible,
+              onSearchPrevious: _searchMatches.isEmpty
+                  ? null
+                  : () => _moveSearchMatch(-1),
+              onSearchNext: _searchMatches.isEmpty
+                  ? null
+                  : () => _moveSearchMatch(1),
+              onCopyVisible: _copyVisible,
+              onCopySelection: _copySelection,
               onFit: () {
                 _focusNode?.requestFocus();
                 if (runtime != null && sessionId != null) {
@@ -1157,19 +1228,21 @@ class _RecordingReplayDock extends StatelessWidget {
     required this.duration,
     required this.sliderValue,
     required this.sliderMax,
+    required this.timelineMarkers,
     required this.seekEnabled,
     required this.isPlaying,
     required this.speed,
-    required this.searchOpen,
     required this.searchMatchCount,
     required this.onToggle,
     required this.onSeek,
-    required this.onJumpBack,
-    required this.onJumpForward,
+    required this.onStepBack,
+    required this.onStepForward,
     required this.onSpeedChanged,
-    required this.onToggleSearch,
     required this.onSearchChanged,
-    required this.onCopy,
+    required this.onSearchPrevious,
+    required this.onSearchNext,
+    required this.onCopyVisible,
+    required this.onCopySelection,
     required this.onFit,
     required this.onClose,
   });
@@ -1179,190 +1252,454 @@ class _RecordingReplayDock extends StatelessWidget {
   final Duration duration;
   final double sliderValue;
   final double sliderMax;
+  final List<_RecordingTimelineMarker> timelineMarkers;
   final bool seekEnabled;
   final bool isPlaying;
   final double speed;
-  final bool searchOpen;
   final int searchMatchCount;
   final VoidCallback onToggle;
   final ValueChanged<double> onSeek;
-  final VoidCallback? onJumpBack;
-  final VoidCallback? onJumpForward;
+  final VoidCallback? onStepBack;
+  final VoidCallback? onStepForward;
   final ValueChanged<double> onSpeedChanged;
-  final VoidCallback onToggleSearch;
   final ValueChanged<String> onSearchChanged;
-  final VoidCallback onCopy;
+  final VoidCallback? onSearchPrevious;
+  final VoidCallback? onSearchNext;
+  final VoidCallback onCopyVisible;
+  final VoidCallback onCopySelection;
   final VoidCallback onFit;
   final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
-    final replayControls = DecoratedBox(
-      decoration: BoxDecoration(
-        color: palette.chrome,
-        borderRadius: BorderRadius.circular(palette.radius.lg),
-        border: Border.all(color: palette.border),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 12, 10, 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                _ReplayIconButton(
-                  label: 'Back 10 seconds',
-                  onPressed: onJumpBack,
-                  icon: Icons.replay_10_rounded,
-                ),
-                Semantics(
-                  label: isPlaying ? 'Pause replay' : 'Play replay',
-                  button: true,
-                  child: FilledButton(
-                    key: const Key('recording-replay-toggle'),
-                    onPressed: onToggle,
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(56, 56),
-                      padding: EdgeInsets.zero,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(palette.radius.md),
-                      ),
-                    ),
-                    child: Icon(
-                      isPlaying
-                          ? Icons.pause_rounded
-                          : Icons.play_arrow_rounded,
-                      size: 25,
-                    ),
-                  ),
-                ),
-                _ReplayIconButton(
-                  label: 'Forward 10 seconds',
-                  onPressed: onJumpForward,
-                  icon: Icons.forward_10_rounded,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '${_formatRecordingDuration(position)} / ${_formatRecordingDuration(duration)}',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: palette.textMuted,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Slider(
-                    value: sliderValue,
-                    max: sliderMax,
-                    onChanged: seekEnabled ? onSeek : null,
-                  ),
-                ),
-                Semantics(
-                  label:
-                      'Playback speed ${speed == speed.roundToDouble() ? speed.toInt() : speed} times',
-                  button: true,
-                  child: PopupMenuButton<double>(
-                    key: const Key('recording-replay-speed'),
-                    tooltip: 'Playback speed',
-                    onSelected: onSpeedChanged,
-                    itemBuilder: (context) => [
-                      for (final item in _RecordingReplayLayoutState._speeds)
-                        PopupMenuItem(
-                          value: item,
-                          child: Text(
-                            '${item == item.roundToDouble() ? item.toInt() : item}×',
-                          ),
-                        ),
-                    ],
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Text(
-                        '${speed == speed.roundToDouble() ? speed.toInt() : speed}×',
-                        style: Theme.of(context).textTheme.labelMedium
-                            ?.copyWith(
-                              color: palette.textMuted,
-                              fontWeight: FontWeight.w700,
-                            ),
-                      ),
-                    ),
-                  ),
-                ),
-                _ReplayIconButton(
-                  label: 'Search replay',
-                  onPressed: onToggleSearch,
-                  icon: Icons.search_rounded,
-                  color: searchOpen ? palette.accent : null,
-                ),
-                _ReplayIconButton(
-                  label: 'Copy visible output',
-                  onPressed: onCopy,
-                  icon: Icons.copy_all_outlined,
-                ),
-                TextButton(onPressed: onFit, child: const Text('Fit')),
-                _ReplayIconButton(
-                  key: const Key('recording-replay-close'),
-                  label: 'Close replay',
-                  onPressed: onClose,
-                  icon: Icons.close_rounded,
-                ),
-              ],
-            ),
-            if (searchOpen)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(8, 2, 8, 4),
-                child: TextField(
-                  key: const Key('recording-replay-search'),
-                  autofocus: true,
-                  onChanged: onSearchChanged,
-                  decoration: InputDecoration(
-                    isDense: true,
-                    labelText: 'Search replay output',
-                    hintText: 'Search visible replay output',
-                    suffixText: '$searchMatchCount matches',
-                    prefixIcon: const Icon(Icons.search_rounded, size: 17),
-                  ),
-                ),
-              ),
-          ],
+    final header = Row(
+      children: [
+        Icon(Icons.schedule_rounded, size: 16, color: palette.textMuted),
+        const SizedBox(width: 6),
+        Text(
+          '${_formatRecordingDuration(position)} / ${_formatRecordingDuration(duration)}',
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: palette.textMuted,
+            fontFeatures: const [FontFeature.tabularFigures()],
+            fontWeight: FontWeight.w600,
+          ),
         ),
-      ),
+      ],
+    );
+    final transport = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _InstantReplayControlButton(
+          tooltip: 'Step back in replay',
+          onPressed: onStepBack,
+          icon: Icons.skip_previous_rounded,
+          palette: palette,
+        ),
+        const SizedBox(width: 4),
+        _InstantReplayControlButton(
+          key: const Key('recording-replay-toggle'),
+          tooltip: isPlaying ? 'Pause replay' : 'Play replay',
+          onPressed: onToggle,
+          icon: isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+          active: isPlaying,
+          palette: palette,
+        ),
+        const SizedBox(width: 4),
+        _InstantReplayControlButton(
+          tooltip: 'Step forward in replay',
+          onPressed: onStepForward,
+          icon: Icons.skip_next_rounded,
+          palette: palette,
+        ),
+        const SizedBox(width: 4),
+        _ReplaySpeedControl(
+          key: const Key('recording-replay-speed'),
+          speed: speed,
+          onSpeedChanged: onSpeedChanged,
+          palette: palette,
+        ),
+      ],
+    );
+    final actions = Wrap(
+      spacing: 5,
+      runSpacing: 5,
+      alignment: WrapAlignment.end,
+      children: [
+        _InstantReplayControlButton(
+          tooltip: 'Fit replay content',
+          onPressed: onFit,
+          icon: Icons.fit_screen_rounded,
+          palette: palette,
+        ),
+        _InstantReplayControlButton(
+          tooltip: 'Copy visible',
+          onPressed: onCopyVisible,
+          icon: Icons.copy_rounded,
+          palette: palette,
+        ),
+        _InstantReplayControlButton(
+          tooltip: 'Copy selection',
+          onPressed: onCopySelection,
+          icon: Icons.select_all_rounded,
+          palette: palette,
+        ),
+        _InstantReplayControlButton(
+          key: const Key('recording-replay-close'),
+          tooltip: 'Close replay',
+          onPressed: onClose,
+          icon: Icons.close_rounded,
+          palette: palette,
+        ),
+      ],
+    );
+    final timeline = _RecordingReplayTimeline(
+      palette: palette,
+      value: sliderValue,
+      max: sliderMax,
+      markers: timelineMarkers,
+      onChanged: seekEnabled ? onSeek : null,
+    );
+    final search = _InstantReplaySearchControls(
+      searchKey: const Key('recording-replay-search'),
+      previousKey: const Key('recording-replay-search-previous'),
+      nextKey: const Key('recording-replay-search-next'),
+      enabled: true,
+      searchSummary: searchMatchCount == 0
+          ? null
+          : '$searchMatchCount ${searchMatchCount == 1 ? 'match' : 'matches'} in current replay view',
+      onSearchChanged: onSearchChanged,
+      onSearchPrevious: onSearchPrevious,
+      onSearchNext: onSearchNext,
+      palette: palette,
     );
     return Semantics(
       identifier: 'recording-replay-controls',
       container: true,
       explicitChildNodes: true,
       label: 'Replay controls for recording',
-      child: replayControls,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Color.alphaBlend(
+            palette.canvas.withValues(alpha: 0.24),
+            palette.overlay,
+          ),
+          borderRadius: BorderRadius.circular(palette.radius.lg),
+          border: Border.all(
+            color: palette.borderStrong.withValues(alpha: 0.72),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 820;
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (compact) ...[
+                    Row(
+                      children: [
+                        Expanded(child: header),
+                        actions,
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    transport,
+                  ] else
+                    Row(
+                      children: [
+                        Expanded(child: header),
+                        transport,
+                        const SizedBox(width: 8),
+                        actions,
+                      ],
+                    ),
+                  const SizedBox(height: 8),
+                  timeline,
+                  const SizedBox(height: 8),
+                  search,
+                ],
+              );
+            },
+          ),
+        ),
+      ),
     );
   }
 }
 
-class _ReplayIconButton extends StatelessWidget {
-  const _ReplayIconButton({
-    super.key,
-    required this.label,
-    required this.onPressed,
-    required this.icon,
-    this.color,
+enum _RecordingTimelineMarkerKind { output, input, resize, exit, idle }
+
+final class _RecordingTimelineMarker {
+  const _RecordingTimelineMarker({required this.value, required this.kind});
+
+  final double value;
+  final _RecordingTimelineMarkerKind kind;
+}
+
+List<_RecordingTimelineMarker> _recordingTimelineMarkers(
+  terminal.TerminalRecording recording,
+  Duration duration,
+) {
+  const maximumVisibleEventMarkers = 96;
+  const minimumIdleGap = Duration(seconds: 2);
+  final durationMicros = math.max(1, duration.inMicroseconds);
+  final events = recording.events
+      .where(
+        (event) =>
+            event.kind != terminal.TerminalRecordingEventKind.checkpoint &&
+            event.kind != terminal.TerminalRecordingEventKind.sessionStarted,
+      )
+      .toList(growable: false);
+  final candidates = <_RecordingTimelineMarker>[];
+  terminal.TerminalRecordingEvent? previous;
+  for (final event in events) {
+    final previousEvent = previous;
+    if (previousEvent != null) {
+      final gap = event.monotonicOffset - previousEvent.monotonicOffset;
+      if (gap >= minimumIdleGap) {
+        candidates.add(
+          _RecordingTimelineMarker(
+            value:
+                previousEvent.monotonicOffset.inMicroseconds +
+                gap.inMicroseconds / 2,
+            kind: _RecordingTimelineMarkerKind.idle,
+          ),
+        );
+      }
+    }
+    previous = event;
+    candidates.add(
+      _RecordingTimelineMarker(
+        value: event.monotonicOffset.inMicroseconds
+            .clamp(0, durationMicros)
+            .toDouble(),
+        kind: switch (event.kind) {
+          terminal.TerminalRecordingEventKind.userInput =>
+            _RecordingTimelineMarkerKind.input,
+          terminal.TerminalRecordingEventKind.resize =>
+            _RecordingTimelineMarkerKind.resize,
+          terminal.TerminalRecordingEventKind.sessionExited =>
+            _RecordingTimelineMarkerKind.exit,
+          _ => _RecordingTimelineMarkerKind.output,
+        },
+      ),
+    );
+  }
+  if (candidates.length <= maximumVisibleEventMarkers) {
+    return candidates;
+  }
+
+  final important = candidates
+      .where((marker) => marker.kind != _RecordingTimelineMarkerKind.output)
+      .toList(growable: false);
+  final output = candidates
+      .where((marker) => marker.kind == _RecordingTimelineMarkerKind.output)
+      .toList(growable: false);
+  final outputBudget = math.max(
+    0,
+    maximumVisibleEventMarkers - important.length,
+  );
+  if (outputBudget == 0) {
+    return important.take(maximumVisibleEventMarkers).toList(growable: false);
+  }
+  final sampled = <_RecordingTimelineMarker>[...important];
+  for (var index = 0; index < outputBudget; index += 1) {
+    final sourceIndex = outputBudget == 1
+        ? output.length - 1
+        : (index * (output.length - 1) / (outputBudget - 1)).round();
+    sampled.add(output[sourceIndex]);
+  }
+  sampled.sort((a, b) => a.value.compareTo(b.value));
+  return sampled;
+}
+
+class _RecordingReplayTimeline extends StatelessWidget {
+  const _RecordingReplayTimeline({
+    required this.palette,
+    required this.value,
+    required this.max,
+    required this.markers,
+    required this.onChanged,
   });
 
-  final String label;
-  final VoidCallback? onPressed;
-  final IconData icon;
-  final Color? color;
+  final AppThemeTokens palette;
+  final double value;
+  final double max;
+  final List<_RecordingTimelineMarker> markers;
+  final ValueChanged<double>? onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      label: label,
-      button: true,
-      enabled: onPressed != null,
-      child: IconButton(
-        tooltip: label,
-        onPressed: onPressed,
-        icon: Icon(icon, size: 20, color: color),
+    final safeMax = max <= 0 ? 1.0 : max;
+    final safeValue = value.clamp(0.0, safeMax).toDouble();
+    return SizedBox(
+      height: 40,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Positioned.fill(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                const horizontalInset = 16.0;
+                final usableWidth = math.max(
+                  0.0,
+                  constraints.maxWidth - horizontalInset * 2,
+                );
+                final progress = (safeValue / safeMax).clamp(0.0, 1.0);
+                return Stack(
+                  key: const Key('recording-replay-timeline-effects'),
+                  alignment: Alignment.centerLeft,
+                  children: [
+                    Positioned(
+                      left: horizontalInset,
+                      right: horizontalInset,
+                      top: 17,
+                      bottom: 17,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: palette.border.withValues(alpha: 0.76),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: horizontalInset,
+                      top: 17,
+                      bottom: 17,
+                      width: usableWidth * progress,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              palette.accent,
+                              Color.lerp(
+                                palette.accent,
+                                palette.success,
+                                0.58,
+                              )!,
+                              palette.success,
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(999),
+                          boxShadow: [
+                            BoxShadow(
+                              color: palette.accent.withValues(alpha: 0.22),
+                              blurRadius: 8,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    for (final marker in markers)
+                      Positioned(
+                        left:
+                            horizontalInset +
+                            (marker.value / safeMax).clamp(0.0, 1.0) *
+                                usableWidth -
+                            _markerWidth(marker.kind) / 2,
+                        top: _markerTop(marker.kind),
+                        child: Tooltip(
+                          message: _markerTooltip(marker.kind),
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: _markerColor(marker.kind, palette),
+                              borderRadius: BorderRadius.circular(999),
+                              border:
+                                  marker.kind ==
+                                      _RecordingTimelineMarkerKind.idle
+                                  ? Border.all(
+                                      color: palette.canvas.withValues(
+                                        alpha: 0.84,
+                                      ),
+                                    )
+                                  : null,
+                              boxShadow:
+                                  marker.kind ==
+                                      _RecordingTimelineMarkerKind.idle
+                                  ? [
+                                      BoxShadow(
+                                        color: palette.warning.withValues(
+                                          alpha: 0.28,
+                                        ),
+                                        blurRadius: 6,
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: SizedBox(
+                              width: _markerWidth(marker.kind),
+                              height: _markerHeight(marker.kind),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ),
+          Positioned.fill(
+            child: SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                trackHeight: 0,
+                activeTrackColor: Colors.transparent,
+                inactiveTrackColor: Colors.transparent,
+                disabledActiveTrackColor: Colors.transparent,
+                disabledInactiveTrackColor: Colors.transparent,
+                thumbColor: palette.textPrimary,
+                disabledThumbColor: palette.textSubtle,
+                overlayColor: palette.accent.withValues(alpha: 0.16),
+                thumbShape: const RoundSliderThumbShape(
+                  enabledThumbRadius: 6,
+                  disabledThumbRadius: 6,
+                ),
+                overlayShape: const RoundSliderOverlayShape(overlayRadius: 15),
+              ),
+              child: Slider(
+                key: const Key('recording-replay-timeline'),
+                value: safeValue,
+                max: safeMax,
+                onChanged: onChanged,
+              ),
+            ),
+          ),
+        ],
       ),
     );
+  }
+
+  static double _markerWidth(_RecordingTimelineMarkerKind kind) =>
+      kind == _RecordingTimelineMarkerKind.idle ? 9 : 4;
+
+  static double _markerHeight(_RecordingTimelineMarkerKind kind) =>
+      kind == _RecordingTimelineMarkerKind.idle ? 14 : 9;
+
+  static double _markerTop(_RecordingTimelineMarkerKind kind) =>
+      kind == _RecordingTimelineMarkerKind.idle ? 13 : 15.5;
+
+  static Color _markerColor(
+    _RecordingTimelineMarkerKind kind,
+    AppThemeTokens palette,
+  ) {
+    return switch (kind) {
+      _RecordingTimelineMarkerKind.input => palette.accent,
+      _RecordingTimelineMarkerKind.resize => palette.textPrimary,
+      _RecordingTimelineMarkerKind.exit => palette.danger,
+      _RecordingTimelineMarkerKind.idle => palette.warning,
+      _RecordingTimelineMarkerKind.output => palette.textSubtle,
+    };
+  }
+
+  static String _markerTooltip(_RecordingTimelineMarkerKind kind) {
+    return switch (kind) {
+      _RecordingTimelineMarkerKind.input => 'Input event',
+      _RecordingTimelineMarkerKind.resize => 'Terminal resized',
+      _RecordingTimelineMarkerKind.exit => 'Session exited',
+      _RecordingTimelineMarkerKind.idle => 'Idle interval',
+      _RecordingTimelineMarkerKind.output => 'Output event',
+    };
   }
 }
 

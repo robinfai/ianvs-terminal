@@ -185,6 +185,25 @@ void main() {
     final semantics = tester.ensureSemantics();
     await tester.pump();
     expect(find.byKey(const Key('recording-replay-toggle')), findsOneWidget);
+    expect(
+      find.byKey(const Key('recording-replay-timeline-effects')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('recording-replay-timeline')), findsOneWidget);
+    expect(find.byKey(const Key('recording-replay-speed')), findsOneWidget);
+    expect(find.byTooltip('Step back in replay'), findsOneWidget);
+    expect(find.byTooltip('Step forward in replay'), findsOneWidget);
+    expect(find.byTooltip('Copy visible'), findsOneWidget);
+    expect(find.byTooltip('Copy selection'), findsOneWidget);
+    expect(
+      find.byKey(const Key('recording-replay-search-previous')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('recording-replay-search-next')),
+      findsOneWidget,
+    );
+    expect(find.byTooltip('Output event'), findsOneWidget);
     expect(find.text('Replay'), findsOneWidget);
     expect(find.text('Recording'), findsOneWidget);
     expect(find.text('Input redacted'), findsOneWidget);
@@ -214,8 +233,6 @@ void main() {
     );
     semantics.dispose();
 
-    await tester.tap(find.byTooltip('Search replay'));
-    await tester.pump();
     await tester.tap(find.byKey(const Key('recording-replay-search')));
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
