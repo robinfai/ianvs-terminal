@@ -78,6 +78,88 @@ void main() {
       expect(scheduler.hasPending, isFalse);
     });
 
+    test(
+      'manual mode advances only when the shared controller requests it',
+      () {
+        final driver = _ReplayDriver();
+        final backend = TerminalReplayBackend(
+          delegate: driver,
+          recording: const TerminalRecordingCheckpointPlanner(
+            playableEventsPerCheckpoint: 2,
+          ).addCheckpoints(_recording()),
+          timingMode: TerminalReplayTimingMode.manual,
+        );
+
+        final sessionId = backend.createSession('{}');
+        expect(driver.calls, <String>[
+          'create:replay-1',
+          'resize:replay-1:80x24:0x0:0x0',
+          'checkpoint:replay-1:1',
+        ]);
+        expect(backend.replayOffsetForSession(sessionId), Duration.zero);
+
+        backend.advanceSessionTo(sessionId, const Duration(milliseconds: 20));
+        expect(
+          driver.calls,
+          containsAllInOrder(<String>[
+            'output:replay-1:first',
+            'resize:replay-1:100x30:1000x600:10x20',
+            'output:replay-1:second',
+          ]),
+        );
+        expect(
+          backend.replayOffsetForSession(sessionId),
+          const Duration(milliseconds: 20),
+        );
+
+        backend.advanceSessionTo(sessionId, const Duration(milliseconds: 15));
+        expect(driver.calls.last, 'output:replay-1:first');
+        expect(
+          backend.replayOffsetForSession(sessionId),
+          const Duration(milliseconds: 15),
+        );
+      },
+    );
+
+    test(
+      'manual advancement rejects other timing modes and invalid ranges',
+      () {
+        final realtime = TerminalReplayBackend(
+          delegate: _ReplayDriver(),
+          recording: _recording(),
+        );
+        final realtimeSessionId = realtime.createSession('{}');
+        expect(
+          () => realtime.advanceSessionTo(
+            realtimeSessionId,
+            const Duration(milliseconds: 5),
+          ),
+          throwsStateError,
+        );
+
+        final manual = TerminalReplayBackend(
+          delegate: _ReplayDriver(),
+          recording: _recording(),
+          timingMode: TerminalReplayTimingMode.manual,
+        );
+        final manualSessionId = manual.createSession('{}');
+        expect(
+          () => manual.advanceSessionTo(
+            manualSessionId,
+            const Duration(microseconds: -1),
+          ),
+          throwsRangeError,
+        );
+        expect(
+          () => manual.advanceSessionTo(
+            manualSessionId,
+            const Duration(milliseconds: 31),
+          ),
+          throwsRangeError,
+        );
+      },
+    );
+
     test('realtime mode scales the absolute schedule by playback speed', () {
       final driver = _ReplayDriver();
       final scheduler = _ReplayScheduler();

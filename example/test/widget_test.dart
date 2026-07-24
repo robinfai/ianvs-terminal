@@ -2153,7 +2153,32 @@ void main() {
         'scrollback_max_offset': 0,
       });
       await tester.pump(const Duration(milliseconds: 40));
-      replayNow = replayNow.add(const Duration(milliseconds: 3200));
+      replayNow = replayNow.add(const Duration(milliseconds: 100));
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {
+            'index': 0,
+            'text': '󰀵ab important output important',
+            'style_runs': const [],
+          },
+          {
+            'index': 1,
+            'text': 'another part of the frame changed',
+            'style_runs': const [],
+          },
+        ],
+        'cursor': {'row': 1, 'col': 0, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 0, 'end': 2},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+      });
+      await tester.pump(const Duration(milliseconds: 40));
+      replayNow = replayNow.add(const Duration(milliseconds: 3100));
       fakeBindings.setFrame(1, {
         'rows': [
           {'index': 0, 'text': '', 'style_runs': const []},
@@ -2215,6 +2240,8 @@ void main() {
       );
       expect(find.text('Retains latest 60 frames'), findsOneWidget);
       expect(find.byKey(const Key('instant-replay-speed')), findsOneWidget);
+      expect(find.byKey(const Key('instant-replay-time-mode')), findsOneWidget);
+      expect(find.byTooltip('Replay timing'), findsOneWidget);
       expect(find.byTooltip('Step back in replay'), findsOneWidget);
       expect(find.byTooltip('Step forward in replay'), findsOneWidget);
       expect(find.byTooltip('Copy visible'), findsOneWidget);
@@ -2254,6 +2281,23 @@ void main() {
             .message,
         startsWith('Idle gap: '),
       );
+
+      await tester.tap(find.byKey(const Key('instant-replay-time-mode')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Real time · preserve all gaps'));
+      await tester.pumpAndSettle();
+      timeline = tester.widget<Slider>(timelineFinder);
+      expect(timeline.max, greaterThanOrEqualTo(3200.0));
+      expect(timeline.max, lessThan(3300.0));
+
+      await tester.tap(find.byKey(const Key('instant-replay-time-mode')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Smart · skip long idle gaps'));
+      await tester.pumpAndSettle();
+      timeline = tester.widget<Slider>(timelineFinder);
+      expect(timeline.max, greaterThanOrEqualTo(2000.0));
+      expect(timeline.max, lessThan(2200.0));
+
       final idleMarkerHover = await tester.createGesture(
         kind: PointerDeviceKind.mouse,
       );
@@ -2302,7 +2346,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('2 matches across'), findsOneWidget);
+      expect(find.text('2 unique matches in replay'), findsOneWidget);
       final replayRenderObject = _terminalRenderObject(tester);
       final replayCellSize = replayRenderObject.debugCellSize;
       final replaySearchRects = replayRenderObject.debugSearchHighlightRects;

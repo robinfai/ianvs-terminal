@@ -536,6 +536,8 @@ class _ReplaySemanticTimeline extends StatelessWidget {
     this.changeMarkerKey,
     this.idleMarkerKey,
     this.quietTrackKey,
+    this.displayPosition,
+    this.displayDuration,
   });
 
   final Key timelineKey;
@@ -547,6 +549,8 @@ class _ReplaySemanticTimeline extends StatelessWidget {
   final double max;
   final Duration position;
   final Duration duration;
+  final Duration? displayPosition;
+  final Duration? displayDuration;
   final _ReplayTimelineModel model;
   final List<_ReplayTimelineMarker> markers;
   final ValueChanged<double>? onChanged;
@@ -557,11 +561,13 @@ class _ReplaySemanticTimeline extends StatelessWidget {
     final safeMax = max <= 0 ? 1.0 : max;
     final safeValue = value.clamp(0.0, safeMax).toDouble();
     final path = model.pathAt(position);
+    final visiblePosition = displayPosition ?? position;
+    final visibleDuration = displayDuration ?? duration;
     return Semantics(
       label:
           '${model.contextLabelAt(position)}, '
-          '${_formatRecordingDuration(position)} of '
-          '${_formatRecordingDuration(duration)}',
+          '${_formatRecordingDuration(visiblePosition)} of '
+          '${_formatRecordingDuration(visibleDuration)}',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -588,8 +594,8 @@ class _ReplaySemanticTimeline extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '${_formatRecordingDuration(position)} / '
-                  '${_formatRecordingDuration(duration)}',
+                  '${_formatRecordingDuration(visiblePosition)} / '
+                  '${_formatRecordingDuration(visibleDuration)}',
                   key: const Key('replay-timeline-time'),
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: palette.textMuted,

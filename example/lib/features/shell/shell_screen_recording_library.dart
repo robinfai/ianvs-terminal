@@ -701,19 +701,83 @@ class _RecordingReplayLayout extends StatefulWidget {
   State<_RecordingReplayLayout> createState() => _RecordingReplayLayoutState();
 }
 
+final class _RecordingReplayRuntime {
+  const _RecordingReplayRuntime({
+    required this.backend,
+    required this.runtime,
+    required this.sessionId,
+  });
+
+  final terminal.TerminalReplayBackend backend;
+  final terminal.TerminalRuntimeController runtime;
+  final String sessionId;
+}
+
+final class _RecordingReplayDriver implements terminal.TerminalReplayDriver {
+  _RecordingReplayDriver({
+    required _RecordingReplayRuntime replayRuntime,
+    required _RecordingReplayRuntime Function() recreate,
+    required ValueChanged<_RecordingReplayRuntime> onRecreated,
+  }) : _replayRuntime = replayRuntime,
+       _recreate = recreate,
+       _onRecreated = onRecreated;
+
+  _RecordingReplayRuntime _replayRuntime;
+  final _RecordingReplayRuntime Function() _recreate;
+  final ValueChanged<_RecordingReplayRuntime> _onRecreated;
+
+  @override
+  Duration get duration => _replayRuntime.backend.replayDuration;
+
+  @override
+  Duration get position =>
+      _replayRuntime.backend.replayOffsetForSession(_replayRuntime.sessionId);
+
+  @override
+  void advanceTo(Duration sourceOffset) {
+    final current = _replayRuntime;
+    current.backend.advanceSessionTo(current.sessionId, sourceOffset);
+    current.runtime.refreshSession(current.sessionId);
+  }
+
+  @override
+  void seekTo(Duration sourceOffset) {
+    final current = _replayRuntime;
+    try {
+      current.backend.seekSession(current.sessionId, sourceOffset);
+      current.runtime.refreshSession(current.sessionId);
+      return;
+    } on UnsupportedError {
+      _rebuildFromStart(sourceOffset);
+    } on terminal.TerminalReplaySeekException {
+      _rebuildFromStart(sourceOffset);
+    }
+  }
+
+  void _rebuildFromStart(Duration sourceOffset) {
+    final previous = _replayRuntime;
+    final replacement = _recreate();
+    _replayRuntime = replacement;
+    _onRecreated(replacement);
+    previous.runtime.dispose();
+    replacement.backend.advanceSessionTo(replacement.sessionId, sourceOffset);
+    replacement.runtime.refreshSession(replacement.sessionId);
+  }
+}
+
 class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
-  terminal.TerminalReplayBackend? _backend;
   terminal.TerminalRuntimeController? _runtime;
+  terminal.TerminalReplayController? _replayController;
   String? _sessionId;
   SelectionController? _selectionController;
   TerminalInputController? _inputController;
   FocusNode? _focusNode;
-  Timer? _positionTimer;
-  Duration _position = Duration.zero;
-  double _speed = 1;
-  bool _isPlaying = true;
   String? _error;
   String _searchQuery = '';
+  late final RecordingReplaySearchIndex _searchIndex;
+  List<RecordingReplaySearchHit> _searchHits =
+      const <RecordingReplaySearchHit>[];
+  int _activeSearchHitIndex = 0;
   List<terminal.TerminalSearchMatch> _searchMatches = const [];
   int _activeSearchMatchIndex = 0;
 
@@ -728,6 +792,7 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
   @override
   void initState() {
     super.initState();
+    _searchIndex = RecordingReplaySearchIndex(widget.recording);
     _initializeReplay();
   }
 
@@ -736,143 +801,126 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
       terminal.TerminalRecording replayRecording = widget.recording;
       try {
         replayRecording = const terminal.TerminalRecordingCheckpointPlanner(
-          playableEventsPerCheckpoint: 64,
+          playableEventsPerCheckpoint: 128,
         ).addCheckpoints(widget.recording);
       } on Object {
         // A valid v1 recording still remains playable without seek support.
       }
-      final backend = terminal.TerminalReplayBackend(
-        delegate: widget.delegate,
-        recording: replayRecording,
-      );
-      final runtime = terminal.TerminalRuntimeController(
-        backend: backend,
-        copyToClipboard: ClipboardBridge.copy,
-        readClipboard: ClipboardBridge.paste,
-      );
-      final sessionId = runtime.createSession(widget.sessionConfig);
+      final replayRuntime = _createReplayRuntime(replayRecording);
       final selectionController = SelectionController();
       final focusNode = FocusNode(debugLabel: 'recording-replay');
-      final inputController = TerminalInputController(
-        sessionId: sessionId,
-        runtime: runtime,
-        readFrame: () => runtime.viewportFor(sessionId).frame,
-        readSelection: () => selectionController.textForFrame(
-          runtime.viewportFor(sessionId).frame,
-        ),
-        copySelection: ClipboardBridge.copy,
-        readClipboard: ClipboardBridge.paste,
-        readOnly: () => true,
+      final inputController = _createReplayInputController(
+        replayRuntime,
+        selectionController,
       );
-      _backend = backend;
-      _runtime = runtime;
-      _sessionId = sessionId;
+      final replayDriver = _RecordingReplayDriver(
+        replayRuntime: replayRuntime,
+        recreate: () => _createReplayRuntime(replayRecording),
+        onRecreated: (replacement) {
+          _runtime = replacement.runtime;
+          _sessionId = replacement.sessionId;
+          _inputController = _createReplayInputController(
+            replacement,
+            selectionController,
+          );
+        },
+      );
+      final replayController = terminal.TerminalReplayController(
+        driver: replayDriver,
+        navigationOffsets: _recordingNavigationOffsets(widget.recording),
+        smartAnchors: _recordingPlaybackAnchors(widget.recording),
+      )..addListener(_handleReplayChanged);
+      _runtime = replayRuntime.runtime;
+      _replayController = replayController;
+      _sessionId = replayRuntime.sessionId;
       _selectionController = selectionController;
       _focusNode = focusNode;
       _inputController = inputController;
-      _positionTimer = Timer.periodic(const Duration(milliseconds: 50), (_) {
-        if (!mounted) {
-          return;
-        }
-        runtime.refreshSession(sessionId);
-        final nextPosition = backend.replayOffsetForSession(sessionId);
-        final playing =
-            nextPosition < backend.replayDuration &&
-            !backend.isSessionPaused(sessionId);
-        if (nextPosition != _position || playing != _isPlaying) {
-          final nextMatches = _searchMatchesFor(_searchQuery);
-          setState(() {
-            _position = nextPosition;
-            _isPlaying = playing;
-            _searchMatches = nextMatches;
-            _activeSearchMatchIndex = _searchMatches.isEmpty
-                ? 0
-                : _activeSearchMatchIndex
-                      .clamp(0, _searchMatches.length - 1)
-                      .toInt();
-          });
-        }
-      });
+      replayRuntime.runtime.refreshSession(replayRuntime.sessionId);
     } on Object catch (error) {
       _error = 'Could not start replay: $error';
-      _isPlaying = false;
     }
+  }
+
+  _RecordingReplayRuntime _createReplayRuntime(
+    terminal.TerminalRecording replayRecording,
+  ) {
+    final backend = terminal.TerminalReplayBackend(
+      delegate: widget.delegate,
+      recording: replayRecording,
+      timingMode: terminal.TerminalReplayTimingMode.manual,
+    );
+    final runtime = terminal.TerminalRuntimeController(
+      backend: backend,
+      copyToClipboard: ClipboardBridge.copy,
+      readClipboard: ClipboardBridge.paste,
+    );
+    final sessionId = runtime.createSession(widget.sessionConfig);
+    return _RecordingReplayRuntime(
+      backend: backend,
+      runtime: runtime,
+      sessionId: sessionId,
+    );
+  }
+
+  TerminalInputController _createReplayInputController(
+    _RecordingReplayRuntime replayRuntime,
+    SelectionController selectionController,
+  ) {
+    final runtime = replayRuntime.runtime;
+    final sessionId = replayRuntime.sessionId;
+    return TerminalInputController(
+      sessionId: sessionId,
+      runtime: runtime,
+      readFrame: () => runtime.viewportFor(sessionId).frame,
+      readSelection: () => selectionController.textForFrame(
+        runtime.viewportFor(sessionId).frame,
+      ),
+      copySelection: ClipboardBridge.copy,
+      readClipboard: ClipboardBridge.paste,
+      readOnly: () => true,
+    );
   }
 
   @override
   void dispose() {
-    _positionTimer?.cancel();
+    _replayController
+      ?..removeListener(_handleReplayChanged)
+      ..dispose();
     _focusNode?.dispose();
     _selectionController?.dispose();
     _runtime?.dispose();
     super.dispose();
   }
 
-  void _togglePlayback() {
-    final backend = _backend;
-    final sessionId = _sessionId;
-    if (backend == null || sessionId == null) {
+  void _handleReplayChanged() {
+    if (!mounted) {
       return;
     }
     setState(() {
-      if (_isPlaying) {
-        backend.pauseSession(sessionId);
-        _isPlaying = false;
-      } else {
-        if (_position >= backend.replayDuration && backend.supportsReplaySeek) {
-          _seek(Duration.zero);
-        }
-        backend.resumeSession(sessionId);
-        _isPlaying = true;
-      }
+      final replayState = _replayController?.state;
+      _error = replayState?.error == null
+          ? null
+          : 'Could not seek recording: ${replayState!.error}';
+      _searchMatches = _searchMatchesFor(_searchQuery);
+      _activeSearchMatchIndex = _searchMatches.isEmpty
+          ? 0
+          : _activeSearchMatchIndex.clamp(0, _searchMatches.length - 1).toInt();
     });
-  }
-
-  void _setSpeed(double speed) {
-    _backend?.setPlaybackSpeed(speed);
-    setState(() {
-      _speed = speed;
-    });
-  }
-
-  void _seek(Duration target) {
-    final backend = _backend;
-    final runtime = _runtime;
-    final sessionId = _sessionId;
-    if (backend == null || runtime == null || sessionId == null) {
-      return;
-    }
-    final clamped = Duration(
-      microseconds: target.inMicroseconds.clamp(
-        0,
-        backend.replayDuration.inMicroseconds,
-      ),
-    );
-    try {
-      backend.seekSession(sessionId, clamped);
-      runtime.refreshSession(sessionId);
-      final nextMatches = _searchMatchesFor(_searchQuery);
-      setState(() {
-        _position = clamped;
-        _searchMatches = nextMatches;
-        _activeSearchMatchIndex = _searchMatches.isEmpty
-            ? 0
-            : _activeSearchMatchIndex
-                  .clamp(0, _searchMatches.length - 1)
-                  .toInt();
-      });
-    } on Object catch (error) {
-      setState(() {
-        _error = 'Could not seek recording: $error';
-      });
-    }
   }
 
   void _updateSearch(String query) {
+    _searchQuery = query;
+    _searchHits = _searchIndex.search(query);
+    _activeSearchHitIndex = 0;
+    _activeSearchMatchIndex = 0;
+    final firstHit = _searchHits.firstOrNull;
+    if (firstHit != null) {
+      _replayController?.seekToSource(firstHit.offset);
+      return;
+    }
     setState(() {
-      _searchQuery = query;
       _searchMatches = _searchMatchesFor(query);
-      _activeSearchMatchIndex = 0;
     });
   }
 
@@ -886,48 +934,16 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
   }
 
   void _moveSearchMatch(int delta) {
-    if (_searchMatches.isEmpty) {
+    if (_searchHits.isEmpty) {
       return;
     }
-    setState(() {
-      _activeSearchMatchIndex =
-          (_activeSearchMatchIndex + delta) % _searchMatches.length;
-      if (_activeSearchMatchIndex < 0) {
-        _activeSearchMatchIndex += _searchMatches.length;
-      }
-    });
-  }
-
-  void _seekToAdjacentEvent(int delta) {
-    final offsets =
-        widget.recording.events
-            .where(
-              (event) =>
-                  event.kind !=
-                      terminal.TerminalRecordingEventKind.checkpoint &&
-                  event.kind !=
-                      terminal.TerminalRecordingEventKind.sessionStarted,
-            )
-            .map((event) => event.monotonicOffset)
-            .toSet()
-            .toList()
-          ..sort();
-    if (offsets.isEmpty) {
-      return;
+    _activeSearchHitIndex =
+        (_activeSearchHitIndex + delta) % _searchHits.length;
+    if (_activeSearchHitIndex < 0) {
+      _activeSearchHitIndex += _searchHits.length;
     }
-    if (delta < 0) {
-      final target = offsets.lastWhere(
-        (offset) => offset < _position,
-        orElse: () => Duration.zero,
-      );
-      _seek(target);
-      return;
-    }
-    final target = offsets.firstWhere(
-      (offset) => offset > _position,
-      orElse: () => offsets.last,
-    );
-    _seek(target);
+    _activeSearchMatchIndex = 0;
+    _replayController?.seekToSource(_searchHits[_activeSearchHitIndex].offset);
   }
 
   Future<void> _copyVisible() async {
@@ -954,14 +970,19 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
   @override
   Widget build(BuildContext context) {
     final palette = widget.palette;
-    final backend = _backend;
     final runtime = _runtime;
     final sessionId = _sessionId;
+    final replayController = _replayController;
+    final replayState = replayController?.state;
     final viewportController = _viewportController;
-    final seekEnabled = backend?.supportsReplaySeek ?? false;
-    final duration = backend?.replayDuration ?? widget.entry.duration;
+    final seekEnabled = replayController != null;
+    final duration = replayState?.presentationDuration ?? widget.entry.duration;
     final maxMicros = math.max(1, duration.inMicroseconds);
-    final sliderValue = _position.inMicroseconds.clamp(0, maxMicros).toDouble();
+    final sliderValue =
+        replayState?.presentationPosition.inMicroseconds
+            .clamp(0, maxMicros)
+            .toDouble() ??
+        0;
     final hasCommandMetadata = widget.recording.events.any(
       (event) =>
           event.kind == terminal.TerminalRecordingEventKind.shellSemantic &&
@@ -1056,32 +1077,51 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
               detailLabel:
                   '${widget.entry.sessionId ?? 'Recorded session'} · '
                   '$inputDisclosure',
-              position: _position,
+              position: replayState?.presentationPosition ?? Duration.zero,
               duration: duration,
+              sourcePosition: replayState?.sourcePosition ?? Duration.zero,
+              sourceDuration:
+                  replayState?.sourceDuration ?? widget.entry.duration,
               sliderValue: sliderValue,
               sliderMax: maxMicros.toDouble(),
               timelineMarkers: _recordingTimelineMarkers(
                 widget.recording,
-                duration,
+                replayController?.timeMap ??
+                    terminal.TerminalReplayTimeMap.real(duration),
               ),
               timelineModel: _buildReplayTimelineModel(
-                points: _recordingSemanticPoints(widget.recording),
+                points: _recordingSemanticPoints(
+                  widget.recording,
+                  replayController?.timeMap ??
+                      terminal.TerminalReplayTimeMap.real(duration),
+                ),
                 duration: duration,
               ),
               seekEnabled: seekEnabled,
-              isPlaying: _isPlaying,
-              speed: _speed,
-              searchMatchCount: _searchMatches.length,
-              onToggle: _togglePlayback,
-              onSeek: (value) => _seek(Duration(microseconds: value.round())),
-              onStepBack: seekEnabled ? () => _seekToAdjacentEvent(-1) : null,
-              onStepForward: seekEnabled ? () => _seekToAdjacentEvent(1) : null,
-              onSpeedChanged: _setSpeed,
+              isPlaying: replayState?.isPlaying ?? false,
+              speed: replayState?.speed ?? 1,
+              timeMode:
+                  replayState?.timeMode ??
+                  terminal.TerminalReplayTimeMode.smart,
+              searchMatchCount: _searchHits.length,
+              onToggle: replayController?.togglePlayback ?? () {},
+              onSeek: (value) => replayController?.seekToPresentation(
+                Duration(microseconds: value.round()),
+              ),
+              onStepBack: replayController?.canStepPrevious ?? false
+                  ? replayController?.stepPrevious
+                  : null,
+              onStepForward: replayController?.canStepNext ?? false
+                  ? replayController?.stepNext
+                  : null,
+              onSpeedChanged: (value) => replayController?.setSpeed(value),
+              onTimeModeChanged: (value) =>
+                  replayController?.setTimeMode(value),
               onSearchChanged: _updateSearch,
-              onSearchPrevious: _searchMatches.isEmpty
+              onSearchPrevious: _searchHits.isEmpty
                   ? null
                   : () => _moveSearchMatch(-1),
-              onSearchNext: _searchMatches.isEmpty
+              onSearchNext: _searchHits.isEmpty
                   ? null
                   : () => _moveSearchMatch(1),
               onCopyVisible: _copyVisible,
@@ -1123,6 +1163,8 @@ class _RecordingReplayDock extends StatelessWidget {
     required this.detailLabel,
     required this.position,
     required this.duration,
+    required this.sourcePosition,
+    required this.sourceDuration,
     required this.sliderValue,
     required this.sliderMax,
     required this.timelineMarkers,
@@ -1130,12 +1172,14 @@ class _RecordingReplayDock extends StatelessWidget {
     required this.seekEnabled,
     required this.isPlaying,
     required this.speed,
+    required this.timeMode,
     required this.searchMatchCount,
     required this.onToggle,
     required this.onSeek,
     required this.onStepBack,
     required this.onStepForward,
     required this.onSpeedChanged,
+    required this.onTimeModeChanged,
     required this.onSearchChanged,
     required this.onSearchPrevious,
     required this.onSearchNext,
@@ -1150,6 +1194,8 @@ class _RecordingReplayDock extends StatelessWidget {
   final String detailLabel;
   final Duration position;
   final Duration duration;
+  final Duration sourcePosition;
+  final Duration sourceDuration;
   final double sliderValue;
   final double sliderMax;
   final List<_ReplayTimelineMarker> timelineMarkers;
@@ -1157,12 +1203,14 @@ class _RecordingReplayDock extends StatelessWidget {
   final bool seekEnabled;
   final bool isPlaying;
   final double speed;
+  final terminal.TerminalReplayTimeMode timeMode;
   final int searchMatchCount;
   final VoidCallback onToggle;
   final ValueChanged<double> onSeek;
   final VoidCallback? onStepBack;
   final VoidCallback? onStepForward;
   final ValueChanged<double> onSpeedChanged;
+  final ValueChanged<terminal.TerminalReplayTimeMode> onTimeModeChanged;
   final ValueChanged<String> onSearchChanged;
   final VoidCallback? onSearchPrevious;
   final VoidCallback? onSearchNext;
@@ -1205,39 +1253,19 @@ class _RecordingReplayDock extends StatelessWidget {
         ),
       ],
     );
-    final transport = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _InstantReplayControlButton(
-          tooltip: 'Step back in replay',
-          onPressed: onStepBack,
-          icon: Icons.skip_previous_rounded,
-          palette: palette,
-        ),
-        const SizedBox(width: 4),
-        _InstantReplayControlButton(
-          key: const Key('recording-replay-toggle'),
-          tooltip: isPlaying ? 'Pause replay' : 'Play replay',
-          onPressed: onToggle,
-          icon: isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-          active: isPlaying,
-          palette: palette,
-        ),
-        const SizedBox(width: 4),
-        _InstantReplayControlButton(
-          tooltip: 'Step forward in replay',
-          onPressed: onStepForward,
-          icon: Icons.skip_next_rounded,
-          palette: palette,
-        ),
-        const SizedBox(width: 4),
-        _ReplaySpeedControl(
-          key: const Key('recording-replay-speed'),
-          speed: speed,
-          onSpeedChanged: onSpeedChanged,
-          palette: palette,
-        ),
-      ],
+    final transport = _InstantReplayPlaybackControls(
+      toggleKey: const Key('recording-replay-toggle'),
+      speedKey: const Key('recording-replay-speed'),
+      timeModeKey: const Key('recording-replay-time-mode'),
+      isPlaying: isPlaying,
+      speed: speed,
+      timeMode: timeMode,
+      onStepBack: onStepBack,
+      onTogglePlay: onToggle,
+      onStepForward: onStepForward,
+      onSpeedChanged: onSpeedChanged,
+      onTimeModeChanged: onTimeModeChanged,
+      palette: palette,
     );
     final actions = Wrap(
       spacing: 5,
@@ -1279,6 +1307,8 @@ class _RecordingReplayDock extends StatelessWidget {
       max: sliderMax,
       position: position,
       duration: duration,
+      displayPosition: sourcePosition,
+      displayDuration: sourceDuration,
       model: timelineModel,
       markers: timelineMarkers,
       onChanged: seekEnabled ? onSeek : null,
@@ -1290,7 +1320,7 @@ class _RecordingReplayDock extends StatelessWidget {
       enabled: true,
       searchSummary: searchMatchCount == 0
           ? null
-          : '$searchMatchCount ${searchMatchCount == 1 ? 'match' : 'matches'} in current replay view',
+          : '$searchMatchCount ${searchMatchCount == 1 ? 'match' : 'matches'} across replay',
       onSearchChanged: onSearchChanged,
       onSearchPrevious: onSearchPrevious,
       onSearchNext: onSearchNext,
@@ -1315,11 +1345,14 @@ class _RecordingReplayDock extends StatelessWidget {
 
 List<_ReplayTimelineMarker> _recordingTimelineMarkers(
   terminal.TerminalRecording recording,
-  Duration duration,
+  terminal.TerminalReplayTimeMap timeMap,
 ) {
   const maximumVisibleEventMarkers = 96;
   const minimumIdleGap = Duration(seconds: 2);
-  final durationMicros = math.max(1, duration.inMicroseconds);
+  final durationMicros = math.max(
+    1,
+    timeMap.presentationDuration.inMicroseconds,
+  );
   final events = recording.events
       .where(
         (event) =>
@@ -1337,9 +1370,13 @@ List<_ReplayTimelineMarker> _recordingTimelineMarkers(
       if (gap >= minimumIdleGap) {
         candidates.add(
           _ReplayTimelineMarker(
-            value:
-                previousEvent.monotonicOffset.inMicroseconds +
-                gap.inMicroseconds / 2,
+            value: timeMap
+                .sourceToPresentation(
+                  previousEvent.monotonicOffset +
+                      Duration(microseconds: gap.inMicroseconds ~/ 2),
+                )
+                .inMicroseconds
+                .toDouble(),
             kind: _ReplayTimelineMarkerKind.idle,
             tooltip: 'Idle interval',
           ),
@@ -1349,7 +1386,9 @@ List<_ReplayTimelineMarker> _recordingTimelineMarkers(
     previous = event;
     candidates.add(
       _ReplayTimelineMarker(
-        value: event.monotonicOffset.inMicroseconds
+        value: timeMap
+            .sourceToPresentation(event.monotonicOffset)
+            .inMicroseconds
             .clamp(0, durationMicros)
             .toDouble(),
         kind: switch (event.kind) {
@@ -1400,13 +1439,14 @@ List<_ReplayTimelineMarker> _recordingTimelineMarkers(
 
 List<_ReplaySemanticPoint> _recordingSemanticPoints(
   terminal.TerminalRecording recording,
+  terminal.TerminalReplayTimeMap timeMap,
 ) {
   return [
     for (final event in recording.events)
       if (event.kind == terminal.TerminalRecordingEventKind.shellSemantic &&
           event.semanticKind != null)
         _ReplaySemanticPoint(
-          offset: event.monotonicOffset,
+          offset: timeMap.sourceToPresentation(event.monotonicOffset),
           kind: event.semanticKind!,
           command: event.semanticCommand,
           cwd: event.semanticCwd,
@@ -1414,6 +1454,52 @@ List<_ReplaySemanticPoint> _recordingSemanticPoints(
           exitCode: event.semanticExitCode,
           remote: event.semanticRemote,
         ),
+  ];
+}
+
+List<Duration> _recordingNavigationOffsets(
+  terminal.TerminalRecording recording,
+) {
+  final semanticOffsets = <Duration>[
+    for (final event in recording.events)
+      if (event.kind == terminal.TerminalRecordingEventKind.shellSemantic &&
+          (event.semanticKind ==
+                  terminal.TerminalRecordingSemanticKind.commandStarted ||
+              event.semanticKind ==
+                  terminal.TerminalRecordingSemanticKind.remoteSessionStarted ||
+              event.semanticKind ==
+                  terminal.TerminalRecordingSemanticKind.prompt))
+        event.monotonicOffset,
+  ];
+  if (semanticOffsets.isNotEmpty) {
+    return semanticOffsets;
+  }
+
+  const activityGap = Duration(milliseconds: 800);
+  final offsets = <Duration>[];
+  Duration? previousOffset;
+  for (final event in recording.events) {
+    if (event.kind != terminal.TerminalRecordingEventKind.ptyOutput &&
+        event.kind != terminal.TerminalRecordingEventKind.resize &&
+        event.kind != terminal.TerminalRecordingEventKind.sessionExited) {
+      continue;
+    }
+    final previous = previousOffset;
+    if (previous == null || event.monotonicOffset - previous > activityGap) {
+      offsets.add(event.monotonicOffset);
+    }
+    previousOffset = event.monotonicOffset;
+  }
+  return offsets;
+}
+
+List<Duration> _recordingPlaybackAnchors(terminal.TerminalRecording recording) {
+  return <Duration>[
+    for (final event in recording.events)
+      if (event.kind == terminal.TerminalRecordingEventKind.ptyOutput ||
+          event.kind == terminal.TerminalRecordingEventKind.resize ||
+          event.kind == terminal.TerminalRecordingEventKind.sessionExited)
+        event.monotonicOffset,
   ];
 }
 

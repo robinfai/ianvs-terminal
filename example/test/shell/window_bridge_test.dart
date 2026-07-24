@@ -181,7 +181,9 @@ void main() {
       ),
     );
 
-    final selected = await WindowBridge.chooseRecordingFile();
+    final selected = await WindowBridge.chooseRecordingFile(
+      initialDirectory: ' /tmp/ianvs-recordings ',
+    );
     await WindowBridge.revealInFinder(' /tmp/session.ndjson ');
     final moved = await WindowBridge.movePathToTrash(' /tmp/session.ndjson ');
 
@@ -192,6 +194,9 @@ void main() {
       'revealInFinder',
       'movePathToTrash',
     ]);
+    expect(calls[0].arguments, <String, Object?>{
+      'initialDirectory': '/tmp/ianvs-recordings',
+    });
     expect(calls[1].arguments, <String, Object?>{
       'path': '/tmp/session.ndjson',
     });

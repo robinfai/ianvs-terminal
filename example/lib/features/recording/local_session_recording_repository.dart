@@ -63,6 +63,12 @@ class LocalSessionRecordingRepository {
   final Set<String> _reservedPaths = <String>{};
   final TerminalRecordingCodec _codec = const TerminalRecordingCodec();
 
+  Future<Directory> ensureRecordingDirectory() async {
+    final directory = await _recordingRoot();
+    await directory.create(recursive: true);
+    return directory;
+  }
+
   Future<LocalSessionRecordingDestination> reserve({
     required String runtimeSessionId,
     required DateTime createdAtUtc,
@@ -71,8 +77,7 @@ class LocalSessionRecordingRepository {
       runtimeSessionId,
       'Runtime session',
     );
-    final rootDirectory = await _recordingRoot();
-    await rootDirectory.create(recursive: true);
+    final rootDirectory = await ensureRecordingDirectory();
 
     final timestamp = createdAtUtc.toUtc().microsecondsSinceEpoch;
     final basename = '$timestamp-$runtimeSegment';

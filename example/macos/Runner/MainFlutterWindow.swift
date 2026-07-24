@@ -522,6 +522,28 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
         panel.allowsMultipleSelection = false
         panel.resolvesAliases = true
         panel.allowedFileTypes = ["ndjson"]
+        if
+          let arguments = call.arguments as? [String: Any],
+          let rawInitialDirectory = arguments["initialDirectory"] as? String
+        {
+          let initialDirectory = rawInitialDirectory.trimmingCharacters(
+            in: .whitespacesAndNewlines
+          )
+          var isDirectory: ObjCBool = false
+          if
+            !initialDirectory.isEmpty,
+            FileManager.default.fileExists(
+              atPath: initialDirectory,
+              isDirectory: &isDirectory
+            ),
+            isDirectory.boolValue
+          {
+            panel.directoryURL = URL(
+              fileURLWithPath: initialDirectory,
+              isDirectory: true
+            )
+          }
+        }
         panel.beginSheetModal(for: self) { response in
           result(response == .OK ? panel.url?.path : nil)
         }

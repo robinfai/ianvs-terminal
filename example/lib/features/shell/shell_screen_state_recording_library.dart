@@ -5,11 +5,32 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
     if (_recordingSelectionLoading) {
       return;
     }
-    final sourcePath = await ref.read(shellRecordingFilePickerProvider)();
+    final sourcePath = await _chooseRecordingFile();
     if (!mounted || sourcePath == null) {
       return;
     }
     await _openRecordingAtPath(sourcePath);
+  }
+
+  Future<String?> _chooseRecordingFile() async {
+    String? initialDirectory;
+    try {
+      initialDirectory =
+          (await ref
+                  .read(localSessionRecordingRepositoryProvider)
+                  .ensureRecordingDirectory())
+              .absolute
+              .path;
+    } on Object {
+      // The native picker remains usable if the preferred directory cannot
+      // be resolved or created.
+    }
+    if (!mounted) {
+      return null;
+    }
+    return ref.read(shellRecordingFilePickerProvider)(
+      initialDirectory: initialDirectory,
+    );
   }
 
   Future<bool> _openRecordingAtPath(String sourcePath) async {
@@ -129,7 +150,7 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
   }
 
   Future<void> _importRecording() async {
-    final sourcePath = await ref.read(shellRecordingFilePickerProvider)();
+    final sourcePath = await _chooseRecordingFile();
     if (!mounted || sourcePath == null) {
       return;
     }

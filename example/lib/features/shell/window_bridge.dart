@@ -256,14 +256,18 @@ class WindowBridge {
     }
   }
 
-  static Future<String?> chooseRecordingFile() async {
+  static Future<String?> chooseRecordingFile({String? initialDirectory}) async {
     if (BindingBase.debugBindingType() == null) {
       return null;
     }
+    final normalizedInitialDirectory = initialDirectory?.trim();
     try {
-      final selected = await _channel.invokeMethod<String>(
-        'chooseRecordingFile',
-      );
+      final selected = await _channel
+          .invokeMethod<String>('chooseRecordingFile', <String, Object?>{
+            if (normalizedInitialDirectory != null &&
+                normalizedInitialDirectory.isNotEmpty)
+              'initialDirectory': normalizedInitialDirectory,
+          });
       final path = selected?.trim();
       return path == null || path.isEmpty ? null : path;
     } on MissingPluginException {

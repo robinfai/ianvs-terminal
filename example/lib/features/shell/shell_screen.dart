@@ -25,6 +25,7 @@ import '../profiles/profile_editor.dart';
 import '../profiles/profile_models.dart';
 import '../profiles/profiles_sheet.dart';
 import '../recording/local_session_recording_repository.dart';
+import '../recording/recording_replay_search_index.dart';
 import '../sessions/session_controller.dart';
 import '../sessions/session_state.dart';
 import '../terminal/selection_controller.dart';
@@ -80,7 +81,8 @@ typedef ShellFileDownloadWriter =
     Future<void> Function(String path, List<int> bytes);
 typedef ShellExternalUrlOpener = Future<void> Function(String url);
 typedef ShellClock = DateTime Function();
-typedef ShellRecordingFilePicker = Future<String?> Function();
+typedef ShellRecordingFilePicker =
+    Future<String?> Function({String? initialDirectory});
 typedef ShellRecordingPathAction = Future<void> Function(String path);
 typedef ShellRecordingTrashAction = Future<bool> Function(String path);
 typedef ShellRecordingExportPicker =

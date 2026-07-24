@@ -24,10 +24,13 @@ import '../support/memory_profile_repository.dart';
 
 class _ReplayShellBackend extends FakePtyBackend
     implements PtyReplaySessionBackend, PtyReplayCheckpointBackend {
+  _ReplayShellBackend({this.supportsCheckpoints = true});
+
+  final bool supportsCheckpoints;
   int _checkpointSeed = 0;
 
   @override
-  bool get supportsReplayCheckpoints => true;
+  bool get supportsReplayCheckpoints => supportsCheckpoints;
 
   @override
   int captureReplayCheckpoint(String sessionId) => ++_checkpointSeed;
@@ -116,7 +119,7 @@ class _RecordingLibraryLayoutRepository extends LocalTerminalLayoutRepository {
 class _WidgetRecordingLibraryRepository
     extends LocalSessionRecordingRepository {
   _WidgetRecordingLibraryRepository({
-    required Directory directory,
+    required this.directory,
     required this.recording,
   }) : entry = LocalSessionRecordingEntry(
          path: '${directory.path}/vttest-regression.ndjson',
@@ -130,8 +133,14 @@ class _WidgetRecordingLibraryRepository
        ),
        super(directoryResolver: () async => directory);
 
+  final Directory directory;
   final TerminalRecording recording;
   final LocalSessionRecordingEntry entry;
+
+  @override
+  Future<Directory> ensureRecordingDirectory() {
+    return Future<Directory>.value(directory.absolute);
+  }
 
   @override
   Future<List<LocalSessionRecordingEntry>> listRecordings() {
@@ -264,11 +273,14 @@ void main() {
       directory: directory,
       recording: recording,
     );
+    String? pickerInitialDirectory;
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          ptySessionBackendProvider.overrideWithValue(_ReplayShellBackend()),
+          ptySessionBackendProvider.overrideWithValue(
+            _ReplayShellBackend(supportsCheckpoints: false),
+          ),
           profileRepositoryProvider.overrideWithValue(
             MemoryProfileRepository(
               TerminalProfilesDocument(
@@ -289,9 +301,12 @@ void main() {
             _RecordingLibraryLayoutRepository(),
           ),
           localSessionRecordingRepositoryProvider.overrideWithValue(repository),
-          shellRecordingFilePickerProvider.overrideWithValue(
-            () async => repository.entry.path,
-          ),
+          shellRecordingFilePickerProvider.overrideWithValue(({
+            String? initialDirectory,
+          }) async {
+            pickerInitialDirectory = initialDirectory;
+            return repository.entry.path;
+          }),
         ],
         child: MaterialApp(
           theme: ThemeData.light(),
@@ -323,6 +338,9 @@ void main() {
           .isNotEmpty,
       phase: 'recording replay layout',
     );
+    final expectedRecordingDirectory = directory.absolute;
+    expect(pickerInitialDirectory, expectedRecordingDirectory.path);
+    expect(expectedRecordingDirectory.existsSync(), isTrue);
     expect(find.byKey(const Key('saved-recordings-shelf')), findsNothing);
     expect(find.text('vttest regression'), findsOneWidget);
     final semantics = tester.ensureSemantics();
@@ -334,6 +352,9 @@ void main() {
     );
     expect(find.byKey(const Key('recording-replay-timeline')), findsOneWidget);
     expect(find.byKey(const Key('recording-replay-speed')), findsOneWidget);
+    expect(find.byKey(const Key('recording-replay-time-mode')), findsOneWidget);
+    expect(find.byTooltip('Play replay'), findsOneWidget);
+    expect(find.byTooltip('Replay timing'), findsOneWidget);
     expect(find.byTooltip('Step back in replay'), findsOneWidget);
     expect(find.byTooltip('Step forward in replay'), findsOneWidget);
     expect(find.byTooltip('Copy visible'), findsOneWidget);
@@ -387,6 +408,19 @@ void main() {
       ),
       findsOneWidget,
     );
+
+    await tester.tap(find.byKey(const Key('recording-replay-toggle')));
+    await tester.pump(const Duration(milliseconds: 20));
+    expect(find.byTooltip('Pause replay'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 420));
+    expect(find.byTooltip('Play replay'), findsOneWidget);
+    expect(
+      tester
+          .widget<Slider>(find.byKey(const Key('recording-replay-timeline')))
+          .value,
+      closeTo(400000, 1),
+    );
+
     await tester.tap(find.byKey(const Key('replay-semantic-segment-0')));
     await tester.pump();
     expect(
@@ -395,6 +429,20 @@ void main() {
           .value,
       closeTo(4000, 1),
     );
+
+    await tester.enterText(
+      find.byKey(const Key('recording-replay-search')),
+      'vttest',
+    );
+    await tester.pump();
+    expect(find.text('1 match across replay'), findsOneWidget);
+    expect(
+      tester
+          .widget<Slider>(find.byKey(const Key('recording-replay-timeline')))
+          .value,
+      closeTo(400000, 1),
+    );
+    expect(find.byTooltip('Play replay'), findsOneWidget);
     semantics.dispose();
 
     await tester.tap(find.byKey(const Key('recording-replay-search')));

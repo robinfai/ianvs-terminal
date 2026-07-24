@@ -7,6 +7,26 @@ import 'package:app/features/recording/local_session_recording_repository.dart';
 
 void main() {
   group('Local session recording repository', () {
+    test('resolves and creates the canonical recording directory', () async {
+      final supportDirectory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-recording-directory',
+      );
+      addTearDown(() => supportDirectory.delete(recursive: true));
+      final repository = LocalSessionRecordingRepository(
+        directoryResolver: () async => supportDirectory,
+      );
+
+      final recordingDirectory = await repository.ensureRecordingDirectory();
+
+      expect(
+        recordingDirectory.path,
+        Directory(
+          '${supportDirectory.path}${Platform.pathSeparator}ianvs_recordings',
+        ).absolute.path,
+      );
+      expect(await recordingDirectory.exists(), isTrue);
+    });
+
     test(
       'reserves collision-safe files and roundtrips validated v1 data',
       () async {

@@ -97,14 +97,44 @@ final class _InstantReplayLayoutSession {
   final List<InstantReplaySemanticEvent> semanticEvents;
 }
 
+typedef _InstantReplaySearchMatchKey = ({
+  int row,
+  int startCol,
+  int endCol,
+  String normalizedText,
+  int scrollbackOffset,
+});
+
 final class _InstantReplaySearchHit {
   const _InstantReplaySearchHit({
-    required this.frameIndex,
+    required this.firstFrameIndex,
+    required this.lastFrameIndex,
     required this.matchIndex,
+    required this.matchKey,
   });
 
-  final int frameIndex;
+  final int firstFrameIndex;
+  final int lastFrameIndex;
   final int matchIndex;
+  final _InstantReplaySearchMatchKey matchKey;
+
+  bool contains({
+    required int frameIndex,
+    required _InstantReplaySearchMatchKey key,
+  }) {
+    return frameIndex >= firstFrameIndex &&
+        frameIndex <= lastFrameIndex &&
+        key == matchKey;
+  }
+
+  _InstantReplaySearchHit extendThrough(int frameIndex) {
+    return _InstantReplaySearchHit(
+      firstFrameIndex: firstFrameIndex,
+      lastFrameIndex: frameIndex,
+      matchIndex: matchIndex,
+      matchKey: matchKey,
+    );
+  }
 }
 
 final class _InstantReplayIdleGapMarker {

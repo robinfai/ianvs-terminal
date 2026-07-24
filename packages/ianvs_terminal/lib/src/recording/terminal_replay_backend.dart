@@ -5,7 +5,7 @@ import 'package:ianvs_pty/ianvs_pty.dart';
 
 import 'terminal_recording.dart';
 
-enum TerminalReplayTimingMode { realtime, noDelay }
+enum TerminalReplayTimingMode { realtime, noDelay, manual }
 
 final class TerminalReplayCheckpoint {
   const TerminalReplayCheckpoint._({
@@ -181,6 +181,36 @@ final class TerminalReplayBackend
     return state.deliveredThrough;
   }
 
+  void advanceSessionTo(String sessionId, Duration targetOffset) {
+    final state = _requireSession(sessionId);
+    if (timingMode != TerminalReplayTimingMode.manual) {
+      throw StateError(
+        'advanceSessionTo requires TerminalReplayTimingMode.manual',
+      );
+    }
+    final targetMicros = targetOffset.inMicroseconds;
+    if (targetMicros < 0 || targetOffset > replayDuration) {
+      throw RangeError.range(
+        targetMicros,
+        0,
+        replayDuration.inMicroseconds,
+        'targetOffset.inMicroseconds',
+      );
+    }
+    if (targetOffset < state.deliveredThrough) {
+      seekSession(sessionId, targetOffset);
+      return;
+    }
+    while (state.nextEventIndex < state.events.length) {
+      final nextOffset = state.events[state.nextEventIndex].monotonicOffset;
+      if (nextOffset > targetOffset) {
+        break;
+      }
+      _deliverAtOffset(state, nextOffset);
+    }
+    state.deliveredThrough = targetOffset;
+  }
+
   TerminalReplaySeekResult seekSession(
     String sessionId,
     Duration targetOffset,
@@ -317,6 +347,9 @@ final class TerminalReplayBackend
         case TerminalReplayTimingMode.realtime:
           _deliverAtOffset(state, Duration.zero);
           _scheduleNext(state);
+        case TerminalReplayTimingMode.manual:
+          state.paused = true;
+          _deliverAtOffset(state, Duration.zero);
       }
       return sessionId;
     } on Object {

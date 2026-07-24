@@ -1,5 +1,100 @@
 part of 'shell_screen.dart';
 
+final class _InstantReplayDriver implements terminal.TerminalReplayDriver {
+  _InstantReplayDriver({
+    required List<InstantReplayFrame> frames,
+    required terminal.TerminalViewportController viewportController,
+  }) : frames = List<InstantReplayFrame>.unmodifiable(frames),
+       _viewportController = viewportController,
+       sourceOffsets = _sourceOffsetsFor(frames) {
+    _applyFrameAt(Duration.zero);
+  }
+
+  final List<InstantReplayFrame> frames;
+  final List<Duration> sourceOffsets;
+  final terminal.TerminalViewportController _viewportController;
+
+  @override
+  Duration position = Duration.zero;
+
+  @override
+  Duration get duration =>
+      sourceOffsets.isEmpty ? Duration.zero : sourceOffsets.last;
+
+  int activeIndex = 0;
+
+  InstantReplayFrame? get activeFrame {
+    if (frames.isEmpty) {
+      return null;
+    }
+    return frames[activeIndex.clamp(0, frames.length - 1)];
+  }
+
+  Duration offsetForFrameIndex(int index) {
+    if (sourceOffsets.isEmpty) {
+      return Duration.zero;
+    }
+    return sourceOffsets[index.clamp(0, sourceOffsets.length - 1)];
+  }
+
+  Duration offsetForCapturedAt(DateTime capturedAt) {
+    if (frames.isEmpty || !capturedAt.isAfter(frames.first.capturedAt)) {
+      return Duration.zero;
+    }
+    final offset = capturedAt.difference(frames.first.capturedAt);
+    return offset > duration ? duration : offset;
+  }
+
+  @override
+  void advanceTo(Duration sourceOffset) {
+    _applyFrameAt(sourceOffset);
+  }
+
+  @override
+  void seekTo(Duration sourceOffset) {
+    _applyFrameAt(sourceOffset);
+  }
+
+  void _applyFrameAt(Duration requestedOffset) {
+    if (frames.isEmpty) {
+      position = Duration.zero;
+      activeIndex = 0;
+      _viewportController.applySnapshot(terminal.TerminalFrameDiff.empty);
+      return;
+    }
+    final clamped = requestedOffset < Duration.zero
+        ? Duration.zero
+        : requestedOffset > duration
+        ? duration
+        : requestedOffset;
+    var nextIndex = 0;
+    for (var index = 1; index < sourceOffsets.length; index += 1) {
+      if (sourceOffsets[index] > clamped) {
+        break;
+      }
+      nextIndex = index;
+    }
+    position = clamped;
+    activeIndex = nextIndex;
+    _viewportController.applySnapshot(frames[nextIndex].snapshot);
+  }
+
+  static List<Duration> _sourceOffsetsFor(List<InstantReplayFrame> frames) {
+    if (frames.isEmpty) {
+      return const <Duration>[];
+    }
+    final offsets = <Duration>[Duration.zero];
+    for (var index = 1; index < frames.length; index += 1) {
+      final actual = frames[index].capturedAt.difference(
+        frames.first.capturedAt,
+      );
+      final minimum = offsets.last + const Duration(milliseconds: 16);
+      offsets.add(actual > minimum ? actual : minimum);
+    }
+    return List<Duration>.unmodifiable(offsets);
+  }
+}
+
 class _InstantReplayLayout extends StatefulWidget {
   const _InstantReplayLayout({
     super.key,
@@ -29,40 +124,25 @@ class _InstantReplayLayout extends StatefulWidget {
 }
 
 class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
-  static const _playbackTick = Duration(milliseconds: 16);
-  static const _maxPlaybackFrameGap = Duration(seconds: 2);
-
   late final terminal.TerminalViewportController _viewportController;
   late final SelectionController _selectionController;
   late final TerminalInputController _inputController;
   late final FocusNode _focusNode;
+  late _InstantReplayDriver _replayDriver;
+  late terminal.TerminalReplayController _replayController;
   Size? _lastReplayViewportSize;
   Size _measuredReplayCellSize = terminal.terminalFallbackCellSize;
-  int _activeIndex = 0;
-  Duration _playheadElapsed = Duration.zero;
-  Duration _playbackBaseElapsed = Duration.zero;
-  double _playbackSpeed = 1;
-  bool _isPlaying = false;
-  Timer? _playTimer;
   String _searchQuery = '';
   int _searchResultCount = 0;
   int _activeSearchMatchIndex = 0;
   List<terminal.TerminalSearchMatch> _activeSearchMatches = const [];
+  List<_InstantReplaySearchHit> _searchHits = const <_InstantReplaySearchHit>[];
 
-  InstantReplayFrame? get _activeFrame {
-    final frames = widget.layout.frames;
-    if (frames.isEmpty) {
-      return null;
-    }
-    final index = _activeIndex.clamp(0, frames.length - 1).toInt();
-    return frames[index];
-  }
+  InstantReplayFrame? get _activeFrame => _replayDriver.activeFrame;
 
   @override
   void initState() {
     super.initState();
-    _activeIndex = _initialActiveIndex(widget.layout.frames);
-    _playheadElapsed = _elapsedForFrameIndex(_activeIndex);
     _viewportController = terminal.TerminalViewportController();
     _selectionController = SelectionController();
     _focusNode = FocusNode(debugLabel: 'instant-replay-layout');
@@ -76,7 +156,7 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
       readClipboard: () async => '',
       readOnly: () => true,
     );
-    _applyActiveFrame();
+    _configureReplay();
   }
 
   @override
@@ -84,28 +164,64 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
     super.didUpdateWidget(oldWidget);
     if (widget.layout.frames.length != oldWidget.layout.frames.length ||
         widget.layout.sourceSessionId != oldWidget.layout.sourceSessionId) {
-      _activeIndex = _initialActiveIndex(widget.layout.frames);
-      _playheadElapsed = _elapsedForFrameIndex(_activeIndex);
-      if (widget.layout.frames.isEmpty) {
-        _stopPlayback();
-      }
-      _applyActiveFrame();
+      _replayController
+        ..removeListener(_handleReplayChanged)
+        ..dispose();
+      _configureReplay();
     }
   }
 
   @override
   void dispose() {
-    _playTimer?.cancel();
+    _replayController
+      ..removeListener(_handleReplayChanged)
+      ..dispose();
     _focusNode.dispose();
     _viewportController.dispose();
     _selectionController.dispose();
     super.dispose();
   }
 
-  void _applyActiveFrame() {
+  void _configureReplay() {
+    _replayDriver = _InstantReplayDriver(
+      frames: widget.layout.frames,
+      viewportController: _viewportController,
+    );
+    final semanticNavigation = _instantReplayNavigationOffsets();
+    _replayController = terminal.TerminalReplayController(
+      driver: _replayDriver,
+      navigationOffsets: semanticNavigation.isEmpty
+          ? _replayDriver.sourceOffsets
+          : semanticNavigation,
+      smartAnchors: _replayDriver.sourceOffsets,
+    )..addListener(_handleReplayChanged);
+    _searchHits = _buildSearchHits(_searchQuery);
+    _searchResultCount = _searchHits.length;
+    _refreshSearchMatches();
+  }
+
+  List<Duration> _instantReplayNavigationOffsets() {
+    return [
+      for (final event in widget.layout.semanticEvents)
+        if (event.kind ==
+                terminal.TerminalRecordingSemanticKind.commandStarted ||
+            event.kind ==
+                terminal.TerminalRecordingSemanticKind.remoteSessionStarted ||
+            event.kind == terminal.TerminalRecordingSemanticKind.prompt)
+          _replayDriver.offsetForCapturedAt(event.capturedAt),
+    ];
+  }
+
+  void _handleReplayChanged() {
+    if (!mounted) {
+      return;
+    }
+    setState(_refreshSearchMatches);
+  }
+
+  void _refreshSearchMatches() {
     final frame = _activeFrame;
     if (frame == null) {
-      _viewportController.applySnapshot(terminal.TerminalFrameDiff.empty);
       _activeSearchMatches = const <terminal.TerminalSearchMatch>[];
       _activeSearchMatchIndex = 0;
       return;
@@ -119,34 +235,20 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
               .toInt();
   }
 
-  int _initialActiveIndex(List<InstantReplayFrame> frames) {
-    final firstVisible = frames.indexWhere((frame) => frame.text.isNotEmpty);
-    if (firstVisible != -1) {
-      return firstVisible;
-    }
-    return 0;
-  }
-
   void _updateSearch(String query) {
-    setState(() {
-      _stopPlayback();
-      _searchQuery = query;
-      _searchResultCount = 0;
-      _activeSearchMatchIndex = 0;
-      int? firstMatchingIndex;
-      for (var index = 0; index < widget.layout.frames.length; index += 1) {
-        final matches = _matchesForFrame(widget.layout.frames[index], query);
-        if (matches.isNotEmpty && firstMatchingIndex == null) {
-          firstMatchingIndex = index;
-        }
-        _searchResultCount += matches.length;
-      }
-      if (firstMatchingIndex != null) {
-        _activeIndex = firstMatchingIndex;
-        _playheadElapsed = _elapsedForFrameIndex(firstMatchingIndex);
-      }
-      _applyActiveFrame();
-    });
+    _searchQuery = query;
+    _activeSearchMatchIndex = 0;
+    _searchHits = _buildSearchHits(query);
+    _searchResultCount = _searchHits.length;
+    final firstHit = _searchHits.firstOrNull;
+    if (firstHit != null) {
+      _activeSearchMatchIndex = firstHit.matchIndex;
+      _replayController.seekToSource(
+        _replayDriver.offsetForFrameIndex(firstHit.firstFrameIndex),
+      );
+      return;
+    }
+    setState(_refreshSearchMatches);
   }
 
   List<terminal.TerminalSearchMatch> _matchesForFrame(
@@ -180,55 +282,88 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
     return matches;
   }
 
-  List<_InstantReplaySearchHit> _searchHits() {
-    if (_searchQuery.trim().isEmpty) {
+  List<_InstantReplaySearchHit> _buildSearchHits(String query) {
+    if (query.trim().isEmpty) {
       return const <_InstantReplaySearchHit>[];
     }
     final hits = <_InstantReplaySearchHit>[];
+    final activeHitIndexes = <_InstantReplaySearchMatchKey, int>{};
     for (
       var frameIndex = 0;
       frameIndex < widget.layout.frames.length;
       frameIndex += 1
     ) {
-      final matches = _matchesForFrame(
-        widget.layout.frames[frameIndex],
-        _searchQuery,
-      );
+      final matches = _matchesForFrame(widget.layout.frames[frameIndex], query);
+      final visibleKeys = <_InstantReplaySearchMatchKey>{};
       for (var matchIndex = 0; matchIndex < matches.length; matchIndex += 1) {
-        hits.add(
-          _InstantReplaySearchHit(
-            frameIndex: frameIndex,
-            matchIndex: matchIndex,
-          ),
-        );
+        final matchKey = _searchMatchKey(matches[matchIndex]);
+        visibleKeys.add(matchKey);
+        final activeHitIndex = activeHitIndexes[matchKey];
+        if (activeHitIndex == null) {
+          activeHitIndexes[matchKey] = hits.length;
+          hits.add(
+            _InstantReplaySearchHit(
+              firstFrameIndex: frameIndex,
+              lastFrameIndex: frameIndex,
+              matchIndex: matchIndex,
+              matchKey: matchKey,
+            ),
+          );
+          continue;
+        }
+        hits[activeHitIndex] = hits[activeHitIndex].extendThrough(frameIndex);
       }
+      activeHitIndexes.removeWhere(
+        (matchKey, _) => !visibleKeys.contains(matchKey),
+      );
     }
-    return hits;
+    return List<_InstantReplaySearchHit>.unmodifiable(hits);
+  }
+
+  _InstantReplaySearchMatchKey _searchMatchKey(
+    terminal.TerminalSearchMatch match,
+  ) {
+    return (
+      row: match.row,
+      startCol: match.startCol,
+      endCol: match.endCol,
+      normalizedText: match.text.toLowerCase(),
+      scrollbackOffset: match.scrollbackOffset,
+    );
   }
 
   void _moveSearchMatch(int delta) {
-    final hits = _searchHits();
-    if (hits.isEmpty) {
+    if (_searchHits.isEmpty) {
       return;
     }
-    var currentIndex = hits.indexWhere(
-      (hit) =>
-          hit.frameIndex == _activeIndex &&
-          hit.matchIndex == _activeSearchMatchIndex,
-    );
+    final activeMatch =
+        _activeSearchMatchIndex >= 0 &&
+            _activeSearchMatchIndex < _activeSearchMatches.length
+        ? _activeSearchMatches[_activeSearchMatchIndex]
+        : null;
+    final activeMatchKey = activeMatch == null
+        ? null
+        : _searchMatchKey(activeMatch);
+    var currentIndex = activeMatchKey == null
+        ? -1
+        : _searchHits.indexWhere(
+            (hit) => hit.contains(
+              frameIndex: _replayDriver.activeIndex,
+              key: activeMatchKey,
+            ),
+          );
     if (currentIndex == -1) {
       currentIndex = delta < 0 ? 0 : -1;
     }
-    final nextIndex = (currentIndex + delta) % hits.length;
-    final normalizedIndex = nextIndex < 0 ? nextIndex + hits.length : nextIndex;
-    final hit = hits[normalizedIndex];
-    setState(() {
-      _stopPlayback();
-      _activeIndex = hit.frameIndex;
-      _activeSearchMatchIndex = hit.matchIndex;
-      _playheadElapsed = _elapsedForFrameIndex(hit.frameIndex);
-      _applyActiveFrame();
-    });
+    final nextIndex = (currentIndex + delta) % _searchHits.length;
+    final normalizedIndex = nextIndex < 0
+        ? nextIndex + _searchHits.length
+        : nextIndex;
+    final hit = _searchHits[normalizedIndex];
+    _activeSearchMatchIndex = hit.matchIndex;
+    _replayController.seekToSource(
+      _replayDriver.offsetForFrameIndex(hit.firstFrameIndex),
+    );
   }
 
   String? _searchSummary() {
@@ -239,137 +374,16 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
       return 'No matches in replay history.';
     }
     final matchLabel = _searchResultCount == 1 ? 'match' : 'matches';
-    final frameLabel = widget.layout.frames.length == 1 ? 'frame' : 'frames';
-    return '$_searchResultCount $matchLabel across ${widget.layout.frames.length} $frameLabel';
-  }
-
-  void _setActiveIndex(int index) {
-    setState(() {
-      _stopPlayback();
-      _activeIndex = index
-          .clamp(0, math.max(0, widget.layout.frames.length - 1))
-          .toInt();
-      _activeSearchMatchIndex = 0;
-      _playheadElapsed = _elapsedForFrameIndex(_activeIndex);
-      _applyActiveFrame();
-    });
-  }
-
-  void _togglePlayback() {
-    if (_isPlaying) {
-      setState(_stopPlayback);
-      return;
-    }
-    setState(() {
-      if (_playheadElapsed >= _timelineDuration) {
-        _playheadElapsed = Duration.zero;
-        _activeIndex = 0;
-        _activeSearchMatchIndex = 0;
-        _applyActiveFrame();
-      }
-      _isPlaying = true;
-    });
-    _startPlaybackTimer();
-  }
-
-  void _setPlaybackSpeed(double speed) {
-    setState(() {
-      _playbackSpeed = speed;
-      if (_isPlaying) {
-        _startPlaybackTimer();
-      }
-    });
-  }
-
-  void _startPlaybackTimer() {
-    _playTimer?.cancel();
-    if (!_isPlaying || _playheadElapsed >= _timelineDuration) {
-      _stopPlayback();
-      return;
-    }
-    _playbackBaseElapsed = _playheadElapsed;
-    _playTimer = Timer.periodic(_playbackTick, (timer) {
-      if (!mounted) {
-        _playTimer?.cancel();
-        return;
-      }
-      final tickElapsed = Duration(
-        microseconds:
-            (_playbackTick.inMicroseconds * timer.tick * _playbackSpeed)
-                .round(),
-      );
-      final nextPlayhead = _playbackBaseElapsed + tickElapsed;
-      final timelineDuration = _timelineDuration;
-      setState(() {
-        _playheadElapsed = _clampDuration(
-          nextPlayhead,
-          Duration.zero,
-          timelineDuration,
-        );
-        final nextIndex = _frameIndexForElapsed(_playheadElapsed);
-        if (_activeIndex != nextIndex) {
-          _activeIndex = nextIndex;
-          _applyActiveFrame();
-        }
-        if (_playheadElapsed >= timelineDuration) {
-          _stopPlayback();
-        }
-      });
-    });
-  }
-
-  Duration get _timelineDuration {
-    final frames = widget.layout.frames;
-    if (frames.length <= 1) {
-      return Duration.zero;
-    }
-    return _elapsedForFrameIndex(frames.length - 1);
-  }
-
-  Duration _elapsedForFrameIndex(int index) {
-    final frames = widget.layout.frames;
-    if (frames.isEmpty || index <= 0) {
-      return Duration.zero;
-    }
-    var elapsed = Duration.zero;
-    final targetIndex = index.clamp(0, frames.length - 1).toInt();
-    for (var candidate = 1; candidate <= targetIndex; candidate += 1) {
-      elapsed += _playbackGapBeforeFrameIndex(candidate);
-    }
-    return elapsed;
-  }
-
-  Duration _elapsedForCapturedAt(DateTime capturedAt) {
-    final frames = widget.layout.frames;
-    if (frames.length <= 1 || !capturedAt.isAfter(frames.first.capturedAt)) {
-      return Duration.zero;
-    }
-    for (var index = 1; index < frames.length; index += 1) {
-      final current = frames[index];
-      if (capturedAt.isAfter(current.capturedAt)) {
-        continue;
-      }
-      final previous = frames[index - 1];
-      final actualGap = current.capturedAt.difference(previous.capturedAt);
-      final playbackGap = _playbackGapBeforeFrameIndex(index);
-      if (actualGap <= Duration.zero) {
-        return _elapsedForFrameIndex(index);
-      }
-      final elapsedIntoGap = capturedAt.difference(previous.capturedAt);
-      final fraction = elapsedIntoGap.inMicroseconds / actualGap.inMicroseconds;
-      return _elapsedForFrameIndex(index - 1) +
-          Duration(
-            microseconds: (playbackGap.inMicroseconds * fraction).round(),
-          );
-    }
-    return _timelineDuration;
+    return '$_searchResultCount unique $matchLabel in replay';
   }
 
   List<_ReplaySemanticPoint> _instantReplaySemanticPoints() {
     return [
       for (final event in widget.layout.semanticEvents)
         _ReplaySemanticPoint(
-          offset: _elapsedForCapturedAt(event.capturedAt),
+          offset: _replayController.timeMap.sourceToPresentation(
+            _replayDriver.offsetForCapturedAt(event.capturedAt),
+          ),
           kind: event.kind,
           command: event.command,
           cwd: event.cwd,
@@ -380,37 +394,26 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
     ];
   }
 
-  Duration _playbackGapBeforeFrameIndex(int index) {
-    final actualGap = _actualGapBeforeFrameIndex(index);
-    if (actualGap > Duration.zero) {
-      return actualGap > _maxPlaybackFrameGap
-          ? _maxPlaybackFrameGap
-          : actualGap;
-    }
-    return _playbackTick;
-  }
-
-  Duration _actualGapBeforeFrameIndex(int index) {
-    final frames = widget.layout.frames;
-    if (index <= 0 || index >= frames.length) {
-      return Duration.zero;
-    }
-    return frames[index].capturedAt.difference(frames[index - 1].capturedAt);
-  }
-
   List<_InstantReplayIdleGapMarker> _idleGapMarkers() {
-    final frames = widget.layout.frames;
-    if (frames.length <= 1) {
+    final offsets = _replayDriver.sourceOffsets;
+    if (offsets.length <= 1) {
       return const <_InstantReplayIdleGapMarker>[];
     }
     final markers = <_InstantReplayIdleGapMarker>[];
-    var elapsed = Duration.zero;
-    for (var index = 1; index < frames.length; index += 1) {
-      final actualGap = _actualGapBeforeFrameIndex(index);
-      final playbackGap = _playbackGapBeforeFrameIndex(index);
-      if (actualGap > _maxPlaybackFrameGap) {
+    for (var index = 1; index < offsets.length; index += 1) {
+      final actualGap = offsets[index] - offsets[index - 1];
+      if (actualGap > _replayController.maximumSmartGap) {
+        final presentationStart = _replayController.timeMap
+            .sourceToPresentation(offsets[index - 1]);
+        final presentationEnd = _replayController.timeMap.sourceToPresentation(
+          offsets[index],
+        );
         final markerElapsed =
-            elapsed + Duration(microseconds: playbackGap.inMicroseconds ~/ 2);
+            presentationStart +
+            Duration(
+              microseconds:
+                  (presentationEnd - presentationStart).inMicroseconds ~/ 2,
+            );
         markers.add(
           _InstantReplayIdleGapMarker(
             value: _timelineValueForDuration(markerElapsed),
@@ -418,25 +421,8 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
           ),
         );
       }
-      elapsed += playbackGap;
     }
     return markers;
-  }
-
-  int _frameIndexForElapsed(Duration elapsed) {
-    final frames = widget.layout.frames;
-    if (frames.isEmpty) {
-      return 0;
-    }
-    var index = 0;
-    for (var candidate = 1; candidate < frames.length; candidate += 1) {
-      if (_elapsedForFrameIndex(candidate) <= elapsed) {
-        index = candidate;
-      } else {
-        break;
-      }
-    }
-    return index;
   }
 
   Duration _durationFromTimelineValue(double value) {
@@ -463,22 +449,6 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
     final minutes = duration.inMinutes;
     final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '${minutes}m ${seconds}s';
-  }
-
-  Duration _clampDuration(Duration value, Duration min, Duration max) {
-    if (value < min) {
-      return min;
-    }
-    if (value > max) {
-      return max;
-    }
-    return value;
-  }
-
-  void _stopPlayback() {
-    _playTimer?.cancel();
-    _playTimer = null;
-    _isPlaying = false;
   }
 
   void _fitRecordedSize(InstantReplayFrame frame) {
@@ -542,13 +512,11 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
   Widget build(BuildContext context) {
     final palette = widget.palette;
     final activeFrame = _activeFrame;
+    final replayState = _replayController.state;
     final frameLabel = activeFrame == null
         ? 'No replay frames'
         : 'Recorded at ${activeFrame.snapshot.viewportCols}x${activeFrame.snapshot.viewportRows}';
     final hasMultipleFrames = widget.layout.frames.length > 1;
-    final canStepBack = activeFrame != null && _activeIndex > 0;
-    final canStepForward =
-        activeFrame != null && _activeIndex < widget.layout.frames.length - 1;
     final canPlay = activeFrame != null && hasMultipleFrames;
     final controls = _InstantReplayLayoutControls(
       key: const Key('instant-replay-controls'),
@@ -556,32 +524,42 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
       frameLabel: frameLabel,
       retentionFrameLimit: widget.layout.retentionFrameLimit,
       frameCount: widget.layout.frames.length,
-      timelineValue: _timelineValueForDuration(_playheadElapsed),
+      timelineValue: _timelineValueForDuration(
+        replayState.presentationPosition,
+      ),
       timelineMax: math.max(
-        _timelineValueForDuration(_timelineDuration),
+        _timelineValueForDuration(replayState.presentationDuration),
         hasMultipleFrames ? 1.0 : 0.0,
       ),
       changeMarkerValues: [
-        for (var index = 0; index < widget.layout.frames.length; index += 1)
-          _timelineValueForDuration(_elapsedForFrameIndex(index)),
+        for (final offset in _replayDriver.sourceOffsets)
+          _timelineValueForDuration(
+            _replayController.timeMap.sourceToPresentation(offset),
+          ),
       ],
       idleGapMarkers: _idleGapMarkers(),
       semanticPoints: _instantReplaySemanticPoints(),
-      position: _playheadElapsed,
-      duration: _timelineDuration,
+      position: replayState.presentationPosition,
+      duration: replayState.presentationDuration,
+      sourcePosition: replayState.sourcePosition,
+      sourceDuration: replayState.sourceDuration,
       activeFrame: activeFrame,
-      isPlaying: _isPlaying,
-      playbackSpeed: _playbackSpeed,
+      isPlaying: replayState.isPlaying,
+      playbackSpeed: replayState.speed,
+      timeMode: replayState.timeMode,
       onFitRecordedSize: activeFrame == null
           ? null
           : () => _fitRecordedSize(activeFrame),
       onExit: widget.onExit,
-      onStepBack: canStepBack ? () => _setActiveIndex(_activeIndex - 1) : null,
-      onStepForward: canStepForward
-          ? () => _setActiveIndex(_activeIndex + 1)
+      onStepBack: _replayController.canStepPrevious
+          ? _replayController.stepPrevious
           : null,
-      onTogglePlay: canPlay ? _togglePlayback : null,
-      onSpeedChanged: _setPlaybackSpeed,
+      onStepForward: _replayController.canStepNext
+          ? _replayController.stepNext
+          : null,
+      onTogglePlay: canPlay ? _replayController.togglePlayback : null,
+      onSpeedChanged: _replayController.setSpeed,
+      onTimeModeChanged: _replayController.setTimeMode,
       onClear: () => widget.onClear(widget.layout.sourceSessionId),
       searchSummary: _searchSummary(),
       onSearchChanged: _updateSearch,
@@ -594,18 +572,9 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
           ? null
           : () => unawaited(widget.onCopyVisible(activeFrame.text)),
       onSliderChanged: hasMultipleFrames
-          ? (value) {
-              setState(() {
-                _stopPlayback();
-                _playheadElapsed = _clampDuration(
-                  _durationFromTimelineValue(value),
-                  Duration.zero,
-                  _timelineDuration,
-                );
-                _activeIndex = _frameIndexForElapsed(_playheadElapsed);
-                _applyActiveFrame();
-              });
-            }
+          ? (value) => _replayController.seekToPresentation(
+              _durationFromTimelineValue(value),
+            )
           : null,
       palette: palette,
     );
@@ -732,15 +701,19 @@ class _InstantReplayLayoutControls extends StatelessWidget {
     required this.semanticPoints,
     required this.position,
     required this.duration,
+    required this.sourcePosition,
+    required this.sourceDuration,
     required this.activeFrame,
     required this.isPlaying,
     required this.playbackSpeed,
+    required this.timeMode,
     required this.onFitRecordedSize,
     required this.onExit,
     required this.onStepBack,
     required this.onStepForward,
     required this.onTogglePlay,
     required this.onSpeedChanged,
+    required this.onTimeModeChanged,
     required this.onClear,
     required this.searchSummary,
     required this.onSearchChanged,
@@ -763,15 +736,19 @@ class _InstantReplayLayoutControls extends StatelessWidget {
   final List<_ReplaySemanticPoint> semanticPoints;
   final Duration position;
   final Duration duration;
+  final Duration sourcePosition;
+  final Duration sourceDuration;
   final InstantReplayFrame? activeFrame;
   final bool isPlaying;
   final double playbackSpeed;
+  final terminal.TerminalReplayTimeMode timeMode;
   final VoidCallback? onFitRecordedSize;
   final VoidCallback onExit;
   final VoidCallback? onStepBack;
   final VoidCallback? onStepForward;
   final VoidCallback? onTogglePlay;
   final ValueChanged<double> onSpeedChanged;
+  final ValueChanged<terminal.TerminalReplayTimeMode> onTimeModeChanged;
   final VoidCallback onClear;
   final String? searchSummary;
   final ValueChanged<String> onSearchChanged;
@@ -792,10 +769,12 @@ class _InstantReplayLayoutControls extends StatelessWidget {
     final playbackControls = _InstantReplayPlaybackControls(
       isPlaying: isPlaying,
       speed: playbackSpeed,
+      timeMode: timeMode,
       onStepBack: onStepBack,
       onTogglePlay: onTogglePlay,
       onStepForward: onStepForward,
       onSpeedChanged: onSpeedChanged,
+      onTimeModeChanged: onTimeModeChanged,
       palette: palette,
     );
     final actions = _InstantReplayActionControls(
@@ -825,6 +804,8 @@ class _InstantReplayLayoutControls extends StatelessWidget {
       max: timelineMax <= 0 ? 1 : timelineMax,
       position: position,
       duration: duration,
+      displayPosition: sourcePosition,
+      displayDuration: sourceDuration,
       model: _buildReplayTimelineModel(
         points: semanticPoints,
         duration: duration,
@@ -934,21 +915,31 @@ class _InstantReplayControlHeader extends StatelessWidget {
 
 class _InstantReplayPlaybackControls extends StatelessWidget {
   const _InstantReplayPlaybackControls({
+    this.toggleKey,
+    this.speedKey = const Key('instant-replay-speed'),
+    this.timeModeKey = const Key('instant-replay-time-mode'),
     required this.isPlaying,
     required this.speed,
+    required this.timeMode,
     required this.onStepBack,
     required this.onTogglePlay,
     required this.onStepForward,
     required this.onSpeedChanged,
+    required this.onTimeModeChanged,
     required this.palette,
   });
 
+  final Key? toggleKey;
+  final Key speedKey;
+  final Key timeModeKey;
   final bool isPlaying;
   final double speed;
+  final terminal.TerminalReplayTimeMode timeMode;
   final VoidCallback? onStepBack;
   final VoidCallback? onTogglePlay;
   final VoidCallback? onStepForward;
   final ValueChanged<double> onSpeedChanged;
+  final ValueChanged<terminal.TerminalReplayTimeMode> onTimeModeChanged;
   final AppThemeTokens palette;
 
   @override
@@ -964,6 +955,7 @@ class _InstantReplayPlaybackControls extends StatelessWidget {
         ),
         const SizedBox(width: 4),
         _InstantReplayControlButton(
+          key: toggleKey,
           tooltip: isPlaying ? 'Pause replay' : 'Play replay',
           onPressed: onTogglePlay,
           icon: isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
@@ -979,9 +971,16 @@ class _InstantReplayPlaybackControls extends StatelessWidget {
         ),
         const SizedBox(width: 4),
         _ReplaySpeedControl(
-          key: const Key('instant-replay-speed'),
+          key: speedKey,
           speed: speed,
           onSpeedChanged: onSpeedChanged,
+          palette: palette,
+        ),
+        const SizedBox(width: 4),
+        _ReplayTimeModeControl(
+          key: timeModeKey,
+          mode: timeMode,
+          onChanged: onTimeModeChanged,
           palette: palette,
         ),
       ],
@@ -1037,6 +1036,65 @@ class _ReplaySpeedControl extends StatelessWidget {
           ),
           child: Text(
             '$speedLabel×',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: palette.textSubtle,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReplayTimeModeControl extends StatelessWidget {
+  const _ReplayTimeModeControl({
+    super.key,
+    required this.mode,
+    required this.onChanged,
+    required this.palette,
+  });
+
+  final terminal.TerminalReplayTimeMode mode;
+  final ValueChanged<terminal.TerminalReplayTimeMode> onChanged;
+  final AppThemeTokens palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = switch (mode) {
+      terminal.TerminalReplayTimeMode.realTime => 'Real',
+      terminal.TerminalReplayTimeMode.smart => 'Smart',
+    };
+    return Semantics(
+      label: '$label replay timing',
+      button: true,
+      child: PopupMenuButton<terminal.TerminalReplayTimeMode>(
+        tooltip: 'Replay timing',
+        onSelected: onChanged,
+        itemBuilder: (context) => const [
+          PopupMenuItem(
+            value: terminal.TerminalReplayTimeMode.smart,
+            child: Text('Smart · skip long idle gaps'),
+          ),
+          PopupMenuItem(
+            value: terminal.TerminalReplayTimeMode.realTime,
+            child: Text('Real time · preserve all gaps'),
+          ),
+        ],
+        child: Container(
+          height: 36,
+          constraints: const BoxConstraints(minWidth: 58),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          decoration: BoxDecoration(
+            color: palette.canvas.withValues(alpha: 0.18),
+            borderRadius: BorderRadius.circular(palette.radius.md),
+            border: Border.all(
+              color: palette.borderStrong.withValues(alpha: 0.54),
+            ),
+          ),
+          child: Text(
+            label,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
               color: palette.textSubtle,
               fontWeight: FontWeight.w700,
