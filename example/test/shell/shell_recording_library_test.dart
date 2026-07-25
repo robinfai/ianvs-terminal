@@ -426,7 +426,26 @@ void main() {
     await tester.tap(find.byKey(const Key('recording-replay-toggle')));
     await tester.pump(const Duration(milliseconds: 20));
     expect(find.byTooltip('Pause replay'), findsOneWidget);
-    await tester.pump(const Duration(milliseconds: 420));
+    final recordingReplayDockDrag = await tester.startGesture(
+      tester.getCenter(
+        find.byKey(const Key('recording-replay-dock-drag-handle')),
+      ),
+    );
+    await recordingReplayDockDrag.moveBy(const Offset(0, -24));
+    await tester.pump();
+    final timelineValueBeforeDockDrag = tester
+        .widget<Slider>(find.byKey(const Key('recording-replay-timeline')))
+        .value;
+    await tester.pump(const Duration(milliseconds: 120));
+    expect(
+      tester
+          .widget<Slider>(find.byKey(const Key('recording-replay-timeline')))
+          .value,
+      greaterThan(timelineValueBeforeDockDrag),
+    );
+    await recordingReplayDockDrag.up();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(find.byTooltip('Play replay'), findsOneWidget);
     expect(
       tester

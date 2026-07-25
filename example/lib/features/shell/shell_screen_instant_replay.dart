@@ -527,72 +527,77 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
     final recordedViewportSize = activeFrame == null
         ? null
         : _recordedViewportSizeFor(activeFrame);
-    final replayState = _replayController.state;
-    final frameLabel = activeFrame == null
-        ? 'No replay frames'
-        : 'Recorded at ${activeFrame.snapshot.viewportCols}x${activeFrame.snapshot.viewportRows}';
-    final hasMultipleFrames = widget.layout.frames.length > 1;
-    final canPlay = activeFrame != null && hasMultipleFrames;
-    final controls = _InstantReplayLayoutControls(
-      key: const Key('instant-replay-controls'),
-      sourceLabel: widget.layout.sourceLabel,
-      frameLabel: frameLabel,
-      retentionFrameLimit: widget.layout.retentionFrameLimit,
-      frameCount: widget.layout.frames.length,
-      timelineValue: _timelineValueForDuration(
-        replayState.presentationPosition,
-      ),
-      timelineMax: math.max(
-        _timelineValueForDuration(replayState.presentationDuration),
-        hasMultipleFrames ? 1.0 : 0.0,
-      ),
-      changeMarkerValues: [
-        for (final offset in _replayDriver.sourceOffsets)
-          _timelineValueForDuration(
-            _replayController.timeMap.sourceToPresentation(offset),
-          ),
-      ],
-      idleGapMarkers: _idleGapMarkers(),
-      semanticPoints: _instantReplaySemanticPoints(),
-      position: replayState.presentationPosition,
-      duration: replayState.presentationDuration,
-      sourcePosition: replayState.sourcePosition,
-      sourceDuration: replayState.sourceDuration,
-      activeFrame: activeFrame,
-      isPlaying: replayState.isPlaying,
-      playbackSpeed: replayState.speed,
-      timeMode: replayState.timeMode,
-      onFitRecordedSize: activeFrame == null
-          ? null
-          : () => _fitRecordedSize(activeFrame),
-      onExit: widget.onExit,
-      onStepBack: _replayController.canStepPrevious
-          ? _replayController.stepPrevious
-          : null,
-      onStepForward: _replayController.canStepNext
-          ? _replayController.stepNext
-          : null,
-      onTogglePlay: canPlay ? _replayController.togglePlayback : null,
-      onSpeedChanged: _replayController.setSpeed,
-      onTimeModeChanged: _replayController.setTimeMode,
-      onClear: () => widget.onClear(widget.layout.sourceSessionId),
-      searchSummary: _searchSummary(),
-      onSearchChanged: _updateSearch,
-      onSearchPrevious: _searchResultCount == 0
-          ? null
-          : () => _moveSearchMatch(-1),
-      onSearchNext: _searchResultCount == 0 ? null : () => _moveSearchMatch(1),
-      onCopySelection: activeFrame == null ? null : _copySelection,
-      onCopyVisible: activeFrame == null
-          ? null
-          : () => unawaited(widget.onCopyVisible(activeFrame.text)),
-      onSliderChanged: hasMultipleFrames
-          ? (value) => _replayController.seekToPresentation(
-              _durationFromTimelineValue(value),
-            )
-          : null,
-      palette: palette,
-    );
+    Widget replayControls() {
+      final liveFrame = _activeFrame;
+      final replayState = _replayController.state;
+      final frameLabel = liveFrame == null
+          ? 'No replay frames'
+          : 'Recorded at ${liveFrame.snapshot.viewportCols}x${liveFrame.snapshot.viewportRows}';
+      final hasMultipleFrames = widget.layout.frames.length > 1;
+      final canPlay = liveFrame != null && hasMultipleFrames;
+      return _InstantReplayLayoutControls(
+        key: const Key('instant-replay-controls'),
+        sourceLabel: widget.layout.sourceLabel,
+        frameLabel: frameLabel,
+        retentionFrameLimit: widget.layout.retentionFrameLimit,
+        frameCount: widget.layout.frames.length,
+        timelineValue: _timelineValueForDuration(
+          replayState.presentationPosition,
+        ),
+        timelineMax: math.max(
+          _timelineValueForDuration(replayState.presentationDuration),
+          hasMultipleFrames ? 1.0 : 0.0,
+        ),
+        changeMarkerValues: [
+          for (final offset in _replayDriver.sourceOffsets)
+            _timelineValueForDuration(
+              _replayController.timeMap.sourceToPresentation(offset),
+            ),
+        ],
+        idleGapMarkers: _idleGapMarkers(),
+        semanticPoints: _instantReplaySemanticPoints(),
+        position: replayState.presentationPosition,
+        duration: replayState.presentationDuration,
+        sourcePosition: replayState.sourcePosition,
+        sourceDuration: replayState.sourceDuration,
+        activeFrame: liveFrame,
+        isPlaying: replayState.isPlaying,
+        playbackSpeed: replayState.speed,
+        timeMode: replayState.timeMode,
+        onFitRecordedSize: liveFrame == null
+            ? null
+            : () => _fitRecordedSize(liveFrame),
+        onExit: widget.onExit,
+        onStepBack: _replayController.canStepPrevious
+            ? _replayController.stepPrevious
+            : null,
+        onStepForward: _replayController.canStepNext
+            ? _replayController.stepNext
+            : null,
+        onTogglePlay: canPlay ? _replayController.togglePlayback : null,
+        onSpeedChanged: _replayController.setSpeed,
+        onTimeModeChanged: _replayController.setTimeMode,
+        onClear: () => widget.onClear(widget.layout.sourceSessionId),
+        searchSummary: _searchSummary(),
+        onSearchChanged: _updateSearch,
+        onSearchPrevious: _searchResultCount == 0
+            ? null
+            : () => _moveSearchMatch(-1),
+        onSearchNext: _searchResultCount == 0
+            ? null
+            : () => _moveSearchMatch(1),
+        onCopySelection: liveFrame == null ? null : _copySelection,
+        onCopyVisible: liveFrame == null
+            ? null
+            : () => unawaited(widget.onCopyVisible(liveFrame.text)),
+        onSliderChanged: hasMultipleFrames
+            ? (value) => _replayController.seekToPresentation(
+                _durationFromTimelineValue(value),
+              )
+            : null,
+        palette: palette,
+      );
+    }
 
     Widget replayViewport() {
       return DecoratedBox(
@@ -687,7 +692,10 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
                 },
                 onDockDragStateChanged: _handleDockDragStateChanged,
                 viewport: replayViewport(),
-                dock: controls,
+                dock: ListenableBuilder(
+                  listenable: _replayController,
+                  builder: (context, _) => replayControls(),
+                ),
               ),
             ),
           ),

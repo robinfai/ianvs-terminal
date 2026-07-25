@@ -628,7 +628,7 @@ final class TerminalReplayBackend
       case TerminalRecordingEventKind.shellSemantic:
         return;
       case TerminalRecordingEventKind.ptyOutput:
-        _replayDelegate.replayOutput(sessionId, event.bytes!);
+        _replayDelegate.replayOutput(sessionId, _replayOutputBytes(event));
       case TerminalRecordingEventKind.resize:
         _delegate.resizeSession(
           sessionId,
@@ -691,6 +691,91 @@ final class TerminalReplayBackend
 
   bool _isCurrent(_ReplaySessionState state) =>
       identical(_sessions[state.sessionId], state);
+}
+
+const _synchronizedOutputStart = <int>[
+  0x1b,
+  0x5b,
+  0x3f,
+  0x32,
+  0x30,
+  0x32,
+  0x36,
+  0x68,
+];
+const _synchronizedOutputEnd = <int>[
+  0x1b,
+  0x5b,
+  0x3f,
+  0x32,
+  0x30,
+  0x32,
+  0x36,
+  0x6c,
+];
+const _legacyPrimaryInitialScreenPrefix = <int>[
+  0x1b,
+  0x5b,
+  0x32,
+  0x4a,
+  0x1b,
+  0x5b,
+  0x48,
+];
+const _legacyAlternateInitialScreenPrefix = <int>[
+  0x1b,
+  0x5b,
+  0x3f,
+  0x31,
+  0x30,
+  0x34,
+  0x39,
+  0x68,
+  ..._legacyPrimaryInitialScreenPrefix,
+];
+const _cursorVisibleSuffix = <int>[0x1b, 0x5b, 0x3f, 0x32, 0x35, 0x68];
+const _cursorHiddenSuffix = <int>[0x1b, 0x5b, 0x3f, 0x32, 0x35, 0x6c];
+
+List<int> _replayOutputBytes(TerminalRecordingEvent event) {
+  final bytes = event.bytes!;
+  if (event.monotonicOffset != Duration.zero ||
+      _startsWith(bytes, _synchronizedOutputStart) ||
+      (!_startsWith(bytes, _legacyPrimaryInitialScreenPrefix) &&
+          !_startsWith(bytes, _legacyAlternateInitialScreenPrefix)) ||
+      (!_endsWith(bytes, _cursorVisibleSuffix) &&
+          !_endsWith(bytes, _cursorHiddenSuffix))) {
+    return bytes;
+  }
+  return Uint8List.fromList(<int>[
+    ..._synchronizedOutputStart,
+    ...bytes,
+    ..._synchronizedOutputEnd,
+  ]);
+}
+
+bool _startsWith(List<int> bytes, List<int> prefix) {
+  if (bytes.length < prefix.length) {
+    return false;
+  }
+  for (var index = 0; index < prefix.length; index += 1) {
+    if (bytes[index] != prefix[index]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool _endsWith(List<int> bytes, List<int> suffix) {
+  if (bytes.length < suffix.length) {
+    return false;
+  }
+  final start = bytes.length - suffix.length;
+  for (var index = 0; index < suffix.length; index += 1) {
+    if (bytes[start + index] != suffix[index]) {
+      return false;
+    }
+  }
+  return true;
 }
 
 final class _ReplaySessionState {

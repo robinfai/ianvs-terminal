@@ -2360,12 +2360,26 @@ void main() {
       );
 
       await tester.tap(find.byTooltip('Play replay'));
+      await tester.pump(const Duration(milliseconds: 32));
+
+      final instantReplayDockDrag = await tester.startGesture(
+        tester.getCenter(
+          find.byKey(const Key('instant-replay-dock-drag-handle')),
+        ),
+      );
+      await instantReplayDockDrag.moveBy(const Offset(0, -24));
+      await tester.pump();
+      final timelineValueBeforeDockDrag = tester
+          .widget<Slider>(timelineFinder)
+          .value;
       await tester.pump(const Duration(milliseconds: 120));
 
       timeline = tester.widget<Slider>(timelineFinder);
-      expect(timeline.value, greaterThan(startingTimelineValue));
+      expect(timeline.value, greaterThan(timelineValueBeforeDockDrag));
       expect(timeline.value, lessThan(timeline.max));
       expect(find.byTooltip('Pause replay'), findsOneWidget);
+      await instantReplayDockDrag.up();
+      await tester.pump();
 
       timeline.onChanged!(startingTimelineValue);
       await tester.pumpAndSettle();

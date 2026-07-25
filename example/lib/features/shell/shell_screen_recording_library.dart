@@ -1029,16 +1029,8 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
     final runtime = _runtime;
     final sessionId = _sessionId;
     final replayController = _replayController;
-    final replayState = replayController?.state;
     final viewportController = _viewportController;
     final seekEnabled = replayController != null;
-    final duration = replayState?.presentationDuration ?? widget.entry.duration;
-    final maxMicros = math.max(1, duration.inMicroseconds);
-    final sliderValue =
-        replayState?.presentationPosition.inMicroseconds
-            .clamp(0, maxMicros)
-            .toDouble() ??
-        0;
     final hasCommandMetadata = widget.recording.events.any(
       (event) =>
           event.kind == terminal.TerminalRecordingEventKind.shellSemantic &&
@@ -1052,6 +1044,78 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
         ? 'Keystrokes redacted · command metadata included'
         : 'Keystrokes redacted';
     final recordedViewportSize = _recordedViewportSizeFor(viewportController);
+    final timelineTimeMap =
+        replayController?.timeMap ??
+        terminal.TerminalReplayTimeMap.real(widget.entry.duration);
+    final timelineMarkers = _recordingTimelineMarkers(
+      widget.recording,
+      timelineTimeMap,
+    );
+    final timelineModel = _buildReplayTimelineModel(
+      points: _recordingSemanticPoints(widget.recording, timelineTimeMap),
+      duration: timelineTimeMap.presentationDuration,
+    );
+
+    Widget replayDock() {
+      final replayState = replayController?.state;
+      final duration =
+          replayState?.presentationDuration ?? widget.entry.duration;
+      final maxMicros = math.max(1, duration.inMicroseconds);
+      final sliderValue =
+          replayState?.presentationPosition.inMicroseconds
+              .clamp(0, maxMicros)
+              .toDouble() ??
+          0;
+      return _RecordingReplayDock(
+        palette: palette,
+        sourceLabel: widget.entry.displayName,
+        detailLabel:
+            '${widget.entry.sessionId ?? 'Recorded session'} · '
+            '$inputDisclosure',
+        position: replayState?.presentationPosition ?? Duration.zero,
+        duration: duration,
+        sourcePosition: replayState?.sourcePosition ?? Duration.zero,
+        sourceDuration: replayState?.sourceDuration ?? widget.entry.duration,
+        sliderValue: sliderValue,
+        sliderMax: maxMicros.toDouble(),
+        timelineMarkers: timelineMarkers,
+        timelineModel: timelineModel,
+        seekEnabled: seekEnabled,
+        isPlaying: replayState?.isPlaying ?? false,
+        speed: replayState?.speed ?? 1,
+        timeMode:
+            replayState?.timeMode ?? terminal.TerminalReplayTimeMode.smart,
+        searchMatchCount: _searchHits.length,
+        onToggle: replayController?.togglePlayback ?? () {},
+        onSeek: (value) => replayController?.seekToPresentation(
+          Duration(microseconds: value.round()),
+        ),
+        onStepBack: replayController?.canStepPrevious ?? false
+            ? replayController?.stepPrevious
+            : null,
+        onStepForward: replayController?.canStepNext ?? false
+            ? replayController?.stepNext
+            : null,
+        onSpeedChanged: (value) => replayController?.setSpeed(value),
+        onTimeModeChanged: (value) => replayController?.setTimeMode(value),
+        onSearchChanged: _updateSearch,
+        onSearchPrevious: _searchHits.isEmpty
+            ? null
+            : () => _moveSearchMatch(-1),
+        onSearchNext: _searchHits.isEmpty ? null : () => _moveSearchMatch(1),
+        onCopyVisible: _copyVisible,
+        onCopySelection: _copySelection,
+        onFit: () {
+          _focusNode?.requestFocus();
+          if (runtime != null && sessionId != null) {
+            runtime.scrollViewportTo(sessionId, 0);
+          }
+          unawaited(_fitRecordedSize(recordedViewportSize));
+        },
+        onClose: widget.onClose,
+      );
+    }
+
     final replayLayout = ColoredBox(
       key: const Key('recording-replay-layout'),
       color: palette.canvas,
@@ -1134,68 +1198,12 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
               ),
             ),
           ),
-          dock: _RecordingReplayDock(
-            palette: palette,
-            sourceLabel: widget.entry.displayName,
-            detailLabel:
-                '${widget.entry.sessionId ?? 'Recorded session'} · '
-                '$inputDisclosure',
-            position: replayState?.presentationPosition ?? Duration.zero,
-            duration: duration,
-            sourcePosition: replayState?.sourcePosition ?? Duration.zero,
-            sourceDuration:
-                replayState?.sourceDuration ?? widget.entry.duration,
-            sliderValue: sliderValue,
-            sliderMax: maxMicros.toDouble(),
-            timelineMarkers: _recordingTimelineMarkers(
-              widget.recording,
-              replayController?.timeMap ??
-                  terminal.TerminalReplayTimeMap.real(duration),
-            ),
-            timelineModel: _buildReplayTimelineModel(
-              points: _recordingSemanticPoints(
-                widget.recording,
-                replayController?.timeMap ??
-                    terminal.TerminalReplayTimeMap.real(duration),
-              ),
-              duration: duration,
-            ),
-            seekEnabled: seekEnabled,
-            isPlaying: replayState?.isPlaying ?? false,
-            speed: replayState?.speed ?? 1,
-            timeMode:
-                replayState?.timeMode ?? terminal.TerminalReplayTimeMode.smart,
-            searchMatchCount: _searchHits.length,
-            onToggle: replayController?.togglePlayback ?? () {},
-            onSeek: (value) => replayController?.seekToPresentation(
-              Duration(microseconds: value.round()),
-            ),
-            onStepBack: replayController?.canStepPrevious ?? false
-                ? replayController?.stepPrevious
-                : null,
-            onStepForward: replayController?.canStepNext ?? false
-                ? replayController?.stepNext
-                : null,
-            onSpeedChanged: (value) => replayController?.setSpeed(value),
-            onTimeModeChanged: (value) => replayController?.setTimeMode(value),
-            onSearchChanged: _updateSearch,
-            onSearchPrevious: _searchHits.isEmpty
-                ? null
-                : () => _moveSearchMatch(-1),
-            onSearchNext: _searchHits.isEmpty
-                ? null
-                : () => _moveSearchMatch(1),
-            onCopyVisible: _copyVisible,
-            onCopySelection: _copySelection,
-            onFit: () {
-              _focusNode?.requestFocus();
-              if (runtime != null && sessionId != null) {
-                runtime.scrollViewportTo(sessionId, 0);
-              }
-              unawaited(_fitRecordedSize(recordedViewportSize));
-            },
-            onClose: widget.onClose,
-          ),
+          dock: replayController == null
+              ? replayDock()
+              : ListenableBuilder(
+                  listenable: replayController,
+                  builder: (context, _) => replayDock(),
+                ),
         ),
       ),
     );

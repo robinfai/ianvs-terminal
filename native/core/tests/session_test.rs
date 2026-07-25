@@ -17406,6 +17406,10 @@ fn live_recording_captures_raw_pty_output_redacted_input_and_resize() {
         )
         .unwrap();
     assert!(
+        initial_screen.starts_with(b"\x1b[?2026h") && initial_screen.ends_with(b"\x1b[?2026l"),
+        "recorded initial screen must publish as one synchronized frame"
+    );
+    assert!(
         initial_screen
             .windows(b"T310-PREEXISTING-SCREEN".len())
             .any(|window| window == b"T310-PREEXISTING-SCREEN"),

@@ -1063,7 +1063,7 @@ class _ReplayDockLayout extends StatelessWidget {
       borderRadius: BorderRadius.circular(palette.radius.lg),
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: palette.overlay.withValues(alpha: highContrast ? 1 : 0.54),
+          color: palette.overlay.withValues(alpha: highContrast ? 1 : 0.90),
           borderRadius: BorderRadius.circular(palette.radius.lg),
           border: Border.all(
             color: palette.borderStrong.withValues(

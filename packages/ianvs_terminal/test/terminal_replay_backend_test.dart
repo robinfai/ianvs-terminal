@@ -43,6 +43,42 @@ void main() {
       ]);
     });
 
+    test('legacy initial screen output is published atomically', () {
+      final driver = _ReplayDriver();
+      final backend = TerminalReplayBackend(
+        delegate: driver,
+        recording: _initialScreenRecording(synchronized: false),
+        timingMode: TerminalReplayTimingMode.noDelay,
+      );
+
+      backend.createSession('{}');
+
+      expect(driver.replayOutputs, hasLength(1));
+      expect(driver.replayOutputs.single, <int>[
+        ..._synchronizedStartFixture,
+        ..._legacyInitialScreenFixture,
+        ..._synchronizedEndFixture,
+      ]);
+    });
+
+    test('synchronized initial screen output is not wrapped twice', () {
+      final driver = _ReplayDriver();
+      final backend = TerminalReplayBackend(
+        delegate: driver,
+        recording: _initialScreenRecording(synchronized: true),
+        timingMode: TerminalReplayTimingMode.noDelay,
+      );
+
+      backend.createSession('{}');
+
+      expect(driver.replayOutputs, hasLength(1));
+      expect(driver.replayOutputs.single, <int>[
+        ..._synchronizedStartFixture,
+        ..._legacyInitialScreenFixture,
+        ..._synchronizedEndFixture,
+      ]);
+    });
+
     test('realtime mode honors offsets and stable same-offset ordering', () {
       final driver = _ReplayDriver();
       final scheduler = _ReplayScheduler();
@@ -834,6 +870,80 @@ TerminalRecording _recording() {
   );
 }
 
+const _synchronizedStartFixture = <int>[
+  0x1b,
+  0x5b,
+  0x3f,
+  0x32,
+  0x30,
+  0x32,
+  0x36,
+  0x68,
+];
+const _synchronizedEndFixture = <int>[
+  0x1b,
+  0x5b,
+  0x3f,
+  0x32,
+  0x30,
+  0x32,
+  0x36,
+  0x6c,
+];
+const _legacyInitialScreenFixture = <int>[
+  0x1b,
+  0x5b,
+  0x32,
+  0x4a,
+  0x1b,
+  0x5b,
+  0x48,
+  0x66,
+  0x69,
+  0x72,
+  0x73,
+  0x74,
+  0x1b,
+  0x5b,
+  0x3f,
+  0x32,
+  0x35,
+  0x68,
+];
+
+TerminalRecording _initialScreenRecording({required bool synchronized}) {
+  const sessionId = 'fixture-initial-screen';
+  return TerminalRecording(
+    metadata: TerminalRecordingMetadata(
+      sessionId: sessionId,
+      createdAtUtc: DateTime.utc(2026, 7, 25),
+      inputPolicy: TerminalRecordingInputPolicy.redact,
+    ),
+    events: <TerminalRecordingEvent>[
+      TerminalRecordingEvent.sessionStarted(
+        sessionId: sessionId,
+        sequence: 0,
+        monotonicOffset: Duration.zero,
+        terminalEmulation: 'xterm256',
+        cols: 80,
+        rows: 24,
+      ),
+      TerminalRecordingEvent.ptyOutput(
+        sessionId: sessionId,
+        sequence: 1,
+        monotonicOffset: Duration.zero,
+        bytes: synchronized
+            ? <int>[
+                ..._synchronizedStartFixture,
+                ..._legacyInitialScreenFixture,
+                ..._synchronizedEndFixture,
+              ]
+            : _legacyInitialScreenFixture,
+      ),
+    ],
+  );
+}
+
 TerminalRecording _microsecondRecording() {
   const sessionId = 'fixture-microsecond-replay';
   return TerminalRecording(
@@ -877,6 +987,7 @@ class _ReplayDriver
   final bool supportsCheckpoints;
   final bool restoreSucceeds;
   final List<String> calls = <String>[];
+  final List<List<int>> replayOutputs = <List<int>>[];
   final List<String> versionedCreateConfigs = <String>[];
   final List<String> legacyCreateConfigs = <String>[];
   final List<String> versionedRequests = <String>[];
@@ -984,6 +1095,7 @@ class _ReplayDriver
 
   @override
   void replayOutput(String sessionId, List<int> bytes) {
+    replayOutputs.add(List<int>.unmodifiable(bytes));
     calls.add('output:$sessionId:${utf8.decode(bytes)}');
   }
 

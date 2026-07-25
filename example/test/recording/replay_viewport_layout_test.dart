@@ -8,12 +8,14 @@ void main() {
     tester,
   ) async {
     const contentKey = Key('recorded-content');
+    const availableFrameKey = Key('available-frame');
     final semantics = tester.ensureSemantics();
 
     await tester.pumpWidget(
       const MaterialApp(
         home: Center(
           child: SizedBox(
+            key: availableFrameKey,
             width: 400,
             height: 240,
             child: ReplayViewportFit(
@@ -27,6 +29,14 @@ void main() {
     );
 
     expect(tester.getRect(find.byKey(contentKey)).size, const Size(400, 200));
+    expect(
+      tester.getTopLeft(find.byKey(contentKey)).dy,
+      tester.getTopLeft(find.byKey(availableFrameKey)).dy,
+    );
+    expect(
+      tester.getCenter(find.byKey(contentKey)).dx,
+      tester.getCenter(find.byKey(availableFrameKey)).dx,
+    );
     expect(
       find.bySemanticsLabel('Replay viewport fit 50 percent'),
       findsOneWidget,

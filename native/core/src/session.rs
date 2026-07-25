@@ -6824,6 +6824,11 @@ fn recording_error_response(error: RecordingError) -> Result<Option<String>, Ses
 fn recording_initial_screen(terminal: &Terminal) -> Vec<u8> {
     let cursor = terminal.cursor();
     let mut screen = String::new();
+    // Reconstruct the visible grid as one synchronized update. Without this
+    // envelope a large initial screen can publish partially restored rows as
+    // the replay parser consumes the ANSI stream, exposing a malformed first
+    // frame before the cursor and remaining rows have been restored.
+    screen.push_str("\x1b[?2026h");
     if terminal.is_alt_screen_active() {
         screen.push_str("\x1b[?1049h");
     }
@@ -6835,6 +6840,7 @@ fn recording_initial_screen(terminal: &Terminal) -> Vec<u8> {
     } else {
         "\x1b[?25l"
     });
+    screen.push_str("\x1b[?2026l");
     screen.into_bytes()
 }
 
@@ -7214,6 +7220,29 @@ mod tests {
             next_file_download_id: 1,
             replay_checkpoint_boundary: ReplayCheckpointBoundary::default(),
         }
+    }
+
+    #[test]
+    fn recording_initial_screen_is_atomic_and_round_trips_visible_state() {
+        let mut source = Terminal::new(24, 5);
+        source.process(
+            "\x1b[2J\x1b[Hplain 界 e\u{301}\x1b[2;4H\x1b[31;1mred\x1b[0m\x1b[4;7H".as_bytes(),
+        );
+        source.process(b"\x1b[?25l");
+
+        let initial_screen = recording_initial_screen(&source);
+
+        assert!(initial_screen.starts_with(b"\x1b[?2026h"));
+        assert!(initial_screen.ends_with(b"\x1b[?2026l"));
+
+        let mut replay = Terminal::new(24, 5);
+        replay.process(&initial_screen);
+
+        assert_eq!(replay.content(), source.content());
+        assert_eq!(replay.cursor().row, source.cursor().row);
+        assert_eq!(replay.cursor().col, source.cursor().col);
+        assert_eq!(replay.cursor().visible, source.cursor().visible);
+        assert!(!replay.synchronized_updates());
     }
 
     #[test]

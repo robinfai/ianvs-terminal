@@ -64,7 +64,8 @@ class ReplayViewportFit extends StatelessWidget {
         return Semantics(
           container: true,
           label: 'Replay viewport fit $percentage percent',
-          child: Center(
+          child: Align(
+            alignment: Alignment.topCenter,
             child: SizedBox(
               width: displayedSize.width,
               height: displayedSize.height,
