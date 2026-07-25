@@ -736,8 +736,13 @@ final class _RecordingReplayDriver implements terminal.TerminalReplayDriver {
   @override
   void advanceTo(Duration sourceOffset) {
     final current = _replayRuntime;
-    current.backend.advanceSessionTo(current.sessionId, sourceOffset);
-    current.runtime.refreshSession(current.sessionId);
+    final deliveredEvents = current.backend.advanceSessionTo(
+      current.sessionId,
+      sourceOffset,
+    );
+    if (deliveredEvents) {
+      current.runtime.refreshSession(current.sessionId);
+    }
   }
 
   @override
@@ -780,6 +785,9 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
   int _activeSearchHitIndex = 0;
   List<terminal.TerminalSearchMatch> _searchMatches = const [];
   int _activeSearchMatchIndex = 0;
+  Size _measuredReplayCellSize = terminal.terminalFallbackCellSize;
+  Size? _lastReplayViewportSize;
+  bool _isReplayDockDragging = false;
 
   terminal.TerminalViewportController? get _viewportController {
     final runtime = _runtime;
@@ -894,19 +902,28 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
   }
 
   void _handleReplayChanged() {
-    if (!mounted) {
+    if (!mounted || _isReplayDockDragging) {
       return;
     }
-    setState(() {
-      final replayState = _replayController?.state;
-      _error = replayState?.error == null
-          ? null
-          : 'Could not seek recording: ${replayState!.error}';
-      _searchMatches = _searchMatchesFor(_searchQuery);
-      _activeSearchMatchIndex = _searchMatches.isEmpty
-          ? 0
-          : _activeSearchMatchIndex.clamp(0, _searchMatches.length - 1).toInt();
-    });
+    setState(_synchronizeReplayUiState);
+  }
+
+  void _handleDockDragStateChanged(bool dragging) {
+    _isReplayDockDragging = dragging;
+    if (!dragging && mounted) {
+      setState(_synchronizeReplayUiState);
+    }
+  }
+
+  void _synchronizeReplayUiState() {
+    final replayState = _replayController?.state;
+    _error = replayState?.error == null
+        ? null
+        : 'Could not seek recording: ${replayState!.error}';
+    _searchMatches = _searchMatchesFor(_searchQuery);
+    _activeSearchMatchIndex = _searchMatches.isEmpty
+        ? 0
+        : _activeSearchMatchIndex.clamp(0, _searchMatches.length - 1).toInt();
   }
 
   void _updateSearch(String query) {
@@ -967,6 +984,45 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
     await ClipboardBridge.copy(selectedText);
   }
 
+  Size? _recordedViewportSizeFor(
+    terminal.TerminalViewportController? controller,
+  ) {
+    final frame = controller?.frame;
+    if (frame == null || frame.viewportCols <= 0 || frame.viewportRows <= 0) {
+      return null;
+    }
+    const viewportPadding = 24.0;
+    return Size(
+      frame.viewportCols * _measuredReplayCellSize.width + viewportPadding,
+      frame.viewportRows * _measuredReplayCellSize.height + viewportPadding,
+    );
+  }
+
+  Future<void> _fitRecordedSize(Size? recordedViewportSize) async {
+    final currentViewportSize = _lastReplayViewportSize;
+    if (recordedViewportSize == null ||
+        currentViewportSize == null ||
+        currentViewportSize.width <= 0 ||
+        currentViewportSize.height <= 0) {
+      return;
+    }
+    final widthDelta = math.max(
+      0.0,
+      recordedViewportSize.width - currentViewportSize.width,
+    );
+    final heightDelta = math.max(
+      0.0,
+      recordedViewportSize.height - currentViewportSize.height,
+    );
+    if (widthDelta == 0 && heightDelta == 0) {
+      return;
+    }
+    await WindowBridge.resizeBy(
+      widthDelta: widthDelta,
+      heightDelta: heightDelta,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final palette = widget.palette;
@@ -995,146 +1051,151 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
         : hasCommandMetadata
         ? 'Keystrokes redacted · command metadata included'
         : 'Keystrokes redacted';
+    final recordedViewportSize = _recordedViewportSizeFor(viewportController);
     final replayLayout = ColoredBox(
       key: const Key('recording-replay-layout'),
       color: palette.canvas,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: widget.terminalColors.canvasBackground,
-                  border: Border.all(color: palette.borderStrong),
-                  borderRadius: BorderRadius.circular(palette.radius.lg),
-                  boxShadow: palette.elevation.floating,
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(palette.radius.lg),
-                  child: Stack(
-                    children: [
-                      Positioned.fill(
-                        child:
-                            _error != null ||
-                                runtime == null ||
-                                sessionId == null ||
-                                viewportController == null ||
-                                _selectionController == null ||
-                                _inputController == null
-                            ? Center(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(24),
-                                  child: Text(
-                                    _error ?? 'Preparing replay…',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(color: palette.textMuted),
-                                  ),
-                                ),
-                              )
-                            : TerminalViewport(
-                                key: const Key('recording-replay-viewport'),
-                                controller: viewportController,
-                                selectionController: _selectionController!,
-                                inputController: _inputController!,
-                                focusNode: _focusNode,
-                                contentPadding: const EdgeInsets.fromLTRB(
-                                  14,
-                                  48,
-                                  14,
-                                  14,
-                                ),
-                                colors: widget.terminalColors,
-                                useFrameDefaultColors: false,
-                                font: widget.font,
-                                cursor: widget.cursor,
-                                graphicsCache: runtime.graphicsCacheFor(
-                                  sessionId,
-                                ),
-                                searchMatches: _searchMatches,
-                                activeSearchMatchIndex: _searchMatches.isEmpty
-                                    ? -1
-                                    : _activeSearchMatchIndex,
-                                onScrollLines: (delta) =>
-                                    runtime.scrollViewport(sessionId, delta),
-                                onScrollToOffset: (offset) =>
-                                    runtime.scrollViewportTo(sessionId, offset),
-                                onOpenLink: (url) => unawaited(
-                                  WindowBridge.openExternalUrl(url),
-                                ),
+        child: ReplayFloatingStage(
+          key: const Key('recording-replay-stage'),
+          recordedViewportSize: recordedViewportSize,
+          viewportFitKey: const Key('recording-replay-fit'),
+          viewportContentKey: const Key('recording-replay-fit-content'),
+          floatingDockKey: const Key('recording-replay-floating-dock'),
+          dragHandleKey: const Key('recording-replay-dock-drag-handle'),
+          dragHandleColor: palette.textMuted,
+          onAvailableSizeChanged: (size) {
+            _lastReplayViewportSize = size;
+          },
+          onDockDragStateChanged: _handleDockDragStateChanged,
+          viewport: DecoratedBox(
+            decoration: BoxDecoration(
+              color: widget.terminalColors.canvasBackground,
+              border: Border.all(color: palette.borderStrong),
+              borderRadius: BorderRadius.circular(palette.radius.lg),
+              boxShadow: palette.elevation.floating,
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(palette.radius.lg),
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child:
+                        _error != null ||
+                            runtime == null ||
+                            sessionId == null ||
+                            viewportController == null ||
+                            _selectionController == null ||
+                            _inputController == null
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Text(
+                                _error ?? 'Preparing replay…',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: palette.textMuted),
                               ),
-                      ),
-                    ],
+                            ),
+                          )
+                        : TerminalViewport(
+                            key: const Key('recording-replay-viewport'),
+                            controller: viewportController,
+                            selectionController: _selectionController!,
+                            inputController: _inputController!,
+                            focusNode: _focusNode,
+                            contentPadding: const EdgeInsets.all(12),
+                            colors: widget.terminalColors,
+                            useFrameDefaultColors: false,
+                            font: widget.font,
+                            cursor: widget.cursor,
+                            onMeasuredCellSizeChanged: (cellSize) {
+                              if (_measuredReplayCellSize == cellSize) {
+                                return;
+                              }
+                              setState(() {
+                                _measuredReplayCellSize = cellSize;
+                              });
+                            },
+                            graphicsCache: runtime.graphicsCacheFor(sessionId),
+                            searchMatches: _searchMatches,
+                            activeSearchMatchIndex: _searchMatches.isEmpty
+                                ? -1
+                                : _activeSearchMatchIndex,
+                            onScrollLines: (delta) =>
+                                runtime.scrollViewport(sessionId, delta),
+                            onScrollToOffset: (offset) =>
+                                runtime.scrollViewportTo(sessionId, offset),
+                            onOpenLink: (url) =>
+                                unawaited(WindowBridge.openExternalUrl(url)),
+                          ),
                   ),
-                ),
+                ],
               ),
             ),
-            const SizedBox(height: 10),
-            _RecordingReplayDock(
-              palette: palette,
-              sourceLabel: widget.entry.displayName,
-              detailLabel:
-                  '${widget.entry.sessionId ?? 'Recorded session'} · '
-                  '$inputDisclosure',
-              position: replayState?.presentationPosition ?? Duration.zero,
-              duration: duration,
-              sourcePosition: replayState?.sourcePosition ?? Duration.zero,
-              sourceDuration:
-                  replayState?.sourceDuration ?? widget.entry.duration,
-              sliderValue: sliderValue,
-              sliderMax: maxMicros.toDouble(),
-              timelineMarkers: _recordingTimelineMarkers(
+          ),
+          dock: _RecordingReplayDock(
+            palette: palette,
+            sourceLabel: widget.entry.displayName,
+            detailLabel:
+                '${widget.entry.sessionId ?? 'Recorded session'} · '
+                '$inputDisclosure',
+            position: replayState?.presentationPosition ?? Duration.zero,
+            duration: duration,
+            sourcePosition: replayState?.sourcePosition ?? Duration.zero,
+            sourceDuration:
+                replayState?.sourceDuration ?? widget.entry.duration,
+            sliderValue: sliderValue,
+            sliderMax: maxMicros.toDouble(),
+            timelineMarkers: _recordingTimelineMarkers(
+              widget.recording,
+              replayController?.timeMap ??
+                  terminal.TerminalReplayTimeMap.real(duration),
+            ),
+            timelineModel: _buildReplayTimelineModel(
+              points: _recordingSemanticPoints(
                 widget.recording,
                 replayController?.timeMap ??
                     terminal.TerminalReplayTimeMap.real(duration),
               ),
-              timelineModel: _buildReplayTimelineModel(
-                points: _recordingSemanticPoints(
-                  widget.recording,
-                  replayController?.timeMap ??
-                      terminal.TerminalReplayTimeMap.real(duration),
-                ),
-                duration: duration,
-              ),
-              seekEnabled: seekEnabled,
-              isPlaying: replayState?.isPlaying ?? false,
-              speed: replayState?.speed ?? 1,
-              timeMode:
-                  replayState?.timeMode ??
-                  terminal.TerminalReplayTimeMode.smart,
-              searchMatchCount: _searchHits.length,
-              onToggle: replayController?.togglePlayback ?? () {},
-              onSeek: (value) => replayController?.seekToPresentation(
-                Duration(microseconds: value.round()),
-              ),
-              onStepBack: replayController?.canStepPrevious ?? false
-                  ? replayController?.stepPrevious
-                  : null,
-              onStepForward: replayController?.canStepNext ?? false
-                  ? replayController?.stepNext
-                  : null,
-              onSpeedChanged: (value) => replayController?.setSpeed(value),
-              onTimeModeChanged: (value) =>
-                  replayController?.setTimeMode(value),
-              onSearchChanged: _updateSearch,
-              onSearchPrevious: _searchHits.isEmpty
-                  ? null
-                  : () => _moveSearchMatch(-1),
-              onSearchNext: _searchHits.isEmpty
-                  ? null
-                  : () => _moveSearchMatch(1),
-              onCopyVisible: _copyVisible,
-              onCopySelection: _copySelection,
-              onFit: () {
-                _focusNode?.requestFocus();
-                if (runtime != null && sessionId != null) {
-                  runtime.scrollViewportTo(sessionId, 0);
-                }
-              },
-              onClose: widget.onClose,
+              duration: duration,
             ),
-          ],
+            seekEnabled: seekEnabled,
+            isPlaying: replayState?.isPlaying ?? false,
+            speed: replayState?.speed ?? 1,
+            timeMode:
+                replayState?.timeMode ?? terminal.TerminalReplayTimeMode.smart,
+            searchMatchCount: _searchHits.length,
+            onToggle: replayController?.togglePlayback ?? () {},
+            onSeek: (value) => replayController?.seekToPresentation(
+              Duration(microseconds: value.round()),
+            ),
+            onStepBack: replayController?.canStepPrevious ?? false
+                ? replayController?.stepPrevious
+                : null,
+            onStepForward: replayController?.canStepNext ?? false
+                ? replayController?.stepNext
+                : null,
+            onSpeedChanged: (value) => replayController?.setSpeed(value),
+            onTimeModeChanged: (value) => replayController?.setTimeMode(value),
+            onSearchChanged: _updateSearch,
+            onSearchPrevious: _searchHits.isEmpty
+                ? null
+                : () => _moveSearchMatch(-1),
+            onSearchNext: _searchHits.isEmpty
+                ? null
+                : () => _moveSearchMatch(1),
+            onCopyVisible: _copyVisible,
+            onCopySelection: _copySelection,
+            onFit: () {
+              _focusNode?.requestFocus();
+              if (runtime != null && sessionId != null) {
+                runtime.scrollViewportTo(sessionId, 0);
+              }
+              unawaited(_fitRecordedSize(recordedViewportSize));
+            },
+            onClose: widget.onClose,
+          ),
         ),
       ),
     );
@@ -1273,7 +1334,8 @@ class _RecordingReplayDock extends StatelessWidget {
       alignment: WrapAlignment.end,
       children: [
         _InstantReplayControlButton(
-          tooltip: 'Fit replay content',
+          key: const Key('recording-replay-fit-recorded-size'),
+          tooltip: 'Fit recorded size',
           onPressed: onFit,
           icon: Icons.fit_screen_rounded,
           palette: palette,

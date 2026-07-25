@@ -181,7 +181,7 @@ final class TerminalReplayBackend
     return state.deliveredThrough;
   }
 
-  void advanceSessionTo(String sessionId, Duration targetOffset) {
+  bool advanceSessionTo(String sessionId, Duration targetOffset) {
     final state = _requireSession(sessionId);
     if (timingMode != TerminalReplayTimingMode.manual) {
       throw StateError(
@@ -199,8 +199,9 @@ final class TerminalReplayBackend
     }
     if (targetOffset < state.deliveredThrough) {
       seekSession(sessionId, targetOffset);
-      return;
+      return true;
     }
+    final startingEventIndex = state.nextEventIndex;
     while (state.nextEventIndex < state.events.length) {
       final nextOffset = state.events[state.nextEventIndex].monotonicOffset;
       if (nextOffset > targetOffset) {
@@ -209,6 +210,7 @@ final class TerminalReplayBackend
       _deliverAtOffset(state, nextOffset);
     }
     state.deliveredThrough = targetOffset;
+    return state.nextEventIndex != startingEventIndex;
   }
 
   TerminalReplaySeekResult seekSession(

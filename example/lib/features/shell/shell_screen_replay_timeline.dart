@@ -1058,58 +1058,63 @@ class _ReplayDockLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Color.alphaBlend(
-          palette.canvas.withValues(alpha: 0.18),
-          palette.overlay,
+    final highContrast = MediaQuery.highContrastOf(context);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(palette.radius.lg),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: palette.overlay.withValues(alpha: highContrast ? 1 : 0.54),
+          borderRadius: BorderRadius.circular(palette.radius.lg),
+          border: Border.all(
+            color: palette.borderStrong.withValues(
+              alpha: highContrast ? 1 : 0.38,
+            ),
+          ),
         ),
-        borderRadius: BorderRadius.circular(palette.radius.lg),
-        border: Border.all(color: palette.borderStrong.withValues(alpha: 0.64)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final compact = constraints.maxWidth < 960;
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                timeline,
-                const SizedBox(height: 6),
-                Divider(height: 1, color: palette.border),
-                const SizedBox(height: 8),
-                if (compact) ...[
-                  Row(
-                    children: [
-                      Expanded(child: metadata),
-                      actions,
-                    ],
-                  ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 24, 12, 10),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 960;
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  timeline,
+                  const SizedBox(height: 6),
+                  Divider(height: 1, color: palette.border),
                   const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      transport,
-                      const SizedBox(width: 8),
-                      Expanded(child: search),
-                    ],
-                  ),
-                ] else
-                  Row(
-                    children: [
-                      Expanded(flex: 3, child: metadata),
-                      const SizedBox(width: 12),
-                      transport,
-                      const SizedBox(width: 12),
-                      SizedBox(width: 250, child: search),
-                      const SizedBox(width: 8),
-                      actions,
-                    ],
-                  ),
-              ],
-            );
-          },
+                  if (compact) ...[
+                    Row(
+                      children: [
+                        Expanded(child: metadata),
+                        actions,
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        transport,
+                        const SizedBox(width: 8),
+                        Expanded(child: search),
+                      ],
+                    ),
+                  ] else
+                    Row(
+                      children: [
+                        Expanded(flex: 3, child: metadata),
+                        const SizedBox(width: 12),
+                        transport,
+                        const SizedBox(width: 12),
+                        SizedBox(width: 250, child: search),
+                        const SizedBox(width: 8),
+                        actions,
+                      ],
+                    ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );

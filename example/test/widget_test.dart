@@ -2220,14 +2220,38 @@ void main() {
         findsOneWidget,
       );
       expect(find.byKey(const Key('instant-replay-controls')), findsOneWidget);
+      expect(find.byKey(const Key('instant-replay-stage')), findsOneWidget);
+      expect(find.byKey(const Key('instant-replay-fit')), findsOneWidget);
+      expect(
+        find.byKey(const Key('instant-replay-floating-dock')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('instant-replay-dock-drag-handle')),
+        findsOneWidget,
+      );
       expect(
         find.byKey(const Key('replay-semantic-segment-0')),
         findsOneWidget,
       );
       expect(find.text('Activity'), findsWidgets);
+      final instantReplayStageRect = tester.getRect(
+        find.byKey(const Key('instant-replay-stage')),
+      );
+      final instantReplayDockRect = tester.getRect(
+        find.byKey(const Key('instant-replay-floating-dock')),
+      );
       expect(
-        tester.getTopLeft(find.byKey(const Key('instant-replay-controls'))).dy,
-        greaterThanOrEqualTo(
+        instantReplayStageRect.contains(instantReplayDockRect.topLeft),
+        isTrue,
+      );
+      expect(
+        instantReplayStageRect.contains(instantReplayDockRect.bottomRight),
+        isTrue,
+      );
+      expect(
+        instantReplayDockRect.top,
+        lessThan(
           tester
               .getBottomLeft(find.byKey(const Key('instant-replay-viewport')))
               .dy,
@@ -2316,15 +2340,24 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      final replayResizeCalls = windowBridgeCalls
+          .where((call) => call.method == 'resizeBy')
+          .toList();
+      expect(replayResizeCalls, hasLength(1));
+      final replayResizeArguments =
+          replayResizeCalls.single.arguments! as Map<Object?, Object?>;
       expect(
-        windowBridgeCalls.where((call) => call.method == 'resizeBy'),
+        replayResizeArguments['widthDelta']! as double,
+        greaterThanOrEqualTo(0),
+      );
+      expect(
+        replayResizeArguments['heightDelta']! as double,
+        greaterThanOrEqualTo(0),
+      );
+      expect(
+        windowBridgeCalls.where((call) => call.method == 'windowMetrics'),
         hasLength(1),
       );
-      final resizeCall = windowBridgeCalls.singleWhere(
-        (call) => call.method == 'resizeBy',
-      );
-      expect(resizeCall.arguments, containsPair('widthDelta', 140.0));
-      expect(resizeCall.arguments, containsPair('heightDelta', 60.0));
 
       await tester.tap(find.byTooltip('Play replay'));
       await tester.pump(const Duration(milliseconds: 120));

@@ -98,7 +98,10 @@ void main() {
         ]);
         expect(backend.replayOffsetForSession(sessionId), Duration.zero);
 
-        backend.advanceSessionTo(sessionId, const Duration(milliseconds: 20));
+        expect(
+          backend.advanceSessionTo(sessionId, const Duration(milliseconds: 20)),
+          isTrue,
+        );
         expect(
           driver.calls,
           containsAllInOrder(<String>[
@@ -112,7 +115,14 @@ void main() {
           const Duration(milliseconds: 20),
         );
 
-        backend.advanceSessionTo(sessionId, const Duration(milliseconds: 15));
+        expect(
+          backend.advanceSessionTo(sessionId, const Duration(milliseconds: 20)),
+          isFalse,
+        );
+        expect(
+          backend.advanceSessionTo(sessionId, const Duration(milliseconds: 15)),
+          isTrue,
+        );
         expect(driver.calls.last, 'output:replay-1:first');
         expect(
           backend.replayOffsetForSession(sessionId),

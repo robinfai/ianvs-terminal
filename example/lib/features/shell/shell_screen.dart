@@ -26,6 +26,7 @@ import '../profiles/profile_models.dart';
 import '../profiles/profiles_sheet.dart';
 import '../recording/local_session_recording_repository.dart';
 import '../recording/recording_replay_search_index.dart';
+import '../recording/replay_viewport_layout.dart';
 import '../sessions/session_controller.dart';
 import '../sessions/session_state.dart';
 import '../terminal/selection_controller.dart';

@@ -13,6 +13,7 @@ final class _InstantReplayDriver implements terminal.TerminalReplayDriver {
   final List<InstantReplayFrame> frames;
   final List<Duration> sourceOffsets;
   final terminal.TerminalViewportController _viewportController;
+  bool _hasAppliedFrame = false;
 
   @override
   Duration position = Duration.zero;
@@ -75,8 +76,12 @@ final class _InstantReplayDriver implements terminal.TerminalReplayDriver {
       nextIndex = index;
     }
     position = clamped;
+    if (_hasAppliedFrame && activeIndex == nextIndex) {
+      return;
+    }
     activeIndex = nextIndex;
     _viewportController.applySnapshot(frames[nextIndex].snapshot);
+    _hasAppliedFrame = true;
   }
 
   static List<Duration> _sourceOffsetsFor(List<InstantReplayFrame> frames) {
@@ -137,6 +142,7 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
   int _activeSearchMatchIndex = 0;
   List<terminal.TerminalSearchMatch> _activeSearchMatches = const [];
   List<_InstantReplaySearchHit> _searchHits = const <_InstantReplaySearchHit>[];
+  bool _isReplayDockDragging = false;
 
   InstantReplayFrame? get _activeFrame => _replayDriver.activeFrame;
 
@@ -213,10 +219,17 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
   }
 
   void _handleReplayChanged() {
-    if (!mounted) {
+    if (!mounted || _isReplayDockDragging) {
       return;
     }
     setState(_refreshSearchMatches);
+  }
+
+  void _handleDockDragStateChanged(bool dragging) {
+    _isReplayDockDragging = dragging;
+    if (!dragging && mounted) {
+      setState(_refreshSearchMatches);
+    }
   }
 
   void _refreshSearchMatches() {
@@ -226,7 +239,6 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
       _activeSearchMatchIndex = 0;
       return;
     }
-    _viewportController.applySnapshot(frame.snapshot);
     _activeSearchMatches = _matchesForFrame(frame, _searchQuery);
     _activeSearchMatchIndex = _activeSearchMatches.isEmpty
         ? 0
@@ -456,38 +468,38 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
   }
 
   Future<void> _fitRecordedSizeToFrame(InstantReplayFrame frame) async {
-    final recordedWindowContentSize = frame.windowContentSize;
-    if (recordedWindowContentSize != null) {
-      final currentWindowContentSize =
-          (await WindowBridge.metrics())?.contentSize;
-      if (currentWindowContentSize != null) {
-        await _resizeWindowBy(
-          Offset(
-            recordedWindowContentSize.width - currentWindowContentSize.width,
-            recordedWindowContentSize.height - currentWindowContentSize.height,
-          ),
-        );
-        return;
-      }
-    }
-
     final currentViewportSize = _lastReplayViewportSize;
     if (currentViewportSize == null ||
         currentViewportSize.width <= 0 ||
         currentViewportSize.height <= 0) {
       return;
     }
-    final targetSize =
-        frame.viewportLogicalSize ??
-        Size(
-          frame.snapshot.viewportCols * _measuredReplayCellSize.width,
-          frame.snapshot.viewportRows * _measuredReplayCellSize.height,
-        );
+    final targetSize = _recordedViewportSizeFor(frame);
     await _resizeWindowBy(
       Offset(
-        targetSize.width - currentViewportSize.width,
-        targetSize.height - currentViewportSize.height,
+        math.max(0, targetSize.width - currentViewportSize.width),
+        math.max(0, targetSize.height - currentViewportSize.height),
       ),
+    );
+  }
+
+  Size _recordedViewportSizeFor(InstantReplayFrame frame) {
+    const viewportPadding = 20.0;
+    final gridSize = Size(
+      frame.snapshot.viewportCols * _measuredReplayCellSize.width +
+          viewportPadding,
+      frame.snapshot.viewportRows * _measuredReplayCellSize.height +
+          viewportPadding,
+    );
+    final logicalSize = frame.viewportLogicalSize;
+    if (logicalSize == null ||
+        logicalSize.width <= 0 ||
+        logicalSize.height <= 0) {
+      return gridSize;
+    }
+    return Size(
+      math.max(logicalSize.width, gridSize.width),
+      math.max(logicalSize.height, gridSize.height),
     );
   }
 
@@ -512,6 +524,9 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
   Widget build(BuildContext context) {
     final palette = widget.palette;
     final activeFrame = _activeFrame;
+    final recordedViewportSize = activeFrame == null
+        ? null
+        : _recordedViewportSizeFor(activeFrame);
     final replayState = _replayController.state;
     final frameLabel = activeFrame == null
         ? 'No replay frames'
@@ -580,72 +595,67 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
     );
 
     Widget replayViewport() {
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          _lastReplayViewportSize = constraints.biggest;
-          return DecoratedBox(
-            decoration: BoxDecoration(
-              color: widget.terminalColors.canvasBackground,
-              borderRadius: BorderRadius.circular(palette.radius.md),
-              border: Border.all(color: palette.border),
-            ),
-            child: activeFrame == null
-                ? Center(
-                    child: Text(
-                      'No replay frames captured yet.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: palette.textSubtle,
-                      ),
-                    ),
-                  )
-                : ClipRRect(
-                    borderRadius: BorderRadius.circular(palette.radius.md),
-                    child: TerminalViewport(
-                      key: const Key('instant-replay-viewport'),
-                      focusNode: _focusNode,
-                      controller: _viewportController,
-                      selectionController: _selectionController,
-                      inputController: _inputController,
-                      contentPadding: const EdgeInsets.all(10),
-                      colors: widget.terminalColors,
-                      useFrameDefaultColors: false,
-                      font: widget.font,
-                      cursor: widget.cursor,
-                      copyOnSelect: false,
-                      onMeasuredCellSizeChanged: (cellSize) {
-                        _measuredReplayCellSize = cellSize;
-                      },
-                      searchMatches: _activeSearchMatches,
-                      activeSearchMatchIndex: _activeSearchMatches.isEmpty
-                          ? -1
-                          : _activeSearchMatchIndex,
-                      searchHighlightStyle:
-                          terminal.TerminalSearchHighlightStyle(
-                            activeFill: palette.accent.withValues(alpha: 0.34),
-                            inactiveFill: palette.warning.withValues(
-                              alpha: 0.22,
-                            ),
-                            activeBorder: palette.accent.withValues(
-                              alpha: 0.82,
-                            ),
-                            radius: 3,
-                          ),
-                      onHostKeyEvent: (event) {
-                        if (event is KeyDownEvent &&
-                            event.logicalKey == LogicalKeyboardKey.escape) {
-                          widget.onExit();
-                          return KeyEventResult.handled;
-                        }
-                        return KeyEventResult.ignored;
-                      },
-                      onScrollLines: (_) {},
-                      onScrollToOffset: (_) {},
-                      onOpenLink: (url) =>
-                          unawaited(WindowBridge.openExternalUrl(url)),
-                    ),
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          color: widget.terminalColors.canvasBackground,
+          borderRadius: BorderRadius.circular(palette.radius.md),
+          border: Border.all(color: palette.border),
+        ),
+        child: activeFrame == null
+            ? Center(
+                child: Text(
+                  'No replay frames captured yet.',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: palette.textSubtle),
+                ),
+              )
+            : ClipRRect(
+                borderRadius: BorderRadius.circular(palette.radius.md),
+                child: TerminalViewport(
+                  key: const Key('instant-replay-viewport'),
+                  focusNode: _focusNode,
+                  controller: _viewportController,
+                  selectionController: _selectionController,
+                  inputController: _inputController,
+                  contentPadding: const EdgeInsets.all(10),
+                  colors: widget.terminalColors,
+                  useFrameDefaultColors: false,
+                  font: widget.font,
+                  cursor: widget.cursor,
+                  copyOnSelect: false,
+                  onMeasuredCellSizeChanged: (cellSize) {
+                    if (_measuredReplayCellSize == cellSize) {
+                      return;
+                    }
+                    setState(() {
+                      _measuredReplayCellSize = cellSize;
+                    });
+                  },
+                  searchMatches: _activeSearchMatches,
+                  activeSearchMatchIndex: _activeSearchMatches.isEmpty
+                      ? -1
+                      : _activeSearchMatchIndex,
+                  searchHighlightStyle: terminal.TerminalSearchHighlightStyle(
+                    activeFill: palette.accent.withValues(alpha: 0.34),
+                    inactiveFill: palette.warning.withValues(alpha: 0.22),
+                    activeBorder: palette.accent.withValues(alpha: 0.82),
+                    radius: 3,
                   ),
-          );
-        },
+                  onHostKeyEvent: (event) {
+                    if (event is KeyDownEvent &&
+                        event.logicalKey == LogicalKeyboardKey.escape) {
+                      widget.onExit();
+                      return KeyEventResult.handled;
+                    }
+                    return KeyEventResult.ignored;
+                  },
+                  onScrollLines: (_) {},
+                  onScrollToOffset: (_) {},
+                  onOpenLink: (url) =>
+                      unawaited(WindowBridge.openExternalUrl(url)),
+                ),
+              ),
       );
     }
 
@@ -664,20 +674,20 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
             color: palette.canvas,
             child: Padding(
               padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(child: replayViewport()),
-                        const SizedBox(height: 10),
-                        controls,
-                      ],
-                    ),
-                  ),
-                ],
+              child: ReplayFloatingStage(
+                key: const Key('instant-replay-stage'),
+                recordedViewportSize: recordedViewportSize,
+                viewportFitKey: const Key('instant-replay-fit'),
+                viewportContentKey: const Key('instant-replay-fit-content'),
+                floatingDockKey: const Key('instant-replay-floating-dock'),
+                dragHandleKey: const Key('instant-replay-dock-drag-handle'),
+                dragHandleColor: palette.textMuted,
+                onAvailableSizeChanged: (size) {
+                  _lastReplayViewportSize = size;
+                },
+                onDockDragStateChanged: _handleDockDragStateChanged,
+                viewport: replayViewport(),
+                dock: controls,
               ),
             ),
           ),

@@ -346,6 +346,20 @@ void main() {
     final semantics = tester.ensureSemantics();
     await tester.pump();
     expect(find.byKey(const Key('recording-replay-toggle')), findsOneWidget);
+    expect(find.byKey(const Key('recording-replay-stage')), findsOneWidget);
+    expect(find.byKey(const Key('recording-replay-fit')), findsOneWidget);
+    expect(
+      find.byKey(const Key('recording-replay-floating-dock')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('recording-replay-dock-drag-handle')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('recording-replay-fit-recorded-size')),
+      findsOneWidget,
+    );
     expect(
       find.byKey(const Key('recording-replay-timeline-effects')),
       findsOneWidget,
