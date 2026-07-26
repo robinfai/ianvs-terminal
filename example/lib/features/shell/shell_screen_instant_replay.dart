@@ -600,12 +600,9 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
     }
 
     Widget replayViewport() {
-      return DecoratedBox(
-        decoration: BoxDecoration(
-          color: widget.terminalColors.canvasBackground,
-          borderRadius: BorderRadius.circular(palette.radius.md),
-          border: Border.all(color: palette.border),
-        ),
+      return ReplayViewportFrame(
+        backgroundColor: widget.terminalColors.canvasBackground,
+        borderRadius: BorderRadius.circular(palette.radius.md),
         child: activeFrame == null
             ? Center(
                 child: Text(
@@ -615,51 +612,48 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
                   ).textTheme.bodyMedium?.copyWith(color: palette.textSubtle),
                 ),
               )
-            : ClipRRect(
-                borderRadius: BorderRadius.circular(palette.radius.md),
-                child: TerminalViewport(
-                  key: const Key('instant-replay-viewport'),
-                  focusNode: _focusNode,
-                  controller: _viewportController,
-                  selectionController: _selectionController,
-                  inputController: _inputController,
-                  contentPadding: const EdgeInsets.all(10),
-                  colors: widget.terminalColors,
-                  useFrameDefaultColors: false,
-                  font: widget.font,
-                  cursor: widget.cursor,
-                  copyOnSelect: false,
-                  onMeasuredCellSizeChanged: (cellSize) {
-                    if (_measuredReplayCellSize == cellSize) {
-                      return;
-                    }
-                    setState(() {
-                      _measuredReplayCellSize = cellSize;
-                    });
-                  },
-                  searchMatches: _activeSearchMatches,
-                  activeSearchMatchIndex: _activeSearchMatches.isEmpty
-                      ? -1
-                      : _activeSearchMatchIndex,
-                  searchHighlightStyle: terminal.TerminalSearchHighlightStyle(
-                    activeFill: palette.accent.withValues(alpha: 0.34),
-                    inactiveFill: palette.warning.withValues(alpha: 0.22),
-                    activeBorder: palette.accent.withValues(alpha: 0.82),
-                    radius: 3,
-                  ),
-                  onHostKeyEvent: (event) {
-                    if (event is KeyDownEvent &&
-                        event.logicalKey == LogicalKeyboardKey.escape) {
-                      widget.onExit();
-                      return KeyEventResult.handled;
-                    }
-                    return KeyEventResult.ignored;
-                  },
-                  onScrollLines: (_) {},
-                  onScrollToOffset: (_) {},
-                  onOpenLink: (url) =>
-                      unawaited(WindowBridge.openExternalUrl(url)),
+            : TerminalViewport(
+                key: const Key('instant-replay-viewport'),
+                focusNode: _focusNode,
+                controller: _viewportController,
+                selectionController: _selectionController,
+                inputController: _inputController,
+                contentPadding: const EdgeInsets.all(10),
+                colors: widget.terminalColors,
+                useFrameDefaultColors: false,
+                font: widget.font,
+                cursor: widget.cursor,
+                copyOnSelect: false,
+                onMeasuredCellSizeChanged: (cellSize) {
+                  if (_measuredReplayCellSize == cellSize) {
+                    return;
+                  }
+                  setState(() {
+                    _measuredReplayCellSize = cellSize;
+                  });
+                },
+                searchMatches: _activeSearchMatches,
+                activeSearchMatchIndex: _activeSearchMatches.isEmpty
+                    ? -1
+                    : _activeSearchMatchIndex,
+                searchHighlightStyle: terminal.TerminalSearchHighlightStyle(
+                  activeFill: palette.accent.withValues(alpha: 0.34),
+                  inactiveFill: palette.warning.withValues(alpha: 0.22),
+                  activeBorder: palette.accent.withValues(alpha: 0.82),
+                  radius: 3,
                 ),
+                onHostKeyEvent: (event) {
+                  if (event is KeyDownEvent &&
+                      event.logicalKey == LogicalKeyboardKey.escape) {
+                    widget.onExit();
+                    return KeyEventResult.handled;
+                  }
+                  return KeyEventResult.ignored;
+                },
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+                onOpenLink: (url) =>
+                    unawaited(WindowBridge.openExternalUrl(url)),
               ),
       );
     }

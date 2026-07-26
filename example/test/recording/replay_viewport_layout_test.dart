@@ -2,8 +2,48 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:app/features/recording/replay_viewport_layout.dart';
+import 'package:app/ui/foundation/app_theme.dart';
 
 void main() {
+  testWidgets('replay viewport frame uses theme border without a shadow', (
+    tester,
+  ) async {
+    const frameKey = Key('replay-viewport-frame');
+
+    for (final brightness in Brightness.values) {
+      final theme = buildIanvsTerminalTheme(brightness);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: theme,
+          themeAnimationDuration: Duration.zero,
+          home: const ReplayViewportFrame(
+            key: frameKey,
+            backgroundColor: Colors.black,
+            borderRadius: BorderRadius.all(Radius.circular(8)),
+            child: SizedBox(width: 320, height: 180),
+          ),
+        ),
+      );
+
+      final foreground = tester
+          .widgetList<DecoratedBox>(
+            find.descendant(
+              of: find.byKey(frameKey),
+              matching: find.byType(DecoratedBox),
+            ),
+          )
+          .singleWhere(
+            (widget) => widget.position == DecorationPosition.foreground,
+          );
+      final decoration = foreground.decoration as BoxDecoration;
+      final border = decoration.border! as Border;
+
+      expect(decoration.boxShadow, isNull);
+      expect(border.top.color, theme.colorScheme.outlineVariant);
+      expect(border.top.width, 1);
+    }
+  });
+
   testWidgets('recorded viewport scales down proportionally to fit', (
     tester,
   ) async {

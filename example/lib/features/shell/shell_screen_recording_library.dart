@@ -1133,69 +1133,62 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
             _lastReplayViewportSize = size;
           },
           onDockDragStateChanged: _handleDockDragStateChanged,
-          viewport: DecoratedBox(
-            decoration: BoxDecoration(
-              color: widget.terminalColors.canvasBackground,
-              border: Border.all(color: palette.borderStrong),
-              borderRadius: BorderRadius.circular(palette.radius.lg),
-              boxShadow: palette.elevation.floating,
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(palette.radius.lg),
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child:
-                        _error != null ||
-                            runtime == null ||
-                            sessionId == null ||
-                            viewportController == null ||
-                            _selectionController == null ||
-                            _inputController == null
-                        ? Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(24),
-                              child: Text(
-                                _error ?? 'Preparing replay…',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(color: palette.textMuted),
-                              ),
+          viewport: ReplayViewportFrame(
+            backgroundColor: widget.terminalColors.canvasBackground,
+            borderRadius: BorderRadius.circular(palette.radius.lg),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child:
+                      _error != null ||
+                          runtime == null ||
+                          sessionId == null ||
+                          viewportController == null ||
+                          _selectionController == null ||
+                          _inputController == null
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Text(
+                              _error ?? 'Preparing replay…',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: palette.textMuted),
                             ),
-                          )
-                        : TerminalViewport(
-                            key: const Key('recording-replay-viewport'),
-                            controller: viewportController,
-                            selectionController: _selectionController!,
-                            inputController: _inputController!,
-                            focusNode: _focusNode,
-                            contentPadding: const EdgeInsets.all(12),
-                            colors: widget.terminalColors,
-                            useFrameDefaultColors: false,
-                            font: widget.font,
-                            cursor: widget.cursor,
-                            onMeasuredCellSizeChanged: (cellSize) {
-                              if (_measuredReplayCellSize == cellSize) {
-                                return;
-                              }
-                              setState(() {
-                                _measuredReplayCellSize = cellSize;
-                              });
-                            },
-                            graphicsCache: runtime.graphicsCacheFor(sessionId),
-                            searchMatches: _searchMatches,
-                            activeSearchMatchIndex: _searchMatches.isEmpty
-                                ? -1
-                                : _activeSearchMatchIndex,
-                            onScrollLines: (delta) =>
-                                runtime.scrollViewport(sessionId, delta),
-                            onScrollToOffset: (offset) =>
-                                runtime.scrollViewportTo(sessionId, offset),
-                            onOpenLink: (url) =>
-                                unawaited(WindowBridge.openExternalUrl(url)),
                           ),
-                  ),
-                ],
-              ),
+                        )
+                      : TerminalViewport(
+                          key: const Key('recording-replay-viewport'),
+                          controller: viewportController,
+                          selectionController: _selectionController!,
+                          inputController: _inputController!,
+                          focusNode: _focusNode,
+                          contentPadding: const EdgeInsets.all(12),
+                          colors: widget.terminalColors,
+                          useFrameDefaultColors: false,
+                          font: widget.font,
+                          cursor: widget.cursor,
+                          onMeasuredCellSizeChanged: (cellSize) {
+                            if (_measuredReplayCellSize == cellSize) {
+                              return;
+                            }
+                            setState(() {
+                              _measuredReplayCellSize = cellSize;
+                            });
+                          },
+                          graphicsCache: runtime.graphicsCacheFor(sessionId),
+                          searchMatches: _searchMatches,
+                          activeSearchMatchIndex: _searchMatches.isEmpty
+                              ? -1
+                              : _activeSearchMatchIndex,
+                          onScrollLines: (delta) =>
+                              runtime.scrollViewport(sessionId, delta),
+                          onScrollToOffset: (offset) =>
+                              runtime.scrollViewportTo(sessionId, offset),
+                          onOpenLink: (url) =>
+                              unawaited(WindowBridge.openExternalUrl(url)),
+                        ),
+                ),
+              ],
             ),
           ),
           dock: replayController == null

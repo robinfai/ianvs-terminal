@@ -2,6 +2,43 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+/// Draws a crisp, theme-adaptive boundary around a recorded viewport.
+///
+/// The frame is painted over the content, so it does not change the recorded
+/// viewport's fitted size. Light and dark themes supply the border color
+/// through [ColorScheme.outlineVariant].
+class ReplayViewportFrame extends StatelessWidget {
+  const ReplayViewportFrame({
+    super.key,
+    required this.backgroundColor,
+    required this.borderRadius,
+    required this.child,
+  });
+
+  final Color backgroundColor;
+  final BorderRadius borderRadius;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final outline = Theme.of(context).colorScheme.outlineVariant;
+    return ClipRRect(
+      borderRadius: borderRadius,
+      child: ColoredBox(
+        color: backgroundColor,
+        child: DecoratedBox(
+          position: DecorationPosition.foreground,
+          decoration: BoxDecoration(
+            border: Border.all(color: outline),
+            borderRadius: borderRadius,
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
 /// Fits a recorded viewport into the currently available Replay area.
 ///
 /// The recording is never enlarged, which keeps terminal glyphs and graphics
