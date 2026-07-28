@@ -1160,6 +1160,72 @@ void main() {
   );
 
   testWidgets(
+    'terminal viewport rebuilds rows changed by coalesced deltas before paint',
+    (tester) async {
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            frameKind: TerminalFrameKind.snapshot,
+            rows: [
+              TerminalRow(index: 0, text: 'old zero'),
+              TerminalRow(index: 1, text: 'old one'),
+              TerminalRow(index: 2, text: 'old two'),
+              TerminalRow(index: 3, text: 'old three'),
+            ],
+            cursor: TerminalCursor(row: 3, col: 9, visible: true),
+            viewportRows: 4,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 4)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 20,
+          ),
+        );
+      await _pumpTerminalViewportWithController(
+        tester,
+        controller: controller,
+        themeMode: ThemeMode.dark,
+      );
+      final renderObject = _terminalRenderObject(tester);
+
+      controller.updateFrame(
+        const TerminalFrameDiff(
+          frameKind: TerminalFrameKind.delta,
+          rows: [TerminalRow(index: 2, text: 'updated before shift')],
+          cursor: TerminalCursor(row: 3, col: 9, visible: true),
+          viewportRows: 4,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 2, end: 3)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 20,
+        ),
+      );
+      controller.updateFrame(
+        const TerminalFrameDiff(
+          frameKind: TerminalFrameKind.delta,
+          rows: [TerminalRow(index: 3, text: 'new tail')],
+          cursor: TerminalCursor(row: 3, col: 8, visible: true),
+          viewportRows: 4,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 3, end: 4)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 21,
+          viewportRowShift: -1,
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        controller.frame.rows.map((row) => row.text),
+        <String>['old one', 'updated before shift', 'old three', 'new tail'],
+      );
+      expect(_resolvedRowText(renderObject, 0), 'old one');
+      expect(_resolvedRowText(renderObject, 1), 'updated before shift');
+      expect(_resolvedRowText(renderObject, 2), 'old three');
+      expect(_resolvedRowText(renderObject, 3), 'new tail');
+    },
+  );
+
+  testWidgets(
     'terminal viewport keeps selection and wide-row text stable when unrelated delta rows rebuild',
     (tester) async {
       final selectionController = SelectionController()

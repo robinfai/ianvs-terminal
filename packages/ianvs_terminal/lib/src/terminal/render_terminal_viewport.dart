@@ -357,6 +357,11 @@ class RenderTerminalViewport extends RenderBox {
   void paint(PaintingContext context, Offset offset) {
     final benchmarkEnabled = _benchmarkEventSink != null;
     final hasNewFrame = _lastPaintedFrameVersion != _controller.frameVersion;
+    // The latest Delta does not retain dirty rows or shifts from earlier
+    // controller updates that Flutter coalesced into this paint.
+    final hasUnpaintedFrameGap =
+        _lastPaintedFrameVersion >= 0 &&
+        _controller.frameVersion > _lastPaintedFrameVersion + 1;
     final paintWatch = benchmarkEnabled ? (Stopwatch()..start()) : null;
     final paragraphBuildsBefore = benchmarkEnabled ? _paragraphBuilds : 0;
     if (hasNewFrame) {
@@ -392,7 +397,8 @@ class RenderTerminalViewport extends RenderBox {
     final renderIntent = TerminalRenderIntent.fromFrame(
       frame,
       hasNewFrame: hasNewFrame,
-      forceFullRowVisualRebuild: _needsFullRowVisualRebuild,
+      forceFullRowVisualRebuild:
+          _needsFullRowVisualRebuild || hasUnpaintedFrameGap,
     );
     if (renderIntent.shiftsRowCache) {
       _shiftRowCaches(renderIntent.rowCacheShift, frame.viewportRows);

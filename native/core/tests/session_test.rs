@@ -21312,6 +21312,52 @@ fn single_line_scroll_reports_viewport_row_shift_and_bottom_dirty_range() {
 }
 
 #[test]
+fn full_screen_scroll_followed_by_non_exposed_row_redraw_emits_redrawn_row() {
+    let profile = serde_json::json!({
+        "id": "scroll-then-redraw",
+        "name": "Scroll Then Redraw",
+        "launch": {"program": "/definitely/not/a/child"}
+    });
+    let session_id = session::create_replay_session(&profile.to_string()).unwrap();
+    session::resize_session(session_id, 12, 5, 0, 0).unwrap();
+    session::replay_session_output(
+        session_id,
+        b"\x1b[2J\x1b[Hold0\r\nold1\r\nold2\r\nold3\r\nold4",
+    )
+    .unwrap();
+    let initial = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("expected initial frame");
+    let initial: serde_json::Value = serde_json::from_str(&initial).unwrap();
+    assert_eq!(initial["frame_kind"].as_str(), Some("snapshot"));
+
+    session::replay_session_output(session_id, b"\x1b[5;1H\n\x1b[1;1HNEW0\x1b[3;1H").unwrap();
+    let updated = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("expected updated frame");
+    let updated: serde_json::Value = serde_json::from_str(&updated).unwrap();
+
+    assert_eq!(updated["frame_kind"].as_str(), Some("delta"));
+    assert_eq!(updated["viewport_row_shift"].as_i64(), Some(-1));
+    assert!(
+        updated["rows"]
+            .as_array()
+            .expect("expected delta rows")
+            .iter()
+            .any(|row| {
+                row["index"].as_u64() == Some(0)
+                    && row["text"]
+                        .as_str()
+                        .is_some_and(|text| text.starts_with("NEW0"))
+            }),
+        "a row redrawn after the scroll must not be hidden by the viewport-shift optimization: {}",
+        serde_json::to_string_pretty(&updated).unwrap()
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn damage_driven_delta_reports_low_rows_scanned_for_single_line_scroll() {
     let gate = tempdir().unwrap();
     let gate_path = gate.path().join("continue");

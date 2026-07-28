@@ -173,11 +173,6 @@ pub(in crate::session) fn delta_candidate_row_indexes(
 
     add_shift_exposed_rows(&mut candidates, viewport_rows, viewport_row_shift);
     for row in &pending_frame_work.dirty_rows {
-        if uses_viewport_shift
-            && !row_is_exposed_by_viewport_shift(*row, viewport_rows, viewport_row_shift)
-        {
-            continue;
-        }
         if let Some(visible_row) = visible_row_for_screen_row(
             *row,
             viewport_start_row,
@@ -235,23 +230,6 @@ pub(in crate::session) fn delta_candidate_row_indexes(
     );
 
     candidates.into_iter().collect()
-}
-
-fn row_is_exposed_by_viewport_shift(
-    row: usize,
-    viewport_rows: usize,
-    viewport_row_shift: i32,
-) -> bool {
-    if viewport_row_shift == 0 || viewport_rows == 0 {
-        return false;
-    }
-
-    let shift = viewport_row_shift.unsigned_abs() as usize;
-    if viewport_row_shift < 0 {
-        return row >= viewport_rows.saturating_sub(shift);
-    }
-
-    row < shift.min(viewport_rows)
 }
 
 fn add_shift_exposed_rows(
