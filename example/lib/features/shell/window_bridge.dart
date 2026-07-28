@@ -84,9 +84,6 @@ class WindowBridge {
     required double widthDelta,
     required double heightDelta,
   }) async {
-    if (BindingBase.debugBindingType() == null) {
-      return;
-    }
     try {
       await _channel.invokeMethod<void>('resizeBy', {
         'widthDelta': widthDelta,
@@ -98,9 +95,6 @@ class WindowBridge {
   }
 
   static Future<void> setTitle(String title) async {
-    if (BindingBase.debugBindingType() == null) {
-      return;
-    }
     try {
       await _channel.invokeMethod<void>('setTitle', {'title': title});
     } on MissingPluginException {
@@ -109,9 +103,6 @@ class WindowBridge {
   }
 
   static Future<void> requestQuitConfirmation() async {
-    if (BindingBase.debugBindingType() == null) {
-      return;
-    }
     try {
       await _channel.invokeMethod<void>('requestQuitConfirmation');
     } on MissingPluginException {
@@ -120,9 +111,6 @@ class WindowBridge {
   }
 
   static Future<void> beginWindowDrag() async {
-    if (BindingBase.debugBindingType() == null) {
-      return;
-    }
     try {
       await _channel.invokeMethod<void>('beginWindowDrag');
     } on MissingPluginException {
@@ -131,9 +119,6 @@ class WindowBridge {
   }
 
   static Future<void> toggleHotkeyWindow() async {
-    if (BindingBase.debugBindingType() == null) {
-      return;
-    }
     try {
       await _channel.invokeMethod<void>('toggleHotkeyWindow');
     } on MissingPluginException {
@@ -142,9 +127,6 @@ class WindowBridge {
   }
 
   static Future<HotkeyWindowStatus?> hotkeyStatus() async {
-    if (BindingBase.debugBindingType() == null) {
-      return null;
-    }
     try {
       final status = await _channel.invokeMapMethod<String, Object?>(
         'hotkeyStatus',
@@ -159,9 +141,6 @@ class WindowBridge {
   }
 
   static Future<WindowMetrics?> metrics() async {
-    if (BindingBase.debugBindingType() == null) {
-      return null;
-    }
     try {
       final metrics = await _channel.invokeMapMethod<String, Object?>(
         'windowMetrics',
@@ -176,9 +155,6 @@ class WindowBridge {
   }
 
   static Future<void> openExternalUrl(String url) async {
-    if (BindingBase.debugBindingType() == null) {
-      return;
-    }
     final normalizedUrl = url.trim();
     final uri = Uri.tryParse(normalizedUrl);
     if (uri == null || !_isAllowedExternalUri(uri)) {
@@ -194,9 +170,6 @@ class WindowBridge {
   }
 
   static Future<int?> requestUserAttention(NativeUserAttentionType type) async {
-    if (BindingBase.debugBindingType() == null) {
-      return null;
-    }
     try {
       final requestId = await _channel.invokeMethod<int>(
         'requestUserAttention',
@@ -209,7 +182,7 @@ class WindowBridge {
   }
 
   static Future<void> cancelUserAttention(int requestId) async {
-    if (BindingBase.debugBindingType() == null || requestId < 0) {
+    if (requestId < 0) {
       return;
     }
     try {
@@ -225,9 +198,6 @@ class WindowBridge {
   static Future<String?> chooseFileDownloadLocation({
     required String suggestedName,
   }) async {
-    if (BindingBase.debugBindingType() == null) {
-      return null;
-    }
     final safeName = _safeSuggestedFileName(suggestedName);
     try {
       final selected = await _channel.invokeMethod<String>(
@@ -242,9 +212,6 @@ class WindowBridge {
   }
 
   static Future<String?> chooseTerminalFolder() async {
-    if (BindingBase.debugBindingType() == null) {
-      return null;
-    }
     try {
       final selected = await _channel.invokeMethod<String>(
         'chooseTerminalFolder',
@@ -257,9 +224,6 @@ class WindowBridge {
   }
 
   static Future<String?> chooseRecordingFile({String? initialDirectory}) async {
-    if (BindingBase.debugBindingType() == null) {
-      return null;
-    }
     final normalizedInitialDirectory = initialDirectory?.trim();
     try {
       final selected = await _channel
@@ -276,9 +240,6 @@ class WindowBridge {
   }
 
   static Future<void> revealInFinder(String value) async {
-    if (BindingBase.debugBindingType() == null) {
-      return;
-    }
     final path = value.trim();
     if (path.isEmpty) {
       throw const FormatException('Finder path must not be empty.');
@@ -293,9 +254,6 @@ class WindowBridge {
   }
 
   static Future<bool> movePathToTrash(String value) async {
-    if (BindingBase.debugBindingType() == null) {
-      return false;
-    }
     final path = value.trim();
     if (path.isEmpty) {
       throw const FormatException('Trash path must not be empty.');
@@ -335,9 +293,6 @@ class WindowBridge {
     String? identifier,
     int? expiresAfterMs,
   }) async {
-    if (BindingBase.debugBindingType() == null) {
-      return;
-    }
     try {
       final arguments = <String, Object?>{'title': title};
       if (body != null) {
@@ -368,7 +323,7 @@ class WindowBridge {
   }
 
   static Future<void> closeNotification(String identifier) async {
-    if (BindingBase.debugBindingType() == null || identifier.isEmpty) {
+    if (identifier.isEmpty) {
       return;
     }
     try {
@@ -385,9 +340,6 @@ class WindowBridge {
     String? sessionId,
     List<String> mimeTypes = const <String>[],
   }) async {
-    if (BindingBase.debugBindingType() == null) {
-      return;
-    }
     try {
       await _channel.invokeMethod<void>('configureOsc72DropTarget', {
         'enabled': enabled,
@@ -400,9 +352,6 @@ class WindowBridge {
   }
 
   static Future<void> setOsc72DropDecision(int operation) async {
-    if (BindingBase.debugBindingType() == null) {
-      return;
-    }
     try {
       await _channel.invokeMethod<void>('setOsc72DropDecision', {
         'operation': operation,
@@ -438,7 +387,7 @@ class WindowBridge {
   }
 
   static Future<void> releaseOsc72Drop(String dropId) async {
-    if (BindingBase.debugBindingType() == null || dropId.isEmpty) {
+    if (dropId.isEmpty) {
       return;
     }
     try {
@@ -449,9 +398,6 @@ class WindowBridge {
   }
 
   static Future<NativeOsc72DropTargetStatus?> osc72DropTargetStatus() async {
-    if (BindingBase.debugBindingType() == null) {
-      return null;
-    }
     try {
       final result = await _channel.invokeMapMethod<String, Object?>(
         'osc72DropTargetStatus',

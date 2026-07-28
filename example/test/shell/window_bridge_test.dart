@@ -1,8 +1,24 @@
+import 'dart:io';
+
 import 'package:app/features/shell/window_bridge.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('platform calls are not gated by debug-only binding state', () {
+    final source = File(
+      'lib/features/shell/window_bridge.dart',
+    ).readAsStringSync();
+
+    expect(
+      source,
+      isNot(contains('BindingBase.debugBindingType()')),
+      reason:
+          'debugBindingType is always null in release builds and would disable '
+          'the native window bridge.',
+    );
+  });
+
   test('window metrics accepts finite platform sizes', () {
     final metrics = WindowMetrics.fromMap(const <String, Object?>{
       'contentWidth': 900.0,
