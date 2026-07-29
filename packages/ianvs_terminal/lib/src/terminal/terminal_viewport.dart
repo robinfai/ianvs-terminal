@@ -1652,11 +1652,22 @@ class _TerminalViewportState extends State<TerminalViewport>
       }
       return KeyEventResult.ignored;
     }
-    final hostResult = widget.onHostKeyEvent?.call(event);
-    if (hostResult == KeyEventResult.handled) {
-      return KeyEventResult.handled;
+    final terminalFirst = _isTerminalFirstHostShortcut(event);
+    if (!terminalFirst) {
+      final hostResult = widget.onHostKeyEvent?.call(event);
+      if (hostResult == KeyEventResult.handled) {
+        return KeyEventResult.handled;
+      }
     }
     return widget.inputController.handle(event);
+  }
+
+  bool _isTerminalFirstHostShortcut(KeyEvent event) {
+    return event.logicalKey == LogicalKeyboardKey.keyQ &&
+        HardwareKeyboard.instance.isMetaPressed &&
+        !HardwareKeyboard.instance.isControlPressed &&
+        !HardwareKeyboard.instance.isShiftPressed &&
+        !HardwareKeyboard.instance.isAltPressed;
   }
 
   bool _consumeBackspaceAfterImeClear(KeyEvent event) {
@@ -1848,7 +1859,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     _scheduleMeasuredCellSizeReport();
     _scheduleTextInputGeometrySync();
     final colors = _resolvedColors(context);
-    return Focus(
+    final terminal = Focus(
       autofocus: true,
       focusNode: _focusNode,
       onKeyEvent: (_, event) => _handleTerminalKeyEvent(event),
@@ -1980,6 +1991,15 @@ class _TerminalViewportState extends State<TerminalViewport>
           ),
         ),
       ),
+    );
+    return Focus(
+      onKeyEvent: (_, event) {
+        if (!_isTerminalFirstHostShortcut(event)) {
+          return KeyEventResult.ignored;
+        }
+        return widget.onHostKeyEvent?.call(event) ?? KeyEventResult.ignored;
+      },
+      child: terminal,
     );
   }
 
