@@ -105,6 +105,47 @@ void main() {
       scheduler.dispose();
     });
 
+    testWidgets('deduplicates input probes and permits callback rescheduling', (
+      tester,
+    ) async {
+      final callbacks = <String>[];
+      final scheduler = TerminalRefreshScheduler();
+
+      expect(
+        scheduler.scheduleInputProbe(
+          'session-a',
+          const Duration(milliseconds: 4),
+          () {
+            callbacks.add('first');
+            expectSync(
+              scheduler.scheduleInputProbe(
+                'session-a',
+                const Duration(milliseconds: 4),
+                () => callbacks.add('second'),
+              ),
+              isTrue,
+            );
+          },
+        ),
+        isTrue,
+      );
+      expect(
+        scheduler.scheduleInputProbe(
+          'session-a',
+          const Duration(milliseconds: 4),
+          () => callbacks.add('duplicate'),
+        ),
+        isFalse,
+      );
+
+      await tester.pump(const Duration(milliseconds: 4));
+      expect(callbacks, <String>['first']);
+
+      await tester.pump(const Duration(milliseconds: 4));
+      expect(callbacks, <String>['first', 'second']);
+      scheduler.dispose();
+    });
+
     testWidgets('remove clears queued and cooldown state', (tester) async {
       final callbacks = <String>[];
       final scheduler = TerminalRefreshScheduler();
@@ -116,6 +157,11 @@ void main() {
           'session-a',
           const Duration(milliseconds: 33),
           () => callbacks.add('session-a'),
+        )
+        ..scheduleInputProbe(
+          'session-a',
+          const Duration(milliseconds: 4),
+          () => callbacks.add('input-probe'),
         )
         ..remove('session-a');
 

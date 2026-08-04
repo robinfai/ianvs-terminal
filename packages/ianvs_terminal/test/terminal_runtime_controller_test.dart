@@ -3560,7 +3560,7 @@ void main() {
   );
 
   testWidgets(
-    'terminal runtime controller coalesces polling input bursts to 30fps',
+    'terminal runtime coalesces input bursts into one low-latency probe',
     (tester) async {
       final runtimeBackend = _FakePtyBackend();
       final diagnosticEvents = <Map<String, Object?>>[];
@@ -3604,11 +3604,12 @@ void main() {
           fullPollCountBeforeBurst + 1,
         );
         final refreshId = requestedEvents.single['refresh_id'];
+        expect(requestedEvents.single['request_reason'], 'input');
 
-        await tester.pump(const Duration(milliseconds: 32));
+        await tester.pump(const Duration(milliseconds: 3));
         expect(runtimeBackend.takeFrameDiffCalls, 1);
 
-        await tester.pump(const Duration(milliseconds: 2));
+        await tester.pump(const Duration(milliseconds: 1));
         expect(runtimeBackend.takeFrameDiffCalls, 2);
         expect(viewport.frame.rows.first.text, 'coalesced');
         expect(
@@ -3627,6 +3628,59 @@ void main() {
             'frame_applied',
             'refresh_result',
           ],
+        );
+      } finally {
+        runtime.dispose();
+      }
+    },
+  );
+
+  testWidgets(
+    'terminal runtime consumes a delayed input hint before the 33ms tick',
+    (tester) async {
+      final runtimeBackend = _RefreshHintPtyBackend();
+      final diagnosticEvents = <Map<String, Object?>>[];
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        benchmarkEventSink: diagnosticEvents.add,
+      );
+      try {
+        final sessionId = runtime.createSession(
+          const TerminalSessionConfig(
+            launch: TerminalLaunchConfig(program: '/bin/sh'),
+          ),
+        );
+        final viewport = runtime.viewportFor(sessionId);
+        runtimeBackend.setFrame(
+          sessionId,
+          _singleRowSnapshot('low latency echo'),
+        );
+        diagnosticEvents.clear();
+
+        runtime.sendInput(sessionId, Uint8List.fromList(const [0x41]));
+        await tester.pump(const Duration(milliseconds: 4));
+
+        expect(runtimeBackend.takeFrameDiffCalls, 1);
+        expect(viewport.frame.rows.first.text, 'demo');
+
+        runtimeBackend.hintFlags = PtyRefreshHintFlags.frameDirty;
+        await tester.pump(const Duration(milliseconds: 4));
+
+        expect(runtimeBackend.takeFrameDiffCalls, 2);
+        expect(viewport.frame.rows.first.text, 'low latency echo');
+        expect(runtimeBackend.refreshHintCalls, 2);
+        expect(
+          diagnosticEvents
+              .where(
+                (event) =>
+                    event['schema_version'] ==
+                        'ianvs-terminal-refresh-policy-v1' &&
+                    event['event'] == 'full_poll_requested',
+              )
+              .single['request_reason'],
+          'input',
         );
       } finally {
         runtime.dispose();

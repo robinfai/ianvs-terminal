@@ -742,6 +742,11 @@ final class TerminalSessionInputEvent {
 
 class TerminalRuntimeController {
   static const Duration _pollingFrameInterval = Duration(milliseconds: 33);
+  // A pull immediately after writeInput commonly races the asynchronous PTY
+  // reader. Probe its cheap dirty hint briefly so local echo can still reach
+  // the next Flutter frame without making steady-state polling more frequent.
+  static const Duration _inputRefreshProbeInterval = Duration(milliseconds: 4);
+  static const int _inputRefreshProbeAttempts = 4;
   static const int _clipboardPreviewRunes = 120;
 
   TerminalRuntimeController({
@@ -915,6 +920,7 @@ class TerminalRuntimeController {
   _pendingReportVariableRequests =
       <int, _PendingOsc1337ReportVariableRequest>{};
   final Map<String, int> _refreshIdSeeds = <String, int>{};
+  final Map<String, int> _inputRefreshProbeAttemptsRemaining = <String, int>{};
   final Map<String, int> _sessionEpochs = <String, int>{};
   final Map<String, DateTime> _lastFrameAppliedAt = <String, DateTime>{};
   final Map<String, List<String>> _osc5522RememberedPasswords =
@@ -1183,7 +1189,10 @@ class TerminalRuntimeController {
       now: _monotonicNow,
       reason: TerminalFramePumpResetReason.input,
     );
-    _refreshSessionIfNeeded(sessionId);
+    _requestRefreshSession(sessionId, requestReason: 'input');
+    if (enableSessionPolling && copiedBytes.isNotEmpty) {
+      _scheduleInputRefreshProbe(sessionId);
+    }
     return true;
   }
 
@@ -1884,6 +1893,50 @@ class TerminalRuntimeController {
 
   void _refreshSessionIfNeeded(String sessionId) {
     _requestRefreshSession(sessionId);
+  }
+
+  void _scheduleInputRefreshProbe(String sessionId) {
+    _inputRefreshProbeAttemptsRemaining[sessionId] = _inputRefreshProbeAttempts;
+    _refreshScheduler.scheduleInputProbe(
+      sessionId,
+      _inputRefreshProbeInterval,
+      () => _runInputRefreshProbe(sessionId),
+    );
+  }
+
+  void _runInputRefreshProbe(String sessionId) {
+    if (!hasSession(sessionId)) {
+      _inputRefreshProbeAttemptsRemaining.remove(sessionId);
+      return;
+    }
+    final attemptsRemaining =
+        _inputRefreshProbeAttemptsRemaining[sessionId] ?? 0;
+    if (attemptsRemaining <= 0) {
+      _inputRefreshProbeAttemptsRemaining.remove(sessionId);
+      return;
+    }
+
+    final hintReady = _nativeRefreshHintReady(sessionId);
+    if (hintReady != false) {
+      _inputRefreshProbeAttemptsRemaining.remove(sessionId);
+      _requestRefreshSession(
+        sessionId,
+        immediate: true,
+        requestReason: hintReady == true ? 'input_hint' : 'input_probe',
+      );
+      return;
+    }
+
+    if (attemptsRemaining == 1) {
+      _inputRefreshProbeAttemptsRemaining.remove(sessionId);
+      return;
+    }
+    _inputRefreshProbeAttemptsRemaining[sessionId] = attemptsRemaining - 1;
+    _refreshScheduler.scheduleInputProbe(
+      sessionId,
+      _inputRefreshProbeInterval,
+      () => _runInputRefreshProbe(sessionId),
+    );
   }
 
   bool _runBackendOperation(
@@ -3821,6 +3874,7 @@ class TerminalRuntimeController {
     _refreshScheduler.remove(sessionId);
     _framePumpController.remove(sessionId);
     _refreshHintDisabledSessions.remove(sessionId);
+    _inputRefreshProbeAttemptsRemaining.remove(sessionId);
     _pendingRefreshTraces.remove(sessionId);
     _activeRefreshTraces.remove(sessionId);
     _pendingFullPollRequests.remove(sessionId);
