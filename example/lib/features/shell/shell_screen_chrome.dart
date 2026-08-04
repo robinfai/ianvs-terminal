@@ -13,9 +13,6 @@ class _ShellChromeBar extends StatelessWidget {
     required this.terminalBackgroundColor,
     required this.tabs,
     required this.activeSessionId,
-    required this.activeSessionRecording,
-    required this.activeRecordingPendingSave,
-    required this.recordingBusy,
     required this.tabHasNewOutput,
     required this.tabNewOutputTooltip,
     required this.hiddenTabsNewOutputTooltip,
@@ -32,16 +29,12 @@ class _ShellChromeBar extends StatelessWidget {
     required this.onReorderTab,
     required this.onShowTabContextMenu,
     required this.onShowCommandMenu,
-    required this.onToggleSessionRecording,
   });
 
   final AppThemeTokens palette;
   final Color terminalBackgroundColor;
   final List<TerminalTab> tabs;
   final String? activeSessionId;
-  final bool activeSessionRecording;
-  final bool activeRecordingPendingSave;
-  final bool recordingBusy;
   final bool Function(TerminalTab tab) tabHasNewOutput;
   final String Function(TerminalTab tab) tabNewOutputTooltip;
   final String Function(Iterable<TerminalTab> tabs) hiddenTabsNewOutputTooltip;
@@ -60,7 +53,6 @@ class _ShellChromeBar extends StatelessWidget {
   onReorderTab;
   final void Function(TerminalTab tab, Offset position) onShowTabContextMenu;
   final VoidCallback onShowCommandMenu;
-  final VoidCallback? onToggleSessionRecording;
 
   @override
   Widget build(BuildContext context) {
@@ -97,12 +89,6 @@ class _ShellChromeBar extends StatelessWidget {
                 tone: chromeTone,
                 backgroundColor: chromeSurface,
                 onShowCommandMenu: referenceDemoMode ? null : onShowCommandMenu,
-                activeSessionRecording: activeSessionRecording,
-                activeRecordingPendingSave: activeRecordingPendingSave,
-                recordingBusy: recordingBusy,
-                onToggleSessionRecording: referenceDemoMode
-                    ? null
-                    : onToggleSessionRecording,
               ),
               SizedBox(
                 height: _shellChromeTabRailHeight,
@@ -181,27 +167,19 @@ class _ShellWindowTitleBar extends StatelessWidget {
     required this.tone,
     required this.backgroundColor,
     required this.onShowCommandMenu,
-    required this.activeSessionRecording,
-    required this.activeRecordingPendingSave,
-    required this.recordingBusy,
-    required this.onToggleSessionRecording,
   });
 
   final AppThemeTokens palette;
   final _ShellTabTone tone;
   final Color backgroundColor;
   final VoidCallback? onShowCommandMenu;
-  final bool activeSessionRecording;
-  final bool activeRecordingPendingSave;
-  final bool recordingBusy;
-  final VoidCallback? onToggleSessionRecording;
 
   @override
   Widget build(BuildContext context) {
     final titleLeadingInset = defaultTargetPlatform == TargetPlatform.macOS
         ? 158.0
         : palette.spacing.xl;
-    final trailingInset = onShowCommandMenu == null ? 16.0 : 84.0;
+    final trailingInset = onShowCommandMenu == null ? 16.0 : 48.0;
     final titleSafeInset = math.max(titleLeadingInset, trailingInset);
 
     return SizedBox(
@@ -241,19 +219,6 @@ class _ShellWindowTitleBar extends StatelessWidget {
             if (onShowCommandMenu != null)
               Positioned(
                 top: 5,
-                right: 48,
-                child: _ShellSessionRecordingButton(
-                  palette: palette,
-                  tone: tone,
-                  recording: activeSessionRecording,
-                  pendingSave: activeRecordingPendingSave,
-                  busy: recordingBusy,
-                  onPressed: onToggleSessionRecording,
-                ),
-              ),
-            if (onShowCommandMenu != null)
-              Positioned(
-                top: 5,
                 right: 12,
                 child: _buildChromeIconButton(
                   key: const Key('shell-chrome-menu'),
@@ -267,56 +232,6 @@ class _ShellWindowTitleBar extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _ShellSessionRecordingButton extends StatelessWidget {
-  const _ShellSessionRecordingButton({
-    required this.palette,
-    required this.tone,
-    required this.recording,
-    required this.pendingSave,
-    required this.busy,
-    required this.onPressed,
-  });
-
-  final AppThemeTokens palette;
-  final _ShellTabTone tone;
-  final bool recording;
-  final bool pendingSave;
-  final bool busy;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final tooltip = recording
-        ? 'Stop recording and save for Replay'
-        : pendingSave
-        ? 'Retry saving Replay recording'
-        : 'Start recording for Replay (keystrokes redacted; command metadata included when available)';
-    final color = recording
-        ? palette.danger
-        : pendingSave
-        ? palette.warning
-        : tone.subtleText;
-    return _buildChromeIconButton(
-      key: const Key('shell-chrome-session-recording'),
-      tooltip: tooltip,
-      onPressed: busy ? null : onPressed,
-      iconSize: 16,
-      hoverBackgroundColor: tone.hoverBackground,
-      icon: busy
-          ? SizedBox.square(
-              dimension: 14,
-              child: CircularProgressIndicator(strokeWidth: 1.5, color: color),
-            )
-          : Icon(
-              pendingSave
-                  ? Icons.save_outlined
-                  : Icons.fiber_manual_record_rounded,
-              color: color,
-            ),
     );
   }
 }

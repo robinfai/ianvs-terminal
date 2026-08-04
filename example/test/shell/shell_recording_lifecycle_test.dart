@@ -125,7 +125,7 @@ class _MemoryLayoutRepository extends LocalTerminalLayoutRepository {
 
 void main() {
   testWidgets(
-    'title bar starts redacted capture and command palette stops and saves it',
+    'command palette starts and stops redacted capture without a title bar action',
     (tester) async {
       final directory = Directory.systemTemp.createTempSync(
         'ianvs terminal-recording-shell',
@@ -175,12 +175,9 @@ void main() {
       await _pumpUntil(
         tester,
         () =>
-            find
-                .byKey(const Key('shell-chrome-session-recording'))
-                .evaluate()
-                .isNotEmpty &&
+            find.byKey(const Key('shell-chrome-menu')).evaluate().isNotEmpty &&
             container.read(sessionControllerProvider).activeSessionId != null,
-        phase: 'initial shell recording control',
+        phase: 'initial shell command palette control',
       );
       final sessionId = container
           .read(sessionControllerProvider)
@@ -188,16 +185,24 @@ void main() {
 
       expect(
         find.byKey(const Key('shell-chrome-session-recording')),
-        findsOneWidget,
-      );
-      expect(
-        find.byTooltip(
-          'Start recording for Replay (keystrokes redacted; command metadata included when available)',
-        ),
-        findsOneWidget,
+        findsNothing,
       );
 
-      await tester.tap(find.byKey(const Key('shell-chrome-session-recording')));
+      await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+      await _pumpUntil(
+        tester,
+        () => find.text('Start recording for Replay').evaluate().isNotEmpty,
+        phase: 'command palette open for recording start',
+      );
+      expect(find.text('Replay'), findsOneWidget);
+      expect(find.text('Replay recent activity'), findsOneWidget);
+      expect(find.text('Open recording in Replay…'), findsOneWidget);
+      await tester.enterText(
+        find.byKey(const Key('shell-command-search-field')),
+        'recording',
+      );
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.tap(find.byKey(const Key('shell-toggle-session-recording')));
       await _pumpUntil(
         tester,
         () => container
@@ -211,10 +216,7 @@ void main() {
         container.read(sessionControllerProvider).recordingSessionIds,
         contains(sessionId),
       );
-      expect(
-        find.byTooltip('Stop recording and save for Replay'),
-        findsOneWidget,
-      );
+      await tester.pumpAndSettle();
 
       await tester.tap(find.byKey(const Key('shell-chrome-menu')));
       await _pumpUntil(
@@ -222,9 +224,6 @@ void main() {
         () => find.text('Stop & save recording').evaluate().isNotEmpty,
         phase: 'command palette open',
       );
-      expect(find.text('Replay'), findsOneWidget);
-      expect(find.text('Replay recent activity'), findsOneWidget);
-      expect(find.text('Open recording in Replay…'), findsOneWidget);
       await tester.enterText(
         find.byKey(const Key('shell-command-search-field')),
         'recording',

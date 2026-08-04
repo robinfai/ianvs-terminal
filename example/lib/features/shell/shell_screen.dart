@@ -989,19 +989,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 terminalBackgroundColor: shellChromeBackground,
                 tabs: sessionState.tabs,
                 activeSessionId: activeSessionId,
-                activeSessionRecording:
-                    activeSessionId != null &&
-                    sessionState.recordingSessionIds.contains(activeSessionId),
-                activeRecordingPendingSave:
-                    activeSessionId != null &&
-                    sessionState.recordingPendingSaveSessionIds.contains(
-                      activeSessionId,
-                    ),
-                recordingBusy:
-                    activeSessionId != null &&
-                    sessionState.recordingBusySessionIds.contains(
-                      activeSessionId,
-                    ),
                 tabHasNewOutput: _tabHasNewOutput,
                 tabNewOutputTooltip: _tabNewOutputTooltip,
                 hiddenTabsNewOutputTooltip: _hiddenTabsNewOutputTooltip,
@@ -1042,14 +1029,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 ),
                 onShowCommandMenu: () =>
                     _openCommandMenu(sessionController, sessionState),
-                onToggleSessionRecording: activeSessionId == null
-                    ? null
-                    : () => unawaited(
-                        _toggleActiveSessionRecording(
-                          sessionController,
-                          activeSessionId,
-                        ),
-                      ),
               ),
               if (sessionState.configurationWarnings.isNotEmpty)
                 _ShellConfigurationWarningsBanner(
