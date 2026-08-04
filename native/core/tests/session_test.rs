@@ -15872,6 +15872,46 @@ fn session_reports_scrollback_bounds_and_clamps_absolute_scroll() {
 }
 
 #[test]
+fn session_clear_scrollback_clears_native_history_and_preserves_visible_screen() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&scrollback_profile()).unwrap()).unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "line79");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    assert!(parsed["scrollback_max_offset"].as_u64().unwrap_or(0) > 0);
+
+    let clear_response = session::clear_scrollback_session(session_id).unwrap();
+    let clear_result: serde_json::Value = serde_json::from_str(&clear_response).unwrap();
+    assert_eq!(clear_result["cleared"].as_bool(), Some(true));
+
+    let cleared_frame = wait_for_frame_where(session_id, |candidate| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(candidate) else {
+            return false;
+        };
+        parsed["scrollback_offset"].as_u64() == Some(0)
+            && parsed["scrollback_max_offset"].as_u64() == Some(0)
+            && logical_rows_from_frame(candidate)
+                .iter()
+                .any(|row| row.contains("line79"))
+    });
+    let cleared: serde_json::Value = serde_json::from_str(&cleared_frame).unwrap();
+    assert_eq!(cleared["scrollback_offset"].as_u64(), Some(0));
+    assert_eq!(cleared["scrollback_max_offset"].as_u64(), Some(0));
+    assert!(
+        logical_rows_from_frame(&cleared_frame)
+            .iter()
+            .any(|row| row.contains("line79")),
+        "clearing native scrollback must preserve visible rows: {cleared_frame}"
+    );
+
+    let export_response = session::export_scrollback_session(session_id, None).unwrap();
+    let export: serde_json::Value = serde_json::from_str(&export_response).unwrap();
+    assert_eq!(export["content"].as_str(), Some(""));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn session_top_anchored_partial_scroll_region_contributes_to_scrollback() {
     let session_id = session::create_session(
         &serde_json::to_string(&top_anchored_partial_scrollback_profile()).unwrap(),

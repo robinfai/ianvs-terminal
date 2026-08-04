@@ -122,10 +122,8 @@ void main() {
       expect(find.byKey(const Key('shell-top-new-tab')), findsOneWidget);
       expect(find.textContaining('Copy the current selection.'), findsNothing);
       expect(find.byKey(const Key('shell-clear-scrollback')), findsOneWidget);
-      expect(
-        find.byKey(const Key('shell-top-paste-clipboard')),
-        findsOneWidget,
-      );
+      expect(find.byKey(const Key('shell-top-paste-clipboard')), findsNothing);
+      expect(find.byKey(const Key('shell-new-tab-at-folder')), findsNothing);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
@@ -148,7 +146,7 @@ void main() {
       find.byKey(const Key('shell-search-scrollback-top')),
       findsOneWidget,
     );
-    expect(find.byKey(const Key('shell-top-paste-clipboard')), findsOneWidget);
+    expect(find.byKey(const Key('shell-top-paste-clipboard')), findsNothing);
     expect(find.byKey(const Key('shell-top-new-tab')), findsOneWidget);
     expect(find.byKey(const Key('shell-top-toolbelt')), findsOneWidget);
     expect(find.byKey(const Key('shell-split-right')), findsNothing);
@@ -180,7 +178,7 @@ void main() {
       find.byKey(const Key('shell-search-scrollback-top')),
       findsOneWidget,
     );
-    expect(find.byKey(const Key('shell-top-paste-clipboard')), findsOneWidget);
+    expect(find.byKey(const Key('shell-top-paste-clipboard')), findsNothing);
     expect(find.byKey(const Key('shell-top-new-tab')), findsOneWidget);
     expect(find.byKey(const Key('shell-top-toolbelt')), findsOneWidget);
     expect(find.byKey(const Key('shell-split-right')), findsNothing);

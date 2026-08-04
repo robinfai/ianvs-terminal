@@ -182,14 +182,6 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
     return _usesMetaShortcuts ? '⌘T' : 'Ctrl+T';
   }
 
-  String _newTabAtFolderShortcutLabel() {
-    return _usesMetaShortcuts ? '⌘O' : 'Ctrl+O';
-  }
-
-  String _sessionPasteShortcutLabel() {
-    return _usesMetaShortcuts ? '⌘V' : 'Ctrl+V';
-  }
-
   String _instantReplayShortcutLabel() {
     return _usesMetaShortcuts ? '⌥⌘B' : 'Alt+Ctrl+B';
   }

@@ -254,13 +254,17 @@ Future<void> _invokeNativeWindowBridge(
   WidgetTester tester,
   MethodCall call,
 ) async {
+  await _dispatchNativeWindowBridge(tester, call);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _dispatchNativeWindowBridge(WidgetTester tester, MethodCall call) {
   final codec = const StandardMethodCodec();
-  await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+  return tester.binding.defaultBinaryMessenger.handlePlatformMessage(
     'app/window_bridge',
     codec.encodeMethodCall(call),
     (_) {},
   );
-  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -2580,7 +2584,7 @@ void main() {
     expect(find.byTooltip('Close defaults'), findsOneWidget);
   });
 
-  testWidgets('paste clipboard confirms multiline text before sending', (
+  testWidgets('native paste confirms multiline text before sending', (
     tester,
   ) async {
     const clipboardText = 'one\ntwo';
@@ -2606,7 +2610,11 @@ void main() {
 
     await _pumpShellScreen(tester, fakeBindings: fakeBindings);
 
-    await _tapCommandMenuAction(tester, const Key('shell-top-paste-clipboard'));
+    final pasteFuture = _dispatchNativeWindowBridge(
+      tester,
+      const MethodCall('nativePaste'),
+    );
+    await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('paste-confirmation-dialog')), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
@@ -2614,6 +2622,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Paste'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 250));
+    await pasteFuture;
 
     expect(fakeBindings.writes, hasLength(1));
     expect(utf8.decode(fakeBindings.writes.single), contains(clipboardText));
@@ -2653,7 +2662,7 @@ void main() {
       ),
     );
 
-    await _tapCommandMenuAction(tester, const Key('shell-top-paste-clipboard'));
+    await _invokeNativeWindowBridge(tester, const MethodCall('nativePaste'));
 
     expect(find.byKey(const Key('paste-confirmation-dialog')), findsNothing);
     expect(fakeBindings.writes, hasLength(1));
@@ -2698,7 +2707,7 @@ void main() {
       ),
     );
 
-    await _tapCommandMenuAction(tester, const Key('shell-top-paste-clipboard'));
+    await _invokeNativeWindowBridge(tester, const MethodCall('nativePaste'));
 
     expect(
       fakeBindings.writes.single,
@@ -2742,7 +2751,7 @@ void main() {
       ),
     );
 
-    await _tapCommandMenuAction(tester, const Key('shell-top-paste-clipboard'));
+    await _invokeNativeWindowBridge(tester, const MethodCall('nativePaste'));
 
     expect(fakeBindings.writes, isEmpty);
     expect(fakeBindings.writesBySession, isEmpty);
@@ -2800,10 +2809,7 @@ void main() {
       container.read(terminalRuntimeControllerProvider).refreshSession('1');
       await tester.pump();
 
-      await _tapCommandMenuAction(
-        tester,
-        const Key('shell-top-paste-clipboard'),
-      );
+      await _invokeNativeWindowBridge(tester, const MethodCall('nativePaste'));
 
       expect(fakeBindings.writes.single, utf8.encode(clipboardText));
     },

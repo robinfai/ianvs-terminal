@@ -69,8 +69,6 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       return _ShellCommandMenu(
         launcherShortcutLabel: _launcherShortcutLabel(),
         newTabShortcutLabel: _newTabShortcutLabel(),
-        newTabAtFolderShortcutLabel: _newTabAtFolderShortcutLabel(),
-        sessionPasteShortcutLabel: _sessionPasteShortcutLabel(),
         instantReplayShortcutLabel: _instantReplayShortcutLabel(),
         searchShortcutLabel: _searchShortcutLabel(),
         hasDefaultProfile: defaultProfile != null,
@@ -646,6 +644,9 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
             ref
                 .read(sessionControllerProvider.notifier)
                 .clearPromptMarks(currentSessionId);
+            _showShellSnackBar(
+              'Off-screen terminal history cleared. The current screen is unchanged.',
+            );
           }
           if (!cleared && mounted) {
             ScaffoldMessenger.of(context).showSnackBar(

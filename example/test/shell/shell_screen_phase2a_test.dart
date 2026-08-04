@@ -78,7 +78,8 @@ void main() {
     expect(find.text('Search terminal output'), findsOneWidget);
     expect(find.text('Search scrollback'), findsNothing);
     expect(find.text('Copy selection'), findsNothing);
-    expect(find.byKey(const Key('shell-top-paste-clipboard')), findsOneWidget);
+    expect(find.byKey(const Key('shell-top-paste-clipboard')), findsNothing);
+    expect(find.byKey(const Key('shell-new-tab-at-folder')), findsNothing);
     expect(find.text('Defaults & appearance'), findsOneWidget);
     expect(find.text('Profiles…'), findsOneWidget);
     expect(find.byKey(const Key('shell-command-defaults')), findsOneWidget);

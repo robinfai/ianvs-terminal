@@ -4,8 +4,6 @@ class _ShellCommandMenu extends StatefulWidget {
   const _ShellCommandMenu({
     required this.launcherShortcutLabel,
     required this.newTabShortcutLabel,
-    required this.newTabAtFolderShortcutLabel,
-    required this.sessionPasteShortcutLabel,
     required this.instantReplayShortcutLabel,
     required this.searchShortcutLabel,
     required this.hasDefaultProfile,
@@ -22,8 +20,6 @@ class _ShellCommandMenu extends StatefulWidget {
 
   final String launcherShortcutLabel;
   final String newTabShortcutLabel;
-  final String newTabAtFolderShortcutLabel;
-  final String sessionPasteShortcutLabel;
   final String instantReplayShortcutLabel;
   final String searchShortcutLabel;
   final bool hasDefaultProfile;
@@ -52,8 +48,6 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
         .toDouble();
     final launcherShortcutLabel = widget.launcherShortcutLabel;
     final newTabShortcutLabel = widget.newTabShortcutLabel;
-    final newTabAtFolderShortcutLabel = widget.newTabAtFolderShortcutLabel;
-    final sessionPasteShortcutLabel = widget.sessionPasteShortcutLabel;
     final instantReplayShortcutLabel = widget.instantReplayShortcutLabel;
     final searchShortcutLabel = widget.searchShortcutLabel;
     final hasDefaultProfile = widget.hasDefaultProfile;
@@ -88,8 +82,6 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
     const activeSessionRequired = 'Open a terminal tab first.';
     const defaultProfileRequired = 'No default profile is configured.';
     const closedTabRequired = 'No recently closed tab is available.';
-    const readOnlySendRequired = 'Disable read-only mode to send text.';
-
     var commandTileTraversalOrder = 1.0;
 
     Widget commandTile({
@@ -246,21 +238,6 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                             Navigator.of(context).pop(TerminalActionId.search),
                       ),
                       commandTile(
-                        key: const Key('shell-top-paste-clipboard'),
-                        actionId: TerminalActionId.paste,
-                        icon: Icons.content_paste_rounded,
-                        title: 'Paste clipboard',
-                        subtitle:
-                            'Top action • Paste clipboard into the shell.',
-                        shortcutLabel: sessionPasteShortcutLabel,
-                        enabled: hasActiveSession && !isActiveSessionReadOnly,
-                        disabledReason: hasActiveSession
-                            ? readOnlySendRequired
-                            : activeSessionRequired,
-                        onTap: () =>
-                            Navigator.of(context).pop(TerminalActionId.paste),
-                      ),
-                      commandTile(
                         key: const Key('shell-top-new-tab'),
                         actionId: TerminalActionId.newTab,
                         icon: Icons.add_box_outlined,
@@ -311,20 +288,6 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         onTap: () => Navigator.of(
                           context,
                         ).pop(TerminalActionId.reopenClosedTab),
-                      ),
-                      commandTile(
-                        key: const Key('shell-new-tab-at-folder'),
-                        actionId: TerminalActionId.openTerminalAtFolder,
-                        icon: Icons.create_new_folder_outlined,
-                        title: 'New tab at folder…',
-                        subtitle:
-                            'App action • Choose a folder and start the default shell there.',
-                        shortcutLabel: newTabAtFolderShortcutLabel,
-                        enabled: hasDefaultProfile,
-                        disabledReason: defaultProfileRequired,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.openTerminalAtFolder),
                       ),
                       commandTile(
                         key: const Key('shell-theme-picker'),
@@ -410,9 +373,9 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         key: const Key('shell-clear-scrollback'),
                         actionId: TerminalActionId.clearScrollback,
                         icon: Icons.clear_all_rounded,
-                        title: 'Clear scrollback',
+                        title: 'Clear terminal history',
                         subtitle:
-                            'Session action • Clear local scrollback when supported.',
+                            'Session action • Remove off-screen output; the current screen stays visible.',
                         enabled: hasActiveSession,
                         disabledReason: activeSessionRequired,
                         onTap: () => Navigator.of(
@@ -423,9 +386,9 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         key: const Key('shell-export-scrollback'),
                         actionId: TerminalActionId.exportScrollback,
                         icon: Icons.ios_share_rounded,
-                        title: 'Export scrollback',
+                        title: 'Export terminal history',
                         subtitle:
-                            'Session action • Save a terminal text snapshot to Application Support.',
+                            'Session action • Save retained text as a .txt file for sharing or later review.',
                         enabled: hasActiveSession,
                         disabledReason: activeSessionRequired,
                         onTap: () => Navigator.of(
@@ -544,10 +507,6 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
 const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
   MapEntry('new tab open default shell profile', TerminalActionId.newTab),
   MapEntry(
-    'new tab at folder open terminal directory project cwd',
-    TerminalActionId.openTerminalAtFolder,
-  ),
-  MapEntry(
     'open recording in replay saved ndjson file',
     TerminalActionId.openRecording,
   ),
@@ -560,7 +519,10 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
     'theme picker terminal color presets appearance defaults',
     TerminalActionId.openThemePicker,
   ),
-  MapEntry('export scrollback save output', TerminalActionId.exportScrollback),
+  MapEntry(
+    'export terminal history scrollback save output text',
+    TerminalActionId.exportScrollback,
+  ),
   MapEntry(
     'export diagnostics resource cpu memory evidence bundle',
     TerminalActionId.exportDiagnostics,
@@ -582,8 +544,10 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
     'record recording capture replay pty output redact input save',
     TerminalActionId.toggleSessionRecording,
   ),
-  MapEntry('clear scrollback clear output', TerminalActionId.clearScrollback),
-  MapEntry('paste clipboard', TerminalActionId.paste),
+  MapEntry(
+    'clear terminal history scrollback off screen output',
+    TerminalActionId.clearScrollback,
+  ),
   MapEntry('toolbelt terminal tools sidebar', TerminalActionId.toolbelt),
   MapEntry(
     'replay recent activity instant terminal frames',

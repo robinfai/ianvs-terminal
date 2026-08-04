@@ -7191,6 +7191,49 @@ void main() {
     expect(runtimeBackend.jsonRequests, hasLength(1));
   });
 
+  test(
+    'terminal runtime delegates scrollback clearing without blanking visible rows',
+    () {
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final viewport = runtime.viewportFor(sessionId);
+      viewport.applySnapshot(
+        const TerminalFrameDiff(
+          rows: [TerminalRow(index: 0, text: 'visible prompt')],
+          cursor: TerminalCursor(row: 0, col: 14, visible: true),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 12,
+        ),
+      );
+      runtimeBackend.jsonRequests.clear();
+
+      expect(runtime.clearScrollback(sessionId), isTrue);
+      expect(
+        runtimeBackend.jsonRequests
+            .where((request) => request['kind'] == 'terminal.clear_scrollback')
+            .single,
+        <String, Object?>{'kind': 'terminal.clear_scrollback'},
+      );
+      expect(viewport.frame.rows.first.text, 'visible prompt');
+      expect(viewport.frame.scrollbackMaxOffset, 12);
+    },
+  );
+
   test('terminal runtime degrades malformed JSON request responses', () {
     final runtimeBackend = _FakePtyBackend()
       ..searchRawResponse = '{'

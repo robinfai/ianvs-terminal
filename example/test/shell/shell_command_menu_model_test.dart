@@ -17,13 +17,20 @@ void main() {
       expect(
         ShellCommandMenuModel.defaultActionOrder,
         containsAll([
-          TerminalActionId.openTerminalAtFolder,
           TerminalActionId.profiles,
           TerminalActionId.instantReplay,
           TerminalActionId.toggleSessionRecording,
           TerminalActionId.openRecording,
           TerminalActionId.search,
         ]),
+      );
+      expect(
+        ShellCommandMenuModel.defaultActionOrder,
+        isNot(contains(TerminalActionId.openTerminalAtFolder)),
+      );
+      expect(
+        ShellCommandMenuModel.defaultActionOrder,
+        isNot(contains(TerminalActionId.paste)),
       );
     });
 

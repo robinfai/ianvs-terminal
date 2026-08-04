@@ -88,21 +88,9 @@ Future<void> _invokeNativeWindowBridge(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('command palette opens a new tab at a selected folder', (
+  testWidgets('command palette omits the folder-specific new tab action', (
     tester,
   ) async {
-    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      const MethodChannel('app/window_bridge'),
-      (call) async => call.method == 'chooseTerminalFolder'
-          ? '/layout/selected-folder'
-          : null,
-    );
-    addTearDown(
-      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        const MethodChannel('app/window_bridge'),
-        null,
-      ),
-    );
     final container = await _pumpShell(tester);
 
     expect(
@@ -119,13 +107,11 @@ void main() {
       'folder',
     );
     await tester.pumpAndSettle();
-    expect(find.text('New tab at folder…'), findsOneWidget);
-    await tester.tap(find.byKey(const Key('shell-new-tab-at-folder')));
-    await tester.pumpAndSettle();
+    expect(find.text('New tab at folder…'), findsNothing);
+    expect(find.byKey(const Key('shell-new-tab-at-folder')), findsNothing);
 
     final state = container.read(sessionControllerProvider);
-    expect(state.tabs, hasLength(2));
-    expect(state.tabs.last.profileSnapshot!.cwd, '/layout/selected-folder');
+    expect(state.tabs, hasLength(1));
   });
 
   testWidgets('native folder open handles selection and cancellation safely', (

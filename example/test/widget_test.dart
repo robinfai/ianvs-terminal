@@ -247,13 +247,17 @@ Future<void> _invokeNativeWindowBridge(
   WidgetTester tester,
   MethodCall call,
 ) async {
+  await _dispatchNativeWindowBridge(tester, call);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _dispatchNativeWindowBridge(WidgetTester tester, MethodCall call) {
   final codec = const StandardMethodCodec();
-  await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+  return tester.binding.defaultBinaryMessenger.handlePlatformMessage(
     'app/window_bridge',
     codec.encodeMethodCall(call),
     (_) {},
   );
-  await tester.pumpAndSettle();
 }
 
 Future<void> _openTabContextMenu(
@@ -1709,7 +1713,7 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
-  testWidgets('command menu paste sends clipboard text to the active session', (
+  testWidgets('native paste sends clipboard text to the active session', (
     tester,
   ) async {
     const clipboardText = '你好, 世界🌟';
@@ -1742,9 +1746,7 @@ void main() {
       ),
     );
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.text('Paste clipboard'));
-    await tester.tap(find.text('Paste clipboard'));
+    await _invokeNativeWindowBridge(tester, const MethodCall('nativePaste'));
     await tester.pumpAndSettle();
 
     expect(fakeBindings.writes, isNotEmpty);
@@ -1815,7 +1817,7 @@ void main() {
   });
 
   testWidgets(
-    'command menu paste records text for paste history reuse and persistence',
+    'native paste records text for paste history reuse and persistence',
     (tester) async {
       const clipboardText = 'from clipboard history';
       final fakeBindings = FakePtyBackend();
@@ -1849,9 +1851,7 @@ void main() {
         pasteHistoryRepository: pasteHistoryRepository,
       );
 
-      await _openCommandMenu(tester);
-      await tester.ensureVisible(find.text('Paste clipboard'));
-      await tester.tap(find.text('Paste clipboard'));
+      await _invokeNativeWindowBridge(tester, const MethodCall('nativePaste'));
       await tester.pumpAndSettle();
 
       expect(fakeBindings.writes, hasLength(1));
@@ -1923,7 +1923,7 @@ void main() {
     );
   });
 
-  testWidgets('command menu paste confirms carriage-return multiline text', (
+  testWidgets('native paste confirms carriage-return multiline text', (
     tester,
   ) async {
     const clipboardText = 'first command\rsecond command';
@@ -1956,9 +1956,10 @@ void main() {
       ),
     );
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.text('Paste clipboard'));
-    await tester.tap(find.text('Paste clipboard'));
+    final pasteFuture = _dispatchNativeWindowBridge(
+      tester,
+      const MethodCall('nativePaste'),
+    );
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('paste-confirmation-dialog')), findsOneWidget);
@@ -1969,6 +1970,10 @@ void main() {
     );
     expect(preview.data, 'first command\nsecond command');
     expect(fakeBindings.writes, isEmpty);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+    await pasteFuture;
   });
 
   testWidgets(
@@ -3623,12 +3628,56 @@ void main() {
 
     expect(
       find.textContaining(
-        'Save a terminal text snapshot to Application Support',
+        'Save retained text as a .txt file for sharing or later review',
+      ),
+      findsOneWidget,
+    );
+
+    await tester.ensureVisible(find.byKey(const Key('shell-clear-scrollback')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining(
+        'Remove off-screen output; the current screen stays visible',
       ),
       findsOneWidget,
     );
 
     expect(find.byKey(const Key('shell-select-command-output')), findsNothing);
+  });
+
+  testWidgets('clear terminal history reports its successful effect', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.byKey(const Key('shell-clear-scrollback')));
+    await tester.tap(find.byKey(const Key('shell-clear-scrollback')));
+    await tester.pumpAndSettle();
+
+    expect(
+      fakeBindings.jsonRequests,
+      contains(
+        predicate<Map<String, Object?>>(
+          (request) => request['kind'] == 'terminal.clear_scrollback',
+        ),
+      ),
+    );
+    expect(
+      find.text(
+        'Off-screen terminal history cleared. The current screen is unchanged.',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('export diagnostics explains when no bundle is available', (
@@ -3714,30 +3763,10 @@ void main() {
     }
   });
 
-  testWidgets('read-only mode disables paste actions in the command menu', (
+  testWidgets('command menu omits clipboard paste and folder-specific tabs', (
     tester,
   ) async {
-    const clipboardText = 'blocked paste';
     final fakeBindings = FakePtyBackend();
-
-    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      SystemChannels.platform,
-      (methodCall) async {
-        if (methodCall.method == 'Clipboard.getData') {
-          return <String, dynamic>{'text': clipboardText};
-        }
-        if (methodCall.method == 'Clipboard.setData') {
-          return null;
-        }
-        return null;
-      },
-    );
-    addTearDown(
-      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        SystemChannels.platform,
-        null,
-      ),
-    );
 
     await _pumpShellScreen(
       tester,
@@ -3748,40 +3777,18 @@ void main() {
     );
 
     await _openCommandMenu(tester);
-    await tester.ensureVisible(find.byKey(const Key('shell-toggle-read-only')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('shell-toggle-read-only')));
-    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('shell-top-paste-clipboard')), findsNothing);
+    expect(find.byKey(const Key('shell-new-tab-at-folder')), findsNothing);
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(
-      find.byKey(const Key('shell-top-paste-clipboard')),
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'paste',
     );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pumpAndSettle();
 
-    expect(
-      find.textContaining('Disable read-only mode to send text'),
-      findsAtLeastNWidgets(1),
-    );
-
-    await tester.tap(find.byKey(const Key('shell-top-paste-clipboard')));
-    await tester.pumpAndSettle();
-
+    expect(find.text('No action matches "paste".'), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
-
-    await tester.ensureVisible(find.byKey(const Key('shell-toggle-read-only')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('shell-toggle-read-only')));
-    await tester.pumpAndSettle();
-
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(
-      find.byKey(const Key('shell-top-paste-clipboard')),
-    );
-    await tester.tap(find.byKey(const Key('shell-top-paste-clipboard')));
-    await tester.pumpAndSettle();
-
-    expect(fakeBindings.writes.last, utf8.encode(clipboardText));
   });
 
   testWidgets(
@@ -5137,9 +5144,7 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 40));
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.text('Paste clipboard'));
-    await tester.tap(find.text('Paste clipboard'));
+    await _invokeNativeWindowBridge(tester, const MethodCall('nativePaste'));
     await tester.pumpAndSettle();
 
     expect(fakeBindings.writes.last, utf8.encode(clipboardText));

@@ -14,9 +14,15 @@ class ShellCommandMenuAdapter {
     ShellProductivityState? productivity,
   }) {
     return ShellActionViewModelBuilder.commandPaletteItems(
-      hasActiveSession: hasActiveSession,
-      productivity: productivity ?? runtimeController.state.productivity,
-    );
+          hasActiveSession: hasActiveSession,
+          productivity: productivity ?? runtimeController.state.productivity,
+        )
+        .where(
+          (item) =>
+              item.actionId != TerminalActionId.openTerminalAtFolder &&
+              item.actionId != TerminalActionId.paste,
+        )
+        .toList(growable: false);
   }
 
   Future<ShellActionRuntimeState> select({

@@ -35,7 +35,11 @@ void main() {
         items.any(
           (item) => item.actionId == TerminalActionId.openTerminalAtFolder,
         ),
-        isTrue,
+        isFalse,
+      );
+      expect(
+        items.any((item) => item.actionId == TerminalActionId.paste),
+        isFalse,
       );
     });
 

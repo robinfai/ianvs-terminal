@@ -1405,29 +1405,10 @@ class TerminalRuntimeController {
     if (!hasSession(sessionId)) {
       return false;
     }
-    if (!_jsonRequestClient.clearScrollback(sessionId)) {
-      return false;
-    }
-
-    final current = viewportFor(sessionId).frame;
-    viewportFor(sessionId).applySnapshot(
-      TerminalFrameDiff(
-        frameKind: TerminalFrameKind.snapshot,
-        rows: const [],
-        cursor: current.cursor,
-        viewportRows: current.viewportRows,
-        viewportCols: current.viewportCols,
-        dirtyRanges: [TerminalDirtyRange(start: 0, end: current.viewportRows)],
-        scrollbackOffset: 0,
-        scrollbackMaxOffset: 0,
-        pointerShape: current.pointerShape,
-        modes: current.modes,
-        windowTitle: current.windowTitle,
-        windowIconName: current.windowIconName,
-        sizedText: current.sizedText,
-      ),
-    );
-    return true;
+    // The native core owns scrollback. A successful request clears the Rust
+    // emulator buffer and schedules an authoritative full frame; do not blank
+    // visible Dart rows as a substitute for that native operation.
+    return _jsonRequestClient.clearScrollback(sessionId);
   }
 
   bool dismissOsc99Notification(String sessionId, String identifier) {

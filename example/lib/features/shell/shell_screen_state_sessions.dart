@@ -889,7 +889,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       '${supportDirectory.path}/scrollback_exports',
     );
     final basename =
-        'visible-scrollback-${DateTime.now().millisecondsSinceEpoch}';
+        'terminal-history-${DateTime.now().millisecondsSinceEpoch}';
     return LocalTerminalScrollbackExporter.write(
       directory: exportDirectory,
       basename: basename,

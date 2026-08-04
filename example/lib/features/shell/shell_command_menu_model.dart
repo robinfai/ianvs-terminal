@@ -7,10 +7,8 @@ class ShellCommandMenuModel {
 
   static const List<TerminalActionId> defaultActionOrder = [
     TerminalActionId.newTab,
-    TerminalActionId.openTerminalAtFolder,
     TerminalActionId.defaults,
     TerminalActionId.profiles,
-    TerminalActionId.paste,
     TerminalActionId.instantReplay,
     TerminalActionId.toggleSessionRecording,
     TerminalActionId.openRecording,
