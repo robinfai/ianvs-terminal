@@ -736,6 +736,9 @@ class _PaneDividerHandleState extends State<_PaneDividerHandle> {
                 child: Align(
                   alignment: Alignment.center,
                   child: AnimatedContainer(
+                    key: Key(
+                      'shell-pane-divider-line-${widget.direction.name}',
+                    ),
                     duration: const Duration(milliseconds: 90),
                     curve: Curves.easeOutCubic,
                     width: horizontal ? lineThickness : double.infinity,

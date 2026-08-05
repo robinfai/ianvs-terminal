@@ -576,6 +576,162 @@ void main() {
     );
   });
 
+  test('moveSessionToPane merges standalone tabs without restarting them', () {
+    final coreClient = FakePtyBackend();
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(coreClient),
+        sessionControllerProvider.overrideWith(_TestSessionController.new),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(sessionControllerProvider.notifier);
+    controller.createSession(defaultTerminalProfile().copyWith(id: 'left'));
+    controller.createSession(defaultTerminalProfile().copyWith(id: 'right'));
+    final initialState = container.read(sessionControllerProvider);
+    final leftSessionId = initialState.tabs.first.sessionId;
+    final rightSessionId = initialState.tabs.last.sessionId;
+
+    expect(
+      controller.moveSessionToPane(
+        sourceSessionId: leftSessionId,
+        targetSessionId: rightSessionId,
+        axis: TerminalSplitAxis.horizontal,
+        before: true,
+      ),
+      isTrue,
+    );
+
+    final mergedState = container.read(sessionControllerProvider);
+    expect(mergedState.tabs, hasLength(1));
+    expect(mergedState.activeSessionId, leftSessionId);
+    final layout = mergedState.tabs.single.effectivePaneLayout;
+    expect(layout.splitAxis, TerminalSplitAxis.horizontal);
+    expect(layout.first!.pane!.sessionId, leftSessionId);
+    expect(layout.second!.pane!.sessionId, rightSessionId);
+    expect(
+      mergedState.tabs.single.effectivePanes.map((pane) => pane.sessionId),
+      [leftSessionId, rightSessionId],
+    );
+  });
+
+  test('detachPaneToTab restores a split pane as a standalone tab', () {
+    final coreClient = FakePtyBackend();
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(coreClient),
+        sessionControllerProvider.overrideWith(_TestSessionController.new),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(sessionControllerProvider.notifier);
+    controller.createSession(defaultTerminalProfile().copyWith(id: 'one'));
+    final detachedSessionId = container
+        .read(sessionControllerProvider)
+        .tabs
+        .single
+        .sessionId;
+    controller.splitActiveSession(
+      defaultTerminalProfile().copyWith(id: 'two'),
+      TerminalSplitAxis.horizontal,
+    );
+    final retainedSessionId = container
+        .read(sessionControllerProvider)
+        .tabs
+        .single
+        .effectivePanes
+        .firstWhere((pane) => pane.sessionId != detachedSessionId)
+        .sessionId;
+
+    expect(
+      controller.detachPaneToTab(
+        sessionId: detachedSessionId,
+        insertionIndex: 0,
+      ),
+      isTrue,
+    );
+
+    final detachedState = container.read(sessionControllerProvider);
+    expect(detachedState.tabs, hasLength(2));
+    expect(detachedState.tabs.first.sessionId, detachedSessionId);
+    expect(
+      detachedState.tabs.first.effectivePanes.single.sessionId,
+      detachedSessionId,
+    );
+    expect(
+      detachedState.tabs.last.effectivePanes.single.sessionId,
+      retainedSessionId,
+    );
+    expect(
+      detachedState.tabs.map((tab) => tab.sessionId).toSet(),
+      hasLength(2),
+    );
+    expect(detachedState.activeSessionId, detachedSessionId);
+  });
+
+  test('moveSessionToPane can reposition an existing split pane', () {
+    final coreClient = FakePtyBackend();
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(coreClient),
+        sessionControllerProvider.overrideWith(_TestSessionController.new),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(sessionControllerProvider.notifier);
+    controller.createSession(defaultTerminalProfile().copyWith(id: 'one'));
+    controller.createSession(defaultTerminalProfile().copyWith(id: 'two'));
+    final initialTabs = container.read(sessionControllerProvider).tabs;
+    final movingSessionId = initialTabs.first.sessionId;
+    final targetSessionId = initialTabs.last.sessionId;
+    controller.moveSessionToPane(
+      sourceSessionId: movingSessionId,
+      targetSessionId: targetSessionId,
+      axis: TerminalSplitAxis.horizontal,
+      before: true,
+    );
+
+    expect(
+      controller.moveSessionToPane(
+        sourceSessionId: movingSessionId,
+        targetSessionId: targetSessionId,
+        axis: TerminalSplitAxis.vertical,
+        before: false,
+      ),
+      isTrue,
+    );
+
+    final movedLayout = container
+        .read(sessionControllerProvider)
+        .tabs
+        .single
+        .effectivePaneLayout;
+    expect(movedLayout.splitAxis, TerminalSplitAxis.vertical);
+    expect(movedLayout.first!.pane!.sessionId, targetSessionId);
+    expect(movedLayout.second!.pane!.sessionId, movingSessionId);
+  });
+
   test('xterm sessions advertise 24-bit color support', () {
     final coreClient = FakePtyBackend();
     final container = ProviderContainer(

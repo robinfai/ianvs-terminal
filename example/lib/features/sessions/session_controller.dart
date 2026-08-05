@@ -1113,6 +1113,192 @@ class SessionController extends Notifier<SessionState> {
     state = state.copyWith(tabs: nextTabs);
   }
 
+  bool moveSessionToPane({
+    required String sourceSessionId,
+    required String targetSessionId,
+    required TerminalSplitAxis axis,
+    required bool before,
+  }) {
+    if (sourceSessionId == targetSessionId) {
+      return false;
+    }
+    final sourceTabIndex = _tabIndexContainingSession(sourceSessionId);
+    final targetTabIndex = _tabIndexContainingSession(targetSessionId);
+    if (sourceTabIndex == -1 || targetTabIndex == -1) {
+      return false;
+    }
+
+    final sourceTab = state.tabs[sourceTabIndex];
+    final sourcePane = sourceTab.paneFor(sourceSessionId);
+    if (sourcePane == null) {
+      return false;
+    }
+    final sourceLayout = sourceTab.effectivePaneLayout.removePane(
+      sourceSessionId,
+    );
+
+    if (sourceTabIndex == targetTabIndex) {
+      if (sourceLayout == null ||
+          !sourceLayout.containsSession(targetSessionId)) {
+        return false;
+      }
+      final nextLayout = sourceLayout.insertPane(
+        targetSessionId: targetSessionId,
+        pane: sourcePane,
+        axis: axis,
+        before: before,
+      );
+      final nextTabs = <TerminalTab>[...state.tabs];
+      nextTabs[sourceTabIndex] = sourceTab.copyWith(
+        panes: nextLayout.panes,
+        paneLayout: nextLayout,
+        activePaneSessionId: sourceSessionId,
+        splitAxis: axis,
+      );
+      state = state.copyWith(tabs: nextTabs, activeSessionId: sourceSessionId);
+      _syncRuntimeSessionActivation();
+      _setWindowTitle(sourcePane.title);
+      return true;
+    }
+
+    final nextTabs = <TerminalTab>[...state.tabs];
+    if (sourceLayout == null) {
+      nextTabs.removeAt(sourceTabIndex);
+    } else {
+      nextTabs[sourceTabIndex] = _tabAfterMovingPaneOut(
+        sourceTab: sourceTab,
+        movedSessionId: sourceSessionId,
+        sourceLayout: sourceLayout,
+      );
+    }
+
+    final nextTargetTabIndex = nextTabs.indexWhere(
+      (tab) => tab.containsSession(targetSessionId),
+    );
+    if (nextTargetTabIndex == -1) {
+      return false;
+    }
+    final targetTab = nextTabs[nextTargetTabIndex];
+    final nextTargetLayout = targetTab.effectivePaneLayout.insertPane(
+      targetSessionId: targetSessionId,
+      pane: sourcePane,
+      axis: axis,
+      before: before,
+    );
+    nextTabs[nextTargetTabIndex] = targetTab.copyWith(
+      panes: nextTargetLayout.panes,
+      paneLayout: nextTargetLayout,
+      activePaneSessionId: sourceSessionId,
+      splitAxis: axis,
+    );
+    state = state.copyWith(tabs: nextTabs, activeSessionId: sourceSessionId);
+    _syncRuntimeSessionActivation();
+    _setWindowTitle(sourcePane.title);
+    return true;
+  }
+
+  bool detachPaneToTab({
+    required String sessionId,
+    required int insertionIndex,
+  }) {
+    final sourceTabIndex = _tabIndexContainingSession(sessionId);
+    if (sourceTabIndex == -1) {
+      return false;
+    }
+    final sourceTab = state.tabs[sourceTabIndex];
+    final sourcePane = sourceTab.paneFor(sessionId);
+    if (sourcePane == null) {
+      return false;
+    }
+
+    if (sourceTab.effectivePanes.length < 2) {
+      final nextTabs = <TerminalTab>[...state.tabs];
+      final movingTab = nextTabs.removeAt(sourceTabIndex);
+      var targetIndex = insertionIndex.clamp(0, state.tabs.length);
+      if (sourceTabIndex < targetIndex) {
+        targetIndex -= 1;
+      }
+      nextTabs.insert(targetIndex.clamp(0, nextTabs.length), movingTab);
+      state = state.copyWith(tabs: nextTabs, activeSessionId: sessionId);
+      _syncRuntimeSessionActivation();
+      _setWindowTitle(sourcePane.title);
+      return true;
+    }
+
+    final sourceLayout = sourceTab.effectivePaneLayout.removePane(sessionId);
+    if (sourceLayout == null) {
+      return false;
+    }
+    final nextTabs = <TerminalTab>[...state.tabs];
+    nextTabs[sourceTabIndex] = _tabAfterMovingPaneOut(
+      sourceTab: sourceTab,
+      movedSessionId: sessionId,
+      sourceLayout: sourceLayout,
+    );
+    final detachedTab = TerminalTab(
+      sessionId: sourcePane.sessionId,
+      title: sourcePane.title,
+      profileId: sourcePane.profileId,
+      profileSnapshot: sourcePane.profileSnapshot,
+      relaunchSpec: sourcePane.relaunchSpec,
+      isExited: sourcePane.isExited,
+      exitCode: sourcePane.exitCode,
+      shellIntegration: sourcePane.shellIntegration,
+      oscBadge: sourcePane.oscBadge,
+      tabStatus: sourcePane.tabStatus,
+      progress: sourcePane.progress,
+      namedProgress: sourcePane.namedProgress,
+      recentNotifications: sourcePane.recentNotifications,
+    );
+    nextTabs.insert(insertionIndex.clamp(0, nextTabs.length), detachedTab);
+    state = state.copyWith(tabs: nextTabs, activeSessionId: sessionId);
+    _syncRuntimeSessionActivation();
+    _setWindowTitle(sourcePane.title);
+    return true;
+  }
+
+  TerminalTab _tabAfterMovingPaneOut({
+    required TerminalTab sourceTab,
+    required String movedSessionId,
+    required TerminalPaneLayoutNode sourceLayout,
+  }) {
+    final nextActiveSessionId = sourceTab.activeSessionId == movedSessionId
+        ? sourceLayout.panes.last.sessionId
+        : sourceTab.activeSessionId;
+    if (sourceTab.sessionId != movedSessionId) {
+      return sourceTab.copyWith(
+        panes: sourceLayout.panes,
+        paneLayout: sourceLayout,
+        activePaneSessionId: nextActiveSessionId == sourceTab.sessionId
+            ? null
+            : nextActiveSessionId,
+      );
+    }
+
+    final replacementRoot = sourceLayout.panes.first;
+    return TerminalTab(
+      sessionId: replacementRoot.sessionId,
+      title: replacementRoot.title,
+      profileId: replacementRoot.profileId,
+      profileSnapshot: replacementRoot.profileSnapshot,
+      relaunchSpec: replacementRoot.relaunchSpec,
+      isExited: replacementRoot.isExited,
+      exitCode: replacementRoot.exitCode,
+      panes: sourceLayout.panes,
+      paneLayout: sourceLayout,
+      activePaneSessionId: nextActiveSessionId == replacementRoot.sessionId
+          ? null
+          : nextActiveSessionId,
+      splitAxis: sourceTab.splitAxis,
+      shellIntegration: replacementRoot.shellIntegration,
+      oscBadge: replacementRoot.oscBadge,
+      tabStatus: replacementRoot.tabStatus,
+      progress: replacementRoot.progress,
+      namedProgress: replacementRoot.namedProgress,
+      recentNotifications: replacementRoot.recentNotifications,
+    );
+  }
+
   Future<bool> startSessionRecording(
     String sessionId, {
     TerminalRecordingInputPolicy inputPolicy =

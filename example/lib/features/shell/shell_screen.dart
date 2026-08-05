@@ -7,6 +7,7 @@ import 'dart:ui' show AppExitResponse;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ianvs_pty/ianvs_pty.dart' as pty;
@@ -194,7 +195,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, Size> _scheduledViewportSizes = {};
   final Map<String, Size> _committedViewportSizes = {};
   final Map<String, Size> _measuredTerminalCellSizes = {};
-  final Map<String, GlobalKey> _terminalViewportKeys = {};
+  final Map<({String tabId, String sessionId}), GlobalKey>
+  _terminalViewportKeys = {};
+  final Map<({String tabId, String sessionId}), GlobalKey> _paneDropTargetKeys =
+      {};
+  final GlobalKey<_ShellTabStripState> _sessionDropTabStripKey =
+      GlobalKey<_ShellTabStripState>(
+        debugLabel: 'shell-session-drop-tab-strip',
+      );
   final Map<String, double> _terminalViewportDevicePixelRatios = {};
   final Map<String, terminal.TerminalViewportController>
   _tabColorViewportControllers = {};
@@ -236,6 +244,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _recentlyClosedLastSession = false;
   bool _showLayoutCue = false;
   bool _showReturningCueOnNextFocus = false;
+  _ShellSessionDragData? _sessionDragData;
+  Offset? _sessionDragGlobalPosition;
+  _ShellPaneDropTarget? _sessionPaneDropTarget;
+  bool _sessionDropOverTabStrip = false;
+  int? _sessionTabDropInsertionIndex;
+  String? _sessionDragFallbackTargetSessionId;
   String _layoutCueTitle = 'Back in shell';
   bool _commandFinishedNotificationsEnabled = true;
   bool _bellNotificationsEnabled = true;
@@ -1011,6 +1025,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
               _ShellChromeBar(
                 palette: palette,
                 terminalBackgroundColor: shellChromeBackground,
+                tabStripKey: _sessionDropTabStripKey,
+                paneDropInsertionIndex: _sessionTabDropInsertionIndex,
                 tabs: sessionState.tabs,
                 activeSessionId: activeSessionId,
                 tabHasNewOutput: _tabHasNewOutput,
@@ -1045,6 +1061,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                           oldIndex: oldIndex,
                           newIndex: newIndex,
                         ),
+                onSessionDragStarted: _startSessionDrag,
+                onSessionDragUpdated: _updateSessionDrag,
+                onSessionDragEnded: (data) =>
+                    _finishSessionDrag(sessionController, data),
+                onSessionDragCancelled: _cancelSessionDrag,
                 onShowTabContextMenu: (tab, position) => _openTabContextMenu(
                   sessionController,
                   ref.read(sessionControllerProvider),

@@ -680,7 +680,15 @@ extension _ShellScreenStateEvents on _ShellScreenState {
   }
 
   Osc72DropLocation? _osc72LocationFor(NativeOsc72DragEvent event) {
-    final context = _terminalViewportKeys[event.sessionId]?.currentContext;
+    final sessionState = ref.read(sessionControllerProvider);
+    final tab = _tabForSession(sessionState, event.sessionId);
+    final context = tab == null
+        ? null
+        : _terminalViewportKeys[(
+                tabId: tab.sessionId,
+                sessionId: event.sessionId,
+              )]
+              ?.currentContext;
     final renderObject = context?.findRenderObject();
     final cellSize = _measuredTerminalCellSizes[event.sessionId];
     if (renderObject is! RenderBox ||
@@ -689,7 +697,6 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       return null;
     }
     final local = renderObject.globalToLocal(event.position);
-    final sessionState = ref.read(sessionControllerProvider);
     final padding = EdgeInsets.all(sessionState.terminalViewportPadding);
     final x = local.dx - padding.left;
     final y = local.dy - padding.top;

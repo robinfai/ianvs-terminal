@@ -7,6 +7,55 @@ class _ShellShortcut {
   final int? tabIndex;
 }
 
+enum _ShellSessionDragOrigin { tab, pane }
+
+enum _ShellPaneDropEdge { left, right, top, bottom }
+
+class _ShellSessionDragData {
+  const _ShellSessionDragData({
+    required this.sessionId,
+    required this.title,
+    required this.origin,
+  });
+
+  final String sessionId;
+  final String title;
+  final _ShellSessionDragOrigin origin;
+}
+
+class _ShellPaneDropTarget {
+  const _ShellPaneDropTarget({
+    required this.sessionId,
+    required this.edge,
+    this.previewSessionId,
+  });
+
+  final String sessionId;
+  final _ShellPaneDropEdge edge;
+  final String? previewSessionId;
+
+  String get displaySessionId => previewSessionId ?? sessionId;
+
+  TerminalSplitAxis get axis => switch (edge) {
+    _ShellPaneDropEdge.left ||
+    _ShellPaneDropEdge.right => TerminalSplitAxis.horizontal,
+    _ShellPaneDropEdge.top ||
+    _ShellPaneDropEdge.bottom => TerminalSplitAxis.vertical,
+  };
+
+  bool get before => switch (edge) {
+    _ShellPaneDropEdge.left || _ShellPaneDropEdge.top => true,
+    _ShellPaneDropEdge.right || _ShellPaneDropEdge.bottom => false,
+  };
+
+  String get label => switch (edge) {
+    _ShellPaneDropEdge.left => 'Split left',
+    _ShellPaneDropEdge.right => 'Split right',
+    _ShellPaneDropEdge.top => 'Split above',
+    _ShellPaneDropEdge.bottom => 'Split below',
+  };
+}
+
 final shellAnimationsEnabledProvider = Provider<bool>((ref) => true);
 
 final pasteHistoryRepositoryProvider = Provider<PasteHistoryRepository>((ref) {

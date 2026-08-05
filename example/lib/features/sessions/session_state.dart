@@ -363,6 +363,45 @@ class TerminalPaneLayoutNode {
     );
   }
 
+  TerminalPaneLayoutNode insertPane({
+    required String targetSessionId,
+    required TerminalPane pane,
+    required TerminalSplitAxis axis,
+    required bool before,
+  }) {
+    if (isLeaf) {
+      if (this.pane!.sessionId != targetSessionId) {
+        return this;
+      }
+      final inserted = TerminalPaneLayoutNode.leaf(pane);
+      return TerminalPaneLayoutNode.split(
+        id: before
+            ? _terminalPaneSplitNodeId(pane.sessionId, targetSessionId)
+            : _terminalPaneSplitNodeId(targetSessionId, pane.sessionId),
+        splitAxis: axis,
+        first: before ? inserted : this,
+        second: before ? this : inserted,
+      );
+    }
+    return TerminalPaneLayoutNode.split(
+      id: id,
+      splitAxis: splitAxis!,
+      first: first!.insertPane(
+        targetSessionId: targetSessionId,
+        pane: pane,
+        axis: axis,
+        before: before,
+      ),
+      second: second!.insertPane(
+        targetSessionId: targetSessionId,
+        pane: pane,
+        axis: axis,
+        before: before,
+      ),
+      ratio: ratio,
+    );
+  }
+
   TerminalPaneLayoutNode? removePane(String sessionId) {
     if (isLeaf) {
       return pane!.sessionId == sessionId ? null : this;

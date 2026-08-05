@@ -61,7 +61,8 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     _scheduledViewportSizes.remove(sessionId);
     _committedViewportSizes.remove(sessionId);
     _measuredTerminalCellSizes.remove(sessionId);
-    _terminalViewportKeys.remove(sessionId);
+    _terminalViewportKeys.removeWhere((key, _) => key.sessionId == sessionId);
+    _paneDropTargetKeys.removeWhere((key, _) => key.sessionId == sessionId);
     _terminalViewportDevicePixelRatios.remove(sessionId);
   }
 

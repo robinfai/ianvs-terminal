@@ -873,6 +873,349 @@ void main() {
   );
 
   testWidgets(
+    'dragging a standalone tab onto a pane creates a split',
+    (tester) async {
+      await pumpShellScreen(
+        tester,
+        fakeBindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+      await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final initialState = container.read(sessionControllerProvider);
+      final sourceSessionId = initialState.tabs.first.sessionId;
+      final targetSessionId = initialState.tabs.last.sessionId;
+      final sourceTab = find.byKey(Key('shell-tab-drag-$sourceSessionId'));
+      final targetPane = find.byKey(Key('shell-pane-$targetSessionId'));
+      final targetRect = tester.getRect(targetPane);
+
+      final gesture = await tester.startGesture(tester.getCenter(sourceTab));
+      await gesture.moveBy(const Offset(24, 0));
+      await tester.pump(const Duration(milliseconds: 80));
+      await gesture.moveTo(Offset(targetRect.right - 16, targetRect.center.dy));
+      await tester.pump(const Duration(milliseconds: 180));
+
+      expect(
+        find.byKey(Key('shell-pane-drop-right-$targetSessionId')),
+        findsOneWidget,
+      );
+
+      await gesture.up();
+      expect(container.read(sessionControllerProvider).tabs, hasLength(2));
+      await tester.pumpAndSettle();
+
+      final splitState = container.read(sessionControllerProvider);
+      expect(splitState.tabs, hasLength(1));
+      expect(splitState.tabs.single.effectivePanes, hasLength(2));
+      expect(splitState.activeSessionId, sourceSessionId);
+      expect(
+        splitState.tabs.single.effectivePanes.map((pane) => pane.sessionId),
+        [targetSessionId, sourceSessionId],
+      );
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'dragging the active tab previews a sibling target without rebuilding tabs',
+    (tester) async {
+      await pumpShellScreen(
+        tester,
+        fakeBindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+      await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final initialState = container.read(sessionControllerProvider);
+      final targetSessionId = initialState.tabs.first.sessionId;
+      final sourceSessionId = initialState.tabs.last.sessionId;
+      expect(initialState.activeSessionId, sourceSessionId);
+
+      final sourceTab = find.byKey(Key('shell-tab-drag-$sourceSessionId'));
+      final tabStripRect = tester.getRect(
+        find.byKey(const Key('shell-tab-strip')),
+      );
+      final gesture = await tester.startGesture(tester.getCenter(sourceTab));
+      await gesture.moveTo(
+        Offset(tester.getCenter(sourceTab).dx, tabStripRect.bottom + 80),
+      );
+      await tester.pump(const Duration(milliseconds: 360));
+
+      final floatingTab = find.byKey(
+        Key('shell-external-tab-drag-feedback-$sourceSessionId'),
+      );
+      expect(floatingTab, findsOneWidget);
+      expect(
+        tester.getCenter(floatingTab).dy,
+        greaterThan(tabStripRect.bottom),
+      );
+      expect(
+        container.read(sessionControllerProvider).activeSessionId,
+        sourceSessionId,
+      );
+
+      final previewPane = find.byKey(Key('shell-pane-$sourceSessionId'));
+      expect(previewPane, findsOneWidget);
+      final targetRect = tester.getRect(previewPane);
+      await gesture.moveTo(Offset(targetRect.left + 16, targetRect.center.dy));
+      await tester.pump(const Duration(milliseconds: 180));
+
+      expect(
+        find.byKey(Key('shell-pane-drop-left-$targetSessionId')),
+        findsOneWidget,
+      );
+
+      await gesture.up();
+      expect(container.read(sessionControllerProvider).tabs, hasLength(2));
+      await tester.pumpAndSettle();
+
+      final splitState = container.read(sessionControllerProvider);
+      expect(splitState.tabs, hasLength(1));
+      expect(splitState.tabs.single.effectivePanes, hasLength(2));
+      expect(splitState.activeSessionId, sourceSessionId);
+      expect(
+        splitState.tabs.single.effectivePanes.map((pane) => pane.sessionId),
+        [sourceSessionId, targetSessionId],
+      );
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'a quick active tab pane drop disposes its feedback safely',
+    (tester) async {
+      await pumpShellScreen(
+        tester,
+        fakeBindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+      await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final sourceSessionId = container
+          .read(sessionControllerProvider)
+          .tabs
+          .last
+          .sessionId;
+      final sourceTab = find.byKey(Key('shell-tab-drag-$sourceSessionId'));
+      final sourcePaneRect = tester.getRect(
+        find.byKey(Key('shell-pane-$sourceSessionId')),
+      );
+
+      final gesture = await tester.startGesture(tester.getCenter(sourceTab));
+      await gesture.moveTo(
+        Offset(sourcePaneRect.left + 16, sourcePaneRect.center.dy),
+      );
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      final state = container.read(sessionControllerProvider);
+      expect(state.tabs, hasLength(1));
+      expect(state.tabs.single.effectivePanes, hasLength(2));
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'cancelling an active tab pane drag keeps the source tab active',
+    (tester) async {
+      await pumpShellScreen(
+        tester,
+        fakeBindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+      await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final initialState = container.read(sessionControllerProvider);
+      final sourceSessionId = initialState.tabs.last.sessionId;
+      final sourceTab = find.byKey(Key('shell-tab-drag-$sourceSessionId'));
+      final tabStripRect = tester.getRect(
+        find.byKey(const Key('shell-tab-strip')),
+      );
+
+      final gesture = await tester.startGesture(tester.getCenter(sourceTab));
+      await gesture.moveBy(const Offset(-24, 0));
+      await tester.pump(const Duration(milliseconds: 80));
+      expect(
+        container.read(sessionControllerProvider).activeSessionId,
+        sourceSessionId,
+      );
+
+      await gesture.moveTo(
+        Offset(tester.getCenter(sourceTab).dx, tabStripRect.bottom + 80),
+      );
+      await tester.pump(const Duration(milliseconds: 360));
+      expect(
+        container.read(sessionControllerProvider).activeSessionId,
+        sourceSessionId,
+      );
+
+      await gesture.cancel();
+      await tester.pumpAndSettle();
+
+      final restoredState = container.read(sessionControllerProvider);
+      expect(restoredState.tabs, hasLength(2));
+      expect(restoredState.activeSessionId, sourceSessionId);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'dragging a split pane header to the tab strip restores a tab',
+    (tester) async {
+      await pumpShellScreen(
+        tester,
+        fakeBindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final controller = container.read(sessionControllerProvider.notifier);
+      controller.splitActiveSession(
+        defaultTerminalProfile(),
+        TerminalSplitAxis.horizontal,
+      );
+      await tester.pumpAndSettle();
+
+      final splitState = container.read(sessionControllerProvider);
+      final detachedSessionId = splitState.tabs.single.sessionId;
+      final retainedSessionId = splitState.tabs.single.effectivePanes
+          .firstWhere((pane) => pane.sessionId != detachedSessionId)
+          .sessionId;
+      final paneDrag = find.byKey(Key('shell-pane-drag-$detachedSessionId'));
+      final tabStripRect = tester.getRect(
+        find.byKey(const Key('shell-tab-strip')),
+      );
+
+      final gesture = await tester.startGesture(tester.getCenter(paneDrag));
+      await gesture.moveBy(const Offset(24, 0));
+      await tester.pump(const Duration(milliseconds: 60));
+      await gesture.moveTo(tabStripRect.centerRight - const Offset(12, 0));
+      await tester.pump(const Duration(milliseconds: 160));
+
+      expect(
+        find.byKey(const Key('shell-tab-drop-insertion-1')),
+        findsOneWidget,
+      );
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      final detachedState = container.read(sessionControllerProvider);
+      expect(detachedState.tabs, hasLength(2));
+      expect(
+        detachedState.tabs.first.effectivePanes.single.sessionId,
+        retainedSessionId,
+      );
+      expect(
+        detachedState.tabs.last.effectivePanes.single.sessionId,
+        detachedSessionId,
+      );
+      expect(detachedState.activeSessionId, detachedSessionId);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'dragging a split pane header onto another pane repositions it',
+    (tester) async {
+      await pumpShellScreen(
+        tester,
+        fakeBindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final controller = container.read(sessionControllerProvider.notifier);
+      controller.splitActiveSession(
+        defaultTerminalProfile(),
+        TerminalSplitAxis.horizontal,
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('shell-pane-divider-line-horizontal')),
+        findsOneWidget,
+      );
+
+      final splitState = container.read(sessionControllerProvider);
+      final movingSessionId = splitState.activeSessionId!;
+      final targetSessionId = splitState.tabs.single.effectivePanes
+          .firstWhere((pane) => pane.sessionId != movingSessionId)
+          .sessionId;
+      final paneDrag = find.byKey(Key('shell-pane-drag-$movingSessionId'));
+      final targetRect = tester.getRect(
+        find.byKey(Key('shell-pane-$targetSessionId')),
+      );
+
+      final gesture = await tester.startGesture(tester.getCenter(paneDrag));
+      await gesture.moveBy(const Offset(24, 0));
+      await tester.pump(const Duration(milliseconds: 60));
+      await gesture.moveTo(
+        Offset(targetRect.center.dx, targetRect.bottom - 16),
+      );
+      await tester.pump(const Duration(milliseconds: 160));
+
+      expect(
+        find.byKey(Key('shell-pane-drop-bottom-$targetSessionId')),
+        findsOneWidget,
+      );
+
+      await gesture.up();
+      await tester.pump();
+      expect(
+        find.byKey(const Key('shell-pane-divider-line-vertical')),
+        findsOneWidget,
+      );
+      await tester.pump(const Duration(milliseconds: 45));
+      expect(tester.takeException(), isNull);
+      await tester.pumpAndSettle();
+
+      final movedLayout = container
+          .read(sessionControllerProvider)
+          .tabs
+          .single
+          .effectivePaneLayout;
+      expect(movedLayout.splitAxis, TerminalSplitAxis.vertical);
+      expect(movedLayout.first!.pane!.sessionId, targetSessionId);
+      expect(movedLayout.second!.pane!.sessionId, movingSessionId);
+      expect(
+        container.read(sessionControllerProvider).activeSessionId,
+        movingSessionId,
+      );
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
     'shell tab full-width body is draggable while hover close stays left',
     (tester) async {
       await pumpShellScreen(

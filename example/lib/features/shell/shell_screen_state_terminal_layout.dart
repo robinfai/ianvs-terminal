@@ -3,6 +3,215 @@ part of 'shell_screen.dart';
 enum _TerminalLinkMenuAction { open, copy, copyText, inspect }
 
 extension _ShellScreenStateTerminalLayout on _ShellScreenState {
+  void _startSessionDrag(_ShellSessionDragData data) {
+    final sessionState = ref.read(sessionControllerProvider);
+    String? fallbackTargetSessionId;
+    if (data.origin == _ShellSessionDragOrigin.tab &&
+        sessionState.activeSessionId == data.sessionId &&
+        sessionState.tabs.length > 1) {
+      final sourceIndex = sessionState.tabs.indexWhere(
+        (tab) => tab.containsSession(data.sessionId),
+      );
+      if (sourceIndex != -1) {
+        final targetIndex = sourceIndex > 0 ? sourceIndex - 1 : sourceIndex + 1;
+        fallbackTargetSessionId =
+            sessionState.tabs[targetIndex].activeSessionId;
+      }
+    }
+    _mutateState(() {
+      _sessionDragData = data;
+      _sessionDragGlobalPosition = null;
+      _sessionPaneDropTarget = null;
+      _sessionDropOverTabStrip = false;
+      _sessionTabDropInsertionIndex = null;
+      _sessionDragFallbackTargetSessionId = fallbackTargetSessionId;
+    });
+  }
+
+  void _updateSessionDrag(_ShellSessionDragData data, Offset globalPosition) {
+    if (_sessionDragData?.sessionId != data.sessionId) {
+      return;
+    }
+    _sessionDragGlobalPosition = globalPosition;
+    final tabStripState = _sessionDropTabStripKey.currentState;
+    final pointerOverTabStrip =
+        tabStripState != null &&
+        tabStripState.containsGlobalPosition(globalPosition);
+    final overTabStrip =
+        data.origin == _ShellSessionDragOrigin.pane && pointerOverTabStrip;
+    final nextTabInsertionIndex = overTabStrip
+        ? tabStripState.insertionIndexForGlobalPosition(globalPosition)
+        : null;
+    final nextPaneTarget = overTabStrip
+        ? null
+        : _resolvePaneDropTarget(
+            data,
+            globalPosition,
+            ref.read(sessionControllerProvider),
+          );
+    final currentPaneTarget = _sessionPaneDropTarget;
+    final paneTargetChanged =
+        currentPaneTarget?.sessionId != nextPaneTarget?.sessionId ||
+        currentPaneTarget?.edge != nextPaneTarget?.edge ||
+        currentPaneTarget?.displaySessionId != nextPaneTarget?.displaySessionId;
+    if (paneTargetChanged ||
+        _sessionDropOverTabStrip != overTabStrip ||
+        _sessionTabDropInsertionIndex != nextTabInsertionIndex) {
+      _mutateState(() {
+        _sessionPaneDropTarget = nextPaneTarget;
+        _sessionDropOverTabStrip = overTabStrip;
+        _sessionTabDropInsertionIndex = nextTabInsertionIndex;
+      });
+    }
+  }
+
+  void _finishSessionDrag(
+    SessionController sessionController,
+    _ShellSessionDragData data,
+  ) {
+    if (_sessionDragData?.sessionId != data.sessionId) {
+      return;
+    }
+    final globalPosition = _sessionDragGlobalPosition;
+    final paneTarget = _sessionPaneDropTarget;
+    final dropOverTabStrip = _sessionDropOverTabStrip;
+    final tabInsertionIndex = _sessionTabDropInsertionIndex;
+    final tabStripState = _sessionDropTabStripKey.currentState;
+    _mutateState(() {
+      _sessionDragData = null;
+      _sessionDragGlobalPosition = null;
+      _sessionPaneDropTarget = null;
+      _sessionDropOverTabStrip = false;
+      _sessionTabDropInsertionIndex = null;
+      _sessionDragFallbackTargetSessionId = null;
+    });
+
+    var moved = false;
+    if (data.origin == _ShellSessionDragOrigin.pane &&
+        dropOverTabStrip &&
+        globalPosition != null &&
+        tabStripState != null &&
+        tabInsertionIndex != null) {
+      moved = sessionController.detachPaneToTab(
+        sessionId: data.sessionId,
+        insertionIndex: tabInsertionIndex,
+      );
+      if (moved) {
+        _scheduleLayoutCue('Moved to a new tab');
+      }
+    } else if (paneTarget != null) {
+      moved = sessionController.moveSessionToPane(
+        sourceSessionId: data.sessionId,
+        targetSessionId: paneTarget.sessionId,
+        axis: paneTarget.axis,
+        before: paneTarget.before,
+      );
+      if (moved) {
+        _scheduleLayoutCue(paneTarget.label);
+      }
+    }
+
+    if (moved && _zoomedPaneSessionId != null) {
+      _mutateState(() {
+        _zoomedPaneSessionId = null;
+      });
+    }
+  }
+
+  void _cancelSessionDrag(_ShellSessionDragData data) {
+    if (_sessionDragData?.sessionId != data.sessionId) {
+      return;
+    }
+    _mutateState(() {
+      _sessionDragData = null;
+      _sessionDragGlobalPosition = null;
+      _sessionPaneDropTarget = null;
+      _sessionDropOverTabStrip = false;
+      _sessionTabDropInsertionIndex = null;
+      _sessionDragFallbackTargetSessionId = null;
+    });
+  }
+
+  _ShellPaneDropTarget? _resolvePaneDropTarget(
+    _ShellSessionDragData data,
+    Offset globalPosition,
+    SessionState sessionState,
+  ) {
+    if (_zoomedPaneSessionId != null) {
+      return null;
+    }
+    for (final entry in _paneDropTargetKeys.entries) {
+      final previewSessionId = entry.key.sessionId;
+      var targetSessionId = previewSessionId;
+      if (previewSessionId == data.sessionId) {
+        final fallbackTargetSessionId = _sessionDragFallbackTargetSessionId;
+        if (fallbackTargetSessionId == null) {
+          continue;
+        }
+        targetSessionId = fallbackTargetSessionId;
+      }
+      final rect = _globalRectFor(entry.value);
+      if (rect == null || !rect.contains(globalPosition)) {
+        continue;
+      }
+      final horizontalPosition =
+          (globalPosition.dx - rect.center.dx) / (rect.width / 2);
+      final verticalPosition =
+          (globalPosition.dy - rect.center.dy) / (rect.height / 2);
+      final edge = horizontalPosition.abs() >= verticalPosition.abs()
+          ? horizontalPosition < 0
+                ? _ShellPaneDropEdge.left
+                : _ShellPaneDropEdge.right
+          : verticalPosition < 0
+          ? _ShellPaneDropEdge.top
+          : _ShellPaneDropEdge.bottom;
+      final target = _ShellPaneDropTarget(
+        sessionId: targetSessionId,
+        edge: edge,
+        previewSessionId: previewSessionId == targetSessionId
+            ? null
+            : previewSessionId,
+      );
+      if (_splitAxisConflictReason(
+            sessionState,
+            targetSessionId,
+            target.axis,
+          ) !=
+          null) {
+        return null;
+      }
+      return target;
+    }
+    return null;
+  }
+
+  Rect? _globalRectFor(GlobalKey key) {
+    final renderObject = key.currentContext?.findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.hasSize) {
+      return null;
+    }
+    return renderObject.localToGlobal(Offset.zero) & renderObject.size;
+  }
+
+  GlobalKey _paneDropTargetKey(String tabId, String sessionId) {
+    return _paneDropTargetKeys.putIfAbsent((
+      tabId: tabId,
+      sessionId: sessionId,
+    ), () => GlobalKey(debugLabel: 'shell-pane-drop-target-$sessionId'));
+  }
+
+  GlobalKey _terminalViewportKey(String tabId, String sessionId) {
+    return _terminalViewportKeys.putIfAbsent((
+      tabId: tabId,
+      sessionId: sessionId,
+    ), () => GlobalKey(debugLabel: 'terminal-viewport-$tabId-$sessionId'));
+  }
+
+  _ShellPaneDropTarget? _dropTargetForPane(String sessionId) {
+    final target = _sessionPaneDropTarget;
+    return target?.displaySessionId == sessionId ? target : null;
+  }
+
   Widget _buildTerminalLayout({
     required BuildContext context,
     required SessionController sessionController,
@@ -215,9 +424,10 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     );
     final hasHoveredLink = _hoveredTerminalLinkSessionId == sessionId;
     return LayoutBuilder(
-      key: Key('shell-pane-$sessionId'),
+      key: _paneDropTargetKey(activeTab.sessionId, sessionId),
       builder: (context, constraints) {
         final viewportController = sessionController.viewportFor(sessionId);
+        final dropTarget = _dropTargetForPane(sessionId);
         final paneHeader = showsPaneHeader
             ? ListenableBuilder(
                 listenable: viewportController,
@@ -239,6 +449,15 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                     ),
                     onActivate: () =>
                         _activateSession(sessionController, sessionId),
+                    dragData: _ShellSessionDragData(
+                      sessionId: sessionId,
+                      title: pane.title,
+                      origin: _ShellSessionDragOrigin.pane,
+                    ),
+                    onDragStarted: _startSessionDrag,
+                    onDragUpdated: _updateSessionDrag,
+                    onDragEnded: (data) =>
+                        _finishSessionDrag(sessionController, data),
                     splitRightTooltip: splitRightBlockedReason == null
                         ? 'Split right'
                         : 'Split right unavailable: $splitRightBlockedReason',
@@ -286,6 +505,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
             : null;
 
         return Listener(
+          key: Key('shell-pane-$sessionId'),
           onPointerDown: (event) {
             if (!isActive && event.buttons != 0) {
               _activateSession(sessionController, sessionId);
@@ -347,9 +567,9 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                         children: [
                           Positioned.fill(
                             child: TerminalViewport(
-                              key: _terminalViewportKeys.putIfAbsent(
+                              key: _terminalViewportKey(
+                                activeTab.sessionId,
                                 sessionId,
-                                GlobalKey.new,
                               ),
                               focusNode: focusNode,
                               controller: viewportController,
@@ -663,6 +883,15 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                               child: IgnorePointer(
                                 child: _ShellLayoutCue(
                                   title: _layoutCueTitle,
+                                  palette: palette,
+                                ),
+                              ),
+                            ),
+                          if (dropTarget != null)
+                            Positioned.fill(
+                              child: IgnorePointer(
+                                child: _TerminalPaneDropOverlay(
+                                  target: dropTarget,
                                   palette: palette,
                                 ),
                               ),
@@ -1298,6 +1527,215 @@ class _TerminalAttentionBurstPainter extends CustomPainter {
   }
 }
 
+class _ShellPaneDragStartRegion extends StatelessWidget {
+  const _ShellPaneDragStartRegion({
+    super.key,
+    required this.data,
+    required this.palette,
+    required this.onStarted,
+    required this.onUpdated,
+    required this.onEnded,
+    required this.onTap,
+    required this.child,
+  });
+
+  final _ShellSessionDragData data;
+  final AppThemeTokens palette;
+  final ValueChanged<_ShellSessionDragData> onStarted;
+  final void Function(_ShellSessionDragData data, Offset globalPosition)
+  onUpdated;
+  final ValueChanged<_ShellSessionDragData> onEnded;
+  final VoidCallback onTap;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final source = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: child,
+    );
+    final feedback = Material(
+      type: MaterialType.transparency,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 220),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: palette.panelElevated,
+            borderRadius: BorderRadius.circular(palette.radius.sm),
+            border: Border.all(color: palette.focusRing),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.terminal_rounded,
+                  size: 14,
+                  color: palette.textMuted,
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    data.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: palette.textPrimary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    final draggable = switch (defaultTargetPlatform) {
+      TargetPlatform.android ||
+      TargetPlatform.iOS => LongPressDraggable<_ShellSessionDragData>(
+        data: data,
+        dragAnchorStrategy: pointerDragAnchorStrategy,
+        maxSimultaneousDrags: 1,
+        feedback: feedback,
+        childWhenDragging: Opacity(opacity: 0.38, child: source),
+        onDragStarted: () => onStarted(data),
+        onDragUpdate: (details) => onUpdated(data, details.globalPosition),
+        onDragEnd: (_) => onEnded(data),
+        child: source,
+      ),
+      TargetPlatform.fuchsia ||
+      TargetPlatform.linux ||
+      TargetPlatform.macOS ||
+      TargetPlatform.windows => Draggable<_ShellSessionDragData>(
+        data: data,
+        dragAnchorStrategy: pointerDragAnchorStrategy,
+        maxSimultaneousDrags: 1,
+        feedback: feedback,
+        childWhenDragging: Opacity(opacity: 0.38, child: source),
+        onDragStarted: () => onStarted(data),
+        onDragUpdate: (details) => onUpdated(data, details.globalPosition),
+        onDragEnd: (_) => onEnded(data),
+        child: source,
+      ),
+    };
+    return Semantics(
+      label: 'Drag ${data.title} to split or move it to the tab bar',
+      button: true,
+      child: MouseRegion(cursor: SystemMouseCursors.grab, child: draggable),
+    );
+  }
+}
+
+class _TerminalPaneDropOverlay extends StatelessWidget {
+  const _TerminalPaneDropOverlay({required this.target, required this.palette});
+
+  final _ShellPaneDropTarget target;
+  final AppThemeTokens palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final horizontal = target.axis == TerminalSplitAxis.horizontal;
+    final alignment = switch (target.edge) {
+      _ShellPaneDropEdge.left => Alignment.centerLeft,
+      _ShellPaneDropEdge.right => Alignment.centerRight,
+      _ShellPaneDropEdge.top => Alignment.topCenter,
+      _ShellPaneDropEdge.bottom => Alignment.bottomCenter,
+    };
+    final icon = switch (target.edge) {
+      _ShellPaneDropEdge.left => Icons.arrow_back_rounded,
+      _ShellPaneDropEdge.right => Icons.arrow_forward_rounded,
+      _ShellPaneDropEdge.top => Icons.arrow_upward_rounded,
+      _ShellPaneDropEdge.bottom => Icons.arrow_downward_rounded,
+    };
+    final disableAnimations = MediaQuery.maybeOf(context)?.disableAnimations;
+    final placeholderFill = Color.alphaBlend(
+      palette.focusRing.withValues(alpha: 0.06),
+      palette.panelElevated,
+    ).withValues(alpha: 0.78);
+    final placeholderBorder = Color.alphaBlend(
+      palette.focusRing.withValues(alpha: 0.22),
+      palette.borderStrong,
+    ).withValues(alpha: 0.78);
+    final labelSurface = Color.alphaBlend(
+      palette.focusRing.withValues(alpha: 0.04),
+      palette.overlay,
+    ).withValues(alpha: 0.96);
+    return Semantics(
+      liveRegion: true,
+      label: 'Drop to ${target.label.toLowerCase()}',
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: palette.borderStrong.withValues(alpha: 0.46),
+                ),
+              ),
+            ),
+          ),
+          Align(
+            alignment: alignment,
+            child: FractionallySizedBox(
+              widthFactor: horizontal ? 0.5 : 1,
+              heightFactor: horizontal ? 1 : 0.5,
+              child: AnimatedContainer(
+                key: Key(
+                  'shell-pane-drop-${target.edge.name}-${target.sessionId}',
+                ),
+                duration: disableAnimations == true
+                    ? Duration.zero
+                    : const Duration(milliseconds: 120),
+                curve: Curves.easeOutCubic,
+                decoration: BoxDecoration(
+                  color: placeholderFill,
+                  border: Border.all(color: placeholderBorder, width: 1.5),
+                ),
+                child: Center(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: labelSurface,
+                      borderRadius: BorderRadius.circular(palette.radius.sm),
+                      border: Border.all(
+                        color: palette.borderStrong.withValues(alpha: 0.72),
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 7,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(icon, size: 15, color: palette.focusRing),
+                          const SizedBox(width: 6),
+                          Text(
+                            target.label,
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(
+                                  color: palette.textPrimary,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _TerminalPaneHeaderIndicator {
   const _TerminalPaneHeaderIndicator({
     required this.kind,
@@ -1324,6 +1762,10 @@ class _TerminalPaneHeader extends StatelessWidget {
     required this.canZoom,
     required this.indicators,
     required this.onActivate,
+    required this.dragData,
+    required this.onDragStarted,
+    required this.onDragUpdated,
+    required this.onDragEnded,
     required this.splitRightTooltip,
     required this.onSplitRight,
     required this.splitDownTooltip,
@@ -1341,6 +1783,11 @@ class _TerminalPaneHeader extends StatelessWidget {
   final bool canZoom;
   final List<_TerminalPaneHeaderIndicator> indicators;
   final VoidCallback onActivate;
+  final _ShellSessionDragData dragData;
+  final ValueChanged<_ShellSessionDragData> onDragStarted;
+  final void Function(_ShellSessionDragData data, Offset globalPosition)
+  onDragUpdated;
+  final ValueChanged<_ShellSessionDragData> onDragEnded;
   final String splitRightTooltip;
   final VoidCallback? onSplitRight;
   final String splitDownTooltip;
@@ -1428,38 +1875,49 @@ class _TerminalPaneHeader extends StatelessWidget {
                     const SizedBox(width: 6),
                   ],
                   Expanded(
-                    child: Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            title,
-                            key: Key('shell-pane-header-title-$sessionId'),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: textTheme.labelMedium?.copyWith(
-                              color: foregroundColor,
-                              fontWeight: FontWeight.w800,
-                              height: 1,
-                            ),
-                          ),
-                        ),
-                        if (showSubtitle) ...[
-                          const SizedBox(width: 6),
+                    child: _ShellPaneDragStartRegion(
+                      key: Key('shell-pane-drag-$sessionId'),
+                      data: dragData,
+                      palette: palette,
+                      onStarted: onDragStarted,
+                      onUpdated: onDragUpdated,
+                      onEnded: onDragEnded,
+                      onTap: onActivate,
+                      child: Row(
+                        children: [
                           Flexible(
                             child: Text(
-                              subtitle,
-                              key: Key('shell-pane-header-subtitle-$sessionId'),
+                              title,
+                              key: Key('shell-pane-header-title-$sessionId'),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: textTheme.labelSmall?.copyWith(
-                                color: metadataColor,
-                                fontWeight: FontWeight.w700,
+                              style: textTheme.labelMedium?.copyWith(
+                                color: foregroundColor,
+                                fontWeight: FontWeight.w800,
                                 height: 1,
                               ),
                             ),
                           ),
+                          if (showSubtitle) ...[
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                subtitle,
+                                key: Key(
+                                  'shell-pane-header-subtitle-$sessionId',
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: textTheme.labelSmall?.copyWith(
+                                  color: metadataColor,
+                                  fontWeight: FontWeight.w700,
+                                  height: 1,
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
                   if (!isActive && showIndicators && indicators.isNotEmpty) ...[

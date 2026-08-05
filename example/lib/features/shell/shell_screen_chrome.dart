@@ -11,6 +11,8 @@ class _ShellChromeBar extends StatelessWidget {
   const _ShellChromeBar({
     required this.palette,
     required this.terminalBackgroundColor,
+    required this.tabStripKey,
+    required this.paneDropInsertionIndex,
     required this.tabs,
     required this.activeSessionId,
     required this.tabHasNewOutput,
@@ -27,12 +29,18 @@ class _ShellChromeBar extends StatelessWidget {
     required this.onActivateNewOutputPane,
     required this.onCloseSession,
     required this.onReorderTab,
+    required this.onSessionDragStarted,
+    required this.onSessionDragUpdated,
+    required this.onSessionDragEnded,
+    required this.onSessionDragCancelled,
     required this.onShowTabContextMenu,
     required this.onShowCommandMenu,
   });
 
   final AppThemeTokens palette;
   final Color terminalBackgroundColor;
+  final GlobalKey<_ShellTabStripState> tabStripKey;
+  final int? paneDropInsertionIndex;
   final List<TerminalTab> tabs;
   final String? activeSessionId;
   final bool Function(TerminalTab tab) tabHasNewOutput;
@@ -51,6 +59,11 @@ class _ShellChromeBar extends StatelessWidget {
   final ValueChanged<String> onCloseSession;
   final void Function({required int oldIndex, required int newIndex})
   onReorderTab;
+  final ValueChanged<_ShellSessionDragData> onSessionDragStarted;
+  final void Function(_ShellSessionDragData data, Offset globalPosition)
+  onSessionDragUpdated;
+  final ValueChanged<_ShellSessionDragData> onSessionDragEnded;
+  final ValueChanged<_ShellSessionDragData> onSessionDragCancelled;
   final void Function(TerminalTab tab, Offset position) onShowTabContextMenu;
   final VoidCallback onShowCommandMenu;
 
@@ -126,8 +139,10 @@ class _ShellChromeBar extends StatelessWidget {
                               onActivateSession: onActivateSession,
                             )
                           : _ShellTabStrip(
+                              key: tabStripKey,
                               palette: palette,
                               chromeBackgroundColor: terminalBackgroundColor,
+                              paneDropInsertionIndex: paneDropInsertionIndex,
                               tabs: tabs,
                               activeSessionId: activeSessionId,
                               tabHasNewOutput: tabHasNewOutput,
@@ -147,6 +162,10 @@ class _ShellChromeBar extends StatelessWidget {
                               onActivateNewOutputPane: onActivateNewOutputPane,
                               onCloseSession: onCloseSession,
                               onReorderTab: onReorderTab,
+                              onSessionDragStarted: onSessionDragStarted,
+                              onSessionDragUpdated: onSessionDragUpdated,
+                              onSessionDragEnded: onSessionDragEnded,
+                              onSessionDragCancelled: onSessionDragCancelled,
                               onShowTabContextMenu: onShowTabContextMenu,
                             ),
                     ),
@@ -518,8 +537,10 @@ class _ReferenceDemoTab extends StatelessWidget {
 
 class _ShellTabStrip extends StatefulWidget {
   const _ShellTabStrip({
+    super.key,
     required this.palette,
     required this.chromeBackgroundColor,
+    required this.paneDropInsertionIndex,
     required this.tabs,
     required this.activeSessionId,
     required this.tabHasNewOutput,
@@ -535,11 +556,16 @@ class _ShellTabStrip extends StatefulWidget {
     required this.onActivateNewOutputPane,
     required this.onCloseSession,
     required this.onReorderTab,
+    required this.onSessionDragStarted,
+    required this.onSessionDragUpdated,
+    required this.onSessionDragEnded,
+    required this.onSessionDragCancelled,
     required this.onShowTabContextMenu,
   });
 
   final AppThemeTokens palette;
   final Color chromeBackgroundColor;
+  final int? paneDropInsertionIndex;
   final List<TerminalTab> tabs;
   final String? activeSessionId;
   final bool Function(TerminalTab tab) tabHasNewOutput;
@@ -557,6 +583,11 @@ class _ShellTabStrip extends StatefulWidget {
   final ValueChanged<String> onCloseSession;
   final void Function({required int oldIndex, required int newIndex})
   onReorderTab;
+  final ValueChanged<_ShellSessionDragData> onSessionDragStarted;
+  final void Function(_ShellSessionDragData data, Offset globalPosition)
+  onSessionDragUpdated;
+  final ValueChanged<_ShellSessionDragData> onSessionDragEnded;
+  final ValueChanged<_ShellSessionDragData> onSessionDragCancelled;
   final void Function(TerminalTab tab, Offset position) onShowTabContextMenu;
 
   @override
@@ -570,6 +601,17 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
   static const double _tabActionButtonWidth = 40;
 
   String? _draggingSessionId;
+  _ShellSessionDragData? _externalDragData;
+  Offset? _lastDragGlobalPosition;
+  int _visibleTabCount = 0;
+  double _visibleTabWidth = 0;
+  final ValueNotifier<bool> _externalDragOutsideStrip = ValueNotifier(false);
+  final ValueNotifier<Offset?> _externalDragFeedbackPosition = ValueNotifier(
+    null,
+  );
+  OverlayEntry? _externalDragFeedbackOverlay;
+  SliverReorderableListState? _activeReorderListState;
+  Timer? _dragCompletionTimer;
   final Map<String, FocusNode> _tabFocusNodes = <String, FocusNode>{};
 
   @override
@@ -586,6 +628,10 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
 
   @override
   void dispose() {
+    _dragCompletionTimer?.cancel();
+    _removeExternalDragFeedbackOverlay();
+    _externalDragOutsideStrip.dispose();
+    _externalDragFeedbackPosition.dispose();
     for (final focusNode in _tabFocusNodes.values) {
       focusNode.dispose();
     }
@@ -597,6 +643,130 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
       tab.sessionId,
       () => FocusNode(debugLabel: 'shell-tab-${tab.sessionId}'),
     );
+  }
+
+  bool containsGlobalPosition(Offset globalPosition) {
+    final renderObject = context.findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.hasSize) {
+      return false;
+    }
+    final origin = renderObject.localToGlobal(Offset.zero);
+    return (origin & renderObject.size).contains(globalPosition);
+  }
+
+  int insertionIndexForGlobalPosition(Offset globalPosition) {
+    final renderObject = context.findRenderObject();
+    final visibleCount = _visibleTabCount.clamp(0, widget.tabs.length);
+    if (renderObject is! RenderBox ||
+        !renderObject.hasSize ||
+        visibleCount == 0 ||
+        _visibleTabWidth <= 0) {
+      return 0;
+    }
+    final localPosition = renderObject.globalToLocal(globalPosition);
+    return ((localPosition.dx / _visibleTabWidth) + 0.5).floor().clamp(
+      0,
+      visibleCount,
+    );
+  }
+
+  void _handleDragPointerPosition(Offset globalPosition) {
+    _lastDragGlobalPosition = globalPosition;
+    final data = _externalDragData;
+    if (data != null) {
+      final outsideStrip = !containsGlobalPosition(globalPosition);
+      if (_externalDragOutsideStrip.value != outsideStrip) {
+        _externalDragOutsideStrip.value = outsideStrip;
+      }
+      _externalDragFeedbackPosition.value = outsideStrip
+          ? globalPosition
+          : null;
+      widget.onSessionDragUpdated(data, globalPosition);
+    }
+  }
+
+  void _insertExternalDragFeedbackOverlay() {
+    _removeExternalDragFeedbackOverlay();
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    if (overlay == null) {
+      return;
+    }
+    final entry = OverlayEntry(
+      builder: (context) => ValueListenableBuilder<Offset?>(
+        valueListenable: _externalDragFeedbackPosition,
+        builder: (context, globalPosition, _) {
+          final data = _externalDragData;
+          if (data == null || globalPosition == null) {
+            return const SizedBox.shrink();
+          }
+          final overlaySize = MediaQuery.sizeOf(context);
+          final feedbackWidth = _visibleTabWidth.clamp(144.0, 248.0).toDouble();
+          const feedbackHeight = 36.0;
+          final left = (globalPosition.dx - feedbackWidth / 2)
+              .clamp(8.0, math.max(8.0, overlaySize.width - feedbackWidth - 8))
+              .toDouble();
+          final top = (globalPosition.dy - feedbackHeight / 2)
+              .clamp(
+                8.0,
+                math.max(8.0, overlaySize.height - feedbackHeight - 8),
+              )
+              .toDouble();
+          return Positioned(
+            left: left,
+            top: top,
+            width: feedbackWidth,
+            height: feedbackHeight,
+            child: _ShellExternalTabDragFeedback(
+              key: Key('shell-external-tab-drag-feedback-${data.sessionId}'),
+              title: data.title,
+              palette: widget.palette,
+            ),
+          );
+        },
+      ),
+    );
+    _externalDragFeedbackOverlay = entry;
+    overlay.insert(entry);
+  }
+
+  void _removeExternalDragFeedbackOverlay() {
+    final entry = _externalDragFeedbackOverlay;
+    _externalDragFeedbackOverlay = null;
+    if (entry == null) {
+      return;
+    }
+    // An inserted OverlayEntry can still report `mounted == false` before its
+    // first overlay build. It nevertheless has an owner and must be removed
+    // before disposal.
+    entry.remove();
+    entry.dispose();
+  }
+
+  void _clearExternalDragVisuals() {
+    if (_externalDragOutsideStrip.value) {
+      _externalDragOutsideStrip.value = false;
+    }
+    _externalDragFeedbackPosition.value = null;
+    _removeExternalDragFeedbackOverlay();
+  }
+
+  void _handleDragPointerCancel() {
+    _dragCompletionTimer?.cancel();
+    _dragCompletionTimer = null;
+    _activeReorderListState = null;
+    final data = _externalDragData;
+    if (_draggingSessionId == null && data == null) {
+      return;
+    }
+    setState(() {
+      _draggingSessionId = null;
+    });
+    _externalDragData = null;
+    _lastDragGlobalPosition = null;
+    _clearExternalDragVisuals();
+    if (data != null) {
+      widget.onSessionDragCancelled(data);
+    }
   }
 
   bool get _usesDelayedDragStart {
@@ -635,6 +805,7 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
             );
             final tabsAreaWidth = math.max(0.0, totalWidth - actionButtonWidth);
             final visibleTabCount = _visibleTabCountFor(tabsAreaWidth);
+            _visibleTabCount = visibleTabCount;
             final hasOverflow = visibleTabCount < widget.tabs.length;
             final hiddenTabs = hasOverflow
                 ? widget.tabs.skip(visibleTabCount).toList(growable: false)
@@ -643,6 +814,7 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
             final tabWidth = visibleTabCount == 0
                 ? 0.0
                 : visibleTabsCapacity / visibleTabCount;
+            _visibleTabWidth = tabWidth;
             final compactTabs = tabWidth < _compactTabThreshold;
             final visibleTabsWidth = tabWidth * visibleTabCount;
 
@@ -650,100 +822,171 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
               children: [
                 SizedBox(
                   width: visibleTabsWidth,
-                  child: visibleTabCount == 0
-                      ? const SizedBox.expand()
-                      : ReorderableListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          buildDefaultDragHandles: false,
-                          padding: EdgeInsets.zero,
-                          proxyDecorator: (child, index, animation) =>
-                              _ShellTabDragProxy(
-                                animation: animation,
-                                child: child,
-                              ),
-                          onReorderStart: (index) {
-                            if (index >= visibleTabCount) {
-                              return;
-                            }
-                            unawaited(HapticFeedback.selectionClick());
-                            setState(() {
-                              _draggingSessionId = widget.tabs[index].sessionId;
-                            });
-                          },
-                          onReorderEnd: (_) {
-                            if (_draggingSessionId == null) {
-                              return;
-                            }
-                            setState(() {
-                              _draggingSessionId = null;
-                            });
-                          },
-                          onReorderItem: (oldIndex, newIndex) =>
-                              widget.onReorderTab(
-                                oldIndex: oldIndex,
-                                newIndex: newIndex,
-                              ),
-                          itemCount: visibleTabCount,
-                          itemBuilder: (context, index) {
-                            final tab = widget.tabs[index];
-                            final isActive =
-                                widget.activeSessionId != null &&
-                                tab.containsSession(widget.activeSessionId!);
-                            final isDragging =
-                                _draggingSessionId == tab.sessionId;
-                            final shortcutIndex = !compactTabs && index < 9
-                                ? index + 1
-                                : null;
-                            return _ShellReorderableTabItem(
-                              key: ValueKey(
-                                'shell-tab-reorder-${tab.sessionId}',
-                              ),
-                              width: tabWidth,
-                              child: FocusTraversalOrder(
-                                order: NumericFocusOrder(index.toDouble()),
-                                child: _ShellTabButton(
-                                  palette: widget.palette,
-                                  tab: tab,
-                                  shortcutIndex: shortcutIndex,
-                                  isActive: isActive,
-                                  hasNewOutput: widget.tabHasNewOutput(tab),
-                                  newOutputTooltip: widget.tabNewOutputTooltip(
-                                    tab,
-                                  ),
-                                  newOutputPaneSessionId: widget
-                                      .tabNewOutputPaneSessionId(tab),
-                                  tabColor: widget.tabColor(tab),
-                                  compact: compactTabs,
-                                  chromeBackgroundColor: chromeBackground,
-                                  focusNode: _focusNodeForTab(tab),
-                                  dragRegionBuilder: (child) =>
-                                      _ShellTabDragStartRegion(
-                                        key: Key(
-                                          'shell-tab-drag-${tab.sessionId}',
-                                        ),
-                                        index: index,
-                                        useDelayedStart: _usesDelayedDragStart,
-                                        isDragging: isDragging,
-                                        child: child,
-                                      ),
-                                  onActivate: () => widget.onActivateSession(
-                                    tab.activeSessionId,
-                                  ),
-                                  onActivateBadgePane: (sessionId) =>
-                                      widget.onActivateBadgePane(sessionId),
-                                  onNotificationInteraction:
-                                      widget.onNotificationInteraction,
-                                  onActivateNewOutputPane: (sessionId) =>
-                                      widget.onActivateNewOutputPane(sessionId),
-                                  onClose: () =>
-                                      widget.onCloseSession(tab.sessionId),
-                                  onShowContextMenu: (position) => widget
-                                      .onShowTabContextMenu(tab, position),
+                  child: _ShellTabDropTrack(
+                    insertionIndex: widget.paneDropInsertionIndex,
+                    tabWidth: tabWidth,
+                    visibleTabsWidth: visibleTabsWidth,
+                    color: widget.palette.focusRing,
+                    child: visibleTabCount == 0
+                        ? const SizedBox.expand()
+                        : ReorderableListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            buildDefaultDragHandles: false,
+                            padding: EdgeInsets.zero,
+                            proxyDecorator: (child, index, animation) =>
+                                _ShellTabDragProxy(
+                                  animation: animation,
+                                  externalDragOutsideStrip:
+                                      _externalDragOutsideStrip,
+                                  child: child,
                                 ),
-                              ),
-                            );
-                          },
-                        ),
+                            onReorderStart: (index) {
+                              if (index >= visibleTabCount) {
+                                return;
+                              }
+                              _dragCompletionTimer?.cancel();
+                              _dragCompletionTimer = null;
+                              unawaited(HapticFeedback.selectionClick());
+                              setState(() {
+                                _draggingSessionId =
+                                    widget.tabs[index].sessionId;
+                              });
+                              final tab = widget.tabs[index];
+                              if (tab.effectivePanes.length == 1) {
+                                final pane = tab.effectivePanes.single;
+                                final data = _ShellSessionDragData(
+                                  sessionId: pane.sessionId,
+                                  title: pane.title,
+                                  origin: _ShellSessionDragOrigin.tab,
+                                );
+                                _externalDragData = data;
+                                _externalDragOutsideStrip.value = false;
+                                _insertExternalDragFeedbackOverlay();
+                                widget.onSessionDragStarted(data);
+                                final globalPosition = _lastDragGlobalPosition;
+                                if (globalPosition != null) {
+                                  _handleDragPointerPosition(globalPosition);
+                                }
+                              }
+                            },
+                            onReorderEnd: (_) {
+                              if (_draggingSessionId == null &&
+                                  _externalDragData == null) {
+                                return;
+                              }
+                              final data = _externalDragData;
+                              final externalDrop =
+                                  data != null &&
+                                  _externalDragOutsideStrip.value;
+                              final reorderListState = _activeReorderListState;
+                              _activeReorderListState = null;
+                              if (externalDrop) {
+                                reorderListState?.cancelReorder();
+                              }
+                              setState(() {
+                                _draggingSessionId = null;
+                              });
+                              _externalDragData = null;
+                              _lastDragGlobalPosition = null;
+                              _clearExternalDragVisuals();
+                              if (data != null) {
+                                if (externalDrop) {
+                                  WidgetsBinding.instance.addPostFrameCallback((
+                                    _,
+                                  ) {
+                                    if (mounted) {
+                                      widget.onSessionDragEnded(data);
+                                    }
+                                  });
+                                } else {
+                                  _dragCompletionTimer = Timer(
+                                    const Duration(milliseconds: 280),
+                                    () {
+                                      _dragCompletionTimer = null;
+                                      if (mounted) {
+                                        widget.onSessionDragEnded(data);
+                                      }
+                                    },
+                                  );
+                                }
+                              }
+                            },
+                            onReorderItem: (oldIndex, newIndex) =>
+                                widget.onReorderTab(
+                                  oldIndex: oldIndex,
+                                  newIndex: newIndex,
+                                ),
+                            itemCount: visibleTabCount,
+                            itemBuilder: (context, index) {
+                              final tab = widget.tabs[index];
+                              final isActive =
+                                  widget.activeSessionId != null &&
+                                  tab.containsSession(widget.activeSessionId!);
+                              final isDragging =
+                                  _draggingSessionId == tab.sessionId;
+                              final shortcutIndex = !compactTabs && index < 9
+                                  ? index + 1
+                                  : null;
+                              return _ShellReorderableTabItem(
+                                key: ValueKey(
+                                  'shell-tab-reorder-${tab.sessionId}',
+                                ),
+                                width: tabWidth,
+                                child: FocusTraversalOrder(
+                                  order: NumericFocusOrder(index.toDouble()),
+                                  child: _ShellTabButton(
+                                    palette: widget.palette,
+                                    tab: tab,
+                                    shortcutIndex: shortcutIndex,
+                                    isActive: isActive,
+                                    hasNewOutput: widget.tabHasNewOutput(tab),
+                                    newOutputTooltip: widget
+                                        .tabNewOutputTooltip(tab),
+                                    newOutputPaneSessionId: widget
+                                        .tabNewOutputPaneSessionId(tab),
+                                    tabColor: widget.tabColor(tab),
+                                    compact: compactTabs,
+                                    chromeBackgroundColor: chromeBackground,
+                                    focusNode: _focusNodeForTab(tab),
+                                    dragRegionBuilder: (child) =>
+                                        _ShellTabDragStartRegion(
+                                          key: Key(
+                                            'shell-tab-drag-${tab.sessionId}',
+                                          ),
+                                          index: index,
+                                          useDelayedStart:
+                                              _usesDelayedDragStart,
+                                          isDragging: isDragging,
+                                          onReorderListResolved: (state) {
+                                            _activeReorderListState = state;
+                                          },
+                                          onPointerPosition:
+                                              _handleDragPointerPosition,
+                                          onPointerCancel:
+                                              _handleDragPointerCancel,
+                                          child: child,
+                                        ),
+                                    onActivate: () => widget.onActivateSession(
+                                      tab.activeSessionId,
+                                    ),
+                                    onActivateBadgePane: (sessionId) =>
+                                        widget.onActivateBadgePane(sessionId),
+                                    onNotificationInteraction:
+                                        widget.onNotificationInteraction,
+                                    onActivateNewOutputPane: (sessionId) =>
+                                        widget.onActivateNewOutputPane(
+                                          sessionId,
+                                        ),
+                                    onClose: () =>
+                                        widget.onCloseSession(tab.sessionId),
+                                    onShowContextMenu: (position) => widget
+                                        .onShowTabContextMenu(tab, position),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
                 ),
                 if (visibleTabsWidth < tabsAreaWidth)
                   const Expanded(child: SizedBox()),
@@ -806,6 +1049,50 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
   }
 }
 
+class _ShellTabDropTrack extends StatelessWidget {
+  const _ShellTabDropTrack({
+    required this.insertionIndex,
+    required this.tabWidth,
+    required this.visibleTabsWidth,
+    required this.color,
+    required this.child,
+  });
+
+  final int? insertionIndex;
+  final double tabWidth;
+  final double visibleTabsWidth;
+  final Color color;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final index = insertionIndex;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Positioned.fill(child: child),
+        if (index != null && visibleTabsWidth > 0)
+          Positioned(
+            left: (tabWidth * index).clamp(
+              1.0,
+              math.max(1.0, visibleTabsWidth - 2),
+            ),
+            top: 2,
+            bottom: 2,
+            child: DecoratedBox(
+              key: Key('shell-tab-drop-insertion-$index'),
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(2),
+              ),
+              child: const SizedBox(width: 3),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class _ShellReorderableTabItem extends StatelessWidget {
   const _ShellReorderableTabItem({
     super.key,
@@ -823,23 +1110,159 @@ class _ShellReorderableTabItem extends StatelessWidget {
 }
 
 class _ShellTabDragProxy extends StatelessWidget {
-  const _ShellTabDragProxy({required this.animation, required this.child});
+  const _ShellTabDragProxy({
+    required this.animation,
+    required this.externalDragOutsideStrip,
+    required this.child,
+  });
 
   final Animation<double> animation;
+  final ValueListenable<bool> externalDragOutsideStrip;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: animation,
-      child: child,
-      builder: (context, child) {
-        final lift = Curves.easeOutCubic.transform(animation.value);
-        return Transform.scale(
-          scale: 1 + lift * 0.018,
-          child: Material(type: MaterialType.transparency, child: child!),
-        );
-      },
+    return _ShellDragProxyPaintVisibility(
+      hidden: externalDragOutsideStrip,
+      child: AnimatedBuilder(
+        animation: animation,
+        child: child,
+        builder: (context, child) {
+          final lift = Curves.easeOutCubic.transform(animation.value);
+          return Transform.scale(
+            scale: 1 + lift * 0.018,
+            child: Material(type: MaterialType.transparency, child: child!),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ShellDragProxyPaintVisibility extends SingleChildRenderObjectWidget {
+  const _ShellDragProxyPaintVisibility({
+    required this.hidden,
+    required super.child,
+  });
+
+  final ValueListenable<bool> hidden;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) {
+    return _RenderShellDragProxyPaintVisibility(hidden);
+  }
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderShellDragProxyPaintVisibility renderObject,
+  ) {
+    renderObject.hidden = hidden;
+  }
+}
+
+class _RenderShellDragProxyPaintVisibility extends RenderProxyBox {
+  _RenderShellDragProxyPaintVisibility(this._hidden);
+
+  ValueListenable<bool> _hidden;
+
+  set hidden(ValueListenable<bool> value) {
+    if (identical(_hidden, value)) {
+      return;
+    }
+    if (attached) {
+      _hidden.removeListener(_handleVisibilityChanged);
+    }
+    _hidden = value;
+    if (attached) {
+      _hidden.addListener(_handleVisibilityChanged);
+    }
+    markNeedsPaint();
+  }
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    _hidden.addListener(_handleVisibilityChanged);
+  }
+
+  @override
+  void detach() {
+    _hidden.removeListener(_handleVisibilityChanged);
+    super.detach();
+  }
+
+  void _handleVisibilityChanged() {
+    markNeedsPaint();
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    if (!_hidden.value) {
+      super.paint(context, offset);
+    }
+  }
+}
+
+class _ShellExternalTabDragFeedback extends StatelessWidget {
+  const _ShellExternalTabDragFeedback({
+    super.key,
+    required this.title,
+    required this.palette,
+  });
+
+  final String title;
+  final AppThemeTokens palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final background = Color.alphaBlend(
+      palette.focusRing.withValues(alpha: 0.07),
+      palette.panelElevated,
+    );
+    return RepaintBoundary(
+      child: ExcludeSemantics(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: background.withValues(alpha: 0.96),
+            borderRadius: BorderRadius.circular(palette.radius.md),
+            border: Border.all(
+              color: palette.borderStrong.withValues(alpha: 0.82),
+            ),
+            boxShadow: palette.elevation.floating,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.terminal_rounded,
+                  size: 15,
+                  color: palette.textMuted,
+                ),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: palette.textPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Icon(
+                  Icons.drag_indicator_rounded,
+                  size: 15,
+                  color: palette.textSubtle,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -850,12 +1273,18 @@ class _ShellTabDragStartRegion extends StatelessWidget {
     required this.index,
     required this.useDelayedStart,
     required this.isDragging,
+    required this.onReorderListResolved,
+    required this.onPointerPosition,
+    required this.onPointerCancel,
     required this.child,
   });
 
   final int index;
   final bool useDelayedStart;
   final bool isDragging;
+  final ValueChanged<SliverReorderableListState?> onReorderListResolved;
+  final ValueChanged<Offset> onPointerPosition;
+  final VoidCallback onPointerCancel;
   final Widget child;
 
   @override
@@ -867,7 +1296,16 @@ class _ShellTabDragStartRegion extends StatelessWidget {
       cursor: isDragging
           ? SystemMouseCursors.grabbing
           : SystemMouseCursors.grab,
-      child: dragStartListener,
+      child: Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: (event) {
+          onReorderListResolved(SliverReorderableList.maybeOf(context));
+          onPointerPosition(event.position);
+        },
+        onPointerMove: (event) => onPointerPosition(event.position),
+        onPointerCancel: (_) => onPointerCancel(),
+        child: dragStartListener,
+      ),
     );
   }
 }
