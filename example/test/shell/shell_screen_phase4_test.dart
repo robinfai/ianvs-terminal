@@ -2584,6 +2584,122 @@ void main() {
     expect(find.byTooltip('Close defaults'), findsOneWidget);
   });
 
+  testWidgets('shortcut editor saves and hot-reloads an override', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+
+    final localConfigRepository = _MemoryLocalTerminalConfigRepository(
+      const LocalTerminalConfigDocument(),
+    );
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: FakePtyBackend(),
+      localConfigRepository: localConfigRepository,
+    );
+
+    await _openCommandMenu(tester);
+    await tester.tap(find.text('Defaults & appearance'));
+    await tester.pumpAndSettle();
+    final filter = find.byKey(const Key('shortcut-editor-filter'));
+    await tester.ensureVisible(filter);
+    await tester.enterText(filter, 'new tab');
+    await tester.pump();
+    final editNewTab = find.byKey(const Key('shortcut-edit-newTab'));
+    await tester.ensureVisible(editNewTab);
+    await tester.pumpAndSettle();
+    await tester.tap(editNewTab);
+    await tester.pumpAndSettle();
+
+    await tester.sendKeyDownEvent(
+      LogicalKeyboardKey.metaLeft,
+      platform: 'macos',
+    );
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyN, platform: 'macos');
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyN, platform: 'macos');
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('shortcut-capture-apply')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('defaults-save')));
+    await tester.pumpAndSettle();
+
+    final savedBinding = localConfigRepository
+        .savedDocuments
+        .last
+        .keybindings
+        .overrides[TerminalActionId.newTab]
+        ?.binding;
+    expect(savedBinding?.key, 'Key N');
+    expect(savedBinding?.meta, isTrue);
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    expect(container.read(sessionControllerProvider).tabs, hasLength(1));
+    await tester.tap(find.byType(TerminalViewport));
+    await tester.pump();
+    await _sendMetaShortcut(tester, LogicalKeyboardKey.keyN);
+    expect(container.read(sessionControllerProvider).tabs, hasLength(2));
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('shortcut editor restores defaults and hot-reloads them', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+
+    final localConfigRepository = _MemoryLocalTerminalConfigRepository(
+      const LocalTerminalConfigDocument(
+        keybindings: LocalTerminalKeybindingsConfig(
+          overrides: {
+            TerminalActionId.newTab: LocalTerminalKeyBindingOverride(
+              binding: LocalTerminalKeyBinding(
+                scope: TerminalKeyBindingScope.focusedApp,
+                key: 'Key N',
+                meta: true,
+              ),
+            ),
+          },
+        ),
+      ),
+    );
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: FakePtyBackend(),
+      localConfigRepository: localConfigRepository,
+    );
+
+    await _openCommandMenu(tester);
+    await tester.tap(find.text('Defaults & appearance'));
+    await tester.pumpAndSettle();
+    final restoreAll = find.byKey(const Key('shortcut-editor-restore-all'));
+    await tester.ensureVisible(restoreAll);
+    await tester.pumpAndSettle();
+    await tester.tap(restoreAll);
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('defaults-save')));
+    await tester.pumpAndSettle();
+
+    expect(
+      localConfigRepository.savedDocuments.last.keybindings,
+      const LocalTerminalKeybindingsConfig(),
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    expect(container.read(sessionControllerProvider).tabs, hasLength(1));
+    await tester.tap(find.byType(TerminalViewport));
+    await tester.pump();
+    await _sendMetaShortcut(tester, LogicalKeyboardKey.keyN);
+    expect(container.read(sessionControllerProvider).tabs, hasLength(1));
+    await _sendMetaShortcut(tester, LogicalKeyboardKey.keyT);
+    expect(container.read(sessionControllerProvider).tabs, hasLength(2));
+    debugDefaultTargetPlatformOverride = null;
+  });
+
   testWidgets('native paste confirms multiline text before sending', (
     tester,
   ) async {

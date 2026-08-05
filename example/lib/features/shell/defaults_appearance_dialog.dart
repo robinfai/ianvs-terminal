@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../config/local_terminal_config_models.dart';
+import '../config/local_terminal_keybinding_resolver.dart';
+import '../config/shortcut_editor.dart';
 import '../preferences/app_preferences_models.dart';
 import '../profiles/profile_models.dart';
 import '../terminal/terminal_viewport_colors.dart';
@@ -16,6 +18,7 @@ class DefaultsAndAppearanceSelection {
     required this.openUrlPolicy,
     required this.requestAttentionPolicy,
     required this.reportVariableDecisions,
+    required this.keybindings,
     this.updatedProfile,
     this.openProfiles = false,
   });
@@ -28,6 +31,7 @@ class DefaultsAndAppearanceSelection {
   final LocalTerminalOpenUrlPolicy openUrlPolicy;
   final LocalTerminalRequestAttentionPolicy requestAttentionPolicy;
   final Map<String, LocalTerminalReportVariablePolicy> reportVariableDecisions;
+  final LocalTerminalKeybindingsConfig keybindings;
   final TerminalProfile? updatedProfile;
   final bool openProfiles;
 }
@@ -45,6 +49,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
     required this.openUrlPolicy,
     required this.requestAttentionPolicy,
     required this.reportVariableDecisions,
+    this.keybindings = const LocalTerminalKeybindingsConfig(),
   });
 
   final List<TerminalProfile> profiles;
@@ -57,6 +62,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
   final LocalTerminalOpenUrlPolicy openUrlPolicy;
   final LocalTerminalRequestAttentionPolicy requestAttentionPolicy;
   final Map<String, LocalTerminalReportVariablePolicy> reportVariableDecisions;
+  final LocalTerminalKeybindingsConfig keybindings;
 
   @override
   State<DefaultsAndAppearanceDialog> createState() =>
@@ -76,6 +82,7 @@ class _DefaultsAndAppearanceDialogState
   late LocalTerminalRequestAttentionPolicy _selectedRequestAttentionPolicy;
   late Map<String, LocalTerminalReportVariablePolicy>
   _selectedReportVariableDecisions;
+  late LocalTerminalKeybindingsConfig _selectedKeybindings;
   String _terminalPresetFilter = '';
 
   @override
@@ -91,6 +98,7 @@ class _DefaultsAndAppearanceDialogState
     _selectedReportVariableDecisions = Map.unmodifiable(
       widget.reportVariableDecisions,
     );
+    _selectedKeybindings = widget.keybindings;
     _selectedTerminalPresetId = _matchingPresetIdFor(
       _effectiveProfileFor(
         configuredProfileId: _selectedProfileId,
@@ -273,6 +281,7 @@ class _DefaultsAndAppearanceDialogState
                                 _selectedRequestAttentionPolicy,
                             reportVariableDecisions:
                                 _selectedReportVariableDecisions,
+                            keybindings: _selectedKeybindings,
                             updatedProfile: null,
                             openProfiles: true,
                           ),
@@ -496,6 +505,15 @@ class _DefaultsAndAppearanceDialogState
                     },
                   ),
                 ),
+              ),
+              SizedBox(height: theme.spacing.xxl),
+              ShortcutEditorPanel(
+                config: _selectedKeybindings,
+                onChanged: (value) {
+                  setState(() {
+                    _selectedKeybindings = value;
+                  });
+                },
               ),
               SizedBox(height: theme.spacing.xxl),
               const AppSectionHeader(title: 'Appearance'),
@@ -875,24 +893,35 @@ class _DefaultsAndAppearanceDialogState
               AppActionButton(
                 buttonKey: const Key('defaults-save'),
                 label: 'Save changes',
-                onPressed: () {
-                  Navigator.of(context).pop(
-                    DefaultsAndAppearanceSelection(
-                      configuredDefaultProfileId: _selectedProfileId,
-                      themeMode: _selectedThemeMode,
-                      terminalViewportPadding: _selectedTerminalViewportPadding,
-                      restoreLayout: _selectedRestoreLayout,
-                      osc52Policy: _selectedOsc52Policy,
-                      openUrlPolicy: _selectedOpenUrlPolicy,
-                      requestAttentionPolicy: _selectedRequestAttentionPolicy,
-                      reportVariableDecisions: _selectedReportVariableDecisions,
-                      updatedProfile: _updatedProfileForPreset(
-                        effectiveProfile,
+                onPressed:
+                    LocalTerminalKeyBindingResolver.conflicts(
+                      LocalTerminalKeyBindingResolver.resolve(
+                        config: _selectedKeybindings,
                       ),
-                      openProfiles: false,
-                    ),
-                  );
-                },
+                    ).isNotEmpty
+                    ? null
+                    : () {
+                        Navigator.of(context).pop(
+                          DefaultsAndAppearanceSelection(
+                            configuredDefaultProfileId: _selectedProfileId,
+                            themeMode: _selectedThemeMode,
+                            terminalViewportPadding:
+                                _selectedTerminalViewportPadding,
+                            restoreLayout: _selectedRestoreLayout,
+                            osc52Policy: _selectedOsc52Policy,
+                            openUrlPolicy: _selectedOpenUrlPolicy,
+                            requestAttentionPolicy:
+                                _selectedRequestAttentionPolicy,
+                            reportVariableDecisions:
+                                _selectedReportVariableDecisions,
+                            keybindings: _selectedKeybindings,
+                            updatedProfile: _updatedProfileForPreset(
+                              effectiveProfile,
+                            ),
+                            openProfiles: false,
+                          ),
+                        );
+                      },
               ),
             ],
           );

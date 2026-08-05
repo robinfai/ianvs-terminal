@@ -17,6 +17,7 @@ import 'package:app/features/preferences/app_preferences_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_ports.dart';
 import 'package:app/features/sessions/session_state.dart';
+import 'package:app/features/shell/shell_action_registry.dart';
 import 'package:app/features/layout/local_terminal_layout_models.dart';
 import 'package:app/features/layout/local_terminal_layout_repository.dart';
 
@@ -5077,6 +5078,54 @@ void main() {
     );
     await controller.flushLayoutPersistence();
     expect(layoutRepository.savedDocuments, hasLength(1));
+  });
+
+  test('keybinding settings persist without replacing other config', () async {
+    final localConfigRepository = _TestLocalTerminalConfigRepository(
+      const LocalTerminalConfigDocument(
+        layout: LocalTerminalLayoutConfig(restoreLayout: true),
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(
+            TerminalProfilesDocument(profiles: [defaultProfile]),
+          ),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          localConfigRepository,
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(sessionControllerProvider.notifier);
+    await _waitForCondition(
+      condition: () => container.read(sessionControllerProvider).isReady,
+      description: 'keybinding preference bootstrap',
+    );
+    const keybindings = LocalTerminalKeybindingsConfig(
+      overrides: {
+        TerminalActionId.newTab: LocalTerminalKeyBindingOverride(
+          binding: LocalTerminalKeyBinding(
+            scope: TerminalKeyBindingScope.focusedApp,
+            key: 'Key N',
+            meta: true,
+          ),
+        ),
+      },
+    );
+
+    await controller.setKeybindings(keybindings);
+
+    final saved = localConfigRepository.savedDocuments.last;
+    expect(saved.keybindings, keybindings);
+    expect(saved.layout.restoreLayout, isTrue);
   });
 
   test(

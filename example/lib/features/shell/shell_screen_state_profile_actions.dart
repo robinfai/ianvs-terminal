@@ -51,6 +51,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
             openUrlPolicy: _hostActionsConfig.osc1337OpenUrl,
             requestAttentionPolicy: _hostActionsConfig.osc1337RequestAttention,
             reportVariableDecisions: _hostActionsConfig.osc1337ReportVariables,
+            keybindings: _keybindingsConfig,
           ),
         ),
       ),
@@ -181,6 +182,20 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
             osc1337ReportVariables: Map.unmodifiable(
               selection.reportVariableDecisions,
             ),
+          );
+        });
+      }
+      if (selection.keybindings != _keybindingsConfig) {
+        await sessionController.setKeybindings(selection.keybindings);
+        if (!mounted) {
+          return;
+        }
+        _mutateState(() {
+          _notificationConfigSource =
+              LocalTerminalConfigBootstrapSource.localConfig;
+          _keybindingsConfig = selection.keybindings;
+          _notificationLocalConfig = _notificationLocalConfig.copyWith(
+            keybindings: selection.keybindings,
           );
         });
       }

@@ -175,23 +175,45 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
   }
 
   String _launcherShortcutLabel() {
-    return _usesMetaShortcuts ? '⌘⇧P' : 'Ctrl+Shift+P';
+    return _shortcutLabelFor(TerminalActionId.openLauncher);
   }
 
   String _newTabShortcutLabel() {
-    return _usesMetaShortcuts ? '⌘T' : 'Ctrl+T';
+    return _shortcutLabelFor(TerminalActionId.newTab);
   }
 
   String _instantReplayShortcutLabel() {
-    return _usesMetaShortcuts ? '⌥⌘B' : 'Alt+Ctrl+B';
+    return _shortcutLabelFor(TerminalActionId.instantReplay);
   }
 
   String _searchShortcutLabel() {
-    return _usesMetaShortcuts ? '⌘F' : 'Ctrl+F';
+    return _shortcutLabelFor(TerminalActionId.search);
   }
 
   String _clearBufferShortcutLabel() {
-    return _usesMetaShortcuts ? '⌘K' : 'Ctrl+K';
+    return _shortcutLabelFor(TerminalActionId.clearBuffer);
+  }
+
+  String _shortcutLabelFor(TerminalActionId actionId) {
+    final binding = LocalTerminalShortcutFormatter.currentBinding(
+      actionId,
+      _keybindingsConfig,
+    );
+    if (binding == null) {
+      return 'Not assigned';
+    }
+    if (!_usesMetaShortcuts && binding.meta && !binding.control) {
+      return LocalTerminalShortcutFormatter.bindingLabel(
+        LocalTerminalKeyBinding(
+          scope: binding.scope,
+          key: binding.key,
+          control: true,
+          shift: binding.shift,
+          alt: binding.alt,
+        ),
+      );
+    }
+    return LocalTerminalShortcutFormatter.bindingLabel(binding);
   }
 
   _ShellShortcut? _shortcutActionFor(KeyEvent event) {

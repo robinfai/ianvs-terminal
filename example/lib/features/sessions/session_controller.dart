@@ -3779,6 +3779,17 @@ class SessionController extends Notifier<SessionState> {
     }
   }
 
+  Future<void> setKeybindings(
+    LocalTerminalKeybindingsConfig keybindings,
+  ) async {
+    final repository = ref.read(localTerminalConfigRepositoryProvider);
+    final latestConfig = await repository.load() ?? _localConfigDocument;
+    _localConfigDocument = latestConfig.copyWith(keybindings: keybindings);
+    _configBootstrapSource = LocalTerminalConfigBootstrapSource.localConfig;
+    await repository.save(_localConfigDocument);
+    _preferencesLoadedFromDisk = true;
+  }
+
   Future<void> setOsc52Policy(LocalTerminalOsc52Policy policy) async {
     final repository = ref.read(localTerminalConfigRepositoryProvider);
     final latestConfig = await repository.load() ?? _localConfigDocument;

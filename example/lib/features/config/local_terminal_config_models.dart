@@ -172,6 +172,24 @@ class LocalTerminalKeybindingsConfig {
   final Set<TerminalActionId> disabledDefaultActions;
   final Map<TerminalActionId, LocalTerminalKeyBindingOverride> overrides;
 
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) {
+      return true;
+    }
+    return other is LocalTerminalKeybindingsConfig &&
+        _setsEqual(disabledDefaultActions, other.disabledDefaultActions) &&
+        _mapsEqual(overrides, other.overrides);
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    Object.hashAllUnordered(disabledDefaultActions),
+    Object.hashAllUnordered(
+      overrides.entries.map((entry) => Object.hash(entry.key, entry.value)),
+    ),
+  );
+
   Map<String, Object?> toJson() {
     return {
       'disabledDefaultActions': disabledDefaultActions
@@ -201,6 +219,17 @@ class LocalTerminalKeyBindingOverride {
 
   final bool enabled;
   final LocalTerminalKeyBinding? binding;
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        other is LocalTerminalKeyBindingOverride &&
+            enabled == other.enabled &&
+            binding == other.binding;
+  }
+
+  @override
+  int get hashCode => Object.hash(enabled, binding);
 
   Map<String, Object?> toJson() {
     return {'enabled': enabled, 'binding': binding?.toJson()};
@@ -234,6 +263,21 @@ class LocalTerminalKeyBinding {
   final bool control;
   final bool shift;
   final bool alt;
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        other is LocalTerminalKeyBinding &&
+            scope == other.scope &&
+            key == other.key &&
+            meta == other.meta &&
+            control == other.control &&
+            shift == other.shift &&
+            alt == other.alt;
+  }
+
+  @override
+  int get hashCode => Object.hash(scope, key, meta, control, shift, alt);
 
   String get signature {
     final parts = <String>[
@@ -765,6 +809,22 @@ String _normalizeKeySignatureLabel(String value) {
     return 'Key ${value.substring(3)}';
   }
   return value;
+}
+
+bool _setsEqual<T>(Set<T> left, Set<T> right) {
+  return left.length == right.length && left.containsAll(right);
+}
+
+bool _mapsEqual<K, V>(Map<K, V> left, Map<K, V> right) {
+  if (left.length != right.length) {
+    return false;
+  }
+  for (final entry in left.entries) {
+    if (!right.containsKey(entry.key) || right[entry.key] != entry.value) {
+      return false;
+    }
+  }
+  return true;
 }
 
 const Object _localTerminalConfigNoChange = Object();
