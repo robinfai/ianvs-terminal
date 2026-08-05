@@ -34,7 +34,7 @@ void main() {
       bindings: {
         TerminalActionId.newTab: (_) =>
             const ShellActionBindingResult.completed(),
-        TerminalActionId.clearScrollback: (_) =>
+        TerminalActionId.clearBuffer: (_) =>
             const ShellActionBindingResult.completed(),
       },
     );
@@ -44,9 +44,7 @@ void main() {
       requiredActions: const [TerminalActionId.newTab],
     );
 
-    expect(audit.unplannedRegisteredActions, {
-      TerminalActionId.clearScrollback,
-    });
+    expect(audit.unplannedRegisteredActions, {TerminalActionId.clearBuffer});
     expect(
       audit.unplannedRegisteredItems.single.severity,
       ShellActionRuntimeBindingAuditSeverity.unplanned,

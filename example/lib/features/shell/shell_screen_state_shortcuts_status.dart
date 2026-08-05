@@ -190,6 +190,10 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
     return _usesMetaShortcuts ? '⌘F' : 'Ctrl+F';
   }
 
+  String _clearBufferShortcutLabel() {
+    return _usesMetaShortcuts ? '⌘K' : 'Ctrl+K';
+  }
+
   _ShellShortcut? _shortcutActionFor(KeyEvent event) {
     final isMetaPressed = HardwareKeyboard.instance.isMetaPressed;
     final isControlPressed = HardwareKeyboard.instance.isControlPressed;

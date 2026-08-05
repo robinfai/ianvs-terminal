@@ -3269,6 +3269,24 @@ impl TerminalSession {
         Ok(true)
     }
 
+    pub fn clear_buffer(&self) -> Result<bool, SessionError> {
+        let mut state = self.state.lock();
+        // iTerm2 maps Command-K (Clear Buffer) to this OSC 1337 command. It
+        // preserves the current prompt/editing line at the top while clearing
+        // the rest of the visible grid and all retained history.
+        state.terminal.process(b"\x1b]1337;ClearScrollback\x1b\\");
+        state.scrollback_offset = 0;
+        state.transcript.clear();
+        state.transcript_truncated = true;
+        drop(state);
+
+        self.last_rows.lock().clear();
+        *self.last_frame_meta.lock() = None;
+        self.pending_frame_signal
+            .mutate(|work| work.mark_full_repaint("clear_buffer"));
+        Ok(true)
+    }
+
     pub fn dismiss_osc99_notification(&self, identifier: &str) -> bool {
         self.state
             .lock()
@@ -6786,6 +6804,12 @@ pub fn clear_scrollback_session(session_id: u64) -> Result<String, SessionError>
         .map_err(|error| SessionError::Serialize(error.to_string()))
 }
 
+pub fn clear_buffer_session(session_id: u64) -> Result<String, SessionError> {
+    let cleared = STORE.get(session_id)?.clear_buffer()?;
+    serde_json::to_string(&serde_json::json!({ "cleared": cleared }))
+        .map_err(|error| SessionError::Serialize(error.to_string()))
+}
+
 pub fn export_scrollback_session(
     session_id: u64,
     max_lines: Option<usize>,
@@ -6965,6 +6989,7 @@ pub fn request_session_json(
                 .map_err(|error| SessionError::Serialize(error.to_string()))
         }
         "terminal.clear_scrollback" => clear_scrollback_session(session_id).map(Some),
+        "terminal.clear_buffer" => clear_buffer_session(session_id).map(Some),
         "terminal.dismiss_osc99_notification" => {
             let Some(identifier) = request.get("id").and_then(serde_json::Value::as_str) else {
                 return Ok(None);

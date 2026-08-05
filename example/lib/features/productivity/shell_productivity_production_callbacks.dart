@@ -63,7 +63,7 @@ enum ShellProductivityProductionOperation {
   nextSearchMatch,
   previousSearchMatch,
   clearSearch,
-  clearScrollback,
+  clearBuffer,
   toggleReadOnly,
   jumpToCommandBlock,
   copyLastCommandOutput,
@@ -81,7 +81,7 @@ class ShellProductivityProductionCallbacks {
     this.nextSearchMatch,
     this.previousSearchMatch,
     this.clearSearch,
-    this.clearScrollback,
+    this.clearBuffer,
     this.toggleReadOnly,
     this.jumpToCommandBlock,
     this.copyLastCommandOutput,
@@ -97,7 +97,7 @@ class ShellProductivityProductionCallbacks {
   final ShellProductivityProductionCallback? nextSearchMatch;
   final ShellProductivityProductionCallback? previousSearchMatch;
   final ShellProductivityProductionCallback? clearSearch;
-  final ShellProductivityProductionCallback? clearScrollback;
+  final ShellProductivityProductionCallback? clearBuffer;
   final ShellProductivityProductionCallback? toggleReadOnly;
   final ShellProductivityProductionCallback? jumpToCommandBlock;
   final ShellProductivityProductionCallback? copyLastCommandOutput;
@@ -144,7 +144,7 @@ class ShellProductivityProductionCallbacks {
       previousSearchMatch,
     );
     add(ShellProductivityProductionOperation.clearSearch, clearSearch);
-    add(ShellProductivityProductionOperation.clearScrollback, clearScrollback);
+    add(ShellProductivityProductionOperation.clearBuffer, clearBuffer);
     add(ShellProductivityProductionOperation.toggleReadOnly, toggleReadOnly);
     add(
       ShellProductivityProductionOperation.jumpToCommandBlock,

@@ -646,6 +646,11 @@ TerminalActionId? _actionId(Object? value) {
   if (normalized.isEmpty) {
     return null;
   }
+  // Preserve configs written before this product action was corrected from
+  // scrollback-only semantics to iTerm2-style Clear Buffer semantics.
+  if (normalized == 'clearscrollback') {
+    return TerminalActionId.clearBuffer;
+  }
 
   for (final actionId in TerminalActionId.values) {
     if (actionId.name.toLowerCase() == normalized) {

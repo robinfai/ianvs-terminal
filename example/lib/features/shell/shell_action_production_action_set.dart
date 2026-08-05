@@ -39,7 +39,7 @@ class ShellActionProductionActionSet {
     'pasteHistory',
     'instantReplay',
     'toggleReadOnly',
-    'clearScrollback',
+    'clearBuffer',
     'globalSearch',
     'autocomplete',
     'autoComposer',

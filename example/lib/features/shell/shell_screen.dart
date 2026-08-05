@@ -587,6 +587,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           'paste',
           'pasteHistory',
           'instantReplay',
+          'clearBuffer',
           'toggleCommandPalette',
           'toggleHotkeyWindow',
           'openDefaults',
@@ -826,6 +827,28 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             }
             await _openInstantReplay(sessionState);
             return const ShellActionBindingResult.completed();
+          },
+          clearBuffer: (_) {
+            if (activeSessionId == null) {
+              return const ShellActionBindingResult.skipped(
+                'Clear buffer requires an active session.',
+              );
+            }
+            final cleared = ref
+                .read(terminalRuntimeControllerProvider)
+                .clearBuffer(activeSessionId);
+            if (!cleared) {
+              return const ShellActionBindingResult.skipped(
+                'Clear buffer is not supported by this runtime.',
+              );
+            }
+            ref
+                .read(sessionControllerProvider.notifier)
+                .clearPromptMarks(activeSessionId);
+            _showShellSnackBar(
+              'Buffer cleared. The current command line was kept.',
+            );
+            return const ShellActionBindingResult.completed('Cleared buffer.');
           },
           toggleCommandPalette: (_) {
             unawaited(_openCommandMenu(sessionController, sessionState));

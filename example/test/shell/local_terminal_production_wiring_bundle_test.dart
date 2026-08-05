@@ -137,7 +137,7 @@ void main() {
           'previousPrompt',
           'selectCommandOutput',
           'openRecentDirectory',
-          'clearScrollback',
+          'clearBuffer',
           'toggleReadOnly',
           'toggleCommandPalette',
           'toggleHotkeyWindow',
@@ -285,7 +285,7 @@ const _coreProductivityOperations = [
   ShellProductivityProductionOperation.nextSearchMatch,
   ShellProductivityProductionOperation.previousSearchMatch,
   ShellProductivityProductionOperation.clearSearch,
-  ShellProductivityProductionOperation.clearScrollback,
+  ShellProductivityProductionOperation.clearBuffer,
   ShellProductivityProductionOperation.toggleReadOnly,
 ];
 
@@ -300,7 +300,7 @@ ShellProductivityProductionCallbacks _coreProductivityCallbacks() {
     nextSearchMatch: _completeProductivity,
     previousSearchMatch: _completeProductivity,
     clearSearch: _completeProductivity,
-    clearScrollback: _completeProductivity,
+    clearBuffer: _completeProductivity,
     toggleReadOnly: _completeProductivity,
   );
 }

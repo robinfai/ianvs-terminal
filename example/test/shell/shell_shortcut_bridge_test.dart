@@ -62,6 +62,20 @@ void main() {
       expect(action, TerminalActionId.search);
     });
 
+    test('maps mac command-k to clear buffer', () {
+      final action = ShellShortcutBridge.resolve(
+        key: LogicalKeyboardKey.keyK,
+        usesMetaShortcuts: true,
+        isMetaPressed: true,
+        isControlPressed: false,
+        isShiftPressed: false,
+        isAltPressed: false,
+        scope: TerminalKeyBindingScope.terminalFocused,
+      );
+
+      expect(action, TerminalActionId.clearBuffer);
+    });
+
     test('maps config override to action', () {
       final action = ShellShortcutBridge.resolve(
         key: LogicalKeyboardKey.keyN,

@@ -65,7 +65,7 @@ void main() {
         'pasteHistory',
         'instantReplay',
         'toggleReadOnly',
-        'clearScrollback',
+        'clearBuffer',
         'globalSearch',
         'autocomplete',
         'autoComposer',

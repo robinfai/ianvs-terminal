@@ -284,6 +284,7 @@ fn supported_operation(value: &str) -> bool {
             | "terminal.search_text"
             | "terminal.selection_text"
             | "terminal.clear_scrollback"
+            | "terminal.clear_buffer"
             | "terminal.dismiss_osc99_notification"
             | "terminal.set_block_folded"
             | "terminal.set_block_rendered"

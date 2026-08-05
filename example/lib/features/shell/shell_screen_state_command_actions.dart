@@ -71,6 +71,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         newTabShortcutLabel: _newTabShortcutLabel(),
         instantReplayShortcutLabel: _instantReplayShortcutLabel(),
         searchShortcutLabel: _searchShortcutLabel(),
+        clearBufferShortcutLabel: _clearBufferShortcutLabel(),
         hasDefaultProfile: defaultProfile != null,
         hasActiveSession: hasActiveSession,
         canReopenClosedTab: sessionController.canReopenClosedTab,
@@ -168,7 +169,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         'pasteHistory',
         'instantReplay',
         'toggleReadOnly',
-        'clearScrollback',
+        'clearBuffer',
         'globalSearch',
         'autocomplete',
         'autoComposer',
@@ -631,36 +632,34 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           }
           return const ShellActionBindingResult.completed();
         },
-        clearScrollback: (_) {
+        clearBuffer: (_) {
           if (currentSessionId == null) {
             return const ShellActionBindingResult.skipped(
-              'Clear scrollback requires an active session.',
+              'Clear buffer requires an active session.',
             );
           }
           final cleared = ref
               .read(terminalRuntimeControllerProvider)
-              .clearScrollback(currentSessionId);
+              .clearBuffer(currentSessionId);
           if (cleared) {
             ref
                 .read(sessionControllerProvider.notifier)
                 .clearPromptMarks(currentSessionId);
             _showShellSnackBar(
-              'Off-screen terminal history cleared. The current screen is unchanged.',
+              'Buffer cleared. The current command line was kept.',
             );
           }
           if (!cleared && mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text(
-                  'Clear scrollback requires native runtime support.',
-                ),
+                content: Text('Clear buffer requires native runtime support.'),
               ),
             );
           }
           return ShellActionBindingResult.completed(
             cleared
-                ? 'Cleared scrollback.'
-                : 'Clear scrollback is not supported by this runtime.',
+                ? 'Cleared buffer.'
+                : 'Clear buffer is not supported by this runtime.',
           );
         },
         globalSearch: (_) async {

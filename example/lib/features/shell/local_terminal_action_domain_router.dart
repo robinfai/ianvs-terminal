@@ -72,8 +72,8 @@ class LocalTerminalActionDomainRouter {
       openRecentDirectory: _productivity(
         ShellProductivityProductionOperation.openRecentDirectory,
       ),
-      clearScrollback: _productivity(
-        ShellProductivityProductionOperation.clearScrollback,
+      clearBuffer: _productivity(
+        ShellProductivityProductionOperation.clearBuffer,
       ),
       toggleReadOnly: _productivity(
         ShellProductivityProductionOperation.toggleReadOnly,

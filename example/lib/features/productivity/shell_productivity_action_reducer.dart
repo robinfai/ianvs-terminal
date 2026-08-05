@@ -74,7 +74,7 @@ class ShellProductivityActionReducer {
         ShellProductivityCommandOutputResult(state.lastCommandOutputRange()),
       TerminalActionId.openRecentDirectory =>
         ShellProductivityRecentDirectoryResult(state.firstRecentDirectory),
-      TerminalActionId.clearScrollback => const ShellProductivityNoopResult(),
+      TerminalActionId.clearBuffer => const ShellProductivityNoopResult(),
       TerminalActionId.search => ShellProductivitySearchResult(context.search),
       TerminalActionId.globalSearch => ShellProductivitySearchResult(
         context.search.clear(),

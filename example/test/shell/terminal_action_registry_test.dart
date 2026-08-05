@@ -52,6 +52,7 @@ void main() {
         TerminalActionId.pasteHistory,
         TerminalActionId.instantReplay,
         TerminalActionId.search,
+        TerminalActionId.clearBuffer,
         TerminalActionId.previousPrompt,
         TerminalActionId.nextPrompt,
         TerminalActionId.closeActiveTab,

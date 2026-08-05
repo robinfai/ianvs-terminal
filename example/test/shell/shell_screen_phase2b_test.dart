@@ -121,7 +121,7 @@ void main() {
       expect(find.text('Profiles…'), findsOneWidget);
       expect(find.byKey(const Key('shell-top-new-tab')), findsOneWidget);
       expect(find.textContaining('Copy the current selection.'), findsNothing);
-      expect(find.byKey(const Key('shell-clear-scrollback')), findsOneWidget);
+      expect(find.byKey(const Key('shell-clear-buffer')), findsOneWidget);
       expect(find.byKey(const Key('shell-top-paste-clipboard')), findsNothing);
       expect(find.byKey(const Key('shell-new-tab-at-folder')), findsNothing);
     },

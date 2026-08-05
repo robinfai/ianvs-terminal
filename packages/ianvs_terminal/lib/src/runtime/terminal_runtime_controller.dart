@@ -1411,6 +1411,15 @@ class TerminalRuntimeController {
     return _jsonRequestClient.clearScrollback(sessionId);
   }
 
+  /// Clears visible output and retained history using iTerm2's Command-K
+  /// semantics, while preserving the current prompt/editing line.
+  bool clearBuffer(String sessionId) {
+    if (!hasSession(sessionId)) {
+      return false;
+    }
+    return _jsonRequestClient.clearBuffer(sessionId);
+  }
+
   bool dismissOsc99Notification(String sessionId, String identifier) {
     if (!hasSession(sessionId) || identifier.isEmpty) {
       return false;

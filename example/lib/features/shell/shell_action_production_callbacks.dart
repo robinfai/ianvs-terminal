@@ -39,7 +39,7 @@ class ShellActionProductionCallbacks {
     this.annotations,
     this.capturedOutput,
     this.passwordManager,
-    this.clearScrollback,
+    this.clearBuffer,
     this.toggleReadOnly,
     this.toggleCommandPalette,
     this.toggleHotkeyWindow,
@@ -102,7 +102,7 @@ class ShellActionProductionCallbacks {
   final ShellActionBinding? annotations;
   final ShellActionBinding? capturedOutput;
   final ShellActionBinding? passwordManager;
-  final ShellActionBinding? clearScrollback;
+  final ShellActionBinding? clearBuffer;
   final ShellActionBinding? toggleReadOnly;
   final ShellActionBinding? toggleCommandPalette;
   final ShellActionBinding? toggleHotkeyWindow;
@@ -173,7 +173,7 @@ class ShellActionProductionCallbacks {
     add('annotations', annotations);
     add('capturedOutput', capturedOutput);
     add('passwordManager', passwordManager);
-    add('clearScrollback', clearScrollback);
+    add('clearBuffer', clearBuffer);
     add('toggleReadOnly', toggleReadOnly);
     add('toggleCommandPalette', toggleCommandPalette);
     add('toggleHotkeyWindow', toggleHotkeyWindow);

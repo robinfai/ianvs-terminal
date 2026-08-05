@@ -3480,6 +3480,17 @@ void main() {
       await tester.tap(find.byType(TerminalViewport).last);
       await tester.pump();
 
+      await _sendMetaShortcut(tester, LogicalKeyboardKey.keyK);
+      expect(
+        fakeBindings.jsonRequests,
+        contains(
+          predicate<Map<String, Object?>>(
+            (request) => request['kind'] == 'terminal.clear_buffer',
+          ),
+        ),
+      );
+      expect(fakeBindings.writes, isEmpty);
+
       await _sendMetaShortcut(tester, LogicalKeyboardKey.keyT);
       expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
       _expectSelectedTab(tester, '2');
@@ -3633,12 +3644,12 @@ void main() {
       findsOneWidget,
     );
 
-    await tester.ensureVisible(find.byKey(const Key('shell-clear-scrollback')));
+    await tester.ensureVisible(find.byKey(const Key('shell-clear-buffer')));
     await tester.pumpAndSettle();
 
     expect(
       find.textContaining(
-        'Remove off-screen output; the current screen stays visible',
+        'Clear visible output and history; keep the current command line',
       ),
       findsOneWidget,
     );
@@ -3646,9 +3657,7 @@ void main() {
     expect(find.byKey(const Key('shell-select-command-output')), findsNothing);
   });
 
-  testWidgets('clear terminal history reports its successful effect', (
-    tester,
-  ) async {
+  testWidgets('clear buffer reports its successful effect', (tester) async {
     final fakeBindings = FakePtyBackend();
 
     await _pumpShellScreen(
@@ -3660,22 +3669,20 @@ void main() {
     );
 
     await _openCommandMenu(tester);
-    await tester.ensureVisible(find.byKey(const Key('shell-clear-scrollback')));
-    await tester.tap(find.byKey(const Key('shell-clear-scrollback')));
+    await tester.ensureVisible(find.byKey(const Key('shell-clear-buffer')));
+    await tester.tap(find.byKey(const Key('shell-clear-buffer')));
     await tester.pumpAndSettle();
 
     expect(
       fakeBindings.jsonRequests,
       contains(
         predicate<Map<String, Object?>>(
-          (request) => request['kind'] == 'terminal.clear_scrollback',
+          (request) => request['kind'] == 'terminal.clear_buffer',
         ),
       ),
     );
     expect(
-      find.text(
-        'Off-screen terminal history cleared. The current screen is unchanged.',
-      ),
+      find.text('Buffer cleared. The current command line was kept.'),
       findsOneWidget,
     );
   });

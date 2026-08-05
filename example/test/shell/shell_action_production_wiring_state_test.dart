@@ -106,7 +106,7 @@ ShellActionProductionCallbacks _baselineCallbacks() {
     annotations: _complete,
     capturedOutput: _complete,
     passwordManager: _complete,
-    clearScrollback: _complete,
+    clearBuffer: _complete,
     toggleReadOnly: _complete,
     toggleCommandPalette: _complete,
     toggleHotkeyWindow: _complete,

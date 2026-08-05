@@ -186,7 +186,8 @@ class FakePtyBackend
         request['mode'] as String? ?? 'smart_case_substring',
       ),
       'terminal.selection_text' => _selectionTextJson(sessionId, request),
-      'terminal.clear_scrollback' => _clearScrollbackJson(sessionId),
+      'terminal.clear_scrollback' => _clearBufferJson(sessionId),
+      'terminal.clear_buffer' => _clearBufferJson(sessionId),
       'terminal.dismiss_osc99_notification' => jsonEncode(<String, Object?>{
         'dismissed': true,
       }),
@@ -198,7 +199,7 @@ class FakePtyBackend
     };
   }
 
-  String _clearScrollbackJson(String sessionId) {
+  String _clearBufferJson(String sessionId) {
     final frame = _frames[sessionId];
     if (frame != null) {
       frame['scrollback_offset'] = 0;

@@ -75,6 +75,14 @@ final class TerminalJsonRequestClient {
     return decoded?['cleared'] == true;
   }
 
+  bool clearBuffer(String sessionId) {
+    const operation = 'terminal.clear_buffer';
+    final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
+      'kind': operation,
+    });
+    return decoded?['cleared'] == true;
+  }
+
   bool dismissOsc99Notification(String sessionId, String identifier) {
     const operation = 'terminal.dismiss_osc99_notification';
     final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{

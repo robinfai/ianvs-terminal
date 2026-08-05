@@ -15912,6 +15912,62 @@ fn session_clear_scrollback_clears_native_history_and_preserves_visible_screen()
 }
 
 #[test]
+fn session_clear_buffer_matches_iterm_command_k_semantics() {
+    let profile = local_profile_with_scrollback(
+        "clear-buffer",
+        "Clear Buffer",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            "python3 - <<'PY'\nimport sys\nfor i in range(80):\n    sys.stdout.write(f'old-line-{i:02d}\\n')\nsys.stdout.write('\\x1b]133;A\\x07ianvs$ \\x1b]133;B\\x07unfinished')\nsys.stdout.flush()\nPY"
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+        128,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let initial_frame = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["scrollback_max_offset"].as_u64().unwrap_or(0) > 0
+            && logical_rows_from_frame(frame)
+                .iter()
+                .any(|row| row.contains("ianvs$ unfinished"))
+    });
+    assert!(initial_frame.contains("old-line"));
+
+    let clear_response = session::clear_buffer_session(session_id).unwrap();
+    let clear_result: serde_json::Value = serde_json::from_str(&clear_response).unwrap();
+    assert_eq!(clear_result["cleared"].as_bool(), Some(true));
+
+    let cleared_frame = wait_for_frame_where(session_id, |candidate| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(candidate) else {
+            return false;
+        };
+        parsed["scrollback_offset"].as_u64() == Some(0)
+            && parsed["scrollback_max_offset"].as_u64() == Some(0)
+            && logical_rows_from_frame(candidate)
+                .first()
+                .is_some_and(|row| row.contains("ianvs$ unfinished"))
+    });
+    let rows = logical_rows_from_frame(&cleared_frame);
+    assert!(
+        rows.first()
+            .is_some_and(|row| row.contains("ianvs$ unfinished"))
+    );
+    assert!(rows.iter().all(|row| !row.contains("old-line")));
+
+    let export_response = session::export_scrollback_session(session_id, None).unwrap();
+    let export: serde_json::Value = serde_json::from_str(&export_response).unwrap();
+    assert_eq!(export["content"].as_str(), Some(""));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn session_top_anchored_partial_scroll_region_contributes_to_scrollback() {
     let session_id = session::create_session(
         &serde_json::to_string(&top_anchored_partial_scrollback_profile()).unwrap(),

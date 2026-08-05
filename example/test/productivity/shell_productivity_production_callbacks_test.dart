@@ -54,7 +54,7 @@ void main() {
     );
 
     final result = await wiring.run(
-      ShellProductivityProductionOperation.clearScrollback,
+      ShellProductivityProductionOperation.clearBuffer,
     );
 
     expect(result.failed, isTrue);
@@ -108,7 +108,7 @@ const _coreProductivityOperations = [
   ShellProductivityProductionOperation.nextSearchMatch,
   ShellProductivityProductionOperation.previousSearchMatch,
   ShellProductivityProductionOperation.clearSearch,
-  ShellProductivityProductionOperation.clearScrollback,
+  ShellProductivityProductionOperation.clearBuffer,
   ShellProductivityProductionOperation.toggleReadOnly,
 ];
 
@@ -123,7 +123,7 @@ ShellProductivityProductionCallbacks _coreProductivityCallbacks() {
     nextSearchMatch: _complete,
     previousSearchMatch: _complete,
     clearSearch: _complete,
-    clearScrollback: _complete,
+    clearBuffer: _complete,
     toggleReadOnly: _complete,
   );
 }

@@ -6,6 +6,26 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('Local terminal config models', () {
+    test('migrates the legacy clearScrollback keybinding action name', () {
+      final config = LocalTerminalConfigDocument.fromJson(<String, Object?>{
+        'keybindings': <String, Object?>{
+          'disabledDefaultActions': <String>['clearScrollback'],
+          'overrides': <String, Object?>{
+            'clearScrollback': <String, Object?>{'enabled': false},
+          },
+        },
+      });
+
+      expect(
+        config.keybindings.disabledDefaultActions,
+        contains(TerminalActionId.clearBuffer),
+      );
+      expect(
+        config.keybindings.overrides[TerminalActionId.clearBuffer]?.enabled,
+        isFalse,
+      );
+    });
+
     test('decode fills local config defaults', () {
       final config = LocalTerminalConfigDocument.fromJson(const {});
 

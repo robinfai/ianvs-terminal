@@ -189,6 +189,7 @@ void main() {
         final client = TerminalJsonRequestClient(backend);
 
         expect(client.clearScrollback('session-a'), isTrue);
+        expect(client.clearBuffer('session-a'), isTrue);
         backend.response = '{"dismissed":true}';
         expect(
           client.dismissOsc99Notification('session-a', 'deploy-1'),
@@ -203,6 +204,7 @@ void main() {
         expect(exported, 'alpha\nbeta');
         expect(backend.requests, <Map<String, Object?>>[
           <String, Object?>{'kind': 'terminal.clear_scrollback'},
+          <String, Object?>{'kind': 'terminal.clear_buffer'},
           <String, Object?>{
             'kind': 'terminal.dismiss_osc99_notification',
             'id': 'deploy-1',
@@ -220,6 +222,7 @@ void main() {
 
       expect(client.searchTextResult('session-a', 'hit').matches, isEmpty);
       expect(client.clearScrollback('session-a'), isFalse);
+      expect(client.clearBuffer('session-a'), isFalse);
       expect(client.dismissOsc99Notification('session-a', 'deploy-1'), isFalse);
       expect(client.exportScrollbackText('session-a'), isNull);
     });
@@ -242,6 +245,7 @@ void main() {
       );
       final searchResult = client.searchTextResult('session-a', 'hit');
       final clearResult = client.clearScrollback('session-a');
+      final clearBufferResult = client.clearBuffer('session-a');
       final dismissResult = client.dismissOsc99Notification(
         'session-a',
         'deploy-1',
@@ -251,12 +255,14 @@ void main() {
       expect(selectionText, isNull);
       expect(searchResult.matches, isEmpty);
       expect(clearResult, isFalse);
+      expect(clearBufferResult, isFalse);
       expect(dismissResult, isFalse);
       expect(exportText, isNull);
       expect(errors.map((error) => error.operation), <String>[
         'terminal.selection_text',
         'terminal.search_text',
         'terminal.clear_scrollback',
+        'terminal.clear_buffer',
         'terminal.dismiss_osc99_notification',
         'terminal.export_scrollback',
       ]);

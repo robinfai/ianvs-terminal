@@ -6,6 +6,7 @@ class _ShellCommandMenu extends StatefulWidget {
     required this.newTabShortcutLabel,
     required this.instantReplayShortcutLabel,
     required this.searchShortcutLabel,
+    required this.clearBufferShortcutLabel,
     required this.hasDefaultProfile,
     required this.hasActiveSession,
     required this.canReopenClosedTab,
@@ -22,6 +23,7 @@ class _ShellCommandMenu extends StatefulWidget {
   final String newTabShortcutLabel;
   final String instantReplayShortcutLabel;
   final String searchShortcutLabel;
+  final String clearBufferShortcutLabel;
   final bool hasDefaultProfile;
   final bool hasActiveSession;
   final bool canReopenClosedTab;
@@ -50,6 +52,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
     final newTabShortcutLabel = widget.newTabShortcutLabel;
     final instantReplayShortcutLabel = widget.instantReplayShortcutLabel;
     final searchShortcutLabel = widget.searchShortcutLabel;
+    final clearBufferShortcutLabel = widget.clearBufferShortcutLabel;
     final hasDefaultProfile = widget.hasDefaultProfile;
     final hasActiveSession = widget.hasActiveSession;
     final canReopenClosedTab = widget.canReopenClosedTab;
@@ -370,17 +373,18 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         ).pop(TerminalActionId.toggleReadOnly),
                       ),
                       commandTile(
-                        key: const Key('shell-clear-scrollback'),
-                        actionId: TerminalActionId.clearScrollback,
+                        key: const Key('shell-clear-buffer'),
+                        actionId: TerminalActionId.clearBuffer,
                         icon: Icons.clear_all_rounded,
-                        title: 'Clear terminal history',
+                        title: 'Clear buffer',
                         subtitle:
-                            'Session action • Remove off-screen output; the current screen stays visible.',
+                            'Session action • Clear visible output and history; keep the current command line.',
+                        shortcutLabel: clearBufferShortcutLabel,
                         enabled: hasActiveSession,
                         disabledReason: activeSessionRequired,
                         onTap: () => Navigator.of(
                           context,
-                        ).pop(TerminalActionId.clearScrollback),
+                        ).pop(TerminalActionId.clearBuffer),
                       ),
                       commandTile(
                         key: const Key('shell-export-scrollback'),
@@ -545,8 +549,8 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
     TerminalActionId.toggleSessionRecording,
   ),
   MapEntry(
-    'clear terminal history scrollback off screen output',
-    TerminalActionId.clearScrollback,
+    'clear buffer terminal history screen output command k',
+    TerminalActionId.clearBuffer,
   ),
   MapEntry('toolbelt terminal tools sidebar', TerminalActionId.toolbelt),
   MapEntry(
