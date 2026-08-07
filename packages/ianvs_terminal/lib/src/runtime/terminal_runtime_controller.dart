@@ -22,6 +22,7 @@ import 'terminal_frame_pump.dart';
 import 'terminal_frame_pump_controller.dart';
 import 'terminal_frame_transport_coordinator.dart';
 import 'terminal_json_request_client.dart';
+import 'terminal_zmodem_recovery.dart';
 import 'terminal_refresh_policy.dart';
 import 'terminal_refresh_scheduler.dart';
 import 'terminal_resize_coordinator.dart';
@@ -37,6 +38,7 @@ const int _maxOsc52ClipboardEncodedLength =
     ((_maxOsc52ClipboardDecodedBytes + 2) ~/ 3) * 4;
 const int _maxPendingOsc1337CellSizeReports = 16;
 const int _maxPendingOsc1337ReportVariableRequests = 128;
+const String _unknownZmodemTransferId = '18446744073709551615';
 const int _maxOsc1337ReportVariableNameBytes = 256;
 const int _maxOsc1337ReportVariableValueBytes = 16 * 1024;
 const int _maxOsc1337FileDownloadBytes = 16 * 1024 * 1024;
@@ -45,6 +47,12 @@ const int _osc5522ChunkBytes = 4096;
 const Duration _osc5522PasteTokenLifetime = Duration(seconds: 10);
 const int _osc5522MaxRememberedPasswords = 32;
 const int _osc5522MaxPasteTokens = 8;
+const int _maxDeferredProtocolReplyBytes = 16 * 1024 * 1024;
+const int _maxDeferredProtocolReplyChunks = 2048;
+const Duration _disposeRetryInterval = Duration(milliseconds: 50);
+const Duration _zmodemDisabledPollingInterval = Duration(milliseconds: 50);
+
+enum _TerminalSessionCloseOutcome { closed, retryableBusy, failed }
 
 Future<void> _writeMimeClipboardAsText(
   Future<void> Function(String text) writer,
@@ -656,6 +664,314 @@ final class TerminalSessionFileUploadDeniedEvent extends TerminalSessionEvent {
       rawPayload['format'] is String ? rawPayload['format'] as String : null;
 }
 
+enum TerminalZmodemEventKind {
+  detected,
+  fileOffer,
+  started,
+  progress,
+  fileCompleted,
+  fileSkipped,
+  completed,
+  failed,
+  cancelled,
+}
+
+enum TerminalZmodemDirection { receive, send }
+
+/// A bounded status/control event for a native-owned ZMODEM transfer.
+///
+/// File bytes and local paths never cross this event boundary. Product code
+/// may authorize a pending transfer through the matching controller command.
+/// This intentionally does not extend [TerminalSessionEvent]. That class is a
+/// public sealed hierarchy, so adding a subtype would break exhaustive switches
+/// in existing clients. ZMODEM events are exposed through the additive
+/// [TerminalRuntimeController.zmodemEvents] stream instead.
+final class TerminalSessionZmodemEvent {
+  TerminalSessionZmodemEvent(this.sessionId, {Map<String, Object?>? rawPayload})
+    : _rawRecoveryToken = rawPayload?['recoveryToken'],
+      rawPayload = Map.unmodifiable(_publicPayload(rawPayload));
+
+  final String sessionId;
+  final Map<String, Object?> rawPayload;
+  final Object? _rawRecoveryToken;
+
+  String? get source => _stringValue(rawPayload['source']);
+  String? get transferId {
+    final value = _stringValue(rawPayload['transferId']);
+    return value != null &&
+            value.length <= 20 &&
+            RegExp(r'^[1-9][0-9]*$').hasMatch(value)
+        ? value
+        : null;
+  }
+
+  TerminalZmodemEventKind? get kind =>
+      switch (_stringValue(rawPayload['eventKind'])) {
+        'zmodem_detected' => TerminalZmodemEventKind.detected,
+        'zmodem_file_offer' => TerminalZmodemEventKind.fileOffer,
+        'zmodem_started' => TerminalZmodemEventKind.started,
+        'zmodem_progress' => TerminalZmodemEventKind.progress,
+        'zmodem_file_completed' => TerminalZmodemEventKind.fileCompleted,
+        'zmodem_file_skipped' => TerminalZmodemEventKind.fileSkipped,
+        'zmodem_completed' => TerminalZmodemEventKind.completed,
+        'zmodem_failed' => TerminalZmodemEventKind.failed,
+        'zmodem_cancelled' => TerminalZmodemEventKind.cancelled,
+        _ => null,
+      };
+
+  TerminalZmodemDirection? get direction =>
+      switch (_stringValue(rawPayload['direction'])) {
+        'receive' => TerminalZmodemDirection.receive,
+        'send' => TerminalZmodemDirection.send,
+        _ => null,
+      };
+
+  String? get filename {
+    final value = _stringValue(rawPayload['filename']);
+    return value != null && _isSafeFilename(value) ? value : null;
+  }
+
+  int? get size => _nonNegativeWholeInt(rawPayload['size']);
+  bool get hasKnownSize => rawPayload['size'] != null;
+  int? get modificationTimeSeconds {
+    final seconds = _nonNegativeWholeInt(rawPayload['modificationTimeSeconds']);
+    // Zero is ZMODEM's "timestamp unavailable" sentinel, not Unix epoch.
+    return seconds != null && seconds > 0 && seconds <= 253402300799
+        ? seconds
+        : null;
+  }
+
+  bool get isReconciliationRequired =>
+      _stringValue(rawPayload['eventKind']) == 'zmodem_reconciliation_required';
+  int? get bytesTransferred =>
+      _nonNegativeWholeInt(rawPayload['bytesTransferred']);
+  int? get totalBytes => _nonNegativeWholeInt(rawPayload['totalBytes']);
+  int? get fileCount => _nonNegativeWholeInt(rawPayload['fileCount']);
+  int? get completedFiles => _nonNegativeWholeInt(rawPayload['completedFiles']);
+  int? get skippedFiles => _nonNegativeWholeInt(rawPayload['skippedFiles']);
+  String? get reason => _boundedText(rawPayload['reason'], 80);
+  String? get recoverablePartialName {
+    final value = _stringValue(rawPayload['recoverablePartialName']);
+    return value != null && _isSafeFilename(value) ? value : null;
+  }
+
+  String? get recoveryToken {
+    final value = _stringValue(_rawRecoveryToken);
+    return value != null && RegExp(r'^[0-9a-fA-F]{32}$').hasMatch(value)
+        ? value.toLowerCase()
+        : null;
+  }
+
+  bool? get stagingPreserved => rawPayload['stagingPreserved'] is bool
+      ? rawPayload['stagingPreserved'] as bool
+      : null;
+
+  bool get isTerminal => switch (kind) {
+    TerminalZmodemEventKind.completed ||
+    TerminalZmodemEventKind.failed ||
+    TerminalZmodemEventKind.cancelled => true,
+    _ => false,
+  };
+
+  bool get hasRecoverableReceiveStaging =>
+      isValid &&
+      kind == TerminalZmodemEventKind.failed &&
+      direction == TerminalZmodemDirection.receive &&
+      reason == 'publish_failed' &&
+      stagingPreserved == true &&
+      recoverablePartialName != null &&
+      recoveryToken != null;
+
+  bool get isValid {
+    final resolvedKind = kind;
+    if (source != 'zmodem' || transferId == null) {
+      return false;
+    }
+    if (isReconciliationRequired) {
+      return direction == null && reason == 'event_sequence_gap';
+    }
+    if (resolvedKind == null) {
+      return false;
+    }
+    return switch (resolvedKind) {
+      TerminalZmodemEventKind.detected ||
+      TerminalZmodemEventKind.started ||
+      TerminalZmodemEventKind.progress ||
+      TerminalZmodemEventKind.completed => direction != null,
+      TerminalZmodemEventKind.failed =>
+        (direction != null || reason == 'event_sequence_gap') &&
+            (rawPayload['recoverablePartialName'] == null ||
+                recoverablePartialName != null) &&
+            (rawPayload['stagingPreserved'] == null ||
+                stagingPreserved != null),
+      TerminalZmodemEventKind.fileCompleted ||
+      TerminalZmodemEventKind.fileSkipped =>
+        direction != null &&
+            (rawPayload['filename'] == null || filename != null),
+      TerminalZmodemEventKind.fileOffer =>
+        direction == TerminalZmodemDirection.receive &&
+            filename != null &&
+            _isOptionalNonNegativeWholeInt(rawPayload['size']),
+      TerminalZmodemEventKind.cancelled => true,
+    };
+  }
+
+  static int? _nonNegativeWholeInt(Object? value) {
+    final parsed = _wholeIntValue(value);
+    return parsed != null && parsed >= 0 ? parsed : null;
+  }
+
+  static bool _isOptionalNonNegativeWholeInt(Object? value) {
+    return value == null || _nonNegativeWholeInt(value) != null;
+  }
+
+  static String? _boundedText(Object? value, int maxRunes) {
+    return value is String && value.isNotEmpty && value.runes.length <= maxRunes
+        ? value
+        : null;
+  }
+
+  static bool _isSafeFilename(String value) {
+    if (value.isEmpty) {
+      return false;
+    }
+    if (value == '.' ||
+        value == '..' ||
+        value.trim() != value ||
+        utf8.encode(value).length > 240 ||
+        value.endsWith(' ') ||
+        value.endsWith('.') ||
+        value.contains(RegExp(r'''[<>:"/\\|?*]''')) ||
+        value.runes.any(
+          (rune) => rune < 0x20 || rune == 0x7f || _isBidiControl(rune),
+        )) {
+      return false;
+    }
+    final stem = value.split('.').first.trimRight().toUpperCase();
+    return !const <String>{'CON', 'PRN', 'AUX', 'NUL'}.contains(stem) &&
+        !RegExp(r'^(COM|LPT)[1-9]$').hasMatch(stem);
+  }
+
+  static bool _isBidiControl(int rune) =>
+      rune == 0x061c ||
+      rune == 0x200e ||
+      rune == 0x200f ||
+      (rune >= 0x202a && rune <= 0x202e) ||
+      (rune >= 0x2066 && rune <= 0x2069);
+
+  static Map<String, Object?> _publicPayload(Map<String, Object?>? rawPayload) {
+    final payload = Map<String, Object?>.of(
+      rawPayload ?? const <String, Object?>{},
+    );
+    // Older native builds exposed an absolute staging path on publish failure.
+    // Recovery tokens are parsed through the dedicated getter and both forms
+    // of authority are removed from the readily logged public payload map.
+    payload
+      ..remove('recoverablePartialPath')
+      ..remove('recoverable_partial_path')
+      ..remove('recoveryToken')
+      ..remove('recovery_token');
+    return payload;
+  }
+
+  static String? _stringValue(Object? value) => value is String ? value : null;
+}
+
+/// Reports that ordinary PTY writes queued behind a ZMODEM transfer could not
+/// be confirmed after the transfer transport terminated.
+///
+/// This diagnostic is separate from [TerminalSessionZmodemEvent] and never
+/// changes active transfer state.
+final class TerminalSessionZmodemDeferredWriteFailedDiagnostic {
+  const TerminalSessionZmodemDeferredWriteFailedDiagnostic._({
+    required this.sessionId,
+    required this.reason,
+    required this.queuedChunks,
+    required this.queuedBytes,
+    required this.completedChunks,
+    required this.completedBytes,
+  });
+
+  static TerminalSessionZmodemDeferredWriteFailedDiagnostic? tryParse(
+    String sessionId,
+    Map<String, Object?>? payload,
+  ) {
+    if (payload?['source'] != 'zmodem') {
+      return null;
+    }
+    final reason = payload?['reason'];
+    final queuedChunks = _count(payload?['queuedChunks']);
+    final queuedBytes = _count(payload?['queuedBytes']);
+    final completedChunks = _count(payload?['completedChunks']);
+    final completedBytes = _count(payload?['completedBytes']);
+    if (reason is! String ||
+        reason.isEmpty ||
+        reason.runes.length > 80 ||
+        queuedChunks == null ||
+        queuedBytes == null ||
+        completedChunks == null ||
+        completedBytes == null ||
+        completedChunks > queuedChunks ||
+        completedBytes > queuedBytes) {
+      return null;
+    }
+    return TerminalSessionZmodemDeferredWriteFailedDiagnostic._(
+      sessionId: sessionId,
+      reason: reason,
+      queuedChunks: queuedChunks,
+      queuedBytes: queuedBytes,
+      completedChunks: completedChunks,
+      completedBytes: completedBytes,
+    );
+  }
+
+  final String sessionId;
+  String get source => 'zmodem';
+  final String reason;
+  final int queuedChunks;
+  final int queuedBytes;
+  final int completedChunks;
+  final int completedBytes;
+
+  int get unconfirmedChunks => queuedChunks - completedChunks;
+  int get unconfirmedBytes => queuedBytes - completedBytes;
+
+  static int? _count(Object? value) {
+    final parsed = _wholeIntValue(value);
+    return parsed != null && parsed >= 0 ? parsed : null;
+  }
+}
+
+/// Reports an observed loss in the native Runtime Event sequence.
+///
+/// Gap reconciliation and this diagnostic are established before surviving
+/// native events are forwarded. Reconciliation releases any event-owned
+/// ZMODEM input lock, requests a fresh frame, and best-effort cancels the
+/// native transfer whose terminal event may have been lost.
+final class TerminalSessionRuntimeEventGapDiagnostic {
+  const TerminalSessionRuntimeEventGapDiagnostic({
+    required this.sessionId,
+    required this.expectedSequence,
+    required this.nextSequence,
+    required this.droppedCount,
+    required this.survivingEventCount,
+    required this.affectedZmodemTransferId,
+    required this.zmodemStateCleared,
+    required this.zmodemCancellationAccepted,
+    required this.stateRefreshRequested,
+  });
+
+  final String sessionId;
+  final int expectedSequence;
+  final int nextSequence;
+  final int droppedCount;
+  final int survivingEventCount;
+  final String? affectedZmodemTransferId;
+  final bool zmodemStateCleared;
+  final bool zmodemCancellationAccepted;
+  final bool stateRefreshRequested;
+}
+
 /// The parser received RIS (`ESC c`) and reset terminal semantic state.
 final class TerminalSessionResetEvent extends TerminalSessionEvent {
   const TerminalSessionResetEvent(super.sessionId);
@@ -707,6 +1023,21 @@ final class _ClipboardTextSummary {
   final int characterCount;
   final String preview;
   final bool previewTruncated;
+}
+
+final class _DeferredProtocolReplies {
+  final List<Uint8List> chunks = <Uint8List>[];
+  int bytes = 0;
+
+  bool add(Uint8List chunk) {
+    if (chunks.length >= _maxDeferredProtocolReplyChunks ||
+        bytes + chunk.length > _maxDeferredProtocolReplyBytes) {
+      return false;
+    }
+    chunks.add(chunk);
+    bytes += chunk.length;
+    return true;
+  }
 }
 
 final class TerminalSessionResizeEvent {
@@ -770,6 +1101,7 @@ class TerminalRuntimeController {
     TerminalFrameWireFormatPreference frameWireFormatPreference =
         TerminalFrameWireFormatPreference.automatic,
     TerminalBenchmarkEventSink? benchmarkEventSink,
+    void Function(String sessionId, int? exitCode)? beforeSessionCloseOnExit,
     Duration Function()? monotonicNow,
   }) : this.withClipboardPolicy(
          backend: backend,
@@ -793,6 +1125,7 @@ class TerminalRuntimeController {
          enableWarmUpRefresh: enableWarmUpRefresh,
          frameWireFormatPreference: frameWireFormatPreference,
          benchmarkEventSink: benchmarkEventSink,
+         beforeSessionCloseOnExit: beforeSessionCloseOnExit,
          monotonicNow: monotonicNow,
        );
 
@@ -812,6 +1145,7 @@ class TerminalRuntimeController {
     this.frameWireFormatPreference =
         TerminalFrameWireFormatPreference.automatic,
     this.benchmarkEventSink,
+    this.beforeSessionCloseOnExit,
     Duration Function()? monotonicNow,
   }) : _backend = backend,
        writeTextClipboard =
@@ -849,6 +1183,9 @@ class TerminalRuntimeController {
     _hostResponseBackend = backend is PtyHostResponseV1Backend
         ? backend as PtyHostResponseV1Backend
         : null;
+    _protocolReplyBackend = backend is PtyProtocolReplyBackend
+        ? backend as PtyProtocolReplyBackend
+        : null;
     _diagnosticsClient = TerminalDiagnosticsClient.fromBackend(
       backend,
       onRequestError: _emitBackendRequestError,
@@ -875,6 +1212,7 @@ class TerminalRuntimeController {
   final PtySessionBackend _backend;
   late final PtySessionRefreshHintBackend? _refreshHintBackend;
   late final PtyHostResponseV1Backend? _hostResponseBackend;
+  late final PtyProtocolReplyBackend? _protocolReplyBackend;
   final Set<String> _refreshHintDisabledSessions = <String>{};
   late final TerminalDiagnosticsClient _diagnosticsClient;
   late final TerminalJsonRequestClient _jsonRequestClient;
@@ -898,7 +1236,22 @@ class TerminalRuntimeController {
   final bool enableWarmUpRefresh;
   final TerminalFrameWireFormatPreference frameWireFormatPreference;
   final TerminalBenchmarkEventSink? benchmarkEventSink;
+
+  /// Synchronous last-use hook for consumers that must issue a native request
+  /// (for example recording stop/export) after observing child exit but before
+  /// the session mapping is released.
+  final void Function(String sessionId, int? exitCode)?
+  beforeSessionCloseOnExit;
   final Duration Function()? _readMonotonicNow;
+
+  bool supportsRuntimeFeature(String feature) {
+    final backend = _backend;
+    return backend is PtyRuntimeCapabilityBackend &&
+        (backend as PtyRuntimeCapabilityBackend).runtimeCapabilities?.supports(
+              feature,
+            ) ==
+            true;
+  }
 
   final TerminalResizeCoordinator _resizeCoordinator =
       TerminalResizeCoordinator();
@@ -925,11 +1278,28 @@ class TerminalRuntimeController {
   final Map<String, DateTime> _lastFrameAppliedAt = <String, DateTime>{};
   final Map<String, List<String>> _osc5522RememberedPasswords =
       <String, List<String>>{};
+  final Map<String, String> _activeZmodemTransferIds = <String, String>{};
+  final Map<String, _DeferredProtocolReplies> _deferredProtocolReplies =
+      <String, _DeferredProtocolReplies>{};
+  final Set<String> _flushingDeferredProtocolReplySessions = <String>{};
+  final Map<String, TerminalZmodemDirection> _activeZmodemDirections =
+      <String, TerminalZmodemDirection>{};
+  final Set<String> _pendingZmodemCancellations = <String>{};
   final Map<String, Map<String, _Osc5522PasteToken>> _osc5522PasteTokens =
       <String, Map<String, _Osc5522PasteToken>>{};
   final Random _osc5522SecureRandom = Random.secure();
   final StreamController<TerminalSessionEvent> _events =
       StreamController<TerminalSessionEvent>.broadcast();
+  final StreamController<TerminalSessionZmodemEvent> _zmodemEvents =
+      StreamController<TerminalSessionZmodemEvent>.broadcast();
+  final StreamController<TerminalSessionZmodemDeferredWriteFailedDiagnostic>
+  _zmodemDeferredWriteFailures =
+      StreamController<
+        TerminalSessionZmodemDeferredWriteFailedDiagnostic
+      >.broadcast();
+  final StreamController<TerminalSessionRuntimeEventGapDiagnostic>
+  _runtimeEventGaps =
+      StreamController<TerminalSessionRuntimeEventGapDiagnostic>.broadcast();
   final StreamController<TerminalSessionInputEvent> _inputEvents =
       StreamController<TerminalSessionInputEvent>.broadcast();
   final StreamController<TerminalSessionResizeEvent> _resizeEvents =
@@ -937,13 +1307,26 @@ class TerminalRuntimeController {
   final Map<TerminalFrameDiff, TerminalFrameDecodeMetrics>
   _decodedFrameBenchmarkMetrics =
       <TerminalFrameDiff, TerminalFrameDecodeMetrics>{};
+  final Set<String> _zmodemAutonomousPollingSessions = <String>{};
+  final Map<String, Timer> _zmodemPollTimers = <String, Timer>{};
+  final Map<String, Timer> _closeBusyPollTimers = <String, Timer>{};
+  final Map<String, Timer> _nativeHintPollTimers = <String, Timer>{};
   Timer? _pollTimer;
+  bool _disposeRequested = false;
+  bool _disposeRetryScheduled = false;
+  Timer? _disposeRetryTimer;
+  bool _disposed = false;
   int _wireSessionSeed = 0;
   int _benchmarkFrameId = 0;
   int _sessionEpochSeed = 0;
   int _reportVariableRequestSeed = 0;
 
   Stream<TerminalSessionEvent> get events => _events.stream;
+  Stream<TerminalSessionZmodemEvent> get zmodemEvents => _zmodemEvents.stream;
+  Stream<TerminalSessionZmodemDeferredWriteFailedDiagnostic>
+  get zmodemDeferredWriteFailures => _zmodemDeferredWriteFailures.stream;
+  Stream<TerminalSessionRuntimeEventGapDiagnostic> get runtimeEventGaps =>
+      _runtimeEventGaps.stream;
   Stream<TerminalSessionInputEvent> get inputEvents => _inputEvents.stream;
   Stream<TerminalSessionResizeEvent> get resizeEvents => _resizeEvents.stream;
 
@@ -968,6 +1351,12 @@ class TerminalRuntimeController {
 
   bool hasSession(String sessionId) => _sessions.hasSession(sessionId);
 
+  bool isZmodemTransferActive(String sessionId) =>
+      _activeZmodemTransferIds.containsKey(sessionId);
+
+  String? activeZmodemTransferIdFor(String sessionId) =>
+      _activeZmodemTransferIds[sessionId];
+
   String createSession(TerminalSessionConfig config) {
     final resolvedConfig = _resolveColorsForRuntime(config);
     _wireSessionSeed += 1;
@@ -986,6 +1375,7 @@ class TerminalRuntimeController {
               sessionId: wireId,
               displayName: wireName,
               config: resolvedConfig,
+              zmodemEnabled: true,
             ).toJsonString(),
           )
         : backend.createSession(
@@ -1044,22 +1434,238 @@ class TerminalRuntimeController {
     return _framePumpController.snapshot(sessionId, now: _monotonicNow);
   }
 
+  /// Preserves the original void close API for existing implementers and
+  /// callers. Use [tryCloseSession] when the caller must retain product state
+  /// across a retryable native ZMODEM boundary.
   void closeSession(String sessionId) {
+    tryCloseSession(sessionId);
+  }
+
+  bool tryCloseSession(String sessionId) {
     if (!hasSession(sessionId)) {
-      return;
+      return true;
     }
-    if (!_runBackendOperation(
-      sessionId,
-      'closeSession',
-      () => _backend.closeSession(sessionId),
-    )) {
-      return;
+    final outcome = _attemptSessionClose(sessionId);
+    if (outcome == _TerminalSessionCloseOutcome.retryableBusy) {
+      // The busy reason may be an event that has not been polled yet. Drive a
+      // continuing refresh even when normal polling is disabled so UI state can
+      // expose cancel/recovery and the caller's next retry can make progress.
+      _requestRefreshSession(
+        sessionId,
+        immediate: true,
+        requestReason: 'session_close_retry',
+      );
+      if (_activeZmodemTransferIds[sessionId] == null) {
+        _scheduleCloseBusyPoll(sessionId);
+      }
     }
-    _removeSessionState(sessionId);
+    return switch (outcome) {
+      _TerminalSessionCloseOutcome.closed => true,
+      _TerminalSessionCloseOutcome.retryableBusy ||
+      _TerminalSessionCloseOutcome.failed => false,
+    };
+  }
+
+  /// Releases one session for a void-owner teardown.
+  ///
+  /// A native status `-2` is the only retryable outcome because it promises
+  /// the ZMODEM result/event authority is still live. Permanent backend
+  /// failures are reported, then local runtime state is released so a void
+  /// disposer cannot leak streams and polling forever.
+  bool disposeSession(String sessionId) {
+    if (!hasSession(sessionId)) {
+      return true;
+    }
+    return switch (_attemptSessionClose(sessionId)) {
+      _TerminalSessionCloseOutcome.closed => true,
+      _TerminalSessionCloseOutcome.retryableBusy => () {
+        // `zmodem_result_pending` can only clear after the terminal result is
+        // polled. Drive one event drain even when ordinary session polling is
+        // disabled; the facade keeps retrying close while publication itself
+        // is still in progress.
+        _requestRefreshSession(
+          sessionId,
+          immediate: true,
+          requestReason: 'session_dispose_retry',
+        );
+        return false;
+      }(),
+      _TerminalSessionCloseOutcome.failed => () {
+        _removeSessionState(sessionId);
+        return true;
+      }(),
+    };
+  }
+
+  _TerminalSessionCloseOutcome _attemptSessionClose(String sessionId) {
+    try {
+      _backend.closeSession(sessionId);
+      _removeSessionState(sessionId);
+      return _TerminalSessionCloseOutcome.closed;
+    } on Object catch (error, stackTrace) {
+      if (error is PtyNativeCallException && error.isRetryableClose) {
+        return _TerminalSessionCloseOutcome.retryableBusy;
+      }
+      _events.add(
+        TerminalSessionBackendErrorEvent(
+          sessionId,
+          operation: 'closeSession',
+          error: error,
+          stackTrace: stackTrace,
+        ),
+      );
+      return _TerminalSessionCloseOutcome.failed;
+    }
   }
 
   void sendInput(String sessionId, Uint8List bytes) {
     _sendInput(sessionId, bytes);
+  }
+
+  bool acceptZmodemReceive(
+    TerminalSessionZmodemEvent event, {
+    required String destination,
+  }) {
+    final transferId = event.transferId;
+    if (!_isCurrentZmodemEvent(event) ||
+        event.kind != TerminalZmodemEventKind.fileOffer ||
+        transferId == null ||
+        destination.isEmpty) {
+      return false;
+    }
+    final accepted = _jsonRequestClient.acceptZmodemReceive(
+      event.sessionId,
+      transferId: transferId,
+      destination: destination,
+    );
+    if (accepted) {
+      _zmodemAutonomousPollingSessions.add(event.sessionId);
+      _scheduleZmodemPoll(event.sessionId);
+    }
+    return accepted;
+  }
+
+  bool acceptZmodemSend(
+    TerminalSessionZmodemEvent event, {
+    required List<String> files,
+  }) {
+    final transferId = event.transferId;
+    if (!_isCurrentZmodemEvent(event) ||
+        event.kind != TerminalZmodemEventKind.detected ||
+        event.direction != TerminalZmodemDirection.send ||
+        transferId == null ||
+        files.isEmpty ||
+        files.length > 256 ||
+        files.any((path) => path.isEmpty)) {
+      return false;
+    }
+    final accepted = _jsonRequestClient.acceptZmodemSend(
+      event.sessionId,
+      transferId: transferId,
+      files: List<String>.unmodifiable(files),
+    );
+    if (accepted) {
+      _zmodemAutonomousPollingSessions.add(event.sessionId);
+      _scheduleZmodemPoll(event.sessionId);
+    }
+    return accepted;
+  }
+
+  bool cancelZmodem(TerminalSessionZmodemEvent event) {
+    final transferId = event.transferId;
+    if (!_isCurrentZmodemEvent(event) || transferId == null) {
+      return false;
+    }
+    final cancellationKey = _zmodemCancellationKey(event.sessionId, transferId);
+    if (!_pendingZmodemCancellations.add(cancellationKey)) {
+      // Native cancellation is asynchronous and remains in a bounded drain
+      // phase until its terminal event arrives. Treat repeated product clicks
+      // as the same request instead of invoking id-free reconciliation.
+      return true;
+    }
+    if (_jsonRequestClient.cancelZmodem(
+      event.sessionId,
+      transferId: transferId,
+    )) {
+      _zmodemAutonomousPollingSessions.add(event.sessionId);
+      _scheduleZmodemPoll(event.sessionId);
+      return true;
+    }
+    // The id-bound response may have been lost after native already applied
+    // the cancellation. A safe id-free reconciliation gives the product a
+    // reachable retry path instead of leaving input paused forever.
+    final reconciled = _reconcileActiveZmodem(
+      event.sessionId,
+      eventKind: 'zmodem_cancelled',
+      reason: null,
+    );
+    if (!reconciled) {
+      _pendingZmodemCancellations.remove(cancellationKey);
+    }
+    return reconciled;
+  }
+
+  String _zmodemCancellationKey(String sessionId, String transferId) =>
+      '$sessionId\u0000$transferId';
+
+  TerminalZmodemRecoveryResolution resolveZmodemRecovery(
+    TerminalSessionZmodemEvent event,
+  ) {
+    final recoveryToken = event.recoveryToken;
+    if (!event.isValid ||
+        event.kind != TerminalZmodemEventKind.failed ||
+        event.direction != TerminalZmodemDirection.receive ||
+        event.reason != 'publish_failed' ||
+        event.stagingPreserved != true ||
+        recoveryToken == null) {
+      return const TerminalZmodemRecoveryResolution.requestFailed();
+    }
+    return _jsonRequestClient.resolveZmodemRecovery(
+      event.sessionId,
+      recoveryToken: recoveryToken,
+    );
+  }
+
+  TerminalZmodemRecoveryDisposition consumeZmodemRecovery(
+    TerminalSessionZmodemEvent event,
+  ) {
+    final recoveryToken = event.recoveryToken;
+    if (!event.isValid ||
+        event.kind != TerminalZmodemEventKind.failed ||
+        event.direction != TerminalZmodemDirection.receive ||
+        event.reason != 'publish_failed' ||
+        event.stagingPreserved != true ||
+        recoveryToken == null) {
+      return TerminalZmodemRecoveryDisposition.requestFailed;
+    }
+    return _jsonRequestClient.consumeZmodemRecovery(
+      event.sessionId,
+      recoveryToken: recoveryToken,
+    );
+  }
+
+  TerminalZmodemRecoveryDisposition dismissZmodemRecovery(
+    TerminalSessionZmodemEvent event,
+  ) {
+    final recoveryToken = event.recoveryToken;
+    if (!event.isValid ||
+        event.kind != TerminalZmodemEventKind.failed ||
+        event.direction != TerminalZmodemDirection.receive ||
+        event.reason != 'publish_failed' ||
+        event.stagingPreserved != true ||
+        recoveryToken == null) {
+      return TerminalZmodemRecoveryDisposition.requestFailed;
+    }
+    return _jsonRequestClient.dismissZmodemRecovery(
+      event.sessionId,
+      recoveryToken: recoveryToken,
+    );
+  }
+
+  bool _isCurrentZmodemEvent(TerminalSessionZmodemEvent event) {
+    return event.isValid &&
+        hasSession(event.sessionId) &&
+        _activeZmodemTransferIds[event.sessionId] == event.transferId;
   }
 
   /// Sends the one exact OSC 1337 ReportVariable reply owned by [event].
@@ -1160,6 +1766,7 @@ class TerminalRuntimeController {
     Uint8List bytes, {
     int? sessionEpoch,
     bool revealLiveCursor = true,
+    bool deferProtocolReplyDuringZmodem = false,
   }) {
     if (sessionEpoch != null && !_isCurrentSession(sessionId, sessionEpoch)) {
       return false;
@@ -1168,16 +1775,49 @@ class TerminalRuntimeController {
       return false;
     }
     final copiedBytes = Uint8List.fromList(bytes);
+    final protocolReplyBackend = _protocolReplyBackend;
+    final useNativeProtocolReply =
+        deferProtocolReplyDuringZmodem &&
+        protocolReplyBackend != null &&
+        protocolReplyBackend.supportsProtocolReplies;
+    if (_activeZmodemTransferIds.containsKey(sessionId) &&
+        !useNativeProtocolReply) {
+      if (!deferProtocolReplyDuringZmodem) {
+        return false;
+      }
+      final queue = _deferredProtocolReplies.putIfAbsent(
+        sessionId,
+        _DeferredProtocolReplies.new,
+      );
+      if (!queue.add(copiedBytes)) {
+        _events.add(
+          TerminalSessionBackendErrorEvent(
+            sessionId,
+            operation: 'deferProtocolReply',
+            error: StateError(
+              'terminal protocol reply queue exceeded its bounded capacity',
+            ),
+            stackTrace: StackTrace.current,
+          ),
+        );
+        return false;
+      }
+      return true;
+    }
     if (copiedBytes.isNotEmpty && revealLiveCursor) {
       if (!_scrollToLiveCursorIfNeeded(sessionId)) {
         return false;
       }
     }
-    if (!_runBackendOperation(
-      sessionId,
-      'writeInput',
-      () => _backend.writeInput(sessionId, copiedBytes),
-    )) {
+    final wrote = useNativeProtocolReply
+        ? _runBackendOperation(
+            sessionId,
+            'writeProtocolReply',
+            () =>
+                protocolReplyBackend.writeProtocolReply(sessionId, copiedBytes),
+          )
+        : _runInputBackendOperation(sessionId, copiedBytes);
+    if (!wrote) {
       return false;
     }
     if (sessionEpoch != null && !_isCurrentSession(sessionId, sessionEpoch)) {
@@ -1194,6 +1834,60 @@ class TerminalRuntimeController {
       _scheduleInputRefreshProbe(sessionId);
     }
     return true;
+  }
+
+  void _flushDeferredProtocolReplies(String sessionId, int sessionEpoch) {
+    final queue = _deferredProtocolReplies[sessionId];
+    if (queue == null ||
+        !_isCurrentSession(sessionId, sessionEpoch) ||
+        !_flushingDeferredProtocolReplySessions.add(sessionId)) {
+      return;
+    }
+    try {
+      while (queue.chunks.isNotEmpty &&
+          _isCurrentSession(sessionId, sessionEpoch)) {
+        if (_activeZmodemTransferIds.containsKey(sessionId)) {
+          return;
+        }
+        final bytes = queue.chunks.first;
+        if (!_sendInput(
+          sessionId,
+          bytes,
+          sessionEpoch: sessionEpoch,
+          revealLiveCursor: false,
+          // The chunk remains at the head until its write succeeds. If a new
+          // transfer races the write, _runInputBackendOperation polls its
+          // detection and this flush simply pauses without duplicating it.
+          deferProtocolReplyDuringZmodem: false,
+        )) {
+          if (_activeZmodemTransferIds.containsKey(sessionId)) {
+            return;
+          }
+          _deferredProtocolReplies.remove(sessionId);
+          if (_isCurrentSession(sessionId, sessionEpoch)) {
+            _events.add(
+              TerminalSessionBackendErrorEvent(
+                sessionId,
+                operation: 'flushDeferredProtocolReply',
+                error: StateError(
+                  'terminal protocol reply could not be written after ZMODEM',
+                ),
+                stackTrace: StackTrace.current,
+              ),
+            );
+          }
+          return;
+        }
+        queue.chunks.removeAt(0);
+        queue.bytes -= bytes.length;
+      }
+      if (queue.chunks.isEmpty &&
+          identical(_deferredProtocolReplies[sessionId], queue)) {
+        _deferredProtocolReplies.remove(sessionId);
+      }
+    } finally {
+      _flushingDeferredProtocolReplySessions.remove(sessionId);
+    }
   }
 
   bool _scrollToLiveCursorIfNeeded(String sessionId) {
@@ -1659,6 +2353,13 @@ class TerminalRuntimeController {
   }
 
   bool? _nativeRefreshHintReady(String sessionId) {
+    final flags = _nativeRefreshHintFlags(sessionId);
+    return flags == null
+        ? null
+        : flags & PtyRefreshHintFlags.anyRefreshWork != 0;
+  }
+
+  int? _nativeRefreshHintFlags(String sessionId) {
     final backend = _refreshHintBackend;
     if (backend == null ||
         !backend.supportsRefreshHints ||
@@ -1666,8 +2367,7 @@ class TerminalRuntimeController {
       return null;
     }
     try {
-      final flags = backend.refreshHintFlags(sessionId);
-      return flags & PtyRefreshHintFlags.frameDirty != 0;
+      return backend.refreshHintFlags(sessionId);
     } on Object catch (error, stackTrace) {
       _refreshHintDisabledSessions.add(sessionId);
       _emitBackendRequestError(
@@ -1809,6 +2509,8 @@ class TerminalRuntimeController {
           _requestRefreshSession(sessionId);
         }
       }
+      _scheduleRequestedDisposeRetry();
+      _scheduleZmodemPoll(sessionId);
     }
   }
 
@@ -1820,6 +2522,7 @@ class TerminalRuntimeController {
       return;
     }
 
+    _nativeHintPollTimers.remove(sessionId)?.cancel();
     _refreshScheduler.markRefreshing(sessionId);
     try {
       var runAgain = true;
@@ -1877,7 +2580,10 @@ class TerminalRuntimeController {
         if (_refreshScheduler.consumeQueuedRefresh(sessionId)) {
           _requestRefreshSession(sessionId);
         }
+        _scheduleNativeHintPoll(sessionId);
       }
+      _scheduleRequestedDisposeRetry();
+      _scheduleZmodemPoll(sessionId);
     }
   }
 
@@ -1942,6 +2648,46 @@ class TerminalRuntimeController {
         TerminalSessionBackendErrorEvent(
           sessionId,
           operation: operation,
+          error: error,
+          stackTrace: stackTrace,
+        ),
+      );
+      return false;
+    }
+  }
+
+  bool _runInputBackendOperation(String sessionId, Uint8List bytes) {
+    try {
+      _backend.writeInput(sessionId, bytes);
+      return true;
+    } on Object catch (error, stackTrace) {
+      // Native can detect ZMODEM after the last Dart poll but before this
+      // write reaches the ordered transport gate. Pull the already-enqueued
+      // detection event once before classifying the expected input pause as a
+      // persistent backend error.
+      final sessionEpoch = _sessionEpochs[sessionId];
+      if (sessionEpoch != null) {
+        try {
+          final pending = _processEvents(
+            sessionId,
+            sessionEpoch,
+            _backend.pollEvents(sessionId),
+          );
+          if (pending != null) {
+            unawaited(pending);
+          }
+        } on Object {
+          // Preserve the original write failure below. The normal polling
+          // path will report a separate poll failure if it persists.
+        }
+      }
+      if (_activeZmodemTransferIds.containsKey(sessionId)) {
+        return false;
+      }
+      _events.add(
+        TerminalSessionBackendErrorEvent(
+          sessionId,
+          operation: 'writeInput',
           error: error,
           stackTrace: stackTrace,
         ),
@@ -2429,12 +3175,142 @@ class TerminalRuntimeController {
     List<PtyEvent> events,
   ) {
     Future<void>? pendingAsyncWork;
+    final gapDiagnostics = <PtyRuntimeEventGapDiagnostic>[];
+    final hasExitEvent = events.any(
+      (event) => _eventRouter.route(event) is TerminalExitEventRoute,
+    );
     for (final event in events) {
+      final route = _eventRouter.route(event);
+      if (route is TerminalRuntimeEventGapRoute) {
+        gapDiagnostics.add(route.diagnostic);
+      }
+    }
+    final activeTransferId = _activeZmodemTransferIds[sessionId];
+    String? preservedTerminalTransferId;
+    if (activeTransferId != null) {
+      for (final event in events) {
+        final route = _eventRouter.route(event);
+        if (route is! TerminalImmediateEventRoute ||
+            route.kind != TerminalImmediateEventKind.zmodem) {
+          continue;
+        }
+        final zmodem = TerminalSessionZmodemEvent(
+          sessionId,
+          rawPayload: route.payload,
+        );
+        if (zmodem.isValid &&
+            zmodem.isTerminal &&
+            (zmodem.transferId == activeTransferId ||
+                activeTransferId == _unknownZmodemTransferId)) {
+          preservedTerminalTransferId = zmodem.transferId;
+          break;
+        }
+      }
+    }
+    String? successorTransferIdCandidate;
+    if (preservedTerminalTransferId != null) {
+      var sawPreservedTerminal = false;
+      for (final event in events) {
+        final route = _eventRouter.route(event);
+        if (route is! TerminalImmediateEventRoute ||
+            route.kind != TerminalImmediateEventKind.zmodem) {
+          continue;
+        }
+        final zmodem = TerminalSessionZmodemEvent(
+          sessionId,
+          rawPayload: route.payload,
+        );
+        if (!zmodem.isValid) {
+          continue;
+        }
+        if (!sawPreservedTerminal) {
+          sawPreservedTerminal =
+              zmodem.isTerminal &&
+              zmodem.transferId == preservedTerminalTransferId;
+          continue;
+        }
+        if (!zmodem.isTerminal &&
+            zmodem.transferId != preservedTerminalTransferId) {
+          successorTransferIdCandidate = zmodem.transferId;
+          break;
+        }
+      }
+    }
+    String? initialTransferIdCandidate;
+    if (activeTransferId == null && gapDiagnostics.isNotEmpty) {
+      for (final event in events) {
+        final route = _eventRouter.route(event);
+        if (route is! TerminalImmediateEventRoute ||
+            route.kind != TerminalImmediateEventKind.zmodem) {
+          continue;
+        }
+        final zmodem = TerminalSessionZmodemEvent(
+          sessionId,
+          rawPayload: route.payload,
+        );
+        if (zmodem.isValid && !zmodem.isTerminal) {
+          initialTransferIdCandidate = zmodem.transferId;
+        }
+      }
+    }
+    var anyGapReconciliationResolved = false;
+    var anyGapNativeDrainPending = false;
+    var anyGapTerminalAuthorityUnresolved = false;
+    for (final diagnostic in gapDiagnostics) {
+      final reconciliation = _handleRuntimeEventGap(
+        sessionId,
+        sessionEpoch,
+        diagnostic,
+        preservedTerminalTransferId: preservedTerminalTransferId,
+        hasSurvivingInitialState: initialTransferIdCandidate != null,
+        requestStateRefresh: !hasExitEvent,
+        sessionExitPending: hasExitEvent,
+      );
+      anyGapReconciliationResolved =
+          anyGapReconciliationResolved || reconciliation.reconciliationResolved;
+      anyGapNativeDrainPending =
+          anyGapNativeDrainPending || reconciliation.nativeDrainPending;
+      anyGapTerminalAuthorityUnresolved =
+          anyGapTerminalAuthorityUnresolved ||
+          reconciliation.terminalAuthorityUnresolved;
+    }
+    final preservedInitialTransferId =
+        anyGapReconciliationResolved || anyGapNativeDrainPending
+        ? null
+        : initialTransferIdCandidate;
+    final preservedSuccessorTransferId =
+        !anyGapReconciliationResolved && !anyGapNativeDrainPending
+        ? successorTransferIdCandidate
+        : null;
+    final preserveUnresolvedTerminalAuthority =
+        anyGapTerminalAuthorityUnresolved;
+    if (preserveUnresolvedTerminalAuthority &&
+        _activeZmodemTransferIds[sessionId] != _unknownZmodemTransferId) {
+      _activeZmodemTransferIds[sessionId] = _unknownZmodemTransferId;
+      _activeZmodemDirections.remove(sessionId);
+      _zmodemEvents.add(
+        TerminalSessionZmodemEvent(
+          sessionId,
+          rawPayload: const <String, Object?>{
+            'source': 'zmodem',
+            'eventKind': 'zmodem_reconciliation_required',
+            'transferId': _unknownZmodemTransferId,
+            'reason': 'event_sequence_gap',
+          },
+        ),
+      );
+    }
+    final suppressSurvivingZmodemEvents = gapDiagnostics.isNotEmpty;
+    for (var index = 0; index < events.length; index += 1) {
+      final event = events[index];
       if (!_isCurrentSession(sessionId, sessionEpoch)) {
         return pendingAsyncWork;
       }
       final route = _eventRouter.route(event);
       if (route is TerminalExitEventRoute) {
+        if (_activeZmodemTransferIds[sessionId] == null) {
+          _flushDeferredProtocolReplies(sessionId, sessionEpoch);
+        }
         if (pendingAsyncWork == null) {
           _emitExitIfCurrent(sessionId, sessionEpoch, route.exitCode);
           return null;
@@ -2442,6 +3318,9 @@ class TerminalRuntimeController {
         return pendingAsyncWork.then((_) {
           _emitExitIfCurrent(sessionId, sessionEpoch, route.exitCode);
         });
+      }
+      if (route is TerminalRuntimeEventGapRoute) {
+        continue;
       }
       if (route is TerminalAsyncEventRoute) {
         pendingAsyncWork = _chainAsyncEvent(
@@ -2453,8 +3332,46 @@ class TerminalRuntimeController {
         continue;
       }
       if (route is TerminalImmediateEventRoute) {
-        _emitImmediateEventRoute(sessionId, sessionEpoch, route);
+        var preserveUnknownZmodemAuthority = false;
+        if (suppressSurvivingZmodemEvents &&
+            route.kind == TerminalImmediateEventKind.zmodem) {
+          final zmodem = TerminalSessionZmodemEvent(
+            sessionId,
+            rawPayload: route.payload,
+          );
+          final isAuthoritativeTerminalSurvivor =
+              zmodem.isValid &&
+              zmodem.isTerminal &&
+              zmodem.transferId == preservedTerminalTransferId;
+          final establishesMissingInitialState =
+              zmodem.isValid &&
+              (zmodem.transferId == preservedInitialTransferId ||
+                  zmodem.transferId == preservedSuccessorTransferId);
+          preserveUnknownZmodemAuthority =
+              _activeZmodemTransferIds[sessionId] == _unknownZmodemTransferId &&
+              ((zmodem.hasRecoverableReceiveStaging &&
+                      !anyGapReconciliationResolved) ||
+                  (preserveUnresolvedTerminalAuthority &&
+                      isAuthoritativeTerminalSurvivor));
+          if (!isAuthoritativeTerminalSurvivor &&
+              !establishesMissingInitialState &&
+              !zmodem.hasRecoverableReceiveStaging) {
+            continue;
+          }
+        }
+        _emitImmediateEventRoute(
+          sessionId,
+          sessionEpoch,
+          route,
+          preserveUnknownZmodemAuthority: preserveUnknownZmodemAuthority,
+        );
       }
+    }
+    // A terminal event and the next transfer's detection may be contiguous in
+    // one native batch. Flush fallback protocol replies only after every event
+    // has established that no successor transfer owns the PTY stream.
+    if (_activeZmodemTransferIds[sessionId] == null) {
+      _flushDeferredProtocolReplies(sessionId, sessionEpoch);
     }
     return pendingAsyncWork;
   }
@@ -2463,8 +3380,44 @@ class TerminalRuntimeController {
     if (!_isCurrentSession(sessionId, sessionEpoch)) {
       return;
     }
-    _removeSessionState(sessionId);
+    try {
+      beforeSessionCloseOnExit?.call(sessionId, exitCode);
+    } on Object catch (error, stackTrace) {
+      _events.add(
+        TerminalSessionBackendErrorEvent(
+          sessionId,
+          operation: 'beforeSessionCloseOnExit',
+          error: error,
+          stackTrace: stackTrace,
+        ),
+      );
+    }
     _events.add(TerminalSessionExitEvent(sessionId, exitCode: exitCode));
+    _closeExitedSessionIfCurrent(sessionId, sessionEpoch);
+  }
+
+  void _closeExitedSessionIfCurrent(String sessionId, int sessionEpoch) {
+    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+      return;
+    }
+    final closeOutcome = _attemptSessionClose(sessionId);
+    if (closeOutcome == _TerminalSessionCloseOutcome.retryableBusy) {
+      _requestRefreshSession(
+        sessionId,
+        immediate: true,
+        requestReason: 'session_exit_close_retry',
+      );
+      Timer(_disposeRetryInterval, () {
+        _closeExitedSessionIfCurrent(sessionId, sessionEpoch);
+      });
+      return;
+    }
+    if (closeOutcome == _TerminalSessionCloseOutcome.failed) {
+      // A backend that cannot close an already-exited child must not leave a
+      // dead pane in product state. Native failures remain visible on the
+      // backend-error stream for diagnosis.
+      _removeSessionState(sessionId);
+    }
   }
 
   Future<void> _handleAsyncEventRoute(
@@ -2511,8 +3464,9 @@ class TerminalRuntimeController {
   void _emitImmediateEventRoute(
     String sessionId,
     int sessionEpoch,
-    TerminalImmediateEventRoute route,
-  ) {
+    TerminalImmediateEventRoute route, {
+    bool preserveUnknownZmodemAuthority = false,
+  }) {
     switch (route.kind) {
       case TerminalImmediateEventKind.bell:
         _emitEventIfCurrent(
@@ -2628,6 +3582,19 @@ class TerminalRuntimeController {
             rawPayload: route.payload,
           ),
         );
+      case TerminalImmediateEventKind.zmodem:
+        _handleZmodemEvent(
+          sessionId,
+          sessionEpoch,
+          route.payload,
+          preserveUnknownAuthority: preserveUnknownZmodemAuthority,
+        );
+      case TerminalImmediateEventKind.zmodemDeferredWriteFailure:
+        _handleZmodemDeferredWriteFailure(
+          sessionId,
+          sessionEpoch,
+          route.payload,
+        );
       case TerminalImmediateEventKind.cellSizeReportRequest:
         _replyOrQueueCellSizeReport(sessionId, sessionEpoch);
         _emitEventIfCurrent(
@@ -2671,6 +3638,325 @@ class TerminalRuntimeController {
           TerminalSessionResetEvent(sessionId),
         );
     }
+  }
+
+  void _handleZmodemEvent(
+    String sessionId,
+    int sessionEpoch,
+    Map<String, Object?>? payload, {
+    bool preserveUnknownAuthority = false,
+  }) {
+    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+      return;
+    }
+    final event = TerminalSessionZmodemEvent(sessionId, rawPayload: payload);
+    if (!event.isValid) {
+      return;
+    }
+    final transferId = event.transferId!;
+    final activeTransferId = _activeZmodemTransferIds[sessionId];
+    final replacingUnknownTransfer =
+        activeTransferId == _unknownZmodemTransferId &&
+        transferId != _unknownZmodemTransferId &&
+        !preserveUnknownAuthority;
+    if (replacingUnknownTransfer) {
+      // The real survivor supersedes the synthetic gap identity. A cancel
+      // accepted into native drain intentionally stays de-duplicated until a
+      // terminal survivor arrives, but its unknown-id key must not leak into
+      // a later, unrelated reconciliation gap for this session.
+      _pendingZmodemCancellations.remove(
+        _zmodemCancellationKey(sessionId, _unknownZmodemTransferId),
+      );
+    }
+    if (event.isTerminal) {
+      if (activeTransferId != transferId &&
+          !replacingUnknownTransfer &&
+          !event.hasRecoverableReceiveStaging &&
+          !preserveUnknownAuthority) {
+        return;
+      }
+      final clearsActiveTransfer =
+          activeTransferId == transferId || replacingUnknownTransfer;
+      if (clearsActiveTransfer) {
+        if (preserveUnknownAuthority) {
+          _activeZmodemTransferIds[sessionId] = _unknownZmodemTransferId;
+          _activeZmodemDirections.remove(sessionId);
+        } else {
+          _activeZmodemTransferIds.remove(sessionId);
+          _activeZmodemDirections.remove(sessionId);
+          _zmodemAutonomousPollingSessions.remove(sessionId);
+          _zmodemPollTimers.remove(sessionId)?.cancel();
+        }
+      }
+      _pendingZmodemCancellations.remove(
+        _zmodemCancellationKey(sessionId, transferId),
+      );
+    } else {
+      if (activeTransferId != null &&
+          activeTransferId != transferId &&
+          !replacingUnknownTransfer) {
+        return;
+      }
+      _activeZmodemTransferIds[sessionId] = transferId;
+      // A surviving non-terminal event transfers liveness to the normal
+      // autonomous ZMODEM poller. Stale terminal/recovery events must not
+      // cancel a close-busy retry that may still be waiting for a later
+      // detection publication.
+      _closeBusyPollTimers.remove(sessionId)?.cancel();
+      final direction = event.direction;
+      if (direction != null) {
+        _activeZmodemDirections[sessionId] = direction;
+      }
+      // Detection itself starts the native authorization/timeout state
+      // machine. Keep polling from that first valid event so a peer cancel or
+      // timeout is observed even while a platform file picker is still open,
+      // or when an accept response is lost after native committed it.
+      _zmodemAutonomousPollingSessions.add(sessionId);
+      _scheduleZmodemPoll(sessionId);
+    }
+    _zmodemEvents.add(event);
+    if (event.isTerminal) {
+      _scheduleRequestedDisposeRetry();
+    }
+  }
+
+  void _handleZmodemDeferredWriteFailure(
+    String sessionId,
+    int sessionEpoch,
+    Map<String, Object?>? payload,
+  ) {
+    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+      return;
+    }
+    final diagnostic =
+        TerminalSessionZmodemDeferredWriteFailedDiagnostic.tryParse(
+          sessionId,
+          payload,
+        );
+    if (diagnostic != null) {
+      _zmodemDeferredWriteFailures.add(diagnostic);
+    }
+  }
+
+  ({
+    bool reconciliationResolved,
+    bool nativeDrainPending,
+    bool terminalAuthorityUnresolved,
+  })
+  _handleRuntimeEventGap(
+    String sessionId,
+    int sessionEpoch,
+    PtyRuntimeEventGapDiagnostic diagnostic, {
+    required String? preservedTerminalTransferId,
+    required bool hasSurvivingInitialState,
+    required bool requestStateRefresh,
+    required bool sessionExitPending,
+  }) {
+    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+      return (
+        reconciliationResolved: false,
+        nativeDrainPending: false,
+        terminalAuthorityUnresolved: false,
+      );
+    }
+    final transferId = _activeZmodemTransferIds[sessionId];
+    final direction = _activeZmodemDirections[sessionId];
+    final zmodemMayBeActive =
+        !sessionExitPending &&
+        (transferId != null ||
+            supportsRuntimeFeature('zmodem.receive.v1') ||
+            supportsRuntimeFeature('zmodem.send.v1'));
+    final cancellationOutcome = zmodemMayBeActive
+        ? _jsonRequestClient.cancelActiveZmodem(sessionId)
+        : null;
+    final cancellationAccepted =
+        cancellationOutcome == TerminalZmodemCancelActiveOutcome.cancelled;
+    // `cancelled` means native accepted the request and entered its bounded
+    // drain; it is not a terminal state. Only `idle` is authoritative after
+    // the already-polled batch has no matching terminal survivor.
+    final reconciliationResolved =
+        cancellationOutcome == TerminalZmodemCancelActiveOutcome.idle;
+    final nativeDrainPending =
+        cancellationOutcome == TerminalZmodemCancelActiveOutcome.cancelled ||
+        cancellationOutcome == TerminalZmodemCancelActiveOutcome.draining;
+    final reconciliationUnresolved =
+        zmodemMayBeActive && !reconciliationResolved;
+    final preserveTerminalState =
+        transferId != null &&
+        preservedTerminalTransferId != null &&
+        (transferId == preservedTerminalTransferId ||
+            transferId == _unknownZmodemTransferId);
+    if (reconciliationResolved && !preserveTerminalState) {
+      _activeZmodemTransferIds.remove(sessionId);
+      _activeZmodemDirections.remove(sessionId);
+      _zmodemAutonomousPollingSessions.remove(sessionId);
+      _zmodemPollTimers.remove(sessionId)?.cancel();
+      if (transferId != null) {
+        _pendingZmodemCancellations.remove(
+          _zmodemCancellationKey(sessionId, transferId),
+        );
+      }
+      if (transferId != null) {
+        _zmodemEvents.add(
+          TerminalSessionZmodemEvent(
+            sessionId,
+            rawPayload: <String, Object?>{
+              'source': 'zmodem',
+              'eventKind': 'zmodem_failed',
+              'transferId': transferId,
+              'direction': ?direction?.name,
+              'reason': 'event_sequence_gap',
+            },
+          ),
+        );
+      }
+    }
+    final installUnknownAuthority =
+        reconciliationUnresolved &&
+        (transferId != null || !hasSurvivingInitialState || nativeDrainPending);
+    final alreadyUnknown = transferId == _unknownZmodemTransferId;
+    if (installUnknownAuthority) {
+      // A remembered native id is no longer trustworthy after a lossy batch:
+      // its terminal event and a successor's detection may both be inside the
+      // gap. Keep fail-closed authority under the synthetic id so any later
+      // real terminal can replace it instead of being rejected as a mismatch.
+      _activeZmodemTransferIds[sessionId] = _unknownZmodemTransferId;
+      _activeZmodemDirections.remove(sessionId);
+      if (transferId != null && !alreadyUnknown) {
+        _pendingZmodemCancellations.remove(
+          _zmodemCancellationKey(sessionId, transferId),
+        );
+      }
+      if (!alreadyUnknown) {
+        _zmodemEvents.add(
+          TerminalSessionZmodemEvent(
+            sessionId,
+            rawPayload: const <String, Object?>{
+              'source': 'zmodem',
+              'eventKind': 'zmodem_reconciliation_required',
+              'transferId': _unknownZmodemTransferId,
+              'reason': 'event_sequence_gap',
+            },
+          ),
+        );
+      }
+    }
+    if (requestStateRefresh || nativeDrainPending) {
+      _requestRefreshSession(
+        sessionId,
+        immediate: true,
+        requestReason: 'runtime_event_gap',
+      );
+    }
+    _runtimeEventGaps.add(
+      _runtimeEventGapDiagnostic(
+        sessionId,
+        diagnostic,
+        affectedZmodemTransferId: transferId,
+        zmodemStateCleared:
+            reconciliationResolved &&
+            transferId != null &&
+            !preserveTerminalState,
+        zmodemCancellationAccepted: cancellationAccepted,
+        stateRefreshRequested: requestStateRefresh || nativeDrainPending,
+      ),
+    );
+    if (nativeDrainPending || installUnknownAuthority) {
+      _zmodemAutonomousPollingSessions.add(sessionId);
+      _scheduleZmodemPoll(sessionId);
+    }
+    // A successful cancel/drain means any surviving initial authorization
+    // event in this lossy batch is already stale and must not reach product UI.
+    return (
+      reconciliationResolved: reconciliationResolved,
+      nativeDrainPending: nativeDrainPending,
+      terminalAuthorityUnresolved:
+          preserveTerminalState && !reconciliationResolved,
+    );
+  }
+
+  bool _reconcileActiveZmodem(
+    String sessionId, {
+    required String eventKind,
+    required String? reason,
+  }) {
+    final transferId = _activeZmodemTransferIds[sessionId];
+    if (transferId == null) {
+      return false;
+    }
+    final outcome = _jsonRequestClient.cancelActiveZmodem(sessionId);
+    if (outcome == null) {
+      return false;
+    }
+    final nativeStillDraining =
+        outcome == TerminalZmodemCancelActiveOutcome.cancelled ||
+        outcome == TerminalZmodemCancelActiveOutcome.draining;
+    final knownTransferTerminalEventPending =
+        outcome == TerminalZmodemCancelActiveOutcome.idle &&
+        transferId != _unknownZmodemTransferId;
+    if (nativeStillDraining || knownTransferTerminalEventPending) {
+      // A drain still owns the transport, while idle for a known transfer
+      // means its terminal event is pending. In both cases keep the product
+      // lock until native state is authoritatively reconciled.
+      _requestRefreshSession(
+        sessionId,
+        immediate: true,
+        requestReason: 'zmodem_terminal_event_pending',
+      );
+      _zmodemAutonomousPollingSessions.add(sessionId);
+      _scheduleZmodemPoll(sessionId);
+      return true;
+    }
+    final direction = _activeZmodemDirections.remove(sessionId);
+    _activeZmodemTransferIds.remove(sessionId);
+    _zmodemAutonomousPollingSessions.remove(sessionId);
+    _zmodemPollTimers.remove(sessionId)?.cancel();
+    _pendingZmodemCancellations.remove(
+      _zmodemCancellationKey(sessionId, transferId),
+    );
+    final terminalReason = transferId == _unknownZmodemTransferId
+        ? 'event_sequence_gap'
+        : reason;
+    _zmodemEvents.add(
+      TerminalSessionZmodemEvent(
+        sessionId,
+        rawPayload: <String, Object?>{
+          'source': 'zmodem',
+          'eventKind': transferId == _unknownZmodemTransferId
+              ? 'zmodem_failed'
+              : eventKind,
+          'transferId': transferId,
+          'direction': ?direction?.name,
+          'reason': ?terminalReason,
+        },
+      ),
+    );
+    final sessionEpoch = _sessionEpochs[sessionId];
+    if (sessionEpoch != null) {
+      _flushDeferredProtocolReplies(sessionId, sessionEpoch);
+    }
+    return true;
+  }
+
+  TerminalSessionRuntimeEventGapDiagnostic _runtimeEventGapDiagnostic(
+    String sessionId,
+    PtyRuntimeEventGapDiagnostic diagnostic, {
+    required String? affectedZmodemTransferId,
+    required bool zmodemStateCleared,
+    required bool zmodemCancellationAccepted,
+    required bool stateRefreshRequested,
+  }) {
+    return TerminalSessionRuntimeEventGapDiagnostic(
+      sessionId: sessionId,
+      expectedSequence: diagnostic.expectedSequence,
+      nextSequence: diagnostic.nextSequence,
+      droppedCount: diagnostic.droppedCount,
+      survivingEventCount: diagnostic.survivingEventCount,
+      affectedZmodemTransferId: affectedZmodemTransferId,
+      zmodemStateCleared: zmodemStateCleared,
+      zmodemCancellationAccepted: zmodemCancellationAccepted,
+      stateRefreshRequested: stateRefreshRequested,
+    );
   }
 
   void _emitEventIfCurrent(
@@ -2827,6 +4113,7 @@ class TerminalRuntimeController {
       Uint8List.fromList(ascii.encode(response)),
       sessionEpoch: sessionEpoch,
       revealLiveCursor: false,
+      deferProtocolReplyDuringZmodem: true,
     );
   }
 
@@ -2885,6 +4172,7 @@ class TerminalRuntimeController {
       Uint8List.fromList(ascii.encode(response)),
       sessionEpoch: sessionEpoch,
       revealLiveCursor: false,
+      deferProtocolReplyDuringZmodem: true,
     );
   }
 
@@ -3173,6 +4461,8 @@ class TerminalRuntimeController {
         sessionId,
         Uint8List.fromList(utf8.encode(response)),
         sessionEpoch: sessionEpoch,
+        revealLiveCursor: false,
+        deferProtocolReplyDuringZmodem: true,
       )) {
         return;
       }
@@ -3630,6 +4920,8 @@ class TerminalRuntimeController {
             ),
           ),
           sessionEpoch: sessionEpoch,
+          revealLiveCursor: false,
+          deferProtocolReplyDuringZmodem: true,
         );
       }
     }
@@ -3654,6 +4946,8 @@ class TerminalRuntimeController {
       sessionId,
       Uint8List.fromList(ascii.encode('\u001b]5522;$metadata\u001b\\')),
       sessionEpoch: sessionEpoch,
+      revealLiveCursor: false,
+      deferProtocolReplyDuringZmodem: true,
     );
   }
 
@@ -3877,6 +5171,17 @@ class TerminalRuntimeController {
     _lastFrameAppliedAt.remove(sessionId);
     _osc5522RememberedPasswords.remove(sessionId);
     _osc5522PasteTokens.remove(sessionId);
+    _deferredProtocolReplies.remove(sessionId);
+    _flushingDeferredProtocolReplySessions.remove(sessionId);
+    _zmodemPollTimers.remove(sessionId)?.cancel();
+    _closeBusyPollTimers.remove(sessionId)?.cancel();
+    _nativeHintPollTimers.remove(sessionId)?.cancel();
+    _zmodemAutonomousPollingSessions.remove(sessionId);
+    _activeZmodemTransferIds.remove(sessionId);
+    _activeZmodemDirections.remove(sessionId);
+    _pendingZmodemCancellations.removeWhere(
+      (key) => key.startsWith('$sessionId\u0000'),
+    );
     for (final timer in _warmUpTimers.remove(sessionId) ?? const <Timer>[]) {
       timer.cancel();
     }
@@ -3910,14 +5215,64 @@ class TerminalRuntimeController {
   }
 
   void dispose() {
-    for (final sessionId in _sessions.sessionIds) {
-      _runBackendOperation(
-        sessionId,
-        'closeSession',
-        () => _backend.closeSession(sessionId),
-      );
-      _removeSessionState(sessionId);
+    tryDispose();
+  }
+
+  bool tryDispose() {
+    if (_disposed) {
+      return true;
     }
+    if (!_disposeRequested) {
+      _disposeRequested = true;
+    }
+    return _tryCompleteRequestedDispose();
+  }
+
+  bool _tryCompleteRequestedDispose() {
+    if (_disposed) {
+      return true;
+    }
+    var allClosed = true;
+    for (final sessionId in _sessions.sessionIds.toList(growable: false)) {
+      switch (_attemptSessionClose(sessionId)) {
+        case _TerminalSessionCloseOutcome.closed:
+          break;
+        case _TerminalSessionCloseOutcome.failed:
+          _removeSessionState(sessionId);
+          break;
+        case _TerminalSessionCloseOutcome.retryableBusy:
+          // A queued native terminal result intentionally blocks close until
+          // it has been delivered. Disposal therefore owns a minimal event
+          // drain even when the normal polling policy is disabled.
+          _requestRefreshSession(
+            sessionId,
+            immediate: true,
+            requestReason: 'runtime_dispose_retry',
+          );
+          _reconcileActiveZmodem(
+            sessionId,
+            eventKind: 'zmodem_cancelled',
+            reason: 'runtime_dispose',
+          );
+          // Never abandon local ownership of a retryable native session. It
+          // carries the only poll/close path for a late result or recovery
+          // token, and dropping it would leak the PTY, sampler, and mapping.
+          allClosed = false;
+      }
+    }
+    if (!allClosed) {
+      // A native ZMODEM publication/result still owns at least one session.
+      // Keep polling, session state, and streams alive so shutdown can be
+      // retried automatically after the authoritative terminal event is
+      // consumed. This matters for ordinary void dispose owners such as
+      // Riverpod, which cannot make a second explicit call.
+      _scheduleRequestedDisposeFallback();
+      return false;
+    }
+    _disposeRequested = false;
+    _disposeRetryTimer?.cancel();
+    _disposeRetryTimer = null;
+    _disposed = true;
     _pollTimer?.cancel();
     for (final timers in _warmUpTimers.values) {
       for (final timer in timers) {
@@ -3927,8 +5282,119 @@ class TerminalRuntimeController {
     _refreshScheduler.dispose();
     _sessions.dispose();
     _events.close();
+    _zmodemEvents.close();
+    _zmodemDeferredWriteFailures.close();
+    _runtimeEventGaps.close();
     _inputEvents.close();
     _resizeEvents.close();
+    return true;
+  }
+
+  void _scheduleRequestedDisposeRetry() {
+    if (!_disposeRequested || _disposed || _disposeRetryScheduled) {
+      return;
+    }
+    _disposeRetryTimer?.cancel();
+    _disposeRetryTimer = null;
+    _disposeRetryScheduled = true;
+    scheduleMicrotask(() {
+      _disposeRetryScheduled = false;
+      if (_disposeRequested && !_disposed) {
+        _tryCompleteRequestedDispose();
+      }
+    });
+  }
+
+  void _scheduleRequestedDisposeFallback() {
+    if (!_disposeRequested || _disposed || _disposeRetryTimer != null) {
+      return;
+    }
+    _disposeRetryTimer = Timer(_disposeRetryInterval, () {
+      _disposeRetryTimer = null;
+      if (_disposeRequested && !_disposed) {
+        _tryCompleteRequestedDispose();
+      }
+    });
+  }
+
+  void _scheduleZmodemPoll(String sessionId) {
+    if (enableSessionPolling ||
+        _disposed ||
+        !hasSession(sessionId) ||
+        !_zmodemAutonomousPollingSessions.contains(sessionId) ||
+        _activeZmodemTransferIds[sessionId] == null ||
+        _zmodemPollTimers.containsKey(sessionId)) {
+      return;
+    }
+    _zmodemPollTimers[sessionId] = Timer(_zmodemDisabledPollingInterval, () {
+      _zmodemPollTimers.remove(sessionId);
+      if (_disposed ||
+          !hasSession(sessionId) ||
+          _activeZmodemTransferIds[sessionId] == null) {
+        return;
+      }
+      _requestRefreshSession(
+        sessionId,
+        immediate: true,
+        requestReason: 'zmodem_disabled_polling',
+      );
+    });
+  }
+
+  void _scheduleCloseBusyPoll(String sessionId) {
+    if (_disposed ||
+        !hasSession(sessionId) ||
+        _closeBusyPollTimers.containsKey(sessionId)) {
+      return;
+    }
+    _closeBusyPollTimers[sessionId] = Timer(_disposeRetryInterval, () {
+      _closeBusyPollTimers.remove(sessionId);
+      if (_disposed || !hasSession(sessionId)) {
+        return;
+      }
+      final closeReady = _jsonRequestClient.sessionCloseReady(sessionId);
+      if (closeReady == true) {
+        // The transient native gate cleared without producing a protocol
+        // event. Keep the pane/session ownership with the caller that received
+        // `false`, but stop the autonomous probe instead of silently closing
+        // it or polling forever.
+        return;
+      }
+      _requestRefreshSession(
+        sessionId,
+        immediate: true,
+        requestReason: 'session_close_busy_poll',
+      );
+      if (closeReady == false && _activeZmodemTransferIds[sessionId] == null) {
+        _scheduleCloseBusyPoll(sessionId);
+      }
+    });
+  }
+
+  void _scheduleNativeHintPoll(String sessionId) {
+    if (enableSessionPolling ||
+        _disposed ||
+        !hasSession(sessionId) ||
+        _nativeHintPollTimers.containsKey(sessionId)) {
+      return;
+    }
+    final flags = _nativeRefreshHintFlags(sessionId);
+    const pendingMask =
+        PtyRefreshHintFlags.eventPending | PtyRefreshHintFlags.exitPending;
+    if (flags == null || flags & pendingMask == 0) {
+      return;
+    }
+    _nativeHintPollTimers[sessionId] = Timer(_disposeRetryInterval, () {
+      _nativeHintPollTimers.remove(sessionId);
+      if (_disposed || !hasSession(sessionId)) {
+        return;
+      }
+      _requestRefreshSession(
+        sessionId,
+        immediate: true,
+        requestReason: 'native_hint_pending_poll',
+      );
+    });
   }
 }
 

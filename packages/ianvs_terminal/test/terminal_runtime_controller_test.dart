@@ -3106,6 +3106,58 @@ void main() {
     );
   });
 
+  test(
+    'ZMODEM recovery remains resolvable after the originating session closes',
+    () {
+      final backend = _FakePtyBackend()
+        ..zmodemRecoveryPath = '/current/downloads/.report.ianvs-part';
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final publishFailure = TerminalSessionZmodemEvent(
+        sessionId,
+        rawPayload: const <String, Object?>{
+          'source': 'zmodem',
+          'eventKind': 'zmodem_failed',
+          'transferId': '7',
+          'direction': 'receive',
+          'reason': 'publish_failed',
+          'recoverablePartialName': '.report.ianvs-part',
+          'stagingPreserved': true,
+          'recoveryToken': '0123456789abcdef0123456789abcdef',
+        },
+      );
+
+      expect(runtime.tryCloseSession(sessionId), isTrue);
+
+      expect(runtime.hasSession(sessionId), isFalse);
+      final recovery = runtime.resolveZmodemRecovery(publishFailure);
+      expect(recovery.status, TerminalZmodemRecoveryResolutionStatus.available);
+      expect(recovery.path, '/current/downloads/.report.ianvs-part');
+      expect(backend.jsonRequests.last, <String, Object?>{
+        'kind': 'terminal.zmodem.resolve_recovery',
+        'recoveryToken': '0123456789abcdef0123456789abcdef',
+      });
+      expect(
+        runtime.consumeZmodemRecovery(publishFailure),
+        TerminalZmodemRecoveryDisposition.success,
+      );
+      expect(backend.jsonRequests.last, <String, Object?>{
+        'kind': 'terminal.zmodem.consume_recovery',
+        'recoveryToken': '0123456789abcdef0123456789abcdef',
+      });
+    },
+  );
+
   testWidgets(
     'terminal runtime controller owns sessions and viewport state without demo imports',
     (tester) async {
@@ -5645,7 +5697,7 @@ void main() {
       runtime.scrollViewport(sessionId, 1);
       runtime.scrollViewportTo(sessionId, 2);
       runtime.resizeSession(sessionId, const Size(180, 144), 1);
-      runtime.closeSession(sessionId);
+      expect(runtime.tryCloseSession(sessionId), isFalse);
       await tester.pump();
 
       expect(backendErrors.map((event) => event.operation), <String>[
@@ -5669,7 +5721,7 @@ void main() {
   );
 
   testWidgets(
-    'terminal runtime controller reports close failures during dispose',
+    'terminal runtime controller releases permanent dispose failures',
     (tester) async {
       final runtimeBackend = _FakePtyBackend();
       final runtime = TerminalRuntimeController(
@@ -5695,7 +5747,7 @@ void main() {
 
       runtimeBackend.failingOperations.add('closeSession');
 
-      expect(runtime.dispose, returnsNormally);
+      expect(runtime.tryDispose(), isTrue);
       await tester.pump();
 
       expect(runtime.hasSession(sessionId), isFalse);
@@ -5706,8 +5758,134 @@ void main() {
         backendErrors.single.error.toString(),
         contains('closeSession failed'),
       );
+    },
+  );
 
-      runtimeBackend.failingOperations.clear();
+  testWidgets(
+    'terminal runtime controller autonomously retries native busy disposal',
+    (tester) async {
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+      runtimeBackend.retryableCloseSessionIds.add(sessionId);
+
+      expect(runtime.tryDispose(), isFalse);
+      expect(runtime.hasSession(sessionId), isTrue);
+
+      runtimeBackend.retryableCloseSessionIds.remove(sessionId);
+      await tester.pump(const Duration(milliseconds: 60));
+
+      expect(runtime.hasSession(sessionId), isFalse);
+      expect(runtime.tryDispose(), isTrue);
+    },
+  );
+
+  testWidgets(
+    'close busy polling survives a late native transition publication',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+      backend.retryableCloseSessionIds.add(sessionId);
+      addTearDown(() {
+        backend.retryableCloseSessionIds.remove(sessionId);
+      });
+
+      expect(runtime.tryCloseSession(sessionId), isFalse);
+      for (var index = 0; index < 25; index += 1) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      final pollsBeforeLateEvent = backend.pollEventsCalls;
+      expect(pollsBeforeLateEvent, greaterThan(20));
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '9001',
+            'direction': 'receive',
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 60));
+      await tester.pump();
+
+      expect(runtime.activeZmodemTransferIdFor(sessionId), '9001');
+      backend.retryableCloseSessionIds.remove(sessionId);
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_cancelled',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '9001',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+    },
+  );
+
+  testWidgets(
+    'transient close busy probe stops without silently closing the pane',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+        enableWarmUpRefresh: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+      backend.retryableCloseSessionIds.add(sessionId);
+
+      expect(runtime.tryCloseSession(sessionId), isFalse);
+      backend.retryableCloseSessionIds.remove(sessionId);
+      await tester.pump(const Duration(milliseconds: 60));
+
+      expect(runtime.hasSession(sessionId), isTrue);
+      expect(backend.closeCalls, isEmpty);
+      final pollsAfterReady = backend.pollEventsCalls;
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(backend.pollEventsCalls, pollsAfterReady);
+
+      expect(runtime.tryCloseSession(sessionId), isTrue);
+      expect(runtime.hasSession(sessionId), isFalse);
+      expect(backend.closeCalls, <String>[sessionId]);
     },
   );
 
@@ -9414,17 +9592,26 @@ void main() {
     tester,
   ) async {
     final runtimeBackend = _FakePtyBackend();
+    var exitHookRanBeforeNativeClose = false;
     final runtime = TerminalRuntimeController(
       backend: runtimeBackend,
       copyToClipboard: (_) async {},
       readClipboard: () async => '',
       enableSessionPolling: false,
+      beforeSessionCloseOnExit: (_, _) {
+        exitHookRanBeforeNativeClose = runtimeBackend.closeCalls.isEmpty;
+      },
     );
     addTearDown(runtime.dispose);
 
     final seenEvents = <TerminalSessionEvent>[];
+    final runtimeEventGaps = <TerminalSessionRuntimeEventGapDiagnostic>[];
     final subscription = runtime.events.listen(seenEvents.add);
+    final runtimeEventGapSubscription = runtime.runtimeEventGaps.listen(
+      runtimeEventGaps.add,
+    );
     addTearDown(subscription.cancel);
+    addTearDown(runtimeEventGapSubscription.cancel);
 
     final sessionId = runtime.createSession(
       const TerminalSessionConfig(
@@ -9439,13 +9626,142 @@ void main() {
         payload: <String, Object?>{'code': 7},
       ),
     );
+    runtimeBackend.enqueueEvent(
+      sessionId,
+      PtyRuntimeEventGapDiagnostic(
+        sessionId: sessionId,
+        expectedSequence: 3,
+        nextSequence: 5,
+        droppedCount: 1,
+        survivingEventCount: 1,
+      ),
+    );
 
     runtime.sendInput(sessionId, Uint8List(0));
     await tester.pump();
 
     expect(runtime.hasSession(sessionId), isFalse);
+    expect(exitHookRanBeforeNativeClose, isTrue);
+    expect(runtimeBackend.closeCalls, <String>[sessionId]);
     expect(seenEvents.whereType<TerminalSessionExitEvent>().single.exitCode, 7);
+    expect(runtimeEventGaps, hasLength(1));
+    expect(runtimeEventGaps.single.sessionId, sessionId);
+    expect(runtimeEventGaps.single.expectedSequence, 3);
+    expect(runtimeEventGaps.single.nextSequence, 5);
+    expect(runtimeEventGaps.single.stateRefreshRequested, isFalse);
   });
+
+  testWidgets(
+    'polling-disabled runtime follows a native pending-exit hint to completion',
+    (tester) async {
+      final backend = _RefreshHintPtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+        enableWarmUpRefresh: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+      final pollsBeforeExit = backend.pollEventsCalls;
+
+      backend.hintFlags = PtyRefreshHintFlags.exitPending;
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      backend.hintFlags = PtyRefreshHintFlags.eventPending;
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'exit',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'code': 0},
+        ),
+      );
+
+      await tester.pump(const Duration(milliseconds: 60));
+      await tester.pump();
+
+      expect(backend.pollEventsCalls, greaterThan(pollsBeforeExit + 1));
+      expect(runtime.hasSession(sessionId), isFalse);
+      expect(backend.closeCalls, <String>[sessionId]);
+    },
+  );
+
+  testWidgets(
+    'polling-disabled runtime follows exit tail after ZMODEM failure',
+    (tester) async {
+      final backend = _RefreshHintPtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+        enableWarmUpRefresh: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '88',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      expect(runtime.isZmodemTransferActive(sessionId), isTrue);
+
+      backend.hintFlags = PtyRefreshHintFlags.exitPending;
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_failed',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '88',
+            'direction': 'receive',
+            'reason': 'timeout',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      expect(runtime.isZmodemTransferActive(sessionId), isFalse);
+
+      backend.hintFlags = PtyRefreshHintFlags.eventPending;
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'exit',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'code': 1},
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 60));
+      await tester.pump();
+
+      expect(runtime.hasSession(sessionId), isFalse);
+      expect(backend.closeCalls, <String>[sessionId]);
+    },
+  );
 
   testWidgets(
     'terminal runtime controller applies the final frame before handling exit',
@@ -10306,6 +10622,2162 @@ void main() {
       expect(platformReads, 1);
     },
   );
+
+  testWidgets(
+    'ZMODEM events lock terminal input and authorize only the active transfer',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+      final sessionEvents = <TerminalSessionEvent>[];
+      final zmodemEvents = <TerminalSessionZmodemEvent>[];
+      final deferredWriteFailures =
+          <TerminalSessionZmodemDeferredWriteFailedDiagnostic>[];
+      final runtimeEventGaps = <TerminalSessionRuntimeEventGapDiagnostic>[];
+      final sessionSubscription = runtime.events.listen(sessionEvents.add);
+      final zmodemSubscription = runtime.zmodemEvents.listen(zmodemEvents.add);
+      final deferredWriteFailureSubscription = runtime
+          .zmodemDeferredWriteFailures
+          .listen(deferredWriteFailures.add);
+      final runtimeEventGapSubscription = runtime.runtimeEventGaps.listen(
+        runtimeEventGaps.add,
+      );
+      addTearDown(sessionSubscription.cancel);
+      addTearDown(zmodemSubscription.cancel);
+      addTearDown(deferredWriteFailureSubscription.cancel);
+      addTearDown(runtimeEventGapSubscription.cancel);
+      backend.writeCalls.clear();
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '7',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+
+      expect(runtime.isZmodemTransferActive(sessionId), isTrue);
+      expect(runtime.activeZmodemTransferIdFor(sessionId), '7');
+      runtime.sendInput(sessionId, Uint8List.fromList(const <int>[0x41]));
+      expect(backend.writeCalls, isEmpty);
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_file_offer',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '7',
+            'direction': 'receive',
+            'filename': 'report.txt',
+            'size': null,
+            'modificationTimeSeconds': 1700000456,
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+      final offer = zmodemEvents
+          .where((event) => event.kind == TerminalZmodemEventKind.fileOffer)
+          .single;
+      expect(
+        sessionEvents,
+        everyElement(isA<TerminalSessionFrameEvent>()),
+        reason: 'ZMODEM does not widen the sealed TerminalSessionEvent stream',
+      );
+      expect(offer.isValid, isTrue);
+      expect(offer.filename, 'report.txt');
+      expect(offer.size, isNull);
+      expect(offer.hasKnownSize, isFalse);
+      expect(offer.modificationTimeSeconds, 1700000456);
+      expect(
+        TerminalSessionZmodemEvent(
+          sessionId,
+          rawPayload: const <String, Object?>{
+            'source': 'zmodem',
+            'eventKind': 'zmodem_file_offer',
+            'transferId': '7',
+            'direction': 'receive',
+            'filename': 'epoch-is-unavailable.bin',
+            'size': 1,
+            'modificationTimeSeconds': 0,
+          },
+        ).modificationTimeSeconds,
+        isNull,
+      );
+      expect(
+        runtime.acceptZmodemReceive(offer, destination: '/tmp/downloads'),
+        isTrue,
+      );
+      expect(backend.jsonRequests.last, <String, Object?>{
+        'kind': 'terminal.zmodem.accept_receive',
+        'transferId': '7',
+        'destination': '/tmp/downloads',
+      });
+
+      expect(
+        runtime.acceptZmodemReceive(
+          TerminalSessionZmodemEvent(
+            sessionId,
+            rawPayload: const <String, Object?>{
+              'source': 'zmodem',
+              'eventKind': 'zmodem_file_offer',
+              'transferId': '8',
+              'direction': 'receive',
+              'filename': '../escape',
+              'size': 1,
+            },
+          ),
+          destination: '/tmp/downloads',
+        ),
+        isFalse,
+      );
+
+      TerminalSessionZmodemEvent filenameOffer(String filename) =>
+          TerminalSessionZmodemEvent(
+            sessionId,
+            rawPayload: <String, Object?>{
+              'source': 'zmodem',
+              'eventKind': 'zmodem_file_offer',
+              'transferId': '7',
+              'direction': 'receive',
+              'filename': filename,
+              'size': null,
+            },
+          );
+      expect(filenameOffer('a' * 240).isValid, isTrue);
+      expect(filenameOffer('a' * 241).isValid, isFalse);
+      expect(filenameOffer('😀' * 60).isValid, isTrue);
+      expect(filenameOffer('😀' * 61).isValid, isFalse);
+      expect(filenameOffer('CON.txt').isValid, isFalse);
+      expect(filenameOffer('bad?.txt').isValid, isFalse);
+      expect(filenameOffer('发票-東京-😀.jpg').isValid, isTrue);
+
+      const bidiControls = <int>[
+        0x061c,
+        0x200e,
+        0x200f,
+        0x202a,
+        0x202b,
+        0x202c,
+        0x202d,
+        0x202e,
+        0x2066,
+        0x2067,
+        0x2068,
+        0x2069,
+      ];
+      for (final rune in bidiControls) {
+        expect(
+          filenameOffer('invoice${String.fromCharCode(rune)}gpj.exe').isValid,
+          isFalse,
+          reason:
+              'U+${rune.toRadixString(16).padLeft(4, '0')} must be rejected',
+        );
+      }
+      final maliciousOffer = filenameOffer('invoice\u202Egpj.exe');
+      expect(maliciousOffer.filename, isNull);
+      expect(maliciousOffer.isValid, isFalse);
+      expect(
+        runtime.acceptZmodemReceive(
+          maliciousOffer,
+          destination: '/tmp/downloads',
+        ),
+        isFalse,
+      );
+
+      final exactLimitTrailingDot = '${'a' * 239}.';
+      expect(utf8.encode(exactLimitTrailingDot), hasLength(240));
+      expect(filenameOffer(exactLimitTrailingDot).isValid, isFalse);
+
+      final publishFailure = TerminalSessionZmodemEvent(
+        sessionId,
+        rawPayload: const <String, Object?>{
+          'source': 'zmodem',
+          'eventKind': 'zmodem_failed',
+          'transferId': '7',
+          'direction': 'receive',
+          'reason': 'publish_failed',
+          'recoverablePartialName': '.report.ianvs-part',
+          'stagingPreserved': true,
+          'recoveryToken': '0123456789abcdef0123456789ABCDEF',
+          'recoverablePartialPath': '/private/downloads/.report.ianvs-part',
+        },
+      );
+      expect(publishFailure.isValid, isTrue);
+      expect(publishFailure.recoverablePartialName, '.report.ianvs-part');
+      expect(publishFailure.stagingPreserved, isTrue);
+      expect(publishFailure.recoveryToken, '0123456789abcdef0123456789abcdef');
+      expect(
+        publishFailure.rawPayload.containsKey('recoverablePartialPath'),
+        isFalse,
+      );
+      expect(publishFailure.rawPayload.containsKey('recoveryToken'), isFalse);
+      backend.zmodemRecoveryPath = '/current/downloads/.report.ianvs-part';
+      final recovery = runtime.resolveZmodemRecovery(publishFailure);
+      expect(recovery.status, TerminalZmodemRecoveryResolutionStatus.available);
+      expect(recovery.path, '/current/downloads/.report.ianvs-part');
+      expect(backend.jsonRequests.last, <String, Object?>{
+        'kind': 'terminal.zmodem.resolve_recovery',
+        'recoveryToken': '0123456789abcdef0123456789abcdef',
+      });
+      expect(
+        TerminalSessionZmodemEvent(
+          sessionId,
+          rawPayload: const <String, Object?>{
+            'source': 'zmodem',
+            'eventKind': 'zmodem_failed',
+            'transferId': '7',
+            'direction': 'receive',
+            'reason': 'publish_failed',
+            'recoverablePartialName': '../escaped.part',
+            'stagingPreserved': true,
+          },
+        ).isValid,
+        isFalse,
+      );
+      final invalidTokenFailure = TerminalSessionZmodemEvent(
+        sessionId,
+        rawPayload: const <String, Object?>{
+          'source': 'zmodem',
+          'eventKind': 'zmodem_failed',
+          'transferId': '7',
+          'direction': 'receive',
+          'reason': 'publish_failed',
+          'recoverablePartialName': '.report.ianvs-part',
+          'stagingPreserved': true,
+          'recoveryToken': 'not-a-token',
+        },
+      );
+      expect(invalidTokenFailure.isValid, isTrue);
+      expect(invalidTokenFailure.recoveryToken, isNull);
+      expect(
+        invalidTokenFailure.rawPayload.containsKey('recoveryToken'),
+        isFalse,
+      );
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_completed',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '7',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+
+      expect(runtime.isZmodemTransferActive(sessionId), isFalse);
+      runtime.sendInput(sessionId, Uint8List.fromList(const <int>[0x42]));
+      expect(backend.writeCalls.single, Uint8List.fromList(const <int>[0x42]));
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '8',
+            'direction': 'send',
+          },
+        ),
+      );
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_file_skipped',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '8',
+            'direction': 'send',
+            'filename': 'already-there.bin',
+            'size': 512,
+            'completedFiles': 1,
+            'skippedFiles': 1,
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+
+      expect(runtime.activeZmodemTransferIdFor(sessionId), '8');
+      expect(
+        zmodemEvents.last.kind,
+        TerminalZmodemEventKind.fileSkipped,
+        reason: 'skipping one file must not terminate the remaining batch',
+      );
+      expect(zmodemEvents.last.completedFiles, 1);
+      expect(zmodemEvents.last.skippedFiles, 1);
+      expect(sessionEvents, everyElement(isA<TerminalSessionFrameEvent>()));
+
+      final zmodemEventCountBeforeDiagnostic = zmodemEvents.length;
+      backend.enqueueEvent(
+        sessionId,
+        const PtyEvent(
+          kind: 'zmodem_deferred_write_failed',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'reason': 'io_error',
+            'queuedChunks': 3,
+            'queuedBytes': 12,
+            'completedChunks': 1,
+            'completedBytes': 4,
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+
+      expect(runtime.activeZmodemTransferIdFor(sessionId), '8');
+      expect(zmodemEvents, hasLength(zmodemEventCountBeforeDiagnostic));
+      expect(deferredWriteFailures, hasLength(1));
+      final deferredWriteFailure = deferredWriteFailures.single;
+      expect(deferredWriteFailure.sessionId, sessionId);
+      expect(deferredWriteFailure.source, 'zmodem');
+      expect(deferredWriteFailure.reason, 'io_error');
+      expect(deferredWriteFailure.queuedChunks, 3);
+      expect(deferredWriteFailure.queuedBytes, 12);
+      expect(deferredWriteFailure.completedChunks, 1);
+      expect(deferredWriteFailure.completedBytes, 4);
+      expect(deferredWriteFailure.unconfirmedChunks, 2);
+      expect(deferredWriteFailure.unconfirmedBytes, 8);
+
+      backend.cancelActiveZmodemResponse = false;
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_completed',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '8',
+            'direction': 'send',
+            'completedFiles': 1,
+            'skippedFiles': 1,
+          },
+        ),
+      );
+      backend.enqueueEvent(
+        sessionId,
+        PtyRuntimeEventGapDiagnostic(
+          sessionId: sessionId,
+          expectedSequence: 4,
+          nextSequence: 6,
+          droppedCount: 1,
+          survivingEventCount: 1,
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+
+      expect(zmodemEvents.last.kind, TerminalZmodemEventKind.completed);
+      expect(runtime.isZmodemTransferActive(sessionId), isTrue);
+      expect(runtimeEventGaps, hasLength(1));
+      expect(runtimeEventGaps.single.expectedSequence, 4);
+      expect(runtimeEventGaps.single.nextSequence, 6);
+      expect(runtimeEventGaps.single.droppedCount, 1);
+      expect(runtimeEventGaps.single.survivingEventCount, 1);
+      expect(runtimeEventGaps.single.affectedZmodemTransferId, '8');
+      expect(runtimeEventGaps.single.zmodemStateCleared, isFalse);
+      expect(runtimeEventGaps.single.zmodemCancellationAccepted, isFalse);
+      expect(runtimeEventGaps.single.stateRefreshRequested, isTrue);
+      final writesWhileGapAuthorityIsUnknown = backend.writeCalls.length;
+      runtime.sendInput(sessionId, Uint8List.fromList(const <int>[0x43]));
+      expect(backend.writeCalls, hasLength(writesWhileGapAuthorityIsUnknown));
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_cancelled',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '9',
+            'direction': 'send',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      expect(runtime.isZmodemTransferActive(sessionId), isFalse);
+      runtime.sendInput(sessionId, Uint8List.fromList(const <int>[0x43]));
+      expect(backend.writeCalls.last, Uint8List.fromList(const <int>[0x43]));
+    },
+  );
+
+  testWidgets(
+    'Runtime Event gaps preserve a standalone publish recovery token',
+    (tester) async {
+      final backend = _FakePtyBackend()..cancelActiveZmodemOutcome = 'idle';
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final zmodemEvents = <TerminalSessionZmodemEvent>[];
+      final subscription = runtime.zmodemEvents.listen(zmodemEvents.add);
+      addTearDown(subscription.cancel);
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyRuntimeEventGapDiagnostic(
+          sessionId: sessionId,
+          expectedSequence: 3,
+          nextSequence: 7,
+          droppedCount: 4,
+          survivingEventCount: 1,
+        ),
+      );
+      backend.enqueueEvent(
+        sessionId,
+        const PtyEvent(
+          kind: 'zmodem_failed',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '71',
+            'direction': 'receive',
+            'reason': 'publish_failed',
+            'recoverablePartialName': '.complete.ianvs-part',
+            'stagingPreserved': true,
+            'recoveryToken': '1234567890abcdef1234567890abcdef',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+
+      expect(zmodemEvents, hasLength(1));
+      expect(zmodemEvents.single.hasRecoverableReceiveStaging, isTrue);
+      expect(
+        zmodemEvents.single.recoveryToken,
+        '1234567890abcdef1234567890abcdef',
+      );
+      expect(runtime.isZmodemTransferActive(sessionId), isFalse);
+    },
+  );
+
+  testWidgets(
+    'ZMODEM detection racing input pauses without a backend error event',
+    (tester) async {
+      final backend = _FakePtyBackend()..failingOperations.add('writeInput');
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final sessionEvents = <TerminalSessionEvent>[];
+      final subscription = runtime.events.listen(sessionEvents.add);
+      addTearDown(subscription.cancel);
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '72',
+            'direction': 'send',
+          },
+        ),
+      );
+
+      runtime.sendInput(sessionId, Uint8List.fromList(const <int>[0x41]));
+      await tester.pump();
+
+      expect(runtime.activeZmodemTransferIdFor(sessionId), '72');
+      expect(
+        sessionEvents.whereType<TerminalSessionBackendErrorEvent>(),
+        isEmpty,
+      );
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_cancelled',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '72',
+            'direction': 'send',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+    },
+  );
+
+  testWidgets('async terminal protocol reply waits for ZMODEM terminal state', (
+    tester,
+  ) async {
+    final clipboard = Completer<String>();
+    final backend = _FakePtyBackend();
+    final runtime = TerminalRuntimeController(
+      backend: backend,
+      copyToClipboard: (_) async {},
+      readClipboard: () => clipboard.future,
+      allowClipboardPasteRequest: () async => true,
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    await tester.pump();
+    backend.writeCalls.clear();
+    backend.enqueueEvent(
+      sessionId,
+      PtyEvent(
+        kind: 'clipboard_paste_request',
+        sessionId: sessionId,
+        payload: const <String, Object?>{'selection': 'c'},
+      ),
+    );
+    backend.enqueueEvent(
+      sessionId,
+      PtyEvent(
+        kind: 'zmodem_detected',
+        sessionId: sessionId,
+        payload: const <String, Object?>{
+          'source': 'zmodem',
+          'transferId': '721',
+          'direction': 'send',
+        },
+      ),
+    );
+
+    runtime.refreshSession(sessionId);
+    await tester.pump();
+    expect(runtime.isZmodemTransferActive(sessionId), isTrue);
+    clipboard.complete('reply after detection');
+    await tester.pump();
+    await tester.pump();
+    expect(backend.writeCalls, isEmpty);
+
+    backend.enqueueEvent(
+      sessionId,
+      PtyEvent(
+        kind: 'zmodem_cancelled',
+        sessionId: sessionId,
+        payload: const <String, Object?>{
+          'source': 'zmodem',
+          'transferId': '721',
+          'direction': 'send',
+        },
+      ),
+    );
+    runtime.refreshSession(sessionId);
+    await tester.pump();
+    await tester.pump();
+
+    expect(backend.writeCalls, hasLength(1));
+    expect(
+      utf8.decode(backend.writeCalls.single),
+      '\x1B]52;c;${base64.encode(utf8.encode('reply after detection'))}\x07',
+    );
+  });
+
+  testWidgets(
+    'deferred protocol reply waits across a contiguous successor transfer',
+    (tester) async {
+      final clipboard = Completer<String>();
+      final backend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () => clipboard.future,
+        allowClipboardPasteRequest: () async => true,
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+      backend.writeCalls.clear();
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '7211',
+            'direction': 'send',
+          },
+        ),
+      );
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_paste_request',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'selection': 'c'},
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      clipboard.complete('reply after both transfers');
+      await tester.pump();
+      expect(backend.writeCalls, isEmpty);
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_completed',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '7211',
+            'direction': 'send',
+          },
+        ),
+      );
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '7212',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+
+      expect(runtime.activeZmodemTransferIdFor(sessionId), '7212');
+      expect(backend.writeCalls, isEmpty);
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_cancelled',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '7212',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+
+      expect(backend.writeCalls, hasLength(1));
+      expect(
+        utf8.decode(backend.writeCalls.single),
+        '\x1B]52;c;${base64.encode(utf8.encode('reply after both transfers'))}\x07',
+      );
+    },
+  );
+
+  testWidgets(
+    'fallback protocol reply survives detection racing its flush write',
+    (tester) async {
+      final backend = _ProtocolReplyFlushRacePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => 'reply preserved across raced detection',
+        allowClipboardPasteRequest: () async => true,
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+      backend.writeCalls.clear();
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '7213',
+            'direction': 'send',
+          },
+        ),
+      );
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_paste_request',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'selection': 'c'},
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+      expect(backend.writeCalls, isEmpty);
+
+      backend.raceNextWriteWithTransferId = '7214';
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_completed',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '7213',
+            'direction': 'send',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+
+      expect(runtime.activeZmodemTransferIdFor(sessionId), '7214');
+      expect(backend.writeCalls, isEmpty);
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_cancelled',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '7214',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+
+      expect(backend.writeCalls, hasLength(1));
+      expect(
+        utf8.decode(backend.writeCalls.single),
+        '\x1B]52;c;${base64.encode(utf8.encode('reply preserved across raced detection'))}\x07',
+      );
+    },
+  );
+
+  testWidgets(
+    'async protocol reply uses native ordered path before Dart observes ZMODEM',
+    (tester) async {
+      final backend = _ProtocolReplyFakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => 'authoritative native ordering',
+        allowClipboardPasteRequest: () async => true,
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+      backend.writeCalls.clear();
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_paste_request',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'selection': 'c'},
+        ),
+      );
+
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+
+      expect(backend.writeCalls, isEmpty);
+      expect(backend.protocolReplyCalls, hasLength(1));
+      expect(
+        utf8.decode(backend.protocolReplyCalls.single),
+        '\x1B]52;c;${base64.encode(utf8.encode('authoritative native ordering'))}\x07',
+      );
+    },
+  );
+
+  testWidgets('Repeated ZMODEM cancellation is one id-bound request', (
+    tester,
+  ) async {
+    final backend = _FakePtyBackend();
+    final runtime = TerminalRuntimeController(
+      backend: backend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    final events = <TerminalSessionZmodemEvent>[];
+    final subscription = runtime.zmodemEvents.listen(events.add);
+    addTearDown(subscription.cancel);
+    backend.enqueueEvent(
+      sessionId,
+      PtyEvent(
+        kind: 'zmodem_detected',
+        sessionId: sessionId,
+        payload: const <String, Object?>{
+          'source': 'zmodem',
+          'transferId': '73',
+          'direction': 'send',
+        },
+      ),
+    );
+    runtime.refreshSession(sessionId);
+    await tester.pump();
+    backend.jsonRequests.clear();
+
+    expect(runtime.cancelZmodem(events.single), isTrue);
+    expect(runtime.cancelZmodem(events.single), isTrue);
+
+    expect(backend.jsonRequests, <Map<String, Object?>>[
+      <String, Object?>{'kind': 'terminal.zmodem.cancel', 'transferId': '73'},
+    ]);
+    expect(runtime.tryCloseSession(sessionId), isTrue);
+  });
+
+  testWidgets(
+    'Runtime Event gaps retain the ZMODEM input lock during native drain',
+    (tester) async {
+      final backend = _FakePtyBackend()
+        ..cancelZmodemResponse = false
+        ..cancelActiveZmodemOutcome = 'draining';
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      final zmodemEvents = <TerminalSessionZmodemEvent>[];
+      final runtimeEventGaps = <TerminalSessionRuntimeEventGapDiagnostic>[];
+      final zmodemSubscription = runtime.zmodemEvents.listen(zmodemEvents.add);
+      final runtimeEventGapSubscription = runtime.runtimeEventGaps.listen(
+        runtimeEventGaps.add,
+      );
+      addTearDown(zmodemSubscription.cancel);
+      addTearDown(runtimeEventGapSubscription.cancel);
+      backend.writeCalls.clear();
+      backend.jsonRequests.clear();
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '9',
+            'direction': 'send',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+      expect(runtime.activeZmodemTransferIdFor(sessionId), '9');
+      final pollsBeforeGap = backend.pollEventsCalls;
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyRuntimeEventGapDiagnostic(
+          sessionId: sessionId,
+          expectedSequence: 8,
+          nextSequence: 11,
+          droppedCount: 2,
+          survivingEventCount: 1,
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+
+      expect(backend.pollEventsCalls - pollsBeforeGap, greaterThanOrEqualTo(2));
+      expect(backend.jsonRequests.single, <String, Object?>{
+        'kind': 'terminal.zmodem.cancel_active',
+      });
+      expect(runtime.isZmodemTransferActive(sessionId), isTrue);
+      expect(zmodemEvents.last.isReconciliationRequired, isTrue);
+      expect(zmodemEvents.last.kind, isNull);
+
+      expect(runtimeEventGaps, hasLength(1));
+      final gap = runtimeEventGaps.single;
+      expect(gap.sessionId, sessionId);
+      expect(gap.expectedSequence, 8);
+      expect(gap.nextSequence, 11);
+      expect(gap.droppedCount, 2);
+      expect(gap.survivingEventCount, 1);
+      expect(gap.affectedZmodemTransferId, '9');
+      expect(gap.zmodemStateCleared, isFalse);
+      expect(gap.zmodemCancellationAccepted, isFalse);
+      expect(gap.stateRefreshRequested, isTrue);
+
+      runtime.sendInput(sessionId, Uint8List.fromList(const <int>[0x44]));
+      expect(backend.writeCalls, isEmpty);
+
+      backend.cancelActiveZmodemOutcome = 'cancelled';
+      expect(runtime.cancelZmodem(zmodemEvents.last), isTrue);
+      await tester.pump();
+      expect(runtime.isZmodemTransferActive(sessionId), isTrue);
+      expect(zmodemEvents.last.isReconciliationRequired, isTrue);
+      expect(zmodemEvents.last.kind, isNull);
+      expect(
+        backend.jsonRequests
+            .skip(backend.jsonRequests.length - 2)
+            .map((request) => request['kind']),
+        <Object?>['terminal.zmodem.cancel', 'terminal.zmodem.cancel_active'],
+      );
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_cancelled',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'eventKind': 'zmodem_cancelled',
+            'transferId': '9',
+            'direction': 'send',
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 60));
+      await tester.pump();
+      expect(runtime.isZmodemTransferActive(sessionId), isFalse);
+      expect(zmodemEvents.last.kind, TerminalZmodemEventKind.cancelled);
+    },
+  );
+
+  testWidgets(
+    'Gap cancellation suppresses stale authorization and retains drain lock',
+    (tester) async {
+      final backend = _FakePtyBackend()
+        ..cancelActiveZmodemOutcome = 'cancelled';
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+      final events = <TerminalSessionZmodemEvent>[];
+      final subscription = runtime.zmodemEvents.listen(events.add);
+      addTearDown(subscription.cancel);
+      backend.writeCalls.clear();
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyRuntimeEventGapDiagnostic(
+          sessionId: sessionId,
+          expectedSequence: 1,
+          nextSequence: 3,
+          droppedCount: 1,
+          survivingEventCount: 1,
+        ),
+      );
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '751',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+
+      expect(events, hasLength(1));
+      expect(events.single.isReconciliationRequired, isTrue);
+      expect(events.single.kind, isNull);
+      expect(runtime.isZmodemTransferActive(sessionId), isTrue);
+      runtime.sendInput(sessionId, Uint8List.fromList(const <int>[0x55]));
+      expect(backend.writeCalls, isEmpty);
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_cancelled',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '751',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+
+      expect(events.last.kind, TerminalZmodemEventKind.cancelled);
+      expect(runtime.isZmodemTransferActive(sessionId), isFalse);
+    },
+  );
+
+  testWidgets(
+    'Known gap authority becomes unknown before a successor terminal',
+    (tester) async {
+      final backend = _FakePtyBackend()
+        ..cancelActiveZmodemOutcome = 'cancelled';
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+      final events = <TerminalSessionZmodemEvent>[];
+      final subscription = runtime.zmodemEvents.listen(events.add);
+      addTearDown(subscription.cancel);
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '71',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      backend.writeCalls.clear();
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyRuntimeEventGapDiagnostic(
+          sessionId: sessionId,
+          expectedSequence: 4,
+          nextSequence: 6,
+          droppedCount: 1,
+          survivingEventCount: 1,
+        ),
+      );
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '72',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+
+      expect(runtime.isZmodemTransferActive(sessionId), isTrue);
+      expect(runtime.activeZmodemTransferIdFor(sessionId), isNot('71'));
+      expect(events.any((event) => event.isReconciliationRequired), isTrue);
+      expect(
+        events.where(
+          (event) =>
+              event.transferId == '72' &&
+              event.kind == TerminalZmodemEventKind.detected,
+        ),
+        isEmpty,
+      );
+      runtime.sendInput(sessionId, Uint8List.fromList(const <int>[0x63]));
+      expect(backend.writeCalls, isEmpty);
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_cancelled',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '72',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+
+      expect(runtime.isZmodemTransferActive(sessionId), isFalse);
+      expect(events.last.transferId, '72');
+      expect(events.last.kind, TerminalZmodemEventKind.cancelled);
+    },
+  );
+
+  testWidgets(
+    'Old terminal plus successor gap retains unknown authority during drain',
+    (tester) async {
+      final backend = _FakePtyBackend()
+        ..cancelActiveZmodemOutcome = 'cancelled';
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+      final events = <TerminalSessionZmodemEvent>[];
+      final subscription = runtime.zmodemEvents.listen(events.add);
+      addTearDown(subscription.cancel);
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '71',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      backend.writeCalls.clear();
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyRuntimeEventGapDiagnostic(
+          sessionId: sessionId,
+          expectedSequence: 4,
+          nextSequence: 7,
+          droppedCount: 1,
+          survivingEventCount: 2,
+        ),
+      );
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_completed',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '71',
+            'direction': 'receive',
+          },
+        ),
+      );
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '72',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+
+      expect(runtime.isZmodemTransferActive(sessionId), isTrue);
+      expect(events.any((event) => event.isReconciliationRequired), isTrue);
+      expect(
+        events.any(
+          (event) =>
+              event.transferId == '71' &&
+              event.kind == TerminalZmodemEventKind.completed,
+        ),
+        isTrue,
+      );
+      expect(
+        events.where(
+          (event) =>
+              event.transferId == '72' &&
+              event.kind == TerminalZmodemEventKind.detected,
+        ),
+        isEmpty,
+      );
+      runtime.sendInput(sessionId, Uint8List.fromList(const <int>[0x61]));
+      expect(backend.writeCalls, isEmpty);
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_cancelled',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '72',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      expect(runtime.isZmodemTransferActive(sessionId), isFalse);
+    },
+  );
+
+  testWidgets(
+    'Gap recovery from an old transfer preserves the current native drain',
+    (tester) async {
+      final backend = _FakePtyBackend()
+        ..cancelActiveZmodemOutcome = 'cancelled';
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+      final events = <TerminalSessionZmodemEvent>[];
+      final subscription = runtime.zmodemEvents.listen(events.add);
+      addTearDown(subscription.cancel);
+      backend.writeCalls.clear();
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyRuntimeEventGapDiagnostic(
+          sessionId: sessionId,
+          expectedSequence: 1,
+          nextSequence: 4,
+          droppedCount: 1,
+          survivingEventCount: 2,
+        ),
+      );
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_failed',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '71',
+            'direction': 'receive',
+            'reason': 'publish_failed',
+            'recoverablePartialName': '.complete.ianvs-part',
+            'stagingPreserved': true,
+            'recoveryToken': '1234567890abcdef1234567890abcdef',
+          },
+        ),
+      );
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '72',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+
+      expect(events, hasLength(2));
+      expect(events.first.isReconciliationRequired, isTrue);
+      expect(events.last.transferId, '71');
+      expect(events.last.hasRecoverableReceiveStaging, isTrue);
+      expect(runtime.isZmodemTransferActive(sessionId), isTrue);
+      runtime.sendInput(sessionId, Uint8List.fromList(const <int>[0x55]));
+      expect(backend.writeCalls, isEmpty);
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_cancelled',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '72',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+
+      expect(events.last.transferId, '72');
+      expect(events.last.kind, TerminalZmodemEventKind.cancelled);
+      expect(runtime.isZmodemTransferActive(sessionId), isFalse);
+    },
+  );
+
+  testWidgets(
+    'Idle reconciliation lets a recovery terminal clear unknown authority',
+    (tester) async {
+      final backend = _FakePtyBackend()..cancelActiveZmodemOutcome = 'draining';
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+      final events = <TerminalSessionZmodemEvent>[];
+      final subscription = runtime.zmodemEvents.listen(events.add);
+      addTearDown(subscription.cancel);
+      backend.writeCalls.clear();
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyRuntimeEventGapDiagnostic(
+          sessionId: sessionId,
+          expectedSequence: 1,
+          nextSequence: 4,
+          droppedCount: 3,
+          survivingEventCount: 0,
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+      expect(events.single.isReconciliationRequired, isTrue);
+      expect(runtime.isZmodemTransferActive(sessionId), isTrue);
+
+      backend.cancelActiveZmodemOutcome = 'idle';
+      backend.enqueueEvent(
+        sessionId,
+        PtyRuntimeEventGapDiagnostic(
+          sessionId: sessionId,
+          expectedSequence: 4,
+          nextSequence: 6,
+          droppedCount: 1,
+          survivingEventCount: 1,
+        ),
+      );
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_failed',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '71',
+            'direction': 'receive',
+            'reason': 'publish_failed',
+            'recoverablePartialName': '.complete.ianvs-part',
+            'stagingPreserved': true,
+            'recoveryToken': '1234567890abcdef1234567890abcdef',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+
+      expect(runtime.isZmodemTransferActive(sessionId), isFalse);
+      expect(events.last.transferId, '71');
+      expect(events.last.hasRecoverableReceiveStaging, isTrue);
+      runtime.sendInput(sessionId, Uint8List.fromList(const <int>[0x64]));
+      expect(backend.writeCalls.last, Uint8List.fromList(const <int>[0x64]));
+    },
+  );
+
+  testWidgets('Runtime Event gap clears a known transfer when native is idle', (
+    tester,
+  ) async {
+    final backend = _FakePtyBackend()..cancelActiveZmodemOutcome = 'idle';
+    final runtime = TerminalRuntimeController(
+      backend: backend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    await tester.pump();
+    final zmodemEvents = <TerminalSessionZmodemEvent>[];
+    final runtimeEventGaps = <TerminalSessionRuntimeEventGapDiagnostic>[];
+    final zmodemSubscription = runtime.zmodemEvents.listen(zmodemEvents.add);
+    final gapSubscription = runtime.runtimeEventGaps.listen(
+      runtimeEventGaps.add,
+    );
+    addTearDown(zmodemSubscription.cancel);
+    addTearDown(gapSubscription.cancel);
+
+    backend.enqueueEvent(
+      sessionId,
+      PtyEvent(
+        kind: 'zmodem_detected',
+        sessionId: sessionId,
+        payload: const <String, Object?>{
+          'source': 'zmodem',
+          'transferId': '901',
+          'direction': 'send',
+        },
+      ),
+    );
+    runtime.refreshSession(sessionId);
+    await tester.pump();
+    backend.writeCalls.clear();
+    backend.jsonRequests.clear();
+
+    backend.enqueueEvent(
+      sessionId,
+      PtyRuntimeEventGapDiagnostic(
+        sessionId: sessionId,
+        expectedSequence: 4,
+        nextSequence: 6,
+        droppedCount: 2,
+        survivingEventCount: 0,
+      ),
+    );
+    runtime.refreshSession(sessionId);
+    await tester.pump();
+    await tester.pump();
+
+    expect(runtime.isZmodemTransferActive(sessionId), isFalse);
+    expect(zmodemEvents.last.kind, TerminalZmodemEventKind.failed);
+    expect(zmodemEvents.last.reason, 'event_sequence_gap');
+    expect(runtimeEventGaps.single.zmodemStateCleared, isTrue);
+    expect(runtimeEventGaps.single.zmodemCancellationAccepted, isFalse);
+    runtime.sendInput(sessionId, Uint8List.fromList(const <int>[0x49]));
+    expect(backend.writeCalls.last, Uint8List.fromList(const <int>[0x49]));
+  });
+
+  testWidgets(
+    'Runtime Event gap does not create an unknown lock when native is idle',
+    (tester) async {
+      final backend = _FakePtyBackend()..cancelActiveZmodemOutcome = 'idle';
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+      final zmodemEvents = <TerminalSessionZmodemEvent>[];
+      final subscription = runtime.zmodemEvents.listen(zmodemEvents.add);
+      addTearDown(subscription.cancel);
+      backend.writeCalls.clear();
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyRuntimeEventGapDiagnostic(
+          sessionId: sessionId,
+          expectedSequence: 1,
+          nextSequence: 3,
+          droppedCount: 2,
+          survivingEventCount: 0,
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+
+      expect(runtime.isZmodemTransferActive(sessionId), isFalse);
+      expect(zmodemEvents, isEmpty);
+      runtime.sendInput(sessionId, Uint8List.fromList(const <int>[0x4a]));
+      expect(backend.writeCalls.last, Uint8List.fromList(const <int>[0x4a]));
+    },
+  );
+
+  testWidgets(
+    'First-batch ZMODEM gap survivor establishes input lock when reconciliation fails',
+    (tester) async {
+      final backend = _FakePtyBackend()..cancelActiveZmodemResponse = false;
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+      final zmodemEvents = <TerminalSessionZmodemEvent>[];
+      final runtimeEventGaps = <TerminalSessionRuntimeEventGapDiagnostic>[];
+      final zmodemSubscription = runtime.zmodemEvents.listen(zmodemEvents.add);
+      final gapSubscription = runtime.runtimeEventGaps.listen(
+        runtimeEventGaps.add,
+      );
+      addTearDown(zmodemSubscription.cancel);
+      addTearDown(gapSubscription.cancel);
+      backend.writeCalls.clear();
+      backend.jsonRequests.clear();
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyRuntimeEventGapDiagnostic(
+          sessionId: sessionId,
+          expectedSequence: 1,
+          nextSequence: 3,
+          droppedCount: 1,
+          survivingEventCount: 1,
+        ),
+      );
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '74',
+            'direction': 'send',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+
+      expect(backend.jsonRequests.single, <String, Object?>{
+        'kind': 'terminal.zmodem.cancel_active',
+      });
+      expect(runtime.activeZmodemTransferIdFor(sessionId), '74');
+      expect(zmodemEvents.single.kind, TerminalZmodemEventKind.detected);
+      expect(runtimeEventGaps.single.zmodemCancellationAccepted, isFalse);
+      expect(runtimeEventGaps.single.zmodemStateCleared, isFalse);
+
+      runtime.sendInput(sessionId, Uint8List.fromList(const <int>[0x45]));
+      expect(backend.writeCalls, isEmpty);
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_cancelled',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '74',
+            'direction': 'send',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+    },
+  );
+
+  testWidgets(
+    'First-batch ZMODEM gap without survivors exposes a cancelable unknown lock',
+    (tester) async {
+      final backend = _FakePtyBackend()
+        ..cancelZmodemResponse = false
+        ..cancelActiveZmodemResponse = false;
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+      final zmodemEvents = <TerminalSessionZmodemEvent>[];
+      final subscription = runtime.zmodemEvents.listen(zmodemEvents.add);
+      addTearDown(subscription.cancel);
+      backend.writeCalls.clear();
+      backend.jsonRequests.clear();
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyRuntimeEventGapDiagnostic(
+          sessionId: sessionId,
+          expectedSequence: 1,
+          nextSequence: 4,
+          droppedCount: 3,
+          survivingEventCount: 0,
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+
+      expect(runtime.isZmodemTransferActive(sessionId), isTrue);
+      expect(zmodemEvents, hasLength(1));
+      expect(zmodemEvents.single.kind, isNull);
+      expect(zmodemEvents.single.isReconciliationRequired, isTrue);
+      expect(zmodemEvents.single.direction, isNull);
+      runtime.sendInput(sessionId, Uint8List.fromList(const <int>[0x46]));
+      expect(backend.writeCalls, isEmpty);
+
+      backend.cancelActiveZmodemResponse = true;
+      backend.cancelActiveZmodemOutcome = 'cancelled';
+      expect(runtime.cancelZmodem(zmodemEvents.single), isTrue);
+      await tester.pump();
+
+      expect(runtime.isZmodemTransferActive(sessionId), isTrue);
+      expect(zmodemEvents, hasLength(1));
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_failed',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'eventKind': 'zmodem_failed',
+            'transferId': '76',
+            'direction': 'receive',
+            'reason': 'cancelled_after_drain',
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 60));
+      await tester.pump();
+
+      expect(runtime.isZmodemTransferActive(sessionId), isFalse);
+      expect(zmodemEvents.last.kind, TerminalZmodemEventKind.failed);
+      expect(zmodemEvents.last.reason, 'cancelled_after_drain');
+    },
+  );
+
+  testWidgets(
+    'Unknown ZMODEM gap lock remains active while native is draining',
+    (tester) async {
+      final backend = _FakePtyBackend()
+        ..cancelZmodemResponse = false
+        ..cancelActiveZmodemOutcome = 'draining';
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+      final zmodemEvents = <TerminalSessionZmodemEvent>[];
+      final subscription = runtime.zmodemEvents.listen(zmodemEvents.add);
+      addTearDown(subscription.cancel);
+      backend.writeCalls.clear();
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyRuntimeEventGapDiagnostic(
+          sessionId: sessionId,
+          expectedSequence: 1,
+          nextSequence: 4,
+          droppedCount: 3,
+          survivingEventCount: 0,
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+
+      expect(zmodemEvents.single.isReconciliationRequired, isTrue);
+      expect(runtime.cancelZmodem(zmodemEvents.single), isTrue);
+      await tester.pump();
+      expect(runtime.isZmodemTransferActive(sessionId), isTrue);
+      expect(zmodemEvents, hasLength(1));
+      runtime.sendInput(sessionId, Uint8List.fromList(const <int>[0x47]));
+      expect(backend.writeCalls, isEmpty);
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_failed',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'eventKind': 'zmodem_failed',
+            'transferId': '76',
+            'direction': 'receive',
+            'reason': 'cancelled_after_drain',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+      expect(runtime.isZmodemTransferActive(sessionId), isFalse);
+      expect(zmodemEvents.last.kind, TerminalZmodemEventKind.failed);
+      expect(zmodemEvents.last.reason, 'cancelled_after_drain');
+    },
+  );
+
+  testWidgets(
+    'Runtime Event gap does not lock a backend without ZMODEM capability',
+    (tester) async {
+      final backend = _FakePtyBackend()..runtimeCapabilities = null;
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+      final zmodemEvents = <TerminalSessionZmodemEvent>[];
+      final subscription = runtime.zmodemEvents.listen(zmodemEvents.add);
+      addTearDown(subscription.cancel);
+      backend.writeCalls.clear();
+      backend.jsonRequests.clear();
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyRuntimeEventGapDiagnostic(
+          sessionId: sessionId,
+          expectedSequence: 1,
+          nextSequence: 3,
+          droppedCount: 2,
+          survivingEventCount: 0,
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+
+      expect(runtime.isZmodemTransferActive(sessionId), isFalse);
+      expect(zmodemEvents, isEmpty);
+      expect(backend.jsonRequests, isEmpty);
+      runtime.sendInput(sessionId, Uint8List.fromList(const <int>[0x48]));
+      expect(backend.writeCalls.last, Uint8List.fromList(const <int>[0x48]));
+    },
+  );
+
+  testWidgets(
+    'Terminal survivor clears unknown cancellation de-duplication for a later gap',
+    (tester) async {
+      final backend = _FakePtyBackend()
+        ..cancelZmodemResponse = false
+        ..cancelActiveZmodemOutcome = 'draining';
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+      final zmodemEvents = <TerminalSessionZmodemEvent>[];
+      final subscription = runtime.zmodemEvents.listen(zmodemEvents.add);
+      addTearDown(subscription.cancel);
+      backend.writeCalls.clear();
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyRuntimeEventGapDiagnostic(
+          sessionId: sessionId,
+          expectedSequence: 1,
+          nextSequence: 3,
+          droppedCount: 2,
+          survivingEventCount: 0,
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+      expect(zmodemEvents.single.isReconciliationRequired, isTrue);
+      expect(runtime.isZmodemTransferActive(sessionId), isTrue);
+      expect(runtime.cancelZmodem(zmodemEvents.single), isTrue);
+      expect(
+        backend.jsonRequests.map((request) => request['kind']),
+        containsAllInOrder(<Object?>[
+          'terminal.zmodem.cancel',
+          'terminal.zmodem.cancel_active',
+        ]),
+      );
+
+      backend.cancelActiveZmodemOutcome = 'idle';
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyRuntimeEventGapDiagnostic(
+          sessionId: sessionId,
+          expectedSequence: 3,
+          nextSequence: 5,
+          droppedCount: 1,
+          survivingEventCount: 1,
+        ),
+      );
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_completed',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'eventKind': 'zmodem_completed',
+            'transferId': '77',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+
+      expect(runtime.isZmodemTransferActive(sessionId), isFalse);
+      expect(zmodemEvents.last.kind, TerminalZmodemEventKind.completed);
+      expect(
+        zmodemEvents.where(
+          (event) =>
+              event.kind == TerminalZmodemEventKind.failed &&
+              event.reason == 'event_sequence_gap',
+        ),
+        isEmpty,
+      );
+      runtime.sendInput(sessionId, Uint8List.fromList(const <int>[0x4b]));
+      expect(backend.writeCalls.last, Uint8List.fromList(const <int>[0x4b]));
+
+      backend.cancelActiveZmodemOutcome = 'draining';
+      backend.jsonRequests.clear();
+      backend.enqueueEvent(
+        sessionId,
+        PtyRuntimeEventGapDiagnostic(
+          sessionId: sessionId,
+          expectedSequence: 5,
+          nextSequence: 8,
+          droppedCount: 3,
+          survivingEventCount: 0,
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+
+      final nextUnknown = zmodemEvents.last;
+      expect(nextUnknown.isReconciliationRequired, isTrue);
+      expect(runtime.cancelZmodem(nextUnknown), isTrue);
+      expect(
+        backend.jsonRequests.map((request) => request['kind']),
+        containsAllInOrder(<Object?>[
+          'terminal.zmodem.cancel_active',
+          'terminal.zmodem.cancel',
+          'terminal.zmodem.cancel_active',
+        ]),
+      );
+      expect(runtime.tryCloseSession(sessionId), isTrue);
+    },
+  );
+
+  testWidgets(
+    'Accepted ZMODEM transfer polls autonomously when session polling is disabled',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final zmodemEvents = <TerminalSessionZmodemEvent>[];
+      final subscription = runtime.zmodemEvents.listen(zmodemEvents.add);
+      addTearDown(subscription.cancel);
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '78',
+            'direction': 'send',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        runtime.acceptZmodemSend(
+          zmodemEvents.single,
+          files: const <String>['/tmp/report.bin'],
+        ),
+        isTrue,
+      );
+      final pollsBeforeCompletion = backend.pollEventsCalls;
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_completed',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'eventKind': 'zmodem_completed',
+            'transferId': '78',
+            'direction': 'send',
+            'completedFiles': 1,
+          },
+        ),
+      );
+
+      await tester.pump(const Duration(milliseconds: 60));
+      await tester.pump();
+
+      expect(backend.pollEventsCalls, greaterThan(pollsBeforeCompletion));
+      expect(runtime.isZmodemTransferActive(sessionId), isFalse);
+      expect(zmodemEvents.last.kind, TerminalZmodemEventKind.completed);
+    },
+  );
+
+  testWidgets(
+    'Detected ZMODEM transfer polls before authorization is answered',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final events = <TerminalSessionZmodemEvent>[];
+      final subscription = runtime.zmodemEvents.listen(events.add);
+      addTearDown(subscription.cancel);
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '781',
+            'direction': 'send',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+      final pollsAfterDetection = backend.pollEventsCalls;
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_cancelled',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '781',
+            'direction': 'send',
+          },
+        ),
+      );
+
+      await tester.pump(const Duration(milliseconds: 60));
+      await tester.pump();
+
+      expect(backend.pollEventsCalls, greaterThan(pollsAfterDetection));
+      expect(events.last.kind, TerminalZmodemEventKind.cancelled);
+      expect(runtime.isZmodemTransferActive(sessionId), isFalse);
+    },
+  );
+
+  testWidgets(
+    'Cancel during native drain waits for the authoritative completion event',
+    (tester) async {
+      final backend = _FakePtyBackend()
+        ..cancelZmodemResponse = false
+        ..cancelActiveZmodemOutcome = 'draining';
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+      final zmodemEvents = <TerminalSessionZmodemEvent>[];
+      final subscription = runtime.zmodemEvents.listen(zmodemEvents.add);
+      addTearDown(subscription.cancel);
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '75',
+            'direction': 'send',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+
+      expect(runtime.cancelZmodem(zmodemEvents.single), isTrue);
+      expect(runtime.isZmodemTransferActive(sessionId), isTrue);
+      expect(zmodemEvents, hasLength(1));
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_completed',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'eventKind': 'zmodem_completed',
+            'transferId': '75',
+            'direction': 'send',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+
+      expect(runtime.isZmodemTransferActive(sessionId), isFalse);
+      expect(zmodemEvents.last.kind, TerminalZmodemEventKind.completed);
+      expect(
+        zmodemEvents.where(
+          (event) => event.kind == TerminalZmodemEventKind.cancelled,
+        ),
+        isEmpty,
+      );
+    },
+  );
 }
 
 class _FakePtyBackend
@@ -10316,7 +12788,19 @@ class _FakePtyBackend
         PtySessionFileDownloadBackend,
         PtySessionDiagnosticsBackend,
         PtySessionDiagnosticEventV1Backend,
-        PtyHostResponseV1Backend {
+        PtyHostResponseV1Backend,
+        PtyRuntimeCapabilityBackend {
+  @override
+  PtyRuntimeCapabilities? runtimeCapabilities = PtyRuntimeCapabilities.fromJson(
+    const <String, Object?>{
+      'schema_version': ptyRuntimeCapabilitiesSchemaVersion,
+      'runtime_contract': ptyRuntimeContractV1,
+      'frame_schema_versions': <String>[],
+      'recording_schema_versions': <int>[],
+      'features': <String>['zmodem.receive.v1', 'zmodem.send.v1'],
+    },
+  );
+
   String? lastCreateSessionJson;
   int takeFrameDiffCalls = 0;
   int pollEventsCalls = 0;
@@ -10328,6 +12812,7 @@ class _FakePtyBackend
   final List<(String, int, int)> graphicAssetRequests = <(String, int, int)>[];
   final List<Map<String, Object?>> jsonRequests = <Map<String, Object?>>[];
   final Set<String> failingOperations = <String>{};
+  final Set<String> retryableCloseSessionIds = <String>{};
   final Map<(int, int), PtyGraphicAsset> graphicAssets =
       <(int, int), PtyGraphicAsset>{};
   final Map<(String, int), Uint8List> fileDownloads =
@@ -10360,6 +12845,11 @@ class _FakePtyBackend
   final List<(String, String)> legacyDiagnosticRequests = <(String, String)>[];
   String? forcedSessionId;
   bool returnNullJsonRequests = false;
+  bool cancelZmodemResponse = true;
+  bool cancelActiveZmodemResponse = true;
+  String cancelActiveZmodemOutcome = 'cancelled';
+  bool? sessionCloseReadyResponse;
+  String? zmodemRecoveryPath;
   bool hostResponseV1Supported = false;
   final List<(String, String)> hostResponses = <(String, String)>[];
 
@@ -10429,6 +12919,13 @@ class _FakePtyBackend
 
   @override
   void closeSession(String sessionId) {
+    if (retryableCloseSessionIds.contains(sessionId)) {
+      throw PtyNativeCallException(
+        operation: 'closeSession',
+        sessionId: sessionId,
+        statusCode: -2,
+      );
+    }
     _throwIfFailing('closeSession');
     closeCalls.add(sessionId);
     _frames.remove(sessionId);
@@ -10521,6 +13018,33 @@ class _FakePtyBackend
             jsonEncode(<String, Object?>{'content': 'scrollback text'}),
       'terminal.export_diagnostics' =>
         diagnosticsRawResponse ?? jsonEncode(diagnosticsResponse),
+      'terminal.zmodem.accept_receive' || 'terminal.zmodem.accept_send' =>
+        jsonEncode(<String, Object?>{'accepted': true}),
+      'terminal.zmodem.cancel' => jsonEncode(<String, Object?>{
+        'cancelled': cancelZmodemResponse,
+      }),
+      'terminal.zmodem.cancel_active' => jsonEncode(<String, Object?>{
+        'reconciled': cancelActiveZmodemResponse,
+        'outcome': cancelActiveZmodemOutcome,
+      }),
+      'terminal.session.close_readiness' => jsonEncode(<String, Object?>{
+        'ready':
+            sessionCloseReadyResponse ??
+            !retryableCloseSessionIds.contains(sessionId),
+      }),
+      'terminal.zmodem.resolve_recovery' =>
+        zmodemRecoveryPath == null
+            ? jsonEncode(const <String, Object?>{'available': false})
+            : jsonEncode(<String, Object?>{
+                'available': true,
+                'path': zmodemRecoveryPath,
+              }),
+      'terminal.zmodem.consume_recovery' => jsonEncode(const <String, Object?>{
+        'consumed': true,
+      }),
+      'terminal.zmodem.dismiss_recovery' => jsonEncode(const <String, Object?>{
+        'dismissed': true,
+      }),
       _ => null,
     };
   }
@@ -10634,6 +13158,19 @@ class _FakePtyBackend
     if (failingOperations.contains(operation)) {
       throw StateError('$operation failed');
     }
+  }
+}
+
+class _ProtocolReplyFakePtyBackend extends _FakePtyBackend
+    implements PtyProtocolReplyBackend {
+  final List<Uint8List> protocolReplyCalls = <Uint8List>[];
+
+  @override
+  bool get supportsProtocolReplies => true;
+
+  @override
+  void writeProtocolReply(String sessionId, List<int> bytes) {
+    protocolReplyCalls.add(Uint8List.fromList(bytes));
   }
 }
 
@@ -10830,6 +13367,32 @@ class _StartedEventPtyBackend extends _FakePtyBackend {
     final sessionId = super.createSession(sessionConfigJson);
     enqueueEvent(sessionId, PtyEvent(kind: 'started', sessionId: sessionId));
     return sessionId;
+  }
+}
+
+class _ProtocolReplyFlushRacePtyBackend extends _FakePtyBackend {
+  String? raceNextWriteWithTransferId;
+
+  @override
+  void writeInput(String sessionId, List<int> bytes) {
+    final transferId = raceNextWriteWithTransferId;
+    if (transferId != null) {
+      raceNextWriteWithTransferId = null;
+      enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: sessionId,
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': transferId,
+            'direction': 'receive',
+          },
+        ),
+      );
+      throw StateError('injected ZMODEM detection/write race');
+    }
+    super.writeInput(sessionId, bytes);
   }
 }
 

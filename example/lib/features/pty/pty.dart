@@ -9,5 +9,5 @@ export 'package:ianvs_pty/ianvs_pty.dart'
         PtySessionJsonRequestBackend;
 
 PtySessionBackend loadDefaultPtySessionBackend() {
-  return NativePtyBackend.load();
+  return NativePtyBackend.load(emitRuntimeEventGapDiagnostics: true);
 }

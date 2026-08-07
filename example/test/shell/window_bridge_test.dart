@@ -5,6 +5,24 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  setUp(() {
+    WindowBridge.debugZmodemFileDialogPlatformOverride = TargetPlatform.macOS;
+    addTearDown(
+      () => WindowBridge.debugZmodemFileDialogPlatformOverride = null,
+    );
+  });
+
+  test(
+    'ZMODEM dialogs are advertised only by the implemented macOS runner',
+    () {
+      WindowBridge.debugZmodemFileDialogPlatformOverride = TargetPlatform.linux;
+      expect(WindowBridge.supportsZmodemFileDialogs, isFalse);
+
+      WindowBridge.debugZmodemFileDialogPlatformOverride = TargetPlatform.macOS;
+      expect(WindowBridge.supportsZmodemFileDialogs, isTrue);
+    },
+  );
+
   test('platform calls are not gated by debug-only binding state', () {
     final source = File(
       'lib/features/shell/window_bridge.dart',
@@ -157,7 +175,7 @@ void main() {
       call,
     ) async {
       seen = call;
-      return '/tmp/report.txt';
+      return '/tmp/report.txt ';
     });
     addTearDown(
       () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
@@ -170,12 +188,12 @@ void main() {
       suggestedName: '../unsafe\\report\u0000.txt',
     );
 
-    expect(selected, '/tmp/report.txt');
+    expect(selected, '/tmp/report.txt ');
     expect(seen?.method, 'chooseFileDownloadLocation');
     expect(seen?.arguments, <String, Object?>{'suggestedName': 'report.txt'});
   });
 
-  testWidgets('recording file management forwards normalized paths', (
+  testWidgets('recording selection preserves the platform path exactly', (
     tester,
   ) async {
     const channel = MethodChannel('app/window_bridge');
@@ -200,10 +218,11 @@ void main() {
     final selected = await WindowBridge.chooseRecordingFile(
       initialDirectory: ' /tmp/ianvs-recordings ',
     );
-    await WindowBridge.revealInFinder(' /tmp/session.ndjson ');
+    final revealed = await WindowBridge.revealInFinder(' /tmp/session.ndjson ');
     final moved = await WindowBridge.movePathToTrash(' /tmp/session.ndjson ');
 
-    expect(selected, '/tmp/session.ndjson');
+    expect(selected, ' /tmp/session.ndjson ');
+    expect(revealed, isTrue);
     expect(moved, isTrue);
     expect(calls.map((call) => call.method), <String>[
       'chooseRecordingFile',
@@ -214,11 +233,104 @@ void main() {
       'initialDirectory': '/tmp/ianvs-recordings',
     });
     expect(calls[1].arguments, <String, Object?>{
-      'path': '/tmp/session.ndjson',
+      'path': ' /tmp/session.ndjson ',
     });
     expect(calls[2].arguments, <String, Object?>{
-      'path': '/tmp/session.ndjson',
+      'path': ' /tmp/session.ndjson ',
     });
+  });
+
+  testWidgets('missing ZMODEM platform handlers fail closed', (tester) async {
+    const channel = MethodChannel('app/window_bridge');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      channel,
+      (call) async => throw MissingPluginException(
+        'No handler registered for ${call.method}',
+      ),
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      ),
+    );
+
+    expect(WindowBridge.supportsZmodemFileDialogs, isTrue);
+    await expectLater(
+      WindowBridge.chooseZmodemSendFiles(),
+      throwsA(isA<MissingPluginException>()),
+    );
+    expect(await WindowBridge.revealInFinder('/tmp/preserved'), isFalse);
+  });
+
+  testWidgets('file and directory pickers preserve exact platform paths', (
+    tester,
+  ) async {
+    const channel = MethodChannel('app/window_bridge');
+    final calls = <MethodCall>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+      call,
+    ) async {
+      calls.add(call);
+      return switch (call.method) {
+        'chooseZmodemReceiveDirectory' => ' /tmp/downloads ',
+        'chooseTerminalFolder' => '/tmp/report ',
+        'chooseZmodemSendFiles' => <String>[
+          '/tmp/report',
+          '/tmp/report ',
+          '/tmp/report',
+          '',
+        ],
+        _ => null,
+      };
+    });
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      ),
+    );
+
+    expect(
+      await WindowBridge.chooseZmodemReceiveDirectory(),
+      ' /tmp/downloads ',
+    );
+    expect(await WindowBridge.chooseTerminalFolder(), '/tmp/report ');
+    expect(await WindowBridge.chooseZmodemSendFiles(), <String>[
+      '/tmp/report',
+      '/tmp/report ',
+    ]);
+    expect(calls.map((call) => call.method), <String>[
+      'chooseZmodemReceiveDirectory',
+      'chooseTerminalFolder',
+      'chooseZmodemSendFiles',
+    ]);
+  });
+
+  testWidgets('ZMODEM send picker returns all 257 selected files', (
+    tester,
+  ) async {
+    const channel = MethodChannel('app/window_bridge');
+    final selected = List<String>.generate(
+      257,
+      (index) => '/tmp/file-$index.bin',
+      growable: false,
+    );
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      channel,
+      (call) async => call.method == 'chooseZmodemSendFiles' ? selected : null,
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      ),
+    );
+
+    final result = await WindowBridge.chooseZmodemSendFiles();
+
+    expect(result, hasLength(257));
+    expect(result!.last, '/tmp/file-256.bin');
   });
 
   testWidgets(

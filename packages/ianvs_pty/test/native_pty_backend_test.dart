@@ -34,6 +34,30 @@ void main() {
     backend.closeSession('1');
   });
 
+  test('native pty backend exposes ordered protocol replies explicitly', () {
+    final bindings = _ProtocolReplyPtyBindings();
+    final backend = NativePtyBackend.fromBindings(bindings);
+    final protocolBackend = backend as PtyProtocolReplyBackend;
+
+    expect(protocolBackend.supportsProtocolReplies, isTrue);
+    protocolBackend.writeProtocolReply('1', const <int>[0x1b, 0x5b, 0x52]);
+
+    expect(bindings.replies, hasLength(1));
+    expect(bindings.replies.single.$1, 1);
+    expect(bindings.replies.single.$2, <int>[0x1b, 0x5b, 0x52]);
+  });
+
+  test('native pty backend reports unavailable ordered protocol replies', () {
+    final backend = NativePtyBackend.fromBindings(_NoopPtyBindings());
+    final protocolBackend = backend as PtyProtocolReplyBackend;
+
+    expect(protocolBackend.supportsProtocolReplies, isFalse);
+    expect(
+      () => protocolBackend.writeProtocolReply('1', const <int>[0x1b]),
+      throwsUnsupportedError,
+    );
+  });
+
   test(
     'native pty backend surfaces optional debug bindings when available',
     () {
@@ -194,7 +218,41 @@ void main() {
     expect(events.single.wireSchemaVersion, isNull);
   });
 
-  test('native pty backend reports Runtime Event sequence gaps', () {
+  test(
+    'native pty backend delivers a typed gap diagnostic before survivors',
+    () {
+      final bindings = _RuntimeEventPtyBindings(sequences: const <int>[0, 2]);
+      final backend = NativePtyBackend.fromBindings(
+        bindings,
+        emitRuntimeEventGapDiagnostics: true,
+      );
+      final sessionId = backend.createSession('{}');
+
+      final events = backend.pollEvents(sessionId);
+
+      expect(events.map((event) => event.kind), <String>[
+        'runtime_event_gap',
+        'started',
+        'future_event',
+      ]);
+      expect(events.skip(1).map((event) => event.sequence), <int>[0, 2]);
+      final diagnostic = events.first as PtyRuntimeEventGapDiagnostic;
+      expect(diagnostic.expectedSequence, 0);
+      expect(diagnostic.nextSequence, 3);
+      expect(diagnostic.droppedCount, 1);
+      expect(diagnostic.survivingEventCount, 2);
+      expect(diagnostic.sequence, isNull);
+      expect(diagnostic.payload, <String, Object?>{
+        'code': 'event_sequence_gap',
+        'expectedSequence': 0,
+        'nextSequence': 3,
+        'droppedCount': 1,
+        'survivingEventCount': 2,
+      });
+    },
+  );
+
+  test('native pty backend preserves legacy gap exception by default', () {
     final bindings = _RuntimeEventPtyBindings(sequences: const <int>[0, 2]);
     final backend = NativePtyBackend.fromBindings(bindings);
     final sessionId = backend.createSession('{}');
@@ -202,11 +260,83 @@ void main() {
     expect(
       () => backend.pollEvents(sessionId),
       throwsA(
-        isA<PtyRuntimeContractException>().having(
-          (error) => error.code,
-          'code',
-          'event_sequence_gap',
+        isA<PtyRuntimeContractException>()
+            .having((error) => error.code, 'code', 'event_sequence_gap')
+            .having((error) => error.path, 'path', r'$.messages'),
+      ),
+    );
+  });
+
+  test(
+    'native pty backend rejects cross-poll replay without moving its cursor',
+    () {
+      final bindings = _SequencedRuntimeEventPtyBindings(<List<int>>[
+        <int>[0, 1],
+        <int>[1],
+        <int>[2],
+      ]);
+      final backend = NativePtyBackend.fromBindings(bindings);
+      final sessionId = backend.createSession('{}');
+
+      expect(
+        backend.pollEvents(sessionId).map((event) => event.sequence),
+        <int>[0, 1],
+      );
+      expect(
+        () => backend.pollEvents(sessionId),
+        throwsA(
+          isA<PtyRuntimeContractException>()
+              .having((error) => error.code, 'code', 'event_sequence_reordered')
+              .having((error) => error.path, 'path', r'$.messages[0].sequence'),
         ),
+      );
+      expect(
+        backend.pollEvents(sessionId).map((event) => event.sequence),
+        <int>[2],
+      );
+    },
+  );
+
+  test(
+    'native pty backend rejects a backwards batch cursor without moving it',
+    () {
+      final bindings = _SequencedRuntimeEventPtyBindings(
+        <List<int>>[
+          <int>[0],
+          const <int>[],
+          <int>[1],
+        ],
+        nextSequences: const <int>[1, 0, 2],
+      );
+      final backend = NativePtyBackend.fromBindings(bindings);
+      final sessionId = backend.createSession('{}');
+
+      expect(backend.pollEvents(sessionId).single.sequence, 0);
+      expect(
+        () => backend.pollEvents(sessionId),
+        throwsA(
+          isA<PtyRuntimeContractException>()
+              .having((error) => error.code, 'code', 'event_sequence_reordered')
+              .having((error) => error.path, 'path', r'$.next_sequence'),
+        ),
+      );
+      expect(backend.pollEvents(sessionId).single.sequence, 1);
+    },
+  );
+
+  test('native pty backend rejects reordered messages within one poll', () {
+    final bindings = _SequencedRuntimeEventPtyBindings(<List<int>>[
+      <int>[0, 2, 1],
+    ]);
+    final backend = NativePtyBackend.fromBindings(bindings);
+    final sessionId = backend.createSession('{}');
+
+    expect(
+      () => backend.pollEvents(sessionId),
+      throwsA(
+        isA<PtyRuntimeContractException>()
+            .having((error) => error.code, 'code', 'event_sequence_reordered')
+            .having((error) => error.path, 'path', r'$.messages[2].sequence'),
       ),
     );
   });
@@ -287,7 +417,7 @@ void main() {
     expect(() => refreshHints.refreshHintFlags('invalid'), throwsArgumentError);
   });
 
-  test('native pty backend releases cached ids when native close fails', () {
+  test('native pty backend retains cached ids when native close fails', () {
     final bindings = _CloseFailingRefreshHintPtyBindings(1);
     final backend = NativePtyBackend.fromBindings(bindings);
     final refreshHints = backend as PtySessionRefreshHintBackend;
@@ -536,6 +666,33 @@ void main() {
           'scrollViewportTo',
         ),
       ),
+    );
+  });
+
+  test('native pty backend classifies only status -2 close as retryable', () {
+    expect(
+      const PtyNativeCallException(
+        operation: 'closeSession',
+        sessionId: '1',
+        statusCode: -2,
+      ).isRetryableClose,
+      isTrue,
+    );
+    expect(
+      const PtyNativeCallException(
+        operation: 'closeSession',
+        sessionId: '1',
+        statusCode: -1,
+      ).isRetryableClose,
+      isFalse,
+    );
+    expect(
+      const PtyNativeCallException(
+        operation: 'writeInput',
+        sessionId: '1',
+        statusCode: -2,
+      ).isRetryableClose,
+      isFalse,
     );
   });
 
@@ -1048,6 +1205,20 @@ class _CapabilityPtyBindings extends _NoopPtyBindings
   });
 }
 
+class _ProtocolReplyPtyBindings extends _NoopPtyBindings
+    implements PtyProtocolReplyBindings {
+  final List<(int, List<int>)> replies = <(int, List<int>)>[];
+
+  @override
+  bool get supportsProtocolReplies => true;
+
+  @override
+  int sessionWriteProtocolReply(int sessionId, List<int> bytes) {
+    replies.add((sessionId, List<int>.of(bytes)));
+    return 0;
+  }
+}
+
 class _RuntimeEventPtyBindings extends _NoopPtyBindings
     implements PtyRuntimeEventBindings {
   _RuntimeEventPtyBindings({this.sequences = const <int>[0, 1]});
@@ -1089,6 +1260,47 @@ class _RuntimeEventPtyBindings extends _NoopPtyBindings
   List<PtyEvent> sessionPollEvents(int sessionId) {
     legacyPollCalls += 1;
     return super.sessionPollEvents(sessionId);
+  }
+}
+
+class _SequencedRuntimeEventPtyBindings extends _NoopPtyBindings
+    implements PtyRuntimeEventBindings {
+  _SequencedRuntimeEventPtyBindings(this.batches, {this.nextSequences});
+
+  final List<List<int>> batches;
+  final List<int>? nextSequences;
+  int _pollIndex = 0;
+
+  @override
+  bool get supportsRuntimeEventEnvelopes => true;
+
+  @override
+  String? sessionPollEventEnvelopesJson(int sessionId) {
+    final index = _pollIndex;
+    final sequences = batches[index];
+    _pollIndex += 1;
+    return jsonEncode(<String, Object?>{
+      'schema_version': 1,
+      'contract': 'ianvs-runtime-event-batch-v1',
+      'message_class': 'event',
+      'session_id': '$sessionId',
+      'next_sequence':
+          nextSequences?[index] ?? (sequences.isEmpty ? 0 : sequences.last + 1),
+      'dropped_count': 0,
+      'messages': <Object?>[
+        for (final sequence in sequences)
+          <String, Object?>{
+            'schema_version': 1,
+            'contract': 'ianvs-runtime-envelope-v1',
+            'message_class': 'event',
+            'message_name': 'future_event',
+            'session_id': '$sessionId',
+            'sequence': sequence,
+            'timestamp_micros': 1000 + sequence,
+            'payload': <String, Object?>{'value': sequence},
+          },
+      ],
+    });
   }
 }
 

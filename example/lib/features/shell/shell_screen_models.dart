@@ -1,5 +1,259 @@
 part of 'shell_screen.dart';
 
+enum _ShellZmodemRecoveryAction { authorization, cancel }
+
+class _ShellZmodemPickerRequest {
+  _ShellZmodemPickerRequest({
+    required this.requestId,
+    required this.sessionId,
+    required this.transferId,
+  });
+
+  final int requestId;
+  final String sessionId;
+  final String transferId;
+  bool transferIsCurrent = true;
+}
+
+class _ShellZmodemTransferState {
+  const _ShellZmodemTransferState({
+    required this.event,
+    required this.direction,
+    required this.filename,
+    required this.bytesTransferred,
+    required this.totalBytes,
+    required this.modificationTimeSeconds,
+    required this.fileCount,
+    required this.completedFiles,
+    required this.skippedFiles,
+    required this.receiveDirectory,
+    required this.errorMessage,
+    required this.recoveryAction,
+    this.cancelling = false,
+  });
+
+  factory _ShellZmodemTransferState.fromEvent(
+    terminal.TerminalSessionZmodemEvent event, [
+    _ShellZmodemTransferState? previous,
+  ]) {
+    final currentFileEnded =
+        event.kind == terminal.TerminalZmodemEventKind.fileCompleted ||
+        event.kind == terminal.TerminalZmodemEventKind.fileSkipped;
+    return _ShellZmodemTransferState(
+      event: event,
+      direction: event.direction ?? previous?.direction,
+      filename: currentFileEnded ? null : event.filename ?? previous?.filename,
+      bytesTransferred:
+          event.bytesTransferred ??
+          (event.kind == terminal.TerminalZmodemEventKind.fileOffer
+              ? 0
+              : previous?.bytesTransferred),
+      totalBytes: event.kind == terminal.TerminalZmodemEventKind.fileOffer
+          ? event.size
+          : event.totalBytes ?? previous?.totalBytes,
+      modificationTimeSeconds:
+          event.kind == terminal.TerminalZmodemEventKind.fileOffer
+          ? event.modificationTimeSeconds
+          : previous?.modificationTimeSeconds,
+      fileCount: event.fileCount ?? previous?.fileCount,
+      completedFiles: event.completedFiles ?? previous?.completedFiles,
+      skippedFiles: event.skippedFiles ?? previous?.skippedFiles,
+      receiveDirectory: previous?.receiveDirectory,
+      errorMessage: previous?.errorMessage,
+      recoveryAction: previous?.recoveryAction,
+      cancelling: previous?.cancelling ?? false,
+    );
+  }
+
+  final terminal.TerminalSessionZmodemEvent event;
+  final terminal.TerminalZmodemDirection? direction;
+  final String? filename;
+  final int? bytesTransferred;
+  final int? totalBytes;
+  final int? modificationTimeSeconds;
+  final int? fileCount;
+  final int? completedFiles;
+  final int? skippedFiles;
+  final String? receiveDirectory;
+  final String? errorMessage;
+  final _ShellZmodemRecoveryAction? recoveryAction;
+  final bool cancelling;
+
+  String get transferId => event.transferId!;
+
+  bool get canRetry => errorMessage != null && recoveryAction != null;
+
+  _ShellZmodemTransferState withRecoverableError(
+    terminal.TerminalSessionZmodemEvent recoveryEvent,
+    String message,
+    _ShellZmodemRecoveryAction action,
+  ) {
+    final next = _ShellZmodemTransferState.fromEvent(recoveryEvent, this);
+    return _ShellZmodemTransferState(
+      event: next.event,
+      direction: next.direction,
+      filename: next.filename,
+      bytesTransferred: next.bytesTransferred,
+      totalBytes: next.totalBytes,
+      modificationTimeSeconds: next.modificationTimeSeconds,
+      fileCount: next.fileCount,
+      completedFiles: next.completedFiles,
+      skippedFiles: next.skippedFiles,
+      receiveDirectory: next.receiveDirectory,
+      errorMessage: message,
+      recoveryAction: action,
+      cancelling: false,
+    );
+  }
+
+  _ShellZmodemTransferState withReceiveDirectory(String directory) {
+    return _ShellZmodemTransferState(
+      event: event,
+      direction: direction,
+      filename: filename,
+      bytesTransferred: bytesTransferred,
+      totalBytes: totalBytes,
+      modificationTimeSeconds: modificationTimeSeconds,
+      fileCount: fileCount,
+      completedFiles: completedFiles,
+      skippedFiles: skippedFiles,
+      receiveDirectory: directory,
+      errorMessage: null,
+      recoveryAction: null,
+      cancelling: false,
+    );
+  }
+
+  _ShellZmodemTransferState clearRecoverableError() {
+    return _ShellZmodemTransferState(
+      event: event,
+      direction: direction,
+      filename: filename,
+      bytesTransferred: bytesTransferred,
+      totalBytes: totalBytes,
+      modificationTimeSeconds: modificationTimeSeconds,
+      fileCount: fileCount,
+      completedFiles: completedFiles,
+      skippedFiles: skippedFiles,
+      receiveDirectory: receiveDirectory,
+      errorMessage: null,
+      recoveryAction: null,
+      cancelling: false,
+    );
+  }
+
+  _ShellZmodemTransferState markCancelling() {
+    return _ShellZmodemTransferState(
+      event: event,
+      direction: direction,
+      filename: filename,
+      bytesTransferred: bytesTransferred,
+      totalBytes: totalBytes,
+      modificationTimeSeconds: modificationTimeSeconds,
+      fileCount: fileCount,
+      completedFiles: completedFiles,
+      skippedFiles: skippedFiles,
+      receiveDirectory: receiveDirectory,
+      errorMessage: null,
+      recoveryAction: null,
+      cancelling: true,
+    );
+  }
+
+  double? get progress {
+    final transferred = bytesTransferred;
+    final total = totalBytes;
+    if (transferred == null || total == null || total <= 0) {
+      return null;
+    }
+    return (transferred / total).clamp(0.0, 1.0);
+  }
+
+  String get title => switch (direction) {
+    terminal.TerminalZmodemDirection.receive => 'Receiving with ZMODEM',
+    terminal.TerminalZmodemDirection.send => 'Sending with ZMODEM',
+    null => 'ZMODEM transfer',
+  };
+
+  String get detail {
+    if (cancelling) {
+      return 'Cancelling transfer · terminal input paused';
+    }
+    final error = errorMessage;
+    if (error != null) {
+      return error;
+    }
+    final name = filename;
+    final bytes = bytesTransferred;
+    final total = totalBytes;
+    final count = fileCount;
+    final completed = completedFiles;
+    final skipped = skippedFiles;
+    if (name != null && bytes != null && total != null) {
+      return '$name · ${_zmodemByteLabel(bytes)} / ${_zmodemByteLabel(total)}'
+          '${_modificationTimeLabel()}';
+    }
+    if (name != null && total != null) {
+      return '$name · ${_zmodemByteLabel(total)}${_modificationTimeLabel()}';
+    }
+    if (name != null &&
+        event.kind == terminal.TerminalZmodemEventKind.fileOffer) {
+      return '$name · unknown size · waiting for authorization';
+    }
+    if (count != null) {
+      final processed = (completed ?? 0) + (skipped ?? 0);
+      final countLabel = completed == null && skipped == null
+          ? '$count files'
+          : '$processed / $count files';
+      final skippedLabel = skipped == null || skipped == 0
+          ? ''
+          : ' · $skipped skipped';
+      final bytesLabel = bytes == null || total == null
+          ? ''
+          : ' · ${_zmodemByteLabel(bytes)} / ${_zmodemByteLabel(total)}';
+      return '$countLabel$skippedLabel$bytesLabel · terminal input paused';
+    }
+    return switch (event.kind) {
+      terminal.TerminalZmodemEventKind.detected ||
+      terminal.TerminalZmodemEventKind.fileOffer =>
+        'Waiting for file authorization · terminal input paused',
+      _ when event.isReconciliationRequired =>
+        'Transfer state lost · retry cancellation · terminal input paused',
+      _ => 'Transfer in progress · terminal input paused',
+    };
+  }
+
+  String _modificationTimeLabel() {
+    final seconds = modificationTimeSeconds;
+    if (seconds == null) {
+      return '';
+    }
+    final modified = DateTime.fromMillisecondsSinceEpoch(
+      seconds * Duration.millisecondsPerSecond,
+      isUtc: true,
+    );
+    final value = modified
+        .toIso8601String()
+        .replaceFirst('T', ' ')
+        .split('.')
+        .first;
+    return ' · modified $value UTC';
+  }
+
+  static String _zmodemByteLabel(int bytes) {
+    if (bytes < 1024) {
+      return '$bytes B';
+    }
+    if (bytes < 1024 * 1024) {
+      return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    }
+    if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+  }
+}
+
 class _ShellShortcut {
   const _ShellShortcut(this.action, {this.tabIndex});
 

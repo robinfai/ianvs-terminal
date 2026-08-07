@@ -29,6 +29,7 @@ void main() {
       expect(decoded.config.dragDropEnabled, isTrue);
       expect(decoded.config.display.font.family, 'Menlo');
       expect(decoded.config.interaction.copyOnSelect, isTrue);
+      expect(decoded.zmodemEnabled, isFalse);
     });
 
     test('returns structured errors for unsupported and oversized input', () {
@@ -107,6 +108,7 @@ void main() {
       expect(payload['contract'], 'ianvs-session-config-v1');
       expect(payload['session_id'], 'runtime-1');
       expect(payload['display_name'], 'zsh');
+      expect(payload['client_capabilities'], <String, Object?>{'zmodem': true});
       expect(payload, isNot(contains('id')));
       expect(payload, isNot(contains('name')));
     });
@@ -126,6 +128,24 @@ void main() {
       expect(payload['name'], 'zsh');
       expect(payload['launch'], isA<Map<String, dynamic>>());
       expect(payload, isNot(contains('schema_version')));
+    });
+
+    test('round-trips an explicit ZMODEM client capability', () {
+      final wire = TerminalSessionConfigV1(
+        sessionId: 'runtime-7',
+        displayName: 'zsh',
+        config: _config(),
+        zmodemEnabled: true,
+      );
+
+      final decoded = TerminalSessionConfigV1.fromJsonString(
+        wire.toJsonString(),
+      );
+
+      expect(decoded.zmodemEnabled, isTrue);
+      expect(decoded.toJson()['client_capabilities'], <String, Object?>{
+        'zmodem': true,
+      });
     });
   });
 }

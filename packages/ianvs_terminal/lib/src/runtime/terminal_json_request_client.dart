@@ -4,9 +4,12 @@ import '../config/terminal_defaults.dart';
 import '../terminal/terminal_models.dart';
 import 'terminal_backend_request_error.dart';
 import 'terminal_session_request_transport.dart';
+import 'terminal_zmodem_recovery.dart';
 
 const int _maxSearchMatchesPerResponse = 1000;
 const int _maxDecodedCollectionScanMultiplier = 4;
+
+enum TerminalZmodemCancelActiveOutcome { cancelled, draining, idle }
 
 final class TerminalJsonRequestClient {
   TerminalJsonRequestClient(
@@ -81,6 +84,141 @@ final class TerminalJsonRequestClient {
       'kind': operation,
     });
     return decoded?['cleared'] == true;
+  }
+
+  bool acceptZmodemReceive(
+    String sessionId, {
+    required String transferId,
+    required String destination,
+  }) {
+    const operation = 'terminal.zmodem.accept_receive';
+    final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
+      'kind': operation,
+      'transferId': transferId,
+      'destination': destination,
+    });
+    return decoded?['accepted'] == true;
+  }
+
+  bool acceptZmodemSend(
+    String sessionId, {
+    required String transferId,
+    required List<String> files,
+  }) {
+    const operation = 'terminal.zmodem.accept_send';
+    final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
+      'kind': operation,
+      'transferId': transferId,
+      'files': files,
+    });
+    return decoded?['accepted'] == true;
+  }
+
+  bool cancelZmodem(String sessionId, {required String transferId}) {
+    const operation = 'terminal.zmodem.cancel';
+    final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
+      'kind': operation,
+      'transferId': transferId,
+    });
+    return decoded?['cancelled'] == true;
+  }
+
+  TerminalZmodemCancelActiveOutcome? cancelActiveZmodem(String sessionId) {
+    const operation = 'terminal.zmodem.cancel_active';
+    final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
+      'kind': operation,
+    });
+    if (decoded?['reconciled'] != true) {
+      return null;
+    }
+    return switch (decoded?['outcome']) {
+      'cancelled' => TerminalZmodemCancelActiveOutcome.cancelled,
+      'draining' => TerminalZmodemCancelActiveOutcome.draining,
+      'idle' => TerminalZmodemCancelActiveOutcome.idle,
+      _ => null,
+    };
+  }
+
+  bool? sessionCloseReady(String sessionId) {
+    const operation = 'terminal.session.close_readiness';
+    final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
+      'kind': operation,
+    });
+    return switch (decoded?['ready']) {
+      true => true,
+      false => false,
+      _ => null,
+    };
+  }
+
+  TerminalZmodemRecoveryResolution resolveZmodemRecovery(
+    String sessionId, {
+    required String recoveryToken,
+  }) {
+    if (!_isZmodemRecoveryToken(recoveryToken)) {
+      return const TerminalZmodemRecoveryResolution.requestFailed();
+    }
+    const operation = 'terminal.zmodem.resolve_recovery';
+    final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
+      'kind': operation,
+      'recoveryToken': recoveryToken,
+    });
+    if (decoded == null) {
+      return const TerminalZmodemRecoveryResolution.requestFailed();
+    }
+    if (decoded['available'] == false) {
+      return const TerminalZmodemRecoveryResolution.unavailable();
+    }
+    if (decoded['available'] != true) {
+      return const TerminalZmodemRecoveryResolution.requestFailed();
+    }
+    final path = _stringFromJsonValue(decoded['path']);
+    return path != null &&
+            path.startsWith('/') &&
+            path.length <= 4096 &&
+            !path.contains('\u0000')
+        ? TerminalZmodemRecoveryResolution.available(path)
+        : const TerminalZmodemRecoveryResolution.requestFailed();
+  }
+
+  TerminalZmodemRecoveryDisposition consumeZmodemRecovery(
+    String sessionId, {
+    required String recoveryToken,
+  }) {
+    if (!_isZmodemRecoveryToken(recoveryToken)) {
+      return TerminalZmodemRecoveryDisposition.requestFailed;
+    }
+    const operation = 'terminal.zmodem.consume_recovery';
+    final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
+      'kind': operation,
+      'recoveryToken': recoveryToken,
+    });
+    if (decoded == null || decoded['consumed'] is! bool) {
+      return TerminalZmodemRecoveryDisposition.requestFailed;
+    }
+    return decoded['consumed'] == true
+        ? TerminalZmodemRecoveryDisposition.success
+        : TerminalZmodemRecoveryDisposition.unavailable;
+  }
+
+  TerminalZmodemRecoveryDisposition dismissZmodemRecovery(
+    String sessionId, {
+    required String recoveryToken,
+  }) {
+    if (!_isZmodemRecoveryToken(recoveryToken)) {
+      return TerminalZmodemRecoveryDisposition.requestFailed;
+    }
+    const operation = 'terminal.zmodem.dismiss_recovery';
+    final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
+      'kind': operation,
+      'recoveryToken': recoveryToken,
+    });
+    if (decoded == null || decoded['dismissed'] is! bool) {
+      return TerminalZmodemRecoveryDisposition.requestFailed;
+    }
+    return decoded['dismissed'] == true
+        ? TerminalZmodemRecoveryDisposition.success
+        : TerminalZmodemRecoveryDisposition.unavailable;
   }
 
   bool dismissOsc99Notification(String sessionId, String identifier) {
@@ -223,3 +361,6 @@ String? _nonEmptyTrimmedStringFromJsonValue(Object? value) {
   final text = _stringFromJsonValue(value)?.trim();
   return text == null || text.isEmpty ? null : text;
 }
+
+bool _isZmodemRecoveryToken(String value) =>
+    value.length == 32 && RegExp(r'^[0-9a-fA-F]{32}$').hasMatch(value);

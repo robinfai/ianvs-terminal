@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -11,6 +12,7 @@ import 'package:app/features/config/local_terminal_config_repository.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/recording/local_session_recording_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
+import 'package:app/features/sessions/session_state.dart';
 import 'package:app/features/layout/local_terminal_layout_repository.dart';
 
 import '../support/fake_pty_backend.dart';
@@ -85,6 +87,45 @@ class _FailingOnceRecordingRepository extends LocalSessionRecordingRepository {
       failNextSave = false;
       throw const FileSystemException('recording disk unavailable');
     }
+    return super.save(destination, recording, displayName: displayName);
+  }
+}
+
+class _FailSecondRecordingRepository extends LocalSessionRecordingRepository {
+  _FailSecondRecordingRepository({required super.directoryResolver});
+
+  int saveAttempts = 0;
+
+  @override
+  Future<String> save(
+    LocalSessionRecordingDestination destination,
+    terminal.TerminalRecording recording, {
+    String? displayName,
+  }) async {
+    saveAttempts += 1;
+    if (saveAttempts == 2) {
+      throw const FileSystemException('second recording disk unavailable');
+    }
+    return super.save(destination, recording, displayName: displayName);
+  }
+}
+
+class _BlockingRecordingRepository extends LocalSessionRecordingRepository {
+  _BlockingRecordingRepository({required super.directoryResolver});
+
+  final Completer<void> saveStarted = Completer<void>();
+  final Completer<void> allowSave = Completer<void>();
+
+  @override
+  Future<String> save(
+    LocalSessionRecordingDestination destination,
+    terminal.TerminalRecording recording, {
+    String? displayName,
+  }) async {
+    if (!saveStarted.isCompleted) {
+      saveStarted.complete();
+    }
+    await allowSave.future;
     return super.save(destination, recording, displayName: displayName);
   }
 }
@@ -355,6 +396,125 @@ void main() {
       expect(harness.backend.closedSessionIds, contains(sessionId));
       expect(
         harness.backend.timeline.where((event) => event.startsWith('stop:')),
+        hasLength(1),
+      );
+    },
+  );
+
+  test(
+    'closeTab resumes recording when ZMODEM starts during recording save',
+    () async {
+      late _BlockingRecordingRepository blockingRepository;
+      final harness = await _createHarness(
+        recordingRepositoryBuilder: (directory) {
+          blockingRepository = _BlockingRecordingRepository(
+            directoryResolver: () async => directory,
+          );
+          return blockingRepository;
+        },
+      );
+      final controller = harness.container.read(
+        sessionControllerProvider.notifier,
+      );
+      final state = harness.container.read(sessionControllerProvider);
+      final sessionId = state.activeSessionId!;
+      final tabSessionId = state.tabs.single.sessionId;
+      expect(await controller.startSessionRecording(sessionId), isTrue);
+
+      final closeFuture = controller.closeTab(tabSessionId);
+      await blockingRepository.saveStarted.future;
+      harness.backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '71',
+            'direction': 'receive',
+          },
+        ),
+      );
+      final runtime = harness.container.read(terminalRuntimeControllerProvider);
+      runtime.refreshSession(sessionId);
+      expect(runtime.isZmodemTransferActive(sessionId), isTrue);
+      blockingRepository.allowSave.complete();
+
+      expect(await closeFuture, isFalse);
+      expect(harness.backend.closedSessionIds, isNot(contains(sessionId)));
+      expect(
+        harness.container
+            .read(sessionControllerProvider)
+            .tabs
+            .single
+            .containsSession(sessionId),
+        isTrue,
+      );
+      expect(
+        harness.container.read(sessionControllerProvider).recordingSessionIds,
+        contains(sessionId),
+      );
+      expect(
+        harness.backend.timeline.where((event) => event == 'stop:$sessionId'),
+        hasLength(1),
+      );
+      expect(
+        harness.backend.timeline.where((event) => event == 'start:$sessionId'),
+        hasLength(2),
+      );
+    },
+  );
+
+  test(
+    'closeTab resumes a saved sibling when the second recording save fails',
+    () async {
+      final harness = await _createHarness(
+        recordingRepositoryBuilder: (directory) =>
+            _FailSecondRecordingRepository(
+              directoryResolver: () async => directory,
+            ),
+      );
+      final controller = harness.container.read(
+        sessionControllerProvider.notifier,
+      );
+      final initialState = harness.container.read(sessionControllerProvider);
+      final firstSessionId = initialState.activeSessionId!;
+      final tabSessionId = initialState.tabs.single.sessionId;
+      controller.splitActiveSession(
+        defaultTerminalProfile(),
+        TerminalSplitAxis.horizontal,
+      );
+      final secondSessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      expect(secondSessionId, isNot(firstSessionId));
+      expect(await controller.startSessionRecording(firstSessionId), isTrue);
+      expect(await controller.startSessionRecording(secondSessionId), isTrue);
+
+      expect(await controller.closeTab(tabSessionId), isFalse);
+
+      final state = harness.container.read(sessionControllerProvider);
+      expect(state.tabs.single.effectivePanes, hasLength(2));
+      expect(state.recordingSessionIds, contains(firstSessionId));
+      expect(state.recordingPendingSaveSessionIds, contains(secondSessionId));
+      expect(state.lastError, contains('Recording save failed'));
+      expect(harness.backend.closedSessionIds, isEmpty);
+      expect(
+        harness.backend.timeline.where(
+          (event) => event == 'start:$firstSessionId',
+        ),
+        hasLength(2),
+      );
+      expect(
+        harness.backend.timeline.where(
+          (event) => event == 'stop:$firstSessionId',
+        ),
+        hasLength(1),
+      );
+      expect(
+        harness.backend.timeline.where(
+          (event) => event == 'start:$secondSessionId',
+        ),
         hasLength(1),
       );
     },

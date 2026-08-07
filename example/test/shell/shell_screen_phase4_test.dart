@@ -268,6 +268,13 @@ Future<void> _dispatchNativeWindowBridge(WidgetTester tester, MethodCall call) {
 }
 
 void main() {
+  setUp(() {
+    WindowBridge.debugZmodemFileDialogPlatformOverride = TargetPlatform.macOS;
+    addTearDown(
+      () => WindowBridge.debugZmodemFileDialogPlatformOverride = null,
+    );
+  });
+
   testWidgets('shell resizes the session from the padded terminal viewport', (
     tester,
   ) async {
@@ -1403,6 +1410,2277 @@ void main() {
       <String, Object?>{'suggestedName': 'report.txt'},
     );
     expect(find.text('Saved report.txt'), findsOneWidget);
+  });
+
+  testWidgets('ZMODEM receive requires a folder and exposes progress/cancel', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final fakeBindings = FakePtyBackend();
+    const channel = MethodChannel('app/window_bridge');
+    final bridgeCalls = <MethodCall>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+      call,
+    ) async {
+      bridgeCalls.add(call);
+      return call.method == 'chooseZmodemReceiveDirectory'
+          ? '/chosen/downloads'
+          : null;
+    });
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      ),
+    );
+
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final runtime = container.read(terminalRuntimeControllerProvider);
+    fakeBindings.enqueueEvent(
+      '1',
+      const PtyEvent(
+        kind: 'zmodem_detected',
+        sessionId: '1',
+        payload: <String, Object?>{
+          'source': 'zmodem',
+          'transferId': '41',
+          'direction': 'receive',
+        },
+      ),
+    );
+    fakeBindings.enqueueEvent(
+      '1',
+      const PtyEvent(
+        kind: 'zmodem_file_offer',
+        sessionId: '1',
+        payload: <String, Object?>{
+          'source': 'zmodem',
+          'transferId': '41',
+          'direction': 'receive',
+          'filename': 'report.bin',
+          'size': null,
+        },
+      ),
+    );
+    runtime.refreshSession('1');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(
+      bridgeCalls.where(
+        (call) => call.method == 'chooseZmodemReceiveDirectory',
+      ),
+      hasLength(1),
+    );
+    expect(fakeBindings.jsonRequests.last, <String, Object?>{
+      'kind': 'terminal.zmodem.accept_receive',
+      'transferId': '41',
+      'destination': '/chosen/downloads',
+    });
+    expect(
+      find.byKey(const Key('shell-zmodem-transfer-detail')),
+      findsOneWidget,
+    );
+    expect(find.textContaining('unknown size'), findsOneWidget);
+    final writesBeforeBlockedInput = fakeBindings.writes.length;
+    runtime.sendInput('1', Uint8List.fromList(const <int>[0x41]));
+    expect(fakeBindings.writes, hasLength(writesBeforeBlockedInput));
+
+    fakeBindings.enqueueEvent(
+      '1',
+      const PtyEvent(
+        kind: 'zmodem_progress',
+        sessionId: '1',
+        payload: <String, Object?>{
+          'source': 'zmodem',
+          'transferId': '41',
+          'direction': 'receive',
+          'bytesTransferred': 512,
+          'totalBytes': 1024,
+        },
+      ),
+    );
+    runtime.refreshSession('1');
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.textContaining('512 B / 1.0 KB'), findsOneWidget);
+    expect(
+      tester
+          .widget<LinearProgressIndicator>(
+            find.byKey(const Key('shell-zmodem-transfer-progress')),
+          )
+          .value,
+      0.5,
+    );
+    final progressSemantics = tester.getSemantics(
+      find.byKey(const Key('shell-zmodem-transfer-progress')),
+    );
+    expect(progressSemantics.label, 'ZMODEM progress');
+    expect(progressSemantics.value, '50 percent');
+    expect(progressSemantics.flagsCollection.isLiveRegion, isFalse);
+
+    await tester.tap(find.byKey(const Key('shell-zmodem-transfer-cancel')));
+    await tester.pump();
+    expect(fakeBindings.jsonRequests.last, <String, Object?>{
+      'kind': 'terminal.zmodem.cancel',
+      'transferId': '41',
+    });
+    expect(find.text('Cancelling…'), findsOneWidget);
+    expect(
+      tester
+          .widget<TextButton>(
+            find.byKey(const Key('shell-zmodem-transfer-cancel')),
+          )
+          .onPressed,
+      isNull,
+    );
+    final requestsAfterFirstCancel = fakeBindings.jsonRequests.length;
+    await tester.tap(
+      find.byKey(const Key('shell-zmodem-transfer-cancel')),
+      warnIfMissed: false,
+    );
+    await tester.pump();
+    expect(fakeBindings.jsonRequests, hasLength(requestsAfterFirstCancel));
+    fakeBindings.enqueueEvent(
+      '1',
+      const PtyEvent(
+        kind: 'zmodem_cancelled',
+        sessionId: '1',
+        payload: <String, Object?>{'source': 'zmodem', 'transferId': '41'},
+      ),
+    );
+    runtime.refreshSession('1');
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.byKey(const Key('shell-zmodem-transfer-detail')), findsNothing);
+    expect(find.text('ZMODEM transfer cancelled'), findsOneWidget);
+  });
+
+  testWidgets(
+    'ZMODEM does not open a picker for a transfer ended in the same poll',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final fakeBindings = FakePtyBackend();
+      const channel = MethodChannel('app/window_bridge');
+      final bridgeCalls = <MethodCall>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        call,
+      ) async {
+        bridgeCalls.add(call);
+        return call.method == 'chooseZmodemReceiveDirectory'
+            ? '/chosen/downloads'
+            : null;
+      });
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
+
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final runtime = container.read(terminalRuntimeControllerProvider);
+      fakeBindings.jsonRequests.clear();
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_file_offer',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '42',
+            'direction': 'receive',
+            'filename': 'already-ended.bin',
+            'size': 8,
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_cancelled',
+          sessionId: '1',
+          payload: <String, Object?>{'source': 'zmodem', 'transferId': '42'},
+        ),
+      );
+
+      runtime.refreshSession('1');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(runtime.isZmodemTransferActive('1'), isFalse);
+      expect(
+        bridgeCalls.where(
+          (call) => call.method == 'chooseZmodemReceiveDirectory',
+        ),
+        isEmpty,
+      );
+      expect(
+        fakeBindings.jsonRequests.where(
+          (request) => request['kind'] == 'terminal.zmodem.accept_receive',
+        ),
+        isEmpty,
+      );
+      expect(
+        find.byKey(const Key('shell-zmodem-transfer-detail')),
+        findsNothing,
+      );
+    },
+  );
+
+  testWidgets(
+    'ZMODEM deferred write failure persists and suppresses same-poll success',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final runtime = container.read(terminalRuntimeControllerProvider);
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '43',
+            'direction': 'receive',
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_deferred_write_failed',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'reason': 'io_error',
+            'queuedChunks': 3,
+            'queuedBytes': 12,
+            'completedChunks': 1,
+            'completedBytes': 4,
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_completed',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '43',
+            'direction': 'receive',
+          },
+        ),
+      );
+
+      runtime.refreshSession('1');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.byKey(const Key('shell-runtime-error')), findsOneWidget);
+      expect(
+        find.textContaining('8 bytes in 2 queued writes were not confirmed'),
+        findsOneWidget,
+      );
+      expect(find.text('ZMODEM receive completed'), findsNothing);
+      expect(
+        container.read(sessionControllerProvider).lastError,
+        contains('The terminal connection was closed'),
+      );
+
+      await tester.pump(const Duration(seconds: 5));
+      expect(find.byKey(const Key('shell-runtime-error')), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'ZMODEM ignores an ended picker request before authorizing a new transfer',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final fakeBindings = FakePtyBackend();
+      const channel = MethodChannel('app/window_bridge');
+      final firstPicker = Completer<String?>();
+      var pickerCalls = 0;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        call,
+      ) {
+        if (call.method != 'chooseZmodemReceiveDirectory') {
+          return Future<Object?>.value();
+        }
+        pickerCalls += 1;
+        return pickerCalls == 1
+            ? firstPicker.future
+            : Future<Object?>.value('/current/downloads');
+      });
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
+
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final runtime = container.read(terminalRuntimeControllerProvider);
+      fakeBindings.jsonRequests.clear();
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_file_offer',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '44',
+            'direction': 'receive',
+            'filename': 'ended.bin',
+            'size': 8,
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      expect(pickerCalls, 1);
+
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_cancelled',
+          sessionId: '1',
+          payload: <String, Object?>{'source': 'zmodem', 'transferId': '44'},
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_file_offer',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '45',
+            'direction': 'receive',
+            'filename': 'current.bin',
+            'size': 16,
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(pickerCalls, 1);
+      expect(
+        find.textContaining('previous ZMODEM file picker is still open'),
+        findsWidgets,
+      );
+      expect(
+        find.byKey(const Key('shell-zmodem-transfer-retry')),
+        findsOneWidget,
+      );
+
+      firstPicker.complete('/stale/downloads');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(
+        fakeBindings.jsonRequests.where(
+          (request) => request['kind'] == 'terminal.zmodem.accept_receive',
+        ),
+        isEmpty,
+      );
+      expect(
+        find.text(
+          'ZMODEM transfer already ended; the picker result was not used.',
+        ),
+        findsWidgets,
+      );
+
+      await tester.tap(find.byKey(const Key('shell-zmodem-transfer-retry')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(pickerCalls, 2);
+      expect(
+        fakeBindings.jsonRequests
+            .where(
+              (request) => request['kind'] == 'terminal.zmodem.accept_receive',
+            )
+            .single,
+        <String, Object?>{
+          'kind': 'terminal.zmodem.accept_receive',
+          'transferId': '45',
+          'destination': '/current/downloads',
+        },
+      );
+    },
+  );
+
+  testWidgets(
+    'ZMODEM rejects bidi filenames before display or receive authorization',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final fakeBindings = FakePtyBackend();
+      const channel = MethodChannel('app/window_bridge');
+      final bridgeCalls = <MethodCall>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        call,
+      ) async {
+        bridgeCalls.add(call);
+        return call.method == 'chooseZmodemReceiveDirectory'
+            ? '/chosen/downloads'
+            : null;
+      });
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
+
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final runtime = container.read(terminalRuntimeControllerProvider);
+      fakeBindings.jsonRequests.clear();
+
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_file_offer',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '52',
+            'direction': 'receive',
+            'filename': 'invoice\u202Egpj.exe',
+            'size': 1024,
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(runtime.isZmodemTransferActive('1'), isFalse);
+      expect(
+        find.byKey(const Key('shell-zmodem-transfer-detail')),
+        findsNothing,
+      );
+      expect(find.textContaining('invoice'), findsNothing);
+      expect(
+        bridgeCalls.where(
+          (call) => call.method == 'chooseZmodemReceiveDirectory',
+        ),
+        isEmpty,
+      );
+      expect(
+        fakeBindings.jsonRequests.where(
+          (request) => request['kind'] == 'terminal.zmodem.accept_receive',
+        ),
+        isEmpty,
+      );
+
+      const unicodeFilename = '发票-東京-😀.jpg';
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_file_offer',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '52',
+            'direction': 'receive',
+            'filename': unicodeFilename,
+            'size': 1024,
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(runtime.isZmodemTransferActive('1'), isTrue);
+      expect(find.textContaining(unicodeFilename), findsOneWidget);
+      expect(
+        bridgeCalls.where(
+          (call) => call.method == 'chooseZmodemReceiveDirectory',
+        ),
+        hasLength(1),
+      );
+      expect(fakeBindings.jsonRequests.single, <String, Object?>{
+        'kind': 'terminal.zmodem.accept_receive',
+        'transferId': '52',
+        'destination': '/chosen/downloads',
+      });
+    },
+  );
+
+  testWidgets(
+    'ZMODEM rejects 257 selected files without authorizing a truncated batch',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final fakeBindings = FakePtyBackend();
+      const channel = MethodChannel('app/window_bridge');
+      final selected = List<String>.generate(
+        257,
+        (index) => '/tmp/file-$index.bin',
+        growable: false,
+      );
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        (call) async =>
+            call.method == 'chooseZmodemSendFiles' ? selected : null,
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
+
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final runtime = container.read(terminalRuntimeControllerProvider);
+      fakeBindings.jsonRequests.clear();
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '60',
+            'direction': 'send',
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.textContaining('at most 256 files'), findsWidgets);
+      expect(
+        fakeBindings.jsonRequests.where(
+          (request) => request['kind'] == 'terminal.zmodem.accept_send',
+        ),
+        isEmpty,
+      );
+      expect(
+        find.byKey(const Key('shell-zmodem-transfer-retry')),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'ZMODEM gap survivor exposes recovery without prior transfer UI state',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final fakeBindings = FakePtyBackend()..zmodemCancelActiveOutcome = 'idle';
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final runtime = container.read(terminalRuntimeControllerProvider);
+
+      fakeBindings.enqueueEvent(
+        '1',
+        PtyRuntimeEventGapDiagnostic(
+          sessionId: '1',
+          expectedSequence: 2,
+          nextSequence: 6,
+          droppedCount: 4,
+          survivingEventCount: 1,
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_failed',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '60',
+            'direction': 'receive',
+            'reason': 'publish_failed',
+            'recoverablePartialName': '.complete.ianvs-part',
+            'stagingPreserved': true,
+            'recoveryToken': '00112233445566778899aabbccddeeff',
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byKey(const Key('shell-zmodem-recovery')), findsOneWidget);
+      expect(
+        find.textContaining('Complete file preserved as .complete.ianvs-part'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'Old publish recovery does not hide the current gap reconciliation UI',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final fakeBindings = FakePtyBackend()
+        ..zmodemCancelActiveOutcome = 'cancelled';
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final runtime = container.read(terminalRuntimeControllerProvider);
+
+      fakeBindings.enqueueEvent(
+        '1',
+        PtyRuntimeEventGapDiagnostic(
+          sessionId: '1',
+          expectedSequence: 2,
+          nextSequence: 5,
+          droppedCount: 1,
+          survivingEventCount: 2,
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_failed',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '71',
+            'direction': 'receive',
+            'reason': 'publish_failed',
+            'recoverablePartialName': '.complete.ianvs-part',
+            'stagingPreserved': true,
+            'recoveryToken': '00112233445566778899aabbccddeeff',
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '72',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      await tester.pump();
+
+      expect(runtime.isZmodemTransferActive('1'), isTrue);
+      expect(find.textContaining('Transfer state lost'), findsOneWidget);
+      expect(find.byKey(const Key('shell-zmodem-recovery')), findsOneWidget);
+      expect(
+        find.textContaining('Complete file preserved as .complete.ianvs-part'),
+        findsOneWidget,
+      );
+
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_cancelled',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '72',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      await tester.pump();
+
+      expect(runtime.isZmodemTransferActive('1'), isFalse);
+      expect(find.textContaining('Transfer state lost'), findsNothing);
+      expect(find.byKey(const Key('shell-zmodem-recovery')), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'Old terminal does not hide a successor drain reconciliation UI',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final fakeBindings = FakePtyBackend()
+        ..zmodemCancelActiveOutcome = 'cancelled';
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final runtime = container.read(terminalRuntimeControllerProvider);
+
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '71',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+
+      fakeBindings.enqueueEvent(
+        '1',
+        PtyRuntimeEventGapDiagnostic(
+          sessionId: '1',
+          expectedSequence: 3,
+          nextSequence: 6,
+          droppedCount: 1,
+          survivingEventCount: 2,
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_completed',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '71',
+            'direction': 'receive',
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '72',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      await tester.pump();
+
+      expect(runtime.isZmodemTransferActive('1'), isTrue);
+      expect(find.textContaining('Transfer state lost'), findsOneWidget);
+
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_cancelled',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '72',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      await tester.pump();
+
+      expect(runtime.isZmodemTransferActive('1'), isFalse);
+      expect(find.textContaining('Transfer state lost'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'First-batch ZMODEM gap survivor exposes transfer UI and pauses input',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final fakeBindings = FakePtyBackend()
+        ..zmodemResponses['terminal.zmodem.cancel_active'] = false;
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final runtime = container.read(terminalRuntimeControllerProvider);
+      fakeBindings.jsonRequests.clear();
+
+      fakeBindings.enqueueEvent(
+        '1',
+        PtyRuntimeEventGapDiagnostic(
+          sessionId: '1',
+          expectedSequence: 2,
+          nextSequence: 4,
+          droppedCount: 1,
+          survivingEventCount: 1,
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '61',
+            'direction': 'send',
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(runtime.activeZmodemTransferIdFor('1'), '61');
+      expect(find.byKey(const Key('shell-zmodem-transfer-61')), findsOneWidget);
+      expect(find.textContaining('terminal input paused'), findsOneWidget);
+      expect(
+        find.byKey(const Key('shell-zmodem-transfer-cancel')),
+        findsOneWidget,
+      );
+      expect(fakeBindings.jsonRequests.single, <String, Object?>{
+        'kind': 'terminal.zmodem.cancel_active',
+      });
+    },
+  );
+
+  testWidgets(
+    'First-batch ZMODEM gap without survivors exposes cancellation recovery',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final fakeBindings = FakePtyBackend()
+        ..zmodemResponses['terminal.zmodem.cancel'] = false
+        ..zmodemResponses['terminal.zmodem.cancel_active'] = false;
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final runtime = container.read(terminalRuntimeControllerProvider);
+      fakeBindings.jsonRequests.clear();
+
+      fakeBindings.enqueueEvent(
+        '1',
+        PtyRuntimeEventGapDiagnostic(
+          sessionId: '1',
+          expectedSequence: 2,
+          nextSequence: 5,
+          droppedCount: 3,
+          survivingEventCount: 0,
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(runtime.isZmodemTransferActive('1'), isTrue);
+      expect(find.textContaining('Transfer state lost'), findsOneWidget);
+      expect(
+        find.byKey(const Key('shell-zmodem-transfer-cancel')),
+        findsOneWidget,
+      );
+
+      fakeBindings.zmodemResponses['terminal.zmodem.cancel_active'] = true;
+      await tester.tap(find.byKey(const Key('shell-zmodem-transfer-cancel')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(runtime.isZmodemTransferActive('1'), isTrue);
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_cancelled',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '18446744073709551615',
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      expect(runtime.isZmodemTransferActive('1'), isFalse);
+      expect(find.textContaining('Transfer state lost'), findsNothing);
+    },
+  );
+
+  testWidgets('Cancel during native drain preserves the completed result', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final fakeBindings = FakePtyBackend()
+      ..zmodemResponses['terminal.zmodem.cancel'] = false
+      ..zmodemCancelActiveOutcome = 'draining';
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final runtime = container.read(terminalRuntimeControllerProvider);
+
+    fakeBindings.enqueueEvent(
+      '1',
+      const PtyEvent(
+        kind: 'zmodem_started',
+        sessionId: '1',
+        payload: <String, Object?>{
+          'source': 'zmodem',
+          'transferId': '62',
+          'direction': 'receive',
+          'fileCount': 1,
+          'totalBytes': 3,
+        },
+      ),
+    );
+    runtime.refreshSession('1');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(find.byKey(const Key('shell-zmodem-transfer-cancel')));
+    await tester.pump();
+
+    fakeBindings.enqueueEvent(
+      '1',
+      const PtyEvent(
+        kind: 'zmodem_completed',
+        sessionId: '1',
+        payload: <String, Object?>{
+          'source': 'zmodem',
+          'transferId': '62',
+          'direction': 'receive',
+        },
+      ),
+    );
+    runtime.refreshSession('1');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('ZMODEM receive completed'), findsOneWidget);
+    expect(find.text('ZMODEM transfer cancelled'), findsNothing);
+  });
+
+  testWidgets('Inactive ZMODEM result is shown when its session is activated', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final fakeBindings = FakePtyBackend();
+    final notifications = <Map<String, String?>>[];
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      notificationSender:
+          ({required title, body, identifier, expiresAfterMs}) async {
+            notifications.add({
+              'title': title,
+              'body': body,
+              'identifier': identifier,
+            });
+          },
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final runtime = container.read(terminalRuntimeControllerProvider);
+    final sessions = container.read(sessionControllerProvider.notifier);
+
+    fakeBindings.enqueueEvent(
+      '1',
+      const PtyEvent(
+        kind: 'zmodem_started',
+        sessionId: '1',
+        payload: <String, Object?>{
+          'source': 'zmodem',
+          'transferId': '63',
+          'direction': 'receive',
+        },
+      ),
+    );
+    runtime.refreshSession('1');
+    await tester.pump();
+    sessions.createSession(defaultTerminalProfile());
+    await tester.pump();
+
+    fakeBindings.enqueueEvent(
+      '1',
+      const PtyEvent(
+        kind: 'zmodem_completed',
+        sessionId: '1',
+        payload: <String, Object?>{
+          'source': 'zmodem',
+          'transferId': '63',
+          'direction': 'receive',
+        },
+      ),
+    );
+    runtime.refreshSession('1');
+    await tester.pump();
+    expect(find.text('ZMODEM receive completed'), findsNothing);
+    expect(
+      notifications.where(
+        (notification) =>
+            notification['identifier'] == 'ianvs-terminal.zmodem.1' &&
+            notification['body'] == 'ZMODEM receive completed',
+      ),
+      hasLength(1),
+    );
+
+    sessions.activateSession('1');
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('ZMODEM receive completed'), findsOneWidget);
+  });
+
+  testWidgets('Inactive ZMODEM authorization is cancelled and notified', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final fakeBindings = FakePtyBackend();
+    final notifications = <Map<String, String?>>[];
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      notificationSender:
+          ({required title, body, identifier, expiresAfterMs}) async {
+            notifications.add({
+              'title': title,
+              'body': body,
+              'identifier': identifier,
+            });
+          },
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final runtime = container.read(terminalRuntimeControllerProvider);
+    container
+        .read(sessionControllerProvider.notifier)
+        .createSession(defaultTerminalProfile());
+    await tester.pump();
+    fakeBindings.jsonRequests.clear();
+
+    fakeBindings.enqueueEvent(
+      '1',
+      const PtyEvent(
+        kind: 'zmodem_detected',
+        sessionId: '1',
+        payload: <String, Object?>{
+          'source': 'zmodem',
+          'transferId': '64',
+          'direction': 'send',
+        },
+      ),
+    );
+    runtime.refreshSession('1');
+    await tester.pump();
+    await tester.pump();
+
+    expect(fakeBindings.jsonRequests.single, <String, Object?>{
+      'kind': 'terminal.zmodem.cancel',
+      'transferId': '64',
+    });
+    expect(
+      notifications.where(
+        (notification) =>
+            notification['identifier'] == 'ianvs-terminal.zmodem.1' &&
+            notification['title']!.startsWith('ZMODEM request cancelled') &&
+            notification['body']!.contains('pane is inactive'),
+      ),
+      hasLength(1),
+    );
+  });
+
+  testWidgets(
+    'Inactive ZMODEM reconciliation marks output and notifies attention',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final fakeBindings = FakePtyBackend()
+        ..zmodemCancelActiveOutcome = 'draining';
+      final notifications = <Map<String, String?>>[];
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        notificationSender:
+            ({required title, body, identifier, expiresAfterMs}) async {
+              notifications.add({
+                'title': title,
+                'body': body,
+                'identifier': identifier,
+              });
+            },
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final runtime = container.read(terminalRuntimeControllerProvider);
+      container
+          .read(sessionControllerProvider.notifier)
+          .createSession(defaultTerminalProfile());
+      await tester.pump();
+
+      fakeBindings.enqueueEvent(
+        '1',
+        PtyRuntimeEventGapDiagnostic(
+          sessionId: '1',
+          expectedSequence: 2,
+          nextSequence: 5,
+          droppedCount: 3,
+          survivingEventCount: 0,
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.byKey(const Key('shell-tab-new-output-1')), findsOneWidget);
+      expect(
+        notifications.where(
+          (notification) =>
+              notification['identifier'] == 'ianvs-terminal.zmodem.1' &&
+              notification['title']!.startsWith(
+                'ZMODEM transfer needs attention',
+              ) &&
+              notification['body']!.contains('Transfer state was lost'),
+        ),
+        hasLength(1),
+      );
+    },
+  );
+
+  testWidgets(
+    'Inactive preserved ZMODEM receive marks output and notifies attention',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final fakeBindings = FakePtyBackend();
+      final notifications = <Map<String, String?>>[];
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        notificationSender:
+            ({required title, body, identifier, expiresAfterMs}) async {
+              notifications.add({
+                'title': title,
+                'body': body,
+                'identifier': identifier,
+              });
+            },
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final runtime = container.read(terminalRuntimeControllerProvider);
+      container
+          .read(sessionControllerProvider.notifier)
+          .createSession(defaultTerminalProfile());
+      await tester.pump();
+
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_failed',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '65',
+            'direction': 'receive',
+            'reason': 'publish_failed',
+            'recoverablePartialName': '.inactive.ianvs-part',
+            'stagingPreserved': true,
+            'recoveryToken': '11223344556677889900aabbccddeeff',
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.byKey(const Key('shell-tab-new-output-1')), findsOneWidget);
+      expect(
+        notifications.where(
+          (notification) =>
+              notification['identifier'] == 'ianvs-terminal.zmodem.1' &&
+              notification['title']!.startsWith('ZMODEM file preserved') &&
+              notification['body']!.contains('complete file was preserved'),
+        ),
+        hasLength(1),
+      );
+    },
+  );
+
+  testWidgets(
+    'Fallback ZMODEM recovery identifies its inactive source session',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final fakeBindings = FakePtyBackend();
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final runtime = container.read(terminalRuntimeControllerProvider);
+      container
+          .read(sessionControllerProvider.notifier)
+          .createSession(defaultTerminalProfile());
+      await tester.pump();
+
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_failed',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '66',
+            'direction': 'receive',
+            'reason': 'publish_failed',
+            'recoverablePartialName': '.same-name.ianvs-part',
+            'stagingPreserved': true,
+            'recoveryToken': '22334455667788990011aabbccddeeff',
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        find.textContaining(
+          '.same-name.ianvs-part from Local Shell (session 1)',
+        ),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'ZMODEM recovery survives session close and is consumed after Reveal',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final fakeBindings = FakePtyBackend();
+      const channel = MethodChannel('app/window_bridge');
+      final bridgeCalls = <MethodCall>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        call,
+      ) async {
+        bridgeCalls.add(call);
+        return call.method == 'chooseZmodemReceiveDirectory'
+            ? '/chosen/downloads'
+            : null;
+      });
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
+
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final runtime = container.read(terminalRuntimeControllerProvider);
+      fakeBindings.zmodemRecoveryPath = '/current/downloads/.report.ianvs-part';
+      fakeBindings.jsonRequests.clear();
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_file_offer',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '61',
+            'direction': 'receive',
+            'filename': 'report.bin',
+            'size': 8,
+            'modificationTimeSeconds': 1700000456,
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(fakeBindings.jsonRequests.last, <String, Object?>{
+        'kind': 'terminal.zmodem.accept_receive',
+        'transferId': '61',
+        'destination': '/chosen/downloads',
+      });
+      expect(
+        find.textContaining('modified 2023-11-14 22:20:56 UTC'),
+        findsOneWidget,
+      );
+
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_failed',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '61',
+            'direction': 'receive',
+            'reason': 'publish_failed',
+            'recoverablePartialName': '.report.ianvs-part',
+            'stagingPreserved': true,
+            'recoveryToken': '0123456789abcdef0123456789abcdef',
+            'recoverablePartialPath': '/stale/downloads/.report.ianvs-part',
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(runtime.isZmodemTransferActive('1'), isFalse);
+      expect(
+        find.textContaining('Complete file preserved as .report.ianvs-part'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('selected folder'), findsNothing);
+      expect(find.textContaining('/chosen/downloads'), findsNothing);
+      expect(
+        find.textContaining('0123456789abcdef0123456789abcdef'),
+        findsNothing,
+      );
+      expect(find.text('Reveal'), findsOneWidget);
+      expect(
+        fakeBindings.jsonRequests.where(
+          (request) => request['kind'] == 'terminal.zmodem.resolve_recovery',
+        ),
+        isEmpty,
+      );
+
+      await tester.pump(const Duration(seconds: 5));
+      expect(find.byKey(const Key('shell-zmodem-recovery')), findsOneWidget);
+      expect(find.text('Reveal'), findsOneWidget);
+
+      await container
+          .read(sessionControllerProvider.notifier)
+          .closeSession('1');
+      await tester.pumpAndSettle();
+      expect(fakeBindings.closedSessionIds, contains('1'));
+      expect(find.byKey(const Key('shell-zmodem-recovery')), findsOneWidget);
+
+      await tester.tap(find.text('Reveal'));
+      await tester.pump();
+      expect(
+        fakeBindings.jsonRequests
+            .where(
+              (request) =>
+                  request['kind'] == 'terminal.zmodem.resolve_recovery' ||
+                  request['kind'] == 'terminal.zmodem.consume_recovery',
+            )
+            .toList(),
+        <Map<String, Object?>>[
+          <String, Object?>{
+            'kind': 'terminal.zmodem.resolve_recovery',
+            'recoveryToken': '0123456789abcdef0123456789abcdef',
+          },
+          <String, Object?>{
+            'kind': 'terminal.zmodem.consume_recovery',
+            'recoveryToken': '0123456789abcdef0123456789abcdef',
+          },
+        ],
+      );
+      final reveal = bridgeCalls.singleWhere(
+        (call) => call.method == 'revealInFinder',
+      );
+      expect(reveal.arguments, <String, Object?>{
+        'path': '/current/downloads/.report.ianvs-part',
+      });
+      expect(find.byKey(const Key('shell-zmodem-recovery')), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'ZMODEM recovery retains transient Reveal failures and dismisses stale tokens',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final fakeBindings = FakePtyBackend();
+      const channel = MethodChannel('app/window_bridge');
+      final bridgeCalls = <MethodCall>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        call,
+      ) async {
+        bridgeCalls.add(call);
+        return call.method == 'chooseZmodemReceiveDirectory'
+            ? '/chosen/downloads'
+            : null;
+      });
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
+
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      fakeBindings.zmodemRecoveryRequestFails = true;
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final runtime = container.read(terminalRuntimeControllerProvider);
+      fakeBindings.jsonRequests.clear();
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_file_offer',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '62',
+            'direction': 'receive',
+            'filename': 'report.bin',
+            'size': 8,
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_failed',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '62',
+            'direction': 'receive',
+            'reason': 'publish_failed',
+            'recoverablePartialName': '.report.ianvs-part',
+            'stagingPreserved': true,
+            'recoveryToken': 'fedcba9876543210fedcba9876543210',
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      await tester.tap(find.text('Reveal'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(
+        find.text('Could not resolve the preserved ZMODEM file; try again'),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('shell-zmodem-recovery')), findsOneWidget);
+      expect(
+        find.textContaining('fedcba9876543210fedcba9876543210'),
+        findsNothing,
+      );
+      expect(find.textContaining('/chosen/downloads'), findsNothing);
+      expect(
+        find.textContaining('relative/unsafe-recovery-path'),
+        findsNothing,
+      );
+      expect(
+        fakeBindings.jsonRequests
+            .where(
+              (request) =>
+                  request['kind'] == 'terminal.zmodem.resolve_recovery' ||
+                  request['kind'] == 'terminal.zmodem.consume_recovery',
+            )
+            .toList(),
+        <Map<String, Object?>>[
+          <String, Object?>{
+            'kind': 'terminal.zmodem.resolve_recovery',
+            'recoveryToken': 'fedcba9876543210fedcba9876543210',
+          },
+        ],
+      );
+      expect(
+        bridgeCalls.where((call) => call.method == 'revealInFinder'),
+        isEmpty,
+      );
+
+      fakeBindings.zmodemResponses['terminal.zmodem.dismiss_recovery'] = false;
+      await tester.tap(find.byKey(const Key('shell-zmodem-recovery-dismiss')));
+      await tester.pump();
+
+      expect(find.text('Permanently discard file?'), findsOneWidget);
+      expect(find.textContaining('cannot be undone'), findsOneWidget);
+      expect(
+        fakeBindings.jsonRequests.where(
+          (request) => request['kind'] == 'terminal.zmodem.dismiss_recovery',
+        ),
+        isEmpty,
+      );
+
+      await tester.tap(
+        find.byKey(const Key('shell-zmodem-recovery-discard-cancel')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('shell-zmodem-recovery')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('shell-zmodem-recovery-dismiss')));
+      await tester.pump();
+      await tester.tap(
+        find.byKey(const Key('shell-zmodem-recovery-discard-confirm')),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.byKey(const Key('shell-zmodem-recovery')), findsNothing);
+      expect(fakeBindings.jsonRequests.last, <String, Object?>{
+        'kind': 'terminal.zmodem.dismiss_recovery',
+        'recoveryToken': 'fedcba9876543210fedcba9876543210',
+      });
+    },
+  );
+
+  testWidgets(
+    'ZMODEM Reveal consumes native authority safely after ShellScreen unmounts',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final fakeBindings = FakePtyBackend();
+      fakeBindings.zmodemRecoveryPath = '/chosen/.late-recovery.part';
+      const channel = MethodChannel('app/window_bridge');
+      final revealCompleter = Completer<bool>();
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        call,
+      ) async {
+        if (call.method == 'revealInFinder') {
+          return revealCompleter.future;
+        }
+        return null;
+      });
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
+
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final runtime = container.read(terminalRuntimeControllerProvider);
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '63',
+            'direction': 'receive',
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_failed',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '63',
+            'direction': 'receive',
+            'reason': 'publish_failed',
+            'recoverablePartialName': '.late-recovery.part',
+            'stagingPreserved': true,
+            'recoveryToken': '00112233445566778899aabbccddeeff',
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      await tester.tap(find.text('Reveal'));
+      await tester.pump();
+      await tester.pumpWidget(const SizedBox.shrink());
+      revealCompleter.complete(true);
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        fakeBindings.jsonRequests.where(
+          (request) => request['kind'] == 'terminal.zmodem.consume_recovery',
+        ),
+        hasLength(1),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'ZMODEM multi-file send keeps batch progress and clears finished names',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final fakeBindings = FakePtyBackend();
+      const channel = MethodChannel('app/window_bridge');
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        (call) async => call.method == 'chooseZmodemSendFiles'
+            ? <String>['/tmp/first.bin', '/tmp/second.bin']
+            : null,
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
+
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final runtime = container.read(terminalRuntimeControllerProvider);
+      fakeBindings.jsonRequests.clear();
+
+      Future<void> deliver(String kind, Map<String, Object?> payload) async {
+        fakeBindings.enqueueEvent(
+          '1',
+          PtyEvent(kind: kind, sessionId: '1', payload: payload),
+        );
+        runtime.refreshSession('1');
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+
+      await deliver('zmodem_detected', const <String, Object?>{
+        'source': 'zmodem',
+        'transferId': '55',
+        'direction': 'send',
+      });
+      expect(fakeBindings.jsonRequests.last, <String, Object?>{
+        'kind': 'terminal.zmodem.accept_send',
+        'transferId': '55',
+        'files': <String>['/tmp/first.bin', '/tmp/second.bin'],
+      });
+
+      await deliver('zmodem_started', const <String, Object?>{
+        'source': 'zmodem',
+        'transferId': '55',
+        'direction': 'send',
+        'fileCount': 2,
+        'totalBytes': 300,
+      });
+      await deliver('zmodem_progress', const <String, Object?>{
+        'source': 'zmodem',
+        'transferId': '55',
+        'direction': 'send',
+        'bytesTransferred': 100,
+        'totalBytes': 300,
+      });
+      await deliver('zmodem_file_completed', const <String, Object?>{
+        'source': 'zmodem',
+        'transferId': '55',
+        'direction': 'send',
+        'filename': 'first.bin',
+        'size': 100,
+        'completedFiles': 1,
+      });
+
+      var detail = tester.widget<Text>(
+        find.byKey(const Key('shell-zmodem-transfer-detail')),
+      );
+      expect(detail.data, contains('1 / 2 files'));
+      expect(detail.data, contains('100 B / 300 B'));
+      expect(detail.data, isNot(contains('first.bin')));
+      expect(
+        tester
+            .widget<LinearProgressIndicator>(
+              find.byKey(const Key('shell-zmodem-transfer-progress')),
+            )
+            .value,
+        closeTo(1 / 3, 0.001),
+      );
+
+      await deliver('zmodem_progress', const <String, Object?>{
+        'source': 'zmodem',
+        'transferId': '55',
+        'direction': 'send',
+        'bytesTransferred': 150,
+        'totalBytes': 300,
+      });
+      await deliver('zmodem_file_skipped', const <String, Object?>{
+        'source': 'zmodem',
+        'transferId': '55',
+        'direction': 'send',
+        'filename': 'second.bin',
+        'size': 200,
+        'completedFiles': 1,
+        'skippedFiles': 1,
+      });
+
+      detail = tester.widget<Text>(
+        find.byKey(const Key('shell-zmodem-transfer-detail')),
+      );
+      expect(detail.data, contains('2 / 2 files'));
+      expect(detail.data, contains('1 skipped'));
+      expect(detail.data, contains('150 B / 300 B'));
+      expect(detail.data, isNot(contains('second.bin')));
+      expect(
+        tester
+            .widget<LinearProgressIndicator>(
+              find.byKey(const Key('shell-zmodem-transfer-progress')),
+            )
+            .value,
+        0.5,
+      );
+    },
+  );
+
+  testWidgets('ZMODEM picker cancel keeps a recoverable retry state', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final fakeBindings = FakePtyBackend();
+    const channel = MethodChannel('app/window_bridge');
+    var pickerCalls = 0;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+      call,
+    ) async {
+      if (call.method != 'chooseZmodemReceiveDirectory') {
+        return null;
+      }
+      pickerCalls += 1;
+      return pickerCalls == 1 ? null : '/retry/downloads';
+    });
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      ),
+    );
+
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final runtime = container.read(terminalRuntimeControllerProvider);
+    fakeBindings.jsonRequests.clear();
+    fakeBindings.enqueueEvent(
+      '1',
+      const PtyEvent(
+        kind: 'zmodem_file_offer',
+        sessionId: '1',
+        payload: <String, Object?>{
+          'source': 'zmodem',
+          'transferId': '52',
+          'direction': 'receive',
+          'filename': 'unknown.bin',
+          'size': null,
+        },
+      ),
+    );
+    runtime.refreshSession('1');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(
+      find.textContaining('Destination selection cancelled'),
+      findsWidgets,
+    );
+    expect(
+      find.byKey(const Key('shell-zmodem-transfer-retry')),
+      findsOneWidget,
+    );
+    expect(fakeBindings.jsonRequests, isEmpty);
+
+    await tester.tap(find.byKey(const Key('shell-zmodem-transfer-retry')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(pickerCalls, 2);
+    expect(fakeBindings.jsonRequests.last, <String, Object?>{
+      'kind': 'terminal.zmodem.accept_receive',
+      'transferId': '52',
+      'destination': '/retry/downloads',
+    });
+    expect(find.byKey(const Key('shell-zmodem-transfer-retry')), findsNothing);
+    expect(find.textContaining('unknown size'), findsOneWidget);
+  });
+
+  testWidgets('Active ZMODEM transfer blocks pane close without losing state', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final fakeBindings = FakePtyBackend();
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final runtime = container.read(terminalRuntimeControllerProvider);
+    final sessions = container.read(sessionControllerProvider.notifier);
+    fakeBindings.enqueueEvent(
+      '1',
+      const PtyEvent(
+        kind: 'zmodem_started',
+        sessionId: '1',
+        payload: <String, Object?>{
+          'source': 'zmodem',
+          'transferId': '520',
+          'direction': 'receive',
+          'fileCount': 1,
+          'totalBytes': 3,
+        },
+      ),
+    );
+    runtime.refreshSession('1');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(await sessions.closeSession('1'), isFalse);
+    await tester.pump();
+
+    expect(runtime.hasSession('1'), isTrue);
+    expect(fakeBindings.closedSessionIds, isNot(contains('1')));
+    expect(
+      container.read(sessionControllerProvider).lastError,
+      contains('Cancel the active ZMODEM transfer'),
+    );
+    fakeBindings.enqueueEvent(
+      '1',
+      const PtyEvent(
+        kind: 'zmodem_cancelled',
+        sessionId: '1',
+        payload: <String, Object?>{
+          'source': 'zmodem',
+          'transferId': '520',
+          'direction': 'receive',
+        },
+      ),
+    );
+    runtime.refreshSession('1');
+    await tester.pump();
+  });
+
+  testWidgets(
+    'Native ZMODEM close busy protects an event not yet polled by Dart',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final fakeBindings = FakePtyBackend()..failingCloseSessionIds.add('1');
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final runtime = container.read(terminalRuntimeControllerProvider);
+      final sessions = container.read(sessionControllerProvider.notifier);
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '521',
+            'direction': 'send',
+          },
+        ),
+      );
+
+      expect(runtime.isZmodemTransferActive('1'), isFalse);
+      expect(await sessions.closeSession('1'), isFalse);
+      await tester.pump();
+
+      expect(runtime.hasSession('1'), isTrue);
+      expect(fakeBindings.closedSessionIds, isNot(contains('1')));
+      expect(
+        container.read(sessionControllerProvider).lastError,
+        contains('native ZMODEM transfer'),
+      );
+
+      runtime.refreshSession('1');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(runtime.activeZmodemTransferIdFor('1'), '521');
+      fakeBindings.failingCloseSessionIds.remove('1');
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_cancelled',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '521',
+            'direction': 'send',
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+    },
+  );
+
+  testWidgets('ZMODEM authorization failure remains retryable', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final fakeBindings = FakePtyBackend()
+      ..zmodemResponses['terminal.zmodem.accept_receive'] = false;
+    const channel = MethodChannel('app/window_bridge');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      channel,
+      (call) async => call.method == 'chooseZmodemReceiveDirectory'
+          ? '/chosen/downloads'
+          : null,
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      ),
+    );
+
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final runtime = container.read(terminalRuntimeControllerProvider);
+    fakeBindings.enqueueEvent(
+      '1',
+      const PtyEvent(
+        kind: 'zmodem_file_offer',
+        sessionId: '1',
+        payload: <String, Object?>{
+          'source': 'zmodem',
+          'transferId': '53',
+          'direction': 'receive',
+          'filename': 'retry.bin',
+          'size': 3,
+        },
+      ),
+    );
+    runtime.refreshSession('1');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.textContaining('Could not authorize'), findsWidgets);
+    expect(
+      find.byKey(const Key('shell-zmodem-transfer-retry')),
+      findsOneWidget,
+    );
+
+    fakeBindings.zmodemResponses['terminal.zmodem.accept_receive'] = true;
+    await tester.tap(find.byKey(const Key('shell-zmodem-transfer-retry')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(
+      fakeBindings.jsonRequests
+          .where(
+            (request) => request['kind'] == 'terminal.zmodem.accept_receive',
+          )
+          .length,
+      2,
+    );
+    expect(find.byKey(const Key('shell-zmodem-transfer-retry')), findsNothing);
+  });
+
+  testWidgets(
+    'ZMODEM native start clears a lost authorization response error',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final fakeBindings = FakePtyBackend()
+        ..zmodemResponses['terminal.zmodem.accept_receive'] = false;
+      const channel = MethodChannel('app/window_bridge');
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        (call) async => call.method == 'chooseZmodemReceiveDirectory'
+            ? '/chosen/downloads'
+            : null,
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
+
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final runtime = container.read(terminalRuntimeControllerProvider);
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_file_offer',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '54',
+            'direction': 'receive',
+            'filename': 'accepted.bin',
+            'size': 3,
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.textContaining('Could not authorize'), findsWidgets);
+      expect(
+        find.byKey(const Key('shell-zmodem-transfer-retry')),
+        findsOneWidget,
+      );
+
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_started',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '54',
+            'direction': 'receive',
+            'fileCount': 1,
+            'totalBytes': 3,
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.textContaining('Could not authorize'), findsNothing);
+      expect(
+        find.byKey(const Key('shell-zmodem-transfer-retry')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const Key('shell-zmodem-transfer-detail')),
+        findsOneWidget,
+      );
+
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_file_offer',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '54',
+            'direction': 'receive',
+            'filename': 'second.bin',
+            'size': 4,
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(
+        fakeBindings.jsonRequests
+            .where(
+              (request) => request['kind'] == 'terminal.zmodem.accept_receive',
+            )
+            .length,
+        1,
+        reason: 'native start proves the original authorization was accepted',
+      );
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_cancelled',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '54',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+    },
+  );
+
+  testWidgets('ZMODEM session-switch cancel failure is visible and retryable', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final fakeBindings = FakePtyBackend()
+      ..zmodemResponses['terminal.zmodem.cancel'] = false
+      ..zmodemResponses['terminal.zmodem.cancel_active'] = false;
+    final notifications = <Map<String, String?>>[];
+    const channel = MethodChannel('app/window_bridge');
+    final picker = Completer<String?>();
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      channel,
+      (call) => call.method == 'chooseZmodemReceiveDirectory'
+          ? picker.future
+          : Future<Object?>.value(),
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      ),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      notificationSender:
+          ({required title, body, identifier, expiresAfterMs}) async {
+            notifications.add({
+              'title': title,
+              'body': body,
+              'identifier': identifier,
+            });
+          },
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final runtime = container.read(terminalRuntimeControllerProvider);
+    final sessions = container.read(sessionControllerProvider.notifier);
+    fakeBindings.enqueueEvent(
+      '1',
+      const PtyEvent(
+        kind: 'zmodem_file_offer',
+        sessionId: '1',
+        payload: <String, Object?>{
+          'source': 'zmodem',
+          'transferId': '54',
+          'direction': 'receive',
+          'filename': 'switch.bin',
+          'size': null,
+        },
+      ),
+    );
+    runtime.refreshSession('1');
+    await tester.pump();
+
+    sessions.createSession(defaultTerminalProfile());
+    await tester.pump();
+    picker.complete('/chosen/downloads');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.byKey(const Key('shell-tab-new-output-1')), findsOneWidget);
+    expect(
+      notifications.where(
+        (notification) =>
+            notification['identifier'] == 'ianvs-terminal.zmodem.1' &&
+            notification['title']!.startsWith(
+              'ZMODEM transfer needs attention',
+            ) &&
+            notification['body']!.contains('cancellation failed'),
+      ),
+      hasLength(1),
+    );
+
+    sessions.activateSession('1');
+    await tester.pump();
+
+    expect(find.textContaining('cancellation failed'), findsWidgets);
+    expect(
+      find.byKey(const Key('shell-zmodem-transfer-retry')),
+      findsOneWidget,
+    );
+    expect(
+      fakeBindings.jsonRequests
+          .skip(fakeBindings.jsonRequests.length - 2)
+          .map((request) => request['kind']),
+      <Object?>['terminal.zmodem.cancel', 'terminal.zmodem.cancel_active'],
+    );
+
+    fakeBindings.zmodemResponses['terminal.zmodem.cancel'] = true;
+    await tester.tap(find.byKey(const Key('shell-zmodem-transfer-retry')));
+    await tester.pump();
+    expect(find.byKey(const Key('shell-zmodem-transfer-retry')), findsNothing);
   });
 
   testWidgets('OSC 1337 download cancel and inactive pane release bytes', (

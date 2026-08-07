@@ -153,7 +153,26 @@ pub extern "C" fn ianvs_replay_session_checkpoint_restore(
 
 #[unsafe(no_mangle)]
 pub extern "C" fn ianvs_session_close(session_id: u64) -> c_int {
-    session::close_session(session_id).map(|_| 0).unwrap_or(-1)
+    session_close_status(session::close_session(session_id))
+}
+
+fn session_close_status(result: Result<(), session::SessionError>) -> c_int {
+    match result {
+        Ok(()) => 0,
+        Err(session::SessionError::Zmodem(reason))
+            if matches!(
+                reason.as_str(),
+                "zmodem_transfer_active"
+                    | "zmodem_result_pending"
+                    | "receive_publication_in_progress"
+            ) =>
+        {
+            // A retryable close is distinct from a permanent native failure.
+            // Dart keeps the session/event queue reachable only for this code.
+            -2
+        }
+        Err(_) => -1,
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -216,6 +235,33 @@ pub unsafe extern "C" fn ianvs_session_write(
         unsafe { std::slice::from_raw_parts(bytes, len) }
     };
     session::write_session(session_id, bytes)
+        .map(|_| 0)
+        .unwrap_or(-1)
+}
+
+#[unsafe(no_mangle)]
+/// Writes a terminal/host protocol reply at the native ZMODEM ordering
+/// boundary. If a transfer is active, the bytes are queued until its terminal
+/// drain completes; user input must continue to use `ianvs_session_write`.
+///
+/// # Safety
+///
+/// When `len` is non-zero, `bytes` must point to `len` readable bytes for the
+/// duration of this call. When `len` is zero, `bytes` may be null.
+pub unsafe extern "C" fn ianvs_session_write_protocol_reply(
+    session_id: u64,
+    bytes: *const u8,
+    len: usize,
+) -> c_int {
+    let bytes = if len == 0 {
+        &[]
+    } else {
+        if bytes.is_null() {
+            return -1;
+        }
+        unsafe { std::slice::from_raw_parts(bytes, len) }
+    };
+    session::write_session_protocol_reply(session_id, bytes)
         .map(|_| 0)
         .unwrap_or(-1)
 }
@@ -658,5 +704,38 @@ pub unsafe extern "C" fn ianvs_bytes_free(ptr: *mut u8, len: usize) {
     let slice = std::ptr::slice_from_raw_parts_mut(ptr, len);
     unsafe {
         drop(Box::from_raw(slice));
+    }
+}
+
+#[cfg(test)]
+mod session_close_status_tests {
+    use super::session_close_status;
+    use crate::session::SessionError;
+
+    #[test]
+    fn distinguishes_retryable_zmodem_close_from_permanent_failure() {
+        assert_eq!(session_close_status(Ok(())), 0);
+        assert_eq!(
+            session_close_status(Err(SessionError::Zmodem(
+                "zmodem_result_pending".to_string()
+            ))),
+            -2
+        );
+        assert_eq!(
+            session_close_status(Err(SessionError::Zmodem(
+                "receive_publication_in_progress".to_string()
+            ))),
+            -2
+        );
+        assert_eq!(
+            session_close_status(Err(SessionError::Zmodem(
+                "zmodem_transfer_active".to_string()
+            ))),
+            -2
+        );
+        assert_eq!(
+            session_close_status(Err(SessionError::Io("permanent".to_string()))),
+            -1
+        );
     }
 }

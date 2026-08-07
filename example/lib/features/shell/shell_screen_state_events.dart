@@ -602,6 +602,621 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     _showShellSnackBar('File upload request blocked');
   }
 
+  void _handleZmodemDeferredWriteFailure(
+    terminal.TerminalSessionZmodemDeferredWriteFailedDiagnostic diagnostic,
+  ) {
+    if (!mounted) {
+      return;
+    }
+    final unconfirmedChunks = diagnostic.unconfirmedChunks;
+    final unconfirmedBytes = diagnostic.unconfirmedBytes;
+    final message =
+        'ZMODEM transport failed in session ${diagnostic.sessionId}: '
+        '$unconfirmedBytes bytes in $unconfirmedChunks queued writes were not '
+        'confirmed. The terminal connection was closed.';
+    _mutateState(() {
+      _zmodemTransportFailureSessionIds.add(diagnostic.sessionId);
+    });
+    ref.read(sessionControllerProvider.notifier).reportRuntimeError(message);
+    if (ref.read(sessionControllerProvider).activeSessionId ==
+        diagnostic.sessionId) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    }
+  }
+
+  void _signalInactiveZmodem(
+    String sessionId, {
+    required String title,
+    required String body,
+  }) {
+    if (!_notificationSessionIsInactive(sessionId)) {
+      return;
+    }
+    if (!_sessionsWithNewOutput.contains(sessionId)) {
+      _mutateState(() {
+        _sessionsWithNewOutput.add(sessionId);
+      });
+    }
+    if (!_activityNotificationsEnabled) {
+      return;
+    }
+    _sendShellNotification(
+      title: '$title in ${_sessionTitleForNotification(sessionId)}',
+      body: body,
+      identifier: 'ianvs-terminal.zmodem.$sessionId',
+    );
+  }
+
+  void _handleZmodemEvent(terminal.TerminalSessionZmodemEvent event) {
+    if (!event.isValid || !mounted) {
+      return;
+    }
+    final transferId = event.transferId!;
+    final authorizationKey = '${event.sessionId}:$transferId';
+    if (event.isTerminal) {
+      _invalidateZmodemPickerRequest(event.sessionId, transferId);
+      final activeTransfer = _zmodemTransfers[event.sessionId];
+      final hasPreservedReceive = event.hasRecoverableReceiveStaging;
+      final replacesUnknownTransfer =
+          activeTransfer?.event.isReconciliationRequired ?? false;
+      final runtimeTransferId = ref
+          .read(terminalRuntimeControllerProvider)
+          .activeZmodemTransferIdFor(event.sessionId);
+      final preservesCurrentReconciliation =
+          replacesUnknownTransfer &&
+          runtimeTransferId != null &&
+          runtimeTransferId != transferId;
+      if (activeTransfer?.transferId != transferId &&
+          !replacesUnknownTransfer &&
+          !hasPreservedReceive) {
+        return;
+      }
+      _mutateState(() {
+        if ((activeTransfer?.transferId == transferId &&
+                !preservesCurrentReconciliation) ||
+            (replacesUnknownTransfer && !preservesCurrentReconciliation)) {
+          _zmodemTransfers.remove(event.sessionId);
+        }
+        _zmodemAuthorizedTransferIds.remove(authorizationKey);
+        if (hasPreservedReceive) {
+          _zmodemRecoveries[authorizationKey] = event;
+        }
+      });
+      if (hasPreservedReceive) {
+        _signalInactiveZmodem(
+          event.sessionId,
+          title: 'ZMODEM file preserved',
+          body:
+              'ZMODEM publish failed. A complete file was preserved; focus the pane to reveal or dismiss it.',
+        );
+        return;
+      }
+      final message = switch (event.kind) {
+        terminal.TerminalZmodemEventKind.completed =>
+          _zmodemTransportFailureSessionIds.contains(event.sessionId)
+              ? null
+              : event.direction == terminal.TerminalZmodemDirection.receive
+              ? 'ZMODEM receive completed'
+              : 'ZMODEM send completed',
+        terminal.TerminalZmodemEventKind.cancelled =>
+          _zmodemTransportFailureSessionIds.contains(event.sessionId)
+              ? null
+              : 'ZMODEM transfer cancelled',
+        terminal.TerminalZmodemEventKind.failed
+            when event.reason == 'publish_failed' &&
+                event.stagingPreserved == true =>
+          'ZMODEM publish failed; preserved file is unavailable to reveal',
+        terminal.TerminalZmodemEventKind.failed =>
+          'ZMODEM transfer failed: ${event.reason ?? 'protocol error'}',
+        _ => null,
+      };
+      if (message != null) {
+        if (ref.read(sessionControllerProvider).activeSessionId ==
+            event.sessionId) {
+          _showShellSnackBar(message);
+        } else {
+          _pendingZmodemTerminalMessages[event.sessionId] = message;
+          _signalInactiveZmodem(
+            event.sessionId,
+            title: 'ZMODEM transfer update',
+            body: message,
+          );
+        }
+      }
+      return;
+    }
+
+    final previous = _zmodemTransfers[event.sessionId];
+    if (previous != null &&
+        previous.transferId != transferId &&
+        !previous.event.isReconciliationRequired &&
+        !event.isReconciliationRequired) {
+      return;
+    }
+    var next = _ShellZmodemTransferState.fromEvent(event, previous);
+    final authorizationWasUnconfirmed =
+        previous?.recoveryAction == _ShellZmodemRecoveryAction.authorization;
+    final nativeProvedAuthorization = switch (event.kind) {
+      terminal.TerminalZmodemEventKind.started ||
+      terminal.TerminalZmodemEventKind.progress ||
+      terminal.TerminalZmodemEventKind.fileCompleted ||
+      terminal.TerminalZmodemEventKind.fileSkipped => true,
+      _ => false,
+    };
+    if (authorizationWasUnconfirmed && nativeProvedAuthorization) {
+      next = next.clearRecoverableError();
+      if (ref.read(sessionControllerProvider).activeSessionId ==
+          event.sessionId) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      }
+    }
+    _mutateState(() {
+      _zmodemTransfers[event.sessionId] = next;
+      if (authorizationWasUnconfirmed && nativeProvedAuthorization) {
+        // A started/progress event is stronger evidence than a lost or
+        // malformed accept response: native already committed the authority.
+        // Restore the de-duplication key so a later file offer in the same
+        // receive batch cannot reopen the picker and authorize twice.
+        _zmodemAuthorizedTransferIds.add(authorizationKey);
+      }
+    });
+    final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
+    if (event.isReconciliationRequired && activeSessionId != event.sessionId) {
+      _signalInactiveZmodem(
+        event.sessionId,
+        title: 'ZMODEM transfer needs attention',
+        body:
+            'Transfer state was lost after an event gap. Focus the pane to retry cancellation.',
+      );
+      return;
+    }
+    if (event.kind == terminal.TerminalZmodemEventKind.fileSkipped &&
+        activeSessionId == event.sessionId) {
+      _showShellSnackBar(
+        event.filename == null
+            ? 'Remote skipped a ZMODEM file; continuing the batch'
+            : 'Remote skipped ${event.filename}; continuing the batch',
+      );
+    }
+
+    final needsSendAuthorization =
+        event.kind == terminal.TerminalZmodemEventKind.detected &&
+        event.direction == terminal.TerminalZmodemDirection.send;
+    final needsReceiveAuthorization =
+        event.kind == terminal.TerminalZmodemEventKind.fileOffer &&
+        event.direction == terminal.TerminalZmodemDirection.receive;
+    if (!needsSendAuthorization && !needsReceiveAuthorization) {
+      return;
+    }
+    final runtime = ref.read(terminalRuntimeControllerProvider);
+    final requiredFeature = needsSendAuthorization
+        ? 'zmodem.send.v1'
+        : 'zmodem.receive.v1';
+    if (!runtime.supportsRuntimeFeature(requiredFeature) ||
+        !WindowBridge.supportsZmodemFileDialogs) {
+      final message = !runtime.supportsRuntimeFeature(requiredFeature)
+          ? 'This terminal runtime does not support this ZMODEM direction.'
+          : 'ZMODEM file selection is unavailable on this platform.';
+      final cancelled = runtime.cancelZmodem(event);
+      if (!cancelled) {
+        _setZmodemRecoverableError(
+          event,
+          '$message Retry cancellation.',
+          _ShellZmodemRecoveryAction.cancel,
+        );
+      } else if (activeSessionId == event.sessionId) {
+        _showShellSnackBar('$message The transfer was cancelled.');
+      }
+      if (activeSessionId != event.sessionId) {
+        _signalInactiveZmodem(
+          event.sessionId,
+          title: cancelled
+              ? 'ZMODEM request cancelled'
+              : 'ZMODEM request needs attention',
+          body: cancelled
+              ? '$message The inactive transfer was cancelled.'
+              : '$message Focus the pane to retry cancellation.',
+        );
+      }
+      return;
+    }
+    if (activeSessionId != event.sessionId) {
+      final cancelled = runtime.cancelZmodem(event);
+      if (!cancelled) {
+        _setZmodemRecoverableError(
+          event,
+          'Could not cancel after the session changed. Retry or cancel again.',
+          _ShellZmodemRecoveryAction.cancel,
+        );
+      }
+      _signalInactiveZmodem(
+        event.sessionId,
+        title: cancelled
+            ? 'ZMODEM request cancelled'
+            : 'ZMODEM request needs attention',
+        body: cancelled
+            ? 'A remote ${needsSendAuthorization ? 'send' : 'receive'} request was cancelled because its pane is inactive.'
+            : 'A remote ${needsSendAuthorization ? 'send' : 'receive'} request could not be cancelled. Focus the pane to retry.',
+      );
+      return;
+    }
+    if (!_zmodemAuthorizedTransferIds.add(authorizationKey)) {
+      return;
+    }
+    if (needsSendAuthorization) {
+      unawaited(_authorizeZmodemSend(event));
+    } else {
+      unawaited(_authorizeZmodemReceive(event));
+    }
+  }
+
+  Future<void> _authorizeZmodemReceive(
+    terminal.TerminalSessionZmodemEvent event,
+  ) async {
+    final runtime = ref.read(terminalRuntimeControllerProvider);
+    if (runtime.activeZmodemTransferIdFor(event.sessionId) !=
+        event.transferId) {
+      return;
+    }
+    final pickerRequest = _beginZmodemPickerRequest(event);
+    if (pickerRequest == null) {
+      _setZmodemRecoverableError(
+        event,
+        'A previous ZMODEM file picker is still open. Close it, then retry '
+        'this transfer.',
+        _ShellZmodemRecoveryAction.authorization,
+      );
+      return;
+    }
+    String? destination;
+    Object? pickerError;
+    try {
+      destination = await WindowBridge.chooseZmodemReceiveDirectory();
+    } on Object catch (error) {
+      pickerError = error;
+    }
+    if (!mounted) {
+      _finishZmodemPickerRequest(pickerRequest);
+      return;
+    }
+    if (!_isCurrentZmodemPickerRequest(event, pickerRequest)) {
+      _finishZmodemPickerRequest(pickerRequest);
+      _showZmodemPickerResultIgnored(event);
+      return;
+    }
+    _finishZmodemPickerRequest(pickerRequest);
+    if (pickerError != null) {
+      if (pickerError is MissingPluginException ||
+          pickerError is UnsupportedError) {
+        const message =
+            'ZMODEM destination selection is unavailable on this platform.';
+        if (!runtime.cancelZmodem(event)) {
+          _setZmodemRecoverableError(
+            event,
+            '$message Retry cancellation.',
+            _ShellZmodemRecoveryAction.cancel,
+          );
+        } else {
+          _showShellSnackBar('$message The transfer was cancelled.');
+        }
+        return;
+      }
+      _setZmodemRecoverableError(
+        event,
+        'Could not open the destination picker. Retry or cancel the transfer.',
+        _ShellZmodemRecoveryAction.authorization,
+      );
+      return;
+    }
+    if (ref.read(sessionControllerProvider).activeSessionId !=
+        event.sessionId) {
+      if (!runtime.cancelZmodem(event)) {
+        const message =
+            'The session changed and cancellation failed. Retry cancellation.';
+        _setZmodemRecoverableError(
+          event,
+          message,
+          _ShellZmodemRecoveryAction.cancel,
+        );
+        _signalInactiveZmodem(
+          event.sessionId,
+          title: 'ZMODEM transfer needs attention',
+          body: message,
+        );
+      }
+      return;
+    }
+    if (destination == null) {
+      _setZmodemRecoverableError(
+        event,
+        'Destination selection cancelled. Retry or cancel the transfer.',
+        _ShellZmodemRecoveryAction.authorization,
+      );
+      return;
+    }
+    if (!runtime.acceptZmodemReceive(event, destination: destination)) {
+      _setZmodemRecoverableError(
+        event,
+        'Could not authorize this destination. Retry or cancel the transfer.',
+        _ShellZmodemRecoveryAction.authorization,
+      );
+      return;
+    }
+    _rememberZmodemReceiveDirectory(event, destination);
+  }
+
+  Future<void> _authorizeZmodemSend(
+    terminal.TerminalSessionZmodemEvent event,
+  ) async {
+    final runtime = ref.read(terminalRuntimeControllerProvider);
+    if (runtime.activeZmodemTransferIdFor(event.sessionId) !=
+        event.transferId) {
+      return;
+    }
+    final pickerRequest = _beginZmodemPickerRequest(event);
+    if (pickerRequest == null) {
+      _setZmodemRecoverableError(
+        event,
+        'A previous ZMODEM file picker is still open. Close it, then retry '
+        'this transfer.',
+        _ShellZmodemRecoveryAction.authorization,
+      );
+      return;
+    }
+    List<String>? files;
+    Object? pickerError;
+    try {
+      files = await WindowBridge.chooseZmodemSendFiles();
+    } on Object catch (error) {
+      pickerError = error;
+    }
+    if (!mounted) {
+      _finishZmodemPickerRequest(pickerRequest);
+      return;
+    }
+    if (!_isCurrentZmodemPickerRequest(event, pickerRequest)) {
+      _finishZmodemPickerRequest(pickerRequest);
+      _showZmodemPickerResultIgnored(event);
+      return;
+    }
+    _finishZmodemPickerRequest(pickerRequest);
+    if (pickerError != null) {
+      if (pickerError is MissingPluginException ||
+          pickerError is UnsupportedError) {
+        const message =
+            'ZMODEM file selection is unavailable on this platform.';
+        if (!runtime.cancelZmodem(event)) {
+          _setZmodemRecoverableError(
+            event,
+            '$message Retry cancellation.',
+            _ShellZmodemRecoveryAction.cancel,
+          );
+        } else {
+          _showShellSnackBar('$message The transfer was cancelled.');
+        }
+        return;
+      }
+      _setZmodemRecoverableError(
+        event,
+        'Could not open the file picker. Retry or cancel the transfer.',
+        _ShellZmodemRecoveryAction.authorization,
+      );
+      return;
+    }
+    if (ref.read(sessionControllerProvider).activeSessionId !=
+        event.sessionId) {
+      if (!runtime.cancelZmodem(event)) {
+        const message =
+            'The session changed and cancellation failed. Retry cancellation.';
+        _setZmodemRecoverableError(
+          event,
+          message,
+          _ShellZmodemRecoveryAction.cancel,
+        );
+        _signalInactiveZmodem(
+          event.sessionId,
+          title: 'ZMODEM transfer needs attention',
+          body: message,
+        );
+      }
+      return;
+    }
+    if (files == null) {
+      _setZmodemRecoverableError(
+        event,
+        'File selection cancelled. Retry or cancel the transfer.',
+        _ShellZmodemRecoveryAction.authorization,
+      );
+      return;
+    }
+    if (files.length > 256) {
+      _setZmodemRecoverableError(
+        event,
+        'You can send at most 256 files. Select fewer files and retry.',
+        _ShellZmodemRecoveryAction.authorization,
+      );
+      return;
+    }
+    if (!runtime.acceptZmodemSend(event, files: files)) {
+      _setZmodemRecoverableError(
+        event,
+        'Could not authorize these files. Retry or cancel the transfer.',
+        _ShellZmodemRecoveryAction.authorization,
+      );
+      return;
+    }
+    _clearZmodemRecoverableError(event);
+  }
+
+  _ShellZmodemPickerRequest? _beginZmodemPickerRequest(
+    terminal.TerminalSessionZmodemEvent event,
+  ) {
+    final transferId = event.transferId;
+    if (transferId == null || _zmodemPickerRequest != null) {
+      return null;
+    }
+    _zmodemPickerRequestSeed += 1;
+    final request = _ShellZmodemPickerRequest(
+      requestId: _zmodemPickerRequestSeed,
+      sessionId: event.sessionId,
+      transferId: transferId,
+    );
+    _zmodemPickerRequest = request;
+    return request;
+  }
+
+  bool _isCurrentZmodemPickerRequest(
+    terminal.TerminalSessionZmodemEvent event,
+    _ShellZmodemPickerRequest request,
+  ) {
+    return _zmodemPickerRequest?.requestId == request.requestId &&
+        identical(_zmodemPickerRequest, request) &&
+        request.transferIsCurrent &&
+        request.sessionId == event.sessionId &&
+        request.transferId == event.transferId &&
+        ref
+                .read(terminalRuntimeControllerProvider)
+                .activeZmodemTransferIdFor(event.sessionId) ==
+            event.transferId;
+  }
+
+  void _finishZmodemPickerRequest(_ShellZmodemPickerRequest request) {
+    if (identical(_zmodemPickerRequest, request)) {
+      _zmodemPickerRequest = null;
+    }
+  }
+
+  void _invalidateZmodemPickerRequest(String sessionId, [String? transferId]) {
+    final request = _zmodemPickerRequest;
+    if (request == null ||
+        request.sessionId != sessionId ||
+        (transferId != null && request.transferId != transferId)) {
+      return;
+    }
+    request.transferIsCurrent = false;
+  }
+
+  void _showZmodemPickerResultIgnored(
+    terminal.TerminalSessionZmodemEvent event,
+  ) {
+    const message =
+        'ZMODEM transfer already ended; the picker result was not used.';
+    final current = _zmodemTransfers[event.sessionId];
+    final recoveryAction = current?.recoveryAction;
+    if (current != null && recoveryAction != null) {
+      _mutateState(() {
+        _zmodemTransfers[event.sessionId] = current.withRecoverableError(
+          current.event,
+          message,
+          recoveryAction,
+        );
+      });
+    }
+    if (ref.read(sessionControllerProvider).activeSessionId ==
+        event.sessionId) {
+      _showShellSnackBar(message);
+    }
+  }
+
+  void _rememberZmodemReceiveDirectory(
+    terminal.TerminalSessionZmodemEvent event,
+    String destination,
+  ) {
+    if (!mounted) {
+      return;
+    }
+    final current = _zmodemTransfers[event.sessionId];
+    if (current?.transferId != event.transferId) {
+      return;
+    }
+    _mutateState(() {
+      _zmodemTransfers[event.sessionId] = current!.withReceiveDirectory(
+        destination,
+      );
+    });
+  }
+
+  void _cancelZmodemTransfer(_ShellZmodemTransferState transfer) {
+    if (transfer.cancelling) {
+      return;
+    }
+    final runtime = ref.read(terminalRuntimeControllerProvider);
+    if (runtime.cancelZmodem(transfer.event)) {
+      final current = _zmodemTransfers[transfer.event.sessionId];
+      if (current?.transferId == transfer.transferId) {
+        _mutateState(() {
+          _zmodemTransfers[transfer.event.sessionId] = current!
+              .markCancelling();
+        });
+      }
+    } else {
+      _setZmodemRecoverableError(
+        transfer.event,
+        'Could not cancel the ZMODEM transfer. Retry cancellation.',
+        _ShellZmodemRecoveryAction.cancel,
+      );
+    }
+  }
+
+  void _retryZmodemOperation(_ShellZmodemTransferState transfer) {
+    switch (transfer.recoveryAction) {
+      case _ShellZmodemRecoveryAction.authorization:
+        _clearZmodemRecoverableError(transfer.event);
+        final event = transfer.event;
+        if (event.kind == terminal.TerminalZmodemEventKind.detected) {
+          unawaited(_authorizeZmodemSend(event));
+        } else {
+          unawaited(_authorizeZmodemReceive(event));
+        }
+      case _ShellZmodemRecoveryAction.cancel:
+        _clearZmodemRecoverableError(transfer.event);
+        _cancelZmodemTransfer(transfer.clearRecoverableError());
+      case null:
+        break;
+    }
+  }
+
+  void _setZmodemRecoverableError(
+    terminal.TerminalSessionZmodemEvent event,
+    String message,
+    _ShellZmodemRecoveryAction action,
+  ) {
+    if (!mounted) {
+      return;
+    }
+    final transferId = event.transferId;
+    final current = _zmodemTransfers[event.sessionId];
+    if (transferId == null || current?.transferId != transferId) {
+      return;
+    }
+    _mutateState(() {
+      _zmodemAuthorizedTransferIds.remove('${event.sessionId}:$transferId');
+      _zmodemTransfers[event.sessionId] = current!.withRecoverableError(
+        event,
+        message,
+        action,
+      );
+    });
+    if (ref.read(sessionControllerProvider).activeSessionId ==
+        event.sessionId) {
+      _showShellSnackBar(message);
+    }
+  }
+
+  void _clearZmodemRecoverableError(terminal.TerminalSessionZmodemEvent event) {
+    if (!mounted) {
+      return;
+    }
+    final current = _zmodemTransfers[event.sessionId];
+    if (current?.transferId != event.transferId ||
+        current?.errorMessage == null) {
+      return;
+    }
+    _mutateState(() {
+      _zmodemTransfers[event.sessionId] = current!.clearRecoverableError();
+    });
+  }
+
   String _osc1337FileSizeLabel(int bytes) {
     if (bytes < 1024) {
       return '$bytes B';

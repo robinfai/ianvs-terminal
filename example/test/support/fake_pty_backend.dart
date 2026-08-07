@@ -9,7 +9,8 @@ class FakePtyBackend
     implements
         PtySessionBackend,
         PtySessionJsonRequestBackend,
-        PtySessionFileDownloadBackend {
+        PtySessionFileDownloadBackend,
+        PtyRuntimeCapabilityBackend {
   int _nextSessionId = 0;
   final Map<String, Map<String, Object?>> _frames =
       <String, Map<String, Object?>>{};
@@ -31,6 +32,11 @@ class FakePtyBackend
   final Map<int, Map<String, Object?>> inlineButtonActivationResponses =
       <int, Map<String, Object?>>{};
   final Set<String> failingOperations = <String>{};
+  final Set<String> failingCloseSessionIds = <String>{};
+  final Map<String, bool> zmodemResponses = <String, bool>{};
+  String zmodemCancelActiveOutcome = 'cancelled';
+  String? zmodemRecoveryPath;
+  bool zmodemRecoveryRequestFails = false;
   final Map<(String, int), Uint8List> fileDownloads =
       <(String, int), Uint8List>{};
   final List<(String, int)> takenFileDownloads = <(String, int)>[];
@@ -38,6 +44,16 @@ class FakePtyBackend
   final List<String> closedSessionIds = <String>[];
   Map<String, Object?>? lastCreatedSessionPayload;
   bool pingCalled = false;
+
+  @override
+  final PtyRuntimeCapabilities runtimeCapabilities =
+      PtyRuntimeCapabilities.fromJson(<String, Object?>{
+        'schema_version': 1,
+        'runtime_contract': 'ianvs-runtime-contract-v1',
+        'frame_schema_versions': <String>[],
+        'recording_schema_versions': <int>[],
+        'features': <String>['zmodem.receive.v1', 'zmodem.send.v1'],
+      });
 
   void setFrame(Object sessionId, Map<String, Object?> frame) {
     _frames[_sessionKey(sessionId)] = frame;
@@ -120,6 +136,14 @@ class FakePtyBackend
 
   @override
   void closeSession(String sessionId) {
+    _throwIfFailing('closeSession');
+    if (failingCloseSessionIds.contains(sessionId)) {
+      throw PtyNativeCallException(
+        operation: 'closeSession',
+        sessionId: sessionId,
+        statusCode: -2,
+      );
+    }
     closedSessionIds.add(sessionId);
     _frames.remove(sessionId);
     _events.remove(sessionId);
@@ -195,6 +219,32 @@ class FakePtyBackend
         inlineButtonActivationResponses[request['id']] ??
             const <String, Object?>{'activated': false},
       ),
+      'terminal.zmodem.accept_receive' ||
+      'terminal.zmodem.accept_send' => jsonEncode(<String, Object?>{
+        'accepted': zmodemResponses[request['kind']] ?? true,
+      }),
+      'terminal.zmodem.cancel' => jsonEncode(<String, Object?>{
+        'cancelled': zmodemResponses[request['kind']] ?? true,
+      }),
+      'terminal.zmodem.cancel_active' => jsonEncode(<String, Object?>{
+        'reconciled': zmodemResponses[request['kind']] ?? true,
+        'outcome': zmodemCancelActiveOutcome,
+      }),
+      'terminal.zmodem.resolve_recovery' =>
+        zmodemRecoveryRequestFails
+            ? null
+            : zmodemRecoveryPath == null
+            ? jsonEncode(const <String, Object?>{'available': false})
+            : jsonEncode(<String, Object?>{
+                'available': true,
+                'path': zmodemRecoveryPath,
+              }),
+      'terminal.zmodem.consume_recovery' => jsonEncode(<String, Object?>{
+        'consumed': zmodemResponses[request['kind']] ?? true,
+      }),
+      'terminal.zmodem.dismiss_recovery' => jsonEncode(<String, Object?>{
+        'dismissed': zmodemResponses[request['kind']] ?? true,
+      }),
       _ => null,
     };
   }

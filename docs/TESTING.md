@@ -270,6 +270,15 @@ terminal frame/event 通道，覆盖：
 
 ## 脚本入口
 
+完整入口会验证 vendored ZMODEM 的 `no_std` 构建。首次运行前需要安装对应
+Rust target（CI 也显式安装该 target）：
+
+```bash
+rustup target add thumbv7em-none-eabihf
+```
+
+脚本会在执行功能测试前检查这个前置条件，并给出上述安装命令。
+
 ```bash
 ./tools/verify_flutter_terminal.sh
 ```

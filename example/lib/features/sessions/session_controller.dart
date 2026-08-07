@@ -170,8 +170,19 @@ final terminalRuntimeControllerProvider = Provider<TerminalRuntimeController>((
     enableSessionPolling: ref.read(sessionPollingEnabledProvider),
     enableWarmUpRefresh: ref.read(driverWarmUpRefreshEnabledProvider),
     benchmarkEventSink: ref.watch(terminalGraphicsTraceSinkProvider),
+    beforeSessionCloseOnExit: (sessionId, _) {
+      if (ref.mounted) {
+        ref
+            .read(sessionControllerProvider.notifier)
+            .finalizeRecordingBeforeRuntimeClose(sessionId);
+      }
+    },
   );
-  ref.onDispose(controller.dispose);
+  ref.onDispose(() {
+    // dispose() records a pending shutdown request when native publication is
+    // temporarily busy and completes it from a later runtime poll.
+    controller.dispose();
+  });
   return controller;
 });
 
@@ -387,6 +398,8 @@ class SessionController extends Notifier<SessionState> {
   final Map<String, TerminalRecording> _pendingRecordings =
       <String, TerminalRecording>{};
   final Map<String, Stopwatch> _recordingStopwatches = <String, Stopwatch>{};
+  final Map<String, TerminalRecordingInputPolicy> _recordingInputPolicies =
+      <String, TerminalRecordingInputPolicy>{};
   final Map<String, List<TerminalRecordingSemanticEvent>>
   _recordingSemanticEvents = <String, List<TerminalRecordingSemanticEvent>>{};
   final Map<String, String> _recordingRemoteCommands = <String, String>{};
@@ -1342,6 +1355,7 @@ class SessionController extends Notifier<SessionState> {
       }
       recorder.start(sessionId, inputPolicy: inputPolicy);
       _recordingDestinations[sessionId] = destination;
+      _recordingInputPolicies[sessionId] = inputPolicy;
       _recordingStopwatches[sessionId] = Stopwatch()..start();
       _recordingSemanticEvents[sessionId] = <TerminalRecordingSemanticEvent>[];
       _setRecordingStatus(
@@ -1415,6 +1429,7 @@ class SessionController extends Notifier<SessionState> {
       }
       _pendingRecordings.remove(sessionId);
       _recordingDestinations.remove(sessionId);
+      _recordingInputPolicies.remove(sessionId);
       _setRecordingStatus(
         sessionId,
         active: false,
@@ -1431,6 +1446,7 @@ class SessionController extends Notifier<SessionState> {
       if (!hasCompleteRecording) {
         repository.release(destination);
         _recordingDestinations.remove(sessionId);
+        _recordingInputPolicies.remove(sessionId);
         _recordingStopwatches.remove(sessionId)?.stop();
         _recordingSemanticEvents.remove(sessionId);
         _recordingRemoteCommands.remove(sessionId);
@@ -1472,6 +1488,42 @@ class SessionController extends Notifier<SessionState> {
       }
     }
     return true;
+  }
+
+  Map<String, TerminalRecordingInputPolicy> _activeRecordingPolicies(
+    Iterable<String> sessionIds,
+  ) {
+    return <String, TerminalRecordingInputPolicy>{
+      for (final sessionId in sessionIds)
+        if (state.recordingSessionIds.contains(sessionId))
+          sessionId:
+              _recordingInputPolicies[sessionId] ??
+              TerminalRecordingInputPolicy.redact,
+    };
+  }
+
+  Future<bool> _resumeRecordingsAfterRejectedClose(
+    Map<String, TerminalRecordingInputPolicy> policies,
+  ) async {
+    var resumedAll = true;
+    for (final entry in policies.entries) {
+      final sessionId = entry.key;
+      if (!_runtime.hasSession(sessionId) ||
+          _paneForSession(sessionId) == null) {
+        continue;
+      }
+      if (state.recordingSessionIds.contains(sessionId)) {
+        continue;
+      }
+      // Native recording stop is destructive, so an asynchronous save cannot
+      // be rolled back. If the later native close linearization is rejected,
+      // immediately start a continuation recording instead of silently
+      // leaving the still-live terminal unrecorded.
+      resumedAll =
+          await startSessionRecording(sessionId, inputPolicy: entry.value) &&
+          resumedAll;
+    }
+    return resumedAll;
   }
 
   void _setRecordingStatus(
@@ -1742,6 +1794,10 @@ class SessionController extends Notifier<SessionState> {
     }
   }
 
+  void finalizeRecordingBeforeRuntimeClose(String sessionId) {
+    _finalizeRecordingOnRuntimeExitBestEffort(sessionId);
+  }
+
   void _disposeRecordingsBestEffort(
     TerminalLiveRecorder? recorder,
     LocalSessionRecordingRepository repository,
@@ -1770,6 +1826,7 @@ class SessionController extends Notifier<SessionState> {
     }
     _recordingDestinations.clear();
     _pendingRecordings.clear();
+    _recordingInputPolicies.clear();
     for (final stopwatch in _recordingStopwatches.values) {
       stopwatch.stop();
     }
@@ -1787,6 +1844,7 @@ class SessionController extends Notifier<SessionState> {
       repository?.release(destination);
     }
     _pendingRecordings.remove(sessionId);
+    _recordingInputPolicies.remove(sessionId);
     _recordingStopwatches.remove(sessionId)?.stop();
     _recordingSemanticEvents.remove(sessionId);
     _recordingRemoteCommands.remove(sessionId);
@@ -1806,11 +1864,48 @@ class SessionController extends Notifier<SessionState> {
       _removeSessionState(sessionId);
       return true;
     }
+    if (_runtime.isZmodemTransferActive(sessionId)) {
+      reportRuntimeError(
+        'Cancel the active ZMODEM transfer and wait for it to finish before '
+        'closing this pane.',
+      );
+      return false;
+    }
+    final recordingsToResume = _activeRecordingPolicies(<String>[sessionId]);
     if (_recordingNeedsFinalization(sessionId) &&
         !await _finalizeSessionRecordings(<String>[sessionId])) {
       return false;
     }
-    _runtime.closeSession(sessionId);
+    // Recording finalization yields to the event loop, so repeat the guard at
+    // the actual close boundary. Native also rejects the narrower receive
+    // publication critical section and retains its event queue on failure.
+    if (_runtime.isZmodemTransferActive(sessionId)) {
+      final resumed = await _resumeRecordingsAfterRejectedClose(
+        recordingsToResume,
+      );
+      reportRuntimeError(
+        resumed
+            ? 'Cancel the active ZMODEM transfer and wait for it to finish '
+                  'before closing this pane. Recording continued in a new file.'
+            : 'Cancel the active ZMODEM transfer before closing this pane. '
+                  'The recording continuation could not be started.',
+      );
+      return false;
+    }
+    if (!_runtime.tryCloseSession(sessionId)) {
+      final resumed = await _resumeRecordingsAfterRejectedClose(
+        recordingsToResume,
+      );
+      reportRuntimeError(
+        resumed
+            ? 'A native ZMODEM transfer or file publication is still active. '
+                  'Recording continued in a new file; cancel the transfer and '
+                  'try closing the pane again.'
+            : 'A native ZMODEM transfer or file publication is still active, '
+                  'and the recording continuation could not be started.',
+      );
+      return false;
+    }
     _removeSessionState(sessionId);
     return true;
   }
@@ -1831,27 +1926,92 @@ class SessionController extends Notifier<SessionState> {
   }
 
   Future<bool> closeTab(String tabSessionId) async {
-    final tabIndex = state.tabs.indexWhere(
+    var tabIndex = state.tabs.indexWhere(
       (tab) => tab.sessionId == tabSessionId,
     );
     if (tabIndex == -1) {
       return false;
     }
 
-    final closingTab = state.tabs[tabIndex];
+    var closingTab = state.tabs[tabIndex];
+    if (closingTab.effectivePanes.any(
+      (pane) => _runtime.isZmodemTransferActive(pane.sessionId),
+    )) {
+      reportRuntimeError(
+        'Cancel active ZMODEM transfers and wait for them to finish before '
+        'closing this tab.',
+      );
+      return false;
+    }
+    final recordingsToResume = _activeRecordingPolicies(
+      closingTab.effectivePanes.map((pane) => pane.sessionId),
+    );
     final recordingSessionIds = closingTab.effectivePanes
         .map((pane) => pane.sessionId)
         .where(_recordingNeedsFinalization)
         .toList(growable: false);
-    if (recordingSessionIds.isNotEmpty &&
-        !await _finalizeSessionRecordings(recordingSessionIds)) {
+    if (recordingSessionIds.isNotEmpty) {
+      final finalized = await _finalizeSessionRecordings(recordingSessionIds);
+      if (!finalized) {
+        final finalizationError = state.lastError;
+        await _resumeRecordingsAfterRejectedClose(recordingsToResume);
+        // A successful sibling continuation must not erase the save/stop
+        // error that rejected the tab close.
+        state = state.copyWith(lastError: finalizationError);
+        return false;
+      }
+    }
+    // Recording finalization yields. Re-resolve the tab and repeat the
+    // tab-wide guard at the actual close boundary so a newly started transfer
+    // cannot slip into the sequential native close loop.
+    tabIndex = state.tabs.indexWhere((tab) => tab.sessionId == tabSessionId);
+    if (tabIndex == -1) {
+      return false;
+    }
+    closingTab = state.tabs[tabIndex];
+    if (closingTab.effectivePanes.any(
+      (pane) => _runtime.isZmodemTransferActive(pane.sessionId),
+    )) {
+      final resumed = await _resumeRecordingsAfterRejectedClose(
+        recordingsToResume,
+      );
+      reportRuntimeError(
+        resumed
+            ? 'Cancel active ZMODEM transfers before closing this tab. '
+                  'Recording continued in new files.'
+            : 'Cancel active ZMODEM transfers before closing this tab. One or '
+                  'more recording continuations could not be started.',
+      );
       return false;
     }
     final demoFixture = ref.read(sessionDemoFixtureProvider);
     if (demoFixture == null) {
+      final closedPaneIds = <String>[];
       for (final pane in closingTab.effectivePanes) {
         if (_runtime.hasSession(pane.sessionId)) {
-          _runtime.closeSession(pane.sessionId);
+          if (!_runtime.tryCloseSession(pane.sessionId)) {
+            // Native close is intentionally per session. If a later pane turns
+            // busy after earlier panes closed, immediately reconcile the UI
+            // with those successful closes instead of leaving dead panes in
+            // the tab. The remaining pane(s) stay reachable for retry.
+            for (final closedSessionId in closedPaneIds) {
+              _removeSessionState(closedSessionId);
+            }
+            final resumed = await _resumeRecordingsAfterRejectedClose(
+              recordingsToResume,
+            );
+            reportRuntimeError(
+              resumed
+                  ? 'A native ZMODEM transfer or file publication is still '
+                        'active. Recording continued in new files; cancel the '
+                        'transfer and try closing the tab again.'
+                  : 'A native ZMODEM transfer or file publication is still '
+                        'active, and one or more recording continuations could '
+                        'not be started.',
+            );
+            return false;
+          }
+          closedPaneIds.add(pane.sessionId);
         }
       }
     } else {
@@ -3883,6 +4043,13 @@ class SessionController extends Notifier<SessionState> {
       return;
     }
     state = state.copyWith(lastError: null);
+  }
+
+  void reportRuntimeError(String message) {
+    if (message.isEmpty || state.lastError == message) {
+      return;
+    }
+    state = state.copyWith(lastError: message);
   }
 
   Future<void> setDefaultProfile(String profileId) async {

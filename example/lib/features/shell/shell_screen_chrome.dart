@@ -433,6 +433,184 @@ class _ShellRuntimeErrorBanner extends StatelessWidget {
   }
 }
 
+class _ShellZmodemRecoveryBanner extends StatelessWidget {
+  const _ShellZmodemRecoveryBanner({
+    required this.palette,
+    required this.filename,
+    required this.sourceLabel,
+    required this.onReveal,
+    required this.onDiscard,
+  });
+
+  final AppThemeTokens palette;
+  final String filename;
+  final String sourceLabel;
+  final VoidCallback onReveal;
+  final VoidCallback onDiscard;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      label: 'ZMODEM file preserved. $filename from $sourceLabel.',
+      child: DecoratedBox(
+        key: const Key('shell-zmodem-recovery'),
+        decoration: BoxDecoration(
+          color: palette.warningContainer,
+          border: Border(bottom: BorderSide(color: palette.warning)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 8, 10, 8),
+          child: Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: palette.warning),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  'ZMODEM publish failed. Complete file preserved as $filename from $sourceLabel.',
+                  key: const Key('shell-zmodem-recovery-message'),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: palette.textPrimary),
+                ),
+              ),
+              TextButton(
+                key: const Key('shell-zmodem-recovery-reveal'),
+                onPressed: onReveal,
+                child: const Text('Reveal'),
+              ),
+              Tooltip(
+                message: 'Permanently delete preserved ZMODEM file',
+                child: Semantics(
+                  button: true,
+                  label: 'Permanently delete preserved ZMODEM file',
+                  child: TextButton(
+                    key: const Key('shell-zmodem-recovery-dismiss'),
+                    onPressed: onDiscard,
+                    child: const Text('Discard file…'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ShellZmodemTransferBanner extends StatelessWidget {
+  const _ShellZmodemTransferBanner({
+    required this.palette,
+    required this.transfer,
+    required this.onCancel,
+    this.onRetry,
+  });
+
+  final AppThemeTokens palette;
+  final _ShellZmodemTransferState transfer;
+  final VoidCallback? onCancel;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = transfer.progress;
+    final announcePhase =
+        transfer.event.kind != terminal.TerminalZmodemEventKind.progress;
+    return Semantics(
+      container: true,
+      child: DecoratedBox(
+        key: Key('shell-zmodem-transfer-${transfer.transferId}'),
+        decoration: BoxDecoration(
+          color: palette.selected,
+          border: Border(bottom: BorderSide(color: palette.accent)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 8, 10, 8),
+          child: Row(
+            children: [
+              if (announcePhase)
+                Semantics(
+                  liveRegion: true,
+                  label: '${transfer.title}. ${transfer.detail}',
+                  child: const SizedBox.shrink(),
+                ),
+              Icon(
+                transfer.direction == terminal.TerminalZmodemDirection.receive
+                    ? Icons.download_rounded
+                    : Icons.upload_rounded,
+                color: palette.accent,
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      transfer.title,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: palette.textPrimary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      transfer.detail,
+                      key: const Key('shell-zmodem-transfer-detail'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: palette.textMuted),
+                    ),
+                    const SizedBox(height: 6),
+                    Semantics(
+                      container: true,
+                      label: 'ZMODEM progress',
+                      value: progress == null
+                          ? 'indeterminate'
+                          : '${(progress * 100).floor()} percent',
+                      liveRegion: false,
+                      child: ExcludeSemantics(
+                        child: LinearProgressIndicator(
+                          key: const Key('shell-zmodem-transfer-progress'),
+                          value: progress,
+                          minHeight: 3,
+                          color: palette.accent,
+                          backgroundColor: palette.border,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              if (onRetry != null) ...[
+                TextButton.icon(
+                  key: const Key('shell-zmodem-transfer-retry'),
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                  label: const Text('Retry'),
+                ),
+                const SizedBox(width: 4),
+              ],
+              TextButton.icon(
+                key: const Key('shell-zmodem-transfer-cancel'),
+                onPressed: onCancel,
+                icon: const Icon(Icons.close_rounded, size: 18),
+                label: Text(transfer.cancelling ? 'Cancelling…' : 'Cancel'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ReferenceDemoTabStrip extends StatelessWidget {
   const _ReferenceDemoTabStrip({
     required this.palette,

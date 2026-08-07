@@ -349,6 +349,16 @@ _WriteSessionDart? _lookupOptionalReplayOutput(ffi.DynamicLibrary library) {
   }
 }
 
+_WriteSessionDart? _lookupOptionalProtocolReply(ffi.DynamicLibrary library) {
+  try {
+    return library.lookupFunction<_WriteSessionNative, _WriteSessionDart>(
+      'ianvs_session_write_protocol_reply',
+    );
+  } on ArgumentError {
+    return null;
+  }
+}
+
 _ReplayExitDart? _lookupOptionalReplayExit(ffi.DynamicLibrary library) {
   try {
     return library.lookupFunction<_ReplayExitNative, _ReplayExitDart>(
@@ -411,6 +421,10 @@ class PtyNativeCallException implements Exception {
   final String operation;
   final String sessionId;
   final int statusCode;
+
+  /// True only when native retained the session so a pending ZMODEM result
+  /// can be drained before close is retried.
+  bool get isRetryableClose => operation == 'closeSession' && statusCode == -2;
 
   @override
   String toString() {
@@ -476,6 +490,38 @@ class PtyEvent {
     }
     return events;
   }
+}
+
+/// A synthetic, local diagnostic inserted before surviving Runtime Event v1
+/// messages when their sequence cursor proves that native events were lost.
+///
+/// This event has no wire sequence of its own. It is emitted only when
+/// [NativePtyBackend] was constructed with
+/// `emitRuntimeEventGapDiagnostics: true`, allowing an opted-in controller to
+/// reconcile sensitive state before it processes any surviving native event.
+final class PtyRuntimeEventGapDiagnostic extends PtyEvent {
+  PtyRuntimeEventGapDiagnostic({
+    required super.sessionId,
+    required this.expectedSequence,
+    required this.nextSequence,
+    required this.droppedCount,
+    required this.survivingEventCount,
+  }) : super(
+         kind: 'runtime_event_gap',
+         payload: Map<String, Object?>.unmodifiable(<String, Object?>{
+           'code': 'event_sequence_gap',
+           'expectedSequence': expectedSequence,
+           'nextSequence': nextSequence,
+           'droppedCount': droppedCount,
+           'survivingEventCount': survivingEventCount,
+         }),
+         wireSchemaVersion: ptyRuntimeEnvelopeSchemaVersion,
+       );
+
+  final int expectedSequence;
+  final int nextSequence;
+  final int droppedCount;
+  final int survivingEventCount;
 }
 
 String? _eventKindFromJson(Object? value) {
@@ -617,6 +663,11 @@ abstract interface class PtyHostResponseV1Bindings {
   bool sessionHostResponseV1Json(int sessionId, String responseV1Json);
 }
 
+abstract interface class PtyProtocolReplyBindings {
+  bool get supportsProtocolReplies;
+  int sessionWriteProtocolReply(int sessionId, List<int> bytes);
+}
+
 abstract interface class PtyDiagnosticEventV1Bindings {
   bool get supportsDiagnosticEventV1;
   String? sessionTakeDiagnosticEventV1Json(int sessionId, String name);
@@ -642,6 +693,10 @@ abstract interface class PtyGraphicAssetPacketV1Bindings {
 abstract final class PtyRefreshHintFlags {
   static const int none = 0;
   static const int frameDirty = 1 << 0;
+  static const int eventPending = 1 << 1;
+  static const int exitPending = 1 << 2;
+
+  static const int anyRefreshWork = frameDirty | eventPending | exitPending;
 }
 
 class NativePtyBindings
@@ -654,6 +709,7 @@ class NativePtyBindings
         PtySessionConfigV1Bindings,
         PtySessionRequestV1Bindings,
         PtyHostResponseV1Bindings,
+        PtyProtocolReplyBindings,
         PtyDiagnosticEventV1Bindings,
         PtyFramePacketV1Bindings,
         PtyGraphicAssetPacketV1Bindings,
@@ -699,6 +755,7 @@ class NativePtyBindings
           .lookupFunction<_WriteSessionNative, _WriteSessionDart>(
             'ianvs_session_write',
           ),
+      _writeProtocolReply = _lookupOptionalProtocolReply(library),
       _scrollSession = library
           .lookupFunction<_ScrollSessionNative, _ScrollSessionDart>(
             'ianvs_session_scroll',
@@ -772,6 +829,7 @@ class NativePtyBindings
   final _ResizeSessionDart _resizeSession;
   final _ResizeSessionWithCellSizeDart? _resizeSessionWithCellSize;
   final _WriteSessionDart _writeSession;
+  final _WriteSessionDart? _writeProtocolReply;
   final _ScrollSessionDart _scrollSession;
   final _ScrollToSessionDart _scrollToSession;
   final _RequestSessionDart? _requestSessionJson;
@@ -834,6 +892,9 @@ class NativePtyBindings
 
   @override
   bool get supportsHostResponseV1 => _hostResponseV1 != null;
+
+  @override
+  bool get supportsProtocolReplies => _writeProtocolReply != null;
 
   @override
   bool get supportsDiagnosticEventV1 => _takeDiagnosticEventV1Json != null;
@@ -990,6 +1051,21 @@ class NativePtyBindings
     try {
       pointer.asTypedList(bytes.length).setAll(0, bytes);
       return _writeSession(sessionId, pointer, bytes.length);
+    } finally {
+      malloc.free(pointer);
+    }
+  }
+
+  @override
+  int sessionWriteProtocolReply(int sessionId, List<int> bytes) {
+    final binding = _writeProtocolReply;
+    if (binding == null) {
+      return -1;
+    }
+    final pointer = malloc<ffi.Uint8>(bytes.length);
+    try {
+      pointer.asTypedList(bytes.length).setAll(0, bytes);
+      return binding(sessionId, pointer, bytes.length);
     } finally {
       malloc.free(pointer);
     }
@@ -1356,6 +1432,13 @@ abstract interface class PtyHostResponseV1Backend {
   bool respondToHostRequestV1(String sessionId, String responseV1Json);
 }
 
+/// Optional ordered path for terminal/host protocol replies that may finish
+/// while native ZMODEM state is ahead of the Dart event stream.
+abstract interface class PtyProtocolReplyBackend {
+  bool get supportsProtocolReplies;
+  void writeProtocolReply(String sessionId, List<int> bytes);
+}
+
 abstract class PtySessionDiagnosticsBackend {
   String? takeDiagnosticsJson(String sessionId, String kind);
 }
@@ -1415,6 +1498,7 @@ class NativePtyBackend
         PtySessionJsonRequestBackend,
         PtySessionRequestV1Backend,
         PtyHostResponseV1Backend,
+        PtyProtocolReplyBackend,
         PtySessionDiagnosticsBackend,
         PtySessionDiagnosticEventV1Backend,
         PtySessionGraphicAssetBackend,
@@ -1423,9 +1507,19 @@ class NativePtyBackend
         PtySessionFramePacketV1Backend,
         PtySessionRefreshHintBackend,
         PtyRuntimeCapabilityBackend {
-  NativePtyBackend(this._bindings);
+  NativePtyBackend(
+    this._bindings, {
+    this.emitRuntimeEventGapDiagnostics = false,
+  });
 
   final PtyBindings _bindings;
+
+  /// When false, a Runtime Event sequence gap preserves the historical public
+  /// API behavior and throws `PtyRuntimeContractException`.
+  ///
+  /// Set this only when the consumer recognizes
+  /// [PtyRuntimeEventGapDiagnostic] and reconciles it before survivors.
+  final bool emitRuntimeEventGapDiagnostics;
   final Map<String, int> _nativeSessionIds = <String, int>{};
   final Map<int, int> _nextEventSequenceBySession = <int, int>{};
 
@@ -1433,10 +1527,20 @@ class NativePtyBackend
   late final PtyRuntimeCapabilities? runtimeCapabilities =
       _loadRuntimeCapabilities();
 
-  factory NativePtyBackend.load() => NativePtyBackend(NativePtyBindings.load());
+  factory NativePtyBackend.load({
+    bool emitRuntimeEventGapDiagnostics = false,
+  }) => NativePtyBackend(
+    NativePtyBindings.load(),
+    emitRuntimeEventGapDiagnostics: emitRuntimeEventGapDiagnostics,
+  );
 
-  factory NativePtyBackend.fromBindings(PtyBindings bindings) =>
-      NativePtyBackend(bindings);
+  factory NativePtyBackend.fromBindings(
+    PtyBindings bindings, {
+    bool emitRuntimeEventGapDiagnostics = false,
+  }) => NativePtyBackend(
+    bindings,
+    emitRuntimeEventGapDiagnostics: emitRuntimeEventGapDiagnostics,
+  );
 
   @override
   int ping() => _bindings.ping();
@@ -1625,18 +1729,18 @@ class NativePtyBackend
   @override
   void closeSession(String sessionId) {
     final nativeSessionId = _nativeSessionIdFor(sessionId);
-    try {
-      _checkNativeStatus(
-        'closeSession',
-        sessionId,
-        _bindings.sessionClose(nativeSessionId),
-      );
-    } finally {
-      _nativeSessionIds
-        ..remove(sessionId)
-        ..remove(nativeSessionId.toString());
-      _nextEventSequenceBySession.remove(nativeSessionId);
-    }
+    _checkNativeStatus(
+      'closeSession',
+      sessionId,
+      _bindings.sessionClose(nativeSessionId),
+    );
+    // A native busy result intentionally keeps the session alive so its late
+    // ZMODEM completion/recovery event can still be polled. Forget mappings
+    // only after native confirms that close committed.
+    _nativeSessionIds
+      ..remove(sessionId)
+      ..remove(nativeSessionId.toString());
+    _nextEventSequenceBySession.remove(nativeSessionId);
   }
 
   @override
@@ -1679,6 +1783,30 @@ class NativePtyBackend
       'writeInput',
       sessionId,
       _bindings.sessionWrite(nativeSessionId, bytes),
+    );
+  }
+
+  @override
+  bool get supportsProtocolReplies {
+    final bindings = _bindings;
+    return bindings is PtyProtocolReplyBindings &&
+        (bindings as PtyProtocolReplyBindings).supportsProtocolReplies;
+  }
+
+  @override
+  void writeProtocolReply(String sessionId, List<int> bytes) {
+    final bindings = _bindings;
+    if (bindings is! PtyProtocolReplyBindings ||
+        !(bindings as PtyProtocolReplyBindings).supportsProtocolReplies) {
+      throw UnsupportedError('ordered protocol replies are unavailable');
+    }
+    final protocolBindings = bindings as PtyProtocolReplyBindings;
+    final nativeSessionId = _nativeSessionIdFor(sessionId);
+    _validateNativeBytes(bytes);
+    _checkNativeStatus(
+      'writeProtocolReply',
+      sessionId,
+      protocolBindings.sessionWriteProtocolReply(nativeSessionId, bytes),
     );
   }
 
@@ -1890,14 +2018,29 @@ class NativePtyBackend
       );
     }
 
-    var expectedSequence =
-        _nextEventSequenceBySession[nativeSessionId] ??
-        (batch.messages.isEmpty
-            ? batch.nextSequence
-            : batch.messages.first.sequence!);
+    final expectedSequenceBeforeBatch =
+        _nextEventSequenceBySession[nativeSessionId] ?? 0;
+    if (batch.nextSequence < expectedSequenceBeforeBatch) {
+      throw PtyRuntimeContractException(
+        code: 'event_sequence_reordered',
+        path: r'$.next_sequence',
+        message:
+            'Runtime Event batch cursor moved backwards for session '
+            '$sessionId',
+      );
+    }
+    var expectedSequence = expectedSequenceBeforeBatch;
     var sequenceGap = batch.droppedCount > 0;
-    for (final message in batch.messages) {
+    for (var index = 0; index < batch.messages.length; index += 1) {
+      final message = batch.messages[index];
       final sequence = message.sequence!;
+      if (sequence < expectedSequence) {
+        throw PtyRuntimeContractException(
+          code: 'event_sequence_reordered',
+          path: '\$.messages[$index].sequence',
+          message: 'Runtime Event sequence was replayed for session $sessionId',
+        );
+      }
       if (sequence != expectedSequence) {
         sequenceGap = true;
       }
@@ -1907,18 +2050,30 @@ class NativePtyBackend
       sequenceGap = true;
     }
     _nextEventSequenceBySession[nativeSessionId] = batch.nextSequence;
+    final events = <PtyEvent>[];
     if (sequenceGap) {
-      throw PtyRuntimeContractException(
-        code: 'event_sequence_gap',
-        path: r'$.messages',
-        message:
-            'Runtime Event loss or reordering detected for session $sessionId',
+      if (!emitRuntimeEventGapDiagnostics) {
+        throw PtyRuntimeContractException(
+          code: 'event_sequence_gap',
+          path: r'$.messages',
+          message:
+              'Runtime Event loss detected for session $sessionId; construct '
+              'NativePtyBackend with emitRuntimeEventGapDiagnostics: true only '
+              'when the consumer reconciles survivors',
+        );
+      }
+      events.add(
+        PtyRuntimeEventGapDiagnostic(
+          sessionId: sessionId,
+          expectedSequence: expectedSequenceBeforeBatch,
+          nextSequence: batch.nextSequence,
+          droppedCount: batch.droppedCount,
+          survivingEventCount: batch.messages.length,
+        ),
       );
     }
-
-    return List<PtyEvent>.unmodifiable(
-      batch.messages.map(_eventFromRuntimeEnvelope),
-    );
+    events.addAll(batch.messages.map(_eventFromRuntimeEnvelope));
+    return List<PtyEvent>.unmodifiable(events);
   }
 
   PtyEvent _eventFromRuntimeEnvelope(PtyRuntimeEnvelope message) {

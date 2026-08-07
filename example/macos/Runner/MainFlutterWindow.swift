@@ -513,6 +513,31 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
         panel.beginSheetModal(for: self) { response in
           result(response == .OK ? panel.url?.path : nil)
         }
+      case "chooseZmodemReceiveDirectory":
+        let panel = NSOpenPanel()
+        panel.title = "Receive ZMODEM Files"
+        panel.message = "Choose a folder for files offered by the remote host."
+        panel.prompt = "Receive Here"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        panel.resolvesAliases = true
+        panel.beginSheetModal(for: self) { response in
+          result(response == .OK ? panel.url?.path : nil)
+        }
+      case "chooseZmodemSendFiles":
+        let panel = NSOpenPanel()
+        panel.title = "Send Files with ZMODEM"
+        panel.message = "Choose files to send to the remote host."
+        panel.prompt = "Send"
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = true
+        panel.resolvesAliases = true
+        panel.beginSheetModal(for: self) { response in
+          result(response == .OK ? panel.urls.map(\.path) : nil)
+        }
       case "chooseRecordingFile":
         let panel = NSOpenPanel()
         panel.title = "Import Terminal Recording"
@@ -555,19 +580,21 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
           result(FlutterMethodNotImplemented)
           return
         }
-        let path = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !path.isEmpty, FileManager.default.fileExists(atPath: path) else {
+        let isBlank = rawPath
+          .trimmingCharacters(in: .whitespacesAndNewlines)
+          .isEmpty
+        guard !isBlank, FileManager.default.fileExists(atPath: rawPath) else {
           result(
             FlutterError(
               code: "recording_path_missing",
               message: "The recording file does not exist",
-              details: path
+              details: rawPath
             )
           )
           return
         }
         NSWorkspace.shared.activateFileViewerSelecting([
-          URL(fileURLWithPath: path).standardizedFileURL
+          URL(fileURLWithPath: rawPath).standardizedFileURL
         ])
         result(nil)
       case "movePathToTrash":
@@ -578,14 +605,16 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
           result(FlutterMethodNotImplemented)
           return
         }
-        let path = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
-        let url = URL(fileURLWithPath: path).standardizedFileURL
-        guard !path.isEmpty, FileManager.default.fileExists(atPath: url.path) else {
+        let isBlank = rawPath
+          .trimmingCharacters(in: .whitespacesAndNewlines)
+          .isEmpty
+        let url = URL(fileURLWithPath: rawPath).standardizedFileURL
+        guard !isBlank, FileManager.default.fileExists(atPath: url.path) else {
           result(
             FlutterError(
               code: "recording_path_missing",
               message: "The recording file does not exist",
-              details: path
+              details: rawPath
             )
           )
           return

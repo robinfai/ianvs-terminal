@@ -18,6 +18,7 @@ payload's responsibility; it does not claim that every row already uses Runtime 
 | `ianvs_session_resize` | command | rows/columns/pixel geometry | unversioned |
 | `ianvs_session_resize_with_cell_size` | command | rows/columns/pixel/cell geometry | unversioned |
 | `ianvs_session_write` | command | borrowed input bytes | explicit length, unversioned |
+| `ianvs_session_write_protocol_reply` | host response | borrowed terminal/host reply bytes ordered or deferred behind native ZMODEM state | optional explicit-length compatibility path |
 | `ianvs_session_scroll` | command | relative line delta | unversioned |
 | `ianvs_session_scroll_to` | command | absolute scrollback offset | unversioned |
 | `ianvs_session_search_json` | command/response | borrowed request JSON, owned result JSON | request-specific, unversioned envelope |
@@ -49,6 +50,11 @@ T-320 adds the two SessionConfig v1 entrypoints and advertises `session-config.j
 `TerminalRuntimeController` prefers the versioned path when the loaded backend exposes it. The
 legacy create symbols and Profile-shaped encoder remain quarantined compatibility surfaces in
 both upgrade directions; their removal requires a separate compatibility-window decision.
+
+`ianvs_session_write_protocol_reply` keeps asynchronous legacy terminal/host replies out of the
+ordinary user-input path. New Dart with an older native library falls back to its bounded local
+queue; new native libraries provide the authoritative ordering boundary for the interval in which
+native has detected ZMODEM but Dart has not yet polled the detection event.
 
 T-321 adds `ianvs_session_request_v1_json` and advertises
 `session-request-envelope.json.v1`. Generic terminal command clients prefer the correlated,

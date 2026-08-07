@@ -23,6 +23,18 @@ class WindowBridge {
 
   static const MethodChannel _channel = MethodChannel('app/window_bridge');
 
+  @visibleForTesting
+  static TargetPlatform? debugZmodemFileDialogPlatformOverride;
+
+  // The example runner currently implements these native dialogs on macOS.
+  // The runtime core remains independently usable on supported Linux hosts.
+  static bool get supportsZmodemFileDialogs =>
+      !kIsWeb &&
+      (debugZmodemFileDialogPlatformOverride ?? defaultTargetPlatform) ==
+          TargetPlatform.macOS;
+
+  static bool get supportsPathReveal => !kIsWeb;
+
   static void setNativeMenuHandlers({
     Future<void> Function()? onPaste,
     Future<void> Function()? onOpenTerminalAtFolder,
@@ -204,8 +216,7 @@ class WindowBridge {
         'chooseFileDownloadLocation',
         <String, Object?>{'suggestedName': safeName},
       );
-      final path = selected?.trim();
-      return path == null || path.isEmpty ? null : path;
+      return selected == null || selected.isEmpty ? null : selected;
     } on MissingPluginException {
       return null;
     }
@@ -216,11 +227,47 @@ class WindowBridge {
       final selected = await _channel.invokeMethod<String>(
         'chooseTerminalFolder',
       );
-      final path = selected?.trim();
-      return path == null || path.isEmpty ? null : path;
+      return selected == null || selected.isEmpty ? null : selected;
     } on MissingPluginException {
       return null;
     }
+  }
+
+  /// Opens the platform directory picker.
+  ///
+  /// The current platform channel cannot dismiss a picker that is already in
+  /// flight. Callers must correlate the returned value with their own request
+  /// token and ignore it when the owning operation has ended.
+  static Future<String?> chooseZmodemReceiveDirectory() async {
+    if (!supportsZmodemFileDialogs) {
+      throw UnsupportedError('ZMODEM file dialogs are unavailable');
+    }
+    final selected = await _channel.invokeMethod<String>(
+      'chooseZmodemReceiveDirectory',
+    );
+    return selected == null || selected.isEmpty ? null : selected;
+  }
+
+  /// Opens the platform multi-file picker.
+  ///
+  /// The current platform channel cannot dismiss a picker that is already in
+  /// flight. Callers must correlate the returned value with their own request
+  /// token and ignore it when the owning operation has ended.
+  static Future<List<String>?> chooseZmodemSendFiles() async {
+    if (!supportsZmodemFileDialogs) {
+      throw UnsupportedError('ZMODEM file dialogs are unavailable');
+    }
+    final selected = await _channel.invokeListMethod<String>(
+      'chooseZmodemSendFiles',
+    );
+    if (selected == null) {
+      return null;
+    }
+    final paths = selected
+        .where((path) => path.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    return paths.isEmpty ? null : paths;
   }
 
   static Future<String?> chooseRecordingFile({String? initialDirectory}) async {
@@ -232,36 +279,37 @@ class WindowBridge {
                 normalizedInitialDirectory.isNotEmpty)
               'initialDirectory': normalizedInitialDirectory,
           });
-      final path = selected?.trim();
-      return path == null || path.isEmpty ? null : path;
+      return selected == null || selected.isEmpty ? null : selected;
     } on MissingPluginException {
       return null;
     }
   }
 
-  static Future<void> revealInFinder(String value) async {
-    final path = value.trim();
-    if (path.isEmpty) {
+  static Future<bool> revealInFinder(String value) async {
+    if (value.trim().isEmpty) {
       throw const FormatException('Finder path must not be empty.');
+    }
+    if (!supportsPathReveal) {
+      return false;
     }
     try {
       await _channel.invokeMethod<void>('revealInFinder', <String, Object?>{
-        'path': path,
+        'path': value,
       });
+      return true;
     } on MissingPluginException {
-      return;
+      return false;
     }
   }
 
   static Future<bool> movePathToTrash(String value) async {
-    final path = value.trim();
-    if (path.isEmpty) {
+    if (value.trim().isEmpty) {
       throw const FormatException('Trash path must not be empty.');
     }
     try {
       return await _channel.invokeMethod<bool>(
             'movePathToTrash',
-            <String, Object?>{'path': path},
+            <String, Object?>{'path': value},
           ) ??
           false;
     } on MissingPluginException {

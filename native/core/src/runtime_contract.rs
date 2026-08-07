@@ -32,6 +32,8 @@ const FEATURES: &[&str] = &[
     "session-recording.v1",
     "session-request-envelope.json.v1",
     "session-request.json.v1",
+    "zmodem.receive.v1",
+    "zmodem.send.v1",
 ];
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -148,6 +150,10 @@ impl RuntimeCapabilities {
             recording_schema_versions: vec![RECORDING_SCHEMA_VERSION],
             features: FEATURES
                 .iter()
+                .filter(|feature| {
+                    cfg!(any(target_os = "macos", target_os = "linux"))
+                        || !matches!(**feature, "zmodem.receive.v1" | "zmodem.send.v1")
+                })
                 .map(|feature| (*feature).to_owned())
                 .collect(),
         }
@@ -170,6 +176,20 @@ mod tests {
                 .features
                 .windows(2)
                 .all(|pair| pair[0] < pair[1])
+        );
+        assert_eq!(
+            capabilities
+                .features
+                .iter()
+                .any(|feature| feature == "zmodem.receive.v1"),
+            cfg!(any(target_os = "macos", target_os = "linux"))
+        );
+        assert_eq!(
+            capabilities
+                .features
+                .iter()
+                .any(|feature| feature == "zmodem.send.v1"),
+            cfg!(any(target_os = "macos", target_os = "linux"))
         );
     }
 

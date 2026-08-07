@@ -256,6 +256,209 @@ void main() {
     expect(terminal.rows, 24);
   });
 
+  testWidgets(
+    'terminal close failure keeps the native session reachable and retryable',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      final runtime = _runtimeFor(backend);
+      addTearDown(runtime.dispose);
+      final terminal = Terminal(
+        runtime: runtime,
+        sessionConfig: const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      terminal.open();
+      final sessionId = terminal.sessionId!;
+      backend.closeError = _retryableCloseError(sessionId);
+
+      expect(terminal.tryClose(), isFalse);
+      terminal.dispose();
+
+      expect(terminal.isOpen, isTrue);
+      expect(terminal.disposed, isFalse);
+      expect(terminal.sessionId, sessionId);
+      expect(runtime.hasSession(sessionId), isTrue);
+      terminal.write('still reachable');
+
+      backend.closeError = null;
+      expect(terminal.tryClose(), isTrue);
+      expect(terminal.isOpen, isFalse);
+      terminal.dispose();
+      expect(terminal.disposed, isTrue);
+    },
+  );
+
+  testWidgets(
+    'terminal dispose completes automatically after ZMODEM terminal event',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      final runtime = _runtimeFor(backend);
+      addTearDown(runtime.dispose);
+      final terminal = Terminal(
+        runtime: runtime,
+        sessionConfig: const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      terminal.open();
+      final sessionId = terminal.sessionId!;
+      backend.closeError = _retryableCloseError(sessionId);
+
+      terminal.dispose();
+      expect(terminal.disposed, isFalse);
+      expect(runtime.hasSession(sessionId), isTrue);
+
+      backend
+        ..enqueueEvent(
+          sessionId,
+          PtyEvent(
+            kind: 'zmodem_detected',
+            sessionId: sessionId,
+            payload: const <String, Object?>{
+              'source': 'zmodem',
+              'transferId': '41',
+              'direction': 'receive',
+            },
+          ),
+        )
+        ..enqueueEvent(
+          sessionId,
+          PtyEvent(
+            kind: 'zmodem_failed',
+            sessionId: sessionId,
+            payload: const <String, Object?>{
+              'source': 'zmodem',
+              'transferId': '41',
+              'direction': 'receive',
+              'reason': 'timeout',
+            },
+          ),
+        )
+        ..closeError = null;
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+
+      expect(terminal.disposed, isTrue);
+      expect(terminal.isOpen, isFalse);
+      expect(runtime.hasSession(sessionId), isFalse);
+    },
+  );
+
+  testWidgets('runtime dispose retries autonomously without polling', (
+    tester,
+  ) async {
+    final backend = _FakePtyBackend();
+    final runtime = _runtimeFor(backend);
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    backend.closeError = _retryableCloseError(sessionId);
+
+    expect(runtime.tryDispose(), isFalse);
+    expect(runtime.hasSession(sessionId), isTrue);
+
+    backend.closeError = null;
+    await tester.pump(const Duration(milliseconds: 60));
+
+    expect(runtime.hasSession(sessionId), isFalse);
+    expect(runtime.tryDispose(), isTrue);
+  });
+
+  testWidgets(
+    'terminal dispose drains pending result and retries without polling',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      final runtime = _runtimeFor(backend);
+      final terminal = Terminal(
+        runtime: runtime,
+        sessionConfig: const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      terminal.open();
+      final sessionId = terminal.sessionId!;
+      backend
+        ..closeError = _retryableCloseError(sessionId)
+        ..clearCloseErrorAfterPoll = true;
+
+      terminal.dispose();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+
+      expect(backend.pollCalls, contains(sessionId));
+      expect(terminal.disposed, isTrue);
+      expect(runtime.hasSession(sessionId), isFalse);
+      expect(runtime.tryDispose(), isTrue);
+    },
+  );
+
+  testWidgets(
+    'terminal dispose releases local state after permanent close failure',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      final runtime = _runtimeFor(backend);
+      final terminal = Terminal(
+        runtime: runtime,
+        sessionConfig: const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      terminal.open();
+      final sessionId = terminal.sessionId!;
+      backend.closeError = StateError('permanent close failure');
+
+      terminal.dispose();
+      await tester.pump();
+
+      expect(terminal.disposed, isTrue);
+      expect(terminal.isOpen, isFalse);
+      expect(runtime.hasSession(sessionId), isFalse);
+      expect(runtime.tryDispose(), isTrue);
+    },
+  );
+
+  testWidgets(
+    'terminal dispose retains retryable native ownership past the old deadline',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      final runtime = _runtimeFor(backend);
+      final runtimeEvents = <TerminalSessionEvent>[];
+      final subscription = runtime.events.listen(runtimeEvents.add);
+      addTearDown(subscription.cancel);
+      final terminal = Terminal(
+        runtime: runtime,
+        sessionConfig: const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      terminal.open();
+      final sessionId = terminal.sessionId!;
+      backend.closeError = _retryableCloseError(sessionId);
+
+      terminal.dispose();
+      expect(terminal.disposed, isFalse);
+      await tester.pump(const Duration(seconds: 66));
+      await tester.pump();
+
+      expect(terminal.disposed, isFalse);
+      expect(terminal.isOpen, isTrue);
+      expect(runtime.hasSession(sessionId), isTrue);
+      expect(
+        runtimeEvents.whereType<TerminalSessionBackendErrorEvent>(),
+        isEmpty,
+      );
+      backend.closeError = null;
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(terminal.disposed, isTrue);
+      expect(runtime.hasSession(sessionId), isFalse);
+      expect(runtime.tryDispose(), isTrue);
+    },
+  );
+
   test('terminal options normalize resize dimensions', () {
     final oversized = TerminalOptions(
       cols: maxTerminalDimension + 1,
@@ -376,6 +579,9 @@ class _FakePtyBackend
       <String, Map<String, Object?>>{};
   final Map<String, List<PtyEvent>> _queuedEvents = <String, List<PtyEvent>>{};
   Object? resizeError;
+  Object? closeError;
+  bool clearCloseErrorAfterPoll = false;
+  final List<String> pollCalls = <String>[];
   int _nextSessionId = 0;
 
   Map<String, Object?>? get lastCreateSessionPayload {
@@ -408,6 +614,10 @@ class _FakePtyBackend
   @override
   void closeSession(String sessionId) {
     closeCalls.add(sessionId);
+    final error = closeError;
+    if (error != null) {
+      throw error;
+    }
     _frames.remove(sessionId);
     _queuedEvents.remove(sessionId);
   }
@@ -478,8 +688,21 @@ class _FakePtyBackend
 
   @override
   List<PtyEvent> pollEvents(String sessionId) {
+    pollCalls.add(sessionId);
+    if (clearCloseErrorAfterPoll) {
+      closeError = null;
+      clearCloseErrorAfterPoll = false;
+    }
     return _queuedEvents.remove(sessionId) ?? const <PtyEvent>[];
   }
+}
+
+PtyNativeCallException _retryableCloseError(String sessionId) {
+  return PtyNativeCallException(
+    operation: 'closeSession',
+    sessionId: sessionId,
+    statusCode: -2,
+  );
 }
 
 Map<String, Object?> _singleRowSnapshot(

@@ -208,13 +208,26 @@ fn dispatch_request(session_id: u64, request: &SessionRequestV1) -> SessionRespo
             "invalid_operation_payload",
             "the operation payload is invalid",
         ),
-        Err(_) => SessionResponseV1::failure(
-            request.request_id.clone(),
-            request.session_id.clone(),
-            request.operation.clone(),
-            "runtime_error",
-            "the session request failed",
+        Err(error) => {
+            let (code, message) = public_runtime_error(&error);
+            SessionResponseV1::failure(
+                request.request_id.clone(),
+                request.session_id.clone(),
+                request.operation.clone(),
+                code,
+                message,
+            )
+        }
+    }
+}
+
+fn public_runtime_error(error: &session::SessionError) -> (&'static str, &'static str) {
+    match error {
+        session::SessionError::Zmodem(reason) if reason == "unsupported_platform" => (
+            "unsupported_platform",
+            "ZMODEM file transfer is unsupported on this platform",
         ),
+        _ => ("runtime_error", "the session request failed"),
     }
 }
 
@@ -291,6 +304,14 @@ fn supported_operation(value: &str) -> bool {
             | "terminal.activate_iterm_button"
             | "terminal.export_scrollback"
             | "terminal.export_diagnostics"
+            | "terminal.zmodem.accept_receive"
+            | "terminal.zmodem.accept_send"
+            | "terminal.zmodem.resolve_recovery"
+            | "terminal.zmodem.consume_recovery"
+            | "terminal.zmodem.dismiss_recovery"
+            | "terminal.zmodem.cancel"
+            | "terminal.zmodem.cancel_active"
+            | "terminal.session.close_readiness"
     )
 }
 
@@ -356,6 +377,27 @@ mod tests {
     #[test]
     fn operation_inventory_is_explicit() {
         assert!(supported_operation("terminal.search_text"));
+        assert!(supported_operation("terminal.zmodem.resolve_recovery"));
+        assert!(supported_operation("terminal.zmodem.dismiss_recovery"));
+        assert!(supported_operation("terminal.zmodem.cancel_active"));
+        assert!(supported_operation("terminal.session.close_readiness"));
         assert!(!supported_operation("terminal.future_operation"));
+    }
+
+    #[test]
+    fn unsupported_platform_zmodem_error_survives_the_public_contract() {
+        assert_eq!(
+            public_runtime_error(&session::SessionError::Zmodem(
+                "unsupported_platform".to_string()
+            )),
+            (
+                "unsupported_platform",
+                "ZMODEM file transfer is unsupported on this platform"
+            )
+        );
+        assert_eq!(
+            public_runtime_error(&session::SessionError::Zmodem("invalid state".to_string())),
+            ("runtime_error", "the session request failed")
+        );
     }
 }

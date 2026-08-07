@@ -3,6 +3,8 @@ use portable_pty::{CommandBuilder, MasterPty, PtySize, native_pty_system};
 use std::collections::BTreeMap;
 use std::fs;
 use std::io::{Read, Write};
+#[cfg(unix)]
+use std::os::fd::{FromRawFd, RawFd};
 use std::path::{Path, PathBuf};
 use std::process;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -13,11 +15,57 @@ static SHELL_INTEGRATION_PROXY_COUNTER: AtomicU64 = AtomicU64::new(0);
 pub struct PtyRuntime {
     pub master: Box<dyn MasterPty + Send>,
     pub reader: Box<dyn Read + Send>,
+    /// Raw master descriptor used only to poll readability before calling the
+    /// otherwise blocking cloned reader. This lets the reader establish an
+    /// ordered drain barrier after the child exits without relying on a
+    /// timing grace period.
+    pub reader_poll_handle: Option<fs::File>,
     pub writer: Box<dyn Write + Send>,
     pub child: Box<dyn portable_pty::Child + Send + Sync>,
     pub child_pid: Option<u32>,
     pub(crate) shell_integration: ShellIntegrationPlanStatus,
     pub(crate) shell_integration_proxy: Option<ShellIntegrationProxy>,
+}
+
+struct SpawnedChildGuard {
+    child: Option<Box<dyn portable_pty::Child + Send + Sync>>,
+}
+
+impl SpawnedChildGuard {
+    fn new(child: Box<dyn portable_pty::Child + Send + Sync>) -> Self {
+        Self { child: Some(child) }
+    }
+
+    fn take(mut self) -> Box<dyn portable_pty::Child + Send + Sync> {
+        self.child
+            .take()
+            .expect("spawned PTY child guard was already disarmed")
+    }
+}
+
+impl Drop for SpawnedChildGuard {
+    fn drop(&mut self) {
+        if let Some(child) = self.child.as_mut() {
+            // Every fallible PTY setup step after spawn is covered by this
+            // guard. Do not leave an interactive child behind when cloning a
+            // reader or taking the writer fails under descriptor pressure.
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
+
+#[cfg(unix)]
+fn duplicate_reader_poll_handle(raw_fd: Option<RawFd>) -> anyhow::Result<fs::File> {
+    let raw_fd = raw_fd.ok_or_else(|| anyhow::anyhow!("PTY master has no pollable descriptor"))?;
+    // Own the descriptor used by the reader thread. Borrowing the master's
+    // numeric fd would allow close/reuse to make poll watch an unrelated file
+    // descriptor during forced teardown.
+    let duplicated = unsafe { libc::fcntl(raw_fd, libc::F_DUPFD_CLOEXEC, 0) };
+    if duplicated < 0 {
+        return Err(std::io::Error::last_os_error().into());
+    }
+    Ok(unsafe { fs::File::from_raw_fd(duplicated) })
 }
 
 pub(crate) struct ShellIntegrationProxy {
@@ -143,6 +191,18 @@ impl ShellIntegrationKind {
 }
 
 pub fn spawn_pty(profile: &TerminalProfile, rows: u16, cols: u16) -> anyhow::Result<PtyRuntime> {
+    spawn_pty_with_post_spawn_check(profile, rows, cols, |_| Ok(()))
+}
+
+fn spawn_pty_with_post_spawn_check<F>(
+    profile: &TerminalProfile,
+    rows: u16,
+    cols: u16,
+    post_spawn_check: F,
+) -> anyhow::Result<PtyRuntime>
+where
+    F: FnOnce(Option<u32>) -> anyhow::Result<()>,
+{
     let pty_system = native_pty_system();
     let pair = pty_system.openpty(PtySize {
         rows,
@@ -175,13 +235,24 @@ pub fn spawn_pty(profile: &TerminalProfile, rows: u16, cols: u16) -> anyhow::Res
     }
 
     let child = pair.slave.spawn_command(command)?;
-    let child_pid = child.process_id();
+    let child_guard = SpawnedChildGuard::new(child);
+    let child_pid = child_guard
+        .child
+        .as_ref()
+        .and_then(|child| child.process_id());
+    post_spawn_check(child_pid)?;
     let reader = pair.master.try_clone_reader()?;
+    #[cfg(unix)]
+    let reader_poll_handle = Some(duplicate_reader_poll_handle(pair.master.as_raw_fd())?);
+    #[cfg(not(unix))]
+    let reader_poll_handle = None;
     let writer = pair.master.take_writer()?;
+    let child = child_guard.take();
 
     Ok(PtyRuntime {
         master: pair.master,
         reader,
+        reader_poll_handle,
         writer,
         child,
         child_pid,
@@ -873,6 +944,42 @@ mod tests {
         build_command_plan_with_proxy_factory(profile, |_kind, _profile, _program| {
             panic!("proxy factory should not be called")
         })
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn post_spawn_setup_failure_kills_and_reaps_the_child() {
+        let profile = profile(
+            "/bin/sh",
+            vec!["-c".to_string(), "exec /bin/sleep 60".to_string()],
+            BTreeMap::new(),
+            TerminalEmulation::Xterm256,
+            false,
+        );
+        let observed_pid = std::cell::Cell::new(None);
+
+        let error = spawn_pty_with_post_spawn_check(&profile, 24, 80, |pid| {
+            observed_pid.set(pid);
+            anyhow::bail!("injected post-spawn setup failure")
+        })
+        .err()
+        .expect("injected setup failure must reject PTY runtime");
+
+        assert!(error.to_string().contains("injected post-spawn"));
+        let pid = observed_pid.get().expect("PTY child must expose a pid");
+        let probe = unsafe { libc::kill(pid as libc::pid_t, 0) };
+        assert_eq!(probe, -1, "failed setup left PTY child {pid} alive");
+        assert_eq!(
+            std::io::Error::last_os_error().raw_os_error(),
+            Some(libc::ESRCH)
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn reader_poll_handle_duplication_failure_is_not_degraded() {
+        assert!(duplicate_reader_poll_handle(None).is_err());
+        assert!(duplicate_reader_poll_handle(Some(-1)).is_err());
     }
 
     #[test]

@@ -320,6 +320,14 @@ extension _ShellScreenStateCoprocesses on _ShellScreenState {
     return 'Session $sessionId';
   }
 
+  String _zmodemRecoverySourceLabel(String sessionId) {
+    final title = _sessionTitleForNotification(sessionId);
+    if (title == 'Session $sessionId' || title.endsWith('($sessionId)')) {
+      return title;
+    }
+    return '$title (session $sessionId)';
+  }
+
   void _sendShellNotification({
     required String title,
     String? body,

@@ -29,6 +29,7 @@ final class TerminalSessionConfigV1 {
     required this.sessionId,
     required this.displayName,
     required this.config,
+    this.zmodemEnabled = false,
   });
 
   static const int maxEncodedBytes = 1024 * 1024;
@@ -42,12 +43,18 @@ final class TerminalSessionConfigV1 {
   final String displayName;
   final TerminalSessionConfig config;
 
+  /// Explicit native protocol interception opt-in. It defaults off so an
+  /// independently upgraded native library cannot change old-client PTY
+  /// semantics.
+  final bool zmodemEnabled;
+
   Map<String, Object?> toJson() {
     return <String, Object?>{
       'schema_version': schemaVersion,
       'contract': contract,
       'session_id': sessionId,
       'display_name': displayName,
+      'client_capabilities': <String, Object?>{'zmodem': zmodemEnabled},
       'config': config.toJson(),
     };
   }
@@ -127,6 +134,23 @@ final class TerminalSessionConfigV1 {
       path: r'$.display_name',
       maximum: _maxDisplayNameLength,
     );
+    var zmodemEnabled = false;
+    final rawClientCapabilities = json['client_capabilities'];
+    if (rawClientCapabilities != null) {
+      final clientCapabilities = _objectMap(
+        rawClientCapabilities,
+        r'$.client_capabilities',
+      );
+      final rawZmodem = clientCapabilities['zmodem'];
+      if (rawZmodem != null && rawZmodem is! bool) {
+        throw const TerminalSessionConfigContractException(
+          code: 'invalid_type',
+          path: r'$.client_capabilities.zmodem',
+          message: 'zmodem must be a boolean',
+        );
+      }
+      zmodemEnabled = rawZmodem == true;
+    }
     final rawConfig = json['config'];
     if (rawConfig == null) {
       throw const TerminalSessionConfigContractException(
@@ -178,6 +202,7 @@ final class TerminalSessionConfigV1 {
       sessionId: sessionId,
       displayName: displayName,
       config: TerminalSessionConfig.fromJson(configJson),
+      zmodemEnabled: zmodemEnabled,
     );
   }
 }
