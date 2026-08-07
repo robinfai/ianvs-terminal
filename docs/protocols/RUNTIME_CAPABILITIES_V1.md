@@ -24,14 +24,29 @@ The JSON object has this shape:
     "graphic-asset.rgba.v1",
     "host-request-response.json.v1",
     "refresh-hint.v1",
+    "replay-checkpoint.v1",
     "replay-session.v1",
     "session-config.json.v1",
     "session-recording.v1",
     "session-request-envelope.json.v1",
-    "session-request.json.v1"
+    "session-request.json.v1",
+    "zmodem.receive.v1",
+    "zmodem.send.v1"
   ]
 }
 ```
+
+The example above is the manifest emitted on macOS and Linux. `zmodem.receive.v1` is
+advertised only when the core can anchor receive operations to a stable Unix
+directory file descriptor; the supported native-core targets are currently
+macOS and Linux. The repository's example product has a macOS runner and file
+dialogs; it does not currently provide a Linux product runner. Other native
+builds omit both ZMODEM feature ids and fail file
+authorization closed as `unsupported_platform`; they do not advertise send
+until they have an atomic, no-follow file-open implementation.
+The Session Response v1 error preserves `unsupported_platform` as its public
+structured error code; other internal ZMODEM/runtime failures remain collapsed
+to the bounded `runtime_error` contract.
 
 The native producer emits feature ids in sorted order without duplicates. Dart accepts additive
 unknown object fields and retains unknown feature ids so a v1 consumer can inspect a newer v1
@@ -70,3 +85,16 @@ legacy Protobuf and JSON Frame paths during the compatibility window.
 T-330 adds `graphic-asset-packet.protobuf.v1` for an atomic identity, dimensions and decoded-RGBA
 asset transfer. Callers still probe the optional symbol and retain `graphic-asset.rgba.v1` plus the
 legacy metadata/copy symbols when loading an older library.
+
+ZMODEM v1 adds the independently scoped `zmodem.receive.v1` and
+`zmodem.send.v1` ids. Receive is present only on builds with the supported
+stable-dirfd implementation (currently macOS and Linux); other builds omit that id and reject
+receive authorization. Send is likewise advertised only on macOS and Linux,
+where opening the selected regular file with `O_NOFOLLOW` makes the authority
+check atomic.
+The `zmodem-unsupported-platform` Windows CI job executes the public request
+surface on a real unsupported target and asserts both capability omission and
+structured `unsupported_platform` errors for receive and send authorization.
+These ids describe the session request/event surface and native byte-stream
+engine; the product still owns per-transfer file selection and authorization.
+See [ZMODEM_V1.md](ZMODEM_V1.md).

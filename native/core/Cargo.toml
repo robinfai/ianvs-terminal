@@ -22,12 +22,14 @@ regex = "1.12.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 strip-ansi-escapes = "0.2.1"
+tempfile = "3.23.0"
 thiserror = "2.0"
+unicode-normalization = "0.1.25"
 url = "2.5.8"
+zmodem2 = { path = "../vendor/zmodem2", version = "=0.7.2" }
 
 [dev-dependencies]
 cbindgen = "0.29.2"
-tempfile = "3.23.0"
 
 [build-dependencies.prost-build]
 version = "0.14.3"

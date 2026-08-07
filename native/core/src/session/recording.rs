@@ -91,6 +91,9 @@ impl SessionRecording {
         }
     }
 
+    // This boundary mirrors the stable recording Session Request fields; a
+    // parameter object would only move, rather than reduce, that contract.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn start(
         &mut self,
         session_id: u64,

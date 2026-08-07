@@ -11,6 +11,96 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  zmodem-openssh:
+    name: ZMODEM OpenSSH round trip (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build fixture and verify two-file batches in both directions
+        shell: bash
+        run: |
+          set -euo pipefail
+          fixture_dir="$(mktemp -d "$RUNNER_TEMP/ianvs-zmodem-e2e.XXXXXX")"
+          fixture_name="ianvs-zmodem-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          cleanup() {
+            docker rm -f "$fixture_name" >/dev/null 2>&1 || true
+            rm -rf "$fixture_dir"
+          }
+          trap cleanup EXIT
+
+          docker build --provenance=false \
+            --build-arg SOURCE_DATE_EPOCH=1785542400 \
+            -t ianvs-zmodem-e2e tools/zmodem_e2e
+          ssh-keygen -q -t ed25519 -N '' -f "$fixture_dir/id_ed25519"
+          docker run -d --name "$fixture_name" \
+            -p 127.0.0.1::22 ianvs-zmodem-e2e
+          docker cp "$fixture_dir/id_ed25519.pub" \
+            "$fixture_name:/root/.ssh/authorized_keys"
+          docker exec "$fixture_name" sh -c \
+            'chown root:root /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys'
+          fixture_port="$(docker port "$fixture_name" 22/tcp | sed 's/.*://')"
+
+          send_file="$RUNNER_TEMP/ianvs-zmodem-send.bin"
+          dd if=/dev/urandom of="$send_file" bs=1048576 count=8 status=none
+          touch -d @1700000456 "$send_file"
+
+          test_name=zmodem_round_trips_files_over_real_openssh_pty
+          test_list="$(cargo test --manifest-path native/core/Cargo.toml \
+            --test zmodem_ssh_test -- --ignored --list)"
+          if ! grep -Fqx -- "$test_name: test" <<<"$test_list"; then
+            echo "required ignored test is missing: $test_name" >&2
+            exit 1
+          fi
+          IANVS_ZMODEM_SSH_TARGET=root@127.0.0.1 \
+          IANVS_ZMODEM_SSH_PORT="$fixture_port" \
+          IANVS_ZMODEM_SSH_IDENTITY="$fixture_dir/id_ed25519" \
+          IANVS_ZMODEM_SSH_SEND_FILE="$send_file" \
+            cargo test --manifest-path native/core/Cargo.toml \
+              --test zmodem_ssh_test -- \
+              --ignored --exact "$test_name" --nocapture
+
+  zmodem-unsupported-platform:
+    name: ZMODEM fail closed (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Verify unsupported-platform capability and request contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test_name=unsupported_platform_zmodem_contract_is_fail_closed
+          test_list="$(cargo test --manifest-path native/core/Cargo.toml \
+            --test runtime_session_request_test -- --list)"
+          if ! grep -Fqx -- "$test_name: test" <<<"$test_list"; then
+            echo "required Windows fail-closed test is missing: $test_name" >&2
+            exit 1
+          fi
+          cargo test --manifest-path native/core/Cargo.toml \
+            --test runtime_session_request_test \
+            "$test_name" -- --exact
+
   flutter-terminal:
     name: Flutter terminal (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -34,6 +124,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy,rustfmt
+          targets: thumbv7em-none-eabihf
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2

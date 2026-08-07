@@ -224,6 +224,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Set<String> _sessionsSeenForNewOutputBadges = {};
   final Set<String> _sessionsWithNewOutput = {};
   StreamSubscription<terminal.TerminalSessionEvent>? _terminalEventSubscription;
+  StreamSubscription<terminal.TerminalSessionZmodemEvent>?
+  _zmodemEventSubscription;
+  StreamSubscription<
+    terminal.TerminalSessionZmodemDeferredWriteFailedDiagnostic
+  >?
+  _zmodemDeferredWriteFailureSubscription;
   Future<void> Function()? _searchPasteHandler;
   late final LocalTerminalShellUiWiringSnapshot _completionDiagnosticsSnapshot;
   late final Osc72DragDropController _osc72DragDropController;
@@ -334,6 +340,15 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _annotationSheetOpen = false;
   String? _annotationSheetSessionId;
   int _nextCapturedOutputId = 0;
+  final Map<String, _ShellZmodemTransferState> _zmodemTransfers =
+      <String, _ShellZmodemTransferState>{};
+  final Map<String, terminal.TerminalSessionZmodemEvent> _zmodemRecoveries =
+      <String, terminal.TerminalSessionZmodemEvent>{};
+  final Set<String> _zmodemAuthorizedTransferIds = <String>{};
+  final Set<String> _zmodemTransportFailureSessionIds = <String>{};
+  final Map<String, String> _pendingZmodemTerminalMessages = <String, String>{};
+  _ShellZmodemPickerRequest? _zmodemPickerRequest;
+  int _zmodemPickerRequestSeed = 0;
   final Map<String, Set<String>> _coprocessInputKeysBySession =
       <String, Set<String>>{};
   int? _copyModeAnchorRow;
@@ -378,6 +393,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     _terminalEventSubscription = runtime.events.listen(
       _handleTerminalSessionEvent,
     );
+    _zmodemEventSubscription = runtime.zmodemEvents.listen(_handleZmodemEvent);
+    _zmodemDeferredWriteFailureSubscription = runtime
+        .zmodemDeferredWriteFailures
+        .listen(_handleZmodemDeferredWriteFailure);
     ref.listenManual<SessionState>(
       sessionControllerProvider,
       _handleSessionStateChanged,
@@ -394,6 +413,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     unawaited(_osc72DragDropController.dispose());
     _osc52PromptController?.clearAuthorizationHandler();
     _terminalEventSubscription?.cancel();
+    _zmodemEventSubscription?.cancel();
+    _zmodemDeferredWriteFailureSubscription?.cancel();
     _layoutCueTimer?.cancel();
     for (final timer in _viewportResizeTimers.values) {
       timer.cancel();
@@ -437,6 +458,19 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   void _handleSessionStateChanged(SessionState? _, SessionState next) {
     _syncPresentationState(next);
     _publishAcceptanceSnapshot(next);
+    final activeSessionId = next.activeSessionId;
+    final pendingMessage = activeSessionId == null
+        ? null
+        : _pendingZmodemTerminalMessages.remove(activeSessionId);
+    if (pendingMessage != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted &&
+            ref.read(sessionControllerProvider).activeSessionId ==
+                activeSessionId) {
+          _showShellSnackBar(pendingMessage);
+        }
+      });
+    }
   }
 
   void _showShellSnackBar(String message) {
@@ -470,9 +504,110 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   Future<void> _revealShellPath(String path) async {
     try {
-      await WindowBridge.revealInFinder(path);
+      if (!await WindowBridge.revealInFinder(path)) {
+        _showShellSnackBar('Could not reveal export on this platform');
+      }
     } on Object catch (error) {
       _showShellSnackBar('Could not reveal export: $error');
+    }
+  }
+
+  Future<void> _revealZmodemRecovery(
+    terminal.TerminalSessionZmodemEvent event,
+  ) async {
+    final recoveryKey = '${event.sessionId}:${event.transferId}';
+    final runtime = ref.read(terminalRuntimeControllerProvider);
+    final resolution = runtime.resolveZmodemRecovery(event);
+    switch (resolution.status) {
+      case terminal.TerminalZmodemRecoveryResolutionStatus.unavailable:
+        _mutateState(() {
+          _zmodemRecoveries.remove(recoveryKey);
+        });
+        _showShellSnackBar('Preserved ZMODEM file is no longer available');
+        return;
+      case terminal.TerminalZmodemRecoveryResolutionStatus.requestFailed:
+        _showShellSnackBar(
+          'Could not resolve the preserved ZMODEM file; try again',
+        );
+        return;
+      case terminal.TerminalZmodemRecoveryResolutionStatus.available:
+        break;
+    }
+    final path = resolution.path!;
+    try {
+      final revealed = await WindowBridge.revealInFinder(path);
+      if (!revealed) {
+        if (mounted) {
+          _showShellSnackBar('Could not reveal preserved ZMODEM file');
+        }
+        return;
+      }
+      // Capture the runtime before awaiting. A successful Reveal transfers the
+      // path to the user even if this widget was closed in the meantime, so the
+      // native lease must still be consumed without touching ref/context.
+      final disposition = runtime.consumeZmodemRecovery(event);
+      if (!mounted) {
+        return;
+      }
+      if (disposition ==
+          terminal.TerminalZmodemRecoveryDisposition.requestFailed) {
+        _showShellSnackBar('Could not release the ZMODEM recovery token');
+        return;
+      }
+      _mutateState(() {
+        _zmodemRecoveries.remove(recoveryKey);
+      });
+    } on Object {
+      if (mounted) {
+        _showShellSnackBar('Could not reveal preserved ZMODEM file');
+      }
+    }
+  }
+
+  void _dismissZmodemRecovery(terminal.TerminalSessionZmodemEvent event) {
+    final disposition = ref
+        .read(terminalRuntimeControllerProvider)
+        .dismissZmodemRecovery(event);
+    if (disposition ==
+        terminal.TerminalZmodemRecoveryDisposition.requestFailed) {
+      _showShellSnackBar('Could not dismiss the ZMODEM recovery notice');
+      return;
+    }
+    _mutateState(() {
+      _zmodemRecoveries.remove('${event.sessionId}:${event.transferId}');
+    });
+  }
+
+  Future<void> _confirmDiscardZmodemRecovery(
+    terminal.TerminalSessionZmodemEvent event,
+  ) async {
+    final filename =
+        event.recoverablePartialName ?? 'the preserved ZMODEM file';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Permanently discard file?'),
+        content: Text(
+          '$filename is the only recovery copy retained by Ianvs Terminal. '
+          'Discarding it permanently deletes the file and cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            key: const Key('shell-zmodem-recovery-discard-cancel'),
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const Key('shell-zmodem-recovery-discard-confirm'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Discard file'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      _dismissZmodemRecovery(event);
     }
   }
 
@@ -543,6 +678,17 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final recordingReplayConfig =
         recordingReplayProfile?.toSessionConfig() ??
         defaultTerminalProfile().toSessionConfig();
+    final zmodemTransfer = activeSessionId == null
+        ? null
+        : _zmodemTransfers[activeSessionId];
+    final zmodemRecovery =
+        _zmodemRecoveries.values
+            .where((event) => event.sessionId == activeSessionId)
+            .firstOrNull ??
+        _zmodemRecoveries.values.firstOrNull;
+    final zmodemRecoverySourceLabel = zmodemRecovery == null
+        ? null
+        : _zmodemRecoverySourceLabel(zmodemRecovery.sessionId);
 
     KeyEventResult handleShellShortcut(KeyEvent event) {
       if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
@@ -1090,6 +1236,29 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   palette: palette,
                   message: sessionState.lastError!,
                   onDismiss: sessionController.dismissLastError,
+                ),
+              if (zmodemTransfer != null)
+                _ShellZmodemTransferBanner(
+                  palette: palette,
+                  transfer: zmodemTransfer,
+                  onCancel: zmodemTransfer.cancelling
+                      ? null
+                      : () => _cancelZmodemTransfer(zmodemTransfer),
+                  onRetry: zmodemTransfer.canRetry
+                      ? () => _retryZmodemOperation(zmodemTransfer)
+                      : null,
+                ),
+              if (zmodemRecovery != null)
+                _ShellZmodemRecoveryBanner(
+                  palette: palette,
+                  filename:
+                      zmodemRecovery.recoverablePartialName ??
+                      'preserved partial file',
+                  sourceLabel: zmodemRecoverySourceLabel!,
+                  onReveal: () =>
+                      unawaited(_revealZmodemRecovery(zmodemRecovery)),
+                  onDiscard: () =>
+                      unawaited(_confirmDiscardZmodemRecovery(zmodemRecovery)),
                 ),
               Expanded(
                 child: _RecordingLibraryLayout(

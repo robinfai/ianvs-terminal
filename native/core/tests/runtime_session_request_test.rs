@@ -1,3 +1,5 @@
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+use ianvs_core::runtime_contract::RuntimeCapabilities;
 use ianvs_core::session;
 use ianvs_core::session_request::{
     SESSION_REQUEST_CONTRACT, SESSION_REQUEST_SCHEMA_VERSION, SESSION_RESPONSE_CONTRACT,
@@ -52,6 +54,59 @@ fn session_request_response_v1_crosses_ffi_with_structured_errors_and_legacy_com
         response.payload.as_ref().unwrap()["matches"][0]["text"],
         "error"
     );
+
+    let consume_recovery = call_v1(
+        session_id,
+        serde_json::json!({
+            "schema_version": SESSION_REQUEST_SCHEMA_VERSION,
+            "contract": SESSION_REQUEST_CONTRACT,
+            "request_id": "rust-consume-recovery",
+            "session_id": session_id.to_string(),
+            "operation": "terminal.zmodem.consume_recovery",
+            "payload": {
+                "recoveryToken": "00000000000000000000000000000000"
+            }
+        }),
+    );
+    assert!(consume_recovery.ok);
+    assert_eq!(
+        consume_recovery.payload.as_ref().unwrap()["consumed"],
+        false
+    );
+
+    let dismiss_recovery = call_v1(
+        session_id,
+        serde_json::json!({
+            "schema_version": SESSION_REQUEST_SCHEMA_VERSION,
+            "contract": SESSION_REQUEST_CONTRACT,
+            "request_id": "rust-dismiss-recovery",
+            "session_id": session_id.to_string(),
+            "operation": "terminal.zmodem.dismiss_recovery",
+            "payload": {
+                "recoveryToken": "00000000000000000000000000000000"
+            }
+        }),
+    );
+    assert!(dismiss_recovery.ok);
+    assert_eq!(
+        dismiss_recovery.payload.as_ref().unwrap()["dismissed"],
+        false
+    );
+
+    let cancel_active = call_v1(
+        session_id,
+        serde_json::json!({
+            "schema_version": SESSION_REQUEST_SCHEMA_VERSION,
+            "contract": SESSION_REQUEST_CONTRACT,
+            "request_id": "rust-cancel-active",
+            "session_id": session_id.to_string(),
+            "operation": "terminal.zmodem.cancel_active",
+            "payload": {}
+        }),
+    );
+    assert!(cancel_active.ok);
+    assert_eq!(cancel_active.payload.as_ref().unwrap()["reconciled"], true);
+    assert_eq!(cancel_active.payload.as_ref().unwrap()["outcome"], "idle");
 
     let unsupported = call_v1(
         session_id,
@@ -154,4 +209,58 @@ fn session_request_response_v1_crosses_ffi_with_structured_errors_and_legacy_com
     );
 
     session::close_session(session_id).unwrap();
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[test]
+fn unsupported_platform_zmodem_contract_is_fail_closed() {
+    let capabilities = RuntimeCapabilities::current();
+    assert!(
+        !capabilities
+            .features
+            .iter()
+            .any(|feature| { matches!(feature.as_str(), "zmodem.receive.v1" | "zmodem.send.v1") })
+    );
+
+    let profile = serde_json::json!({
+        "id": "unsupported-zmodem",
+        "name": "Unsupported ZMODEM",
+        "launch": {"program": "unsupported"}
+    });
+    let session_id = session::create_replay_session(&profile.to_string()).unwrap();
+    for (request_id, operation, payload) in [
+        (
+            "rust-zmodem-receive",
+            "terminal.zmodem.accept_receive",
+            serde_json::json!({
+                "transferId": "1",
+                "destination": "unsupported-destination"
+            }),
+        ),
+        (
+            "rust-zmodem-send",
+            "terminal.zmodem.accept_send",
+            serde_json::json!({
+                "transferId": "1",
+                "files": ["unsupported-source"]
+            }),
+        ),
+    ] {
+        let response = call_v1(
+            session_id,
+            serde_json::json!({
+                "schema_version": SESSION_REQUEST_SCHEMA_VERSION,
+                "contract": SESSION_REQUEST_CONTRACT,
+                "request_id": request_id,
+                "session_id": session_id.to_string(),
+                "operation": operation,
+                "payload": payload
+            }),
+        );
+        assert!(!response.ok);
+        assert_eq!(
+            response.error.as_ref().map(|error| error.code.as_str()),
+            Some("unsupported_platform")
+        );
+    }
 }

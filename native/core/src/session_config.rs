@@ -22,7 +22,21 @@ pub struct SessionConfigV1 {
     pub contract: String,
     pub session_id: String,
     pub display_name: String,
+    #[serde(rename = "client_capabilities", default)]
+    pub client_capabilities: SessionClientCapabilitiesV1,
     pub config: SessionConfigV1Payload,
+}
+
+/// Capabilities explicitly enabled by the client that created the session.
+///
+/// New native libraries can be loaded by older Dart packages, so every
+/// additive capability is fail-closed by default. In particular, an older
+/// client must continue to receive raw ZMODEM bytes instead of having them
+/// intercepted by a protocol UI it does not know how to drive.
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct SessionClientCapabilitiesV1 {
+    #[serde(default)]
+    pub zmodem: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -216,5 +230,22 @@ mod tests {
 
         let decoded = SessionConfigV1::decode_json(&raw).unwrap();
         assert_eq!(decoded.config.terminal.scrollback_lines, 1);
+        assert!(!decoded.client_capabilities.zmodem);
+    }
+
+    #[test]
+    fn decodes_explicit_zmodem_client_opt_in() {
+        let raw = serde_json::json!({
+            "schema_version": 1,
+            "contract": SESSION_CONFIG_CONTRACT,
+            "session_id": "runtime-1",
+            "display_name": "shell",
+            "client_capabilities": {"zmodem": true},
+            "config": {"launch": {"program": "/bin/sh"}}
+        })
+        .to_string();
+
+        let decoded = SessionConfigV1::decode_json(&raw).unwrap();
+        assert!(decoded.client_capabilities.zmodem);
     }
 }

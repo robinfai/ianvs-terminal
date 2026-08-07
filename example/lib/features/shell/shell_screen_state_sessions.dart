@@ -67,6 +67,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
   }
 
   void _clearPresentationStateForSession(String sessionId) {
+    _invalidateZmodemPickerRequest(sessionId);
     unawaited(_cancelOsc1337AttentionRequest(sessionId));
     _osc1337FireworksTimers.remove(sessionId)?.cancel();
     _detachTabColorViewportListener(sessionId);
@@ -122,6 +123,12 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       _sessionsSeenForNewOutputBadges.remove(sessionId);
       _sessionsWithNewOutput.remove(sessionId);
       _coprocessInputKeysBySession.remove(sessionId);
+      final zmodem = _zmodemTransfers.remove(sessionId);
+      _zmodemTransportFailureSessionIds.remove(sessionId);
+      _pendingZmodemTerminalMessages.remove(sessionId);
+      if (zmodem != null) {
+        _zmodemAuthorizedTransferIds.remove('$sessionId:${zmodem.transferId}');
+      }
       _coprocesses = <String, _ShellCoprocess>{
         for (final entry in _coprocesses.entries)
           if (entry.key != sessionId) entry.key: entry.value,
@@ -1050,19 +1057,32 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       (tab) => tab.sessionId == tabSessionId,
       orElse: () => sessionState.tabs.first,
     );
-    if (!await sessionController.closeTab(tabSessionId)) {
+    final closeCompleted = await sessionController.closeTab(tabSessionId);
+    final currentState = ref.read(sessionControllerProvider);
+    final remainingSessionIds = currentState.tabs
+        .expand((tab) => tab.effectivePanes)
+        .map((pane) => pane.sessionId)
+        .toSet();
+    final removedSessionIds = closingTab.effectivePanes
+        .map((pane) => pane.sessionId)
+        .where((sessionId) => !remainingSessionIds.contains(sessionId))
+        .toList(growable: false);
+    // Native close is per pane. A later pane can become busy after an earlier
+    // pane closed, so reconcile presentation resources even when the tab-wide
+    // operation returns false.
+    _clearPresentationStateForSessions(removedSessionIds);
+    final nextActiveSessionId = currentState.activeSessionId;
+    if (removedSessionIds.isNotEmpty && nextActiveSessionId != null) {
+      _scheduleReturningCue();
+      _focusSession(nextActiveSessionId);
+    }
+    if (!closeCompleted) {
       return;
     }
     if (closesLastTab) {
       _recentlyClosedLastSession = true;
     }
-    _clearPresentationStateForSessions(
-      closingTab.effectivePanes.map((pane) => pane.sessionId),
-    );
-    final nextActiveSessionId = ref
-        .read(sessionControllerProvider)
-        .activeSessionId;
-    if (nextActiveSessionId != null) {
+    if (nextActiveSessionId != null && removedSessionIds.isEmpty) {
       _scheduleReturningCue();
       _focusSession(nextActiveSessionId);
     }

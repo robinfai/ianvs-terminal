@@ -39,6 +39,7 @@
 - [protocols/DIAGNOSTIC_EVENT_V1.md](protocols/DIAGNOSTIC_EVENT_V1.md)：Frame/Session Diagnostic Event v1、序号/关联校验与旧 debug-stat FFI 回退。
 - [protocols/TERMINAL_FRAME_PACKET_V1.md](protocols/TERMINAL_FRAME_PACKET_V1.md)：现有 Frame Protobuf 的 session/sequence/timestamp 包装、ACK 与 Snapshot 重同步、旧 Frame 双栈。
 - [protocols/GRAPHIC_ASSET_PACKET_V1.md](protocols/GRAPHIC_ASSET_PACKET_V1.md)：原子 Graphic Asset Packet v1、精确 identity/RGBA 校验与旧 meta/copy 双栈。
+- [protocols/ZMODEM_V1.md](protocols/ZMODEM_V1.md)：PTY 前置的 ZMODEM 收发、授权流程、文件安全边界与真实 OpenSSH 验证。
 - [protocols/RUNTIME_WIRE_INVENTORY.md](protocols/RUNTIME_WIRE_INVENTORY.md)：当前 FFI 边界分类与后续迁移债务清单。
 - [TERMINAL_XTERM_API_ALIGNMENT.md](TERMINAL_XTERM_API_ALIGNMENT.md)：xterm.js 风格 API 对齐现状和剩余语义缺口。
 - [TERMINAL_XTERM_RECENT_FIX_AUDIT.md](TERMINAL_XTERM_RECENT_FIX_AUDIT.md)：xterm.js 最近一年修复项对照审计、证据矩阵和后续排查计划。

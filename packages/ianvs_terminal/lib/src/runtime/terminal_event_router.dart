@@ -25,6 +25,8 @@ enum TerminalImmediateEventKind {
   fileDownload,
   fileDownloadFailed,
   fileUploadDenied,
+  zmodem,
+  zmodemDeferredWriteFailure,
   cellSizeReportRequest,
   clearCapturedOutput,
   reportVariableRequest,
@@ -66,10 +68,19 @@ final class TerminalIgnoredEventRoute extends TerminalEventRoute {
   const TerminalIgnoredEventRoute();
 }
 
+final class TerminalRuntimeEventGapRoute extends TerminalEventRoute {
+  const TerminalRuntimeEventGapRoute(this.diagnostic);
+
+  final PtyRuntimeEventGapDiagnostic diagnostic;
+}
+
 final class TerminalEventRouter {
   const TerminalEventRouter();
 
   TerminalEventRoute route(PtyEvent event) {
+    if (event is PtyRuntimeEventGapDiagnostic) {
+      return TerminalRuntimeEventGapRoute(event);
+    }
     return switch (event.kind) {
       'exit' => TerminalExitEventRoute(
         exitCode: _wholeIntValue(event.payload?['code']),
@@ -157,6 +168,22 @@ final class TerminalEventRouter {
       ),
       'file_upload_denied' => TerminalImmediateEventRoute(
         kind: TerminalImmediateEventKind.fileUploadDenied,
+        payload: event.payload,
+      ),
+      'zmodem_detected' ||
+      'zmodem_file_offer' ||
+      'zmodem_started' ||
+      'zmodem_progress' ||
+      'zmodem_file_completed' ||
+      'zmodem_file_skipped' ||
+      'zmodem_completed' ||
+      'zmodem_failed' ||
+      'zmodem_cancelled' => TerminalImmediateEventRoute(
+        kind: TerminalImmediateEventKind.zmodem,
+        payload: <String, Object?>{...?event.payload, 'eventKind': event.kind},
+      ),
+      'zmodem_deferred_write_failed' => TerminalImmediateEventRoute(
+        kind: TerminalImmediateEventKind.zmodemDeferredWriteFailure,
         payload: event.payload,
       ),
       'cell_size_report_request' => TerminalImmediateEventRoute(

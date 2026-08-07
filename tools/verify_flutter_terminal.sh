@@ -4,11 +4,19 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CORE_DIR="$ROOT_DIR/native/core"
 VENDORED_TERMINAL_CORE_DIR="$ROOT_DIR/native/vendor/par-term-emu-core-rust"
+VENDORED_ZMODEM_DIR="$ROOT_DIR/native/vendor/zmodem2"
 PTY_DIR="$ROOT_DIR/packages/ianvs_pty"
 TERMINAL_DIR="$ROOT_DIR/packages/ianvs_terminal"
 EXAMPLE_DIR="$ROOT_DIR/example"
 VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION="${VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION:-0}"
 VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH="${VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH:-0}"
+
+if ! command -v rustup >/dev/null 2>&1 || \
+  ! rustup target list --installed | rg -Fx 'thumbv7em-none-eabihf' >/dev/null; then
+  echo "Missing Rust target thumbv7em-none-eabihf." >&2
+  echo "Install it with: rustup target add thumbv7em-none-eabihf" >&2
+  exit 1
+fi
 
 "$ROOT_DIR/tools/build_core.sh"
 
@@ -20,6 +28,17 @@ python3 "$ROOT_DIR/tools/osc_semantic_probe.py" --self-test
   cargo fmt --check
   cargo clippy --all-targets -- -D warnings
   cargo test -- --test-threads=1
+)
+
+(
+  cd "$VENDORED_ZMODEM_DIR"
+  cargo fmt --check
+  cargo clippy --all-targets --all-features -- -D warnings
+  cargo check --no-default-features --lib --target thumbv7em-none-eabihf
+  # The integration tests spawn host `rz`/`sz`; real GNU lrzsz interoperability
+  # is covered by the dedicated Docker/OpenSSH CI job below the generic gates.
+  cargo test --all-features --lib
+  cargo test --no-default-features --lib
 )
 
 (

@@ -6176,6 +6176,61 @@ void main() {
   );
 
   testWidgets(
+    'partial split-tab close cleans removed pane state and focuses survivor',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final sessionController = container.read(
+        sessionControllerProvider.notifier,
+      );
+      sessionController.splitActiveSession(
+        defaultTerminalProfile(),
+        TerminalSplitAxis.horizontal,
+      );
+      sessionController.activateSession('1');
+      await tester.pumpAndSettle();
+      fakeBindings.failingCloseSessionIds.add('2');
+
+      await tester.tap(find.byKey(const Key('shell-pane-1')));
+      await tester.pump();
+      await _sendMetaShortcut(tester, LogicalKeyboardKey.keyW);
+      await tester.pumpAndSettle();
+
+      final state = container.read(sessionControllerProvider);
+      expect(
+        state.tabs.single.effectivePanes.map((pane) => pane.sessionId),
+        <String>['2'],
+      );
+      expect(find.byKey(const Key('shell-pane-1')), findsNothing);
+      expect(find.byKey(const Key('shell-pane-2')), findsOneWidget);
+      final survivingViewport = tester.widget<TerminalViewport>(
+        find.descendant(
+          of: find.byKey(const Key('shell-pane-2')),
+          matching: find.byType(TerminalViewport),
+        ),
+      );
+      expect(survivingViewport.focusNode?.hasFocus, isTrue);
+      expect(fakeBindings.closedSessionIds, contains('1'));
+      expect(fakeBindings.closedSessionIds, isNot(contains('2')));
+      expect(fakeBindings.writes, isEmpty);
+      // Let ProviderScope teardown close the surviving runtime session; the
+      // injected failure is scoped only to the partial-close assertion.
+      fakeBindings.failingCloseSessionIds.remove('2');
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
     'command-comma opens defaults and returns keyboard to terminal',
     (tester) async {
       final fakeBindings = FakePtyBackend();

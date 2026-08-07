@@ -9,6 +9,8 @@ import '../terminal/terminal_input_controller.dart';
 import '../terminal/terminal_models.dart';
 import '../terminal/terminal_viewport.dart';
 
+const Duration _terminalDisposeRetryInterval = Duration(milliseconds: 50);
+
 abstract interface class TerminalDisposable {
   void dispose();
 }
@@ -186,6 +188,7 @@ class Terminal implements TerminalDisposable {
       StreamController<TerminalExitEvent>.broadcast();
 
   StreamSubscription<TerminalSessionEvent>? _runtimeEventsSubscription;
+  StreamSubscription<TerminalSessionZmodemEvent>? _runtimeZmodemSubscription;
   StreamSubscription<TerminalSessionInputEvent>? _runtimeInputSubscription;
   StreamSubscription<TerminalSessionResizeEvent>? _runtimeResizeSubscription;
   TerminalOptions _options;
@@ -195,6 +198,9 @@ class Terminal implements TerminalDisposable {
   int? _lastScrollbackOffset;
   int? _currentCols;
   int? _currentRows;
+  bool _disposeRequested = false;
+  bool _disposeRetryScheduled = false;
+  Timer? _disposeRetryTimer;
   bool _disposed = false;
 
   String? get sessionId => _sessionId;
@@ -270,6 +276,9 @@ class Terminal implements TerminalDisposable {
       return;
     }
     _runtimeEventsSubscription ??= _runtime.events.listen(_handleRuntimeEvent);
+    _runtimeZmodemSubscription ??= _runtime.zmodemEvents.listen(
+      _handleRuntimeZmodemEvent,
+    );
     _runtimeInputSubscription ??= _runtime.inputEvents.listen(
       _handleRuntimeInputEvent,
     );
@@ -418,16 +427,26 @@ class Terminal implements TerminalDisposable {
 
   TerminalSelection? getSelectionPosition() => frame.selection;
 
+  /// Preserves the original xterm-compatible void API.
   void close() {
+    tryClose();
+  }
+
+  /// Attempts an immediate close without discarding the facade when native
+  /// ZMODEM state must first publish an authoritative terminal result.
+  bool tryClose() {
     if (_disposed) {
-      return;
+      return true;
     }
     final sessionId = _sessionId;
     if (sessionId == null) {
-      return;
+      return true;
+    }
+    if (!_runtime.tryCloseSession(sessionId)) {
+      return false;
     }
     _sessionId = null;
-    _runtime.closeSession(sessionId);
+    return true;
   }
 
   @override
@@ -435,13 +454,39 @@ class Terminal implements TerminalDisposable {
     if (_disposed) {
       return;
     }
-    close();
+    _disposeRequested = true;
+    _tryCompleteRequestedDispose();
+  }
+
+  void _tryCompleteRequestedDispose() {
+    if (!_disposeRequested || _disposed) {
+      return;
+    }
+    final sessionId = _sessionId;
+    if (sessionId != null && !_runtime.disposeSession(sessionId)) {
+      // ZMODEM publication or a terminal result may still own native state.
+      // Keep the facade subscribed until the authoritative terminal event
+      // arrives; that event retries shutdown without requiring the void
+      // TerminalDisposable caller to retain this object and call again.
+      _scheduleRequestedDisposeFallback();
+      return;
+    }
+    _sessionId = null;
+    if (_disposeRuntime) {
+      // Runtime disposal records its own pending request and completes it
+      // automatically after any other busy session publishes its result.
+      _runtime.dispose();
+    }
+    _disposeRequested = false;
+    _disposeRetryTimer?.cancel();
+    _disposeRetryTimer = null;
     _disposed = true;
     for (final addon in _addons.reversed.toList(growable: false)) {
       addon.dispose();
     }
     _addons.clear();
     _runtimeEventsSubscription?.cancel();
+    _runtimeZmodemSubscription?.cancel();
     _runtimeInputSubscription?.cancel();
     _runtimeResizeSubscription?.cancel();
     _dataEvents.close();
@@ -452,9 +497,36 @@ class Terminal implements TerminalDisposable {
     _selectionChangeEvents.close();
     _titleChangeEvents.close();
     _exitEvents.close();
-    if (_disposeRuntime) {
-      _runtime.dispose();
+  }
+
+  void _handleRuntimeZmodemEvent(TerminalSessionZmodemEvent event) {
+    if (event.sessionId != _sessionId || !event.isTerminal) {
+      return;
     }
+    _scheduleRequestedDisposeRetry();
+  }
+
+  void _scheduleRequestedDisposeRetry() {
+    if (!_disposeRequested || _disposed || _disposeRetryScheduled) {
+      return;
+    }
+    _disposeRetryTimer?.cancel();
+    _disposeRetryTimer = null;
+    _disposeRetryScheduled = true;
+    scheduleMicrotask(() {
+      _disposeRetryScheduled = false;
+      _tryCompleteRequestedDispose();
+    });
+  }
+
+  void _scheduleRequestedDisposeFallback() {
+    if (!_disposeRequested || _disposed || _disposeRetryTimer != null) {
+      return;
+    }
+    _disposeRetryTimer = Timer(_terminalDisposeRetryInterval, () {
+      _disposeRetryTimer = null;
+      _tryCompleteRequestedDispose();
+    });
   }
 
   TerminalFrameDiff get _currentFrame {
@@ -503,6 +575,7 @@ class Terminal implements TerminalDisposable {
       case TerminalSessionExitEvent(:final exitCode):
         _exitEvents.add(TerminalExitEvent(exitCode: exitCode));
         _sessionId = null;
+        _scheduleRequestedDisposeRetry();
         break;
       case TerminalSessionBellEvent():
         break;

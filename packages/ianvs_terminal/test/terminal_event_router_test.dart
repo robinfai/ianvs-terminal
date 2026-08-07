@@ -111,5 +111,78 @@ void main() {
         isA<TerminalIgnoredEventRoute>(),
       );
     });
+
+    test('routes typed Runtime Event gap diagnostics', () {
+      final diagnostic = PtyRuntimeEventGapDiagnostic(
+        sessionId: 'session-a',
+        expectedSequence: 4,
+        nextSequence: 7,
+        droppedCount: 2,
+        survivingEventCount: 1,
+      );
+
+      final route = router.route(diagnostic);
+
+      expect(route, isA<TerminalRuntimeEventGapRoute>());
+      expect(
+        (route as TerminalRuntimeEventGapRoute).diagnostic,
+        same(diagnostic),
+      );
+    });
+
+    test('routes every ZMODEM event with its native kind preserved', () {
+      for (final kind in const <String>[
+        'zmodem_detected',
+        'zmodem_file_offer',
+        'zmodem_started',
+        'zmodem_progress',
+        'zmodem_file_completed',
+        'zmodem_file_skipped',
+        'zmodem_completed',
+        'zmodem_failed',
+        'zmodem_cancelled',
+      ]) {
+        final route = router.route(
+          PtyEvent(
+            kind: kind,
+            sessionId: 'session-a',
+            payload: const <String, Object?>{'source': 'zmodem'},
+          ),
+        );
+
+        expect(route, isA<TerminalImmediateEventRoute>());
+        final immediate = route as TerminalImmediateEventRoute;
+        expect(immediate.kind, TerminalImmediateEventKind.zmodem);
+        expect(immediate.payload, <String, Object?>{
+          'source': 'zmodem',
+          'eventKind': kind,
+        });
+      }
+    });
+
+    test('routes deferred ZMODEM write failures outside transfer events', () {
+      final route = router.route(
+        const PtyEvent(
+          kind: 'zmodem_deferred_write_failed',
+          sessionId: 'session-a',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'reason': 'io_error',
+            'queuedChunks': 2,
+            'queuedBytes': 8,
+            'completedChunks': 1,
+            'completedBytes': 3,
+          },
+        ),
+      );
+
+      expect(route, isA<TerminalImmediateEventRoute>());
+      final immediate = route as TerminalImmediateEventRoute;
+      expect(
+        immediate.kind,
+        TerminalImmediateEventKind.zmodemDeferredWriteFailure,
+      );
+      expect(immediate.kind, isNot(TerminalImmediateEventKind.zmodem));
+    });
   });
 }

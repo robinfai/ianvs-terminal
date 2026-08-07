@@ -3,7 +3,15 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
 import 'package:ianvs_terminal/src/runtime/terminal_json_request_client.dart';
+import 'package:ianvs_terminal/src/runtime/terminal_zmodem_recovery.dart';
 import 'package:ianvs_terminal/src/terminal/terminal_models.dart';
+
+Matcher hasStatus(TerminalZmodemRecoveryResolutionStatus status) =>
+    isA<TerminalZmodemRecoveryResolution>().having(
+      (value) => value.status,
+      'status',
+      status,
+    );
 
 void main() {
   group('TerminalJsonRequestClient', () {
@@ -227,6 +235,153 @@ void main() {
       expect(client.exportScrollbackText('session-a'), isNull);
     });
 
+    test('sends metadata-only ZMODEM authorization commands', () {
+      final backend = _JsonRequestBackend('{"accepted":true}');
+      final client = TerminalJsonRequestClient(backend);
+
+      expect(
+        client.acceptZmodemReceive(
+          'session-a',
+          transferId: '7',
+          destination: '/tmp/downloads',
+        ),
+        isTrue,
+      );
+      expect(
+        client.acceptZmodemSend(
+          'session-a',
+          transferId: '8',
+          files: const <String>['/tmp/a.txt', '/tmp/b.bin'],
+        ),
+        isTrue,
+      );
+      backend.response = '{"cancelled":true}';
+      expect(client.cancelZmodem('session-a', transferId: '9'), isTrue);
+      backend.response = '{"reconciled":true,"outcome":"cancelled"}';
+      expect(
+        client.cancelActiveZmodem('session-a'),
+        TerminalZmodemCancelActiveOutcome.cancelled,
+      );
+      backend.response = '{"available":true,"path":"/tmp/.report.ianvs-part"}';
+      final recovery = client.resolveZmodemRecovery(
+        'session-a',
+        recoveryToken: '0123456789abcdef0123456789ABCDEF',
+      );
+      expect(recovery.status, TerminalZmodemRecoveryResolutionStatus.available);
+      expect(recovery.path, '/tmp/.report.ianvs-part');
+      backend.response = '{"consumed":true}';
+      expect(
+        client.consumeZmodemRecovery(
+          'session-a',
+          recoveryToken: '0123456789abcdef0123456789ABCDEF',
+        ),
+        TerminalZmodemRecoveryDisposition.success,
+      );
+      backend.response = '{"dismissed":false}';
+      expect(
+        client.dismissZmodemRecovery(
+          'session-a',
+          recoveryToken: '0123456789abcdef0123456789ABCDEF',
+        ),
+        TerminalZmodemRecoveryDisposition.unavailable,
+      );
+
+      expect(backend.requests, <Map<String, Object?>>[
+        <String, Object?>{
+          'kind': 'terminal.zmodem.accept_receive',
+          'transferId': '7',
+          'destination': '/tmp/downloads',
+        },
+        <String, Object?>{
+          'kind': 'terminal.zmodem.accept_send',
+          'transferId': '8',
+          'files': <String>['/tmp/a.txt', '/tmp/b.bin'],
+        },
+        <String, Object?>{'kind': 'terminal.zmodem.cancel', 'transferId': '9'},
+        <String, Object?>{'kind': 'terminal.zmodem.cancel_active'},
+        <String, Object?>{
+          'kind': 'terminal.zmodem.resolve_recovery',
+          'recoveryToken': '0123456789abcdef0123456789ABCDEF',
+        },
+        <String, Object?>{
+          'kind': 'terminal.zmodem.consume_recovery',
+          'recoveryToken': '0123456789abcdef0123456789ABCDEF',
+        },
+        <String, Object?>{
+          'kind': 'terminal.zmodem.dismiss_recovery',
+          'recoveryToken': '0123456789abcdef0123456789ABCDEF',
+        },
+      ]);
+    });
+
+    test('distinguishes id-free ZMODEM cancellation outcomes', () {
+      final backend = _JsonRequestBackend(
+        '{"reconciled":true,"outcome":"draining"}',
+      );
+      final client = TerminalJsonRequestClient(backend);
+
+      expect(
+        client.cancelActiveZmodem('session-a'),
+        TerminalZmodemCancelActiveOutcome.draining,
+      );
+      backend.response = '{"reconciled":true,"outcome":"idle"}';
+      expect(
+        client.cancelActiveZmodem('session-a'),
+        TerminalZmodemCancelActiveOutcome.idle,
+      );
+      backend.response = '{"reconciled":true}';
+      expect(client.cancelActiveZmodem('session-a'), isNull);
+    });
+
+    test('fails closed for invalid ZMODEM recovery tokens and paths', () {
+      final backend = _JsonRequestBackend(
+        '{"available":true,"path":"relative/file"}',
+      );
+      final client = TerminalJsonRequestClient(backend);
+
+      expect(
+        client.resolveZmodemRecovery('session-a', recoveryToken: 'not-a-token'),
+        hasStatus(TerminalZmodemRecoveryResolutionStatus.requestFailed),
+      );
+      expect(
+        client.consumeZmodemRecovery('session-a', recoveryToken: 'not-a-token'),
+        TerminalZmodemRecoveryDisposition.requestFailed,
+      );
+      expect(backend.requests, isEmpty);
+
+      expect(
+        client.resolveZmodemRecovery(
+          'session-a',
+          recoveryToken: '0123456789abcdef0123456789abcdef',
+        ),
+        hasStatus(TerminalZmodemRecoveryResolutionStatus.requestFailed),
+      );
+      backend.response = '{"available":true,"path":"/tmp/bad\\u0000path"}';
+      expect(
+        client.resolveZmodemRecovery(
+          'session-a',
+          recoveryToken: '0123456789abcdef0123456789abcdef',
+        ),
+        hasStatus(TerminalZmodemRecoveryResolutionStatus.requestFailed),
+      );
+      backend.response = null;
+      expect(
+        client.resolveZmodemRecovery(
+          'session-a',
+          recoveryToken: '0123456789abcdef0123456789abcdef',
+        ),
+        hasStatus(TerminalZmodemRecoveryResolutionStatus.requestFailed),
+      );
+      backend.response = '{"available":false}';
+      expect(
+        client.resolveZmodemRecovery(
+          'session-a',
+          recoveryToken: '0123456789abcdef0123456789abcdef',
+        ),
+        hasStatus(TerminalZmodemRecoveryResolutionStatus.unavailable),
+      );
+    });
+
     test('reports backend request errors and returns empty values', () {
       final backend = _JsonRequestBackend(null)
         ..requestError = StateError('json request failed');
@@ -251,6 +406,10 @@ void main() {
         'deploy-1',
       );
       final exportText = client.exportScrollbackText('session-a');
+      final recoveryPath = client.resolveZmodemRecovery(
+        'session-a',
+        recoveryToken: '0123456789abcdef0123456789abcdef',
+      );
 
       expect(selectionText, isNull);
       expect(searchResult.matches, isEmpty);
@@ -258,6 +417,10 @@ void main() {
       expect(clearBufferResult, isFalse);
       expect(dismissResult, isFalse);
       expect(exportText, isNull);
+      expect(
+        recoveryPath.status,
+        TerminalZmodemRecoveryResolutionStatus.requestFailed,
+      );
       expect(errors.map((error) => error.operation), <String>[
         'terminal.selection_text',
         'terminal.search_text',
@@ -265,6 +428,7 @@ void main() {
         'terminal.clear_buffer',
         'terminal.dismiss_osc99_notification',
         'terminal.export_scrollback',
+        'terminal.zmodem.resolve_recovery',
       ]);
       expect(errors.every((error) => error.sessionId == 'session-a'), isTrue);
       expect(

@@ -2682,14 +2682,19 @@ fn refresh_hint_clears_after_frame_is_consumed() {
         session::create_session(&serde_json::to_string(&test_profile()).unwrap()).unwrap();
 
     assert_eq!(session::REFRESH_HINT_FRAME_DIRTY, 1);
-    assert_eq!(
-        session::refresh_hint_flags(session_id).unwrap(),
-        session::REFRESH_HINT_FRAME_DIRTY
+    assert_eq!(session::REFRESH_HINT_EVENT_PENDING, 2);
+    assert_eq!(session::REFRESH_HINT_EXIT_PENDING, 4);
+    assert_ne!(
+        session::refresh_hint_flags(session_id).unwrap() & session::REFRESH_HINT_FRAME_DIRTY,
+        0
     );
 
     let _ = wait_for_frame_containing(session_id, "hello");
 
-    assert_eq!(session::refresh_hint_flags(session_id).unwrap(), 0);
+    assert_eq!(
+        session::refresh_hint_flags(session_id).unwrap() & session::REFRESH_HINT_FRAME_DIRTY,
+        0
+    );
     session::close_session(session_id).unwrap();
 }
 
@@ -2701,14 +2706,20 @@ fn refresh_hint_ignores_resize_damage_without_consuming_it() {
 
     session::resize_session(session_id, 90, 20, 0, 0).unwrap();
 
-    assert_eq!(session::refresh_hint_flags(session_id).unwrap(), 0);
-    assert_eq!(session::refresh_hint_flags(session_id).unwrap(), 0);
+    assert_eq!(
+        session::refresh_hint_flags(session_id).unwrap() & session::REFRESH_HINT_FRAME_DIRTY,
+        0
+    );
+    assert_eq!(
+        session::refresh_hint_flags(session_id).unwrap() & session::REFRESH_HINT_FRAME_DIRTY,
+        0
+    );
     let resized = session::take_frame_diff(session_id)
         .unwrap()
         .expect("resize hint must leave frame damage available");
     assert!(resized.contains("\"viewport_rows\":20"));
     assert_eq!(
-        session::refresh_hint_flags(session_id).unwrap(),
+        session::refresh_hint_flags(session_id).unwrap() & session::REFRESH_HINT_FRAME_DIRTY,
         0,
         "resize damage must never publish a reader-driven refresh hint"
     );
@@ -2723,8 +2734,13 @@ fn refresh_hint_reports_pty_output_damage() {
 
     session::write_session(session_id, b"printf 'refresh-hint-output\\n'\n").unwrap();
     for _ in 0..SESSION_WAIT_ATTEMPTS {
-        if session::refresh_hint_flags(session_id).unwrap() == 1 {
-            assert_eq!(session::refresh_hint_flags(session_id).unwrap(), 1);
+        if session::refresh_hint_flags(session_id).unwrap() & session::REFRESH_HINT_FRAME_DIRTY != 0
+        {
+            assert_ne!(
+                session::refresh_hint_flags(session_id).unwrap()
+                    & session::REFRESH_HINT_FRAME_DIRTY,
+                0
+            );
             session::close_session(session_id).unwrap();
             return;
         }

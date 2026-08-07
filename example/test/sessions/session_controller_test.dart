@@ -315,6 +315,60 @@ class _DelayedFramePtyBackend extends _CountingPtyBackend {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test(
+    'runtime provider teardown retries a temporarily busy native close',
+    () async {
+      final backend = FakePtyBackend();
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(backend),
+          sessionPollingEnabledProvider.overrideWithValue(false),
+          driverWarmUpRefreshEnabledProvider.overrideWithValue(false),
+        ],
+      );
+      final runtime = container.read(terminalRuntimeControllerProvider);
+      final sessionId = runtime.createSession(
+        const terminal.TerminalSessionConfig(
+          launch: terminal.TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      backend.failingCloseSessionIds.add(sessionId);
+
+      // Riverpod invokes the provider's void onDispose callback only once.
+      container.dispose();
+      expect(runtime.hasSession(sessionId), isTrue);
+
+      backend.failingCloseSessionIds.remove(sessionId);
+
+      await _waitForCondition(
+        description: 'provider-owned runtime autonomously retrying disposal',
+        condition: () => !runtime.hasSession(sessionId),
+      );
+      expect(backend.closedSessionIds, contains(sessionId));
+    },
+  );
+
+  test('session controller publishes and dismisses runtime errors', () {
+    final container = ProviderContainer(
+      overrides: [
+        sessionControllerProvider.overrideWith(_TestSessionController.new),
+      ],
+    );
+    addTearDown(container.dispose);
+    final controller = container.read(sessionControllerProvider.notifier);
+
+    controller.reportRuntimeError('ZMODEM transport failed');
+
+    expect(
+      container.read(sessionControllerProvider).lastError,
+      'ZMODEM transport failed',
+    );
+
+    controller.dismissLastError();
+
+    expect(container.read(sessionControllerProvider).lastError, isNull);
+  });
+
   final defaultProfile = TerminalProfile(
     id: 'default',
     name: 'Local Shell',
@@ -1046,6 +1100,60 @@ void main() {
     expect(afterCloseTab.tabs, isEmpty);
     expect(afterCloseTab.activeSessionId, isNull);
   });
+
+  test(
+    'closeTab reconciles panes already closed when a later pane becomes busy',
+    () async {
+      final coreClient = FakePtyBackend();
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(coreClient),
+          sessionControllerProvider.overrideWith(_TestSessionController.new),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(sessionControllerProvider.notifier);
+      final runtime = container.read(terminalRuntimeControllerProvider);
+      final profile = defaultTerminalProfile().copyWith(id: 'shell-1');
+
+      controller.createSession(profile);
+      final firstSessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+      final secondSessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      final tabSessionId = container
+          .read(sessionControllerProvider)
+          .tabs
+          .single
+          .sessionId;
+      coreClient.failingCloseSessionIds.add(secondSessionId);
+
+      expect(await controller.closeTab(tabSessionId), isFalse);
+
+      final afterFailure = container.read(sessionControllerProvider);
+      expect(afterFailure.tabs, hasLength(1));
+      expect(afterFailure.tabs.single.effectivePanes, hasLength(1));
+      expect(afterFailure.tabs.single.containsSession(firstSessionId), isFalse);
+      expect(afterFailure.tabs.single.containsSession(secondSessionId), isTrue);
+      expect(runtime.hasSession(firstSessionId), isFalse);
+      expect(runtime.hasSession(secondSessionId), isTrue);
+      expect(coreClient.closedSessionIds, <String>[firstSessionId]);
+
+      coreClient.failingCloseSessionIds.clear();
+      expect(await controller.closeTab(tabSessionId), isTrue);
+      expect(container.read(sessionControllerProvider).tabs, isEmpty);
+      expect(runtime.hasSession(secondSessionId), isFalse);
+    },
+  );
 
   test(
     'closing active pane in inactive split tab reassigns tab active pane',

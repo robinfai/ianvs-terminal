@@ -17,6 +17,10 @@ use crate::runtime_contract::{
     GRAPHIC_ASSET_PACKET_MAX_RGBA_BYTES, RuntimeEnvelopeV1, RuntimeEventBatchV1,
 };
 use crate::session_config::SessionConfigV1;
+use crate::zmodem::{
+    RECEIVE_COMMIT_CANCELLED, RECEIVE_COMMIT_IDLE, RECEIVE_COMMIT_PUBLISHING,
+    RECEIVE_COMMIT_RESULT_READY, ZmodemDirection, ZmodemEffects, ZmodemError, ZmodemManager,
+};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use par_term_emu_core_rust::cell::{Cell, CellFlags};
 use par_term_emu_core_rust::color::Color;
@@ -33,14 +37,15 @@ use par_term_emu_core_rust::terminal::{
     TerminalProcessDebugStats, TransferDirection, TransferStatus, snapshot::ExportFormat,
 };
 use par_term_emu_core_rust::{WidthConfig, str_width};
-use parking_lot::Mutex;
+use parking_lot::{Mutex, MutexGuard};
 use regex::RegexBuilder;
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::{Read, Write};
 use std::sync::{
     Arc, LazyLock,
-    atomic::{AtomicBool, Ordering},
+    atomic::{AtomicBool, AtomicU8, AtomicU64, AtomicUsize, Ordering},
+    mpsc,
 };
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -69,11 +74,77 @@ const RESOURCE_SAMPLE_CAPACITY: usize = 60;
 const MAX_PENDING_SESSION_EVENTS: usize = 1024;
 const MAX_PENDING_SESSION_EVENT_BYTES: usize = 8 * 1024 * 1024;
 const MAX_PENDING_HOST_REQUESTS: usize = 64;
+const MAX_DEFERRED_PTY_WRITE_BYTES: usize = 16 * 1024 * 1024;
+const MAX_DEFERRED_PTY_WRITE_CHUNKS: usize = 2048;
+const MAX_RECENT_ZMODEM_TERMINAL_IDS: usize = 256;
 const MAX_DIAGNOSTIC_EVENTS: usize = 256;
 const EVENT_QUEUE_OVERFLOW_DIAGNOSTIC_KIND: &str = "event_queue_overflow";
+const ZMODEM_DEFERRED_WRITE_FAILED_KIND: &str = "zmodem_deferred_write_failed";
+const ZMODEM_BLOCKED_IO_TIMEOUT: Duration = Duration::from_secs(60);
+const ZMODEM_COMPLETION_POLL_INTERVAL: Duration = Duration::from_millis(50);
+const ZMODEM_WIRE_MAX_QUEUED_BYTES: usize = 1024 * 1024;
 const RESOURCE_SAMPLE_INTERVAL: Duration = Duration::from_secs(1);
+const ZMODEM_DEADLINE_POLL_INTERVAL: Duration = Duration::from_millis(50);
+const PTY_READER_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const INLINE_CLEAR_REPAINT_GRACE: Duration = Duration::from_millis(180);
 const RESOURCE_SAMPLER_MAX_FAILURES: u64 = 5;
+
+#[cfg(test)]
+thread_local! {
+    static FAIL_NEXT_ZMODEM_WRITER_THREAD_SPAWN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+fn inject_zmodem_writer_thread_spawn_failure() -> bool {
+    #[cfg(test)]
+    {
+        FAIL_NEXT_ZMODEM_WRITER_THREAD_SPAWN.with(|flag| flag.replace(false))
+    }
+    #[cfg(not(test))]
+    false
+}
+
+fn pty_read_error_is_trusted_eof(error: &std::io::Error) -> bool {
+    #[cfg(unix)]
+    {
+        // PTY masters conventionally report EIO, rather than Ok(0), after
+        // the slave side closes. Treat that specific transport boundary as
+        // EOF so a receiver that already replied to ZFIN can complete even
+        // when the final OO is swallowed by the PTY teardown.
+        error.raw_os_error() == Some(libc::EIO)
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = error;
+        false
+    }
+}
+
+/// Wait until a Unix PTY master is readable without committing the reader
+/// thread to an unbounded `read`. A timeout after the child-exit flag is
+/// visible is an ordered drain barrier: all bytes written before that exit
+/// have either been routed by the sole reader or are reported readable by the
+/// second poll iteration.
+fn wait_for_pty_readable(poll_handle: Option<&std::fs::File>) -> std::io::Result<bool> {
+    #[cfg(unix)]
+    if let Some(poll_handle) = poll_handle {
+        use std::os::fd::AsRawFd as _;
+        let mut descriptor = libc::pollfd {
+            fd: poll_handle.as_raw_fd(),
+            events: libc::POLLIN,
+            revents: 0,
+        };
+        let timeout_millis =
+            i32::try_from(PTY_READER_POLL_INTERVAL.as_millis()).unwrap_or(i32::MAX);
+        let result = unsafe { libc::poll(&mut descriptor, 1, timeout_millis) };
+        if result < 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        return Ok(result > 0);
+    }
+
+    let _ = poll_handle;
+    Ok(true)
+}
 const MAX_GRAPHIC_ASSET_SNAPSHOTS: usize = 128;
 const VT220_PRIMARY_DA_RESPONSE: &str = "\x1b[?62;1;2;6;7;8;9c";
 const VT220_SECONDARY_DA_RESPONSE: &str = "\x1b[>1;10;0c";
@@ -101,7 +172,7 @@ enum TerminalSearchMode {
 
 enum ItermButtonActivation {
     Copy(String),
-    Custom,
+    Custom(i32),
 }
 
 impl TerminalSearchMode {
@@ -154,6 +225,8 @@ struct TerminalSearchLogicalSegment {
 static STORE: LazyLock<SessionStore> = LazyLock::new(SessionStore::default);
 
 pub const REFRESH_HINT_FRAME_DIRTY: u32 = 1 << 0;
+pub const REFRESH_HINT_EVENT_PENDING: u32 = 1 << 1;
+pub const REFRESH_HINT_EXIT_PENDING: u32 = 1 << 2;
 
 #[derive(Clone, Debug)]
 enum CallbackEvent {
@@ -297,6 +370,15 @@ impl PendingEventQueue {
         queue
     }
 
+    fn has_pending_zmodem_terminal_result(&self) -> bool {
+        self.entries.iter().any(|entry| {
+            matches!(
+                entry.event.kind.as_str(),
+                "zmodem_completed" | "zmodem_failed" | "zmodem_cancelled"
+            )
+        })
+    }
+
     #[cfg(test)]
     fn with_limits(max_count: usize, max_bytes: usize) -> Self {
         Self {
@@ -309,16 +391,35 @@ impl PendingEventQueue {
     }
 
     fn push(&mut self, event: TerminalEvent) -> PendingEventPushResult {
-        let sequence = self.next_sequence;
-        self.next_sequence = self.next_sequence.saturating_add(1);
         let timestamp_micros = unix_timestamp_micros();
         let wire_bytes = terminal_event_wire_size(&event);
         if self.limits.max_count == 0
             || self.limits.max_bytes == 0
             || wire_bytes > self.limits.max_bytes
         {
+            // Sequences describe every attempted event, including events that
+            // cannot enter the bounded queue. This lets consumers observe the
+            // loss as a sequence gap alongside `dropped_count`.
+            self.next_sequence = self.next_sequence.saturating_add(1);
             return self.record_drop();
         }
+
+        if let Some(transfer_id) = zmodem_progress_transfer_id(&event)
+            && let Some(entry) = self.entries.back_mut()
+            && zmodem_progress_transfer_id(&entry.event) == Some(transfer_id)
+        {
+            self.aggregate_bytes = self
+                .aggregate_bytes
+                .saturating_sub(entry.wire_bytes)
+                .saturating_add(wire_bytes);
+            entry.event = event;
+            entry.wire_bytes = wire_bytes;
+            entry.timestamp_micros = timestamp_micros;
+            return self.enforce_limits();
+        }
+
+        let sequence = self.next_sequence;
+        self.next_sequence = self.next_sequence.saturating_add(1);
 
         self.aggregate_bytes = self.aggregate_bytes.saturating_add(wire_bytes);
         self.entries.push_back(QueuedTerminalEvent {
@@ -328,11 +429,17 @@ impl PendingEventQueue {
             timestamp_micros,
         });
 
+        self.enforce_limits()
+    }
+
+    fn enforce_limits(&mut self) -> PendingEventPushResult {
         let mut result = PendingEventPushResult::default();
         while self.entries.len() > self.limits.max_count
             || self.aggregate_bytes > self.limits.max_bytes
         {
-            let index = self.eviction_index();
+            let Some(index) = self.eviction_index() else {
+                break;
+            };
             if let Some(removed) = self.entries.remove(index) {
                 self.aggregate_bytes = self.aggregate_bytes.saturating_sub(removed.wire_bytes);
                 let dropped = self.record_drop();
@@ -344,24 +451,35 @@ impl PendingEventQueue {
         result
     }
 
-    fn eviction_index(&self) -> usize {
+    fn eviction_index(&self) -> Option<usize> {
         self.entries
             .iter()
-            .position(|entry| pending_event_is_coalescible(&entry.event.kind))
+            .position(|entry| {
+                !pending_event_is_protected(&entry.event.kind)
+                    && pending_event_is_coalescible(&entry.event.kind)
+            })
             .or_else(|| {
-                self.entries
-                    .iter()
-                    .position(|entry| !pending_event_is_critical(&entry.event.kind))
+                self.entries.iter().position(|entry| {
+                    !pending_event_is_protected(&entry.event.kind)
+                        && !pending_event_is_critical(&entry.event.kind)
+                })
             })
             // A critical-only flood cannot be both lossless and hard-bounded.
             // Prefer retaining `exit`; otherwise discard the oldest clipboard
             // request only after every non-critical event is gone.
             .or_else(|| {
+                self.entries.iter().position(|entry| {
+                    !pending_event_is_protected(&entry.event.kind) && entry.event.kind != "exit"
+                })
+            })
+            .or_else(|| {
                 self.entries
                     .iter()
-                    .position(|entry| entry.event.kind != "exit")
+                    .position(|entry| !pending_event_is_protected(&entry.event.kind))
             })
-            .unwrap_or(0)
+            // Keep the newly appended event when possible, but never let a
+            // protected-event flood defeat the queue's hard count/byte caps.
+            .or_else(|| (self.entries.len() > 1).then_some(0))
     }
 
     fn record_drop(&mut self) -> PendingEventPushResult {
@@ -455,7 +573,12 @@ impl PendingEventQueue {
 fn pending_event_is_coalescible(kind: &str) -> bool {
     matches!(
         kind,
-        "bell" | "resize" | "shell_context" | "session_progress" | "session_badge"
+        "bell"
+            | "resize"
+            | "shell_context"
+            | "session_progress"
+            | "session_badge"
+            | "zmodem_progress"
     )
 }
 
@@ -469,7 +592,31 @@ fn pending_event_is_critical(kind: &str) -> bool {
             | "clipboard_mime_read_request"
             | "clipboard_mime_error"
             | "session_reset"
+            | "zmodem_completed"
+            | "zmodem_failed"
+            | "zmodem_cancelled"
+            | ZMODEM_DEFERRED_WRITE_FAILED_KIND
     )
+}
+
+fn pending_event_is_protected(kind: &str) -> bool {
+    matches!(
+        kind,
+        "zmodem_detected"
+            | "zmodem_file_offer"
+            | "zmodem_started"
+            | "zmodem_file_completed"
+            | "zmodem_file_skipped"
+            | "zmodem_completed"
+            | "zmodem_failed"
+            | "zmodem_cancelled"
+            | ZMODEM_DEFERRED_WRITE_FAILED_KIND
+    )
+}
+
+fn zmodem_progress_transfer_id(event: &TerminalEvent) -> Option<&str> {
+    (event.kind == "zmodem_progress")
+        .then(|| event.payload.as_ref()?.get("transferId")?.as_str())?
 }
 
 fn terminal_event_wire_size(event: &TerminalEvent) -> usize {
@@ -727,6 +874,11 @@ struct ProcessResourceSnapshot {
     thread_count: i32,
 }
 
+struct PendingChildExit {
+    exit_code: Option<i32>,
+    payload: serde_json::Value,
+}
+
 #[derive(Clone, Debug)]
 struct TerminalDiagnosticsRequest {
     max_samples: usize,
@@ -766,8 +918,16 @@ impl SessionStore {
     }
 
     pub fn create_session(&self, profile: TerminalProfile) -> Result<u64, SessionError> {
+        self.create_session_with_zmodem(profile, false)
+    }
+
+    fn create_session_with_zmodem(
+        &self,
+        profile: TerminalProfile,
+        zmodem_enabled: bool,
+    ) -> Result<u64, SessionError> {
         let session_id = self.next_session_id();
-        let session = TerminalSession::spawn(session_id, profile)?;
+        let session = TerminalSession::spawn_with_zmodem(session_id, profile, zmodem_enabled)?;
         self.sessions.lock().insert(session_id, session);
         Ok(session_id)
     }
@@ -788,8 +948,13 @@ impl SessionStore {
     }
 
     pub fn close_session(&self, session_id: u64) -> Result<(), SessionError> {
-        if let Some(session) = self.sessions.lock().remove(&session_id) {
+        let session = self.sessions.lock().get(&session_id).cloned();
+        if let Some(session) = session {
+            // Keep the store authority and event queue reachable when a
+            // receive publication is at its atomic commit boundary. The
+            // caller can drain the completion/recovery event and retry close.
             session.close()?;
+            self.sessions.lock().remove(&session_id);
         }
         Ok(())
     }
@@ -827,6 +992,8 @@ pub enum SessionError {
     FileDownload(String),
     #[error("Host Response error: {0}")]
     HostResponse(String),
+    #[error("ZMODEM error: {0}")]
+    Zmodem(String),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2433,9 +2600,49 @@ pub struct TerminalSession {
     osc633_expected_nonce: Option<String>,
     state: Mutex<TerminalState>,
     writer: Mutex<Option<Box<dyn Write + Send>>>,
+    // SessionConfig v1 must explicitly opt in. Legacy clients do not know how
+    // to authorize or complete transfers and therefore keep raw PTY behavior.
+    zmodem_enabled: AtomicBool,
+    zmodem: Mutex<ZmodemManager>,
+    zmodem_sequence_gate: Mutex<()>,
+    // Makes terminal ZMODEM event insertion + commit-phase release atomic
+    // with close's pending-result check. This gate never covers filesystem or
+    // PTY I/O, so close remains prompt when an external operation is blocked.
+    zmodem_event_publication_gate: Mutex<()>,
+    // Bridges manager mutation to event publication. Close checks this under
+    // the publication gate, while transition acquisition uses the same gate
+    // to make close-start and new protocol work mutually exclusive.
+    zmodem_state_transitions_inflight: AtomicUsize,
+    zmodem_state_transitions_closed: AtomicBool,
+    // Serializes committing scanner passthrough to the recording/VT stream.
+    // The reader and timeout pump can both release held scanner bytes, so the
+    // route call and its subsequent VT commit must be one ordered operation.
+    zmodem_passthrough_gate: Mutex<()>,
+    zmodem_transport_gate: Mutex<()>,
+    zmodem_wire_tx: Mutex<Option<mpsc::Sender<QueuedZmodemWireJob>>>,
+    zmodem_wire_queued_bytes: AtomicUsize,
+    pty_writer_available: AtomicBool,
+    zmodem_wire_inflight: Mutex<Option<ZmodemInFlight>>,
+    zmodem_inflight: Mutex<Option<ZmodemInFlight>>,
+    zmodem_active_transfer_id: AtomicU64,
+    zmodem_active_direction: AtomicU8,
+    zmodem_draining: AtomicBool,
+    zmodem_terminal_event_ids: Mutex<VecDeque<u64>>,
+    zmodem_operation_epoch: Arc<AtomicU64>,
+    zmodem_receive_commit_phase: Arc<AtomicU8>,
+    zmodem_receive_publish_started_at: Arc<Mutex<Option<Instant>>>,
+    deferred_pty_writes: Mutex<DeferredPtyWrites>,
+    zmodem_transport_terminated: AtomicBool,
+    pty_reader_closed: AtomicBool,
+    // Unix readers own a duplicated poll descriptor and can prove that bytes
+    // preceding child exit were drained. Platforms without that primitive
+    // retain immediate exit publication to avoid a ConPTY close/EOF cycle.
+    pty_reader_exit_barrier_enabled: AtomicBool,
     master: Mutex<Option<Box<dyn portable_pty::MasterPty + Send>>>,
     child: Mutex<Option<Box<dyn portable_pty::Child + Send + Sync>>>,
+    child_killer: Mutex<Option<Box<dyn portable_pty::ChildKiller + Send + Sync>>>,
     child_pid: Option<u32>,
+    pending_child_exit: Mutex<Option<PendingChildExit>>,
     process_name: String,
     is_replay: bool,
     events: Mutex<PendingEventQueue>,
@@ -2459,6 +2666,161 @@ pub struct TerminalSession {
     exited: AtomicBool,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct ZmodemInFlight {
+    transfer_id: u64,
+    direction: ZmodemDirection,
+    started_at: Instant,
+}
+
+struct ZmodemWireJob {
+    bytes: Vec<u8>,
+    owner: Option<(u64, ZmodemDirection)>,
+    kind: ZmodemWireJobKind,
+    completion: Option<mpsc::SyncSender<Result<(), ZmodemWireError>>>,
+}
+
+struct QueuedZmodemWireJob {
+    job: ZmodemWireJob,
+    generation: u64,
+    reserved_bytes: usize,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ZmodemWireJobKind {
+    Protocol,
+    Cancel,
+    Ordinary,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CancelActiveZmodemOutcome {
+    Cancelled,
+    Draining,
+    Idle,
+}
+
+impl CancelActiveZmodemOutcome {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Cancelled => "cancelled",
+            Self::Draining => "draining",
+            Self::Idle => "idle",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ZmodemWireError {
+    Cancelled,
+    Io,
+    QueueLimit,
+}
+
+struct ZmodemInFlightGuard<'a> {
+    slot: &'a Mutex<Option<ZmodemInFlight>>,
+    marker: Option<ZmodemInFlight>,
+}
+
+struct ZmodemStateTransitionGuard<'a> {
+    counter: &'a AtomicUsize,
+}
+
+struct OwnedZmodemStateTransitionGuard {
+    session: Arc<TerminalSession>,
+}
+
+impl Drop for ZmodemStateTransitionGuard<'_> {
+    fn drop(&mut self) {
+        let previous = self.counter.fetch_sub(1, Ordering::AcqRel);
+        debug_assert!(previous > 0, "ZMODEM transition count underflow");
+    }
+}
+
+impl Drop for OwnedZmodemStateTransitionGuard {
+    fn drop(&mut self) {
+        let previous = self
+            .session
+            .zmodem_state_transitions_inflight
+            .fetch_sub(1, Ordering::AcqRel);
+        debug_assert!(previous > 0, "ZMODEM transition count underflow");
+    }
+}
+
+impl<'a> ZmodemInFlightGuard<'a> {
+    fn new(
+        slot: &'a Mutex<Option<ZmodemInFlight>>,
+        active: Option<(u64, ZmodemDirection)>,
+    ) -> Self {
+        let marker = active.map(|(transfer_id, direction)| ZmodemInFlight {
+            transfer_id,
+            direction,
+            started_at: Instant::now(),
+        });
+        *slot.lock() = marker;
+        Self { slot, marker }
+    }
+}
+
+impl Drop for ZmodemInFlightGuard<'_> {
+    fn drop(&mut self) {
+        let mut slot = self.slot.lock();
+        if *slot == self.marker {
+            *slot = None;
+        }
+    }
+}
+
+#[derive(Default)]
+struct DeferredPtyWrites {
+    chunks: VecDeque<(Vec<u8>, bool)>,
+    bytes: usize,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct DeferredPtyWriteFailure {
+    queued_chunks: usize,
+    queued_bytes: usize,
+    completed_chunks: usize,
+    completed_bytes: usize,
+}
+
+impl DeferredPtyWriteFailure {
+    fn payload(self) -> serde_json::Value {
+        serde_json::json!({
+            "source": "zmodem",
+            "reason": "io_error",
+            "queuedChunks": self.queued_chunks,
+            "queuedBytes": self.queued_bytes,
+            "completedChunks": self.completed_chunks,
+            "completedBytes": self.completed_bytes,
+            "unconfirmedChunks": self.queued_chunks.saturating_sub(self.completed_chunks),
+            "unconfirmedBytes": self.queued_bytes.saturating_sub(self.completed_bytes),
+        })
+    }
+}
+
+impl DeferredPtyWrites {
+    fn push(&mut self, bytes: &[u8], record_as_user_input: bool) -> Result<(), SessionError> {
+        if self.chunks.len() >= MAX_DEFERRED_PTY_WRITE_CHUNKS
+            || self.bytes.saturating_add(bytes.len()) > MAX_DEFERRED_PTY_WRITE_BYTES
+        {
+            return Err(SessionError::Zmodem(
+                "deferred_pty_write_overflow".to_string(),
+            ));
+        }
+        self.bytes = self.bytes.saturating_add(bytes.len());
+        self.chunks
+            .push_back((bytes.to_vec(), record_as_user_input));
+        Ok(())
+    }
+
+    fn take(&mut self) -> VecDeque<(Vec<u8>, bool)> {
+        self.bytes = 0;
+        std::mem::take(&mut self.chunks)
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 struct TerminalGraphicsMemoryLimits {
     max_image_bytes: usize,
@@ -2467,18 +2829,28 @@ struct TerminalGraphicsMemoryLimits {
 
 #[derive(Default)]
 struct SessionWorkerHandles {
+    zmodem_writer: Option<thread::JoinHandle<()>>,
     reader: Option<thread::JoinHandle<()>>,
     resource_sampler: Option<thread::JoinHandle<()>>,
 }
 
 impl TerminalSession {
     pub fn spawn(session_id: u64, profile: TerminalProfile) -> Result<Arc<Self>, SessionError> {
+        Self::spawn_with_zmodem(session_id, profile, false)
+    }
+
+    fn spawn_with_zmodem(
+        session_id: u64,
+        profile: TerminalProfile,
+        zmodem_enabled: bool,
+    ) -> Result<Arc<Self>, SessionError> {
         let osc633_expected_nonce = Self::validate_osc633_nonce(&profile)?;
         let runtime = spawn_pty(&profile, DEFAULT_ROWS, DEFAULT_COLS)
             .map_err(|error: anyhow::Error| SessionError::Pty(error.to_string()))?;
         let child_pid = runtime.child_pid;
         let process_name = process_name_for_profile(&profile);
         let reader = runtime.reader;
+        let reader_poll_handle = runtime.reader_poll_handle;
         let shell_integration_diagnostics = runtime.shell_integration.to_diagnostic_json();
         let shell_integration_proxy = runtime.shell_integration_proxy;
         let session = Self::new(
@@ -2493,29 +2865,63 @@ impl TerminalSession {
             shell_integration_diagnostics,
             false,
         );
+        session
+            .zmodem_enabled
+            .store(zmodem_enabled, Ordering::Release);
+        session
+            .pty_reader_exit_barrier_enabled
+            .store(reader_poll_handle.is_some(), Ordering::Release);
 
+        let zmodem_writer_handle = Self::start_zmodem_writer_or_teardown(&session)?;
         let reader_session = Arc::clone(&session);
         let reader_handle = thread::spawn(move || {
             let _shell_integration_proxy = shell_integration_proxy;
             let mut reader = reader;
             let mut buf = [0_u8; 4096];
-            loop {
-                match reader.read(&mut buf) {
-                    Ok(0) => break,
-                    Ok(read) => {
-                        reader_session
-                            .recording
-                            .lock()
-                            .record_pty_output(&buf[..read]);
-                        reader_session.ingest_pty_output(&buf[..read], true);
+            let trusted_eof = loop {
+                match wait_for_pty_readable(reader_poll_handle.as_ref()) {
+                    Ok(false) => {
+                        if reader_session.exited.load(Ordering::Acquire)
+                            && !wait_for_pty_readable(reader_poll_handle.as_ref()).unwrap_or(true)
+                        {
+                            // The second timeout starts after observing child
+                            // exit. Since this is the only reader, the kernel
+                            // queue is now drained through that exit boundary.
+                            // Stop even if a detached descendant still holds
+                            // the slave open; later descendant output is
+                            // semantically after the terminal child exited.
+                            break true;
+                        }
+                        continue;
                     }
-                    Err(_) => break,
+                    Ok(true) => {}
+                    Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+                    Err(_) => break false,
                 }
-            }
+                match reader.read(&mut buf) {
+                    Ok(0) => break true,
+                    Ok(read) => {
+                        let _passthrough = reader_session.zmodem_passthrough_gate.lock();
+                        let passthrough = reader_session.route_pty_output(&buf[..read]);
+                        if !passthrough.is_empty() {
+                            reader_session
+                                .recording
+                                .lock()
+                                .record_pty_output(&passthrough);
+                            reader_session.ingest_pty_output(&passthrough, true);
+                        }
+                    }
+                    Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+                    Err(error) if pty_read_error_is_trusted_eof(&error) => break true,
+                    Err(_) => break false,
+                }
+            };
+            reader_session.on_pty_reader_closed(trusted_eof);
         });
         let resource_sampler_handle = Self::start_resource_sampler(&session);
         {
             let mut worker_handles = session.worker_handles.lock();
+            worker_handles.zmodem_writer = Some(zmodem_writer_handle);
             worker_handles.reader = Some(reader_handle);
             worker_handles.resource_sampler = Some(resource_sampler_handle);
         }
@@ -2569,6 +2975,8 @@ impl TerminalSession {
         shell_integration_diagnostics: serde_json::Value,
         is_replay: bool,
     ) -> Arc<Self> {
+        let child_killer = child.as_ref().map(|child| child.clone_killer());
+        let pty_writer_available = writer.is_some();
         let emulation = profile.terminal.emulation;
         let scrollback_lines = normalize_scrollback_lines(profile.terminal.scrollback_lines);
         let graphics_enabled =
@@ -2595,6 +3003,9 @@ impl TerminalSession {
             osc633_expected_nonce.as_deref(),
             drag_drop_enabled,
         );
+        let zmodem_operation_epoch = Arc::new(AtomicU64::new(0));
+        let zmodem_receive_commit_phase = Arc::new(AtomicU8::new(0));
+        let zmodem_receive_publish_started_at = Arc::new(Mutex::new(None));
 
         Arc::new(Self {
             session_id,
@@ -2621,9 +3032,42 @@ impl TerminalSession {
                 replay_checkpoint_boundary: ReplayCheckpointBoundary::default(),
             }),
             writer: Mutex::new(writer),
+            // Direct unit construction exercises the protocol implementation;
+            // production spawn paths overwrite this before starting workers.
+            zmodem_enabled: AtomicBool::new(true),
+            zmodem: Mutex::new(ZmodemManager::for_session(
+                session_id,
+                Arc::clone(&zmodem_operation_epoch),
+                Arc::clone(&zmodem_receive_commit_phase),
+                Arc::clone(&zmodem_receive_publish_started_at),
+            )),
+            zmodem_sequence_gate: Mutex::new(()),
+            zmodem_event_publication_gate: Mutex::new(()),
+            zmodem_state_transitions_inflight: AtomicUsize::new(0),
+            zmodem_state_transitions_closed: AtomicBool::new(false),
+            zmodem_passthrough_gate: Mutex::new(()),
+            zmodem_transport_gate: Mutex::new(()),
+            zmodem_wire_tx: Mutex::new(None),
+            zmodem_wire_queued_bytes: AtomicUsize::new(0),
+            pty_writer_available: AtomicBool::new(pty_writer_available),
+            zmodem_wire_inflight: Mutex::new(None),
+            zmodem_inflight: Mutex::new(None),
+            zmodem_active_transfer_id: AtomicU64::new(0),
+            zmodem_active_direction: AtomicU8::new(0),
+            zmodem_draining: AtomicBool::new(false),
+            zmodem_terminal_event_ids: Mutex::new(VecDeque::new()),
+            zmodem_operation_epoch,
+            zmodem_receive_commit_phase,
+            zmodem_receive_publish_started_at,
+            deferred_pty_writes: Mutex::new(DeferredPtyWrites::default()),
+            zmodem_transport_terminated: AtomicBool::new(false),
+            pty_reader_closed: AtomicBool::new(false),
+            pty_reader_exit_barrier_enabled: AtomicBool::new(false),
             master: Mutex::new(master),
             child: Mutex::new(child),
+            child_killer: Mutex::new(child_killer),
             child_pid,
+            pending_child_exit: Mutex::new(None),
             process_name,
             is_replay,
             events: Mutex::new(PendingEventQueue::with_initial(TerminalEvent {
@@ -2661,6 +3105,15 @@ impl TerminalSession {
     }
 
     fn ingest_pty_output(&self, bytes: &[u8], allow_host_effects: bool) {
+        let _ = self.ingest_pty_output_collecting_responses(bytes, allow_host_effects, false);
+    }
+
+    fn ingest_pty_output_collecting_responses(
+        &self,
+        bytes: &[u8],
+        allow_host_effects: bool,
+        collect_responses: bool,
+    ) -> Vec<u8> {
         let (
             callback_events,
             responses,
@@ -2787,11 +3240,8 @@ impl TerminalSession {
             }
         }
         let response_write_started_at = Instant::now();
-        if allow_host_effects
-            && !responses.is_empty()
-            && let Some(writer) = self.writer.lock().as_mut()
-        {
-            let _ = writer.write_all(&responses);
+        if allow_host_effects && !collect_responses && !responses.is_empty() {
+            let _ = self.write_non_zmodem_or_defer(&responses, false);
         }
         let response_write_micros = response_write_started_at.elapsed().as_micros() as u64;
         self.record_input_debug_stats(
@@ -2802,6 +3252,1294 @@ impl TerminalSession {
             damage_merge_micros,
             response_write_micros,
         );
+        if allow_host_effects && collect_responses {
+            responses
+        } else {
+            Vec::new()
+        }
+    }
+
+    fn route_pty_output(&self, bytes: &[u8]) -> Vec<u8> {
+        if !cfg!(any(target_os = "macos", target_os = "linux")) {
+            return bytes.to_vec();
+        }
+        if self.zmodem_transport_terminated.load(Ordering::SeqCst) {
+            return Vec::new();
+        }
+        if !self.zmodem_enabled.load(Ordering::Acquire) {
+            return bytes.to_vec();
+        }
+        // Reader passes and ordinary writes share this gate across protocol
+        // wire confirmation and effect publication. Cancellation deliberately
+        // does not: it can still invalidate an operation while its PTY write
+        // is outside the transport gate.
+        let _sequence = self.zmodem_sequence_gate.lock();
+        if self.zmodem_transport_terminated.load(Ordering::Acquire) {
+            return Vec::new();
+        }
+        // This gate preserves PTY byte ordering across the reader, timeout
+        // pump, and UI commands. Unlike the protocol-state lock it is never
+        // awaited by cancellation or close; those paths fail the transport
+        // directly if an underlying syscall has stalled while holding it.
+        let _transport = self.zmodem_transport_gate.lock();
+        let Some(_transition) = self.begin_zmodem_state_transition() else {
+            return Vec::new();
+        };
+        let operation_epoch = self.zmodem_operation_epoch.load(Ordering::Acquire);
+        let mut wire = Vec::new();
+        let (mut effects, owner, confirm_closing_zfin) = {
+            let mut zmodem = self.zmodem.lock();
+            let active_before = zmodem.active_transfer();
+            let _inflight = ZmodemInFlightGuard::new(&self.zmodem_inflight, active_before);
+            let effects = match zmodem.ingest(bytes, &mut wire) {
+                Ok(effects) => effects,
+                Err(error) => {
+                    let passthrough = zmodem.take_failure_passthrough();
+                    let mut failure = zmodem.fail(&error, Some(&mut wire));
+                    failure.passthrough = passthrough;
+                    failure
+                }
+            };
+            let active_after = zmodem.active_transfer();
+            let confirm_closing_zfin = zmodem.receiver_waiting_final_oo();
+            self.remember_zmodem_state(&zmodem);
+            (
+                effects,
+                active_before.or(active_after),
+                confirm_closing_zfin,
+            )
+        };
+        if effects
+            .events
+            .iter()
+            .any(|event| event.kind == "zmodem_detected")
+            && !effects.passthrough.is_empty()
+        {
+            // Plain terminal bytes preceding the initial ZMODEM header belong
+            // to the VT stream. Process them now, while their generated replies
+            // can still be prepended to the first protocol write. Returning the
+            // prefix to the reader would defer replies behind the newly-active
+            // transfer and invert observable PTY byte order.
+            let prefix = std::mem::take(&mut effects.passthrough);
+            self.recording.lock().record_pty_output(&prefix);
+            let responses = self.ingest_pty_output_collecting_responses(&prefix, true, true);
+            if !responses.is_empty() {
+                let mut ordered_wire = responses;
+                ordered_wire.extend(wire);
+                wire = ordered_wire;
+            }
+        }
+        let continue_buffered_receive = self.publish_receive_file_completions(&mut effects);
+        let confirm_terminal_wire = !wire.is_empty()
+            && (confirm_closing_zfin
+                || effects.events.iter().any(|event| {
+                    matches!(
+                        event.kind,
+                        "zmodem_completed" | "zmodem_failed" | "zmodem_cancelled"
+                    )
+                }));
+        let _wire_inflight = ZmodemInFlightGuard::new(&self.zmodem_inflight, owner);
+        let wire_result = self.write_zmodem_wire_releasing_transport(
+            &wire,
+            _transport,
+            owner,
+            confirm_terminal_wire,
+            ZmodemWireJobKind::Protocol,
+        );
+        if self.zmodem_operation_epoch.load(Ordering::Acquire) != operation_epoch {
+            // Cancellation/forced termination won while this operation was
+            // outside the ordering gate. Its protocol state and events are
+            // stale, but the newer operation owns the manager state.
+            effects = ZmodemEffects::default();
+            if self.zmodem_transport_terminated.load(Ordering::Acquire) {
+                let mut zmodem = self.zmodem.lock();
+                zmodem.reset();
+                self.remember_zmodem_state(&zmodem);
+            }
+        } else if wire_result.is_err() {
+            effects = self.fail_zmodem_after_wire_error_preserving_commits(effects, owner);
+        }
+        let deferred_failure = self.flush_deferred_pty_writes_if_idle();
+        let mut passthrough = self.apply_zmodem_effects(effects, deferred_failure);
+        drop(_sequence);
+        if continue_buffered_receive && !self.zmodem_transport_terminated.load(Ordering::Acquire) {
+            passthrough.extend(self.route_pty_output(&[]));
+        }
+        passthrough
+    }
+
+    fn remember_zmodem_active(&self, active: Option<(u64, ZmodemDirection)>) {
+        match active {
+            Some((transfer_id, direction)) => {
+                self.zmodem_active_direction.store(
+                    match direction {
+                        ZmodemDirection::Receive => 1,
+                        ZmodemDirection::Send => 2,
+                    },
+                    Ordering::Release,
+                );
+                self.zmodem_active_transfer_id
+                    .store(transfer_id, Ordering::Release);
+            }
+            None => {
+                self.zmodem_active_transfer_id.store(0, Ordering::Release);
+                self.zmodem_active_direction.store(0, Ordering::Release);
+            }
+        }
+    }
+
+    fn remember_zmodem_state(&self, zmodem: &ZmodemManager) {
+        self.zmodem_draining
+            .store(zmodem.is_draining(), Ordering::Release);
+        self.remember_zmodem_active(zmodem.active_transfer());
+    }
+
+    fn begin_zmodem_state_transition(&self) -> Option<ZmodemStateTransitionGuard<'_>> {
+        self.reserve_zmodem_state_transition()
+            .then(|| ZmodemStateTransitionGuard {
+                counter: &self.zmodem_state_transitions_inflight,
+            })
+    }
+
+    fn begin_owned_zmodem_state_transition(
+        session: &Arc<Self>,
+    ) -> Option<OwnedZmodemStateTransitionGuard> {
+        session
+            .reserve_zmodem_state_transition()
+            .then(|| OwnedZmodemStateTransitionGuard {
+                session: Arc::clone(session),
+            })
+    }
+
+    fn reserve_zmodem_state_transition(&self) -> bool {
+        // Close uses the same short-lived gate to atomically observe zero
+        // transitions and prohibit new ones. The guard itself never retains
+        // the gate across filesystem or PTY I/O.
+        let _publication = self.zmodem_event_publication_gate.lock();
+        if self.zmodem_state_transitions_closed.load(Ordering::Acquire) {
+            return false;
+        }
+        self.zmodem_state_transitions_inflight
+            .fetch_add(1, Ordering::AcqRel);
+        true
+    }
+
+    fn remember_zmodem_idle(&self) {
+        self.zmodem_draining.store(false, Ordering::Release);
+        self.remember_zmodem_active(None);
+    }
+
+    fn remembered_zmodem_active(&self) -> Option<(u64, ZmodemDirection)> {
+        let transfer_id = self.zmodem_active_transfer_id.load(Ordering::Acquire);
+        if transfer_id == 0 {
+            return None;
+        }
+        let direction = match self.zmodem_active_direction.load(Ordering::Acquire) {
+            1 => ZmodemDirection::Receive,
+            2 => ZmodemDirection::Send,
+            _ => return None,
+        };
+        Some((transfer_id, direction))
+    }
+
+    fn write_zmodem_wire_releasing_transport(
+        &self,
+        bytes: &[u8],
+        transport: MutexGuard<'_, ()>,
+        owner: Option<(u64, ZmodemDirection)>,
+        confirm: bool,
+        kind: ZmodemWireJobKind,
+    ) -> Result<(), ZmodemWireError> {
+        if bytes.is_empty() {
+            drop(transport);
+            return Ok(());
+        }
+        if self.zmodem_transport_terminated.load(Ordering::Acquire) {
+            drop(transport);
+            return Err(ZmodemWireError::Io);
+        }
+        if self.zmodem_wire_tx.lock().is_some() {
+            let (completion, completion_rx) = if confirm {
+                let (tx, rx) = mpsc::sync_channel(1);
+                (Some(tx), Some(rx))
+            } else {
+                (None, None)
+            };
+            let result = self.enqueue_zmodem_wire_job(ZmodemWireJob {
+                bytes: bytes.to_vec(),
+                owner,
+                kind,
+                completion,
+            });
+            drop(transport);
+            result?;
+            return match completion_rx {
+                Some(receiver) => self.await_zmodem_wire_completion(receiver, owner),
+                None => Ok(()),
+            };
+        }
+        let mut writer = self.writer.lock();
+        // Preserve protocol-byte ordering by acquiring the PTY writer while
+        // still owning the transport gate, then release the gate before the
+        // potentially blocking syscall. The reader must remain able to
+        // consume peer acknowledgements while a full-duplex SSH PTY applies
+        // backpressure to a large outbound transfer.
+        drop(transport);
+        let Some(writer) = writer.as_deref_mut() else {
+            return Err(ZmodemWireError::Io);
+        };
+        writer.write_all(bytes).map_err(|_| ZmodemWireError::Io)
+    }
+
+    fn await_zmodem_wire_completion(
+        &self,
+        receiver: mpsc::Receiver<Result<(), ZmodemWireError>>,
+        owner: Option<(u64, ZmodemDirection)>,
+    ) -> Result<(), ZmodemWireError> {
+        let deadline = Instant::now() + ZMODEM_BLOCKED_IO_TIMEOUT;
+        loop {
+            match receiver.recv_timeout(ZMODEM_COMPLETION_POLL_INTERVAL) {
+                Ok(result) => return result,
+                Err(mpsc::RecvTimeoutError::Disconnected) => return Err(ZmodemWireError::Io),
+                Err(mpsc::RecvTimeoutError::Timeout) => {}
+            }
+            if self.zmodem_transport_terminated.load(Ordering::Acquire) {
+                return Err(ZmodemWireError::Io);
+            }
+            if Instant::now() >= deadline {
+                // The owning protocol path converts this into one terminal
+                // transfer failure. Ordinary/deferred callers have no such
+                // owner, so fail the PTY transport closed here.
+                if owner.is_none() {
+                    self.terminate_zmodem_transport();
+                }
+                return Err(ZmodemWireError::Io);
+            }
+        }
+    }
+
+    fn enqueue_zmodem_wire_job(&self, job: ZmodemWireJob) -> Result<(), ZmodemWireError> {
+        let len = job.bytes.len();
+        // Protocol traffic remains strictly bounded. A user paste is one
+        // already-materialized logical write, however, and rejecting it only
+        // because it exceeds the actor's queue budget regresses the ordinary
+        // PTY write contract. Let one oversized ordinary write reserve the
+        // whole budget so it applies backpressure to every later job without
+        // underflowing the queue accounting when it completes.
+        let reserved_bytes = if len > ZMODEM_WIRE_MAX_QUEUED_BYTES {
+            if job.kind != ZmodemWireJobKind::Ordinary {
+                return Err(ZmodemWireError::QueueLimit);
+            }
+            ZMODEM_WIRE_MAX_QUEUED_BYTES
+        } else {
+            len
+        };
+        self.zmodem_wire_queued_bytes
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |queued| {
+                queued
+                    .checked_add(reserved_bytes)
+                    .filter(|next| *next <= ZMODEM_WIRE_MAX_QUEUED_BYTES)
+            })
+            .map_err(|_| ZmodemWireError::QueueLimit)?;
+        let sender = self.zmodem_wire_tx.lock().as_ref().cloned();
+        let Some(sender) = sender else {
+            self.zmodem_wire_queued_bytes
+                .fetch_sub(reserved_bytes, Ordering::AcqRel);
+            return Err(ZmodemWireError::Io);
+        };
+        let generation = self.zmodem_operation_epoch.load(Ordering::Acquire);
+        if let Err(error) = sender.send(QueuedZmodemWireJob {
+            job,
+            generation,
+            reserved_bytes,
+        }) {
+            self.zmodem_wire_queued_bytes
+                .fetch_sub(error.0.reserved_bytes, Ordering::AcqRel);
+            return Err(ZmodemWireError::Io);
+        }
+        Ok(())
+    }
+
+    fn write_zmodem_wire_direct(&self, bytes: &[u8]) -> Result<(), ZmodemWireError> {
+        if bytes.is_empty() {
+            return Ok(());
+        }
+        if self.zmodem_transport_terminated.load(Ordering::Acquire) {
+            return Err(ZmodemWireError::Io);
+        }
+        let mut writer = self.writer.lock();
+        let Some(pty) = writer.as_deref_mut() else {
+            return Err(ZmodemWireError::Io);
+        };
+        let result = pty.write_all(bytes).map_err(|_| ZmodemWireError::Io);
+        if result.is_err() {
+            writer.take();
+            self.pty_writer_available.store(false, Ordering::Release);
+        }
+        result
+    }
+
+    fn try_write_zmodem_wire_fallback(&self, bytes: &[u8]) -> Result<(), ZmodemWireError> {
+        if bytes.is_empty() {
+            return Ok(());
+        }
+        let Some(mut writer) = self.writer.try_lock() else {
+            return Err(ZmodemWireError::Io);
+        };
+        let Some(writer) = writer.as_deref_mut() else {
+            return Err(ZmodemWireError::Io);
+        };
+        writer.write_all(bytes).map_err(|_| ZmodemWireError::Io)
+    }
+
+    fn fail_zmodem_after_wire_error(&self) -> ZmodemEffects {
+        let mut zmodem = self.zmodem.lock();
+        let mut effects = if zmodem.active_transfer().is_some() {
+            zmodem.fail(&ZmodemError::Io, None)
+        } else if zmodem.is_active() {
+            zmodem.transport_closed(false)
+        } else {
+            ZmodemEffects::default()
+        };
+        let closed = zmodem.transport_closed(false);
+        effects.passthrough.extend(closed.passthrough);
+        effects.events.extend(closed.events);
+        effects.terminate_transport = true;
+        self.remember_zmodem_state(&zmodem);
+        effects
+    }
+
+    fn fail_zmodem_after_wire_error_for(
+        &self,
+        owner: Option<(u64, ZmodemDirection)>,
+    ) -> ZmodemEffects {
+        let effects = self.fail_zmodem_after_wire_error();
+        if !effects.events.is_empty() || self.zmodem.lock().is_active() {
+            return effects;
+        }
+        let Some((transfer_id, direction)) = owner else {
+            return effects;
+        };
+        ZmodemEffects {
+            passthrough: effects.passthrough,
+            events: vec![crate::zmodem::ZmodemEvent {
+                kind: "zmodem_failed",
+                payload: serde_json::json!({
+                    "source": "zmodem",
+                    "transferId": transfer_id.to_string(),
+                    "direction": match direction {
+                        ZmodemDirection::Receive => "receive",
+                        ZmodemDirection::Send => "send",
+                    },
+                    "reason": "io_error",
+                }),
+            }],
+            terminate_transport: true,
+            receive_publish_pending: effects.receive_publish_pending,
+        }
+    }
+
+    fn fail_zmodem_after_wire_error_preserving_commits(
+        &self,
+        mut original: ZmodemEffects,
+        owner: Option<(u64, ZmodemDirection)>,
+    ) -> ZmodemEffects {
+        let mut failure = self.fail_zmodem_after_wire_error_for(owner);
+        if !original.receive_publish_pending {
+            return failure;
+        }
+        // receive_publish_pending is raised at the first published file and
+        // drive() deliberately stops at that boundary, so the original vector
+        // contains only ordered non-terminal receive events. Preserve all of
+        // them before appending the transport failure.
+        original.events.extend(failure.events);
+        failure.events = original.events;
+        failure.receive_publish_pending = true;
+        failure
+    }
+
+    fn force_zmodem_terminal(&self, transfer_id: u64, direction: ZmodemDirection, cancelled: bool) {
+        let Some(_transition) = self.begin_zmodem_state_transition() else {
+            return;
+        };
+        if !self.try_invalidate_receive_commit() {
+            // A publication that has exceeded the hard I/O deadline runs in a
+            // globally bounded worker. Detach its session ownership so the
+            // manager can be reset and close can complete; the worker retains
+            // its stable file/directory authority and any late failure still
+            // enters the process-wide recovery registry.
+            if !self.abandon_timed_out_receive_publication() {
+                self.terminate_zmodem_transport();
+                return;
+            }
+        }
+        if self
+            .zmodem_transport_terminated
+            .swap(true, Ordering::AcqRel)
+        {
+            return;
+        }
+        let deferred_failure = {
+            let mut deferred = self.deferred_pty_writes.lock();
+            let queued_chunks = deferred.chunks.len();
+            let queued_bytes = deferred.bytes;
+            deferred.take();
+            (queued_chunks != 0).then_some(DeferredPtyWriteFailure {
+                queued_chunks,
+                queued_bytes,
+                completed_chunks: 0,
+                completed_bytes: 0,
+            })
+        };
+        if let Some(failure) = deferred_failure {
+            self.push_event(ZMODEM_DEFERRED_WRITE_FAILED_KIND, Some(failure.payload()));
+        }
+        if cancelled {
+            self.push_event(
+                "zmodem_cancelled",
+                Some(serde_json::json!({
+                    "source": "zmodem",
+                    "transferId": transfer_id.to_string(),
+                })),
+            );
+        } else {
+            self.push_event(
+                "zmodem_failed",
+                Some(serde_json::json!({
+                    "source": "zmodem",
+                    "transferId": transfer_id.to_string(),
+                    "direction": match direction {
+                        ZmodemDirection::Receive => "receive",
+                        ZmodemDirection::Send => "send",
+                    },
+                    "reason": "timeout",
+                })),
+            );
+        }
+        if let Some(mut zmodem) = self.zmodem.try_lock() {
+            zmodem.reset();
+            self.remember_zmodem_state(&zmodem);
+        } else {
+            self.remember_zmodem_idle();
+        }
+        self.terminate_zmodem_transport();
+    }
+
+    fn apply_zmodem_effects(
+        &self,
+        effects: ZmodemEffects,
+        deferred_failure: Option<DeferredPtyWriteFailure>,
+    ) -> Vec<u8> {
+        let _publication = self.zmodem_event_publication_gate.lock();
+        let ZmodemEffects {
+            passthrough,
+            events,
+            terminate_transport,
+            receive_publish_pending,
+        } = effects;
+        let deferred_failure = deferred_failure.or_else(|| {
+            terminate_transport.then(|| {
+                let mut deferred = self.deferred_pty_writes.lock();
+                let queued_chunks = deferred.chunks.len();
+                let queued_bytes = deferred.bytes;
+                deferred.take();
+                (queued_chunks != 0).then_some(DeferredPtyWriteFailure {
+                    queued_chunks,
+                    queued_bytes,
+                    completed_chunks: 0,
+                    completed_bytes: 0,
+                })
+            })?
+        });
+        if let Some(failure) = deferred_failure {
+            // This diagnostic must precede the transfer terminal event. A
+            // completed/cancelled UI must never hide the fact that ordinary
+            // PTY bytes queued behind the transfer were not delivered.
+            self.push_event(ZMODEM_DEFERRED_WRITE_FAILED_KIND, Some(failure.payload()));
+        }
+        for event in events {
+            self.push_event(event.kind, Some(event.payload));
+        }
+        if receive_publish_pending {
+            // The file is already visible at its final no-replace path. Keep
+            // cancellation behind that linearization point until its
+            // completion event is durably ordered in the session queue.
+            for pending in [RECEIVE_COMMIT_RESULT_READY, RECEIVE_COMMIT_PUBLISHING] {
+                if self
+                    .zmodem_receive_commit_phase
+                    .compare_exchange(
+                        pending,
+                        RECEIVE_COMMIT_IDLE,
+                        Ordering::AcqRel,
+                        Ordering::Acquire,
+                    )
+                    .is_ok()
+                {
+                    *self.zmodem_receive_publish_started_at.lock() = None;
+                    break;
+                }
+            }
+        }
+        if terminate_transport || deferred_failure.is_some() {
+            if let Some(mut zmodem) = self.zmodem.try_lock() {
+                zmodem.reset();
+                self.remember_zmodem_state(&zmodem);
+            }
+            self.terminate_zmodem_transport();
+        } else if !self.exited.load(Ordering::Acquire)
+            && !self.zmodem_transport_terminated.load(Ordering::Acquire)
+            && !self.zmodem.lock().is_active()
+        {
+            // A normal completion/cancel drain may reuse the same PTY for a
+            // later transfer. Only that fully idle boundary can reopen the
+            // commit phase; close marks exited before claiming cancellation.
+            let _ = self.zmodem_receive_commit_phase.compare_exchange(
+                RECEIVE_COMMIT_CANCELLED,
+                RECEIVE_COMMIT_IDLE,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            );
+        }
+        passthrough
+    }
+
+    fn publish_receive_file_completions(&self, effects: &mut ZmodemEffects) -> bool {
+        if !effects.receive_publish_pending {
+            return false;
+        }
+        if !effects
+            .events
+            .iter()
+            .any(|event| event.kind == "zmodem_file_completed")
+        {
+            return false;
+        }
+        // Keep the original event vector intact. apply_zmodem_effects publishes
+        // progress/file-completed events in protocol order and only then opens
+        // the commit phase to cancellation.
+        true
+    }
+
+    fn apply_zmodem_effects_and_ingest_passthrough(
+        &self,
+        effects: ZmodemEffects,
+        deferred_failure: Option<DeferredPtyWriteFailure>,
+    ) {
+        let passthrough = self.apply_zmodem_effects(effects, deferred_failure);
+        if !passthrough.is_empty() {
+            self.recording.lock().record_pty_output(&passthrough);
+            self.ingest_pty_output(&passthrough, true);
+        }
+    }
+
+    fn abort_zmodem_command_error(
+        zmodem: &mut ZmodemManager,
+        error: &crate::zmodem::ZmodemError,
+        writer: &mut dyn Write,
+    ) -> Option<ZmodemEffects> {
+        if !error.aborts_active_transfer() {
+            return None;
+        }
+        let passthrough = zmodem.take_failure_passthrough();
+        let mut failure = zmodem.fail(error, Some(writer));
+        failure.passthrough = passthrough;
+        Some(failure)
+    }
+
+    fn try_invalidate_receive_commit(&self) -> bool {
+        loop {
+            match self.zmodem_receive_commit_phase.load(Ordering::Acquire) {
+                RECEIVE_COMMIT_PUBLISHING | RECEIVE_COMMIT_RESULT_READY => return false,
+                RECEIVE_COMMIT_IDLE => {
+                    if self
+                        .zmodem_receive_commit_phase
+                        .compare_exchange(
+                            RECEIVE_COMMIT_IDLE,
+                            RECEIVE_COMMIT_CANCELLED,
+                            Ordering::AcqRel,
+                            Ordering::Acquire,
+                        )
+                        .is_err()
+                    {
+                        continue;
+                    }
+                    self.zmodem_operation_epoch.fetch_add(1, Ordering::AcqRel);
+                    *self.zmodem_receive_publish_started_at.lock() = None;
+                    return true;
+                }
+                RECEIVE_COMMIT_CANCELLED => {
+                    // Another invalidator may be paused between claiming the
+                    // phase and advancing the epoch. Advancing it again is
+                    // harmless and guarantees stale worker jobs are rejected.
+                    self.zmodem_operation_epoch.fetch_add(1, Ordering::AcqRel);
+                    *self.zmodem_receive_publish_started_at.lock() = None;
+                    return true;
+                }
+                _ => return false,
+            }
+        }
+    }
+
+    fn abandon_timed_out_receive_publication(&self) -> bool {
+        let timed_out = self
+            .zmodem_receive_publish_started_at
+            .lock()
+            .is_some_and(|started_at| started_at.elapsed() >= ZMODEM_BLOCKED_IO_TIMEOUT);
+        if !timed_out {
+            return false;
+        }
+        if self
+            .zmodem_receive_commit_phase
+            .compare_exchange(
+                RECEIVE_COMMIT_PUBLISHING,
+                RECEIVE_COMMIT_CANCELLED,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            )
+            .is_err()
+        {
+            return false;
+        }
+        self.zmodem_operation_epoch.fetch_add(1, Ordering::AcqRel);
+        *self.zmodem_receive_publish_started_at.lock() = None;
+        true
+    }
+
+    fn terminate_zmodem_transport(&self) {
+        // A continuously noisy peer must not refresh the quarantine forever.
+        // Never wait for a writer or protocol lock here: this path is also the
+        // escape hatch for a PTY/filesystem syscall that is itself stalled.
+        if !self.try_invalidate_receive_commit()
+            && self.zmodem_receive_commit_phase.load(Ordering::Acquire) != RECEIVE_COMMIT_CANCELLED
+        {
+            // Publication owns the terminalization boundary. In particular,
+            // a worker may have changed PUBLISHING to RESULT_READY after a
+            // watchdog's initial observation. Do not terminate transport and
+            // strand that authoritative result; a timed-out worker must first
+            // win the atomic PUBLISHING -> CANCELLED abandonment CAS.
+            return;
+        }
+        self.zmodem_transport_terminated
+            .store(true, Ordering::SeqCst);
+        self.zmodem_wire_tx.lock().take();
+        self.pty_writer_available.store(false, Ordering::Release);
+        let deferred_failure = {
+            let mut deferred = self.deferred_pty_writes.lock();
+            let queued_chunks = deferred.chunks.len();
+            let queued_bytes = deferred.bytes;
+            deferred.take();
+            (queued_chunks != 0).then_some(DeferredPtyWriteFailure {
+                queued_chunks,
+                queued_bytes,
+                completed_chunks: 0,
+                completed_bytes: 0,
+            })
+        };
+        if let Some(failure) = deferred_failure {
+            self.push_event(ZMODEM_DEFERRED_WRITE_FAILED_KIND, Some(failure.payload()));
+        }
+        if let Some(mut writer) = self.writer.try_lock() {
+            writer.take();
+        }
+        if let Some(mut master) = self.master.try_lock() {
+            master.take();
+        }
+        if let Some(mut child_killer) = self.child_killer.try_lock()
+            && let Some(child_killer) = child_killer.as_mut()
+        {
+            let _ = child_killer.kill();
+        }
+        if let Some(mut child) = self.child.try_lock()
+            && let Some(child) = child.as_mut()
+        {
+            let _ = child.kill();
+        }
+    }
+
+    fn on_pty_reader_closed(&self, trusted_eof: bool) {
+        self.finalize_pty_reader_close(trusted_eof);
+        // Publish only after every ZMODEM transition guard in the finalizer
+        // has dropped. Otherwise the exit-order check would observe the
+        // finalizer itself and strand the exit when Dart polling is disabled.
+        self.pty_reader_closed.store(true, Ordering::Release);
+        self.publish_pending_child_exit_if_ready();
+    }
+
+    fn finalize_pty_reader_close(&self, trusted_eof: bool) {
+        if !self.zmodem_enabled.load(Ordering::Acquire) {
+            crate::zmodem::tombstone_recovery_session(self.session_id);
+            return;
+        }
+        let Some(_transition) = self.begin_zmodem_state_transition() else {
+            return;
+        };
+        if self.zmodem_transport_terminated.load(Ordering::Acquire) {
+            let mut zmodem = self.zmodem.lock();
+            zmodem.reset();
+            self.remember_zmodem_state(&zmodem);
+            crate::zmodem::tombstone_recovery_session(self.session_id);
+            return;
+        }
+        let _passthrough = self.zmodem_passthrough_gate.lock();
+        let sequence = self.zmodem_sequence_gate.lock();
+        if self.zmodem_transport_terminated.load(Ordering::Acquire) {
+            let mut zmodem = self.zmodem.lock();
+            zmodem.reset();
+            self.remember_zmodem_state(&zmodem);
+            crate::zmodem::tombstone_recovery_session(self.session_id);
+            return;
+        }
+        let _transport = self.zmodem_transport_gate.lock();
+        let effects = {
+            let mut zmodem = self.zmodem.lock();
+            let active = zmodem.active_transfer();
+            let _inflight = ZmodemInFlightGuard::new(&self.zmodem_inflight, active);
+            let effects = zmodem.transport_closed(trusted_eof);
+            self.remember_zmodem_state(&zmodem);
+            effects
+        };
+        drop(_transport);
+        let deferred_failure = self.flush_deferred_pty_writes_if_idle();
+        let passthrough = self.apply_zmodem_effects(effects, deferred_failure);
+        drop(sequence);
+        if !passthrough.is_empty() {
+            self.recording.lock().record_pty_output(&passthrough);
+            self.ingest_pty_output(&passthrough, true);
+        }
+        crate::zmodem::tombstone_recovery_session(self.session_id);
+    }
+
+    fn write_non_zmodem_or_defer(
+        &self,
+        bytes: &[u8],
+        record_as_user_input: bool,
+    ) -> Result<(), SessionError> {
+        self.write_non_zmodem_ordered(bytes, record_as_user_input, true)
+    }
+
+    fn write_non_zmodem_ordered(
+        &self,
+        bytes: &[u8],
+        record_as_user_input: bool,
+        defer_if_active: bool,
+    ) -> Result<(), SessionError> {
+        // A blocked receive filesystem operation can own the sequence gate
+        // until its worker is abandoned. Once the watchdog has terminated the
+        // transport, public input must fail promptly instead of pinning the
+        // caller's isolate behind that stale owner. The post-acquisition check
+        // closes the race between the first flag read and claiming the gate.
+        let sequence = loop {
+            if self.zmodem_transport_terminated.load(Ordering::Acquire) {
+                return Err(SessionError::Io("PTY transport closed".to_string()));
+            }
+            if let Some(sequence) = self.zmodem_sequence_gate.try_lock() {
+                if self.zmodem_transport_terminated.load(Ordering::Acquire) {
+                    return Err(SessionError::Io("PTY transport closed".to_string()));
+                }
+                break sequence;
+            }
+            thread::park_timeout(ZMODEM_COMPLETION_POLL_INTERVAL);
+        };
+        let transport = self.zmodem_transport_gate.lock();
+        if self.zmodem.lock().is_active() {
+            if !defer_if_active {
+                return Err(SessionError::Zmodem("transfer_active".to_string()));
+            }
+            return self
+                .deferred_pty_writes
+                .lock()
+                .push(bytes, record_as_user_input);
+        }
+        if !self.pty_writer_available.load(Ordering::Acquire) {
+            return Err(SessionError::ReadOnlyReplaySession(self.session_id));
+        }
+        let result = if self.zmodem_wire_tx.lock().is_some() {
+            let (completion_tx, completion_rx) = mpsc::sync_channel(1);
+            let queued = self.enqueue_zmodem_wire_job(ZmodemWireJob {
+                bytes: bytes.to_vec(),
+                owner: None,
+                kind: ZmodemWireJobKind::Ordinary,
+                completion: Some(completion_tx),
+            });
+            // Enqueue while both ordering gates are held, then release them
+            // before waiting for the actor. The PTY reader may need to drain
+            // remote output before that ordinary write can make progress.
+            drop(transport);
+            drop(sequence);
+            queued.and_then(|()| self.await_zmodem_wire_completion(completion_rx, None))
+        } else {
+            // Preserve direct-writer ordering by claiming the writer before
+            // releasing the gates, but never retain either gate across the
+            // potentially blocking syscall.
+            let mut writer = self.writer.lock();
+            drop(transport);
+            drop(sequence);
+            let result = writer
+                .as_deref_mut()
+                .ok_or(ZmodemWireError::Io)
+                .and_then(|pty| pty.write_all(bytes).map_err(|_| ZmodemWireError::Io));
+            if result.is_err() {
+                writer.take();
+                self.pty_writer_available.store(false, Ordering::Release);
+            }
+            result
+        };
+        result.map_err(|_| SessionError::Io("PTY write failed".to_string()))?;
+        if record_as_user_input {
+            self.recording.lock().record_user_input(bytes);
+        }
+        Ok(())
+    }
+
+    fn flush_deferred_pty_writes_if_idle(&self) -> Option<DeferredPtyWriteFailure> {
+        let _transport = self.zmodem_transport_gate.lock();
+        if self.zmodem.lock().is_active() {
+            return None;
+        }
+        let mut deferred = self.deferred_pty_writes.lock();
+        let queued_chunks = deferred.chunks.len();
+        let queued_bytes = deferred.bytes;
+        let mut chunks = deferred.take();
+        // Never retain the deferred-input mutex while waiting for the writer
+        // actor. On timeout or BrokenPipe, both the waiter and actor terminate
+        // the transport, which must be able to reacquire this mutex.
+        drop(deferred);
+        if chunks.is_empty() {
+            return None;
+        }
+        let combined = chunks
+            .iter()
+            .flat_map(|(bytes, _)| bytes.iter().copied())
+            .collect::<Vec<_>>();
+        let result = if self.zmodem_wire_tx.lock().is_some() {
+            let (completion_tx, completion_rx) = mpsc::sync_channel(1);
+            let queued = self.enqueue_zmodem_wire_job(ZmodemWireJob {
+                bytes: combined,
+                owner: None,
+                kind: ZmodemWireJobKind::Ordinary,
+                completion: Some(completion_tx),
+            });
+            drop(_transport);
+            queued.and_then(|()| self.await_zmodem_wire_completion(completion_rx, None))
+        } else {
+            drop(_transport);
+            self.write_zmodem_wire_direct(&combined)
+        };
+        if result.is_err() {
+            // A batched write may already have emitted a prefix. Retrying any
+            // chunk could duplicate bytes, so report the whole batch as
+            // unconfirmed and fail the transport closed.
+            return Some(DeferredPtyWriteFailure {
+                queued_chunks,
+                queued_bytes,
+                completed_chunks: 0,
+                completed_bytes: 0,
+            });
+        }
+        while let Some((bytes, record_as_user_input)) = chunks.pop_front() {
+            if record_as_user_input {
+                self.recording.lock().record_user_input(&bytes);
+            }
+        }
+        None
+    }
+
+    fn poll_zmodem_timeout(&self) {
+        if !self.zmodem_enabled.load(Ordering::Acquire) {
+            return;
+        }
+        // RESULT_READY is the worker's linearization point: once reached, the
+        // manager must publish that authoritative result and a watchdog may no
+        // longer turn it into cancellation merely because event delivery was
+        // delayed. Only an executing PUBLISHING job can time out.
+        let publication_timed_out = self.zmodem_receive_commit_phase.load(Ordering::Acquire)
+            == RECEIVE_COMMIT_PUBLISHING
+            && self
+                .zmodem_receive_publish_started_at
+                .lock()
+                .is_some_and(|started_at| started_at.elapsed() >= ZMODEM_BLOCKED_IO_TIMEOUT);
+        if publication_timed_out
+            && let Some((transfer_id, direction)) = self.remembered_zmodem_active()
+        {
+            self.force_zmodem_terminal(transfer_id, direction, false);
+            return;
+        }
+        if let Some(inflight) = *self.zmodem_wire_inflight.lock()
+            && inflight.started_at.elapsed() >= ZMODEM_BLOCKED_IO_TIMEOUT
+        {
+            self.force_zmodem_terminal(inflight.transfer_id, inflight.direction, false);
+            return;
+        }
+        if let Some(inflight) = *self.zmodem_inflight.lock()
+            && inflight.started_at.elapsed() >= ZMODEM_BLOCKED_IO_TIMEOUT
+        {
+            // Check before the sequence gate: the blocked filesystem/protocol
+            // operation whose deadline expired may itself own that gate.
+            self.force_zmodem_terminal(inflight.transfer_id, inflight.direction, false);
+            return;
+        }
+        // Match the reader's route -> recording/VT commit critical section so
+        // a timeout cannot commit a held suffix ahead of earlier passthrough.
+        let _passthrough = self.zmodem_passthrough_gate.lock();
+        let Some(sequence) = self.zmodem_sequence_gate.try_lock() else {
+            return;
+        };
+        if self.zmodem_transport_terminated.load(Ordering::Acquire) {
+            return;
+        }
+        let Some(_transport) = self.zmodem_transport_gate.try_lock() else {
+            if let Some(inflight) = *self.zmodem_inflight.lock()
+                && inflight.started_at.elapsed() >= ZMODEM_BLOCKED_IO_TIMEOUT
+            {
+                self.force_zmodem_terminal(inflight.transfer_id, inflight.direction, false);
+            }
+            return;
+        };
+        let Some(_transition) = self.begin_zmodem_state_transition() else {
+            return;
+        };
+        let operation_epoch = self.zmodem_operation_epoch.load(Ordering::Acquire);
+        let transport_available = self.pty_writer_available.load(Ordering::Acquire);
+        let mut wire = Vec::new();
+        let (outcome, owner, confirm_closing_zfin) = {
+            let mut zmodem = self.zmodem.lock();
+            let active = zmodem.active_transfer();
+            let _inflight = ZmodemInFlightGuard::new(&self.zmodem_inflight, active);
+            let effects = zmodem.timeout_if_needed(
+                Instant::now(),
+                transport_available.then_some(&mut wire as &mut dyn Write),
+            );
+            let active_after = zmodem.active_transfer();
+            let confirm_closing_zfin = zmodem.receiver_waiting_final_oo();
+            self.remember_zmodem_state(&zmodem);
+            (effects, active.or(active_after), confirm_closing_zfin)
+        };
+        if let Some(mut effects) = outcome {
+            let continue_buffered_receive = self.publish_receive_file_completions(&mut effects);
+            let confirm_terminal_wire = !wire.is_empty()
+                && (confirm_closing_zfin
+                    || effects.events.iter().any(|event| {
+                        matches!(
+                            event.kind,
+                            "zmodem_completed" | "zmodem_failed" | "zmodem_cancelled"
+                        )
+                    }));
+            let wire_result = self.write_zmodem_wire_releasing_transport(
+                &wire,
+                _transport,
+                owner,
+                confirm_terminal_wire,
+                ZmodemWireJobKind::Protocol,
+            );
+            if self.zmodem_operation_epoch.load(Ordering::Acquire) != operation_epoch {
+                // Cancellation/forced termination owns the manager and its
+                // terminal event. Never publish timeout effects computed
+                // before the transport gate was released.
+                drop(sequence);
+                return;
+            }
+            if wire_result.is_err() {
+                effects = self.fail_zmodem_after_wire_error_preserving_commits(effects, owner);
+            }
+            let deferred_failure = self.flush_deferred_pty_writes_if_idle();
+            let mut passthrough = self.apply_zmodem_effects(effects, deferred_failure);
+            drop(sequence);
+            if continue_buffered_receive
+                && !self.zmodem_transport_terminated.load(Ordering::Acquire)
+            {
+                passthrough.extend(self.route_pty_output(&[]));
+            }
+            if !passthrough.is_empty() {
+                self.recording.lock().record_pty_output(&passthrough);
+                self.ingest_pty_output(&passthrough, true);
+            }
+        } else {
+            drop(sequence);
+        }
+    }
+
+    fn accept_zmodem_receive(
+        &self,
+        transfer_id: u64,
+        destination: &std::path::Path,
+    ) -> Result<(), SessionError> {
+        if !cfg!(any(target_os = "macos", target_os = "linux")) {
+            return Err(SessionError::Zmodem("unsupported_platform".to_string()));
+        }
+        let Some(_sequence) = self.zmodem_sequence_gate.try_lock() else {
+            return Err(SessionError::Zmodem("zmodem_transport_busy".to_string()));
+        };
+        let Some(_transport) = self.zmodem_transport_gate.try_lock() else {
+            return Err(SessionError::Zmodem("zmodem_transport_busy".to_string()));
+        };
+        let Some(_transition) = self.begin_zmodem_state_transition() else {
+            return Err(SessionError::Zmodem("session_closing".to_string()));
+        };
+        let operation_epoch = self.zmodem_operation_epoch.load(Ordering::Acquire);
+        if !self.pty_writer_available.load(Ordering::Acquire) {
+            return Err(SessionError::ReadOnlyReplaySession(self.session_id));
+        }
+        let mut wire = Vec::new();
+        let result = {
+            let mut zmodem = self.zmodem.lock();
+            let _inflight = ZmodemInFlightGuard::new(
+                &self.zmodem_inflight,
+                Some((transfer_id, ZmodemDirection::Receive)),
+            );
+            let result = match zmodem.accept_receive(transfer_id, destination, &mut wire) {
+                Ok(effects) => Ok(effects),
+                Err(error) => {
+                    let failure = Self::abort_zmodem_command_error(&mut zmodem, &error, &mut wire);
+                    Err((error, failure))
+                }
+            };
+            self.remember_zmodem_state(&zmodem);
+            result
+        };
+        let mut effects = match result {
+            Ok(effects) => effects,
+            Err((error, failure)) => {
+                if let Some(failure) = failure {
+                    let wire_result = self.write_zmodem_wire_releasing_transport(
+                        &wire,
+                        _transport,
+                        Some((transfer_id, ZmodemDirection::Receive)),
+                        false,
+                        ZmodemWireJobKind::Protocol,
+                    );
+                    if self.zmodem_operation_epoch.load(Ordering::Acquire) != operation_epoch {
+                        return Err(SessionError::Zmodem("stale transfer".to_string()));
+                    }
+                    if wire_result.is_err() {
+                        self.apply_zmodem_effects_and_ingest_passthrough(
+                            self.fail_zmodem_after_wire_error(),
+                            None,
+                        );
+                        return Err(SessionError::Io("ZMODEM PTY write failed".to_string()));
+                    }
+                    self.apply_zmodem_effects_and_ingest_passthrough(failure, None);
+                }
+                return Err(SessionError::Zmodem(error.to_string()));
+            }
+        };
+        let continue_buffered_receive = self.publish_receive_file_completions(&mut effects);
+        let wire_result = self.write_zmodem_wire_releasing_transport(
+            &wire,
+            _transport,
+            Some((transfer_id, ZmodemDirection::Receive)),
+            false,
+            ZmodemWireJobKind::Protocol,
+        );
+        if self.zmodem_operation_epoch.load(Ordering::Acquire) != operation_epoch {
+            return Err(SessionError::Zmodem("stale transfer".to_string()));
+        }
+        if wire_result.is_err() {
+            self.apply_zmodem_effects_and_ingest_passthrough(
+                self.fail_zmodem_after_wire_error(),
+                None,
+            );
+            return Err(SessionError::Io("ZMODEM PTY write failed".to_string()));
+        }
+        let deferred_failure = self.flush_deferred_pty_writes_if_idle();
+        self.apply_zmodem_effects_and_ingest_passthrough(effects, deferred_failure);
+        if continue_buffered_receive && !self.zmodem_transport_terminated.load(Ordering::Acquire) {
+            let passthrough = self.route_pty_output(&[]);
+            if !passthrough.is_empty() {
+                self.recording.lock().record_pty_output(&passthrough);
+                self.ingest_pty_output(&passthrough, true);
+            }
+        }
+        Ok(())
+    }
+
+    fn accept_zmodem_send(
+        &self,
+        transfer_id: u64,
+        paths: &[std::path::PathBuf],
+    ) -> Result<(), SessionError> {
+        if !cfg!(any(target_os = "macos", target_os = "linux")) {
+            return Err(SessionError::Zmodem("unsupported_platform".to_string()));
+        }
+        let Some(_sequence) = self.zmodem_sequence_gate.try_lock() else {
+            return Err(SessionError::Zmodem("zmodem_transport_busy".to_string()));
+        };
+        let Some(_transport) = self.zmodem_transport_gate.try_lock() else {
+            return Err(SessionError::Zmodem("zmodem_transport_busy".to_string()));
+        };
+        let Some(_transition) = self.begin_zmodem_state_transition() else {
+            return Err(SessionError::Zmodem("session_closing".to_string()));
+        };
+        let operation_epoch = self.zmodem_operation_epoch.load(Ordering::Acquire);
+        if !self.pty_writer_available.load(Ordering::Acquire) {
+            return Err(SessionError::ReadOnlyReplaySession(self.session_id));
+        }
+        let mut wire = Vec::new();
+        let result = {
+            let mut zmodem = self.zmodem.lock();
+            let _inflight = ZmodemInFlightGuard::new(
+                &self.zmodem_inflight,
+                Some((transfer_id, ZmodemDirection::Send)),
+            );
+            let result = match zmodem.accept_send(transfer_id, paths, &mut wire) {
+                Ok(effects) => Ok(effects),
+                Err(error) => {
+                    let failure = Self::abort_zmodem_command_error(&mut zmodem, &error, &mut wire);
+                    Err((error, failure))
+                }
+            };
+            self.remember_zmodem_state(&zmodem);
+            result
+        };
+        let effects = match result {
+            Ok(effects) => effects,
+            Err((error, failure)) => {
+                if let Some(failure) = failure {
+                    let wire_result = self.write_zmodem_wire_releasing_transport(
+                        &wire,
+                        _transport,
+                        Some((transfer_id, ZmodemDirection::Send)),
+                        false,
+                        ZmodemWireJobKind::Protocol,
+                    );
+                    if self.zmodem_operation_epoch.load(Ordering::Acquire) != operation_epoch {
+                        return Err(SessionError::Zmodem("stale transfer".to_string()));
+                    }
+                    if wire_result.is_err() {
+                        self.apply_zmodem_effects_and_ingest_passthrough(
+                            self.fail_zmodem_after_wire_error(),
+                            None,
+                        );
+                        return Err(SessionError::Io("ZMODEM PTY write failed".to_string()));
+                    }
+                    self.apply_zmodem_effects_and_ingest_passthrough(failure, None);
+                }
+                return Err(SessionError::Zmodem(error.to_string()));
+            }
+        };
+        let wire_result = self.write_zmodem_wire_releasing_transport(
+            &wire,
+            _transport,
+            Some((transfer_id, ZmodemDirection::Send)),
+            false,
+            ZmodemWireJobKind::Protocol,
+        );
+        if self.zmodem_operation_epoch.load(Ordering::Acquire) != operation_epoch {
+            return Err(SessionError::Zmodem("stale transfer".to_string()));
+        }
+        if wire_result.is_err() {
+            self.apply_zmodem_effects_and_ingest_passthrough(
+                self.fail_zmodem_after_wire_error(),
+                None,
+            );
+            return Err(SessionError::Io("ZMODEM PTY write failed".to_string()));
+        }
+        let deferred_failure = self.flush_deferred_pty_writes_if_idle();
+        self.apply_zmodem_effects_and_ingest_passthrough(effects, deferred_failure);
+        Ok(())
+    }
+
+    fn cancel_zmodem(&self, transfer_id: u64) -> Result<(), SessionError> {
+        let Some(_transport) = self.zmodem_transport_gate.try_lock() else {
+            // The manager and its remembered identity are published while
+            // this gate is held. Never authorize an id-bound cancellation
+            // from a snapshot that may be changing old -> new; the caller can
+            // retry after this short state transition. Stalled PTY writes do
+            // not hold the gate and still take the fail-closed path below.
+            return Err(SessionError::Zmodem("zmodem_transport_busy".to_string()));
+        };
+        let direction = self
+            .remembered_zmodem_active()
+            .filter(|(active_id, _)| *active_id == transfer_id)
+            .map(|(_, direction)| direction)
+            .ok_or_else(|| SessionError::Zmodem("stale transfer".to_string()))?;
+        if !self.try_invalidate_receive_commit() {
+            return Err(SessionError::Zmodem(
+                "receive_commit_in_progress".to_string(),
+            ));
+        }
+        let Some(_transition) = self.begin_zmodem_state_transition() else {
+            return Err(SessionError::Zmodem("session_closing".to_string()));
+        };
+        let mut wire = Vec::new();
+        let mut effects = {
+            let mut zmodem = self.zmodem.lock();
+            let _inflight =
+                ZmodemInFlightGuard::new(&self.zmodem_inflight, zmodem.active_transfer());
+            let effects = zmodem
+                .cancel(transfer_id, &mut wire)
+                .map_err(|error| SessionError::Zmodem(error.to_string()))?;
+            self.remember_zmodem_state(&zmodem);
+            effects
+        };
+        // Invalidate effects from operations that released the gate before
+        // cancellation, and let the writer actor discard queued protocol
+        // jobs from the old generation before it writes the ordered CAN
+        // control job. A later transfer cannot make those jobs eligible
+        // again even when the public transfer id is reused.
+        if self.zmodem_wire_inflight.lock().is_some() {
+            // A CAN frame cannot overtake an actor write already inside the
+            // PTY syscall. Tear the transport down immediately instead of
+            // keeping the synchronous Session Request blocked for the
+            // writer watchdog interval.
+            drop(_transport);
+            self.force_zmodem_terminal(transfer_id, direction, true);
+            return Ok(());
+        }
+        let wire_result = if self.zmodem_wire_tx.lock().is_some() {
+            self.write_zmodem_wire_releasing_transport(
+                &wire,
+                _transport,
+                Some((transfer_id, direction)),
+                false,
+                ZmodemWireJobKind::Cancel,
+            )
+        } else {
+            drop(_transport);
+            self.try_write_zmodem_wire_fallback(&wire)
+        };
+        if wire_result.is_err() {
+            let mut zmodem = self.zmodem.lock();
+            let closed = zmodem.transport_closed(false);
+            effects.passthrough.extend(closed.passthrough);
+            effects.events.extend(closed.events);
+            effects.terminate_transport = true;
+        }
+        let deferred_failure = self.flush_deferred_pty_writes_if_idle();
+        self.apply_zmodem_effects(effects, deferred_failure);
+        Ok(())
+    }
+
+    fn cancel_active_zmodem(&self) -> Result<CancelActiveZmodemOutcome, SessionError> {
+        if let Some((transfer_id, _)) = self.remembered_zmodem_active() {
+            self.cancel_zmodem(transfer_id)?;
+            return Ok(CancelActiveZmodemOutcome::Cancelled);
+        }
+        let Some(transport) = self.zmodem_transport_gate.try_lock() else {
+            if self.zmodem_draining.load(Ordering::Acquire) {
+                // The reader may currently be consuming residual bytes while
+                // the public transfer id is already gone. Reconciliation is
+                // idempotent throughout that bounded quarantine.
+                return Ok(CancelActiveZmodemOutcome::Draining);
+            }
+            return Err(SessionError::Zmodem("zmodem_transport_busy".to_string()));
+        };
+        let was_draining = self.zmodem.lock().is_draining();
+        drop(transport);
+        if was_draining {
+            // A successful id-bound cancel deliberately enters Draining with
+            // no public transfer id. Reconciliation during that bounded
+            // window is idempotent: leave the PTY alive and let deferred
+            // ordinary input flush at the drain boundary.
+            return Ok(CancelActiveZmodemOutcome::Draining);
+        }
+        Ok(CancelActiveZmodemOutcome::Idle)
+    }
+
+    fn resolve_zmodem_recovery(&self, token: &str) -> Option<std::path::PathBuf> {
+        // Recovery ownership lives in the process-wide registry. Do not wait
+        // for the protocol manager: a timed-out receive may leave that mutex
+        // owned by an abandoned filesystem operation.
+        crate::zmodem::resolve_owned_recovery(token, self.session_id)
     }
 
     pub fn replay_output(&self, bytes: &[u8]) -> Result<(), SessionError> {
@@ -2884,58 +4622,336 @@ impl TerminalSession {
     }
 
     pub fn refresh_hint_flags(&self) -> u32 {
-        if self.pending_frame_signal.has_refresh_hint() {
+        let mut flags = if self.pending_frame_signal.has_refresh_hint() {
             REFRESH_HINT_FRAME_DIRTY
         } else {
             0
+        };
+        // Snapshot final-exit authority under the same gate used by event
+        // publication and drain. The caller therefore sees either the still
+        // pending exit or its already-queued event, never an idle gap between
+        // the two states.
+        let _publication = self.zmodem_event_publication_gate.lock();
+        if !self.events.lock().entries.is_empty() {
+            flags |= REFRESH_HINT_EVENT_PENDING;
         }
+        if self.pending_child_exit.lock().is_some()
+            || (self.zmodem_transport_terminated.load(Ordering::Acquire)
+                && !self.exited.load(Ordering::Acquire)
+                && !self.is_replay)
+        {
+            flags |= REFRESH_HINT_EXIT_PENDING;
+        }
+        flags
+    }
+
+    fn close_readiness(&self) -> (bool, &'static str) {
+        let _publication = self.zmodem_event_publication_gate.lock();
+        if self
+            .zmodem_state_transitions_inflight
+            .load(Ordering::Acquire)
+            != 0
+            && !self.zmodem_transport_terminated.load(Ordering::Acquire)
+        {
+            return (false, "zmodem_transition");
+        }
+        if self.remembered_zmodem_active().is_some() {
+            return (false, "zmodem_transfer_active");
+        }
+        if self.zmodem_draining.load(Ordering::Acquire) {
+            return (false, "zmodem_draining");
+        }
+        if self.events.lock().has_pending_zmodem_terminal_result() {
+            return (false, "zmodem_result_pending");
+        }
+        if matches!(
+            self.zmodem_receive_commit_phase.load(Ordering::Acquire),
+            RECEIVE_COMMIT_PUBLISHING | RECEIVE_COMMIT_RESULT_READY
+        ) {
+            return (false, "receive_publication_in_progress");
+        }
+        (true, "idle")
     }
 
     pub fn close(&self) -> Result<(), SessionError> {
-        self.exited.store(true, Ordering::SeqCst);
-        if let Some(child) = self.child.lock().as_mut() {
-            let _ = child.kill();
+        let publication = self.zmodem_event_publication_gate.lock();
+        // Native state is authoritative. Dart may not have polled the first
+        // detected/file-offer event yet, so a UI-side active-transfer set is
+        // not sufficient to protect the stream from close. The remembered
+        // atomics are updated before event publication and remain set through
+        // cancel/terminal drain.
+        if (self
+            .zmodem_state_transitions_inflight
+            .load(Ordering::Acquire)
+            != 0
+            && !self.zmodem_transport_terminated.load(Ordering::Acquire))
+            || self.remembered_zmodem_active().is_some()
+            || self.zmodem_draining.load(Ordering::Acquire)
+        {
+            return Err(SessionError::Zmodem("zmodem_transfer_active".to_string()));
         }
+        if self.events.lock().has_pending_zmodem_terminal_result() {
+            return Err(SessionError::Zmodem("zmodem_result_pending".to_string()));
+        }
+        // Atomically prevent a future receive publication before teardown.
+        // If publication already owns the phase, fail promptly and retain the
+        // session/event queue so a late recovery token cannot be lost.
+        if !self.try_invalidate_receive_commit() && !self.abandon_timed_out_receive_publication() {
+            return Err(SessionError::Zmodem(
+                "receive_publication_in_progress".to_string(),
+            ));
+        }
+        // No transition can start after this store: acquisition checks the
+        // flag while holding `publication`, and all earlier guards have been
+        // observed at zero above.
+        self.zmodem_state_transitions_closed
+            .store(true, Ordering::Release);
+        drop(publication);
+        self.exited.store(true, Ordering::SeqCst);
+        crate::zmodem::tombstone_recovery_session(self.session_id);
+        // A publish syscall on a network/FUSE filesystem may be
+        // uninterruptible. Mark the transport closed first and detach any
+        // unfinished reader instead of making session close depend on that
+        // external filesystem returning.
+        self.terminate_zmodem_transport();
         self.join_worker_threads();
+        if let Some(mut zmodem) = self.zmodem.try_lock() {
+            zmodem.reset();
+            self.remember_zmodem_state(&zmodem);
+        }
         Ok(())
     }
 
     fn join_worker_threads(&self) {
-        let (reader, resource_sampler) = {
+        self.zmodem_wire_tx.lock().take();
+        let (zmodem_writer, reader, resource_sampler) = {
             let mut worker_handles = self.worker_handles.lock();
             (
+                worker_handles.zmodem_writer.take(),
                 worker_handles.reader.take(),
                 worker_handles.resource_sampler.take(),
             )
         };
 
-        if let Some(handle) = resource_sampler {
-            handle.thread().unpark();
+        if let Some(handle) = zmodem_writer
+            && handle.is_finished()
+        {
             let _ = handle.join();
         }
-        if let Some(handle) = reader {
+        if let Some(handle) = resource_sampler {
+            handle.thread().unpark();
+            if handle.is_finished() {
+                let _ = handle.join();
+            }
+        }
+        if let Some(handle) = reader
+            && handle.is_finished()
+        {
             let _ = handle.join();
+        }
+    }
+
+    fn start_zmodem_writer(session: &Arc<Self>) -> Result<thread::JoinHandle<()>, SessionError> {
+        let mut writer = session
+            .writer
+            .lock()
+            .take()
+            .ok_or_else(|| SessionError::Io("PTY writer is unavailable".to_string()))?;
+        let (sender, receiver) = mpsc::channel::<QueuedZmodemWireJob>();
+        let weak_session = Arc::downgrade(session);
+        if inject_zmodem_writer_thread_spawn_failure() {
+            return Err(SessionError::Io(
+                "injected ZMODEM writer thread spawn failure".to_string(),
+            ));
+        }
+        let handle = thread::Builder::new()
+            .name(format!("zmodem-writer-{}", session.session_id))
+            .spawn(move || {
+                let mut writer_failed = false;
+                let mut pending_failure = None;
+                while let Ok(queued) = receiver.recv() {
+                    let reserved_bytes = queued.reserved_bytes;
+                    let job = queued.job;
+                    let marker = job.owner.map(|(transfer_id, direction)| ZmodemInFlight {
+                        transfer_id,
+                        direction,
+                        started_at: Instant::now(),
+                    });
+                    // Eligibility is decided before publishing the syscall
+                    // marker. A stale queued protocol job is discarded and
+                    // must never look like an in-progress write to cancel,
+                    // which would unnecessarily tear down the PTY.
+                    let mut marker_installed = false;
+                    let result = if writer_failed {
+                        Err(ZmodemWireError::Io)
+                    } else {
+                        let Some(session) = weak_session.upgrade() else {
+                            if let Some(completion) = job.completion {
+                                let _ = completion.send(Err(ZmodemWireError::Cancelled));
+                            }
+                            break;
+                        };
+                        // Cancellation advances the operation epoch before it
+                        // inspects this same slot. Checking eligibility and
+                        // installing the marker under one lock gives a strict
+                        // ordering: either cancel sees a real syscall marker,
+                        // or this actor sees the stale generation and drops it.
+                        let cancelled_before_write = {
+                            let mut slot = session.zmodem_wire_inflight.lock();
+                            let cancelled = session
+                                .zmodem_transport_terminated
+                                .load(Ordering::Acquire)
+                                || (job.kind == ZmodemWireJobKind::Protocol
+                                    && queued.generation
+                                        < session.zmodem_operation_epoch.load(Ordering::Acquire));
+                            if !cancelled && let Some(marker) = marker {
+                                *slot = Some(marker);
+                                marker_installed = true;
+                            }
+                            cancelled
+                        };
+                        // A PTY write can remain in an uninterruptible syscall.
+                        // The actor owns only a Weak while blocked so closing
+                        // product/runtime state can release the session.
+                        drop(session);
+                        if cancelled_before_write {
+                            Err(ZmodemWireError::Cancelled)
+                        } else {
+                            writer
+                                .write_all(&job.bytes)
+                                .map_err(|_| ZmodemWireError::Io)
+                        }
+                    };
+                    let Some(session) = weak_session.upgrade() else {
+                        if let Some(completion) = job.completion {
+                            let _ = completion.send(result);
+                        }
+                        break;
+                    };
+                    session
+                        .zmodem_wire_queued_bytes
+                        .fetch_sub(reserved_bytes, Ordering::AcqRel);
+                    if marker_installed && let Some(marker) = marker {
+                        let mut slot = session.zmodem_wire_inflight.lock();
+                        if *slot == Some(marker) {
+                            *slot = None;
+                        }
+                    }
+                    let first_io_failure = result == Err(ZmodemWireError::Io) && !writer_failed;
+                    let failure_owner = first_io_failure
+                        .then(|| session.remembered_zmodem_active().or(job.owner))
+                        .flatten();
+                    let failure_transition = failure_owner.and_then(|_| {
+                        TerminalSession::begin_owned_zmodem_state_transition(&session)
+                    });
+                    if first_io_failure {
+                        writer_failed = true;
+                        // Fail closed before resolving this job or observing
+                        // another queued job. Dropping the public sender stops
+                        // new work; this actor only drains queued completion
+                        // channels with Io after the first failed syscall.
+                        // Do this independently of full transport termination:
+                        // that routine deliberately defers teardown while a
+                        // receive publication owns its commit boundary.
+                        session.zmodem_wire_tx.lock().take();
+                        session.terminate_zmodem_transport();
+                    }
+                    if let Some(completion) = job.completion {
+                        let _ = completion.send(result);
+                    }
+                    if first_io_failure
+                        && let (Some(failure_owner), Some(failure_transition)) =
+                            (failure_owner, failure_transition)
+                    {
+                        // `terminate_zmodem_transport` disconnects the public
+                        // sender. Drain every already-queued completion before
+                        // taking the sequence gate; callers may own that gate
+                        // while awaiting this actor. Publishing here after the
+                        // receiver closes needs no fallible notifier thread.
+                        pending_failure = Some((failure_owner, failure_transition));
+                    }
+                }
+                if let Some((failure_owner, failure_transition)) = pending_failure {
+                    let failure_session = Arc::clone(&failure_transition.session);
+                    let _transition = failure_transition;
+                    let _sequence = failure_session.zmodem_sequence_gate.lock();
+                    failure_session.apply_zmodem_effects_and_ingest_passthrough(
+                        failure_session.fail_zmodem_after_wire_error_for(Some(failure_owner)),
+                        None,
+                    );
+                }
+            })
+            .map_err(|error| SessionError::Io(error.to_string()))?;
+        *session.zmodem_wire_tx.lock() = Some(sender);
+        Ok(handle)
+    }
+
+    fn start_zmodem_writer_or_teardown(
+        session: &Arc<Self>,
+    ) -> Result<thread::JoinHandle<()>, SessionError> {
+        match Self::start_zmodem_writer(session) {
+            Ok(handle) => Ok(handle),
+            Err(error) => {
+                // The child is already spawned and the PTY writer may already
+                // have moved into the failed thread closure. Make failed
+                // session creation a scoped teardown instead of dropping an
+                // untracked live shell process.
+                session.exited.store(true, Ordering::Release);
+                session.terminate_zmodem_transport();
+                crate::zmodem::tombstone_recovery_session(session.session_id);
+                Err(error)
+            }
         }
     }
 
     fn start_resource_sampler(session: &Arc<Self>) -> thread::JoinHandle<()> {
         let resource_session = Arc::clone(session);
         thread::spawn(move || {
+            let mut sampling_enabled = true;
+            let mut next_resource_sample = Instant::now();
             loop {
-                if resource_session.exited.load(Ordering::SeqCst) {
+                if resource_session.resource_sampler_should_stop() {
                     break;
                 }
-                let keep_sampling = resource_session.record_resource_sample();
-                let failures = resource_session
-                    .resource_sampler_state
-                    .lock()
-                    .consecutive_failures;
-                if !keep_sampling && failures >= RESOURCE_SAMPLER_MAX_FAILURES {
-                    break;
+                resource_session.poll_zmodem_timeout();
+                let now = Instant::now();
+                if sampling_enabled && now >= next_resource_sample {
+                    let keep_sampling = resource_session.record_resource_sample();
+                    next_resource_sample = now + RESOURCE_SAMPLE_INTERVAL;
+                    let failures = resource_session
+                        .resource_sampler_state
+                        .lock()
+                        .consecutive_failures;
+                    if !keep_sampling && failures >= RESOURCE_SAMPLER_MAX_FAILURES {
+                        // ZMODEM authorization, idle, and quarantine deadlines
+                        // must remain live even if process metrics are no
+                        // longer available.
+                        sampling_enabled = false;
+                    }
                 }
-                thread::park_timeout(RESOURCE_SAMPLE_INTERVAL);
+                // Poll child status autonomously as well as retrying pending
+                // publication. A disabled-polling client may consume the
+                // watchdog failure just before the killed child is waitable.
+                let _ = resource_session.observe_child_exit();
+                // Scanner-held terminal text has a 100 ms release deadline;
+                // protocol/auth/quarantine deadlines also must not inherit
+                // the coarser process-resource sampling cadence.
+                thread::park_timeout(ZMODEM_DEADLINE_POLL_INTERVAL);
             }
         })
+    }
+
+    fn resource_sampler_should_stop(&self) -> bool {
+        self.exited.load(Ordering::Acquire)
+            && self.pending_child_exit.lock().is_none()
+            && (self.pty_reader_closed.load(Ordering::Acquire)
+                || self.zmodem_transport_terminated.load(Ordering::Acquire))
+            && self.zmodem_active_transfer_id.load(Ordering::Acquire) == 0
+            && !self.zmodem_draining.load(Ordering::Acquire)
+            && !matches!(
+                self.zmodem_receive_commit_phase.load(Ordering::Acquire),
+                RECEIVE_COMMIT_PUBLISHING | RECEIVE_COMMIT_RESULT_READY
+            )
     }
 
     fn record_resource_sample(&self) -> bool {
@@ -3206,16 +5222,19 @@ impl TerminalSession {
         if self.is_replay {
             return Err(SessionError::ReadOnlyReplaySession(self.session_id));
         }
-        let mut recording = self.recording.lock();
-        let mut writer = self.writer.lock();
-        let writer = writer
-            .as_mut()
-            .ok_or(SessionError::ReadOnlyReplaySession(self.session_id))?;
-        writer
-            .write_all(bytes)
-            .map_err(|error| SessionError::Io(error.to_string()))?;
-        recording.record_user_input(bytes);
-        Ok(())
+        self.write_non_zmodem_ordered(bytes, true, false)
+    }
+
+    pub fn write_protocol_reply(&self, bytes: &[u8]) -> Result<(), SessionError> {
+        if self.is_replay {
+            return Err(SessionError::ReadOnlyReplaySession(self.session_id));
+        }
+        // Unlike user input, a terminal/host protocol reply may complete
+        // asynchronously after native has detected ZMODEM but before Dart has
+        // polled the detection event. Queue it behind the transfer at the
+        // authoritative native ordering boundary instead of dropping it or
+        // allowing it to corrupt the ZMODEM wire stream.
+        self.write_non_zmodem_ordered(bytes, false, true)
     }
 
     pub fn respond_host_v1(&self, raw: &str) -> Result<(), SessionError> {
@@ -3225,7 +5244,7 @@ impl TerminalSession {
             .resolve_host_response(self.session_id, raw)
             .map_err(|error| SessionError::HostResponse(error.to_string()))?;
         if let Some(bytes) = response {
-            self.write(&bytes)?;
+            self.write_non_zmodem_or_defer(&bytes, true)?;
         }
         Ok(())
     }
@@ -3383,16 +5402,7 @@ impl TerminalSession {
                 ItermButtonKind::Copy { .. } => terminal
                     .iterm_button_copy_text(id)
                     .map(ItermButtonActivation::Copy),
-                ItermButtonKind::Custom { code, .. } => {
-                    let mut writer = self.writer.lock();
-                    let Some(writer) = writer.as_mut() else {
-                        return Ok(serde_json::json!({ "activated": false }));
-                    };
-                    writer
-                        .write_all(format!("\x1b[?1337;{code}~").as_bytes())
-                        .map_err(|error| SessionError::Io(error.to_string()))?;
-                    Some(ItermButtonActivation::Custom)
-                }
+                ItermButtonKind::Custom { code, .. } => Some(ItermButtonActivation::Custom(*code)),
             }
         };
         match activation {
@@ -3401,10 +5411,13 @@ impl TerminalSession {
                 "kind": "copy",
                 "text": text,
             })),
-            Some(ItermButtonActivation::Custom) => Ok(serde_json::json!({
-                "activated": true,
-                "kind": "custom",
-            })),
+            Some(ItermButtonActivation::Custom(code)) => {
+                self.write_non_zmodem_or_defer(format!("\x1b[?1337;{code}~").as_bytes(), false)?;
+                Ok(serde_json::json!({
+                    "activated": true,
+                    "kind": "custom",
+                }))
+            }
             None => Ok(serde_json::json!({ "activated": false })),
         }
     }
@@ -4074,45 +6087,93 @@ impl TerminalSession {
     }
 
     fn observe_child_exit(&self) -> Result<(), SessionError> {
-        if !self.exited.load(Ordering::SeqCst) && !self.is_replay {
-            let maybe_exit = {
-                let mut child = self.child.lock();
-                let Some(child) = child.as_mut() else {
-                    return Ok(());
+        {
+            // The exited bit and pending-exit authority are one publication
+            // transition. Refresh hints and competing observers use this same
+            // gate, so none can see exited=true with neither pending nor
+            // queued exit, and only one observer can consume child status.
+            let _publication = self.zmodem_event_publication_gate.lock();
+            if !self.exited.load(Ordering::SeqCst) && !self.is_replay {
+                let maybe_exit = {
+                    let mut child = self.child.lock();
+                    child
+                        .as_mut()
+                        .map(|child| child.try_wait())
+                        .transpose()
+                        .map_err(|error| SessionError::Io(error.to_string()))?
+                        .flatten()
                 };
-                child
-                    .try_wait()
-                    .map_err(|error| SessionError::Io(error.to_string()))?
-            };
 
-            if let Some(exit) = maybe_exit {
-                self.exited.store(true, Ordering::SeqCst);
-                self.recording
-                    .lock()
-                    .record_session_exited(i32::try_from(exit.exit_code()).ok());
-                self.push_event(
-                    "exit",
-                    Some(serde_json::json!({
-                        "code": exit.exit_code(),
-                        "success": exit.success(),
-                        "signal": exit.signal(),
-                    })),
-                );
+                if let Some(exit) = maybe_exit {
+                    let exit_code = i32::try_from(exit.exit_code()).ok();
+                    *self.pending_child_exit.lock() = Some(PendingChildExit {
+                        exit_code,
+                        payload: serde_json::json!({
+                            "code": exit.exit_code(),
+                            "success": exit.success(),
+                            "signal": exit.signal(),
+                        }),
+                    });
+                    self.exited.store(true, Ordering::SeqCst);
+                }
             }
         }
+
+        self.publish_pending_child_exit_if_ready();
 
         Ok(())
     }
 
+    fn publish_pending_child_exit_if_ready(&self) {
+        // Child wait may beat the PTY reader. That reader owns final buffered
+        // ZMODEM effects and recovery tokens, so `exit` is the last event and
+        // cannot make Dart discard the only session authority prematurely.
+        let _publication = self.zmodem_event_publication_gate.lock();
+        let reader_closed = self.pty_reader_closed.load(Ordering::Acquire);
+        let transport_forced = self.zmodem_transport_terminated.load(Ordering::Acquire);
+        let zmodem_finalization_pending = self.remembered_zmodem_active().is_some()
+            || self.zmodem_draining.load(Ordering::Acquire)
+            || (!transport_forced
+                && self
+                    .zmodem_state_transitions_inflight
+                    .load(Ordering::Acquire)
+                    != 0)
+            || matches!(
+                self.zmodem_receive_commit_phase.load(Ordering::Acquire),
+                RECEIVE_COMMIT_PUBLISHING | RECEIVE_COMMIT_RESULT_READY
+            );
+        if self.pty_reader_exit_barrier_enabled.load(Ordering::Acquire)
+            && !reader_closed
+            && !transport_forced
+        {
+            return;
+        }
+        if zmodem_finalization_pending {
+            return;
+        }
+        let Some(pending) = self.pending_child_exit.lock().take() else {
+            return;
+        };
+        // Transition acquisition uses the same gate and will now fail closed,
+        // so no protocol event can be published after this final exit event.
+        self.zmodem_state_transitions_closed
+            .store(true, Ordering::Release);
+        self.recording
+            .lock()
+            .record_session_exited(pending.exit_code);
+        self.push_event("exit", Some(pending.payload));
+        crate::zmodem::tombstone_recovery_session(self.session_id);
+    }
+
     pub fn poll_events(&self) -> Result<Vec<TerminalEvent>, SessionError> {
         self.observe_child_exit()?;
-
+        let _publication = self.zmodem_event_publication_gate.lock();
         Ok(self.events.lock().drain())
     }
 
     pub fn poll_event_envelopes(&self) -> Result<Option<RuntimeEventBatchV1>, SessionError> {
         self.observe_child_exit()?;
-
+        let _publication = self.zmodem_event_publication_gate.lock();
         Ok(self.events.lock().drain_event_batch(self.session_id))
     }
 
@@ -4440,6 +6501,27 @@ impl TerminalSession {
     }
 
     fn push_event(&self, kind: &str, payload: Option<serde_json::Value>) {
+        if matches!(
+            kind,
+            "zmodem_completed" | "zmodem_failed" | "zmodem_cancelled"
+        ) && let Some(transfer_id) = payload
+            .as_ref()
+            .and_then(|value| value.get("transferId"))
+            .and_then(|value| {
+                value
+                    .as_u64()
+                    .or_else(|| value.as_str().and_then(|raw| raw.parse().ok()))
+            })
+        {
+            let mut recent = self.zmodem_terminal_event_ids.lock();
+            if recent.contains(&transfer_id) {
+                return;
+            }
+            recent.push_back(transfer_id);
+            while recent.len() > MAX_RECENT_ZMODEM_TERMINAL_IDS {
+                recent.pop_front();
+            }
+        }
         let diagnostic_payload = sanitize_diagnostic_event_payload(kind, payload.as_ref());
         let result = self.events.lock().push(TerminalEvent {
             kind: kind.to_string(),
@@ -4979,6 +7061,50 @@ fn sanitize_diagnostic_event_payload(
                 .and_then(serde_json::Value::as_str),
         })),
         "terminal_context" => Some(sanitize_terminal_context_payload(payload)),
+        ZMODEM_DEFERRED_WRITE_FAILED_KIND => Some(serde_json::json!({
+            "source": "zmodem",
+            "reason": payload.get("reason").and_then(serde_json::Value::as_str),
+            "queued_chunks": payload.get("queuedChunks").and_then(serde_json::Value::as_u64),
+            "queued_bytes": payload.get("queuedBytes").and_then(serde_json::Value::as_u64),
+            "completed_chunks": payload
+                .get("completedChunks")
+                .and_then(serde_json::Value::as_u64),
+            "completed_bytes": payload
+                .get("completedBytes")
+                .and_then(serde_json::Value::as_u64),
+            "unconfirmed_chunks": payload
+                .get("unconfirmedChunks")
+                .and_then(serde_json::Value::as_u64),
+            "unconfirmed_bytes": payload
+                .get("unconfirmedBytes")
+                .and_then(serde_json::Value::as_u64),
+        })),
+        "zmodem_detected"
+        | "zmodem_file_offer"
+        | "zmodem_started"
+        | "zmodem_progress"
+        | "zmodem_file_completed"
+        | "zmodem_file_skipped"
+        | "zmodem_completed"
+        | "zmodem_failed"
+        | "zmodem_cancelled" => Some(serde_json::json!({
+            "source": "zmodem",
+            "transfer_id": payload.get("transferId").and_then(serde_json::Value::as_str),
+            "direction": payload.get("direction").and_then(serde_json::Value::as_str),
+            "size": payload.get("size").and_then(serde_json::Value::as_u64),
+            "bytes_transferred": payload
+                .get("bytesTransferred")
+                .and_then(serde_json::Value::as_u64),
+            "total_bytes": payload.get("totalBytes").and_then(serde_json::Value::as_u64),
+            "file_count": payload.get("fileCount").and_then(serde_json::Value::as_u64),
+            "completed_files": payload
+                .get("completedFiles")
+                .and_then(serde_json::Value::as_u64),
+            "skipped_files": payload
+                .get("skippedFiles")
+                .and_then(serde_json::Value::as_u64),
+            "reason": payload.get("reason").and_then(serde_json::Value::as_str),
+        })),
         _ => None,
     }
 }
@@ -6672,7 +8798,8 @@ pub fn create_session(profile_json: &str) -> Result<u64, SessionError> {
 pub fn create_session_v1(session_config_json: &str) -> Result<u64, SessionError> {
     let config = SessionConfigV1::decode_json(session_config_json)
         .map_err(|error| SessionError::InvalidSessionConfig(error.to_string()))?;
-    STORE.create_session(config.into_terminal_profile())
+    let zmodem_enabled = config.client_capabilities.zmodem;
+    STORE.create_session_with_zmodem(config.into_terminal_profile(), zmodem_enabled)
 }
 
 pub fn create_replay_session(profile_json: &str) -> Result<u64, SessionError> {
@@ -6749,6 +8876,10 @@ pub fn resize_session_with_cell_size(
 
 pub fn write_session(session_id: u64, bytes: &[u8]) -> Result<(), SessionError> {
     STORE.get(session_id)?.write(bytes)
+}
+
+pub fn write_session_protocol_reply(session_id: u64, bytes: &[u8]) -> Result<(), SessionError> {
+    STORE.get(session_id)?.write_protocol_reply(bytes)
 }
 
 pub fn respond_host_v1_json(session_id: u64, raw: &str) -> Result<(), SessionError> {
@@ -7068,8 +9199,133 @@ pub fn request_session_json(
             )
             .map(Some)
         }
+        "terminal.zmodem.accept_receive" => {
+            let Some(transfer_id) = zmodem_transfer_id_from_request(&request) else {
+                return Ok(None);
+            };
+            let Some(destination) = request
+                .get("destination")
+                .and_then(serde_json::Value::as_str)
+                .filter(|value| !value.is_empty() && value.len() <= 4096 && !value.contains('\0'))
+            else {
+                return Ok(None);
+            };
+            STORE
+                .get(session_id)?
+                .accept_zmodem_receive(transfer_id, std::path::Path::new(destination))?;
+            request_json_response(serde_json::json!({ "accepted": true }))
+        }
+        "terminal.zmodem.accept_send" => {
+            let Some(transfer_id) = zmodem_transfer_id_from_request(&request) else {
+                return Ok(None);
+            };
+            let Some(files) = request
+                .get("files")
+                .and_then(serde_json::Value::as_array)
+                .filter(|files| !files.is_empty() && files.len() <= 256)
+            else {
+                return Ok(None);
+            };
+            let mut paths = Vec::with_capacity(files.len());
+            for file in files {
+                let Some(path) = file.as_str().filter(|value| {
+                    !value.is_empty() && value.len() <= 4096 && !value.contains('\0')
+                }) else {
+                    return Ok(None);
+                };
+                paths.push(std::path::PathBuf::from(path));
+            }
+            STORE
+                .get(session_id)?
+                .accept_zmodem_send(transfer_id, &paths)?;
+            request_json_response(serde_json::json!({ "accepted": true }))
+        }
+        "terminal.zmodem.resolve_recovery" => {
+            let Some(token) = request
+                .get("recoveryToken")
+                .and_then(serde_json::Value::as_str)
+                .filter(|value| {
+                    value.len() == 32 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+                })
+            else {
+                return Ok(None);
+            };
+            let path = match STORE.get(session_id) {
+                Ok(session) => session.resolve_zmodem_recovery(token),
+                Err(SessionError::MissingSession(_)) => {
+                    crate::zmodem::resolve_tombstoned_recovery(token, session_id)
+                }
+                Err(error) => return Err(error),
+            };
+            match path {
+                Some(path) => request_json_response(serde_json::json!({
+                    "available": true,
+                    "path": path.to_string_lossy(),
+                })),
+                None => request_json_response(serde_json::json!({
+                    "available": false,
+                })),
+            }
+        }
+        "terminal.zmodem.consume_recovery" => {
+            let Some(token) = request
+                .get("recoveryToken")
+                .and_then(serde_json::Value::as_str)
+                .filter(|value| {
+                    value.len() == 32 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+                })
+            else {
+                return Ok(None);
+            };
+            request_json_response(serde_json::json!({
+                "consumed": crate::zmodem::consume_recovery(token, session_id),
+            }))
+        }
+        "terminal.zmodem.dismiss_recovery" => {
+            let Some(token) = request
+                .get("recoveryToken")
+                .and_then(serde_json::Value::as_str)
+                .filter(|value| {
+                    value.len() == 32 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+                })
+            else {
+                return Ok(None);
+            };
+            request_json_response(serde_json::json!({
+                "dismissed": crate::zmodem::dismiss_recovery(token, session_id),
+            }))
+        }
+        "terminal.zmodem.cancel" => {
+            let Some(transfer_id) = zmodem_transfer_id_from_request(&request) else {
+                return Ok(None);
+            };
+            STORE.get(session_id)?.cancel_zmodem(transfer_id)?;
+            request_json_response(serde_json::json!({ "cancelled": true }))
+        }
+        "terminal.zmodem.cancel_active" => {
+            let outcome = STORE.get(session_id)?.cancel_active_zmodem()?;
+            request_json_response(serde_json::json!({
+                "reconciled": true,
+                "outcome": outcome.as_str(),
+            }))
+        }
+        "terminal.session.close_readiness" => {
+            let (ready, reason) = STORE.get(session_id)?.close_readiness();
+            request_json_response(serde_json::json!({
+                "ready": ready,
+                "reason": reason,
+            }))
+        }
         _ => Ok(None),
     }
+}
+
+fn zmodem_transfer_id_from_request(request: &serde_json::Value) -> Option<u64> {
+    let value = request.get("transferId")?.as_str()?;
+    if value.is_empty() || value.len() > 20 || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    value.parse::<u64>().ok().filter(|value| *value > 0)
 }
 
 fn scrollback_export_max_lines_from_request(request: &serde_json::Value) -> Option<usize> {
@@ -7221,6 +9477,17 @@ mod tests {
     use par_term_emu_core_rust::terminal::Terminal;
     use std::collections::BTreeMap;
     use std::sync::Barrier;
+
+    #[cfg(unix)]
+    #[test]
+    fn pty_eio_is_treated_as_a_trusted_transport_eof() {
+        assert!(pty_read_error_is_trusted_eof(
+            &std::io::Error::from_raw_os_error(libc::EIO)
+        ));
+        assert!(!pty_read_error_is_trusted_eof(
+            &std::io::Error::from_raw_os_error(libc::EBADF)
+        ));
+    }
 
     fn pending_test_event(kind: &str, payload: Option<serde_json::Value>) -> TerminalEvent {
         TerminalEvent {
@@ -7686,6 +9953,122 @@ mod tests {
     }
 
     #[test]
+    fn pending_event_queue_coalesces_zmodem_progress_by_transfer_id() {
+        let mut queue = PendingEventQueue::with_limits(8, usize::MAX);
+        let progress = |transfer_id: &str, bytes_transferred: u64| {
+            pending_test_event(
+                "zmodem_progress",
+                Some(serde_json::json!({
+                    "transferId": transfer_id,
+                    "bytesTransferred": bytes_transferred,
+                })),
+            )
+        };
+
+        let _ = queue.push(progress("1", 1));
+        let _ = queue.push(progress("1", 9));
+        let _ = queue.push(progress("2", 4));
+
+        assert_eq!(queue.len(), 2);
+        assert_eq!(queue.next_sequence, 2);
+        assert_eq!(
+            queue.entries[0].event.payload.as_ref().unwrap()["bytesTransferred"],
+            9
+        );
+        assert_eq!(
+            queue.entries[1].event.payload.as_ref().unwrap()["transferId"],
+            "2"
+        );
+    }
+
+    #[test]
+    fn pending_event_queue_never_coalesces_progress_across_file_transitions() {
+        let mut queue = PendingEventQueue::with_limits(16, usize::MAX);
+        let progress = |bytes_transferred: u64| {
+            pending_test_event(
+                "zmodem_progress",
+                Some(serde_json::json!({
+                    "transferId": "1",
+                    "bytesTransferred": bytes_transferred,
+                })),
+            )
+        };
+
+        let _ = queue.push(progress(1));
+        let _ = queue.push(pending_test_event(
+            "zmodem_file_completed",
+            Some(serde_json::json!({"transferId": "1"})),
+        ));
+        let _ = queue.push(progress(9));
+        let _ = queue.push(pending_test_event(
+            "zmodem_file_skipped",
+            Some(serde_json::json!({"transferId": "1"})),
+        ));
+        let _ = queue.push(progress(10));
+        let _ = queue.push(progress(11));
+
+        assert_eq!(queue.len(), 5);
+        assert_eq!(
+            queue
+                .entries
+                .iter()
+                .map(|entry| entry.event.kind.as_str())
+                .collect::<Vec<_>>(),
+            [
+                "zmodem_progress",
+                "zmodem_file_completed",
+                "zmodem_progress",
+                "zmodem_file_skipped",
+                "zmodem_progress",
+            ]
+        );
+        assert_eq!(
+            queue.entries[4].event.payload.as_ref().unwrap()["bytesTransferred"],
+            11
+        );
+    }
+
+    #[test]
+    fn pending_event_queue_bounds_protected_zmodem_events_under_flood() {
+        let mut queue = PendingEventQueue::with_limits(3, usize::MAX);
+        let protected = [
+            "zmodem_detected",
+            "zmodem_file_offer",
+            "zmodem_started",
+            "zmodem_file_completed",
+            "zmodem_file_skipped",
+            "zmodem_completed",
+            "zmodem_failed",
+            "zmodem_cancelled",
+            ZMODEM_DEFERRED_WRITE_FAILED_KIND,
+        ];
+        for kind in protected {
+            let _ = queue.push(pending_test_event(
+                kind,
+                Some(serde_json::json!({"transferId": kind})),
+            ));
+        }
+        for _ in 0..100 {
+            let _ = queue.push(pending_test_event("bell", None));
+        }
+
+        assert_eq!(queue.len(), 3);
+        assert_eq!(
+            queue
+                .entries
+                .iter()
+                .map(|entry| entry.event.kind.as_str())
+                .collect::<Vec<_>>(),
+            [
+                "zmodem_failed",
+                "zmodem_cancelled",
+                ZMODEM_DEFERRED_WRITE_FAILED_KIND
+            ]
+        );
+        assert!(queue.aggregate_bytes <= queue.limits.max_bytes);
+    }
+
+    #[test]
     fn pending_event_queue_assigns_sequences_before_loss_and_reports_empty_batch() {
         let mut queue = PendingEventQueue::with_limits(0, usize::MAX);
 
@@ -7996,6 +10379,2721 @@ mod tests {
         }
     }
 
+    #[derive(Clone)]
+    struct SharedTestWriter(Arc<Mutex<Vec<u8>>>);
+
+    impl Write for SharedTestWriter {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    struct AlwaysFailWriter;
+
+    impl Write for AlwaysFailWriter {
+        fn write(&mut self, _bytes: &[u8]) -> std::io::Result<usize> {
+            Err(std::io::Error::other("injected write failure"))
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Err(std::io::Error::other("injected write failure"))
+        }
+    }
+
+    struct FailAfterWritesWriter {
+        writes: Arc<AtomicUsize>,
+        successful_writes: usize,
+    }
+
+    impl Write for FailAfterWritesWriter {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            let index = self.writes.fetch_add(1, Ordering::AcqRel);
+            if index < self.successful_writes {
+                Ok(bytes.len())
+            } else {
+                Err(std::io::Error::other("injected ordered write failure"))
+            }
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    struct FailOnceCaptureWriter {
+        writes: Arc<AtomicUsize>,
+        captured: Arc<Mutex<Vec<u8>>>,
+    }
+
+    impl Write for FailOnceCaptureWriter {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            let index = self.writes.fetch_add(1, Ordering::AcqRel);
+            if index == 0 {
+                return Err(std::io::Error::other("injected first write failure"));
+            }
+            self.captured.lock().extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    struct PartialThenFailWriter {
+        captured: Arc<Mutex<Vec<u8>>>,
+        fail_on: Vec<u8>,
+        failing: bool,
+    }
+
+    impl Write for PartialThenFailWriter {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            if self.failing {
+                return Err(std::io::Error::other("injected partial write failure"));
+            }
+            if bytes == self.fail_on {
+                let written = bytes.len().min(3);
+                self.captured.lock().extend_from_slice(&bytes[..written]);
+                self.failing = true;
+                return Ok(written);
+            }
+            self.captured.lock().extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    struct StateUnlockedWriter {
+        session: std::sync::Weak<TerminalSession>,
+        captured: Arc<Mutex<Vec<u8>>>,
+    }
+
+    impl Write for StateUnlockedWriter {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            let session = self.session.upgrade().expect("session must remain alive");
+            assert!(
+                session.state.try_lock().is_some(),
+                "custom button PTY write must happen after releasing terminal state"
+            );
+            self.captured.lock().extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    struct ZmodemStateUnlockedWriter {
+        session: std::sync::Weak<TerminalSession>,
+        captured: Arc<Mutex<Vec<u8>>>,
+    }
+
+    impl Write for ZmodemStateUnlockedWriter {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            let session = self.session.upgrade().expect("session must remain alive");
+            assert!(
+                session.zmodem.try_lock().is_some(),
+                "ZMODEM PTY output must happen after releasing protocol state"
+            );
+            assert!(
+                session.deferred_pty_writes.try_lock().is_some(),
+                "ZMODEM PTY output must not hold the deferred-input lock"
+            );
+            self.captured.lock().extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    struct BlockingTestWriter {
+        entered: Option<std::sync::mpsc::SyncSender<()>>,
+        release: std::sync::mpsc::Receiver<()>,
+        completed: Option<std::sync::mpsc::SyncSender<()>>,
+    }
+
+    struct BlockingFailWriter {
+        entered: Option<std::sync::mpsc::SyncSender<()>>,
+        release: std::sync::mpsc::Receiver<()>,
+    }
+
+    impl Write for BlockingFailWriter {
+        fn write(&mut self, _bytes: &[u8]) -> std::io::Result<usize> {
+            if let Some(entered) = self.entered.take() {
+                let _ = entered.send(());
+            }
+            let _ = self.release.recv();
+            Err(std::io::Error::other("injected blocked write failure"))
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl Write for BlockingTestWriter {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            if let Some(entered) = self.entered.take() {
+                let _ = entered.send(());
+            }
+            let _ = self.release.recv();
+            if let Some(completed) = self.completed.take() {
+                let _ = completed.send(());
+            }
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    struct FirstWriteBlockingCapture {
+        entered: Option<std::sync::mpsc::SyncSender<()>>,
+        release: Option<std::sync::mpsc::Receiver<()>>,
+        captured: Arc<Mutex<Vec<u8>>>,
+    }
+
+    impl Write for FirstWriteBlockingCapture {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            if let Some(entered) = self.entered.take() {
+                let _ = entered.send(());
+                if let Some(release) = self.release.take() {
+                    let _ = release.recv();
+                }
+            }
+            self.captured.lock().extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[derive(Debug)]
+    struct TestChild {
+        killed: Arc<AtomicBool>,
+    }
+
+    #[derive(Debug)]
+    struct TestChildKiller {
+        killed: Arc<AtomicBool>,
+    }
+
+    #[derive(Debug)]
+    struct BlockingExitChild {
+        entered: Option<mpsc::SyncSender<()>>,
+        release: Arc<Mutex<mpsc::Receiver<()>>>,
+        killed: Arc<AtomicBool>,
+    }
+
+    impl portable_pty::ChildKiller for TestChildKiller {
+        fn kill(&mut self) -> std::io::Result<()> {
+            self.killed.store(true, Ordering::SeqCst);
+            Ok(())
+        }
+
+        fn clone_killer(&self) -> Box<dyn portable_pty::ChildKiller + Send + Sync> {
+            Box::new(Self {
+                killed: Arc::clone(&self.killed),
+            })
+        }
+    }
+
+    impl portable_pty::ChildKiller for TestChild {
+        fn kill(&mut self) -> std::io::Result<()> {
+            self.killed.store(true, Ordering::SeqCst);
+            Ok(())
+        }
+
+        fn clone_killer(&self) -> Box<dyn portable_pty::ChildKiller + Send + Sync> {
+            Box::new(TestChildKiller {
+                killed: Arc::clone(&self.killed),
+            })
+        }
+    }
+
+    impl portable_pty::Child for TestChild {
+        fn try_wait(&mut self) -> std::io::Result<Option<portable_pty::ExitStatus>> {
+            Ok(None)
+        }
+
+        fn wait(&mut self) -> std::io::Result<portable_pty::ExitStatus> {
+            Ok(portable_pty::ExitStatus::with_exit_code(0))
+        }
+
+        fn process_id(&self) -> Option<u32> {
+            None
+        }
+
+        #[cfg(windows)]
+        fn as_raw_handle(&self) -> Option<std::os::windows::io::RawHandle> {
+            None
+        }
+    }
+
+    impl portable_pty::ChildKiller for BlockingExitChild {
+        fn kill(&mut self) -> std::io::Result<()> {
+            self.killed.store(true, Ordering::SeqCst);
+            Ok(())
+        }
+
+        fn clone_killer(&self) -> Box<dyn portable_pty::ChildKiller + Send + Sync> {
+            Box::new(TestChildKiller {
+                killed: Arc::clone(&self.killed),
+            })
+        }
+    }
+
+    impl portable_pty::Child for BlockingExitChild {
+        fn try_wait(&mut self) -> std::io::Result<Option<portable_pty::ExitStatus>> {
+            if let Some(entered) = self.entered.take() {
+                let _ = entered.send(());
+                let _ = self.release.lock().recv();
+            }
+            Ok(Some(portable_pty::ExitStatus::with_exit_code(0)))
+        }
+
+        fn wait(&mut self) -> std::io::Result<portable_pty::ExitStatus> {
+            Ok(portable_pty::ExitStatus::with_exit_code(0))
+        }
+
+        fn process_id(&self) -> Option<u32> {
+            None
+        }
+
+        #[cfg(windows)]
+        fn as_raw_handle(&self) -> Option<std::os::windows::io::RawHandle> {
+            None
+        }
+    }
+
+    #[test]
+    fn custom_iterm_button_releases_terminal_state_before_pty_write() {
+        let session = TerminalSession::new(
+            41,
+            long_running_lifecycle_profile(),
+            None,
+            None,
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let button_id = {
+            let mut state = session.state.lock();
+            state
+                .terminal
+                .process(b"\x1b]1337;Button=type=custom;code=42;icon=star.fill\x07");
+            state.terminal.iterm_buttons()[0].id
+        };
+        let captured = Arc::new(Mutex::new(Vec::new()));
+        *session.writer.lock() = Some(Box::new(StateUnlockedWriter {
+            session: Arc::downgrade(&session),
+            captured: Arc::clone(&captured),
+        }));
+        session.pty_writer_available.store(true, Ordering::Release);
+
+        let response = session.activate_iterm_button(button_id).unwrap();
+
+        assert_eq!(response["activated"], true);
+        assert_eq!(&*captured.lock(), b"\x1b[?1337;42~");
+    }
+
+    #[test]
+    fn non_zmodem_host_writes_are_deferred_until_transfer_is_inactive() {
+        let captured = Arc::new(Mutex::new(Vec::new()));
+        let session = TerminalSession::new(
+            42,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(SharedTestWriter(Arc::clone(&captured)))),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        // CRC16-XMODEM of an all-zero ZRQINIT header is also zero.
+        assert!(
+            session
+                .route_pty_output(b"**\x18B00000000000000")
+                .is_empty()
+        );
+        assert!(session.zmodem.lock().is_active());
+        let protocol_bytes = captured.lock().len();
+
+        session.write_protocol_reply(b"host-response").unwrap();
+        session
+            .write_non_zmodem_or_defer(b"button-response", false)
+            .unwrap();
+        assert_eq!(captured.lock().len(), protocol_bytes);
+
+        session.zmodem.lock().reset();
+        let deferred_failure = session.flush_deferred_pty_writes_if_idle();
+        session.apply_zmodem_effects(ZmodemEffects::default(), deferred_failure);
+        assert_eq!(
+            &captured.lock()[protocol_bytes..],
+            b"host-responsebutton-response"
+        );
+    }
+
+    #[test]
+    fn opted_out_client_keeps_zmodem_header_as_raw_terminal_output() {
+        let session = TerminalSession::new(
+            419,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        session.zmodem_enabled.store(false, Ordering::Release);
+        let _ = session.poll_events();
+        let header = b"**\x18B00000000000000";
+
+        assert_eq!(session.route_pty_output(header), header);
+        assert!(!session.zmodem.lock().is_active());
+        assert!(session.poll_events().unwrap().is_empty());
+        session.close().unwrap();
+    }
+
+    #[test]
+    fn close_cannot_cross_manager_idle_to_terminal_event_publication() {
+        let session = TerminalSession::new(
+            4191,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let _ = session.poll_events();
+        session.remember_zmodem_active(Some((7, ZmodemDirection::Receive)));
+        let transition = session.begin_zmodem_state_transition().unwrap();
+        session.remember_zmodem_idle();
+
+        assert!(
+            session
+                .close()
+                .unwrap_err()
+                .to_string()
+                .contains("zmodem_transfer_active")
+        );
+        session.apply_zmodem_effects(
+            ZmodemEffects {
+                events: vec![crate::zmodem::ZmodemEvent {
+                    kind: "zmodem_completed",
+                    payload: serde_json::json!({
+                        "source": "zmodem",
+                        "transferId": "7",
+                        "direction": "receive",
+                    }),
+                }],
+                ..ZmodemEffects::default()
+            },
+            None,
+        );
+        drop(transition);
+        assert!(
+            session
+                .close()
+                .unwrap_err()
+                .to_string()
+                .contains("zmodem_result_pending")
+        );
+        assert_eq!(session.poll_events().unwrap()[0].kind, "zmodem_completed");
+        session.close().unwrap();
+    }
+
+    #[test]
+    fn zmodem_protocol_output_releases_state_locks_before_pty_io() {
+        let captured = Arc::new(Mutex::new(Vec::new()));
+        let session = TerminalSession::new(
+            420,
+            long_running_lifecycle_profile(),
+            None,
+            None,
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        *session.writer.lock() = Some(Box::new(ZmodemStateUnlockedWriter {
+            session: Arc::downgrade(&session),
+            captured: Arc::clone(&captured),
+        }));
+
+        assert!(
+            session
+                .route_pty_output(b"**\x18B00000000000000")
+                .is_empty()
+        );
+
+        assert!(!captured.lock().is_empty());
+        assert!(session.zmodem.lock().is_active());
+    }
+
+    #[test]
+    fn cancel_does_not_wait_for_a_blocked_zmodem_pty_write() {
+        let (entered_tx, entered_rx) = std::sync::mpsc::sync_channel(1);
+        let (release_tx, release_rx) = std::sync::mpsc::sync_channel(1);
+        let session = TerminalSession::new(
+            421,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(BlockingTestWriter {
+                entered: Some(entered_tx),
+                release: release_rx,
+                completed: None,
+            })),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let _ = session.poll_events();
+        let route_session = Arc::clone(&session);
+        let route = thread::spawn(move || route_session.route_pty_output(b"**\x18B00000000000000"));
+        entered_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("protocol writer must enter its injected stall");
+
+        session.cancel_zmodem(1).unwrap();
+
+        assert!(session.zmodem_transport_terminated.load(Ordering::SeqCst));
+        assert_eq!(session.poll_events().unwrap()[0].kind, "zmodem_cancelled");
+        release_tx.send(()).unwrap();
+        assert!(route.join().unwrap().is_empty());
+        assert!(session.poll_events().unwrap().is_empty());
+    }
+
+    #[test]
+    fn writer_actor_cancel_does_not_wait_for_a_blocked_protocol_write() {
+        let (entered_tx, entered_rx) = std::sync::mpsc::sync_channel(1);
+        let (release_tx, release_rx) = std::sync::mpsc::sync_channel(1);
+        let session = TerminalSession::new(
+            422,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(BlockingTestWriter {
+                entered: Some(entered_tx),
+                release: release_rx,
+                completed: None,
+            })),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let handle = TerminalSession::start_zmodem_writer(&session).unwrap();
+        session.worker_handles.lock().zmodem_writer = Some(handle);
+
+        assert!(
+            session
+                .route_pty_output(b"**\x18B00000000000000")
+                .is_empty()
+        );
+        entered_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("writer actor must enter its injected stall");
+
+        let started_at = Instant::now();
+        session.cancel_zmodem(1).unwrap();
+        assert!(started_at.elapsed() < Duration::from_secs(1));
+        assert!(session.zmodem_transport_terminated.load(Ordering::Acquire));
+        assert!(
+            session
+                .poll_events()
+                .unwrap()
+                .iter()
+                .any(|event| event.kind == "zmodem_cancelled")
+        );
+
+        release_tx.send(()).unwrap();
+        session.close().unwrap();
+    }
+
+    #[test]
+    fn cancel_never_reports_success_after_receive_publication_starts() {
+        let session = TerminalSession::new(
+            4221,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        assert!(
+            session
+                .route_pty_output(b"**\x18B00000000000000")
+                .is_empty()
+        );
+        let _ = session.poll_events();
+        session
+            .zmodem_receive_commit_phase
+            .store(1, Ordering::Release);
+
+        let error = session.cancel_zmodem(1).unwrap_err();
+
+        assert!(error.to_string().contains("receive_commit_in_progress"));
+        assert!(!session.zmodem_transport_terminated.load(Ordering::Acquire));
+        assert!(session.poll_events().unwrap().is_empty());
+        session
+            .zmodem_receive_commit_phase
+            .store(0, Ordering::Release);
+        session.zmodem.lock().reset();
+        session.remember_zmodem_idle();
+        session.close().unwrap();
+    }
+
+    #[test]
+    fn receive_publication_releases_only_after_ordered_effects_are_queued() {
+        let session = TerminalSession::new(
+            4224,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let _ = session.poll_events();
+        session
+            .zmodem_receive_commit_phase
+            .store(RECEIVE_COMMIT_PUBLISHING, Ordering::Release);
+        let mut effects = ZmodemEffects {
+            events: vec![crate::zmodem::ZmodemEvent {
+                kind: "zmodem_file_completed",
+                payload: serde_json::json!({
+                    "source": "zmodem",
+                    "transferId": "1",
+                    "direction": "receive",
+                    "filename": "complete.bin",
+                    "size": 3,
+                    "completedFiles": 1,
+                }),
+            }],
+            receive_publish_pending: true,
+            ..ZmodemEffects::default()
+        };
+
+        assert!(session.publish_receive_file_completions(&mut effects));
+        assert_eq!(
+            session.zmodem_receive_commit_phase.load(Ordering::Acquire),
+            RECEIVE_COMMIT_PUBLISHING
+        );
+        assert!(session.poll_events().unwrap().is_empty());
+        assert_eq!(effects.events[0].kind, "zmodem_file_completed");
+        assert!(effects.receive_publish_pending);
+
+        session.apply_zmodem_effects(effects, None);
+
+        assert_eq!(
+            session.zmodem_receive_commit_phase.load(Ordering::Acquire),
+            RECEIVE_COMMIT_IDLE
+        );
+        assert_eq!(
+            session.poll_events().unwrap()[0].kind,
+            "zmodem_file_completed"
+        );
+        session.close().unwrap();
+    }
+
+    #[test]
+    fn blocked_manager_io_watchdog_does_not_wait_for_the_sequence_gate() {
+        let session = TerminalSession::new(
+            4225,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let _ = session.poll_events();
+        assert!(
+            session
+                .route_pty_output(b"**\x18B00000000000000")
+                .is_empty()
+        );
+        let _ = session.poll_events();
+        *session.zmodem_inflight.lock() = Some(ZmodemInFlight {
+            transfer_id: 1,
+            direction: ZmodemDirection::Receive,
+            started_at: Instant::now() - ZMODEM_BLOCKED_IO_TIMEOUT,
+        });
+        let _sequence = session.zmodem_sequence_gate.lock();
+
+        session.poll_zmodem_timeout();
+
+        assert!(session.zmodem_transport_terminated.load(Ordering::Acquire));
+        assert_eq!(session.poll_events().unwrap()[0].kind, "zmodem_failed");
+    }
+
+    #[test]
+    fn ordinary_write_fails_before_a_terminated_sequence_owner_releases() {
+        let session = TerminalSession::new(
+            42250,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let _ = session.poll_events();
+        assert!(
+            session
+                .route_pty_output(b"**\x18B00000000000000")
+                .is_empty()
+        );
+        let _ = session.poll_events();
+        *session.zmodem_inflight.lock() = Some(ZmodemInFlight {
+            transfer_id: 1,
+            direction: ZmodemDirection::Receive,
+            started_at: Instant::now() - ZMODEM_BLOCKED_IO_TIMEOUT,
+        });
+        let sequence = session.zmodem_sequence_gate.lock();
+
+        session.poll_zmodem_timeout();
+        assert!(session.zmodem_transport_terminated.load(Ordering::Acquire));
+        let write_session = Arc::clone(&session);
+        let (result_tx, result_rx) = mpsc::sync_channel(1);
+        let writer = thread::spawn(move || {
+            let _ = result_tx.send(write_session.write_non_zmodem_or_defer(b"late-input", true));
+        });
+
+        let error = result_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("terminated write waited for the stale sequence owner")
+            .unwrap_err();
+        assert!(error.to_string().contains("PTY transport closed"));
+        drop(sequence);
+        writer.join().unwrap();
+        assert_eq!(session.poll_events().unwrap()[0].kind, "zmodem_failed");
+        session.close().unwrap();
+    }
+
+    #[test]
+    fn recovery_resolution_does_not_wait_for_the_protocol_manager() {
+        let session = TerminalSession::new(
+            422501,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let manager = session.zmodem.lock();
+        let resolve_session = Arc::clone(&session);
+        let (result_tx, result_rx) = mpsc::sync_channel(1);
+        let resolver = thread::spawn(move || {
+            let resolved =
+                resolve_session.resolve_zmodem_recovery("00112233445566778899aabbccddeeff");
+            let _ = result_tx.send(resolved);
+        });
+
+        assert_eq!(
+            result_rx
+                .recv_timeout(Duration::from_secs(1))
+                .expect("recovery resolution waited for the protocol manager"),
+            None
+        );
+        drop(manager);
+        resolver.join().unwrap();
+        session.close().unwrap();
+    }
+
+    #[test]
+    fn forced_transport_allows_close_while_stale_transition_is_still_blocked() {
+        let session = TerminalSession::new(
+            42251,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let _ = session.poll_events();
+        assert!(
+            session
+                .route_pty_output(b"**\x18B00000000000000")
+                .is_empty()
+        );
+        let _ = session.poll_events();
+        let held_transition = session.begin_zmodem_state_transition().unwrap();
+        *session.zmodem_inflight.lock() = Some(ZmodemInFlight {
+            transfer_id: 1,
+            direction: ZmodemDirection::Receive,
+            started_at: Instant::now() - ZMODEM_BLOCKED_IO_TIMEOUT,
+        });
+
+        session.poll_zmodem_timeout();
+
+        assert!(session.zmodem_transport_terminated.load(Ordering::Acquire));
+        assert_eq!(session.poll_events().unwrap()[0].kind, "zmodem_failed");
+        assert_eq!(session.close_readiness(), (true, "idle"));
+        session.close().unwrap();
+        drop(held_transition);
+    }
+
+    #[test]
+    fn forced_transport_publishes_exit_after_failure_without_reader_barrier() {
+        let session = TerminalSession::new(
+            42252,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let _ = session.poll_events();
+        assert!(
+            session
+                .route_pty_output(b"**\x18B00000000000000")
+                .is_empty()
+        );
+        let _ = session.poll_events();
+        session
+            .pty_reader_exit_barrier_enabled
+            .store(true, Ordering::Release);
+        let held_transition = session.begin_zmodem_state_transition().unwrap();
+        *session.zmodem_inflight.lock() = Some(ZmodemInFlight {
+            transfer_id: 1,
+            direction: ZmodemDirection::Receive,
+            started_at: Instant::now() - ZMODEM_BLOCKED_IO_TIMEOUT,
+        });
+
+        session.poll_zmodem_timeout();
+        session.exited.store(true, Ordering::Release);
+        *session.pending_child_exit.lock() = Some(PendingChildExit {
+            exit_code: Some(1),
+            payload: serde_json::json!({"code": 1, "success": false}),
+        });
+        session.publish_pending_child_exit_if_ready();
+
+        let events = session.poll_events().unwrap();
+        assert_eq!(
+            events
+                .iter()
+                .map(|event| event.kind.as_str())
+                .collect::<Vec<_>>(),
+            ["zmodem_failed", "exit"]
+        );
+        drop(held_transition);
+    }
+
+    #[test]
+    fn receive_publish_watchdog_abandons_bounded_worker_and_allows_close() {
+        let session = TerminalSession::new(
+            4226,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let _ = session.poll_events();
+        session
+            .zmodem_receive_commit_phase
+            .store(RECEIVE_COMMIT_PUBLISHING, Ordering::Release);
+        *session.zmodem_receive_publish_started_at.lock() =
+            Some(Instant::now() - ZMODEM_BLOCKED_IO_TIMEOUT);
+        *session.zmodem_inflight.lock() = Some(ZmodemInFlight {
+            transfer_id: 1,
+            direction: ZmodemDirection::Receive,
+            started_at: Instant::now() - ZMODEM_BLOCKED_IO_TIMEOUT,
+        });
+        let _sequence = session.zmodem_sequence_gate.lock();
+
+        session.poll_zmodem_timeout();
+
+        assert!(session.zmodem_transport_terminated.load(Ordering::Acquire));
+        assert_eq!(
+            session.zmodem_receive_commit_phase.load(Ordering::Acquire),
+            RECEIVE_COMMIT_CANCELLED
+        );
+        let events = session.poll_events().unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].kind, "zmodem_failed");
+        assert_eq!(events[0].payload.as_ref().unwrap()["reason"], "timeout");
+        session.close().unwrap();
+    }
+
+    #[test]
+    fn receive_publish_watchdog_cannot_abandon_a_linearized_result() {
+        let session = TerminalSession::new(
+            4227,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let _ = session.poll_events();
+        session
+            .zmodem_receive_commit_phase
+            .store(RECEIVE_COMMIT_RESULT_READY, Ordering::Release);
+        *session.zmodem_receive_publish_started_at.lock() =
+            Some(Instant::now() - ZMODEM_BLOCKED_IO_TIMEOUT);
+
+        session.poll_zmodem_timeout();
+
+        // Reproduce the narrower race where a watchdog already decided to
+        // force termination immediately before the worker published READY.
+        session.force_zmodem_terminal(1, ZmodemDirection::Receive, false);
+
+        assert!(!session.zmodem_transport_terminated.load(Ordering::Acquire));
+        assert_eq!(
+            session.zmodem_receive_commit_phase.load(Ordering::Acquire),
+            RECEIVE_COMMIT_RESULT_READY
+        );
+        assert!(
+            session
+                .close()
+                .unwrap_err()
+                .to_string()
+                .contains("receive_publication_in_progress")
+        );
+
+        session.apply_zmodem_effects(
+            ZmodemEffects {
+                events: vec![crate::zmodem::ZmodemEvent {
+                    kind: "zmodem_file_completed",
+                    payload: serde_json::json!({
+                        "source": "zmodem",
+                        "transferId": "1",
+                        "direction": "receive",
+                        "filename": "complete.bin",
+                        "size": 3,
+                        "completedFiles": 1,
+                    }),
+                }],
+                receive_publish_pending: true,
+                ..ZmodemEffects::default()
+            },
+            None,
+        );
+        assert_eq!(
+            session.zmodem_receive_commit_phase.load(Ordering::Acquire),
+            RECEIVE_COMMIT_IDLE
+        );
+        session.close().unwrap();
+    }
+
+    #[test]
+    fn resource_sampler_survives_child_exit_until_receive_publication_is_reaped() {
+        let session = TerminalSession::new(
+            4228,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        session.exited.store(true, Ordering::Release);
+
+        // Child wait can observe exit before the PTY reader has consumed its
+        // final buffered bytes. The sampler remains the publication pump
+        // until that reader boundary is explicit.
+        assert!(!session.resource_sampler_should_stop());
+        session.pty_reader_closed.store(true, Ordering::Release);
+
+        session
+            .zmodem_receive_commit_phase
+            .store(RECEIVE_COMMIT_PUBLISHING, Ordering::Release);
+        assert!(!session.resource_sampler_should_stop());
+
+        session
+            .zmodem_receive_commit_phase
+            .store(RECEIVE_COMMIT_RESULT_READY, Ordering::Release);
+        assert!(!session.resource_sampler_should_stop());
+
+        session
+            .zmodem_receive_commit_phase
+            .store(RECEIVE_COMMIT_IDLE, Ordering::Release);
+        session
+            .zmodem_active_transfer_id
+            .store(4228, Ordering::Release);
+        assert!(!session.resource_sampler_should_stop());
+        session
+            .zmodem_active_transfer_id
+            .store(0, Ordering::Release);
+        session.zmodem_draining.store(true, Ordering::Release);
+        assert!(!session.resource_sampler_should_stop());
+        session.zmodem_draining.store(false, Ordering::Release);
+        assert!(session.resource_sampler_should_stop());
+    }
+
+    #[test]
+    fn close_readiness_is_a_non_destructive_snapshot_of_retryable_gates() {
+        let session = TerminalSession::new(
+            42281,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        assert_eq!(session.close_readiness(), (true, "idle"));
+
+        session
+            .zmodem_state_transitions_inflight
+            .store(1, Ordering::Release);
+        assert_eq!(session.close_readiness(), (false, "zmodem_transition"));
+        assert!(!session.exited.load(Ordering::Acquire));
+        session
+            .zmodem_state_transitions_inflight
+            .store(0, Ordering::Release);
+        assert_eq!(session.close_readiness(), (true, "idle"));
+        assert!(!session.exited.load(Ordering::Acquire));
+    }
+
+    #[test]
+    fn pollable_reader_barrier_keeps_exit_last_and_accepts_tail_output() {
+        let session = TerminalSession::new(
+            4229,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let _ = session.poll_events();
+        session
+            .pty_reader_exit_barrier_enabled
+            .store(true, Ordering::Release);
+        session.exited.store(true, Ordering::Release);
+        *session.pending_child_exit.lock() = Some(PendingChildExit {
+            exit_code: Some(0),
+            payload: serde_json::json!({"code": 0, "success": true}),
+        });
+
+        session.publish_pending_child_exit_if_ready();
+        assert!(session.events.lock().entries.is_empty());
+        assert_eq!(
+            session.route_pty_output(b"tail-after-wait"),
+            b"tail-after-wait"
+        );
+
+        session.on_pty_reader_closed(true);
+        assert_eq!(session.events.lock().entries.len(), 1);
+        assert_eq!(session.events.lock().entries[0].event.kind, "exit");
+        let events = session.poll_events().unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].kind, "exit");
+        assert!(session.route_pty_output(b"too-late").is_empty());
+    }
+
+    #[test]
+    fn pending_exit_is_published_after_zmodem_finalization_clears() {
+        let session = TerminalSession::new(
+            4231,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let _ = session.poll_events();
+        session.pty_reader_closed.store(true, Ordering::Release);
+        session.exited.store(true, Ordering::Release);
+        session.zmodem_draining.store(true, Ordering::Release);
+        *session.pending_child_exit.lock() = Some(PendingChildExit {
+            exit_code: Some(0),
+            payload: serde_json::json!({"code": 0, "success": true}),
+        });
+
+        session.publish_pending_child_exit_if_ready();
+        assert!(session.events.lock().entries.is_empty());
+        assert!(!session.resource_sampler_should_stop());
+
+        session.zmodem_draining.store(false, Ordering::Release);
+        session.publish_pending_child_exit_if_ready();
+        assert_eq!(session.events.lock().entries.len(), 1);
+        assert_eq!(session.events.lock().entries[0].event.kind, "exit");
+        assert!(session.resource_sampler_should_stop());
+    }
+
+    #[test]
+    fn refresh_hint_covers_pending_and_queued_exit_without_an_idle_gap() {
+        let session = TerminalSession::new(
+            4232,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let _ = session.poll_events();
+        let _ = session.take_frame_diff();
+        session
+            .pty_reader_exit_barrier_enabled
+            .store(true, Ordering::Release);
+        session.exited.store(true, Ordering::Release);
+        *session.pending_child_exit.lock() = Some(PendingChildExit {
+            exit_code: Some(0),
+            payload: serde_json::json!({"code": 0, "success": true}),
+        });
+
+        assert_eq!(session.refresh_hint_flags(), REFRESH_HINT_EXIT_PENDING);
+        session.on_pty_reader_closed(true);
+        assert_eq!(session.refresh_hint_flags(), REFRESH_HINT_EVENT_PENDING);
+        assert_eq!(session.poll_events().unwrap()[0].kind, "exit");
+        assert_eq!(session.refresh_hint_flags(), 0);
+    }
+
+    #[test]
+    fn forced_transport_keeps_exit_hint_live_until_child_exit_is_observed() {
+        let session = TerminalSession::new(
+            42321,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let _ = session.poll_events();
+        let _ = session.take_frame_diff();
+        session
+            .zmodem_transport_terminated
+            .store(true, Ordering::Release);
+
+        assert_eq!(session.refresh_hint_flags(), REFRESH_HINT_EXIT_PENDING);
+        session.exited.store(true, Ordering::Release);
+        assert_eq!(session.refresh_hint_flags(), 0);
+        session.close().unwrap();
+    }
+
+    #[test]
+    fn concurrent_child_exit_observers_publish_exactly_once_without_hint_gap() {
+        let (entered_tx, entered_rx) = mpsc::sync_channel(1);
+        let (release_tx, release_rx) = mpsc::sync_channel(1);
+        let session = TerminalSession::new(
+            42322,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            Some(Box::new(BlockingExitChild {
+                entered: Some(entered_tx),
+                release: Arc::new(Mutex::new(release_rx)),
+                killed: Arc::new(AtomicBool::new(false)),
+            })),
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        session.events.lock().drain();
+        let _ = session.take_frame_diff();
+        session
+            .zmodem_transport_terminated
+            .store(true, Ordering::Release);
+
+        let first_session = Arc::clone(&session);
+        let first = thread::spawn(move || first_session.observe_child_exit());
+        entered_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("first observer did not enter child try_wait");
+        let second_session = Arc::clone(&session);
+        let second = thread::spawn(move || second_session.observe_child_exit());
+        let hint_session = Arc::clone(&session);
+        let hint = thread::spawn(move || hint_session.refresh_hint_flags());
+
+        release_tx.send(()).unwrap();
+        first.join().unwrap().unwrap();
+        second.join().unwrap().unwrap();
+        assert_ne!(
+            hint.join().unwrap() & (REFRESH_HINT_EXIT_PENDING | REFRESH_HINT_EVENT_PENDING),
+            0
+        );
+        let events = session.poll_events().unwrap();
+        assert_eq!(
+            events.iter().filter(|event| event.kind == "exit").count(),
+            1
+        );
+        assert_eq!(session.refresh_hint_flags(), 0);
+        session.close().unwrap();
+    }
+
+    #[test]
+    fn unpollable_platform_does_not_wait_for_a_close_driven_reader_eof() {
+        let session = TerminalSession::new(
+            4230,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let _ = session.poll_events();
+        session.exited.store(true, Ordering::Release);
+        *session.pending_child_exit.lock() = Some(PendingChildExit {
+            exit_code: Some(0),
+            payload: serde_json::json!({"code": 0, "success": true}),
+        });
+
+        session.publish_pending_child_exit_if_ready();
+
+        let events = session.poll_events().unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].kind, "exit");
+    }
+
+    #[test]
+    fn stale_cancel_during_busy_transport_cannot_invalidate_the_active_transfer() {
+        let session = TerminalSession::new(
+            4223,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        assert!(
+            session
+                .route_pty_output(b"**\x18B00000000000000")
+                .is_empty()
+        );
+        let transport = session.zmodem_transport_gate.lock();
+
+        let error = session.cancel_zmodem(2).unwrap_err();
+
+        assert!(error.to_string().contains("zmodem_transport_busy"));
+        assert_eq!(
+            session.zmodem_receive_commit_phase.load(Ordering::Acquire),
+            RECEIVE_COMMIT_IDLE
+        );
+        assert_eq!(session.zmodem_operation_epoch.load(Ordering::Acquire), 0);
+        drop(transport);
+        session.zmodem.lock().reset();
+        session.remember_zmodem_idle();
+        session.close().unwrap();
+    }
+
+    #[test]
+    fn close_returns_busy_promptly_while_receive_publication_has_not_returned() {
+        let session = TerminalSession::new(
+            4222,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        session
+            .zmodem_receive_commit_phase
+            .store(RECEIVE_COMMIT_PUBLISHING, Ordering::Release);
+        let started = Instant::now();
+        let error = session.close().unwrap_err();
+
+        assert!(started.elapsed() < Duration::from_millis(250));
+        assert!(
+            error
+                .to_string()
+                .contains("receive_publication_in_progress")
+        );
+        assert!(!session.exited.load(Ordering::Acquire));
+        assert_eq!(
+            session.zmodem_receive_commit_phase.load(Ordering::Acquire),
+            RECEIVE_COMMIT_PUBLISHING
+        );
+
+        session
+            .zmodem_receive_commit_phase
+            .store(RECEIVE_COMMIT_IDLE, Ordering::Release);
+        session.close().unwrap();
+    }
+
+    #[test]
+    fn resource_sampler_releases_scanner_prefix_within_the_protocol_deadline() {
+        let session = TerminalSession::new(
+            423,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        assert!(session.route_pty_output(b"*").is_empty());
+        let sampler = TerminalSession::start_resource_sampler(&session);
+        let deadline = Instant::now() + Duration::from_millis(500);
+
+        loop {
+            if session.state.lock().transcript == b"*" {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "scanner prefix inherited the one-second resource cadence"
+            );
+            thread::sleep(Duration::from_millis(5));
+        }
+
+        session.exited.store(true, Ordering::SeqCst);
+        session.pty_reader_closed.store(true, Ordering::Release);
+        sampler.thread().unpark();
+        sampler.join().unwrap();
+    }
+
+    #[test]
+    fn scanner_timeout_cannot_overtake_reader_passthrough_commit() {
+        let session = TerminalSession::new(
+            4232,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let _ = session.poll_events();
+        let (routed_tx, routed_rx) = mpsc::sync_channel(1);
+        let (release_tx, release_rx) = mpsc::sync_channel(1);
+        let reader_session = Arc::clone(&session);
+        let reader = thread::spawn(move || {
+            let _passthrough = reader_session.zmodem_passthrough_gate.lock();
+            let bytes = reader_session.route_pty_output(b"earlier*");
+            routed_tx.send(()).unwrap();
+            release_rx.recv().unwrap();
+            reader_session.recording.lock().record_pty_output(&bytes);
+            reader_session.ingest_pty_output(&bytes, true);
+        });
+        routed_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        // The scanner's held-prefix deadline is 100 ms.
+        thread::sleep(Duration::from_millis(110));
+
+        let (timeout_done_tx, timeout_done_rx) = mpsc::sync_channel(1);
+        let timeout_session = Arc::clone(&session);
+        let timeout = thread::spawn(move || {
+            timeout_session.poll_zmodem_timeout();
+            timeout_done_tx.send(()).unwrap();
+        });
+        assert!(
+            timeout_done_rx
+                .recv_timeout(Duration::from_millis(20))
+                .is_err(),
+            "timeout must wait for the earlier reader commit"
+        );
+        release_tx.send(()).unwrap();
+        reader.join().unwrap();
+        timeout_done_rx
+            .recv_timeout(Duration::from_secs(1))
+            .unwrap();
+        timeout.join().unwrap();
+
+        assert_eq!(session.state.lock().transcript, b"earlier*");
+    }
+
+    #[test]
+    fn terminal_reply_before_detection_precedes_the_first_zmodem_wire() {
+        let captured = Arc::new(Mutex::new(Vec::new()));
+        let session = TerminalSession::new(
+            4231,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(SharedTestWriter(Arc::clone(&captured)))),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let _ = session.poll_events();
+
+        assert!(
+            session
+                .route_pty_output(b"\x1b[6n**\x18B00000000000000")
+                .is_empty()
+        );
+
+        let wire = captured.lock();
+        assert!(wire.starts_with(b"\x1b[1;1R"));
+        assert!(wire.len() > b"\x1b[1;1R".len());
+        assert_eq!(session.poll_events().unwrap()[0].kind, "zmodem_detected");
+    }
+
+    #[test]
+    fn timeout_pump_does_not_overtake_a_blocked_zmodem_pty_write() {
+        let (entered_tx, entered_rx) = std::sync::mpsc::sync_channel(1);
+        let (release_tx, release_rx) = std::sync::mpsc::sync_channel(1);
+        let session = TerminalSession::new(
+            423,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(BlockingTestWriter {
+                entered: Some(entered_tx),
+                release: release_rx,
+                completed: None,
+            })),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let _ = session.poll_events();
+        let route_session = Arc::clone(&session);
+        let route = thread::spawn(move || route_session.route_pty_output(b"**\x18B00000000000000"));
+        entered_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("protocol writer must enter its injected stall");
+
+        let started = Instant::now();
+        session.poll_zmodem_timeout();
+
+        assert!(started.elapsed() < Duration::from_millis(250));
+        assert!(session.zmodem_transport_gate.try_lock().is_some());
+        assert!(session.poll_events().unwrap().is_empty());
+        release_tx.send(()).unwrap();
+        assert!(route.join().unwrap().is_empty());
+        assert_eq!(session.poll_events().unwrap()[0].kind, "zmodem_detected");
+    }
+
+    #[test]
+    fn spawned_zmodem_writer_keeps_the_pty_reader_path_nonblocking() {
+        let (entered_tx, entered_rx) = std::sync::mpsc::sync_channel(1);
+        let (release_tx, release_rx) = std::sync::mpsc::sync_channel(1);
+        let (completed_tx, completed_rx) = std::sync::mpsc::sync_channel(1);
+        let session = TerminalSession::new(
+            424,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(BlockingTestWriter {
+                entered: Some(entered_tx),
+                release: release_rx,
+                completed: Some(completed_tx),
+            })),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let handle = TerminalSession::start_zmodem_writer(&session).unwrap();
+        session.worker_handles.lock().zmodem_writer = Some(handle);
+        let _ = session.poll_events();
+
+        let started = Instant::now();
+        let passthrough = session.route_pty_output(b"**\x18B00000000000000");
+
+        assert!(passthrough.is_empty());
+        assert!(started.elapsed() < Duration::from_millis(250));
+        entered_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("worker must own the injected PTY stall");
+        assert_eq!(session.poll_events().unwrap()[0].kind, "zmodem_detected");
+        release_tx.send(()).unwrap();
+        completed_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("worker must finish after the PTY stall is released");
+        session.zmodem.lock().reset();
+        session.remember_zmodem_idle();
+        session.close().unwrap();
+    }
+
+    #[test]
+    fn writer_actor_stall_is_watched_even_after_transport_gate_is_released() {
+        let (entered_tx, entered_rx) = std::sync::mpsc::sync_channel(1);
+        let (release_tx, release_rx) = std::sync::mpsc::sync_channel(1);
+        let session = TerminalSession::new(
+            4241,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(BlockingTestWriter {
+                entered: Some(entered_tx),
+                release: release_rx,
+                completed: None,
+            })),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let handle = TerminalSession::start_zmodem_writer(&session).unwrap();
+        session.worker_handles.lock().zmodem_writer = Some(handle);
+        let owner = Some((91, ZmodemDirection::Send));
+        let waiter_session = Arc::clone(&session);
+        let waiter = thread::spawn(move || {
+            let transport = waiter_session.zmodem_transport_gate.lock();
+            waiter_session.write_zmodem_wire_releasing_transport(
+                b"OO",
+                transport,
+                owner,
+                true,
+                ZmodemWireJobKind::Protocol,
+            )
+        });
+        entered_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        assert!(session.zmodem_transport_gate.try_lock().is_some());
+        session
+            .zmodem_wire_inflight
+            .lock()
+            .as_mut()
+            .unwrap()
+            .started_at = Instant::now() - ZMODEM_BLOCKED_IO_TIMEOUT;
+
+        session.poll_zmodem_timeout();
+
+        assert!(session.zmodem_transport_terminated.load(Ordering::Acquire));
+        assert_eq!(waiter.join().unwrap(), Err(ZmodemWireError::Io));
+        let events = session.poll_events().unwrap();
+        assert_eq!(events.last().unwrap().kind, "zmodem_failed");
+        assert_eq!(
+            events.last().unwrap().payload.as_ref().unwrap()["reason"],
+            "timeout"
+        );
+        release_tx.send(()).unwrap();
+        session.close().unwrap();
+    }
+
+    #[test]
+    fn deferred_pty_bytes_follow_queued_final_protocol_bytes() {
+        let (entered_tx, entered_rx) = std::sync::mpsc::sync_channel(1);
+        let (release_tx, release_rx) = std::sync::mpsc::sync_channel(1);
+        let captured = Arc::new(Mutex::new(Vec::new()));
+        let session = TerminalSession::new(
+            425,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(FirstWriteBlockingCapture {
+                entered: Some(entered_tx),
+                release: Some(release_rx),
+                captured: Arc::clone(&captured),
+            })),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let handle = TerminalSession::start_zmodem_writer(&session).unwrap();
+        session.worker_handles.lock().zmodem_writer = Some(handle);
+        let _ = session.poll_events();
+
+        assert!(
+            session
+                .route_pty_output(b"**\x18B00000000000000")
+                .is_empty()
+        );
+        entered_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("protocol write must be queued first");
+        session
+            .write_non_zmodem_or_defer(b"deferred-user-input", true)
+            .unwrap();
+        session.zmodem.lock().reset();
+        session.remember_zmodem_idle();
+        let flush_session = Arc::clone(&session);
+        let flush = thread::spawn(move || flush_session.flush_deferred_pty_writes_if_idle());
+
+        release_tx.send(()).unwrap();
+        assert_eq!(flush.join().unwrap(), None);
+        let captured = captured.lock();
+        assert!(captured.len() > b"deferred-user-input".len());
+        assert!(captured.ends_with(b"deferred-user-input"));
+        drop(captured);
+        session.close().unwrap();
+    }
+
+    #[test]
+    fn deferred_actor_write_failure_does_not_reenter_held_queue_lock() {
+        let session = TerminalSession::new(
+            4251,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(AlwaysFailWriter)),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let handle = TerminalSession::start_zmodem_writer(&session).unwrap();
+        session.worker_handles.lock().zmodem_writer = Some(handle);
+        session
+            .deferred_pty_writes
+            .lock()
+            .push(b"queued-before-broken-pipe", true)
+            .unwrap();
+        let flush_session = Arc::clone(&session);
+        let (result_tx, result_rx) = mpsc::sync_channel(1);
+        thread::spawn(move || {
+            let _ = result_tx.send(flush_session.flush_deferred_pty_writes_if_idle());
+        });
+
+        let failure = result_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("actor failure must not deadlock on deferred queue")
+            .expect("failed deferred write must be reported");
+        assert_eq!(failure.queued_chunks, 1);
+        assert_eq!(failure.queued_bytes, b"queued-before-broken-pipe".len());
+        assert!(session.zmodem_transport_terminated.load(Ordering::Acquire));
+        session.close().unwrap();
+    }
+
+    #[test]
+    fn ordinary_actor_failure_terminalizes_a_transfer_queued_behind_it_once() {
+        let (entered_tx, entered_rx) = mpsc::sync_channel(1);
+        let (release_tx, release_rx) = mpsc::sync_channel(1);
+        let session = TerminalSession::new(
+            4252,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(BlockingFailWriter {
+                entered: Some(entered_tx),
+                release: release_rx,
+            })),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let handle = TerminalSession::start_zmodem_writer(&session).unwrap();
+        session.worker_handles.lock().zmodem_writer = Some(handle);
+        let _ = session.poll_events();
+        let write_session = Arc::clone(&session);
+        let ordinary =
+            thread::spawn(move || write_session.write_non_zmodem_or_defer(b"ordinary-first", true));
+        entered_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("ordinary actor write must block first");
+
+        assert!(
+            session
+                .route_pty_output(b"**\x18B00000000000000")
+                .is_empty()
+        );
+        assert_eq!(session.poll_events().unwrap()[0].kind, "zmodem_detected");
+        session
+            .zmodem_receive_commit_phase
+            .store(RECEIVE_COMMIT_PUBLISHING, Ordering::Release);
+        release_tx.send(()).unwrap();
+        assert!(ordinary.join().unwrap().is_err());
+
+        let deadline = Instant::now() + Duration::from_secs(1);
+        let mut terminal_events = Vec::new();
+        while terminal_events.is_empty() && Instant::now() < deadline {
+            terminal_events.extend(session.poll_events().unwrap().into_iter().filter(|event| {
+                matches!(
+                    event.kind.as_str(),
+                    "zmodem_completed" | "zmodem_failed" | "zmodem_cancelled"
+                )
+            }));
+            thread::yield_now();
+        }
+        assert_eq!(terminal_events.len(), 1);
+        assert_eq!(terminal_events[0].kind, "zmodem_failed");
+        assert_eq!(
+            terminal_events[0].payload.as_ref().unwrap()["transferId"],
+            "1"
+        );
+        assert!(session.zmodem_wire_tx.lock().is_none());
+        session
+            .zmodem_receive_commit_phase
+            .store(RECEIVE_COMMIT_IDLE, Ordering::Release);
+        session.close().unwrap();
+    }
+
+    #[test]
+    fn duplicate_native_terminal_outcomes_are_suppressed_per_transfer() {
+        let session = TerminalSession::new(
+            4253,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let _ = session.poll_events();
+        for kind in ["zmodem_cancelled", "zmodem_failed"] {
+            session.push_event(
+                kind,
+                Some(serde_json::json!({
+                    "source": "zmodem",
+                    "transferId": "88",
+                    "direction": "send",
+                })),
+            );
+        }
+
+        let events = session.poll_events().unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].kind, "zmodem_cancelled");
+        session.close().unwrap();
+    }
+
+    #[test]
+    fn cancellation_does_not_suppress_later_shell_output_or_transfer_detection() {
+        let session = TerminalSession::new(
+            426,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let _ = session.poll_events();
+        assert!(
+            session
+                .route_pty_output(b"**\x18B00000000000000")
+                .is_empty()
+        );
+        let detected = session.poll_events().unwrap();
+        assert_eq!(detected[0].kind, "zmodem_detected");
+
+        session.cancel_zmodem(1).unwrap();
+        session.on_pty_reader_closed(true);
+        assert_eq!(session.poll_events().unwrap()[0].kind, "zmodem_cancelled");
+        assert_eq!(session.route_pty_output(b"prompt$ "), b"prompt$ ");
+
+        assert!(
+            session
+                .route_pty_output(b"**\x18B00000000000000")
+                .is_empty()
+        );
+        let next = session.poll_events().unwrap();
+        assert_eq!(next[0].kind, "zmodem_detected");
+        assert_eq!(next[0].payload.as_ref().unwrap()["transferId"], "2");
+    }
+
+    #[test]
+    fn terminal_protocol_wire_is_confirmed_before_completion_can_be_published() {
+        let session = TerminalSession::new(
+            427,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(AlwaysFailWriter)),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let _ = session.poll_events();
+        let handle = TerminalSession::start_zmodem_writer(&session).unwrap();
+        session.worker_handles.lock().zmodem_writer = Some(handle);
+        let owner = Some((9, ZmodemDirection::Send));
+        let transport = session.zmodem_transport_gate.lock();
+
+        let result = session.write_zmodem_wire_releasing_transport(
+            b"OO",
+            transport,
+            owner,
+            true,
+            ZmodemWireJobKind::Protocol,
+        );
+
+        assert_eq!(result, Err(ZmodemWireError::Io));
+        let effects = session.fail_zmodem_after_wire_error_for(owner);
+        session.apply_zmodem_effects(effects, None);
+        let events = session.poll_events().unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].kind, "zmodem_failed");
+        assert_eq!(events[0].payload.as_ref().unwrap()["transferId"], "9");
+        assert_eq!(events[0].payload.as_ref().unwrap()["reason"], "io_error");
+    }
+
+    #[test]
+    fn asynchronous_wire_failure_is_ordered_after_detection() {
+        let session = TerminalSession::new(
+            432,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(AlwaysFailWriter)),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let _ = session.poll_events();
+        let handle = TerminalSession::start_zmodem_writer(&session).unwrap();
+        session.worker_handles.lock().zmodem_writer = Some(handle);
+
+        assert!(
+            session
+                .route_pty_output(b"**\x18B00000000000000")
+                .is_empty()
+        );
+        let deadline = Instant::now() + Duration::from_secs(1);
+        let mut events = Vec::new();
+        while events.len() < 2 && Instant::now() < deadline {
+            events.extend(session.poll_events().unwrap());
+            std::thread::yield_now();
+        }
+
+        assert_eq!(
+            events
+                .iter()
+                .map(|event| event.kind.as_str())
+                .collect::<Vec<_>>(),
+            ["zmodem_detected", "zmodem_failed"]
+        );
+        assert!(!session.zmodem.lock().is_active());
+        session.close().unwrap();
+    }
+
+    #[test]
+    fn first_async_writer_io_failure_rejects_every_later_job_before_notification() {
+        let writes = Arc::new(AtomicUsize::new(0));
+        let captured = Arc::new(Mutex::new(Vec::new()));
+        let session = TerminalSession::new(
+            4321,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(FailOnceCaptureWriter {
+                writes: Arc::clone(&writes),
+                captured: Arc::clone(&captured),
+            })),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let _ = session.poll_events();
+        let handle = TerminalSession::start_zmodem_writer(&session).unwrap();
+        session.worker_handles.lock().zmodem_writer = Some(handle);
+        let owner = Some((901, ZmodemDirection::Send));
+        let sequence = session.zmodem_sequence_gate.lock();
+        session
+            .enqueue_zmodem_wire_job(ZmodemWireJob {
+                bytes: b"first-fails".to_vec(),
+                owner,
+                kind: ZmodemWireJobKind::Protocol,
+                completion: None,
+            })
+            .unwrap();
+        let (completion_tx, completion_rx) = mpsc::sync_channel(1);
+        session
+            .enqueue_zmodem_wire_job(ZmodemWireJob {
+                bytes: b"must-not-write".to_vec(),
+                owner,
+                kind: ZmodemWireJobKind::Protocol,
+                completion: Some(completion_tx),
+            })
+            .unwrap();
+
+        assert_eq!(
+            completion_rx.recv_timeout(Duration::from_secs(1)).unwrap(),
+            Err(ZmodemWireError::Io)
+        );
+        assert_eq!(writes.load(Ordering::Acquire), 1);
+        assert!(captured.lock().is_empty());
+        assert!(session.zmodem_transport_terminated.load(Ordering::Acquire));
+        assert!(session.poll_events().unwrap().is_empty());
+
+        drop(sequence);
+        let deadline = Instant::now() + Duration::from_secs(1);
+        let events = loop {
+            let events = session.poll_events().unwrap();
+            if !events.is_empty() {
+                break events;
+            }
+            assert!(Instant::now() < deadline);
+            thread::yield_now();
+        };
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].kind, "zmodem_failed");
+        assert_eq!(events[0].payload.as_ref().unwrap()["transferId"], "901");
+        assert_eq!(events[0].payload.as_ref().unwrap()["reason"], "io_error");
+        assert!(session.route_pty_output(b"late-peer-completion").is_empty());
+        assert!(session.poll_events().unwrap().is_empty());
+        session.close().unwrap();
+    }
+
+    #[test]
+    fn asynchronous_accept_wire_failure_is_ordered_after_started() {
+        let writes = Arc::new(AtomicUsize::new(0));
+        let session = TerminalSession::new(
+            433,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(FailAfterWritesWriter {
+                writes: Arc::clone(&writes),
+                successful_writes: 0,
+            })),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let _ = session.poll_events();
+        let handle = TerminalSession::start_zmodem_writer(&session).unwrap();
+        session.worker_handles.lock().zmodem_writer = Some(handle);
+        assert!(
+            session
+                .route_pty_output(b"**\x18B0100000000aa51")
+                .is_empty()
+        );
+        assert_eq!(session.poll_events().unwrap()[0].kind, "zmodem_detected");
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("payload.bin");
+        std::fs::write(&path, b"payload").unwrap();
+
+        session.accept_zmodem_send(1, &[path]).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(1);
+        let mut events = Vec::new();
+        while events.len() < 2 && Instant::now() < deadline {
+            events.extend(session.poll_events().unwrap());
+            std::thread::yield_now();
+        }
+
+        assert_eq!(writes.load(Ordering::Acquire), 1);
+        assert_eq!(
+            events
+                .iter()
+                .map(|event| event.kind.as_str())
+                .collect::<Vec<_>>(),
+            ["zmodem_started", "zmodem_failed"]
+        );
+        session.close().unwrap();
+    }
+
+    #[test]
+    fn public_user_write_cannot_overtake_queued_terminal_protocol_wire() {
+        let (entered_tx, entered_rx) = std::sync::mpsc::sync_channel(1);
+        let (release_tx, release_rx) = std::sync::mpsc::sync_channel(1);
+        let captured = Arc::new(Mutex::new(Vec::new()));
+        let session = TerminalSession::new(
+            428,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(FirstWriteBlockingCapture {
+                entered: Some(entered_tx),
+                release: Some(release_rx),
+                captured: Arc::clone(&captured),
+            })),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let handle = TerminalSession::start_zmodem_writer(&session).unwrap();
+        session.worker_handles.lock().zmodem_writer = Some(handle);
+        let transport = session.zmodem_transport_gate.lock();
+        session
+            .write_zmodem_wire_releasing_transport(
+                b"final-OO",
+                transport,
+                Some((12, ZmodemDirection::Send)),
+                false,
+                ZmodemWireJobKind::Protocol,
+            )
+            .unwrap();
+        entered_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        let writer_session = Arc::clone(&session);
+        let later = thread::spawn(move || writer_session.write(b"user-input"));
+
+        release_tx.send(()).unwrap();
+        later.join().unwrap().unwrap();
+        assert_eq!(&*captured.lock(), b"final-OOuser-input");
+        session.close().unwrap();
+    }
+
+    #[test]
+    fn cancelled_generation_discards_queued_protocol_jobs_before_ordered_can() {
+        let (entered_tx, entered_rx) = std::sync::mpsc::sync_channel(1);
+        let (release_tx, release_rx) = std::sync::mpsc::sync_channel(1);
+        let captured = Arc::new(Mutex::new(Vec::new()));
+        let session = TerminalSession::new(
+            429,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(FirstWriteBlockingCapture {
+                entered: Some(entered_tx),
+                release: Some(release_rx),
+                captured: Arc::clone(&captured),
+            })),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let handle = TerminalSession::start_zmodem_writer(&session).unwrap();
+        session.worker_handles.lock().zmodem_writer = Some(handle);
+        let owner = Some((14, ZmodemDirection::Send));
+        for bytes in [b"old-inflight".as_slice(), b"old-queued"] {
+            session
+                .enqueue_zmodem_wire_job(ZmodemWireJob {
+                    bytes: bytes.to_vec(),
+                    owner,
+                    kind: ZmodemWireJobKind::Protocol,
+                    completion: None,
+                })
+                .unwrap();
+        }
+        entered_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        session
+            .zmodem_operation_epoch
+            .fetch_add(1, Ordering::AcqRel);
+        let (completion_tx, completion_rx) = mpsc::sync_channel(1);
+        session
+            .enqueue_zmodem_wire_job(ZmodemWireJob {
+                bytes: b"CAN".to_vec(),
+                owner,
+                kind: ZmodemWireJobKind::Cancel,
+                completion: Some(completion_tx),
+            })
+            .unwrap();
+
+        release_tx.send(()).unwrap();
+        assert_eq!(
+            completion_rx.recv_timeout(Duration::from_secs(1)).unwrap(),
+            Ok(())
+        );
+        assert_eq!(&*captured.lock(), b"old-inflightCAN");
+        session.close().unwrap();
+    }
+
+    #[test]
+    fn zmodem_writer_queue_is_bounded_by_bytes_not_job_count() {
+        let (entered_tx, entered_rx) = std::sync::mpsc::sync_channel(1);
+        let (release_tx, release_rx) = std::sync::mpsc::sync_channel(1);
+        let session = TerminalSession::new(
+            430,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(BlockingTestWriter {
+                entered: Some(entered_tx),
+                release: release_rx,
+                completed: None,
+            })),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let handle = TerminalSession::start_zmodem_writer(&session).unwrap();
+        session.worker_handles.lock().zmodem_writer = Some(handle);
+        session
+            .enqueue_zmodem_wire_job(ZmodemWireJob {
+                bytes: vec![1],
+                owner: Some((15, ZmodemDirection::Send)),
+                kind: ZmodemWireJobKind::Protocol,
+                completion: None,
+            })
+            .unwrap();
+        entered_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+
+        let overflow = session.enqueue_zmodem_wire_job(ZmodemWireJob {
+            bytes: vec![2; ZMODEM_WIRE_MAX_QUEUED_BYTES],
+            owner: Some((15, ZmodemDirection::Send)),
+            kind: ZmodemWireJobKind::Protocol,
+            completion: None,
+        });
+        assert_eq!(overflow, Err(ZmodemWireError::QueueLimit));
+        release_tx.send(()).unwrap();
+        session.close().unwrap();
+    }
+
+    #[test]
+    fn oversized_ordinary_write_uses_exclusive_queue_reservation() {
+        let captured = Arc::new(Mutex::new(Vec::new()));
+        let session = TerminalSession::new(
+            4301,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(SharedTestWriter(Arc::clone(&captured)))),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let handle = TerminalSession::start_zmodem_writer(&session).unwrap();
+        session.worker_handles.lock().zmodem_writer = Some(handle);
+        let bytes = vec![0x5a; ZMODEM_WIRE_MAX_QUEUED_BYTES + 17];
+
+        session.write(&bytes).unwrap();
+
+        assert_eq!(&*captured.lock(), &bytes);
+        assert_eq!(session.zmodem_wire_queued_bytes.load(Ordering::Acquire), 0);
+        session.close().unwrap();
+    }
+
+    #[test]
+    fn blocked_ordinary_write_does_not_block_pty_output_drain() {
+        let (entered_tx, entered_rx) = std::sync::mpsc::sync_channel(1);
+        let (release_tx, release_rx) = std::sync::mpsc::sync_channel(1);
+        let session = TerminalSession::new(
+            4302,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(BlockingTestWriter {
+                entered: Some(entered_tx),
+                release: release_rx,
+                completed: None,
+            })),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let handle = TerminalSession::start_zmodem_writer(&session).unwrap();
+        session.worker_handles.lock().zmodem_writer = Some(handle);
+        let writer_session = Arc::clone(&session);
+        let write = thread::spawn(move || writer_session.write(b"blocked ordinary input"));
+        entered_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+
+        let (routed_tx, routed_rx) = std::sync::mpsc::sync_channel(1);
+        let reader_session = Arc::clone(&session);
+        let route = thread::spawn(move || {
+            let output = reader_session.route_pty_output(b"remote output");
+            routed_tx.send(output).unwrap();
+        });
+        assert_eq!(
+            routed_rx.recv_timeout(Duration::from_millis(250)).unwrap(),
+            b"remote output"
+        );
+
+        release_tx.send(()).unwrap();
+        write.join().unwrap().unwrap();
+        route.join().unwrap();
+        session.close().unwrap();
+    }
+
+    #[test]
+    fn blocked_writer_actor_does_not_retain_the_terminal_session() {
+        let (entered_tx, entered_rx) = std::sync::mpsc::sync_channel(1);
+        let (release_tx, release_rx) = std::sync::mpsc::sync_channel(1);
+        let session = TerminalSession::new(
+            431,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(BlockingTestWriter {
+                entered: Some(entered_tx),
+                release: release_rx,
+                completed: None,
+            })),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let handle = TerminalSession::start_zmodem_writer(&session).unwrap();
+        session.worker_handles.lock().zmodem_writer = Some(handle);
+        session
+            .enqueue_zmodem_wire_job(ZmodemWireJob {
+                bytes: b"blocked".to_vec(),
+                owner: Some((16, ZmodemDirection::Send)),
+                kind: ZmodemWireJobKind::Protocol,
+                completion: None,
+            })
+            .unwrap();
+        entered_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        let weak = Arc::downgrade(&session);
+
+        drop(session);
+        assert!(weak.upgrade().is_none());
+        release_tx.send(()).unwrap();
+    }
+
+    #[test]
+    fn writer_thread_spawn_failure_kills_the_unpublished_child_session() {
+        let killed = Arc::new(AtomicBool::new(false));
+        let session = TerminalSession::new(
+            4254,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            Some(Box::new(TestChild {
+                killed: Arc::clone(&killed),
+            })),
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        FAIL_NEXT_ZMODEM_WRITER_THREAD_SPAWN.with(|flag| flag.set(true));
+
+        let error = TerminalSession::start_zmodem_writer_or_teardown(&session).unwrap_err();
+
+        assert!(error.to_string().contains("writer thread spawn failure"));
+        assert!(killed.load(Ordering::Acquire));
+        assert!(session.exited.load(Ordering::Acquire));
+        assert!(session.zmodem_transport_terminated.load(Ordering::Acquire));
+        assert!(!session.pty_writer_available.load(Ordering::Acquire));
+    }
+
+    #[test]
+    fn close_detaches_an_unfinished_reader_instead_of_waiting_forever() {
+        let session = TerminalSession::new(
+            422,
+            long_running_lifecycle_profile(),
+            None,
+            None,
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let (release_tx, release_rx) = std::sync::mpsc::sync_channel(1);
+        session.worker_handles.lock().reader = Some(thread::spawn(move || {
+            let _ = release_rx.recv();
+        }));
+        let (closed_tx, closed_rx) = std::sync::mpsc::sync_channel(1);
+        let close_session = Arc::clone(&session);
+        let closer = thread::spawn(move || {
+            close_session.close().unwrap();
+            let _ = closed_tx.send(());
+        });
+
+        let closed_without_release = closed_rx.recv_timeout(Duration::from_millis(250)).is_ok();
+        release_tx.send(()).unwrap();
+        closer.join().unwrap();
+
+        assert!(
+            closed_without_release,
+            "close must not join a reader blocked in an uninterruptible syscall"
+        );
+    }
+
+    #[test]
+    fn zmodem_command_failure_effects_preserve_safe_passthrough() {
+        let mut manager = ZmodemManager::default();
+        let mut writer = AlwaysFailWriter;
+        let error = manager
+            .ingest(b"ordinary-prefix**\x18B00000000000000", &mut writer)
+            .unwrap_err();
+
+        let effects =
+            TerminalSession::abort_zmodem_command_error(&mut manager, &error, &mut writer)
+                .expect("I/O failure must abort the active transfer");
+
+        assert_eq!(effects.passthrough, b"ordinary-prefix");
+        assert!(effects.events.is_empty());
+    }
+
+    #[test]
+    fn zmodem_cancel_terminal_event_and_deferred_input_wait_for_drain_boundary() {
+        let captured = Arc::new(Mutex::new(Vec::new()));
+        let session = TerminalSession::new(
+            43,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(SharedTestWriter(Arc::clone(&captured)))),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        assert!(
+            session
+                .route_pty_output(b"**\x18B00000000000000")
+                .is_empty()
+        );
+        assert!(
+            session
+                .poll_events()
+                .unwrap()
+                .iter()
+                .any(|event| event.kind == "zmodem_detected")
+        );
+
+        session.cancel_zmodem(1).unwrap();
+        assert!(session.poll_events().unwrap().is_empty());
+        assert!(session.zmodem.lock().is_active());
+        let protocol_bytes = captured.lock().len();
+        session
+            .write_non_zmodem_or_defer(b"deferred-input", true)
+            .unwrap();
+        assert_eq!(captured.lock().len(), protocol_bytes);
+
+        session.on_pty_reader_closed(true);
+
+        assert!(!session.zmodem.lock().is_active());
+        assert_eq!(session.poll_events().unwrap()[0].kind, "zmodem_cancelled");
+        assert_eq!(&captured.lock()[protocol_bytes..], b"deferred-input");
+    }
+
+    #[test]
+    fn repeated_cancel_during_drain_is_idempotent_and_preserves_the_shell() {
+        let captured = Arc::new(Mutex::new(Vec::new()));
+        let session = TerminalSession::new(
+            431,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(SharedTestWriter(Arc::clone(&captured)))),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        assert!(
+            session
+                .route_pty_output(b"**\x18B00000000000000")
+                .is_empty()
+        );
+        let _ = session.poll_events().unwrap();
+
+        session.cancel_zmodem(1).unwrap();
+        let transport = session.zmodem_transport_gate.lock();
+        assert_eq!(
+            session.cancel_active_zmodem().unwrap(),
+            CancelActiveZmodemOutcome::Draining
+        );
+        drop(transport);
+        assert!(!session.zmodem_transport_terminated.load(Ordering::Acquire));
+        let protocol_bytes = captured.lock().len();
+        session
+            .write_non_zmodem_or_defer(b"preserved-after-double-cancel", true)
+            .unwrap();
+
+        session.on_pty_reader_closed(true);
+
+        assert!(!session.zmodem_transport_terminated.load(Ordering::Acquire));
+        assert_eq!(
+            &captured.lock()[protocol_bytes..],
+            b"preserved-after-double-cancel"
+        );
+        assert_eq!(
+            session
+                .poll_events()
+                .unwrap()
+                .iter()
+                .map(|event| event.kind.as_str())
+                .collect::<Vec<_>>(),
+            ["zmodem_cancelled"]
+        );
+    }
+
+    #[test]
+    fn direct_transport_termination_reports_deferred_input_failure() {
+        let session = TerminalSession::new(
+            432,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        assert!(
+            session
+                .route_pty_output(b"**\x18B00000000000000")
+                .is_empty()
+        );
+        let _ = session.poll_events().unwrap();
+        session
+            .write_non_zmodem_or_defer(b"must-be-reported", true)
+            .unwrap();
+
+        session.terminate_zmodem_transport();
+
+        let events = session.poll_events().unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].kind, ZMODEM_DEFERRED_WRITE_FAILED_KIND);
+        assert_eq!(events[0].payload.as_ref().unwrap()["queuedChunks"], 1);
+        assert_eq!(
+            events[0].payload.as_ref().unwrap()["queuedBytes"],
+            b"must-be-reported".len()
+        );
+    }
+
+    #[test]
+    fn zmodem_idle_transition_flushes_deferred_writes_before_later_writes() {
+        let captured = Arc::new(Mutex::new(Vec::new()));
+        let session = TerminalSession::new(
+            46,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(SharedTestWriter(Arc::clone(&captured)))),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        assert!(
+            session
+                .route_pty_output(b"**\x18B00000000000000")
+                .is_empty()
+        );
+        let _ = session.poll_events().unwrap();
+        session.cancel_zmodem(1).unwrap();
+        let protocol_bytes = captured.lock().len();
+        session
+            .write_non_zmodem_or_defer(b"deferred-first", true)
+            .unwrap();
+
+        let completion_session = Arc::clone(&session);
+        let completion = thread::spawn(move || completion_session.on_pty_reader_closed(true));
+        let later_session = Arc::clone(&session);
+        let later =
+            thread::spawn(move || later_session.write_non_zmodem_or_defer(b"later-write", true));
+
+        completion.join().unwrap();
+        later.join().unwrap().unwrap();
+        assert_eq!(
+            &captured.lock()[protocol_bytes..],
+            b"deferred-firstlater-write"
+        );
+
+        assert_eq!(session.poll_events().unwrap()[0].kind, "zmodem_cancelled");
+    }
+
+    #[test]
+    fn zmodem_missing_writer_reports_deferred_failure_before_terminal_event() {
+        let captured = Arc::new(Mutex::new(Vec::new()));
+        let session = TerminalSession::new(
+            47,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(SharedTestWriter(Arc::clone(&captured)))),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        assert!(
+            session
+                .route_pty_output(b"**\x18B00000000000000")
+                .is_empty()
+        );
+        let _ = session.poll_events().unwrap();
+        session.cancel_zmodem(1).unwrap();
+        session
+            .write_non_zmodem_or_defer(b"queued-without-writer", true)
+            .unwrap();
+        session.writer.lock().take();
+
+        session.on_pty_reader_closed(true);
+
+        let events = session.poll_events().unwrap();
+        assert_eq!(
+            events
+                .iter()
+                .map(|event| event.kind.as_str())
+                .collect::<Vec<_>>(),
+            [ZMODEM_DEFERRED_WRITE_FAILED_KIND, "zmodem_cancelled"]
+        );
+        let payload = events[0].payload.as_ref().unwrap();
+        assert_eq!(payload["reason"], "io_error");
+        assert_eq!(payload["queuedChunks"], 1);
+        assert_eq!(payload["queuedBytes"], b"queued-without-writer".len());
+        assert_eq!(payload["completedChunks"], 0);
+        assert_eq!(payload["completedBytes"], 0);
+        assert_eq!(payload["unconfirmedChunks"], 1);
+        assert_eq!(payload["unconfirmedBytes"], b"queued-without-writer".len());
+        assert_eq!(session.deferred_pty_writes.lock().bytes, 0);
+        assert!(session.zmodem_transport_terminated.load(Ordering::SeqCst));
+        assert!(
+            session
+                .route_pty_output(b"must remain quarantined")
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn zmodem_partial_deferred_write_reports_failure_and_terminates_transport() {
+        let captured = Arc::new(Mutex::new(Vec::new()));
+        let killed = Arc::new(AtomicBool::new(false));
+        let session = TerminalSession::new(
+            48,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(PartialThenFailWriter {
+                captured: Arc::clone(&captured),
+                fail_on: b"deferred-firstdeferred-tail".to_vec(),
+                failing: false,
+            })),
+            None,
+            Some(Box::new(TestChild {
+                killed: Arc::clone(&killed),
+            })),
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        assert!(
+            session
+                .route_pty_output(b"**\x18B00000000000000")
+                .is_empty()
+        );
+        let _ = session.poll_events().unwrap();
+        session.cancel_zmodem(1).unwrap();
+        let protocol_bytes = captured.lock().len();
+        session
+            .write_non_zmodem_or_defer(b"deferred-first", true)
+            .unwrap();
+        session
+            .write_non_zmodem_or_defer(b"deferred-tail", true)
+            .unwrap();
+
+        session.on_pty_reader_closed(true);
+
+        assert_eq!(&captured.lock()[protocol_bytes..], b"def");
+        assert!(killed.load(Ordering::SeqCst));
+        assert!(session.writer.lock().is_none());
+        assert_eq!(session.deferred_pty_writes.lock().bytes, 0);
+        let events = session.poll_events().unwrap();
+        assert_eq!(
+            events
+                .iter()
+                .map(|event| event.kind.as_str())
+                .collect::<Vec<_>>(),
+            [ZMODEM_DEFERRED_WRITE_FAILED_KIND, "zmodem_cancelled"]
+        );
+        let payload = events[0].payload.as_ref().unwrap();
+        assert_eq!(payload["queuedChunks"], 2);
+        assert_eq!(
+            payload["queuedBytes"],
+            b"deferred-first".len() + b"deferred-tail".len()
+        );
+        assert_eq!(payload["completedChunks"], 0);
+        assert_eq!(payload["completedBytes"], 0);
+        assert_eq!(payload["unconfirmedChunks"], 2);
+        assert_eq!(
+            payload["unconfirmedBytes"],
+            b"deferred-first".len() + b"deferred-tail".len()
+        );
+        assert!(
+            session
+                .route_pty_output(b"must remain quarantined")
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn zmodem_hard_drain_deadline_terminates_transport_without_releasing_payload() {
+        let captured = Arc::new(Mutex::new(Vec::new()));
+        let killed = Arc::new(AtomicBool::new(false));
+        let session = TerminalSession::new(
+            45,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(SharedTestWriter(Arc::clone(&captured)))),
+            None,
+            Some(Box::new(TestChild {
+                killed: Arc::clone(&killed),
+            })),
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        assert!(
+            session
+                .route_pty_output(b"**\x18B00000000000000")
+                .is_empty()
+        );
+        let _ = session.poll_events().unwrap();
+        session.cancel_zmodem(1).unwrap();
+        session
+            .write_non_zmodem_or_defer(b"must-not-be-replayed", true)
+            .unwrap();
+        for payload in [b"opaque-1".as_slice(), b"opaque-2", b"prompt$ "] {
+            assert!(session.route_pty_output(payload).is_empty());
+        }
+        session
+            .zmodem
+            .lock()
+            .force_drain_hard_deadline_for_test(Instant::now());
+
+        session.poll_zmodem_timeout();
+
+        assert!(killed.load(Ordering::SeqCst));
+        assert!(session.writer.lock().is_none());
+        assert_eq!(session.deferred_pty_writes.lock().bytes, 0);
+        assert!(!session.zmodem.lock().is_active());
+        assert!(session.route_pty_output(b"post-kill payload").is_empty());
+        let events = session.poll_events().unwrap();
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].kind, ZMODEM_DEFERRED_WRITE_FAILED_KIND);
+        assert_eq!(events[0].payload.as_ref().unwrap()["queuedChunks"], 1);
+        assert_eq!(events[0].payload.as_ref().unwrap()["completedChunks"], 0);
+        assert_eq!(events[1].kind, "zmodem_cancelled");
+
+        session.on_pty_reader_closed(true);
+        assert!(session.poll_events().unwrap().is_empty());
+        assert!(!session.zmodem.lock().is_active());
+    }
+
+    #[test]
+    fn zmodem_pty_reader_error_fails_active_transfer_immediately() {
+        let session = TerminalSession::new(
+            44,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        assert!(
+            session
+                .route_pty_output(b"**\x18B00000000000000")
+                .is_empty()
+        );
+        session.poll_events().unwrap();
+
+        session.on_pty_reader_closed(false);
+
+        assert!(!session.zmodem.lock().is_active());
+        let events = session.poll_events().unwrap();
+        assert_eq!(events[0].kind, "zmodem_failed");
+        assert_eq!(events[0].payload.as_ref().unwrap()["reason"], "io_error");
+    }
+
     #[test]
     fn close_session_releases_background_worker_references_promptly() {
         let store = SessionStore::default();
@@ -8024,6 +13122,117 @@ mod tests {
             "close should release reader and sampler session references promptly"
         );
         assert!(store.get(session_id).is_err());
+    }
+
+    #[test]
+    fn close_during_receive_publication_retains_session_and_event_authority() {
+        let store = SessionStore::default();
+        let session_id = store
+            .create_session(long_running_lifecycle_profile())
+            .unwrap();
+        let session = store.get(session_id).unwrap();
+        session
+            .zmodem_receive_commit_phase
+            .store(RECEIVE_COMMIT_PUBLISHING, Ordering::Release);
+
+        let error = store.close_session(session_id).unwrap_err();
+
+        assert!(
+            error
+                .to_string()
+                .contains("receive_publication_in_progress")
+        );
+        assert!(store.get(session_id).is_ok());
+        assert!(!session.exited.load(Ordering::Acquire));
+
+        session
+            .zmodem_receive_commit_phase
+            .store(RECEIVE_COMMIT_IDLE, Ordering::Release);
+        store.close_session(session_id).unwrap();
+        assert!(store.get(session_id).is_err());
+    }
+
+    #[test]
+    fn close_rejects_native_zmodem_before_detection_event_is_polled() {
+        let session = TerminalSession::new(
+            451,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let _ = session.poll_events().unwrap();
+        assert!(
+            session
+                .route_pty_output(b"**\x18B00000000000000")
+                .is_empty()
+        );
+
+        let error = session.close().unwrap_err();
+
+        assert!(error.to_string().contains("zmodem_transfer_active"));
+        assert!(!session.exited.load(Ordering::Acquire));
+        let detected = session.poll_events().unwrap();
+        assert_eq!(detected.len(), 1);
+        assert_eq!(detected[0].kind, "zmodem_detected");
+
+        session.cancel_zmodem(1).unwrap();
+        session.on_pty_reader_closed(true);
+        let terminal = session.poll_events().unwrap();
+        assert_eq!(terminal.last().unwrap().kind, "zmodem_cancelled");
+        session.close().unwrap();
+    }
+
+    #[test]
+    fn close_waits_for_a_queued_zmodem_recovery_result_to_be_polled() {
+        let session = TerminalSession::new(
+            45,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let _ = session.poll_events().unwrap();
+        session
+            .zmodem_receive_commit_phase
+            .store(RECEIVE_COMMIT_PUBLISHING, Ordering::Release);
+        session.apply_zmodem_effects(
+            ZmodemEffects {
+                events: vec![crate::zmodem::ZmodemEvent {
+                    kind: "zmodem_failed",
+                    payload: serde_json::json!({
+                        "source": "zmodem",
+                        "transferId": "1",
+                        "direction": "receive",
+                        "reason": "publish_failed",
+                        "stagingPreserved": true,
+                        "recoveryToken": "0123456789abcdef0123456789abcdef",
+                    }),
+                }],
+                receive_publish_pending: true,
+                ..ZmodemEffects::default()
+            },
+            None,
+        );
+
+        let error = session.close().unwrap_err();
+        assert!(error.to_string().contains("zmodem_result_pending"));
+        assert!(!session.exited.load(Ordering::Acquire));
+
+        let events = session.poll_events().unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].kind, "zmodem_failed");
+        session.close().unwrap();
     }
 
     #[test]
