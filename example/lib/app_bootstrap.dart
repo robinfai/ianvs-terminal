@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app.dart';
 import 'features/sessions/session_controller.dart';
 import 'features/sessions/session_ports.dart';
+import 'features/pty/pty.dart';
 import 'features/shell/shell_acceptance.dart';
 import 'features/shell/reference_demo.dart';
 import 'features/shell/shell_screen.dart';
@@ -15,12 +16,15 @@ Widget buildIanvsTerminalRoot({
   bool enableShellAnimations = true,
   bool enableDriverWarmUpRefresh = false,
   bool enableReferenceDemoMode = false,
+  PtySessionBackend? ptySessionBackend,
   ShellAcceptanceProbe? acceptanceProbe,
   Map<String, String> sessionEnvironmentOverrides = const <String, String>{},
 }) {
   return ProviderScope(
     overrides: [
       sessionPollingEnabledProvider.overrideWithValue(enableSessionPolling),
+      if (ptySessionBackend != null)
+        ptySessionBackendProvider.overrideWithValue(ptySessionBackend),
       driverWarmUpRefreshEnabledProvider.overrideWithValue(
         enableDriverWarmUpRefresh,
       ),
@@ -74,6 +78,7 @@ void runIanvsTerminalApp({
   bool enableShellAnimations = true,
   bool enableDriverWarmUpRefresh = false,
   bool enableReferenceDemoMode = false,
+  PtySessionBackend? ptySessionBackend,
   ShellAcceptanceProbe? acceptanceProbe,
   Map<String, String> sessionEnvironmentOverrides = const <String, String>{},
 }) {
@@ -82,6 +87,7 @@ void runIanvsTerminalApp({
       enableSessionPolling: enableSessionPolling,
       enableDriverWarmUpRefresh: enableDriverWarmUpRefresh,
       enableReferenceDemoMode: enableReferenceDemoMode,
+      ptySessionBackend: ptySessionBackend,
       acceptanceProbe: acceptanceProbe,
       sessionEnvironmentOverrides: sessionEnvironmentOverrides,
       enableShellAnimations: enableShellAnimations,

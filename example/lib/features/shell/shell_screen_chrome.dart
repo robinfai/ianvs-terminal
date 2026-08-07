@@ -2,8 +2,8 @@ part of 'shell_screen.dart';
 
 const double _shellChromeTitleHeight = 38;
 const double _shellChromeTabRailHeight = 38;
-const double _shellChromeHeight =
-    _shellChromeTitleHeight + _shellChromeTabRailHeight;
+const double _iosShellChromeTitleHeight = 44;
+const double _iosShellChromeTabRailHeight = 52;
 const double _shellChromeHorizontalInset = 12;
 const String _shellApplicationTitle = 'Ianvs Terminal';
 
@@ -69,6 +69,13 @@ class _ShellChromeBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isIos = defaultTargetPlatform == TargetPlatform.iOS;
+    final titleHeight = isIos
+        ? _iosShellChromeTitleHeight
+        : _shellChromeTitleHeight;
+    final tabRailHeight = isIos
+        ? _iosShellChromeTabRailHeight
+        : _shellChromeTabRailHeight;
     final chromeBase = _ShellTabTone.chromeBaseFor(
       palette,
       terminalBackgroundColor,
@@ -94,17 +101,18 @@ class _ShellChromeBar extends StatelessWidget {
           topRight: Radius.circular(palette.radius.lg),
         ),
         child: SizedBox(
-          height: _shellChromeHeight,
+          height: titleHeight + tabRailHeight,
           child: Column(
             children: [
               _ShellWindowTitleBar(
+                height: titleHeight,
                 palette: palette,
                 tone: chromeTone,
                 backgroundColor: chromeSurface,
                 onShowCommandMenu: referenceDemoMode ? null : onShowCommandMenu,
               ),
               SizedBox(
-                height: _shellChromeTabRailHeight,
+                height: tabRailHeight,
                 child: DecoratedBox(
                   key: const Key('shell-chrome-tab-rail-surface'),
                   decoration: BoxDecoration(
@@ -182,12 +190,14 @@ class _ShellChromeBar extends StatelessWidget {
 
 class _ShellWindowTitleBar extends StatelessWidget {
   const _ShellWindowTitleBar({
+    required this.height,
     required this.palette,
     required this.tone,
     required this.backgroundColor,
     required this.onShowCommandMenu,
   });
 
+  final double height;
   final AppThemeTokens palette;
   final _ShellTabTone tone;
   final Color backgroundColor;
@@ -195,14 +205,19 @@ class _ShellWindowTitleBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isIos = defaultTargetPlatform == TargetPlatform.iOS;
     final titleLeadingInset = defaultTargetPlatform == TargetPlatform.macOS
         ? 158.0
         : palette.spacing.xl;
-    final trailingInset = onShowCommandMenu == null ? 16.0 : 48.0;
+    final trailingInset = onShowCommandMenu == null
+        ? 16.0
+        : isIos
+        ? 64.0
+        : 48.0;
     final titleSafeInset = math.max(titleLeadingInset, trailingInset);
 
     return SizedBox(
-      height: _shellChromeTitleHeight,
+      height: height,
       child: DecoratedBox(
         key: const Key('shell-chrome-title-surface'),
         decoration: BoxDecoration(color: backgroundColor),
@@ -237,7 +252,7 @@ class _ShellWindowTitleBar extends StatelessWidget {
             ),
             if (onShowCommandMenu != null)
               Positioned(
-                top: 5,
+                top: isIos ? 0 : 5,
                 right: 12,
                 child: _buildChromeIconButton(
                   key: const Key('shell-chrome-menu'),
@@ -249,6 +264,48 @@ class _ShellWindowTitleBar extends StatelessWidget {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _IosSandboxShellNotice extends StatelessWidget {
+  const _IosSandboxShellNotice({required this.palette});
+
+  final AppThemeTokens palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      container: true,
+      label:
+          'On-device sandbox shell. Files stay inside the IanvsShell app folder.',
+      child: DecoratedBox(
+        key: const Key('ios-sandbox-shell-notice'),
+        decoration: BoxDecoration(
+          color: palette.selected,
+          border: Border(bottom: BorderSide(color: palette.border)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: [
+              Icon(Icons.phone_iphone_rounded, size: 18, color: palette.accent),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'On-device sandbox · Files stay inside IanvsShell',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: palette.textMuted,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -634,7 +691,10 @@ class _ReferenceDemoTabStrip extends StatelessWidget {
             child: _ReferenceDemoTab(
               palette: palette,
               tab: tabs[index],
-              shortcutIndex: index < 9 ? index + 1 : null,
+              shortcutIndex:
+                  defaultTargetPlatform != TargetPlatform.iOS && index < 9
+                  ? index + 1
+                  : null,
               isActive:
                   activeSessionId != null &&
                   tabs[index].containsSession(activeSessionId!),
@@ -776,7 +836,8 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
   static const double _regularMinTabWidth = 180;
   static const double _compactMinTabWidth = 104;
   static const double _compactTabThreshold = 140;
-  static const double _tabActionButtonWidth = 40;
+  static double get _tabActionButtonWidth =>
+      defaultTargetPlatform == TargetPlatform.iOS ? 44 : 40;
 
   String? _draggingSessionId;
   _ShellSessionDragData? _externalDragData;

@@ -375,6 +375,11 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     );
     final profile = _profileForPane(pane, sessionState.profiles);
     final terminalConfig = profile?.toSessionConfig();
+    final baseTerminalFont =
+        terminalConfig?.display.font ?? const terminal.TerminalFontConfig();
+    final effectiveTerminalFont = defaultTargetPlatform == TargetPlatform.iOS
+        ? _mobileFontFor(sessionId, baseTerminalFont)
+        : baseTerminalFont;
     final terminalColors = _terminalColorsForProfile(context, profile);
     final inputController = TerminalInputController(
       sessionId: sessionId,
@@ -597,9 +602,28 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                               },
                               colors: terminalColors,
                               useFrameDefaultColors: false,
-                              font:
-                                  terminalConfig?.display.font ??
-                                  const terminal.TerminalFontConfig(),
+                              font: effectiveTerminalFont,
+                              onScaleStart:
+                                  defaultTargetPlatform == TargetPlatform.iOS
+                                  ? (details) => _startMobileTerminalPinch(
+                                      sessionId,
+                                      details,
+                                    )
+                                  : null,
+                              onScaleUpdate:
+                                  defaultTargetPlatform == TargetPlatform.iOS
+                                  ? (details) => _updateMobileTerminalPinch(
+                                      sessionId,
+                                      details,
+                                    )
+                                  : null,
+                              onScaleEnd:
+                                  defaultTargetPlatform == TargetPlatform.iOS
+                                  ? (details) => _endMobileTerminalPinch(
+                                      sessionId,
+                                      details,
+                                    )
+                                  : null,
                               cursor:
                                   terminalConfig?.display.cursor ??
                                   const terminal.TerminalCursorConfig(),

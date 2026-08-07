@@ -79,6 +79,7 @@ part 'shell_screen_sheets.dart';
 part 'shell_screen_command_menu.dart';
 part 'shell_screen_shared_buttons.dart';
 part 'shell_screen_replay_timeline.dart';
+part 'shell_screen_mobile_input.dart';
 
 typedef ShellFileDownloadWriter =
     Future<void> Function(String path, List<int> bytes);
@@ -204,6 +205,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         debugLabel: 'shell-session-drop-tab-strip',
       );
   final Map<String, double> _terminalViewportDevicePixelRatios = {};
+  final Map<String, double> _mobileTerminalFontScales = <String, double>{};
+  final Map<String, double> _mobileTerminalPinchStartScales =
+      <String, double>{};
   final Map<String, terminal.TerminalViewportController>
   _tabColorViewportControllers = {};
   final Map<String, VoidCallback> _tabColorViewportListeners = {};
@@ -359,11 +363,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   @override
   void initState() {
     super.initState();
-    final runtime = ref.read(terminalRuntimeControllerProvider);
+    final runtime = ref.read(referenceDemoModeProvider)
+        ? null
+        : ref.read(terminalRuntimeControllerProvider);
     _userAttentionBridge = ref.read(shellUserAttentionBridgeProvider);
     _clock = ref.read(shellClockProvider);
     _osc72DragDropController = Osc72DragDropController(
-      sendInput: runtime.sendInput,
+      sendInput: runtime == null ? (_, _) {} : runtime.sendInput,
     );
     _appLifecycleListener = AppLifecycleListener(
       onPause: () => unawaited(
@@ -390,13 +396,17 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         LocalTerminalShellUiWiringSnapshot.verified(capturedAt: DateTime.now());
     _osc52PromptController = ref.read(sessionOsc52PromptControllerProvider);
     _osc52PromptController?.setAuthorizationHandler(_confirmOsc52Access);
-    _terminalEventSubscription = runtime.events.listen(
-      _handleTerminalSessionEvent,
-    );
-    _zmodemEventSubscription = runtime.zmodemEvents.listen(_handleZmodemEvent);
-    _zmodemDeferredWriteFailureSubscription = runtime
-        .zmodemDeferredWriteFailures
-        .listen(_handleZmodemDeferredWriteFailure);
+    if (runtime != null) {
+      _terminalEventSubscription = runtime.events.listen(
+        _handleTerminalSessionEvent,
+      );
+      _zmodemEventSubscription = runtime.zmodemEvents.listen(
+        _handleZmodemEvent,
+      );
+      _zmodemDeferredWriteFailureSubscription = runtime
+          .zmodemDeferredWriteFailures
+          .listen(_handleZmodemDeferredWriteFailure);
+    }
     ref.listenManual<SessionState>(
       sessionControllerProvider,
       _handleSessionStateChanged,
@@ -1221,6 +1231,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 onShowCommandMenu: () =>
                     _openCommandMenu(sessionController, sessionState),
               ),
+              if (!referenceDemoMode &&
+                  defaultTargetPlatform == TargetPlatform.iOS)
+                _IosSandboxShellNotice(palette: palette),
               if (sessionState.configurationWarnings.isNotEmpty)
                 _ShellConfigurationWarningsBanner(
                   palette: palette,
@@ -1492,10 +1505,32 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   ),
                 ),
               ),
+              if (!referenceDemoMode &&
+                  defaultTargetPlatform == TargetPlatform.iOS &&
+                  activeSessionId != null)
+                _IosTerminalInputBar(
+                  key: const Key('ios-terminal-input-bar'),
+                  palette: palette,
+                  fontScale: _mobileFontScaleFor(activeSessionId),
+                  keyboardVisible: MediaQuery.viewInsetsOf(context).bottom > 0,
+                  onSendBytes: (bytes) =>
+                      _sendMobileTerminalBytes(activeSessionId, bytes),
+                  onDecreaseFont: () =>
+                      _stepMobileTerminalFont(activeSessionId, -0.1),
+                  onIncreaseFont: () =>
+                      _stepMobileTerminalFont(activeSessionId, 0.1),
+                  onResetFont: () => _resetMobileTerminalFont(activeSessionId),
+                  onDismissKeyboard: () =>
+                      _dismissMobileTerminalKeyboard(activeSessionId),
+                ),
             ],
           ),
-        ),
+        ).withSafeArea,
       ),
     );
   }
+}
+
+extension on Widget {
+  Widget get withSafeArea => SafeArea(child: this);
 }

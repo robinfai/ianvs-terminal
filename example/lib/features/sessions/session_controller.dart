@@ -28,6 +28,9 @@ import 'session_state.dart';
 const Object _recordingLastErrorNoChange = Object();
 
 final ptySessionBackendProvider = Provider<PtySessionBackend>((ref) {
+  if (ref.watch(sessionDemoFixtureProvider) != null) {
+    return ReferenceDemoPtySessionBackend();
+  }
   return loadDefaultPtySessionBackend();
 });
 
@@ -459,7 +462,9 @@ class SessionController extends Notifier<SessionState> {
   SessionState build() {
     listenSelf(_handleLayoutStateChanged);
     Future.microtask(_runBootstrap);
-    final liveRecorder = ref.read(terminalLiveRecorderProvider);
+    final liveRecorder = ref.read(sessionDemoFixtureProvider) == null
+        ? ref.read(terminalLiveRecorderProvider)
+        : null;
     final recordingRepository = ref.read(
       localSessionRecordingRepositoryProvider,
     );

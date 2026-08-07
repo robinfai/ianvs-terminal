@@ -200,6 +200,9 @@ class TerminalViewport extends StatefulWidget {
     this.onDismissBlockRender,
     this.onActivateInlineButton,
     this.inlineButtonEnabled,
+    this.onScaleStart,
+    this.onScaleUpdate,
+    this.onScaleEnd,
   });
 
   final TerminalViewportController controller;
@@ -239,6 +242,9 @@ class TerminalViewport extends StatefulWidget {
   final ValueChanged<TerminalBlock>? onDismissBlockRender;
   final ValueChanged<TerminalInlineButton>? onActivateInlineButton;
   final bool Function(TerminalInlineButton button)? inlineButtonEnabled;
+  final GestureScaleStartCallback? onScaleStart;
+  final GestureScaleUpdateCallback? onScaleUpdate;
+  final GestureScaleEndCallback? onScaleEnd;
 
   @override
   State<TerminalViewport> createState() => _TerminalViewportState();
@@ -281,6 +287,7 @@ class _TerminalViewportState extends State<TerminalViewport>
   Offset? _activeMouseButtonGlobalPosition;
   bool _selectionMovedSincePointerDown = false;
   bool _blockTogglePointerActive = false;
+  bool _pinchGestureActive = false;
   _LocalSelectionMode _localSelectionMode = _LocalSelectionMode.cell;
   _TerminalWordRange? _wordSelectionAnchor;
   TextInputConnection? _textInputConnection;
@@ -292,6 +299,10 @@ class _TerminalViewportState extends State<TerminalViewport>
   bool _suppressNextBackspaceAfterImeClear = false;
   bool _suppressImeClearBackspaceUntilKeyUp = false;
   bool _textInputGeometrySyncScheduled = false;
+  bool _suppressNextMobileTextAction = false;
+  String? _submittedMobileTextPendingReset;
+  int _pendingMobileRawBackspaces = 0;
+  bool _mobileRawBackspaceResetScheduled = false;
   final TerminalGraphicsSync _graphicsSync = TerminalGraphicsSync();
   late MouseCursor _lastTerminalPointerCursor;
   FocusNode get _focusNode =>
@@ -457,6 +468,18 @@ class _TerminalViewportState extends State<TerminalViewport>
     _syncCursorBlinkTimer();
   }
 
+  void _focusTerminalFromTap() {
+    _focusNode.requestFocus();
+    if (!_usesMobileTextInput || !_focusNode.hasFocus) {
+      return;
+    }
+    // iOS can dismiss the software keyboard without releasing Flutter focus.
+    // A later tap on the still-focused terminal should ask the system input
+    // connection to show the keyboard again.
+    _openTextInputConnection();
+    _scheduleTextInputGeometrySync();
+  }
+
   void _syncTextInputConnection() {
     if (_focusNode.hasFocus) {
       _openTextInputConnection();
@@ -507,6 +530,9 @@ class _TerminalViewportState extends State<TerminalViewport>
     _deferredImeBackspaceHandled = false;
     _suppressNextBackspaceAfterImeClear = false;
     _suppressImeClearBackspaceUntilKeyUp = false;
+    _submittedMobileTextPendingReset = null;
+    _pendingMobileRawBackspaces = 0;
+    _mobileRawBackspaceResetScheduled = false;
   }
 
   void _clearTextInputState() {
@@ -1073,6 +1099,9 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   void _handlePointerMove(PointerMoveEvent event) {
+    if (_pinchGestureActive) {
+      return;
+    }
     if (!_terminalMouseEnabled) {
       if (!_isLocalSelectionActive ||
           !_isPrimarySelectionButton(event.buttons)) {
@@ -1125,6 +1154,9 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   void _handlePointerUp(PointerUpEvent event) {
+    if (_pinchGestureActive) {
+      return;
+    }
     if (!_terminalMouseEnabled) {
       if (_isLocalSelectionActive) {
         _selectionPointerGlobalPosition = event.position;
@@ -1202,6 +1234,35 @@ class _TerminalViewportState extends State<TerminalViewport>
     _cancelPendingLinkOpen();
     _stopSelectionAutoScroll();
     _setHoveredLinkTarget(null);
+  }
+
+  void _handleScaleStart(ScaleStartDetails details) {
+    widget.onScaleStart?.call(details);
+  }
+
+  void _handleScaleUpdate(ScaleUpdateDetails details) {
+    if (details.pointerCount < 2) {
+      return;
+    }
+    if (!_pinchGestureActive) {
+      _pinchGestureActive = true;
+      _isLocalSelectionActive = false;
+      _selectionPointerGlobalPosition = null;
+      _selectionPointerDownGlobalPosition = null;
+      _wordSelectionAnchor = null;
+      _localSelectionMode = _LocalSelectionMode.cell;
+      _cancelPendingLinkOpen();
+      _stopSelectionAutoScroll();
+      widget.selectionController.clear();
+    }
+    widget.onScaleUpdate?.call(details);
+  }
+
+  void _handleScaleEnd(ScaleEndDetails details) {
+    if (_pinchGestureActive) {
+      widget.onScaleEnd?.call(details);
+    }
+    _pinchGestureActive = false;
   }
 
   void _sendMouseWheel(double deltaY, {Offset? globalPosition}) {
@@ -1659,7 +1720,27 @@ class _TerminalViewportState extends State<TerminalViewport>
         return KeyEventResult.handled;
       }
     }
-    return widget.inputController.handle(event);
+    final result = widget.inputController.handle(event);
+    if (_usesMobileTextInput && result == KeyEventResult.handled) {
+      final isKeyPress = event is KeyDownEvent || event is KeyRepeatEvent;
+      if (isKeyPress && event.logicalKey == LogicalKeyboardKey.enter) {
+        _suppressNextMobileTextAction = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _suppressNextMobileTextAction = false;
+        });
+      } else if (isKeyPress &&
+          event.logicalKey == LogicalKeyboardKey.backspace) {
+        _pendingMobileRawBackspaces += 1;
+        if (!_mobileRawBackspaceResetScheduled) {
+          _mobileRawBackspaceResetScheduled = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _pendingMobileRawBackspaces = 0;
+            _mobileRawBackspaceResetScheduled = false;
+          });
+        }
+      }
+    }
+    return result;
   }
 
   bool _isTerminalFirstHostShortcut(KeyEvent event) {
@@ -1713,7 +1794,8 @@ class _TerminalViewportState extends State<TerminalViewport>
 
   bool _shouldDeferKeyPressToSystemTextInput(KeyEvent event) {
     final connection = _textInputConnection;
-    if (defaultTargetPlatform != TargetPlatform.macOS ||
+    if ((defaultTargetPlatform != TargetPlatform.macOS &&
+            !_usesMobileTextInput) ||
         connection == null ||
         !connection.attached) {
       return false;
@@ -1865,7 +1947,10 @@ class _TerminalViewportState extends State<TerminalViewport>
       onKeyEvent: (_, event) => _handleTerminalKeyEvent(event),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () => _focusNode.requestFocus(),
+        onTap: _focusTerminalFromTap,
+        onScaleStart: widget.onScaleUpdate == null ? null : _handleScaleStart,
+        onScaleUpdate: widget.onScaleUpdate == null ? null : _handleScaleUpdate,
+        onScaleEnd: widget.onScaleUpdate == null ? null : _handleScaleEnd,
         child: MouseRegion(
           cursor: _effectivePointerCursor,
           onExit: (_) {
@@ -2701,18 +2786,38 @@ class _TerminalViewportState extends State<TerminalViewport>
 
   @override
   void updateEditingValue(TextEditingValue value) {
+    var resolvedValue = value;
+    final submittedMobileText = _submittedMobileTextPendingReset;
+    if (_usesMobileTextInput && submittedMobileText != null) {
+      if (value.text == submittedMobileText) {
+        final connection = _textInputConnection;
+        if (connection != null && connection.attached) {
+          connection.setEditingState(TextEditingValue.empty);
+        }
+        return;
+      }
+      _submittedMobileTextPendingReset = null;
+      if (submittedMobileText.isNotEmpty &&
+          value.text.startsWith(submittedMobileText)) {
+        final text = value.text.substring(submittedMobileText.length);
+        resolvedValue = TextEditingValue(
+          text: text,
+          selection: TextSelection.collapsed(offset: text.length),
+        );
+      }
+    }
     final previousValue = _textInputValue;
     final hadActiveComposition = _hasActiveImeComposition(previousValue);
-    final hasActiveComposition = _hasActiveImeComposition(value);
+    final hasActiveComposition = _hasActiveImeComposition(resolvedValue);
     final clearedActiveComposition =
         hadActiveComposition &&
         !hasActiveComposition &&
         previousValue.text.isNotEmpty &&
-        value.text.isEmpty;
+        resolvedValue.text.isEmpty;
     final shouldSuppressBackspaceAfterImeClear =
         clearedActiveComposition && !_deferredImeBackspaceHandled;
     _updateTextInputState(() {
-      _textInputValue = value;
+      _textInputValue = resolvedValue;
       if (hasActiveComposition) {
         _hadImeComposition = true;
         _deferredImeBackspaceHandled = false;
@@ -2724,8 +2829,15 @@ class _TerminalViewportState extends State<TerminalViewport>
       _scheduleTextInputGeometrySync();
       return;
     }
+    if (_usesMobileTextInput && !hadActiveComposition) {
+      final change = _editingReplacementBetween(
+        previousValue.text,
+        resolvedValue.text,
+      );
+      _sendMobileBackspaces(change.removedRuneCount);
+    }
     final text = _committedTextFromEditingValue(
-      value,
+      resolvedValue,
       previousValue: previousValue,
       hadActiveComposition: hadActiveComposition,
     );
@@ -2734,7 +2846,11 @@ class _TerminalViewportState extends State<TerminalViewport>
         _shouldForwardCommittedText(text)) {
       widget.inputController.sendText(text);
     }
-    _clearTextInputState();
+    if (_usesMobileTextInput) {
+      _resetCommittedTextTracking();
+    } else {
+      _clearTextInputState();
+    }
     if (shouldSuppressBackspaceAfterImeClear) {
       _suppressNextBackspaceAfterImeClear = true;
     }
@@ -2747,6 +2863,12 @@ class _TerminalViewportState extends State<TerminalViewport>
   }) {
     final text = value.text;
     if (!hadActiveComposition || text.isEmpty) {
+      if (_usesMobileTextInput && previousValue.text.isNotEmpty) {
+        return _editingReplacementBetween(
+          previousValue.text,
+          text,
+        ).insertedText;
+      }
       return text;
     }
 
@@ -2764,7 +2886,10 @@ class _TerminalViewportState extends State<TerminalViewport>
           : previousComposingText;
     }
 
-    final replacement = _replacementTextBetween(previousText, text);
+    final replacement = _editingReplacementBetween(
+      previousText,
+      text,
+    ).insertedText;
     if (replacement.isNotEmpty || text != previousText) {
       return replacement;
     }
@@ -2775,7 +2900,10 @@ class _TerminalViewportState extends State<TerminalViewport>
     return text;
   }
 
-  String _replacementTextBetween(String previousText, String text) {
+  ({String insertedText, int removedRuneCount}) _editingReplacementBetween(
+    String previousText,
+    String text,
+  ) {
     final previousRunes = previousText.runes.toList(growable: false);
     final textRunes = text.runes.toList(growable: false);
     var prefixLength = 0;
@@ -2796,11 +2924,53 @@ class _TerminalViewportState extends State<TerminalViewport>
       textSuffix -= 1;
     }
 
-    return String.fromCharCodes(textRunes.sublist(prefixLength, textSuffix));
+    return (
+      insertedText: String.fromCharCodes(
+        textRunes.sublist(prefixLength, textSuffix),
+      ),
+      removedRuneCount: previousSuffix - prefixLength,
+    );
+  }
+
+  void _sendMobileBackspaces(int count) {
+    if (count <= 0) {
+      return;
+    }
+    final suppressed = math.min(count, _pendingMobileRawBackspaces);
+    _pendingMobileRawBackspaces -= suppressed;
+    final remaining = count - suppressed;
+    if (remaining == 0) {
+      return;
+    }
+    widget.inputController.sendText(
+      String.fromCharCodes(List<int>.filled(remaining, 0x7f)),
+    );
+  }
+
+  void _resetCommittedTextTracking() {
+    _hadImeComposition = false;
+    _awaitingSystemTextCommit = false;
+    _deferredImeRawText = '';
+    _deferredImeBackspaceHandled = false;
+    _suppressNextBackspaceAfterImeClear = false;
+    _suppressImeClearBackspaceUntilKeyUp = false;
   }
 
   @override
-  void performAction(TextInputAction action) {}
+  void performAction(TextInputAction action) {
+    if (!_usesMobileTextInput ||
+        _suppressNextMobileTextAction ||
+        _submittedMobileTextPendingReset != null ||
+        action != TextInputAction.newline) {
+      return;
+    }
+    final submittedText = _textInputValue.text;
+    widget.inputController.sendText('\r');
+    _clearTextInputState();
+    if (submittedText.isNotEmpty) {
+      _submittedMobileTextPendingReset = submittedText;
+    }
+  }
 
   @override
   void performPrivateCommand(String action, Map<String, dynamic> data) {}
@@ -2833,11 +3003,14 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   bool _shouldForwardCommittedText(String text) {
-    return _hadImeComposition ||
+    return _usesMobileTextInput ||
+        _hadImeComposition ||
         _awaitingSystemTextCommit ||
         _containsNonAscii(text) ||
         text.runes.length > 1;
   }
+
+  bool get _usesMobileTextInput => defaultTargetPlatform == TargetPlatform.iOS;
 
   bool _isHandledKeyboardControlCommit(String text) {
     return text.runes.every(

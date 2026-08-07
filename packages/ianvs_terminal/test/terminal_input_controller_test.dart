@@ -3672,6 +3672,196 @@ void main() {
       }
     },
   );
+  testWidgets(
+    'iOS software keyboard translates editing deletions to backspace once',
+    (tester) async {
+      final previousOverride = debugDefaultTargetPlatformOverride;
+      try {
+        debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+        final backend = _FakePtyBackend();
+        final runtime = _runtimeFor(backend);
+        addTearDown(runtime.dispose);
+        final sessionId = runtime.createSession(
+          const TerminalSessionConfig(
+            launch: TerminalLaunchConfig(program: '/bin/sh'),
+          ),
+        );
+        final viewportController = TerminalViewportController()
+          ..applySnapshot(TerminalFrameDiff.fromJson(_singleRowSnapshot()));
+        final inputController = TerminalInputController(
+          sessionId: sessionId,
+          runtime: runtime,
+          readFrame: () => viewportController.frame,
+          readSelection: () => '',
+          copySelection: (_) async {},
+          readClipboard: () async => '',
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: TerminalViewport(
+                controller: viewportController,
+                selectionController: SelectionController(),
+                inputController: inputController,
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        tester.testTextInput.updateEditingValue(
+          const TextEditingValue(
+            text: 'abc',
+            selection: TextSelection.collapsed(offset: 3),
+          ),
+        );
+        tester.testTextInput.updateEditingValue(
+          const TextEditingValue(
+            text: 'ab',
+            selection: TextSelection.collapsed(offset: 2),
+          ),
+        );
+        tester.testTextInput.updateEditingValue(TextEditingValue.empty);
+        await tester.pump();
+
+        expect(backend.writeCalls.map(utf8.decode).join(), 'abc\x7f\x7f\x7f');
+
+        backend.writeCalls.clear();
+        tester.testTextInput.updateEditingValue(
+          const TextEditingValue(
+            text: 'cat',
+            selection: TextSelection.collapsed(offset: 3),
+          ),
+        );
+        tester.testTextInput.updateEditingValue(
+          const TextEditingValue(
+            text: 'cut',
+            selection: TextSelection.collapsed(offset: 3),
+          ),
+        );
+        await tester.pump();
+
+        expect(backend.writeCalls.map(utf8.decode).join(), 'cat\x7fu');
+
+        backend.writeCalls.clear();
+        await tester.sendKeyDownEvent(
+          LogicalKeyboardKey.backspace,
+          platform: 'ios',
+        );
+        tester.testTextInput.updateEditingValue(
+          const TextEditingValue(
+            text: 'cu',
+            selection: TextSelection.collapsed(offset: 2),
+          ),
+        );
+        await tester.pump();
+        await tester.sendKeyUpEvent(
+          LogicalKeyboardKey.backspace,
+          platform: 'ios',
+        );
+
+        expect(backend.writeCalls.map(utf8.decode).join(), '\x7f');
+      } finally {
+        debugDefaultTargetPlatformOverride = previousOverride;
+      }
+    },
+  );
+
+  testWidgets('iOS software keyboard commits text and newline exactly once', (
+    tester,
+  ) async {
+    final previousOverride = debugDefaultTargetPlatformOverride;
+    try {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      final backend = _FakePtyBackend();
+      final runtime = _runtimeFor(backend);
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final viewportController = TerminalViewportController()
+        ..applySnapshot(TerminalFrameDiff.fromJson(_singleRowSnapshot()));
+      final inputController = TerminalInputController(
+        sessionId: sessionId,
+        runtime: runtime,
+        readFrame: () => viewportController.frame,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TerminalViewport(
+              controller: viewportController,
+              selectionController: SelectionController(),
+              inputController: inputController,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      const command = 'echo iPhone';
+      for (var index = 1; index <= command.length; index += 1) {
+        final prefix = command.substring(0, index);
+        tester.testTextInput.updateEditingValue(
+          TextEditingValue(
+            text: prefix,
+            selection: TextSelection.collapsed(offset: prefix.length),
+          ),
+        );
+      }
+      await tester.pump();
+      await tester.testTextInput.receiveAction(TextInputAction.newline);
+      await tester.pump();
+
+      expect(backend.writeCalls.map(utf8.decode).join(), 'echo iPhone\r');
+
+      tester.testTextInput.updateEditingValue(
+        TextEditingValue(
+          text: command,
+          selection: TextSelection.collapsed(offset: command.length),
+        ),
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.newline);
+      tester.testTextInput.updateEditingValue(TextEditingValue.empty);
+      await tester.pump();
+
+      expect(backend.writeCalls.map(utf8.decode).join(), 'echo iPhone\r');
+
+      backend.writeCalls.clear();
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.keyA,
+        character: 'a',
+        platform: 'ios',
+      );
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'a',
+          selection: TextSelection.collapsed(offset: 1),
+        ),
+      );
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.enter, platform: 'ios');
+      await tester.testTextInput.receiveAction(TextInputAction.newline);
+      await tester.pump();
+
+      expect(
+        backend.writeCalls.map(utf8.decode).toList(growable: false),
+        <String>['a', '\r'],
+      );
+    } finally {
+      debugDefaultTargetPlatformOverride = previousOverride;
+    }
+  });
 }
 
 class _KeyHandlerHarness extends StatelessWidget {

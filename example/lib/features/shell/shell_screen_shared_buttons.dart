@@ -94,6 +94,9 @@ Widget _buildChromeIconButton({
   required double iconSize,
   Color? hoverBackgroundColor,
 }) {
+  final buttonExtent = defaultTargetPlatform == TargetPlatform.iOS
+      ? 44.0
+      : 28.0;
   return Semantics(
     label: tooltip,
     button: true,
@@ -106,7 +109,10 @@ Widget _buildChromeIconButton({
       onPressed: onPressed,
       visualDensity: VisualDensity.compact,
       splashRadius: 14,
-      constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+      constraints: BoxConstraints.tightFor(
+        width: buttonExtent,
+        height: buttonExtent,
+      ),
       style: ButtonStyle(
         overlayColor: const WidgetStatePropertyAll(Colors.transparent),
         backgroundColor: WidgetStateProperty.resolveWith((states) {

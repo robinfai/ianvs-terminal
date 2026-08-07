@@ -70,6 +70,9 @@ class TerminalViewport extends StatelessWidget {
     this.onDismissBlockRender,
     this.onActivateInlineButton,
     this.inlineButtonEnabled,
+    this.onScaleStart,
+    this.onScaleUpdate,
+    this.onScaleEnd,
   });
 
   final TerminalViewportController controller;
@@ -105,6 +108,9 @@ class TerminalViewport extends StatelessWidget {
   final ValueChanged<terminal.TerminalInlineButton>? onActivateInlineButton;
   final bool Function(terminal.TerminalInlineButton button)?
   inlineButtonEnabled;
+  final GestureScaleStartCallback? onScaleStart;
+  final GestureScaleUpdateCallback? onScaleUpdate;
+  final GestureScaleEndCallback? onScaleEnd;
 
   @override
   Widget build(BuildContext context) {
@@ -141,6 +147,9 @@ class TerminalViewport extends StatelessWidget {
       onDismissBlockRender: onDismissBlockRender,
       onActivateInlineButton: onActivateInlineButton,
       inlineButtonEnabled: inlineButtonEnabled,
+      onScaleStart: onScaleStart,
+      onScaleUpdate: onScaleUpdate,
+      onScaleEnd: onScaleEnd,
     );
   }
 }

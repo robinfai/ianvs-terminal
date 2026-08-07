@@ -92,6 +92,8 @@ extension _ShellScreenStateSessions on _ShellScreenState {
 
     _mutateState(() {
       _readOnlySessionIds.remove(sessionId);
+      _mobileTerminalFontScales.remove(sessionId);
+      _mobileTerminalPinchStartScales.remove(sessionId);
       _osc1337AttentionEpochs.remove(sessionId);
       _lastOsc1337FireworksAt.remove(sessionId);
       _osc1337FireworksSerials.remove(sessionId);
@@ -863,7 +865,8 @@ extension _ShellScreenStateSessions on _ShellScreenState {
   }
 
   bool _isSessionReadOnly(String sessionId) {
-    return _readOnlySessionIds.contains(sessionId);
+    return ref.read(referenceDemoModeProvider) ||
+        _readOnlySessionIds.contains(sessionId);
   }
 
   String _visibleFrameText(String sessionId) {
