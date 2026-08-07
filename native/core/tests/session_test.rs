@@ -16852,6 +16852,57 @@ fn zsh_shell_hook_integration_emits_lifecycle_hooks_when_enabled() {
 }
 
 #[test]
+fn zsh_shell_hook_integration_restores_prompt_sp_before_first_command() {
+    if !Path::new("/bin/zsh").exists() {
+        return;
+    }
+
+    let original_zdotdir = tempdir().unwrap();
+    fs::write(
+        original_zdotdir.path().join(".zshrc"),
+        "setopt prompt_sp\nPROMPT='ianvs terminal-prompt-sp% '\n",
+    )
+    .unwrap();
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOME".to_string(),
+        original_zdotdir.path().to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "ZDOTDIR".to_string(),
+        original_zdotdir.path().to_string_lossy().into_owned(),
+    );
+    let session_id = session::create_session(
+        &serde_json::to_string(&local_profile(
+            "zsh-shell-integration-prompt-sp-restore",
+            "Zsh Shell Integration PROMPT_SP Restore",
+            "/bin/zsh",
+            vec![],
+            env,
+            TerminalEmulation::Xterm256,
+        ))
+        .unwrap(),
+    )
+    .unwrap();
+
+    let _ = wait_for_frame_containing(session_id, "ianvs terminal-prompt-sp");
+    session::write_session(
+        session_id,
+        b"builtin print -r -- \"IANVS-PROMPT-SP:${options[prompt_sp]}\"\n",
+    )
+    .unwrap();
+    let frame = wait_for_frame_where(session_id, |frame| {
+        frame.contains("IANVS-PROMPT-SP:on") || frame.contains("IANVS-PROMPT-SP:off")
+    });
+    assert!(
+        frame.contains("IANVS-PROMPT-SP:on"),
+        "shell integration must restore PROMPT_SP globally before the first command: {frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn zsh_shell_hook_integration_preserves_prompt_substitution_from_zshrc() {
     if !Path::new("/bin/zsh").exists() {
         return;

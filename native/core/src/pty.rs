@@ -628,14 +628,20 @@ __ianvs_install_shell_hooks() {
     fi
   }
 
-  __ianvs_preexec() {
-    __ianvs_restore_startup_prompt_state
+  __ianvs_emit_preexec_hook() {
     emulate -L zsh
     local __ianvs_command="$(__ianvs_json_escape "${1:-}")"
     typeset -g __ianvs_command_active=1
     typeset -g __ianvs_last_command="${1:-}"
     __ianvs_emit_shell_hook "{\"hook\":\"preexec\",\"command\":\"$__ianvs_command\",\"shell\":\"zsh\"}"
     return 0
+  }
+
+  __ianvs_preexec() {
+    # Keep the global option restore outside `emulate -L`: zsh otherwise
+    # restores PROMPT_SP to the function-entry state when preexec returns.
+    __ianvs_restore_startup_prompt_state
+    __ianvs_emit_preexec_hook "${1:-}"
   }
 
   __ianvs_precmd() {
