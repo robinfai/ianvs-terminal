@@ -19,6 +19,9 @@ Future<void> main() async {
     final documents = await getApplicationDocumentsDirectory();
     sandboxBackend = IosSandboxShellBackend(
       rootDirectory: Directory('${documents.path}/IanvsShell'),
+      terminalBackend: NativePtyBackend.load(
+        emitRuntimeEventGapDiagnostics: true,
+      ),
     );
   }
   runIanvsTerminalApp(

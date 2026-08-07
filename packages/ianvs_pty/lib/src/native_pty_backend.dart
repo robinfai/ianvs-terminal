@@ -901,7 +901,9 @@ class NativePtyBindings
 
   factory NativePtyBindings.load() {
     return NativePtyBindings(
-      ffi.DynamicLibrary.open(resolveNativePtyLibraryPath()),
+      Platform.isIOS
+          ? ffi.DynamicLibrary.process()
+          : ffi.DynamicLibrary.open(resolveNativePtyLibraryPath()),
     );
   }
 

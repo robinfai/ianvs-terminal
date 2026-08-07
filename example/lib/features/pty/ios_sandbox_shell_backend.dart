@@ -13,63 +13,57 @@ final class IosSandboxShellBackend
     implements PtySessionBackend, PtySessionConfigV1Backend {
   IosSandboxShellBackend({
     required Directory rootDirectory,
+    required PtySessionBackend terminalBackend,
     DateTime Function()? clock,
   }) : rootDirectory = Directory(rootDirectory.absolute.path),
+       _terminalBackend = terminalBackend,
+       _terminalOutput = _requireReplayBackend(terminalBackend),
        _clock = clock ?? DateTime.now {
     this.rootDirectory.createSync(recursive: true);
     _rootPath = this.rootDirectory.resolveSymbolicLinksSync();
   }
 
   final Directory rootDirectory;
+  final PtySessionBackend _terminalBackend;
+  final PtyReplaySessionBackend _terminalOutput;
   final DateTime Function() _clock;
   late final String _rootPath;
   final Map<String, _SandboxSession> _sessions = <String, _SandboxSession>{};
-  int _sessionSeed = 0;
 
   @override
-  bool get supportsSessionConfigV1 => true;
+  bool get supportsSessionConfigV1 {
+    final output = _terminalBackend;
+    final configOutput = output is PtyReplaySessionConfigV1Backend
+        ? output as PtyReplaySessionConfigV1Backend
+        : null;
+    return configOutput?.supportsReplaySessionConfigV1 ?? false;
+  }
 
   @override
-  int ping() => 1;
+  int ping() => _terminalBackend.ping();
 
   @override
   String createSession(String sessionConfigJson) {
-    String? requestedId;
-    try {
-      final decoded = jsonDecode(sessionConfigJson);
-      if (decoded is Map<String, Object?>) {
-        requestedId = decoded['id'] as String?;
-      }
-    } on Object {
-      // A malformed desktop-style launch profile still gets a safe session.
-    }
-    return _createSession(requestedId);
+    return _createSession(
+      _terminalOutput.createReplaySession(sessionConfigJson),
+    );
   }
 
   @override
   String createSessionV1(String sessionConfigV1Json) {
-    String? requestedId;
-    try {
-      final decoded = jsonDecode(sessionConfigV1Json);
-      if (decoded is Map<String, Object?>) {
-        requestedId = decoded['session_id'] as String?;
-      }
-    } on Object {
-      // The backend owns the fallback ID and never evaluates launch fields.
+    final output = _terminalBackend;
+    final configOutput = output is PtyReplaySessionConfigV1Backend
+        ? output as PtyReplaySessionConfigV1Backend
+        : null;
+    if (configOutput == null || !configOutput.supportsReplaySessionConfigV1) {
+      throw UnsupportedError('Replay SessionConfig v1 is not supported');
     }
-    return _createSession(requestedId);
+    return _createSession(
+      configOutput.createReplaySessionV1(sessionConfigV1Json),
+    );
   }
 
-  String _createSession(String? requestedId) {
-    _sessionSeed += 1;
-    final normalizedId = requestedId?.trim();
-    var sessionId = normalizedId == null || normalizedId.isEmpty
-        ? 'ios-sandbox-$_sessionSeed'
-        : normalizedId;
-    while (_sessions.containsKey(sessionId)) {
-      _sessionSeed += 1;
-      sessionId = 'ios-sandbox-$_sessionSeed';
-    }
+  String _createSession(String sessionId) {
     final session = _SandboxSession(sessionId)
       ..lines.addAll(const <_ShellLine>[
         _ShellLine('Ianvs Sandbox Shell'),
@@ -77,14 +71,15 @@ final class IosSandboxShellBackend
         _ShellLine('Type "help" to see the available commands.'),
         _ShellLine(''),
       ]);
-    session.events.add(PtyEvent(kind: 'started', sessionId: sessionId));
     _sessions[sessionId] = session;
+    _redraw(session);
     return sessionId;
   }
 
   @override
   void closeSession(String sessionId) {
     _sessions.remove(sessionId);
+    _terminalBackend.closeSession(sessionId);
   }
 
   @override
@@ -101,16 +96,16 @@ final class IosSandboxShellBackend
     if (session == null) {
       return;
     }
-    final nextCols = cols.clamp(20, 500).toInt();
-    final nextRows = rows.clamp(2, 300).toInt();
-    if (nextCols == session.cols && nextRows == session.rows) {
-      return;
-    }
-    session
-      ..cols = nextCols
-      ..rows = nextRows
-      ..scrollbackOffset = 0
-      ..dirty = true;
+    _terminalBackend.resizeSession(
+      sessionId,
+      cols: cols,
+      rows: rows,
+      pixelWidth: pixelWidth,
+      pixelHeight: pixelHeight,
+      cellWidth: cellWidth,
+      cellHeight: cellHeight,
+    );
+    _redraw(session);
   }
 
   @override
@@ -159,9 +154,7 @@ final class IosSandboxShellBackend
       );
       _insertText(session, text);
     }
-    session
-      ..scrollbackOffset = 0
-      ..dirty = true;
+    _redraw(session);
   }
 
   int _handleEscapeSequence(
@@ -223,7 +216,6 @@ final class IosSandboxShellBackend
         session.input.removeRange(session.cursor, session.input.length);
       case 0x0c: // Ctrl-L
         session.lines.clear();
-        session.scrollbackOffset = 0;
       case 0x15: // Ctrl-U
         session.input.removeRange(0, session.cursor);
         session.cursor = 0;
@@ -990,169 +982,59 @@ Paths are always confined to this app's IanvsShell folder.
 
   @override
   void scrollViewport(String sessionId, int deltaLines) {
-    final session = _sessions[sessionId];
-    if (session == null || deltaLines == 0) {
+    if (!_sessions.containsKey(sessionId) || deltaLines == 0) {
       return;
     }
-    final maxOffset = _renderedLines(session).length - session.rows;
-    session.scrollbackOffset = (session.scrollbackOffset + deltaLines)
-        .clamp(0, math.max(0, maxOffset))
-        .toInt();
-    session.dirty = true;
+    _terminalBackend.scrollViewport(sessionId, deltaLines);
   }
 
   @override
   void scrollViewportTo(String sessionId, int offset) {
-    final session = _sessions[sessionId];
-    if (session == null) {
+    if (!_sessions.containsKey(sessionId)) {
       return;
     }
-    final maxOffset = math.max(
-      0,
-      _renderedLines(session).length - session.rows,
-    );
-    session.scrollbackOffset = offset.clamp(0, maxOffset).toInt();
-    session.dirty = true;
+    _terminalBackend.scrollViewportTo(sessionId, offset);
   }
 
   @override
   String? takeFrameDiffJson(String sessionId) {
-    final session = _sessions[sessionId];
-    if (session == null || !session.dirty) {
-      return null;
-    }
-    session.dirty = false;
-    final allRows = _renderedLines(session);
-    final maxOffset = math.max(0, allRows.length - session.rows);
-    session.scrollbackOffset = session.scrollbackOffset
-        .clamp(0, maxOffset)
-        .toInt();
-    final end = (allRows.length - session.scrollbackOffset)
-        .clamp(0, allRows.length)
-        .toInt();
-    final start = math.max(0, end - session.rows);
-    final visible = allRows.sublist(start, end);
-    final cursorVisible = session.scrollbackOffset == 0;
-    final cursorGlobalRow = allRows.length - 1;
-    final promptLength = _prompt(session).runes.length;
-    final cursorAbsoluteCol = promptLength + session.cursor;
-    final cursorWrappedRow = cursorAbsoluteCol ~/ session.cols;
-    final currentLineRows = _wrapLine(
-      _ShellLine(
-        '${_prompt(session)}${session.inputText}',
-        promptLength: promptLength,
-      ),
-      session.cols,
-      ensureTrailingCursorRow: true,
-    ).length;
-    final cursorRow =
-        cursorGlobalRow - (currentLineRows - 1) + cursorWrappedRow - start;
-    final jsonRows = <Map<String, Object?>>[];
-    for (var index = 0; index < visible.length; index += 1) {
-      final row = visible[index];
-      jsonRows.add(<String, Object?>{
-        'index': index,
-        'text': row.text,
-        'wrapped': row.wrapped,
-        'source_row': start + index,
-        'style_runs': row.promptStyleLength <= 0
-            ? const <Object?>[]
-            : <Object?>[
-                <String, Object?>{
-                  'start': 0,
-                  'end': row.promptStyleLength,
-                  'foreground': '#7DD3FC',
-                  'background': null,
-                  'bold': true,
-                  'italic': false,
-                  'underline': false,
-                  'inverse': false,
-                },
-              ],
-      });
-    }
-    return jsonEncode(<String, Object?>{
-      'frame_kind': 'snapshot',
-      'rows': jsonRows,
-      'cursor': <String, Object?>{
-        'row': math.max(0, cursorRow),
-        'col': cursorAbsoluteCol % session.cols,
-        'visible': cursorVisible && cursorRow >= 0 && cursorRow < session.rows,
-        'shape': 'beam',
-        'blink': true,
-      },
-      'selection': null,
-      'viewport_rows': session.rows,
-      'viewport_cols': session.cols,
-      'dirty_ranges': <Object?>[
-        <String, Object?>{'start': 0, 'end': visible.length},
-      ],
-      'scrollback_offset': session.scrollbackOffset,
-      'scrollback_max_offset': maxOffset,
-      'viewport_start_row': start,
-      'global_bottom_row': math.max(0, allRows.length - 1),
-      'window_title': 'iOS Sandbox',
-      'window_icon_name': null,
-      'modes': const <String, Object?>{
-        'mouse_mode': 'off',
-        'bracketed_paste': false,
-        'focus_tracking': false,
-      },
-    });
+    return _sessions.containsKey(sessionId)
+        ? _terminalBackend.takeFrameDiffJson(sessionId)
+        : null;
   }
 
-  List<_RenderedShellLine> _renderedLines(_SandboxSession session) {
-    final rows = <_RenderedShellLine>[];
-    for (final line in session.lines) {
-      rows.addAll(_wrapLine(line, session.cols));
-    }
-    final prompt = _prompt(session);
-    rows.addAll(
-      _wrapLine(
-        _ShellLine(
-          '$prompt${session.inputText}',
-          promptLength: prompt.runes.length,
-        ),
-        session.cols,
-        ensureTrailingCursorRow: true,
-      ),
+  void _redraw(_SandboxSession session) {
+    final output = StringBuffer(
+      '\x1b[?25l\x1b[3J\x1b[2J\x1b[H\x1b]0;iOS Sandbox\x07',
     );
-    return rows;
+    for (final line in session.lines) {
+      _writeStyledLine(output, line);
+      output.write('\r\n');
+    }
+
+    _writePrompt(output, _prompt(session));
+    output.write(session.input.take(session.cursor).join());
+    output.write('\x1b7');
+    output.write(session.input.skip(session.cursor).join());
+    output.write('\x1b8\x1b[5 q\x1b[?25h');
+    _terminalOutput.replayOutput(session.id, utf8.encode(output.toString()));
   }
 
-  List<_RenderedShellLine> _wrapLine(
-    _ShellLine line,
-    int columns, {
-    bool ensureTrailingCursorRow = false,
-  }) {
-    final runes = line.text.runes
-        .map(String.fromCharCode)
-        .toList(growable: false);
-    if (runes.isEmpty) {
-      return const <_RenderedShellLine>[
-        _RenderedShellLine(text: '', wrapped: false, promptStyleLength: 0),
-      ];
+  void _writeStyledLine(StringBuffer output, _ShellLine line) {
+    final promptLength = line.promptLength.clamp(0, line.text.length).toInt();
+    if (promptLength == 0) {
+      output.write(line.text);
+      return;
     }
-    final result = <_RenderedShellLine>[];
-    for (var start = 0; start < runes.length; start += columns) {
-      final end = math.min(runes.length, start + columns);
-      final promptLength = (line.promptLength - start)
-          .clamp(0, end - start)
-          .toInt();
-      result.add(
-        _RenderedShellLine(
-          text: runes.sublist(start, end).join(),
-          wrapped: start > 0,
-          promptStyleLength: promptLength,
-        ),
-      );
-    }
-    if (ensureTrailingCursorRow && runes.length % columns == 0) {
-      result.add(
-        const _RenderedShellLine(text: '', wrapped: true, promptStyleLength: 0),
-      );
-    }
-    return result;
+    _writePrompt(output, line.text.substring(0, promptLength));
+    output.write(line.text.substring(promptLength));
+  }
+
+  void _writePrompt(StringBuffer output, String prompt) {
+    output
+      ..write('\x1b[1;38;2;125;211;252m')
+      ..write(prompt)
+      ..write('\x1b[0m');
   }
 
   String _prompt(_SandboxSession session) {
@@ -1162,14 +1044,21 @@ Paths are always confined to this app's IanvsShell folder.
 
   @override
   List<PtyEvent> pollEvents(String sessionId) {
-    final session = _sessions[sessionId];
-    if (session == null || session.events.isEmpty) {
-      return const <PtyEvent>[];
-    }
-    final events = List<PtyEvent>.of(session.events);
-    session.events.clear();
-    return events;
+    return _sessions.containsKey(sessionId)
+        ? _terminalBackend.pollEvents(sessionId)
+        : const <PtyEvent>[];
   }
+}
+
+PtyReplaySessionBackend _requireReplayBackend(PtySessionBackend backend) {
+  if (backend case final PtyReplaySessionBackend replayBackend) {
+    return replayBackend;
+  }
+  throw ArgumentError.value(
+    backend,
+    'terminalBackend',
+    'must support replay sessions for in-process terminal output',
+  );
 }
 
 const Set<String> _sandboxCommands = <String>{
@@ -1204,16 +1093,11 @@ final class _SandboxSession {
   final List<_ShellLine> lines = <_ShellLine>[];
   final List<String> input = <String>[];
   final List<String> history = <String>[];
-  final List<PtyEvent> events = <PtyEvent>[];
   String cwd = '/';
   int cursor = 0;
   int historyIndex = 0;
   int lastExitCode = 0;
-  int cols = 80;
-  int rows = 24;
-  int scrollbackOffset = 0;
   bool lastInputWasCarriageReturn = false;
-  bool dirty = true;
 
   String get inputText => input.join();
 }
@@ -1223,18 +1107,6 @@ final class _ShellLine {
 
   final String text;
   final int promptLength;
-}
-
-final class _RenderedShellLine {
-  const _RenderedShellLine({
-    required this.text,
-    required this.wrapped,
-    required this.promptStyleLength,
-  });
-
-  final String text;
-  final bool wrapped;
-  final int promptStyleLength;
 }
 
 final class _CommandResult {

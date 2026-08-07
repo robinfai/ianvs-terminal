@@ -48,7 +48,10 @@ void main() {
         ProviderScope(
           overrides: [
             ptySessionBackendProvider.overrideWithValue(
-              IosSandboxShellBackend(rootDirectory: root),
+              IosSandboxShellBackend(
+                rootDirectory: root,
+                terminalBackend: NativePtyBackend.load(),
+              ),
             ),
             profileRepositoryProvider.overrideWithValue(
               MemoryProfileRepository(
@@ -129,7 +132,9 @@ void main() {
       await tester.pump(const Duration(milliseconds: 40));
       viewport = tester.widget<TerminalViewport>(find.byType(TerminalViewport));
       expect(
-        viewport.controller.frame.rows.any((row) => row.text.endsWith(r'$')),
+        viewport.controller.frame.rows.any(
+          (row) => row.text.trimRight().endsWith(r'$'),
+        ),
         isTrue,
       );
 

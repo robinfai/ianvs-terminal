@@ -14,14 +14,16 @@ void main() {
     root = Directory.systemTemp.createTempSync('ianvs-ios-shell-test-');
     backend = IosSandboxShellBackend(
       rootDirectory: root,
+      terminalBackend: NativePtyBackend.load(),
       clock: () => DateTime.utc(2026, 8, 7, 12, 30),
     );
-    sessionId = backend.createSessionV1(
-      '{"session_id":"ios-test","config":{}}',
+    sessionId = backend.createSession(
+      '{"id":"ios-test","name":"iOS Sandbox","shell":"/bin/false"}',
     );
   });
 
   tearDown(() {
+    backend.closeSession(sessionId);
     if (root.existsSync()) {
       root.deleteSync(recursive: true);
     }
@@ -89,15 +91,65 @@ void main() {
     expect(cleared, isNot(contains('Ianvs Sandbox Shell')));
     expect(cleared, contains(r'ios:~ $ echo hidden'));
   });
+
+  test('positions the cursor by terminal cell width for Chinese input', () {
+    _takeFrame(backend, sessionId);
+
+    backend.writeInput(sessionId, utf8.encode('A中B'));
+    var frame = _takeFrame(backend, sessionId);
+    expect(_cursor(frame)['col'], 12);
+
+    backend.writeInput(sessionId, const <int>[0x1b, 0x5b, 0x44]);
+    frame = _takeFrame(backend, sessionId);
+    expect(_cursor(frame)['col'], 11);
+
+    backend.writeInput(sessionId, const <int>[0x7f]);
+    frame = _takeFrame(backend, sessionId);
+    expect(_cursor(frame)['col'], 9);
+    expect(_frameText(frame), contains(r'ios:~ $ AB'));
+  });
+
+  test('wraps a wide Chinese glyph before a one-cell remainder', () {
+    _takeFrame(backend, sessionId);
+    backend.resizeSession(
+      sessionId,
+      cols: 20,
+      rows: 10,
+      pixelWidth: 200,
+      pixelHeight: 200,
+    );
+
+    backend.writeInput(sessionId, utf8.encode('12345678901中'));
+
+    final frame = _takeFrame(backend, sessionId);
+    final rows = frame['rows']! as List<Object?>;
+    final cursorRow = _cursor(frame)['row']! as int;
+    final rowAtCursor = rows[cursorRow] as Map<String, Object?>;
+    expect((rowAtCursor['text']! as String).trimRight(), '中');
+    expect(_cursor(frame)['col'], 2);
+  });
 }
 
 String _takeText(IosSandboxShellBackend backend, String sessionId) {
+  return _frameText(_takeFrame(backend, sessionId));
+}
+
+Map<String, Object?> _takeFrame(
+  IosSandboxShellBackend backend,
+  String sessionId,
+) {
   final raw = backend.takeFrameDiffJson(sessionId);
   expect(raw, isNotNull);
-  final frame = jsonDecode(raw!) as Map<String, Object?>;
+  return jsonDecode(raw!) as Map<String, Object?>;
+}
+
+String _frameText(Map<String, Object?> frame) {
   final rows = frame['rows']! as List<Object?>;
   return rows
       .cast<Map<String, Object?>>()
       .map((row) => row['text'] as String)
       .join('\n');
 }
+
+Map<String, Object?> _cursor(Map<String, Object?> frame) =>
+    frame['cursor']! as Map<String, Object?>;
