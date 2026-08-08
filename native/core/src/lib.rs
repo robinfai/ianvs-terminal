@@ -10,6 +10,8 @@ pub mod runtime_contract;
 pub mod session;
 pub mod session_config;
 pub mod session_request;
+pub mod ssh;
+pub mod ssh_config;
 mod zmodem;
 
 pub use ffi::*;

@@ -291,7 +291,8 @@ fn valid_operation(value: &str) -> bool {
 fn supported_operation(value: &str) -> bool {
     matches!(
         value,
-        "terminal.recording_start"
+        "ssh.auth_response"
+            | "terminal.recording_start"
             | "terminal.recording_stop"
             | "terminal.recording_cancel"
             | "terminal.search_text"
@@ -376,6 +377,7 @@ mod tests {
 
     #[test]
     fn operation_inventory_is_explicit() {
+        assert!(supported_operation("ssh.auth_response"));
         assert!(supported_operation("terminal.search_text"));
         assert!(supported_operation("terminal.zmodem.resolve_recovery"));
         assert!(supported_operation("terminal.zmodem.dismiss_recovery"));

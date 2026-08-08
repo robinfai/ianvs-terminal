@@ -375,6 +375,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     );
     final profile = _profileForPane(pane, sessionState.profiles);
     final terminalConfig = profile?.toSessionConfig();
+    final sessionReadOnly = _isSessionReadOnly(sessionId);
     final baseTerminalFont =
         terminalConfig?.display.font ?? const terminal.TerminalFontConfig();
     final effectiveTerminalFont = defaultTargetPlatform == TargetPlatform.iOS
@@ -394,7 +395,10 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
       ),
       copySelection: ClipboardBridge.copy,
       readClipboard: ClipboardBridge.paste,
-      readOnly: () => _isSessionReadOnly(sessionId),
+      // TerminalViewport can emit a final focus-loss report while its element
+      // is being unmounted. Capture the build-time value so that teardown does
+      // not ask Riverpod for an ancestor after ShellScreen is deactivated.
+      readOnly: () => sessionReadOnly,
     );
     final annotations = _annotationsForSession(sessionId);
     final activeCoprocess = _coprocesses[sessionId];

@@ -569,6 +569,9 @@ class Terminal implements TerminalDisposable {
       return;
     }
     switch (event) {
+      case TerminalSessionSshAuthPromptEvent():
+        // The headless xterm-compatible facade has no credential UI.
+        break;
       case TerminalSessionFrameEvent(:final frame):
         _handleFrame(frame);
         break;

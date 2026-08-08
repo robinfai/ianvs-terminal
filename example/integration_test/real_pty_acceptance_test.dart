@@ -570,7 +570,7 @@ sleep 1
   );
 
   testWidgets(
-    'real PTY inactive wrapped output sends a logical activity notification',
+    'real PTY inactive wrapped output sends a redacted activity notification',
     (tester) async {
       final prefixLengthFile = _tempSignalFile('activity-wrapped');
       final notifications = <Map<String, String?>>[];
@@ -609,6 +609,7 @@ sleep 5
 
       await _openCommandMenu(tester);
       await tester.tap(find.text('New tab'));
+      await _chooseDefaultLocalSession(tester);
       await _waitFor(
         tester,
         description: 'second real PTY tab',
@@ -626,16 +627,26 @@ sleep 5
 
       await _waitFor(
         tester,
-        description: 'inactive wrapped activity notification',
+        description: 'redacted inactive activity notification',
         condition: () => notifications.any(
           (notification) =>
               (notification['title']?.startsWith('Activity in ') ?? false) &&
-              (notification['body']?.contains('ERROR 42 failed') ?? false) &&
-              (notification['body']?.contains('inactive wrapped output') ??
+              notification['body'] == 'New terminal output is available.' &&
+              (notification['identifier']?.startsWith(
+                    'ianvs-terminal.activity.',
+                  ) ??
                   false),
         ),
         onTimeout: () => 'Notifications: $notifications',
       );
+      final activity = notifications.firstWhere(
+        (notification) => notification['identifier']?.startsWith(
+          'ianvs-terminal.activity.',
+        ) ??
+        false,
+      );
+      expect(activity['body'], isNot(contains('ERROR 42 failed')));
+      expect(activity['body'], isNot(contains('inactive wrapped output')));
     },
     skip: _skipNonRefreshPolicyGateTests,
   );
@@ -688,6 +699,7 @@ sleep 1
           .activeSessionId!;
       await _openCommandMenu(tester);
       await tester.tap(find.text('New tab'));
+      await _chooseDefaultLocalSession(tester);
       await _waitFor(
         tester,
         description: 'inactive OSC 99 source tab',
@@ -3505,6 +3517,30 @@ Future<void> _openCommandMenu(WidgetTester tester) async {
         .byKey(const Key('shell-command-menu-overlay'))
         .evaluate()
         .isNotEmpty,
+  );
+}
+
+Future<void> _chooseDefaultLocalSession(WidgetTester tester) async {
+  final launcher = find.byKey(const Key('new-session-launcher'));
+  final localProfiles = find.descendant(
+    of: launcher,
+    matching: find.byType(ListTile),
+  );
+  await _waitFor(
+    tester,
+    description: 'new session launcher',
+    condition: () => launcher.evaluate().isNotEmpty,
+  );
+  await _waitFor(
+    tester,
+    description: 'local profile choice',
+    condition: () => localProfiles.evaluate().isNotEmpty,
+  );
+  await tester.tap(localProfiles.first);
+  await _waitFor(
+    tester,
+    description: 'new session launcher to close',
+    condition: () => launcher.evaluate().isEmpty,
   );
 }
 

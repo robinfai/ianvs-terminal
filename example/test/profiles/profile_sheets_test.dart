@@ -90,6 +90,59 @@ void main() {
     },
   );
 
+  testWidgets('profiles New asks for local shell or SSH session', (
+    tester,
+  ) async {
+    final profile = defaultTerminalProfile();
+    ProfilesSheetResult? result;
+
+    await _pumpProfilesSheetHarness(
+      tester,
+      profiles: [profile],
+      effectiveDefaultProfileId: profile.id,
+      onClosed: (value) => result = value,
+    );
+
+    await tester.tap(find.byKey(const Key('profiles-create')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('profiles-create-local')), findsOneWidget);
+    expect(find.byKey(const Key('profiles-create-ssh')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('profiles-create-ssh')));
+    await tester.pumpAndSettle();
+
+    expect(result, isA<CreateProfileResult>());
+    expect(
+      (result! as CreateProfileResult).connectionType,
+      NewProfileConnectionType.sshSession,
+    );
+  });
+
+  testWidgets(
+    'profiles sheet delete affordance returns the selected delete result',
+    (tester) async {
+      final defaultProfile = defaultTerminalProfile();
+      final profile = defaultTerminalProfile().copyWith(
+        id: 'docker-ssh',
+        name: 'Docker SSH',
+      );
+      ProfilesSheetResult? result;
+
+      await _pumpProfilesSheetHarness(
+        tester,
+        profiles: [defaultProfile, profile],
+        effectiveDefaultProfileId: defaultProfile.id,
+        onClosed: (value) => result = value,
+      );
+
+      await tester.tap(find.byTooltip('Delete Docker SSH'));
+      await tester.pumpAndSettle();
+
+      expect(result, isA<DeleteProfileResult>());
+      expect((result! as DeleteProfileResult).profile.id, profile.id);
+    },
+  );
+
   testWidgets(
     'profiles and dynamic profile sheets inherit shared list and input theming',
     (tester) async {

@@ -32,6 +32,7 @@ const FEATURES: &[&str] = &[
     "session-recording.v1",
     "session-request-envelope.json.v1",
     "session-request.json.v1",
+    "ssh-session.v1",
     "zmodem.receive.v1",
     "zmodem.send.v1",
 ];

@@ -33,6 +33,10 @@ enum TerminalProfileTriggerAction { notify, sendText }
 
 enum TerminalProfileSwitchRuleKind { hostname, username, directory }
 
+/// An explicit request to remove one encrypted SSH secret from persistent
+/// storage. These intents are transient and are never serialized themselves.
+enum ProfileSecretField { password, privateKeyPassphrase, x11AuthCookie }
+
 class TerminalProfileSwitchRule {
   const TerminalProfileSwitchRule({
     required this.kind,
@@ -142,6 +146,8 @@ class TerminalProfile {
     List<String> args = const [],
     Map<String, String> env = const {},
     String? cwd,
+    terminal_pkg.TerminalConnectionConfig connection =
+        const terminal_pkg.TerminalConnectionConfig.local(),
     TerminalEmulation terminalEmulation = TerminalEmulation.xterm256,
     int scrollbackLines = terminal_pkg.defaultTerminalScrollbackLines,
     terminal_pkg.TerminalDisplayConfig appearance =
@@ -158,6 +164,7 @@ class TerminalProfile {
            env: env,
            cwd: cwd,
          ),
+         connection: connection,
          emulation: terminalEmulation,
          scrollbackLines: scrollbackLines,
          display: appearance,
@@ -187,6 +194,9 @@ class TerminalProfile {
   TerminalEmulation get terminalEmulation => sessionConfig.emulation;
   int get scrollbackLines => sessionConfig.scrollbackLines;
   terminal_pkg.TerminalLaunchConfig get launch => sessionConfig.launch;
+  terminal_pkg.TerminalConnectionConfig get connection =>
+      sessionConfig.connection;
+  bool get isSsh => connection.isSsh;
   terminal_pkg.TerminalDisplayConfig get appearance => sessionConfig.display;
   terminal_pkg.TerminalInteractionConfig get interaction =>
       sessionConfig.interaction;
@@ -202,6 +212,7 @@ class TerminalProfile {
     int? scrollbackLines,
     terminal_pkg.TerminalDisplayConfig? appearance,
     terminal_pkg.TerminalInteractionConfig? interaction,
+    terminal_pkg.TerminalConnectionConfig? connection,
     terminal_pkg.TerminalSessionConfig? sessionConfig,
     List<String>? tags,
     List<TerminalProfileTrigger>? triggers,
@@ -222,6 +233,7 @@ class TerminalProfile {
       switchRules: switchRules ?? this.switchRules,
       sessionConfig: baseConfig.copyWith(
         launch: nextLaunch,
+        connection: connection,
         emulation: terminalEmulation,
         scrollbackLines: scrollbackLines,
         display: appearance,
@@ -231,7 +243,7 @@ class TerminalProfile {
   }
 
   Map<String, Object?> toJson() {
-    final configJson = sessionConfig.toJson();
+    final configJson = sessionConfig.toJson(includeSensitiveFields: false);
     return {
       'id': id,
       'name': name,
@@ -320,6 +332,7 @@ class TerminalProfilesDocument {
     this.schemaVersion = currentSchemaVersion,
     required this.profiles,
     this.loadWarnings = const [],
+    this.secretClearIntents = const {},
   });
 
   static const int currentSchemaVersion = 4;
@@ -327,6 +340,7 @@ class TerminalProfilesDocument {
   final int schemaVersion;
   final List<TerminalProfile> profiles;
   final List<TerminalProfileLoadWarning> loadWarnings;
+  final Map<String, Set<ProfileSecretField>> secretClearIntents;
 
   Map<String, Object?> toJson() {
     return {

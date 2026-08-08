@@ -57,6 +57,259 @@ pub struct TerminalProfileLaunch {
     pub cwd: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TerminalConnectionType {
+    #[default]
+    Local,
+    Ssh,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TerminalSshAuthMethod {
+    #[default]
+    Auto,
+    Password,
+    PublicKey,
+    KeyboardInteractive,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TerminalSshHostKeyPolicy {
+    #[default]
+    Strict,
+    AcceptNew,
+    Insecure,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TerminalSshPortForwardKind {
+    #[default]
+    Local,
+    Remote,
+    Dynamic,
+}
+
+fn default_ssh_forward_bind_host() -> String {
+    "127.0.0.1".to_string()
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TerminalSshPortForward {
+    #[serde(rename = "type", default)]
+    pub kind: TerminalSshPortForwardKind,
+    #[serde(rename = "bindHost", default = "default_ssh_forward_bind_host")]
+    pub bind_host: String,
+    #[serde(rename = "bindPort", default)]
+    pub bind_port: u16,
+    #[serde(rename = "targetHost", default)]
+    pub target_host: String,
+    #[serde(rename = "targetPort", default)]
+    pub target_port: u16,
+}
+
+fn default_ssh_port() -> u16 {
+    22
+}
+
+fn default_ssh_connect_timeout_seconds() -> u64 {
+    10
+}
+
+fn default_ssh_keepalive_count_max() -> usize {
+    3
+}
+
+/// Authentication and host-verification settings for one ProxyJump hop.
+///
+/// Jump hosts are independent trust boundaries. In particular, credentials
+/// from the destination connection are never inherited by this structure.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TerminalSshJumpProfile {
+    #[serde(default)]
+    pub host: String,
+    #[serde(default)]
+    pub user: String,
+    #[serde(default)]
+    pub port: u16,
+    #[serde(default)]
+    pub auth: TerminalSshAuthMethod,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub password: Option<String>,
+    #[serde(rename = "privateKeys", default)]
+    pub private_keys: Vec<String>,
+    #[serde(
+        rename = "privateKeyPassphrase",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub private_key_passphrase: Option<String>,
+    #[serde(rename = "hostKeyPolicy", default)]
+    pub host_key_policy: TerminalSshHostKeyPolicy,
+    #[serde(
+        rename = "knownHostsFile",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub known_hosts_file: Option<String>,
+    #[serde(
+        rename = "connectTimeoutSeconds",
+        default = "default_ssh_connect_timeout_seconds"
+    )]
+    pub connect_timeout_seconds: u64,
+    #[serde(rename = "keepaliveSeconds", default)]
+    pub keepalive_seconds: u64,
+    #[serde(
+        rename = "keepaliveCountMax",
+        default = "default_ssh_keepalive_count_max"
+    )]
+    pub keepalive_count_max: usize,
+}
+
+impl Default for TerminalSshJumpProfile {
+    fn default() -> Self {
+        Self {
+            host: String::new(),
+            user: String::new(),
+            port: 0,
+            auth: TerminalSshAuthMethod::Auto,
+            password: None,
+            private_keys: Vec::new(),
+            private_key_passphrase: None,
+            host_key_policy: TerminalSshHostKeyPolicy::Strict,
+            known_hosts_file: None,
+            connect_timeout_seconds: default_ssh_connect_timeout_seconds(),
+            keepalive_seconds: 0,
+            keepalive_count_max: default_ssh_keepalive_count_max(),
+        }
+    }
+}
+
+/// Product-neutral connection settings. Local remains the fail-closed default
+/// for old SessionConfig producers that do not send this additive field.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TerminalProfileConnection {
+    #[serde(rename = "type", default)]
+    pub connection_type: TerminalConnectionType,
+    #[serde(default)]
+    pub host: String,
+    #[serde(default)]
+    pub user: String,
+    #[serde(default = "default_ssh_port")]
+    pub port: u16,
+    #[serde(default)]
+    pub auth: TerminalSshAuthMethod,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub password: Option<String>,
+    #[serde(rename = "privateKeys", default)]
+    pub private_keys: Vec<String>,
+    #[serde(
+        rename = "privateKeyPassphrase",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub private_key_passphrase: Option<String>,
+    #[serde(rename = "hostKeyPolicy", default)]
+    pub host_key_policy: TerminalSshHostKeyPolicy,
+    #[serde(
+        rename = "knownHostsFile",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub known_hosts_file: Option<String>,
+    #[serde(
+        rename = "connectTimeoutSeconds",
+        default = "default_ssh_connect_timeout_seconds"
+    )]
+    pub connect_timeout_seconds: u64,
+    #[serde(rename = "keepaliveSeconds", default)]
+    pub keepalive_seconds: u64,
+    #[serde(
+        rename = "keepaliveCountMax",
+        default = "default_ssh_keepalive_count_max"
+    )]
+    pub keepalive_count_max: usize,
+    #[serde(
+        rename = "proxyCommand",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub proxy_command: Option<String>,
+    #[serde(rename = "proxyJump", default, skip_serializing_if = "Option::is_none")]
+    pub proxy_jump: Option<String>,
+    #[serde(rename = "proxyJumpProfiles", default)]
+    pub proxy_jump_profiles: Vec<TerminalSshJumpProfile>,
+    #[serde(rename = "portForwards", default)]
+    pub port_forwards: Vec<TerminalSshPortForward>,
+    #[serde(rename = "agentForwarding", default)]
+    pub agent_forwarding: bool,
+    #[serde(
+        rename = "agentSocket",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub agent_socket: Option<String>,
+    #[serde(rename = "x11Forwarding", default)]
+    pub x11_forwarding: bool,
+    #[serde(
+        rename = "x11TargetHost",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub x11_target_host: Option<String>,
+    #[serde(rename = "x11TargetPort", default)]
+    pub x11_target_port: u16,
+    #[serde(rename = "x11AuthProtocol", default = "default_x11_auth_protocol")]
+    pub x11_auth_protocol: String,
+    #[serde(
+        rename = "x11AuthCookie",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub x11_auth_cookie: Option<String>,
+    #[serde(rename = "x11ScreenNumber", default)]
+    pub x11_screen_number: u32,
+}
+
+fn default_x11_auth_protocol() -> String {
+    "MIT-MAGIC-COOKIE-1".to_string()
+}
+
+impl Default for TerminalProfileConnection {
+    fn default() -> Self {
+        Self {
+            connection_type: TerminalConnectionType::Local,
+            host: String::new(),
+            user: String::new(),
+            port: default_ssh_port(),
+            auth: TerminalSshAuthMethod::Auto,
+            password: None,
+            private_keys: Vec::new(),
+            private_key_passphrase: None,
+            host_key_policy: TerminalSshHostKeyPolicy::Strict,
+            known_hosts_file: None,
+            connect_timeout_seconds: default_ssh_connect_timeout_seconds(),
+            keepalive_seconds: 0,
+            keepalive_count_max: default_ssh_keepalive_count_max(),
+            proxy_command: None,
+            proxy_jump: None,
+            proxy_jump_profiles: Vec::new(),
+            port_forwards: Vec::new(),
+            agent_forwarding: false,
+            agent_socket: None,
+            x11_forwarding: false,
+            x11_target_host: None,
+            x11_target_port: 0,
+            x11_auth_protocol: default_x11_auth_protocol(),
+            x11_auth_cookie: None,
+            x11_screen_number: 0,
+        }
+    }
+}
+
 fn default_shell_integration_enabled() -> bool {
     true
 }
@@ -254,6 +507,8 @@ pub struct TerminalProfile {
     pub name: String,
     pub launch: TerminalProfileLaunch,
     #[serde(default)]
+    pub connection: TerminalProfileConnection,
+    #[serde(default)]
     pub terminal: TerminalProfileTerminal,
     #[serde(rename = "shellIntegration", default)]
     pub shell_integration: TerminalShellIntegration,
@@ -286,6 +541,7 @@ impl<'de> Deserialize<'de> for TerminalProfile {
             id: wire.id,
             name: wire.name,
             launch,
+            connection: wire.connection.unwrap_or_default(),
             terminal,
             shell_integration: wire.shell_integration.unwrap_or_default(),
             appearance: wire.appearance.unwrap_or_default(),
@@ -300,6 +556,8 @@ struct TerminalProfileWire {
     name: String,
     #[serde(default)]
     launch: Option<TerminalProfileLaunch>,
+    #[serde(default)]
+    connection: Option<TerminalProfileConnection>,
     #[serde(default)]
     terminal: Option<TerminalProfileTerminal>,
     #[serde(default)]

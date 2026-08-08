@@ -134,23 +134,29 @@
             "activeWorkspaceIdentity"
           ]
         },
-        {
-          "path": "example/lib/features/shell/shell_screen_chrome.dart",
-          "contains": [
-            "_ShellSessionRecordingButton",
-            "shell-chrome-session-recording",
-            "shell-chrome-menu",
-            "Open command palette"
-          ],
+      {
+        "path": "example/lib/features/shell/shell_screen_chrome.dart",
+        "contains": [
+          "shell-chrome-menu",
+          "Open command palette"
+        ],
           "not_contains": [
             "Recent Workspaces",
             "Open Project",
             "_ShellFolderButton",
             "shell-open-terminal-at-folder",
             "_ShellRecordingsButton",
-            "shell-open-recording"
-          ]
-        },
+          "shell-open-recording"
+        ]
+      },
+      {
+        "path": "example/lib/features/shell/shell_screen_command_menu.dart",
+        "contains": [
+          "shell-toggle-session-recording",
+          "TerminalActionId.toggleSessionRecording",
+          "Start recording for Replay"
+        ]
+      },
         {
           "path": "example/lib/features/shell/window_bridge.dart",
           "contains": [
@@ -293,7 +299,7 @@
           "contains": [
             "Open Terminal at Folder",
             "Legacy Workspace v1-v3",
-            "SSH remains a **deferred extension**"
+            "SSH is implemented as a **Profile and Session extension**"
           ]
         },
         {
@@ -1076,19 +1082,18 @@
     {
       "id": "remote-plugin-renderer-expansion",
       "status": "deferred",
-      "goal": "Keep SSH, plugins, cloud/collaboration and renderer replacement outside the active runtime-contract lane and current terminal-only product surface.",
+      "goal": "Keep plugins, cloud/collaboration and renderer replacement outside the active runtime-contract lane and current terminal product surface.",
       "evidence": [
         {
           "path": "docs/KNOWN_ISSUES.md",
           "contains": [
-            "还没有 SSH 会话链路",
             "还没有插件系统",
             "当前没有 native renderer"
           ]
         }
       ],
       "verification_commands": [],
-      "reason": "SSH is a deferred Profile/Session extension; project/remote Workspace, plugin infrastructure, cloud collaboration and renderer replacement are not part of the current terminal product."
+      "reason": "SSH is delivered through the existing Profile/Session and tab/pane model; project/remote Workspace, plugin infrastructure, cloud collaboration and renderer replacement remain outside the current terminal product."
     }
   ]
 }

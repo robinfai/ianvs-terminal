@@ -1,4 +1,4 @@
-use crate::model::{TerminalEmulation, TerminalProfile};
+use crate::model::{TerminalConnectionType, TerminalEmulation, TerminalProfile};
 use portable_pty::{CommandBuilder, MasterPty, PtySize, native_pty_system};
 use std::collections::BTreeMap;
 use std::fs;
@@ -25,6 +25,7 @@ pub struct PtyRuntime {
     pub child_pid: Option<u32>,
     pub(crate) shell_integration: ShellIntegrationPlanStatus,
     pub(crate) shell_integration_proxy: Option<ShellIntegrationProxy>,
+    pub(crate) ssh_auth: Option<crate::ssh::SshAuthClient>,
 }
 
 struct SpawnedChildGuard {
@@ -194,6 +195,32 @@ pub fn spawn_pty(profile: &TerminalProfile, rows: u16, cols: u16) -> anyhow::Res
     spawn_pty_with_post_spawn_check(profile, rows, cols, |_| Ok(()))
 }
 
+/// Creates the byte transport used by the terminal engine. Local profiles use
+/// the platform PTY while SSH profiles use the pure-Rust russh channel adapter.
+pub fn spawn_terminal_transport(
+    profile: &TerminalProfile,
+    rows: u16,
+    cols: u16,
+) -> anyhow::Result<PtyRuntime> {
+    match profile.connection.connection_type {
+        TerminalConnectionType::Local => spawn_pty(profile, rows, cols),
+        TerminalConnectionType::Ssh => {
+            let runtime = crate::ssh::spawn_ssh(profile.connection.clone(), rows, cols)?;
+            Ok(PtyRuntime {
+                master: runtime.master,
+                reader: runtime.reader,
+                reader_poll_handle: None,
+                writer: runtime.writer,
+                child: runtime.child,
+                child_pid: None,
+                shell_integration: ShellIntegrationPlanStatus::disabled("remote_ssh"),
+                shell_integration_proxy: None,
+                ssh_auth: Some(runtime.auth),
+            })
+        }
+    }
+}
+
 fn spawn_pty_with_post_spawn_check<F>(
     profile: &TerminalProfile,
     rows: u16,
@@ -258,6 +285,7 @@ where
         child_pid,
         shell_integration: plan.shell_integration,
         shell_integration_proxy: plan.shell_integration_proxy,
+        ssh_auth: None,
     })
 }
 
@@ -906,8 +934,9 @@ end
 mod tests {
     use super::*;
     use crate::model::{
-        TerminalGraphicsConfig, TerminalProfileAppearance, TerminalProfileInteraction,
-        TerminalProfileLaunch, TerminalProfileTerminal, TerminalShellIntegration,
+        TerminalGraphicsConfig, TerminalProfileAppearance, TerminalProfileConnection,
+        TerminalProfileInteraction, TerminalProfileLaunch, TerminalProfileTerminal,
+        TerminalShellIntegration,
     };
     use tempfile::tempdir;
 
@@ -927,6 +956,7 @@ mod tests {
                 env,
                 cwd: None,
             },
+            connection: TerminalProfileConnection::default(),
             terminal: TerminalProfileTerminal {
                 emulation,
                 scrollback_lines: 8_000,

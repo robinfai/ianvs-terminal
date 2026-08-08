@@ -2,12 +2,391 @@ import 'dart:io';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/profiles/profile_repository.dart';
+import 'package:app/features/profiles/profile_secret_cipher.dart';
 import 'package:app/features/terminal/terminal_defaults.dart';
 
 void main() {
+  test(
+    'encrypts SSH secrets at rest and restores them with the saved key',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-encrypted-ssh-profile',
+      );
+      final keyStore = _MemoryProfileSecretKeyStore();
+      final repository = ProfileRepository(
+        directoryResolver: () async => directory,
+        secretCipher: ProfileSecretCipher(keyStore: keyStore),
+      );
+      final profile = defaultTerminalProfile().copyWith(
+        id: 'ssh-production',
+        name: 'Production SSH',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'ssh.example.test',
+          user: 'operator',
+          auth: terminal.TerminalSshAuthMethod.password,
+          password: 'plain-password-must-not-leak',
+          privateKeyPassphrase: 'plain-passphrase-must-not-leak',
+          proxyJump: 'jump-user@jump.example.test',
+          proxyJumpProfiles: <terminal.TerminalSshJumpConfig>[
+            terminal.TerminalSshJumpConfig(
+              host: 'jump.example.test',
+              user: 'jump-user',
+              port: 22,
+              auth: terminal.TerminalSshAuthMethod.publicKey,
+              password: 'plain-jump-password-must-not-leak',
+              privateKeys: <String>['/keys/jump_ed25519'],
+              privateKeyPassphrase: 'plain-jump-passphrase-must-not-leak',
+            ),
+          ],
+          x11Forwarding: true,
+          x11TargetHost: '127.0.0.1',
+          x11TargetPort: 6000,
+          x11AuthCookie: 'plain-x11-cookie-must-not-leak',
+        ),
+      );
+
+      await repository.save(TerminalProfilesDocument(profiles: [profile]));
+      final raw = await File(
+        '${directory.path}/ianvs_profiles.json',
+      ).readAsString();
+
+      expect(raw, isNot(contains('plain-password-must-not-leak')));
+      expect(raw, isNot(contains('plain-passphrase-must-not-leak')));
+      expect(raw, isNot(contains('plain-x11-cookie-must-not-leak')));
+      expect(raw, isNot(contains('plain-jump-password-must-not-leak')));
+      expect(raw, isNot(contains('plain-jump-passphrase-must-not-leak')));
+      expect(raw, contains('aes-256-gcm'));
+      expect(raw, contains('encryptedSecrets'));
+      expect(keyStore.writeCount, 1);
+
+      final reloaded = await ProfileRepository(
+        directoryResolver: () async => directory,
+        secretCipher: ProfileSecretCipher(keyStore: keyStore),
+      ).load();
+      expect(
+        reloaded.profiles.single.connection.password,
+        'plain-password-must-not-leak',
+      );
+      expect(
+        reloaded.profiles.single.connection.privateKeyPassphrase,
+        'plain-passphrase-must-not-leak',
+      );
+      expect(
+        reloaded.profiles.single.connection.x11AuthCookie,
+        'plain-x11-cookie-must-not-leak',
+      );
+      expect(
+        reloaded.profiles.single.connection.proxyJumpProfiles.single.password,
+        isNull,
+      );
+      expect(
+        reloaded
+            .profiles
+            .single
+            .connection
+            .proxyJumpProfiles
+            .single
+            .privateKeyPassphrase,
+        isNull,
+      );
+      expect(
+        reloaded
+            .profiles
+            .single
+            .connection
+            .proxyJumpProfiles
+            .single
+            .privateKeys,
+        <String>['/keys/jump_ed25519'],
+      );
+    },
+  );
+
+  test(
+    'preserves an undecryptable secret envelope while saving other profiles',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-opaque-ssh-secret',
+      );
+      final originalKeyStore = _MemoryProfileSecretKeyStore();
+      final sshProfile = defaultTerminalProfile().copyWith(
+        id: 'ssh-opaque',
+        name: 'Opaque SSH',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'opaque.example.test',
+          user: 'operator',
+          password: 'recover-me',
+        ),
+      );
+      final localProfile = defaultTerminalProfile().copyWith(id: 'local-1');
+      final originalRepository = ProfileRepository(
+        directoryResolver: () async => directory,
+        secretCipher: ProfileSecretCipher(keyStore: originalKeyStore),
+      );
+      await originalRepository.save(
+        TerminalProfilesDocument(profiles: [sshProfile, localProfile]),
+      );
+      final file = File('${directory.path}/ianvs_profiles.json');
+      final before = jsonDecode(await file.readAsString()) as Map;
+      final beforeEnvelope = _encryptedSecretsFor(before, 'ssh-opaque');
+
+      final wrongKeyStore = _MemoryProfileSecretKeyStore()
+        ..value = base64Encode(List<int>.filled(32, 7));
+      final repositoryWithWrongKey = ProfileRepository(
+        directoryResolver: () async => directory,
+        secretCipher: ProfileSecretCipher(keyStore: wrongKeyStore),
+      );
+      final loaded = await repositoryWithWrongKey.load();
+      expect(loaded.profiles.first.connection.password, isNull);
+      expect(loaded.loadWarnings, isNotEmpty);
+
+      await repositoryWithWrongKey.save(
+        TerminalProfilesDocument(
+          profiles: [
+            loaded.profiles.first,
+            loaded.profiles.last.copyWith(name: 'Renamed local'),
+          ],
+        ),
+      );
+      final after = jsonDecode(await file.readAsString()) as Map;
+      expect(_encryptedSecretsFor(after, 'ssh-opaque'), beforeEnvelope);
+
+      final recovered = await ProfileRepository(
+        directoryResolver: () async => directory,
+        secretCipher: ProfileSecretCipher(keyStore: originalKeyStore),
+      ).load();
+      expect(recovered.profiles.first.connection.password, 'recover-me');
+      expect(recovered.profiles.last.name, 'Renamed local');
+    },
+  );
+
+  test(
+    'explicitly clearing an undecryptable secret removes it permanently',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-clear-opaque-ssh-secret',
+      );
+      final originalKeyStore = _MemoryProfileSecretKeyStore();
+      final profile = defaultTerminalProfile().copyWith(
+        id: 'ssh-clear-opaque',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'opaque.example.test',
+          user: 'operator',
+          password: 'must-not-resurrect',
+        ),
+      );
+      await ProfileRepository(
+        directoryResolver: () async => directory,
+        secretCipher: ProfileSecretCipher(keyStore: originalKeyStore),
+      ).save(TerminalProfilesDocument(profiles: [profile]));
+
+      final wrongKeyStore = _MemoryProfileSecretKeyStore()
+        ..value = base64Encode(List<int>.filled(32, 7));
+      final wrongKeyRepository = ProfileRepository(
+        directoryResolver: () async => directory,
+        secretCipher: ProfileSecretCipher(keyStore: wrongKeyStore),
+      );
+      final loaded = await wrongKeyRepository.load();
+      expect(loaded.profiles.single.connection.password, isNull);
+
+      await wrongKeyRepository.save(
+        TerminalProfilesDocument(
+          profiles: loaded.profiles,
+          secretClearIntents: const <String, Set<ProfileSecretField>>{
+            'ssh-clear-opaque': <ProfileSecretField>{
+              ProfileSecretField.password,
+            },
+          },
+        ),
+      );
+      // A second unrelated save exercises the repository's refreshed opaque
+      // snapshot; the removed envelope must not be copied back into the file.
+      await wrongKeyRepository.save(
+        TerminalProfilesDocument(
+          profiles: [loaded.profiles.single.copyWith(name: 'Renamed')],
+        ),
+      );
+
+      final file = File('${directory.path}/ianvs_profiles.json');
+      final raw = jsonDecode(await file.readAsString()) as Map;
+      expect(
+        _connectionFor(raw, 'ssh-clear-opaque').containsKey('encryptedSecrets'),
+        isFalse,
+      );
+      final recovered = await ProfileRepository(
+        directoryResolver: () async => directory,
+        secretCipher: ProfileSecretCipher(keyStore: originalKeyStore),
+      ).load();
+      expect(recovered.profiles.single.connection.password, isNull);
+      expect(recovered.profiles.single.name, 'Renamed');
+    },
+  );
+
+  test(
+    'secret clear intents remove only the requested encrypted fields',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-field-scoped-secret-clear',
+      );
+      final originalKeyStore = _MemoryProfileSecretKeyStore();
+      final profile = defaultTerminalProfile().copyWith(
+        id: 'ssh-field-clear',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'fields.example.test',
+          user: 'operator',
+          password: 'keep-password',
+          privateKeys: <String>['~/.ssh/id_ed25519'],
+          privateKeyPassphrase: 'remove-passphrase',
+          x11Forwarding: true,
+          x11TargetHost: '127.0.0.1',
+          x11TargetPort: 6000,
+          x11AuthCookie: 'remove-cookie',
+        ),
+      );
+      await ProfileRepository(
+        directoryResolver: () async => directory,
+        secretCipher: ProfileSecretCipher(keyStore: originalKeyStore),
+      ).save(TerminalProfilesDocument(profiles: [profile]));
+
+      final wrongKeyStore = _MemoryProfileSecretKeyStore()
+        ..value = base64Encode(List<int>.filled(32, 9));
+      final wrongKeyRepository = ProfileRepository(
+        directoryResolver: () async => directory,
+        secretCipher: ProfileSecretCipher(keyStore: wrongKeyStore),
+      );
+      final loaded = await wrongKeyRepository.load();
+      await wrongKeyRepository.save(
+        TerminalProfilesDocument(
+          profiles: loaded.profiles,
+          secretClearIntents: const <String, Set<ProfileSecretField>>{
+            'ssh-field-clear': <ProfileSecretField>{
+              ProfileSecretField.privateKeyPassphrase,
+              ProfileSecretField.x11AuthCookie,
+            },
+          },
+        ),
+      );
+
+      final raw =
+          jsonDecode(
+                await File(
+                  '${directory.path}/ianvs_profiles.json',
+                ).readAsString(),
+              )
+              as Map;
+      final encrypted = _encryptedSecretsFor(raw, 'ssh-field-clear');
+      expect(encrypted, contains('password'));
+      expect(encrypted, isNot(contains('privateKeyPassphrase')));
+      expect(encrypted, isNot(contains('x11AuthCookie')));
+
+      final recovered = await ProfileRepository(
+        directoryResolver: () async => directory,
+        secretCipher: ProfileSecretCipher(keyStore: originalKeyStore),
+      ).load();
+      expect(recovered.profiles.single.connection.password, 'keep-password');
+      expect(recovered.profiles.single.connection.privateKeyPassphrase, isNull);
+      expect(recovered.profiles.single.connection.x11AuthCookie, isNull);
+    },
+  );
+
+  test('preserves an unknown encryptedSecrets version across save', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'ianvs terminal-future-ssh-secret',
+    );
+    final file = File('${directory.path}/ianvs_profiles.json');
+    await file.writeAsString(
+      jsonEncode(<String, Object?>{
+        'schemaVersion': TerminalProfilesDocument.currentSchemaVersion,
+        'profiles': <Object?>[
+          <String, Object?>{
+            ...defaultTerminalProfile()
+                .copyWith(
+                  id: 'future-ssh',
+                  connection: const terminal.TerminalConnectionConfig.ssh(
+                    host: 'future.example.test',
+                    user: 'operator',
+                  ),
+                )
+                .toJson(),
+            'connection': <String, Object?>{
+              'type': 'ssh',
+              'host': 'future.example.test',
+              'user': 'operator',
+              'port': 22,
+              'encryptedSecrets': <String, Object?>{
+                'format': 'ianvs-profile-secrets-v2',
+                'payload': <String, Object?>{
+                  'ciphertext': 'opaque-future-value',
+                },
+              },
+            },
+          },
+        ],
+      }),
+    );
+    final repository = ProfileRepository(
+      directoryResolver: () async => directory,
+    );
+
+    final loaded = await repository.load();
+    await repository.save(
+      TerminalProfilesDocument(
+        profiles: [loaded.profiles.single.copyWith(name: 'Future renamed')],
+      ),
+    );
+
+    final saved = jsonDecode(await file.readAsString()) as Map;
+    expect(_encryptedSecretsFor(saved, 'future-ssh'), <String, Object?>{
+      'format': 'ianvs-profile-secrets-v2',
+      'payload': <String, Object?>{'ciphertext': 'opaque-future-value'},
+    });
+  });
+
+  test(
+    'does not quarantine valid legacy JSON when secret migration cannot save',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-failed-secret-migration',
+      );
+      final file = File('${directory.path}/ianvs_profiles.json');
+      final source = jsonEncode(<String, Object?>{
+        'schemaVersion': TerminalProfilesDocument.currentSchemaVersion,
+        'profiles': <Object?>[
+          <String, Object?>{
+            ...defaultTerminalProfile().copyWith(id: 'legacy-ssh').toJson(),
+            'connection': <String, Object?>{
+              'type': 'ssh',
+              'host': 'legacy.example.test',
+              'user': 'operator',
+              'port': 22,
+              'password': 'legacy-plaintext',
+            },
+          },
+        ],
+      });
+      await file.writeAsString(source);
+      final invalidKeyStore = _MemoryProfileSecretKeyStore()
+        ..value = 'not-a-valid-base64-key';
+      final repository = ProfileRepository(
+        directoryResolver: () async => directory,
+        secretCipher: ProfileSecretCipher(keyStore: invalidKeyStore),
+      );
+
+      await expectLater(repository.load(), throwsA(isA<FormatException>()));
+
+      expect(await file.readAsString(), source);
+      final quarantined = await directory
+          .list()
+          .where((entry) => entry.path.contains('.corrupt'))
+          .toList();
+      expect(quarantined, isEmpty);
+    },
+  );
+
   test(
     'profile repository persists profiles to disk without legacy default field',
     () async {
@@ -1088,6 +1467,7 @@ void main() {
     }
   ]
 }
+
 ''');
     final repository = ProfileRepository(
       directoryResolver: () async => directory,
@@ -1269,4 +1649,31 @@ String _profileCollectionFallbackSummary(int maxEntries, String entryLabel) {
     return 'loaded first $maxEntries $entryLabel entries';
   }
   return 'loaded first $maxEntries valid $entryLabel entries';
+}
+
+final class _MemoryProfileSecretKeyStore implements ProfileSecretKeyStore {
+  String? value;
+  int writeCount = 0;
+
+  @override
+  Future<String?> read() async => value;
+
+  @override
+  Future<void> write(String value) async {
+    this.value = value;
+    writeCount += 1;
+  }
+}
+
+Map<String, Object?> _encryptedSecretsFor(Map document, String profileId) {
+  final connection = _connectionFor(document, profileId);
+  return Map<String, Object?>.from(connection['encryptedSecrets']! as Map);
+}
+
+Map _connectionFor(Map document, String profileId) {
+  final profiles = document['profiles']! as List;
+  final profile = profiles.cast<Map>().singleWhere(
+    (entry) => entry['id'] == profileId,
+  );
+  return profile['connection']! as Map;
 }

@@ -1,0 +1,1491 @@
+import 'package:flutter/material.dart';
+
+import '../../ui/app_ui.dart';
+import '../profiles/profile_models.dart';
+import '../terminal/terminal.dart' as terminal;
+import 'ssh_profile_import_service.dart';
+
+final class NewSessionSelection {
+  const NewSessionSelection({required this.profile, this.saveProfile = false});
+
+  final TerminalProfile profile;
+  final bool saveProfile;
+}
+
+final class SshProfileEditorResult {
+  const SshProfileEditorResult({
+    required this.profile,
+    required this.saveProfile,
+    this.clearSecrets = const {},
+  });
+
+  final TerminalProfile profile;
+  final bool saveProfile;
+  final Set<ProfileSecretField> clearSecrets;
+}
+
+class NewSessionLauncher extends StatefulWidget {
+  const NewSessionLauncher({
+    super.key,
+    required this.profiles,
+    required this.importOpenSshProfiles,
+  });
+
+  final List<TerminalProfile> profiles;
+  final Future<SshProfileImportSnapshot> Function() importOpenSshProfiles;
+
+  @override
+  State<NewSessionLauncher> createState() => _NewSessionLauncherState();
+}
+
+class _NewSessionLauncherState extends State<NewSessionLauncher> {
+  terminal.TerminalConnectionType _type = terminal.TerminalConnectionType.local;
+  Future<SshProfileImportSnapshot>? _importedProfiles;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.appTheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: Material(
+        key: const Key('new-session-launcher'),
+        color: palette.overlay,
+        borderRadius: BorderRadius.circular(palette.radius.xl),
+        clipBehavior: Clip.antiAlias,
+        child: SafeArea(
+          top: false,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 720),
+            child: Padding(
+              padding: EdgeInsets.all(palette.spacing.xl),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'New terminal tab',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                color: palette.textPrimary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Close',
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    'Choose a local shell or connect to an SSH host.',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: palette.textSubtle),
+                  ),
+                  SizedBox(height: palette.spacing.lg),
+                  SizedBox(
+                    width: double.infinity,
+                    child: SegmentedButton<terminal.TerminalConnectionType>(
+                      key: const Key('new-session-type'),
+                      segments: const [
+                        ButtonSegment(
+                          value: terminal.TerminalConnectionType.local,
+                          icon: Icon(Icons.terminal_rounded),
+                          label: Text('Local shell'),
+                        ),
+                        ButtonSegment(
+                          value: terminal.TerminalConnectionType.ssh,
+                          icon: Icon(Icons.dns_outlined),
+                          label: Text('SSH session'),
+                        ),
+                      ],
+                      selected: {_type},
+                      onSelectionChanged: (selection) {
+                        setState(() {
+                          _type = selection.single;
+                          if (_type == terminal.TerminalConnectionType.ssh) {
+                            _importedProfiles ??= widget
+                                .importOpenSshProfiles();
+                          }
+                        });
+                      },
+                    ),
+                  ),
+                  SizedBox(height: palette.spacing.lg),
+                  Flexible(
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 160),
+                      child: _type == terminal.TerminalConnectionType.local
+                          ? _LocalProfileList(
+                              key: const ValueKey('local-sessions'),
+                              profiles: widget.profiles
+                                  .where((profile) => !profile.isSsh)
+                                  .toList(growable: false),
+                            )
+                          : _SshProfileList(
+                              key: const ValueKey('ssh-sessions'),
+                              savedProfiles: widget.profiles
+                                  .where((profile) => profile.isSsh)
+                                  .toList(growable: false),
+                              importedProfiles: _importedProfiles ??= widget
+                                  .importOpenSshProfiles(),
+                              onRetryImport: () {
+                                setState(() {
+                                  _importedProfiles = widget
+                                      .importOpenSshProfiles();
+                                });
+                              },
+                              onCreateCustom: _createCustomSshProfile,
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _createCustomSshProfile() async {
+    final result = await showDialog<SshProfileEditorResult>(
+      context: context,
+      builder: (context) => SshProfileEditorDialog(
+        initialValue: defaultTerminalProfile().copyWith(
+          id: 'ssh-${DateTime.now().microsecondsSinceEpoch}',
+          name: 'SSH session',
+          connection: const terminal.TerminalConnectionConfig.ssh(
+            host: '',
+            user: '',
+            // There is no host-key confirmation challenge in the UI yet, so
+            // fail closed for a new destination. Users can explicitly choose
+            // Accept new after comparing or provisioning the host key.
+            hostKeyPolicy: terminal.TerminalSshHostKeyPolicy.strict,
+          ),
+        ),
+        allowSaveChoice: true,
+      ),
+    );
+    if (!mounted || result == null) {
+      return;
+    }
+    Navigator.of(context).pop(
+      NewSessionSelection(
+        profile: result.profile,
+        saveProfile: result.saveProfile,
+      ),
+    );
+  }
+}
+
+class _LocalProfileList extends StatelessWidget {
+  const _LocalProfileList({super.key, required this.profiles});
+
+  final List<TerminalProfile> profiles;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      shrinkWrap: true,
+      itemCount: profiles.length,
+      separatorBuilder: (_, _) => const Divider(height: 1),
+      itemBuilder: (context, index) {
+        final profile = profiles[index];
+        return ListTile(
+          key: Key('new-local-session-${profile.id}'),
+          leading: const Icon(Icons.terminal_rounded),
+          title: Text(profile.name),
+          subtitle: Text(
+            '${profile.shell} • ${terminalEmulationLabel(profile.terminalEmulation)}',
+          ),
+          trailing: const Icon(Icons.arrow_forward_rounded),
+          onTap: () =>
+              Navigator.of(context).pop(NewSessionSelection(profile: profile)),
+        );
+      },
+    );
+  }
+}
+
+class _SshProfileList extends StatefulWidget {
+  const _SshProfileList({
+    super.key,
+    required this.savedProfiles,
+    required this.importedProfiles,
+    required this.onRetryImport,
+    required this.onCreateCustom,
+  });
+
+  final List<TerminalProfile> savedProfiles;
+  final Future<SshProfileImportSnapshot> importedProfiles;
+  final VoidCallback onRetryImport;
+  final VoidCallback onCreateCustom;
+
+  @override
+  State<_SshProfileList> createState() => _SshProfileListState();
+}
+
+class _SshProfileListState extends State<_SshProfileList> {
+  final _search = TextEditingController();
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  bool _matches(TerminalProfile profile) {
+    final query = _search.text.trim().toLowerCase();
+    if (query.isEmpty) {
+      return true;
+    }
+    final connection = profile.connection;
+    return profile.name.toLowerCase().contains(query) ||
+        connection.host.toLowerCase().contains(query) ||
+        connection.user.toLowerCase().contains(query);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final savedProfiles = widget.savedProfiles.where(_matches).toList();
+    return ListView(
+      shrinkWrap: true,
+      children: [
+        FilledButton.icon(
+          key: const Key('new-custom-ssh-session'),
+          onPressed: widget.onCreateCustom,
+          icon: const Icon(Icons.add_rounded),
+          label: const Text('New SSH connection'),
+        ),
+        const SizedBox(height: 10),
+        Semantics(
+          label: 'Search SSH profiles',
+          textField: true,
+          child: TextField(
+            key: const Key('ssh-profile-search'),
+            controller: _search,
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              hintText: 'Search by name, host, or user',
+              prefixIcon: const Icon(Icons.search_rounded),
+              suffixIcon: _search.text.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Clear search',
+                      onPressed: () {
+                        _search.clear();
+                        setState(() {});
+                      },
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+            ),
+          ),
+        ),
+        if (savedProfiles.isNotEmpty) ...[
+          const _SectionLabel('Saved SSH profiles'),
+          for (final profile in savedProfiles)
+            _SshProfileTile(profile: profile, imported: false),
+        ],
+        const _SectionLabel('From ~/.ssh/config'),
+        FutureBuilder<SshProfileImportSnapshot>(
+          future: widget.importedProfiles,
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            final imported = snapshot.requireData;
+            if (imported.error != null) {
+              return ListTile(
+                leading: const Icon(Icons.warning_amber_rounded),
+                title: const Text('OpenSSH profiles unavailable'),
+                subtitle: Text(imported.error!),
+                trailing: TextButton(
+                  onPressed: widget.onRetryImport,
+                  child: const Text('Retry'),
+                ),
+              );
+            }
+            if (imported.profiles.isEmpty) {
+              return ListTile(
+                leading: const Icon(Icons.info_outline_rounded),
+                title: const Text('No concrete SSH hosts found'),
+                subtitle: Text(imported.sourcePath),
+              );
+            }
+            final filteredProfiles = imported.profiles
+                .where(_matches)
+                .toList(growable: false);
+            if (filteredProfiles.isEmpty && _search.text.trim().isNotEmpty) {
+              return const ListTile(
+                leading: Icon(Icons.search_off_rounded),
+                title: Text('No matching SSH profiles'),
+                subtitle: Text('Try a different name, host, or user.'),
+              );
+            }
+            return Column(
+              children: [
+                for (final profile in filteredProfiles)
+                  _SshProfileTile(profile: profile, imported: true),
+                if (imported.warnings.isNotEmpty)
+                  ListTile(
+                    leading: const Icon(Icons.warning_amber_rounded),
+                    title: Text(
+                      '${imported.warnings.length} SSH config warning${imported.warnings.length == 1 ? '' : 's'}',
+                    ),
+                    subtitle: Text(imported.warnings.first),
+                  ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _SshProfileTile extends StatelessWidget {
+  const _SshProfileTile({required this.profile, required this.imported});
+
+  final TerminalProfile profile;
+  final bool imported;
+
+  @override
+  Widget build(BuildContext context) {
+    final connection = profile.connection;
+    return ListTile(
+      key: Key('new-ssh-session-${profile.id}'),
+      leading: Icon(imported ? Icons.description_outlined : Icons.dns_outlined),
+      title: Text(profile.name),
+      subtitle: Text(
+        '${connection.user}@${connection.host}:${connection.port}'
+        '${imported ? ' • OpenSSH config' : ''}',
+      ),
+      trailing: const Icon(Icons.arrow_forward_rounded),
+      onTap: () =>
+          Navigator.of(context).pop(NewSessionSelection(profile: profile)),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.appTheme;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        palette.spacing.sm,
+        palette.spacing.lg,
+        palette.spacing.sm,
+        palette.spacing.xs,
+      ),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+          color: palette.textMuted,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class SshProfileEditorDialog extends StatefulWidget {
+  const SshProfileEditorDialog({
+    super.key,
+    required this.initialValue,
+    this.allowSaveChoice = false,
+  });
+
+  final TerminalProfile initialValue;
+  final bool allowSaveChoice;
+
+  @override
+  State<SshProfileEditorDialog> createState() => _SshProfileEditorDialogState();
+}
+
+class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _scrollController = ScrollController();
+  final _hostFocus = FocusNode();
+  final _userFocus = FocusNode();
+  final _passwordFocus = FocusNode();
+  final _privateKeysFocus = FocusNode();
+  late final TextEditingController _name;
+  late final TextEditingController _host;
+  late final TextEditingController _user;
+  late final TextEditingController _port;
+  late final TextEditingController _password;
+  late final TextEditingController _privateKeys;
+  late final TextEditingController _privateKeyPassphrase;
+  late final TextEditingController _knownHostsFile;
+  late final TextEditingController _connectTimeout;
+  late final TextEditingController _keepalive;
+  late final TextEditingController _keepaliveCount;
+  late final TextEditingController _proxyCommand;
+  late final TextEditingController _proxyJump;
+  late final TextEditingController _portForwards;
+  late final TextEditingController _agentSocket;
+  late final TextEditingController _x11Target;
+  late final TextEditingController _x11Cookie;
+  late terminal.TerminalSshAuthMethod _auth;
+  late terminal.TerminalSshHostKeyPolicy _hostKeyPolicy;
+  late bool _agentForwarding;
+  late bool _x11Forwarding;
+  bool _clearPassword = false;
+  bool _clearPrivateKeyPassphrase = false;
+  bool _clearX11AuthCookie = false;
+  bool _saveProfile = true;
+  bool _showAdvanced = false;
+  bool _showValidationErrors = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final connection = widget.initialValue.connection;
+    _name = TextEditingController(text: widget.initialValue.name);
+    _host = TextEditingController(text: connection.host);
+    _user = TextEditingController(text: connection.user);
+    _port = TextEditingController(text: connection.port.toString());
+    _password = TextEditingController(text: connection.password ?? '');
+    _privateKeys = TextEditingController(
+      text: connection.privateKeys.join('\n'),
+    );
+    _privateKeyPassphrase = TextEditingController(
+      text: connection.privateKeyPassphrase ?? '',
+    );
+    _knownHostsFile = TextEditingController(
+      text: connection.knownHostsFile ?? '',
+    );
+    _connectTimeout = TextEditingController(
+      text: connection.connectTimeoutSeconds.toString(),
+    );
+    _keepalive = TextEditingController(
+      text: connection.keepaliveSeconds.toString(),
+    );
+    _keepaliveCount = TextEditingController(
+      text: connection.keepaliveCountMax.toString(),
+    );
+    _proxyCommand = TextEditingController(text: connection.proxyCommand ?? '');
+    _proxyJump = TextEditingController(text: connection.proxyJump ?? '');
+    _portForwards = TextEditingController(
+      text: formatSshPortForwards(connection.portForwards),
+    );
+    _agentSocket = TextEditingController(text: connection.agentSocket ?? '');
+    _x11Target = TextEditingController(
+      text: connection.x11TargetHost == null || connection.x11TargetPort == 0
+          ? ''
+          : '${connection.x11TargetHost}:${connection.x11TargetPort}',
+    );
+    _x11Cookie = TextEditingController(text: connection.x11AuthCookie ?? '');
+    _auth = connection.auth;
+    _hostKeyPolicy = connection.hostKeyPolicy;
+    _agentForwarding = connection.agentForwarding;
+    _x11Forwarding = connection.x11Forwarding;
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _hostFocus.dispose();
+    _userFocus.dispose();
+    _passwordFocus.dispose();
+    _privateKeysFocus.dispose();
+    for (final controller in <TextEditingController>[
+      _name,
+      _host,
+      _user,
+      _port,
+      _password,
+      _privateKeys,
+      _privateKeyPassphrase,
+      _knownHostsFile,
+      _connectTimeout,
+      _keepalive,
+      _keepaliveCount,
+      _proxyCommand,
+      _proxyJump,
+      _portForwards,
+      _agentSocket,
+      _x11Target,
+      _x11Cookie,
+    ]) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.appTheme;
+    final width = MediaQuery.sizeOf(context).width;
+    final availableWidth = width - (width < 640 ? 24 : 64);
+    final dialogWidth = availableWidth.clamp(0.0, 720.0).toDouble();
+    final showsPassword =
+        _auth == terminal.TerminalSshAuthMethod.auto ||
+        _auth == terminal.TerminalSshAuthMethod.password;
+    final showsPrivateKeys =
+        _auth == terminal.TerminalSshAuthMethod.auto ||
+        _auth == terminal.TerminalSshAuthMethod.publicKey;
+    return Dialog(
+      insetPadding: EdgeInsets.all(width < 640 ? 12 : 32),
+      child: SizedBox(
+        width: dialogWidth,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 760),
+          child: Padding(
+            padding: EdgeInsets.all(palette.spacing.xl),
+            child: Form(
+              key: _formKey,
+              autovalidateMode: _showValidationErrors
+                  ? AutovalidateMode.onUserInteraction
+                  : AutovalidateMode.disabled,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'SSH connection',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  SizedBox(height: palette.spacing.xs),
+                  Text(
+                    'Connect once or save a reusable session profile.',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: palette.textSubtle),
+                  ),
+                  SizedBox(height: palette.spacing.xl),
+                  Flexible(
+                    child: Scrollbar(
+                      controller: _scrollController,
+                      thumbVisibility: true,
+                      child: SingleChildScrollView(
+                        controller: _scrollController,
+                        padding: EdgeInsets.only(
+                          right: palette.spacing.md,
+                          bottom: palette.spacing.lg,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const AppSectionHeader(
+                              title: 'Connection',
+                              description:
+                                  'Name the session and enter the destination address.',
+                            ),
+                            SizedBox(height: palette.spacing.lg),
+                            AppFieldRow(
+                              label: 'Session name',
+                              control: Semantics(
+                                label: 'Session name',
+                                textField: true,
+                                child: TextFormField(
+                                  key: const Key('ssh-profile-name'),
+                                  controller: _name,
+                                  decoration: const InputDecoration(
+                                    hintText: 'For example, Production',
+                                    prefixIcon: Icon(
+                                      Icons.label_outline_rounded,
+                                    ),
+                                  ),
+                                  validator: _required,
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: palette.spacing.lg),
+                            LayoutBuilder(
+                              builder: (context, constraints) {
+                                final stacked = constraints.maxWidth < 560;
+                                Widget hostField() => AppFieldRow(
+                                  label: 'Host',
+                                  control: Semantics(
+                                    label: 'Host',
+                                    textField: true,
+                                    child: TextFormField(
+                                      key: const Key('ssh-host'),
+                                      controller: _host,
+                                      focusNode: _hostFocus,
+                                      decoration: const InputDecoration(
+                                        hintText: 'hostname or IP address',
+                                        prefixIcon: Icon(Icons.dns_outlined),
+                                      ),
+                                      validator: _required,
+                                    ),
+                                  ),
+                                );
+                                Widget userField() => AppFieldRow(
+                                  label: 'User',
+                                  control: Semantics(
+                                    label: 'User',
+                                    textField: true,
+                                    child: TextFormField(
+                                      key: const Key('ssh-user'),
+                                      controller: _user,
+                                      focusNode: _userFocus,
+                                      decoration: const InputDecoration(
+                                        hintText: 'remote user',
+                                      ),
+                                      validator: _required,
+                                    ),
+                                  ),
+                                );
+                                Widget portField() => AppFieldRow(
+                                  label: 'Port',
+                                  control: Semantics(
+                                    label: 'Port',
+                                    textField: true,
+                                    child: TextFormField(
+                                      key: const Key('ssh-port'),
+                                      controller: _port,
+                                      keyboardType: TextInputType.number,
+                                      decoration: const InputDecoration(
+                                        hintText: '22',
+                                      ),
+                                      validator: (value) =>
+                                          _boundedInteger(value, 1, 65535),
+                                    ),
+                                  ),
+                                );
+                                if (stacked) {
+                                  return Column(
+                                    children: [
+                                      hostField(),
+                                      SizedBox(height: palette.spacing.md),
+                                      userField(),
+                                      SizedBox(height: palette.spacing.md),
+                                      portField(),
+                                    ],
+                                  );
+                                }
+                                return Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(flex: 3, child: hostField()),
+                                    SizedBox(width: palette.spacing.md),
+                                    Expanded(flex: 2, child: userField()),
+                                    SizedBox(width: palette.spacing.md),
+                                    SizedBox(width: 112, child: portField()),
+                                  ],
+                                );
+                              },
+                            ),
+                            SizedBox(height: palette.spacing.xl),
+                            const AppSectionHeader(
+                              title: 'Authentication',
+                              description:
+                                  'Choose how the server should verify your identity.',
+                            ),
+                            SizedBox(height: palette.spacing.lg),
+                            AppFieldRow(
+                              label: 'Method',
+                              control: Semantics(
+                                label: 'Authentication method',
+                                button: true,
+                                child:
+                                    DropdownButtonFormField<
+                                      terminal.TerminalSshAuthMethod
+                                    >(
+                                      key: const Key('ssh-auth-method'),
+                                      isExpanded: true,
+                                      initialValue: _auth,
+                                      decoration: const InputDecoration(),
+                                      items: const [
+                                        DropdownMenuItem(
+                                          value: terminal
+                                              .TerminalSshAuthMethod
+                                              .auto,
+                                          child: Text(
+                                            'Automatic (keys, then password)',
+                                          ),
+                                        ),
+                                        DropdownMenuItem(
+                                          value: terminal
+                                              .TerminalSshAuthMethod
+                                              .publicKey,
+                                          child: Text('Private key'),
+                                        ),
+                                        DropdownMenuItem(
+                                          value: terminal
+                                              .TerminalSshAuthMethod
+                                              .password,
+                                          child: Text('Password'),
+                                        ),
+                                        DropdownMenuItem(
+                                          value: terminal
+                                              .TerminalSshAuthMethod
+                                              .keyboardInteractive,
+                                          child: Text(
+                                            'Keyboard interactive / OTP',
+                                          ),
+                                        ),
+                                      ],
+                                      onChanged: (value) => setState(() {
+                                        _auth =
+                                            value ??
+                                            terminal.TerminalSshAuthMethod.auto;
+                                      }),
+                                    ),
+                              ),
+                            ),
+                            if (showsPassword) ...[
+                              SizedBox(height: palette.spacing.lg),
+                              AppFieldRow(
+                                label:
+                                    _auth ==
+                                        terminal.TerminalSshAuthMethod.password
+                                    ? 'Password'
+                                    : 'Password fallback',
+                                hint:
+                                    _auth == terminal.TerminalSshAuthMethod.auto
+                                    ? 'Used only when key authentication is unavailable.'
+                                    : null,
+                                control: Semantics(
+                                  label: 'Password',
+                                  textField: true,
+                                  obscured: true,
+                                  child: TextFormField(
+                                    key: const Key('ssh-password'),
+                                    controller: _password,
+                                    focusNode: _passwordFocus,
+                                    obscureText: true,
+                                    enableSuggestions: false,
+                                    autocorrect: false,
+                                    decoration: const InputDecoration(
+                                      prefixIcon: Icon(Icons.password_rounded),
+                                    ),
+                                    validator:
+                                        _auth ==
+                                            terminal
+                                                .TerminalSshAuthMethod
+                                                .password
+                                        ? _required
+                                        : null,
+                                  ),
+                                ),
+                              ),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton.icon(
+                                  key: const Key('ssh-clear-password'),
+                                  onPressed: () => setState(() {
+                                    _password.clear();
+                                    _clearPassword = true;
+                                  }),
+                                  icon: const Icon(
+                                    Icons.delete_outline_rounded,
+                                  ),
+                                  label: const Text('Forget saved password'),
+                                ),
+                              ),
+                            ],
+                            if (showsPrivateKeys) ...[
+                              SizedBox(height: palette.spacing.lg),
+                              AppFieldRow(
+                                label: 'Private key files',
+                                hint:
+                                    'One path per line, for example ~/.ssh/id_ed25519.',
+                                control: Semantics(
+                                  label: 'Private key files',
+                                  textField: true,
+                                  multiline: true,
+                                  child: TextFormField(
+                                    key: const Key('ssh-private-keys'),
+                                    controller: _privateKeys,
+                                    focusNode: _privateKeysFocus,
+                                    minLines: 1,
+                                    maxLines: 3,
+                                    decoration: const InputDecoration(
+                                      prefixIcon: Icon(Icons.key_rounded),
+                                    ),
+                                    validator:
+                                        _auth ==
+                                            terminal
+                                                .TerminalSshAuthMethod
+                                                .publicKey
+                                        ? _required
+                                        : null,
+                                  ),
+                                ),
+                              ),
+                              SizedBox(height: palette.spacing.lg),
+                              AppFieldRow(
+                                label: 'Private key passphrase',
+                                hint:
+                                    'Leave blank for an unencrypted private key.',
+                                control: Semantics(
+                                  label: 'Private key passphrase',
+                                  textField: true,
+                                  obscured: true,
+                                  child: TextFormField(
+                                    key: const Key('ssh-key-passphrase'),
+                                    controller: _privateKeyPassphrase,
+                                    obscureText: true,
+                                    enableSuggestions: false,
+                                    autocorrect: false,
+                                    decoration: const InputDecoration(),
+                                  ),
+                                ),
+                              ),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton.icon(
+                                  key: const Key('ssh-clear-key-passphrase'),
+                                  onPressed: () => setState(() {
+                                    _privateKeyPassphrase.clear();
+                                    _clearPrivateKeyPassphrase = true;
+                                  }),
+                                  icon: const Icon(
+                                    Icons.delete_outline_rounded,
+                                  ),
+                                  label: const Text(
+                                    'Forget saved key passphrase',
+                                  ),
+                                ),
+                              ),
+                            ],
+                            if (_auth ==
+                                terminal
+                                    .TerminalSshAuthMethod
+                                    .keyboardInteractive) ...[
+                              SizedBox(height: palette.spacing.lg),
+                              AppPanel(
+                                tone: AppPanelTone.selected,
+                                padding: EdgeInsets.all(palette.spacing.lg),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(
+                                      Icons.chat_bubble_outline_rounded,
+                                      size: 18,
+                                      color: palette.accent,
+                                    ),
+                                    SizedBox(width: palette.spacing.md),
+                                    const Expanded(
+                                      child: Text(
+                                        'The server will ask for each required response after the connection starts, including multi-step OTP challenges.',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                            SizedBox(height: palette.spacing.lg),
+                            ExpansionTile(
+                              initiallyExpanded: _showAdvanced,
+                              onExpansionChanged: (value) =>
+                                  _showAdvanced = value,
+                              title: const Text(
+                                'Host verification and advanced options',
+                              ),
+                              subtitle: const Text(
+                                'Host keys, jump hosts, tunnels, agent and X11 forwarding',
+                              ),
+                              tilePadding: EdgeInsets.zero,
+                              childrenPadding: EdgeInsets.zero,
+                              children: [
+                                DropdownButtonFormField<
+                                  terminal.TerminalSshHostKeyPolicy
+                                >(
+                                  key: const Key('ssh-host-key-policy'),
+                                  isExpanded: true,
+                                  initialValue: _hostKeyPolicy,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Host key policy',
+                                  ),
+                                  items: const [
+                                    DropdownMenuItem(
+                                      value: terminal
+                                          .TerminalSshHostKeyPolicy
+                                          .strict,
+                                      child: Text('Strict (recommended)'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: terminal
+                                          .TerminalSshHostKeyPolicy
+                                          .acceptNew,
+                                      child: Text('Accept new hosts'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: terminal
+                                          .TerminalSshHostKeyPolicy
+                                          .insecure,
+                                      child: Text('Do not verify (unsafe)'),
+                                    ),
+                                  ],
+                                  onChanged: (value) => setState(() {
+                                    _hostKeyPolicy =
+                                        value ??
+                                        terminal
+                                            .TerminalSshHostKeyPolicy
+                                            .strict;
+                                  }),
+                                ),
+                                SizedBox(height: palette.spacing.md),
+                                TextFormField(
+                                  controller: _knownHostsFile,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Known hosts file (optional)',
+                                  ),
+                                ),
+                                SizedBox(height: palette.spacing.md),
+                                _SshConnectionTimingFields(
+                                  connectTimeout: _connectTimeout,
+                                  keepalive: _keepalive,
+                                  keepaliveCount: _keepaliveCount,
+                                  validator: _boundedInteger,
+                                ),
+                                SizedBox(height: palette.spacing.md),
+                                TextFormField(
+                                  controller: _proxyCommand,
+                                  decoration: const InputDecoration(
+                                    labelText: 'ProxyCommand (optional)',
+                                  ),
+                                ),
+                                SizedBox(height: palette.spacing.md),
+                                TextFormField(
+                                  key: const Key('ssh-proxy-jump'),
+                                  controller: _proxyJump,
+                                  decoration: const InputDecoration(
+                                    labelText: 'ProxyJump (optional)',
+                                    helperText:
+                                        'Comma-separated [user@]host[:port]; bracket IPv6 hosts. New hops use independent Auto authentication.',
+                                  ),
+                                  validator: (value) {
+                                    if ((value ?? '').trim().isEmpty) {
+                                      return null;
+                                    }
+                                    try {
+                                      parseSshProxyJumpProfiles(value ?? '');
+                                      return null;
+                                    } on FormatException catch (error) {
+                                      return error.message;
+                                    }
+                                  },
+                                ),
+                                SizedBox(height: palette.spacing.md),
+                                TextFormField(
+                                  key: const Key('ssh-port-forwards'),
+                                  controller: _portForwards,
+                                  minLines: 2,
+                                  maxLines: 5,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Port forwards',
+                                    helperText:
+                                        'One per line: L bind:port target:port, R bind:port target:port, or D bind:port.',
+                                  ),
+                                  validator: (value) {
+                                    try {
+                                      parseSshPortForwards(value ?? '');
+                                      return null;
+                                    } on FormatException catch (error) {
+                                      return error.message;
+                                    }
+                                  },
+                                ),
+                                SwitchListTile(
+                                  key: const Key('ssh-agent-forwarding'),
+                                  contentPadding: EdgeInsets.zero,
+                                  value: _agentForwarding,
+                                  title: const Text('Forward SSH agent'),
+                                  subtitle: const Text(
+                                    'Blank socket path uses SSH_AUTH_SOCK.',
+                                  ),
+                                  onChanged: (value) =>
+                                      setState(() => _agentForwarding = value),
+                                ),
+                                if (_agentForwarding)
+                                  TextFormField(
+                                    key: const Key('ssh-agent-socket'),
+                                    controller: _agentSocket,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Agent socket (optional)',
+                                    ),
+                                  ),
+                                SwitchListTile(
+                                  key: const Key('ssh-x11-forwarding'),
+                                  contentPadding: EdgeInsets.zero,
+                                  value: _x11Forwarding,
+                                  title: const Text('Forward X11'),
+                                  subtitle: const Text(
+                                    'Blank target uses DISPLAY; a 32-character MIT-MAGIC-COOKIE is required.',
+                                  ),
+                                  onChanged: (value) =>
+                                      setState(() => _x11Forwarding = value),
+                                ),
+                                if (_x11Forwarding) ...[
+                                  TextFormField(
+                                    key: const Key('ssh-x11-target'),
+                                    controller: _x11Target,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Local X11 target host:port',
+                                    ),
+                                    validator: (value) {
+                                      if (!_x11Forwarding) {
+                                        return null;
+                                      }
+                                      if ((value ?? '').trim().isEmpty) {
+                                        return null;
+                                      }
+                                      try {
+                                        parseSshForwardEndpoint(value ?? '');
+                                        return null;
+                                      } on FormatException catch (error) {
+                                        return error.message;
+                                      }
+                                    },
+                                  ),
+                                  SizedBox(height: palette.spacing.md),
+                                  TextFormField(
+                                    key: const Key('ssh-x11-cookie'),
+                                    controller: _x11Cookie,
+                                    obscureText: true,
+                                    enableSuggestions: false,
+                                    autocorrect: false,
+                                    decoration: const InputDecoration(
+                                      labelText: 'X11 authentication cookie',
+                                      helperText:
+                                          'Required: exactly 32 hexadecimal characters.',
+                                    ),
+                                    validator: (value) {
+                                      if (!_x11Forwarding) {
+                                        return null;
+                                      }
+                                      final cookie = (value ?? '').trim();
+                                      if (!RegExp(
+                                        r'^[0-9A-Fa-f]{32}$',
+                                      ).hasMatch(cookie)) {
+                                        return 'Enter exactly 32 hexadecimal characters';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton.icon(
+                                      key: const Key('ssh-clear-x11-cookie'),
+                                      onPressed: () => setState(() {
+                                        _x11Cookie.clear();
+                                        _clearX11AuthCookie = true;
+                                      }),
+                                      icon: const Icon(
+                                        Icons.delete_outline_rounded,
+                                      ),
+                                      label: const Text(
+                                        'Forget saved X11 cookie',
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (widget.allowSaveChoice) ...[
+                    SizedBox(height: palette.spacing.md),
+                    CheckboxListTile(
+                      key: const Key('ssh-save-profile'),
+                      contentPadding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.compact,
+                      value: _saveProfile,
+                      title: const Text('Save this SSH session'),
+                      subtitle: const Text(
+                        'Secrets are encrypted; the key stays in platform safe storage.',
+                      ),
+                      onChanged: (value) =>
+                          setState(() => _saveProfile = value ?? true),
+                    ),
+                  ],
+                  SizedBox(height: palette.spacing.lg),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Cancel'),
+                      ),
+                      SizedBox(width: palette.spacing.sm),
+                      FilledButton.icon(
+                        key: const Key('ssh-connect'),
+                        onPressed: _submit,
+                        icon: const Icon(Icons.login_rounded),
+                        label: Text(
+                          widget.allowSaveChoice ? 'Connect' : 'Save',
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String? _required(String? value) {
+    return value == null || value.trim().isEmpty ? 'Required' : null;
+  }
+
+  String? _boundedInteger(String? value, int minimum, int maximum) {
+    final parsed = int.tryParse(value?.trim() ?? '');
+    if (parsed == null || parsed < minimum || parsed > maximum) {
+      return 'Enter $minimum–$maximum';
+    }
+    return null;
+  }
+
+  String? _optional(String value) {
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  void _submit() {
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      setState(() => _showValidationErrors = true);
+      if (_host.text.trim().isEmpty) {
+        _hostFocus.requestFocus();
+      } else if (_user.text.trim().isEmpty) {
+        _userFocus.requestFocus();
+      } else if (_auth == terminal.TerminalSshAuthMethod.password &&
+          _password.text.trim().isEmpty) {
+        _passwordFocus.requestFocus();
+      } else if (_auth == terminal.TerminalSshAuthMethod.publicKey &&
+          _privateKeys.text.trim().isEmpty) {
+        _privateKeysFocus.requestFocus();
+      }
+      return;
+    }
+    final includesPassword =
+        _auth == terminal.TerminalSshAuthMethod.auto ||
+        _auth == terminal.TerminalSshAuthMethod.password;
+    final includesPrivateKeys =
+        _auth == terminal.TerminalSshAuthMethod.auto ||
+        _auth == terminal.TerminalSshAuthMethod.publicKey;
+    final x11Target = _x11Forwarding
+        ? _optional(_x11Target.text) == null
+              ? null
+              : parseSshForwardEndpoint(_x11Target.text)
+        : null;
+    final proxyJump = _optional(_proxyJump.text);
+    final initialProxyJump = widget.initialValue.connection.proxyJump?.trim();
+    final proxyJumpProfiles = proxyJump == null
+        ? const <terminal.TerminalSshJumpConfig>[]
+        : proxyJump == initialProxyJump
+        ? widget.initialValue.connection.proxyJumpProfiles
+        : parseSshProxyJumpProfiles(proxyJump);
+    final connection = terminal.TerminalConnectionConfig.ssh(
+      host: _host.text.trim(),
+      user: _user.text.trim(),
+      port: int.parse(_port.text.trim()),
+      auth: _auth,
+      password: includesPassword ? _optional(_password.text) : null,
+      privateKeys: includesPrivateKeys
+          ? _privateKeys.text
+                .split(RegExp(r'[\r\n]+'))
+                .map((value) => value.trim())
+                .where((value) => value.isNotEmpty)
+                .toList(growable: false)
+          : const [],
+      privateKeyPassphrase: includesPrivateKeys
+          ? _optional(_privateKeyPassphrase.text)
+          : null,
+      hostKeyPolicy: _hostKeyPolicy,
+      knownHostsFile: _optional(_knownHostsFile.text),
+      connectTimeoutSeconds: int.parse(_connectTimeout.text.trim()),
+      keepaliveSeconds: int.parse(_keepalive.text.trim()),
+      keepaliveCountMax: int.parse(_keepaliveCount.text.trim()),
+      proxyCommand: _optional(_proxyCommand.text),
+      proxyJump: proxyJump,
+      proxyJumpProfiles: proxyJumpProfiles,
+      portForwards: parseSshPortForwards(_portForwards.text),
+      agentForwarding: _agentForwarding,
+      agentSocket: _optional(_agentSocket.text),
+      x11Forwarding: _x11Forwarding,
+      x11TargetHost: x11Target?.host,
+      x11TargetPort: x11Target?.port ?? 0,
+      x11AuthCookie: _x11Forwarding ? _optional(_x11Cookie.text) : null,
+    );
+    Navigator.of(context).pop(
+      SshProfileEditorResult(
+        profile: widget.initialValue.copyWith(
+          name: _name.text.trim(),
+          connection: connection,
+        ),
+        saveProfile: widget.allowSaveChoice && _saveProfile,
+        clearSecrets: <ProfileSecretField>{
+          if (_clearPassword ||
+              (_auth != widget.initialValue.connection.auth &&
+                  !includesPassword))
+            ProfileSecretField.password,
+          if (_clearPrivateKeyPassphrase ||
+              (_auth != widget.initialValue.connection.auth &&
+                  !includesPrivateKeys))
+            ProfileSecretField.privateKeyPassphrase,
+          if (_clearX11AuthCookie ||
+              (widget.initialValue.connection.x11Forwarding && !_x11Forwarding))
+            ProfileSecretField.x11AuthCookie,
+        },
+      ),
+    );
+  }
+}
+
+class _SshConnectionTimingFields extends StatelessWidget {
+  const _SshConnectionTimingFields({
+    required this.connectTimeout,
+    required this.keepalive,
+    required this.keepaliveCount,
+    required this.validator,
+  });
+
+  final TextEditingController connectTimeout;
+  final TextEditingController keepalive;
+  final TextEditingController keepaliveCount;
+  final String? Function(String?, int, int) validator;
+
+  @override
+  Widget build(BuildContext context) {
+    final gap = context.appTheme.spacing.md;
+    final fields = <Widget>[
+      TextFormField(
+        key: const Key('ssh-connect-timeout'),
+        controller: connectTimeout,
+        keyboardType: TextInputType.number,
+        decoration: const InputDecoration(
+          labelText: 'Connect timeout (seconds)',
+        ),
+        validator: (value) => validator(value, 1, 120),
+      ),
+      TextFormField(
+        key: const Key('ssh-keepalive-seconds'),
+        controller: keepalive,
+        keyboardType: TextInputType.number,
+        decoration: const InputDecoration(labelText: 'Keepalive (seconds)'),
+        validator: (value) => validator(value, 0, 86400),
+      ),
+      TextFormField(
+        key: const Key('ssh-keepalive-count'),
+        controller: keepaliveCount,
+        keyboardType: TextInputType.number,
+        decoration: const InputDecoration(labelText: 'Keepalive retries'),
+        validator: (value) => validator(value, 1, 100),
+      ),
+    ];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 720) {
+          return Column(
+            children: [
+              for (var index = 0; index < fields.length; index++) ...[
+                fields[index],
+                if (index + 1 < fields.length) SizedBox(height: gap),
+              ],
+            ],
+          );
+        }
+        return Row(
+          children: [
+            for (var index = 0; index < fields.length; index++) ...[
+              Expanded(child: fields[index]),
+              if (index + 1 < fields.length) SizedBox(width: gap),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+({String host, int port}) parseSshForwardEndpoint(String raw) {
+  final value = raw.trim();
+  final bracketed = value.startsWith('[');
+  final separator = bracketed
+      ? value.lastIndexOf(']:')
+      : value.lastIndexOf(':');
+  final portOffset = bracketed ? 2 : 1;
+  if (separator <= 0 || separator + portOffset >= value.length) {
+    throw const FormatException('Use host:port or [IPv6]:port');
+  }
+  final host = bracketed
+      ? value.substring(1, separator)
+      : value.substring(0, separator);
+  final portText = value.substring(separator + portOffset);
+  final port = int.tryParse(portText);
+  if (host.trim().isEmpty || port == null || port < 1 || port > 65535) {
+    throw const FormatException('Use a valid host and port from 1–65535');
+  }
+  return (host: host, port: port);
+}
+
+List<terminal.TerminalSshJumpConfig> parseSshProxyJumpProfiles(String raw) {
+  final hops = raw.split(',');
+  if (hops.length > 128) {
+    throw const FormatException('ProxyJump supports at most 128 hops');
+  }
+  final profiles = <terminal.TerminalSshJumpConfig>[];
+  for (var index = 0; index < hops.length; index += 1) {
+    final value = hops[index].trim();
+    final label = 'Hop ${index + 1}';
+    if (value.isEmpty) {
+      throw FormatException('$label: enter [user@]host[:port]');
+    }
+    if (value.contains(RegExp(r'[\s/?#]')) ||
+        value.runes.any((rune) => rune < 0x20 || rune == 0x7f)) {
+      throw FormatException(
+        '$label: use [user@]host[:port] without spaces, paths, or query text',
+      );
+    }
+
+    final separator = value.lastIndexOf('@');
+    if (separator != value.indexOf('@')) {
+      throw FormatException('$label: include at most one @ separator');
+    }
+    final user = separator < 0 ? '' : value.substring(0, separator);
+    final endpoint = separator < 0 ? value : value.substring(separator + 1);
+    if (separator >= 0 &&
+        (user.isEmpty || user.contains(':') || user.contains('%'))) {
+      throw FormatException(
+        '$label: enter a username before @; embedded passwords are not allowed',
+      );
+    }
+    if (endpoint.isEmpty) {
+      throw FormatException('$label: host is required after @');
+    }
+
+    late final String host;
+    var port = 22;
+    if (endpoint.startsWith('[')) {
+      final closing = endpoint.indexOf(']');
+      if (closing < 2) {
+        throw FormatException('$label: use [IPv6] or [IPv6]:port');
+      }
+      host = endpoint.substring(1, closing);
+      final remainder = endpoint.substring(closing + 1);
+      if (remainder.isNotEmpty) {
+        if (!remainder.startsWith(':') || remainder.length == 1) {
+          throw FormatException('$label: use [IPv6] or [IPv6]:port');
+        }
+        port = int.tryParse(remainder.substring(1)) ?? 0;
+      }
+      final uri = Uri.tryParse('ssh://[$host]');
+      if (uri == null || uri.host.isEmpty || !host.contains(':')) {
+        throw FormatException('$label: enter a valid bracketed IPv6 address');
+      }
+    } else {
+      final colonCount = ':'.allMatches(endpoint).length;
+      if (colonCount > 1) {
+        throw FormatException('$label: wrap IPv6 addresses in brackets');
+      }
+      if (colonCount == 1) {
+        final colon = endpoint.lastIndexOf(':');
+        host = endpoint.substring(0, colon);
+        port = int.tryParse(endpoint.substring(colon + 1)) ?? 0;
+      } else {
+        host = endpoint;
+      }
+      if (host.isEmpty ||
+          !RegExp(r'^[A-Za-z0-9._-]+$').hasMatch(host) ||
+          host.startsWith('-')) {
+        throw FormatException(
+          '$label: host aliases may use letters, numbers, dots, underscores, and hyphens',
+        );
+      }
+    }
+    if (port < 1 || port > 65535) {
+      throw FormatException('$label: port must be from 1–65535');
+    }
+    profiles.add(
+      terminal.TerminalSshJumpConfig(
+        host: host,
+        user: user,
+        port: port,
+        auth: terminal.TerminalSshAuthMethod.auto,
+        hostKeyPolicy: terminal.TerminalSshHostKeyPolicy.strict,
+      ),
+    );
+  }
+  return List<terminal.TerminalSshJumpConfig>.unmodifiable(profiles);
+}
+
+List<terminal.TerminalSshPortForwardConfig> parseSshPortForwards(String raw) {
+  final forwards = <terminal.TerminalSshPortForwardConfig>[];
+  final lines = raw.split(RegExp(r'[\r\n]+'));
+  for (var index = 0; index < lines.length; index++) {
+    final line = lines[index].trim();
+    if (line.isEmpty) {
+      continue;
+    }
+    final parts = line.split(RegExp(r'\s+'));
+    final token = parts.first.toUpperCase();
+    final type = switch (token) {
+      'L' => terminal.TerminalSshPortForwardType.local,
+      'R' => terminal.TerminalSshPortForwardType.remote,
+      'D' => terminal.TerminalSshPortForwardType.dynamic,
+      _ => throw FormatException('Line ${index + 1}: start with L, R, or D'),
+    };
+    final expectedParts = type == terminal.TerminalSshPortForwardType.dynamic
+        ? 2
+        : 3;
+    if (parts.length != expectedParts) {
+      throw FormatException(
+        'Line ${index + 1}: expected $expectedParts fields',
+      );
+    }
+    try {
+      final bind = parseSshForwardEndpoint(parts[1]);
+      final target = type == terminal.TerminalSshPortForwardType.dynamic
+          ? null
+          : parseSshForwardEndpoint(parts[2]);
+      forwards.add(
+        terminal.TerminalSshPortForwardConfig(
+          type: type,
+          bindHost: bind.host,
+          bindPort: bind.port,
+          targetHost: target?.host ?? '',
+          targetPort: target?.port ?? 0,
+        ),
+      );
+    } on FormatException catch (error) {
+      throw FormatException('Line ${index + 1}: ${error.message}');
+    }
+  }
+  return List.unmodifiable(forwards);
+}
+
+String formatSshPortForwards(
+  List<terminal.TerminalSshPortForwardConfig> forwards,
+) {
+  String endpoint(String host, int port) =>
+      '${host.contains(':') ? '[$host]' : host}:$port';
+  return forwards
+      .map((forward) {
+        final kind = switch (forward.type) {
+          terminal.TerminalSshPortForwardType.local => 'L',
+          terminal.TerminalSshPortForwardType.remote => 'R',
+          terminal.TerminalSshPortForwardType.dynamic => 'D',
+        };
+        final bind = endpoint(forward.bindHost, forward.bindPort);
+        if (forward.type == terminal.TerminalSshPortForwardType.dynamic) {
+          return '$kind $bind';
+        }
+        return '$kind $bind ${endpoint(forward.targetHost, forward.targetPort)}';
+      })
+      .join('\n');
+}

@@ -44,6 +44,12 @@ Future<void> _openCommandMenu(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> _chooseDefaultLocalSession(WidgetTester tester) async {
+  expect(find.byKey(const Key('new-session-launcher')), findsOneWidget);
+  await tester.tap(find.byKey(const Key('new-local-session-default')));
+  await tester.pumpAndSettle();
+}
+
 Future<void> _waitForWidget(
   WidgetTester tester,
   Finder finder, {
@@ -85,6 +91,7 @@ void main() {
     await _openCommandMenu(tester);
     await tester.tap(find.text('New tab'));
     await tester.pumpAndSettle();
+    await _chooseDefaultLocalSession(tester);
 
     expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
     _expectSelectedTab(tester, '2');
@@ -195,6 +202,7 @@ void main() {
 
     await tester.tap(find.text('New Tab'));
     await tester.pumpAndSettle();
+    await _chooseDefaultLocalSession(tester);
 
     expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
     expect(find.byType(TerminalViewport), findsOneWidget);

@@ -9,6 +9,208 @@ enum TerminalEmulation { xterm256, vt220 }
 
 enum TerminalCursorShape { block, underline, beam }
 
+enum TerminalConnectionType { local, ssh }
+
+enum TerminalSshAuthMethod { auto, password, publicKey, keyboardInteractive }
+
+enum TerminalSshHostKeyPolicy { strict, acceptNew, insecure }
+
+enum TerminalSshPortForwardType { local, remote, dynamic }
+
+final class TerminalSshPortForwardConfig {
+  const TerminalSshPortForwardConfig({
+    required this.type,
+    required this.bindHost,
+    required this.bindPort,
+    this.targetHost = '',
+    this.targetPort = 0,
+  });
+
+  final TerminalSshPortForwardType type;
+  final String bindHost;
+  final int bindPort;
+  final String targetHost;
+  final int targetPort;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'type': type.name,
+    'bindHost': bindHost,
+    'bindPort': bindPort,
+    'targetHost': targetHost,
+    'targetPort': targetPort,
+  };
+
+  factory TerminalSshPortForwardConfig.fromJson(Object? json) {
+    final map = _asObjectMap(json);
+    return TerminalSshPortForwardConfig(
+      type: switch (_normalizedConfigToken(map?['type'])) {
+        'remote' => TerminalSshPortForwardType.remote,
+        'dynamic' => TerminalSshPortForwardType.dynamic,
+        _ => TerminalSshPortForwardType.local,
+      },
+      bindHost: _trimmedStringOrNull(map?['bindHost']) ?? '127.0.0.1',
+      bindPort: _nonNegativeIntOr(map?['bindPort'], 0, maximum: 65535),
+      targetHost: _trimmedStringOrNull(map?['targetHost']) ?? '',
+      targetPort: _nonNegativeIntOr(map?['targetPort'], 0, maximum: 65535),
+    );
+  }
+}
+
+/// Independent authentication and host-verification settings for one
+/// ProxyJump hop. Passwords and key passphrases are transient runtime values.
+final class TerminalSshJumpConfig {
+  const TerminalSshJumpConfig({
+    this.host = '',
+    this.user = '',
+    this.port = 0,
+    this.auth = TerminalSshAuthMethod.auto,
+    this.password,
+    this.privateKeys = const <String>[],
+    this.privateKeyPassphrase,
+    this.hostKeyPolicy = TerminalSshHostKeyPolicy.strict,
+    this.knownHostsFile,
+    this.connectTimeoutSeconds = 10,
+    this.keepaliveSeconds = 0,
+    this.keepaliveCountMax = 3,
+  });
+
+  final String host;
+  final String user;
+  final int port;
+  final TerminalSshAuthMethod auth;
+  final String? password;
+  final List<String> privateKeys;
+  final String? privateKeyPassphrase;
+  final TerminalSshHostKeyPolicy hostKeyPolicy;
+  final String? knownHostsFile;
+  final int connectTimeoutSeconds;
+  final int keepaliveSeconds;
+  final int keepaliveCountMax;
+
+  TerminalSshJumpConfig copyWith({
+    String? host,
+    String? user,
+    int? port,
+    TerminalSshAuthMethod? auth,
+    Object? password = _terminalConfigNoChange,
+    List<String>? privateKeys,
+    Object? privateKeyPassphrase = _terminalConfigNoChange,
+    TerminalSshHostKeyPolicy? hostKeyPolicy,
+    Object? knownHostsFile = _terminalConfigNoChange,
+    int? connectTimeoutSeconds,
+    int? keepaliveSeconds,
+    int? keepaliveCountMax,
+  }) {
+    return TerminalSshJumpConfig(
+      host: host ?? this.host,
+      user: user ?? this.user,
+      port: port ?? this.port,
+      auth: auth ?? this.auth,
+      password: identical(password, _terminalConfigNoChange)
+          ? this.password
+          : password as String?,
+      privateKeys: privateKeys ?? this.privateKeys,
+      privateKeyPassphrase:
+          identical(privateKeyPassphrase, _terminalConfigNoChange)
+          ? this.privateKeyPassphrase
+          : privateKeyPassphrase as String?,
+      hostKeyPolicy: hostKeyPolicy ?? this.hostKeyPolicy,
+      knownHostsFile: identical(knownHostsFile, _terminalConfigNoChange)
+          ? this.knownHostsFile
+          : knownHostsFile as String?,
+      connectTimeoutSeconds:
+          connectTimeoutSeconds ?? this.connectTimeoutSeconds,
+      keepaliveSeconds: keepaliveSeconds ?? this.keepaliveSeconds,
+      keepaliveCountMax: keepaliveCountMax ?? this.keepaliveCountMax,
+    );
+  }
+
+  TerminalSshJumpConfig withoutSensitiveFields() {
+    return copyWith(password: null, privateKeyPassphrase: null);
+  }
+
+  Map<String, Object?> toJson({bool includeSensitiveFields = true}) {
+    return <String, Object?>{
+      'host': host,
+      'user': user,
+      'port': port,
+      'auth': _sshAuthMethodToJson(auth),
+      if (includeSensitiveFields && password != null) 'password': password,
+      'privateKeys': privateKeys,
+      if (includeSensitiveFields && privateKeyPassphrase != null)
+        'privateKeyPassphrase': privateKeyPassphrase,
+      'hostKeyPolicy': _sshHostKeyPolicyToJson(hostKeyPolicy),
+      if (knownHostsFile != null) 'knownHostsFile': knownHostsFile,
+      'connectTimeoutSeconds': connectTimeoutSeconds,
+      'keepaliveSeconds': keepaliveSeconds,
+      'keepaliveCountMax': keepaliveCountMax,
+    };
+  }
+
+  factory TerminalSshJumpConfig.fromJson(Object? json) {
+    final map = _asObjectMap(json);
+    return TerminalSshJumpConfig(
+      host: _trimmedStringOrNull(map?['host']) ?? '',
+      user: _trimmedStringOrNull(map?['user']) ?? '',
+      port: _nonNegativeIntOr(map?['port'], 0, maximum: 65535),
+      auth: _sshAuthMethodFromJson(map?['auth']),
+      password: _stringOrNull(map?['password']),
+      privateKeys: _stringList(map?['privateKeys'], maxEntries: 128),
+      privateKeyPassphrase: _stringOrNull(map?['privateKeyPassphrase']),
+      hostKeyPolicy: _sshHostKeyPolicyFromJson(map?['hostKeyPolicy']),
+      knownHostsFile: _trimmedStringOrNull(map?['knownHostsFile']),
+      connectTimeoutSeconds: _positiveIntOr(
+        map?['connectTimeoutSeconds'],
+        10,
+        maximum: 120,
+      ),
+      keepaliveSeconds: _nonNegativeIntOr(
+        map?['keepaliveSeconds'],
+        0,
+        maximum: 86400,
+      ),
+      keepaliveCountMax: _positiveIntOr(
+        map?['keepaliveCountMax'],
+        3,
+        maximum: 100,
+      ),
+    );
+  }
+}
+
+String _sshAuthMethodToJson(TerminalSshAuthMethod auth) => switch (auth) {
+  TerminalSshAuthMethod.auto => 'auto',
+  TerminalSshAuthMethod.password => 'password',
+  TerminalSshAuthMethod.publicKey => 'public_key',
+  TerminalSshAuthMethod.keyboardInteractive => 'keyboard_interactive',
+};
+
+TerminalSshAuthMethod _sshAuthMethodFromJson(Object? value) {
+  return switch (_normalizedConfigToken(value)) {
+    'password' => TerminalSshAuthMethod.password,
+    'public_key' || 'publickey' => TerminalSshAuthMethod.publicKey,
+    'keyboard_interactive' ||
+    'keyboard-interactive' => TerminalSshAuthMethod.keyboardInteractive,
+    _ => TerminalSshAuthMethod.auto,
+  };
+}
+
+String _sshHostKeyPolicyToJson(TerminalSshHostKeyPolicy policy) {
+  return switch (policy) {
+    TerminalSshHostKeyPolicy.strict => 'strict',
+    TerminalSshHostKeyPolicy.acceptNew => 'accept_new',
+    TerminalSshHostKeyPolicy.insecure => 'insecure',
+  };
+}
+
+TerminalSshHostKeyPolicy _sshHostKeyPolicyFromJson(Object? value) {
+  return switch (_normalizedConfigToken(value)) {
+    'accept_new' || 'accept-new' => TerminalSshHostKeyPolicy.acceptNew,
+    'insecure' => TerminalSshHostKeyPolicy.insecure,
+    _ => TerminalSshHostKeyPolicy.strict,
+  };
+}
+
 enum TerminalOptionDragMode {
   normalSelection,
   blockSelection;
@@ -69,6 +271,286 @@ class TerminalLaunchConfig {
       args: _stringList(map?['args'], maxEntries: maxTerminalLaunchArgs),
       env: _stringMap(map?['env'], maxEntries: maxTerminalEnvironmentEntries),
       cwd: _trimmedStringOrNull(map?['cwd']),
+    );
+  }
+}
+
+/// Connection settings shared by saved profiles and the native SessionConfig
+/// wire. Destination and [proxyJumpProfiles] passwords/passphrases, plus
+/// [x11AuthCookie], are transient secrets. Callers persisting a profile must
+/// encode with `includeSensitiveFields: false` and store any supported
+/// encrypted representation separately.
+class TerminalConnectionConfig {
+  const TerminalConnectionConfig.local()
+    : type = TerminalConnectionType.local,
+      host = '',
+      user = '',
+      port = 22,
+      auth = TerminalSshAuthMethod.auto,
+      password = null,
+      privateKeys = const <String>[],
+      privateKeyPassphrase = null,
+      hostKeyPolicy = TerminalSshHostKeyPolicy.strict,
+      knownHostsFile = null,
+      connectTimeoutSeconds = 10,
+      keepaliveSeconds = 0,
+      keepaliveCountMax = 3,
+      proxyCommand = null,
+      proxyJump = null,
+      proxyJumpProfiles = const <TerminalSshJumpConfig>[],
+      portForwards = const <TerminalSshPortForwardConfig>[],
+      agentForwarding = false,
+      agentSocket = null,
+      x11Forwarding = false,
+      x11TargetHost = null,
+      x11TargetPort = 0,
+      x11AuthProtocol = 'MIT-MAGIC-COOKIE-1',
+      x11AuthCookie = null,
+      x11ScreenNumber = 0;
+
+  const TerminalConnectionConfig.ssh({
+    required this.host,
+    required this.user,
+    this.port = 22,
+    this.auth = TerminalSshAuthMethod.auto,
+    this.password,
+    this.privateKeys = const <String>[],
+    this.privateKeyPassphrase,
+    this.hostKeyPolicy = TerminalSshHostKeyPolicy.strict,
+    this.knownHostsFile,
+    this.connectTimeoutSeconds = 10,
+    this.keepaliveSeconds = 0,
+    this.keepaliveCountMax = 3,
+    this.proxyCommand,
+    this.proxyJump,
+    this.proxyJumpProfiles = const <TerminalSshJumpConfig>[],
+    this.portForwards = const <TerminalSshPortForwardConfig>[],
+    this.agentForwarding = false,
+    this.agentSocket,
+    this.x11Forwarding = false,
+    this.x11TargetHost,
+    this.x11TargetPort = 0,
+    this.x11AuthProtocol = 'MIT-MAGIC-COOKIE-1',
+    this.x11AuthCookie,
+    this.x11ScreenNumber = 0,
+  }) : type = TerminalConnectionType.ssh;
+
+  final TerminalConnectionType type;
+  final String host;
+  final String user;
+  final int port;
+  final TerminalSshAuthMethod auth;
+  final String? password;
+  final List<String> privateKeys;
+  final String? privateKeyPassphrase;
+  final TerminalSshHostKeyPolicy hostKeyPolicy;
+  final String? knownHostsFile;
+  final int connectTimeoutSeconds;
+  final int keepaliveSeconds;
+  final int keepaliveCountMax;
+  final String? proxyCommand;
+  final String? proxyJump;
+  final List<TerminalSshJumpConfig> proxyJumpProfiles;
+  final List<TerminalSshPortForwardConfig> portForwards;
+  final bool agentForwarding;
+  final String? agentSocket;
+  final bool x11Forwarding;
+  final String? x11TargetHost;
+  final int x11TargetPort;
+  final String x11AuthProtocol;
+  final String? x11AuthCookie;
+  final int x11ScreenNumber;
+
+  bool get isSsh => type == TerminalConnectionType.ssh;
+
+  TerminalConnectionConfig copyWith({
+    String? host,
+    String? user,
+    int? port,
+    TerminalSshAuthMethod? auth,
+    Object? password = _terminalConfigNoChange,
+    List<String>? privateKeys,
+    Object? privateKeyPassphrase = _terminalConfigNoChange,
+    TerminalSshHostKeyPolicy? hostKeyPolicy,
+    Object? knownHostsFile = _terminalConfigNoChange,
+    int? connectTimeoutSeconds,
+    int? keepaliveSeconds,
+    int? keepaliveCountMax,
+    Object? proxyCommand = _terminalConfigNoChange,
+    Object? proxyJump = _terminalConfigNoChange,
+    List<TerminalSshJumpConfig>? proxyJumpProfiles,
+    List<TerminalSshPortForwardConfig>? portForwards,
+    bool? agentForwarding,
+    Object? agentSocket = _terminalConfigNoChange,
+    bool? x11Forwarding,
+    Object? x11TargetHost = _terminalConfigNoChange,
+    int? x11TargetPort,
+    String? x11AuthProtocol,
+    Object? x11AuthCookie = _terminalConfigNoChange,
+    int? x11ScreenNumber,
+  }) {
+    if (!isSsh) {
+      return const TerminalConnectionConfig.local();
+    }
+    return TerminalConnectionConfig.ssh(
+      host: host ?? this.host,
+      user: user ?? this.user,
+      port: port ?? this.port,
+      auth: auth ?? this.auth,
+      password: identical(password, _terminalConfigNoChange)
+          ? this.password
+          : password as String?,
+      privateKeys: privateKeys ?? this.privateKeys,
+      privateKeyPassphrase:
+          identical(privateKeyPassphrase, _terminalConfigNoChange)
+          ? this.privateKeyPassphrase
+          : privateKeyPassphrase as String?,
+      hostKeyPolicy: hostKeyPolicy ?? this.hostKeyPolicy,
+      knownHostsFile: identical(knownHostsFile, _terminalConfigNoChange)
+          ? this.knownHostsFile
+          : knownHostsFile as String?,
+      connectTimeoutSeconds:
+          connectTimeoutSeconds ?? this.connectTimeoutSeconds,
+      keepaliveSeconds: keepaliveSeconds ?? this.keepaliveSeconds,
+      keepaliveCountMax: keepaliveCountMax ?? this.keepaliveCountMax,
+      proxyCommand: identical(proxyCommand, _terminalConfigNoChange)
+          ? this.proxyCommand
+          : proxyCommand as String?,
+      proxyJump: identical(proxyJump, _terminalConfigNoChange)
+          ? this.proxyJump
+          : proxyJump as String?,
+      proxyJumpProfiles: proxyJumpProfiles ?? this.proxyJumpProfiles,
+      portForwards: portForwards ?? this.portForwards,
+      agentForwarding: agentForwarding ?? this.agentForwarding,
+      agentSocket: identical(agentSocket, _terminalConfigNoChange)
+          ? this.agentSocket
+          : agentSocket as String?,
+      x11Forwarding: x11Forwarding ?? this.x11Forwarding,
+      x11TargetHost: identical(x11TargetHost, _terminalConfigNoChange)
+          ? this.x11TargetHost
+          : x11TargetHost as String?,
+      x11TargetPort: x11TargetPort ?? this.x11TargetPort,
+      x11AuthProtocol: x11AuthProtocol ?? this.x11AuthProtocol,
+      x11AuthCookie: identical(x11AuthCookie, _terminalConfigNoChange)
+          ? this.x11AuthCookie
+          : x11AuthCookie as String?,
+      x11ScreenNumber: x11ScreenNumber ?? this.x11ScreenNumber,
+    );
+  }
+
+  TerminalConnectionConfig withoutSensitiveFields() {
+    if (!isSsh) {
+      return this;
+    }
+    return copyWith(
+      password: null,
+      privateKeyPassphrase: null,
+      proxyJumpProfiles: proxyJumpProfiles
+          .map((jump) => jump.withoutSensitiveFields())
+          .toList(growable: false),
+      x11AuthCookie: null,
+    );
+  }
+
+  Map<String, Object?> toJson({bool includeSensitiveFields = true}) {
+    if (!isSsh) {
+      return const <String, Object?>{'type': 'local'};
+    }
+    return <String, Object?>{
+      'type': 'ssh',
+      'host': host,
+      'user': user,
+      'port': port,
+      'auth': _sshAuthMethodToJson(auth),
+      if (includeSensitiveFields && password != null) 'password': password,
+      'privateKeys': privateKeys,
+      if (includeSensitiveFields && privateKeyPassphrase != null)
+        'privateKeyPassphrase': privateKeyPassphrase,
+      'hostKeyPolicy': _sshHostKeyPolicyToJson(hostKeyPolicy),
+      if (knownHostsFile != null) 'knownHostsFile': knownHostsFile,
+      'connectTimeoutSeconds': connectTimeoutSeconds,
+      'keepaliveSeconds': keepaliveSeconds,
+      'keepaliveCountMax': keepaliveCountMax,
+      if (proxyCommand != null) 'proxyCommand': proxyCommand,
+      if (proxyJump != null) 'proxyJump': proxyJump,
+      'proxyJumpProfiles': proxyJumpProfiles
+          .map(
+            (jump) =>
+                jump.toJson(includeSensitiveFields: includeSensitiveFields),
+          )
+          .toList(growable: false),
+      'portForwards': portForwards
+          .map((forward) => forward.toJson())
+          .toList(growable: false),
+      'agentForwarding': agentForwarding,
+      if (agentSocket != null) 'agentSocket': agentSocket,
+      'x11Forwarding': x11Forwarding,
+      if (x11TargetHost != null) 'x11TargetHost': x11TargetHost,
+      'x11TargetPort': x11TargetPort,
+      'x11AuthProtocol': x11AuthProtocol,
+      if (includeSensitiveFields && x11AuthCookie != null)
+        'x11AuthCookie': x11AuthCookie,
+      'x11ScreenNumber': x11ScreenNumber,
+    };
+  }
+
+  factory TerminalConnectionConfig.fromJson(Object? json) {
+    final map = _asObjectMap(json);
+    if (_normalizedConfigToken(map?['type']) != 'ssh') {
+      return const TerminalConnectionConfig.local();
+    }
+    return TerminalConnectionConfig.ssh(
+      host: _trimmedStringOrNull(map?['host']) ?? '',
+      user: _trimmedStringOrNull(map?['user']) ?? '',
+      port: _positiveIntOr(map?['port'], 22, maximum: 65535),
+      auth: _sshAuthMethodFromJson(map?['auth']),
+      password: _stringOrNull(map?['password']),
+      privateKeys: _stringList(map?['privateKeys'], maxEntries: 128),
+      privateKeyPassphrase: _stringOrNull(map?['privateKeyPassphrase']),
+      hostKeyPolicy: _sshHostKeyPolicyFromJson(map?['hostKeyPolicy']),
+      knownHostsFile: _trimmedStringOrNull(map?['knownHostsFile']),
+      connectTimeoutSeconds: _positiveIntOr(
+        map?['connectTimeoutSeconds'],
+        10,
+        maximum: 120,
+      ),
+      keepaliveSeconds: _nonNegativeIntOr(
+        map?['keepaliveSeconds'],
+        0,
+        maximum: 86400,
+      ),
+      keepaliveCountMax: _positiveIntOr(
+        map?['keepaliveCountMax'],
+        3,
+        maximum: 100,
+      ),
+      proxyCommand: _trimmedStringOrNull(map?['proxyCommand']),
+      proxyJump: _trimmedStringOrNull(map?['proxyJump']),
+      proxyJumpProfiles: _objectList(
+        map?['proxyJumpProfiles'],
+        maxEntries: 128,
+      ).map(TerminalSshJumpConfig.fromJson).toList(growable: false),
+      portForwards: _objectList(
+        map?['portForwards'],
+        maxEntries: 128,
+      ).map(TerminalSshPortForwardConfig.fromJson).toList(growable: false),
+      agentForwarding: map?['agentForwarding'] == true,
+      agentSocket: _trimmedStringOrNull(map?['agentSocket']),
+      x11Forwarding: map?['x11Forwarding'] == true,
+      x11TargetHost: _trimmedStringOrNull(map?['x11TargetHost']),
+      x11TargetPort: _nonNegativeIntOr(
+        map?['x11TargetPort'],
+        0,
+        maximum: 65535,
+      ),
+      x11AuthProtocol:
+          _trimmedStringOrNull(map?['x11AuthProtocol']) ?? 'MIT-MAGIC-COOKIE-1',
+      x11AuthCookie: _stringOrNull(map?['x11AuthCookie']),
+      x11ScreenNumber: _nonNegativeIntOr(
+        map?['x11ScreenNumber'],
+        0,
+        maximum: 65535,
+      ),
     );
   }
 }
@@ -576,6 +1058,7 @@ class TerminalInteractionConfig {
 class TerminalSessionConfig {
   const TerminalSessionConfig({
     required this.launch,
+    this.connection = const TerminalConnectionConfig.local(),
     this.emulation = TerminalEmulation.xterm256,
     int scrollbackLines = defaultTerminalScrollbackLines,
     this.graphics = const TerminalGraphicsConfig(),
@@ -590,6 +1073,7 @@ class TerminalSessionConfig {
            : scrollbackLines;
 
   final TerminalLaunchConfig launch;
+  final TerminalConnectionConfig connection;
   final TerminalEmulation emulation;
   final int scrollbackLines;
   final TerminalGraphicsConfig graphics;
@@ -603,6 +1087,7 @@ class TerminalSessionConfig {
 
   TerminalSessionConfig copyWith({
     TerminalLaunchConfig? launch,
+    TerminalConnectionConfig? connection,
     TerminalEmulation? emulation,
     int? scrollbackLines,
     TerminalGraphicsConfig? graphics,
@@ -613,6 +1098,7 @@ class TerminalSessionConfig {
   }) {
     return TerminalSessionConfig(
       launch: launch ?? this.launch,
+      connection: connection ?? this.connection,
       emulation: emulation ?? this.emulation,
       scrollbackLines: scrollbackLines ?? this.scrollbackLines,
       graphics: graphics ?? this.graphics,
@@ -623,9 +1109,12 @@ class TerminalSessionConfig {
     );
   }
 
-  Map<String, Object?> toJson() {
+  Map<String, Object?> toJson({bool includeSensitiveFields = true}) {
     return <String, Object?>{
       'launch': launch.toJson(),
+      'connection': connection.toJson(
+        includeSensitiveFields: includeSensitiveFields,
+      ),
       'terminal': <String, Object?>{
         'emulation': emulation.name,
         'scrollbackLines': normalizeTerminalScrollbackLines(scrollbackLines),
@@ -642,6 +1131,7 @@ class TerminalSessionConfig {
     final terminal = _asObjectMap(json['terminal']);
     return TerminalSessionConfig(
       launch: TerminalLaunchConfig.fromJson(json['launch']),
+      connection: TerminalConnectionConfig.fromJson(json['connection']),
       emulation: _emulationFromJson(terminal?['emulation']),
       scrollbackLines: _positiveIntOr(
         terminal?['scrollbackLines'],
@@ -671,6 +1161,7 @@ class TerminalSessionConfig {
         defaultProgram: defaultProgram,
         onWarning: onWarning,
       ),
+      connection: TerminalConnectionConfig.fromJson(json['connection']),
       emulation: _emulationFromProfileJson(
         terminal?['emulation'] ?? json['terminalEmulation'],
         path: terminal == null ? 'terminalEmulation' : 'terminal.emulation',
@@ -1031,6 +1522,15 @@ List<String> _stringList(
   return fallback;
 }
 
+List<Object?> _objectList(Object? value, {int? maxEntries}) {
+  if (value is! List) {
+    return const <Object?>[];
+  }
+  return (maxEntries == null ? value : value.take(maxEntries)).toList(
+    growable: false,
+  );
+}
+
 List<String> _trimmedStringList(
   Object? value, {
   required List<String> fallback,
@@ -1091,6 +1591,17 @@ int _positiveIntOr(Object? value, int fallback, {int? maximum}) {
   if (parsed == null) {
     return fallback;
   }
+  if (maximum != null && parsed > maximum) {
+    return maximum;
+  }
+  return parsed;
+}
+
+int _nonNegativeIntOr(Object? value, int fallback, {int? maximum}) {
+  if (value is! num || !value.isFinite || value < 0 || value != value.toInt()) {
+    return fallback;
+  }
+  final parsed = value.toInt();
   if (maximum != null && parsed > maximum) {
     return maximum;
   }

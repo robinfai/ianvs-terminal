@@ -1,6 +1,64 @@
 part of 'shell_screen.dart';
 
 extension _ShellScreenStateProfileActions on _ShellScreenState {
+  Future<void> _openNewSessionLauncher(
+    SessionController sessionController,
+    SessionState sessionState,
+  ) async {
+    if (_isProfilesOpen) {
+      return;
+    }
+    _mutateState(() => _isProfilesOpen = true);
+    final activeSessionIdBeforeOpen = sessionState.activeSessionId;
+    final animationsEnabled = ref.read(shellAnimationsEnabledProvider);
+    final result = await showModalBottomSheet<NewSessionSelection>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      sheetAnimationStyle: animationsEnabled
+          ? null
+          : AnimationStyle.noAnimation,
+      builder: (context) => NewSessionLauncher(
+        profiles: ref.read(sessionControllerProvider).profiles,
+        importOpenSshProfiles: () =>
+            ref.read(sshProfileImportServiceProvider).load(),
+      ),
+    );
+    if (!mounted) {
+      return;
+    }
+    _mutateState(() => _isProfilesOpen = false);
+    if (result == null) {
+      _restoreSessionFocus(
+        activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+        activeSessionIdAfterClose: ref
+            .read(sessionControllerProvider)
+            .activeSessionId,
+      );
+      return;
+    }
+    if (result.saveProfile) {
+      try {
+        await sessionController.saveProfile(result.profile);
+      } on Object catch (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'SSH profile was not saved ($error). Connecting once instead.',
+              ),
+            ),
+          );
+        }
+      }
+    }
+    _createSession(
+      sessionController,
+      result.profile,
+      returningToLayout: activeSessionIdBeforeOpen == null,
+    );
+  }
+
   Future<void> _handleNativeAppMenuAction(NativeAppMenuAction action) {
     switch (action) {
       case NativeAppMenuAction.settings:
@@ -261,13 +319,29 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         );
         return;
       case EditProfileResult(:final profile):
-        final edited = await showDialog<TerminalProfile>(
-          context: context,
-          builder: (dialogContext) =>
-              ProfileEditorDialog(initialValue: profile),
-        );
+        final TerminalProfile? edited;
+        var clearSecrets = const <ProfileSecretField>{};
+        if (profile.isSsh) {
+          final editResult = await showDialog<SshProfileEditorResult>(
+            context: context,
+            builder: (dialogContext) =>
+                SshProfileEditorDialog(initialValue: profile),
+          );
+          edited = editResult?.profile;
+          clearSecrets = editResult?.clearSecrets ?? const {};
+        } else {
+          edited = await showDialog<TerminalProfile>(
+            context: context,
+            builder: (dialogContext) =>
+                ProfileEditorDialog(initialValue: profile),
+          );
+        }
         if (edited != null) {
-          await sessionController.saveProfile(edited);
+          await _saveProfileWithFeedback(
+            sessionController,
+            edited,
+            clearSecrets: clearSecrets,
+          );
         }
         _restoreSessionFocus(
           activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
@@ -276,16 +350,63 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
               .activeSessionId,
         );
         return;
-      case CreateProfileResult():
-        final edited = await showDialog<TerminalProfile>(
+      case DeleteProfileResult(:final profile):
+        final confirmed = await showDialog<bool>(
           context: context,
-          builder: (dialogContext) => ProfileEditorDialog(
-            title: 'New profile',
-            initialValue: _newProfileTemplate(sessionState.profiles),
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Delete profile?'),
+            content: Text(
+              'Delete “${profile.name}”? Open terminal tabs will keep their current session settings.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Cancel'),
+              ),
+              AppActionButton(
+                buttonKey: const Key('confirm-delete-profile'),
+                tone: AppActionTone.danger,
+                label: 'Delete',
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+              ),
+            ],
           ),
         );
+        if (confirmed == true) {
+          await sessionController.deleteProfile(profile.id);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Deleted profile “${profile.name}”.')),
+            );
+          }
+        }
+        _restoreSessionFocus(
+          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+          activeSessionIdAfterClose: ref
+              .read(sessionControllerProvider)
+              .activeSessionId,
+        );
+        return;
+      case CreateProfileResult(:final connectionType):
+        final template = _newProfileTemplate(
+          sessionState.profiles,
+          connectionType: connectionType,
+        );
+        final edited = connectionType == NewProfileConnectionType.sshSession
+            ? (await showDialog<SshProfileEditorResult>(
+                context: context,
+                builder: (dialogContext) =>
+                    SshProfileEditorDialog(initialValue: template),
+              ))?.profile
+            : await showDialog<TerminalProfile>(
+                context: context,
+                builder: (dialogContext) => ProfileEditorDialog(
+                  title: 'New profile',
+                  initialValue: template,
+                ),
+              );
         if (edited != null) {
-          await sessionController.saveProfile(edited);
+          await _saveProfileWithFeedback(sessionController, edited);
         }
         _restoreSessionFocus(
           activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
@@ -305,7 +426,11 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     }
   }
 
-  TerminalProfile _newProfileTemplate(List<TerminalProfile> existingProfiles) {
+  TerminalProfile _newProfileTemplate(
+    List<TerminalProfile> existingProfiles, {
+    NewProfileConnectionType connectionType =
+        NewProfileConnectionType.localShell,
+  }) {
     final existingIds = {for (final profile in existingProfiles) profile.id};
     var suffix = 1;
     var id = 'profile-$suffix';
@@ -313,7 +438,39 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
       suffix += 1;
       id = 'profile-$suffix';
     }
-    return defaultTerminalProfile().copyWith(id: id, name: 'New Profile');
+    final profile = defaultTerminalProfile().copyWith(
+      id: id,
+      name: connectionType == NewProfileConnectionType.sshSession
+          ? 'New SSH Profile'
+          : 'New Profile',
+    );
+    if (connectionType == NewProfileConnectionType.localShell) {
+      return profile;
+    }
+    return profile.copyWith(
+      connection: const terminal.TerminalConnectionConfig.ssh(
+        host: '',
+        user: '',
+      ),
+    );
+  }
+
+  Future<bool> _saveProfileWithFeedback(
+    SessionController sessionController,
+    TerminalProfile profile, {
+    Set<ProfileSecretField> clearSecrets = const {},
+  }) async {
+    try {
+      await sessionController.saveProfile(profile, clearSecrets: clearSecrets);
+      return true;
+    } on Object catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Profile changes could not be saved: $error')),
+        );
+      }
+      return false;
+    }
   }
 
   Future<void> _openDynamicProfiles(SessionController sessionController) async {

@@ -5550,6 +5550,44 @@ void main() {
     },
   );
 
+  test('saveProfile forwards field-scoped secret clear intents', () async {
+    final coreClient = FakePtyBackend();
+    final profileRepository = _TestProfileRepository(
+      TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(coreClient),
+        profileRepositoryProvider.overrideWithValue(profileRepository),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    final controller = container.read(sessionControllerProvider.notifier);
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    await controller.saveProfile(
+      sshProfile,
+      clearSecrets: const <ProfileSecretField>{
+        ProfileSecretField.password,
+        ProfileSecretField.x11AuthCookie,
+      },
+    );
+
+    expect(
+      profileRepository.savedDocuments.last.secretClearIntents,
+      const <String, Set<ProfileSecretField>>{
+        'ssh': <ProfileSecretField>{
+          ProfileSecretField.password,
+          ProfileSecretField.x11AuthCookie,
+        },
+      },
+    );
+  });
+
   test(
     'bootstrap ignores legacy profile defaults when preferences are absent',
     () async {

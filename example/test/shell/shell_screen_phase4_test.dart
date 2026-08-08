@@ -250,6 +250,12 @@ Future<void> _sendMetaShortcut(
   await tester.pumpAndSettle();
 }
 
+Future<void> _chooseDefaultLocalSession(WidgetTester tester) async {
+  expect(find.byKey(const Key('new-session-launcher')), findsOneWidget);
+  await tester.tap(find.byKey(const Key('new-local-session-default')));
+  await tester.pumpAndSettle();
+}
+
 Future<void> _invokeNativeWindowBridge(
   WidgetTester tester,
   MethodCall call,
@@ -4420,6 +4426,7 @@ void main() {
       },
     );
     await _tapCommandMenuAction(tester, const Key('shell-top-new-tab'));
+    await _chooseDefaultLocalSession(tester);
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ShellScreen)),
     );
@@ -4546,7 +4553,7 @@ void main() {
         sessionId: '1',
         payload: <String, Object?>{
           'hook': 'command_finished',
-          'command': 'deploy staging',
+          'command': 'deploy staging --token super-secret',
           'exit_code': 0,
         },
       ),
@@ -4559,12 +4566,17 @@ void main() {
       notifications.single['title'],
       'Command finished on deploy@remote.example in $paneOneTitle pane 1 (1)',
     );
-    expect(notifications.single['body'], contains('deploy staging'));
-    expect(notifications.single['body'], contains('Exit code 0'));
+    expect(notifications.single['body'], 'Exit code 0');
     expect(
       notifications.single['identifier'],
       startsWith('ianvs-terminal.command.1.'),
     );
+    for (final field in const <String>['title', 'body', 'identifier']) {
+      final value = notifications.single[field] ?? '';
+      expect(value, isNot(contains('deploy staging --token super-secret')));
+      expect(value, isNot(contains('--token')));
+      expect(value, isNot(contains('super-secret')));
+    }
   });
 
   testWidgets(
@@ -4627,7 +4639,7 @@ void main() {
 
       fakeBindings.setFrame(
         inactiveSessionId,
-        frameWithText('inactive output one'),
+        frameWithText('TOKEN=super-secret-output one'),
       );
       container
           .read(terminalRuntimeControllerProvider)
@@ -4635,7 +4647,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 40));
       fakeBindings.setFrame(
         inactiveSessionId,
-        frameWithText('inactive output two'),
+        frameWithText('TOKEN=super-secret-output two'),
       );
       container
           .read(terminalRuntimeControllerProvider)
@@ -4675,8 +4687,14 @@ void main() {
       expect(activityNotifications, hasLength(1));
       expect(
         activityNotifications.single['body'],
-        startsWith('inactive output'),
+        'New terminal output is available.',
       );
+      for (final field in const <String>['title', 'body', 'identifier']) {
+        final value = activityNotifications.single[field] ?? '';
+        expect(value, isNot(contains('TOKEN=super-secret-output')));
+        expect(value, isNot(contains('TOKEN')));
+        expect(value, isNot(contains('secret')));
+      }
       expect(
         notifications.where(
           (notification) =>
@@ -4919,6 +4937,7 @@ void main() {
     await tester.tap(find.byType(TerminalViewport));
     await tester.pump();
     await _sendMetaShortcut(tester, LogicalKeyboardKey.keyN);
+    await _chooseDefaultLocalSession(tester);
     expect(container.read(sessionControllerProvider).tabs, hasLength(2));
     debugDefaultTargetPlatformOverride = null;
   });
@@ -4974,6 +4993,7 @@ void main() {
     await _sendMetaShortcut(tester, LogicalKeyboardKey.keyN);
     expect(container.read(sessionControllerProvider).tabs, hasLength(1));
     await _sendMetaShortcut(tester, LogicalKeyboardKey.keyT);
+    await _chooseDefaultLocalSession(tester);
     expect(container.read(sessionControllerProvider).tabs, hasLength(2));
     debugDefaultTargetPlatformOverride = null;
   });

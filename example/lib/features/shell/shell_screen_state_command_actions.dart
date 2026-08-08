@@ -204,11 +204,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
               'No default profile is available.',
             );
           }
-          _createSession(
-            sessionController,
-            defaultProfile,
-            returningToLayout: activeSessionIdBeforeOpen == null,
-          );
+          unawaited(_openNewSessionLauncher(sessionController, currentState));
           return const ShellActionBindingResult.completed();
         },
         closeTab: (_) {
@@ -1036,11 +1032,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         if (defaultProfile == null) {
           return;
         }
-        _createSession(
-          sessionController,
-          defaultProfile,
-          returningToLayout: activeSessionIdBeforeOpen == null,
-        );
+        await _openNewSessionLauncher(sessionController, currentState);
         return;
       case TerminalActionId.toolbelt:
         _mutateState(() {
