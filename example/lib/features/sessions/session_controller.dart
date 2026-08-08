@@ -934,6 +934,15 @@ class SessionController extends Notifier<SessionState> {
     TerminalProfile profile,
     Map<String, String> environmentOverrides,
   ) {
+    if (profile.isSsh) {
+      return profile.copyWith(
+        sessionConfig: profile.sessionConfig.copyWith(
+          shellIntegration: profile.sessionConfig.shellIntegration.copyWith(
+            enabled: false,
+          ),
+        ),
+      );
+    }
     final launchProfile = profile.copyWith(
       env: <String, String>{
         ..._defaultEnvironmentForEmulation(profile.terminalEmulation),
@@ -2277,6 +2286,9 @@ class SessionController extends Notifier<SessionState> {
       return;
     }
     switch (event) {
+      case TerminalSessionSshAuthPromptEvent():
+        // ShellScreen owns the secure modal prompt and native response.
+        break;
       case TerminalSessionFrameEvent():
         _applyFrame(event.sessionId, event.frame);
         break;
@@ -4016,7 +4028,10 @@ class SessionController extends Notifier<SessionState> {
     }
   }
 
-  Future<void> saveProfile(TerminalProfile profile) async {
+  Future<void> saveProfile(
+    TerminalProfile profile, {
+    Set<ProfileSecretField> clearSecrets = const {},
+  }) async {
     final nextProfiles = <TerminalProfile>[
       for (final existing in state.profiles)
         if (existing.id == profile.id) profile else existing,
@@ -4024,7 +4039,14 @@ class SessionController extends Notifier<SessionState> {
     ];
     await ref
         .read(profileRepositoryProvider)
-        .save(TerminalProfilesDocument(profiles: nextProfiles));
+        .save(
+          TerminalProfilesDocument(
+            profiles: nextProfiles,
+            secretClearIntents: <String, Set<ProfileSecretField>>{
+              if (clearSecrets.isNotEmpty) profile.id: clearSecrets,
+            },
+          ),
+        );
     state = state.copyWith(
       profiles: nextProfiles,
       defaultProfileId: _effectiveDefaultProfileIdFor(nextProfiles),

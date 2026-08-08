@@ -172,6 +172,13 @@ Future<void> _openCommandMenu(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> _chooseDefaultLocalSession(WidgetTester tester) async {
+  await tester.pumpAndSettle();
+  expect(find.byKey(const Key('new-session-launcher')), findsOneWidget);
+  await tester.tap(find.byKey(const Key('new-local-session-default')));
+  await tester.pumpAndSettle();
+}
+
 Future<void> _openToolbelt(WidgetTester tester) async {
   await _openCommandMenu(tester);
   await tester.tap(find.byKey(const Key('shell-top-toolbelt')));
@@ -291,6 +298,7 @@ Future<void> _openTabCountWithShortcut(
   assert(tabCount >= 1);
   for (var index = 1; index < tabCount; index += 1) {
     await _sendMetaShortcut(tester, LogicalKeyboardKey.keyT);
+    await _chooseDefaultLocalSession(tester);
   }
 }
 
@@ -497,7 +505,7 @@ void main() {
     );
     await _openCommandMenu(tester);
     await tester.tap(find.text('New tab'));
-    await tester.pumpAndSettle();
+    await _chooseDefaultLocalSession(tester);
 
     expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
     _expectSelectedTab(tester, '2');
@@ -840,7 +848,7 @@ void main() {
 
     await _openCommandMenu(tester);
     await tester.tap(find.text('New tab'));
-    await tester.pumpAndSettle();
+    await _chooseDefaultLocalSession(tester);
 
     expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
     _expectSelectedTab(tester, '2');
@@ -870,7 +878,7 @@ void main() {
 
     await _openCommandMenu(tester);
     await tester.tap(find.text('New tab'));
-    await tester.pumpAndSettle();
+    await _chooseDefaultLocalSession(tester);
 
     expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
     _expectSelectedTab(tester, '2');
@@ -2506,12 +2514,12 @@ void main() {
 
       expect(find.byKey(const Key('instant-replay-layout')), findsNothing);
       expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
+      await _openCommandMenu(tester);
       expect(
-        find.bySemanticsLabel(
-          'Start recording for Replay (keystrokes redacted; command metadata included when available)',
-        ),
+        find.byKey(const Key('shell-toggle-session-recording')),
         findsOneWidget,
       );
+      expect(find.text('Start recording for Replay'), findsOneWidget);
       semantics.dispose();
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
@@ -3416,6 +3424,7 @@ void main() {
         platform: 'macos',
       );
       await tester.pump();
+      await _chooseDefaultLocalSession(tester);
 
       expect(find.text('Command palette'), findsNothing);
       expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
@@ -3492,6 +3501,7 @@ void main() {
       expect(fakeBindings.writes, isEmpty);
 
       await _sendMetaShortcut(tester, LogicalKeyboardKey.keyT);
+      await _chooseDefaultLocalSession(tester);
       expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
       _expectSelectedTab(tester, '2');
       expect(fakeBindings.writes, isEmpty);
@@ -3576,6 +3586,7 @@ void main() {
         platform: 'macos',
       );
       await tester.pump();
+      await _chooseDefaultLocalSession(tester);
 
       expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
       expect(find.bySemanticsIdentifier('shell-tab-3'), findsNothing);
@@ -3994,6 +4005,7 @@ void main() {
     );
 
     await _sendMetaShortcut(tester, LogicalKeyboardKey.keyT);
+    await _chooseDefaultLocalSession(tester);
     expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
     _expectSelectedTab(tester, '2');
 
@@ -4036,6 +4048,7 @@ void main() {
         LogicalKeyboardKey.keyT,
         platform: 'linux',
       );
+      await _chooseDefaultLocalSession(tester);
 
       expect(find.text('Command palette'), findsNothing);
       expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
@@ -4059,7 +4072,7 @@ void main() {
 
       await _openCommandMenu(tester);
       await tester.tap(find.text('New tab'));
-      await tester.pumpAndSettle();
+      await _chooseDefaultLocalSession(tester);
       _expectSelectedTab(tester, '2');
 
       await _sendMetaShortcut(tester, LogicalKeyboardKey.digit1);
@@ -4168,7 +4181,7 @@ void main() {
         sessionId: '1',
         payload: const <String, Object?>{
           'hook': 'command_finished',
-          'command': 'echo ok',
+          'command': 'deploy --token super-secret',
           'exit_code': 7,
         },
       ),
@@ -4178,8 +4191,13 @@ void main() {
 
     expect(notifications, hasLength(2));
     expect(notifications[0]['title'], 'Command finished');
-    expect(notifications[0]['body'], contains('echo ok'));
-    expect(notifications[0]['body'], contains('Exit code 7'));
+    expect(notifications[0]['body'], 'Exit code 7');
+    for (final field in const <String>['title', 'body', 'identifier']) {
+      final value = notifications[0][field] ?? '';
+      expect(value, isNot(contains('deploy --token super-secret')));
+      expect(value, isNot(contains('--token')));
+      expect(value, isNot(contains('super-secret')));
+    }
     expect(notifications[1]['title'], startsWith('Bell in '));
     expect(notifications[1]['body'], 'The terminal requested attention.');
   });
@@ -4187,6 +4205,7 @@ void main() {
   testWidgets('inactive session activity posts a notification', (tester) async {
     final fakeBindings = FakePtyBackend();
     final notifications = <Map<String, String?>>[];
+    const sensitiveOutput = 'TOKEN=super-secret-output';
 
     await _pumpShellScreen(
       tester,
@@ -4206,13 +4225,13 @@ void main() {
 
     await _openCommandMenu(tester);
     await tester.tap(find.text('New tab'));
-    await tester.pumpAndSettle();
+    await _chooseDefaultLocalSession(tester);
 
     fakeBindings.setFrame(1, {
       'rows': [
-        {'index': 0, 'text': 'background build done', 'style_runs': const []},
+        {'index': 0, 'text': sensitiveOutput, 'style_runs': const []},
       ],
-      'cursor': {'row': 0, 'col': 21, 'visible': true},
+      'cursor': {'row': 0, 'col': sensitiveOutput.length, 'visible': true},
       'selection': null,
       'viewport_rows': 24,
       'viewport_cols': 80,
@@ -4230,8 +4249,15 @@ void main() {
 
     expect(notifications, hasLength(1));
     expect(notifications.single['title'], startsWith('Activity in '));
-    expect(notifications.single['body'], 'background build done');
+    expect(notifications.single['title'], contains('Local Shell'));
+    expect(notifications.single['body'], 'New terminal output is available.');
     expect(notifications.single['identifier'], 'ianvs-terminal.activity.1');
+    for (final field in const <String>['title', 'body', 'identifier']) {
+      final value = notifications.single[field] ?? '';
+      expect(value, isNot(contains(sensitiveOutput)));
+      expect(value, isNot(contains('TOKEN')));
+      expect(value, isNot(contains('secret')));
+    }
   });
 
   testWidgets(
@@ -4399,10 +4425,26 @@ void main() {
   );
 
   testWidgets(
-    'inactive session activity notification uses wrapped logical rows as its preview',
+    'inactive session activity notifications redact immediate and trailing output',
     (tester) async {
       final fakeBindings = FakePtyBackend();
       final notifications = <Map<String, String?>>[];
+      const sensitiveOutput = 'TOKEN=super-secret-output';
+
+      void expectPrivateActivityNotification(
+        Map<String, String?> notification,
+      ) {
+        expect(notification['title'], startsWith('Activity in '));
+        expect(notification['title'], contains('Local Shell'));
+        expect(notification['body'], 'New terminal output is available.');
+        expect(notification['identifier'], 'ianvs-terminal.activity.1');
+        for (final field in const <String>['title', 'body', 'identifier']) {
+          final value = notification[field] ?? '';
+          expect(value, isNot(contains(sensitiveOutput)));
+          expect(value, isNot(contains('TOKEN')));
+          expect(value, isNot(contains('secret')));
+        }
+      }
 
       await _pumpShellScreen(
         tester,
@@ -4422,20 +4464,20 @@ void main() {
 
       await _openCommandMenu(tester);
       await tester.tap(find.text('New tab'));
-      await tester.pumpAndSettle();
+      await _chooseDefaultLocalSession(tester);
 
       fakeBindings.setFrame(1, {
         'rows': [
           {'index': 0, 'text': 'ianvs terminal ready', 'style_runs': const []},
           {
             'index': 1,
-            'text': 'background build',
+            'text': 'TOKEN=super-',
             'wrapped': true,
             'style_runs': const [],
           },
-          {'index': 2, 'text': ' done', 'style_runs': const []},
+          {'index': 2, 'text': 'secret-output', 'style_runs': const []},
         ],
-        'cursor': {'row': 2, 'col': 4, 'visible': true},
+        'cursor': {'row': 2, 'col': 13, 'visible': true},
         'selection': null,
         'viewport_rows': 24,
         'viewport_cols': 16,
@@ -4452,20 +4494,22 @@ void main() {
       );
 
       expect(notifications, hasLength(1));
-      expect(notifications.single['title'], startsWith('Activity in '));
-      expect(notifications.single['body'], 'background build done');
-      expect(notifications.single['identifier'], 'ianvs-terminal.activity.1');
+      expectPrivateActivityNotification(notifications.single);
 
       fakeBindings.setFrame(1, {
         'rows': [
           {'index': 0, 'text': 'ianvs terminal ready', 'style_runs': const []},
           {
             'index': 1,
-            'text': 'background build done: ERROR 42 failed',
+            'text': '$sensitiveOutput updated',
             'style_runs': const [],
           },
         ],
-        'cursor': {'row': 1, 'col': 38, 'visible': true},
+        'cursor': {
+          'row': 1,
+          'col': sensitiveOutput.length + 8,
+          'visible': true,
+        },
         'selection': null,
         'viewport_rows': 24,
         'viewport_cols': 80,
@@ -4481,8 +4525,7 @@ void main() {
         condition: () => notifications.length == 2,
       );
 
-      expect(notifications.last['body'], contains('ERROR 42 failed'));
-      expect(notifications.last['identifier'], 'ianvs-terminal.activity.1');
+      expectPrivateActivityNotification(notifications.last);
     },
   );
 
@@ -6325,6 +6368,7 @@ void main() {
 
     await tester.tap(find.text('New Tab'));
     await tester.pumpAndSettle();
+    await _chooseDefaultLocalSession(tester);
 
     expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
     expect(find.byType(TerminalViewport), findsOneWidget);
@@ -7190,7 +7234,7 @@ void main() {
 
       await _openCommandMenu(tester);
       await tester.tap(find.byKey(const Key('shell-top-new-tab')));
-      await tester.pumpAndSettle();
+      await _chooseDefaultLocalSession(tester);
 
       fakeBindings.setSearchMatches(1, 'needle', [
         {
@@ -7758,7 +7802,7 @@ void main() {
 
     await _openCommandMenu(tester);
     await tester.tap(find.text('New tab'));
-    await tester.pumpAndSettle();
+    await _chooseDefaultLocalSession(tester);
 
     fakeBindings.setSearchMatches(1, 'needle', [
       {

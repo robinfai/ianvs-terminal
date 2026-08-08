@@ -129,6 +129,58 @@ final class TerminalSessionBackendErrorEvent extends TerminalSessionEvent {
   final StackTrace stackTrace;
 }
 
+final class TerminalSshAuthenticationPrompt {
+  const TerminalSshAuthenticationPrompt({
+    required this.prompt,
+    required this.echo,
+  });
+
+  final String prompt;
+  final bool echo;
+}
+
+final class TerminalSessionSshAuthPromptEvent extends TerminalSessionEvent {
+  TerminalSessionSshAuthPromptEvent(
+    super.sessionId, {
+    Map<String, Object?>? rawPayload,
+  }) : rawPayload = Map.unmodifiable(rawPayload ?? const <String, Object?>{}),
+       prompts = _decodePrompts(rawPayload?['prompts']);
+
+  final Map<String, Object?> rawPayload;
+  final List<TerminalSshAuthenticationPrompt> prompts;
+
+  int? get challengeId => _wholeIntValue(rawPayload['challenge_id']);
+  String? get host => _boundedString(rawPayload['host']);
+  String? get user => _boundedString(rawPayload['user']);
+  String get name => _boundedString(rawPayload['name']) ?? 'SSH authentication';
+  String get instructions => _boundedString(rawPayload['instructions']) ?? '';
+  bool get isValid =>
+      challengeId != null && host != null && user != null && prompts.isNotEmpty;
+
+  static String? _boundedString(Object? value) {
+    return value is String && value.length <= 4096 ? value : null;
+  }
+
+  static List<TerminalSshAuthenticationPrompt> _decodePrompts(Object? raw) {
+    if (raw is! List || raw.isEmpty || raw.length > 32) {
+      return const <TerminalSshAuthenticationPrompt>[];
+    }
+    final decoded = <TerminalSshAuthenticationPrompt>[];
+    for (final entry in raw) {
+      if (entry is! Map) {
+        return const <TerminalSshAuthenticationPrompt>[];
+      }
+      final prompt = entry['prompt'];
+      final echo = entry['echo'];
+      if (prompt is! String || prompt.length > 4096 || echo is! bool) {
+        return const <TerminalSshAuthenticationPrompt>[];
+      }
+      decoded.add(TerminalSshAuthenticationPrompt(prompt: prompt, echo: echo));
+    }
+    return List.unmodifiable(decoded);
+  }
+}
+
 final class TerminalSessionBellEvent extends TerminalSessionEvent {
   const TerminalSessionBellEvent(super.sessionId);
 }
@@ -1369,6 +1421,22 @@ class TerminalRuntimeController {
     final configBackend = backend is PtySessionConfigV1Backend
         ? backend as PtySessionConfigV1Backend
         : null;
+    if (resolvedConfig.connection.isSsh) {
+      final capabilityBackend = backend is PtyRuntimeCapabilityBackend
+          ? backend as PtyRuntimeCapabilityBackend
+          : null;
+      if (capabilityBackend?.runtimeCapabilities?.supports('ssh-session.v1') !=
+          true) {
+        throw UnsupportedError(
+          'The native terminal runtime does not advertise SSH support',
+        );
+      }
+      if (configBackend?.supportsSessionConfigV1 != true) {
+        throw UnsupportedError(
+          'SSH sessions require the SessionConfig v1 native contract',
+        );
+      }
+    }
     final sessionId = (configBackend?.supportsSessionConfigV1 ?? false)
         ? configBackend!.createSessionV1(
             TerminalSessionConfigV1(
@@ -2103,6 +2171,23 @@ class TerminalRuntimeController {
     // emulator buffer and schedules an authoritative full frame; do not blank
     // visible Dart rows as a substitute for that native operation.
     return _jsonRequestClient.clearScrollback(sessionId);
+  }
+
+  bool respondSshAuthentication(
+    String sessionId, {
+    required int challengeId,
+    required List<String> responses,
+    bool cancel = false,
+  }) {
+    if (!hasSession(sessionId) || challengeId <= 0) {
+      return false;
+    }
+    return _jsonRequestClient.respondSshAuthentication(
+      sessionId,
+      challengeId: challengeId,
+      responses: responses,
+      cancel: cancel,
+    );
   }
 
   /// Clears visible output and retained history using iTerm2's Command-K
@@ -3468,6 +3553,14 @@ class TerminalRuntimeController {
     bool preserveUnknownZmodemAuthority = false,
   }) {
     switch (route.kind) {
+      case TerminalImmediateEventKind.sshAuthPrompt:
+        final event = TerminalSessionSshAuthPromptEvent(
+          sessionId,
+          rawPayload: route.payload,
+        );
+        if (event.isValid) {
+          _emitEventIfCurrent(sessionId, sessionEpoch, event);
+        }
       case TerminalImmediateEventKind.bell:
         _emitEventIfCurrent(
           sessionId,

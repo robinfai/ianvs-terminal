@@ -4,6 +4,8 @@ use crate::host_request::{
     HOST_REQUEST_EVENT_NAME, HostResponseError, HostResponseV1, PendingHostRequestV1,
     host_request_v1_from_event, pending_host_request, resolve_host_response,
 };
+#[cfg(test)]
+use crate::model::TerminalProfileConnection;
 use crate::model::{
     MAX_SCROLLBACK_LINES, TERMINAL_FRAME_SCHEMA_VERSION, TerminalBlock, TerminalCursor,
     TerminalCursorShape, TerminalEmulation, TerminalEvent, TerminalFrameDiff, TerminalFrameKind,
@@ -12,7 +14,7 @@ use crate::model::{
     TerminalSearchMatch, TerminalSelectionRequest, TerminalSizedTextPlacement, TerminalStyleRun,
     normalize_scrollback_lines,
 };
-use crate::pty::spawn_pty;
+use crate::pty::spawn_terminal_transport;
 use crate::runtime_contract::{
     GRAPHIC_ASSET_PACKET_MAX_RGBA_BYTES, RuntimeEnvelopeV1, RuntimeEventBatchV1,
 };
@@ -586,6 +588,7 @@ fn pending_event_is_critical(kind: &str) -> bool {
     matches!(
         kind,
         "exit"
+            | "ssh_auth_prompt"
             | "clipboard_copy"
             | "clipboard_paste_request"
             | "clipboard_mime_write"
@@ -2600,6 +2603,7 @@ pub struct TerminalSession {
     osc633_expected_nonce: Option<String>,
     state: Mutex<TerminalState>,
     writer: Mutex<Option<Box<dyn Write + Send>>>,
+    ssh_auth: Option<crate::ssh::SshAuthClient>,
     // SessionConfig v1 must explicitly opt in. Legacy clients do not know how
     // to authorize or complete transfers and therefore keep raw PTY behavior.
     zmodem_enabled: AtomicBool,
@@ -2845,7 +2849,7 @@ impl TerminalSession {
         zmodem_enabled: bool,
     ) -> Result<Arc<Self>, SessionError> {
         let osc633_expected_nonce = Self::validate_osc633_nonce(&profile)?;
-        let runtime = spawn_pty(&profile, DEFAULT_ROWS, DEFAULT_COLS)
+        let runtime = spawn_terminal_transport(&profile, DEFAULT_ROWS, DEFAULT_COLS)
             .map_err(|error: anyhow::Error| SessionError::Pty(error.to_string()))?;
         let child_pid = runtime.child_pid;
         let process_name = process_name_for_profile(&profile);
@@ -2853,7 +2857,8 @@ impl TerminalSession {
         let reader_poll_handle = runtime.reader_poll_handle;
         let shell_integration_diagnostics = runtime.shell_integration.to_diagnostic_json();
         let shell_integration_proxy = runtime.shell_integration_proxy;
-        let session = Self::new(
+        let ssh_auth = runtime.ssh_auth;
+        let session = Self::new_with_ssh_auth(
             session_id,
             profile,
             osc633_expected_nonce,
@@ -2861,6 +2866,7 @@ impl TerminalSession {
             Some(runtime.master),
             Some(runtime.child),
             child_pid,
+            ssh_auth,
             process_name,
             shell_integration_diagnostics,
             false,
@@ -2935,10 +2941,11 @@ impl TerminalSession {
     ) -> Result<Arc<Self>, SessionError> {
         let osc633_expected_nonce = Self::validate_osc633_nonce(&profile)?;
         let process_name = process_name_for_profile(&profile);
-        Ok(Self::new(
+        Ok(Self::new_with_ssh_auth(
             session_id,
             profile,
             osc633_expected_nonce,
+            None,
             None,
             None,
             None,
@@ -2962,6 +2969,7 @@ impl TerminalSession {
         }
     }
 
+    #[cfg(test)]
     #[allow(clippy::too_many_arguments)]
     fn new(
         session_id: u64,
@@ -2971,6 +2979,35 @@ impl TerminalSession {
         master: Option<Box<dyn portable_pty::MasterPty + Send>>,
         child: Option<Box<dyn portable_pty::Child + Send + Sync>>,
         child_pid: Option<u32>,
+        process_name: String,
+        shell_integration_diagnostics: serde_json::Value,
+        is_replay: bool,
+    ) -> Arc<Self> {
+        Self::new_with_ssh_auth(
+            session_id,
+            profile,
+            osc633_expected_nonce,
+            writer,
+            master,
+            child,
+            child_pid,
+            None,
+            process_name,
+            shell_integration_diagnostics,
+            is_replay,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn new_with_ssh_auth(
+        session_id: u64,
+        profile: TerminalProfile,
+        osc633_expected_nonce: Option<String>,
+        writer: Option<Box<dyn Write + Send>>,
+        master: Option<Box<dyn portable_pty::MasterPty + Send>>,
+        child: Option<Box<dyn portable_pty::Child + Send + Sync>>,
+        child_pid: Option<u32>,
+        ssh_auth: Option<crate::ssh::SshAuthClient>,
         process_name: String,
         shell_integration_diagnostics: serde_json::Value,
         is_replay: bool,
@@ -3032,6 +3069,7 @@ impl TerminalSession {
                 replay_checkpoint_boundary: ReplayCheckpointBoundary::default(),
             }),
             writer: Mutex::new(writer),
+            ssh_auth,
             // Direct unit construction exercises the protocol implementation;
             // production spawn paths overwrite this before starting workers.
             zmodem_enabled: AtomicBool::new(true),
@@ -4622,6 +4660,10 @@ impl TerminalSession {
     }
 
     pub fn refresh_hint_flags(&self) -> u32 {
+        // Keyboard-interactive authentication blocks the transport thread
+        // until the client responds. Promote brokered prompts before taking
+        // the event snapshot so refresh-hint-driven clients wake immediately.
+        self.publish_pending_ssh_auth_prompts();
         let mut flags = if self.pending_frame_signal.has_refresh_hint() {
             REFRESH_HINT_FRAME_DIRTY
         } else {
@@ -6166,15 +6208,40 @@ impl TerminalSession {
     }
 
     pub fn poll_events(&self) -> Result<Vec<TerminalEvent>, SessionError> {
+        self.publish_pending_ssh_auth_prompts();
         self.observe_child_exit()?;
         let _publication = self.zmodem_event_publication_gate.lock();
         Ok(self.events.lock().drain())
     }
 
     pub fn poll_event_envelopes(&self) -> Result<Option<RuntimeEventBatchV1>, SessionError> {
+        self.publish_pending_ssh_auth_prompts();
         self.observe_child_exit()?;
         let _publication = self.zmodem_event_publication_gate.lock();
         Ok(self.events.lock().drain_event_batch(self.session_id))
+    }
+
+    fn publish_pending_ssh_auth_prompts(&self) {
+        let Some(auth) = &self.ssh_auth else {
+            return;
+        };
+        for prompt in auth.take_prompts() {
+            if let Ok(payload) = serde_json::to_value(prompt) {
+                self.push_event("ssh_auth_prompt", Some(payload));
+            }
+        }
+    }
+
+    fn respond_ssh_auth(&self, challenge_id: u64, responses: Vec<String>) -> bool {
+        self.ssh_auth
+            .as_ref()
+            .is_some_and(|auth| auth.respond(challenge_id, responses))
+    }
+
+    fn cancel_ssh_auth(&self, challenge_id: u64) -> bool {
+        self.ssh_auth
+            .as_ref()
+            .is_some_and(|auth| auth.cancel(challenge_id))
     }
 
     pub fn take_frame_debug_stats_json(&self) -> Result<Option<String>, SessionError> {
@@ -9017,6 +9084,50 @@ pub fn request_session_json(
     };
 
     match kind {
+        "ssh.auth_response" => {
+            let challenge_id = request
+                .get("challengeId")
+                .and_then(serde_json::Value::as_u64)
+                .or_else(|| {
+                    request
+                        .get("challengeId")
+                        .and_then(serde_json::Value::as_str)
+                        .and_then(|value| value.parse().ok())
+                });
+            let cancel = request
+                .get("cancel")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false);
+            let responses = request
+                .get("responses")
+                .and_then(serde_json::Value::as_array)
+                .filter(|responses| responses.len() <= 32)
+                .and_then(|responses| {
+                    responses
+                        .iter()
+                        .map(|response| {
+                            response
+                                .as_str()
+                                .filter(|response| {
+                                    response.len() <= 64 * 1024 && !response.contains('\0')
+                                })
+                                .map(str::to_string)
+                        })
+                        .collect::<Option<Vec<_>>>()
+                });
+            let Some(challenge_id) = challenge_id else {
+                return Ok(None);
+            };
+            let session = STORE.get(session_id)?;
+            let accepted = if cancel {
+                session.cancel_ssh_auth(challenge_id)
+            } else if let Some(responses) = responses {
+                session.respond_ssh_auth(challenge_id, responses)
+            } else {
+                return Ok(None);
+            };
+            request_json_response(serde_json::json!({ "accepted": accepted }))
+        }
         "terminal.recording_start" => {
             if request
                 .get("schema_version")
@@ -10372,6 +10483,7 @@ mod tests {
                 env: BTreeMap::new(),
                 cwd: None,
             },
+            connection: TerminalProfileConnection::default(),
             terminal: TerminalProfileTerminal::default(),
             shell_integration: TerminalShellIntegration { enabled: false },
             appearance: TerminalProfileAppearance::default(),

@@ -26,28 +26,28 @@ python3 "$ROOT_DIR/tools/osc_semantic_probe.py" --self-test
 (
   cd "$VENDORED_TERMINAL_CORE_DIR"
   cargo fmt --check
-  cargo clippy --all-targets -- -D warnings
-  cargo test -- --test-threads=1
+  cargo clippy --locked --all-targets -- -D warnings
+  cargo test --locked -- --test-threads=1
 )
 
 (
   cd "$VENDORED_ZMODEM_DIR"
   cargo fmt --check
-  cargo clippy --all-targets --all-features -- -D warnings
-  cargo check --no-default-features --lib --target thumbv7em-none-eabihf
+  cargo clippy --locked --all-targets --all-features -- -D warnings
+  cargo check --locked --no-default-features --lib --target thumbv7em-none-eabihf
   # The integration tests spawn host `rz`/`sz`; real GNU lrzsz interoperability
   # is covered by the dedicated Docker/OpenSSH CI job below the generic gates.
-  cargo test --all-features --lib
-  cargo test --no-default-features --lib
+  cargo test --locked --all-features --lib
+  cargo test --locked --no-default-features --lib
 )
 
 (
   cd "$CORE_DIR"
   cargo fmt --check
-  cargo clippy --all-targets -- -D warnings
+  cargo clippy --locked --all-targets -- -D warnings
   # Set IANVS_REQUIRE_POSIX_SHM_TESTS=1 on hosts where Kitty POSIX shared memory
   # support must be verified instead of skipped when the OS blocks shm_open.
-  cargo test -- --test-threads=1
+  cargo test --locked -- --test-threads=1
 )
 
 (
@@ -104,6 +104,7 @@ fi
     test/recording
     test/sessions
     test/shell
+    test/ssh
     test/terminal
     test/terminal_input_controller_test.dart
     test/ui
@@ -121,12 +122,82 @@ fi
 
 (
   cd "$EXAMPLE_DIR"
+  verify_release_bundle() (
+    release_app="$1"
+    release_executable="$release_app/Contents/MacOS/Ianvs Terminal"
+    release_core="$release_app/Contents/Frameworks/libianvs_core.dylib"
+
+    for arch in $(lipo -archs "$release_executable"); do
+      if ! lipo "$release_core" -verify_arch "$arch" >/dev/null 2>&1; then
+        echo "Release Rust core is missing app architecture $arch." >&2
+        echo "App architectures: $(lipo -archs "$release_executable")" >&2
+        echo "Rust core architectures: $(lipo -archs "$release_core")" >&2
+        exit 1
+      fi
+    done
+
+    codesign --verify --deep --strict "$release_app"
+    signature_metadata="$(codesign -d --verbose=4 "$release_app" 2>&1)"
+    case "$signature_metadata" in
+      *"runtime)"*) ;;
+      *)
+        echo "Release app signature must enable hardened runtime." >&2
+        exit 1
+        ;;
+    esac
+
+    release_entitlements=""
+    cleanup_release_entitlements() {
+      if [ -n "$release_entitlements" ]; then
+        rm -f -- "$release_entitlements"
+      fi
+    }
+    trap cleanup_release_entitlements EXIT
+    release_entitlements="$(mktemp /private/tmp/ianvs-release-entitlements.plist.XXXXXX)"
+    codesign -d --entitlements :- "$release_app" \
+      2>/dev/null >"$release_entitlements"
+    plutil -lint "$release_entitlements" >/dev/null
+    if [ "$(plutil -convert json -o - "$release_entitlements")" != "{}" ]; then
+      echo "Release app must have an empty entitlement dictionary." >&2
+      exit 1
+    fi
+  )
+
   IANVS_CORE_LIB="$CORE_DIR/target/debug/libianvs_core.dylib" \
     flutter test -d macos integration_test/ianvs_terminal_smoke_test.dart
   IANVS_CORE_LIB="$CORE_DIR/target/debug/libianvs_core.dylib" \
     flutter test -d macos integration_test/real_pty_acceptance_test.dart
+  flutter test -d macos \
+    integration_test/macos_keychain_profile_secret_test.dart
   flutter build macos --debug
-  xcodebuild test \
+  debug_app="$EXAMPLE_DIR/build/macos/Build/Products/Debug/Ianvs Terminal Dev.app"
+  codesign --verify --deep --strict "$debug_app"
+  flutter build macos --release
+  release_app="$EXAMPLE_DIR/build/macos/Build/Products/Release/Ianvs Terminal.app"
+  verify_release_bundle "$release_app"
+  # Rebuild once more to exercise the always-out-of-date Rust bundle phase and
+  # prove that an incremental Release build re-seals the nested dylib cleanly.
+  flutter build macos --release
+  verify_release_bundle "$release_app"
+
+  # Xcode pre-actions print their complete inherited environment. Run the
+  # native test target with an allowlisted environment so local/CI signing,
+  # publishing, cloud, and repository credentials cannot enter build logs.
+  xcode_test_env=(
+    /usr/bin/env -i
+    "HOME=$HOME"
+    "PATH=$PATH"
+    "TMPDIR=${TMPDIR:-/tmp}"
+    "LANG=${LANG:-en_US.UTF-8}"
+    "LC_ALL=${LC_ALL:-en_US.UTF-8}"
+  )
+  if [ -n "${DEVELOPER_DIR:-}" ]; then
+    xcode_test_env+=("DEVELOPER_DIR=$DEVELOPER_DIR")
+  fi
+  if [ -n "${TOOLCHAINS:-}" ]; then
+    xcode_test_env+=("TOOLCHAINS=$TOOLCHAINS")
+  fi
+  "${xcode_test_env[@]}" xcodebuild test \
     -workspace macos/Runner.xcworkspace \
     -scheme Runner \
     -configuration Debug \

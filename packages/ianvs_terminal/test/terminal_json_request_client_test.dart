@@ -15,6 +15,26 @@ Matcher hasStatus(TerminalZmodemRecoveryResolutionStatus status) =>
 
 void main() {
   group('TerminalJsonRequestClient', () {
+    test('sends SSH challenge responses without logging or reshaping them', () {
+      final backend = _JsonRequestBackend('{"accepted":true}');
+      final client = TerminalJsonRequestClient(backend);
+
+      expect(
+        client.respondSshAuthentication(
+          'session-a',
+          challengeId: 7,
+          responses: const <String>['password', '654321'],
+        ),
+        isTrue,
+      );
+      expect(backend.requests.single, <String, Object?>{
+        'kind': 'ssh.auth_response',
+        'challengeId': 7,
+        'responses': <String>['password', '654321'],
+        'cancel': false,
+      });
+    });
+
     test('prefers correlated v1 and preserves the exact legacy fallback', () {
       final versioned = _VersionedJsonRequestBackend(supportsV1: true);
       final versionedClient = TerminalJsonRequestClient(versioned);

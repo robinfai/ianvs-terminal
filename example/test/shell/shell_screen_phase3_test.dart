@@ -571,6 +571,11 @@ void main() {
     await tester.tap(find.byKey(const Key('profiles-create')));
     await tester.pumpAndSettle();
 
+    expect(find.byKey(const Key('profiles-create-local')), findsOneWidget);
+    expect(find.byKey(const Key('profiles-create-ssh')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('profiles-create-local')));
+    await tester.pumpAndSettle();
+
     expect(find.byKey(const Key('profile-editor-dialog')), findsOneWidget);
     expect(find.text('New profile'), findsOneWidget);
     expect(find.text('Edit profile'), findsNothing);

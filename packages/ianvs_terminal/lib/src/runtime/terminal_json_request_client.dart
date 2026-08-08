@@ -33,6 +33,22 @@ final class TerminalJsonRequestClient {
   final TerminalSessionRequestTransport _transport;
   final TerminalBackendRequestErrorHandler? _onRequestError;
 
+  bool respondSshAuthentication(
+    String sessionId, {
+    required int challengeId,
+    required List<String> responses,
+    bool cancel = false,
+  }) {
+    const operation = 'ssh.auth_response';
+    final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
+      'kind': operation,
+      'challengeId': challengeId,
+      'responses': responses,
+      'cancel': cancel,
+    });
+    return decoded?['accepted'] == true;
+  }
+
   String? selectionText(
     String sessionId,
     TerminalSelection selection, {

@@ -1,5 +1,7 @@
 part of 'shell_screen.dart';
 
+const String _activityNotificationBody = 'New terminal output is available.';
+
 extension _ShellScreenStateEvents on _ShellScreenState {
   Future<void> _handleNativePasteMenu() async {
     if (_isSearchOpen) {
@@ -43,6 +45,23 @@ extension _ShellScreenStateEvents on _ShellScreenState {
 
   void _handleTerminalSessionEvent(terminal.TerminalSessionEvent event) {
     switch (event) {
+      case terminal.TerminalSessionSshAuthPromptEvent():
+        unawaited(
+          _sshAuthPromptPresenter.enqueue(context, event, ({
+            required event,
+            required responses,
+            required cancel,
+          }) {
+            return ref
+                .read(terminalRuntimeControllerProvider)
+                .respondSshAuthentication(
+                  event.sessionId,
+                  challengeId: event.challengeId!,
+                  responses: responses,
+                  cancel: cancel,
+                );
+          }),
+        );
       case terminal.TerminalSessionFrameEvent(:final sessionId, :final frame):
         final frameSequence =
             (_terminalFrameSequenceBySession[sessionId] ?? 0) + 1;
@@ -1716,16 +1735,16 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         previousPreview != preview &&
         _notificationSessionIsInactive(sessionId) &&
         preview != null) {
-      _sendOrScheduleActivityNotification(sessionId, preview);
+      _sendOrScheduleActivityNotification(sessionId);
     }
   }
 
-  void _sendOrScheduleActivityNotification(String sessionId, String preview) {
+  void _sendOrScheduleActivityNotification(String sessionId) {
     if (_activityNotificationAllowed(sessionId)) {
       _activityNotificationTrailingTimers.remove(sessionId)?.cancel();
       _sendShellNotification(
         title: 'Activity in ${_sessionTitleForNotification(sessionId)}',
-        body: preview,
+        body: _activityNotificationBody,
         identifier: 'ianvs-terminal.activity.$sessionId',
       );
       return;
@@ -1748,7 +1767,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         _lastActivityNotificationAt[sessionId] = DateTime.now();
         _sendShellNotification(
           title: 'Activity in ${_sessionTitleForNotification(sessionId)}',
-          body: latestPreview,
+          body: _activityNotificationBody,
           identifier: 'ianvs-terminal.activity.$sessionId',
         );
       },
@@ -1805,14 +1824,10 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (!_commandFinishedNotificationsEnabled) {
       return;
     }
-    final command = event.command;
     final exitCode = event.exitCode;
     _sendShellNotification(
       title: _commandFinishedNotificationTitle(event.sessionId),
-      body: [
-        if (command != null && command.trim().isNotEmpty) command.trim(),
-        if (exitCode != null) 'Exit code $exitCode',
-      ].join('\n'),
+      body: exitCode == null ? null : 'Exit code $exitCode',
       identifier:
           'ianvs-terminal.command.${event.sessionId}.${DateTime.now().microsecondsSinceEpoch}',
     );

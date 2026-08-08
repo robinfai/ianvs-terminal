@@ -57,22 +57,123 @@ void main() {
   });
 
   test(
+    'macOS uses Swift Package plugins and an ad-hoc-signable Keychain setup',
+    () {
+      final exampleRoot = _exampleRoot();
+      final macosRoot = Directory('${exampleRoot.path}/macos');
+      final projectText = File(
+        '${macosRoot.path}/Runner.xcodeproj/project.pbxproj',
+      ).readAsStringSync();
+      final debugConfig = File(
+        '${macosRoot.path}/Flutter/Flutter-Debug.xcconfig',
+      ).readAsStringSync();
+      final releaseConfig = File(
+        '${macosRoot.path}/Flutter/Flutter-Release.xcconfig',
+      ).readAsStringSync();
+      final debugEntitlements = File(
+        '${macosRoot.path}/Runner/DebugProfile.entitlements',
+      ).readAsStringSync();
+      final releaseEntitlements = File(
+        '${macosRoot.path}/Runner/Release.entitlements',
+      ).readAsStringSync();
+      final secretCipher = File(
+        '${exampleRoot.path}/lib/features/profiles/profile_secret_cipher.dart',
+      ).readAsStringSync();
+
+      expect(File('${macosRoot.path}/Podfile').existsSync(), isFalse);
+      expect(projectText, contains('FlutterGeneratedPluginSwiftPackage'));
+      expect(projectText, isNot(contains('Pods-Runner')));
+      expect(debugConfig, isNot(contains('Pods/Target Support Files')));
+      expect(releaseConfig, isNot(contains('Pods/Target Support Files')));
+      expect(debugEntitlements, isNot(contains('keychain-access-groups')));
+      expect(releaseEntitlements, isNot(contains('keychain-access-groups')));
+      expect(
+        secretCipher,
+        contains('MacOsOptions(usesDataProtectionKeychain: false)'),
+      );
+    },
+  );
+
+  test(
     'macOS release build keeps core dylib signing and hardening explicit',
     () {
       final exampleRoot = _exampleRoot();
       final projectText = File(
         '${exampleRoot.path}/macos/Runner.xcodeproj/project.pbxproj',
       ).readAsStringSync();
+      final runnerRelease = RegExp(
+        r'33CC10FD2044A3C60003C045 /\* Release \*/ = \{(.*?)\n\s*\};',
+        dotAll: true,
+      ).firstMatch(projectText)?.group(1);
 
+      expect(runnerRelease, isNotNull);
       expect(
-        projectText,
+        runnerRelease,
         contains('CODE_SIGN_ENTITLEMENTS = Runner/Release.entitlements;'),
       );
-      expect(projectText, contains('ENABLE_HARDENED_RUNTIME = YES;'));
+      expect(
+        runnerRelease,
+        contains('CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;'),
+      );
+      expect(runnerRelease, contains('ENABLE_HARDENED_RUNTIME = YES;'));
       expect(projectText, contains('libianvs_core.dylib'));
       expect(projectText, contains('codesign --force --sign'));
     },
   );
+
+  test('macOS native test gate does not inherit credential variables', () {
+    final repositoryRoot = _exampleRoot().parent;
+    final verifier = File(
+      '${repositoryRoot.path}/tools/verify_flutter_terminal.sh',
+    ).readAsStringSync();
+
+    expect(verifier, contains('/usr/bin/env -i'));
+    final allowlistStart = verifier.indexOf('xcode_test_env=(');
+    final allowlistEnd = verifier.indexOf(
+      r'"${xcode_test_env[@]}" xcodebuild test',
+    );
+    expect(allowlistStart, greaterThanOrEqualTo(0));
+    expect(allowlistEnd, greaterThan(allowlistStart));
+    final allowlistBlock = verifier.substring(allowlistStart, allowlistEnd);
+    final assignedNames = RegExp(
+      r'["(]([A-Z][A-Z0-9_]*)=',
+    ).allMatches(allowlistBlock).map((match) => match.group(1)).toSet();
+    expect(
+      assignedNames,
+      equals({
+        'HOME',
+        'PATH',
+        'TMPDIR',
+        'LANG',
+        'LC_ALL',
+        'DEVELOPER_DIR',
+        'TOOLCHAINS',
+      }),
+    );
+  });
+
+  test('macOS release entitlement inspection uses a cleaned random file', () {
+    final repositoryRoot = _exampleRoot().parent;
+    final verifier = File(
+      '${repositoryRoot.path}/tools/verify_flutter_terminal.sh',
+    ).readAsStringSync();
+
+    expect(verifier, contains('ianvs-release-entitlements.plist.XXXXXX'));
+    expect(
+      verifier,
+      isNot(contains('ianvs-release-entitlements.XXXXXX.plist')),
+    );
+    expect(verifier, contains('trap cleanup_release_entitlements EXIT'));
+    expect(verifier, contains(r'plutil -lint "$release_entitlements"'));
+    expect(verifier, contains('must have an empty entitlement dictionary'));
+    expect(verifier, contains('must enable hardened runtime'));
+    expect(
+      RegExp(
+        RegExp.escape(r'verify_release_bundle "$release_app"'),
+      ).allMatches(verifier),
+      hasLength(2),
+    );
+  });
 
   test(
     'local macOS release signing preserves hardening without weakening distribution entitlements',

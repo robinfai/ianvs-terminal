@@ -1,6 +1,7 @@
 use crate::model::{
-    TerminalProfile, TerminalProfileAppearance, TerminalProfileInteraction, TerminalProfileLaunch,
-    TerminalProfileTerminal, TerminalShellIntegration, normalize_scrollback_lines,
+    TerminalConnectionType, TerminalProfile, TerminalProfileAppearance, TerminalProfileConnection,
+    TerminalProfileInteraction, TerminalProfileLaunch, TerminalProfileTerminal,
+    TerminalShellIntegration, TerminalSshPortForwardKind, normalize_scrollback_lines,
 };
 use serde::{Deserialize, Serialize};
 
@@ -43,6 +44,8 @@ pub struct SessionClientCapabilitiesV1 {
 pub struct SessionConfigV1Payload {
     pub launch: TerminalProfileLaunch,
     #[serde(default)]
+    pub connection: TerminalProfileConnection,
+    #[serde(default)]
     pub terminal: TerminalProfileTerminal,
     #[serde(rename = "shellIntegration", default)]
     pub shell_integration: TerminalShellIntegration,
@@ -68,6 +71,8 @@ pub enum SessionConfigError {
     InvalidDisplayName,
     #[error("invalid launch program")]
     InvalidLaunchProgram,
+    #[error("invalid SSH connection")]
+    InvalidSshConnection,
     #[error("invalid launch arguments")]
     InvalidLaunchArguments,
     #[error("invalid launch environment")]
@@ -98,6 +103,7 @@ impl SessionConfigV1 {
             id: self.session_id,
             name: self.display_name,
             launch: self.config.launch,
+            connection: self.config.connection,
             terminal: self.config.terminal,
             shell_integration: self.config.shell_integration,
             appearance: self.config.appearance,
@@ -127,11 +133,99 @@ impl SessionConfigV1 {
             return Err(SessionConfigError::InvalidDisplayName);
         }
         let launch = &self.config.launch;
-        if launch.program.trim().is_empty()
-            || launch.program.len() > MAX_PATH_BYTES
-            || launch.program.contains('\0')
+        if self.config.connection.connection_type == TerminalConnectionType::Local
+            && (launch.program.trim().is_empty()
+                || launch.program.len() > MAX_PATH_BYTES
+                || launch.program.contains('\0'))
         {
             return Err(SessionConfigError::InvalidLaunchProgram);
+        }
+        let connection = &self.config.connection;
+        if connection.connection_type == TerminalConnectionType::Ssh
+            && (invalid_identity_text(&connection.host, MAX_PATH_BYTES)
+                || invalid_identity_text(&connection.user, MAX_DISPLAY_NAME_BYTES)
+                || connection.port == 0
+                || connection.private_keys.len() > MAX_ARGUMENTS
+                || connection.private_keys.iter().any(|path| {
+                    path.is_empty() || path.len() > MAX_PATH_BYTES || path.contains('\0')
+                })
+                || connection
+                    .known_hosts_file
+                    .as_ref()
+                    .is_some_and(|path| path.len() > MAX_PATH_BYTES || path.contains('\0'))
+                || connection.proxy_command.as_ref().is_some_and(|command| {
+                    command.len() > MAX_STRING_BYTES || command.contains('\0')
+                })
+                || connection
+                    .proxy_jump
+                    .as_ref()
+                    .is_some_and(|jump| jump.len() > MAX_PATH_BYTES || jump.contains('\0'))
+                || connection.proxy_jump_profiles.len() > MAX_ARGUMENTS
+                || connection.proxy_jump_profiles.iter().any(|jump| {
+                    (!jump.host.is_empty() && invalid_identity_text(&jump.host, MAX_PATH_BYTES))
+                        || (!jump.user.is_empty()
+                            && invalid_identity_text(&jump.user, MAX_DISPLAY_NAME_BYTES))
+                        || jump.password.as_ref().is_some_and(|password| {
+                            password.len() > MAX_STRING_BYTES || password.contains('\0')
+                        })
+                        || jump
+                            .private_key_passphrase
+                            .as_ref()
+                            .is_some_and(|passphrase| {
+                                passphrase.len() > MAX_STRING_BYTES || passphrase.contains('\0')
+                            })
+                        || jump.private_keys.len() > MAX_ARGUMENTS
+                        || jump.private_keys.iter().any(|path| {
+                            path.is_empty() || path.len() > MAX_PATH_BYTES || path.contains('\0')
+                        })
+                        || jump
+                            .known_hosts_file
+                            .as_ref()
+                            .is_some_and(|path| path.len() > MAX_PATH_BYTES || path.contains('\0'))
+                })
+                || connection.port_forwards.len() > MAX_ARGUMENTS
+                || connection.port_forwards.iter().any(|forward| {
+                    invalid_identity_text(&forward.bind_host, MAX_PATH_BYTES)
+                        || forward.bind_port == 0
+                        || match forward.kind {
+                            TerminalSshPortForwardKind::Local
+                            | TerminalSshPortForwardKind::Remote => {
+                                invalid_identity_text(&forward.target_host, MAX_PATH_BYTES)
+                                    || forward.target_port == 0
+                            }
+                            TerminalSshPortForwardKind::Dynamic => {
+                                !forward.target_host.is_empty() || forward.target_port != 0
+                            }
+                        }
+                })
+                || connection.agent_socket.as_ref().is_some_and(|path| {
+                    path.is_empty() || path.len() > MAX_PATH_BYTES || path.contains('\0')
+                })
+                || connection
+                    .x11_target_host
+                    .as_ref()
+                    .is_some_and(|host| invalid_identity_text(host, MAX_PATH_BYTES))
+                || connection.x11_auth_protocol.len() > 128
+                || connection.x11_auth_protocol.chars().any(char::is_control)
+                || connection.x11_auth_cookie.as_ref().is_some_and(|cookie| {
+                    cookie.len() > 4096 || cookie.chars().any(char::is_control)
+                })
+                || (connection.x11_forwarding
+                    && (connection.x11_auth_protocol != "MIT-MAGIC-COOKIE-1"
+                        || !connection.x11_auth_cookie.as_ref().is_some_and(|cookie| {
+                            cookie.len() == 32
+                                && cookie.bytes().all(|byte| byte.is_ascii_hexdigit())
+                        })
+                        || match (
+                            connection.x11_target_host.as_deref(),
+                            connection.x11_target_port,
+                        ) {
+                            (None, 0) => false,
+                            (Some(_), port) if port != 0 => false,
+                            _ => true,
+                        })))
+        {
+            return Err(SessionConfigError::InvalidSshConnection);
         }
         if launch.args.len() > MAX_ARGUMENTS
             || launch
@@ -194,6 +288,7 @@ fn invalid_identity_text(value: &str, maximum: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::TerminalSshAuthMethod;
 
     #[test]
     fn rejects_unknown_schema_before_runtime_creation() {
@@ -247,5 +342,184 @@ mod tests {
 
         let decoded = SessionConfigV1::decode_json(&raw).unwrap();
         assert!(decoded.client_capabilities.zmodem);
+    }
+
+    #[test]
+    fn decodes_ssh_connection_without_a_local_launch_program() {
+        let raw = serde_json::json!({
+            "schema_version": 1,
+            "contract": SESSION_CONFIG_CONTRACT,
+            "session_id": "ssh-runtime-1",
+            "display_name": "production",
+            "config": {
+                "launch": {"program": ""},
+                "connection": {
+                    "type": "ssh",
+                    "host": "ssh.example.test",
+                    "user": "operator",
+                    "port": 2222,
+                    "auth": "password",
+                    "password": "transient-secret"
+                }
+            }
+        })
+        .to_string();
+
+        let decoded = SessionConfigV1::decode_json(&raw).unwrap();
+        assert_eq!(decoded.config.connection.host, "ssh.example.test");
+        assert_eq!(decoded.config.connection.port, 2222);
+        assert_eq!(
+            decoded.config.connection.password.as_deref(),
+            Some("transient-secret")
+        );
+    }
+
+    #[test]
+    fn rejects_incomplete_ssh_connection() {
+        let raw = serde_json::json!({
+            "schema_version": 1,
+            "contract": SESSION_CONFIG_CONTRACT,
+            "session_id": "ssh-runtime-1",
+            "display_name": "production",
+            "config": {
+                "launch": {"program": ""},
+                "connection": {"type": "ssh", "host": "", "user": "operator"}
+            }
+        })
+        .to_string();
+
+        assert_eq!(
+            SessionConfigV1::decode_json(&raw).unwrap_err(),
+            SessionConfigError::InvalidSshConnection
+        );
+    }
+
+    #[test]
+    fn decodes_advanced_ssh_forwarding_configuration() {
+        let raw = serde_json::json!({
+            "schema_version": 1,
+            "contract": SESSION_CONFIG_CONTRACT,
+            "session_id": "ssh-runtime-advanced",
+            "display_name": "forwarding",
+            "config": {
+                "launch": {"program": ""},
+                "connection": {
+                    "type": "ssh",
+                    "host": "ssh.example.test",
+                    "user": "operator",
+                    "auth": "keyboard_interactive",
+                    "proxyJump": "jump-a,jump-b:2222",
+                    "portForwards": [
+                        {
+                            "type": "local",
+                            "bindHost": "127.0.0.1",
+                            "bindPort": 8080,
+                            "targetHost": "app.internal",
+                            "targetPort": 80
+                        },
+                        {
+                            "type": "dynamic",
+                            "bindHost": "127.0.0.1",
+                            "bindPort": 1080
+                        }
+                    ],
+                    "agentForwarding": true,
+                    "agentSocket": "/tmp/agent.sock",
+                    "x11Forwarding": true,
+                    "x11TargetHost": "127.0.0.1",
+                    "x11TargetPort": 6000,
+                    "x11AuthCookie": "00112233445566778899aabbccddeeff"
+                }
+            }
+        })
+        .to_string();
+
+        let decoded = SessionConfigV1::decode_json(&raw).unwrap();
+        let connection = decoded.config.connection;
+        assert_eq!(connection.auth, TerminalSshAuthMethod::KeyboardInteractive);
+        assert_eq!(connection.proxy_jump.as_deref(), Some("jump-a,jump-b:2222"));
+        assert_eq!(connection.port_forwards.len(), 2);
+        assert_eq!(
+            connection.port_forwards[1].kind,
+            TerminalSshPortForwardKind::Dynamic
+        );
+        assert!(connection.agent_forwarding);
+        assert!(connection.x11_forwarding);
+        assert_eq!(connection.x11_target_port, 6000);
+    }
+
+    #[test]
+    fn decodes_independent_proxy_jump_profiles() {
+        let raw = serde_json::json!({
+            "schema_version": 1,
+            "contract": SESSION_CONFIG_CONTRACT,
+            "session_id": "ssh-runtime-jump",
+            "display_name": "jump",
+            "config": {
+                "launch": {},
+                "connection": {
+                    "type": "ssh",
+                    "host": "target.internal",
+                    "user": "target-user",
+                    "auth": "password",
+                    "password": "target-secret",
+                    "proxyJump": "jump-user@jump-alias",
+                    "proxyJumpProfiles": [{
+                        "host": "jump.internal",
+                        "user": "jump-user",
+                        "auth": "password",
+                        "password": "jump-secret",
+                        "hostKeyPolicy": "strict"
+                    }]
+                }
+            }
+        })
+        .to_string();
+
+        let decoded = SessionConfigV1::decode_json(&raw).expect("jump config");
+        let connection = decoded.config.connection;
+        assert_eq!(connection.proxy_jump_profiles.len(), 1);
+        let jump = &connection.proxy_jump_profiles[0];
+        assert_eq!(jump.host, "jump.internal");
+        assert_eq!(jump.password.as_deref(), Some("jump-secret"));
+        assert_ne!(jump.password, connection.password);
+    }
+
+    #[test]
+    fn rejects_invalid_dynamic_and_incomplete_x11_forwards() {
+        for connection in [
+            serde_json::json!({
+                "type": "ssh",
+                "host": "ssh.example.test",
+                "user": "operator",
+                "portForwards": [{
+                    "type": "dynamic",
+                    "bindHost": "127.0.0.1",
+                    "bindPort": 1080,
+                    "targetHost": "must-be-empty",
+                    "targetPort": 22
+                }]
+            }),
+            serde_json::json!({
+                "type": "ssh",
+                "host": "ssh.example.test",
+                "user": "operator",
+                "x11Forwarding": true,
+                "x11TargetHost": "127.0.0.1"
+            }),
+        ] {
+            let raw = serde_json::json!({
+                "schema_version": 1,
+                "contract": SESSION_CONFIG_CONTRACT,
+                "session_id": "ssh-runtime-invalid",
+                "display_name": "invalid",
+                "config": {"launch": {"program": ""}, "connection": connection}
+            })
+            .to_string();
+            assert_eq!(
+                SessionConfigV1::decode_json(&raw).unwrap_err(),
+                SessionConfigError::InvalidSshConnection
+            );
+        }
     }
 }

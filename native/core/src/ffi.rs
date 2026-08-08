@@ -1,4 +1,4 @@
-use crate::{runtime_contract, session, session_request};
+use crate::{runtime_contract, session, session_request, ssh_config};
 use libc::{c_char, c_int};
 use std::ffi::{CStr, CString};
 
@@ -19,6 +19,27 @@ pub extern "C" fn ianvs_ping() -> c_int {
 #[unsafe(no_mangle)]
 pub extern "C" fn ianvs_runtime_capabilities_json() -> *mut c_char {
     runtime_contract::runtime_capabilities_json()
+        .ok()
+        .and_then(|json| CString::new(json).ok())
+        .map(CString::into_raw)
+        .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+/// Imports concrete OpenSSH Host entries using Tabby-compatible Include and
+/// wildcard resolution. A null or empty path selects `~/.ssh/config`.
+///
+/// # Safety
+///
+/// When non-null, `config_path` must be a valid, NUL-terminated UTF-8 string
+/// pointer that remains alive for the duration of this call.
+pub unsafe extern "C" fn ianvs_ssh_import_profiles_json(config_path: *const c_char) -> *mut c_char {
+    let path = if config_path.is_null() {
+        None
+    } else {
+        unsafe { CStr::from_ptr(config_path) }.to_str().ok()
+    };
+    ssh_config::import_profiles_json(path)
         .ok()
         .and_then(|json| CString::new(json).ok())
         .map(CString::into_raw)

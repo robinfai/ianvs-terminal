@@ -5,8 +5,7 @@
 ## 当前已知边界
 
 - 当前只支持 macOS
-- 当前只支持 local shell
-- 还没有 SSH 会话链路
+- 当前支持 local shell 与基于 Rust 的 SSH session；两者共用现有 tab、pane 与 layout 模型
 - scrollback 搜索目前只支持本地纯文本搜索
 - 已支持 xterm synchronized output mode；剩余风险主要是性能回归自动化和更宽宿主环境验证
 - 还没有插件系统
@@ -24,7 +23,7 @@
 
 - 已有首批本地性能基线 evidence（`docs/evidence/2026-05-29-benchmark/` 与 `TERMINAL_XTERM_RECENT_FIX_AUDIT.md` 里的 release snapshots），并且 `tools/bench/configs/bench_ci_smoke.yaml` 已覆盖轻量 p95 frame-build / JSON decode / apply 回归 gate，也会采集 `os_resource.ndjson` 的 CPU/RSS 样本。`tools/bench/configs/bench_nightly_resource.yaml` 可通过 `VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH=1` 接入 verify 脚本，在 quiet-host/nightly lane 对 `max_p95_process_cpu_percent` 与 `max_peak_process_rss_bytes` 做资源阈值门禁；但还没有 cross-machine 对比基线
 - 还没有跨平台验证
-- 还没有 SSH 兼容性验证
+- SSH 自动化目前覆盖 OpenSSH 的密码、keyboard-interactive/OTP、公私钥、两跳 ProxyJump、host-key 策略、L/R/D/agent forwarding 与安全 X11 转发；更宽的服务器版本、发行版和真实网络环境矩阵尚未验证
 - local-only terminal 手工矩阵已于 `2026-05-06` 在 `T-059` 实际执行；当时发现的真实失败项已拆到 `T-066`、`T-067`、`T-068` 并完成，`T-059` 仍作为历史矩阵入口保留
 - local-terminal P0-P5 required closure baseline 已由 canonical verification records 标记为 verified；对应入口见 `docs/LOCAL_TERMINAL_VERIFICATION_MANIFEST_2026-05.json`、`docs/LOCAL_TERMINAL_COMPLETION_AUDIT_CHECKLIST_2026-05.md` 和 `tools/local_terminal_verification_status.sh`。剩余风险主要是 advanced visual/productivity/policy follow-up、跨平台验证、性能回归自动化和更宽的宿主环境矩阵，不应再把 required closure baseline 记录为缺 evidence。
 

@@ -67,6 +67,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
   }
 
   void _clearPresentationStateForSession(String sessionId) {
+    _sshAuthPromptPresenter.cancelSession(sessionId);
     _invalidateZmodemPickerRequest(sessionId);
     unawaited(_cancelOsc1337AttentionRequest(sessionId));
     _osc1337FireworksTimers.remove(sessionId)?.cancel();

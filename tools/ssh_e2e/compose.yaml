@@ -1,0 +1,81 @@
+x-ianvs-ssh-common: &ianvs-ssh-common
+  image: ${IANVS_SSH_E2E_IMAGE:-ianvs-ssh-e2e:20260808}
+  restart: "no"
+  healthcheck:
+    test:
+      - CMD-SHELL
+      - >-
+        timeout 2 bash -c 'exec 3<>/dev/tcp/127.0.0.1/22;
+        head -c 4 <&3 | grep -q SSH-'
+    interval: 1s
+    timeout: 3s
+    retries: 30
+    start_period: 2s
+
+services:
+  password:
+    <<: *ianvs-ssh-common
+    environment:
+      IANVS_SSH_E2E_ROLE: password
+      IANVS_SSH_E2E_AUTH_MODE: password
+    ports:
+      - "127.0.0.1::22"
+
+  keyboard-interactive:
+    <<: *ianvs-ssh-common
+    environment:
+      IANVS_SSH_E2E_ROLE: keyboard-interactive
+      IANVS_SSH_E2E_AUTH_MODE: keyboard-interactive
+    ports:
+      - "127.0.0.1::22"
+
+  otp:
+    <<: *ianvs-ssh-common
+    environment:
+      IANVS_SSH_E2E_ROLE: otp
+      IANVS_SSH_E2E_AUTH_MODE: otp
+    ports:
+      - "127.0.0.1::22"
+
+  publickey:
+    <<: *ianvs-ssh-common
+    environment:
+      IANVS_SSH_E2E_ROLE: publickey
+      IANVS_SSH_E2E_AUTH_MODE: publickey
+      IANVS_SSH_E2E_PUBLIC_KEY: ${IANVS_SSH_E2E_PUBLIC_KEY:?IANVS_SSH_E2E_PUBLIC_KEY is required}
+    ports:
+      - "127.0.0.1::22"
+
+  jump:
+    <<: *ianvs-ssh-common
+    environment:
+      IANVS_SSH_E2E_ROLE: jump
+      IANVS_SSH_E2E_AUTH_MODE: jump
+      IANVS_SSH_E2E_PUBLIC_KEY: ${IANVS_SSH_E2E_PUBLIC_KEY:?IANVS_SSH_E2E_PUBLIC_KEY is required}
+      IANVS_SSH_E2E_PERMIT_OPEN: jump2:22
+    ports:
+      - "127.0.0.1::22"
+
+  jump2:
+    <<: *ianvs-ssh-common
+    environment:
+      IANVS_SSH_E2E_ROLE: jump2
+      IANVS_SSH_E2E_AUTH_MODE: jump
+      IANVS_SSH_E2E_PUBLIC_KEY: ${IANVS_SSH_E2E_PUBLIC_KEY:?IANVS_SSH_E2E_PUBLIC_KEY is required}
+      IANVS_SSH_E2E_PERMIT_OPEN: target:22
+
+  forwarding:
+    <<: *ianvs-ssh-common
+    environment:
+      IANVS_SSH_E2E_ROLE: forwarding
+      IANVS_SSH_E2E_AUTH_MODE: forwarding
+      IANVS_SSH_E2E_PUBLIC_KEY: ${IANVS_SSH_E2E_PUBLIC_KEY:?IANVS_SSH_E2E_PUBLIC_KEY is required}
+    ports:
+      - "127.0.0.1::22"
+
+  target:
+    <<: *ianvs-ssh-common
+    environment:
+      IANVS_SSH_E2E_ROLE: target-via-two-jumps
+      IANVS_SSH_E2E_AUTH_MODE: target
+      IANVS_SSH_E2E_PUBLIC_KEY: ${IANVS_SSH_E2E_PUBLIC_KEY:?IANVS_SSH_E2E_PUBLIC_KEY is required}

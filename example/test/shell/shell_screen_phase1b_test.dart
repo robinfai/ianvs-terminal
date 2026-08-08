@@ -88,10 +88,13 @@ Future<void> openNewShellTab(WidgetTester tester) async {
   if (newTabButton.evaluate().isNotEmpty) {
     await tester.tap(newTabButton);
     await tester.pumpAndSettle();
-    return;
+  } else {
+    await sendMetaShortcut(tester, LogicalKeyboardKey.keyT);
   }
 
-  await sendMetaShortcut(tester, LogicalKeyboardKey.keyT);
+  expect(find.byKey(const Key('new-session-launcher')), findsOneWidget);
+  await tester.tap(find.byKey(const Key('new-local-session-default')));
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -132,8 +135,7 @@ void main() {
         ),
       );
 
-      await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
-      await tester.pumpAndSettle();
+      await openNewShellTab(tester);
 
       expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
       expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
@@ -171,8 +173,7 @@ void main() {
         .width;
     expect(singleTabWidth, closeTo(stripWidth - 40, 1));
 
-    await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
-    await tester.pumpAndSettle();
+    await openNewShellTab(tester);
 
     final firstTabWidth = tester
         .getSize(find.byKey(const Key('shell-tab-1')))
@@ -184,8 +185,7 @@ void main() {
     expect(firstTabWidth, closeTo((stripWidth - 40) / 2, 1));
     expect(find.byKey(const Key('shell-tab-overflow-button')), findsNothing);
 
-    await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
-    await tester.pumpAndSettle();
+    await openNewShellTab(tester);
 
     final threeTabWidths = [
       tester.getSize(find.byKey(const Key('shell-tab-1'))).width,
@@ -264,8 +264,7 @@ void main() {
     );
     expect(find.byKey(const Key('shell-status-bar')), findsNothing);
 
-    await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
-    await tester.pumpAndSettle();
+    await openNewShellTab(tester);
 
     final inactiveBackground = _tabButtonBackground(
       tester,
@@ -380,8 +379,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
-    await tester.pumpAndSettle();
+    await openNewShellTab(tester);
 
     expect(find.byTooltip('New output'), findsNothing);
 
@@ -823,8 +821,7 @@ void main() {
       );
 
       for (var index = 0; index < 2; index += 1) {
-        await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
-        await tester.pumpAndSettle();
+        await openNewShellTab(tester);
       }
 
       final tabOne = find.byKey(const Key('shell-tab-drag-1'));
@@ -882,8 +879,7 @@ void main() {
           TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
         ),
       );
-      await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
-      await tester.pumpAndSettle();
+      await openNewShellTab(tester);
 
       final container = ProviderScope.containerOf(
         tester.element(find.byType(ShellScreen)),
@@ -932,8 +928,7 @@ void main() {
           TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
         ),
       );
-      await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
-      await tester.pumpAndSettle();
+      await openNewShellTab(tester);
 
       final container = ProviderScope.containerOf(
         tester.element(find.byType(ShellScreen)),
@@ -1003,8 +998,7 @@ void main() {
           TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
         ),
       );
-      await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
-      await tester.pumpAndSettle();
+      await openNewShellTab(tester);
 
       final container = ProviderScope.containerOf(
         tester.element(find.byType(ShellScreen)),
@@ -1043,8 +1037,7 @@ void main() {
           TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
         ),
       );
-      await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
-      await tester.pumpAndSettle();
+      await openNewShellTab(tester);
 
       final container = ProviderScope.containerOf(
         tester.element(find.byType(ShellScreen)),
@@ -1227,8 +1220,7 @@ void main() {
       );
 
       for (var index = 0; index < 2; index += 1) {
-        await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
-        await tester.pumpAndSettle();
+        await openNewShellTab(tester);
       }
 
       final tabOne = find.byKey(const Key('shell-tab-1'));

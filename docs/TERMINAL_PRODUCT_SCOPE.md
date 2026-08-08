@@ -42,8 +42,9 @@ The current product does not define:
 - plugin marketplace/runtime, cloud sync or collaboration;
 - remote-domain or multi-host Workspace abstractions.
 
-SSH remains a **deferred extension**. If introduced, it must extend Profile and
-Session launch/runtime contracts without reintroducing a project container.
+SSH is implemented as a **Profile and Session extension**. Local shells and SSH
+sessions share the same tab, pane and layout model without reintroducing a
+project container.
 
 ## Diagnostics boundary
 

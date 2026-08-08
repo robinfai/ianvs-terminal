@@ -1,7 +1,8 @@
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use ianvs_core::model::{
-    TerminalEmulation, TerminalProfile, TerminalProfileAppearance, TerminalProfileInteraction,
-    TerminalProfileLaunch, TerminalProfileTerminal, TerminalShellIntegration,
+    TerminalEmulation, TerminalProfile, TerminalProfileAppearance, TerminalProfileConnection,
+    TerminalProfileInteraction, TerminalProfileLaunch, TerminalProfileTerminal,
+    TerminalShellIntegration,
 };
 use ianvs_core::session;
 use par_term_emu_core_rust::cell::Cell;
@@ -188,6 +189,7 @@ fn local_profile_with_scrollback(
     TerminalProfile {
         id: id.to_string(),
         name: name.to_string(),
+        connection: TerminalProfileConnection::default(),
         launch: TerminalProfileLaunch {
             program: shell.to_string(),
             args,

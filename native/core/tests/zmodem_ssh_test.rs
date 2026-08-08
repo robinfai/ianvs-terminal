@@ -1,8 +1,9 @@
 #![cfg(any(target_os = "macos", target_os = "linux"))]
 
 use ianvs_core::model::{
-    TerminalEmulation, TerminalProfile, TerminalProfileAppearance, TerminalProfileInteraction,
-    TerminalProfileLaunch, TerminalProfileTerminal, TerminalShellIntegration,
+    TerminalEmulation, TerminalProfile, TerminalProfileAppearance, TerminalProfileConnection,
+    TerminalProfileInteraction, TerminalProfileLaunch, TerminalProfileTerminal,
+    TerminalShellIntegration,
 };
 use ianvs_core::session;
 use std::collections::BTreeMap;
@@ -41,6 +42,7 @@ fn ssh_profile(id: &str, remote_command: &str) -> TerminalProfile {
     TerminalProfile {
         id: id.to_string(),
         name: id.to_string(),
+        connection: TerminalProfileConnection::default(),
         launch: TerminalProfileLaunch {
             program,
             args: vec![

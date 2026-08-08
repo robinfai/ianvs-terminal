@@ -20,7 +20,17 @@ final class EditProfileResult extends ProfilesSheetResult {
 }
 
 final class CreateProfileResult extends ProfilesSheetResult {
-  const CreateProfileResult();
+  const CreateProfileResult(this.connectionType);
+
+  final NewProfileConnectionType connectionType;
+}
+
+enum NewProfileConnectionType { localShell, sshSession }
+
+final class DeleteProfileResult extends ProfilesSheetResult {
+  const DeleteProfileResult(this.profile);
+
+  final TerminalProfile profile;
 }
 
 class ProfilesSheet extends StatefulWidget {
@@ -95,9 +105,7 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
                     ),
                     FilledButton.icon(
                       key: const Key('profiles-create'),
-                      onPressed: () => Navigator.of(
-                        context,
-                      ).pop(const CreateProfileResult()),
+                      onPressed: _createProfile,
                       icon: const Icon(Icons.add_rounded, size: 18),
                       label: const Text('New'),
                     ),
@@ -171,14 +179,30 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
                                 summary: summary,
                                 tags: profile.tags,
                               ),
-                              trailing: AppActionButton(
-                                tooltip: 'Edit ${profile.name}',
-                                tone: AppActionTone.ghost,
-                                size: AppActionSize.dense,
-                                onPressed: () => Navigator.of(
-                                  context,
-                                ).pop(EditProfileResult(profile)),
-                                icon: Icons.edit_outlined,
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  AppActionButton(
+                                    tooltip: 'Edit ${profile.name}',
+                                    tone: AppActionTone.ghost,
+                                    size: AppActionSize.dense,
+                                    onPressed: () => Navigator.of(
+                                      context,
+                                    ).pop(EditProfileResult(profile)),
+                                    icon: Icons.edit_outlined,
+                                  ),
+                                  AppActionButton(
+                                    tooltip: 'Delete ${profile.name}',
+                                    tone: AppActionTone.ghost,
+                                    size: AppActionSize.dense,
+                                    onPressed: widget.profiles.length <= 1
+                                        ? null
+                                        : () => Navigator.of(
+                                            context,
+                                          ).pop(DeleteProfileResult(profile)),
+                                    icon: Icons.delete_outline_rounded,
+                                  ),
+                                ],
                               ),
                               onTap: () => Navigator.of(
                                 context,
@@ -195,15 +219,55 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
     );
   }
 
+  Future<void> _createProfile() async {
+    final connectionType = await showDialog<NewProfileConnectionType>(
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        title: const Text('New profile'),
+        children: [
+          SimpleDialogOption(
+            key: const Key('profiles-create-local'),
+            onPressed: () => Navigator.of(
+              dialogContext,
+            ).pop(NewProfileConnectionType.localShell),
+            child: const ListTile(
+              leading: Icon(Icons.terminal_rounded),
+              title: Text('Local shell'),
+              subtitle: Text('Run a shell on this device.'),
+            ),
+          ),
+          SimpleDialogOption(
+            key: const Key('profiles-create-ssh'),
+            onPressed: () => Navigator.of(
+              dialogContext,
+            ).pop(NewProfileConnectionType.sshSession),
+            child: const ListTile(
+              leading: Icon(Icons.dns_outlined),
+              title: Text('SSH session'),
+              subtitle: Text('Connect to a remote host.'),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || connectionType == null) {
+      return;
+    }
+    Navigator.of(context).pop(CreateProfileResult(connectionType));
+  }
+
   String _profileSummary(TerminalProfile profile, {required bool isDefault}) {
-    final base =
-        '${profile.shell} • ${terminalEmulationLabel(profile.terminalEmulation)} • ${profile.scrollbackLines} lines';
+    final base = profile.isSsh
+        ? 'SSH • ${profile.connection.user}@${profile.connection.host}:${profile.connection.port}'
+        : '${profile.shell} • ${terminalEmulationLabel(profile.terminalEmulation)} • ${profile.scrollbackLines} lines';
     return isDefault ? '$base • Default profile' : base;
   }
 
   bool _profileMatchesQuery(TerminalProfile profile, String query) {
     if (profile.name.toLowerCase().contains(query) ||
-        profile.shell.toLowerCase().contains(query)) {
+        profile.shell.toLowerCase().contains(query) ||
+        profile.connection.host.toLowerCase().contains(query) ||
+        profile.connection.user.toLowerCase().contains(query)) {
       return true;
     }
     return profile.tags.any((tag) => tag.toLowerCase().contains(query));

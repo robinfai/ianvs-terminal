@@ -2,6 +2,92 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 
 void main() {
+  test('SSH connection roundtrips forwarding and removes every secret', () {
+    const connection = TerminalConnectionConfig.ssh(
+      host: 'ssh.example.test',
+      user: 'operator',
+      auth: TerminalSshAuthMethod.keyboardInteractive,
+      password: 'password',
+      privateKeys: <String>['/keys/target_ed25519'],
+      privateKeyPassphrase: 'passphrase',
+      proxyJump: 'jump-a,jump-b',
+      proxyJumpProfiles: <TerminalSshJumpConfig>[
+        TerminalSshJumpConfig(
+          host: 'jump-a.internal',
+          user: 'jump-user',
+          port: 2222,
+          auth: TerminalSshAuthMethod.publicKey,
+          password: 'jump-password',
+          privateKeys: <String>['/keys/jump_ed25519'],
+          privateKeyPassphrase: 'jump-passphrase',
+          hostKeyPolicy: TerminalSshHostKeyPolicy.acceptNew,
+          knownHostsFile: '/known/jump_hosts',
+          connectTimeoutSeconds: 12,
+          keepaliveSeconds: 20,
+          keepaliveCountMax: 4,
+        ),
+      ],
+      portForwards: <TerminalSshPortForwardConfig>[
+        TerminalSshPortForwardConfig(
+          type: TerminalSshPortForwardType.remote,
+          bindHost: '127.0.0.1',
+          bindPort: 9000,
+          targetHost: '127.0.0.1',
+          targetPort: 9001,
+        ),
+      ],
+      agentForwarding: true,
+      x11Forwarding: true,
+      x11TargetHost: '127.0.0.1',
+      x11TargetPort: 6000,
+      x11AuthCookie: 'x11-cookie',
+    );
+
+    final decoded = TerminalConnectionConfig.fromJson(connection.toJson());
+    final redacted = connection.withoutSensitiveFields();
+    final persisted = connection.toJson(includeSensitiveFields: false);
+    final persistedJump =
+        (persisted['proxyJumpProfiles']! as List).single as Map;
+
+    expect(decoded.auth, TerminalSshAuthMethod.keyboardInteractive);
+    expect(decoded.proxyJump, 'jump-a,jump-b');
+    expect(decoded.privateKeys, <String>['/keys/target_ed25519']);
+    expect(decoded.proxyJumpProfiles, hasLength(1));
+    expect(decoded.proxyJumpProfiles.single.host, 'jump-a.internal');
+    expect(decoded.proxyJumpProfiles.single.user, 'jump-user');
+    expect(decoded.proxyJumpProfiles.single.port, 2222);
+    expect(
+      decoded.proxyJumpProfiles.single.auth,
+      TerminalSshAuthMethod.publicKey,
+    );
+    expect(decoded.proxyJumpProfiles.single.password, 'jump-password');
+    expect(decoded.proxyJumpProfiles.single.privateKeys, <String>[
+      '/keys/jump_ed25519',
+    ]);
+    expect(
+      decoded.proxyJumpProfiles.single.privateKeyPassphrase,
+      'jump-passphrase',
+    );
+    expect(
+      decoded.proxyJumpProfiles.single.hostKeyPolicy,
+      TerminalSshHostKeyPolicy.acceptNew,
+    );
+    expect(decoded.portForwards.single.type, TerminalSshPortForwardType.remote);
+    expect(decoded.agentForwarding, isTrue);
+    expect(decoded.x11AuthCookie, 'x11-cookie');
+    expect(redacted.password, isNull);
+    expect(redacted.privateKeyPassphrase, isNull);
+    expect(redacted.x11AuthCookie, isNull);
+    expect(redacted.proxyJumpProfiles.single.password, isNull);
+    expect(redacted.proxyJumpProfiles.single.privateKeyPassphrase, isNull);
+    expect(persisted, isNot(contains('password')));
+    expect(persisted, isNot(contains('privateKeyPassphrase')));
+    expect(persisted, isNot(contains('x11AuthCookie')));
+    expect(persistedJump, isNot(contains('password')));
+    expect(persistedJump, isNot(contains('privateKeyPassphrase')));
+    expect(persistedJump['privateKeys'], <String>['/keys/jump_ed25519']);
+  });
+
   test('terminal color palette roundtrips grouped special and ansi colors', () {
     const palette = TerminalColorPalette(
       special: TerminalSpecialColors(

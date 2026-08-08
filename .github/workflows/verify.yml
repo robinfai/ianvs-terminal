@@ -11,6 +11,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  ssh-openssh:
+    name: Rust SSH authentication, jumps, and forwarding
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master; Rust version pinned below
+        with:
+          toolchain: "1.88.0"
+
+      - name: Verify auth, two-hop jumps, ports, agent, and X11
+        run: ./tools/ssh_e2e/run.sh
+
   zmodem-openssh:
     name: ZMODEM OpenSSH round trip (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
@@ -26,10 +43,12 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master; Rust version pinned below
+        with:
+          toolchain: "1.88.0"
 
       - name: Build fixture and verify two-file batches in both directions
         shell: bash
@@ -81,10 +100,12 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master; Rust version pinned below
+        with:
+          toolchain: "1.88.0"
 
       - name: Verify unsupported-platform capability and request contract
         shell: bash
@@ -118,24 +139,30 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master; Rust version pinned below
         with:
+          toolchain: "1.88.0"
           components: clippy,rustfmt
           targets: thumbv7em-none-eabihf
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: "3.44.0"
           channel: stable
-          cache: true
+          # flutter-action's cache=true path currently invokes a transitive
+          # mutable actions/cache tag. Keep it disabled until upstream pins
+          # that dependency; pub/cargo locks still make resolution repeatable.
+          cache: false
 
       - name: Enable macOS desktop
         if: runner.os == 'macOS'
-        run: flutter config --enable-macos-desktop
+        run: |
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+          flutter config --enable-macos-desktop
 
       - name: Print tool versions
         run: |

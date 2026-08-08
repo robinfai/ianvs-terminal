@@ -31,6 +31,9 @@ import '../recording/recording_replay_search_index.dart';
 import '../recording/replay_viewport_layout.dart';
 import '../sessions/session_controller.dart';
 import '../sessions/session_state.dart';
+import '../ssh/new_session_launcher.dart';
+import '../ssh/ssh_auth_prompt.dart';
+import '../ssh/ssh_profile_import_service.dart';
 import '../terminal/selection_controller.dart';
 import '../terminal/terminal.dart' as terminal;
 import '../terminal/terminal_input_controller.dart';
@@ -133,6 +136,12 @@ final shellUserAttentionBridgeProvider = Provider<ShellUserAttentionBridge>((
 });
 
 final shellClockProvider = Provider<ShellClock>((ref) => DateTime.now);
+
+final sshProfileImportServiceProvider = Provider<SshProfileImportService>((
+  ref,
+) {
+  return const NativeSshProfileImportService();
+});
 
 final shellRecordingFilePickerProvider = Provider<ShellRecordingFilePicker>((
   ref,
@@ -351,6 +360,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Set<String> _zmodemAuthorizedTransferIds = <String>{};
   final Set<String> _zmodemTransportFailureSessionIds = <String>{};
   final Map<String, String> _pendingZmodemTerminalMessages = <String, String>{};
+  final SshAuthenticationPromptPresenter _sshAuthPromptPresenter =
+      SshAuthenticationPromptPresenter();
   _ShellZmodemPickerRequest? _zmodemPickerRequest;
   int _zmodemPickerRequestSeed = 0;
   final Map<String, Set<String>> _coprocessInputKeysBySession =
@@ -770,11 +781,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 'No default profile is available.',
               );
             }
-            _createSession(
-              sessionController,
-              defaultProfile,
-              returningToLayout: activeSessionId == null,
-            );
+            unawaited(_openNewSessionLauncher(sessionController, sessionState));
             return const ShellActionBindingResult.completed();
           },
           closeTab: (_) {
@@ -1059,11 +1066,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           if (defaultProfile == null) {
             return KeyEventResult.handled;
           }
-          _createSession(
-            sessionController,
-            defaultProfile,
-            returningToLayout: activeSessionId == null,
-          );
+          unawaited(_openNewSessionLauncher(sessionController, sessionState));
           return KeyEventResult.handled;
         case TerminalActionId.splitRight:
           if (defaultProfile == null || activeSessionId == null) {
@@ -1195,13 +1198,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 referenceDemoMode: referenceDemoMode,
                 onNewTab: defaultProfile == null
                     ? null
-                    : () {
-                        _createSession(
+                    : () => unawaited(
+                        _openNewSessionLauncher(
                           sessionController,
-                          defaultProfile,
-                          returningToLayout: activeSessionId == null,
-                        );
-                      },
+                          sessionState,
+                        ),
+                      ),
                 onActivateSession: (sessionId) =>
                     _activateSession(sessionController, sessionId),
                 onActivateBadgePane: (sessionId) =>
@@ -1341,13 +1343,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                             defaultSummary: defaultSummary,
                             onNewTab: defaultProfile == null
                                 ? null
-                                : () {
-                                    _createSession(
+                                : () => unawaited(
+                                    _openNewSessionLauncher(
                                       sessionController,
-                                      defaultProfile,
-                                      returningToLayout: true,
-                                    );
-                                  },
+                                      sessionState,
+                                    ),
+                                  ),
                           )
                         : KeyedSubtree(
                             key: ValueKey(
