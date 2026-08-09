@@ -16,14 +16,21 @@ class AppCompactRadioTile<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RadioListTile<T>(
-      key: tileKey ?? key,
-      value: value,
-      dense: true,
-      visualDensity: VisualDensity.compact,
-      contentPadding: EdgeInsets.zero,
-      title: title,
-      subtitle: subtitle,
+    final usesTouchDensity =
+        Theme.of(context).materialTapTargetSize == MaterialTapTargetSize.padded;
+    return ConstrainedBox(
+      constraints: BoxConstraints(minHeight: usesTouchDensity ? 48 : 0),
+      child: RadioListTile<T>(
+        key: tileKey ?? key,
+        value: value,
+        dense: !usesTouchDensity,
+        visualDensity: usesTouchDensity
+            ? VisualDensity.standard
+            : VisualDensity.compact,
+        contentPadding: EdgeInsets.zero,
+        title: title,
+        subtitle: subtitle,
+      ),
     );
   }
 }

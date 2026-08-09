@@ -290,7 +290,7 @@ class AppThemeTokens extends ThemeExtension<AppThemeTokens> {
     borderStrong: Color(0xFFA7A7AD),
     textPrimary: Color(0xFF1D1D1F),
     textMuted: Color(0xFF55565A),
-    textSubtle: Color(0xFF6E6E73),
+    textSubtle: Color(0xFF6B6B70),
     accent: Color(0xFF007AFF),
     focus: Color(0xFF007AFF),
     focusRing: Color(0xFF007AFF),
@@ -530,4 +530,13 @@ class AppThemeTokens extends ThemeExtension<AppThemeTokens> {
 
 extension AppThemeBuildContext on BuildContext {
   AppThemeTokens get appTheme => AppThemeTokens.of(this);
+
+  bool get usesTouchControlDensity =>
+      Theme.of(this).materialTapTargetSize == MaterialTapTargetSize.padded;
+
+  double get minimumInteractiveDimension =>
+      usesTouchControlDensity ? 48 : appTheme.controls.dense;
+
+  double adaptiveControlHeight(double compactHeight) =>
+      usesTouchControlDensity && compactHeight < 48 ? 48 : compactHeight;
 }

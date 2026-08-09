@@ -147,11 +147,12 @@ class AppActionButton extends StatelessWidget {
     AppActionSize.regular => 16,
   };
 
-  double _height(AppThemeTokens theme) => switch (size) {
-    AppActionSize.dense => theme.controls.dense,
-    AppActionSize.compact => theme.controls.compact,
-    AppActionSize.regular => theme.controls.regular,
-  };
+  double _height(BuildContext context, AppThemeTokens theme) =>
+      context.adaptiveControlHeight(switch (size) {
+        AppActionSize.dense => theme.controls.dense,
+        AppActionSize.compact => theme.controls.compact,
+        AppActionSize.regular => theme.controls.regular,
+      });
 
   ButtonStyle _buttonStyle(
     BuildContext context,
@@ -159,7 +160,7 @@ class AppActionButton extends StatelessWidget {
     Color? backgroundColor,
     Color? foregroundColor,
   }) {
-    final height = _height(theme);
+    final height = _height(context, theme);
     final isOutlinedTone = tone == AppActionTone.secondary;
     final isGhostTone = tone == AppActionTone.ghost;
     final baseBackground = backgroundColor;
@@ -207,7 +208,7 @@ class AppActionButton extends StatelessWidget {
       ),
       side: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.focused)) {
-          return BorderSide(color: theme.focusRing, width: 1.5);
+          return BorderSide(color: theme.focusRing, width: 2);
         }
         if (isOutlinedTone) {
           return BorderSide(color: theme.borderStrong);
@@ -232,7 +233,7 @@ class AppActionButton extends StatelessWidget {
       textStyle: const WidgetStatePropertyAll(
         TextStyle(fontWeight: FontWeight.w700),
       ),
-      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      tapTargetSize: Theme.of(context).materialTapTargetSize,
     );
     return baseStyle?.copyWith(
           backgroundColor: overrides.backgroundColor,
@@ -248,7 +249,7 @@ class AppActionButton extends StatelessWidget {
   }
 
   ButtonStyle _iconButtonStyle(BuildContext context, AppThemeTokens theme) {
-    final buttonSize = _height(theme);
+    final buttonSize = _height(context, theme);
     final overrides = IconButton.styleFrom(
       foregroundColor: tone == AppActionTone.danger
           ? theme.danger
@@ -263,7 +264,7 @@ class AppActionButton extends StatelessWidget {
       side: tone == AppActionTone.secondary
           ? BorderSide(color: theme.borderStrong)
           : null,
-      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      tapTargetSize: Theme.of(context).materialTapTargetSize,
     );
     return IconButtonTheme.of(context).style?.copyWith(
           foregroundColor: overrides.foregroundColor,

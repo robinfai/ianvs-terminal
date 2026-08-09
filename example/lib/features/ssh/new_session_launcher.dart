@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../ui/app_ui.dart';
@@ -407,10 +409,12 @@ class SshProfileEditorDialog extends StatefulWidget {
     super.key,
     required this.initialValue,
     this.allowSaveChoice = false,
+    this.saveWhenPristine = true,
   });
 
   final TerminalProfile initialValue;
   final bool allowSaveChoice;
+  final bool saveWhenPristine;
 
   @override
   State<SshProfileEditorDialog> createState() => _SshProfileEditorDialogState();
@@ -419,10 +423,20 @@ class SshProfileEditorDialog extends StatefulWidget {
 class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
   final _formKey = GlobalKey<FormState>();
   final _scrollController = ScrollController();
+  final _advancedController = ExpansibleController();
+  final _nameFocus = FocusNode(debugLabel: 'ssh-profile-name');
   final _hostFocus = FocusNode();
   final _userFocus = FocusNode();
+  final _portFocus = FocusNode(debugLabel: 'ssh-port');
   final _passwordFocus = FocusNode();
   final _privateKeysFocus = FocusNode();
+  final _connectTimeoutFocus = FocusNode(debugLabel: 'ssh-connect-timeout');
+  final _keepaliveFocus = FocusNode(debugLabel: 'ssh-keepalive');
+  final _keepaliveCountFocus = FocusNode(debugLabel: 'ssh-keepalive-count');
+  final _proxyJumpFocus = FocusNode(debugLabel: 'ssh-proxy-jump');
+  final _portForwardsFocus = FocusNode(debugLabel: 'ssh-port-forwards');
+  final _x11TargetFocus = FocusNode(debugLabel: 'ssh-x11-target');
+  final _x11CookieFocus = FocusNode(debugLabel: 'ssh-x11-cookie');
   late final TextEditingController _name;
   late final TextEditingController _host;
   late final TextEditingController _user;
@@ -450,6 +464,9 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
   bool _saveProfile = true;
   bool _showAdvanced = false;
   bool _showValidationErrors = false;
+  bool _obscurePassword = true;
+  bool _obscurePrivateKeyPassphrase = true;
+  bool _obscureX11Cookie = true;
 
   @override
   void initState() {
@@ -499,10 +516,19 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
   @override
   void dispose() {
     _scrollController.dispose();
+    _nameFocus.dispose();
     _hostFocus.dispose();
     _userFocus.dispose();
+    _portFocus.dispose();
     _passwordFocus.dispose();
     _privateKeysFocus.dispose();
+    _connectTimeoutFocus.dispose();
+    _keepaliveFocus.dispose();
+    _keepaliveCountFocus.dispose();
+    _proxyJumpFocus.dispose();
+    _portForwardsFocus.dispose();
+    _x11TargetFocus.dispose();
+    _x11CookieFocus.dispose();
     for (final controller in <TextEditingController>[
       _name,
       _host,
@@ -549,8 +575,9 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
             padding: EdgeInsets.all(palette.spacing.xl),
             child: Form(
               key: _formKey,
+              onChanged: () => setState(() {}),
               autovalidateMode: _showValidationErrors
-                  ? AutovalidateMode.onUserInteraction
+                  ? AutovalidateMode.always
                   : AutovalidateMode.disabled,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -595,6 +622,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
                                 child: TextFormField(
                                   key: const Key('ssh-profile-name'),
                                   controller: _name,
+                                  focusNode: _nameFocus,
                                   decoration: const InputDecoration(
                                     hintText: 'For example, Production',
                                     prefixIcon: Icon(
@@ -650,6 +678,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
                                     child: TextFormField(
                                       key: const Key('ssh-port'),
                                       controller: _port,
+                                      focusNode: _portFocus,
                                       keyboardType: TextInputType.number,
                                       decoration: const InputDecoration(
                                         hintText: '22',
@@ -755,16 +784,28 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
                                 control: Semantics(
                                   label: 'Password',
                                   textField: true,
-                                  obscured: true,
+                                  obscured: _obscurePassword,
                                   child: TextFormField(
                                     key: const Key('ssh-password'),
                                     controller: _password,
                                     focusNode: _passwordFocus,
-                                    obscureText: true,
+                                    obscureText: _obscurePassword,
                                     enableSuggestions: false,
                                     autocorrect: false,
-                                    decoration: const InputDecoration(
-                                      prefixIcon: Icon(Icons.password_rounded),
+                                    decoration: InputDecoration(
+                                      prefixIcon: const Icon(
+                                        Icons.password_rounded,
+                                      ),
+                                      suffixIcon: _SecretVisibilityButton(
+                                        key: const Key(
+                                          'ssh-password-visibility',
+                                        ),
+                                        obscured: _obscurePassword,
+                                        label: 'password',
+                                        onPressed: () => setState(() {
+                                          _obscurePassword = !_obscurePassword;
+                                        }),
+                                      ),
                                     ),
                                     validator:
                                         _auth ==
@@ -828,14 +869,26 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
                                 control: Semantics(
                                   label: 'Private key passphrase',
                                   textField: true,
-                                  obscured: true,
+                                  obscured: _obscurePrivateKeyPassphrase,
                                   child: TextFormField(
                                     key: const Key('ssh-key-passphrase'),
                                     controller: _privateKeyPassphrase,
-                                    obscureText: true,
+                                    obscureText: _obscurePrivateKeyPassphrase,
                                     enableSuggestions: false,
                                     autocorrect: false,
-                                    decoration: const InputDecoration(),
+                                    decoration: InputDecoration(
+                                      suffixIcon: _SecretVisibilityButton(
+                                        key: const Key(
+                                          'ssh-key-passphrase-visibility',
+                                        ),
+                                        obscured: _obscurePrivateKeyPassphrase,
+                                        label: 'private key passphrase',
+                                        onPressed: () => setState(() {
+                                          _obscurePrivateKeyPassphrase =
+                                              !_obscurePrivateKeyPassphrase;
+                                        }),
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -884,6 +937,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
                             ],
                             SizedBox(height: palette.spacing.lg),
                             ExpansionTile(
+                              controller: _advancedController,
                               initiallyExpanded: _showAdvanced,
                               onExpansionChanged: (value) =>
                                   _showAdvanced = value,
@@ -945,6 +999,9 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
                                   connectTimeout: _connectTimeout,
                                   keepalive: _keepalive,
                                   keepaliveCount: _keepaliveCount,
+                                  connectTimeoutFocus: _connectTimeoutFocus,
+                                  keepaliveFocus: _keepaliveFocus,
+                                  keepaliveCountFocus: _keepaliveCountFocus,
                                   validator: _boundedInteger,
                                 ),
                                 SizedBox(height: palette.spacing.md),
@@ -958,6 +1015,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
                                 TextFormField(
                                   key: const Key('ssh-proxy-jump'),
                                   controller: _proxyJump,
+                                  focusNode: _proxyJumpFocus,
                                   decoration: const InputDecoration(
                                     labelText: 'ProxyJump (optional)',
                                     helperText:
@@ -979,6 +1037,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
                                 TextFormField(
                                   key: const Key('ssh-port-forwards'),
                                   controller: _portForwards,
+                                  focusNode: _portForwardsFocus,
                                   minLines: 2,
                                   maxLines: 5,
                                   decoration: const InputDecoration(
@@ -1029,6 +1088,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
                                   TextFormField(
                                     key: const Key('ssh-x11-target'),
                                     controller: _x11Target,
+                                    focusNode: _x11TargetFocus,
                                     decoration: const InputDecoration(
                                       labelText: 'Local X11 target host:port',
                                     ),
@@ -1051,13 +1111,25 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
                                   TextFormField(
                                     key: const Key('ssh-x11-cookie'),
                                     controller: _x11Cookie,
-                                    obscureText: true,
+                                    focusNode: _x11CookieFocus,
+                                    obscureText: _obscureX11Cookie,
                                     enableSuggestions: false,
                                     autocorrect: false,
-                                    decoration: const InputDecoration(
+                                    decoration: InputDecoration(
                                       labelText: 'X11 authentication cookie',
                                       helperText:
                                           'Required: exactly 32 hexadecimal characters.',
+                                      suffixIcon: _SecretVisibilityButton(
+                                        key: const Key(
+                                          'ssh-x11-cookie-visibility',
+                                        ),
+                                        obscured: _obscureX11Cookie,
+                                        label: 'X11 authentication cookie',
+                                        onPressed: () => setState(() {
+                                          _obscureX11Cookie =
+                                              !_obscureX11Cookie;
+                                        }),
+                                      ),
                                     ),
                                     validator: (value) {
                                       if (!_x11Forwarding) {
@@ -1122,7 +1194,12 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
                       SizedBox(width: palette.spacing.sm),
                       FilledButton.icon(
                         key: const Key('ssh-connect'),
-                        onPressed: _submit,
+                        onPressed:
+                            widget.allowSaveChoice ||
+                                widget.saveWhenPristine ||
+                                _hasChanges
+                            ? _submit
+                            : null,
                         icon: const Icon(Icons.login_rounded),
                         label: Text(
                           widget.allowSaveChoice ? 'Connect' : 'Save',
@@ -1156,19 +1233,154 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
     return trimmed.isEmpty ? null : trimmed;
   }
 
+  bool get _hasChanges {
+    final initial = widget.initialValue;
+    final connection = initial.connection;
+    return _name.text != initial.name ||
+        _host.text != connection.host ||
+        _user.text != connection.user ||
+        _port.text != connection.port.toString() ||
+        _password.text != (connection.password ?? '') ||
+        _privateKeys.text != connection.privateKeys.join('\n') ||
+        _privateKeyPassphrase.text != (connection.privateKeyPassphrase ?? '') ||
+        _knownHostsFile.text != (connection.knownHostsFile ?? '') ||
+        _connectTimeout.text != connection.connectTimeoutSeconds.toString() ||
+        _keepalive.text != connection.keepaliveSeconds.toString() ||
+        _keepaliveCount.text != connection.keepaliveCountMax.toString() ||
+        _proxyCommand.text != (connection.proxyCommand ?? '') ||
+        _proxyJump.text != (connection.proxyJump ?? '') ||
+        _portForwards.text != formatSshPortForwards(connection.portForwards) ||
+        _agentSocket.text != (connection.agentSocket ?? '') ||
+        _x11Target.text !=
+            (connection.x11TargetHost == null || connection.x11TargetPort == 0
+                ? ''
+                : '${connection.x11TargetHost}:${connection.x11TargetPort}') ||
+        _x11Cookie.text != (connection.x11AuthCookie ?? '') ||
+        _auth != connection.auth ||
+        _hostKeyPolicy != connection.hostKeyPolicy ||
+        _agentForwarding != connection.agentForwarding ||
+        _x11Forwarding != connection.x11Forwarding ||
+        _clearPassword ||
+        _clearPrivateKeyPassphrase ||
+        _clearX11AuthCookie;
+  }
+
+  ({FocusNode node, bool advanced})? _firstInvalidField() {
+    if (_required(_name.text) != null) {
+      return (node: _nameFocus, advanced: false);
+    }
+    if (_required(_host.text) != null) {
+      return (node: _hostFocus, advanced: false);
+    }
+    if (_required(_user.text) != null) {
+      return (node: _userFocus, advanced: false);
+    }
+    if (_boundedInteger(_port.text, 1, 65535) != null) {
+      return (node: _portFocus, advanced: false);
+    }
+    if (_auth == terminal.TerminalSshAuthMethod.password &&
+        _required(_password.text) != null) {
+      return (node: _passwordFocus, advanced: false);
+    }
+    if (_auth == terminal.TerminalSshAuthMethod.publicKey &&
+        _required(_privateKeys.text) != null) {
+      return (node: _privateKeysFocus, advanced: false);
+    }
+    if (_boundedInteger(_connectTimeout.text, 1, 120) != null) {
+      return (node: _connectTimeoutFocus, advanced: true);
+    }
+    if (_boundedInteger(_keepalive.text, 0, 86400) != null) {
+      return (node: _keepaliveFocus, advanced: true);
+    }
+    if (_boundedInteger(_keepaliveCount.text, 1, 100) != null) {
+      return (node: _keepaliveCountFocus, advanced: true);
+    }
+    if (_hasProxyJumpError) {
+      return (node: _proxyJumpFocus, advanced: true);
+    }
+    if (_hasPortForwardsError) {
+      return (node: _portForwardsFocus, advanced: true);
+    }
+    if (_x11Forwarding && _hasX11TargetError) {
+      return (node: _x11TargetFocus, advanced: true);
+    }
+    if (_x11Forwarding &&
+        !RegExp(r'^[0-9A-Fa-f]{32}$').hasMatch(_x11Cookie.text.trim())) {
+      return (node: _x11CookieFocus, advanced: true);
+    }
+    return null;
+  }
+
+  bool get _hasProxyJumpError {
+    final value = _proxyJump.text.trim();
+    if (value.isEmpty) {
+      return false;
+    }
+    try {
+      parseSshProxyJumpProfiles(value);
+      return false;
+    } on FormatException {
+      return true;
+    }
+  }
+
+  bool get _hasPortForwardsError {
+    try {
+      parseSshPortForwards(_portForwards.text);
+      return false;
+    } on FormatException {
+      return true;
+    }
+  }
+
+  bool get _hasX11TargetError {
+    final value = _x11Target.text.trim();
+    if (value.isEmpty) {
+      return false;
+    }
+    try {
+      parseSshForwardEndpoint(value);
+      return false;
+    } on FormatException {
+      return true;
+    }
+  }
+
+  void _focusInvalidField(({FocusNode node, bool advanced}) target) {
+    if (target.advanced && !_advancedController.isExpanded) {
+      _advancedController.expand();
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      target.node.requestFocus();
+      final fieldContext = target.node.context;
+      if (fieldContext != null) {
+        unawaited(
+          Scrollable.ensureVisible(
+            fieldContext,
+            alignment: 0.25,
+            duration: MediaQuery.disableAnimationsOf(context)
+                ? Duration.zero
+                : const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+          ),
+        );
+      }
+    });
+  }
+
   void _submit() {
-    if (!(_formKey.currentState?.validate() ?? false)) {
-      setState(() => _showValidationErrors = true);
-      if (_host.text.trim().isEmpty) {
-        _hostFocus.requestFocus();
-      } else if (_user.text.trim().isEmpty) {
-        _userFocus.requestFocus();
-      } else if (_auth == terminal.TerminalSshAuthMethod.password &&
-          _password.text.trim().isEmpty) {
-        _passwordFocus.requestFocus();
-      } else if (_auth == terminal.TerminalSshAuthMethod.publicKey &&
-          _privateKeys.text.trim().isEmpty) {
-        _privateKeysFocus.requestFocus();
+    final formIsValid = _formKey.currentState?.validate() ?? false;
+    final invalidField = _firstInvalidField();
+    if (!formIsValid || invalidField != null) {
+      setState(() {
+        _showValidationErrors = true;
+        _showAdvanced = invalidField?.advanced ?? _showAdvanced;
+      });
+      if (invalidField != null) {
+        _focusInvalidField(invalidField);
       }
       return;
     }
@@ -1252,12 +1464,18 @@ class _SshConnectionTimingFields extends StatelessWidget {
     required this.connectTimeout,
     required this.keepalive,
     required this.keepaliveCount,
+    required this.connectTimeoutFocus,
+    required this.keepaliveFocus,
+    required this.keepaliveCountFocus,
     required this.validator,
   });
 
   final TextEditingController connectTimeout;
   final TextEditingController keepalive;
   final TextEditingController keepaliveCount;
+  final FocusNode connectTimeoutFocus;
+  final FocusNode keepaliveFocus;
+  final FocusNode keepaliveCountFocus;
   final String? Function(String?, int, int) validator;
 
   @override
@@ -1267,6 +1485,7 @@ class _SshConnectionTimingFields extends StatelessWidget {
       TextFormField(
         key: const Key('ssh-connect-timeout'),
         controller: connectTimeout,
+        focusNode: connectTimeoutFocus,
         keyboardType: TextInputType.number,
         decoration: const InputDecoration(
           labelText: 'Connect timeout (seconds)',
@@ -1276,6 +1495,7 @@ class _SshConnectionTimingFields extends StatelessWidget {
       TextFormField(
         key: const Key('ssh-keepalive-seconds'),
         controller: keepalive,
+        focusNode: keepaliveFocus,
         keyboardType: TextInputType.number,
         decoration: const InputDecoration(labelText: 'Keepalive (seconds)'),
         validator: (value) => validator(value, 0, 86400),
@@ -1283,6 +1503,7 @@ class _SshConnectionTimingFields extends StatelessWidget {
       TextFormField(
         key: const Key('ssh-keepalive-count'),
         controller: keepaliveCount,
+        focusNode: keepaliveCountFocus,
         keyboardType: TextInputType.number,
         decoration: const InputDecoration(labelText: 'Keepalive retries'),
         validator: (value) => validator(value, 1, 100),
@@ -1309,6 +1530,30 @@ class _SshConnectionTimingFields extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _SecretVisibilityButton extends StatelessWidget {
+  const _SecretVisibilityButton({
+    super.key,
+    required this.obscured,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final bool obscured;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: obscured ? 'Show $label' : 'Hide $label',
+      onPressed: onPressed,
+      icon: Icon(
+        obscured ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+      ),
     );
   }
 }

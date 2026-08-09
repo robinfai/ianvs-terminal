@@ -372,6 +372,12 @@ void main() {
       );
       expect(find.byKey(const Key('defaults-save')), findsOneWidget);
       expect(tester.getSize(find.byKey(const Key('defaults-save'))).height, 36);
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const Key('defaults-save')))
+            .onPressed,
+        isNull,
+      );
 
       await tester.ensureVisible(
         find.byKey(const Key('default-profile-option-ssh')),
@@ -384,13 +390,21 @@ void main() {
       );
       await tester.tap(find.byKey(const Key('default-theme-option-dark')));
       await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const Key('defaults-save')))
+            .onPressed,
+        isNotNull,
+      );
       await tester.ensureVisible(
         find.byKey(const Key('default-terminal-viewport-padding')),
       );
-      final paddingSlider = tester.widget<Slider>(
-        find.byKey(const Key('default-terminal-viewport-padding')),
+      final increasePaddingButton = tester.widget<IconButton>(
+        find.byKey(const Key('default-terminal-viewport-padding-increase')),
       );
-      paddingSlider.onChanged!(18);
+      for (var index = 0; index < 10; index += 1) {
+        increasePaddingButton.onPressed!();
+      }
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Save changes'));
       await tester.tap(find.text('Save changes'));

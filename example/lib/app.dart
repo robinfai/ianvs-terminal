@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -23,8 +24,14 @@ class IanvsTerminalApp extends ConsumerWidget {
       title: 'Ianvs Terminal',
       debugShowCheckedModeBanner: false,
       themeMode: themeMode,
-      theme: buildIanvsTerminalTheme(Brightness.light),
-      darkTheme: buildIanvsTerminalTheme(Brightness.dark),
+      theme: buildIanvsTerminalTheme(
+        Brightness.light,
+        platform: defaultTargetPlatform,
+      ),
+      darkTheme: buildIanvsTerminalTheme(
+        Brightness.dark,
+        platform: defaultTargetPlatform,
+      ),
       home: const ShellScreen(),
     );
   }

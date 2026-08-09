@@ -444,6 +444,154 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('SSH secret fields can be revealed and hidden', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1000, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final profile = defaultTerminalProfile().copyWith(
+      id: 'secret-visibility',
+      name: 'Secret visibility',
+      connection: const terminal.TerminalConnectionConfig.ssh(
+        host: 'secret.example.test',
+        user: 'operator',
+        auth: terminal.TerminalSshAuthMethod.auto,
+        password: 'password-secret',
+        privateKeys: <String>['/keys/id_ed25519'],
+        privateKeyPassphrase: 'key-secret',
+        x11Forwarding: true,
+        x11AuthCookie: '0123456789abcdef0123456789abcdef',
+      ),
+    );
+
+    await _pumpSshEditor(tester, profile: profile, onClosed: (_) {});
+
+    expect(
+      tester
+          .widget<EditableText>(
+            find.descendant(
+              of: find.byKey(const Key('ssh-password')),
+              matching: find.byType(EditableText),
+            ),
+          )
+          .obscureText,
+      isTrue,
+    );
+    await tester.tap(find.byKey(const Key('ssh-password-visibility')));
+    await tester.pump();
+    expect(
+      tester
+          .widget<EditableText>(
+            find.descendant(
+              of: find.byKey(const Key('ssh-password')),
+              matching: find.byType(EditableText),
+            ),
+          )
+          .obscureText,
+      isFalse,
+    );
+
+    await tester.ensureVisible(
+      find.byKey(const Key('ssh-key-passphrase-visibility')),
+    );
+    await tester.tap(find.byKey(const Key('ssh-key-passphrase-visibility')));
+    await tester.pump();
+    expect(
+      tester
+          .widget<EditableText>(
+            find.descendant(
+              of: find.byKey(const Key('ssh-key-passphrase')),
+              matching: find.byType(EditableText),
+            ),
+          )
+          .obscureText,
+      isFalse,
+    );
+
+    await tester.ensureVisible(
+      find.text('Host verification and advanced options'),
+    );
+    await tester.tap(find.text('Host verification and advanced options'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const Key('ssh-x11-cookie-visibility')),
+    );
+    await tester.tap(find.byKey(const Key('ssh-x11-cookie-visibility')));
+    await tester.pump();
+    expect(
+      tester
+          .widget<EditableText>(
+            find.descendant(
+              of: find.byKey(const Key('ssh-x11-cookie')),
+              matching: find.byType(EditableText),
+            ),
+          )
+          .obscureText,
+      isFalse,
+    );
+  });
+
+  testWidgets('SSH edit save is disabled until the form changes', (
+    tester,
+  ) async {
+    await _pumpSshEditor(
+      tester,
+      profile: _sshProfile('dirty-save', 'Dirty save', 'dirty.example.test'),
+      saveWhenPristine: false,
+      onClosed: (_) {},
+    );
+
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('ssh-connect')))
+          .onPressed,
+      isNull,
+    );
+    await tester.enterText(
+      find.byKey(const Key('ssh-profile-name')),
+      'Changed SSH profile',
+    );
+    await tester.pump();
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('ssh-connect')))
+          .onPressed,
+      isNotNull,
+    );
+  });
+
+  testWidgets('advanced SSH errors expand and focus the invalid field', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1000, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await _pumpSshEditor(
+      tester,
+      profile: _sshProfile('advanced-focus', 'Advanced', 'host.example.test'),
+      onClosed: (_) {},
+    );
+
+    await tester.ensureVisible(
+      find.text('Host verification and advanced options'),
+    );
+    await tester.tap(find.text('Host verification and advanced options'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('ssh-connect-timeout')));
+    await tester.enterText(find.byKey(const Key('ssh-connect-timeout')), '0');
+    await tester.tap(find.text('Host verification and advanced options'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('ssh-connect')));
+    await tester.tap(find.byKey(const Key('ssh-connect')));
+    await tester.pumpAndSettle();
+
+    final timeout = tester.widget<EditableText>(
+      find.descendant(
+        of: find.byKey(const Key('ssh-connect-timeout')),
+        matching: find.byType(EditableText),
+      ),
+    );
+    expect(timeout.focusNode.hasFocus, isTrue);
+    expect(find.text('Enter 1–120'), findsOneWidget);
+  });
+
   testWidgets('X11 requires a 32-character hexadecimal cookie', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1000, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -787,6 +935,7 @@ Future<void> _pumpSshEditor(
   WidgetTester tester, {
   required TerminalProfile profile,
   required ValueChanged<SshProfileEditorResult?> onClosed,
+  bool saveWhenPristine = true,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -801,8 +950,10 @@ Future<void> _pumpSshEditor(
                 onClosed(
                   await showDialog<SshProfileEditorResult>(
                     context: context,
-                    builder: (_) =>
-                        SshProfileEditorDialog(initialValue: profile),
+                    builder: (_) => SshProfileEditorDialog(
+                      initialValue: profile,
+                      saveWhenPristine: saveWhenPristine,
+                    ),
                   ),
                 );
               },

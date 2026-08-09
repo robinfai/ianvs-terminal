@@ -820,8 +820,96 @@ void main() {
           hasTapAction: true,
         ),
       );
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getSemantics(
+          find.bySemanticsIdentifier('profile-editor-nav-general'),
+        ),
+        matchesSemantics(
+          label: 'General profile section',
+          hasSelectedState: true,
+          isSelected: true,
+          isButton: true,
+          hasTapAction: true,
+        ),
+      );
     },
   );
+
+  testWidgets('profile editor only enables save after an edit', (tester) async {
+    await _pumpEditorHarness(
+      tester,
+      initialValue: TerminalProfile(
+        id: 'default',
+        name: 'Local Shell',
+        shell: '/bin/zsh',
+      ),
+      saveWhenPristine: false,
+      onSaved: (_) {},
+    );
+
+    expect(
+      tester
+          .widget<FilledButton>(_findByKey(const Key('profile-editor-save')))
+          .onPressed,
+      isNull,
+    );
+
+    await tester.enterText(
+      _findByKey(const Key('profile-editor-name')),
+      'Edited shell',
+    );
+    await tester.pump();
+
+    expect(
+      tester
+          .widget<FilledButton>(_findByKey(const Key('profile-editor-save')))
+          .onPressed,
+      isNotNull,
+    );
+  });
+
+  testWidgets('mobile profile sections use a single horizontal navigator', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await _pumpEditorHarness(
+      tester,
+      initialValue: TerminalProfile(
+        id: 'default',
+        name: 'Local Shell',
+        shell: '/bin/zsh',
+      ),
+      onSaved: (_) {},
+    );
+
+    expect(
+      _findByKey(const Key('profile-editor-section-nav-scroll')),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<SingleChildScrollView>(
+            _findByKey(const Key('profile-editor-section-nav-scroll')),
+          )
+          .scrollDirection,
+      Axis.horizontal,
+    );
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('profile editor summarizes and resets dirty sections', (
     tester,
@@ -1813,6 +1901,7 @@ Future<void> _pumpEditorHarness(
   WidgetTester tester, {
   required TerminalProfile initialValue,
   required ValueChanged<TerminalProfile?> onSaved,
+  bool saveWhenPristine = true,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -1829,8 +1918,10 @@ Future<void> _pumpEditorHarness(
                     await showDialog<TerminalProfile>(
                       context: context,
                       barrierDismissible: false,
-                      builder: (_) =>
-                          ProfileEditorDialog(initialValue: initialValue),
+                      builder: (_) => ProfileEditorDialog(
+                        initialValue: initialValue,
+                        saveWhenPristine: saveWhenPristine,
+                      ),
                     ),
                   );
                 },

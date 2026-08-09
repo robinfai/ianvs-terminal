@@ -380,10 +380,12 @@ class ProfileEditorDialog extends StatefulWidget {
     super.key,
     required this.initialValue,
     this.title = 'Edit profile',
+    this.saveWhenPristine = true,
   });
 
   final TerminalProfile initialValue;
   final String title;
+  final bool saveWhenPristine;
 
   @override
   State<ProfileEditorDialog> createState() => _ProfileEditorDialogState();
@@ -1587,8 +1589,9 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       order: const NumericFocusOrder(10),
       child: Semantics(
         identifier: 'profile-editor-section-search',
-        textField: true,
         label: 'Find profile setting',
+        container: true,
+        explicitChildNodes: true,
         child: TextField(
           key: const Key('profile-editor-section-search'),
           controller: _sectionSearchController,
@@ -1678,10 +1681,10 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                 dirtySummary,
                 if (matchingSections.isNotEmpty) ...[
                   SizedBox(height: theme.spacing.sm),
-                  Wrap(
-                    spacing: theme.spacing.xs,
-                    runSpacing: theme.spacing.xs,
-                    children: children,
+                  SingleChildScrollView(
+                    key: const Key('profile-editor-section-nav-scroll'),
+                    scrollDirection: Axis.horizontal,
+                    child: Row(children: children),
                   ),
                 ] else
                   emptyState,
@@ -1729,8 +1732,12 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   Widget build(BuildContext context) {
     final theme = context.appTheme;
     final screenSize = MediaQuery.sizeOf(context);
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
     final dialogWidth = math.min(screenSize.width - 32, 960.0);
-    final dialogHeight = math.min(screenSize.height - 32, 720.0);
+    final dialogHeight = math.max(
+      0.0,
+      math.min(screenSize.height - keyboardInset - 32, 720.0),
+    );
 
     return PopScope<TerminalProfile?>(
       canPop: _allowClose || !_didEdit,
@@ -2465,7 +2472,10 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                 buttonKey: const Key('profile-editor-save'),
                 icon: Icons.save_outlined,
                 label: 'Save',
-                onPressed: _hasColorErrors ? null : () => unawaited(_save()),
+                onPressed:
+                    _hasColorErrors || (!_didEdit && !widget.saveWhenPristine)
+                    ? null
+                    : () => unawaited(_save()),
               ),
             ],
           ),
@@ -3365,16 +3375,13 @@ class _ProfileEditorSectionNavItem extends StatelessWidget {
             ),
           ),
           SizedBox(width: theme.spacing.xs),
-          Tooltip(
-            message: 'Reset ${spec.label}',
-            child: IconButton(
-              key: Key('profile-editor-reset-${spec.section.name}'),
-              icon: const Icon(Icons.restore, size: 15),
-              color: theme.warning,
-              constraints: const BoxConstraints.tightFor(width: 28, height: 28),
-              padding: EdgeInsets.zero,
-              onPressed: onReset,
-            ),
+          AppActionButton(
+            buttonKey: Key('profile-editor-reset-${spec.section.name}'),
+            tooltip: 'Reset ${spec.label}',
+            icon: Icons.restore,
+            tone: AppActionTone.ghost,
+            size: AppActionSize.dense,
+            onPressed: onReset,
           ),
         ],
       ],
@@ -3403,10 +3410,12 @@ class _ProfileEditorSectionNavItem extends StatelessWidget {
                 borderRadius: BorderRadius.circular(theme.radius.lg),
                 onTap: onTap,
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
+                  duration: MediaQuery.disableAnimationsOf(context)
+                      ? Duration.zero
+                      : const Duration(milliseconds: 150),
                   curve: Curves.easeOutCubic,
                   constraints: BoxConstraints(
-                    minHeight: 44,
+                    minHeight: context.adaptiveControlHeight(44),
                     minWidth: vertical ? 0 : 118,
                   ),
                   padding: EdgeInsets.symmetric(

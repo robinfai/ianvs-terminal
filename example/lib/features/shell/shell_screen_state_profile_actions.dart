@@ -86,43 +86,25 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     _publishAcceptanceSnapshot(sessionState);
 
     final activeSessionIdBeforeOpen = sessionState.activeSessionId;
-    final animationsEnabled = ref.read(shellAnimationsEnabledProvider);
-    final defaultsRoute = RawDialogRoute<DefaultsAndAppearanceSelection>(
+    final defaultsRoute = DialogRoute<DefaultsAndAppearanceSelection>(
+      context: context,
       barrierColor: Colors.black.withValues(alpha: 0.34),
       barrierDismissible: true,
       barrierLabel: 'Close defaults',
       requestFocus: true,
-      transitionDuration: animationsEnabled
-          ? const Duration(milliseconds: 160)
-          : Duration.zero,
-      pageBuilder: (dialogContext, _, _) => SafeArea(
-        child: Align(
-          alignment: Alignment.center,
-          child: DefaultsAndAppearanceDialog(
-            profiles: sessionState.profiles,
-            configuredDefaultProfileId: sessionState.configuredDefaultProfileId,
-            effectiveDefaultProfileId: sessionState.defaultProfileId,
-            themeMode: sessionState.themeMode,
-            terminalViewportPadding: sessionState.terminalViewportPadding,
-            restoreLayout: _notificationLocalConfig.layout.restoreLayout,
-            osc52Policy: _clipboardConfig.osc52,
-            openUrlPolicy: _hostActionsConfig.osc1337OpenUrl,
-            requestAttentionPolicy: _hostActionsConfig.osc1337RequestAttention,
-            reportVariableDecisions: _hostActionsConfig.osc1337ReportVariables,
-            keybindings: _keybindingsConfig,
-          ),
-        ),
+      builder: (dialogContext) => DefaultsAndAppearanceDialog(
+        profiles: sessionState.profiles,
+        configuredDefaultProfileId: sessionState.configuredDefaultProfileId,
+        effectiveDefaultProfileId: sessionState.defaultProfileId,
+        themeMode: sessionState.themeMode,
+        terminalViewportPadding: sessionState.terminalViewportPadding,
+        restoreLayout: _notificationLocalConfig.layout.restoreLayout,
+        osc52Policy: _clipboardConfig.osc52,
+        openUrlPolicy: _hostActionsConfig.osc1337OpenUrl,
+        requestAttentionPolicy: _hostActionsConfig.osc1337RequestAttention,
+        reportVariableDecisions: _hostActionsConfig.osc1337ReportVariables,
+        keybindings: _keybindingsConfig,
       ),
-      transitionBuilder: (dialogContext, animation, _, child) {
-        if (!animationsEnabled) {
-          return child;
-        }
-        final curved = CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeOutCubic,
-        );
-        return FadeTransition(opacity: curved, child: child);
-      },
     );
     final selection = await Navigator.of(
       context,
@@ -324,16 +306,20 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         if (profile.isSsh) {
           final editResult = await showDialog<SshProfileEditorResult>(
             context: context,
-            builder: (dialogContext) =>
-                SshProfileEditorDialog(initialValue: profile),
+            builder: (dialogContext) => SshProfileEditorDialog(
+              initialValue: profile,
+              saveWhenPristine: false,
+            ),
           );
           edited = editResult?.profile;
           clearSecrets = editResult?.clearSecrets ?? const {};
         } else {
           edited = await showDialog<TerminalProfile>(
             context: context,
-            builder: (dialogContext) =>
-                ProfileEditorDialog(initialValue: profile),
+            builder: (dialogContext) => ProfileEditorDialog(
+              initialValue: profile,
+              saveWhenPristine: false,
+            ),
           );
         }
         if (edited != null) {
@@ -395,14 +381,17 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         final edited = connectionType == NewProfileConnectionType.sshSession
             ? (await showDialog<SshProfileEditorResult>(
                 context: context,
-                builder: (dialogContext) =>
-                    SshProfileEditorDialog(initialValue: template),
+                builder: (dialogContext) => SshProfileEditorDialog(
+                  initialValue: template,
+                  saveWhenPristine: true,
+                ),
               ))?.profile
             : await showDialog<TerminalProfile>(
                 context: context,
                 builder: (dialogContext) => ProfileEditorDialog(
                   title: 'New profile',
                   initialValue: template,
+                  saveWhenPristine: true,
                 ),
               );
         if (edited != null) {

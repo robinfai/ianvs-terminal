@@ -24,6 +24,7 @@ class ColorSwatchButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = context.appTheme;
+    final targetSize = context.adaptiveControlHeight(_size);
     final parsedColor = _tryParseOptionalHexColor(value);
     final backgroundColor = parsedColor ?? theme.chrome;
 
@@ -38,32 +39,39 @@ class ColorSwatchButton extends StatelessWidget {
           child: InkWell(
             onTap: enabled ? onPressed : null,
             borderRadius: BorderRadius.circular(theme.radius.md),
-            child: Ink(
-              width: _size,
-              height: _size,
-              decoration: BoxDecoration(
-                color: backgroundColor,
-                borderRadius: BorderRadius.circular(theme.radius.md),
-                border: Border.all(
-                  color: enabled ? theme.border : theme.textSubtle,
+            child: SizedBox.square(
+              dimension: targetSize,
+              child: Center(
+                child: Ink(
+                  width: _size,
+                  height: _size,
+                  decoration: BoxDecoration(
+                    color: backgroundColor,
+                    borderRadius: BorderRadius.circular(theme.radius.md),
+                    border: Border.all(
+                      color: enabled ? theme.border : theme.textSubtle,
+                    ),
+                  ),
+                  child: parsedColor == null
+                      ? Center(
+                          child: Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(
+                                theme.radius.sm,
+                              ),
+                              border: Border.all(
+                                color: enabled
+                                    ? theme.textMuted.withValues(alpha: 0.7)
+                                    : theme.textSubtle.withValues(alpha: 0.7),
+                              ),
+                            ),
+                          ),
+                        )
+                      : null,
                 ),
               ),
-              child: parsedColor == null
-                  ? Center(
-                      child: Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(theme.radius.sm),
-                          border: Border.all(
-                            color: enabled
-                                ? theme.textMuted.withValues(alpha: 0.7)
-                                : theme.textSubtle.withValues(alpha: 0.7),
-                          ),
-                        ),
-                      ),
-                    )
-                  : null,
             ),
           ),
         ),

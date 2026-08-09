@@ -45,10 +45,11 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
   @override
   Widget build(BuildContext context) {
     final palette = context.appTheme;
-    final maxMenuHeight = (MediaQuery.sizeOf(context).height - 24).clamp(
-      320.0,
-      520.0,
-    );
+    final maxMenuHeight =
+        (MediaQuery.sizeOf(context).height -
+                MediaQuery.viewInsetsOf(context).bottom -
+                24)
+            .clamp(0.0, 520.0);
     final launcherShortcutLabel = widget.launcherShortcutLabel;
     final newTabShortcutLabel = widget.newTabShortcutLabel;
     final instantReplayShortcutLabel = widget.instantReplayShortcutLabel;
@@ -178,51 +179,52 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                       ),
                       Padding(
                         padding: const EdgeInsets.fromLTRB(6, 3, 6, 5),
-                        child: MergeSemantics(
-                          child: Semantics(
-                            label: 'Search actions',
-                            textField: true,
-                            child: FocusTraversalOrder(
-                              order: const NumericFocusOrder(0),
-                              child: TextField(
-                                key: const Key('shell-command-search-field'),
-                                autofocus: true,
-                                textInputAction: TextInputAction.search,
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(color: palette.textPrimary),
-                                decoration: InputDecoration(
-                                  isDense: true,
-                                  prefixIcon: const Icon(Icons.search_rounded),
-                                  labelText: 'Search actions',
-                                  hintText: 'Type an action and press Enter',
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(
-                                      palette.radius.lg,
-                                    ),
+                        child: Semantics(
+                          identifier: 'shell-command-search-field',
+                          label: 'Search actions',
+                          container: true,
+                          explicitChildNodes: true,
+                          textField: true,
+                          child: FocusTraversalOrder(
+                            order: const NumericFocusOrder(0),
+                            child: TextField(
+                              key: const Key('shell-command-search-field'),
+                              autofocus: true,
+                              textInputAction: TextInputAction.search,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: palette.textPrimary),
+                              decoration: InputDecoration(
+                                isDense: true,
+                                prefixIcon: const Icon(Icons.search_rounded),
+                                labelText: 'Search actions',
+                                hintText: 'Type an action and press Enter',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(
+                                    palette.radius.lg,
                                   ),
                                 ),
-                                onChanged: (value) {
-                                  setState(() {
-                                    _query = value;
-                                  });
-                                },
-                                onSubmitted: (query) {
-                                  final action = _commandMenuActionForQuery(
-                                    query,
-                                  );
-                                  if (action == null) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'No action matches "$query".',
-                                        ),
-                                      ),
-                                    );
-                                    return;
-                                  }
-                                  Navigator.of(context).pop(action);
-                                },
                               ),
+                              onChanged: (value) {
+                                setState(() {
+                                  _query = value;
+                                });
+                              },
+                              onSubmitted: (query) {
+                                final action = _commandMenuActionForQuery(
+                                  query,
+                                );
+                                if (action == null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'No action matches "$query".',
+                                      ),
+                                    ),
+                                  );
+                                  return;
+                                }
+                                Navigator.of(context).pop(action);
+                              },
                             ),
                           ),
                         ),

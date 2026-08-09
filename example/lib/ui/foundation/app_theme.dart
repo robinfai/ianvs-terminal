@@ -2,9 +2,28 @@ import 'package:flutter/material.dart';
 
 import 'app_theme_tokens.dart';
 
-ThemeData buildIanvsTerminalTheme(Brightness brightness) {
+ThemeData buildIanvsTerminalTheme(
+  Brightness brightness, {
+  TargetPlatform? platform,
+}) {
   final tokens = AppThemeTokens.fallbackFor(brightness);
   final controls = tokens.controls;
+  final resolvedPlatform = platform ?? TargetPlatform.macOS;
+  final usesTouchControlDensity = switch (resolvedPlatform) {
+    TargetPlatform.android ||
+    TargetPlatform.fuchsia ||
+    TargetPlatform.iOS => true,
+    TargetPlatform.linux ||
+    TargetPlatform.macOS ||
+    TargetPlatform.windows => false,
+  };
+  final denseControlHeight = usesTouchControlDensity ? 48.0 : controls.dense;
+  final compactControlHeight = usesTouchControlDensity
+      ? 48.0
+      : controls.compact;
+  final regularControlHeight = usesTouchControlDensity
+      ? 48.0
+      : controls.regular;
   final colorScheme =
       ColorScheme.fromSeed(
         seedColor: tokens.accent,
@@ -47,39 +66,39 @@ ThemeData buildIanvsTerminalTheme(Brightness brightness) {
           fontWeight: FontWeight.w700,
         ),
         titleMedium: baseTextTheme.titleMedium?.copyWith(
-          fontSize: 14,
+          fontSize: usesTouchControlDensity ? 17 : 14,
           height: 1.14,
           fontWeight: FontWeight.w700,
         ),
         titleSmall: baseTextTheme.titleSmall?.copyWith(
-          fontSize: 12.5,
+          fontSize: usesTouchControlDensity ? 15 : 12.5,
           height: 1.16,
           fontWeight: FontWeight.w700,
         ),
         bodyLarge: baseTextTheme.bodyLarge?.copyWith(
-          fontSize: 13,
+          fontSize: usesTouchControlDensity ? 17 : 13,
           height: 1.32,
         ),
         bodyMedium: baseTextTheme.bodyMedium?.copyWith(
-          fontSize: 12.5,
+          fontSize: usesTouchControlDensity ? 15 : 12.5,
           height: 1.3,
         ),
         bodySmall: baseTextTheme.bodySmall?.copyWith(
-          fontSize: 11,
+          fontSize: usesTouchControlDensity ? 13 : 11,
           height: 1.28,
         ),
         labelLarge: baseTextTheme.labelLarge?.copyWith(
-          fontSize: 11.5,
+          fontSize: usesTouchControlDensity ? 15 : 11.5,
           height: 1.12,
           fontWeight: FontWeight.w600,
         ),
         labelMedium: baseTextTheme.labelMedium?.copyWith(
-          fontSize: 10.5,
+          fontSize: usesTouchControlDensity ? 13 : 10.5,
           height: 1.1,
           fontWeight: FontWeight.w600,
         ),
         labelSmall: baseTextTheme.labelSmall?.copyWith(
-          fontSize: 9.5,
+          fontSize: usesTouchControlDensity ? 11 : 9.5,
           height: 1.08,
           fontWeight: FontWeight.w600,
         ),
@@ -88,6 +107,11 @@ ThemeData buildIanvsTerminalTheme(Brightness brightness) {
 
   return ThemeData(
     useMaterial3: true,
+    platform: resolvedPlatform,
+    visualDensity: VisualDensity.standard,
+    materialTapTargetSize: usesTouchControlDensity
+        ? MaterialTapTargetSize.padded
+        : MaterialTapTargetSize.shrinkWrap,
     brightness: brightness,
     colorScheme: colorScheme,
     scaffoldBackgroundColor: tokens.canvas,
@@ -109,7 +133,7 @@ ThemeData buildIanvsTerminalTheme(Brightness brightness) {
         tokens: tokens,
         background: tokens.accent,
         foreground: colorScheme.onPrimary,
-        minimumHeight: controls.regular,
+        minimumHeight: regularControlHeight,
         horizontalPadding: tokens.spacing.xl,
       ),
     ),
@@ -118,7 +142,7 @@ ThemeData buildIanvsTerminalTheme(Brightness brightness) {
         tokens: tokens,
         background: Colors.transparent,
         foreground: tokens.textPrimary,
-        minimumHeight: controls.regular,
+        minimumHeight: regularControlHeight,
         horizontalPadding: tokens.spacing.xl,
         side: BorderSide(color: tokens.borderStrong),
       ),
@@ -128,7 +152,7 @@ ThemeData buildIanvsTerminalTheme(Brightness brightness) {
         tokens: tokens,
         background: Colors.transparent,
         foreground: tokens.textPrimary,
-        minimumHeight: controls.compact,
+        minimumHeight: compactControlHeight,
         horizontalPadding: tokens.spacing.lg,
       ),
     ),
@@ -139,8 +163,10 @@ ThemeData buildIanvsTerminalTheme(Brightness brightness) {
         focusColor: tokens.focusRing.withValues(alpha: 0.22),
         iconSize: 15,
         padding: EdgeInsets.all(tokens.spacing.sm),
-        minimumSize: Size.square(controls.dense),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        minimumSize: Size.square(denseControlHeight),
+        tapTargetSize: usesTouchControlDensity
+            ? MaterialTapTargetSize.padded
+            : MaterialTapTargetSize.shrinkWrap,
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
@@ -150,32 +176,32 @@ ThemeData buildIanvsTerminalTheme(Brightness brightness) {
       border: outline,
       enabledBorder: outline,
       focusedBorder: outline.copyWith(
-        borderSide: BorderSide(color: tokens.focusRing, width: 1.6),
+        borderSide: BorderSide(color: tokens.focusRing, width: 2),
       ),
       errorBorder: outline.copyWith(
         borderSide: BorderSide(color: tokens.danger),
       ),
       focusedErrorBorder: outline.copyWith(
-        borderSide: BorderSide(color: tokens.danger, width: 1.4),
+        borderSide: BorderSide(color: tokens.danger, width: 2),
       ),
-      constraints: const BoxConstraints(minHeight: 36),
+      constraints: BoxConstraints(minHeight: regularControlHeight),
       contentPadding: EdgeInsets.symmetric(
         horizontal: tokens.spacing.md,
         vertical: tokens.spacing.sm,
       ),
       labelStyle: TextStyle(
         color: tokens.textMuted,
-        fontSize: 11.5,
+        fontSize: usesTouchControlDensity ? 13 : 11.5,
         height: 1.1,
       ),
       helperStyle: TextStyle(
         color: tokens.textSubtle,
-        fontSize: 11,
+        fontSize: usesTouchControlDensity ? 13 : 11,
         height: 1.25,
       ),
       hintStyle: TextStyle(
         color: tokens.textSubtle,
-        fontSize: 11.5,
+        fontSize: usesTouchControlDensity ? 13 : 11.5,
         height: 1.18,
       ),
     ),
@@ -203,7 +229,9 @@ ThemeData buildIanvsTerminalTheme(Brightness brightness) {
       }),
     ),
     switchTheme: SwitchThemeData(
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      materialTapTargetSize: usesTouchControlDensity
+          ? MaterialTapTargetSize.padded
+          : MaterialTapTargetSize.shrinkWrap,
       padding: EdgeInsets.zero,
       thumbColor: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
@@ -270,7 +298,7 @@ ButtonStyle _buttonStyle({
         ? null
         : WidgetStateProperty.resolveWith((states) {
             if (states.contains(WidgetState.focused)) {
-              return BorderSide(color: tokens.focusRing, width: 1.5);
+              return BorderSide(color: tokens.focusRing, width: 2);
             }
             return side;
           }),

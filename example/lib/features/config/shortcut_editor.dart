@@ -292,16 +292,21 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
         SizedBox(height: theme.spacing.sm),
         LayoutBuilder(
           builder: (context, constraints) {
-            final search = TextField(
-              key: const Key('shortcut-editor-filter'),
-              controller: _filterController,
-              textInputAction: TextInputAction.search,
-              decoration: const InputDecoration(
-                isDense: true,
-                prefixIcon: Icon(Icons.search_rounded),
-                hintText: 'Filter actions',
+            final search = Semantics(
+              label: 'Filter shortcut actions',
+              container: true,
+              explicitChildNodes: true,
+              child: TextField(
+                key: const Key('shortcut-editor-filter'),
+                controller: _filterController,
+                textInputAction: TextInputAction.search,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  prefixIcon: Icon(Icons.search_rounded),
+                  labelText: 'Filter actions',
+                ),
+                onChanged: (_) => setState(() {}),
               ),
-              onChanged: (_) => setState(() {}),
             );
             final category = DropdownButtonFormField<TerminalActionCategory?>(
               key: const Key('shortcut-editor-category'),

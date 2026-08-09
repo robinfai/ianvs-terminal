@@ -72,146 +72,166 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
   Widget build(BuildContext context) {
     final palette = context.appTheme;
     final filteredProfiles = _filteredProfiles;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      child: Material(
-        key: const Key('profiles-sheet'),
-        color: palette.overlay,
-        borderRadius: BorderRadius.circular(palette.radius.xl),
-        elevation: 0,
-        child: SafeArea(
-          top: false,
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              palette.spacing.xl,
-              palette.spacing.lg,
-              palette.spacing.xl,
-              palette.spacing.lg,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Profiles',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: palette.textPrimary,
-                          fontWeight: FontWeight.w700,
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+    final animationDuration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 160);
+    return Semantics(
+      label: 'Profiles',
+      container: true,
+      explicitChildNodes: true,
+      child: AnimatedPadding(
+        duration: animationDuration,
+        curve: Curves.easeOutCubic,
+        padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + keyboardInset),
+        child: Material(
+          key: const Key('profiles-sheet'),
+          color: palette.overlay,
+          borderRadius: BorderRadius.circular(palette.radius.xl),
+          elevation: 0,
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                palette.spacing.xl,
+                palette.spacing.lg,
+                palette.spacing.xl,
+                palette.spacing.lg,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Profiles',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                color: palette.textPrimary,
+                                fontWeight: FontWeight.w700,
+                              ),
                         ),
                       ),
-                    ),
-                    FilledButton.icon(
-                      key: const Key('profiles-create'),
-                      onPressed: _createProfile,
-                      icon: const Icon(Icons.add_rounded, size: 18),
-                      label: const Text('New'),
-                    ),
-                    const SizedBox(width: 6),
-                    AppActionButton(
-                      tooltip: 'Close profiles',
-                      tone: AppActionTone.ghost,
-                      size: AppActionSize.dense,
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: Icons.close_rounded,
-                    ),
-                  ],
-                ),
-                Text(
-                  'Open a tab with any saved profile or edit its terminal settings.',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(color: palette.textSubtle),
-                ),
-                SizedBox(height: palette.spacing.md),
-                TextField(
-                  key: const Key('profiles-search-field'),
-                  controller: _searchController,
-                  autofocus: true,
-                  decoration: const InputDecoration(
-                    prefixIcon: Icon(Icons.search_rounded),
-                    labelText: 'Search profiles or tags',
+                      FilledButton.icon(
+                        key: const Key('profiles-create'),
+                        onPressed: _createProfile,
+                        icon: const Icon(Icons.add_rounded, size: 18),
+                        label: const Text('New'),
+                      ),
+                      const SizedBox(width: 6),
+                      AppActionButton(
+                        tooltip: 'Close profiles',
+                        tone: AppActionTone.ghost,
+                        size: AppActionSize.dense,
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: Icons.close_rounded,
+                      ),
+                    ],
                   ),
-                  onChanged: (value) {
-                    setState(() {
-                      _query = value;
-                    });
-                  },
-                ),
-                SizedBox(height: palette.spacing.md),
-                Flexible(
-                  child: filteredProfiles.isEmpty
-                      ? Padding(
-                          padding: EdgeInsets.symmetric(
-                            vertical: palette.spacing.xl,
-                          ),
-                          child: const AppEmptyState(
-                            title: 'No matching profiles',
-                            message:
-                                'Try a different profile name, shell, or tag.',
-                          ),
-                        )
-                      : ListView.separated(
-                          shrinkWrap: true,
-                          itemCount: filteredProfiles.length,
-                          separatorBuilder: (_, _) => const Divider(height: 1),
-                          itemBuilder: (context, index) {
-                            final profile = filteredProfiles[index];
-                            final isDefault =
-                                profile.id == widget.effectiveDefaultProfileId;
-                            final summary = _profileSummary(
-                              profile,
-                              isDefault: isDefault,
-                            );
-                            return ListTile(
-                              key: Key('profile-entry-${profile.id}'),
-                              title: Text(
-                                profile.name,
-                                style: Theme.of(context).textTheme.titleMedium
-                                    ?.copyWith(
-                                      color: palette.textPrimary,
-                                      fontWeight: FontWeight.w600,
+                  Text(
+                    'Open a tab with any saved profile or edit its terminal settings.',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: palette.textSubtle),
+                  ),
+                  SizedBox(height: palette.spacing.md),
+                  Semantics(
+                    identifier: 'profiles-search-field',
+                    label: 'Search profiles or tags',
+                    container: true,
+                    explicitChildNodes: true,
+                    child: TextField(
+                      key: const Key('profiles-search-field'),
+                      controller: _searchController,
+                      autofocus: !context.usesTouchControlDensity,
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.search_rounded),
+                        labelText: 'Search profiles or tags',
+                      ),
+                      onChanged: (value) {
+                        setState(() {
+                          _query = value;
+                        });
+                      },
+                    ),
+                  ),
+                  SizedBox(height: palette.spacing.md),
+                  Flexible(
+                    child: filteredProfiles.isEmpty
+                        ? Padding(
+                            padding: EdgeInsets.symmetric(
+                              vertical: palette.spacing.xl,
+                            ),
+                            child: const AppEmptyState(
+                              title: 'No matching profiles',
+                              message:
+                                  'Try a different profile name, shell, or tag.',
+                            ),
+                          )
+                        : ListView.separated(
+                            shrinkWrap: true,
+                            itemCount: filteredProfiles.length,
+                            separatorBuilder: (_, _) =>
+                                const Divider(height: 1),
+                            itemBuilder: (context, index) {
+                              final profile = filteredProfiles[index];
+                              final isDefault =
+                                  profile.id ==
+                                  widget.effectiveDefaultProfileId;
+                              final summary = _profileSummary(
+                                profile,
+                                isDefault: isDefault,
+                              );
+                              return ListTile(
+                                key: Key('profile-entry-${profile.id}'),
+                                title: Text(
+                                  profile.name,
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(
+                                        color: palette.textPrimary,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                ),
+                                subtitle: _ProfileEntrySubtitle(
+                                  summary: summary,
+                                  tags: profile.tags,
+                                ),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    AppActionButton(
+                                      tooltip: 'Edit ${profile.name}',
+                                      tone: AppActionTone.ghost,
+                                      size: AppActionSize.dense,
+                                      onPressed: () => Navigator.of(
+                                        context,
+                                      ).pop(EditProfileResult(profile)),
+                                      icon: Icons.edit_outlined,
                                     ),
-                              ),
-                              subtitle: _ProfileEntrySubtitle(
-                                summary: summary,
-                                tags: profile.tags,
-                              ),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  AppActionButton(
-                                    tooltip: 'Edit ${profile.name}',
-                                    tone: AppActionTone.ghost,
-                                    size: AppActionSize.dense,
-                                    onPressed: () => Navigator.of(
-                                      context,
-                                    ).pop(EditProfileResult(profile)),
-                                    icon: Icons.edit_outlined,
-                                  ),
-                                  AppActionButton(
-                                    tooltip: 'Delete ${profile.name}',
-                                    tone: AppActionTone.ghost,
-                                    size: AppActionSize.dense,
-                                    onPressed: widget.profiles.length <= 1
-                                        ? null
-                                        : () => Navigator.of(
-                                            context,
-                                          ).pop(DeleteProfileResult(profile)),
-                                    icon: Icons.delete_outline_rounded,
-                                  ),
-                                ],
-                              ),
-                              onTap: () => Navigator.of(
-                                context,
-                              ).pop(OpenProfileResult(profile)),
-                            );
-                          },
-                        ),
-                ),
-              ],
+                                    AppActionButton(
+                                      tooltip: 'Delete ${profile.name}',
+                                      tone: AppActionTone.ghost,
+                                      size: AppActionSize.dense,
+                                      onPressed: widget.profiles.length <= 1
+                                          ? null
+                                          : () => Navigator.of(
+                                              context,
+                                            ).pop(DeleteProfileResult(profile)),
+                                      icon: Icons.delete_outline_rounded,
+                                    ),
+                                  ],
+                                ),
+                                onTap: () => Navigator.of(
+                                  context,
+                                ).pop(OpenProfileResult(profile)),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

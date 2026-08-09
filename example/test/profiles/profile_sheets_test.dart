@@ -66,6 +66,24 @@ void main() {
     },
   );
 
+  testWidgets('profiles search does not summon the keyboard on iOS', (
+    tester,
+  ) async {
+    await _pumpProfilesSheetHarness(
+      tester,
+      profiles: [defaultTerminalProfile()],
+      effectiveDefaultProfileId: defaultTerminalProfile().id,
+      platform: TargetPlatform.iOS,
+      onClosed: (_) {},
+    );
+
+    final searchField = tester.widget<TextField>(
+      find.byKey(const Key('profiles-search-field')),
+    );
+    expect(searchField.autofocus, isFalse);
+    expect(find.bySemanticsIdentifier('profiles-search-field'), findsOneWidget);
+  });
+
   testWidgets(
     'profiles sheet edit affordance returns the selected edit result',
     (tester) async {
@@ -319,11 +337,12 @@ Future<void> _pumpProfilesSheetHarness(
   required List<TerminalProfile> profiles,
   required String? effectiveDefaultProfileId,
   required ValueChanged<ProfilesSheetResult?> onClosed,
+  TargetPlatform platform = TargetPlatform.macOS,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
-      theme: buildIanvsTerminalTheme(Brightness.dark),
-      darkTheme: buildIanvsTerminalTheme(Brightness.dark),
+      theme: buildIanvsTerminalTheme(Brightness.dark, platform: platform),
+      darkTheme: buildIanvsTerminalTheme(Brightness.dark, platform: platform),
       themeMode: ThemeMode.dark,
       home: Builder(
         builder: (context) {

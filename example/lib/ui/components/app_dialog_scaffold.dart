@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 
 import '../foundation/app_theme_tokens.dart';
@@ -163,6 +165,7 @@ class AppDialogScaffold extends StatelessWidget {
     );
 
     final accessibleDialog = Semantics(
+      role: ui.SemanticsRole.dialog,
       container: true,
       explicitChildNodes: true,
       label: '$title dialog',

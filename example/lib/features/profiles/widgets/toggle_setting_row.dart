@@ -28,7 +28,9 @@ class ToggleSettingRow extends StatelessWidget {
           onTap: enabled ? () => onChanged(!value) : null,
           borderRadius: BorderRadius.circular(theme.radius.md),
           child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: theme.controls.regular),
+            constraints: BoxConstraints(
+              minHeight: context.adaptiveControlHeight(theme.controls.regular),
+            ),
             child: Padding(
               padding: EdgeInsets.symmetric(vertical: theme.spacing.sm),
               child: Row(
@@ -67,7 +69,9 @@ class ToggleSettingRow extends StatelessWidget {
                       fit: BoxFit.contain,
                       child: Switch(
                         value: value,
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        materialTapTargetSize: Theme.of(
+                          context,
+                        ).materialTapTargetSize,
                         padding: EdgeInsets.zero,
                         onChanged: enabled ? onChanged : null,
                       ),

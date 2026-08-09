@@ -139,6 +139,10 @@ void main() {
         contrastRatio(lightTokens.focusRing, lightTokens.panel),
         greaterThanOrEqualTo(3),
       );
+      expect(
+        contrastRatio(lightTokens.textSubtle, lightTokens.chrome),
+        greaterThanOrEqualTo(4.5),
+      );
 
       final darkTheme = buildIanvsTerminalTheme(Brightness.dark);
       final darkTokens = darkTheme.extension<AppThemeTokens>()!;
@@ -197,6 +201,30 @@ void main() {
       );
     },
   );
+
+  test('iOS theme exposes readable type and 48-point interaction targets', () {
+    final theme = buildIanvsTerminalTheme(
+      Brightness.light,
+      platform: TargetPlatform.iOS,
+    );
+
+    expect(theme.materialTapTargetSize, MaterialTapTargetSize.padded);
+    expect(theme.textTheme.bodyMedium?.fontSize, 15);
+    expect(theme.textTheme.bodySmall?.fontSize, 13);
+    expect(theme.textTheme.labelSmall?.fontSize, 11);
+    expect(theme.inputDecorationTheme.constraints?.minHeight, 48);
+    expect(theme.inputDecorationTheme.labelStyle?.fontSize, 13);
+    expect(theme.inputDecorationTheme.helperStyle?.fontSize, 13);
+    expect(theme.inputDecorationTheme.hintStyle?.fontSize, 13);
+    expect(
+      theme.iconButtonTheme.style?.minimumSize?.resolve({}),
+      const Size.square(48),
+    );
+    expect(
+      theme.filledButtonTheme.style?.minimumSize?.resolve({}),
+      const Size(0, 48),
+    );
+  });
 
   testWidgets(
     'terminal color bridge follows the app theme and keeps interaction overrides',

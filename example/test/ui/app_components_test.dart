@@ -3,10 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  Future<void> pumpHarness(WidgetTester tester, Widget child) async {
+  Future<void> pumpHarness(
+    WidgetTester tester,
+    Widget child, {
+    TargetPlatform platform = TargetPlatform.macOS,
+  }) async {
     await tester.pumpWidget(
       MaterialApp(
-        theme: buildIanvsTerminalTheme(Brightness.light),
+        theme: buildIanvsTerminalTheme(Brightness.light, platform: platform),
         home: Scaffold(body: Center(child: child)),
       ),
     );
@@ -33,6 +37,38 @@ void main() {
     expect(find.text('Inside'), findsOneWidget);
   });
 
+  testWidgets('app actions expand to 48 points on touch platforms', (
+    tester,
+  ) async {
+    await pumpHarness(
+      tester,
+      const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AppActionButton(
+            buttonKey: Key('touch-dense-action'),
+            size: AppActionSize.dense,
+            icon: Icons.close_rounded,
+          ),
+          AppActionButton(
+            buttonKey: Key('touch-regular-action'),
+            label: 'Save',
+          ),
+        ],
+      ),
+      platform: TargetPlatform.iOS,
+    );
+
+    expect(
+      tester.getSize(find.byKey(const Key('touch-dense-action'))),
+      const Size.square(48),
+    );
+    expect(
+      tester.getSize(find.byKey(const Key('touch-regular-action'))).height,
+      48,
+    );
+  });
+
   testWidgets('app dialog scaffold renders title subtitle footer and close', (
     tester,
   ) async {
@@ -53,6 +89,10 @@ void main() {
     expect(find.text('Tune the shell'), findsOneWidget);
     expect(find.text('Body'), findsOneWidget);
     expect(find.text('Footer'), findsOneWidget);
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('Preferences dialog')),
+      matchesSemantics(label: 'Preferences dialog'),
+    );
 
     await tester.tap(find.byTooltip('Close dialog'));
     await tester.pump();
@@ -156,7 +196,7 @@ void main() {
           .style
           ?.color
           ?.toARGB32(),
-      const Color(0xFF6E6E73).toARGB32(),
+      const Color(0xFF6B6B70).toARGB32(),
     );
   });
 
