@@ -12,6 +12,14 @@ private final class CloseTrackingMainFlutterWindow: MainFlutterWindow {
   }
 }
 
+private final class DragTrackingMainFlutterWindow: MainFlutterWindow {
+  private(set) var performedDragEvent: NSEvent?
+
+  override func performDrag(with event: NSEvent) {
+    performedDragEvent = event
+  }
+}
+
 class RunnerTests: XCTestCase {
 
   func testExample() {
@@ -94,16 +102,62 @@ class RunnerTests: XCTestCase {
   }
 
   func testMainWindowFrameUsesStableAutosaveName() {
-    let window =
-      NSApp.windows.compactMap { $0 as? MainFlutterWindow }.first
-      ?? MainFlutterWindow()
-
-    window.installMainWindowFrameAutosave()
-
     XCTAssertEqual(
-      window.frameAutosaveName,
-      MainFlutterWindow.mainWindowFrameAutosaveName
+      MainFlutterWindow.mainWindowFrameAutosaveName,
+      "IanvsTerminalMainWindow"
     )
+  }
+
+  func testMainWindowChromeRestoresFrameAfterApplyingFullSizeStyle() {
+    let autosaveName = "RunnerTests.MainWindow.\(UUID().uuidString)"
+    defer { NSWindow.removeFrame(usingName: autosaveName) }
+    let styleMask: NSWindow.StyleMask = [
+      .titled,
+      .closable,
+      .miniaturizable,
+      .resizable,
+    ]
+    let seedWindow = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 720, height: 480),
+      styleMask: styleMask,
+      backing: .buffered,
+      defer: false
+    )
+    seedWindow.setFrame(
+      NSRect(x: 120, y: 160, width: 920, height: 680),
+      display: false
+    )
+    let savedFrame = seedWindow.frame
+    seedWindow.saveFrame(usingName: autosaveName)
+
+    let window = MainFlutterWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+      styleMask: styleMask,
+      backing: .buffered,
+      defer: false
+    )
+
+    XCTAssertTrue(
+      window.configureMainWindowChromeAndRestoreFrame(
+        autosaveName: autosaveName
+      )
+    )
+    XCTAssertTrue(window.styleMask.contains(.fullSizeContentView))
+    XCTAssertTrue(window.isMovable)
+    XCTAssertEqual(window.frame.origin.x, savedFrame.origin.x, accuracy: 0.01)
+    XCTAssertEqual(window.frame.origin.y, savedFrame.origin.y, accuracy: 0.01)
+    XCTAssertEqual(window.frame.width, savedFrame.width, accuracy: 0.01)
+    XCTAssertEqual(window.frame.height, savedFrame.height, accuracy: 0.01)
+
+    let firstRestoredFrame = window.frame
+    XCTAssertTrue(
+      window.configureMainWindowChromeAndRestoreFrame(
+        autosaveName: autosaveName
+      )
+    )
+    XCTAssertEqual(window.frame, firstRestoredFrame)
+    _ = window.setFrameAutosaveName("")
+    XCTAssertEqual(window.frameAutosaveName, "")
   }
 
   func testNotificationAuthorizationFailureUsesExpectedErrorCode() {
@@ -161,7 +215,7 @@ class RunnerTests: XCTestCase {
     XCTAssertTrue(selected === keyCapableWindow)
   }
 
-  func testNativeWindowDragRegionCoversOnlyLeadingChromeGap() {
+  func testNativeWindowDragRegionCoversTitlebarExceptTrailingControls() {
     let contentSize = NSSize(width: 900, height: 600)
 
     XCTAssertTrue(
@@ -170,9 +224,15 @@ class RunnerTests: XCTestCase {
         contentSize: contentSize
       )
     )
+    XCTAssertTrue(
+      MainFlutterWindow.shouldStartNativeWindowDrag(
+        at: NSPoint(x: 450, y: 580),
+        contentSize: contentSize
+      )
+    )
     XCTAssertFalse(
       MainFlutterWindow.shouldStartNativeWindowDrag(
-        at: NSPoint(x: 150, y: 580),
+        at: NSPoint(x: 880, y: 580),
         contentSize: contentSize
       )
     )
@@ -213,9 +273,15 @@ class RunnerTests: XCTestCase {
         windowFrame: windowFrame
       )
     )
+    XCTAssertTrue(
+      MainFlutterWindow.shouldStartNativeWindowDrag(
+        atMouseLocation: NSPoint(x: 500, y: 778),
+        windowFrame: windowFrame
+      )
+    )
     XCTAssertFalse(
       MainFlutterWindow.shouldStartNativeWindowDrag(
-        atMouseLocation: NSPoint(x: 240, y: 778),
+        atMouseLocation: NSPoint(x: 870, y: 778),
         windowFrame: windowFrame
       )
     )
@@ -247,15 +313,34 @@ class RunnerTests: XCTestCase {
     )
   }
 
-  func testNativeWindowDragOriginTracksGlobalMouseDelta() {
-    let nextOrigin = MainFlutterWindow.nativeWindowDragOrigin(
-      startFrameOrigin: NSPoint(x: -1178, y: 245),
-      startMouseLocation: NSPoint(x: -1088, y: 822),
-      currentMouseLocation: NSPoint(x: -948, y: 744)
+  func testNativeWindowDragUsesOriginalMouseDownEventSynchronously() throws {
+    let window = DragTrackingMainFlutterWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+      styleMask: [.titled, .closable, .miniaturizable, .resizable],
+      backing: .buffered,
+      defer: false
+    )
+    window.styleMask.insert(.fullSizeContentView)
+    window.setFrame(
+      NSRect(x: 100, y: 200, width: 800, height: 600),
+      display: false
+    )
+    let mouseDown = try XCTUnwrap(
+      NSEvent.mouseEvent(
+        with: .leftMouseDown,
+        location: NSPoint(x: 400, y: 580),
+        modifierFlags: [],
+        timestamp: 1,
+        windowNumber: window.windowNumber,
+        context: nil,
+        eventNumber: 1,
+        clickCount: 1,
+        pressure: 1
+      )
     )
 
-    XCTAssertEqual(nextOrigin.x, -1038)
-    XCTAssertEqual(nextOrigin.y, 167)
+    XCTAssertTrue(window.performNativeWindowDragIfNeeded(for: mouseDown))
+    XCTAssertTrue(window.performedDragEvent === mouseDown)
   }
 
   func testOsc72PasteboardAndOperationMappingsAreDeterministic() {

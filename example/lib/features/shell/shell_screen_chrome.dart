@@ -315,48 +315,7 @@ class _WindowDragHandle extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
-    if (defaultTargetPlatform != TargetPlatform.macOS) {
-      return child;
-    }
-    return _MacWindowDragHandle(child: child);
-  }
-}
-
-class _MacWindowDragHandle extends StatelessWidget {
-  const _MacWindowDragHandle({required this.child});
-
-  final Widget child;
-  static const double _trafficLightCursorShieldLeft = 8;
-  static const double _trafficLightCursorShieldTop = 7;
-  static const double _trafficLightCursorShieldWidth = 70;
-  static const double _trafficLightCursorShieldHeight = 24;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Listener(
-          behavior: HitTestBehavior.translucent,
-          onPointerDown: (_) {
-            unawaited(WindowBridge.beginWindowDrag());
-          },
-          child: child,
-        ),
-        const Positioned(
-          left: _trafficLightCursorShieldLeft,
-          top: _trafficLightCursorShieldTop,
-          width: _trafficLightCursorShieldWidth,
-          height: _trafficLightCursorShieldHeight,
-          child: Listener(
-            key: Key('shell-window-traffic-light-cursor-shield'),
-            behavior: HitTestBehavior.opaque,
-            child: SizedBox.expand(),
-          ),
-        ),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => child;
 }
 
 class _ShellConfigurationWarningsBanner extends StatelessWidget {

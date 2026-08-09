@@ -725,7 +725,7 @@ void main() {
   });
 
   testWidgets(
-    'shell chrome leading gap starts native window drag on macOS',
+    'shell chrome leaves window drag dispatch to the native macOS event',
     (tester) async {
       const channel = MethodChannel('app/window_bridge');
       final methodCalls = <String>[];
@@ -753,16 +753,20 @@ void main() {
       final dragHandle = find.byKey(const Key('shell-window-drag-leading'));
       expect(dragHandle, findsOneWidget);
       final dragHandleRect = tester.getRect(dragHandle);
+      methodCalls.clear();
 
       final gesture = await tester.startGesture(
         dragHandleRect.centerLeft + const Offset(100, 0),
       );
       await tester.pump();
-      expect(methodCalls, contains('beginWindowDrag'));
+      expect(methodCalls, isNot(contains('beginWindowDrag')));
 
       await gesture.moveBy(const Offset(28, 0));
       await tester.pumpAndSettle();
       await gesture.up();
+      await tester.pump();
+
+      expect(methodCalls, isNot(contains('beginWindowDrag')));
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );

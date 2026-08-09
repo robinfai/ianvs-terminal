@@ -148,11 +148,6 @@ private func fourCharCode(_ value: String) -> OSType {
 }
 
 class MainFlutterWindow: NSWindow, NSWindowDelegate {
-  private struct NativeWindowDragState {
-    let startFrameOrigin: NSPoint
-    let startMouseLocation: NSPoint
-  }
-
   private struct Osc72DropTarget {
     let sessionId: String
     let mimeTypes: [String]
@@ -164,7 +159,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
   }
 
   private static let chromeBarHeight: CGFloat = 44
-  private static let leadingWindowDragWidth: CGFloat = 132
+  private static let trailingWindowControlWidth: CGFloat = 56
   private static let maxOsc72DropBytes = 64 * 1024 * 1024
   private static let mimePasteboardTypePrefix = "dev.ianvs.terminal.mime."
   static let mainWindowFrameAutosaveName = "IanvsTerminalMainWindow"
@@ -174,7 +169,6 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
   private var trafficLightCenteringWorkItem: DispatchWorkItem?
   private var notificationExpiryWorkItems: [String: DispatchWorkItem] = [:]
   private var attentionRequestIds: Set<Int> = []
-  private var nativeWindowDragState: NativeWindowDragState?
   private var osc72DropTarget: Osc72DropTarget?
   private var osc72DropPayloads: [String: Osc72DropPayload] = [:]
   private var osc72DropDecision: NSDragOperation = []
@@ -188,7 +182,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
       return false
     }
 
-    let dragWidth = min(leadingWindowDragWidth, contentSize.width)
+    let dragWidth = max(0, contentSize.width - trailingWindowControlWidth)
     guard
       point.x >= 0,
       point.x <= dragWidth,
@@ -212,7 +206,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
 
     let xFromLeft = mouseLocation.x - windowFrame.minX
     let yFromTop = windowFrame.maxY - mouseLocation.y
-    let dragWidth = min(leadingWindowDragWidth, windowFrame.width)
+    let dragWidth = max(0, windowFrame.width - trailingWindowControlWidth)
     guard
       xFromLeft >= 0,
       xFromLeft <= dragWidth,
@@ -223,17 +217,6 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     }
 
     return !standardButtonFrames.contains { $0.contains(mouseLocation) }
-  }
-
-  static func nativeWindowDragOrigin(
-    startFrameOrigin: NSPoint,
-    startMouseLocation: NSPoint,
-    currentMouseLocation: NSPoint
-  ) -> NSPoint {
-    NSPoint(
-      x: startFrameOrigin.x + currentMouseLocation.x - startMouseLocation.x,
-      y: startFrameOrigin.y + currentMouseLocation.y - startMouseLocation.y
-    )
   }
 
   static func pasteboardType(forMime mime: String) -> NSPasteboard.PasteboardType {
@@ -323,9 +306,17 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
   }
 
   @discardableResult
-  func installMainWindowFrameAutosave() -> Bool {
-    let restored = setFrameUsingName(Self.mainWindowFrameAutosaveName)
-    setFrameAutosaveName(Self.mainWindowFrameAutosaveName)
+  func configureMainWindowChromeAndRestoreFrame(
+    autosaveName: String = MainFlutterWindow.mainWindowFrameAutosaveName
+  ) -> Bool {
+    titleVisibility = .hidden
+    titlebarAppearsTransparent = true
+    isMovable = true
+    isMovableByWindowBackground = false
+    styleMask.insert(.fullSizeContentView)
+
+    let restored = setFrameUsingName(autosaveName)
+    setFrameAutosaveName(autosaveName)
     return restored
   }
 
@@ -334,12 +325,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     let windowFrame = self.frame
     self.contentViewController = flutterViewController
     self.setFrame(windowFrame, display: true)
-    installMainWindowFrameAutosave()
-    self.titleVisibility = .hidden
-    self.titlebarAppearsTransparent = true
-    self.isMovable = false
-    self.isMovableByWindowBackground = false
-    self.styleMask.insert(.fullSizeContentView)
+    configureMainWindowChromeAndRestoreFrame()
     installWindowCloseConfirmationDelegate()
     observeTrafficLightLayoutChanges()
 
@@ -395,14 +381,6 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
         result(nil)
       case "requestQuitConfirmation":
         NSApp.terminate(nil)
-        result(nil)
-      case "beginWindowDrag":
-        if let event = NSApp.currentEvent {
-          let wasMovable = self.isMovable
-          self.isMovable = true
-          self.performDrag(with: event)
-          self.isMovable = wasMovable
-        }
         result(nil)
       case "toggleHotkeyWindow":
         self.hotkeyWindowController?.toggleWindow()
@@ -692,37 +670,25 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
   }
 
   override func sendEvent(_ event: NSEvent) {
-    let eventMouseLocation = convertPoint(toScreen: event.locationInWindow)
-    switch event.type {
-    case .leftMouseDown where shouldStartNativeWindowDrag(
-      atMouseLocation: eventMouseLocation
-    ):
-      nativeWindowDragState = NativeWindowDragState(
-        startFrameOrigin: frame.origin,
-        startMouseLocation: eventMouseLocation
-      )
+    if performNativeWindowDragIfNeeded(for: event) {
       return
-    case .leftMouseDragged:
-      if let dragState = nativeWindowDragState {
-        setFrameOrigin(
-          Self.nativeWindowDragOrigin(
-            startFrameOrigin: dragState.startFrameOrigin,
-            startMouseLocation: dragState.startMouseLocation,
-            currentMouseLocation: eventMouseLocation
-          )
-        )
-        return
-      }
-    case .leftMouseUp:
-      if nativeWindowDragState != nil {
-        nativeWindowDragState = nil
-        return
-      }
-    default:
-      break
     }
 
     super.sendEvent(event)
+  }
+
+  @discardableResult
+  func performNativeWindowDragIfNeeded(for event: NSEvent) -> Bool {
+    guard event.type == .leftMouseDown else {
+      return false
+    }
+    let eventMouseLocation = convertPoint(toScreen: event.locationInWindow)
+    guard shouldStartNativeWindowDrag(atMouseLocation: eventMouseLocation) else {
+      return false
+    }
+
+    performDrag(with: event)
+    return true
   }
 
   override func becomeKey() {

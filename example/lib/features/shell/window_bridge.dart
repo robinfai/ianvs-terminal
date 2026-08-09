@@ -122,14 +122,6 @@ class WindowBridge {
     }
   }
 
-  static Future<void> beginWindowDrag() async {
-    try {
-      await _channel.invokeMethod<void>('beginWindowDrag');
-    } on MissingPluginException {
-      return;
-    }
-  }
-
   static Future<void> toggleHotkeyWindow() async {
     try {
       await _channel.invokeMethod<void>('toggleHotkeyWindow');
