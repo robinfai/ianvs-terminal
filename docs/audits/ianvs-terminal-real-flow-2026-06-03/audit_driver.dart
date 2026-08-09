@@ -56,11 +56,14 @@ Future<void> main() async {
 
     await openMenu();
     await tapText('Search terminal output');
-    await shot('08-search-scrollback', 'Search scrollback opened from command menu.');
-
-    await File('${outDir.path}/driver-observations.json').writeAsString(
-      const JsonEncoder.withIndent('  ').convert(observations),
+    await shot(
+      '08-search-scrollback',
+      'Search scrollback opened from command menu.',
     );
+
+    await File(
+      '${outDir.path}/driver-observations.json',
+    ).writeAsString(const JsonEncoder.withIndent('  ').convert(observations));
   } finally {
     await driver.close();
   }

@@ -147,7 +147,7 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
                           padding: EdgeInsets.symmetric(
                             vertical: palette.spacing.xl,
                           ),
-                          child: AppEmptyState(
+                          child: const AppEmptyState(
                             title: 'No matching profiles',
                             message:
                                 'Try a different profile name, shell, or tag.',

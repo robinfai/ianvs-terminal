@@ -1,7 +1,6 @@
+import 'package:app/platform/clipboard_bridge.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:app/platform/clipboard_bridge.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

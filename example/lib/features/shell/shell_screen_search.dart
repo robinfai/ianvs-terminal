@@ -249,7 +249,7 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
   List<Widget> _buildSearchModeMenuChildren(BuildContext context) {
     final palette = widget.palette;
     final textTheme = Theme.of(context).textTheme;
-    final modes = terminal.TerminalSearchMode.values;
+    const modes = terminal.TerminalSearchMode.values;
 
     Widget item(terminal.TerminalSearchMode mode) {
       final selected = mode == widget.searchMode;

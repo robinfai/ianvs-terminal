@@ -11,16 +11,16 @@ import '../config/local_terminal_config_bootstrap.dart';
 import '../config/local_terminal_config_loader.dart';
 import '../config/local_terminal_config_models.dart';
 import '../config/local_terminal_config_repository.dart';
-import '../pty/pty.dart';
+import '../layout/local_session_layout_codec.dart';
+import '../layout/local_terminal_layout_models.dart';
+import '../layout/local_terminal_layout_repository.dart';
 import '../preferences/app_preferences_models.dart';
 import '../preferences/app_preferences_repository.dart';
 import '../profiles/profile_models.dart';
 import '../profiles/profile_repository.dart';
+import '../pty/pty.dart';
 import '../recording/local_session_recording_repository.dart';
 import '../terminal/terminal.dart' hide TerminalEmulation;
-import '../layout/local_session_layout_codec.dart';
-import '../layout/local_terminal_layout_models.dart';
-import '../layout/local_terminal_layout_repository.dart';
 import 'session_bootstrap.dart';
 import 'session_ports.dart';
 import 'session_state.dart';
@@ -119,12 +119,11 @@ final terminalRuntimeControllerProvider = Provider<TerminalRuntimeController>((
               .read(sessionOsc52PromptControllerProvider)
               .request(await promptRequestFor(request)),
         LocalTerminalOsc52Policy.profile =>
-          request.operation == TerminalClipboardOperation.pasteRequest ||
-                  request.operation == TerminalClipboardOperation.mimeRead
-              ? await ref
-                    .read(sessionOsc52PromptControllerProvider)
-                    .request(await promptRequestFor(request))
-              : true,
+          !(request.operation == TerminalClipboardOperation.pasteRequest ||
+                  request.operation == TerminalClipboardOperation.mimeRead) ||
+              await ref
+                  .read(sessionOsc52PromptControllerProvider)
+                  .request(await promptRequestFor(request)),
         LocalTerminalOsc52Policy.allow => true,
       };
     } on Object {
@@ -181,11 +180,7 @@ final terminalRuntimeControllerProvider = Provider<TerminalRuntimeController>((
       }
     },
   );
-  ref.onDispose(() {
-    // dispose() records a pending shutdown request when native publication is
-    // temporarily busy and completes it from a later runtime poll.
-    controller.dispose();
-  });
+  ref.onDispose(controller.dispose);
   return controller;
 });
 
@@ -266,9 +261,6 @@ final sessionEnvironmentOverridesProvider = Provider<Map<String, String>>((
 
 final sessionControllerProvider =
     NotifierProvider<SessionController, SessionState>(SessionController.new);
-
-typedef _LocalConfigUpdater =
-    LocalTerminalConfigDocument Function(LocalTerminalConfigDocument config);
 
 class SessionOsc52PromptRequest {
   const SessionOsc52PromptRequest({
@@ -461,7 +453,7 @@ class SessionController extends Notifier<SessionState> {
   @override
   SessionState build() {
     listenSelf(_handleLayoutStateChanged);
-    Future.microtask(_runBootstrap);
+    unawaited(Future<void>.microtask(_runBootstrap));
     final liveRecorder = ref.read(sessionDemoFixtureProvider) == null
         ? ref.read(terminalLiveRecorderProvider)
         : null;
@@ -471,7 +463,7 @@ class SessionController extends Notifier<SessionState> {
     ref.onDispose(() {
       _disposeRecordingsBestEffort(liveRecorder, recordingRepository);
       _layoutPersistenceTimer?.cancel();
-      _runtimeEventsSubscription?.cancel();
+      unawaited(_runtimeEventsSubscription?.cancel());
       for (final timer in _progressGraceTimers.values) {
         timer.cancel();
       }
@@ -2291,11 +2283,9 @@ class SessionController extends Notifier<SessionState> {
         break;
       case TerminalSessionFrameEvent():
         _applyFrame(event.sessionId, event.frame);
-        break;
       case TerminalSessionExitEvent():
         _finalizeRecordingOnRuntimeExitBestEffort(event.sessionId);
         _removeSessionState(event.sessionId, runtimeAlreadyClosed: true);
-        break;
       case TerminalSessionBellEvent():
         break;
       case TerminalSessionShellHookEvent():
@@ -2304,42 +2294,34 @@ class SessionController extends Notifier<SessionState> {
         }
         _captureRecordingShellHook(event);
         _applyShellHook(event);
-        break;
       case TerminalSessionShellContextEvent():
         if (!_sessionShellIntegrationEnabled(event.sessionId)) {
           return;
         }
         _captureRecordingShellContext(event);
         _applyShellContext(event);
-        break;
       case TerminalSessionShellCommandEvent():
         if (!_sessionShellIntegrationEnabled(event.sessionId)) {
           return;
         }
         _captureRecordingShellCommand(event);
         _applyShellCommand(event);
-        break;
       case TerminalSessionShellUserVarEvent():
         if (!_sessionShellIntegrationEnabled(event.sessionId)) {
           return;
         }
         _applyShellUserVar(event);
-        break;
       case TerminalSessionAnnotationEvent():
         // ShellScreen owns the annotation sheet and terminal-range preview.
         break;
       case TerminalSessionNotificationEvent():
         _applySessionNotification(event);
-        break;
       case TerminalSessionProgressEvent():
         _queueSessionProgress(event);
-        break;
       case TerminalSessionBadgeEvent():
         _applySessionBadge(event);
-        break;
       case TerminalSessionTabStatusEvent():
         _applySessionTabStatus(event);
-        break;
       case TerminalSessionContextEvent():
         // OSC 3008 remains typed metadata only; it does not drive product UI.
         break;
@@ -2359,7 +2341,6 @@ class SessionController extends Notifier<SessionState> {
         break;
       case TerminalSessionReportVariableRequestEvent():
         _replyToOsc1337ReportVariable(event);
-        break;
       case TerminalSessionOpenUrlRequestEvent():
         // ShellScreen owns active-pane policy and explicit host authorization.
         break;
@@ -2368,12 +2349,10 @@ class SessionController extends Notifier<SessionState> {
         break;
       case TerminalSessionResetEvent():
         _applySessionReset(event);
-        break;
       case TerminalSessionClipboardEvent():
         break;
       case TerminalSessionBackendErrorEvent():
         _applyBackendError(event);
-        break;
     }
   }
 
@@ -3209,7 +3188,7 @@ class SessionController extends Notifier<SessionState> {
       action: _boundedShellMetadata(event.action, 32) ?? 'set',
       id: _osc934ProgressId(event.id),
       state: _boundedShellMetadata(event.state, 32),
-      percent: event.percent?.clamp(0, 100).toInt(),
+      percent: event.percent?.clamp(0, 100),
       label: _boundedShellMetadata(event.label, 160),
     );
   }
@@ -3479,7 +3458,7 @@ class SessionController extends Notifier<SessionState> {
               !(byte >= 0x30 && byte <= 0x39) &&
               !(byte >= 0x41 && byte <= 0x5A) &&
               !(byte >= 0x61 && byte <= 0x7A) &&
-              !r'_-+.'.codeUnits.contains(byte),
+              !'_-+.'.codeUnits.contains(byte),
         )) {
       return null;
     }
@@ -4315,7 +4294,8 @@ class SessionController extends Notifier<SessionState> {
       _configBootstrapSource == LocalTerminalConfigBootstrapSource.localConfig;
 
   Future<void> _savePreferences({
-    required _LocalConfigUpdater localConfigUpdater,
+    required LocalTerminalConfigDocument Function(LocalTerminalConfigDocument)
+    localConfigUpdater,
   }) async {
     if (_usesLocalConfigPersistence) {
       final repository = ref.read(localTerminalConfigRepositoryProvider);

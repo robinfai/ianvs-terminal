@@ -532,7 +532,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
     final palette = context.appTheme;
     final width = MediaQuery.sizeOf(context).width;
     final availableWidth = width - (width < 640 ? 24 : 64);
-    final dialogWidth = availableWidth.clamp(0.0, 720.0).toDouble();
+    final dialogWidth = availableWidth.clamp(0.0, 720.0);
     final showsPassword =
         _auth == terminal.TerminalSshAuthMethod.auto ||
         _auth == terminal.TerminalSshAuthMethod.password;

@@ -1,13 +1,12 @@
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:app/benchmarks/terminal_render_profile_report.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 import 'package:integration_test/integration_test.dart';
-
-import 'package:app/benchmarks/terminal_render_profile_report.dart';
 
 import '../test/support/fake_pty_backend.dart';
 import '../test/support/macos_integration_test_lifecycle.dart';
@@ -354,9 +353,10 @@ List<terminal.TerminalFrameDiff> _profileFrames(_ProfileWorkload workload) {
         viewportRows: rows,
         viewportCols: cols,
         dirtyRanges: [
-          dimensionsChanged || workload.kind == _ProfileWorkloadKind.burst
-              ? terminal.TerminalDirtyRange(start: 0, end: rows)
-              : terminal.TerminalDirtyRange(start: rows - 1, end: rows),
+          if (dimensionsChanged || workload.kind == _ProfileWorkloadKind.burst)
+            terminal.TerminalDirtyRange(start: 0, end: rows)
+          else
+            terminal.TerminalDirtyRange(start: rows - 1, end: rows),
         ],
         scrollbackOffset: index,
         scrollbackMaxOffset: math.max(0, _frameCount - rows),
@@ -456,7 +456,7 @@ String _profileText({
 }
 
 String _pathSegment(String value) {
-  final sanitized = value.replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '_');
+  final sanitized = value.replaceAll(RegExp('[^A-Za-z0-9._-]+'), '_');
   return sanitized.isEmpty ? 'unknown' : sanitized;
 }
 

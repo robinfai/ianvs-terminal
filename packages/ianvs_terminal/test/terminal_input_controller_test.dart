@@ -459,7 +459,7 @@ void main() {
           logicalKey: LogicalKeyboardKey.escape,
         ),
         emulation: TerminalEmulation.xterm256,
-        modes: const TerminalFrameModes(),
+        modes: TerminalFrameModes.empty,
       ),
       ascii.encode('\x1B'),
     );
@@ -2278,7 +2278,7 @@ void main() {
       );
 
       controller.sendMouseReport(
-        modes: const TerminalFrameModes(mouseMode: 'off'),
+        modes: TerminalFrameModes.empty,
         row: 0,
         col: 0,
         button: 0,
@@ -3827,7 +3827,7 @@ void main() {
       expect(backend.writeCalls.map(utf8.decode).join(), 'echo iPhone\r');
 
       tester.testTextInput.updateEditingValue(
-        TextEditingValue(
+        const TextEditingValue(
           text: command,
           selection: TextSelection.collapsed(offset: command.length),
         ),

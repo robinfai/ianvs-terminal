@@ -1,9 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../terminal/terminal.dart';
-
 import '../preferences/app_preferences_models.dart';
 import '../profiles/profile_models.dart';
+import '../terminal/terminal.dart';
 import 'session_state.dart';
 
 typedef SessionClipboardCopy = Future<void> Function(String text);

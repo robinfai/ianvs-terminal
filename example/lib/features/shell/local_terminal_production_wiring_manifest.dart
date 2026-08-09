@@ -7,7 +7,7 @@ class LocalTerminalProductionWiringManifest {
   final DateTime capturedAt;
   final List<LocalTerminalProductionMilestoneManifest> milestones;
 
-  static const requiredMilestones = [
+  static const List<LocalTerminalProductionMilestone> requiredMilestones = [
     LocalTerminalProductionMilestone.p0Documentation,
     LocalTerminalProductionMilestone.p1ActionConfig,
     LocalTerminalProductionMilestone.p2Layout,

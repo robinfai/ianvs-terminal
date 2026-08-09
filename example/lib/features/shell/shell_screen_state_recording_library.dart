@@ -294,7 +294,7 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
 String _recordingFileName(String value) {
   final normalized = value
       .trim()
-      .replaceAll(RegExp(r'[^A-Za-z0-9._ -]+'), '-')
+      .replaceAll(RegExp('[^A-Za-z0-9._ -]+'), '-')
       .replaceAll(RegExp(r'\s+'), '-');
   return normalized.isEmpty ? 'terminal-recording' : normalized;
 }

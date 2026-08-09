@@ -8,7 +8,7 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('macOS Keychain stores and deletes an SSH profile secret', (
-    WidgetTester tester,
+    tester,
   ) async {
     expect(Platform.isMacOS, isTrue);
 

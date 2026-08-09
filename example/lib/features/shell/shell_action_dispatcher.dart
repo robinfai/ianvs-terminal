@@ -1,9 +1,9 @@
+import '../layout/local_terminal_layout_models.dart';
+import '../layout/terminal_layout_action_reducer.dart';
 import '../policies/local_terminal_policy_action_reducer.dart';
 import '../productivity/shell_productivity_action_reducer.dart';
 import '../productivity/shell_productivity_models.dart';
 import '../visual/local_terminal_visual_action_reducer.dart';
-import '../layout/terminal_layout_action_reducer.dart';
-import '../layout/local_terminal_layout_models.dart';
 import 'shell_action_registry.dart';
 
 sealed class ShellActionDispatchResult {

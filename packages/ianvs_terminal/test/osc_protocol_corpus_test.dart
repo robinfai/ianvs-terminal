@@ -154,7 +154,7 @@ void _validateFixture(String id, Map<String, Object?> fixture) {
     expect(repeated, hasLength(1), reason: id);
     expect(count, isA<int>(), reason: id);
     expect(limit, isA<int>(), reason: id);
-    expect(count as int, greaterThan(limit as int), reason: id);
+    expect(count! as int, greaterThan(limit! as int), reason: id);
     return;
   }
 

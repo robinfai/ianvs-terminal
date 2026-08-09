@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
-import 'package:flutter_test/flutter_test.dart';
 import 'package:fixnum/fixnum.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
 import 'package:ianvs_terminal/src/proto/frame_diff.pb.dart' as frame_pb;
 import 'package:ianvs_terminal/src/runtime/terminal_frame_decoder.dart';
@@ -31,7 +31,7 @@ void main() {
         expect(
           terminalFrameProjection(packet.frame),
           terminalFrameProjection(
-            TerminalFrameDecoder()
+            const TerminalFrameDecoder()
                 .decodeProtobuf(Uint8List.fromList(frame.writeToBuffer()))!
                 .frame,
           ),
@@ -58,7 +58,7 @@ void main() {
     test('rejects cross-session data and a gapped Delta', () {
       final delta = completeTerminalFrameWireFixture().protobuf.deepCopy()
         ..frameKind = frame_pb.TerminalFrameKind.TERMINAL_FRAME_KIND_DELTA;
-      final decoder = const TerminalFramePacketV1Decoder();
+      const decoder = TerminalFramePacketV1Decoder();
 
       expect(
         () => decoder.decode(

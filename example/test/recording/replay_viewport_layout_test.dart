@@ -1,8 +1,7 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:app/features/recording/replay_viewport_layout.dart';
 import 'package:app/ui/foundation/app_theme.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   testWidgets('replay viewport frame uses theme border without a shadow', (

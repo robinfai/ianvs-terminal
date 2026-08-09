@@ -296,7 +296,7 @@ LocalTerminalThemePreset _preset({String id = 'baseline'}) {
   return LocalTerminalThemePreset(
     id: id,
     name: 'Baseline',
-    dark: LocalTerminalColorScheme(
+    dark: const LocalTerminalColorScheme(
       background: 0x000000,
       foreground: 0xffffff,
       cursor: 0xffffff,
@@ -304,7 +304,7 @@ LocalTerminalThemePreset _preset({String id = 'baseline'}) {
       splitDivider: 0x222222,
       inactivePaneOverlay: 0x11000000,
     ),
-    light: LocalTerminalColorScheme(
+    light: const LocalTerminalColorScheme(
       background: 0xffffff,
       foreground: 0x000000,
       cursor: 0x000000,

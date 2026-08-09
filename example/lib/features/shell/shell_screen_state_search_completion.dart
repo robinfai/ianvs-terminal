@@ -343,7 +343,7 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     if (stableContentIndex != -1) {
       return stableContentIndex;
     }
-    return previousActiveIndex.clamp(0, hits.length - 1).toInt();
+    return previousActiveIndex.clamp(0, hits.length - 1);
   }
 
   int _closestSearchMatchIndex(
@@ -583,7 +583,7 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     final normalizedPrefix = prefix.toLowerCase();
     final seen = <String>{};
     final suggestions = <String>[];
-    final wordPattern = RegExp(r'[A-Za-z0-9_./:-]{2,}');
+    final wordPattern = RegExp('[A-Za-z0-9_./:-]{2,}');
 
     for (final row in frame.rows.reversed) {
       final matches = wordPattern.allMatches(row.text).toList().reversed;
@@ -619,7 +619,7 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     final normalizedPrefix = prefix.toLowerCase();
     final seen = <String>{};
     final suggestions = <String>[];
-    final wordPattern = RegExp(r'[A-Za-z0-9_./:-]{2,}');
+    final wordPattern = RegExp('[A-Za-z0-9_./:-]{2,}');
     for (final command in pane.shellIntegration.recentCommands) {
       final normalizedCommand = command.toLowerCase();
       if (command != prefix &&
@@ -695,9 +695,7 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     final ownerSessionId =
         _autocompleteSessionId ??
         ref.read(sessionControllerProvider).activeSessionId;
-    _mutateState(() {
-      _resetAutocompleteState();
-    });
+    _mutateState(_resetAutocompleteState);
     _focusSession(ownerSessionId);
   }
 
@@ -805,9 +803,7 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     final ownerSessionId =
         _autoComposerSessionId ??
         ref.read(sessionControllerProvider).activeSessionId;
-    _mutateState(() {
-      _resetAutoComposerState();
-    });
+    _mutateState(_resetAutoComposerState);
     _focusSession(ownerSessionId);
   }
 

@@ -1,5 +1,6 @@
-import 'dart:convert';
 import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -264,7 +265,7 @@ class TerminalInputController {
   }
 
   static bool _isBracketedPasteMarkerParams(String params) {
-    final parts = params.split(RegExp(r'[;:]'));
+    final parts = params.split(RegExp('[;:]'));
     if (parts.length != 1) {
       return false;
     }
@@ -523,15 +524,15 @@ const int _maxMouseButton = 223;
 const int _maxMouseModifierMask = 7;
 
 int _mouseCoordinate(int value) {
-  return value.clamp(0, _maxMouseCoordinate).toInt();
+  return value.clamp(0, _maxMouseCoordinate);
 }
 
 int _mouseButton(int value) {
-  return value.clamp(0, _maxMouseButton).toInt();
+  return value.clamp(0, _maxMouseButton);
 }
 
 int _mouseModifiers(int value) {
-  return value.clamp(0, _maxMouseModifierMask).toInt();
+  return value.clamp(0, _maxMouseModifierMask);
 }
 
 bool _shouldReportMouseEvent({
@@ -1079,22 +1080,16 @@ List<int>? _modifiedKeyBytesFor(
   switch (key) {
     case LogicalKeyboardKey.arrowUp:
       finalByte = 'A';
-      break;
     case LogicalKeyboardKey.arrowDown:
       finalByte = 'B';
-      break;
     case LogicalKeyboardKey.arrowRight:
       finalByte = 'C';
-      break;
     case LogicalKeyboardKey.arrowLeft:
       finalByte = 'D';
-      break;
     case LogicalKeyboardKey.home:
       finalByte = 'H';
-      break;
     case LogicalKeyboardKey.end:
       finalByte = 'F';
-      break;
     default:
       finalByte = null;
   }
@@ -1190,18 +1185,13 @@ List<int> _defaultMouseReportBytes({
   required bool utf8Coordinates,
 }) {
   final buttonCode = button | (modifiers << 2) | (pressed ? 0 : 3);
-  final encoded = <int>[
-    0x1b,
-    0x5b,
-    0x4d,
-    (buttonCode + 32).clamp(0, 255).toInt(),
-  ];
+  final encoded = <int>[0x1b, 0x5b, 0x4d, (buttonCode + 32).clamp(0, 255)];
   if (utf8Coordinates) {
     encoded.addAll(utf8.encode(String.fromCharCode(col + 33)));
     encoded.addAll(utf8.encode(String.fromCharCode(row + 33)));
   } else {
-    encoded.add((col + 33).clamp(0, 255).toInt());
-    encoded.add((row + 33).clamp(0, 255).toInt());
+    encoded.add((col + 33).clamp(0, 255));
+    encoded.add((row + 33).clamp(0, 255));
   }
   return encoded;
 }

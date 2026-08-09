@@ -458,9 +458,8 @@ class TerminalCursor {
       row: row,
       col: col,
       visible: visible,
-      highlightLine: json['highlight_line'] is bool
-          ? json['highlight_line']! as bool
-          : false,
+      highlightLine:
+          json['highlight_line'] is bool && json['highlight_line']! as bool,
       shape: _terminalCursorShapeFromWire(json['shape']),
       blink: json['blink'] is bool ? json['blink']! as bool : null,
     );
@@ -1100,7 +1099,7 @@ class TerminalSearchMatch {
 }
 
 class TerminalFrameDiff {
-  static const currentFrameSchemaVersion =
+  static const String currentFrameSchemaVersion =
       TerminalWireCompatibility.currentFrameSchemaVersion;
 
   const TerminalFrameDiff({
@@ -1218,12 +1217,12 @@ class TerminalFrameDiff {
 
   int sourceRowForViewportRow(int viewportRow) {
     return mappedSourceRowForViewportRow(viewportRow) ??
-        viewportStartRow + viewportRow.clamp(0, viewportRows).toInt();
+        viewportStartRow + viewportRow.clamp(0, viewportRows);
   }
 
   int sourceEndRowForViewportRow(int viewportRow) {
     return mappedSourceEndRowForViewportRow(viewportRow) ??
-        viewportStartRow + viewportRow.clamp(0, viewportRows).toInt();
+        viewportStartRow + viewportRow.clamp(0, viewportRows);
   }
 
   int? viewportRowForSourceRow(int sourceRow) {
@@ -1271,7 +1270,7 @@ class TerminalFrameDiff {
     );
     final scrollbackOffset = _nonNegativeIntFromJson(
       json['scrollback_offset'],
-    ).clamp(0, scrollbackMaxOffset).toInt();
+    ).clamp(0, scrollbackMaxOffset);
     return TerminalFrameDiff(
       frameSchemaVersion: TerminalWireCompatibility.frameSchemaVersion(
         json['frame_schema_version'],
@@ -1452,8 +1451,8 @@ List<TerminalDirtyRange> _dirtyRangesFromJson(Object? value, int viewportRows) {
         if (range == null) {
           return null;
         }
-        final start = range.start.clamp(0, viewportRows).toInt();
-        final end = range.end.clamp(start, viewportRows).toInt();
+        final start = range.start.clamp(0, viewportRows);
+        final end = range.end.clamp(start, viewportRows);
         if (start >= end) {
           return null;
         }
@@ -1597,9 +1596,7 @@ TerminalFrameDiff _terminalFrameDiffFromProtobuf(
   final viewportRows = _clampedNativeDimension(proto.viewportRows);
   final viewportCols = _clampedNativeDimension(proto.viewportCols);
   final scrollbackMaxOffset = proto.scrollbackMaxOffset;
-  final scrollbackOffset = proto.scrollbackOffset
-      .clamp(0, scrollbackMaxOffset)
-      .toInt();
+  final scrollbackOffset = proto.scrollbackOffset.clamp(0, scrollbackMaxOffset);
   return TerminalFrameDiff(
     frameSchemaVersion: TerminalWireCompatibility.frameSchemaVersion(
       proto.hasFrameSchemaVersion() ? proto.frameSchemaVersion : null,
@@ -2204,8 +2201,8 @@ List<TerminalDirtyRange> _normalizeDirtyRanges(
 
   final normalized = <TerminalDirtyRange>[];
   for (final range in ranges) {
-    final start = range.start.clamp(0, viewportRows).toInt();
-    final end = range.end.clamp(start, viewportRows).toInt();
+    final start = range.start.clamp(0, viewportRows);
+    final end = range.end.clamp(start, viewportRows);
     if (start < end) {
       normalized.add(TerminalDirtyRange(start: start, end: end));
     }
@@ -2247,8 +2244,8 @@ List<TerminalDirtyRange> _dirtyRangesFromProtobuf(
     _boundedProtobufItems(
       ranges,
       (range) {
-        final start = range.start.clamp(0, viewportRows).toInt();
-        final end = range.end.clamp(start, viewportRows).toInt();
+        final start = range.start.clamp(0, viewportRows);
+        final end = range.end.clamp(start, viewportRows);
         if (start >= end) {
           return null;
         }
@@ -2442,9 +2439,10 @@ class TerminalViewportState {
     final scrollbackMaxOffset = _nonNegativeFrameScalar(
       nextFrame.scrollbackMaxOffset,
     );
-    final scrollbackOffset = nextFrame.scrollbackOffset
-        .clamp(0, scrollbackMaxOffset)
-        .toInt();
+    final scrollbackOffset = nextFrame.scrollbackOffset.clamp(
+      0,
+      scrollbackMaxOffset,
+    );
 
     final mergedRows = _mergeViewportRows(
       currentRows: _shiftViewportRows(
@@ -2607,10 +2605,10 @@ class TerminalTextCells {
 
   int get cellCount => cells.length;
 
-  int clampColumn(int value) => value.clamp(0, cellCount).toInt();
+  int clampColumn(int value) => value.clamp(0, cellCount);
 
   int columnForCodeUnit(int value) {
-    final clamped = value.clamp(0, text.length).toInt();
+    final clamped = value.clamp(0, text.length);
     for (final cell in cells) {
       if (cell.codeUnitEnd > clamped) {
         return cell.column;
@@ -2629,7 +2627,7 @@ class TerminalTextCells {
 
   String sliceColumns(int start, int end) {
     final clampedStart = clampColumn(start);
-    final clampedEnd = end.clamp(clampedStart, cellCount).toInt();
+    final clampedEnd = end.clamp(clampedStart, cellCount);
     if (clampedStart >= clampedEnd) {
       return '';
     }
@@ -2681,13 +2679,11 @@ int? _optionalNonNegativeIntFromJson(Object? value) {
 int _nativeDimensionFromJson(Object? value) {
   return _nonNegativeIntFromJson(
     value,
-  ).clamp(0, TerminalFrameValidationLimits.maxNativeDimension).toInt();
+  ).clamp(0, TerminalFrameValidationLimits.maxNativeDimension);
 }
 
 int _clampedNativeDimension(int value) {
-  return value
-      .clamp(0, TerminalFrameValidationLimits.maxNativeDimension)
-      .toInt();
+  return value.clamp(0, TerminalFrameValidationLimits.maxNativeDimension);
 }
 
 int _nonNegativeFrameScalar(int value) {
@@ -2806,9 +2802,7 @@ TerminalFrameDiff _normalizeSnapshotFrame(
   final scrollbackMaxOffset = _nonNegativeFrameScalar(
     frame.scrollbackMaxOffset,
   );
-  final scrollbackOffset = frame.scrollbackOffset
-      .clamp(0, scrollbackMaxOffset)
-      .toInt();
+  final scrollbackOffset = frame.scrollbackOffset.clamp(0, scrollbackMaxOffset);
   return TerminalFrameDiff(
     frameSchemaVersion: frame.frameSchemaVersion,
     frameKind: TerminalFrameKind.snapshot,
@@ -2951,8 +2945,8 @@ Set<int> _dirtyRowIndexesForRanges(
 ) {
   final dirtyRows = <int>{};
   for (final range in dirtyRanges) {
-    final start = range.start.clamp(0, viewportRows).toInt();
-    final end = range.end.clamp(start, viewportRows).toInt();
+    final start = range.start.clamp(0, viewportRows);
+    final end = range.end.clamp(start, viewportRows);
     for (var row = start; row < end; row += 1) {
       dirtyRows.add(row);
     }
@@ -2970,8 +2964,8 @@ TerminalDirtyRange? _dirtyRowExtentForRanges(
   var start = viewportRows;
   var end = 0;
   for (final range in dirtyRanges) {
-    final rangeStart = range.start.clamp(0, viewportRows).toInt();
-    final rangeEnd = range.end.clamp(rangeStart, viewportRows).toInt();
+    final rangeStart = range.start.clamp(0, viewportRows);
+    final rangeEnd = range.end.clamp(rangeStart, viewportRows);
     if (rangeStart >= rangeEnd) {
       continue;
     }
@@ -2989,11 +2983,14 @@ List<TerminalDirtyRange> _mergeDirtyRangesWithRows({
   required List<TerminalRow> rows,
   required int viewportRows,
 }) {
-  dirtyRanges = _normalizeDirtyRanges(dirtyRanges, viewportRows);
+  final normalizedDirtyRanges = _normalizeDirtyRanges(
+    dirtyRanges,
+    viewportRows,
+  );
   final dirtyRows = <int>{};
-  for (final range in dirtyRanges) {
-    final start = range.start.clamp(0, viewportRows).toInt();
-    final end = range.end.clamp(start, viewportRows).toInt();
+  for (final range in normalizedDirtyRanges) {
+    final start = range.start.clamp(0, viewportRows);
+    final end = range.end.clamp(start, viewportRows);
     for (var row = start; row < end; row += 1) {
       dirtyRows.add(row);
     }
@@ -3280,10 +3277,8 @@ List<TerminalInlineImage> _mergeInlineImages({
         if (row >= 0 && row < viewportRows) row,
   };
   bool imageTouchesDirtyRows(TerminalInlineImage image) {
-    final start = image.row.clamp(0, viewportRows).toInt();
-    final end = (image.row + image.heightCells)
-        .clamp(start, viewportRows)
-        .toInt();
+    final start = image.row.clamp(0, viewportRows);
+    final end = (image.row + image.heightCells).clamp(start, viewportRows);
     for (var row = start; row < end; row += 1) {
       if (dirtyRows.contains(row)) {
         return true;
@@ -3390,8 +3385,8 @@ TerminalInlineImage? _clampInlineImageToViewport(
   if (maxWidthCells <= 0 || maxHeightCells <= 0) {
     return null;
   }
-  final widthCells = image.widthCells.clamp(1, maxWidthCells).toInt();
-  final heightCells = image.heightCells.clamp(1, maxHeightCells).toInt();
+  final widthCells = image.widthCells.clamp(1, maxWidthCells);
+  final heightCells = image.heightCells.clamp(1, maxHeightCells);
   if (widthCells == image.widthCells && heightCells == image.heightCells) {
     return image;
   }

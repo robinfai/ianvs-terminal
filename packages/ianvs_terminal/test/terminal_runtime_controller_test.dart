@@ -3,13 +3,13 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui';
 
-import 'package:flutter_test/flutter_test.dart';
 import 'package:fixnum/fixnum.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_pty/ianvs_pty.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 import 'package:ianvs_terminal/src/proto/frame_diff.pb.dart' as frame_pb;
 import 'package:ianvs_terminal/src/runtime/terminal_frame_decoder.dart';
 import 'package:ianvs_terminal/src/runtime/terminal_frame_transport_coordinator.dart';
-import 'package:ianvs_pty/ianvs_pty.dart';
 
 void main() {
   test(
@@ -782,7 +782,7 @@ void main() {
           dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
           scrollbackOffset: 0,
           scrollbackMaxOffset: 0,
-          modes: TerminalFrameModes(synchronizedOutput: false),
+          modes: TerminalFrameModes.empty,
         ),
       );
 
@@ -823,7 +823,7 @@ void main() {
           'index': 0,
           'text': 'timestamped',
           'modified_at': ' 2026-05-13T08:09:10Z ',
-          'style_runs': [],
+          'style_runs': <Object?>[],
         },
       ],
       'cursor': {'row': 0, 'col': 0, 'visible': true},
@@ -1965,7 +1965,7 @@ void main() {
     final imageBytes = utf8.encode('fake-png');
     final frame = TerminalFrameDiff.fromJson(<String, Object?>{
       'rows': const [
-        {'index': 0, 'text': 'image', 'style_runs': []},
+        {'index': 0, 'text': 'image', 'style_runs': <Object?>[]},
       ],
       'cursor': const {'row': 0, 'col': 0, 'visible': true},
       'viewport_rows': 4,
@@ -2006,7 +2006,7 @@ void main() {
     final imageBytes = utf8.encode('fake-png');
     final frame = TerminalFrameDiff.fromJson(<String, Object?>{
       'rows': const [
-        {'index': 0, 'text': 'image', 'style_runs': []},
+        {'index': 0, 'text': 'image', 'style_runs': <Object?>[]},
       ],
       'cursor': const {'row': 0, 'col': 0, 'visible': true},
       'viewport_rows': 2,
@@ -2034,7 +2034,7 @@ void main() {
     final imageBytes = utf8.encode('fake-png');
     final frame = TerminalFrameDiff.fromJson(<String, Object?>{
       'rows': const [
-        {'index': 0, 'text': 'image', 'style_runs': []},
+        {'index': 0, 'text': 'image', 'style_runs': <Object?>[]},
       ],
       'cursor': const {'row': 0, 'col': 0, 'visible': true},
       'viewport_rows': 2,
@@ -2080,7 +2080,7 @@ void main() {
   test('terminal frames parse graphics placement payloads', () {
     final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
       'rows': [
-        {'index': 0, 'text': 'image', 'style_runs': []},
+        {'index': 0, 'text': 'image', 'style_runs': <Object?>[]},
       ],
       'cursor': {'row': 0, 'col': 0, 'visible': true},
       'viewport_rows': 2,
@@ -2140,8 +2140,8 @@ void main() {
   test('terminal frames preserve multi-protocol graphics placements', () {
     final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
       'rows': [
-        {'index': 0, 'text': 'graphics', 'style_runs': []},
-        {'index': 1, 'text': 'below', 'style_runs': []},
+        {'index': 0, 'text': 'graphics', 'style_runs': <Object?>[]},
+        {'index': 1, 'text': 'below', 'style_runs': <Object?>[]},
       ],
       'cursor': {'row': 0, 'col': 0, 'visible': true},
       'viewport_rows': 4,
@@ -2212,7 +2212,7 @@ void main() {
   test('terminal frames keep legacy graphics payloads readable', () {
     final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
       'rows': [
-        {'index': 0, 'text': 'image', 'style_runs': []},
+        {'index': 0, 'text': 'image', 'style_runs': <Object?>[]},
       ],
       'cursor': {'row': 0, 'col': 0, 'visible': true},
       'viewport_rows': 2,
@@ -2250,7 +2250,7 @@ void main() {
   test('terminal frames drop graphics that start past the right edge', () {
     final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
       'rows': [
-        {'index': 0, 'text': 'image', 'style_runs': []},
+        {'index': 0, 'text': 'image', 'style_runs': <Object?>[]},
       ],
       'cursor': {'row': 0, 'col': 0, 'visible': true},
       'viewport_rows': 2,
@@ -2282,7 +2282,7 @@ void main() {
   test('terminal frames drop graphics with invalid horizontal clip', () {
     final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
       'rows': [
-        {'index': 0, 'text': 'image', 'style_runs': []},
+        {'index': 0, 'text': 'image', 'style_runs': <Object?>[]},
       ],
       'cursor': {'row': 0, 'col': 0, 'visible': true},
       'viewport_rows': 2,
@@ -2612,8 +2612,8 @@ void main() {
           width: 1,
           height: 1,
           rgba: Uint8List.fromList(<int>[
-            key.version == 1 ? 255 : 0,
-            key.version == 2 ? 255 : 0,
+            if (key.version == 1) 255 else 0,
+            if (key.version == 2) 255 else 0,
             0,
             255,
           ]),
@@ -2873,7 +2873,7 @@ void main() {
     const encodedImage = 'ZmFrZS1wbmc=';
     final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
       'rows': [
-        {'index': 0, 'text': 'image', 'style_runs': []},
+        {'index': 0, 'text': 'image', 'style_runs': <Object?>[]},
       ],
       'cursor': {'row': 0, 'col': 0, 'visible': true},
       'viewport_rows': 2,
@@ -2939,7 +2939,7 @@ void main() {
       final oversizedPayload = 'A' * (6 * 1024 * 1024);
       final frame = TerminalFrameDiff.fromJson(<String, Object?>{
         'rows': const [
-          {'index': 0, 'text': 'image', 'style_runs': []},
+          {'index': 0, 'text': 'image', 'style_runs': <Object?>[]},
         ],
         'cursor': const {'row': 0, 'col': 0, 'visible': true},
         'viewport_rows': 2,
@@ -2969,7 +2969,7 @@ void main() {
     final encodedImage = base64.encode(imageBytes);
     final frame = TerminalFrameDiff.fromJson(<String, Object?>{
       'rows': const [
-        {'index': 0, 'text': 'image', 'style_runs': []},
+        {'index': 0, 'text': 'image', 'style_runs': <Object?>[]},
       ],
       'cursor': const {'row': 0, 'col': 0, 'visible': true},
       'viewport_rows': 40,
@@ -3195,10 +3195,10 @@ void main() {
         <String, Object?>{'enabled': true},
       );
       final appearance =
-          runtimeBackend.lastCreateSessionPayload!['appearance']
+          runtimeBackend.lastCreateSessionPayload!['appearance']!
               as Map<String, Object?>;
-      final colors = appearance['colors'] as Map<String, Object?>;
-      final special = colors['special'] as Map<String, Object?>;
+      final colors = appearance['colors']! as Map<String, Object?>;
+      final special = colors['special']! as Map<String, Object?>;
       expect(special['background'], '#000000');
     },
   );
@@ -3837,13 +3837,10 @@ void main() {
         backend: runtimeBackend,
         copyToClipboard: (_) async {},
         readClipboard: () async => '',
-        resizeWindowBy:
-            ({required double widthDelta, required double heightDelta}) {
-              resizeRequestCount += 1;
-              return resizeRequestCount == 1
-                  ? oldResize.future
-                  : newResize.future;
-            },
+        resizeWindowBy: ({required widthDelta, required heightDelta}) {
+          resizeRequestCount += 1;
+          return resizeRequestCount == 1 ? oldResize.future : newResize.future;
+        },
         benchmarkEventSink: diagnosticEvents.add,
       );
       try {
@@ -3969,11 +3966,10 @@ void main() {
         backend: runtimeBackend,
         copyToClipboard: (_) async {},
         readClipboard: () async => '',
-        resizeWindowBy:
-            ({required double widthDelta, required double heightDelta}) {
-              resizeRequestCount += 1;
-              return oldResize.future;
-            },
+        resizeWindowBy: ({required widthDelta, required heightDelta}) {
+          resizeRequestCount += 1;
+          return oldResize.future;
+        },
         enableSessionPolling: false,
       );
       final subscription = runtime.events
@@ -4499,16 +4495,16 @@ void main() {
           (event) => event['event'] == 'refresh_result',
         );
         expect(
-          requested['refresh_requested_micros'] as int,
-          lessThanOrEqualTo(started['refresh_started_micros'] as int),
+          requested['refresh_requested_micros']! as int,
+          lessThanOrEqualTo(started['refresh_started_micros']! as int),
         );
         expect(
-          started['refresh_started_micros'] as int,
-          lessThanOrEqualTo(taken['frame_taken_micros'] as int),
+          started['refresh_started_micros']! as int,
+          lessThanOrEqualTo(taken['frame_taken_micros']! as int),
         );
         expect(
-          taken['frame_taken_micros'] as int,
-          lessThanOrEqualTo(applied['frame_applied_micros'] as int),
+          taken['frame_taken_micros']! as int,
+          lessThanOrEqualTo(applied['frame_applied_micros']! as int),
         );
         expect(result['received_frame'], isTrue);
         expect(result['had_activity'], isTrue);
@@ -4687,7 +4683,7 @@ void main() {
                             'ianvs-terminal-refresh-policy-v1' &&
                         event['event'] == 'refresh_result',
                   )
-                  .last['full_poll_count']
+                  .last['full_poll_count']!
               as int;
       diagnostics.clear();
 
@@ -4728,7 +4724,7 @@ void main() {
       expect(requested['hint_poll_count'], greaterThan(0));
       expect(requested['full_poll_count'], fullPollBeforeHint + 1);
       final timestamps = lifecycle
-          .map((event) => event['monotonic_micros'] as int)
+          .map((event) => event['monotonic_micros']! as int)
           .toList(growable: false);
       expect(timestamps, orderedEquals(timestamps.toList()..sort()));
       runtime.dispose();
@@ -5191,7 +5187,7 @@ void main() {
   test('terminal runtime background diagnostics use 264ms policy cadence', () {
     final runtimeBackend = _FakePtyBackend();
     final diagnostics = <Map<String, Object?>>[];
-    var monotonicNow = Duration.zero;
+    const monotonicNow = Duration.zero;
     final runtime = TerminalRuntimeController(
       backend: runtimeBackend,
       copyToClipboard: (_) async {},
@@ -9153,7 +9149,7 @@ void main() {
       expect(response['operation'], 'clipboard.read_text');
       expect(response['ok'], isTrue);
       expect(
-        (response['payload'] as Map<String, Object?>)['data_base64'],
+        (response['payload']! as Map<String, Object?>)['data_base64'],
         base64.encode(utf8.encode('host response')),
       );
       expect(runtimeBackend.writeCalls, hasLength(1));
@@ -9218,7 +9214,7 @@ void main() {
     expect(response['ok'], isFalse);
     expect(response['payload'], isNull);
     expect(
-      (response['error'] as Map<String, Object?>)['code'],
+      (response['error']! as Map<String, Object?>)['code'],
       'permission_denied',
     );
     expect(runtimeBackend.writeCalls, hasLength(1));
@@ -9829,11 +9825,10 @@ void main() {
         readClipboard: () async => 'paste me',
         allowClipboardCopy: () async => true,
         allowClipboardPasteRequest: () async => true,
-        resizeWindowBy:
-            ({required double widthDelta, required double heightDelta}) async {
-              resizeWidthDelta = widthDelta;
-              resizeHeightDelta = heightDelta;
-            },
+        resizeWindowBy: ({required widthDelta, required heightDelta}) async {
+          resizeWidthDelta = widthDelta;
+          resizeHeightDelta = heightDelta;
+        },
         enableSessionPolling: false,
       );
       addTearDown(runtime.dispose);
@@ -13404,7 +13399,11 @@ Map<String, Object?> _singleRowSnapshot(
   return <String, Object?>{
     'frame_kind': 'snapshot',
     'rows': <Object?>[
-      <String, Object?>{'index': 0, 'text': text, 'style_runs': const []},
+      <String, Object?>{
+        'index': 0,
+        'text': text,
+        'style_runs': const <Object?>[],
+      },
     ],
     'cursor': <String, Object?>{'row': 0, 'col': 0, 'visible': true},
     'viewport_rows': viewportRows,

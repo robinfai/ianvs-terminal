@@ -1,15 +1,14 @@
 import 'dart:convert';
 import 'dart:ui' as ui;
 
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/terminal/selection_controller.dart';
 import 'package:app/features/terminal/terminal_input_controller.dart';
 import 'package:app/features/terminal/terminal_viewport.dart';
 import 'package:app/features/terminal/terminal_viewport_colors.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import 'support/fake_pty_backend.dart';
 import 'support/test_runtime.dart';

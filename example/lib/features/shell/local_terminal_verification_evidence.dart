@@ -17,7 +17,7 @@ class LocalTerminalVerificationEvidence {
     );
   }
 
-  static const defaultRequiredGates = [
+  static const List<LocalTerminalVerificationGate> defaultRequiredGates = [
     LocalTerminalVerificationGate.unitTests,
     LocalTerminalVerificationGate.widgetTests,
     LocalTerminalVerificationGate.integrationTests,

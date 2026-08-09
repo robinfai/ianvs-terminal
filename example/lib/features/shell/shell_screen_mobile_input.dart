@@ -51,9 +51,10 @@ extension _ShellScreenMobileInput on _ShellScreenState {
   }
 
   void _setMobileTerminalFontScale(String sessionId, double scale) {
-    final normalized = scale
-        .clamp(_minimumMobileTerminalFontScale, _maximumMobileTerminalFontScale)
-        .toDouble();
+    final normalized = scale.clamp(
+      _minimumMobileTerminalFontScale,
+      _maximumMobileTerminalFontScale,
+    );
     if ((_mobileFontScaleFor(sessionId) - normalized).abs() < 0.005) {
       return;
     }

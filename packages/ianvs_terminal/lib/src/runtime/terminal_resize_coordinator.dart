@@ -5,7 +5,7 @@ import '../config/terminal_defaults.dart';
 
 final class TerminalResizeCoordinator {
   TerminalResizeCoordinator({this.maxDimension = maxTerminalDimension})
-    : assert(maxDimension > 0);
+    : assert(maxDimension > 0, 'maxDimension must be positive.');
 
   final int maxDimension;
   final Map<String, TerminalResizeMetric> _lastMetrics =
@@ -160,14 +160,14 @@ final class TerminalResizeCoordinator {
   }
 
   int _boundedDimension(int value) {
-    return value.clamp(1, maxDimension).toInt();
+    return value.clamp(1, maxDimension);
   }
 
   int _boundedPixelDimension(double value) {
     if (!value.isFinite || value <= 0) {
       return 1;
     }
-    return value.round().clamp(1, maxDimension).toInt();
+    return value.round().clamp(1, maxDimension);
   }
 
   static bool _isPositiveFiniteSize(Size size) {

@@ -45,9 +45,10 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
   @override
   Widget build(BuildContext context) {
     final palette = context.appTheme;
-    final maxMenuHeight = (MediaQuery.sizeOf(context).height - 24)
-        .clamp(320.0, 520.0)
-        .toDouble();
+    final maxMenuHeight = (MediaQuery.sizeOf(context).height - 24).clamp(
+      320.0,
+      520.0,
+    );
     final launcherShortcutLabel = widget.launcherShortcutLabel;
     final newTabShortcutLabel = widget.newTabShortcutLabel;
     final instantReplayShortcutLabel = widget.instantReplayShortcutLabel;

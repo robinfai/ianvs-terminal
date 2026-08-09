@@ -1,3 +1,5 @@
+import 'package:app/features/layout/local_terminal_layout_models.dart';
+import 'package:app/features/layout/terminal_layout_action_reducer.dart';
 import 'package:app/features/policies/local_terminal_policy_action_reducer.dart';
 import 'package:app/features/productivity/shell_productivity_action_reducer.dart';
 import 'package:app/features/productivity/shell_productivity_models.dart';
@@ -7,8 +9,6 @@ import 'package:app/features/shell/shell_action_registry.dart';
 import 'package:app/features/shell/shell_action_side_effect_executor.dart';
 import 'package:app/features/shell/shell_action_side_effect_plan.dart';
 import 'package:app/features/visual/local_terminal_visual_action_reducer.dart';
-import 'package:app/features/layout/terminal_layout_action_reducer.dart';
-import 'package:app/features/layout/local_terminal_layout_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

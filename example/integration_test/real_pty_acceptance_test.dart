@@ -2,15 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
-import 'package:ianvs_pty/ianvs_pty.dart';
-import 'package:integration_test/integration_test.dart';
-
 import 'package:app/app.dart';
 import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
@@ -21,11 +12,19 @@ import 'package:app/features/shell/password_manager_store.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/shell/window_bridge.dart';
 import 'package:app/features/terminal/render_terminal_viewport.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_pty/ianvs_pty.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
+import 'package:integration_test/integration_test.dart';
 
-import '../test/support/memory_app_preferences_repository.dart';
 import '../test/support/macos_integration_test_lifecycle.dart';
-import '../test/support/memory_profile_repository.dart';
+import '../test/support/memory_app_preferences_repository.dart';
 import '../test/support/memory_local_terminal_config_repository.dart';
+import '../test/support/memory_profile_repository.dart';
 
 const _frameWait = Duration(seconds: 20);
 const _pollStep = Duration(milliseconds: 100);
@@ -205,7 +204,7 @@ sleep 1
       final profile = _scriptProfile(
         id: 'timestamp-hidden',
         name: 'Timestamp Hidden',
-        script: "printf 'timestamp smoke\\n'; sleep 2",
+        script: r"printf 'timestamp smoke\n'; sleep 2",
       );
       final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
 
@@ -640,10 +639,11 @@ sleep 5
         onTimeout: () => 'Notifications: $notifications',
       );
       final activity = notifications.firstWhere(
-        (notification) => notification['identifier']?.startsWith(
-          'ianvs-terminal.activity.',
-        ) ??
-        false,
+        (notification) =>
+            notification['identifier']?.startsWith(
+              'ianvs-terminal.activity.',
+            ) ??
+            false,
       );
       expect(activity['body'], isNot(contains('ERROR 42 failed')));
       expect(activity['body'], isNot(contains('inactive wrapped output')));
@@ -3052,7 +3052,7 @@ while [ ! -f "$RELEASE_FILE" ]; do sleep 0.05; done
       if (latest == null ||
           latest['event'] != 'refresh_result' ||
           latest['refresh_id'] is! int ||
-          (latest['refresh_id'] as int) <= historyRefreshId ||
+          (latest['refresh_id']! as int) <= historyRefreshId ||
           latest['current_delay_micros'] != delayMicros ||
           latest['backoff_skip_ticks'] != skipTicks) {
         return false;
@@ -3213,7 +3213,7 @@ while [ ! -f "$RELEASE_FILE" ]; do sleep 0.05; done
       if (latest == null ||
           latest['event'] != 'refresh_result' ||
           latest['refresh_id'] is! int ||
-          (latest['refresh_id'] as int) <= historyRefreshId ||
+          (latest['refresh_id']! as int) <= historyRefreshId ||
           latest['refresh_class'] != expectedClass.name ||
           latest['current_delay_micros'] != delayMicros ||
           latest['backoff_skip_ticks'] != skipTicks) {
@@ -3245,8 +3245,8 @@ while [ ! -f "$RELEASE_FILE" ]; do sleep 0.05; done
     preparedResult!['hint_poll_count'],
     path == _IdleWakePath.nativeHint ? greaterThan(0) : 0,
   );
-  final preparedRefreshId = preparedResult!['refresh_id'] as int;
-  final preparedFullPollCount = preparedResult!['full_poll_count'] as int;
+  final preparedRefreshId = preparedResult!['refresh_id']! as int;
+  final preparedFullPollCount = preparedResult!['full_poll_count']! as int;
 
   final token =
       '${state.name}-${path.name}-${DateTime.now().microsecondsSinceEpoch}';
@@ -3295,7 +3295,7 @@ while [ ! -f "$RELEASE_FILE" ]; do sleep 0.05; done
     final lifecycle = _refreshLifecycle(
       runtimeEvents,
       sessionId,
-      wakeResult!['refresh_id'] as int,
+      wakeResult!['refresh_id']! as int,
     );
     expect(
       lifecycle.map((event) => event['event']),
@@ -3321,16 +3321,16 @@ while [ ! -f "$RELEASE_FILE" ]; do sleep 0.05; done
       (event) => event['event'] == 'frame_applied',
     );
     expect(
-      requested['refresh_requested_micros'] as int,
-      lessThanOrEqualTo(started['refresh_started_micros'] as int),
+      requested['refresh_requested_micros']! as int,
+      lessThanOrEqualTo(started['refresh_started_micros']! as int),
     );
     expect(
-      started['refresh_started_micros'] as int,
-      lessThanOrEqualTo(taken['frame_taken_micros'] as int),
+      started['refresh_started_micros']! as int,
+      lessThanOrEqualTo(taken['frame_taken_micros']! as int),
     );
     expect(
-      taken['frame_taken_micros'] as int,
-      lessThanOrEqualTo(applied['frame_applied_micros'] as int),
+      taken['frame_taken_micros']! as int,
+      lessThanOrEqualTo(applied['frame_applied_micros']! as int),
     );
   } else {
     expect(wakeResult!['hint_poll_count'], 0);
@@ -3391,7 +3391,7 @@ int _latestRefreshId(List<Map<String, Object?>> events, String sessionId) {
         event['refresh_id'] is! int) {
       continue;
     }
-    final refreshId = event['refresh_id'] as int;
+    final refreshId = event['refresh_id']! as int;
     if (refreshId > latest) {
       latest = refreshId;
     }
@@ -3472,7 +3472,7 @@ String _profileSwitchScript() {
       'pwd': '/root',
       'shell': 'sh',
     }),
-    'while [ ! -f "\$GO_FILE" ]; do sleep 0.05; done',
+    r'while [ ! -f "$GO_FILE" ]; do sleep 0.05; done',
     _printfShellHook({
       'hook': 'command_finished',
       'command': 'exit',

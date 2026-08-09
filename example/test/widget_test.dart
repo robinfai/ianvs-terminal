@@ -2,13 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show FileSystemException;
 
-import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:ianvs_pty/ianvs_pty.dart';
-
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_state.dart';
@@ -17,6 +10,13 @@ import 'package:app/features/shell/paste_history_repository.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/terminal/terminal_viewport.dart';
 import 'package:app/ui/app_ui.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_pty/ianvs_pty.dart';
+
 import 'support/fake_pty_backend.dart';
 import 'support/memory_app_preferences_repository.dart';
 import 'support/memory_local_terminal_config_repository.dart';
@@ -259,7 +259,7 @@ Future<void> _invokeNativeWindowBridge(
 }
 
 Future<void> _dispatchNativeWindowBridge(WidgetTester tester, MethodCall call) {
-  final codec = const StandardMethodCodec();
+  const codec = StandardMethodCodec();
   return tester.binding.defaultBinaryMessenger.handlePlatformMessage(
     'app/window_bridge',
     codec.encodeMethodCall(call),
@@ -295,7 +295,7 @@ Future<void> _openTabCountWithShortcut(
   WidgetTester tester,
   int tabCount,
 ) async {
-  assert(tabCount >= 1);
+  assert(tabCount >= 1, 'At least one tab must be open.');
   for (var index = 1; index < tabCount; index += 1) {
     await _sendMetaShortcut(tester, LogicalKeyboardKey.keyT);
     await _chooseDefaultLocalSession(tester);
@@ -2152,7 +2152,7 @@ void main() {
           {
             'index': 0,
             'text': '󰀵ab important output important',
-            'style_runs': const [],
+            'style_runs': const <Object?>[],
           },
         ],
         'cursor': {'row': 0, 'col': 0, 'visible': true},
@@ -2172,12 +2172,12 @@ void main() {
           {
             'index': 0,
             'text': '󰀵ab important output important',
-            'style_runs': const [],
+            'style_runs': const <Object?>[],
           },
           {
             'index': 1,
             'text': 'another part of the frame changed',
-            'style_runs': const [],
+            'style_runs': const <Object?>[],
           },
         ],
         'cursor': {'row': 1, 'col': 0, 'visible': true},
@@ -2194,7 +2194,7 @@ void main() {
       replayNow = replayNow.add(const Duration(milliseconds: 3100));
       fakeBindings.setFrame(1, {
         'rows': [
-          {'index': 0, 'text': '', 'style_runs': const []},
+          {'index': 0, 'text': '', 'style_runs': const <Object?>[]},
         ],
         'cursor': {'row': 0, 'col': 0, 'visible': true},
         'selection': null,
@@ -2584,7 +2584,7 @@ void main() {
         {
           'index': 0,
           'text': '[sudo] password for dev:',
-          'style_runs': const [],
+          'style_runs': const <Object?>[],
         },
       ],
       'cursor': {'row': 0, 'col': 24, 'visible': true},
@@ -2735,7 +2735,7 @@ void main() {
         {
           'index': 0,
           'text': '[sudo] password for dev:',
-          'style_runs': const [],
+          'style_runs': const <Object?>[],
         },
       ],
       'cursor': {'row': 0, 'col': 24, 'visible': true},
@@ -2754,7 +2754,7 @@ void main() {
 
     fakeBindings.setFrame(1, {
       'rows': [
-        {'index': 0, 'text': r'dev $ ', 'style_runs': const []},
+        {'index': 0, 'text': r'dev $ ', 'style_runs': const <Object?>[]},
       ],
       'cursor': {'row': 0, 'col': 6, 'visible': true},
       'selection': null,
@@ -2810,7 +2810,7 @@ void main() {
 
       fakeBindings.setFrame(1, {
         'rows': [
-          {'index': 0, 'text': 'Password:', 'style_runs': const []},
+          {'index': 0, 'text': 'Password:', 'style_runs': const <Object?>[]},
         ],
         'cursor': {'row': 0, 'col': 9, 'visible': true},
         'selection': null,
@@ -2869,9 +2869,9 @@ void main() {
             'index': 0,
             'text': '[sudo] password for development-',
             'wrapped': true,
-            'style_runs': const [],
+            'style_runs': const <Object?>[],
           },
-          {'index': 1, 'text': 'host:', 'style_runs': const []},
+          {'index': 1, 'text': 'host:', 'style_runs': const <Object?>[]},
         ],
         'cursor': {'row': 1, 'col': 5, 'visible': true},
         'selection': null,
@@ -3278,7 +3278,7 @@ void main() {
 
       fakeBindings.setFrame(1, {
         'rows': [
-          {'index': 0, 'text': 'alpha beta', 'style_runs': const []},
+          {'index': 0, 'text': 'alpha beta', 'style_runs': const <Object?>[]},
         ],
         'cursor': {'row': 0, 'col': 0, 'visible': true},
         'selection': null,
@@ -3927,10 +3927,10 @@ void main() {
 
       fakeBindings.enqueueEvent(
         1,
-        PtyEvent(
+        const PtyEvent(
           kind: 'shell_hook',
           sessionId: '1',
-          payload: const <String, Object?>{
+          payload: <String, Object?>{
             'hook': 'command_finished',
             'command': 'pwd',
             'pwd': '/tmp/project',
@@ -4176,17 +4176,17 @@ void main() {
 
     fakeBindings.enqueueEvent(
       1,
-      PtyEvent(
+      const PtyEvent(
         kind: 'shell_hook',
         sessionId: '1',
-        payload: const <String, Object?>{
+        payload: <String, Object?>{
           'hook': 'command_finished',
           'command': 'deploy --token super-secret',
           'exit_code': 7,
         },
       ),
     );
-    fakeBindings.enqueueEvent(1, PtyEvent(kind: 'bell', sessionId: '1'));
+    fakeBindings.enqueueEvent(1, const PtyEvent(kind: 'bell', sessionId: '1'));
     await tester.pump(const Duration(milliseconds: 40));
 
     expect(notifications, hasLength(2));
@@ -4229,7 +4229,7 @@ void main() {
 
     fakeBindings.setFrame(1, {
       'rows': [
-        {'index': 0, 'text': sensitiveOutput, 'style_runs': const []},
+        {'index': 0, 'text': sensitiveOutput, 'style_runs': const <Object?>[]},
       ],
       'cursor': {'row': 0, 'col': sensitiveOutput.length, 'visible': true},
       'selection': null,
@@ -4318,10 +4318,10 @@ void main() {
 
       fakeBindings.enqueueEvent(
         1,
-        PtyEvent(
+        const PtyEvent(
           kind: 'shell_hook',
           sessionId: '1',
-          payload: const <String, Object?>{
+          payload: <String, Object?>{
             'hook': 'command_finished',
             'command': 'echo ok',
             'exit_code': 0,
@@ -4348,7 +4348,10 @@ void main() {
       await tester.tap(find.byTooltip('Close command palette'));
       await tester.pumpAndSettle();
 
-      fakeBindings.enqueueEvent(1, PtyEvent(kind: 'bell', sessionId: '1'));
+      fakeBindings.enqueueEvent(
+        1,
+        const PtyEvent(kind: 'bell', sessionId: '1'),
+      );
       await tester.pump(const Duration(milliseconds: 40));
       await tester.pumpAndSettle();
 
@@ -4386,10 +4389,10 @@ void main() {
 
       fakeBindings.enqueueEvent(
         1,
-        PtyEvent(
+        const PtyEvent(
           kind: 'shell_hook',
           sessionId: '1',
-          payload: const <String, Object?>{
+          payload: <String, Object?>{
             'hook': 'command_finished',
             'command': 'echo ok',
             'exit_code': 0,
@@ -4410,7 +4413,10 @@ void main() {
       await tester.pumpAndSettle();
 
       shouldFail = false;
-      fakeBindings.enqueueEvent(1, PtyEvent(kind: 'bell', sessionId: '1'));
+      fakeBindings.enqueueEvent(
+        1,
+        const PtyEvent(kind: 'bell', sessionId: '1'),
+      );
       await tester.pump(const Duration(milliseconds: 40));
       await tester.pumpAndSettle();
 
@@ -4468,14 +4474,22 @@ void main() {
 
       fakeBindings.setFrame(1, {
         'rows': [
-          {'index': 0, 'text': 'ianvs terminal ready', 'style_runs': const []},
+          {
+            'index': 0,
+            'text': 'ianvs terminal ready',
+            'style_runs': const <Object?>[],
+          },
           {
             'index': 1,
             'text': 'TOKEN=super-',
             'wrapped': true,
-            'style_runs': const [],
+            'style_runs': const <Object?>[],
           },
-          {'index': 2, 'text': 'secret-output', 'style_runs': const []},
+          {
+            'index': 2,
+            'text': 'secret-output',
+            'style_runs': const <Object?>[],
+          },
         ],
         'cursor': {'row': 2, 'col': 13, 'visible': true},
         'selection': null,
@@ -4498,11 +4512,15 @@ void main() {
 
       fakeBindings.setFrame(1, {
         'rows': [
-          {'index': 0, 'text': 'ianvs terminal ready', 'style_runs': const []},
+          {
+            'index': 0,
+            'text': 'ianvs terminal ready',
+            'style_runs': const <Object?>[],
+          },
           {
             'index': 1,
             'text': '$sensitiveOutput updated',
-            'style_runs': const [],
+            'style_runs': const <Object?>[],
           },
         ],
         'cursor': {
@@ -4563,8 +4581,12 @@ void main() {
 
     fakeBindings.setFrame(1, {
       'rows': [
-        {'index': 0, 'text': 'Password:', 'style_runs': const []},
-        {'index': 1, 'text': 'ERROR 42 failed', 'style_runs': const []},
+        {'index': 0, 'text': 'Password:', 'style_runs': const <Object?>[]},
+        {
+          'index': 1,
+          'text': 'ERROR 42 failed',
+          'style_runs': const <Object?>[],
+        },
       ],
       'cursor': {'row': 1, 'col': 15, 'visible': true},
       'selection': null,
@@ -4586,8 +4608,12 @@ void main() {
 
     fakeBindings.setFrame(1, {
       'rows': [
-        {'index': 0, 'text': 'Password:', 'style_runs': const []},
-        {'index': 1, 'text': 'ERROR 42 failed', 'style_runs': const []},
+        {'index': 0, 'text': 'Password:', 'style_runs': const <Object?>[]},
+        {
+          'index': 1,
+          'text': 'ERROR 42 failed',
+          'style_runs': const <Object?>[],
+        },
       ],
       'cursor': {'row': 1, 'col': 15, 'visible': true},
       'selection': null,
@@ -4631,7 +4657,7 @@ void main() {
       return {
         'frame_kind': 'delta',
         'rows': [
-          {'index': 0, 'text': 'Password:', 'style_runs': const []},
+          {'index': 0, 'text': 'Password:', 'style_runs': const <Object?>[]},
         ],
         'cursor': {'row': 0, 'col': 9, 'visible': true},
         'selection': null,
@@ -4690,15 +4716,20 @@ void main() {
 
       fakeBindings.setFrame(1, {
         'rows': [
-          {'index': 0, 'text': 'Pass', 'wrapped': true, 'style_runs': const []},
-          {'index': 1, 'text': 'word:', 'style_runs': const []},
+          {
+            'index': 0,
+            'text': 'Pass',
+            'wrapped': true,
+            'style_runs': const <Object?>[],
+          },
+          {'index': 1, 'text': 'word:', 'style_runs': const <Object?>[]},
           {
             'index': 2,
             'text': 'ERROR 42 fa',
             'wrapped': true,
-            'style_runs': const [],
+            'style_runs': const <Object?>[],
           },
-          {'index': 3, 'text': 'iled', 'style_runs': const []},
+          {'index': 3, 'text': 'iled', 'style_runs': const <Object?>[]},
         ],
         'cursor': {'row': 3, 'col': 4, 'visible': true},
         'selection': null,
@@ -4795,8 +4826,12 @@ void main() {
 
     fakeBindings.setFrame(1, {
       'rows': [
-        {'index': 0, 'text': 'INFO ready', 'style_runs': const []},
-        {'index': 1, 'text': 'ERROR 42 failed', 'style_runs': const []},
+        {'index': 0, 'text': 'INFO ready', 'style_runs': const <Object?>[]},
+        {
+          'index': 1,
+          'text': 'ERROR 42 failed',
+          'style_runs': const <Object?>[],
+        },
       ],
       'cursor': {'row': 1, 'col': 15, 'visible': true},
       'selection': null,
@@ -4855,14 +4890,14 @@ void main() {
 
     fakeBindings.setFrame(1, {
       'rows': [
-        {'index': 0, 'text': 'INFO ready', 'style_runs': const []},
+        {'index': 0, 'text': 'INFO ready', 'style_runs': const <Object?>[]},
         {
           'index': 1,
           'text': 'ERROR 42 fa',
           'wrapped': true,
-          'style_runs': const [],
+          'style_runs': const <Object?>[],
         },
-        {'index': 2, 'text': 'iled', 'style_runs': const []},
+        {'index': 2, 'text': 'iled', 'style_runs': const <Object?>[]},
       ],
       'cursor': {'row': 2, 'col': 4, 'visible': true},
       'selection': null,
@@ -4923,7 +4958,7 @@ void main() {
           {
             'index': 0,
             'text': 'CAPTURE-ME phase35 origin',
-            'style_runs': const [],
+            'style_runs': const <Object?>[],
           },
         ],
         'cursor': {'row': 0, 'col': 25, 'visible': true},
@@ -4941,7 +4976,7 @@ void main() {
           {
             'index': 0,
             'text': 'CAPTURE-ME phase35 neighbor',
-            'style_runs': const [],
+            'style_runs': const <Object?>[],
           },
         ],
         'cursor': {'row': 0, 'col': 27, 'visible': true},
@@ -5030,7 +5065,11 @@ void main() {
 
     fakeBindings.setFrame(1, {
       'rows': [
-        {'index': 0, 'text': 'ERROR 42 failed', 'style_runs': const []},
+        {
+          'index': 0,
+          'text': 'ERROR 42 failed',
+          'style_runs': const <Object?>[],
+        },
       ],
       'cursor': {'row': 0, 'col': 15, 'visible': true},
       'selection': null,
@@ -5182,10 +5221,10 @@ void main() {
 
     fakeBindings.enqueueEvent(
       1,
-      PtyEvent(
+      const PtyEvent(
         kind: 'shell_hook',
         sessionId: '1',
-        payload: const <String, Object?>{
+        payload: <String, Object?>{
           'hook': 'command_finished',
           'command': 'git status',
           'pwd': '/tmp/project',
@@ -5357,9 +5396,9 @@ void main() {
           {
             'index': 0,
             'text': 'git checkout feature/login',
-            'style_runs': const [],
+            'style_runs': const <Object?>[],
           },
-          {'index': 1, 'text': 'git che', 'style_runs': const []},
+          {'index': 1, 'text': 'git che', 'style_runs': const <Object?>[]},
         ],
         'cursor': {'row': 1, 'col': 7, 'visible': true},
         'selection': null,
@@ -5420,7 +5459,7 @@ void main() {
 
       fakeBindings.setFrame(1, {
         'rows': [
-          {'index': 0, 'text': 'git che', 'style_runs': const []},
+          {'index': 0, 'text': 'git che', 'style_runs': const <Object?>[]},
         ],
         'cursor': {'row': 0, 'col': 7, 'visible': true},
         'selection': null,
@@ -5434,10 +5473,10 @@ void main() {
       });
       fakeBindings.enqueueEvent(
         1,
-        PtyEvent(
+        const PtyEvent(
           kind: 'shell_hook',
           sessionId: '1',
-          payload: const <String, Object?>{
+          payload: <String, Object?>{
             'hook': 'command_finished',
             'command': 'git checkout feature/login',
             'pwd': '/Users/dev/project',
@@ -5487,9 +5526,9 @@ void main() {
           {
             'index': 0,
             'text': 'git checkout feature/login',
-            'style_runs': const [],
+            'style_runs': const <Object?>[],
           },
-          {'index': 1, 'text': 'git che', 'style_runs': const []},
+          {'index': 1, 'text': 'git che', 'style_runs': const <Object?>[]},
         ],
         'cursor': {'row': 1, 'col': 7, 'visible': true},
         'selection': null,
@@ -5598,10 +5637,10 @@ void main() {
       });
       fakeBindings.enqueueEvent(
         1,
-        PtyEvent(
+        const PtyEvent(
           kind: 'shell_command',
           sessionId: '1',
-          payload: const <String, Object?>{
+          payload: <String, Object?>{
             'source': 'osc133',
             'eventType': 'prompt_start',
             'cursorLine': 91,
@@ -5610,10 +5649,10 @@ void main() {
       );
       fakeBindings.enqueueEvent(
         1,
-        PtyEvent(
+        const PtyEvent(
           kind: 'shell_command',
           sessionId: '1',
-          payload: const <String, Object?>{
+          payload: <String, Object?>{
             'source': 'osc133',
             'eventType': 'prompt_start',
             'cursorLine': 73,
@@ -5630,7 +5669,7 @@ void main() {
 
       fakeBindings.setFrame(1, {
         'rows': [
-          {'index': 0, 'text': 'old prompt', 'style_runs': const []},
+          {'index': 0, 'text': 'old prompt', 'style_runs': const <Object?>[]},
         ],
         'cursor': {'row': 0, 'col': 10, 'visible': true},
         'selection': null,
@@ -5693,10 +5732,10 @@ void main() {
       });
       fakeBindings.enqueueEvent(
         1,
-        PtyEvent(
+        const PtyEvent(
           kind: 'shell_command',
           sessionId: '1',
-          payload: const <String, Object?>{
+          payload: <String, Object?>{
             'source': 'osc133',
             'eventType': 'prompt_start',
             'cursorLine': 0,
@@ -5747,10 +5786,10 @@ void main() {
       });
       fakeBindings.enqueueEvent(
         1,
-        PtyEvent(
+        const PtyEvent(
           kind: 'shell_hook',
           sessionId: '1',
-          payload: const <String, Object?>{
+          payload: <String, Object?>{
             'hook': 'command_finished',
             'command': 'pwd',
             'pwd': '/tmp/project',
@@ -5797,10 +5836,10 @@ void main() {
       });
       fakeBindings.enqueueEvent(
         1,
-        PtyEvent(
+        const PtyEvent(
           kind: 'shell_hook',
           sessionId: '1',
-          payload: const <String, Object?>{
+          payload: <String, Object?>{
             'hook': 'command_finished',
             'command': 'git status',
             'pwd': '/tmp/project',
@@ -5813,10 +5852,10 @@ void main() {
       );
       fakeBindings.enqueueEvent(
         1,
-        PtyEvent(
+        const PtyEvent(
           kind: 'shell_hook',
           sessionId: '1',
-          payload: const <String, Object?>{
+          payload: <String, Object?>{
             'hook': 'prompt_started',
             'prompt_scrollback_offset': 12,
             'pwd': '/tmp/project',
@@ -5926,13 +5965,13 @@ void main() {
           {
             'index': 0,
             'text': '** tmux mode started **',
-            'style_runs': const [],
+            'style_runs': const <Object?>[],
           },
-          {'index': 1, 'text': 'Command Menu', 'style_runs': const []},
+          {'index': 1, 'text': 'Command Menu', 'style_runs': const <Object?>[]},
           {
             'index': 2,
             'text': 'esc    Detach cleanly.',
-            'style_runs': const [],
+            'style_runs': const <Object?>[],
           },
         ],
         'cursor': {'row': 2, 'col': 22, 'visible': true},
@@ -6017,7 +6056,7 @@ void main() {
 
     fakeBindings.setFrame(1, {
       'rows': [
-        {'index': 0, 'text': 'Are you there?', 'style_runs': const []},
+        {'index': 0, 'text': 'Are you there?', 'style_runs': const <Object?>[]},
       ],
       'cursor': {'row': 0, 'col': 14, 'visible': true},
       'selection': null,
@@ -6073,7 +6112,11 @@ void main() {
       return {
         'frame_kind': 'delta',
         'rows': [
-          {'index': 0, 'text': 'Are you there?', 'style_runs': const []},
+          {
+            'index': 0,
+            'text': 'Are you there?',
+            'style_runs': const <Object?>[],
+          },
         ],
         'cursor': {'row': 0, 'col': 14, 'visible': true},
         'selection': null,
@@ -6121,9 +6164,9 @@ void main() {
           'index': 0,
           'text': 'Are you ',
           'wrapped': true,
-          'style_runs': const [],
+          'style_runs': const <Object?>[],
         },
-        {'index': 1, 'text': 'there?', 'style_runs': const []},
+        {'index': 1, 'text': 'there?', 'style_runs': const <Object?>[]},
       ],
       'cursor': {'row': 1, 'col': 6, 'visible': true},
       'selection': null,
@@ -6422,7 +6465,11 @@ void main() {
 
     eventfulBindings.setFrame(1, {
       'rows': [
-        {'index': 0, 'text': 'replay before exit', 'style_runs': const []},
+        {
+          'index': 0,
+          'text': 'replay before exit',
+          'style_runs': const <Object?>[],
+        },
       ],
       'cursor': {'row': 0, 'col': 0, 'visible': true},
       'selection': null,
@@ -6468,7 +6515,11 @@ void main() {
 
     fakeBindings.setFrame(1, {
       'rows': [
-        {'index': 0, 'text': 'ianvs terminal ready', 'style_runs': const []},
+        {
+          'index': 0,
+          'text': 'ianvs terminal ready',
+          'style_runs': const <Object?>[],
+        },
       ],
       'cursor': {'row': 0, 'col': 4, 'visible': true},
       'selection': null,
@@ -7309,11 +7360,11 @@ void main() {
 
       fakeBindings.setFrame(1, {
         'rows': [
-          {'index': 0, 'text': 'alpha', 'style_runs': const []},
-          {'index': 1, 'text': '  ERR one', 'style_runs': const []},
-          {'index': 2, 'text': 'middle', 'style_runs': const []},
-          {'index': 3, 'text': 'xxERR two', 'style_runs': const []},
-          {'index': 4, 'text': 'omega', 'style_runs': const []},
+          {'index': 0, 'text': 'alpha', 'style_runs': const <Object?>[]},
+          {'index': 1, 'text': '  ERR one', 'style_runs': const <Object?>[]},
+          {'index': 2, 'text': 'middle', 'style_runs': const <Object?>[]},
+          {'index': 3, 'text': 'xxERR two', 'style_runs': const <Object?>[]},
+          {'index': 4, 'text': 'omega', 'style_runs': const <Object?>[]},
         ],
         'cursor': {'row': 4, 'col': 5, 'visible': true},
         'selection': null,
@@ -7407,11 +7458,15 @@ void main() {
 
       fakeBindings.setFrame(1, {
         'rows': [
-          {'index': 0, 'text': 'alpha', 'style_runs': const []},
-          {'index': 1, 'text': '  ERR one', 'style_runs': const []},
-          {'index': 2, 'text': 'middle', 'style_runs': const []},
-          {'index': 3, 'text': 'xxxxxxERR two', 'style_runs': const []},
-          {'index': 4, 'text': 'omega', 'style_runs': const []},
+          {'index': 0, 'text': 'alpha', 'style_runs': const <Object?>[]},
+          {'index': 1, 'text': '  ERR one', 'style_runs': const <Object?>[]},
+          {'index': 2, 'text': 'middle', 'style_runs': const <Object?>[]},
+          {
+            'index': 3,
+            'text': 'xxxxxxERR two',
+            'style_runs': const <Object?>[],
+          },
+          {'index': 4, 'text': 'omega', 'style_runs': const <Object?>[]},
         ],
         'cursor': {'row': 4, 'col': 5, 'visible': true},
         'selection': null,
@@ -7534,11 +7589,15 @@ void main() {
 
       fakeBindings.setFrame(1, {
         'rows': [
-          {'index': 0, 'text': 'alpha', 'style_runs': const []},
-          {'index': 1, 'text': '  ERR one', 'style_runs': const []},
-          {'index': 2, 'text': 'middle', 'style_runs': const []},
-          {'index': 3, 'text': 'xxxxxxERR two', 'style_runs': const []},
-          {'index': 4, 'text': 'omega', 'style_runs': const []},
+          {'index': 0, 'text': 'alpha', 'style_runs': const <Object?>[]},
+          {'index': 1, 'text': '  ERR one', 'style_runs': const <Object?>[]},
+          {'index': 2, 'text': 'middle', 'style_runs': const <Object?>[]},
+          {
+            'index': 3,
+            'text': 'xxxxxxERR two',
+            'style_runs': const <Object?>[],
+          },
+          {'index': 4, 'text': 'omega', 'style_runs': const <Object?>[]},
         ],
         'cursor': {'row': 4, 'col': 5, 'visible': true},
         'selection': null,
@@ -7587,15 +7646,15 @@ void main() {
 
       fakeBindings.setFrame(1, {
         'rows': [
-          {'index': 0, 'text': 'alpha', 'style_runs': const []},
-          {'index': 1, 'text': '  ERR one', 'style_runs': const []},
+          {'index': 0, 'text': 'alpha', 'style_runs': const <Object?>[]},
+          {'index': 1, 'text': '  ERR one', 'style_runs': const <Object?>[]},
           {
             'index': 2,
             'text': 'output shifted ERR two',
-            'style_runs': const [],
+            'style_runs': const <Object?>[],
           },
-          {'index': 3, 'text': 'middle', 'style_runs': const []},
-          {'index': 4, 'text': 'omega', 'style_runs': const []},
+          {'index': 3, 'text': 'middle', 'style_runs': const <Object?>[]},
+          {'index': 4, 'text': 'omega', 'style_runs': const <Object?>[]},
         ],
         'cursor': {'row': 4, 'col': 5, 'visible': true},
         'selection': null,
@@ -7678,10 +7737,14 @@ void main() {
 
       fakeBindings.setFrame(1, {
         'rows': [
-          {'index': 0, 'text': 'alpha', 'style_runs': const []},
-          {'index': 1, 'text': 'ERR 100 one', 'style_runs': const []},
-          {'index': 2, 'text': 'WARN two', 'style_runs': const []},
-          {'index': 3, 'text': 'ERR 200 three', 'style_runs': const []},
+          {'index': 0, 'text': 'alpha', 'style_runs': const <Object?>[]},
+          {'index': 1, 'text': 'ERR 100 one', 'style_runs': const <Object?>[]},
+          {'index': 2, 'text': 'WARN two', 'style_runs': const <Object?>[]},
+          {
+            'index': 3,
+            'text': 'ERR 200 three',
+            'style_runs': const <Object?>[],
+          },
         ],
         'cursor': {'row': 3, 'col': 13, 'visible': true},
         'selection': null,

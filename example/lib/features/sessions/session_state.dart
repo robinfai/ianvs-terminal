@@ -1,6 +1,6 @@
+import '../layout/local_terminal_relaunch_spec.dart';
 import '../preferences/app_preferences_models.dart';
 import '../profiles/profile_models.dart';
-import '../layout/local_terminal_relaunch_spec.dart';
 
 enum TerminalSplitAxis { horizontal, vertical }
 
@@ -542,7 +542,7 @@ double _splitRatio(double value) {
   if (!value.isFinite) {
     return 0.5;
   }
-  return value.clamp(0.1, 0.9).toDouble();
+  return value.clamp(0.1, 0.9);
 }
 
 class TerminalTab {
@@ -795,13 +795,13 @@ int? terminalPromptMarkScrollbackOffset(
       globalBottomRow >= 0 &&
       globalLine != null &&
       globalLine >= 0) {
-    return (globalBottomRow - globalLine).clamp(0, scrollbackMaxOffset).toInt();
+    return (globalBottomRow - globalLine).clamp(0, scrollbackMaxOffset);
   }
   final legacyOffset = mark.legacyScrollbackOffset;
   if (legacyOffset == null || legacyOffset < 0) {
     return null;
   }
-  return legacyOffset.clamp(0, scrollbackMaxOffset).toInt();
+  return legacyOffset.clamp(0, scrollbackMaxOffset);
 }
 
 int? terminalPromptGlobalLineFromScrollbackOffset({

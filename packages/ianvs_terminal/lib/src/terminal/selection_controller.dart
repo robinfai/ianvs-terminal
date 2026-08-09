@@ -175,7 +175,7 @@ class SelectionController extends ChangeNotifier {
       final row = _rowFor(frame, rowIndex);
       final rowCells = TerminalTextCells.fromText(row.text);
       final start = rowCells.clampColumn(normalized.startCol);
-      final end = normalized.endCol.clamp(start, rowCells.cellCount).toInt();
+      final end = normalized.endCol.clamp(start, rowCells.cellCount);
       lines.add(rowCells.sliceColumns(start, end));
     }
     return lines.join('\n');

@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('Session state immutability', () {
     test('defensively copies collection constructor inputs', () {
-      final tab = TerminalTab(
+      const tab = TerminalTab(
         sessionId: 'session-1',
         title: 'Session 1',
         profileId: 'default',
@@ -44,9 +44,9 @@ void main() {
       expect(state.configurationWarnings, <TerminalProfileLoadWarning>[
         warning,
       ]);
-      expect(() => state.tabs.clear(), throwsUnsupportedError);
-      expect(() => state.profiles.clear(), throwsUnsupportedError);
-      expect(() => state.configurationWarnings.clear(), throwsUnsupportedError);
+      expect(state.tabs.clear, throwsUnsupportedError);
+      expect(state.profiles.clear, throwsUnsupportedError);
+      expect(state.configurationWarnings.clear, throwsUnsupportedError);
     });
 
     test('copyWith defensively copies replacement collections', () {
@@ -150,7 +150,7 @@ void main() {
     });
 
     test('replacing split root pane keeps tab root metadata synchronized', () {
-      final oldProgress = TerminalPaneProgressState(
+      const oldProgress = TerminalPaneProgressState(
         source: 'osc9;4',
         named: false,
         action: 'set',
@@ -158,7 +158,7 @@ void main() {
         percent: 25,
         label: 'Old',
       );
-      final newProgress = TerminalPaneProgressState(
+      const newProgress = TerminalPaneProgressState(
         source: 'osc9;4',
         named: false,
         action: 'set',
@@ -167,7 +167,7 @@ void main() {
         label: 'Deploy',
       );
       final namedProgress = <String, TerminalPaneProgressState>{
-        'build': TerminalPaneProgressState(
+        'build': const TerminalPaneProgressState(
           source: 'osc934',
           named: true,
           action: 'set',
@@ -177,7 +177,7 @@ void main() {
           label: 'Compile',
         ),
       };
-      final notification = TerminalPaneNotificationState(
+      const notification = TerminalPaneNotificationState(
         source: 'osc777',
         title: 'Deploy done',
         message: 'root pane notification',

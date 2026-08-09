@@ -43,7 +43,7 @@ final class SshAuthenticationPromptPresenter {
     );
     // Keep later server rounds usable even if a previous dialog was disposed
     // or its responder failed while the session was closing.
-    _tail = _tail
+    return _tail = _tail
         .catchError((_) {})
         .then((_) async {
           if (!context.mounted ||
@@ -93,7 +93,6 @@ final class SshAuthenticationPromptPresenter {
             _pendingBySessionId[event.sessionId] = remaining;
           }
         });
-    return _tail;
   }
 }
 
@@ -260,7 +259,7 @@ class _SshAuthenticationPromptDialogState
 
   void _dismissIfMounted() {
     if (mounted) {
-      Navigator.of(context).maybePop();
+      unawaited(Navigator.of(context).maybePop());
     }
   }
 }

@@ -66,13 +66,13 @@ List<Directory> _inputDirectories(List<String> args) {
   return inputs;
 }
 
-const _usage = '''
+const _usage = r'''
 Ianvs formal Flutter profile audit
 
 Usage:
-  dart run tools/bench/analysis/flutter_profile_audit.dart \\
-    --input build/bench-results-profile/<target-run> \\
-    --output build/bench-results-profile/formal-report \\
+  dart run tools/bench/analysis/flutter_profile_audit.dart \
+    --input build/bench-results-profile/<target-run> \
+    --output build/bench-results-profile/formal-report \
     --require-target-count 2
 
 Options:

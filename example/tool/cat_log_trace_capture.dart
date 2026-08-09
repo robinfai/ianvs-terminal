@@ -266,7 +266,7 @@ void _writeTrace({
   final frameCount = traceFrames.length;
   final totalJsonBytes = traceFrames.fold<int>(
     0,
-    (sum, frame) => sum + (frame['jsonBytes'] as int),
+    (sum, frame) => sum + (frame['jsonBytes']! as int),
   );
   final rowsEmitted = traceFrames.fold<int>(
     0,
@@ -388,17 +388,17 @@ String _scenarioCommand(_BenchmarkScenario scenario, File fixtureFile) {
     _BenchmarkScenario.parserHeavy => 'sleep 0.06; exec /bin/cat $fixture',
     _BenchmarkScenario.pasteThroughput =>
       r'sleep 0.06; printf "paste-ready\n"; '
-          r'while IFS= read -r line; do '
+          'while IFS= read -r line; do '
           r'printf "paste-echo:%s\n" "$line"; '
           r'[ "$line" = "ianvs-paste-end" ] && exit 0; done',
     _BenchmarkScenario.alternateScreen =>
-      'sleep 0.06; printf "\\033[?1049h"; '
+      r'sleep 0.06; printf "\033[?1049h"; '
           r'i=0; while [ "$i" -lt 220 ]; do '
           r'printf "\\033[Halternate-screen tick %04d\\nstatus row %04d\\n" "$i" "$i"; '
           r'i=$((i + 1)); sleep 0.002; done; '
-          'printf "\\033[?1049lreturned from alternate screen\\\\n"',
+          r'printf "\033[?1049lreturned from alternate screen\\n"',
     _BenchmarkScenario.inputEcho =>
-      r'sleep 0.06; while IFS= read -r line; do '
+      'sleep 0.06; while IFS= read -r line; do '
           r'printf "ianvs-echo:%s\\n" "$line"; '
           r'[ "$line" = "exit" ] && exit 0; done',
   };

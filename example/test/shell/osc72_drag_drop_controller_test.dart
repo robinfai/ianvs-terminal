@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:flutter_test/flutter_test.dart';
-import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 import 'package:app/features/shell/osc72_drag_drop_controller.dart';
 import 'package:app/features/shell/window_bridge.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
 void main() {
   test('query is correlated and reports the target-only capability', () async {

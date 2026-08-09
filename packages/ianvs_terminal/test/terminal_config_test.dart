@@ -807,8 +807,8 @@ void main() {
   });
 
   test('terminal session config caps excessive scrollback lines', () {
-    final constructed = TerminalSessionConfig(
-      launch: const TerminalLaunchConfig(program: '/bin/zsh'),
+    const constructed = TerminalSessionConfig(
+      launch: TerminalLaunchConfig(program: '/bin/zsh'),
       scrollbackLines: maxTerminalScrollbackLines + 1,
     );
     final fromJson = TerminalSessionConfig.fromJson(<String, Object?>{
@@ -816,7 +816,7 @@ void main() {
         'scrollbackLines': maxTerminalScrollbackLines + 1,
       },
     });
-    final options = TerminalOptions(scrollback: maxTerminalScrollbackLines + 1);
+    const options = TerminalOptions(scrollback: maxTerminalScrollbackLines + 1);
 
     expect(constructed.scrollbackLines, maxTerminalScrollbackLines);
     expect(constructed.toJson()['terminal'], <String, Object?>{

@@ -130,11 +130,12 @@ fn create_kitty_shared_memory_payload(data: &[u8]) -> Option<(String, String)> {
             "failed to map shared memory object {name}: {error}",
         ));
     }
-    unsafe {
-        ptr::copy_nonoverlapping(data.as_ptr(), ptr.cast::<u8>(), data.len());
-        let _ = libc::munmap(ptr, data.len());
-        let _ = libc::close(fd);
-    }
+    // SAFETY: `ptr` is a writable mapping of exactly `data.len()` bytes.
+    unsafe { ptr::copy_nonoverlapping(data.as_ptr(), ptr.cast::<u8>(), data.len()) };
+    // SAFETY: `ptr` and its length are the mapping returned by `mmap` above.
+    let _ = unsafe { libc::munmap(ptr, data.len()) };
+    // SAFETY: `fd` is the still-open descriptor created for this fixture.
+    let _ = unsafe { libc::close(fd) };
 
     let payload = base64_standard_no_pad_encode(name.as_bytes());
     Some((name, payload))
@@ -2936,11 +2937,12 @@ fn ffi_take_frame_diff_protobuf_returns_bytes_and_len() {
     assert!(!ptr.is_null());
     assert!(len > 0);
 
-    unsafe {
-        let bytes = std::slice::from_raw_parts(ptr, len);
-        assert!(!bytes.is_empty());
-        ianvs_core::ffi::ianvs_bytes_free(ptr, len);
-    }
+    // SAFETY: the FFI call returned a non-null allocation with exactly `len`
+    // initialized bytes, and it remains owned until the matching free below.
+    let bytes = unsafe { std::slice::from_raw_parts(ptr, len) };
+    assert!(!bytes.is_empty());
+    // SAFETY: `ptr` and `len` are the untouched allocation pair returned above.
+    unsafe { ianvs_core::ffi::ianvs_bytes_free(ptr, len) };
     session::close_session(session_id).unwrap();
 }
 
@@ -3835,14 +3837,12 @@ def out(value, delay=0.12):
     sys.stdout.flush()
     time.sleep(delay)
 
-out('\x1b[1;1H\x1b]1337;File=inline=1;width=2px;height=6px;preserveAspectRatio=0;doNotMoveCursor=1:{png}\x1b\\')
+out('\x1b[1;1H\x1b]1337;File=inline=1;width=2px;height=6px;preserveAspectRatio=0;doNotMoveCursor=1:{RED_PIXEL_PNG_BASE64}\x1b\\')
 out('\x1b[5;1H\x1bPq#2~\x1b\\')
-out('\x1b[9;1H\x1b_Ga=T,f=32,s=2,v=6,i=62012,q=1;{raw}\x1b\\')
+out('\x1b[9;1H\x1b_Ga=T,f=32,s=2,v=6,i=62012,q=1;{raw_rgba_base64}\x1b\\')
 out('\x1b[?1049hALT READY\n', 0.85)
 out('\x1b[?1049lprimary restored\n', 0.25)
 "#,
-        png = RED_PIXEL_PNG_BASE64,
-        raw = raw_rgba_base64,
     );
     let profile = local_profile(
         "primary-graphics-alt-screen-resize",
@@ -5016,8 +5016,7 @@ out('\x1b\\', 0.20)
 #[test]
 fn session_frame_diff_clears_iterm_and_sixel_graphics_on_ed2() {
     let script = format!(
-        "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b[2;2H\\x1b]1337;File=inline=1;doNotMoveCursor=1;width=1;height=1:{}\\x1b\\\\')\nsys.stdout.write('\\x1b[6;2H\\x1bPq#2~\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.25)\nsys.stdout.write('\\x1b[2J\\x1b[Hafter clear\\n')\nsys.stdout.flush()\ntime.sleep(0.20)\nPY",
-        RED_PIXEL_PNG_BASE64
+        "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b[2;2H\\x1b]1337;File=inline=1;doNotMoveCursor=1;width=1;height=1:{RED_PIXEL_PNG_BASE64}\\x1b\\\\')\nsys.stdout.write('\\x1b[6;2H\\x1bPq#2~\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.25)\nsys.stdout.write('\\x1b[2J\\x1b[Hafter clear\\n')\nsys.stdout.flush()\ntime.sleep(0.20)\nPY"
     );
     let profile = local_profile(
         "iterm-sixel-ed2-clear-frame-diff",
@@ -5255,8 +5254,7 @@ fn session_clear_scrollback_removes_sixel_scrollback_placements_from_frame_diff(
 #[test]
 fn session_frame_diff_csi3j_clears_iterm_and_sixel_scrollback_placements() {
     let script = format!(
-        "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b[1;1H\\x1b]1337;File=inline=1;doNotMoveCursor=1;width=1;height=1:{}\\x1b\\\\')\nsys.stdout.write('\\x1b[5;1H\\x1bPq#2~\\x1b\\\\')\nsys.stdout.write('\\x1b[32;1H')\nfor i in range(80):\n    sys.stdout.write(f'line-{{i:02d}}\\n')\nsys.stdout.flush()\ntime.sleep(0.90)\nsys.stdout.write('\\x1b[3J\\x1b[Hafter 3j\\n')\nsys.stdout.flush()\ntime.sleep(0.20)\nPY",
-        RED_PIXEL_PNG_BASE64
+        "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b[1;1H\\x1b]1337;File=inline=1;doNotMoveCursor=1;width=1;height=1:{RED_PIXEL_PNG_BASE64}\\x1b\\\\')\nsys.stdout.write('\\x1b[5;1H\\x1bPq#2~\\x1b\\\\')\nsys.stdout.write('\\x1b[32;1H')\nfor i in range(80):\n    sys.stdout.write(f'line-{{i:02d}}\\n')\nsys.stdout.flush()\ntime.sleep(0.90)\nsys.stdout.write('\\x1b[3J\\x1b[Hafter 3j\\n')\nsys.stdout.flush()\ntime.sleep(0.20)\nPY"
     );
     let profile = local_profile_with_scrollback(
         "iterm-sixel-csi3j-scrollback-clear-frame-diff",
@@ -5712,8 +5710,7 @@ fn session_clear_scrollback_removes_kitty_scrollback_placements_from_frame_diff(
 #[test]
 fn session_clear_scrollback_preserves_active_graphics_placements() {
     let script = format!(
-        "python3 - <<'PY'\nimport sys\nfor i in range(80):\n    sys.stdout.write(f'line-{{i:02d}}\\n')\nsys.stdout.write('\\x1b[2;2H\\x1b]1337;File=inline=1;doNotMoveCursor=1;width=1;height=1:{}\\x1b\\\\')\nsys.stdout.write('\\x1b[5;2H\\x1bPq#2~\\x1b\\\\')\nsys.stdout.write('\\x1b[9;2H\\x1b_Ga=T,f=32,s=1,v=1,i=62020,p=1,c=1,r=1,C=1,q=1;{}\\x1b\\\\')\nsys.stdout.write('\\x1b[20;1Hactive graphics ready\\n')\nsys.stdout.flush()\nPY",
-        RED_PIXEL_PNG_BASE64, RED_RGBA_BASE64
+        "python3 - <<'PY'\nimport sys\nfor i in range(80):\n    sys.stdout.write(f'line-{{i:02d}}\\n')\nsys.stdout.write('\\x1b[2;2H\\x1b]1337;File=inline=1;doNotMoveCursor=1;width=1;height=1:{RED_PIXEL_PNG_BASE64}\\x1b\\\\')\nsys.stdout.write('\\x1b[5;2H\\x1bPq#2~\\x1b\\\\')\nsys.stdout.write('\\x1b[9;2H\\x1b_Ga=T,f=32,s=1,v=1,i=62020,p=1,c=1,r=1,C=1,q=1;{RED_RGBA_BASE64}\\x1b\\\\')\nsys.stdout.write('\\x1b[20;1Hactive graphics ready\\n')\nsys.stdout.flush()\nPY"
     );
     let profile = local_profile_with_scrollback(
         "active-graphics-clear-scrollback-frame-diff",
@@ -5880,13 +5877,11 @@ def out(value, delay=0.16):
     sys.stdout.flush()
     time.sleep(delay)
 
-out('\x1b[2;1H\x1b_Ga=T,f=32,s=1,v=1,i=750,C=1,q=1;{red}\x1b\\')
+out('\x1b[2;1H\x1b_Ga=T,f=32,s=1,v=1,i=750,C=1,q=1;{RED_RGBA_BASE64}\x1b\\')
 out('\x1b[?1049h')
-out('\x1b[4;1H\x1b_Ga=T,f=32,s=1,v=1,i=751,C=1,q=1;{green}\x1b\\')
+out('\x1b[4;1H\x1b_Ga=T,f=32,s=1,v=1,i=751,C=1,q=1;{GREEN_RGBA_BASE64}\x1b\\')
 out('\x1b[?1049lprimary restored\n', 0.22)
 "#,
-        red = RED_RGBA_BASE64,
-        green = GREEN_RGBA_BASE64,
     );
     let profile = local_profile(
         "kitty-alt-screen-frame-diff",
@@ -7118,14 +7113,13 @@ def wait():
     if sys.stdin.readline() == '':
         sys.exit(2)
 
-out('\x1b[10;10H\x1b_Ga=T,t=d,f=100,c=9,r=5,q=2,i=49374;{png}\x1b\\')
+out('\x1b[10;10H\x1b_Ga=T,t=d,f=100,c=9,r=5,q=2,i=49374;{RED_PIXEL_PNG_BASE64}\x1b\\')
 wait()
 out('\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\', 0.02)
 wait()
 out('\x1b[?2026h\x1b[20;1H\x1b[J', 0.02)
 out('\x1b[20;2H\x1b[0m\x1b[m\x1b[K\x1b[21;2H\x1b[0m\x1b[m\x1b[K\x1b[22;19H\x1b[0m\x1b[m\x1b[K\x1b[23;2H\x1b[0m\x1b[m\x1b[K\x1b[22;1H›\x1b[22;3HShutting down...\x1b[?2026l', 0.65)
 "#,
-        png = RED_PIXEL_PNG_BASE64,
     );
     let profile = local_profile(
         "kitty-shutdown-delete-clear",
@@ -7547,7 +7541,7 @@ def wait():
     if sys.stdin.readline() == '':
         sys.exit(2)
 
-out('\x1b7\x1b[10;10H\x1b_Ga=T,t=d,f=100,c=9,r=5,q=2,i=49374;{png}\x1b\\\x1b8')
+out('\x1b7\x1b[10;10H\x1b_Ga=T,t=d,f=100,c=9,r=5,q=2,i=49374;{RED_PIXEL_PNG_BASE64}\x1b\\\x1b8')
 wait()
 out('\x1b[?2026h\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\\x1b7\x1b[10;10H')
 for index, payload in enumerate(chunks):
@@ -7562,8 +7556,6 @@ for index, payload in enumerate(chunks):
     out('\x1b[' + str(1 + (index % 2)) + ';1H')
     wait()
 "#,
-        chunks_json = chunks_json,
-        png = RED_PIXEL_PNG_BASE64,
     );
     let profile = local_profile(
         "kitty-split-pet-frame-diff",
@@ -8797,7 +8789,7 @@ fn parser_terminal_streams_split_tmux_wrapped_sixel_before_outer_terminator() {
 fn parser_terminal_handles_tmux_wrapped_iterm_graphics() {
     let mut terminal = ParserTerminal::new(80, 24);
 
-    let inner = format!("\x1b]1337;File=inline=1:{}\x1b\\", RED_PIXEL_PNG_BASE64);
+    let inner = format!("\x1b]1337;File=inline=1:{RED_PIXEL_PNG_BASE64}\x1b\\");
     let mut wrapped = b"\x1bPtmux;".to_vec();
     for byte in inner.as_bytes() {
         if *byte == b'\x1b' {
@@ -9280,7 +9272,7 @@ fn parser_terminal_kitty_delete_all_preserves_non_kitty_graphics() {
     let mut terminal = ParserTerminal::new(80, 24);
     const RED_RGBA_BASE64: &str = "/wAA/w==";
 
-    let iterm = format!("\x1b]1337;File=inline=1:{}\x1b\\", RED_PIXEL_PNG_BASE64);
+    let iterm = format!("\x1b]1337;File=inline=1:{RED_PIXEL_PNG_BASE64}\x1b\\");
     terminal.process(iterm.as_bytes());
     let kitty = format!("\x1b_Ga=T,f=32,s=1,v=1,i=41,q=1;{RED_RGBA_BASE64}\x1b\\");
     terminal.process(kitty.as_bytes());
@@ -9900,10 +9892,8 @@ fn parser_terminal_keeps_primary_kitty_redraw_identity_after_alt_screen_teardown
 #[test]
 fn parser_terminal_scopes_iterm_graphics_to_alternate_screen() {
     let mut terminal = ParserTerminal::new(80, 24);
-    let primary = format!(
-        "\x1b[1;1H\x1b]1337;File=inline=1;doNotMoveCursor=1:{}\x1b\\",
-        RED_PIXEL_PNG_BASE64
-    );
+    let primary =
+        format!("\x1b[1;1H\x1b]1337;File=inline=1;doNotMoveCursor=1:{RED_PIXEL_PNG_BASE64}\x1b\\");
     terminal.process(primary.as_bytes());
     assert_eq!(terminal.graphics_count(), 1);
     let primary_graphic_id = terminal.all_graphics()[0].id;
@@ -9911,10 +9901,8 @@ fn parser_terminal_scopes_iterm_graphics_to_alternate_screen() {
     assert!(!terminal.all_graphics()[0].alternate_screen);
 
     terminal.use_alt_screen();
-    let alternate = format!(
-        "\x1b[2;1H\x1b]1337;File=inline=1;doNotMoveCursor=1:{}\x1b\\",
-        RED_PIXEL_PNG_BASE64
-    );
+    let alternate =
+        format!("\x1b[2;1H\x1b]1337;File=inline=1;doNotMoveCursor=1:{RED_PIXEL_PNG_BASE64}\x1b\\");
     terminal.process(alternate.as_bytes());
     assert_eq!(terminal.graphics_count(), 2);
     assert!(
@@ -9947,10 +9935,8 @@ fn parser_terminal_scopes_iterm_graphics_to_alternate_screen() {
 #[test]
 fn parser_terminal_scopes_multipart_iterm_graphics_to_alternate_screen() {
     let mut terminal = ParserTerminal::new(80, 24);
-    let primary = format!(
-        "\x1b[1;1H\x1b]1337;File=inline=1;doNotMoveCursor=1:{}\x1b\\",
-        RED_PIXEL_PNG_BASE64
-    );
+    let primary =
+        format!("\x1b[1;1H\x1b]1337;File=inline=1;doNotMoveCursor=1:{RED_PIXEL_PNG_BASE64}\x1b\\");
     terminal.process(primary.as_bytes());
     assert_eq!(terminal.graphics_count(), 1);
     let primary_graphic_id = terminal.all_graphics()[0].id;
@@ -10940,10 +10926,8 @@ fn parser_terminal_ed1_removes_upper_and_current_row_left_graphics() {
 fn parser_terminal_el_removes_intersecting_iterm_and_sixel_graphics() {
     let mut terminal = ParserTerminal::new(12, 10);
 
-    let iterm = format!(
-        "\x1b[2;3H\x1b]1337;File=inline=1;doNotMoveCursor=1:{}\x1b\\",
-        RED_PIXEL_PNG_BASE64
-    );
+    let iterm =
+        format!("\x1b[2;3H\x1b]1337;File=inline=1;doNotMoveCursor=1:{RED_PIXEL_PNG_BASE64}\x1b\\");
     terminal.process(iterm.as_bytes());
     terminal.process(b"\x1b[6;3H\x1bPq????\x1b\\");
     assert_eq!(terminal.graphics_count(), 2);
@@ -11118,8 +11102,7 @@ fn parser_terminal_ed3_scopes_scrollback_graphics_to_primary_screen() {
 fn parser_terminal_ed3_scopes_iterm_scrollback_graphics_to_primary_screen() {
     let mut terminal = ParserTerminal::with_scrollback(12, 4, 20);
     let iterm = format!(
-        "\x1b[1;1H\x1b]1337;File=inline=1;doNotMoveCursor=1;width=1;height=1:{}\x1b\\",
-        RED_PIXEL_PNG_BASE64
+        "\x1b[1;1H\x1b]1337;File=inline=1;doNotMoveCursor=1;width=1;height=1:{RED_PIXEL_PNG_BASE64}\x1b\\"
     );
 
     terminal.process(iterm.as_bytes());
@@ -12355,10 +12338,8 @@ fn parser_terminal_decsera_removes_graphics_intersecting_erased_cells() {
 #[test]
 fn parser_terminal_decsera_removes_intersecting_iterm_and_sixel_graphics() {
     let mut terminal = ParserTerminal::new(12, 8);
-    let iterm = format!(
-        "\x1b[2;3H\x1b]1337;File=inline=1;doNotMoveCursor=1:{}\x1b\\",
-        RED_PIXEL_PNG_BASE64
-    );
+    let iterm =
+        format!("\x1b[2;3H\x1b]1337;File=inline=1;doNotMoveCursor=1:{RED_PIXEL_PNG_BASE64}\x1b\\");
 
     terminal.process(iterm.as_bytes());
     terminal.process(b"\x1b[5;3H\x1bPq????\x1b\\");
@@ -13512,8 +13493,7 @@ fn parser_terminal_reuses_render_id_for_quiet_kitty_replacement() {
 fn parser_terminal_handles_codex_style_kitty_pet_png_sequence() {
     let mut terminal = ParserTerminal::new(112, 43);
     let sequence = format!(
-        "\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\\x1b7\x1b[14;85H\x1b_Ga=T,t=d,f=100,c=9,r=5,q=2,i=49374;{}\x1b\\\x1b8",
-        RED_PIXEL_PNG_BASE64
+        "\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\\x1b7\x1b[14;85H\x1b_Ga=T,t=d,f=100,c=9,r=5,q=2,i=49374;{RED_PIXEL_PNG_BASE64}\x1b\\\x1b8"
     );
 
     terminal.process(sequence.as_bytes());
@@ -13920,10 +13900,7 @@ fn parser_terminal_does_not_flush_sync_update_for_split_osc_embedded_hard_reset(
 #[test]
 fn parser_terminal_handles_screen_wrapped_iterm_graphics() {
     let mut terminal = ParserTerminal::new(80, 24);
-    let wrapped = format!(
-        "\x1bP\x1b]1337;File=inline=1:{}\x07\x1b\\",
-        RED_PIXEL_PNG_BASE64
-    );
+    let wrapped = format!("\x1bP\x1b]1337;File=inline=1:{RED_PIXEL_PNG_BASE64}\x07\x1b\\");
 
     terminal.process(wrapped.as_bytes());
 
@@ -14148,8 +14125,7 @@ fn parser_terminal_iterm_multipart_image_accepts_wrapped_file_part_base64() {
 fn parser_terminal_iterm_requested_height_advances_cursor_by_display_span() {
     let mut terminal = ParserTerminal::new(80, 24);
     let image = format!(
-        "\x1b]1337;File=inline=1;height=3;preserveAspectRatio=0:{}\x1b\\X",
-        RED_PIXEL_PNG_BASE64
+        "\x1b]1337;File=inline=1;height=3;preserveAspectRatio=0:{RED_PIXEL_PNG_BASE64}\x1b\\X"
     );
 
     terminal.process(image.as_bytes());
@@ -14166,8 +14142,7 @@ fn parser_terminal_iterm_advancement_respects_scroll_region_bottom() {
     let mut terminal = ParserTerminal::new(8, 6);
     let image = format!(
         "\x1b[1;1Htop\x1b[2;1Hone\x1b[3;1Htwo\x1b[4;1Hthree\x1b[5;1Hbottom\
-         \x1b[2;4r\x1b[4;1H\x1b]1337;File=inline=1;height=3;preserveAspectRatio=0:{}\x1b\\",
-        RED_PIXEL_PNG_BASE64
+         \x1b[2;4r\x1b[4;1H\x1b]1337;File=inline=1;height=3;preserveAspectRatio=0:{RED_PIXEL_PNG_BASE64}\x1b\\"
     );
 
     terminal.process(image.as_bytes());
@@ -14201,8 +14176,7 @@ fn parser_terminal_iterm_advancement_respects_scroll_region_bottom() {
 fn parser_terminal_iterm_px_dimensions_accept_space_before_unit() {
     let mut terminal = ParserTerminal::new(80, 24);
     let image = format!(
-        "\x1b]1337;File=inline=1;width=2 px;height=4 PX;preserveAspectRatio=0;doNotMoveCursor=1:{}\x1b\\",
-        RED_PIXEL_PNG_BASE64
+        "\x1b]1337;File=inline=1;width=2 px;height=4 PX;preserveAspectRatio=0;doNotMoveCursor=1:{RED_PIXEL_PNG_BASE64}\x1b\\"
     );
 
     terminal.process(image.as_bytes());
@@ -14221,8 +14195,7 @@ fn parser_terminal_iterm_px_dimensions_accept_space_before_unit() {
 fn parser_terminal_iterm_non_positive_dimensions_fall_back_to_auto() {
     let mut terminal = ParserTerminal::new(80, 24);
     let image = format!(
-        "\x1b]1337;File=inline=1;width=-5 px;height=-10%;preserveAspectRatio=0;doNotMoveCursor=1:{}\x1b\\",
-        RED_GREEN_2X1_PNG_BASE64
+        "\x1b]1337;File=inline=1;width=-5 px;height=-10%;preserveAspectRatio=0;doNotMoveCursor=1:{RED_GREEN_2X1_PNG_BASE64}\x1b\\"
     );
 
     terminal.process(image.as_bytes());
@@ -14247,8 +14220,7 @@ fn parser_terminal_iterm_non_positive_dimensions_fall_back_to_auto() {
 fn parser_terminal_iterm_do_not_move_cursor_keeps_text_position() {
     let mut terminal = ParserTerminal::new(80, 24);
     let image = format!(
-        "\x1b]1337;File=inline=1;height=3;preserveAspectRatio=0;doNotMoveCursor=1:{}\x1b\\X",
-        RED_PIXEL_PNG_BASE64
+        "\x1b]1337;File=inline=1;height=3;preserveAspectRatio=0;doNotMoveCursor=1:{RED_PIXEL_PNG_BASE64}\x1b\\X"
     );
 
     terminal.process(image.as_bytes());
@@ -14264,8 +14236,7 @@ fn parser_terminal_iterm_do_not_move_cursor_keeps_text_position() {
 fn parser_terminal_resize_refreshes_percent_graphic_cell_span() {
     let mut terminal = ParserTerminal::new(80, 24);
     let image = format!(
-        "\x1b]1337;File=inline=1;width=50%;height=50%;preserveAspectRatio=0;doNotMoveCursor=1:{}\x1b\\",
-        RED_PIXEL_PNG_BASE64
+        "\x1b]1337;File=inline=1;width=50%;height=50%;preserveAspectRatio=0;doNotMoveCursor=1:{RED_PIXEL_PNG_BASE64}\x1b\\"
     );
 
     terminal.process(image.as_bytes());
@@ -14287,8 +14258,7 @@ fn parser_terminal_resize_refreshes_percent_graphic_cell_span() {
 fn parser_terminal_resize_refreshes_scrollback_percent_graphic_cell_span() {
     let mut terminal = ParserTerminal::with_scrollback(80, 24, 40);
     let image = format!(
-        "\x1b[1;1H\x1b]1337;File=inline=1;width=50%;height=50%;preserveAspectRatio=0;doNotMoveCursor=1:{}\x1b\\",
-        RED_PIXEL_PNG_BASE64
+        "\x1b[1;1H\x1b]1337;File=inline=1;width=50%;height=50%;preserveAspectRatio=0;doNotMoveCursor=1:{RED_PIXEL_PNG_BASE64}\x1b\\"
     );
 
     terminal.process(image.as_bytes());
@@ -14359,7 +14329,7 @@ fn parser_terminal_resize_evicts_scrollback_graphics_for_reflowed_away_rows() {
 
 #[test]
 fn parser_terminal_enforces_graphics_memory_limits() {
-    let image = format!("\x1b]1337;File=inline=1:{}\x1b\\", RED_PIXEL_PNG_BASE64);
+    let image = format!("\x1b]1337;File=inline=1:{RED_PIXEL_PNG_BASE64}\x1b\\");
 
     let mut too_small_for_one_image = ParserTerminal::new(80, 24);
     too_small_for_one_image.set_graphics_memory_limits(3, 1024);
@@ -15488,8 +15458,7 @@ fn parser_terminal_snapshot_restores_scrollback_kitty_graphics() {
 fn parser_terminal_snapshot_restores_active_iterm_and_sixel_graphics() {
     let mut terminal = ParserTerminal::new(12, 6);
     let iterm = format!(
-        "\x1b[2;3H\x1b]1337;File=inline=1;doNotMoveCursor=1;width=1;height=1:{}\x1b\\",
-        RED_PIXEL_PNG_BASE64
+        "\x1b[2;3H\x1b]1337;File=inline=1;doNotMoveCursor=1;width=1;height=1:{RED_PIXEL_PNG_BASE64}\x1b\\"
     );
 
     terminal.process(iterm.as_bytes());
@@ -15538,8 +15507,7 @@ fn parser_terminal_snapshot_restores_active_iterm_and_sixel_graphics() {
 fn parser_terminal_snapshot_restores_scrollback_iterm_and_sixel_graphics() {
     let mut terminal = ParserTerminal::with_scrollback(12, 12, 30);
     let iterm = format!(
-        "\x1b[1;1H\x1b]1337;File=inline=1;doNotMoveCursor=1;width=1;height=1:{}\x1b\\",
-        RED_PIXEL_PNG_BASE64
+        "\x1b[1;1H\x1b]1337;File=inline=1;doNotMoveCursor=1;width=1;height=1:{RED_PIXEL_PNG_BASE64}\x1b\\"
     );
 
     terminal.process(iterm.as_bytes());

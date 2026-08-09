@@ -200,7 +200,7 @@ gates:
   group('ReplayTerminalEngine', () {
     test('keeps final viewport hash equal while coalescing visual frames', () {
       final workload = BenchWorkloadCatalog().resolve('burst_stdout.seq_1000');
-      final snapshot = ReplayTerminalEngine().run(
+      final snapshot = const ReplayTerminalEngine().run(
         workload: workload,
         framePolicy: BenchFramePolicy.snapshotOnly,
         renderPolicy: BenchRenderPolicy.headlessStateOnly,
@@ -208,7 +208,7 @@ gates:
         rows: 24,
         repeatIndex: 1,
       );
-      final coalesced = ReplayTerminalEngine().run(
+      final coalesced = const ReplayTerminalEngine().run(
         workload: workload,
         framePolicy: BenchFramePolicy.deltaCoalesced,
         renderPolicy: BenchRenderPolicy.headlessStateOnly,
@@ -239,11 +239,11 @@ gates:
 
   group('CorrectnessOracle', () {
     test('reports first divergent frame with enough diagnostics', () {
-      final reference = BenchRunData(
+      const reference = BenchRunData(
         workload: 'burst_stdout.seq_1000',
         framePolicy: BenchFramePolicy.snapshotOnly,
         finalViewportHash: 'aaa',
-        rustFrameEvents: const [
+        rustFrameEvents: [
           {
             'frame_id': 1,
             'frame_kind': 'snapshot',
@@ -254,11 +254,11 @@ gates:
           },
         ],
       );
-      final tested = BenchRunData(
+      const tested = BenchRunData(
         workload: 'burst_stdout.seq_1000',
         framePolicy: BenchFramePolicy.deltaCoalesced,
         finalViewportHash: 'bbb',
-        rustFrameEvents: const [
+        rustFrameEvents: [
           {
             'frame_id': 1,
             'frame_kind': 'delta',
@@ -280,7 +280,7 @@ gates:
       expect(result['tested_final_viewport_hash'], 'bbb');
       expect(result['first_divergence'], isA<Map<String, Object?>>());
       expect(
-        (result['first_divergence'] as Map<String, Object?>)['frame_kind'],
+        (result['first_divergence']! as Map<String, Object?>)['frame_kind'],
         'delta',
       );
     });
@@ -380,7 +380,7 @@ gates:
           }),
         );
 
-        final summary = SummaryAnalyzer().summarizeRunDirectory(dir);
+        final summary = const SummaryAnalyzer().summarizeRunDirectory(dir);
 
         expect(summary['hash_match'], isTrue);
         expect(summary['semantic_generations'], 1000);
@@ -902,9 +902,7 @@ gates:
       expect(
         runner,
         isNot(
-          contains(
-            'correctnessSuitesPassed: correctnessCommands.isNotEmpty,',
-          ),
+          contains('correctnessSuitesPassed: correctnessCommands.isNotEmpty,'),
         ),
       );
     });
@@ -943,25 +941,25 @@ gates:
       expect(report['required_target_count'], 3);
       expect(report['supported_target_count'], 2);
       expect(
-        ((report['supported_targets'] as List<Object?>)
-                .cast<Map<String, Object?>>())
+        (report['supported_targets']! as List<Object?>)
+            .cast<Map<String, Object?>>()
             .map((target) => target['id']),
         ['macos', 'emulator-5554'],
       );
       expect(
-        ((report['unsupported_targets'] as List<Object?>)
-                .cast<Map<String, Object?>>())
+        (report['unsupported_targets']! as List<Object?>)
+            .cast<Map<String, Object?>>()
             .single,
         containsPair('id', 'chrome'),
       );
       expect(
-        ((report['unsupported_targets'] as List<Object?>)
-                .cast<Map<String, Object?>>())
+        (report['unsupported_targets']! as List<Object?>)
+            .cast<Map<String, Object?>>()
             .single['reason'],
         contains('dart:ffi'),
       );
       expect(
-        (report['failures'] as List<Object?>).single,
+        (report['failures']! as List<Object?>).single,
         contains('requires 3 supported native Flutter targets, found 2'),
       );
       final runbook = FlutterProfileReadinessRunbook(
@@ -1134,7 +1132,7 @@ gates:
         containsPair('path', runbookFile.path),
       );
       expect(manifestJson['runbook_report'], containsPair('present', true));
-      final artifactFiles = (manifestJson['artifact_files'] as List<Object?>)
+      final artifactFiles = (manifestJson['artifact_files']! as List<Object?>)
           .cast<Map<String, Object?>>();
       expect(
         artifactFiles.map((artifact) => artifact['name']),
@@ -1195,9 +1193,9 @@ gates:
       );
 
       final result =
-          FlutterProfileReportAudit(
+          const FlutterProfileReportAudit(
             requiredTargetCount: 2,
-            requiredWorkloads: const ['burst_stdout_profile'],
+            requiredWorkloads: ['burst_stdout_profile'],
             requiredRepeats: 1,
           ).audit(
             inputDirectories: [macosDir],

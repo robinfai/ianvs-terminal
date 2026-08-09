@@ -1,7 +1,7 @@
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
 import 'package:app/platform/local_json_file.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('local JSON decoding', () {

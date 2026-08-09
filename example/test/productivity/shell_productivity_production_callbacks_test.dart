@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:app/features/productivity/shell_productivity_production_callbacks.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('runs registered productivity production callbacks', () async {
@@ -98,7 +97,7 @@ void main() {
   });
 }
 
-const _coreProductivityOperations = [
+const List<ShellProductivityProductionOperation> _coreProductivityOperations = [
   ShellProductivityProductionOperation.nextPrompt,
   ShellProductivityProductionOperation.previousPrompt,
   ShellProductivityProductionOperation.selectCommandOutput,
@@ -113,7 +112,7 @@ const _coreProductivityOperations = [
 ];
 
 ShellProductivityProductionCallbacks _coreProductivityCallbacks() {
-  return ShellProductivityProductionCallbacks(
+  return const ShellProductivityProductionCallbacks(
     nextPrompt: _complete,
     previousPrompt: _complete,
     selectCommandOutput: _complete,

@@ -21,7 +21,7 @@ final class FlutterProfileDevice {
       );
     }
     return decoded
-        .whereType<Map>()
+        .whereType<Map<Object?, Object?>>()
         .map((entry) {
           final json = entry.cast<String, Object?>();
           return FlutterProfileDevice(
@@ -438,7 +438,7 @@ void assertRequiredProfileTargetCount(
 String _stringValue(Object? value) => value?.toString() ?? '';
 
 String _pathSegment(String value) {
-  final sanitized = value.replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '_');
+  final sanitized = value.replaceAll(RegExp('[^A-Za-z0-9._-]+'), '_');
   return sanitized.isEmpty ? 'unknown' : sanitized;
 }
 

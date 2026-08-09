@@ -1,7 +1,6 @@
+import 'package:app/ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:app/ui/app_ui.dart';
 
 void main() {
   Future<void> pumpHarness(WidgetTester tester, Widget child) async {
@@ -198,9 +197,9 @@ void main() {
         title: 'Preferences',
         subtitle: 'Tune the shell',
         body: const Text('Body'),
-        footer: Row(
+        footer: const Row(
           mainAxisSize: MainAxisSize.min,
-          children: const [
+          children: [
             AppActionButton(
               buttonKey: Key('dialog-cancel'),
               tone: AppActionTone.secondary,

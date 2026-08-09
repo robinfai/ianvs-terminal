@@ -51,14 +51,18 @@ python3 "$ROOT_DIR/tools/osc_semantic_probe.py" --self-test
 )
 
 (
-  cd "$PTY_DIR"
+  cd "$ROOT_DIR"
+  dart format --output=none --set-exit-if-changed .
   dart analyze --fatal-infos
+)
+
+(
+  cd "$PTY_DIR"
   dart test
 )
 
 (
   cd "$TERMINAL_DIR"
-  flutter analyze --fatal-infos
   flutter test
 )
 
@@ -111,7 +115,6 @@ fi
     test/visual
     test/widget_test.dart
   )
-  flutter analyze --fatal-infos
   flutter test "${EXAMPLE_CI_TEST_TARGETS[@]}"
 )
 

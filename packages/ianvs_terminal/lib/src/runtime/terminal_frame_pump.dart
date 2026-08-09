@@ -3,10 +3,19 @@ final class TerminalFramePumpPolicy {
     required this.activeInterval,
     required this.emptyRefreshesBeforeBackoff,
     required List<Duration> idleIntervals,
-  }) : assert(activeInterval > Duration.zero),
-       assert(emptyRefreshesBeforeBackoff > 0),
-       assert(idleIntervals.isNotEmpty),
-       assert(idleIntervals.every((interval) => interval > Duration.zero)),
+  }) : assert(
+         activeInterval > Duration.zero,
+         'activeInterval must be positive.',
+       ),
+       assert(
+         emptyRefreshesBeforeBackoff > 0,
+         'emptyRefreshesBeforeBackoff must be positive.',
+       ),
+       assert(idleIntervals.isNotEmpty, 'idleIntervals must not be empty.'),
+       assert(
+         idleIntervals.every((interval) => interval > Duration.zero),
+         'Every idle interval must be positive.',
+       ),
        idleIntervals = List<Duration>.unmodifiable(idleIntervals);
 
   final Duration activeInterval;

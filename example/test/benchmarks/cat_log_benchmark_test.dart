@@ -2,13 +2,12 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
-import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:app/features/terminal/selection_controller.dart';
 import 'package:app/features/terminal/terminal_input_controller.dart';
 import 'package:app/features/terminal/terminal_viewport.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import '../support/fake_pty_backend.dart';
 import '../support/test_runtime.dart';
@@ -38,14 +37,16 @@ void main() {
     final traceJson = (jsonDecode(traceFile.readAsStringSync()) as Map)
         .cast<String, Object?>();
     final scenario = traceJson['scenario'] as String? ?? 'bulk-output';
-    final inputEcho = (traceJson['inputEcho'] as Map?)?.cast<String, Object?>();
-    final pasteProbe = (traceJson['pasteProbe'] as Map?)
+    final inputEcho = (traceJson['inputEcho'] as Map<Object?, Object?>?)
         ?.cast<String, Object?>();
-    final searchProbe = (traceJson['searchProbe'] as Map?)
+    final pasteProbe = (traceJson['pasteProbe'] as Map<Object?, Object?>?)
         ?.cast<String, Object?>();
-    final viewport = (traceJson['viewport']! as Map).cast<String, Object?>();
+    final searchProbe = (traceJson['searchProbe'] as Map<Object?, Object?>?)
+        ?.cast<String, Object?>();
+    final viewport = (traceJson['viewport']! as Map<Object?, Object?>)
+        .cast<String, Object?>();
     final frames = (traceJson['frames'] as List<dynamic>? ?? const [])
-        .cast<Map>()
+        .cast<Map<Object?, Object?>>()
         .map((frame) => frame.cast<String, Object?>())
         .toList(growable: false);
     expect(frames, isNotEmpty, reason: 'trace file contains no frames');

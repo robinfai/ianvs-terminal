@@ -3,14 +3,13 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:app/benchmarks/terminal_render_profile_report.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 import 'package:ianvs_pty/ianvs_pty.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 import 'package:integration_test/integration_test.dart';
-
-import 'package:app/benchmarks/terminal_render_profile_report.dart';
 
 import '../test/support/macos_integration_test_lifecycle.dart';
 
@@ -97,7 +96,7 @@ void main() {
             pairedHashes.putIfAbsent(
               '${workload.name}\u0000$repeatIndex',
               () => <String, String>{},
-            )[wireFormat.name] = summary['actual_viewport_hash'] as String;
+            )[wireFormat.name] = summary['actual_viewport_hash']! as String;
           }
         }
       }
@@ -361,7 +360,7 @@ void _writePairedHashes(
 }
 
 String _pathSegment(String value) {
-  final sanitized = value.replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '_');
+  final sanitized = value.replaceAll(RegExp('[^A-Za-z0-9._-]+'), '_');
   return sanitized.isEmpty ? 'unknown' : sanitized;
 }
 

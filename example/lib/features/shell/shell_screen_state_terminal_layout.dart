@@ -971,8 +971,8 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     if (extent <= 0) {
       return null;
     }
-    final cursorRow = frame.cursor.row.clamp(0, frame.viewportRows - 1).toInt();
-    final cursorCol = frame.cursor.col.clamp(0, frame.viewportCols - 1).toInt();
+    final cursorRow = frame.cursor.row.clamp(0, frame.viewportRows - 1);
+    final cursorCol = frame.cursor.col.clamp(0, frame.viewportCols - 1);
     final rawCenter = Offset(
       contentPadding.left + (cursorCol + 0.5) * cellSize.width,
       contentPadding.top + (cursorRow + 0.5) * cellSize.height,
@@ -1024,7 +1024,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     if (lowerBound >= upperBound) {
       return node.ratio;
     }
-    return requestedRatio.clamp(lowerBound, upperBound).toDouble();
+    return requestedRatio.clamp(lowerBound, upperBound);
   }
 
   int _paneLayoutPrimaryCells(
@@ -1453,7 +1453,8 @@ class _TerminalAttentionBurstState extends State<_TerminalAttentionBurst>
       _controller = AnimationController(
         vsync: this,
         duration: const Duration(milliseconds: 400),
-      )..forward();
+      );
+      unawaited(_controller!.forward());
     }
   }
 

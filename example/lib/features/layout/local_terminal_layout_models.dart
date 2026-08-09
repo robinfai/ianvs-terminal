@@ -946,7 +946,7 @@ double _normalizeSplitRatio(double value, double fallback) {
   if (!value.isFinite) {
     return fallback;
   }
-  return value.clamp(0.1, 0.9).toDouble();
+  return value.clamp(0.1, 0.9);
 }
 
 List<Map<Object?, Object?>> _objectList(Object? value, {int? maxEntries}) {

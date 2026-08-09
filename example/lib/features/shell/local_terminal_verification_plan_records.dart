@@ -25,9 +25,7 @@ class LocalTerminalVerificationPlanRecords {
               'bash tools/local_terminal_verification_capture.sh run '
               'all-automated',
           notes: const [
-            'Covers focused completion/P1/P2-P5/cross-milestone/'
-                'verification-evidence groups, terminal package tests, and '
-                'the broader example/test suite.',
+            'Covers focused completion/P1/P2-P5/cross-milestone/verification-evidence groups, terminal package tests, and the broader example/test suite.',
           ],
         ),
         _pending(

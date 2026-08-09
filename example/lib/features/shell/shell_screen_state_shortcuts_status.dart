@@ -281,12 +281,14 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
     EdgeInsets terminalViewportPadding,
   ) {
     return Size(
-      (constraints.maxWidth - terminalViewportPadding.horizontal)
-          .clamp(1.0, double.infinity)
-          .toDouble(),
-      (constraints.maxHeight - terminalViewportPadding.vertical)
-          .clamp(1.0, double.infinity)
-          .toDouble(),
+      (constraints.maxWidth - terminalViewportPadding.horizontal).clamp(
+        1.0,
+        double.infinity,
+      ),
+      (constraints.maxHeight - terminalViewportPadding.vertical).clamp(
+        1.0,
+        double.infinity,
+      ),
     );
   }
 

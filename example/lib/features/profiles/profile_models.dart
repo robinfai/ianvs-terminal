@@ -821,7 +821,7 @@ List<TerminalProfileTrigger> _profileTriggersFromJson(
       continue;
     }
     final rawCaseSensitive = map['caseSensitive'];
-    final caseSensitive = rawCaseSensitive is bool ? rawCaseSensitive : true;
+    final caseSensitive = rawCaseSensitive is! bool || rawCaseSensitive;
     if (rawCaseSensitive != null && rawCaseSensitive is! bool) {
       warningSink.add(
         path: 'triggers[$index].caseSensitive',
@@ -899,7 +899,7 @@ List<TerminalProfileSwitchRule> _profileSwitchRulesFromJson(
       continue;
     }
     final rawCaseSensitive = map['caseSensitive'];
-    final caseSensitive = rawCaseSensitive is bool ? rawCaseSensitive : false;
+    final caseSensitive = rawCaseSensitive is bool && rawCaseSensitive;
     if (rawCaseSensitive != null && rawCaseSensitive is! bool) {
       warningSink.add(
         path: 'automaticProfileSwitching[$index].caseSensitive',

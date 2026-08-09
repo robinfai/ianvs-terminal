@@ -863,8 +863,8 @@ _TerminalRecordingGraphicAssetBlob _decodeGraphicAssetBlob(
   final asset = TerminalRecordingGraphicAsset(
     assetId: 1,
     assetVersion: 1,
-    width: width as int,
-    height: height as int,
+    width: width! as int,
+    height: height! as int,
     rgba: rgba,
   );
   _validateGraphicAsset(asset, lineNumber: lineNumber);
@@ -920,8 +920,8 @@ TerminalRecordingGraphicAsset _decodeGraphicAssetReference(
     );
   }
   return TerminalRecordingGraphicAsset._fromOwnedRgba(
-    assetId: assetId as int,
-    assetVersion: assetVersion as int,
+    assetId: assetId! as int,
+    assetVersion: assetVersion! as int,
     width: blob.width,
     height: blob.height,
     rgba: blob.rgba,
@@ -1407,7 +1407,7 @@ String _requiredSessionId(
       lineNumber: lineNumber,
     );
   }
-  return sessionId as String;
+  return sessionId! as String;
 }
 
 Never _throwInvalidPayload(int lineNumber, String message) {
@@ -1669,7 +1669,8 @@ enum _TerminalRecordingCheckpointBoundaryState {
 }
 
 final class _TerminalRecordingCheckpointBoundary {
-  var _state = _TerminalRecordingCheckpointBoundaryState.ground;
+  _TerminalRecordingCheckpointBoundaryState _state =
+      _TerminalRecordingCheckpointBoundaryState.ground;
 
   bool get isSafe => _state == _TerminalRecordingCheckpointBoundaryState.ground;
 

@@ -48,10 +48,16 @@ final class TerminalRefreshPolicy {
     required this.streamingGap,
     required this.streamingGrace,
     required this.fallbackPolicy,
-  }) : assert(pollInterval > Duration.zero),
-       assert(interactiveGrace > Duration.zero),
-       assert(streamingGap > Duration.zero),
-       assert(streamingGrace > Duration.zero);
+  }) : assert(pollInterval > Duration.zero, 'pollInterval must be positive.'),
+       assert(
+         interactiveGrace > Duration.zero,
+         'interactiveGrace must be positive.',
+       ),
+       assert(streamingGap > Duration.zero, 'streamingGap must be positive.'),
+       assert(
+         streamingGrace > Duration.zero,
+         'streamingGrace must be positive.',
+       );
 
   factory TerminalRefreshPolicy.standard() {
     const pollInterval = Duration(milliseconds: 33);
@@ -64,9 +70,9 @@ final class TerminalRefreshPolicy {
         activeInterval: pollInterval,
         emptyRefreshesBeforeBackoff: 2,
         idleIntervals: <Duration>[
-          Duration(milliseconds: 132),
-          Duration(milliseconds: 264),
-          Duration(milliseconds: 396),
+          const Duration(milliseconds: 132),
+          const Duration(milliseconds: 264),
+          const Duration(milliseconds: 396),
         ],
       ),
     );

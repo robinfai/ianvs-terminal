@@ -1,9 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:app/features/pty/pty.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   late Directory root;
@@ -124,7 +123,7 @@ void main() {
     final frame = _takeFrame(backend, sessionId);
     final rows = frame['rows']! as List<Object?>;
     final cursorRow = _cursor(frame)['row']! as int;
-    final rowAtCursor = rows[cursorRow] as Map<String, Object?>;
+    final rowAtCursor = rows[cursorRow]! as Map<String, Object?>;
     expect((rowAtCursor['text']! as String).trimRight(), '中');
     expect(_cursor(frame)['col'], 2);
   });
@@ -147,7 +146,7 @@ String _frameText(Map<String, Object?> frame) {
   final rows = frame['rows']! as List<Object?>;
   return rows
       .cast<Map<String, Object?>>()
-      .map((row) => row['text'] as String)
+      .map((row) => row['text']! as String)
       .join('\n');
 }
 

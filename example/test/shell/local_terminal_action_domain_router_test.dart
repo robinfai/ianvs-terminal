@@ -1,10 +1,9 @@
-import 'package:flutter_test/flutter_test.dart';
-
+import 'package:app/features/layout/terminal_layout_production_callbacks.dart';
 import 'package:app/features/productivity/shell_productivity_production_callbacks.dart';
 import 'package:app/features/shell/local_terminal_action_domain_router.dart';
 import 'package:app/features/shell/shell_action_production_action_set.dart';
 import 'package:app/features/shell/shell_action_registry.dart';
-import 'package:app/features/layout/terminal_layout_production_callbacks.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('routes shell actions to registered domain callbacks', () async {

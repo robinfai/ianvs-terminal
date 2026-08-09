@@ -129,6 +129,8 @@ final class _JsonRequestBackend
     v1Requests.add(request);
     final error = requestError;
     if (error != null) {
+      // The fake must preserve the exact configured transport failure object.
+      // ignore: only_throw_errors
       throw error;
     }
     final legacyResponse = response;
@@ -153,6 +155,8 @@ final class _JsonRequestBackend
     requests.add((jsonDecode(requestJson) as Map).cast<String, Object?>());
     final error = requestError;
     if (error != null) {
+      // The fake must preserve the exact configured transport failure object.
+      // ignore: only_throw_errors
       throw error;
     }
     return response;

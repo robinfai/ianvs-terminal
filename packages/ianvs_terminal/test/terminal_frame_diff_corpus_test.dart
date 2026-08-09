@@ -115,7 +115,7 @@ void main() {
       const preference = TerminalFrameWireFormatPreference.automatic;
       const viewport = TerminalViewportState.empty;
       const renderIntent = TerminalRenderIntent.none;
-      final runtimeType = TerminalRuntimeController;
+      const runtimeType = TerminalRuntimeController;
 
       expect(fromJson.frameSchemaVersion, 'terminal-frame-diff-v1');
       expect(fromProtobuf.frameSchemaVersion, 'terminal-frame-diff-v1');

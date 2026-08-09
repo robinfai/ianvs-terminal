@@ -1,5 +1,4 @@
-import 'package:flutter_test/flutter_test.dart';
-
+import 'package:app/features/layout/terminal_layout_production_callbacks.dart';
 import 'package:app/features/policies/local_terminal_policy_production_callbacks.dart';
 import 'package:app/features/productivity/shell_productivity_production_callbacks.dart';
 import 'package:app/features/shell/local_terminal_p0_boundary_closure_manifest.dart';
@@ -10,7 +9,7 @@ import 'package:app/features/shell/shell_action_production_action_set.dart';
 import 'package:app/features/shell/shell_action_registry.dart';
 import 'package:app/features/shell/shell_action_runtime_bindings.dart';
 import 'package:app/features/visual/local_terminal_visual_production_callbacks.dart';
-import 'package:app/features/layout/terminal_layout_production_callbacks.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('builds a closeable manifest from ready domain callbacks', () async {
@@ -235,7 +234,7 @@ LocalTerminalP0BoundaryClosureManifest _readyP0() {
   );
 }
 
-const _coreLayoutOperations = [
+const List<TerminalLayoutProductionOperation> _coreLayoutOperations = [
   TerminalLayoutProductionOperation.newTab,
   TerminalLayoutProductionOperation.closeTab,
   TerminalLayoutProductionOperation.reopenClosedTab,
@@ -252,7 +251,7 @@ const _coreLayoutOperations = [
 ];
 
 TerminalLayoutProductionCallbacks _coreLayoutCallbacks() {
-  return TerminalLayoutProductionCallbacks(
+  return const TerminalLayoutProductionCallbacks(
     newTab: _completeLayout,
     closeTab: _completeLayout,
     reopenClosedTab: _completeLayout,
@@ -275,7 +274,7 @@ TerminalLayoutBindingResult _completeLayout(
   return const TerminalLayoutBindingResult.completed();
 }
 
-const _coreProductivityOperations = [
+const List<ShellProductivityProductionOperation> _coreProductivityOperations = [
   ShellProductivityProductionOperation.nextPrompt,
   ShellProductivityProductionOperation.previousPrompt,
   ShellProductivityProductionOperation.selectCommandOutput,
@@ -290,7 +289,7 @@ const _coreProductivityOperations = [
 ];
 
 ShellProductivityProductionCallbacks _coreProductivityCallbacks() {
-  return ShellProductivityProductionCallbacks(
+  return const ShellProductivityProductionCallbacks(
     nextPrompt: _completeProductivity,
     previousPrompt: _completeProductivity,
     selectCommandOutput: _completeProductivity,
@@ -311,7 +310,7 @@ ShellProductivityBindingResult _completeProductivity(
   return const ShellProductivityBindingResult.completed();
 }
 
-const _corePolicyOperations = [
+const List<LocalTerminalPolicyProductionOperation> _corePolicyOperations = [
   LocalTerminalPolicyProductionOperation.copy,
   LocalTerminalPolicyProductionOperation.paste,
   LocalTerminalPolicyProductionOperation.pasteHistory,
@@ -327,7 +326,7 @@ const _corePolicyOperations = [
 ];
 
 LocalTerminalPolicyProductionCallbacks _corePolicyCallbacks() {
-  return LocalTerminalPolicyProductionCallbacks(
+  return const LocalTerminalPolicyProductionCallbacks(
     copy: _completePolicy,
     paste: _completePolicy,
     pasteHistory: _completePolicy,
@@ -349,7 +348,7 @@ LocalTerminalPolicyBindingResult _completePolicy(
   return const LocalTerminalPolicyBindingResult.completed();
 }
 
-const _coreVisualOperations = [
+const List<LocalTerminalVisualProductionOperation> _coreVisualOperations = [
   LocalTerminalVisualProductionOperation.openThemePicker,
   LocalTerminalVisualProductionOperation.applyTheme,
   LocalTerminalVisualProductionOperation.applyLayoutTemplate,
@@ -359,7 +358,7 @@ const _coreVisualOperations = [
 ];
 
 LocalTerminalVisualProductionCallbacks _coreVisualCallbacks() {
-  return LocalTerminalVisualProductionCallbacks(
+  return const LocalTerminalVisualProductionCallbacks(
     openThemePicker: _completeVisual,
     applyTheme: _completeVisual,
     applyLayoutTemplate: _completeVisual,

@@ -2,11 +2,11 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
+import 'features/pty/pty.dart';
 import 'features/sessions/session_controller.dart';
 import 'features/sessions/session_ports.dart';
-import 'features/pty/pty.dart';
-import 'features/shell/shell_acceptance.dart';
 import 'features/shell/reference_demo.dart';
+import 'features/shell/shell_acceptance.dart';
 import 'features/shell/shell_screen.dart';
 import 'features/shell/window_bridge.dart';
 import 'platform/clipboard_bridge.dart';
@@ -45,12 +45,7 @@ Widget buildIanvsTerminalRoot({
       sessionClipboardMimeTypeListProvider.overrideWithValue(
         ClipboardBridge.listMimeTypes,
       ),
-      sessionWindowResizeProvider.overrideWithValue(
-        ({required heightDelta, required widthDelta}) => WindowBridge.resizeBy(
-          widthDelta: widthDelta,
-          heightDelta: heightDelta,
-        ),
-      ),
+      sessionWindowResizeProvider.overrideWithValue(WindowBridge.resizeBy),
       sessionWindowTitleWriterProvider.overrideWithValue(WindowBridge.setTitle),
       if (acceptanceProbe != null) ...[
         shellAcceptanceProbeProvider.overrideWithValue(acceptanceProbe),

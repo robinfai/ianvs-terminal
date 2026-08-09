@@ -1,10 +1,9 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:app/features/shell/shell_action_production_action_set.dart';
 import 'package:app/features/shell/shell_action_production_binding_builder.dart';
 import 'package:app/features/shell/shell_action_production_binding_diagnostics.dart';
 import 'package:app/features/shell/shell_action_registry.dart';
 import 'package:app/features/shell/shell_action_runtime_bindings.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('reports blocking diagnostics for unknown and missing bindings', () {

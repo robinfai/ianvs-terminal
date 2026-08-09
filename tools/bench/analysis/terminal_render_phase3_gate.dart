@@ -98,7 +98,7 @@ final class _Phase3GateOptions {
     }
     final repeats = int.tryParse(values['repeats']!);
     if (repeats == null || repeats <= 0) {
-      throw FormatException('--repeats must be a positive integer');
+      throw const FormatException('--repeats must be a positive integer');
     }
     return _Phase3GateOptions(
       beforeRoot: values['before']!,
@@ -110,15 +110,15 @@ final class _Phase3GateOptions {
   }
 }
 
-const String _usage = '''
+const String _usage = r'''
 Ianvs terminal render Phase 3 profile gate
 
 Usage:
-  dart run tools/bench/analysis/terminal_render_phase3_gate.dart \\
-    --before <matrix-root> \\
-    --after <matrix-root> \\
-    --output <report.json> \\
-    --workload <name> \\
+  dart run tools/bench/analysis/terminal_render_phase3_gate.dart \
+    --before <matrix-root> \
+    --after <matrix-root> \
+    --output <report.json> \
+    --workload <name> \
     --repeats <count>
 
 The gate scans every immediate child directory of each matrix root as a target

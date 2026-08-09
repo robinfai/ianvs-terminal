@@ -393,8 +393,8 @@ final class IosSandboxShellBackend
       return const _CommandResult();
     }
 
-    var combinedOutput = '';
-    var combinedError = '';
+    final combinedOutput = StringBuffer();
+    final combinedError = StringBuffer();
     var exitCode = 0;
     var sequenceStart = 0;
     for (var index = 0; index <= tokens.length; index += 1) {
@@ -410,13 +410,13 @@ final class IosSandboxShellBackend
       if (result.clearScreen) {
         return result;
       }
-      combinedOutput += result.output;
-      combinedError += result.error;
+      combinedOutput.write(result.output);
+      combinedError.write(result.error);
       exitCode = result.exitCode;
     }
     return _CommandResult(
-      output: combinedOutput,
-      error: combinedError,
+      output: combinedOutput.toString(),
+      error: combinedError.toString(),
       exitCode: exitCode,
     );
   }
@@ -436,7 +436,7 @@ final class IosSandboxShellBackend
     }
 
     String stdin = '';
-    String errors = '';
+    final errors = StringBuffer();
     var exitCode = 0;
     String? redirectPath;
     var appendRedirect = false;
@@ -466,7 +466,7 @@ final class IosSandboxShellBackend
         return result;
       }
       stdin = result.output;
-      errors += result.error;
+      errors.write(result.error);
       exitCode = result.exitCode;
     }
 
@@ -488,7 +488,11 @@ final class IosSandboxShellBackend
       }
     }
 
-    return _CommandResult(output: stdin, error: errors, exitCode: exitCode);
+    return _CommandResult(
+      output: stdin,
+      error: errors.toString(),
+      exitCode: exitCode,
+    );
   }
 
   String _expandVariables(_SandboxSession session, String value) {
@@ -556,7 +560,8 @@ final class IosSandboxShellBackend
 
   _CommandResult _help() {
     return const _CommandResult(
-      output: '''Ianvs iOS sandbox commands
+      output: '''
+Ianvs iOS sandbox commands
   Files:   pwd cd ls cat mkdir touch rm cp mv
   Text:    echo grep head tail wc
   Shell:   history clear date whoami uname env help
@@ -798,7 +803,7 @@ Paths are always confined to this app's IanvsShell folder.
     final paths = <String>[];
     for (var index = 0; index < args.length; index += 1) {
       if (args[index] == '-n' && index + 1 < args.length) {
-        count = int.tryParse(args[index + 1])?.clamp(0, 10000).toInt() ?? count;
+        count = int.tryParse(args[index + 1])?.clamp(0, 10000) ?? count;
         index += 1;
       } else {
         paths.add(args[index]);
@@ -1021,7 +1026,7 @@ Paths are always confined to this app's IanvsShell folder.
   }
 
   void _writeStyledLine(StringBuffer output, _ShellLine line) {
-    final promptLength = line.promptLength.clamp(0, line.text.length).toInt();
+    final promptLength = line.promptLength.clamp(0, line.text.length);
     if (promptLength == 0) {
       output.write(line.text);
       return;

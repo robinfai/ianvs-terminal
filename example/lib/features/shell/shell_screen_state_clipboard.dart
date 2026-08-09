@@ -355,17 +355,15 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
       return;
     }
 
-    final row = (frame.viewportStartRow + frame.cursor.row)
-        .clamp(
-          frame.viewportStartRow,
-          frame.viewportStartRow + frame.viewportRows - 1,
-        )
-        .toInt();
-    final cursorCol = frame.cursor.col.clamp(0, frame.viewportCols).toInt();
+    final row = (frame.viewportStartRow + frame.cursor.row).clamp(
+      frame.viewportStartRow,
+      frame.viewportStartRow + frame.viewportRows - 1,
+    );
+    final cursorCol = frame.cursor.col.clamp(0, frame.viewportCols);
     final anchorCol = cursorCol >= frame.viewportCols
-        ? (frame.viewportCols - 1).clamp(0, frame.viewportCols).toInt()
+        ? (frame.viewportCols - 1).clamp(0, frame.viewportCols)
         : cursorCol;
-    final extentCol = (anchorCol + 1).clamp(0, frame.viewportCols).toInt();
+    final extentCol = (anchorCol + 1).clamp(0, frame.viewportCols);
 
     _mutateState(() {
       _isCopyModeOpen = true;
@@ -491,10 +489,8 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
     final frame = sessionController.viewportFor(sessionId).frame;
     final minRow = frame.viewportStartRow;
     final maxRow = frame.viewportStartRow + frame.viewportRows - 1;
-    final nextRow = (extentRow + rowDelta).clamp(minRow, maxRow).toInt();
-    final nextCol = (extentCol + columnDelta)
-        .clamp(0, frame.viewportCols)
-        .toInt();
+    final nextRow = (extentRow + rowDelta).clamp(minRow, maxRow);
+    final nextCol = (extentCol + columnDelta).clamp(0, frame.viewportCols);
 
     _mutateState(() {
       _copyModeExtentRow = nextRow;
@@ -511,9 +507,7 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
   }
 
   void _closeCopyMode(SelectionController? selectionController) {
-    _mutateState(() {
-      _resetCopyModeState();
-    });
+    _mutateState(_resetCopyModeState);
     selectionController?.clear();
     _focusSession(ref.read(sessionControllerProvider).activeSessionId);
   }

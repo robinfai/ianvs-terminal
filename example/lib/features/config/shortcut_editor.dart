@@ -727,7 +727,7 @@ class _ShortcutCaptureDialogState extends State<_ShortcutCaptureDialog> {
     final theme = context.appTheme;
     return AlertDialog(
       key: const Key('shortcut-capture-dialog'),
-      title: Text('Record shortcut'),
+      title: const Text('Record shortcut'),
       content: SizedBox(
         width: 420,
         child: Focus(
@@ -843,7 +843,7 @@ class _ShortcutCaptureDialogState extends State<_ShortcutCaptureDialog> {
               ? null
               : () => Navigator.of(
                   context,
-                ).pop(_ShortcutCaptureResult.binding(_candidate!)),
+                ).pop(_ShortcutCaptureResult.binding(_candidate)),
           child: const Text('Apply'),
         ),
       ],

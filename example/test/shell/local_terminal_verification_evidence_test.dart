@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:app/features/shell/local_terminal_verification_evidence.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('cannot close when only some required verification gates passed', () {

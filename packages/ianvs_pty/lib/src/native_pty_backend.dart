@@ -11,115 +11,42 @@ import 'pty_host_request_v1.dart';
 import 'pty_runtime_capabilities.dart';
 import 'pty_runtime_envelope.dart';
 
-typedef _PingNative = ffi.Int32 Function();
 typedef _PingDart = int Function();
-typedef _RuntimeCapabilitiesNative = ffi.Pointer<Utf8> Function();
 typedef _RuntimeCapabilitiesDart = ffi.Pointer<Utf8> Function();
 typedef _CreateSessionNative = ffi.Uint64 Function(ffi.Pointer<Utf8>);
 typedef _CreateSessionDart = int Function(ffi.Pointer<Utf8>);
-typedef _CloseSessionNative = ffi.Int32 Function(ffi.Uint64);
 typedef _CloseSessionDart = int Function(int);
-typedef _RefreshHintNative = ffi.Uint32 Function(ffi.Uint64);
 typedef _RefreshHintDart = int Function(int);
-typedef _ResizeSessionNative =
-    ffi.Int32 Function(
-      ffi.Uint64,
-      ffi.Uint16,
-      ffi.Uint16,
-      ffi.Uint16,
-      ffi.Uint16,
-    );
 typedef _ResizeSessionDart = int Function(int, int, int, int, int);
-typedef _ResizeSessionWithCellSizeNative =
-    ffi.Int32 Function(
-      ffi.Uint64,
-      ffi.Uint16,
-      ffi.Uint16,
-      ffi.Uint16,
-      ffi.Uint16,
-      ffi.Uint16,
-      ffi.Uint16,
-    );
 typedef _ResizeSessionWithCellSizeDart =
     int Function(int, int, int, int, int, int, int);
 typedef _WriteSessionNative =
     ffi.Int32 Function(ffi.Uint64, ffi.Pointer<ffi.Uint8>, ffi.Size);
 typedef _WriteSessionDart = int Function(int, ffi.Pointer<ffi.Uint8>, int);
-typedef _ReplayExitNative =
-    ffi.Int32 Function(ffi.Uint64, ffi.Int32, ffi.Int32);
 typedef _ReplayExitDart = int Function(int, int, int);
-typedef _ReplayCheckpointCaptureNative = ffi.Uint64 Function(ffi.Uint64);
 typedef _ReplayCheckpointCaptureDart = int Function(int);
-typedef _ReplayCheckpointRestoreNative =
-    ffi.Int32 Function(ffi.Uint64, ffi.Uint64);
 typedef _ReplayCheckpointRestoreDart = int Function(int, int);
-typedef _ScrollSessionNative = ffi.Int32 Function(ffi.Uint64, ffi.Int32);
 typedef _ScrollSessionDart = int Function(int, int);
-typedef _ScrollToSessionNative = ffi.Int32 Function(ffi.Uint64, ffi.Size);
 typedef _ScrollToSessionDart = int Function(int, int);
-typedef _RequestSessionNative =
-    ffi.Pointer<Utf8> Function(ffi.Uint64, ffi.Pointer<Utf8>);
 typedef _RequestSessionDart =
     ffi.Pointer<Utf8> Function(int, ffi.Pointer<Utf8>);
-typedef _HostResponseNative = ffi.Int32 Function(ffi.Uint64, ffi.Pointer<Utf8>);
 typedef _HostResponseDart = int Function(int, ffi.Pointer<Utf8>);
 typedef _StringReturningNative = ffi.Pointer<Utf8> Function(ffi.Uint64);
 typedef _StringReturningDart = ffi.Pointer<Utf8> Function(int);
-typedef _FreeStringNative = ffi.Void Function(ffi.Pointer<Utf8>);
 typedef _FreeStringDart = void Function(ffi.Pointer<Utf8>);
-typedef _BytesReturningNative =
-    ffi.Pointer<ffi.Uint8> Function(ffi.Uint64, ffi.Pointer<ffi.Size>);
 typedef _BytesReturningDart =
     ffi.Pointer<ffi.Uint8> Function(int, ffi.Pointer<ffi.Size>);
-typedef _FramePacketV1Native =
-    ffi.Pointer<ffi.Uint8> Function(
-      ffi.Uint64,
-      ffi.Uint64,
-      ffi.Uint8,
-      ffi.Pointer<ffi.Size>,
-    );
 typedef _FramePacketV1Dart =
     ffi.Pointer<ffi.Uint8> Function(int, int, int, ffi.Pointer<ffi.Size>);
-typedef _GraphicAssetPacketV1Native =
-    ffi.Pointer<ffi.Uint8> Function(
-      ffi.Uint64,
-      ffi.Uint64,
-      ffi.Uint64,
-      ffi.Pointer<ffi.Size>,
-    );
 typedef _GraphicAssetPacketV1Dart =
     ffi.Pointer<ffi.Uint8> Function(int, int, int, ffi.Pointer<ffi.Size>);
-typedef _FreeBytesNative = ffi.Void Function(ffi.Pointer<ffi.Uint8>, ffi.Size);
 typedef _FreeBytesDart = void Function(ffi.Pointer<ffi.Uint8>, int);
-typedef _GraphicAssetMetaNative =
-    ffi.Int32 Function(
-      ffi.Uint64,
-      ffi.Uint64,
-      ffi.Uint64,
-      ffi.Pointer<_NativeGraphicAssetMeta>,
-    );
 typedef _GraphicAssetMetaDart =
     int Function(int, int, int, ffi.Pointer<_NativeGraphicAssetMeta>);
-typedef _GraphicAssetRgbaCopyNative =
-    ffi.IntPtr Function(
-      ffi.Uint64,
-      ffi.Uint64,
-      ffi.Uint64,
-      ffi.Pointer<ffi.Uint8>,
-      ffi.Size,
-    );
 typedef _GraphicAssetRgbaCopyDart =
     int Function(int, int, int, ffi.Pointer<ffi.Uint8>, int);
-typedef _FileDownloadTakeNative =
-    ffi.IntPtr Function(
-      ffi.Uint64,
-      ffi.Uint64,
-      ffi.Pointer<ffi.Uint8>,
-      ffi.Size,
-    );
 typedef _FileDownloadTakeDart =
     int Function(int, int, ffi.Pointer<ffi.Uint8>, int);
-typedef _FileDownloadDiscardNative = ffi.Int32 Function(ffi.Uint64, ffi.Uint64);
 typedef _FileDownloadDiscardDart = int Function(int, int);
 
 const _maxUint16 = 0xffff;
@@ -127,9 +54,9 @@ const _minInt32 = -0x80000000;
 const _maxInt32 = 0x7fffffff;
 const _maxEventKindLength = 128;
 const _maxPtyEventBatchLength = 1024;
-const _maxFileDownloadBytes = 16 * 1024 * 1024;
+const int _maxFileDownloadBytes = 16 * 1024 * 1024;
 final _sessionIdDigits = RegExp(r'^[0-9]+$');
-final _maxUint64 = BigInt.parse('18446744073709551615');
+final BigInt _maxUint64 = BigInt.parse('18446744073709551615');
 
 final class _NativeGraphicAssetMeta extends ffi.Struct {
   @ffi.Uint32()
@@ -163,7 +90,7 @@ _RuntimeCapabilitiesDart? _lookupOptionalRuntimeCapabilities(
 ) {
   try {
     return library
-        .lookupFunction<_RuntimeCapabilitiesNative, _RuntimeCapabilitiesDart>(
+        .lookupFunction<ffi.Pointer<Utf8> Function(), _RuntimeCapabilitiesDart>(
           'ianvs_runtime_capabilities_json',
         );
   } on ArgumentError {
@@ -189,9 +116,10 @@ _RequestSessionDart? _lookupOptionalRequestSession(
   String symbolName,
 ) {
   try {
-    return library.lookupFunction<_RequestSessionNative, _RequestSessionDart>(
-      symbolName,
-    );
+    return library.lookupFunction<
+      ffi.Pointer<Utf8> Function(ffi.Uint64, ffi.Pointer<Utf8>),
+      _RequestSessionDart
+    >(symbolName);
   } on ArgumentError {
     return null;
   }
@@ -199,9 +127,10 @@ _RequestSessionDart? _lookupOptionalRequestSession(
 
 _HostResponseDart? _lookupOptionalHostResponse(ffi.DynamicLibrary library) {
   try {
-    return library.lookupFunction<_HostResponseNative, _HostResponseDart>(
-      'ianvs_session_host_response_v1_json',
-    );
+    return library.lookupFunction<
+      ffi.Int32 Function(ffi.Uint64, ffi.Pointer<Utf8>),
+      _HostResponseDart
+    >('ianvs_session_host_response_v1_json');
   } on ArgumentError {
     return null;
   }
@@ -212,9 +141,10 @@ _BytesReturningDart? _lookupOptionalBytesReturning(
   String symbolName,
 ) {
   try {
-    return library.lookupFunction<_BytesReturningNative, _BytesReturningDart>(
-      symbolName,
-    );
+    return library.lookupFunction<
+      ffi.Pointer<ffi.Uint8> Function(ffi.Uint64, ffi.Pointer<ffi.Size>),
+      _BytesReturningDart
+    >(symbolName);
   } on ArgumentError {
     return null;
   }
@@ -222,9 +152,15 @@ _BytesReturningDart? _lookupOptionalBytesReturning(
 
 _FramePacketV1Dart? _lookupOptionalFramePacketV1(ffi.DynamicLibrary library) {
   try {
-    return library.lookupFunction<_FramePacketV1Native, _FramePacketV1Dart>(
-      'ianvs_session_take_frame_packet_v1_protobuf',
-    );
+    return library.lookupFunction<
+      ffi.Pointer<ffi.Uint8> Function(
+        ffi.Uint64,
+        ffi.Uint64,
+        ffi.Uint8,
+        ffi.Pointer<ffi.Size>,
+      ),
+      _FramePacketV1Dart
+    >('ianvs_session_take_frame_packet_v1_protobuf');
   } on ArgumentError {
     return null;
   }
@@ -234,10 +170,15 @@ _GraphicAssetPacketV1Dart? _lookupOptionalGraphicAssetPacketV1(
   ffi.DynamicLibrary library,
 ) {
   try {
-    return library
-        .lookupFunction<_GraphicAssetPacketV1Native, _GraphicAssetPacketV1Dart>(
-          'ianvs_session_graphic_asset_packet_v1_protobuf',
-        );
+    return library.lookupFunction<
+      ffi.Pointer<ffi.Uint8> Function(
+        ffi.Uint64,
+        ffi.Uint64,
+        ffi.Uint64,
+        ffi.Pointer<ffi.Size>,
+      ),
+      _GraphicAssetPacketV1Dart
+    >('ianvs_session_graphic_asset_packet_v1_protobuf');
   } on ArgumentError {
     return null;
   }
@@ -248,7 +189,10 @@ _FreeBytesDart? _lookupOptionalFreeBytes(
   String symbolName,
 ) {
   try {
-    return library.lookupFunction<_FreeBytesNative, _FreeBytesDart>(symbolName);
+    return library.lookupFunction<
+      ffi.Void Function(ffi.Pointer<ffi.Uint8>, ffi.Size),
+      _FreeBytesDart
+    >(symbolName);
   } on ArgumentError {
     return null;
   }
@@ -259,7 +203,15 @@ _ResizeSessionWithCellSizeDart? _lookupOptionalResizeSessionWithCellSize(
 ) {
   try {
     return library.lookupFunction<
-      _ResizeSessionWithCellSizeNative,
+      ffi.Int32 Function(
+        ffi.Uint64,
+        ffi.Uint16,
+        ffi.Uint16,
+        ffi.Uint16,
+        ffi.Uint16,
+        ffi.Uint16,
+        ffi.Uint16,
+      ),
       _ResizeSessionWithCellSizeDart
     >('ianvs_session_resize_with_cell_size');
   } on ArgumentError {
@@ -271,10 +223,15 @@ _GraphicAssetMetaDart? _lookupOptionalGraphicAssetMeta(
   ffi.DynamicLibrary library,
 ) {
   try {
-    return library
-        .lookupFunction<_GraphicAssetMetaNative, _GraphicAssetMetaDart>(
-          'ianvs_session_graphic_asset_meta',
-        );
+    return library.lookupFunction<
+      ffi.Int32 Function(
+        ffi.Uint64,
+        ffi.Uint64,
+        ffi.Uint64,
+        ffi.Pointer<_NativeGraphicAssetMeta>,
+      ),
+      _GraphicAssetMetaDart
+    >('ianvs_session_graphic_asset_meta');
   } on ArgumentError {
     return null;
   }
@@ -284,10 +241,16 @@ _GraphicAssetRgbaCopyDart? _lookupOptionalGraphicAssetRgbaCopy(
   ffi.DynamicLibrary library,
 ) {
   try {
-    return library
-        .lookupFunction<_GraphicAssetRgbaCopyNative, _GraphicAssetRgbaCopyDart>(
-          'ianvs_session_graphic_asset_rgba_copy',
-        );
+    return library.lookupFunction<
+      ffi.IntPtr Function(
+        ffi.Uint64,
+        ffi.Uint64,
+        ffi.Uint64,
+        ffi.Pointer<ffi.Uint8>,
+        ffi.Size,
+      ),
+      _GraphicAssetRgbaCopyDart
+    >('ianvs_session_graphic_asset_rgba_copy');
   } on ArgumentError {
     return null;
   }
@@ -297,10 +260,15 @@ _FileDownloadTakeDart? _lookupOptionalFileDownloadTake(
   ffi.DynamicLibrary library,
 ) {
   try {
-    return library
-        .lookupFunction<_FileDownloadTakeNative, _FileDownloadTakeDart>(
-          'ianvs_session_file_download_take',
-        );
+    return library.lookupFunction<
+      ffi.IntPtr Function(
+        ffi.Uint64,
+        ffi.Uint64,
+        ffi.Pointer<ffi.Uint8>,
+        ffi.Size,
+      ),
+      _FileDownloadTakeDart
+    >('ianvs_session_file_download_take');
   } on ArgumentError {
     return null;
   }
@@ -310,10 +278,10 @@ _FileDownloadDiscardDart? _lookupOptionalFileDownloadDiscard(
   ffi.DynamicLibrary library,
 ) {
   try {
-    return library
-        .lookupFunction<_FileDownloadDiscardNative, _FileDownloadDiscardDart>(
-          'ianvs_session_file_download_discard',
-        );
+    return library.lookupFunction<
+      ffi.Int32 Function(ffi.Uint64, ffi.Uint64),
+      _FileDownloadDiscardDart
+    >('ianvs_session_file_download_discard');
   } on ArgumentError {
     return null;
   }
@@ -321,9 +289,10 @@ _FileDownloadDiscardDart? _lookupOptionalFileDownloadDiscard(
 
 _RefreshHintDart? _lookupOptionalRefreshHint(ffi.DynamicLibrary library) {
   try {
-    return library.lookupFunction<_RefreshHintNative, _RefreshHintDart>(
-      'ianvs_session_refresh_hint',
-    );
+    return library
+        .lookupFunction<ffi.Uint32 Function(ffi.Uint64), _RefreshHintDart>(
+          'ianvs_session_refresh_hint',
+        );
   } on ArgumentError {
     return null;
   }
@@ -361,9 +330,10 @@ _WriteSessionDart? _lookupOptionalProtocolReply(ffi.DynamicLibrary library) {
 
 _ReplayExitDart? _lookupOptionalReplayExit(ffi.DynamicLibrary library) {
   try {
-    return library.lookupFunction<_ReplayExitNative, _ReplayExitDart>(
-      'ianvs_replay_session_exit',
-    );
+    return library.lookupFunction<
+      ffi.Int32 Function(ffi.Uint64, ffi.Int32, ffi.Int32),
+      _ReplayExitDart
+    >('ianvs_replay_session_exit');
   } on ArgumentError {
     return null;
   }
@@ -374,7 +344,7 @@ _ReplayCheckpointCaptureDart? _lookupOptionalReplayCheckpointCapture(
 ) {
   try {
     return library.lookupFunction<
-      _ReplayCheckpointCaptureNative,
+      ffi.Uint64 Function(ffi.Uint64),
       _ReplayCheckpointCaptureDart
     >('ianvs_replay_session_checkpoint_capture');
   } on ArgumentError {
@@ -387,7 +357,7 @@ _ReplayCheckpointRestoreDart? _lookupOptionalReplayCheckpointRestore(
 ) {
   try {
     return library.lookupFunction<
-      _ReplayCheckpointRestoreNative,
+      ffi.Int32 Function(ffi.Uint64, ffi.Uint64),
       _ReplayCheckpointRestoreDart
     >('ianvs_replay_session_checkpoint_restore');
   } on ArgumentError {
@@ -716,7 +686,9 @@ class NativePtyBindings
         PtyRuntimeCapabilityBindings,
         PtyRuntimeEventBindings {
   NativePtyBindings(ffi.DynamicLibrary library)
-    : _ping = library.lookupFunction<_PingNative, _PingDart>('ianvs_ping'),
+    : _ping = library.lookupFunction<ffi.Int32 Function(), _PingDart>(
+        'ianvs_ping',
+      ),
       _runtimeCapabilities = _lookupOptionalRuntimeCapabilities(library),
       _createSession = library
           .lookupFunction<_CreateSessionNative, _CreateSessionDart>(
@@ -740,14 +712,21 @@ class NativePtyBindings
         library,
       ),
       _closeSession = library
-          .lookupFunction<_CloseSessionNative, _CloseSessionDart>(
+          .lookupFunction<ffi.Int32 Function(ffi.Uint64), _CloseSessionDart>(
             'ianvs_session_close',
           ),
       _refreshHint = _lookupOptionalRefreshHint(library),
       _resizeSession = library
-          .lookupFunction<_ResizeSessionNative, _ResizeSessionDart>(
-            'ianvs_session_resize',
-          ),
+          .lookupFunction<
+            ffi.Int32 Function(
+              ffi.Uint64,
+              ffi.Uint16,
+              ffi.Uint16,
+              ffi.Uint16,
+              ffi.Uint16,
+            ),
+            _ResizeSessionDart
+          >('ianvs_session_resize'),
       _resizeSessionWithCellSize = _lookupOptionalResizeSessionWithCellSize(
         library,
       ),
@@ -757,13 +736,15 @@ class NativePtyBindings
           ),
       _writeProtocolReply = _lookupOptionalProtocolReply(library),
       _scrollSession = library
-          .lookupFunction<_ScrollSessionNative, _ScrollSessionDart>(
-            'ianvs_session_scroll',
-          ),
+          .lookupFunction<
+            ffi.Int32 Function(ffi.Uint64, ffi.Int32),
+            _ScrollSessionDart
+          >('ianvs_session_scroll'),
       _scrollToSession = library
-          .lookupFunction<_ScrollToSessionNative, _ScrollToSessionDart>(
-            'ianvs_session_scroll_to',
-          ),
+          .lookupFunction<
+            ffi.Int32 Function(ffi.Uint64, ffi.Size),
+            _ScrollToSessionDart
+          >('ianvs_session_scroll_to'),
       _requestSessionJson = _lookupOptionalRequestSession(
         library,
         'ianvs_session_request_json',
@@ -809,9 +790,11 @@ class NativePtyBindings
       _graphicAssetRgbaCopy = _lookupOptionalGraphicAssetRgbaCopy(library),
       _fileDownloadTake = _lookupOptionalFileDownloadTake(library),
       _fileDownloadDiscard = _lookupOptionalFileDownloadDiscard(library),
-      _stringFree = library.lookupFunction<_FreeStringNative, _FreeStringDart>(
-        'ianvs_string_free',
-      ),
+      _stringFree = library
+          .lookupFunction<
+            ffi.Void Function(ffi.Pointer<Utf8>),
+            _FreeStringDart
+          >('ianvs_string_free'),
       _bytesFree = _lookupOptionalFreeBytes(library, 'ianvs_bytes_free');
 
   final _PingDart _ping;

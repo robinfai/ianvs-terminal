@@ -1,9 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:app/features/shell/paste_history_repository.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   late Directory directory;
@@ -226,7 +225,7 @@ void main() {
       '${directory.path}/ianvs_paste_history.json',
     ).readAsString();
     final decoded = jsonDecode(raw) as Map<String, Object?>;
-    final entries = decoded['entries'] as List<Object?>;
+    final entries = decoded['entries']! as List<Object?>;
 
     expect(entries, hasLength(maxPasteHistoryEntries));
     expect(

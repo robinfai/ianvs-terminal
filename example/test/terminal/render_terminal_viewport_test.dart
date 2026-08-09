@@ -2,18 +2,17 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
-import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter/gestures.dart';
-import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
-import 'package:ianvs_terminal/ianvs_terminal.dart' as core;
-
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/terminal/selection_controller.dart';
 import 'package:app/features/terminal/terminal_input_controller.dart';
 import 'package:app/features/terminal/terminal_viewport.dart';
 import 'package:app/features/terminal/terminal_viewport_colors.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart' as core;
 
 import '../support/fake_pty_backend.dart';
 import '../support/test_runtime.dart';
@@ -320,7 +319,7 @@ void main() {
           ..updateFrame(
             TerminalFrameDiff(
               rows: [
-                TerminalRow(index: 0, text: 'build started'),
+                const TerminalRow(index: 0, text: 'build started'),
                 TerminalRow(
                   index: 1,
                   text: 'build finished',
@@ -1214,10 +1213,12 @@ void main() {
       );
       await tester.pump();
 
-      expect(
-        controller.frame.rows.map((row) => row.text),
-        <String>['old one', 'updated before shift', 'old three', 'new tail'],
-      );
+      expect(controller.frame.rows.map((row) => row.text), <String>[
+        'old one',
+        'updated before shift',
+        'old three',
+        'new tail',
+      ]);
       expect(_resolvedRowText(renderObject, 0), 'old one');
       expect(_resolvedRowText(renderObject, 1), 'updated before shift');
       expect(_resolvedRowText(renderObject, 2), 'old three');
@@ -1477,9 +1478,10 @@ void main() {
               onScrollLines: (delta) {
                 scrollLines.add(delta);
                 final frame = controller.frame;
-                final nextOffset = (frame.scrollbackOffset + delta)
-                    .clamp(0, frame.scrollbackMaxOffset)
-                    .toInt();
+                final nextOffset = (frame.scrollbackOffset + delta).clamp(
+                  0,
+                  frame.scrollbackMaxOffset,
+                );
                 controller.updateFrame(
                   _scrollbackFrame(
                     viewportStartRow: frame.scrollbackMaxOffset - nextOffset,
@@ -1557,9 +1559,10 @@ void main() {
                 onScrollLines: (delta) {
                   scrollLines.add(delta);
                   final frame = controller.frame;
-                  final nextOffset = (frame.scrollbackOffset + delta)
-                      .clamp(0, frame.scrollbackMaxOffset)
-                      .toInt();
+                  final nextOffset = (frame.scrollbackOffset + delta).clamp(
+                    0,
+                    frame.scrollbackMaxOffset,
+                  );
                   controller.updateFrame(
                     _scrollbackFrame(
                       viewportStartRow: frame.scrollbackMaxOffset - nextOffset,
@@ -2656,9 +2659,10 @@ void main() {
                 onScrollLines: (delta) {
                   scrollLines.add(delta);
                   final frame = controller.frame;
-                  final nextOffset = (frame.scrollbackOffset + delta)
-                      .clamp(0, frame.scrollbackMaxOffset)
-                      .toInt();
+                  final nextOffset = (frame.scrollbackOffset + delta).clamp(
+                    0,
+                    frame.scrollbackMaxOffset,
+                  );
                   controller.updateFrame(
                     _scrollbackFrame(
                       viewportStartRow: frame.scrollbackMaxOffset - nextOffset,
@@ -2737,9 +2741,10 @@ void main() {
                 onScrollLines: (delta) {
                   scrollLines.add(delta);
                   final frame = controller.frame;
-                  final nextOffset = (frame.scrollbackOffset + delta)
-                      .clamp(0, frame.scrollbackMaxOffset)
-                      .toInt();
+                  final nextOffset = (frame.scrollbackOffset + delta).clamp(
+                    0,
+                    frame.scrollbackMaxOffset,
+                  );
                   controller.updateFrame(
                     _scrollbackFrame(
                       viewportStartRow: frame.scrollbackMaxOffset - nextOffset,
@@ -2820,9 +2825,10 @@ void main() {
               onScrollLines: (delta) {
                 scrollLines.add(delta);
                 final frame = controller.frame;
-                final nextOffset = (frame.scrollbackOffset + delta)
-                    .clamp(0, frame.scrollbackMaxOffset)
-                    .toInt();
+                final nextOffset = (frame.scrollbackOffset + delta).clamp(
+                  0,
+                  frame.scrollbackMaxOffset,
+                );
                 controller.updateFrame(
                   _scrollbackFrame(
                     viewportStartRow: frame.scrollbackMaxOffset - nextOffset,
@@ -4363,7 +4369,7 @@ void main() {
         scrollbarThumb: Color(0x99FFFFFF),
       );
 
-      final modelRow = '│ model:     gpt-5.4 xhigh   /model to change │';
+      const modelRow = '│ model:     gpt-5.4 xhigh   /model to change │';
       final modelValueStart = modelRow.indexOf('gpt-5.4 xhigh');
       final modelValueEnd = modelValueStart + 'gpt-5.4 xhigh'.length;
       final slashModelStart = modelRow.indexOf('/model');
@@ -4373,12 +4379,12 @@ void main() {
         ..updateFrame(
           TerminalFrameDiff(
             rows: [
-              TerminalRow(
+              const TerminalRow(
                 index: 0,
                 text: '╭─────────────────────────────────────────────╮',
                 styleRuns: [TerminalStyleRun(start: 0, end: 47, dim: true)],
               ),
-              TerminalRow(
+              const TerminalRow(
                 index: 1,
                 text: '│ >_ OpenAI Codex (v0.129.0)                  │',
                 styleRuns: [
@@ -4390,7 +4396,7 @@ void main() {
                   ),
                 ],
               ),
-              TerminalRow(
+              const TerminalRow(
                 index: 2,
                 text: '│                                             │',
                 styleRuns: [TerminalStyleRun(start: 0, end: 47, dim: true)],
@@ -4399,7 +4405,7 @@ void main() {
                 index: 3,
                 text: modelRow,
                 styleRuns: [
-                  TerminalStyleRun(start: 0, end: 47, dim: true),
+                  const TerminalStyleRun(start: 0, end: 47, dim: true),
                   TerminalStyleRun(start: modelValueStart, end: modelValueEnd),
                   TerminalStyleRun(
                     start: slashModelStart,
@@ -4408,7 +4414,7 @@ void main() {
                   ),
                 ],
               ),
-              TerminalRow(
+              const TerminalRow(
                 index: 4,
                 text: '│ directory: ~/personal/ianvs terminal              │',
                 styleRuns: [
@@ -4419,7 +4425,7 @@ void main() {
                   ),
                 ],
               ),
-              TerminalRow(
+              const TerminalRow(
                 index: 5,
                 text: '╰─────────────────────────────────────────────╯',
                 styleRuns: [TerminalStyleRun(start: 0, end: 47, dim: true)],

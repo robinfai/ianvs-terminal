@@ -1,17 +1,16 @@
 import 'dart:io';
 
+import 'package:app/app.dart';
+import 'package:app/features/profiles/profile_models.dart';
+import 'package:app/features/sessions/session_controller.dart';
+import 'package:app/features/terminal/terminal_viewport.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
-import 'package:app/app.dart';
-import 'package:app/features/profiles/profile_models.dart';
-import 'package:app/features/sessions/session_controller.dart';
-import 'package:app/features/terminal/terminal_viewport.dart';
-
-import '../test/support/memory_app_preferences_repository.dart';
 import '../test/support/macos_integration_test_lifecycle.dart';
+import '../test/support/memory_app_preferences_repository.dart';
 import '../test/support/memory_profile_repository.dart';
 
 const _frameWait = Duration(seconds: 20);

@@ -309,7 +309,7 @@ class ProfileRepository {
 
   String _safeBasename(String basename) {
     final safe = basename
-        .replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '-')
+        .replaceAll(RegExp('[^A-Za-z0-9._-]+'), '-')
         .replaceAll(RegExp('-+'), '-')
         .replaceAll(RegExp(r'^-+|-+$'), '');
     if (safe.isEmpty) {
@@ -369,11 +369,12 @@ Map<String, Object?> _deepCopyJsonMap(Map<String, Object?> source) {
 
 Object? _deepCopyJsonValue(Object? value) {
   return switch (value) {
-    Map<Object?, Object?> map => map.map(
+    final Map<Object?, Object?> map => map.map(
       (key, entryValue) =>
           MapEntry(key.toString(), _deepCopyJsonValue(entryValue)),
     ),
-    List<Object?> list => list.map(_deepCopyJsonValue).toList(growable: false),
+    final List<Object?> list =>
+      list.map(_deepCopyJsonValue).toList(growable: false),
     _ => value,
   };
 }

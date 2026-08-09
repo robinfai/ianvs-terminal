@@ -1,8 +1,7 @@
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:app/platform/local_file_collision.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   late Directory directory;

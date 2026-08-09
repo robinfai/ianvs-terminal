@@ -170,7 +170,7 @@ class LocalTerminalScrollbackExporter {
 
   static String _safeBasename(String basename) {
     final safe = basename
-        .replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '-')
+        .replaceAll(RegExp('[^A-Za-z0-9._-]+'), '-')
         .replaceAll(RegExp('-+'), '-')
         .replaceAll(RegExp(r'^-+|-+$'), '');
     return _normalizeSafeBasename(safe);

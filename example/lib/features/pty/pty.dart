@@ -1,7 +1,5 @@
 import 'package:ianvs_pty/ianvs_pty.dart';
 
-export 'ios_sandbox_shell_backend.dart' show IosSandboxShellBackend;
-
 export 'package:ianvs_pty/ianvs_pty.dart'
     show
         NativePtyBackend,
@@ -10,6 +8,8 @@ export 'package:ianvs_pty/ianvs_pty.dart'
         PtySessionBackend,
         PtySessionConfigV1Backend,
         PtySessionJsonRequestBackend;
+
+export 'ios_sandbox_shell_backend.dart' show IosSandboxShellBackend;
 
 PtySessionBackend loadDefaultPtySessionBackend() {
   return NativePtyBackend.load(emitRuntimeEventGapDiagnostics: true);

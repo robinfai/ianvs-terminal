@@ -73,10 +73,10 @@ void main() {
           ),
         ),
       );
-      final invalid = TerminalSessionConfigV1(
+      final invalid = const TerminalSessionConfigV1(
         sessionId: 'runtime-1',
         displayName: 'shell',
-        config: const TerminalSessionConfig(
+        config: TerminalSessionConfig(
           launch: TerminalLaunchConfig(program: ''),
         ),
       ).toJson();
@@ -124,10 +124,10 @@ void main() {
     });
 
     test('round-trips SSH connection fields and permits no local program', () {
-      final wire = TerminalSessionConfigV1(
+      const wire = TerminalSessionConfigV1(
         sessionId: 'ssh-runtime-1',
         displayName: 'Production',
-        config: const TerminalSessionConfig(
+        config: TerminalSessionConfig(
           launch: TerminalLaunchConfig(program: ''),
           connection: TerminalConnectionConfig.ssh(
             host: 'ssh.example.test',

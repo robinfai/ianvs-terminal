@@ -252,7 +252,7 @@ void main() {
 
       expect(backend.isSessionPaused(sessionId), isTrue);
       expect(scheduler.hasPending, isFalse);
-      expect(() => scheduler.runNext(), throwsStateError);
+      expect(scheduler.runNext, throwsStateError);
 
       backend.setPlaybackSpeed(2);
       backend.resumeSession(sessionId);
@@ -388,7 +388,7 @@ void main() {
         ]),
       );
       expect(scheduler.cancelCount, 1);
-      expect(() => scheduler.runNext(), throwsStateError);
+      expect(scheduler.runNext, throwsStateError);
     });
 
     test('serves bundled graphic assets before the native fallback', () {
@@ -769,8 +769,7 @@ void main() {
           timingMode: TerminalReplayTimingMode.noDelay,
         );
         final sessionId = backend.createSession(
-          '{"id":"native-seek","name":"Native Seek",'
-          '"launch":{"program":"/definitely/not/a/child"}}',
+          '{"id":"native-seek","name":"Native Seek","launch":{"program":"/definitely/not/a/child"}}',
         );
 
         try {

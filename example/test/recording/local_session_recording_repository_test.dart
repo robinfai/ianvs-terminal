@@ -1,9 +1,8 @@
 import 'dart:io';
 
+import 'package:app/features/recording/local_session_recording_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
-
-import 'package:app/features/recording/local_session_recording_repository.dart';
 
 void main() {
   group('Local session recording repository', () {

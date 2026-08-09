@@ -18,15 +18,17 @@ abstract final class TerminalFrameValidationLimits {
     if (viewportRows <= 0) {
       return malformedCollectionSlack;
     }
-    return (viewportRows + malformedCollectionSlack)
-        .clamp(0, maxNativeDimension)
-        .toInt();
+    return (viewportRows + malformedCollectionSlack).clamp(
+      0,
+      maxNativeDimension,
+    );
   }
 
   static int maxEntriesToScan(int maxEntries) {
-    return (maxEntries * malformedCollectionScanMultiplier)
-        .clamp(0, maxNativeDimension)
-        .toInt();
+    return (maxEntries * malformedCollectionScanMultiplier).clamp(
+      0,
+      maxNativeDimension,
+    );
   }
 
   static T? decodeViewportBounded<T>({
@@ -49,8 +51,8 @@ abstract final class TerminalFrameValidationLimits {
         heightCells <= 0) {
       return null;
     }
-    final boundedWidthCells = widthCells.clamp(1, viewportCols - col).toInt();
-    final boundedHeightCells = heightCells.clamp(1, viewportRows - row).toInt();
+    final boundedWidthCells = widthCells.clamp(1, viewportCols - col);
+    final boundedHeightCells = heightCells.clamp(1, viewportRows - row);
     return decode(
       widthCells: boundedWidthCells,
       heightCells: boundedHeightCells,

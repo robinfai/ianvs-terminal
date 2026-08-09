@@ -20,7 +20,7 @@ class AppCompactRadioTile<T> extends StatelessWidget {
       key: tileKey ?? key,
       value: value,
       dense: true,
-      visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+      visualDensity: VisualDensity.compact,
       contentPadding: EdgeInsets.zero,
       title: title,
       subtitle: subtitle,

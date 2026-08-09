@@ -1,14 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
-import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:ianvs_pty/ianvs_pty.dart';
-
 import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/config/local_terminal_config_repository.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
@@ -20,6 +12,13 @@ import 'package:app/features/shell/shell_action_registry.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/shell/window_bridge.dart';
 import 'package:app/features/terminal/terminal_viewport.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_pty/ianvs_pty.dart';
 
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
@@ -265,7 +264,7 @@ Future<void> _invokeNativeWindowBridge(
 }
 
 Future<void> _dispatchNativeWindowBridge(WidgetTester tester, MethodCall call) {
-  final codec = const StandardMethodCodec();
+  const codec = StandardMethodCodec();
   return tester.binding.defaultBinaryMessenger.handlePlatformMessage(
     'app/window_bridge',
     codec.encodeMethodCall(call),
