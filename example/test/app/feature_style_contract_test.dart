@@ -35,6 +35,35 @@ void main() {
           ' except for approved demo fixtures.',
     );
   });
+
+  test('form dropdowns use the shared app control', () {
+    final projectRoot = _projectRoot();
+    final libDir = Directory('${projectRoot.path}/example/lib');
+    const sharedControl =
+        'example/lib/ui/components/app_dropdown_form_field.dart';
+    final violations = <String>[];
+
+    for (final entity in libDir.listSync(recursive: true)) {
+      if (entity is! File || !entity.path.endsWith('.dart')) {
+        continue;
+      }
+      final relativePath = entity.path.replaceFirst('${projectRoot.path}/', '');
+      if (relativePath == sharedControl) {
+        continue;
+      }
+      if (entity.readAsStringSync().contains('DropdownButtonFormField<')) {
+        violations.add(relativePath);
+      }
+    }
+
+    expect(
+      violations,
+      isEmpty,
+      reason:
+          'Use AppDropdownFormField so form dropdowns share text metrics and '
+          'height behavior with TextField.',
+    );
+  });
 }
 
 Directory _projectRoot() {

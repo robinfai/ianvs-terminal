@@ -308,7 +308,7 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
                 onChanged: (_) => setState(() {}),
               ),
             );
-            final category = DropdownButtonFormField<TerminalActionCategory?>(
+            final category = AppDropdownFormField<TerminalActionCategory?>(
               key: const Key('shortcut-editor-category'),
               initialValue: _category,
               isExpanded: true,
@@ -751,7 +751,7 @@ class _ShortcutCaptureDialogState extends State<_ShortcutCaptureDialog> {
                 ),
               ),
               SizedBox(height: theme.spacing.md),
-              DropdownButtonFormField<TerminalKeyBindingScope>(
+              AppDropdownFormField<TerminalKeyBindingScope>(
                 key: const Key('shortcut-capture-scope'),
                 initialValue: _scope,
                 decoration: const InputDecoration(

@@ -242,6 +242,49 @@ void main() {
     expect(result?.saveProfile, isTrue);
   });
 
+  testWidgets('SSH single-line fields share one rendered height', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1000, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await _pumpLauncher(
+      tester,
+      profiles: [defaultTerminalProfile()],
+      imported: const SshProfileImportSnapshot(
+        profiles: [],
+        sourcePath: '~/.ssh/config',
+      ),
+      onClosed: (_) {},
+    );
+    await tester.tap(find.text('SSH session'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('new-custom-ssh-session')));
+    await tester.pumpAndSettle();
+
+    const fieldKeys = <Key>[
+      Key('ssh-profile-name'),
+      Key('ssh-host'),
+      Key('ssh-user'),
+      Key('ssh-port'),
+      Key('ssh-password'),
+      Key('ssh-private-keys'),
+      Key('ssh-key-passphrase'),
+    ];
+    final heights = fieldKeys
+        .map((key) => tester.getSize(find.byKey(key)).height)
+        .toList(growable: false);
+    for (final height in heights.skip(1)) {
+      expect(
+        height,
+        closeTo(heights.first, 0.01),
+        reason: 'SSH input heights must match: $heights',
+      );
+    }
+    expect(heights.first, closeTo(36, 0.01));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('unrelated SSH edits preserve imported jump profiles', (
     tester,
   ) async {
