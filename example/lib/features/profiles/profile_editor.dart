@@ -61,7 +61,7 @@ List<TerminalProfileTrigger> _triggersFromText(String text) {
     }
     if (actionText.isEmpty || actionText.toLowerCase() == 'notify') {
       if (triggers.length >= maxTerminalProfileTriggers) {
-        throw FormatException(
+        throw const FormatException(
           'Use $maxTerminalProfileTriggers triggers or fewer.',
         );
       }
@@ -75,7 +75,7 @@ List<TerminalProfileTrigger> _triggersFromText(String text) {
         throw FormatException('Line ${index + 1}: send text is required.');
       }
       if (triggers.length >= maxTerminalProfileTriggers) {
-        throw FormatException(
+        throw const FormatException(
           'Use $maxTerminalProfileTriggers triggers or fewer.',
         );
       }
@@ -137,7 +137,7 @@ List<TerminalProfileSwitchRule> _switchRulesFromText(String text) {
       throw FormatException('Line ${index + 1}: pattern is required.');
     }
     if (rules.length >= maxTerminalProfileSwitchRules) {
-      throw FormatException(
+      throw const FormatException(
         'Use $maxTerminalProfileSwitchRules switching rules or fewer.',
       );
     }
@@ -175,7 +175,7 @@ String _switchRuleLineFor(TerminalProfileSwitchRule rule) {
 
 String _escapeTriggerValue(String value) {
   return value
-      .replaceAll('\\', r'\\')
+      .replaceAll(r'\', r'\\')
       .replaceAll('\r', r'\r')
       .replaceAll('\n', r'\n');
 }
@@ -184,7 +184,7 @@ String _unescapeTriggerValue(String value) {
   final buffer = StringBuffer();
   for (var index = 0; index < value.length; index += 1) {
     final character = value[index];
-    if (character != '\\' || index == value.length - 1) {
+    if (character != r'\' || index == value.length - 1) {
       buffer.write(character);
       continue;
     }
@@ -193,7 +193,7 @@ String _unescapeTriggerValue(String value) {
     buffer.write(switch (escaped) {
       'n' => '\n',
       'r' => '\r',
-      '\\' => '\\',
+      r'\' => r'\',
       _ => escaped,
     });
   }
@@ -397,25 +397,25 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   final List<_EnvEntryControllers> _envControllers = [];
   final List<TextEditingController> _fallbackControllers = [];
   final _scrollController = ScrollController();
-  final _generalSectionKey = GlobalKey(
+  final GlobalKey<State<StatefulWidget>> _generalSectionKey = GlobalKey(
     debugLabel: 'profile-editor-section-general-anchor',
   );
-  final _startupSectionKey = GlobalKey(
+  final GlobalKey<State<StatefulWidget>> _startupSectionKey = GlobalKey(
     debugLabel: 'profile-editor-section-startup-anchor',
   );
-  final _terminalSectionKey = GlobalKey(
+  final GlobalKey<State<StatefulWidget>> _terminalSectionKey = GlobalKey(
     debugLabel: 'profile-editor-section-terminal-anchor',
   );
-  final _appearanceSectionKey = GlobalKey(
+  final GlobalKey<State<StatefulWidget>> _appearanceSectionKey = GlobalKey(
     debugLabel: 'profile-editor-section-appearance-anchor',
   );
-  final _keysSectionKey = GlobalKey(
+  final GlobalKey<State<StatefulWidget>> _keysSectionKey = GlobalKey(
     debugLabel: 'profile-editor-section-keys-anchor',
   );
-  final _automationSectionKey = GlobalKey(
+  final GlobalKey<State<StatefulWidget>> _automationSectionKey = GlobalKey(
     debugLabel: 'profile-editor-section-automation-anchor',
   );
-  final _advancedSectionKey = GlobalKey(
+  final GlobalKey<State<StatefulWidget>> _advancedSectionKey = GlobalKey(
     debugLabel: 'profile-editor-section-advanced-anchor',
   );
   final Map<String, TextEditingController> _colorControllers =
@@ -3008,7 +3008,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
 
   Widget _buildOptionDragModeField() {
     final theme = context.appTheme;
-    final modes = TerminalOptionDragMode.values;
+    const modes = TerminalOptionDragMode.values;
     if (modes.length == 1) {
       return Text(
         terminalOptionDragModeLabel(modes.single),
@@ -3853,7 +3853,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
             controller: _hexController,
             textCapitalization: TextCapitalization.characters,
             inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'[#0-9a-fA-F]')),
+              FilteringTextInputFormatter.allow(RegExp('[#0-9a-fA-F]')),
             ],
             decoration: InputDecoration(
               hintText: '#RRGGBB or empty',

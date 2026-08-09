@@ -242,9 +242,7 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
     _activeSearchMatches = _matchesForFrame(frame, _searchQuery);
     _activeSearchMatchIndex = _activeSearchMatches.isEmpty
         ? 0
-        : _activeSearchMatchIndex
-              .clamp(0, _activeSearchMatches.length - 1)
-              .toInt();
+        : _activeSearchMatchIndex.clamp(0, _activeSearchMatches.length - 1);
   }
 
   void _updateSearch(String query) {

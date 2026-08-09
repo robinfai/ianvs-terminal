@@ -1,7 +1,7 @@
 import 'dart:convert';
 
-import '../preferences/app_preferences_models.dart';
 import '../policies/local_terminal_policy_models.dart';
+import '../preferences/app_preferences_models.dart';
 import '../shell/shell_action_registry.dart';
 
 const int maxLocalTerminalKeyBindingKeyLength = 64;

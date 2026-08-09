@@ -1,5 +1,4 @@
-import 'package:flutter_test/flutter_test.dart';
-
+import 'package:app/features/layout/terminal_layout_production_callbacks.dart';
 import 'package:app/features/policies/local_terminal_policy_production_callbacks.dart';
 import 'package:app/features/productivity/shell_productivity_production_callbacks.dart';
 import 'package:app/features/shell/local_terminal_completion_evidence_report.dart';
@@ -10,7 +9,7 @@ import 'package:app/features/shell/local_terminal_real_wiring_backlog_evidence.d
 import 'package:app/features/shell/local_terminal_verification_evidence.dart';
 import 'package:app/features/shell/shell_action_production_action_set.dart';
 import 'package:app/features/visual/local_terminal_visual_production_callbacks.dart';
-import 'package:app/features/layout/terminal_layout_production_callbacks.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('defaults all real wiring backlog tasks to pending', () {

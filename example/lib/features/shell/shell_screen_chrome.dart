@@ -80,10 +80,7 @@ class _ShellChromeBar extends StatelessWidget {
       palette,
       terminalBackgroundColor,
     );
-    final chromeTone = _ShellTabTone.fromTerminalBackground(
-      palette: palette,
-      terminalBackground: chromeBase,
-    );
+    final chromeTone = _ShellTabTone.fromTerminalBackground(palette: palette);
     final chromeSurface = _ShellTabTone.chromeSurfaceFor(palette, chromeBase);
     final railSurface = _ShellTabTone.railSurfaceFor(palette, chromeBase);
     return DecoratedBox(
@@ -939,7 +936,7 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
             return const SizedBox.shrink();
           }
           final overlaySize = MediaQuery.sizeOf(context);
-          final feedbackWidth = _visibleTabWidth.clamp(144.0, 248.0).toDouble();
+          final feedbackWidth = _visibleTabWidth.clamp(144.0, 248.0);
           const feedbackHeight = 36.0;
           final left = (globalPosition.dx - feedbackWidth / 2)
               .clamp(8.0, math.max(8.0, overlaySize.width - feedbackWidth - 8))
@@ -1026,7 +1023,6 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
     );
     final chromeTone = _ShellTabTone.fromTerminalBackground(
       palette: widget.palette,
-      terminalBackground: chromeBackground,
     );
     return FocusTraversalGroup(
       policy: OrderedTraversalPolicy(),
@@ -1370,7 +1366,7 @@ class _ShellTabDragProxy extends StatelessWidget {
           final lift = Curves.easeOutCubic.transform(animation.value);
           return Transform.scale(
             scale: 1 + lift * 0.018,
-            child: Material(type: MaterialType.transparency, child: child!),
+            child: Material(type: MaterialType.transparency, child: child),
           );
         },
       ),
@@ -1601,7 +1597,6 @@ class _ShellTabTone {
 
   factory _ShellTabTone.fromTerminalBackground({
     required AppThemeTokens palette,
-    required Color terminalBackground,
   }) {
     final chrome = palette.shellChrome;
     return _ShellTabTone(
@@ -1807,13 +1802,9 @@ class _ShellTabOverflowMenuState extends State<_ShellTabOverflowMenu> {
     final hasHiddenPaneSignals = hiddenPaneSignalTargets.isNotEmpty;
     final activeTone = activeHiddenTab == null
         ? null
-        : _ShellTabTone.fromTerminalBackground(
-            palette: widget.palette,
-            terminalBackground: widget.tabBackgroundColor(activeHiddenTab),
-          );
+        : _ShellTabTone.fromTerminalBackground(palette: widget.palette);
     final chromeTone = _ShellTabTone.fromTerminalBackground(
       palette: widget.palette,
-      terminalBackground: widget.chromeBackgroundColor,
     );
     final background = isActive
         ? activeTone!.activeBackground
@@ -2112,10 +2103,7 @@ class _ShellTabOverflowRowState extends State<_ShellTabOverflowRow> {
     final requestedStatusColor = terminalViewportColorFromHex(
       tabStatus.statusColor,
     );
-    final tone = _ShellTabTone.fromTerminalBackground(
-      palette: widget.palette,
-      terminalBackground: widget.terminalBackgroundColor,
-    );
+    final tone = _ShellTabTone.fromTerminalBackground(palette: widget.palette);
     final background = widget.isActive
         ? widget.palette.focus
         : _hovered
@@ -2872,10 +2860,7 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
     final requestedStatusColor = terminalViewportColorFromHex(
       tabStatus.statusColor,
     );
-    final tone = _ShellTabTone.fromTerminalBackground(
-      palette: widget.palette,
-      terminalBackground: widget.chromeBackgroundColor,
-    );
+    final tone = _ShellTabTone.fromTerminalBackground(palette: widget.palette);
     final tabTextStyle = Theme.of(context).textTheme.titleSmall!.copyWith(
       color: widget.isActive ? tone.primaryText : tone.mutedText,
       fontSize: 12.5,
@@ -3350,8 +3335,8 @@ Color _shellAccessibleForeground(
   if (_shellContrastRatio(fallback, background) >= 4.5) {
     return fallback;
   }
-  final black = Colors.black;
-  final white = Colors.white;
+  const black = Colors.black;
+  const white = Colors.white;
   return _shellContrastRatio(black, background) >=
           _shellContrastRatio(white, background)
       ? black
@@ -3435,9 +3420,10 @@ String _shellTabBadgeOverflowTooltip(
     return [
       'Additional OSC 1337 badge: ${badge.text}',
       _shellTabBadgePaneContext(badge),
-      badgeNeedsFocus(badge)
-          ? 'Click to focus this pane.'
-          : 'Pane already focused.',
+      if (badgeNeedsFocus(badge))
+        'Click to focus this pane.'
+      else
+        'Pane already focused.',
     ].join('\n');
   }
   final firstHiddenNeedsFocus = badgeNeedsFocus(hiddenBadges.first);
@@ -3445,9 +3431,10 @@ String _shellTabBadgeOverflowTooltip(
     'Additional OSC 1337 badges in this split tab.',
     for (final badge in hiddenBadges)
       '${_shellTabBadgePaneContext(badge)}: ${badge.text}',
-    firstHiddenNeedsFocus
-        ? 'Click to focus the first remaining badge pane.'
-        : 'First remaining badge pane is already focused.',
+    if (firstHiddenNeedsFocus)
+      'Click to focus the first remaining badge pane.'
+    else
+      'First remaining badge pane is already focused.',
   ].join('\n');
 }
 
@@ -3827,7 +3814,7 @@ String _hiddenTabsBadgeTooltip(
       'Tab: ${_shellTabDisplayTitle(target.tab)} (${target.tab.sessionId})',
       'OSC 1337 badge: ${target.badge.text}',
       _shellTabBadgePaneContext(target.badge),
-      needsFocus ? 'Click to focus this pane.' : 'Pane already focused.',
+      if (needsFocus) 'Click to focus this pane.' else 'Pane already focused.',
     ].join('\n');
   }
   final hasFocusableTarget = targets.any(
@@ -3838,9 +3825,10 @@ String _hiddenTabsBadgeTooltip(
     for (final target in targets)
       '${_shellTabDisplayTitle(target.tab)} (${target.tab.sessionId}) - '
           '${_shellTabBadgePaneContext(target.badge)}: ${target.badge.text}',
-    hasFocusableTarget
-        ? 'Click to focus the first badge pane.'
-        : 'Pane already focused.',
+    if (hasFocusableTarget)
+      'Click to focus the first badge pane.'
+    else
+      'Pane already focused.',
   ].join('\n');
 }
 
@@ -3880,7 +3868,7 @@ String _hiddenTabsPaneSignalTooltip(
       'Tab: ${_shellTabDisplayTitle(target.tab)} (${target.tab.sessionId})',
       _shellTabPaneSignalContext(target.signal),
       target.signal.detail,
-      needsFocus ? 'Click to focus this pane.' : 'Pane already focused.',
+      if (needsFocus) 'Click to focus this pane.' else 'Pane already focused.',
     ].join('\n');
   }
   final hasFocusableTarget = targets.any(
@@ -3892,9 +3880,10 @@ String _hiddenTabsPaneSignalTooltip(
       '${_shellTabDisplayTitle(target.tab)} (${target.tab.sessionId}) - '
           '${_shellTabPaneSignalContext(target.signal)}: '
           '${target.signal.label} ${target.signal.summary}',
-    hasFocusableTarget
-        ? 'Click to focus the first pane with a signal.'
-        : 'Pane already focused.',
+    if (hasFocusableTarget)
+      'Click to focus the first pane with a signal.'
+    else
+      'Pane already focused.',
   ].join('\n');
 }
 
@@ -3907,9 +3896,10 @@ String _hiddenTabsOverflowButtonTooltip({
   final hasSignals =
       badgePaneCount > 0 || paneSignalCount > 0 || newOutputTabCount > 0;
   return [
-    hiddenTabCount == 1
-        ? 'Show 1 hidden tab'
-        : 'Show $hiddenTabCount hidden tabs',
+    if (hiddenTabCount == 1)
+      'Show 1 hidden tab'
+    else
+      'Show $hiddenTabCount hidden tabs',
     if (badgePaneCount > 0)
       badgePaneCount == 1
           ? 'Hidden OSC 1337 badge: 1 pane'
@@ -3933,9 +3923,10 @@ String _hiddenTabsOverflowButtonSemanticsLabel({
   required int newOutputTabCount,
 }) {
   return [
-    hiddenTabCount == 1
-        ? 'Show 1 hidden tab'
-        : 'Show $hiddenTabCount hidden tabs',
+    if (hiddenTabCount == 1)
+      'Show 1 hidden tab'
+    else
+      'Show $hiddenTabCount hidden tabs',
     if (badgePaneCount > 0)
       badgePaneCount == 1
           ? '1 hidden OSC 1337 badge pane'
@@ -4009,7 +4000,7 @@ class _ShellStartupSurface extends StatelessWidget {
                     title: 'Terminal could not start',
                     message:
                         'Review the startup error, then try loading the layout again.',
-                    supportingText: errorMessage!,
+                    supportingText: errorMessage,
                     action: AppActionButton(
                       buttonKey: const Key('shell-startup-retry'),
                       icon: Icons.refresh,

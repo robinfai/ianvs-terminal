@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:app/features/profiles/profile_secret_cipher.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test(

@@ -1,8 +1,7 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:app/features/shell/local_terminal_completion_evidence_report.dart';
 import 'package:app/features/shell/local_terminal_pending_completion_snapshot_factory.dart';
 import 'package:app/features/shell/local_terminal_verification_evidence.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('builds blocked snapshot from verification plan records', () {

@@ -214,6 +214,8 @@ final class _ReplayDriver implements TerminalReplayDriver {
   void _throwIfNeeded() {
     final currentError = error;
     if (currentError != null) {
+      // The fake must preserve the exact configured replay failure object.
+      // ignore: only_throw_errors
       throw currentError;
     }
   }

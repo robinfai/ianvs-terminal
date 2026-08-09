@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
 import 'package:app/benchmarks/terminal_render_profile_report.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('writes Flutter render profile events and summary artifacts', () {
@@ -494,7 +494,7 @@ void main() {
 
     final metadata = _readJson(outputDir, 'metadata.json');
     expect(
-      (metadata['mode'] as Map<String, Object?>)['wire_format'],
+      (metadata['mode']! as Map<String, Object?>)['wire_format'],
       'protobuf',
     );
     expect(summary['wire_format'], 'protobuf');

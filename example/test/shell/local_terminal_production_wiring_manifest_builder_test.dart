@@ -1,5 +1,4 @@
-import 'package:flutter_test/flutter_test.dart';
-
+import 'package:app/features/layout/terminal_layout_production_callbacks.dart';
 import 'package:app/features/policies/local_terminal_policy_production_callbacks.dart';
 import 'package:app/features/productivity/shell_productivity_production_callbacks.dart';
 import 'package:app/features/shell/local_terminal_domain_wiring_summary.dart';
@@ -14,7 +13,7 @@ import 'package:app/features/shell/shell_action_production_wiring_report.dart';
 import 'package:app/features/shell/shell_action_production_wiring_state.dart';
 import 'package:app/features/shell/shell_action_runtime_bindings.dart';
 import 'package:app/features/visual/local_terminal_visual_production_callbacks.dart';
-import 'package:app/features/layout/terminal_layout_production_callbacks.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('keeps missing domain summaries as blockers', () {
@@ -59,17 +58,17 @@ void main() {
             ),
           ),
         );
-    final readySummary = LocalTerminalDomainWiringSummary(
+    const readySummary = LocalTerminalDomainWiringSummary(
       milestone: LocalTerminalProductionMilestone.p4Policy,
       ready: true,
-      registeredOperationNames: const ['paste'],
-      missingOperationNames: const [],
+      registeredOperationNames: ['paste'],
+      missingOperationNames: [],
     );
-    final visualSummary = LocalTerminalDomainWiringSummary(
+    const visualSummary = LocalTerminalDomainWiringSummary(
       milestone: LocalTerminalProductionMilestone.p5Visual,
       ready: true,
-      registeredOperationNames: const ['applyTheme'],
-      missingOperationNames: const [],
+      registeredOperationNames: ['applyTheme'],
+      missingOperationNames: [],
     );
 
     final manifest = LocalTerminalProductionWiringManifestBuilder(
@@ -195,7 +194,7 @@ LocalTerminalDomainWiringSummary _coreLayoutSummary() {
   );
 }
 
-const _coreLayoutOperations = [
+const List<TerminalLayoutProductionOperation> _coreLayoutOperations = [
   TerminalLayoutProductionOperation.newTab,
   TerminalLayoutProductionOperation.closeTab,
   TerminalLayoutProductionOperation.reopenClosedTab,
@@ -212,7 +211,7 @@ const _coreLayoutOperations = [
 ];
 
 TerminalLayoutProductionCallbacks _coreLayoutCallbacks() {
-  return TerminalLayoutProductionCallbacks(
+  return const TerminalLayoutProductionCallbacks(
     newTab: _completeLayout,
     closeTab: _completeLayout,
     reopenClosedTab: _completeLayout,
@@ -244,7 +243,7 @@ LocalTerminalDomainWiringSummary _coreProductivitySummary() {
   );
 }
 
-const _coreProductivityOperations = [
+const List<ShellProductivityProductionOperation> _coreProductivityOperations = [
   ShellProductivityProductionOperation.nextPrompt,
   ShellProductivityProductionOperation.previousPrompt,
   ShellProductivityProductionOperation.selectCommandOutput,
@@ -259,7 +258,7 @@ const _coreProductivityOperations = [
 ];
 
 ShellProductivityProductionCallbacks _coreProductivityCallbacks() {
-  return ShellProductivityProductionCallbacks(
+  return const ShellProductivityProductionCallbacks(
     nextPrompt: _completeProductivity,
     previousPrompt: _completeProductivity,
     selectCommandOutput: _completeProductivity,
@@ -289,7 +288,7 @@ LocalTerminalDomainWiringSummary _corePolicySummary() {
   );
 }
 
-const _corePolicyOperations = [
+const List<LocalTerminalPolicyProductionOperation> _corePolicyOperations = [
   LocalTerminalPolicyProductionOperation.copy,
   LocalTerminalPolicyProductionOperation.paste,
   LocalTerminalPolicyProductionOperation.pasteHistory,
@@ -305,7 +304,7 @@ const _corePolicyOperations = [
 ];
 
 LocalTerminalPolicyProductionCallbacks _corePolicyCallbacks() {
-  return LocalTerminalPolicyProductionCallbacks(
+  return const LocalTerminalPolicyProductionCallbacks(
     copy: _completePolicy,
     paste: _completePolicy,
     pasteHistory: _completePolicy,
@@ -336,7 +335,7 @@ LocalTerminalDomainWiringSummary _coreVisualSummary() {
   );
 }
 
-const _coreVisualOperations = [
+const List<LocalTerminalVisualProductionOperation> _coreVisualOperations = [
   LocalTerminalVisualProductionOperation.openThemePicker,
   LocalTerminalVisualProductionOperation.applyTheme,
   LocalTerminalVisualProductionOperation.applyLayoutTemplate,
@@ -346,7 +345,7 @@ const _coreVisualOperations = [
 ];
 
 LocalTerminalVisualProductionCallbacks _coreVisualCallbacks() {
-  return LocalTerminalVisualProductionCallbacks(
+  return const LocalTerminalVisualProductionCallbacks(
     openThemePicker: _completeVisual,
     applyTheme: _completeVisual,
     applyLayoutTemplate: _completeVisual,

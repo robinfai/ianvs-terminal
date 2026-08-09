@@ -273,7 +273,7 @@ void main() {
 
     expect(resourceSamples, hasLength(60));
     expect(events, hasLength(200));
-    expect((summary['conclusion']! as String), hasLength(4096));
+    expect(summary['conclusion']! as String, hasLength(4096));
     expect(evidence, hasLength(20));
     expect(evidence.first! as String, hasLength(512));
     expect(nextSteps, hasLength(20));

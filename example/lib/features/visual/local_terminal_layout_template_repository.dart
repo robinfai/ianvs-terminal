@@ -8,7 +8,7 @@ import '../../platform/local_json_file.dart';
 import 'local_terminal_visual_models.dart';
 
 const int maxLocalTerminalLayoutTemplates = 100;
-const _maxPersistedLayoutTemplateEntriesToScan =
+const int _maxPersistedLayoutTemplateEntriesToScan =
     maxLocalTerminalLayoutTemplates * 4;
 
 typedef LocalTerminalLayoutTemplateDirectoryResolver =

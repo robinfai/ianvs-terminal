@@ -104,7 +104,7 @@ final class TerminalSessionConfigV1 {
   factory TerminalSessionConfigV1.fromJson(Map<String, Object?> json) {
     final schemaVersion = json['schema_version'];
     if (schemaVersion != terminalSessionConfigSchemaVersion) {
-      throw TerminalSessionConfigContractException(
+      throw const TerminalSessionConfigContractException(
         code: 'unsupported_schema',
         path: r'$.schema_version',
         message: 'expected schema version $terminalSessionConfigSchemaVersion',

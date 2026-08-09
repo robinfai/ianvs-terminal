@@ -1,9 +1,9 @@
 import 'dart:async';
 
-import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
 class TerminalInputController extends terminal.TerminalInputController {
   TerminalInputController({
@@ -100,7 +100,7 @@ class TerminalInputController extends terminal.TerminalInputController {
 
 terminal.TerminalEmulation _resolveEmulation(Object emulation) {
   return switch (emulation) {
-    terminal.TerminalEmulation value => value,
+    final terminal.TerminalEmulation value => value,
     _ => throw FlutterError(
       'Unsupported terminal emulation type: ${emulation.runtimeType}',
     ),

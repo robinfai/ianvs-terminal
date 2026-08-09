@@ -22,11 +22,11 @@ import 'terminal_frame_pump.dart';
 import 'terminal_frame_pump_controller.dart';
 import 'terminal_frame_transport_coordinator.dart';
 import 'terminal_json_request_client.dart';
-import 'terminal_zmodem_recovery.dart';
 import 'terminal_refresh_policy.dart';
 import 'terminal_refresh_scheduler.dart';
 import 'terminal_resize_coordinator.dart';
 import 'terminal_session_registry.dart';
+import 'terminal_zmodem_recovery.dart';
 
 export 'terminal_clipboard_policy.dart';
 export 'terminal_diagnostics.dart';
@@ -270,7 +270,7 @@ final class TerminalSessionShellCommandEvent extends TerminalSessionEvent {
   int? get implicitClosedCount =>
       _wholeIntValue(rawPayload['implicitClosedCount']);
   bool? get freshLine =>
-      rawPayload['freshLine'] is bool ? rawPayload['freshLine'] as bool : null;
+      rawPayload['freshLine'] is bool ? rawPayload['freshLine']! as bool : null;
 
   static String? _stringValue(Object? value) {
     return value is String ? value : null;
@@ -298,7 +298,7 @@ final class TerminalSessionClearCapturedOutputEvent
   final Map<String, Object?> rawPayload;
 
   String? get source =>
-      rawPayload['source'] is String ? rawPayload['source'] as String : null;
+      rawPayload['source'] is String ? rawPayload['source']! as String : null;
 
   bool get isValid => source == 'iterm1337';
 }
@@ -700,7 +700,7 @@ final class TerminalSessionFileDownloadFailedEvent
   final Map<String, Object?> rawPayload;
 
   String get reason => rawPayload['reason'] is String
-      ? rawPayload['reason'] as String
+      ? rawPayload['reason']! as String
       : 'download rejected';
 }
 
@@ -713,7 +713,7 @@ final class TerminalSessionFileUploadDeniedEvent extends TerminalSessionEvent {
   final Map<String, Object?> rawPayload;
 
   String? get format =>
-      rawPayload['format'] is String ? rawPayload['format'] as String : null;
+      rawPayload['format'] is String ? rawPayload['format']! as String : null;
 }
 
 enum TerminalZmodemEventKind {
@@ -815,7 +815,7 @@ final class TerminalSessionZmodemEvent {
   }
 
   bool? get stagingPreserved => rawPayload['stagingPreserved'] is bool
-      ? rawPayload['stagingPreserved'] as bool
+      ? rawPayload['stagingPreserved']! as bool
       : null;
 
   bool get isTerminal => switch (kind) {
@@ -2013,9 +2013,10 @@ class TerminalRuntimeController {
       return;
     }
     final frame = viewportFor(sessionId).frame;
-    final scrollbackOffset = frame.scrollbackOffset
-        .clamp(0, frame.scrollbackMaxOffset)
-        .toInt();
+    final scrollbackOffset = frame.scrollbackOffset.clamp(
+      0,
+      frame.scrollbackMaxOffset,
+    );
     if (!_runBackendOperation(
       sessionId,
       'scrollViewportTo',
@@ -4163,8 +4164,7 @@ class TerminalRuntimeController {
       if (_isCurrentSession(sessionId, sessionEpoch)) {
         _pendingCellSizeReports.update(
           sessionId,
-          (count) =>
-              (count + 1).clamp(1, _maxPendingOsc1337CellSizeReports).toInt(),
+          (count) => (count + 1).clamp(1, _maxPendingOsc1337CellSizeReports),
           ifAbsent: () => 1,
         );
       }
@@ -5332,7 +5332,6 @@ class TerminalRuntimeController {
           break;
         case _TerminalSessionCloseOutcome.failed:
           _removeSessionState(sessionId);
-          break;
         case _TerminalSessionCloseOutcome.retryableBusy:
           // A queued native terminal result intentionally blocks close until
           // it has been delivered. Disposal therefore owns a minimal event
@@ -5374,12 +5373,12 @@ class TerminalRuntimeController {
     }
     _refreshScheduler.dispose();
     _sessions.dispose();
-    _events.close();
-    _zmodemEvents.close();
-    _zmodemDeferredWriteFailures.close();
-    _runtimeEventGaps.close();
-    _inputEvents.close();
-    _resizeEvents.close();
+    unawaited(_events.close());
+    unawaited(_zmodemEvents.close());
+    unawaited(_zmodemDeferredWriteFailures.close());
+    unawaited(_runtimeEventGaps.close());
+    unawaited(_inputEvents.close());
+    unawaited(_resizeEvents.close());
     return true;
   }
 

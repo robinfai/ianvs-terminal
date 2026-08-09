@@ -3,8 +3,8 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../config/terminal_config.dart';
@@ -687,7 +687,7 @@ class _TerminalViewportState extends State<TerminalViewport>
       return;
     }
     GestureBinding.instance.pointerSignalResolver.register(event, (
-      PointerSignalEvent resolvedEvent,
+      resolvedEvent,
     ) {
       final scrollEvent = resolvedEvent as PointerScrollEvent;
       if (_terminalMouseEnabled) {
@@ -895,8 +895,8 @@ class _TerminalViewportState extends State<TerminalViewport>
     final maxPixelY = math.max(0, renderObject.size.height.ceil() - 1);
     return (
       cell: renderObject.debugCellForOffset(localPosition),
-      pixelX: localPosition.dx.floor().clamp(0, maxPixelX).toInt(),
-      pixelY: localPosition.dy.floor().clamp(0, maxPixelY).toInt(),
+      pixelX: localPosition.dx.floor().clamp(0, maxPixelX),
+      pixelY: localPosition.dy.floor().clamp(0, maxPixelY),
     );
   }
 
@@ -1568,7 +1568,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     if (lineHeight <= 0) {
       return 1;
     }
-    return (1 + (overshoot / lineHeight).floor()).clamp(1, 6).toInt();
+    return (1 + (overshoot / lineHeight).floor()).clamp(1, 6);
   }
 
   int _selectionAutoScrollDelta() {
@@ -1602,9 +1602,10 @@ class _TerminalViewportState extends State<TerminalViewport>
 
   int _predictedViewportStartRow(int deltaLines) {
     final frame = widget.controller.frame;
-    final nextOffset = (frame.scrollbackOffset + deltaLines)
-        .clamp(0, frame.scrollbackMaxOffset)
-        .toInt();
+    final nextOffset = (frame.scrollbackOffset + deltaLines).clamp(
+      0,
+      frame.scrollbackMaxOffset,
+    );
     return frame.scrollbackMaxOffset - nextOffset;
   }
 
@@ -2110,7 +2111,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     final tooltipHeight = target.hasMismatchedVisibleText ? 54.0 : 34.0;
     final maxWidth = math.min(420.0, math.max(96.0, constraints.maxWidth - 16));
     final leftLimit = math.max(8.0, constraints.maxWidth - maxWidth - 8);
-    final left = (localPosition.dx + 10).clamp(8.0, leftLimit).toDouble();
+    final left = (localPosition.dx + 10).clamp(8.0, leftLimit);
     final aboveTop = localPosition.dy - tooltipHeight - 2;
     final belowTop = localPosition.dy + 18;
     final rawTop = aboveTop >= 8 ? aboveTop : belowTop;
@@ -2268,7 +2269,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     }
     final devicePixelRatio = MediaQuery.devicePixelRatioOf(
       context,
-    ).clamp(1.0, double.infinity).toDouble();
+    ).clamp(1.0, double.infinity);
     final placements = graphics
         .where((graphic) {
           return belowText ? graphic.zIndex < 0 : graphic.zIndex >= 0;
@@ -3105,7 +3106,6 @@ _TerminalWordRange? _wordRangeAtRelativeCell(
         }
         endCol = next.column + next.columnSpan;
       }
-      break;
     case _WordCellKind.separator:
       break;
     case _WordCellKind.text:
@@ -3276,7 +3276,7 @@ TerminalTextCell? _primaryCellAtColumn(TerminalTextCells cells, int column) {
   if (cells.cellCount <= 0) {
     return null;
   }
-  var index = column.clamp(0, cells.cellCount - 1).toInt();
+  var index = column.clamp(0, cells.cellCount - 1);
   while (index > 0 && cells.cells[index].isContinuation) {
     index -= 1;
   }
@@ -3289,7 +3289,7 @@ TerminalTextCell? _primaryCellBeforeColumn(
   int column,
 ) {
   for (
-    var index = math.min(column, cells.cellCount).toInt() - 1;
+    var index = math.min(column, cells.cellCount) - 1;
     index >= 0;
     index -= 1
   ) {
@@ -3305,11 +3305,7 @@ TerminalTextCell? _primaryCellAtOrAfterColumn(
   TerminalTextCells cells,
   int column,
 ) {
-  for (
-    var index = math.max(0, column).toInt();
-    index < cells.cellCount;
-    index += 1
-  ) {
+  for (var index = math.max(0, column); index < cells.cellCount; index += 1) {
     final cell = cells.cells[index];
     if (!cell.isContinuation) {
       return cell;
@@ -3539,32 +3535,34 @@ class _TerminalGraphicOverlayState extends State<_TerminalGraphicOverlay> {
           'previous_asset_key': terminalGraphicsAssetKeyJson(previousAssetKey),
       },
     );
-    future.then(
-      (image) {
-        if (!mounted) {
-          return;
-        }
-        if (_assetKey != assetKey) {
-          _emitDiagnostic('overlay_stale_load', assetKey: assetKey);
-          return;
-        }
-        if (image == null) {
-          _emitDiagnostic('overlay_load_null', assetKey: assetKey);
-          return;
-        }
-        setState(() {
-          _replaceVisibleImage(image.clone());
-        });
-        _emitDiagnostic('overlay_visible', assetKey: assetKey);
-      },
-      onError: (Object error, StackTrace stackTrace) {
-        // Keep the previous frame visible if a replacement image fails to load.
-        _emitDiagnostic(
-          'overlay_load_error',
-          assetKey: assetKey,
-          fields: <String, Object?>{'error': error.toString()},
-        );
-      },
+    unawaited(
+      future.then(
+        (image) {
+          if (!mounted) {
+            return;
+          }
+          if (_assetKey != assetKey) {
+            _emitDiagnostic('overlay_stale_load', assetKey: assetKey);
+            return;
+          }
+          if (image == null) {
+            _emitDiagnostic('overlay_load_null', assetKey: assetKey);
+            return;
+          }
+          setState(() {
+            _replaceVisibleImage(image.clone());
+          });
+          _emitDiagnostic('overlay_visible', assetKey: assetKey);
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          // Keep the previous frame visible if a replacement image fails to load.
+          _emitDiagnostic(
+            'overlay_load_error',
+            assetKey: assetKey,
+            fields: <String, Object?>{'error': error.toString()},
+          );
+        },
+      ),
     );
   }
 
@@ -3679,9 +3677,7 @@ class _TerminalScrollbarState extends State<_TerminalScrollbar> {
     final minThumbHeight = math.min(36.0, widget.trackHeight);
     final proportionalHeight =
         widget.trackHeight * (widget.viewportRows / totalRows);
-    return proportionalHeight
-        .clamp(minThumbHeight, widget.trackHeight)
-        .toDouble();
+    return proportionalHeight.clamp(minThumbHeight, widget.trackHeight);
   }
 
   double get _thumbTravelExtent =>
@@ -3693,7 +3689,7 @@ class _TerminalScrollbarState extends State<_TerminalScrollbar> {
     }
     final progress =
         1.0 - (widget.scrollbackOffset / widget.scrollbackMaxOffset);
-    return _thumbTravelExtent * progress.clamp(0.0, 1.0).toDouble();
+    return _thumbTravelExtent * progress.clamp(0.0, 1.0);
   }
 
   void _handleDragStart(DragStartDetails details) {
@@ -3713,13 +3709,11 @@ class _TerminalScrollbarState extends State<_TerminalScrollbar> {
     }
     final nextThumbTop =
         (dragStartThumbTop + (details.globalPosition.dy - dragStartGlobalDy))
-            .clamp(0.0, _thumbTravelExtent)
-            .toDouble();
+            .clamp(0.0, _thumbTravelExtent);
     final nextProgress = nextThumbTop / _thumbTravelExtent;
     final nextOffset = ((1 - nextProgress) * widget.scrollbackMaxOffset)
         .round()
-        .clamp(0, widget.scrollbackMaxOffset)
-        .toInt();
+        .clamp(0, widget.scrollbackMaxOffset);
     widget.onScrollToOffset(nextOffset);
   }
 

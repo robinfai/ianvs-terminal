@@ -83,7 +83,7 @@ final class TerminalDiagnosticsPolicy {
       includeScrollback || includeRawCommand || includeRawCwd || includeEnv;
 
   Map<String, Object?> toRequestJson() {
-    final effectiveMaxSamples = maxSamples.clamp(1, 60).toInt();
+    final effectiveMaxSamples = maxSamples.clamp(1, 60);
     return <String, Object?>{
       'kind': 'terminal.export_diagnostics',
       'maxSamples': effectiveMaxSamples,

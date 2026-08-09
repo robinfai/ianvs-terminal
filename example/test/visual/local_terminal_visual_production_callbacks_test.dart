@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:app/features/visual/local_terminal_visual_production_callbacks.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('runs registered visual production callbacks', () async {
@@ -106,7 +105,7 @@ void main() {
   });
 }
 
-const _coreVisualOperations = [
+const List<LocalTerminalVisualProductionOperation> _coreVisualOperations = [
   LocalTerminalVisualProductionOperation.openThemePicker,
   LocalTerminalVisualProductionOperation.applyTheme,
   LocalTerminalVisualProductionOperation.applyLayoutTemplate,
@@ -116,7 +115,7 @@ const _coreVisualOperations = [
 ];
 
 LocalTerminalVisualProductionCallbacks _coreVisualCallbacks() {
-  return LocalTerminalVisualProductionCallbacks(
+  return const LocalTerminalVisualProductionCallbacks(
     openThemePicker: _complete,
     applyTheme: _complete,
     applyLayoutTemplate: _complete,

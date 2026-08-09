@@ -29,38 +29,41 @@ class LocalTerminalRealWiringBacklogEvidence {
     required LocalTerminalVerificationEvidence verificationEvidence,
   }) {
     return LocalTerminalRealWiringBacklogEvidence(
-      shellActionWiring: LocalTerminalRealWiringTaskEvidence.implementedButUnverified(
+      shellActionWiring: const LocalTerminalRealWiringTaskEvidence.implementedButUnverified(
         task: LocalTerminalRealWiringTask.shellActionProductionWiring,
-        evidence: const [
+        evidence: [
           'ShellScreen command menu and shortcut dispatch use production action runtime for the current P1 action baseline.',
           'T-230 P1 production action baseline closure records the currently wired action set.',
           'Native clear scrollback and historical scrollback export request plumbing exist.',
         ],
       ),
-      layoutWiring: LocalTerminalRealWiringTaskEvidence.implementedButUnverified(
+      layoutWiring: const LocalTerminalRealWiringTaskEvidence.implementedButUnverified(
         task: LocalTerminalRealWiringTask.localLayoutProductionWiring,
-        evidence: const [
+        evidence: [
           'Split, pane focus, close, resize, swap, zoom, duplicate cwd, and reopen closed tab have live ShellScreen/session wiring.',
           'Layout production tasks T-215, T-227, T-228, T-229, and T-231 are represented in wiring.',
         ],
       ),
-      productivityWiring: LocalTerminalRealWiringTaskEvidence.implementedButUnverified(
-        task: LocalTerminalRealWiringTask.shellProductivityProductionWiring,
-        evidence: const [
-          'Search, prompt navigation, command output selection/copy, recent directory, paste history, instant replay, autocomplete, and auto composer have production dispatch coverage.',
-          'Productivity production tasks T-208, T-210, T-211, T-217, and T-232 are represented in wiring.',
-        ],
-      ),
-      policyWiring: LocalTerminalRealWiringTaskEvidence.implementedButUnverified(
-        task: LocalTerminalRealWiringTask.localTerminalPolicyProductionWiring,
-        evidence: const [
-          'Per-session read-only mode and persisted notification toggles have ShellScreen production wiring.',
-          'Policy tasks T-226, T-232, and T-238 are represented in wiring.',
-        ],
-      ),
-      visualWiring: LocalTerminalRealWiringTaskEvidence.implementedButUnverified(
+      productivityWiring:
+          const LocalTerminalRealWiringTaskEvidence.implementedButUnverified(
+            task: LocalTerminalRealWiringTask.shellProductivityProductionWiring,
+            evidence: [
+              'Search, prompt navigation, command output selection/copy, recent directory, paste history, instant replay, autocomplete, and auto composer have production dispatch coverage.',
+              'Productivity production tasks T-208, T-210, T-211, T-217, and T-232 are represented in wiring.',
+            ],
+          ),
+      policyWiring:
+          const LocalTerminalRealWiringTaskEvidence.implementedButUnverified(
+            task:
+                LocalTerminalRealWiringTask.localTerminalPolicyProductionWiring,
+            evidence: [
+              'Per-session read-only mode and persisted notification toggles have ShellScreen production wiring.',
+              'Policy tasks T-226, T-232, and T-238 are represented in wiring.',
+            ],
+          ),
+      visualWiring: const LocalTerminalRealWiringTaskEvidence.implementedButUnverified(
         task: LocalTerminalRealWiringTask.localTerminalVisualProductionWiring,
-        evidence: const [
+        evidence: [
           'Theme picker, two-pane layout template, pane sizing, and scrollback export have production dispatch coverage.',
           'Visual/runtime tasks T-223, T-224, T-233, T-235, T-236, and T-237 are represented in wiring.',
         ],
@@ -76,37 +79,37 @@ class LocalTerminalRealWiringBacklogEvidence {
     required LocalTerminalVerificationEvidence verificationEvidence,
   }) {
     return LocalTerminalRealWiringBacklogEvidence(
-      shellActionWiring: LocalTerminalRealWiringTaskEvidence.verified(
+      shellActionWiring: const LocalTerminalRealWiringTaskEvidence.verified(
         task: LocalTerminalRealWiringTask.shellActionProductionWiring,
-        evidence: const [
+        evidence: [
           'ShellScreen command menu and shortcut dispatch use production action runtime for the current P1 action baseline.',
           'P1 action/config closure passed focused, broader, integration, and manual command-menu evidence.',
         ],
       ),
-      layoutWiring: LocalTerminalRealWiringTaskEvidence.verified(
+      layoutWiring: const LocalTerminalRealWiringTaskEvidence.verified(
         task: LocalTerminalRealWiringTask.localLayoutProductionWiring,
-        evidence: const [
+        evidence: [
           'Split, pane focus, close, resize, swap, zoom, duplicate cwd, and reopen closed tab have live ShellScreen/session wiring.',
           'Layout behavior passed focused phase4, broader, integration, and manual pane evidence.',
         ],
       ),
-      productivityWiring: LocalTerminalRealWiringTaskEvidence.verified(
+      productivityWiring: const LocalTerminalRealWiringTaskEvidence.verified(
         task: LocalTerminalRealWiringTask.shellProductivityProductionWiring,
-        evidence: const [
+        evidence: [
           'Search, prompt navigation, command output selection/copy, recent directory, paste history, instant replay, autocomplete, and auto composer have production dispatch coverage.',
           'Productivity behavior passed broader and manual paste/focus evidence.',
         ],
       ),
-      policyWiring: LocalTerminalRealWiringTaskEvidence.verified(
+      policyWiring: const LocalTerminalRealWiringTaskEvidence.verified(
         task: LocalTerminalRealWiringTask.localTerminalPolicyProductionWiring,
-        evidence: const [
+        evidence: [
           'Per-session read-only mode, paste policy, notification toggles, and hotkey-window failure feedback have ShellScreen production wiring.',
           'Policy behavior passed focused phase4, broader, integration-backed, and manual evidence.',
         ],
       ),
-      visualWiring: LocalTerminalRealWiringTaskEvidence.verified(
+      visualWiring: const LocalTerminalRealWiringTaskEvidence.verified(
         task: LocalTerminalRealWiringTask.localTerminalVisualProductionWiring,
-        evidence: const [
+        evidence: [
           'Theme picker, two-pane layout template, pane sizing, zoom, and scrollback export have production dispatch coverage.',
           'Visual behavior passed latest broader coverage and manual pane layout evidence.',
         ],

@@ -1,13 +1,12 @@
-import 'dart:io';
 import 'dart:convert';
-
-import 'package:flutter_test/flutter_test.dart';
-import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
+import 'dart:io';
 
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/profiles/profile_repository.dart';
 import 'package:app/features/profiles/profile_secret_cipher.dart';
 import 'package:app/features/terminal/terminal_defaults.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
 void main() {
   test(
@@ -455,18 +454,18 @@ void main() {
       );
       expect(raw.containsKey('defaultProfileId'), isFalse);
       expect(
-        (raw['profiles'] as List<dynamic>).single,
+        (raw['profiles']! as List<dynamic>).single,
         containsPair(
           'launch',
           containsPair('program', defaultTerminalProfile().shell),
         ),
       );
       expect(
-        (raw['profiles'] as List<dynamic>).single,
+        (raw['profiles']! as List<dynamic>).single,
         containsPair('tags', const ['work', 'prod']),
       );
       expect(
-        (raw['profiles'] as List<dynamic>).single,
+        (raw['profiles']! as List<dynamic>).single,
         containsPair(
           'triggers',
           containsAll([
@@ -476,7 +475,7 @@ void main() {
         ),
       );
       expect(
-        (raw['profiles'] as List<dynamic>).single,
+        (raw['profiles']! as List<dynamic>).single,
         containsPair(
           'automaticProfileSwitching',
           containsAll([
@@ -555,11 +554,11 @@ void main() {
     expect(file.path, contains('ianvs-profiles.ianvs-terminal-profiles.json'));
     expect(raw['schemaVersion'], TerminalProfilesDocument.currentSchemaVersion);
     expect(
-      (raw['profiles'] as List<dynamic>).single,
+      (raw['profiles']! as List<dynamic>).single,
       containsPair('name', 'Exported Shell'),
     );
     expect(
-      (raw['profiles'] as List<dynamic>).single,
+      (raw['profiles']! as List<dynamic>).single,
       containsPair('tags', const ['exported']),
     );
   });
@@ -896,7 +895,7 @@ void main() {
   });
 
   test('profile document caps restored profile entries', () {
-    final inputCount = maxTerminalProfiles + 2;
+    const inputCount = maxTerminalProfiles + 2;
     final document = TerminalProfilesDocument.fromJson({
       'schemaVersion': 4,
       'profiles': [
@@ -939,9 +938,9 @@ void main() {
   });
 
   test('profile document caps restored profile metadata collections', () {
-    final tagInputCount = maxTerminalProfileTags + 2;
-    final triggerInputCount = maxTerminalProfileTriggers + 2;
-    final switchRuleInputCount = maxTerminalProfileSwitchRules + 2;
+    const tagInputCount = maxTerminalProfileTags + 2;
+    const triggerInputCount = maxTerminalProfileTriggers + 2;
+    const switchRuleInputCount = maxTerminalProfileSwitchRules + 2;
     final document = TerminalProfilesDocument.fromJson({
       'schemaVersion': 4,
       'profiles': [
@@ -1665,15 +1664,24 @@ final class _MemoryProfileSecretKeyStore implements ProfileSecretKeyStore {
   }
 }
 
-Map<String, Object?> _encryptedSecretsFor(Map document, String profileId) {
+Map<String, Object?> _encryptedSecretsFor(
+  Map<Object?, Object?> document,
+  String profileId,
+) {
   final connection = _connectionFor(document, profileId);
-  return Map<String, Object?>.from(connection['encryptedSecrets']! as Map);
+  return Map<String, Object?>.from(
+    connection['encryptedSecrets']! as Map<Object?, Object?>,
+  );
 }
 
-Map _connectionFor(Map document, String profileId) {
-  final profiles = document['profiles']! as List;
-  final profile = profiles.cast<Map>().singleWhere(
+Map<String, Object?> _connectionFor(
+  Map<Object?, Object?> document,
+  String profileId,
+) {
+  final profiles = document['profiles']! as List<Object?>;
+  final profile = profiles.cast<Map<String, Object?>>().singleWhere(
     (entry) => entry['id'] == profileId,
   );
-  return profile['connection']! as Map;
+  return (profile['connection']! as Map<Object?, Object?>)
+      .cast<String, Object?>();
 }

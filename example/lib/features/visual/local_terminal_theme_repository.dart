@@ -10,7 +10,8 @@ import 'local_terminal_visual_models.dart';
 
 const int maxLocalTerminalThemePresets = 100;
 const _maxSafeBasenameLength = 120;
-const _maxPersistedThemePresetEntriesToScan = maxLocalTerminalThemePresets * 4;
+const int _maxPersistedThemePresetEntriesToScan =
+    maxLocalTerminalThemePresets * 4;
 
 typedef LocalTerminalThemeDirectoryResolver = Future<Directory> Function();
 
@@ -74,7 +75,7 @@ class LocalTerminalThemeRepository {
 
   String _safeBasename(String basename) {
     final safe = basename
-        .replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '-')
+        .replaceAll(RegExp('[^A-Za-z0-9._-]+'), '-')
         .replaceAll(RegExp('-+'), '-')
         .replaceAll(RegExp(r'^-+|-+$'), '');
     if (safe.isEmpty || RegExp(r'^\.+$').hasMatch(safe)) {

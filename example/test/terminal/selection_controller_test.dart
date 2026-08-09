@@ -1,7 +1,6 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:app/features/terminal/selection_controller.dart';
 import 'package:app/features/terminal/terminal_painter_models.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   TerminalFrameDiff frameWithRows(List<TerminalRow> rows) {
@@ -133,7 +132,7 @@ void main() {
     controller.begin(const TerminalCellPosition(1, 1), viewportStartRow: 100);
     controller.update(const TerminalCellPosition(3, 3), viewportStartRow: 100);
 
-    final resizedFrame = const TerminalFrameDiff(
+    const resizedFrame = TerminalFrameDiff(
       rows: [
         TerminalRow(index: 0, text: 'alpha'),
         TerminalRow(index: 1, text: 'beta'),
@@ -160,7 +159,7 @@ void main() {
     );
     expect(controller.textForFrame(resizedFrame), 'lpha\nbeta');
 
-    final offscreenFrame = const TerminalFrameDiff(
+    const offscreenFrame = TerminalFrameDiff(
       rows: [TerminalRow(index: 0, text: 'after')],
       cursor: TerminalCursor(row: 0, col: 0, visible: true),
       viewportRows: 1,

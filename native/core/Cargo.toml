@@ -2,6 +2,7 @@
 name = "ianvs_core"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.88"
 build = "build.rs"
 
 [lib]
@@ -41,3 +42,15 @@ cbindgen = "0.29.2"
 [build-dependencies.prost-build]
 version = "0.14.3"
 optional = true
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+unused_lifetimes = "deny"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+dbg_macro = "deny"
+exit = "deny"
+multiple_unsafe_ops_per_block = "deny"
+todo = "deny"
+unimplemented = "deny"

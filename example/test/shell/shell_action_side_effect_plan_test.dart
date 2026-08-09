@@ -1,9 +1,9 @@
+import 'package:app/features/layout/local_terminal_layout_models.dart';
 import 'package:app/features/policies/local_terminal_paste_decision.dart';
 import 'package:app/features/policies/local_terminal_policy_action_reducer.dart';
 import 'package:app/features/shell/shell_action_dispatcher.dart';
 import 'package:app/features/shell/shell_action_side_effect_plan.dart';
 import 'package:app/features/visual/local_terminal_visual_action_reducer.dart';
-import 'package:app/features/layout/local_terminal_layout_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

@@ -23,8 +23,8 @@ void main() {
     });
 
     test('ignores missing handlers and none plans', () async {
-      final executor = ShellActionSideEffectExecutor(
-        const ShellActionSideEffectHandlers(),
+      const executor = ShellActionSideEffectExecutor(
+        ShellActionSideEffectHandlers(),
       );
 
       await executor.execute(

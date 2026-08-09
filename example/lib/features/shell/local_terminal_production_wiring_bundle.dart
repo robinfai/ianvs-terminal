@@ -1,7 +1,7 @@
+import '../layout/terminal_layout_production_callbacks.dart';
 import '../policies/local_terminal_policy_production_callbacks.dart';
 import '../productivity/shell_productivity_production_callbacks.dart';
 import '../visual/local_terminal_visual_production_callbacks.dart';
-import '../layout/terminal_layout_production_callbacks.dart';
 import 'local_terminal_action_domain_router.dart';
 import 'local_terminal_domain_wiring_summary.dart';
 import 'local_terminal_p0_boundary_closure_manifest.dart';

@@ -1,7 +1,6 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:app/features/shell/shell_action_registry.dart';
 import 'package:app/features/shell/shell_action_runtime_bindings.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('runs a registered production binding', () async {

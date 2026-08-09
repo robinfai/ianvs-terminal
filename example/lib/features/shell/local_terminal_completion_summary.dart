@@ -24,9 +24,10 @@ class LocalTerminalCompletionSummary {
     final canCloseObjective =
         report.canCloseObjective && verificationEvidence.canClose;
     final lines = <String>[
-      canCloseObjective
-          ? 'Local terminal objective can close.'
-          : 'Local terminal objective is blocked.',
+      if (canCloseObjective)
+        'Local terminal objective can close.'
+      else
+        'Local terminal objective is blocked.',
     ];
 
     if (report.blockedMilestones.isNotEmpty) {

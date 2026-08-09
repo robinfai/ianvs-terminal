@@ -289,7 +289,7 @@ void main() {
       final stderrLog = File('${directory.path}/stderr.log');
       int? childPid;
       try {
-        helper.writeAsStringSync(r'''
+        helper.writeAsStringSync('''
 import os
 import signal
 import subprocess

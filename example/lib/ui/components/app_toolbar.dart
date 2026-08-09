@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import 'app_panel.dart';
 import '../foundation/app_theme_tokens.dart';
+import 'app_panel.dart';
 
 class AppToolbar extends StatelessWidget {
   const AppToolbar({

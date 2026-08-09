@@ -301,9 +301,9 @@ class Terminal implements TerminalDisposable {
 
   void write(Object data, [void Function()? callback]) {
     final bytes = switch (data) {
-      Uint8List value => Uint8List.fromList(value),
-      List<int> value => Uint8List.fromList(value),
-      String value => Uint8List.fromList(utf8.encode(value)),
+      final Uint8List value => Uint8List.fromList(value),
+      final List<int> value => Uint8List.fromList(value),
+      final String value => Uint8List.fromList(utf8.encode(value)),
       _ => throw ArgumentError.value(
         data,
         'data',
@@ -316,9 +316,9 @@ class Terminal implements TerminalDisposable {
 
   void writeln(Object data, [void Function()? callback]) {
     final bytes = switch (data) {
-      Uint8List value => Uint8List.fromList(value),
-      List<int> value => Uint8List.fromList(value),
-      String value => Uint8List.fromList(utf8.encode(value)),
+      final Uint8List value => Uint8List.fromList(value),
+      final List<int> value => Uint8List.fromList(value),
+      final String value => Uint8List.fromList(utf8.encode(value)),
       _ => throw ArgumentError.value(
         data,
         'data',
@@ -485,18 +485,18 @@ class Terminal implements TerminalDisposable {
       addon.dispose();
     }
     _addons.clear();
-    _runtimeEventsSubscription?.cancel();
-    _runtimeZmodemSubscription?.cancel();
-    _runtimeInputSubscription?.cancel();
-    _runtimeResizeSubscription?.cancel();
-    _dataEvents.close();
-    _inputEvents.close();
-    _renderEvents.close();
-    _resizeEvents.close();
-    _scrollEvents.close();
-    _selectionChangeEvents.close();
-    _titleChangeEvents.close();
-    _exitEvents.close();
+    unawaited(_runtimeEventsSubscription?.cancel());
+    unawaited(_runtimeZmodemSubscription?.cancel());
+    unawaited(_runtimeInputSubscription?.cancel());
+    unawaited(_runtimeResizeSubscription?.cancel());
+    unawaited(_dataEvents.close());
+    unawaited(_inputEvents.close());
+    unawaited(_renderEvents.close());
+    unawaited(_resizeEvents.close());
+    unawaited(_scrollEvents.close());
+    unawaited(_selectionChangeEvents.close());
+    unawaited(_titleChangeEvents.close());
+    unawaited(_exitEvents.close());
   }
 
   void _handleRuntimeZmodemEvent(TerminalSessionZmodemEvent event) {
@@ -574,12 +574,10 @@ class Terminal implements TerminalDisposable {
         break;
       case TerminalSessionFrameEvent(:final frame):
         _handleFrame(frame);
-        break;
       case TerminalSessionExitEvent(:final exitCode):
         _exitEvents.add(TerminalExitEvent(exitCode: exitCode));
         _sessionId = null;
         _scheduleRequestedDisposeRetry();
-        break;
       case TerminalSessionBellEvent():
         break;
       case TerminalSessionShellHookEvent():
@@ -618,7 +616,6 @@ class Terminal implements TerminalDisposable {
         // The xterm-compatible facade has no product-owned variable
         // permission store, so it fails closed with the required empty reply.
         _runtime.respondToOsc1337ReportVariable(event);
-        break;
       case TerminalSessionOpenUrlRequestEvent():
         break;
       case TerminalSessionAttentionRequestEvent():
@@ -679,7 +676,7 @@ class TerminalStreamSubscriptionDisposable<T> implements TerminalDisposable {
       return;
     }
     _disposed = true;
-    _subscription.cancel();
+    unawaited(_subscription.cancel());
   }
 }
 

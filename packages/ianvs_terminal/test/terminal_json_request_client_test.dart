@@ -93,7 +93,7 @@ void main() {
     });
 
     test('requests backend selection text and decodes the response', () {
-      final backend = _JsonRequestBackend('{"text":"hello\\n"}');
+      final backend = _JsonRequestBackend(r'{"text":"hello\n"}');
       final client = TerminalJsonRequestClient(backend);
 
       final text = client.selectionText(
@@ -223,7 +223,7 @@ void main() {
           client.dismissOsc99Notification('session-a', 'deploy-1'),
           isTrue,
         );
-        backend.response = '{"content":"alpha\\nbeta"}';
+        backend.response = r'{"content":"alpha\nbeta"}';
         final exported = client.exportScrollbackText(
           'session-a',
           maxLines: 500000,
@@ -376,7 +376,7 @@ void main() {
         ),
         hasStatus(TerminalZmodemRecoveryResolutionStatus.requestFailed),
       );
-      backend.response = '{"available":true,"path":"/tmp/bad\\u0000path"}';
+      backend.response = r'{"available":true,"path":"/tmp/bad\u0000path"}';
       expect(
         client.resolveZmodemRecovery(
           'session-a',
@@ -477,6 +477,8 @@ final class _JsonRequestBackend implements PtySessionJsonRequestBackend {
     requests.add((jsonDecode(requestJson) as Map).cast<String, Object?>());
     final error = requestError;
     if (error != null) {
+      // The fake must preserve the exact configured transport failure object.
+      // ignore: only_throw_errors
       throw error;
     }
     return response;

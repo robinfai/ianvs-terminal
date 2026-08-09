@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:app/features/layout/terminal_layout_production_callbacks.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('runs registered layout production callbacks', () async {
@@ -91,7 +90,7 @@ void main() {
   });
 }
 
-const _coreLayoutOperations = [
+const List<TerminalLayoutProductionOperation> _coreLayoutOperations = [
   TerminalLayoutProductionOperation.newTab,
   TerminalLayoutProductionOperation.closeTab,
   TerminalLayoutProductionOperation.reopenClosedTab,
@@ -107,7 +106,7 @@ const _coreLayoutOperations = [
 ];
 
 TerminalLayoutProductionCallbacks _coreLayoutCallbacks() {
-  return TerminalLayoutProductionCallbacks(
+  return const TerminalLayoutProductionCallbacks(
     newTab: _complete,
     closeTab: _complete,
     reopenClosedTab: _complete,

@@ -1,8 +1,7 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:app/features/shell/shell_action_registry.dart';
 import 'package:app/features/shell/shell_action_view_models.dart';
 import 'package:app/features/shell/shell_command_menu_diagnostics.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('summarizes disabled command menu items', () {

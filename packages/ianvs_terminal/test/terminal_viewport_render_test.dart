@@ -7,10 +7,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_pty/ianvs_pty.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 import 'package:ianvs_terminal/src/terminal/render_terminal_viewport.dart';
 import 'package:ianvs_terminal/src/terminal/terminal_text_document_style.dart';
-import 'package:ianvs_pty/ianvs_pty.dart';
 
 void main() {
   testWidgets(
@@ -963,7 +963,7 @@ void main() {
       final boundary = tester.renderObject<RenderRepaintBoundary>(
         find.byKey(boundaryKey),
       );
-      final image = await _runUiAsync(tester, () => boundary.toImage());
+      final image = await _runUiAsync(tester, boundary.toImage);
       try {
         final byteData = await _runUiAsync(
           tester,
@@ -1035,7 +1035,7 @@ void main() {
       final boundary = tester.renderObject<RenderRepaintBoundary>(
         find.byKey(boundaryKey),
       );
-      final image = await _runUiAsync(tester, () => boundary.toImage());
+      final image = await _runUiAsync(tester, boundary.toImage);
       try {
         final byteData = await _runUiAsync(
           tester,
@@ -1093,7 +1093,7 @@ void main() {
     final boundary = tester.renderObject<RenderRepaintBoundary>(
       find.byKey(boundaryKey),
     );
-    final image = await _runUiAsync(tester, () => boundary.toImage());
+    final image = await _runUiAsync(tester, boundary.toImage);
     try {
       final byteData = await _runUiAsync(
         tester,
@@ -1136,7 +1136,7 @@ void main() {
     final boundary = tester.renderObject<RenderRepaintBoundary>(
       find.byKey(boundaryKey),
     );
-    final image = await _runUiAsync(tester, () => boundary.toImage());
+    final image = await _runUiAsync(tester, boundary.toImage);
     try {
       final byteData = await _runUiAsync(
         tester,
@@ -1849,7 +1849,7 @@ void main() {
     final boundary = tester.renderObject<RenderRepaintBoundary>(
       find.byKey(boundaryKey),
     );
-    final image = await _runUiAsync(tester, () => boundary.toImage());
+    final image = await _runUiAsync(tester, boundary.toImage);
     try {
       final byteData = await _runUiAsync(
         tester,
@@ -2619,8 +2619,8 @@ void main() {
           width: 1,
           height: 1,
           rgba: Uint8List.fromList(<int>[
-            key.version == 1 ? 255 : 0,
-            key.version == 1 ? 0 : 255,
+            if (key.version == 1) 255 else 0,
+            if (key.version == 1) 0 else 255,
             0,
             255,
           ]),
@@ -2739,8 +2739,8 @@ void main() {
           width: 1,
           height: 1,
           rgba: Uint8List.fromList(<int>[
-            key.version == 1 ? 255 : 0,
-            key.version == 2 ? 255 : 0,
+            if (key.version == 1) 255 else 0,
+            if (key.version == 2) 255 else 0,
             0,
             255,
           ]),
@@ -2953,8 +2953,8 @@ void main() {
           width: 1,
           height: 1,
           rgba: Uint8List.fromList(<int>[
-            key.id == 7 ? 255 : 0,
-            key.id == 7 ? 0 : 255,
+            if (key.id == 7) 255 else 0,
+            if (key.id == 7) 0 else 255,
             0,
             255,
           ]),
@@ -3063,8 +3063,8 @@ void main() {
         width: 1,
         height: 1,
         rgba: Uint8List.fromList(<int>[
-          key.id == 7 ? 255 : 0,
-          key.id == 7 ? 0 : 255,
+          if (key.id == 7) 255 else 0,
+          if (key.id == 7) 0 else 255,
           0,
           255,
         ]),
@@ -3648,11 +3648,11 @@ TerminalFrameDiff _emptyGraphicFrame({
 }) {
   return TerminalFrameDiff(
     frameKind: frameKind,
-    rows: [TerminalRow(index: 0, text: 'image')],
-    cursor: TerminalCursor(row: 0, col: 0, visible: false),
+    rows: [const TerminalRow(index: 0, text: 'image')],
+    cursor: const TerminalCursor(row: 0, col: 0, visible: false),
     viewportRows: 2,
     viewportCols: 8,
-    dirtyRanges: [TerminalDirtyRange(start: 0, end: 2)],
+    dirtyRanges: [const TerminalDirtyRange(start: 0, end: 2)],
     scrollbackOffset: 0,
     scrollbackMaxOffset: 0,
   );

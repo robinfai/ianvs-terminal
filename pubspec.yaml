@@ -2,7 +2,7 @@ name: ianvs_terminal_workspace
 publish_to: none
 
 environment:
-  sdk: ^3.11.0
+  sdk: ^3.12.0
 
 workspace:
   - example
@@ -11,3 +11,4 @@ workspace:
 
 dev_dependencies:
   test: ^1.26.0
+  very_good_analysis: ^10.3.0

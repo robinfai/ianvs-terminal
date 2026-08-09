@@ -162,14 +162,14 @@ void main() {
         now: const Duration(milliseconds: 600),
         receivedFrame: true,
         eventCount: 0,
-        modes: const TerminalFrameModes(),
+        modes: TerminalFrameModes.empty,
       );
       controller.recordRefreshResult(
         sessionId,
         now: const Duration(milliseconds: 650),
         receivedFrame: true,
         eventCount: 0,
-        modes: const TerminalFrameModes(),
+        modes: TerminalFrameModes.empty,
       );
 
       expect(
@@ -206,14 +206,14 @@ void main() {
         now: Duration.zero,
         receivedFrame: false,
         eventCount: 0,
-        modes: const TerminalFrameModes(),
+        modes: TerminalFrameModes.empty,
       );
       controller.recordRefreshResult(
         sessionId,
         now: const Duration(milliseconds: 33),
         receivedFrame: false,
         eventCount: 0,
-        modes: const TerminalFrameModes(),
+        modes: TerminalFrameModes.empty,
       );
       controller.reset(
         sessionId,

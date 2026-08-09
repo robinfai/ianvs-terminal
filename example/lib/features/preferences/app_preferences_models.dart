@@ -93,9 +93,7 @@ class TerminalAppAppearance {
     if (parsed == null || !parsed.isFinite) {
       return defaultTerminalViewportPadding;
     }
-    return parsed
-        .clamp(minTerminalViewportPadding, maxTerminalViewportPadding)
-        .toDouble();
+    return parsed.clamp(minTerminalViewportPadding, maxTerminalViewportPadding);
   }
 }
 

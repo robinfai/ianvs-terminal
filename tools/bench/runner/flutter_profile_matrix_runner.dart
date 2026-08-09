@@ -186,12 +186,12 @@ Future<int> _runProcessCommand(FlutterProfileProcessCommand command) async {
   return process.exitCode;
 }
 
-const _usage = '''
+const _usage = r'''
 Ianvs real Flutter profile matrix runner
 
 Usage:
-  dart run tools/bench/runner/flutter_profile_matrix_runner.dart \\
-    --output build/bench-results-profile/<run> \\
+  dart run tools/bench/runner/flutter_profile_matrix_runner.dart \
+    --output build/bench-results-profile/<run> \
     --require-target-count 2
 
 Options:

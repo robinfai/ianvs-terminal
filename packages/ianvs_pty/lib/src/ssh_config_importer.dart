@@ -6,9 +6,7 @@ import 'package:ffi/ffi.dart';
 
 import 'native_pty_backend.dart' show resolveNativePtyLibraryPath;
 
-typedef _ImportProfilesNative = ffi.Pointer<Utf8> Function(ffi.Pointer<Utf8>);
 typedef _ImportProfilesDart = ffi.Pointer<Utf8> Function(ffi.Pointer<Utf8>);
-typedef _FreeStringNative = ffi.Void Function(ffi.Pointer<Utf8>);
 typedef _FreeStringDart = void Function(ffi.Pointer<Utf8>);
 
 final class ImportedSshProfile {
@@ -297,12 +295,15 @@ final class ImportedSshProfilesDocument {
 final class NativeSshConfigImporter {
   NativeSshConfigImporter(ffi.DynamicLibrary library)
     : _import = library
-          .lookupFunction<_ImportProfilesNative, _ImportProfilesDart>(
-            'ianvs_ssh_import_profiles_json',
-          ),
-      _free = library.lookupFunction<_FreeStringNative, _FreeStringDart>(
-        'ianvs_string_free',
-      );
+          .lookupFunction<
+            ffi.Pointer<Utf8> Function(ffi.Pointer<Utf8>),
+            _ImportProfilesDart
+          >('ianvs_ssh_import_profiles_json'),
+      _free = library
+          .lookupFunction<
+            ffi.Void Function(ffi.Pointer<Utf8>),
+            _FreeStringDart
+          >('ianvs_string_free');
 
   final _ImportProfilesDart _import;
   final _FreeStringDart _free;
@@ -362,11 +363,9 @@ List<Map<String, Object?>> _objectList(Object? value) {
     return const <Map<String, Object?>>[];
   }
   return value
-      .whereType<Map>()
+      .whereType<Map<Object?, Object?>>()
       .map((entry) {
-        return entry.map(
-          (key, value) => MapEntry(key.toString(), value as Object?),
-        );
+        return entry.map((key, value) => MapEntry(key.toString(), value));
       })
       .toList(growable: false);
 }

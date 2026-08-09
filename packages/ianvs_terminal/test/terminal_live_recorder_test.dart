@@ -64,7 +64,7 @@ void main() {
         <String>['terminal.recording_start', 'terminal.recording_stop'],
       );
       expect(
-        (backend.v1Requests.first['payload'] as Map)['input_policy'],
+        (backend.v1Requests.first['payload']! as Map)['input_policy'],
         'redact',
       );
     });
@@ -127,7 +127,7 @@ final class _RecordingRequestBackend
   String? requestSessionV1Json(String sessionId, String requestV1Json) {
     final request = (jsonDecode(requestV1Json) as Map).cast<String, Object?>();
     v1Requests.add(request);
-    final payload = (request['payload'] as Map).cast<String, Object?>();
+    final payload = (request['payload']! as Map).cast<String, Object?>();
     final legacyRequest = <String, Object?>{
       'kind': request['operation'],
       ...payload,

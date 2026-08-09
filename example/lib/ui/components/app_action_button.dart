@@ -17,7 +17,10 @@ class AppActionButton extends StatelessWidget {
     this.tooltip,
     this.onPressed,
     this.autofocus = false,
-  }) : assert(icon != null || label != null);
+  }) : assert(
+         icon != null || label != null,
+         'AppActionButton requires an icon, a label, or both.',
+       );
 
   final Key? buttonKey;
   final AppActionTone tone;

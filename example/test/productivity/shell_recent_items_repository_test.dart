@@ -191,8 +191,8 @@ void main() {
         '${directory.path}/ianvs_recent_items.json',
       ).readAsString();
       final decoded = jsonDecode(raw) as Map<String, Object?>;
-      final commands = decoded['commands'] as List<Object?>;
-      final directories = decoded['directories'] as List<Object?>;
+      final commands = decoded['commands']! as List<Object?>;
+      final directories = decoded['directories']! as List<Object?>;
 
       expect(decoded['limit'], maxShellRecentItems);
       expect(commands, hasLength(maxShellRecentItems));

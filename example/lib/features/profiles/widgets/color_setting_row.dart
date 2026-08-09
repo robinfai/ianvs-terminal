@@ -178,7 +178,7 @@ class ColorSettingRow extends StatelessWidget {
         textInputAction: TextInputAction.done,
         textCapitalization: TextCapitalization.characters,
         inputFormatters: [
-          FilteringTextInputFormatter.allow(RegExp(r'[#0-9a-fA-F]')),
+          FilteringTextInputFormatter.allow(RegExp('[#0-9a-fA-F]')),
         ],
         decoration: const InputDecoration()
             .applyDefaults(inputTheme)

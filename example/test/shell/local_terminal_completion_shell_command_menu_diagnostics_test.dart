@@ -1,10 +1,9 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:app/features/shell/local_terminal_completion_controller.dart';
 import 'package:app/features/shell/local_terminal_completion_evidence_report.dart';
 import 'package:app/features/shell/local_terminal_completion_menu_model.dart';
 import 'package:app/features/shell/local_terminal_completion_shell_command_menu_diagnostics.dart';
 import 'package:app/features/shell/local_terminal_current_completion_state.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test(

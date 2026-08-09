@@ -1,10 +1,9 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:app/features/ssh/ssh_auth_prompt.dart';
 import 'package:app/features/terminal/terminal.dart' as terminal;
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   testWidgets('serializes multiple keyboard-interactive OTP rounds', (

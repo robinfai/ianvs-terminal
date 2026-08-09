@@ -19,9 +19,9 @@ import '../config/local_terminal_config_bootstrap.dart';
 import '../config/local_terminal_config_models.dart';
 import '../config/local_terminal_config_preferences_adapter.dart';
 import '../config/shortcut_editor.dart';
-import '../preferences/app_preferences_models.dart';
 import '../policies/local_terminal_paste_decision.dart';
 import '../policies/local_terminal_policy_models.dart';
+import '../preferences/app_preferences_models.dart';
 import '../profiles/dynamic_profiles_sheet.dart';
 import '../profiles/profile_editor.dart';
 import '../profiles/profile_models.dart';
@@ -45,44 +45,44 @@ import '../visual/local_terminal_visual_models.dart';
 import 'advanced_paste_transformer.dart';
 import 'defaults_appearance_dialog.dart';
 import 'instant_replay_store.dart';
-import 'paste_history_repository.dart';
-import 'password_manager_store.dart';
-import 'reference_demo.dart';
 import 'local_terminal_shell_ui_wiring_exports.dart';
 import 'osc72_drag_drop_controller.dart';
+import 'password_manager_store.dart';
+import 'paste_history_repository.dart';
+import 'reference_demo.dart';
 import 'shell_acceptance.dart';
 import 'shell_action_registry.dart';
 import 'shell_action_runtime_bindings.dart';
 import 'shell_shortcut_bridge.dart';
 import 'window_bridge.dart';
 
-part 'shell_screen_state_events.dart';
-part 'shell_screen_state_coprocesses.dart';
-part 'shell_screen_state_shortcuts_status.dart';
-part 'shell_screen_state_sessions.dart';
-part 'shell_screen_state_clipboard.dart';
-part 'shell_screen_state_integrations.dart';
-part 'shell_screen_state_instant_replay.dart';
-part 'shell_screen_state_search_completion.dart';
-part 'shell_screen_state_profile_actions.dart';
-part 'shell_screen_state_command_actions.dart';
-part 'shell_screen_state_terminal_layout.dart';
-part 'shell_screen_state_folders.dart';
-part 'shell_screen_state_recording.dart';
-part 'shell_screen_state_recording_library.dart';
-part 'shell_screen_models.dart';
-part 'shell_screen_toolbelt.dart';
 part 'shell_screen_chrome.dart';
-part 'shell_screen_search.dart';
-part 'shell_screen_shell_integration.dart';
+part 'shell_screen_command_menu.dart';
 part 'shell_screen_completion.dart';
 part 'shell_screen_instant_replay.dart';
-part 'shell_screen_recording_library.dart';
-part 'shell_screen_sheets.dart';
-part 'shell_screen_command_menu.dart';
-part 'shell_screen_shared_buttons.dart';
-part 'shell_screen_replay_timeline.dart';
 part 'shell_screen_mobile_input.dart';
+part 'shell_screen_models.dart';
+part 'shell_screen_recording_library.dart';
+part 'shell_screen_replay_timeline.dart';
+part 'shell_screen_search.dart';
+part 'shell_screen_shared_buttons.dart';
+part 'shell_screen_sheets.dart';
+part 'shell_screen_shell_integration.dart';
+part 'shell_screen_state_clipboard.dart';
+part 'shell_screen_state_command_actions.dart';
+part 'shell_screen_state_coprocesses.dart';
+part 'shell_screen_state_events.dart';
+part 'shell_screen_state_folders.dart';
+part 'shell_screen_state_instant_replay.dart';
+part 'shell_screen_state_integrations.dart';
+part 'shell_screen_state_profile_actions.dart';
+part 'shell_screen_state_recording.dart';
+part 'shell_screen_state_recording_library.dart';
+part 'shell_screen_state_search_completion.dart';
+part 'shell_screen_state_sessions.dart';
+part 'shell_screen_state_shortcuts_status.dart';
+part 'shell_screen_state_terminal_layout.dart';
+part 'shell_screen_toolbelt.dart';
 
 typedef ShellFileDownloadWriter =
     Future<void> Function(String path, List<int> bytes);
@@ -175,7 +175,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   static const _layoutCueDuration = Duration(milliseconds: 1400);
   static const _viewportResizeDebounce = Duration(milliseconds: 240);
   static const _terminalOverlayPadding = EdgeInsets.fromLTRB(12, 10, 14, 12);
-  static const _pasteHistoryLimit = maxPasteHistoryEntries;
+  static const int _pasteHistoryLimit = maxPasteHistoryEntries;
   static const _annotationLimit = 80;
   static const _protocolAnnotationTextRefreshLimit = 16;
   static const _capturedOutputLimit = 80;
@@ -185,7 +185,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   static const _paneGrowRatioStep = 0.08;
   static const _minimumSiblingPaneRatio = 0.24;
   static const _paneDividerDragThickness = 8.0;
-  static const _profileTriggerRegexCacheLimit = maxTerminalProfileTriggers * 4;
+  static const int _profileTriggerRegexCacheLimit =
+      maxTerminalProfileTriggers * 4;
   static const _triggerMatchHistoryLimit = 512;
   static const _activityPreviewMaxCharacters = 512;
   static const _activityNotificationTrailingDelay = Duration(milliseconds: 200);
@@ -423,8 +424,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       _handleSessionStateChanged,
       fireImmediately: true,
     );
-    Future.microtask(_loadPasteHistory);
-    Future.microtask(_loadNotificationPreferences);
+    unawaited(Future<void>.microtask(_loadPasteHistory));
+    unawaited(Future<void>.microtask(_loadNotificationPreferences));
   }
 
   @override
@@ -433,9 +434,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     _appLifecycleListener.dispose();
     unawaited(_osc72DragDropController.dispose());
     _osc52PromptController?.clearAuthorizationHandler();
-    _terminalEventSubscription?.cancel();
-    _zmodemEventSubscription?.cancel();
-    _zmodemDeferredWriteFailureSubscription?.cancel();
+    unawaited(_terminalEventSubscription?.cancel());
+    unawaited(_zmodemEventSubscription?.cancel());
+    unawaited(_zmodemDeferredWriteFailureSubscription?.cancel());
     _layoutCueTimer?.cancel();
     for (final timer in _viewportResizeTimers.values) {
       timer.cancel();
@@ -1213,12 +1214,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     _activateSession(sessionController, sessionId),
                 onCloseSession: (sessionId) =>
                     _closeTab(sessionController, sessionState, sessionId),
-                onReorderTab:
-                    ({required int oldIndex, required int newIndex}) =>
-                        sessionController.reorderTab(
-                          oldIndex: oldIndex,
-                          newIndex: newIndex,
-                        ),
+                onReorderTab: sessionController.reorderTab,
                 onSessionDragStarted: _startSessionDrag,
                 onSessionDragUpdated: _updateSessionDrag,
                 onSessionDragEnded: (data) =>
@@ -1392,9 +1388,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                     completionDiagnosticsSnapshot:
                                         _completionDiagnosticsSnapshot,
                                     palette: palette,
-                                    onClose: () {
-                                      _closeToolbelt();
-                                    },
+                                    onClose: _closeToolbelt,
                                     onOpenCapturedOutput: () =>
                                         _openToolbeltChild(
                                           () => _openCapturedOutput(

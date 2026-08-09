@@ -84,17 +84,17 @@ Map<String, String> _parseArgs(List<String> args) {
   return parsed;
 }
 
-const _usage = '''
+const _usage = r'''
 Ianvs benchmark runner
 
 Usage:
   dart run tools/bench/runner/bench_runner.dart --config tools/bench/configs/bench_ci_smoke.yaml
 
-  dart run tools/bench/runner/bench_runner.dart \\
-    --workload burst_stdout.seq_1000 \\
-    --frame-policy delta_coalesced \\
-    --render-policy headless_state_only \\
-    --cols 80 \\
-    --rows 24 \\
+  dart run tools/bench/runner/bench_runner.dart \
+    --workload burst_stdout.seq_1000 \
+    --frame-policy delta_coalesced \
+    --render-policy headless_state_only \
+    --cols 80 \
+    --rows 24 \
     --output build/bench-results
 ''';

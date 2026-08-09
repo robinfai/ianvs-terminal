@@ -755,13 +755,11 @@ class RenderTerminalViewport extends RenderBox {
           relativeRow >= frame.viewportRows) {
         continue;
       }
-      final startCol = match.startCol.clamp(0, frame.viewportCols).toInt();
+      final startCol = match.startCol.clamp(0, frame.viewportCols);
       if (startCol >= frame.viewportCols) {
         continue;
       }
-      final endCol = match.endCol
-          .clamp(startCol + 1, frame.viewportCols)
-          .toInt();
+      final endCol = match.endCol.clamp(startCol + 1, frame.viewportCols);
       if (endCol <= startCol) {
         continue;
       }
@@ -847,10 +845,8 @@ class RenderTerminalViewport extends RenderBox {
       if (hyperlink.row != rowIndex) {
         continue;
       }
-      final startCol = hyperlink.startCol.clamp(0, frame.viewportCols).toInt();
-      final endCol = hyperlink.endCol
-          .clamp(startCol, frame.viewportCols)
-          .toInt();
+      final startCol = hyperlink.startCol.clamp(0, frame.viewportCols);
+      final endCol = hyperlink.endCol.clamp(startCol, frame.viewportCols);
       if (endCol <= startCol) {
         continue;
       }
@@ -952,7 +948,7 @@ class RenderTerminalViewport extends RenderBox {
         continue;
       }
       final start = textCells.clampColumn(run.start);
-      final end = run.end.clamp(start, textCells.cellCount).toInt();
+      final end = run.end.clamp(start, textCells.cellCount);
       if (start >= end) {
         continue;
       }
@@ -1610,7 +1606,7 @@ class RenderTerminalViewport extends RenderBox {
 
   double get _minimumContrastRatio {
     final ratio = _colors.minimumContrastRatio;
-    return ratio.isFinite ? ratio.clamp(1.0, 21.0).toDouble() : 1.0;
+    return ratio.isFinite ? ratio.clamp(1.0, 21.0) : 1.0;
   }
 
   Color _foregroundWithContrastRatio(
@@ -1618,9 +1614,7 @@ class RenderTerminalViewport extends RenderBox {
     Color background,
     double ratio,
   ) {
-    final targetRatio = ratio.isFinite
-        ? ratio.clamp(1.0, 21.0).toDouble()
-        : 1.0;
+    final targetRatio = ratio.isFinite ? ratio.clamp(1.0, 21.0) : 1.0;
     if (targetRatio <= 1 ||
         _contrastRatio(foreground, background) >= targetRatio) {
       return foreground;

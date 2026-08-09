@@ -46,7 +46,7 @@ class LocalTerminalLayoutTemplateApplier {
             ),
           );
 
-    return TerminalLayout().addTab(
+    return const TerminalLayout().addTab(
       TerminalLayoutTab(
         id: context.tabId,
         root: root,

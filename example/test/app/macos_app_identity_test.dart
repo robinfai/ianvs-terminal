@@ -29,8 +29,7 @@ void main() {
     expect(
       projectText,
       contains(
-        r'TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Ianvs Terminal Dev.app/'
-        r'$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Ianvs Terminal Dev";',
+        r'TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Ianvs Terminal Dev.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Ianvs Terminal Dev";',
       ),
     );
     expect(
@@ -136,7 +135,7 @@ void main() {
     expect(allowlistEnd, greaterThan(allowlistStart));
     final allowlistBlock = verifier.substring(allowlistStart, allowlistEnd);
     final assignedNames = RegExp(
-      r'["(]([A-Z][A-Z0-9_]*)=',
+      '["(]([A-Z][A-Z0-9_]*)=',
     ).allMatches(allowlistBlock).map((match) => match.group(1)).toSet();
     expect(
       assignedNames,
@@ -232,7 +231,7 @@ void main() {
       expect(adHoc.result.exitCode, 0, reason: adHoc.result.stderr as String?);
       expect(
         RegExp(
-          r'^--force .*--sign - .*--options runtime ',
+          '^--force .*--sign - .*--options runtime ',
           multiLine: true,
         ).allMatches(adHoc.codesignLog),
         hasLength(1),
@@ -352,7 +351,8 @@ Future<_SignerFixtureResult> _runSignerFixture({
     final uname = File('${bin.path}/uname')
       ..writeAsStringSync('#!/usr/bin/env bash\necho Darwin\n');
     final codesign = File('${bin.path}/codesign')
-      ..writeAsStringSync(r'''#!/usr/bin/env bash
+      ..writeAsStringSync(r'''
+#!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$*" >> "$FAKE_CODESIGN_LOG"
 if [[ "$1" == "-d" && "$2" == "--verbose=4" ]]; then

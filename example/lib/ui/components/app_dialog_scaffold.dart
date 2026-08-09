@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import 'app_action_button.dart';
 import '../foundation/app_theme_tokens.dart';
+import 'app_action_button.dart';
 import 'app_panel.dart';
 
 class AppDialogScaffold extends StatelessWidget {
@@ -122,7 +122,7 @@ class AppDialogScaffold extends StatelessWidget {
                   theme.spacing.xl,
                   theme.spacing.md,
                 ),
-            child: footer!,
+            child: footer,
           );
 
     Widget contents = Column(

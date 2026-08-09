@@ -130,7 +130,7 @@ class TerminalTextDocumentStyler {
     _addMatches(
       tokens,
       text,
-      RegExp(r'`[^`]+`'),
+      RegExp('`[^`]+`'),
       foreground: palette.secondary,
       priority: 4,
     );
@@ -273,8 +273,8 @@ class TerminalTextDocumentStyler {
     }
     final styleByCodeUnit = List<_DocumentToken?>.filled(text.length, null);
     for (final token in tokens) {
-      final start = token.start.clamp(0, text.length).toInt();
-      final end = token.end.clamp(start, text.length).toInt();
+      final start = token.start.clamp(0, text.length);
+      final end = token.end.clamp(start, text.length);
       for (var index = start; index < end; index += 1) {
         final current = styleByCodeUnit[index];
         if (current == null || token.priority >= current.priority) {

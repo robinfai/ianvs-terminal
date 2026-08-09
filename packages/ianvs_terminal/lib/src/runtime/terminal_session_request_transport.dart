@@ -10,7 +10,7 @@ final class TerminalSessionRequestTransport {
   TerminalSessionRequestTransport(PtySessionJsonRequestBackend? backend)
     : _legacyBackend = backend,
       _versionedBackend = backend is PtySessionRequestV1Backend
-          ? backend as PtySessionRequestV1Backend
+          ? backend! as PtySessionRequestV1Backend
           : null;
 
   final PtySessionJsonRequestBackend? _legacyBackend;

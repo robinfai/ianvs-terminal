@@ -1199,15 +1199,17 @@ int _maxViewportBoundedEntries(int viewportRows) {
   if (viewportRows <= 0) {
     return _malformedCollectionSlack;
   }
-  return (viewportRows + _malformedCollectionSlack)
-      .clamp(0, _maxNativeDimension)
-      .toInt();
+  return (viewportRows + _malformedCollectionSlack).clamp(
+    0,
+    _maxNativeDimension,
+  );
 }
 
 int _maxEntriesToScan(int maxEntries) {
-  return (maxEntries * _malformedCollectionScanMultiplier)
-      .clamp(0, _maxNativeDimension)
-      .toInt();
+  return (maxEntries * _malformedCollectionScanMultiplier).clamp(
+    0,
+    _maxNativeDimension,
+  );
 }
 
 Map<String, Object?> _jsonFrame({

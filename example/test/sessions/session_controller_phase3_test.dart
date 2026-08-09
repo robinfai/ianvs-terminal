@@ -1,11 +1,10 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/preferences/app_preferences_repository.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/profiles/profile_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import '../support/fake_pty_backend.dart';
 
@@ -193,7 +192,9 @@ void main() {
         overrides: [
           ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
           profileRepositoryProvider.overrideWithValue(
-            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+            _TestProfileRepository(
+              const TerminalProfilesDocument(profiles: []),
+            ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
             _TestAppPreferencesRepository(null),

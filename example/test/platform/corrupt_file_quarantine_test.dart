@@ -1,8 +1,7 @@
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:app/platform/corrupt_file_quarantine.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   late Directory directory;

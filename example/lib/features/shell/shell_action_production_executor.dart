@@ -38,7 +38,7 @@ class ShellActionProductionExecutor {
         actionId: actionId,
         bindingResult: bindingResult,
       );
-    } catch (error) {
+    } on Object catch (error) {
       return ShellActionProductionExecutionResult.failed(
         actionId: actionId,
         bindingResult: ShellActionBindingResult.failed(

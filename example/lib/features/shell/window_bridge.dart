@@ -532,7 +532,7 @@ class NativeOsc72DropTargetStatus {
     return NativeOsc72DropTargetStatus(
       enabled: value['enabled'] == true,
       sessionId: value['sessionId'] is String
-          ? value['sessionId'] as String
+          ? value['sessionId']! as String
           : null,
       mimeTypes: rawMimeTypes is List
           ? rawMimeTypes.whereType<String>().take(64).toList(growable: false)

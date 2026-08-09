@@ -1,13 +1,12 @@
+import 'package:app/app.dart';
+import 'package:app/features/profiles/profile_models.dart';
+import 'package:app/features/sessions/session_controller.dart';
+import 'package:app/features/terminal/terminal_viewport.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-
-import 'package:app/app.dart';
-import 'package:app/features/profiles/profile_models.dart';
-import 'package:app/features/sessions/session_controller.dart';
-import 'package:app/features/terminal/terminal_viewport.dart';
 
 import '../test/support/fake_pty_backend.dart';
 import '../test/support/macos_integration_test_lifecycle.dart';
@@ -77,7 +76,7 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('startup renders the hyper shell and opens another tab', (
-    WidgetTester tester,
+    tester,
   ) async {
     await _pumpSmokeApp(
       tester,
@@ -98,7 +97,7 @@ void main() {
   });
 
   testWidgets('command-shift-p opens tools and defaults can close cleanly', (
-    WidgetTester tester,
+    tester,
   ) async {
     await _pumpSmokeApp(
       tester,
@@ -141,7 +140,7 @@ void main() {
   });
 
   testWidgets('profiles sheet can open another profile as a new tab', (
-    WidgetTester tester,
+    tester,
   ) async {
     final primaryProfile = defaultTerminalProfile().copyWith(name: 'Shell A');
     final secondaryProfile = defaultTerminalProfile().copyWith(
@@ -179,7 +178,7 @@ void main() {
   });
 
   testWidgets('closing tabs reaches the empty state and recovers via New Tab', (
-    WidgetTester tester,
+    tester,
   ) async {
     await _pumpSmokeApp(
       tester,

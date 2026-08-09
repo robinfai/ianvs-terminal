@@ -1,10 +1,9 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:app/features/shell/shell_action_production_action_set.dart';
 import 'package:app/features/shell/shell_action_production_callbacks.dart';
 import 'package:app/features/shell/shell_action_production_runtime_adapter.dart';
 import 'package:app/features/shell/shell_action_registry.dart';
 import 'package:app/features/shell/shell_action_runtime_bindings.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test(
@@ -90,7 +89,7 @@ void main() {
 }
 
 ShellActionProductionCallbacks _baselineCallbacks() {
-  return ShellActionProductionCallbacks(
+  return const ShellActionProductionCallbacks(
     newTab: _complete,
     closeTab: _complete,
     reopenClosedTab: _complete,

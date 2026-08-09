@@ -559,7 +559,7 @@ class _ReplaySemanticTimeline extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final safeMax = max <= 0 ? 1.0 : max;
-    final safeValue = value.clamp(0.0, safeMax).toDouble();
+    final safeValue = value.clamp(0.0, safeMax);
     final path = model.pathAt(position);
     final visiblePosition = displayPosition ?? position;
     final visibleDuration = displayDuration ?? duration;

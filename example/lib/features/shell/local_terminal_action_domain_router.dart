@@ -1,7 +1,7 @@
+import '../layout/terminal_layout_production_callbacks.dart';
 import '../policies/local_terminal_policy_production_callbacks.dart';
 import '../productivity/shell_productivity_production_callbacks.dart';
 import '../visual/local_terminal_visual_production_callbacks.dart';
-import '../layout/terminal_layout_production_callbacks.dart';
 import 'shell_action_production_callbacks.dart';
 import 'shell_action_runtime_bindings.dart';
 
@@ -130,7 +130,7 @@ class LocalTerminalActionDomainRouter {
         operation,
         tabId: context.tabId,
         paneId: context.paneId,
-        query: context.payload is String ? context.payload as String : null,
+        query: context.payload is String ? context.payload! as String : null,
         payload: context.payload,
       );
       return _fromProductivityResult(result);
@@ -149,7 +149,7 @@ class LocalTerminalActionDomainRouter {
         operation,
         tabId: context.tabId,
         paneId: context.paneId,
-        text: context.payload is String ? context.payload as String : null,
+        text: context.payload is String ? context.payload! as String : null,
         payload: context.payload,
       );
       return _fromPolicyResult(result);
@@ -168,12 +168,12 @@ class LocalTerminalActionDomainRouter {
         operation,
         tabId: context.tabId,
         paneId: context.paneId,
-        themeId: context.payload is String ? context.payload as String : null,
+        themeId: context.payload is String ? context.payload! as String : null,
         templateId: context.payload is String
-            ? context.payload as String
+            ? context.payload! as String
             : null,
         destinationPath: context.payload is String
-            ? context.payload as String
+            ? context.payload! as String
             : null,
         payload: context.payload,
       );

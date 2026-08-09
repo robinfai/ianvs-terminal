@@ -1,10 +1,9 @@
 import 'dart:async';
 
-import 'package:flutter_test/flutter_test.dart';
-import 'package:ianvs_pty/ianvs_pty.dart' as pty;
-
 import 'package:app/features/ssh/ssh_profile_import_service.dart';
 import 'package:app/features/terminal/terminal.dart' as terminal;
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_pty/ianvs_pty.dart' as pty;
 
 void main() {
   test(

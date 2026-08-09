@@ -2,17 +2,16 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
-import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/shell/reference_demo.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/terminal/render_terminal_viewport.dart';
 import 'package:app/features/terminal/terminal_painter_models.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
@@ -121,8 +120,8 @@ void main() {
         'backgroundSpans',
       ]),
     );
-    expect((metrics['cells'] as List<dynamic>), isNotEmpty);
-    expect((metrics['backgroundSpans'] as List<dynamic>), isNotEmpty);
+    expect(metrics['cells'] as List<dynamic>, isNotEmpty);
+    expect(metrics['backgroundSpans'] as List<dynamic>, isNotEmpty);
   });
 
   testWidgets('ps1 diag export keeps prompt inset and dark shell surface', (
@@ -521,7 +520,7 @@ Future<_ShellExport> _captureShellExport(
     final tabs = List.of(container.read(sessionControllerProvider).tabs);
     final notifier = container.read(sessionControllerProvider.notifier);
     for (final tab in tabs) {
-      notifier.closeSession(tab.sessionId);
+      await notifier.closeSession(tab.sessionId);
     }
   }
 }

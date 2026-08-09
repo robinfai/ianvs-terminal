@@ -119,7 +119,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
         );
         _activeSearchIndex = _searchHits.isEmpty
             ? 0
-            : _activeSearchIndex.clamp(0, _searchHits.length - 1).toInt();
+            : _activeSearchIndex.clamp(0, _searchHits.length - 1);
         _lastSearchScopeSessionSignature = null;
       }
       _sessionsSeenForActivityNotifications.remove(sessionId);
@@ -542,9 +542,10 @@ extension _ShellScreenStateSessions on _ShellScreenState {
         ? 'Click to focus this pane.'
         : 'Click to focus the first pane with new output.';
     return [
-      panes.length == 1
-          ? 'New output in a split pane.'
-          : 'New output in ${panes.length} split panes.',
+      if (panes.length == 1)
+        'New output in a split pane.'
+      else
+        'New output in ${panes.length} split panes.',
       for (final pane in panes) _terminalPaneContextLine(pane.sessionId),
       focusHint,
     ].join('\n');
@@ -563,7 +564,10 @@ extension _ShellScreenStateSessions on _ShellScreenState {
         'New output in a hidden tab.',
         'Tab: ${_shellTabDisplayTitle(target.tab)} (${target.tab.sessionId})',
         _terminalPaneContextLine(target.pane.sessionId),
-        needsFocus ? 'Click to focus this pane.' : 'Pane already focused.',
+        if (needsFocus)
+          'Click to focus this pane.'
+        else
+          'Pane already focused.',
       ].join('\n');
     }
     final hasFocusableTarget = targets.any(
@@ -574,9 +578,10 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       for (final target in targets)
         '${_shellTabDisplayTitle(target.tab)} (${target.tab.sessionId}) - '
             '${_terminalPaneContextLine(target.pane.sessionId)}',
-      hasFocusableTarget
-          ? 'Click to focus the first pane with new output.'
-          : 'Pane already focused.',
+      if (hasFocusableTarget)
+        'Click to focus the first pane with new output.'
+      else
+        'Pane already focused.',
     ].join('\n');
   }
 

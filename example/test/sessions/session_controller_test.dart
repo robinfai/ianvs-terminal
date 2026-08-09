@@ -1,25 +1,25 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show FileSystemException;
 import 'dart:typed_data';
 import 'dart:ui';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:ianvs_pty/ianvs_pty.dart';
-import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
-
 import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/config/local_terminal_config_repository.dart';
-import 'package:app/features/profiles/profile_models.dart';
-import 'package:app/features/profiles/profile_repository.dart';
+import 'package:app/features/layout/local_terminal_layout_models.dart';
+import 'package:app/features/layout/local_terminal_layout_repository.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/preferences/app_preferences_repository.dart';
+import 'package:app/features/profiles/profile_models.dart';
+import 'package:app/features/profiles/profile_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_ports.dart';
 import 'package:app/features/sessions/session_state.dart';
 import 'package:app/features/shell/shell_action_registry.dart';
-import 'package:app/features/layout/local_terminal_layout_models.dart';
-import 'package:app/features/layout/local_terminal_layout_repository.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_pty/ianvs_pty.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
 import '../support/fake_pty_backend.dart';
 
@@ -258,7 +258,7 @@ class _DelayedFramePtyBackend extends _CountingPtyBackend {
     final sessionId = super.createSession(sessionConfigJson);
     setFrame(sessionId, {
       'rows': [
-        {'index': 0, 'text': '', 'style_runs': const []},
+        {'index': 0, 'text': '', 'style_runs': const <Object?>[]},
       ],
       'cursor': {'row': 0, 'col': 0, 'visible': true},
       'selection': null,
@@ -280,7 +280,7 @@ class _DelayedFramePtyBackend extends _CountingPtyBackend {
     if (reads < revealOnRead) {
       setFrame(sessionId, {
         'rows': [
-          {'index': 0, 'text': '', 'style_runs': const []},
+          {'index': 0, 'text': '', 'style_runs': const <Object?>[]},
         ],
         'cursor': {'row': 0, 'col': 0, 'visible': true},
         'selection': null,
@@ -295,7 +295,7 @@ class _DelayedFramePtyBackend extends _CountingPtyBackend {
     } else {
       setFrame(sessionId, {
         'rows': [
-          {'index': 0, 'text': 'driver ready', 'style_runs': const []},
+          {'index': 0, 'text': 'driver ready', 'style_runs': const <Object?>[]},
         ],
         'cursor': {'row': 0, 'col': 0, 'visible': true},
         'selection': null,
@@ -387,7 +387,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -413,12 +413,12 @@ void main() {
     controller.activateSession(first!);
     expect(container.read(sessionControllerProvider).activeSessionId, first);
 
-    controller.closeSession(first);
+    unawaited(controller.closeSession(first));
     final afterCloseFirst = container.read(sessionControllerProvider);
     expect(afterCloseFirst.tabs, hasLength(1));
     expect(afterCloseFirst.activeSessionId, second);
 
-    controller.closeSession(second!);
+    unawaited(controller.closeSession(second!));
     final afterCloseSecond = container.read(sessionControllerProvider);
     expect(afterCloseSecond.tabs, isEmpty);
     expect(afterCloseSecond.activeSessionId, isNull);
@@ -431,7 +431,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -478,7 +478,9 @@ void main() {
           ptySessionBackendProvider.overrideWithValue(coreClient),
           sessionControllerProvider.overrideWith(_TestSessionController.new),
           profileRepositoryProvider.overrideWithValue(
-            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+            _TestProfileRepository(
+              const TerminalProfilesDocument(profiles: []),
+            ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
             _TestAppPreferencesRepository(null),
@@ -521,7 +523,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -557,7 +559,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -589,7 +591,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -637,7 +639,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -683,7 +685,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -744,7 +746,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -793,7 +795,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -830,7 +832,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -858,7 +860,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -887,7 +889,7 @@ void main() {
     controller.activateSession(first);
     expect(container.read(sessionControllerProvider).activeSessionId, first);
 
-    controller.closeSession(second);
+    unawaited(controller.closeSession(second));
     final afterCloseInactive = container.read(sessionControllerProvider);
     expect(afterCloseInactive.tabs, hasLength(2));
     expect(
@@ -904,7 +906,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -947,13 +949,13 @@ void main() {
       firstSessionId,
     );
 
-    controller.closeSession(firstSessionId);
+    unawaited(controller.closeSession(firstSessionId));
     final afterCloseFirst = container.read(sessionControllerProvider);
     expect(afterCloseFirst.tabs, hasLength(1));
     expect(afterCloseFirst.tabs.single.effectivePanes, hasLength(1));
     expect(afterCloseFirst.activeSessionId, secondSessionId);
 
-    controller.closeSession(secondSessionId);
+    unawaited(controller.closeSession(secondSessionId));
     final afterCloseSecond = container.read(sessionControllerProvider);
     expect(afterCloseSecond.tabs, isEmpty);
     expect(afterCloseSecond.activeSessionId, isNull);
@@ -966,7 +968,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -987,7 +989,7 @@ void main() {
         .read(sessionControllerProvider)
         .activeSessionId!;
 
-    controller.closeSession(closedSessionId);
+    unawaited(controller.closeSession(closedSessionId));
 
     final afterClose = container.read(sessionControllerProvider);
     expect(afterClose.activeSessionId, firstSessionId);
@@ -1015,7 +1017,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -1037,7 +1039,7 @@ void main() {
         .activeSessionId!;
 
     controller.activateSession(rootSessionId);
-    controller.closeSession(rootSessionId);
+    unawaited(controller.closeSession(rootSessionId));
 
     final afterRootClose = container.read(sessionControllerProvider);
     expect(afterRootClose.tabs, hasLength(1));
@@ -1066,7 +1068,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -1088,13 +1090,13 @@ void main() {
         .activeSessionId!;
 
     controller.activateSession(rootSessionId);
-    controller.closeSession(rootSessionId);
+    unawaited(controller.closeSession(rootSessionId));
 
     final afterRootClose = container.read(sessionControllerProvider);
     expect(afterRootClose.tabs.single.sessionId, rootSessionId);
     expect(afterRootClose.activeSessionId, survivingSessionId);
 
-    controller.closeTab(afterRootClose.tabs.single.sessionId);
+    unawaited(controller.closeTab(afterRootClose.tabs.single.sessionId));
 
     final afterCloseTab = container.read(sessionControllerProvider);
     expect(afterCloseTab.tabs, isEmpty);
@@ -1110,7 +1112,9 @@ void main() {
           ptySessionBackendProvider.overrideWithValue(coreClient),
           sessionControllerProvider.overrideWith(_TestSessionController.new),
           profileRepositoryProvider.overrideWithValue(
-            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+            _TestProfileRepository(
+              const TerminalProfilesDocument(profiles: []),
+            ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
             _TestAppPreferencesRepository(null),
@@ -1164,7 +1168,9 @@ void main() {
           ptySessionBackendProvider.overrideWithValue(coreClient),
           sessionControllerProvider.overrideWith(_TestSessionController.new),
           profileRepositoryProvider.overrideWithValue(
-            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+            _TestProfileRepository(
+              const TerminalProfilesDocument(profiles: []),
+            ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
             _TestAppPreferencesRepository(null),
@@ -1190,7 +1196,7 @@ void main() {
           .activeSessionId!;
 
       controller.activateSession(foregroundSessionId);
-      controller.closeSession(closingPaneSessionId);
+      unawaited(controller.closeSession(closingPaneSessionId));
 
       final afterClose = container.read(sessionControllerProvider);
       final backgroundTab = afterClose.tabs.firstWhere(
@@ -1211,7 +1217,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -1260,7 +1266,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -1297,7 +1303,7 @@ void main() {
     expect(splitState.activeSessionId, isNot(firstSessionId));
     expect(splitState.activeSessionId, isNot(secondSessionId));
 
-    controller.closeSession(secondSessionId);
+    unawaited(controller.closeSession(secondSessionId));
     final afterCloseNestedPane = container.read(sessionControllerProvider);
     expect(afterCloseNestedPane.tabs.single.effectivePanes, hasLength(2));
     expect(
@@ -1313,7 +1319,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -1357,7 +1363,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -1384,7 +1390,7 @@ void main() {
     final beforeClose = container.read(sessionControllerProvider);
     final activeBeforeClose = beforeClose.activeSessionId;
 
-    controller.closeTab(beforeClose.tabs.single.sessionId);
+    unawaited(controller.closeTab(beforeClose.tabs.single.sessionId));
     expect(container.read(sessionControllerProvider).tabs, isEmpty);
 
     controller.reopenClosedTab();
@@ -1408,7 +1414,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -1424,8 +1430,10 @@ void main() {
 
     controller.createSession(profile);
     controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
-    controller.closeTab(
-      container.read(sessionControllerProvider).tabs.single.sessionId,
+    unawaited(
+      controller.closeTab(
+        container.read(sessionControllerProvider).tabs.single.sessionId,
+      ),
     );
 
     controller.reopenClosedTab();
@@ -1459,7 +1467,9 @@ void main() {
           ptySessionBackendProvider.overrideWithValue(coreClient),
           sessionControllerProvider.overrideWith(_TestSessionController.new),
           profileRepositoryProvider.overrideWithValue(
-            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+            _TestProfileRepository(
+              const TerminalProfilesDocument(profiles: []),
+            ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
             _TestAppPreferencesRepository(null),
@@ -1475,7 +1485,7 @@ void main() {
       final closedSessionId = container
           .read(sessionControllerProvider)
           .activeSessionId!;
-      controller.closeTab(closedSessionId);
+      unawaited(controller.closeTab(closedSessionId));
       expect(container.read(sessionControllerProvider).tabs, isEmpty);
       expect(controller.canReopenClosedTab, isTrue);
 
@@ -1505,7 +1515,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -1576,7 +1586,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -1612,7 +1622,9 @@ void main() {
           ptySessionBackendProvider.overrideWithValue(coreClient),
           sessionControllerProvider.overrideWith(_TestSessionController.new),
           profileRepositoryProvider.overrideWithValue(
-            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+            _TestProfileRepository(
+              const TerminalProfilesDocument(profiles: []),
+            ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
             _TestAppPreferencesRepository(null),
@@ -1654,7 +1666,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -1681,7 +1693,11 @@ void main() {
 
     coreBindings.setFrame(int.parse(sessionId), {
       'rows': [
-        {'index': 0, 'text': 'ianvs terminal ready', 'style_runs': const []},
+        {
+          'index': 0,
+          'text': 'ianvs terminal ready',
+          'style_runs': const <Object?>[],
+        },
       ],
       'cursor': {'row': 0, 'col': 4, 'visible': true},
       'selection': null,
@@ -1711,7 +1727,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -1738,7 +1754,11 @@ void main() {
 
     coreBindings.setFrame(int.parse(sessionId), {
       'rows': [
-        {'index': 0, 'text': 'ianvs terminal ready', 'style_runs': const []},
+        {
+          'index': 0,
+          'text': 'ianvs terminal ready',
+          'style_runs': const <Object?>[],
+        },
       ],
       'cursor': {'row': 0, 'col': 4, 'visible': true},
       'selection': null,
@@ -1766,7 +1786,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -1849,7 +1869,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -1966,7 +1986,9 @@ void main() {
           ptySessionBackendProvider.overrideWithValue(bindings),
           sessionControllerProvider.overrideWith(_TestSessionController.new),
           profileRepositoryProvider.overrideWithValue(
-            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+            _TestProfileRepository(
+              const TerminalProfilesDocument(profiles: []),
+            ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
             _TestAppPreferencesRepository(null),
@@ -2057,7 +2079,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(bindings),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -2120,7 +2142,9 @@ void main() {
           ptySessionBackendProvider.overrideWithValue(bindings),
           sessionControllerProvider.overrideWith(_TestSessionController.new),
           profileRepositoryProvider.overrideWithValue(
-            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+            _TestProfileRepository(
+              const TerminalProfilesDocument(profiles: []),
+            ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
             _TestAppPreferencesRepository(null),
@@ -2215,7 +2239,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(bindings),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -3790,7 +3814,9 @@ void main() {
           }),
           sessionControllerProvider.overrideWith(_TestSessionController.new),
           profileRepositoryProvider.overrideWithValue(
-            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+            _TestProfileRepository(
+              const TerminalProfilesDocument(profiles: []),
+            ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
             _TestAppPreferencesRepository(null),
@@ -3849,7 +3875,9 @@ void main() {
           }),
           sessionControllerProvider.overrideWith(_TestSessionController.new),
           profileRepositoryProvider.overrideWithValue(
-            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+            _TestProfileRepository(
+              const TerminalProfilesDocument(profiles: []),
+            ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
             _TestAppPreferencesRepository(null),
@@ -3904,7 +3932,7 @@ void main() {
         }),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -3956,7 +3984,7 @@ void main() {
         }),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -4010,7 +4038,9 @@ void main() {
           }),
           sessionControllerProvider.overrideWith(_TestSessionController.new),
           profileRepositoryProvider.overrideWithValue(
-            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+            _TestProfileRepository(
+              const TerminalProfilesDocument(profiles: []),
+            ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
             _TestAppPreferencesRepository(null),
@@ -4070,7 +4100,7 @@ void main() {
         sessionClipboardPasteProvider.overrideWithValue(() async => '你好, 世界🌟'),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -4124,7 +4154,7 @@ void main() {
         }),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -4185,7 +4215,9 @@ void main() {
           }),
           sessionControllerProvider.overrideWith(_TestSessionController.new),
           profileRepositoryProvider.overrideWithValue(
-            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+            _TestProfileRepository(
+              const TerminalProfilesDocument(profiles: []),
+            ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
             _TestAppPreferencesRepository(null),
@@ -4245,7 +4277,7 @@ void main() {
         }),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -4339,7 +4371,9 @@ void main() {
           ),
           sessionControllerProvider.overrideWith(_TestSessionController.new),
           profileRepositoryProvider.overrideWithValue(
-            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+            _TestProfileRepository(
+              const TerminalProfilesDocument(profiles: []),
+            ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
             _TestAppPreferencesRepository(null),
@@ -5741,7 +5775,9 @@ void main() {
         overrides: [
           ptySessionBackendProvider.overrideWithValue(coreClient),
           profileRepositoryProvider.overrideWithValue(
-            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+            _TestProfileRepository(
+              const TerminalProfilesDocument(profiles: []),
+            ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
             _TestAppPreferencesRepository(null),
@@ -5760,7 +5796,7 @@ void main() {
         if (bootSessionId == null) {
           break;
         }
-        controller.closeSession(bootSessionId);
+        unawaited(controller.closeSession(bootSessionId));
         await Future<void>.delayed(const Duration(milliseconds: 10));
       }
 
@@ -5798,7 +5834,9 @@ void main() {
         overrides: [
           ptySessionBackendProvider.overrideWithValue(coreClient),
           profileRepositoryProvider.overrideWithValue(
-            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+            _TestProfileRepository(
+              const TerminalProfilesDocument(profiles: []),
+            ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
             _TestAppPreferencesRepository(null),
@@ -5814,7 +5852,7 @@ void main() {
           .read(sessionControllerProvider)
           .activeSessionId;
       if (bootSessionId != null) {
-        controller.closeSession(bootSessionId);
+        unawaited(controller.closeSession(bootSessionId));
       }
 
       controller.createSession(
@@ -5850,7 +5888,9 @@ void main() {
         overrides: [
           ptySessionBackendProvider.overrideWithValue(coreClient),
           profileRepositoryProvider.overrideWithValue(
-            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+            _TestProfileRepository(
+              const TerminalProfilesDocument(profiles: []),
+            ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
             _TestAppPreferencesRepository(null),
@@ -5869,7 +5909,7 @@ void main() {
         if (bootSessionId == null) {
           break;
         }
-        controller.closeSession(bootSessionId);
+        unawaited(controller.closeSession(bootSessionId));
         await Future<void>.delayed(const Duration(milliseconds: 10));
       }
 

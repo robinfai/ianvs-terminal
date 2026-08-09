@@ -296,8 +296,8 @@ class ShellRecentItemsState {
   }
 }
 
-const _defaultRecentItemsLimit = maxShellRecentItems;
-const _maxPersistedRecentItemEntriesToScan = maxShellRecentItems * 4;
+const int _defaultRecentItemsLimit = maxShellRecentItems;
+const int _maxPersistedRecentItemEntriesToScan = maxShellRecentItems * 4;
 
 class ShellCommandBlock {
   const ShellCommandBlock({

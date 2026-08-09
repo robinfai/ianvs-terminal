@@ -111,7 +111,7 @@ void main() {
 
       final crossSession = _batchJson(sequences: <int>[0]);
       final messages = crossSession['messages']! as List<Object?>;
-      (messages.single as Map<String, Object?>)['session_id'] = '8';
+      (messages.single! as Map<String, Object?>)['session_id'] = '8';
       expect(
         () => PtyRuntimeEventBatch.fromJson(crossSession),
         throwsA(

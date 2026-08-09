@@ -80,7 +80,7 @@ class TerminalGraphicsCache {
     late final Future<ui.Image?> load;
     load = _loadImage(key, loadToken).whenComplete(() {
       if (identical(_pending[key], load)) {
-        _pending.remove(key);
+        unawaited(_pending.remove(key));
       }
       if (identical(_activeLoadTokens[key], loadToken)) {
         _activeLoadTokens.remove(key);
@@ -152,7 +152,7 @@ class TerminalGraphicsCache {
     final hadImage = _images.containsKey(key);
     final hadPending = _pending.containsKey(key);
     _images.remove(key)?.dispose();
-    _pending.remove(key);
+    unawaited(_pending.remove(key));
     _activeLoadTokens.remove(key);
     _lastSeenGeneration.remove(key);
     _emitDiagnostic(

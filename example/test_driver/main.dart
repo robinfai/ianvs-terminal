@@ -1,8 +1,7 @@
-import 'package:flutter_driver/driver_extension.dart';
-
 import 'package:app/app_bootstrap.dart';
 import 'package:app/driver_command_extensions.dart';
 import 'package:app/features/shell/shell_acceptance.dart';
+import 'package:flutter_driver/driver_extension.dart';
 
 void main() {
   enableFlutterDriverExtension(

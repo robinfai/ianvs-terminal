@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:app/features/policies/local_terminal_policy_production_callbacks.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('runs registered policy production callbacks', () async {
@@ -97,7 +96,7 @@ void main() {
   });
 }
 
-const _corePolicyOperations = [
+const List<LocalTerminalPolicyProductionOperation> _corePolicyOperations = [
   LocalTerminalPolicyProductionOperation.copy,
   LocalTerminalPolicyProductionOperation.paste,
   LocalTerminalPolicyProductionOperation.pasteHistory,
@@ -113,7 +112,7 @@ const _corePolicyOperations = [
 ];
 
 LocalTerminalPolicyProductionCallbacks _corePolicyCallbacks() {
-  return LocalTerminalPolicyProductionCallbacks(
+  return const LocalTerminalPolicyProductionCallbacks(
     copy: _complete,
     paste: _complete,
     pasteHistory: _complete,

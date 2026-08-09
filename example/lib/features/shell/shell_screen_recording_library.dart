@@ -923,7 +923,7 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
     _searchMatches = _searchMatchesFor(_searchQuery);
     _activeSearchMatchIndex = _searchMatches.isEmpty
         ? 0
-        : _activeSearchMatchIndex.clamp(0, _searchMatches.length - 1).toInt();
+        : _activeSearchMatchIndex.clamp(0, _searchMatches.length - 1);
   }
 
   void _updateSearch(String query) {

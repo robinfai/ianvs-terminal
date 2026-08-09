@@ -1,21 +1,20 @@
+import 'package:app/features/profiles/profile_editor.dart';
+import 'package:app/features/profiles/profile_models.dart';
+import 'package:app/ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
-import 'package:app/features/profiles/profile_editor.dart';
-import 'package:app/features/profiles/profile_models.dart';
-import 'package:app/ui/app_ui.dart';
-
 void main() {
   testWidgets(
     'profile editor seeds nested terminal fields and saves structured changes',
     (tester) async {
-      final initialProfile = TerminalProfile.configured(
+      const initialProfile = TerminalProfile.configured(
         id: 'default',
         name: 'Local Shell',
-        tags: const ['work', 'prod'],
-        sessionConfig: const terminal.TerminalSessionConfig(
+        tags: ['work', 'prod'],
+        sessionConfig: terminal.TerminalSessionConfig(
           launch: terminal.TerminalLaunchConfig(
             program: '/bin/bash',
             args: ['-lc', 'printf hello'],
@@ -402,7 +401,7 @@ void main() {
         _findByKey(const Key('profile-editor-option-drag-blockSelection')),
       );
       await tester.pump();
-      final blockSelectionTile = tester.widget<RadioListTile>(
+      final blockSelectionTile = tester.widget<RadioListTile<Object?>>(
         _findByKey(const Key('profile-editor-option-drag-blockSelection')),
       );
       expect(blockSelectionTile.contentPadding, EdgeInsets.zero);

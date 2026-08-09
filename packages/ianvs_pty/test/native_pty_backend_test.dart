@@ -995,7 +995,7 @@ void main() {
           'config': <String, Object?>{
             'launch': <String, Object?>{
               'program': '/bin/sh',
-              'args': <Object?>['-c', "printf '\\033]52;c;?\\007'; sleep 60"],
+              'args': <Object?>['-c', r"printf '\033]52;c;?\007'; sleep 60"],
               'env': <String, Object?>{},
               'cwd': null,
             },
@@ -1042,8 +1042,7 @@ void main() {
       final requestV1Backend = backend as PtySessionRequestV1Backend;
       expect(requestV1Backend.supportsSessionRequestV1, isTrue);
       final sessionId = replayBackend.createReplaySession(
-        '{"id":"ffi-replay","name":"FFI Replay",'
-        '"launch":{"program":"/definitely/not/a/child"}}',
+        '{"id":"ffi-replay","name":"FFI Replay","launch":{"program":"/definitely/not/a/child"}}',
       );
       replayBackend.replayOutput(sessionId, const <int>[0x66, 0x66, 0x69]);
       expect(checkpointBackend.supportsReplayCheckpoints, isTrue);
@@ -1053,7 +1052,7 @@ void main() {
         checkpointBackend.restoreReplayCheckpoint(sessionId, checkpointId),
         isTrue,
       );
-      final requestId = 'dart-real-1';
+      const requestId = 'dart-real-1';
       final requestResponse = requestV1Backend.requestSessionV1Json(
         sessionId,
         jsonEncode(<String, Object?>{

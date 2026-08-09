@@ -1,5 +1,3 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:app/features/shell/local_terminal_completion_controller.dart';
 import 'package:app/features/shell/local_terminal_completion_diagnostics_bundle.dart';
 import 'package:app/features/shell/local_terminal_completion_evidence_report.dart';
@@ -7,6 +5,7 @@ import 'package:app/features/shell/local_terminal_current_completion_state.dart'
 import 'package:app/features/shell/local_terminal_p0_boundary_closure_manifest.dart';
 import 'package:app/features/shell/local_terminal_production_wiring_manifest_builder.dart';
 import 'package:app/features/shell/local_terminal_verification_evidence.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('bundles pending completion diagnostics from one controller', () {

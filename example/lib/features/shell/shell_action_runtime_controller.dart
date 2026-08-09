@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import '../layout/local_terminal_layout_models.dart';
 import '../policies/local_terminal_notification_dispatcher.dart';
 import '../policies/local_terminal_paste_decision.dart';
 import '../policies/local_terminal_policy_action_reducer.dart';
@@ -8,7 +9,6 @@ import '../productivity/shell_productivity_models.dart';
 import '../visual/local_terminal_layout_template_applier.dart';
 import '../visual/local_terminal_scrollback_exporter.dart';
 import '../visual/local_terminal_visual_models.dart';
-import '../layout/local_terminal_layout_models.dart';
 import 'shell_action_dispatcher.dart';
 import 'shell_action_pipeline.dart';
 import 'shell_action_registry.dart';

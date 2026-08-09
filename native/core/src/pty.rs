@@ -576,23 +576,18 @@ fn write_zsh_proxy_files(dir: &Path) -> std::io::Result<()> {
     fs::write(
         dir.join(".zshrc"),
         format!(
-            "{}\n{}\n__ianvs_restore_proxy_derived_histfile >/dev/null 2>&1 || true\n__ianvs_source_original_zdotfile \".zshrc\"\n__ianvs_install_shell_hooks >/dev/null 2>&1 || true\n__ianvs_suspend_startup_prompt_sp >/dev/null 2>&1 || true\n__ianvs_restore_zdotdir >/dev/null 2>&1 || true\n",
-            ZSH_PROXY_COMMON, ZSH_HOOK_INSTALLER
+            "{ZSH_PROXY_COMMON}\n{ZSH_HOOK_INSTALLER}\n__ianvs_restore_proxy_derived_histfile >/dev/null 2>&1 || true\n__ianvs_source_original_zdotfile \".zshrc\"\n__ianvs_install_shell_hooks >/dev/null 2>&1 || true\n__ianvs_suspend_startup_prompt_sp >/dev/null 2>&1 || true\n__ianvs_restore_zdotdir >/dev/null 2>&1 || true\n"
         ),
     )?;
     fs::write(
         dir.join(".zlogin"),
         format!(
-            "{}\n__ianvs_source_original_zdotfile \".zlogin\"\n__ianvs_restore_zdotdir >/dev/null 2>&1 || true\n",
-            ZSH_PROXY_COMMON
+            "{ZSH_PROXY_COMMON}\n__ianvs_source_original_zdotfile \".zlogin\"\n__ianvs_restore_zdotdir >/dev/null 2>&1 || true\n"
         ),
     )?;
     fs::write(
         dir.join(".zlogout"),
-        format!(
-            "{}\n__ianvs_source_original_zdotfile \".zlogout\"\n",
-            ZSH_PROXY_COMMON
-        ),
+        format!("{ZSH_PROXY_COMMON}\n__ianvs_source_original_zdotfile \".zlogout\"\n"),
     )?;
     Ok(())
 }

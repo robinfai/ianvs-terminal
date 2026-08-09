@@ -1,8 +1,7 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:app/features/shell/local_terminal_completion_diagnostics_presentation.dart';
 import 'package:app/features/shell/local_terminal_completion_diagnostics_presentation_resolver.dart';
 import 'package:app/features/shell/local_terminal_shell_ui_wiring_snapshot.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('uses preferred presentation mode for blocked snapshots', () {

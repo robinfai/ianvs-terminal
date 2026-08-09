@@ -1,8 +1,8 @@
 import 'dart:io';
 
 import 'package:app/features/config/local_terminal_config_bootstrap.dart';
-import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/config/local_terminal_config_loader.dart';
+import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/config/local_terminal_config_repository.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/preferences/app_preferences_repository.dart';

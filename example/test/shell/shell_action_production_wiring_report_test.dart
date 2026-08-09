@@ -1,10 +1,9 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:app/features/shell/shell_action_production_action_set.dart';
 import 'package:app/features/shell/shell_action_production_callbacks.dart';
 import 'package:app/features/shell/shell_action_production_wiring_report.dart';
 import 'package:app/features/shell/shell_action_production_wiring_state.dart';
 import 'package:app/features/shell/shell_action_runtime_bindings.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('reports ready production wiring as clean json', () {
@@ -63,7 +62,7 @@ void main() {
 }
 
 ShellActionProductionCallbacks _baselineCallbacks() {
-  return ShellActionProductionCallbacks(
+  return const ShellActionProductionCallbacks(
     newTab: _complete,
     closeTab: _complete,
     reopenClosedTab: _complete,

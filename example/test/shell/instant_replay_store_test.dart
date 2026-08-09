@@ -1,9 +1,8 @@
 import 'dart:ui' show Size;
 
+import 'package:app/features/shell/instant_replay_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
-
-import 'package:app/features/shell/instant_replay_store.dart';
 
 void main() {
   TerminalFrameDiff frameWithRows(

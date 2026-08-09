@@ -2,18 +2,17 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
-import 'package:ianvs_pty/ianvs_pty.dart';
-
 import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/config/local_terminal_config_repository.dart';
+import 'package:app/features/layout/local_terminal_layout_repository.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/recording/local_session_recording_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_state.dart';
-import 'package:app/features/layout/local_terminal_layout_repository.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_pty/ianvs_pty.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
@@ -407,10 +406,9 @@ void main() {
       late _BlockingRecordingRepository blockingRepository;
       final harness = await _createHarness(
         recordingRepositoryBuilder: (directory) {
-          blockingRepository = _BlockingRecordingRepository(
+          return blockingRepository = _BlockingRecordingRepository(
             directoryResolver: () async => directory,
           );
-          return blockingRepository;
         },
       );
       final controller = harness.container.read(

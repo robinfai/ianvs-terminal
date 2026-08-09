@@ -460,7 +460,7 @@ void main() {
   );
 
   test('terminal options normalize resize dimensions', () {
-    final oversized = TerminalOptions(
+    const oversized = TerminalOptions(
       cols: maxTerminalDimension + 1,
       rows: maxTerminalDimension + 2,
     );
@@ -616,6 +616,8 @@ class _FakePtyBackend
     closeCalls.add(sessionId);
     final error = closeError;
     if (error != null) {
+      // The fake must preserve the exact configured platform failure object.
+      // ignore: only_throw_errors
       throw error;
     }
     _frames.remove(sessionId);
@@ -634,6 +636,8 @@ class _FakePtyBackend
   }) {
     final error = resizeError;
     if (error != null) {
+      // The fake must preserve the exact configured platform failure object.
+      // ignore: only_throw_errors
       throw error;
     }
     resizeCalls.add(<Object?>[
@@ -715,7 +719,11 @@ Map<String, Object?> _singleRowSnapshot(
   return <String, Object?>{
     'frame_kind': 'snapshot',
     'rows': <Object?>[
-      <String, Object?>{'index': 0, 'text': text, 'style_runs': const []},
+      <String, Object?>{
+        'index': 0,
+        'text': text,
+        'style_runs': const <Object?>[],
+      },
     ],
     'cursor': <String, Object?>{'row': 0, 'col': 0, 'visible': true},
     'viewport_rows': 24,

@@ -1,6 +1,6 @@
+import 'local_terminal_completion_command_menu_adapter.dart';
 import 'local_terminal_completion_diagnostics_actions.dart';
 import 'local_terminal_completion_diagnostics_view_model.dart';
-import 'local_terminal_completion_command_menu_adapter.dart';
 import 'local_terminal_completion_evidence_report.dart';
 import 'local_terminal_completion_menu_model.dart';
 import 'local_terminal_completion_summary.dart';

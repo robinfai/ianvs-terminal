@@ -1,12 +1,11 @@
-import 'package:flutter_test/flutter_test.dart';
-
+import 'package:app/features/shell/local_terminal_completion_diagnostics_presentation.dart';
 import 'package:app/features/shell/local_terminal_completion_evidence_report.dart';
 import 'package:app/features/shell/local_terminal_current_completion_state.dart';
-import 'package:app/features/shell/local_terminal_completion_diagnostics_presentation.dart';
 import 'package:app/features/shell/local_terminal_real_wiring_backlog_evidence.dart';
 import 'package:app/features/shell/local_terminal_shell_ui_wiring_facade.dart';
 import 'package:app/features/shell/local_terminal_shell_ui_wiring_snapshot.dart';
 import 'package:app/features/shell/local_terminal_verification_evidence.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('builds visible blocked presentation from pending snapshot', () {

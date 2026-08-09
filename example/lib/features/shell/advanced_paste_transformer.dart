@@ -21,7 +21,7 @@ String transformAdvancedPasteText(
 
 String escapePasteSpecialCharacters(String text) {
   return text
-      .replaceAll('\\', r'\\')
+      .replaceAll(r'\', r'\\')
       .replaceAll('\r', r'\r')
       .replaceAll('\n', r'\n')
       .replaceAll('\t', r'\t');

@@ -6,7 +6,7 @@ import 'package:test/test.dart';
 void main() {
   group('PtySessionRequestV1', () {
     test('encodes the declared request envelope without a legacy kind', () {
-      final request = PtySessionRequestV1(
+      const request = PtySessionRequestV1(
         requestId: 'dart-1',
         sessionId: '7',
         operation: 'terminal.search_text',
@@ -32,11 +32,11 @@ void main() {
 
     test('rejects invalid identity and oversized requests structurally', () {
       expect(
-        () => PtySessionRequestV1(
+        () => const PtySessionRequestV1(
           requestId: 'dart-1',
           sessionId: 'not-native',
           operation: 'terminal.search_text',
-          payload: const <String, Object?>{},
+          payload: <String, Object?>{},
         ).toJsonString(),
         throwsA(
           isA<PtySessionRequestContractException>().having(

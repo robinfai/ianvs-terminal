@@ -412,8 +412,8 @@ void main() {
     });
 
     test('workspace layout limits persisted closed history scans', () {
-      final tooManyMalformedClosedTabs = maxTerminalLayoutClosedTabs * 4 + 1;
-      final tooManyMalformedClosedPanes = maxTerminalLayoutClosedPanes * 4 + 1;
+      const tooManyMalformedClosedTabs = maxTerminalLayoutClosedTabs * 4 + 1;
+      const tooManyMalformedClosedPanes = maxTerminalLayoutClosedPanes * 4 + 1;
       final workspace = TerminalLayout.fromLegacyWorkspaceJson({
         'activeTabId': 'tab-1',
         'tabs': [

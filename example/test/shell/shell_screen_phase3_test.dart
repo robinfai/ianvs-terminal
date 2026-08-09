@@ -1,21 +1,20 @@
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
-
 import 'package:app/features/config/local_terminal_config_models.dart';
+import 'package:app/features/layout/local_terminal_layout_models.dart';
+import 'package:app/features/layout/local_terminal_layout_repository.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/shell/shell_acceptance.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/terminal/terminal_viewport.dart';
-import 'package:app/features/layout/local_terminal_layout_models.dart';
-import 'package:app/features/layout/local_terminal_layout_repository.dart';
 import 'package:app/ui/app_ui.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
@@ -105,7 +104,7 @@ void main() {
   testWidgets('configuration warnings are shown and can open Profiles', (
     tester,
   ) async {
-    final warning = const TerminalProfileLoadWarning(
+    const warning = TerminalProfileLoadWarning(
       profileId: 'default',
       profileName: 'Local Shell',
       path: 'terminal.scrollbackLines',

@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../ui/app_ui.dart';
 import '../config/local_terminal_config_models.dart';
 import '../config/local_terminal_keybinding_resolver.dart';
 import '../config/shortcut_editor.dart';
 import '../preferences/app_preferences_models.dart';
 import '../profiles/profile_models.dart';
 import '../terminal/terminal_viewport_colors.dart';
-import '../../ui/app_ui.dart';
 
 class DefaultsAndAppearanceSelection {
   const DefaultsAndAppearanceSelection({
@@ -182,12 +182,14 @@ class _DefaultsAndAppearanceDialogState
   Widget build(BuildContext context) {
     final theme = context.appTheme;
     final mediaSize = MediaQuery.sizeOf(context);
-    final dialogWidth = (mediaSize.width - theme.spacing.xxl * 2)
-        .clamp(0.0, 720.0)
-        .toDouble();
-    final dialogHeight = (mediaSize.height - theme.spacing.xxl * 2)
-        .clamp(520.0, 720.0)
-        .toDouble();
+    final dialogWidth = (mediaSize.width - theme.spacing.xxl * 2).clamp(
+      0.0,
+      720.0,
+    );
+    final dialogHeight = (mediaSize.height - theme.spacing.xxl * 2).clamp(
+      520.0,
+      720.0,
+    );
     final effectiveProfile = _effectiveProfileFor(
       configuredProfileId: _selectedProfileId,
       effectiveProfileId: widget.effectiveDefaultProfileId,

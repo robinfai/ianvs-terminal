@@ -1,3 +1,4 @@
+// Flutter's legacy driver API is supplied transitively by the test harness.
 // ignore_for_file: depend_on_referenced_packages
 
 import 'dart:async';

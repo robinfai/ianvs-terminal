@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:app/features/shell/local_terminal_production_wiring_manifest.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('closes only when every required milestone can close', () {

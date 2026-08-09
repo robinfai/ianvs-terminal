@@ -1,9 +1,8 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:app/features/shell/local_terminal_completion_evidence_report.dart';
 import 'package:app/features/shell/local_terminal_current_completion_state.dart';
 import 'package:app/features/shell/local_terminal_shell_ui_wiring_facade.dart';
 import 'package:app/features/shell/local_terminal_verification_plan_records.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('exposes blocked completion diagnostics from wiring evidence', () {

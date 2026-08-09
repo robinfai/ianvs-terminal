@@ -1,8 +1,8 @@
 import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/config/shortcut_editor.dart';
+import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/shell/defaults_appearance_dialog.dart';
 import 'package:app/features/shell/shell_action_registry.dart';
-import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -136,9 +136,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: buildIanvsTerminalTheme(Brightness.dark),
-        home: Scaffold(
+        home: const Scaffold(
           body: DefaultsAndAppearanceDialog(
-            profiles: const [],
+            profiles: [],
             configuredDefaultProfileId: null,
             effectiveDefaultProfileId: null,
             themeMode: TerminalThemeMode.system,
@@ -149,7 +149,7 @@ void main() {
             openUrlPolicy: LocalTerminalOpenUrlPolicy.ask,
             requestAttentionPolicy:
                 LocalTerminalRequestAttentionPolicy.disabled,
-            reportVariableDecisions: const {},
+            reportVariableDecisions: {},
             keybindings: conflictingConfig,
           ),
         ),
