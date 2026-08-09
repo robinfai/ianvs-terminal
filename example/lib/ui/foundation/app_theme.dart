@@ -24,6 +24,10 @@ ThemeData buildIanvsTerminalTheme(
   final regularControlHeight = usesTouchControlDensity
       ? 48.0
       : controls.regular;
+  final inputIconConstraints = BoxConstraints(
+    minWidth: regularControlHeight,
+    minHeight: regularControlHeight,
+  );
   final colorScheme =
       ColorScheme.fromSeed(
         seedColor: tokens.accent,
@@ -185,6 +189,8 @@ ThemeData buildIanvsTerminalTheme(
         borderSide: BorderSide(color: tokens.danger, width: 2),
       ),
       constraints: BoxConstraints(minHeight: regularControlHeight),
+      prefixIconConstraints: inputIconConstraints,
+      suffixIconConstraints: inputIconConstraints,
       contentPadding: EdgeInsets.symmetric(
         horizontal: tokens.spacing.md,
         vertical: tokens.spacing.sm,

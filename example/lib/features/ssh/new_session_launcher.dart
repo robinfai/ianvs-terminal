@@ -724,7 +724,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
                                 label: 'Authentication method',
                                 button: true,
                                 child:
-                                    DropdownButtonFormField<
+                                    AppDropdownFormField<
                                       terminal.TerminalSshAuthMethod
                                     >(
                                       key: const Key('ssh-auth-method'),
@@ -950,7 +950,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
                               tilePadding: EdgeInsets.zero,
                               childrenPadding: EdgeInsets.zero,
                               children: [
-                                DropdownButtonFormField<
+                                AppDropdownFormField<
                                   terminal.TerminalSshHostKeyPolicy
                                 >(
                                   key: const Key('ssh-host-key-policy'),

@@ -90,6 +90,14 @@ void main() {
       expect(lightInputPadding.top, 5);
       expect(lightInputPadding.bottom, 5);
       expect(lightTheme.inputDecorationTheme.constraints?.minHeight, 36);
+      expect(
+        lightTheme.inputDecorationTheme.prefixIconConstraints,
+        const BoxConstraints(minWidth: 36, minHeight: 36),
+      );
+      expect(
+        lightTheme.inputDecorationTheme.suffixIconConstraints,
+        const BoxConstraints(minWidth: 36, minHeight: 36),
+      );
       expect(lightTheme.inputDecorationTheme.filled, isTrue);
       expect(
         lightTheme.inputDecorationTheme.fillColor?.toARGB32(),
@@ -213,6 +221,14 @@ void main() {
     expect(theme.textTheme.bodySmall?.fontSize, 13);
     expect(theme.textTheme.labelSmall?.fontSize, 11);
     expect(theme.inputDecorationTheme.constraints?.minHeight, 48);
+    expect(
+      theme.inputDecorationTheme.prefixIconConstraints,
+      const BoxConstraints(minWidth: 48, minHeight: 48),
+    );
+    expect(
+      theme.inputDecorationTheme.suffixIconConstraints,
+      const BoxConstraints(minWidth: 48, minHeight: 48),
+    );
     expect(theme.inputDecorationTheme.labelStyle?.fontSize, 13);
     expect(theme.inputDecorationTheme.helperStyle?.fontSize, 13);
     expect(theme.inputDecorationTheme.hintStyle?.fontSize, 13);

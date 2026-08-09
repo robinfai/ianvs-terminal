@@ -7,13 +7,23 @@ void main() {
     WidgetTester tester,
     Widget child, {
     TargetPlatform platform = TargetPlatform.macOS,
+    double textScale = 1,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: buildIanvsTerminalTheme(Brightness.light, platform: platform),
+        builder: textScale == 1
+            ? null
+            : (context, child) => MediaQuery(
+                data: MediaQuery.of(
+                  context,
+                ).copyWith(textScaler: TextScaler.linear(textScale)),
+                child: child!,
+              ),
         home: Scaffold(body: Center(child: child)),
       ),
     );
+    await tester.pumpAndSettle();
   }
 
   testWidgets('app panel uses semantic panel styling', (tester) async {
@@ -67,6 +77,118 @@ void main() {
       tester.getSize(find.byKey(const Key('touch-regular-action'))).height,
       48,
     );
+  });
+
+  testWidgets('single-line inputs keep one height across decoration variants', (
+    tester,
+  ) async {
+    const fieldKeys = <Key>[
+      Key('plain-input'),
+      Key('prefix-input'),
+      Key('suffix-input'),
+      Key('both-icons-input'),
+      Key('dropdown-input'),
+    ];
+    final cases =
+        <({TargetPlatform platform, double textScale, double? expectedHeight})>[
+          (platform: TargetPlatform.macOS, textScale: 1, expectedHeight: 36),
+          (platform: TargetPlatform.iOS, textScale: 1, expectedHeight: 48),
+          (
+            platform: TargetPlatform.macOS,
+            textScale: 1.8,
+            expectedHeight: null,
+          ),
+        ];
+
+    for (final testCase in cases) {
+      await pumpHarness(
+        tester,
+        SizedBox(
+          width: 760,
+          child: Row(
+            children: [
+              const Expanded(
+                child: TextField(
+                  key: Key('plain-input'),
+                  decoration: InputDecoration(hintText: 'Plain'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: TextField(
+                  key: Key('prefix-input'),
+                  decoration: InputDecoration(
+                    hintText: 'Prefix',
+                    prefixIcon: Icon(Icons.search_rounded),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  key: const Key('suffix-input'),
+                  decoration: InputDecoration(
+                    hintText: 'Suffix',
+                    suffixIcon: IconButton(
+                      tooltip: 'Clear suffix input',
+                      onPressed: () {},
+                      icon: const Icon(Icons.clear_rounded),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextFormField(
+                  key: const Key('both-icons-input'),
+                  decoration: InputDecoration(
+                    hintText: 'Both',
+                    prefixIcon: const Icon(Icons.lock_outline_rounded),
+                    suffixIcon: IconButton(
+                      tooltip: 'Show value',
+                      onPressed: () {},
+                      icon: const Icon(Icons.visibility_outlined),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: AppDropdownFormField<String>(
+                  key: const Key('dropdown-input'),
+                  initialValue: 'one',
+                  decoration: const InputDecoration(),
+                  items: const [
+                    DropdownMenuItem(value: 'one', child: Text('One')),
+                  ],
+                  onChanged: (_) {},
+                ),
+              ),
+            ],
+          ),
+        ),
+        platform: testCase.platform,
+        textScale: testCase.textScale,
+      );
+
+      final heights = fieldKeys
+          .map((key) => tester.getSize(find.byKey(key)).height)
+          .toList(growable: false);
+      final referenceHeight = heights.first;
+      for (final height in heights.skip(1)) {
+        expect(
+          height,
+          closeTo(referenceHeight, 0.5),
+          reason:
+              'Input heights must match for ${testCase.platform} '
+              'at ${testCase.textScale}x text scale: $heights',
+        );
+      }
+      if (testCase.expectedHeight case final expectedHeight?) {
+        expect(referenceHeight, closeTo(expectedHeight, 0.01));
+      }
+      expect(tester.takeException(), isNull);
+    }
   });
 
   testWidgets('app dialog scaffold renders title subtitle footer and close', (

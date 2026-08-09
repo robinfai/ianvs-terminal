@@ -1969,7 +1969,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                             _ProfileLabeledControl(
                                               label: 'Emulation',
                                               child:
-                                                  DropdownButtonFormField<
+                                                  AppDropdownFormField<
                                                     TerminalEmulation
                                                   >(
                                                     key: const Key(
@@ -2191,7 +2191,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                     _ProfileLabeledControl(
                                       label: 'Cursor shape',
                                       child:
-                                          DropdownButtonFormField<
+                                          AppDropdownFormField<
                                             TerminalCursorShape
                                           >(
                                             key: const Key(
