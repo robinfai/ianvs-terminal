@@ -304,7 +304,16 @@ fn compute_settings(directives: &[Directive], alias: &str) -> BTreeMap<String, V
         if !applies {
             continue;
         }
-        let value = directive.values.join(" ");
+        let value = if directive.key == "proxycommand" {
+            directive
+                .values
+                .iter()
+                .map(|value| shell_words::quote(value).into_owned())
+                .collect::<Vec<_>>()
+                .join(" ")
+        } else {
+            directive.values.join(" ")
+        };
         if is_multi_value(&directive.key) {
             settings
                 .entry(directive.key.clone())
@@ -688,6 +697,31 @@ mod tests {
                 .warnings
                 .iter()
                 .any(|warning| warning.message.contains("unsupported Match"))
+        );
+    }
+
+    #[test]
+    fn imported_proxy_command_preserves_quoted_argument_boundaries() {
+        let directory = tempfile::tempdir().expect("tempdir");
+        let config = directory.path().join("config");
+        fs::write(
+            &config,
+            "Host spaced-proxy\n  HostName target.example.test\n  ProxyCommand \"/opt/Proxy Tools/connect proxy\" --label \"two words\" %h %p\n",
+        )
+        .expect("config");
+
+        let document = import_profiles(config.to_str()).expect("import");
+        let profile = document.profiles.first().expect("spaced proxy profile");
+        let proxy_command = profile.proxy_command.as_deref().expect("ProxyCommand");
+        assert_eq!(
+            shell_words::split(proxy_command).expect("round-trip ProxyCommand"),
+            vec![
+                "/opt/Proxy Tools/connect proxy",
+                "--label",
+                "two words",
+                "%h",
+                "%p",
+            ]
         );
     }
 

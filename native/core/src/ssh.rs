@@ -2872,14 +2872,13 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
 
         let directory = tempfile::tempdir().expect("tempdir");
-        let pid_file = directory.path().join("normal-close-proxy.pid");
-        let script = directory.path().join("normal-close-proxy-command");
+        let fixture_directory = directory.path().join("proxy fixtures");
+        std::fs::create_dir(&fixture_directory).expect("proxy fixture directory");
+        let pid_file = fixture_directory.join("normal-close-proxy.pid");
+        let script = fixture_directory.join("normal-close-proxy-command");
         std::fs::write(
             &script,
-            format!(
-                "#!/bin/sh\nprintf '%s' \"$$\" > '{}'\nexec sleep 30\n",
-                pid_file.display()
-            ),
+            "#!/bin/sh\nprintf '%s' \"$$\" > \"$1\"\nexec sleep 30\n",
         )
         .expect("proxy script");
         let mut permissions = std::fs::metadata(&script)
@@ -2900,12 +2899,14 @@ mod tests {
                 user: "normal-close-test".to_string(),
                 ..<_>::default()
             };
-            let stream = ProxyCommandStream::spawn(
-                script.to_str().expect("script path"),
-                &connection,
-                cancellation.clone(),
-            )
-            .expect("ProxyCommand stream");
+            let proxy_command = format!(
+                "{} {}",
+                shell_words::quote(script.to_str().expect("script path")),
+                shell_words::quote(pid_file.to_str().expect("pid path")),
+            );
+            let stream =
+                ProxyCommandStream::spawn(&proxy_command, &connection, cancellation.clone())
+                    .expect("ProxyCommand stream");
             tokio::time::timeout(Duration::from_secs(2), async {
                 while !pid_file.exists() {
                     tokio::time::sleep(Duration::from_millis(10)).await;
@@ -2936,14 +2937,13 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
 
         let directory = tempfile::tempdir().expect("tempdir");
-        let pid_file = directory.path().join("proxy.pid");
-        let script = directory.path().join("proxy-command");
+        let fixture_directory = directory.path().join("proxy fixtures");
+        std::fs::create_dir(&fixture_directory).expect("proxy fixture directory");
+        let pid_file = fixture_directory.join("proxy.pid");
+        let script = fixture_directory.join("proxy-command");
         std::fs::write(
             &script,
-            format!(
-                "#!/bin/sh\nprintf '%s' \"$$\" > '{}'\nexec sleep 30\n",
-                pid_file.display()
-            ),
+            "#!/bin/sh\nprintf '%s' \"$$\" > \"$1\"\nexec sleep 30\n",
         )
         .expect("proxy script");
         let mut permissions = std::fs::metadata(&script)
@@ -2956,14 +2956,33 @@ mod tests {
             connection_type: crate::model::TerminalConnectionType::Ssh,
             host: "proxy-target.invalid".to_string(),
             user: "proxy-test".to_string(),
-            proxy_command: Some(script.to_string_lossy().into_owned()),
+            proxy_command: Some(format!(
+                "{} {}",
+                shell_words::quote(script.to_str().expect("script path")),
+                shell_words::quote(pid_file.to_str().expect("pid path")),
+            )),
             host_key_policy: TerminalSshHostKeyPolicy::Insecure,
             connect_timeout_seconds: 120,
             ..<_>::default()
         };
-        let runtime = spawn_ssh(connection, 24, 80).expect("SSH runtime");
+        let SshRuntime {
+            mut reader,
+            mut child,
+            ..
+        } = spawn_ssh(connection, 24, 80).expect("SSH runtime");
         let deadline = std::time::Instant::now() + Duration::from_secs(10);
         while !pid_file.exists() && std::time::Instant::now() < deadline {
+            if let Some(status) = child.try_wait().expect("SSH child status") {
+                let mut output = String::new();
+                reader
+                    .read_to_string(&mut output)
+                    .expect("SSH diagnostic output");
+                panic!(
+                    "SSH transport exited with code {} before ProxyCommand wrote its startup marker: {}",
+                    status.exit_code(),
+                    output.trim()
+                );
+            }
             thread::sleep(Duration::from_millis(10));
         }
         assert!(
@@ -2974,7 +2993,6 @@ mod tests {
             .expect("proxy pid")
             .parse::<i32>()
             .expect("numeric proxy pid");
-        let SshRuntime { mut child, .. } = runtime;
         child.kill().expect("cancel SSH");
         let _ = wait_for_child_exit(child.as_mut(), Duration::from_secs(2));
         let deadline = std::time::Instant::now() + Duration::from_secs(2);
