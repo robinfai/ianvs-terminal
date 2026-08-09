@@ -2625,6 +2625,8 @@ pub struct TerminalSession {
     zmodem_transport_gate: Mutex<()>,
     zmodem_wire_tx: Mutex<Option<mpsc::Sender<QueuedZmodemWireJob>>>,
     zmodem_wire_queued_bytes: AtomicUsize,
+    zmodem_wire_job_seed: AtomicU64,
+    zmodem_originating_io_failure_job_id: AtomicU64,
     pty_writer_available: AtomicBool,
     zmodem_wire_inflight: Mutex<Option<ZmodemInFlight>>,
     zmodem_inflight: Mutex<Option<ZmodemInFlight>>,
@@ -2633,6 +2635,15 @@ pub struct TerminalSession {
     zmodem_draining: AtomicBool,
     zmodem_terminal_event_ids: Mutex<VecDeque<u64>>,
     zmodem_operation_epoch: Arc<AtomicU64>,
+    // Tracks only cancellation/close/watchdog supersession. The broader
+    // operation epoch also advances when the writer actor reports the current
+    // job's own asynchronous I/O failure; that failure must not erase effects
+    // such as zmodem_detected/zmodem_started which precede its terminal event.
+    zmodem_effect_supersession_epoch: AtomicU64,
+    // Linearizes the receive-commit phase, supersession cause and operation
+    // generation. Without this short gate an actor failure could observe the
+    // CANCELLED phase between a user cancellation's CAS and epoch publication.
+    zmodem_invalidation_gate: Mutex<()>,
     zmodem_receive_commit_phase: Arc<AtomicU8>,
     zmodem_receive_publish_started_at: Arc<Mutex<Option<Instant>>>,
     deferred_pty_writes: Mutex<DeferredPtyWrites>,
@@ -2682,6 +2693,7 @@ struct ZmodemWireJob {
     owner: Option<(u64, ZmodemDirection)>,
     kind: ZmodemWireJobKind,
     completion: Option<mpsc::SyncSender<Result<(), ZmodemWireError>>>,
+    async_job_id: u64,
 }
 
 struct QueuedZmodemWireJob {
@@ -2719,6 +2731,26 @@ enum ZmodemWireError {
     Cancelled,
     Io,
     QueueLimit,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct ZmodemWireDispatch {
+    async_job_id: u64,
+}
+
+impl ZmodemWireDispatch {
+    fn synchronous() -> Self {
+        Self { async_job_id: 0 }
+    }
+
+    fn asynchronous(async_job_id: u64) -> Self {
+        debug_assert_ne!(async_job_id, 0);
+        Self { async_job_id }
+    }
+
+    fn is_originating_async_io_failure(&self, failed_job_id: u64) -> bool {
+        self.async_job_id != 0 && self.async_job_id == failed_job_id
+    }
 }
 
 struct ZmodemInFlightGuard<'a> {
@@ -3087,6 +3119,8 @@ impl TerminalSession {
             zmodem_transport_gate: Mutex::new(()),
             zmodem_wire_tx: Mutex::new(None),
             zmodem_wire_queued_bytes: AtomicUsize::new(0),
+            zmodem_wire_job_seed: AtomicU64::new(0),
+            zmodem_originating_io_failure_job_id: AtomicU64::new(0),
             pty_writer_available: AtomicBool::new(pty_writer_available),
             zmodem_wire_inflight: Mutex::new(None),
             zmodem_inflight: Mutex::new(None),
@@ -3095,6 +3129,8 @@ impl TerminalSession {
             zmodem_draining: AtomicBool::new(false),
             zmodem_terminal_event_ids: Mutex::new(VecDeque::new()),
             zmodem_operation_epoch,
+            zmodem_effect_supersession_epoch: AtomicU64::new(0),
+            zmodem_invalidation_gate: Mutex::new(()),
             zmodem_receive_commit_phase,
             zmodem_receive_publish_started_at,
             deferred_pty_writes: Mutex::new(DeferredPtyWrites::default()),
@@ -3324,6 +3360,9 @@ impl TerminalSession {
             return Vec::new();
         };
         let operation_epoch = self.zmodem_operation_epoch.load(Ordering::Acquire);
+        let supersession_epoch = self
+            .zmodem_effect_supersession_epoch
+            .load(Ordering::Acquire);
         let mut wire = Vec::new();
         let (mut effects, owner, confirm_closing_zfin) = {
             let mut zmodem = self.zmodem.lock();
@@ -3384,7 +3423,7 @@ impl TerminalSession {
             confirm_terminal_wire,
             ZmodemWireJobKind::Protocol,
         );
-        if self.zmodem_operation_epoch.load(Ordering::Acquire) != operation_epoch {
+        if self.zmodem_effects_were_superseded(operation_epoch, supersession_epoch, &wire_result) {
             // Cancellation/forced termination won while this operation was
             // outside the ordering gate. Its protocol state and events are
             // stale, but the newer operation owns the manager state.
@@ -3480,6 +3519,47 @@ impl TerminalSession {
         Some((transfer_id, direction))
     }
 
+    fn supersede_pending_zmodem_effects(&self) {
+        self.zmodem_effect_supersession_epoch
+            .fetch_add(1, Ordering::AcqRel);
+    }
+
+    fn next_zmodem_async_wire_job_id(&self) -> u64 {
+        let job_id = self
+            .zmodem_wire_job_seed
+            .fetch_add(1, Ordering::Relaxed)
+            .wrapping_add(1);
+        if job_id == 0 {
+            self.zmodem_wire_job_seed
+                .fetch_add(1, Ordering::Relaxed)
+                .wrapping_add(1)
+        } else {
+            job_id
+        }
+    }
+
+    fn zmodem_effects_were_superseded(
+        &self,
+        operation_epoch: u64,
+        supersession_epoch: u64,
+        wire_result: &Result<ZmodemWireDispatch, ZmodemWireError>,
+    ) -> bool {
+        if self.zmodem_operation_epoch.load(Ordering::Acquire) == operation_epoch {
+            return false;
+        }
+        let failed_job_id = self
+            .zmodem_originating_io_failure_job_id
+            .load(Ordering::Acquire);
+        let exact_job_failed = wire_result
+            .as_ref()
+            .is_ok_and(|dispatch| dispatch.is_originating_async_io_failure(failed_job_id));
+        let externally_superseded = self
+            .zmodem_effect_supersession_epoch
+            .load(Ordering::Acquire)
+            != supersession_epoch;
+        externally_superseded || !exact_job_failed
+    }
+
     fn write_zmodem_wire_releasing_transport(
         &self,
         bytes: &[u8],
@@ -3487,16 +3567,21 @@ impl TerminalSession {
         owner: Option<(u64, ZmodemDirection)>,
         confirm: bool,
         kind: ZmodemWireJobKind,
-    ) -> Result<(), ZmodemWireError> {
+    ) -> Result<ZmodemWireDispatch, ZmodemWireError> {
         if bytes.is_empty() {
             drop(transport);
-            return Ok(());
+            return Ok(ZmodemWireDispatch::synchronous());
         }
         if self.zmodem_transport_terminated.load(Ordering::Acquire) {
             drop(transport);
             return Err(ZmodemWireError::Io);
         }
         if self.zmodem_wire_tx.lock().is_some() {
+            let async_job_id = if !confirm && kind == ZmodemWireJobKind::Protocol {
+                self.next_zmodem_async_wire_job_id()
+            } else {
+                0
+            };
             let (completion, completion_rx) = if confirm {
                 let (tx, rx) = mpsc::sync_channel(1);
                 (Some(tx), Some(rx))
@@ -3508,12 +3593,16 @@ impl TerminalSession {
                 owner,
                 kind,
                 completion,
+                async_job_id,
             });
             drop(transport);
             result?;
             return match completion_rx {
-                Some(receiver) => self.await_zmodem_wire_completion(receiver, owner),
-                None => Ok(()),
+                Some(receiver) => self
+                    .await_zmodem_wire_completion(receiver, owner)
+                    .map(|()| ZmodemWireDispatch::synchronous()),
+                None if async_job_id != 0 => Ok(ZmodemWireDispatch::asynchronous(async_job_id)),
+                None => Ok(ZmodemWireDispatch::synchronous()),
             };
         }
         let mut writer = self.writer.lock();
@@ -3526,7 +3615,10 @@ impl TerminalSession {
         let Some(writer) = writer.as_deref_mut() else {
             return Err(ZmodemWireError::Io);
         };
-        writer.write_all(bytes).map_err(|_| ZmodemWireError::Io)
+        writer
+            .write_all(bytes)
+            .map(|()| ZmodemWireDispatch::synchronous())
+            .map_err(|_| ZmodemWireError::Io)
     }
 
     fn await_zmodem_wire_completion(
@@ -3700,7 +3792,7 @@ impl TerminalSession {
         let Some(_transition) = self.begin_zmodem_state_transition() else {
             return;
         };
-        if !self.try_invalidate_receive_commit() {
+        if !self.try_invalidate_receive_commit(true) {
             // A publication that has exceeded the hard I/O deadline runs in a
             // globally bounded worker. Detach its session ownership so the
             // manager can be reset and close can complete; the worker retains
@@ -3884,7 +3976,8 @@ impl TerminalSession {
         Some(failure)
     }
 
-    fn try_invalidate_receive_commit(&self) -> bool {
+    fn try_invalidate_receive_commit(&self, supersede_effects: bool) -> bool {
+        let _invalidation = self.zmodem_invalidation_gate.lock();
         loop {
             match self.zmodem_receive_commit_phase.load(Ordering::Acquire) {
                 RECEIVE_COMMIT_PUBLISHING | RECEIVE_COMMIT_RESULT_READY => return false,
@@ -3901,14 +3994,20 @@ impl TerminalSession {
                     {
                         continue;
                     }
+                    if supersede_effects {
+                        self.supersede_pending_zmodem_effects();
+                    }
                     self.zmodem_operation_epoch.fetch_add(1, Ordering::AcqRel);
                     *self.zmodem_receive_publish_started_at.lock() = None;
                     return true;
                 }
                 RECEIVE_COMMIT_CANCELLED => {
-                    // Another invalidator may be paused between claiming the
-                    // phase and advancing the epoch. Advancing it again is
-                    // harmless and guarantees stale worker jobs are rejected.
+                    // Repeated invalidation still advances the generation so
+                    // stale worker and writer jobs cannot become eligible
+                    // again when a public transfer id is later reused.
+                    if supersede_effects {
+                        self.supersede_pending_zmodem_effects();
+                    }
                     self.zmodem_operation_epoch.fetch_add(1, Ordering::AcqRel);
                     *self.zmodem_receive_publish_started_at.lock() = None;
                     return true;
@@ -3919,6 +4018,7 @@ impl TerminalSession {
     }
 
     fn abandon_timed_out_receive_publication(&self) -> bool {
+        let _invalidation = self.zmodem_invalidation_gate.lock();
         let timed_out = self
             .zmodem_receive_publish_started_at
             .lock()
@@ -3938,6 +4038,7 @@ impl TerminalSession {
         {
             return false;
         }
+        self.supersede_pending_zmodem_effects();
         self.zmodem_operation_epoch.fetch_add(1, Ordering::AcqRel);
         *self.zmodem_receive_publish_started_at.lock() = None;
         true
@@ -3947,7 +4048,7 @@ impl TerminalSession {
         // A continuously noisy peer must not refresh the quarantine forever.
         // Never wait for a writer or protocol lock here: this path is also the
         // escape hatch for a PTY/filesystem syscall that is itself stalled.
-        if !self.try_invalidate_receive_commit()
+        if !self.try_invalidate_receive_commit(false)
             && self.zmodem_receive_commit_phase.load(Ordering::Acquire) != RECEIVE_COMMIT_CANCELLED
         {
             // Publication owns the terminalization boundary. In particular,
@@ -4098,6 +4199,7 @@ impl TerminalSession {
                 owner: None,
                 kind: ZmodemWireJobKind::Ordinary,
                 completion: Some(completion_tx),
+                async_job_id: 0,
             });
             // Enqueue while both ordering gates are held, then release them
             // before waiting for the actor. The PTY reader may need to drain
@@ -4156,6 +4258,7 @@ impl TerminalSession {
                 owner: None,
                 kind: ZmodemWireJobKind::Ordinary,
                 completion: Some(completion_tx),
+                async_job_id: 0,
             });
             drop(_transport);
             queued.and_then(|()| self.await_zmodem_wire_completion(completion_rx, None))
@@ -4237,6 +4340,9 @@ impl TerminalSession {
             return;
         };
         let operation_epoch = self.zmodem_operation_epoch.load(Ordering::Acquire);
+        let supersession_epoch = self
+            .zmodem_effect_supersession_epoch
+            .load(Ordering::Acquire);
         let transport_available = self.pty_writer_available.load(Ordering::Acquire);
         let mut wire = Vec::new();
         let (outcome, owner, confirm_closing_zfin) = {
@@ -4269,7 +4375,11 @@ impl TerminalSession {
                 confirm_terminal_wire,
                 ZmodemWireJobKind::Protocol,
             );
-            if self.zmodem_operation_epoch.load(Ordering::Acquire) != operation_epoch {
+            if self.zmodem_effects_were_superseded(
+                operation_epoch,
+                supersession_epoch,
+                &wire_result,
+            ) {
                 // Cancellation/forced termination owns the manager and its
                 // terminal event. Never publish timeout effects computed
                 // before the transport gate was released.
@@ -4314,6 +4424,9 @@ impl TerminalSession {
             return Err(SessionError::Zmodem("session_closing".to_string()));
         };
         let operation_epoch = self.zmodem_operation_epoch.load(Ordering::Acquire);
+        let supersession_epoch = self
+            .zmodem_effect_supersession_epoch
+            .load(Ordering::Acquire);
         if !self.pty_writer_available.load(Ordering::Acquire) {
             return Err(SessionError::ReadOnlyReplaySession(self.session_id));
         }
@@ -4345,7 +4458,11 @@ impl TerminalSession {
                         false,
                         ZmodemWireJobKind::Protocol,
                     );
-                    if self.zmodem_operation_epoch.load(Ordering::Acquire) != operation_epoch {
+                    if self.zmodem_effects_were_superseded(
+                        operation_epoch,
+                        supersession_epoch,
+                        &wire_result,
+                    ) {
                         return Err(SessionError::Zmodem("stale transfer".to_string()));
                     }
                     if wire_result.is_err() {
@@ -4368,7 +4485,7 @@ impl TerminalSession {
             false,
             ZmodemWireJobKind::Protocol,
         );
-        if self.zmodem_operation_epoch.load(Ordering::Acquire) != operation_epoch {
+        if self.zmodem_effects_were_superseded(operation_epoch, supersession_epoch, &wire_result) {
             return Err(SessionError::Zmodem("stale transfer".to_string()));
         }
         if wire_result.is_err() {
@@ -4408,6 +4525,9 @@ impl TerminalSession {
             return Err(SessionError::Zmodem("session_closing".to_string()));
         };
         let operation_epoch = self.zmodem_operation_epoch.load(Ordering::Acquire);
+        let supersession_epoch = self
+            .zmodem_effect_supersession_epoch
+            .load(Ordering::Acquire);
         if !self.pty_writer_available.load(Ordering::Acquire) {
             return Err(SessionError::ReadOnlyReplaySession(self.session_id));
         }
@@ -4439,7 +4559,11 @@ impl TerminalSession {
                         false,
                         ZmodemWireJobKind::Protocol,
                     );
-                    if self.zmodem_operation_epoch.load(Ordering::Acquire) != operation_epoch {
+                    if self.zmodem_effects_were_superseded(
+                        operation_epoch,
+                        supersession_epoch,
+                        &wire_result,
+                    ) {
                         return Err(SessionError::Zmodem("stale transfer".to_string()));
                     }
                     if wire_result.is_err() {
@@ -4461,7 +4585,7 @@ impl TerminalSession {
             false,
             ZmodemWireJobKind::Protocol,
         );
-        if self.zmodem_operation_epoch.load(Ordering::Acquire) != operation_epoch {
+        if self.zmodem_effects_were_superseded(operation_epoch, supersession_epoch, &wire_result) {
             return Err(SessionError::Zmodem("stale transfer".to_string()));
         }
         if wire_result.is_err() {
@@ -4490,7 +4614,7 @@ impl TerminalSession {
             .filter(|(active_id, _)| *active_id == transfer_id)
             .map(|(_, direction)| direction)
             .ok_or_else(|| SessionError::Zmodem("stale transfer".to_string()))?;
-        if !self.try_invalidate_receive_commit() {
+        if !self.try_invalidate_receive_commit(true) {
             return Err(SessionError::Zmodem(
                 "receive_commit_in_progress".to_string(),
             ));
@@ -4534,6 +4658,7 @@ impl TerminalSession {
         } else {
             drop(_transport);
             self.try_write_zmodem_wire_fallback(&wire)
+                .map(|()| ZmodemWireDispatch::synchronous())
         };
         if wire_result.is_err() {
             let mut zmodem = self.zmodem.lock();
@@ -4738,7 +4863,9 @@ impl TerminalSession {
         // Atomically prevent a future receive publication before teardown.
         // If publication already owns the phase, fail promptly and retain the
         // session/event queue so a late recovery token cannot be lost.
-        if !self.try_invalidate_receive_commit() && !self.abandon_timed_out_receive_publication() {
+        if !self.try_invalidate_receive_commit(true)
+            && !self.abandon_timed_out_receive_publication()
+        {
             return Err(SessionError::Zmodem(
                 "receive_publication_in_progress".to_string(),
             ));
@@ -4888,6 +5015,17 @@ impl TerminalSession {
                     });
                     if first_io_failure {
                         writer_failed = true;
+                        // Publish provenance before advancing the operation
+                        // epoch. The caller which enqueued this non-confirming
+                        // protocol job can then preserve its already-computed
+                        // detection/start effects, while every other queued job
+                        // remains stale. Release/Acquire ordering is completed by
+                        // terminate_zmodem_transport's epoch increment.
+                        if job.async_job_id != 0 {
+                            session
+                                .zmodem_originating_io_failure_job_id
+                                .store(job.async_job_id, Ordering::Release);
+                        }
                         // Fail closed before resolving this job or observing
                         // another queued job. Dropping the public sender stops
                         // new work; this actor only drains queued completion
@@ -10540,12 +10678,18 @@ mod tests {
     struct FailOnceCaptureWriter {
         writes: Arc<AtomicUsize>,
         captured: Arc<Mutex<Vec<u8>>>,
+        entered: Option<mpsc::SyncSender<()>>,
+        release: mpsc::Receiver<()>,
     }
 
     impl Write for FailOnceCaptureWriter {
         fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
             let index = self.writes.fetch_add(1, Ordering::AcqRel);
             if index == 0 {
+                if let Some(entered) = self.entered.take() {
+                    let _ = entered.send(());
+                }
+                let _ = self.release.recv();
                 return Err(std::io::Error::other("injected first write failure"));
             }
             self.captured.lock().extend_from_slice(bytes);
@@ -12060,7 +12204,7 @@ mod tests {
         session.poll_zmodem_timeout();
 
         assert!(session.zmodem_transport_terminated.load(Ordering::Acquire));
-        assert_eq!(waiter.join().unwrap(), Err(ZmodemWireError::Io));
+        assert!(matches!(waiter.join().unwrap(), Err(ZmodemWireError::Io)));
         let events = session.poll_events().unwrap();
         assert_eq!(events.last().unwrap().kind, "zmodem_failed");
         assert_eq!(
@@ -12321,7 +12465,7 @@ mod tests {
             ZmodemWireJobKind::Protocol,
         );
 
-        assert_eq!(result, Err(ZmodemWireError::Io));
+        assert!(matches!(result, Err(ZmodemWireError::Io)));
         let effects = session.fail_zmodem_after_wire_error_for(owner);
         session.apply_zmodem_effects(effects, None);
         let events = session.poll_events().unwrap();
@@ -12329,6 +12473,58 @@ mod tests {
         assert_eq!(events[0].kind, "zmodem_failed");
         assert_eq!(events[0].payload.as_ref().unwrap()["transferId"], "9");
         assert_eq!(events[0].payload.as_ref().unwrap()["reason"], "io_error");
+    }
+
+    #[test]
+    fn async_writer_failure_preserves_only_its_originating_effects() {
+        let session = TerminalSession::new(
+            4319,
+            long_running_lifecycle_profile(),
+            None,
+            Some(Box::new(Vec::<u8>::new())),
+            None,
+            None,
+            None,
+            "test".to_string(),
+            serde_json::json!({}),
+            false,
+        );
+        let operation_epoch = session.zmodem_operation_epoch.load(Ordering::Acquire);
+        let supersession_epoch = session
+            .zmodem_effect_supersession_epoch
+            .load(Ordering::Acquire);
+        session
+            .zmodem_originating_io_failure_job_id
+            .store(1, Ordering::Release);
+        let originating_dispatch = Ok(ZmodemWireDispatch::asynchronous(1));
+
+        session
+            .zmodem_operation_epoch
+            .fetch_add(1, Ordering::AcqRel);
+
+        assert!(!session.zmodem_effects_were_superseded(
+            operation_epoch,
+            supersession_epoch,
+            &originating_dispatch,
+        ));
+        let unrelated_dispatch = Ok(ZmodemWireDispatch::asynchronous(2));
+        assert!(session.zmodem_effects_were_superseded(
+            operation_epoch,
+            supersession_epoch,
+            &unrelated_dispatch,
+        ));
+
+        let operation_epoch = session.zmodem_operation_epoch.load(Ordering::Acquire);
+        let supersession_epoch = session
+            .zmodem_effect_supersession_epoch
+            .load(Ordering::Acquire);
+        assert!(session.try_invalidate_receive_commit(true));
+        assert!(session.zmodem_effects_were_superseded(
+            operation_epoch,
+            supersession_epoch,
+            &originating_dispatch,
+        ));
+        session.close().unwrap();
     }
 
     #[test]
@@ -12376,6 +12572,8 @@ mod tests {
     fn first_async_writer_io_failure_rejects_every_later_job_before_notification() {
         let writes = Arc::new(AtomicUsize::new(0));
         let captured = Arc::new(Mutex::new(Vec::new()));
+        let (entered_tx, entered_rx) = mpsc::sync_channel(1);
+        let (release_tx, release_rx) = mpsc::sync_channel(1);
         let session = TerminalSession::new(
             4321,
             long_running_lifecycle_profile(),
@@ -12383,6 +12581,8 @@ mod tests {
             Some(Box::new(FailOnceCaptureWriter {
                 writes: Arc::clone(&writes),
                 captured: Arc::clone(&captured),
+                entered: Some(entered_tx),
+                release: release_rx,
             })),
             None,
             None,
@@ -12402,8 +12602,10 @@ mod tests {
                 owner,
                 kind: ZmodemWireJobKind::Protocol,
                 completion: None,
+                async_job_id: 0,
             })
             .unwrap();
+        entered_rx.recv_timeout(Duration::from_secs(1)).unwrap();
         let (completion_tx, completion_rx) = mpsc::sync_channel(1);
         session
             .enqueue_zmodem_wire_job(ZmodemWireJob {
@@ -12411,8 +12613,10 @@ mod tests {
                 owner,
                 kind: ZmodemWireJobKind::Protocol,
                 completion: Some(completion_tx),
+                async_job_id: 0,
             })
             .unwrap();
+        release_tx.send(()).unwrap();
 
         assert_eq!(
             completion_rx.recv_timeout(Duration::from_secs(1)).unwrap(),
@@ -12566,6 +12770,7 @@ mod tests {
                     owner,
                     kind: ZmodemWireJobKind::Protocol,
                     completion: None,
+                    async_job_id: 0,
                 })
                 .unwrap();
         }
@@ -12580,6 +12785,7 @@ mod tests {
                 owner,
                 kind: ZmodemWireJobKind::Cancel,
                 completion: Some(completion_tx),
+                async_job_id: 0,
             })
             .unwrap();
 
@@ -12620,6 +12826,7 @@ mod tests {
                 owner: Some((15, ZmodemDirection::Send)),
                 kind: ZmodemWireJobKind::Protocol,
                 completion: None,
+                async_job_id: 0,
             })
             .unwrap();
         entered_rx.recv_timeout(Duration::from_secs(1)).unwrap();
@@ -12629,6 +12836,7 @@ mod tests {
             owner: Some((15, ZmodemDirection::Send)),
             kind: ZmodemWireJobKind::Protocol,
             completion: None,
+            async_job_id: 0,
         });
         assert_eq!(overflow, Err(ZmodemWireError::QueueLimit));
         release_tx.send(()).unwrap();
@@ -12732,6 +12940,7 @@ mod tests {
                 owner: Some((16, ZmodemDirection::Send)),
                 kind: ZmodemWireJobKind::Protocol,
                 completion: None,
+                async_job_id: 0,
             })
             .unwrap();
         entered_rx.recv_timeout(Duration::from_secs(1)).unwrap();
