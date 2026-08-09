@@ -8,6 +8,7 @@ import 'package:app/features/sessions/session_state.dart';
 import 'package:app/features/shell/instant_replay_store.dart';
 import 'package:app/features/shell/paste_history_repository.dart';
 import 'package:app/features/shell/shell_screen.dart';
+import 'package:app/features/terminal/terminal.dart' as terminal;
 import 'package:app/features/terminal/terminal_viewport.dart';
 import 'package:app/ui/app_ui.dart';
 import 'package:flutter/gestures.dart';
@@ -46,6 +47,27 @@ class _EventfulPtyBackend extends FakePtyBackend {
       return events;
     }
     return <PtyEvent>[...events, ...queued];
+  }
+}
+
+class _SshEventfulPtyBackend extends _EventfulPtyBackend
+    implements PtySessionConfigV1Backend {
+  @override
+  PtyRuntimeCapabilities get runtimeCapabilities =>
+      PtyRuntimeCapabilities.fromJson(<String, Object?>{
+        'schema_version': 1,
+        'runtime_contract': 'ianvs-runtime-contract-v1',
+        'frame_schema_versions': <Object?>['terminal-frame-diff-v1'],
+        'recording_schema_versions': <Object?>[],
+        'features': <Object?>['session-config.json.v1', 'ssh-session.v1'],
+      });
+
+  @override
+  bool get supportsSessionConfigV1 => true;
+
+  @override
+  String createSessionV1(String sessionConfigV1Json) {
+    return createSession(sessionConfigV1Json);
   }
 }
 
@@ -6498,6 +6520,73 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('SSH transport failure remains visible after its tab closes', (
+    tester,
+  ) async {
+    final eventfulBindings = _SshEventfulPtyBackend();
+    final sshProfile = TerminalProfile(
+      id: 'ssh-client',
+      name: 'client',
+      shell: '/usr/bin/ssh',
+      connection: const terminal.TerminalConnectionConfig.ssh(
+        host: 'client.example.test',
+        user: 'root',
+        port: 36000,
+      ),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      bindings: eventfulBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [sshProfile]),
+      ),
+    );
+
+    eventfulBindings.setFrame(1, {
+      'rows': [
+        {
+          'index': 0,
+          'text': 'Ianvs SSH: ProxyCommand connection refused',
+          'style_runs': const <Object?>[],
+        },
+      ],
+      'cursor': {'row': 0, 'col': 43, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        {'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+    });
+    eventfulBindings.enqueueExit('1', code: 255);
+    await tester.pump(const Duration(milliseconds: 40));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('shell-empty-state')), findsOneWidget);
+    expect(find.byType(TerminalViewport), findsNothing);
+    expect(find.byKey(const Key('shell-runtime-error')), findsOneWidget);
+    expect(
+      find.textContaining(
+        'SSH connection “client” to root@client.example.test:36000 failed',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('ProxyCommand connection refused'),
+      findsOneWidget,
+    );
+
+    final semantics = tester.ensureSemantics();
+    expect(
+      find.bySemanticsLabel(RegExp(r'^Terminal runtime error\.')),
+      findsOneWidget,
+    );
+    semantics.dispose();
   });
 
   testWidgets('shell terminal scrollbar drag sends absolute scroll requests', (

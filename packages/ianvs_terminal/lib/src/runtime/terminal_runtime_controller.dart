@@ -111,9 +111,21 @@ final class TerminalSessionFrameEvent extends TerminalSessionEvent {
 }
 
 final class TerminalSessionExitEvent extends TerminalSessionEvent {
-  const TerminalSessionExitEvent(super.sessionId, {this.exitCode});
+  const TerminalSessionExitEvent(
+    super.sessionId, {
+    this.exitCode,
+    this.finalFrame,
+  });
 
   final int? exitCode;
+
+  /// The last rendered frame captured before the runtime releases the session.
+  ///
+  /// Exit listeners cannot query the viewport after this event because session
+  /// cleanup happens immediately after publication. Carrying the final frame
+  /// preserves terminal-owned failure details without keeping a dead session
+  /// alive.
+  final TerminalFrameDiff? finalFrame;
 }
 
 final class TerminalSessionBackendErrorEvent extends TerminalSessionEvent {
@@ -3478,7 +3490,14 @@ class TerminalRuntimeController {
         ),
       );
     }
-    _events.add(TerminalSessionExitEvent(sessionId, exitCode: exitCode));
+    final finalFrame = _sessions.existingViewportFor(sessionId)?.frame;
+    _events.add(
+      TerminalSessionExitEvent(
+        sessionId,
+        exitCode: exitCode,
+        finalFrame: finalFrame,
+      ),
+    );
     _closeExitedSessionIfCurrent(sessionId, sessionEpoch);
   }
 

@@ -2284,8 +2284,12 @@ class SessionController extends Notifier<SessionState> {
       case TerminalSessionFrameEvent():
         _applyFrame(event.sessionId, event.frame);
       case TerminalSessionExitEvent():
+        final sshExitError = _sshExitErrorMessage(event);
         _finalizeRecordingOnRuntimeExitBestEffort(event.sessionId);
         _removeSessionState(event.sessionId, runtimeAlreadyClosed: true);
+        if (sshExitError != null) {
+          state = state.copyWith(lastError: sshExitError);
+        }
       case TerminalSessionBellEvent():
         break;
       case TerminalSessionShellHookEvent():
@@ -2366,6 +2370,86 @@ class SessionController extends Notifier<SessionState> {
           'Terminal backend $operation failed for session $sessionId'
           '${detail == null ? '' : ': $detail'}',
     );
+  }
+
+  String? _sshExitErrorMessage(TerminalSessionExitEvent event) {
+    final pane = _paneForSession(event.sessionId);
+    final profile = pane?.profileSnapshot ?? _profileForPane(pane);
+    if (profile == null || !profile.isSsh) {
+      return null;
+    }
+
+    final detail = _sshFailureDetail(event.finalFrame);
+    // The native SSH adapter reserves 255 for transport/setup failures. Other
+    // remote exit codes are ordinary shell exits and must retain the existing
+    // silent auto-close behavior.
+    if (detail == null && event.exitCode != 255) {
+      return null;
+    }
+
+    final connection = profile.connection;
+    final host = connection.host.contains(':')
+        ? '[${connection.host}]'
+        : connection.host;
+    final userPrefix = connection.user.trim().isEmpty
+        ? ''
+        : '${connection.user}@';
+    final target = '$userPrefix$host:${connection.port}';
+    final exitStatus = event.exitCode == null
+        ? ''
+        : ' (exit code ${event.exitCode})';
+    final prefix =
+        'SSH connection “${profile.name}” to $target failed$exitStatus';
+    if (detail != null) {
+      return '$prefix: $detail';
+    }
+    return '$prefix. Check the host, network, ProxyCommand, and authentication settings.';
+  }
+
+  TerminalProfile? _profileForPane(TerminalPane? pane) {
+    if (pane == null) {
+      return null;
+    }
+    for (final profile in state.profiles) {
+      if (profile.id == pane.profileId) {
+        return profile;
+      }
+    }
+    return null;
+  }
+
+  String? _sshFailureDetail(TerminalFrameDiff? frame) {
+    if (frame == null || frame.rows.isEmpty) {
+      return null;
+    }
+    const marker = 'Ianvs SSH:';
+    for (final line in _logicalFrameLines(frame).reversed) {
+      final markerIndex = line.indexOf(marker);
+      if (markerIndex == -1) {
+        continue;
+      }
+      return _boundedShellMetadata(
+        line.substring(markerIndex + marker.length),
+        240,
+      );
+    }
+    return null;
+  }
+
+  List<String> _logicalFrameLines(TerminalFrameDiff frame) {
+    final lines = <String>[];
+    var start = 0;
+    while (start < frame.rows.length) {
+      final buffer = StringBuffer(frame.rows[start].text);
+      var end = start;
+      while (end < frame.rows.length - 1 && frame.rows[end].wrapped) {
+        end += 1;
+        buffer.write(frame.rows[end].text);
+      }
+      lines.add(buffer.toString());
+      start = end + 1;
+    }
+    return lines;
   }
 
   void _applyFrame(String sessionId, TerminalFrameDiff frame) {

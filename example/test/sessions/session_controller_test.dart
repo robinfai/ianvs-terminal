@@ -231,6 +231,29 @@ class _EventfulPtyBackend
       _delegate.takeFrameDiffJson(sessionId);
 }
 
+class _SshEventfulPtyBackend extends _EventfulPtyBackend
+    implements PtySessionConfigV1Backend, PtyRuntimeCapabilityBackend {
+  _SshEventfulPtyBackend(super.delegate);
+
+  @override
+  final PtyRuntimeCapabilities runtimeCapabilities =
+      PtyRuntimeCapabilities.fromJson(<String, Object?>{
+        'schema_version': 1,
+        'runtime_contract': 'ianvs-runtime-contract-v1',
+        'frame_schema_versions': <Object?>['terminal-frame-diff-v1'],
+        'recording_schema_versions': <Object?>[],
+        'features': <Object?>['session-config.json.v1', 'ssh-session.v1'],
+      });
+
+  @override
+  bool get supportsSessionConfigV1 => true;
+
+  @override
+  String createSessionV1(String sessionConfigV1Json) {
+    return _delegate.createSession(sessionConfigV1Json);
+  }
+}
+
 class _CountingPtyBackend extends FakePtyBackend {
   int takeFrameDiffCalls = 0;
   int pollEventsCalls = 0;
@@ -5929,6 +5952,96 @@ void main() {
       final state = container.read(sessionControllerProvider);
       expect(state.tabs, isEmpty);
       expect(state.activeSessionId, isNull);
+    },
+  );
+
+  test(
+    'SSH transport failure preserves final details after its tab closes',
+    () async {
+      final bindings = _SshEventfulPtyBackend(FakePtyBackend());
+      final sshProfile = TerminalProfile(
+        id: 'ssh-client',
+        name: 'client',
+        shell: '/usr/bin/ssh',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'client.example.test',
+          user: 'root',
+          port: 36000,
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(bindings),
+          sessionControllerProvider.overrideWith(_TestSessionController.new),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              TerminalProfilesDocument(profiles: [sshProfile]),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(
+              const TerminalAppPreferencesDocument(
+                defaults: TerminalAppDefaults(defaultProfileId: 'ssh-client'),
+              ),
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final controller = container.read(sessionControllerProvider.notifier);
+      controller.createSession(sshProfile);
+      final failedSessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      bindings.setFrame(failedSessionId, {
+        'rows': [
+          {
+            'index': 0,
+            'text': 'Ianvs SSH: ProxyCommand could not connect to ',
+            'wrapped': true,
+            'style_runs': const <Object?>[],
+          },
+          {
+            'index': 1,
+            'text': '127.0.0.1:2080',
+            'style_runs': const <Object?>[],
+          },
+        ],
+        'cursor': {'row': 1, 'col': 14, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 0, 'end': 2},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+      });
+      bindings.enqueueExit(failedSessionId, code: 255);
+      await _waitForCondition(
+        description: 'SSH transport failure exit polling',
+        condition: () => container.read(sessionControllerProvider).tabs.isEmpty,
+      );
+
+      expect(
+        container.read(sessionControllerProvider).lastError,
+        'SSH connection “client” to root@client.example.test:36000 failed '
+        '(exit code 255): ProxyCommand could not connect to 127.0.0.1:2080',
+      );
+
+      controller.dismissLastError();
+      controller.createSession(sshProfile);
+      final ordinaryExitSessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      bindings.enqueueExit(ordinaryExitSessionId, code: 1);
+      await _waitForCondition(
+        description: 'ordinary SSH exit polling',
+        condition: () => container.read(sessionControllerProvider).tabs.isEmpty,
+      );
+
+      expect(container.read(sessionControllerProvider).lastError, isNull);
     },
   );
 }

@@ -9805,6 +9805,16 @@ void main() {
         seenEvents.whereType<TerminalSessionExitEvent>().single.exitCode,
         9,
       );
+      expect(
+        seenEvents
+            .whereType<TerminalSessionExitEvent>()
+            .single
+            .finalFrame
+            ?.rows
+            .first
+            .text,
+        'final output',
+      );
       expect(runtime.hasSession(sessionId), isFalse);
     },
   );

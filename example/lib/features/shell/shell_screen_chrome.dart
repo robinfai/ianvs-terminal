@@ -413,33 +413,38 @@ class _ShellRuntimeErrorBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      key: const Key('shell-runtime-error'),
-      decoration: BoxDecoration(
-        color: palette.dangerContainer,
-        border: Border(bottom: BorderSide(color: palette.danger)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
-        child: Row(
-          children: [
-            Icon(Icons.error_outline_rounded, color: palette.danger),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                message,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(color: palette.textPrimary),
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      label: 'Terminal runtime error.',
+      child: DecoratedBox(
+        key: const Key('shell-runtime-error'),
+        decoration: BoxDecoration(
+          color: palette.dangerContainer,
+          border: Border(bottom: BorderSide(color: palette.danger)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+          child: Row(
+            children: [
+              Icon(Icons.error_outline_rounded, color: palette.danger),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  message,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: palette.textPrimary),
+                ),
               ),
-            ),
-            _buildCompactActionButton(
-              key: const Key('shell-runtime-error-dismiss'),
-              tooltip: 'Dismiss runtime error',
-              onPressed: onDismiss,
-              icon: Icon(Icons.close_rounded, color: palette.textSubtle),
-            ),
-          ],
+              _buildCompactActionButton(
+                key: const Key('shell-runtime-error-dismiss'),
+                tooltip: 'Dismiss runtime error',
+                onPressed: onDismiss,
+                icon: Icon(Icons.close_rounded, color: palette.textSubtle),
+              ),
+            ],
+          ),
         ),
       ),
     );
