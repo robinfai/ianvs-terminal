@@ -37,7 +37,7 @@ void main(List<String> args) async {
 
     final cargoTargetDirectory = input.outputDirectory.resolve('cargo-target/');
     final environment = <String, String>{
-      ...Platform.environment,
+      ..._rustToolchainEnvironment(Platform.environment),
       'CARGO_TARGET_DIR': cargoTargetDirectory.toFilePath(),
       'MACOSX_DEPLOYMENT_TARGET': '${code.macOS.targetVersion}.0',
     };
@@ -95,6 +95,29 @@ void main(List<String> args) async {
       ),
     );
   });
+}
+
+Map<String, String> _rustToolchainEnvironment(Map<String, String> environment) {
+  final resolved = <String, String>{...environment};
+  if (resolved['CARGO_HOME']?.isNotEmpty == true &&
+      resolved['RUSTUP_HOME']?.isNotEmpty == true) {
+    return resolved;
+  }
+
+  for (final entry in (resolved['PATH'] ?? '').split(':')) {
+    if (!entry.endsWith('/.cargo/bin')) {
+      continue;
+    }
+    final cargoHome = Directory(entry).parent;
+    final rustupHome = Directory('${cargoHome.parent.path}/.rustup');
+    if (!cargoHome.existsSync() || !rustupHome.existsSync()) {
+      continue;
+    }
+    resolved.putIfAbsent('CARGO_HOME', () => cargoHome.path);
+    resolved.putIfAbsent('RUSTUP_HOME', () => rustupHome.path);
+    break;
+  }
+  return resolved;
 }
 
 Iterable<File> _nativeDependencies(Uri nativeRoot) sync* {
