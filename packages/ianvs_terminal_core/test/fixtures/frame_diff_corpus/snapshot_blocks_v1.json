@@ -1,0 +1,89 @@
+{
+  "description": "A folded command block snapshot retaining source coordinates and hyperlink metadata.",
+  "frame": {
+    "frame_schema_version": "terminal-frame-diff-v1",
+    "frame_kind": "snapshot",
+    "rows": [
+      {
+        "index": 0,
+        "text": "$ build project",
+        "wrapped": false,
+        "source_row": 4,
+        "source_end_row": 6
+      },
+      {
+        "index": 1,
+        "text": "2 rows folded",
+        "wrapped": false,
+        "source_row": 5,
+        "source_end_row": 6
+      }
+    ],
+    "cursor": {
+      "row": 0,
+      "col": 15,
+      "visible": true
+    },
+    "viewport_rows": 4,
+    "viewport_cols": 80,
+    "dirty_ranges": [
+      {
+        "start": 0,
+        "end": 4
+      }
+    ],
+    "scrollback_offset": 0,
+    "scrollback_max_offset": 3,
+    "viewport_start_row": 4,
+    "viewport_row_shift": 0,
+    "modes": {
+      "alternate_screen": false,
+      "bracketed_paste": false,
+      "mouse_mode": "off",
+      "mouse_encoding": "default",
+      "kitty_keyboard_flags": 0
+    },
+    "hyperlinks": [
+      {
+        "row": 0,
+        "start_col": 2,
+        "end_col": 7,
+        "uri": "https://example.com/build",
+        "protocol_id": "build-docs"
+      }
+    ],
+    "graphics": [],
+    "blocks": [
+      {
+        "id": "build-1",
+        "block_type": "command",
+        "start_row": 0,
+        "end_row": 1,
+        "source_start_row": 4,
+        "source_end_row": 6,
+        "folded": true,
+        "rendered": false,
+        "hidden_rows": 2
+      }
+    ]
+  },
+  "expected": {
+    "frame_schema_version": "terminal-frame-diff-v1",
+    "frame_kind": "snapshot",
+    "viewport_rows": 4,
+    "viewport_cols": 80,
+    "row_texts": [
+      "$ build project",
+      "2 rows folded"
+    ],
+    "dirty_ranges": [
+      [
+        0,
+        4
+      ]
+    ],
+    "graphics_count": 0,
+    "blocks_count": 1,
+    "hyperlinks_count": 1
+  }
+}

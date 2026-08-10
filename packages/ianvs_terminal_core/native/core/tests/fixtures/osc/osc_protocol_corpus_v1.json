@@ -1,0 +1,923 @@
+{
+  "schema_version": "ianvs-osc-corpus-v1",
+  "encoding": "lowercase-hex",
+  "description": "Shared byte-level OSC edge corpus. The Dart mirror must remain byte-for-byte equivalent.",
+  "cases": [
+    {
+      "id": "bel_terminator",
+      "coverage": ["BEL terminator"],
+      "protocol": "OSC 8",
+      "wire": {
+        "chunks_hex": [
+          "1b5d383b69643d62656c3b68747470733a2f2f6578616d706c652e746573742f62656c07"
+        ]
+      },
+      "terminator": "BEL",
+      "expected": {
+        "semantic_intent": "hyperlink_open",
+        "state_effect": "hyperlink id=bel opens",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "st_terminator",
+      "coverage": ["ST terminator"],
+      "protocol": "OSC 8",
+      "wire": {
+        "chunks_hex": [
+          "1b5d383b69643d73743b68747470733a2f2f6578616d706c652e746573742f73741b5c"
+        ]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "hyperlink_open",
+        "state_effect": "hyperlink id=st opens",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "split_escape_introducer",
+      "coverage": ["split ESC"],
+      "protocol": "OSC 2",
+      "wire": {
+        "chunks_hex": ["1b", "5d323b73706c69742d696e74726f64756365721b5c"]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "title",
+        "state_effect": "title becomes split-introducer",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "split_st_terminator",
+      "coverage": ["split ST"],
+      "protocol": "OSC 2",
+      "wire": {
+        "chunks_hex": ["1b5d323b73706c69742d7465726d696e61746f721b", "5c"]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "title",
+        "state_effect": "title becomes split-terminator",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "split_utf8_scalar",
+      "coverage": ["split UTF-8"],
+      "protocol": "OSC 2",
+      "wire": {
+        "chunks_hex": ["1b5d323b757466382d", "e4", "bda0e5", "a5bd1b5c"]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "title",
+        "state_effect": "title becomes utf8-你好",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "empty_parameter",
+      "coverage": ["empty parameter"],
+      "protocol": "OSC 8",
+      "wire": {
+        "chunks_hex": [
+          "1b5d383b3b68747470733a2f2f6578616d706c652e746573742f656d7074791b5c"
+        ]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "hyperlink_open",
+        "state_effect": "hyperlink opens without a protocol id",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "missing_parameter",
+      "coverage": ["missing parameter"],
+      "protocol": "OSC 8",
+      "wire": {
+        "chunks_hex": ["1b5d383b69643d6d697373696e671b5c"]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "malformed_hyperlink",
+        "state_effect": "ignored without hyperlink mutation",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "duplicate_parameter",
+      "coverage": ["duplicate parameter"],
+      "protocol": "OSC 8",
+      "wire": {
+        "chunks_hex": [
+          "1b5d383b69643d66697273743a69643d7365636f6e643b68747470733a2f2f6578616d706c652e746573742f6475706c69636174651b5c"
+        ]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "hyperlink_open",
+        "state_effect": "duplicate id handling is deterministic",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "oversized_payload",
+      "coverage": ["oversized payload"],
+      "protocol": "OSC 0",
+      "wire": {
+        "prefix_hex": "1b5d303b",
+        "repeat_hex": "41",
+        "repeat_count": 4097,
+        "suffix_hex": "07",
+        "declared_payload_limit_bytes": 4096
+      },
+      "terminator": "BEL",
+      "expected": {
+        "semantic_intent": "oversized_title",
+        "state_effect": "discarded at the declared corpus limit",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "malformed_base64",
+      "coverage": ["malformed Base64"],
+      "protocol": "OSC 52",
+      "wire": {
+        "chunks_hex": ["1b5d35323b633b2525256e6f742d6261736536342525251b5c"]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "clipboard_write_request",
+        "state_effect": "rejected without clipboard mutation",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "malformed_percent_encoding",
+      "coverage": ["malformed percent encoding"],
+      "protocol": "OSC 7",
+      "wire": {
+        "chunks_hex": ["1b5d373b66696c653a2f2f2f746d702f255a5a2f6261641b5c"]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "cwd",
+        "state_effect": "invalid path is ignored or sanitized",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "unknown_key",
+      "coverage": ["unknown key"],
+      "protocol": "OSC 8",
+      "wire": {
+        "chunks_hex": [
+          "1b5d383b76656e646f723d6675747572653a69643d6b6e6f776e3b68747470733a2f2f6578616d706c652e746573742f756e6b6e6f776e1b5c"
+        ]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "hyperlink_open",
+        "state_effect": "unknown key ignored and id=known retained",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "mixed_supported_unsupported",
+      "coverage": ["mixed supported/unsupported sequence"],
+      "protocol": "OSC 2 + OSC 999 + OSC 8",
+      "wire": {
+        "chunks_hex": [
+          "1b5d323b737570706f727465642d7469746c651b5c1b5d3939393b756e737570706f727465641b5c1b5d383b69643d6d697865643b68747470733a2f2f6578616d706c652e746573742f6d6978656407"
+        ],
+        "sequence_count": 3
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "mixed_stream",
+        "state_effect": "supported neighbors apply and OSC 999 is a no-op",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "osc99_chunked_base64",
+      "coverage": ["OSC 99 chunk assembly"],
+      "protocol": "Kitty OSC 99",
+      "wire": {
+        "chunks_hex": [
+          "1b5d39393b693d636f727075733a643d303a653d313b56476c306247553d1b5c",
+          "1b5d39393b693d636f727075733a703d626f64793a653d313b516d396b65513d3d1b5c"
+        ]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "notification_show",
+        "state_effect": "Base64 title/body chunks assemble under id=corpus",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "osc99_report_buttons_focus_safe",
+      "coverage": ["OSC 99 report actions", "OSC 99 buttons", "focus exclusion"],
+      "protocol": "Kitty OSC 99",
+      "wire": {
+        "chunks_hex": [
+          "1b5d39393b693d636f727075732d616374696f6e733a643d303a613d7265706f72742c666f6375733a633d313b4465706c6f791b5c",
+          "1b5d39393b693d636f727075732d616374696f6e733a703d627574746f6e733b417070726f7665e280a852657472791b5c"
+        ]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "notification_interaction_offer",
+        "state_effect": "report-only buttons retained while protocol focus remains disabled",
+        "reply": "only after an explicit product user gesture",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "osc21_batch_and_osc23_noop",
+      "coverage": [
+        "OSC 21 batch color control",
+        "OSC 23 title no-op"
+      ],
+      "protocol": "OSC 0 + Kitty OSC 21 + OSC 23",
+      "wire": {
+        "chunks_hex": [
+          "1b5d303b737461626c652d7469746c651b5c1b5d32313b666f726567726f756e643d233132333435363b3139363d236162636465663b6675747572653d3f1b5c1b5d32333b6c65676163791b5c"
+        ],
+        "sequence_count": 3
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "color_control_and_safe_unknown",
+        "state_effect": "OSC 21 applies colors and replies to an unknown query while OSC 23 leaves the title unchanged",
+        "reply": "OSC 21 future=?",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "osc3008_malformed_close_recovery",
+      "coverage": [
+        "OSC 3008 hierarchy",
+        "OSC 3008 malformed close recovery"
+      ],
+      "protocol": "UAPI OSC 3008",
+      "wire": {
+        "chunks_hex": [
+          "1b5d333030383b73746172743d726f6f743b747970653d7368656c6c3b757365723d6465765c7833626f70731b5c",
+          "1b5d333030383b73746172743d6368696c643b747970653d636f6d6d616e643b636d646c696e653d6461727420746573741b5c1b5d333030383b656e643d6d697373696e673b657869743d6661696c7572651b5c1b5d333030383b656e643d726f6f743b657869743d737563636573733b7374617475733d301b5c"
+        ]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "terminal_context_lifecycle",
+        "state_effect": "unknown end is ignored, root end closes child, and decoded metadata is retained",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "osc22_pointer_shape_stack",
+      "coverage": [
+        "OSC 22 pointer shape stack",
+        "OSC 22 screen-local state"
+      ],
+      "protocol": "Kitty OSC 22",
+      "wire": {
+        "chunks_hex": [
+          "1b5d32323b706f696e7465721b5c1b5d32323b3e776169742c63726f7373686169721b5c1b5d32323b3f5f5f63757272656e745f5f2c5f5f64656661756c745f5f2c5f5f677261626265645f5f2c706f696e7465722c6e6f2d737563682d6e616d651b5c1b5b3f31303439681b5d32323b68656c701b5c1b5d32323b3f5f5f63757272656e745f5f1b5c1b5b3f313034396c1b5d32323b3f5f5f63757272656e745f5f1b5c"
+        ],
+        "sequence_count": 6
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "pointer_shape_lifecycle",
+        "state_effect": "push/query and screen-local stacks preserve crosshair on primary while help is active on alternate",
+        "reply": "three OSC 22 responses",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "osc66_sized_text_edit_recovery",
+      "coverage": [
+        "OSC 66 sized text",
+        "OSC 66 overwrite/edit recovery"
+      ],
+      "protocol": "Kitty OSC 66",
+      "wire": {
+        "chunks_hex": [
+          "1b5d36363b733d323a773d323a6e3d313a643d323a763d323a683d313b41421b5c1b5b323b3248781b5b313b32481b5b581b5d36363b733d323b5a07"
+        ],
+        "sequence_count": 2
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "sized_text_render",
+        "state_effect": "fractional fixed-width text survives lower-row output, ECH clears the intersected block, and a new scaled block recovers",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "osc72_drop_target_negotiation",
+      "coverage": [
+        "OSC 72 target negotiation",
+        "OSC 72 bounded host authorization"
+      ],
+      "protocol": "Kitty OSC 72",
+      "wire": {
+        "chunks_hex": [
+          "1b5d37323b743d613a693d373b746578742f706c61696e20746578742f7572692d6c6973741b5c1b5d37323b743d6d3a693d373a6f3d313b746578742f706c61696e1b5c1b5d37323b743d723a693d373a783d313b1b5c"
+        ],
+        "sequence_count": 3
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "drag_drop_target_lifecycle",
+        "state_effect": "active product policy receives bounded accept, move decision, and indexed data request commands correlated by i=7",
+        "reply": "product bridge response only",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "osc1337_shell_metadata_and_cell_size",
+      "coverage": [
+        "OSC 1337 shell metadata",
+        "OSC 1337 cell-size query"
+      ],
+      "protocol": "iTerm2 OSC 1337",
+      "wire": {
+        "chunks_hex": [
+          "1b5d313333373b5368656c6c496e746567726174696f6e56657273696f6e3d31373b7a73681b5c1b5d313333373b5365744d61726b071b5d313333373b5265706f727443656c6c53697a651b5c"
+        ],
+        "sequence_count": 3
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "shell_metadata_and_cell_size",
+        "state_effect": "version and shell metadata plus a cursor-line mark are emitted; product receives one exact cell-size reply request",
+        "reply": "product replies with bounded height;width;scale metrics",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "osc1337_dynamic_cursor_shape",
+      "coverage": [
+        "OSC 1337 cursor shape",
+        "DECSCUSR cursor override coexistence"
+      ],
+      "protocol": "iTerm2 OSC 1337 and DECSCUSR",
+      "wire": {
+        "chunks_hex": [
+          "1b5d313333373b437572736f7253686170653d311b5c1b5b3420711b5b3020711b5d313333373b437572736f7253686170653d3907"
+        ],
+        "sequence_count": 2
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "dynamic_cursor_shape",
+        "state_effect": "OSC selects a beam without changing profile blink, DECSCUSR selects a steady underline, and Ps=0 selects a blinking block without changing bell volume",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "xterm_special_dynamic_colors",
+      "coverage": [
+        "xterm OSC 5/6 special colors",
+        "xterm OSC 13-19 dynamic colors",
+        "xterm OSC 105/119 resets and 106 alias"
+      ],
+      "protocol": "xterm OSC 5/6/17/105/106/119",
+      "wire": {
+        "chunks_hex": [
+          "1b5d353b303b236666303066663b303b3f1b5c1b5d363b303b311b5c1b5d31373b233131323233333b233138313831383b236464656566661b5c1b5d31373b3f3b3f3b3f1b5c1b5d3130353b301b5c1b5d3130363b303b301b5c1b5d3131391b5c"
+        ],
+        "sequence_count": 7
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "xterm_special_dynamic_colors",
+        "state_effect": "bold resource/mode set then OSC 105 resets the resource while OSC 106 disables the mode; sequential highlight resources set/query; OSC 119 restores selected-text baseline",
+        "reply": "one OSC 5 response and three dynamic-color responses",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "iterm_color_extensions",
+      "coverage": [
+        "iTerm2 OSC 4 negative queries",
+        "iTerm2 OSC 1337 SetColors",
+        "iTerm2 SetColors color spaces and tab reset"
+      ],
+      "protocol": "iTerm2 OSC 4 and OSC 1337 SetColors",
+      "wire": {
+        "chunks_hex": [
+          "1b5d313333373b536574436f6c6f72733d66673d3132332c62673d70333a3830383038302c626f6c643d6666303066662c756e6465726c696e653d3030666630302c6c696e6b3d3030666666662c73656c62673d6666303030302c73656c66673d3030303030302c63757262673d6666666630302c63757266673d3030303066662c7461623d3132333435362c7265643d6161626263631b5c1b5d343b2d323b3f3b2d313b3f071b5d313333373b536574436f6c6f72733d7461623d64656661756c742c7072657365743d47726173731b5c"
+        ],
+        "sequence_count": 3
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "iterm_color_extensions",
+        "state_effect": "session-local colors and palette change, Display-P3 is converted to sRGB, tab default clears its override, and preset remains unauthorized",
+        "reply": "OSC 4 replies for background -2 and foreground -1",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "osc1337_clear_buffer",
+      "coverage": [
+        "OSC 1337 clear buffer"
+      ],
+      "protocol": "iTerm2 OSC 1337 ClearScrollback",
+      "wire": {
+        "sequence_count": 2,
+        "chunks_hex": [
+          "6f6c642d300d0a6f6c642d310d0a6f6c642d320d0a6f6c642d330d0a6f6c642d340d0a1b5d313333373b436c6561725363726f6c6c6261636b1b5c61667465722d636c6561721b5d323b6f7363313333372d636c6561722d636f727075732d6f6b07"
+        ]
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "clear_buffer",
+        "state_effect": "visible rows and retained history clear before later text and OSC parsing continue",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "osc1337_cursor_guide",
+      "coverage": [
+        "iTerm2 OSC 1337 cursor guide"
+      ],
+      "protocol": "iTerm2 OSC 1337 HighlightCursorLine",
+      "wire": {
+        "sequence_count": 3,
+        "chunks_hex": [
+          "1b5d313333373b486967686c69676874437572736f724c696e653d6e6f071b5d313333373b486967686c69676874437572736f724c696e653d7965731b5c1b5d323b6f7363313333372d637572736f722d67756964652d636f727075732d6f6b07"
+        ]
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "cursor_guide",
+        "state_effect": "the current cursor row is highlighted after the final documented yes value",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "osc1337_clipboard_copy",
+      "coverage": [
+        "iTerm2 OSC 1337 clipboard write",
+        "iTerm2 OSC 1337 streaming clipboard capture"
+      ],
+      "protocol": "iTerm2 OSC 1337 CopyToClipboard/EndCopy and Copy=:",
+      "wire": {
+        "sequence_count": 4,
+        "chunks_hex": [
+          "1b5d313333373b436f7079546f436c6970626f6172643d66696e640753545245414d2d434f525055531b5d313333373b456e64436f70791b5c1b5d313333373b436f70793d3a5a476c795a574e30071b5d323b6f7363313333372d636c6970626f6172642d636f727075732d6f6b1b5c"
+        ]
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "clipboard_copy",
+        "state_effect": "stream content remains visible while both clipboard forms stay policy-gated and later OSC parsing remains intact",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "osc1337_annotations",
+      "coverage": [
+        "iTerm2 OSC 1337 annotations",
+        "iTerm2 visible and hidden annotations",
+        "iTerm2 annotation coordinate range"
+      ],
+      "protocol": "iTerm2 OSC 1337 AddAnnotation/AddHiddenAnnotation",
+      "wire": {
+        "sequence_count": 3,
+        "chunks_hex": [
+          "707265666978201b5d313333373b416464416e6e6f746174696f6e3d347c56697369626c65206e6f746507776f72640d0a1b5d313333373b41646448696464656e416e6e6f746174696f6e3d48696464656e206e6f74657c367c307c311b5c7365637265741b5d323b6f7363313333372d616e6e6f746174696f6e2d636f727075732d6f6b1b5c"
+        ]
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "session_annotation",
+        "state_effect": "visible and hidden notes retain their terminal text ranges while later OSC title parsing remains intact",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "tmux_passthrough",
+      "coverage": ["tmux passthrough fixture"],
+      "protocol": "tmux DCS passthrough carrying OSC 8",
+      "wire": {
+        "chunks_hex": [
+          "1b50746d75783b1b1b5d383b69643d746d75783b68747470733a2f2f6578616d706c652e746573742f746d75781b1b5c1b5c"
+        ]
+      },
+      "terminator": "DCS_ST",
+      "expected": {
+        "semantic_intent": "hyperlink_open",
+        "state_effect": "outer DCS unwrap preserves id=tmux",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "screen_passthrough",
+      "coverage": ["screen passthrough fixture"],
+      "protocol": "GNU screen DCS passthrough carrying OSC 8",
+      "wire": {
+        "chunks_hex": [
+          "1b501b5d383b69643d73637265656e3b68747470733a2f2f6578616d706c652e746573742f73637265656e071b5c"
+        ]
+      },
+      "terminator": "DCS_ST",
+      "expected": {
+        "semantic_intent": "hyperlink_open",
+        "state_effect": "outer DCS unwrap preserves id=screen",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "osc133_semantic_prompt_aid",
+      "coverage": ["OSC 133 semantic prompts and aid lifecycle"],
+      "protocol": "iTerm2 OSC 133 N/P k= aid=",
+      "wire": {
+        "sequence_count": 5,
+        "chunks_hex": [
+          "1b5d3133333b4e3b6169643d6f757465723b6b3d69071b5d3133333b503b6b3d733b6169643d6f757465721b5c1b5d3133333b42071b5d3133333b433b70726f6265071b5d3133333b443b6169643d6f757465723b3007"
+        ]
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "shell_lifecycle",
+        "state_effect": "initial and secondary prompts share aid=outer without duplicate lifecycle state",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "osc21337_tab_status",
+      "coverage": [
+        "OSC 21337 incremental tab status"
+      ],
+      "protocol": "iTerm2 OSC 21337 tab status",
+      "wire": {
+        "sequence_count": 3,
+        "chunks_hex": [
+          "1b5d32313333373b696e64696361746f723d236666393530303b7374617475733d576f726b696e675c3b70686173653b7374617475732d636f6c6f723d233566383766661b5c1b5d32313333373b7374617475733d3b7374617475732d636f6c6f723d071b5d323b6f736332313333372d636f727075732d6f6b1b5c"
+        ]
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "tab_status",
+        "state_effect": "set and partial clear events preserve escaped status text and do not corrupt later OSC parsing",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "osc5522_binary_mime_clipboard",
+      "coverage": [
+        "OSC 5522 binary MIME clipboard"
+      ],
+      "protocol": "Kitty OSC 5522 MIME clipboard",
+      "wire": {
+        "chunks_hex": [
+          "1b5d353532323b747970653d77726974653a69643d636f727075731b5c1b5d353532323b747970653d77646174613a6d696d653d5958427762476c6a595852706232347662324e305a585174633352795a5746743b414145432f773d3d1b5c1b5d353532323b747970653d77616c6961733a6d696d653d5958427762476c6a595852706232347662324e305a585174633352795a5746743b5958427762476c6a5958527062323476654331705957353263793177636d39695a513d3d1b5c1b5d353532323b747970653d77646174611b5c1b5d323b6f7363353532322d636f727075732d6f6b1b5c"
+        ]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "clipboard_mime_write",
+        "state_effect": "one binary application/octet-stream item and its MIME alias are assembled without corrupting later OSC parsing",
+        "reply": "policy-gated DONE or an explicit error status",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "osc1337_open_url_request",
+      "coverage": [
+        "iTerm2 OSC 1337 OpenURL Base64 decoding",
+        "iTerm2 OSC 1337 OpenURL fragmented ST termination"
+      ],
+      "protocol": "iTerm2 OSC 1337 OpenURL",
+      "wire": {
+        "chunks_hex": [
+          "1b",
+          "5d313333373b4f70656e55524c3d3a6148523063484d364c79396c654746746347786c4c6e526c63335176634768",
+          "68633255794f513d3d1b",
+          "5c"
+        ]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "open_url_request",
+        "state_effect": "one validated request event is emitted without authorizing a host action",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "osc1337_blocks",
+      "coverage": [
+        "iTerm2 OSC 1337 block lifecycle",
+        "iTerm2 OSC 1337 nested block folding",
+        "iTerm2 OSC 1337 text document rendering",
+        "iTerm2 OSC 1337 block update no-op safety"
+      ],
+      "protocol": "iTerm2 OSC 1337 Block and UpdateBlock",
+      "wire": {
+        "sequence_count": 7,
+        "chunks_hex": [
+          "1b",
+          "5d313333373b426c6f636b3d69643d6f757465723b617474723d73746172743b74797065",
+          "3d6275696c641b5c66697273740a1b5d313333373b426c6f636b3d69643d696e6e65723b617474723d7374617274",
+          "1b5c7365637265740a1b5d313333373b426c6f636b3d69643d696e6e65723b617474723d656e641b5c6c6173741b5d313333373b426c6f63",
+          "6b3d69643d6f757465723b617474723d656e643b72656e6465723d311b5c1b5d313333373b557064617465426c6f636b3d69643d6f757465723b616374696f6e3d666f6c641b5c1b5d313333373b557064617465426c6f636b3d69643d6d697373696e673b616374696f6e3d756e666f6c641b5c1b5d323b6f7363313333372d626c6f636b2d636f727075732d6f6b1b5c"
+        ]
+      },
+      "terminator": "ST",
+      "expected": {
+        "semantic_intent": "block_folding_and_text_document_rendering",
+        "state_effect": "nested blocks retain exact source ranges and render metadata while the completed outer block folds and a missing update stays a no-op",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "osc1337_request_attention",
+      "coverage": [
+        "iTerm2 OSC 1337 RequestAttention four-value contract",
+        "iTerm2 OSC 1337 RequestAttention fragmented ST termination"
+      ],
+      "protocol": "iTerm2 OSC 1337 RequestAttention",
+      "wire": {
+        "sequence_count": 6,
+        "chunks_hex": [
+          "1b5d313333373b52657175657374417474656e74696f6e3d796573071b5d313333373b52657175657374417474656e74696f6e3d6f6e63651b5c",
+          "1b5d313333373b52657175657374417474656e74696f6e3d66697265776f726b731b",
+          "5c1b5d313333373b52657175657374417474656e74696f6e3d6e6f071b5d313333373b52657175657374417474656e74696f6e3d594553071b5d323b6f7363313333372d617474656e74696f6e2d636f727075732d6f6b1b5c"
+        ]
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "attention_request",
+        "state_effect": "the four exact actions emit in order, an uppercase near-match is ignored, and later OSC parsing remains intact",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "osc1337_inline_buttons",
+      "coverage": [
+        "iTerm2 OSC 1337 copy button",
+        "iTerm2 OSC 1337 custom button",
+        "iTerm2 OSC 1337 custom button invalidation",
+        "iTerm2 OSC 1337 mixed BEL/ST termination"
+      ],
+      "protocol": "iTerm2 OSC 1337 Button",
+      "wire": {
+        "sequence_count": 6,
+        "chunks_hex": [
+          "1b5d313333373b426c6f636b3d69643d636f70792d313b617474723d73746172741b5c636f70792d65786163741b5d313333373b426c6f636b3d69643d636f70792d313b617474723d656e64070d0a1b5d313333373b427574746f6e3d747970653d636f70793b626c6f636b3d636f70792d31071b5d313333373b427574746f6e3d747970653d637573746f6d3b636f64653d34323b69636f6e3d737461722e66696c6c1b5c1b5d313333373b427574746f6e3d747970653d637573746f6d071b5d323b6f7363313333372d627574746f6e2d636f727075732d6f6b1b5c"
+        ]
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "user_activated_inline_button",
+        "state_effect": "copy and custom buttons reserve four cells each; custom invalidation leaves copy valid and disables custom without corrupting later OSC parsing",
+        "reply": "custom click only: CSI ? 1337 ; code ~",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "osc1337_report_variable",
+      "coverage": [
+        "iTerm2 OSC 1337 ReportVariable Base64 name decoding",
+        "iTerm2 OSC 1337 ReportVariable user and session variable resolution",
+        "iTerm2 OSC 1337 ReportVariable malformed and unknown fail-closed handling",
+        "iTerm2 OSC 1337 ReportVariable mixed BEL/ST termination"
+      ],
+      "protocol": "iTerm2 OSC 1337 ReportVariable",
+      "wire": {
+        "sequence_count": 6,
+        "chunks_hex": [
+          "1b5d313333373b536574557365725661723d5245504f52545f4b45593d636d567762334a304c585a686248566c071b5d313333373b5265706f72745661726961626c653d64584e6c6369355352564250556c52665330565a07",
+          "1b5d313333373b5265706f72745661726961626c653d6332567a63326c766269356a623278316257357a1b",
+          "5c1b5d313333373b5265706f72745661726961626c653d252525071b5d313333373b5265706f72745661726961626c653d6332567a63326c766269356c626e5a70636d39756257567564413d3d071b5d323b6f7363313333372d7265706f72742d7661726961626c652d636f727075732d6f6b1b5c"
+        ]
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "permission_gated_variable_report",
+        "state_effect": "one defined user variable and one session dimension emit typed requests, malformed Base64 emits none, an unknown safe name remains typed with no value, and later OSC parsing remains intact",
+        "reply": "product policy: OSC 1337;ReportVariable=Base64(value) BEL, or an empty value when denied or undefined",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "osc1337_clear_captured_output",
+      "coverage": [
+        "iTerm2 OSC 1337 ClearCapturedOutput exact command",
+        "iTerm2 OSC 1337 ClearCapturedOutput mixed BEL/ST termination",
+        "iTerm2 OSC 1337 ClearCapturedOutput fragmented ST termination",
+        "iTerm2 OSC 1337 ClearCapturedOutput malformed suffix fail-closed handling"
+      ],
+      "protocol": "iTerm2 OSC 1337 ClearCapturedOutput",
+      "wire": {
+        "sequence_count": 4,
+        "chunks_hex": [
+          "1b5d313333373b436c65617243617074757265644f757470757407434150545552452d434c4541522d410d0a",
+          "1b5d313333373b436c65617243617074757265644f7574",
+          "7075741b",
+          "5c434150545552452d434c4541522d420d0a1b5d313333373b436c65617243617074757265644f75747075743d31071b5d323b6f7363313333372d636c6561722d63617074757265642d6f75747075742d636f727075732d6f6b1b5c"
+        ]
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "clear_session_captured_output",
+        "state_effect": "two exact requests clear only the originating session's product-owned captured-output collection; a suffixed command is ignored and terminal text/title parsing continues",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "osc1337_unicode_version",
+      "coverage": [
+        "iTerm2 OSC 1337 UnicodeVersion 8 and 9 cell widths",
+        "iTerm2 OSC 1337 UnicodeVersion labeled push and pop",
+        "iTerm2 OSC 1337 UnicodeVersion malformed version fail-closed handling",
+        "iTerm2 OSC 1337 UnicodeVersion mixed BEL/ST termination"
+      ],
+      "protocol": "iTerm2 OSC 1337 UnicodeVersion",
+      "wire": {
+        "sequence_count": 6,
+        "chunks_hex": [
+          "1b5d313333373b556e69636f646556657273696f6e3d3807e29895410d0a",
+          "1b5d313333373b556e69636f646556657273696f6e3d7075736820636f727075731b5c1b5d313333373b556e69636f646556657273696f6e3d391b",
+          "5ce29895420d0a1b5d313333373b556e69636f646556657273696f6e3d706f7020636f7270757307e29895430d0a",
+          "1b5d313333373b556e69636f646556657273696f6e3d313007e29895441b5d323b6f7363313333372d756e69636f64652d76657273696f6e2d636f727075732d6f6b1b5c"
+        ]
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "session_local_unicode_cell_width",
+        "state_effect": "Unicode 8 renders plain hot beverage in one cell, Unicode 9 renders it in two, labeled pop restores Unicode 8, invalid version 10 is ignored, and later OSC parsing remains intact",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "osc6_iterm_tab_color",
+      "coverage": [
+        "iTerm2 OSC 6 incremental tab color",
+        "iTerm2 OSC 6 profile reset",
+        "iTerm2 and xterm OSC 6 coexistence",
+        "iTerm2 OSC 6 malformed value fail-closed handling",
+        "iTerm2 OSC 6 mixed BEL/ST and fragmented ST termination"
+      ],
+      "protocol": "iTerm2 OSC 6 tab color",
+      "wire": {
+        "sequence_count": 8,
+        "chunks_hex": [
+          "1b5d363b313b62673b7265643b6272696768746e6573733b323535071b5d363b313b62673b677265656e3b6272696768746e6573733b3132381b",
+          "5c1b5d363b313b62673b626c75653b6272696768746e6573733b3634071b5d363b313b62673b7265643b6272696768746e6573733b393939071b5d363b313b62673b2a3b64656661756c741b5c1b5d363b313b62673b7265643b6272696768746e6573733b31071b5d363b303b311b5c1b5d323b6f7363362d697465726d2d7461622d636f6c6f722d636f727075732d6f6b1b5c"
+        ]
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "session_local_tab_color",
+        "state_effect": "RGB components update incrementally, malformed input is ignored, default restores the profile baseline, a later component begins from that baseline, xterm mode 0 remains independent, and later OSC parsing continues",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "xterm_osc50_font_ops",
+      "coverage": [
+        "xterm OSC 50 TrueType family set",
+        "xterm OSC 50 exact BEL/ST query",
+        "xterm OSC 50 menu index expressions",
+        "xterm OSC 50 malformed index fail-closed handling",
+        "xterm OSC 50 fragmented ST termination"
+      ],
+      "protocol": "xterm OSC 50 font operations",
+      "wire": {
+        "sequence_count": 5,
+        "chunks_hex": [
+          "1b5d35303b233420436f7572696572205072696d651b",
+          "5c1b5d35303b3f071b5d35303b2339392052656a65637465641b5c1b5d35303b3f341b",
+          "5c1b5d323b6f736335302d666f6e742d6f70732d636f727075732d6f6b1b5c"
+        ]
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "session_local_font_family",
+        "state_effect": "the indexed TrueType family is applied, plain and indexed queries mirror their terminators, an out-of-range index is ignored, and later OSC parsing continues",
+        "reply": "OSC 50;Courier Prime BEL; OSC 50;#4 Courier Prime ST",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "xterm_legacy_title_aliases",
+      "coverage": [
+        "OSC 0 combined window and icon title",
+        "xterm legacy OSC l window title alias",
+        "xterm legacy OSC L icon label alias"
+      ],
+      "protocol": "xterm OSC 0/1/2 and Sun/CDE l/L title aliases",
+      "wire": {
+        "sequence_count": 4,
+        "chunks_hex": [
+          "1b5d303b436f6d62696e65643b7469746c65071b5d4c4c65676163793b69636f6e1b",
+          "5c1b5d323b696e7465726d6564696174651b5c1b5d6c4c65676163793b77696e646f772d",
+          "e7",
+          "aa9707"
+        ]
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "window_and_icon_title",
+        "state_effect": "OSC 0 updates both title channels, uppercase L updates only the icon label, lowercase l preserves semicolons and split UTF-8 in the window title, and mixed BEL/ST framing remains synchronized",
+        "reply": "none",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "xterm_title_window_ops",
+      "coverage": [
+        "xterm CSI 20 t icon label query",
+        "xterm CSI 21 t window title query",
+        "xterm XTSMTITLE hexadecimal query mode",
+        "xterm XTRMTITLE mode reset",
+        "xterm CSI 22/23 independent title stack",
+        "xterm title stack direct positions",
+        "xterm title query fragmented CSI parsing"
+      ],
+      "protocol": "xterm CSI 20/21/22/23 t and XTSMTITLE/XTRMTITLE",
+      "wire": {
+        "sequence_count": 5,
+        "chunks_hex": [
+          "1b5d323b57696e646f773b616c7068611b5c1b5d313b49636f6e3b626574611b5c1b5b3230741b",
+          "5b3231741b5b3e31741b5b3230741b5b3231741b5b3e31541b5b32323b30741b5d303b4368616e6765641b5c1b5b32333b30741b5b3230741b5b3231741b",
+          "5d303b4469726563743b626f74681b5c1b5b32323b303b3130741b5d303b4d7574617465641b5c1b5b32333b303b3130741b5b3230741b5b323174"
+        ]
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "xterm_title_query_and_stack",
+        "state_effect": "raw and uppercase hexadecimal title queries are exact, XTRMTITLE restores raw replies, the implicit stack restores both independent channels, direct slot 10 is reusable without popping, and split CSI parsing remains synchronized",
+        "reply": "OSC L Icon;beta ST; OSC l Window;alpha ST; uppercase hexadecimal variants; restored raw variants; direct-slot raw variants",
+        "must_not_crash": true
+      }
+    },
+    {
+      "id": "xterm_osc_capability_queries",
+      "coverage": [
+        "xterm OSC 60 allowed categories",
+        "xterm OSC 61 disallowed subcategories",
+        "xterm OSC 62 allowable subcategories",
+        "xterm OSC capability mixed BEL/ST and fragmented ST termination",
+        "xterm OSC capability reply-loop suppression"
+      ],
+      "protocol": "xterm OSC 60/61/62 capability queries",
+      "wire": {
+        "sequence_count": 6,
+        "chunks_hex": [
+          "1b5d36301b5c1b5d36313b616c6c6f774d6f7573654f7073071b",
+          "5d36323b616c6c6f77436f6c6f724f70731b",
+          "5c1b5d36303b7265706c792d6c696b651b5c1b5d36313b756e6b6e6f776e1b5c1b5d323b6f736336302d36322d6361706162696c6974792d636f727075732d6f6b1b5c"
+        ]
+      },
+      "terminator": "mixed",
+      "expected": {
+        "semantic_intent": "terminal_owned_capability_query",
+        "state_effect": "the exact three queries report current top-level permission and official subcategory tables, reply-shaped and unknown payloads stay silent, and later OSC parsing continues",
+        "reply": "OSC 60;allowColorOps,allowFontOps,allowTitleOps ST; OSC 61;Locator,VT200Hilite BEL; OSC 62;SetColor,GetColor,GetAnsiColor ST",
+        "must_not_crash": true
+      }
+    }
+  ]
+}

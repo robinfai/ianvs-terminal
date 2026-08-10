@@ -1,0 +1,5 @@
+{"record_type":"metadata","schema_version":2,"session_id":"checkpoint-session","created_at_utc":"2026-07-21T00:00:00.000Z","input_policy":"redact"}
+{"record_type":"event","schema_version":2,"session_id":"checkpoint-session","sequence":0,"monotonic_offset_micros":0,"event_kind":"session_started","payload":{"terminal_emulation":"xterm256","cols":80,"rows":24}}
+{"record_type":"event","schema_version":2,"session_id":"checkpoint-session","sequence":1,"monotonic_offset_micros":1000,"event_kind":"pty_output","payload":{"bytes_base64":"YmVmb3Jl"}}
+{"record_type":"event","schema_version":2,"session_id":"checkpoint-session","sequence":2,"monotonic_offset_micros":1000,"event_kind":"checkpoint","payload":{"checkpoint_id":"checkpoint-1","source_sequence":1}}
+{"record_type":"event","schema_version":2,"session_id":"checkpoint-session","sequence":3,"monotonic_offset_micros":2000,"event_kind":"pty_output","payload":{"bytes_base64":"YWZ0ZXI="}}

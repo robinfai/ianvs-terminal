@@ -1,0 +1,1838 @@
+//! iTerm2 OSC 1337 sequence handling
+
+use super::sanitize_osc_text;
+use crate::color::Color;
+use crate::cursor::CursorShape;
+use crate::debug;
+use crate::terminal::block::{
+    bounded_iterm_block_value, MAX_ITERM_BLOCK_ID_CHARS, MAX_ITERM_BLOCK_TYPE_CHARS,
+};
+use crate::terminal::button::bounded_iterm_button_icon;
+use crate::terminal::event::{ItermAttentionAction, ShellIntegrationSource};
+use crate::terminal::{CwdChangeSource, ItermUnicodeVersionStackEntry, Terminal, TerminalEvent};
+use crate::unicode_width_config::UnicodeVersion;
+use crate::zone::ZoneType;
+
+const MAX_USER_VAR_NAME_CHARS: usize = 80;
+const MAX_USER_VAR_VALUE_CHARS: usize = 4096;
+const MAX_REMOTE_USERNAME_CHARS: usize = 80;
+const MAX_REMOTE_HOSTNAME_CHARS: usize = 255;
+const MAX_SHELL_INTEGRATION_VERSION_CHARS: usize = 32;
+const MAX_SHELL_NAME_CHARS: usize = 32;
+const MAX_SET_COLORS_PAIRS: usize = 32;
+const MAX_ANNOTATION_MESSAGE_CHARS: usize = 1024;
+const MAX_ANNOTATION_LENGTH_CELLS: usize = 4096;
+const MAX_OPEN_URL_BYTES: usize = 4096;
+const MAX_REPORT_VARIABLE_NAME_BYTES: usize = 256;
+const MAX_UNICODE_VERSION_LABEL_BYTES: usize = 128;
+const MAX_UNICODE_VERSION_STACK_DEPTH: usize = 64;
+
+impl Terminal {
+    pub(crate) fn handle_osc_iterm(&mut self, _command: &str, params: &[&[u8]]) {
+        if params.len() >= 2 {
+            let mut data_parts = Vec::new();
+            for p in &params[1..] {
+                if let Ok(s) = std::str::from_utf8(p) {
+                    data_parts.push(s);
+                }
+            }
+            let data = data_parts.join(";");
+
+            if let Some(encoded) = data.strip_prefix("SetBadgeFormat=") {
+                self.handle_set_badge_format(encoded);
+            } else if let Some(payload) = data.strip_prefix("SetColors=") {
+                self.handle_iterm_set_colors(payload);
+            } else if let Some(payload) = data.strip_prefix("SetUserVar=") {
+                self.handle_set_user_var(payload);
+            } else if let Some(payload) = data.strip_prefix("RemoteHost=") {
+                self.handle_remote_host(payload);
+            } else if let Some(payload) = data.strip_prefix("RequestUpload=") {
+                self.handle_request_upload(payload);
+            } else if data == "SetMark" {
+                self.handle_iterm_set_mark();
+            } else if let Some(payload) = data.strip_prefix("ShellIntegrationVersion=") {
+                self.handle_shell_integration_version(payload);
+            } else if let Some(payload) = data.strip_prefix("CursorShape=") {
+                self.handle_iterm_cursor_shape(payload);
+            } else if data == "ReportCellSize" {
+                self.terminal_events
+                    .push(TerminalEvent::CellSizeReportRequested);
+            } else if let Some(payload) = data.strip_prefix("UnicodeVersion=") {
+                self.handle_iterm_unicode_version(payload);
+            } else if let Some(encoded) = data.strip_prefix("ReportVariable=") {
+                self.handle_iterm_report_variable(encoded);
+            } else if let Some(encoded) = data.strip_prefix("OpenURL=:") {
+                self.handle_iterm_open_url(encoded);
+            } else if let Some(action) = data.strip_prefix("RequestAttention=") {
+                self.handle_iterm_request_attention(action);
+            } else if let Some(payload) = data.strip_prefix("AddAnnotation=") {
+                self.handle_iterm_annotation(payload, true);
+            } else if let Some(payload) = data.strip_prefix("AddHiddenAnnotation=") {
+                self.handle_iterm_annotation(payload, false);
+            } else if let Some(payload) = data.strip_prefix("AddNote=") {
+                self.handle_iterm_annotation(payload, true);
+            } else if let Some(payload) = data.strip_prefix("AddHiddenNote=") {
+                self.handle_iterm_annotation(payload, false);
+            } else if let Some(payload) = data.strip_prefix("Block=") {
+                self.handle_iterm_block(payload);
+            } else if let Some(payload) = data.strip_prefix("UpdateBlock=") {
+                self.handle_iterm_update_block(payload);
+            } else if let Some(payload) = data.strip_prefix("Button=") {
+                self.handle_iterm_button(payload);
+            } else if data == "ClearCapturedOutput" {
+                self.terminal_events
+                    .push(TerminalEvent::ItermClearCapturedOutputRequested);
+            } else if data == "ClearScrollback" {
+                self.handle_iterm_clear_buffer();
+            } else if data == "HighlightCursorLine" {
+                self.set_use_cursor_guide(true);
+            } else if let Some(value) = data.strip_prefix("HighlightCursorLine=") {
+                self.handle_iterm_cursor_guide(value);
+            } else {
+                self.handle_iterm_image(&data);
+            }
+        }
+    }
+
+    fn handle_iterm_unicode_version(&mut self, payload: &str) {
+        match payload {
+            "8" => self.set_unicode_version(UnicodeVersion::Unicode8),
+            "9" => self.set_unicode_version(UnicodeVersion::Unicode9),
+            "push" => self.push_iterm_unicode_version(None),
+            "pop" => self.pop_iterm_unicode_version(None),
+            _ => {
+                if let Some(label) = payload.strip_prefix("push ") {
+                    if is_valid_unicode_version_label(label) {
+                        self.push_iterm_unicode_version(Some(label.to_owned()));
+                    }
+                } else if let Some(label) = payload.strip_prefix("pop ") {
+                    if is_valid_unicode_version_label(label) {
+                        self.pop_iterm_unicode_version(Some(label));
+                    }
+                }
+            }
+        }
+    }
+
+    fn push_iterm_unicode_version(&mut self, label: Option<String>) {
+        if self.iterm_unicode_version_stack.len() >= MAX_UNICODE_VERSION_STACK_DEPTH {
+            return;
+        }
+        self.iterm_unicode_version_stack
+            .push(ItermUnicodeVersionStackEntry {
+                label,
+                version: self.width_config.unicode_version,
+            });
+    }
+
+    fn pop_iterm_unicode_version(&mut self, label: Option<&str>) {
+        while let Some(entry) = self.iterm_unicode_version_stack.pop() {
+            if label.is_none() || entry.label.as_deref() == label {
+                self.set_unicode_version(entry.version);
+                return;
+            }
+        }
+    }
+
+    fn handle_iterm_report_variable(&mut self, encoded: &str) {
+        use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+
+        let Ok(decoded) = BASE64.decode(encoded) else {
+            return;
+        };
+        if decoded.is_empty() || decoded.len() > MAX_REPORT_VARIABLE_NAME_BYTES {
+            return;
+        }
+        let Ok(name) = String::from_utf8(decoded) else {
+            return;
+        };
+        if name.chars().any(char::is_control) {
+            return;
+        }
+        self.terminal_events
+            .push(TerminalEvent::ItermReportVariableRequested { name });
+    }
+
+    fn handle_iterm_button(&mut self, payload: &str) {
+        let pairs = parse_iterm_block_pairs(payload);
+        let value = |key: &str| {
+            pairs
+                .iter()
+                .rev()
+                .find_map(|(candidate, value)| (*candidate == key).then_some(*value))
+        };
+        match value("type") {
+            Some("copy") => {
+                let Some(block_id) = value("block")
+                    .and_then(|value| bounded_iterm_block_value(value, MAX_ITERM_BLOCK_ID_CHARS))
+                else {
+                    return;
+                };
+                self.handle_iterm_copy_button(block_id);
+            }
+            Some("custom") => {
+                let code = value("code").and_then(|value| value.parse::<i32>().ok());
+                let icon = value("icon").and_then(bounded_iterm_button_icon);
+                match (code, icon) {
+                    (Some(code), Some(icon)) if code > 0 => {
+                        self.handle_iterm_custom_button(code, icon);
+                    }
+                    _ => self.invalidate_iterm_custom_buttons(),
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_iterm_open_url(&mut self, encoded: &str) {
+        use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+
+        if encoded.is_empty() {
+            return;
+        }
+        let Ok(decoded) = BASE64.decode(encoded) else {
+            return;
+        };
+        if decoded.is_empty() || decoded.len() > MAX_OPEN_URL_BYTES {
+            return;
+        }
+        let Ok(url) = String::from_utf8(decoded) else {
+            return;
+        };
+        if !is_safe_iterm_open_url(&url) {
+            return;
+        }
+        self.terminal_events
+            .push(TerminalEvent::ItermOpenUrlRequested { url });
+    }
+
+    fn handle_iterm_request_attention(&mut self, value: &str) {
+        let action = match value {
+            "yes" => ItermAttentionAction::Yes,
+            "once" => ItermAttentionAction::Once,
+            "no" => ItermAttentionAction::No,
+            "fireworks" => ItermAttentionAction::Fireworks,
+            _ => return,
+        };
+        self.terminal_events
+            .push(TerminalEvent::ItermAttentionRequested { action });
+    }
+
+    fn handle_iterm_block(&mut self, payload: &str) {
+        let pairs = parse_iterm_block_pairs(payload);
+        let Some(id) = pairs
+            .iter()
+            .rev()
+            .find_map(|(key, value)| (*key == "id").then_some(*value))
+            .and_then(|value| bounded_iterm_block_value(value, MAX_ITERM_BLOCK_ID_CHARS))
+        else {
+            return;
+        };
+        let attr = pairs
+            .iter()
+            .rev()
+            .find_map(|(key, value)| (*key == "attr").then_some(*value));
+        match attr {
+            Some("start") => {
+                let block_type = pairs
+                    .iter()
+                    .rev()
+                    .find_map(|(key, value)| (*key == "type").then_some(*value))
+                    .and_then(|value| bounded_iterm_block_value(value, MAX_ITERM_BLOCK_TYPE_CHARS));
+                self.handle_iterm_block_start(id, block_type);
+            }
+            Some("end") => {
+                let render = pairs
+                    .iter()
+                    .rev()
+                    .any(|(key, value)| *key == "render" && *value == "1");
+                self.handle_iterm_block_end(&id, render);
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_iterm_update_block(&mut self, payload: &str) {
+        if self.alt_screen_active {
+            return;
+        }
+        let pairs = parse_iterm_block_pairs(payload);
+        let Some(id) = pairs
+            .iter()
+            .rev()
+            .find_map(|(key, value)| (*key == "id").then_some(*value))
+            .and_then(|value| bounded_iterm_block_value(value, MAX_ITERM_BLOCK_ID_CHARS))
+        else {
+            return;
+        };
+        let action = pairs
+            .iter()
+            .rev()
+            .find_map(|(key, value)| (*key == "action").then_some(*value));
+        match action {
+            Some("fold") => {
+                self.set_iterm_block_folded(&id, true);
+            }
+            Some("unfold") => {
+                self.set_iterm_block_folded(&id, false);
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_iterm_cursor_guide(&mut self, value: &str) {
+        // iTerm2 documents yes/no and treats a missing value as enabled.
+        // Keep aliases bounded and explicit instead of inheriting a locale-
+        // sensitive host-language boolean parser.
+        let enabled = match value.trim().to_ascii_lowercase().as_str() {
+            "" | "1" | "true" | "yes" | "on" => true,
+            "0" | "false" | "no" | "off" => false,
+            _ => return,
+        };
+        self.set_use_cursor_guide(enabled);
+    }
+
+    fn handle_iterm_annotation(&mut self, payload: &str, visible: bool) {
+        let parts = payload.split('|').collect::<Vec<_>>();
+        let (message, length, coordinates) = match parts.as_slice() {
+            [message] => {
+                let (columns, _) = self.size();
+                let length = columns.saturating_sub(self.cursor.col).saturating_sub(1);
+                (*message, length, None)
+            }
+            [length, message] => {
+                let Some(length) = parse_annotation_unsigned(length) else {
+                    return;
+                };
+                (*message, length, None)
+            }
+            [message, length, x, y, ..] => {
+                let Some(length) = parse_annotation_unsigned(length) else {
+                    return;
+                };
+                let (Some(x), Some(y)) = (parse_annotation_signed(x), parse_annotation_signed(y))
+                else {
+                    return;
+                };
+                (*message, length, Some((x, y)))
+            }
+            _ => return,
+        };
+        if length == 0 || length > MAX_ANNOTATION_LENGTH_CELLS {
+            return;
+        }
+        let message = sanitize_osc_text(message, MAX_ANNOTATION_MESSAGE_CHARS);
+        if message.is_empty() {
+            return;
+        }
+
+        let (columns, rows) = self.size();
+        if columns == 0 || rows == 0 {
+            return;
+        }
+        let (start_col, start_row) =
+            coordinates.map_or((self.cursor.col, self.cursor.row), |(x, y)| {
+                (
+                    x.clamp(0, columns.saturating_sub(1) as i64) as usize,
+                    y.clamp(0, rows.saturating_sub(1) as i64) as usize,
+                )
+            });
+        let start_linear = start_row
+            .checked_mul(columns)
+            .and_then(|value| value.checked_add(start_col));
+        let Some(end_linear) = start_linear.and_then(|value| value.checked_add(length)) else {
+            return;
+        };
+        let max_linear = columns
+            .checked_mul(rows)
+            .and_then(|value| value.checked_sub(1))
+            .unwrap_or(0);
+        if end_linear > max_linear {
+            return;
+        }
+        let end_row = end_linear / columns;
+        let end_col = end_linear % columns;
+        // iTerm2 annotations in the alternate screen are addressed directly
+        // against that transient grid. Alternate-screen scrolling must not
+        // leak its discarded-line counter into the exported row coordinates.
+        let global_base = if self.alt_screen_active {
+            0
+        } else {
+            self.active_grid().total_lines_scrolled()
+        };
+        self.terminal_events.push(TerminalEvent::ItermAnnotation {
+            message,
+            visible,
+            start_abs_row: global_base.saturating_add(start_row),
+            start_col,
+            end_abs_row: global_base.saturating_add(end_row),
+            end_col,
+        });
+    }
+
+    /// iTerm2's `ClearScrollback` name is historical: unlike CSI 3 J, the
+    /// command clears both the visible grid and retained history.  It is the
+    /// escape-sequence equivalent of iTerm2's Clear Buffer action.
+    fn handle_iterm_clear_buffer(&mut self) {
+        let preserved_rows = {
+            let grid = self.active_grid();
+            let cursor_row = self.cursor.row.min(grid.rows().saturating_sub(1));
+            let mut start_row = cursor_row;
+            while start_row > 0 && grid.is_line_wrapped(start_row - 1) {
+                start_row -= 1;
+            }
+
+            // With shell integration, iTerm2 retains from the latest prompt
+            // mark through the cursor. Clamp a prompt that began in history
+            // to the first visible row.
+            if !self.alt_screen_active {
+                let visible_base = grid.total_lines_scrolled();
+                let cursor_abs_row = visible_base.saturating_add(cursor_row);
+                if let Some(prompt) = self.get_zones().iter().rev().find(|zone| {
+                    zone.zone_type == ZoneType::Prompt && zone.abs_row_start <= cursor_abs_row
+                }) {
+                    start_row = prompt
+                        .abs_row_start
+                        .saturating_sub(visible_base)
+                        .min(cursor_row);
+                }
+            }
+
+            (start_row..=cursor_row)
+                .filter_map(|row| {
+                    grid.row(row)
+                        .map(|cells| (cells.to_vec(), grid.is_line_wrapped(row)))
+                })
+                .collect::<Vec<_>>()
+        };
+
+        // Invalidate retained zones before clearing the visible grid so
+        // subscribers still receive bounded eviction events.
+        // iTerm2's history belongs to the primary buffer even when an
+        // alternate-screen application sends the command.
+        self.grid.clear_scrollback();
+        self.clear_iterm_blocks();
+        self.clear_iterm_buttons();
+        self.graphics_store.clear_scrollback_graphics();
+        self.active_grid_mut().clear();
+        self.clear_graphics();
+
+        {
+            let grid = self.active_grid_mut();
+            for (row, (cells, wrapped)) in preserved_rows.iter().enumerate() {
+                for (col, cell) in cells.iter().cloned().enumerate() {
+                    grid.set(col, row, cell);
+                }
+                grid.set_line_wrapped(row, *wrapped);
+            }
+        }
+
+        // Keep the cursor on the final retained row, matching iTerm2's clear
+        // buffer behavior for wrapped prompts and command input.
+        self.cursor.row = preserved_rows.len().saturating_sub(1);
+        self.saved_cursor = None;
+        self.saved_unicode_version = None;
+        self.scroll_region_top = 0;
+        self.scroll_region_bottom = self.size().1.saturating_sub(1);
+        self.use_lr_margins = false;
+        self.left_margin = 0;
+        self.right_margin = self.size().0.saturating_sub(1);
+        self.origin_mode = false;
+        self.terminal_events.push(TerminalEvent::ScreenCleared {
+            include_scrollback: true,
+        });
+    }
+
+    fn handle_iterm_cursor_shape(&mut self, payload: &str) {
+        let shape = match payload {
+            "0" => CursorShape::Block,
+            "1" => CursorShape::Bar,
+            "2" => CursorShape::Underline,
+            _ => return,
+        };
+        self.cursor.set_shape(shape);
+    }
+
+    fn handle_iterm_set_colors(&mut self, payload: &str) {
+        for pair in payload.split(',').take(MAX_SET_COLORS_PAIRS) {
+            let Some((key, value)) = pair.split_once('=') else {
+                continue;
+            };
+            let key = key.trim();
+            let value = value.trim();
+            if key.is_empty() || value.is_empty() {
+                continue;
+            }
+            if key == "tab" && value == "default" {
+                self.set_dynamic_iterm_tab_color(None);
+                continue;
+            }
+            // `preset` changes host profile configuration rather than a
+            // session-local color resource and is intentionally unauthorized.
+            if key == "preset" {
+                continue;
+            }
+            let Some(color) = Self::parse_iterm_set_color(value) else {
+                continue;
+            };
+            match key {
+                "fg" => self.set_dynamic_default_fg(color),
+                "bg" => self.set_dynamic_default_bg(color),
+                "bold" => self.set_dynamic_iterm_bold_color(Some(color)),
+                "link" => self.set_dynamic_iterm_link_color(Some(color)),
+                "selbg" => self.set_dynamic_selection_bg_color(color),
+                "selfg" => {
+                    self.set_dynamic_selection_fg_color(color);
+                    self.set_dynamic_selected_text_color_enabled(true);
+                }
+                "curbg" => self.set_dynamic_cursor_color(color),
+                "curfg" => self.set_dynamic_iterm_cursor_text_color(Some(color)),
+                "underline" => self.set_dynamic_iterm_underline_color(Some(color)),
+                "tab" => self.set_dynamic_iterm_tab_color(Some(color)),
+                _ => {
+                    if let Some(index) = Self::iterm_palette_index(key) {
+                        self.set_dynamic_ansi_palette_color(index, color);
+                    }
+                }
+            }
+        }
+    }
+
+    fn iterm_palette_index(key: &str) -> Option<usize> {
+        Some(match key {
+            "black" => 0,
+            "red" => 1,
+            "green" => 2,
+            "yellow" => 3,
+            "blue" => 4,
+            "magenta" => 5,
+            "cyan" => 6,
+            "white" => 7,
+            "br_black" => 8,
+            "br_red" => 9,
+            "br_green" => 10,
+            "br_yellow" => 11,
+            "br_blue" => 12,
+            "br_magenta" => 13,
+            "br_cyan" => 14,
+            "br_white" => 15,
+            _ => return None,
+        })
+    }
+
+    fn parse_iterm_set_color(value: &str) -> Option<Color> {
+        let (space, hex) = value
+            .split_once(':')
+            .map_or(("srgb", value), |(space, hex)| (space, hex));
+        let space = space.to_ascii_lowercase();
+        if !matches!(space.as_str(), "srgb" | "rgb" | "p3") {
+            return None;
+        }
+        if !matches!(hex.len(), 3 | 6) || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            return None;
+        }
+        let channel = |offset: usize| -> Option<u8> {
+            if hex.len() == 3 {
+                let digit = u8::from_str_radix(&hex[offset..offset + 1], 16).ok()?;
+                Some(digit * 17)
+            } else {
+                u8::from_str_radix(&hex[offset * 2..offset * 2 + 2], 16).ok()
+            }
+        };
+        let rgb = (channel(0)?, channel(1)?, channel(2)?);
+        let (red, green, blue) = if space == "p3" {
+            Self::display_p3_to_srgb(rgb)
+        } else {
+            rgb
+        };
+        Some(Color::Rgb(red, green, blue))
+    }
+
+    fn display_p3_to_srgb((red, green, blue): (u8, u8, u8)) -> (u8, u8, u8) {
+        let decode = |value: u8| {
+            let value = f64::from(value) / 255.0;
+            if value <= 0.04045 {
+                value / 12.92
+            } else {
+                ((value + 0.055) / 1.055).powf(2.4)
+            }
+        };
+        let encode = |value: f64| {
+            let value = value.clamp(0.0, 1.0);
+            let value = if value <= 0.003_130_8 {
+                value * 12.92
+            } else {
+                1.055 * value.powf(1.0 / 2.4) - 0.055
+            };
+            (value * 255.0).round() as u8
+        };
+        let (red, green, blue) = (decode(red), decode(green), decode(blue));
+        (
+            encode(1.224_940_176_3 * red - 0.224_940_176_3 * green),
+            encode(-0.042_056_954_7 * red + 1.042_056_954_7 * green),
+            encode(-0.019_637_554_6 * red - 0.078_636_045_6 * green + 1.098_273_600_1 * blue),
+        )
+    }
+
+    fn handle_iterm_set_mark(&mut self) {
+        if self.alt_screen_active {
+            return;
+        }
+        let cursor_line = self.active_grid().total_lines_scrolled() + self.cursor.row;
+        self.terminal_events
+            .push(TerminalEvent::ShellIntegrationEvent {
+                source: ShellIntegrationSource::Osc1337,
+                event_type: "mark".to_string(),
+                command: None,
+                exit_code: None,
+                timestamp: Some(crate::terminal::unix_millis()),
+                cursor_line: Some(cursor_line),
+                prompt_kind: None,
+                aid: None,
+                parent_aid: None,
+                implicit_closed_count: 0,
+                fresh_line: None,
+            });
+    }
+
+    fn handle_shell_integration_version(&mut self, payload: &str) {
+        if self.alt_screen_active {
+            return;
+        }
+        let (version, shell) = payload
+            .split_once(';')
+            .map_or((payload, None), |(version, shell)| (version, Some(shell)));
+        let version = version.trim();
+        if version.is_empty()
+            || version.chars().count() > MAX_SHELL_INTEGRATION_VERSION_CHARS
+            || !version.chars().all(|value| value.is_ascii_digit())
+        {
+            return;
+        }
+        let shell = shell.and_then(|value| {
+            let value = value.trim();
+            (!value.is_empty()
+                && value.chars().count() <= MAX_SHELL_NAME_CHARS
+                && value.chars().all(|character| {
+                    character.is_ascii_alphanumeric() || "._+-".contains(character)
+                }))
+            .then(|| value.to_string())
+        });
+        self.terminal_events
+            .push(TerminalEvent::ShellIntegrationVersion {
+                version: version.to_string(),
+                shell,
+            });
+    }
+
+    pub(crate) fn handle_set_badge_format(&mut self, encoded: &str) {
+        let encoded = encoded.trim();
+
+        if encoded.is_empty() {
+            self.badge_format = None;
+            self.terminal_events
+                .push(crate::terminal::TerminalEvent::BadgeChanged(None));
+            debug::log(debug::DebugLevel::Debug, "OSC1337", "Cleared badge format");
+            return;
+        }
+
+        match crate::badge::decode_badge_format(encoded) {
+            Ok(format) => {
+                debug::log(
+                    debug::DebugLevel::Debug,
+                    "OSC1337",
+                    &format!("Set badge format: decoded_bytes={}", format.len()),
+                );
+                self.badge_format = Some(format.clone());
+                let badge_text = self.evaluate_badge();
+                self.terminal_events
+                    .push(crate::terminal::TerminalEvent::BadgeChanged(badge_text));
+            }
+            Err(e) => {
+                let error_kind = match e {
+                    crate::badge::BadgeFormatError::Base64DecodeError(_) => "base64",
+                    crate::badge::BadgeFormatError::Utf8Error(_) => "utf8",
+                    crate::badge::BadgeFormatError::UnsafeContent(_) => "unsafe_content",
+                    crate::badge::BadgeFormatError::TooLong(_) => "too_long",
+                };
+                debug::log(
+                    debug::DebugLevel::Debug,
+                    "OSC1337",
+                    &format!("Invalid badge format: kind={error_kind}"),
+                );
+            }
+        }
+    }
+
+    pub(crate) fn handle_set_user_var(&mut self, payload: &str) {
+        if let Some((name, encoded_value)) = payload.split_once('=') {
+            if name.is_empty()
+                || name.chars().count() > MAX_USER_VAR_NAME_CHARS
+                || name.chars().any(char::is_control)
+            {
+                return;
+            }
+            use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+            if let Ok(decoded_value) = BASE64.decode(encoded_value.trim()) {
+                if let Ok(value) = String::from_utf8(decoded_value) {
+                    self.set_user_var(
+                        name.to_string(),
+                        sanitize_osc_text(&value, MAX_USER_VAR_VALUE_CHARS),
+                    );
+                }
+            }
+        }
+    }
+
+    pub(crate) fn handle_remote_host(&mut self, payload: &str) {
+        if payload.is_empty() || payload.chars().any(char::is_control) {
+            return;
+        }
+
+        let (username, hostname) = if let Some((u, h)) = payload.split_once('@') {
+            if h.is_empty() {
+                return; // Ignore if hostname part is empty
+            }
+            if u.chars().count() > MAX_REMOTE_USERNAME_CHARS
+                || h.chars().count() > MAX_REMOTE_HOSTNAME_CHARS
+            {
+                return;
+            }
+            (Some(u.to_string()), Some(h.to_string()))
+        } else {
+            if payload.chars().count() > MAX_REMOTE_HOSTNAME_CHARS {
+                return;
+            }
+            (None, Some(payload.to_string()))
+        };
+
+        // Filter out localhost and empty values to match OSC 7 behavior
+        let hostname = hostname.and_then(|h| {
+            if h.is_empty() || h.eq_ignore_ascii_case("localhost") || h == "127.0.0.1" || h == "::1"
+            {
+                None
+            } else {
+                Some(h)
+            }
+        });
+
+        let username = username.and_then(|u| if u.is_empty() { None } else { Some(u) });
+
+        let current_cwd = self
+            .shell_integration
+            .cwd()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "/".to_string());
+
+        self.record_cwd_change(crate::terminal::event::CwdChange {
+            source: CwdChangeSource::Osc1337,
+            old_cwd: Some(current_cwd.clone()),
+            new_cwd: current_cwd,
+            hostname,
+            username,
+            timestamp: crate::terminal::unix_millis(),
+        });
+    }
+
+    pub(crate) fn handle_request_upload(&mut self, payload: &str) {
+        // payload is e.g. "format=tgz" — extract just the value
+        let format = if let Some(val) = payload.strip_prefix("format=") {
+            val.to_string()
+        } else {
+            payload.to_string()
+        };
+        self.terminal_events
+            .push(crate::terminal::TerminalEvent::UploadRequested { format });
+    }
+}
+
+fn is_valid_unicode_version_label(label: &str) -> bool {
+    !label.is_empty()
+        && label.len() <= MAX_UNICODE_VERSION_LABEL_BYTES
+        && label.bytes().all(|byte| matches!(byte, 0x20..=0x7E))
+}
+
+fn is_safe_iterm_open_url(value: &str) -> bool {
+    if value.is_empty()
+        || value.len() > MAX_OPEN_URL_BYTES
+        || value.trim() != value
+        || value.chars().any(char::is_control)
+    {
+        return false;
+    }
+    let Ok(url) = url::Url::parse(value) else {
+        return false;
+    };
+    match url.scheme() {
+        "http" | "https" => url.host_str().is_some_and(|host| !host.is_empty()),
+        "file" => url.host_str().is_none() && !url.path().is_empty() && url.path() != "/",
+        _ => false,
+    }
+}
+
+fn parse_iterm_block_pairs(payload: &str) -> Vec<(&str, &str)> {
+    payload
+        .split(';')
+        .take(16)
+        .filter_map(|part| part.split_once('='))
+        .collect()
+}
+
+fn parse_annotation_unsigned(value: &str) -> Option<usize> {
+    (!value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()))
+        .then(|| value.parse::<usize>().ok())
+        .flatten()
+}
+
+fn parse_annotation_signed(value: &str) -> Option<i64> {
+    let digits = value.strip_prefix('-').unwrap_or(value);
+    (!digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit()))
+        .then(|| value.parse::<i64>().ok())
+        .flatten()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        MAX_REPORT_VARIABLE_NAME_BYTES, MAX_UNICODE_VERSION_LABEL_BYTES,
+        MAX_UNICODE_VERSION_STACK_DEPTH,
+    };
+    use crate::color::Color;
+    use crate::terminal::event::ShellIntegrationSource;
+    use crate::terminal::MAX_ITERM_BLOCK_ID_CHARS;
+    use crate::terminal::{ItermAttentionAction, Terminal, TerminalEvent};
+    use crate::unicode_width_config::UnicodeVersion;
+    use crate::zone::ZoneType;
+    use base64::{engine::general_purpose::STANDARD, Engine};
+
+    #[test]
+    fn set_colors_applies_all_session_local_resources_and_palette_entries() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.process(
+            b"\x1b]1337;SetColors=fg=123,bg=srgb:234,bold=345,link=456,selbg=567,selfg=678,curbg=789,curfg=89a,underline=9ab,tab=abc,black=bcd,br_white=cde\x1b\\",
+        );
+
+        assert_eq!(terminal.default_fg(), Color::Rgb(0x11, 0x22, 0x33));
+        assert_eq!(terminal.default_bg(), Color::Rgb(0x22, 0x33, 0x44));
+        assert_eq!(
+            terminal.iterm_bold_color(),
+            Some(Color::Rgb(0x33, 0x44, 0x55))
+        );
+        assert_eq!(
+            terminal.iterm_link_color(),
+            Some(Color::Rgb(0x44, 0x55, 0x66))
+        );
+        assert_eq!(
+            terminal.get_selection_bg_color(),
+            Color::Rgb(0x55, 0x66, 0x77)
+        );
+        assert_eq!(
+            terminal.get_selection_fg_color(),
+            Color::Rgb(0x66, 0x77, 0x88)
+        );
+        assert!(terminal.selection_foreground_color_enabled());
+        assert_eq!(terminal.cursor_color(), Color::Rgb(0x77, 0x88, 0x99));
+        assert_eq!(
+            terminal.iterm_cursor_text_color(),
+            Some(Color::Rgb(0x88, 0x99, 0xaa))
+        );
+        assert_eq!(
+            terminal.iterm_underline_color(),
+            Some(Color::Rgb(0x99, 0xaa, 0xbb))
+        );
+        assert_eq!(
+            terminal.iterm_tab_color(),
+            Some(Color::Rgb(0xaa, 0xbb, 0xcc))
+        );
+        assert_eq!(
+            terminal.get_ansi_color(0),
+            Some(Color::Rgb(0xbb, 0xcc, 0xdd))
+        );
+        assert_eq!(
+            terminal.get_ansi_color(15),
+            Some(Color::Rgb(0xcc, 0xdd, 0xee))
+        );
+    }
+
+    #[test]
+    fn set_colors_converts_display_p3_and_rejects_profile_or_malformed_values() {
+        let mut terminal = Terminal::new(80, 24);
+        let baseline = terminal.default_fg();
+        terminal.process(
+            b"\x1b]1337;SetColors=fg=p3:808080,preset=Grass,bg=unknown:ffffff,tab=default,red=12xz89\x07",
+        );
+
+        assert_eq!(terminal.default_fg(), Color::Rgb(0x80, 0x80, 0x80));
+        assert_eq!(
+            terminal.default_bg(),
+            Color::Named(crate::color::NamedColor::Black)
+        );
+        assert_eq!(terminal.iterm_tab_color(), None);
+        assert_ne!(terminal.default_fg(), baseline);
+        assert_eq!(
+            terminal.get_ansi_color(1),
+            Some(Color::Rgb(0xb4, 0x3c, 0x2a))
+        );
+    }
+
+    #[test]
+    fn set_colors_tab_default_and_ris_restore_runtime_overrides() {
+        let mut terminal = Terminal::new(80, 24);
+        let baseline_fg = terminal.default_fg();
+        terminal.process(b"\x1b]1337;SetColors=fg=123,link=456,tab=abcdef\x1b\\");
+        let snapshot = terminal.capture_snapshot();
+
+        let mut restored = Terminal::new(80, 24);
+        restored.restore_from_snapshot(snapshot);
+        assert_eq!(restored.default_fg(), Color::Rgb(0x11, 0x22, 0x33));
+        assert_eq!(
+            restored.iterm_link_color(),
+            Some(Color::Rgb(0x44, 0x55, 0x66))
+        );
+        assert_eq!(
+            restored.iterm_tab_color(),
+            Some(Color::Rgb(0xab, 0xcd, 0xef))
+        );
+
+        restored.process(b"\x1b]1337;SetColors=tab=default\x07");
+        assert_eq!(restored.iterm_tab_color(), None);
+        restored.process(b"\x1bc");
+        assert_eq!(restored.default_fg(), baseline_fg);
+        assert_eq!(restored.iterm_link_color(), None);
+        assert_eq!(restored.iterm_tab_color(), None);
+    }
+
+    #[test]
+    fn user_variables_strip_controls_and_reject_unsafe_names() {
+        let mut terminal = Terminal::new(80, 24);
+        let value = STANDARD.encode("line\nsecret\u{0085}tail");
+        terminal.handle_set_user_var(&format!("safe={value}"));
+        terminal.handle_set_user_var(&format!("bad\nname={value}"));
+
+        assert_eq!(terminal.get_user_var("safe"), Some("linesecrettail"));
+        assert!(terminal.get_user_var("bad\nname").is_none());
+    }
+
+    #[test]
+    fn remote_identity_rejects_controls_and_oversized_fields() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.handle_remote_host("alice\n@remote.example");
+        terminal.handle_remote_host(&format!("{}@remote.example", "u".repeat(81)));
+
+        assert!(terminal.shell_integration().hostname().is_none());
+        assert!(terminal.shell_integration().username().is_none());
+    }
+
+    #[test]
+    fn set_mark_emits_bounded_primary_screen_marker_for_bel_and_st() {
+        for sequence in [
+            b"\x1b]1337;SetMark\x07".as_slice(),
+            b"\x1b]1337;SetMark\x1b\\".as_slice(),
+        ] {
+            let mut terminal = Terminal::new(80, 24);
+            terminal.process(b"line\r\n");
+            terminal.process(sequence);
+            assert!(terminal.poll_events().iter().any(|event| matches!(
+                event,
+                TerminalEvent::ShellIntegrationEvent {
+                    source: ShellIntegrationSource::Osc1337,
+                    event_type,
+                    cursor_line: Some(1),
+                    ..
+                } if event_type == "mark"
+            )));
+        }
+
+        let mut alternate = Terminal::new(80, 24);
+        alternate.process(b"\x1b[?1049h\x1b]1337;SetMark\x07");
+        assert!(!alternate.poll_events().iter().any(|event| matches!(
+            event,
+            TerminalEvent::ShellIntegrationEvent {
+                source: ShellIntegrationSource::Osc1337,
+                ..
+            }
+        )));
+    }
+
+    #[test]
+    fn inline_buttons_are_bounded_advance_four_cells_and_invalidate_custom_only() {
+        use crate::terminal::ItermButtonKind;
+
+        let mut terminal = Terminal::new(40, 6);
+        terminal.process(b"\x1b]1337;Block=id=copy-source;attr=start\x07alpha");
+        terminal.process(b"\x1b]1337;Block=id=copy-source;attr=end\x07\r\n");
+        terminal.process(b"\x1b]1337;Button=type=copy;block=copy-source\x07");
+        terminal.process(b"\x1b]1337;Button=type=custom;code=42;icon=star.fill\x1b\\");
+
+        assert_eq!(terminal.cursor.col, 8);
+        assert_eq!(terminal.iterm_buttons().len(), 2);
+        let copy = &terminal.iterm_buttons()[0];
+        assert!(matches!(
+            &copy.kind,
+            ItermButtonKind::Copy { block_id } if block_id == "copy-source"
+        ));
+        assert_eq!(
+            terminal.iterm_button_copy_text(copy.id).as_deref(),
+            Some("alpha")
+        );
+        assert!(matches!(
+            &terminal.iterm_buttons()[1].kind,
+            ItermButtonKind::Custom { code: 42, icon } if icon == "star.fill"
+        ));
+
+        terminal.process(b"\x1b]1337;Button=type=custom\x07");
+        assert!(terminal.iterm_buttons()[0].valid);
+        assert!(!terminal.iterm_buttons()[1].valid);
+        assert_eq!(terminal.cursor.col, 8);
+    }
+
+    #[test]
+    fn inline_buttons_reject_invalid_payloads_and_clear_transient_alt_marks() {
+        let mut terminal = Terminal::new(40, 6);
+        terminal.process(b"\x1b]1337;Button=type=custom;code=0;icon=star.fill\x07");
+        terminal.process(b"\x1b]1337;Button=type=custom;code=42\x07");
+        terminal.process(b"\x1b]1337;Button=type=copy;block=\x07");
+        assert!(terminal.iterm_buttons().is_empty());
+        assert_eq!(terminal.cursor.col, 0);
+
+        terminal
+            .process(b"\x1b[?1049h\x1b]1337;Button=type=custom;code=7;icon=checkmark.circle\x07");
+        assert_eq!(terminal.iterm_buttons().len(), 1);
+        assert!(terminal.iterm_buttons()[0].alternate_screen);
+        terminal.process(b"\x1b[?1049l");
+        assert!(terminal.iterm_buttons().is_empty());
+    }
+
+    #[test]
+    fn inline_button_ids_do_not_reuse_after_clear_or_ris() {
+        let mut terminal = Terminal::new(40, 6);
+        terminal.process(b"\x1b]1337;Button=type=custom;code=1;icon=star\x07");
+        let first_id = terminal.iterm_buttons()[0].id;
+        terminal.process(b"\x1b[2J");
+        terminal.process(b"\x1b]1337;Button=type=custom;code=2;icon=star\x07");
+        let second_id = terminal.iterm_buttons()[0].id;
+        assert!(second_id > first_id);
+
+        terminal.process(b"\x1bc");
+        terminal.process(b"\x1b]1337;Button=type=custom;code=3;icon=star\x07");
+        assert!(terminal.iterm_buttons()[0].id > second_id);
+        assert!(terminal.iterm_button(first_id).is_none());
+        assert!(terminal.iterm_button(second_id).is_none());
+    }
+
+    #[test]
+    fn shell_integration_version_is_typed_bounded_metadata() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.process(b"\x1b]1337;ShellIntegrationVersion=17;zsh\x1b\\");
+        terminal.process(b"\x1b]1337;ShellIntegrationVersion=beta;bad\x07");
+        terminal.process(b"\x1b]1337;ShellIntegrationVersion=18;bad shell\x07");
+
+        let events = terminal.poll_events();
+        assert!(events.iter().any(|event| matches!(
+            event,
+            TerminalEvent::ShellIntegrationVersion { version, shell }
+                if version == "17" && shell.as_deref() == Some("zsh")
+        )));
+        assert!(events.iter().any(|event| matches!(
+            event,
+            TerminalEvent::ShellIntegrationVersion { version, shell }
+                if version == "18" && shell.is_none()
+        )));
+        assert_eq!(
+            events
+                .iter()
+                .filter(|event| matches!(event, TerminalEvent::ShellIntegrationVersion { .. }))
+                .count(),
+            2
+        );
+    }
+
+    #[test]
+    fn report_cell_size_emits_only_for_the_exact_query() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.process(b"\x1b]1337;ReportCellSize\x07");
+        terminal.process(b"\x1b]1337;ReportCellSize=spoof\x07");
+
+        assert_eq!(
+            terminal
+                .poll_events()
+                .iter()
+                .filter(|event| matches!(event, TerminalEvent::CellSizeReportRequested))
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn clear_captured_output_is_an_exact_session_event_without_grid_mutation() {
+        let mut terminal = Terminal::new(40, 3);
+        terminal.process(b"retained-output\r\n\x1b]2;captured-sentinel\x07");
+        terminal.poll_events();
+
+        terminal.process(b"\x1b]1337;ClearCapturedOutput\x07");
+        let split = b"\x1b]1337;ClearCapturedOutput\x1b\\";
+        for byte in split {
+            terminal.process(std::slice::from_ref(byte));
+        }
+        for invalid in [
+            b"\x1b]1337;ClearCapturedOutput=1\x07".as_slice(),
+            b"\x1b]1337;ClearCapturedOutput;extra\x1b\\".as_slice(),
+            b"\x1b]1337;clearcapturedoutput\x07".as_slice(),
+        ] {
+            terminal.process(invalid);
+        }
+
+        assert_eq!(terminal.title(), "captured-sentinel");
+        assert!(terminal
+            .active_grid()
+            .row_text(0)
+            .contains("retained-output"));
+        assert_eq!(
+            terminal
+                .poll_events()
+                .into_iter()
+                .filter(|event| matches!(event, TerminalEvent::ItermClearCapturedOutputRequested))
+                .count(),
+            2
+        );
+    }
+
+    #[test]
+    fn unicode_version_8_and_9_change_terminal_cell_width_with_bel_or_st() {
+        let mut unicode8 = Terminal::new(20, 2);
+        unicode8.process(b"\x1b]1337;UnicodeVersion=8\x07");
+        unicode8.process("☕X".as_bytes());
+        assert_eq!(
+            unicode8.width_config().unicode_version,
+            UnicodeVersion::Unicode8
+        );
+        assert_eq!(unicode8.cursor().col, 2);
+
+        let mut unicode9 = Terminal::new(20, 2);
+        unicode9.process(b"\x1b]1337;UnicodeVersion=9\x1b\\");
+        unicode9.process("☕X".as_bytes());
+        assert_eq!(
+            unicode9.width_config().unicode_version,
+            UnicodeVersion::Unicode9
+        );
+        assert_eq!(unicode9.cursor().col, 3);
+    }
+
+    #[test]
+    fn unicode_version_labeled_and_unlabeled_stacks_match_iterm_semantics() {
+        let mut terminal = Terminal::new(20, 2);
+        terminal.process(b"\x1b]1337;UnicodeVersion=8\x07");
+        terminal.process(b"\x1b]1337;UnicodeVersion=push outer\x07");
+        terminal.process(b"\x1b]1337;UnicodeVersion=9\x07");
+        terminal.process(b"\x1b]1337;UnicodeVersion=push inner\x07");
+        terminal.process(b"\x1b]1337;UnicodeVersion=8\x07");
+        terminal.process(b"\x1b]1337;UnicodeVersion=pop outer\x07");
+        assert_eq!(
+            terminal.width_config().unicode_version,
+            UnicodeVersion::Unicode8
+        );
+        assert!(terminal.iterm_unicode_version_stack.is_empty());
+
+        terminal.process(b"\x1b]1337;UnicodeVersion=push\x07");
+        terminal.process(b"\x1b]1337;UnicodeVersion=9\x07");
+        terminal.process(b"\x1b]1337;UnicodeVersion=pop\x07");
+        assert_eq!(
+            terminal.width_config().unicode_version,
+            UnicodeVersion::Unicode8
+        );
+
+        terminal.process(b"\x1b]1337;UnicodeVersion=push keep\x07");
+        terminal.process(b"\x1b]1337;UnicodeVersion=9\x07");
+        terminal.process(b"\x1b]1337;UnicodeVersion=pop missing\x07");
+        assert_eq!(
+            terminal.width_config().unicode_version,
+            UnicodeVersion::Unicode9
+        );
+        assert!(terminal.iterm_unicode_version_stack.is_empty());
+    }
+
+    #[test]
+    fn unicode_version_rejects_malformed_or_unbounded_operations() {
+        let mut terminal = Terminal::new(20, 2);
+        terminal.process(b"\x1b]1337;UnicodeVersion=8\x07");
+
+        for invalid in [
+            "",
+            "7",
+            "10",
+            "08",
+            "Push",
+            "push ",
+            "pop ",
+            "push café",
+            "push\tlabel",
+        ] {
+            terminal.process(format!("\x1b]1337;UnicodeVersion={invalid}\x07").as_bytes());
+        }
+        let oversized = "x".repeat(MAX_UNICODE_VERSION_LABEL_BYTES + 1);
+        terminal.process(format!("\x1b]1337;UnicodeVersion=push {oversized}\x07").as_bytes());
+        assert_eq!(
+            terminal.width_config().unicode_version,
+            UnicodeVersion::Unicode8
+        );
+        assert!(terminal.iterm_unicode_version_stack.is_empty());
+
+        for index in 0..=MAX_UNICODE_VERSION_STACK_DEPTH {
+            terminal.process(format!("\x1b]1337;UnicodeVersion=push label-{index}\x07").as_bytes());
+        }
+        assert_eq!(
+            terminal.iterm_unicode_version_stack.len(),
+            MAX_UNICODE_VERSION_STACK_DEPTH
+        );
+    }
+
+    #[test]
+    fn unicode_version_survives_every_byte_split_saved_cursor_and_ris() {
+        let sequence = b"\x1b]1337;UnicodeVersion=8\x1b\\";
+        for split in 1..sequence.len() {
+            let mut terminal = Terminal::new(20, 2);
+            terminal.process(&sequence[..split]);
+            terminal.process(&sequence[split..]);
+            terminal.process("☕X".as_bytes());
+            assert_eq!(terminal.cursor().col, 2, "failed at byte split {split}");
+        }
+
+        let mut terminal = Terminal::new(20, 2);
+        terminal.process(b"\x1b]1337;UnicodeVersion=8\x07\x1b7");
+        terminal.process(b"\x1b]1337;UnicodeVersion=9\x07\x1b8");
+        assert_eq!(
+            terminal.width_config().unicode_version,
+            UnicodeVersion::Unicode8
+        );
+
+        terminal.process(b"\x1b]1337;UnicodeVersion=push ris\x07");
+        terminal.process(b"\x1b]1337;UnicodeVersion=9\x07\x1bc");
+        assert_eq!(
+            terminal.width_config().unicode_version,
+            UnicodeVersion::Unicode9
+        );
+        terminal.process(b"\x1b]1337;UnicodeVersion=pop ris\x07");
+        assert_eq!(
+            terminal.width_config().unicode_version,
+            UnicodeVersion::Unicode8
+        );
+
+        terminal.process(b"\x1b7\x1b]1337;UnicodeVersion=9\x07");
+        terminal.process(b"\x1b]1337;ClearScrollback\x1b\\\x1b8");
+        assert_eq!(
+            terminal.width_config().unicode_version,
+            UnicodeVersion::Unicode9,
+            "Clear Buffer must invalidate the saved Unicode version with DECSC"
+        );
+    }
+
+    #[test]
+    fn report_variable_decodes_exact_bounded_utf8_names() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.process(b"\x1b]1337;ReportVariable=c2Vzc2lvbi5wYXRo\x07");
+        terminal.process(b"\x1b]1337;ReportVariable=dXNlci5JQU5WU19SRVBPUlQ=\x1b\\");
+        terminal.process(b"\x1b]1337;ReportVariable=%%%\x07");
+        terminal.process(b"\x1b]1337;ReportVariable=//4=\x07");
+        terminal.process(b"\x1b]1337;ReportVariable=c2Vzc2lvbi5wYXRoCg==\x07");
+        terminal.process(b"\x1b]1337;ReportVariable=\x07");
+
+        let names = terminal
+            .poll_events()
+            .into_iter()
+            .filter_map(|event| match event {
+                TerminalEvent::ItermReportVariableRequested { name } => Some(name),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(names, ["session.path", "user.IANVS_REPORT"]);
+    }
+
+    #[test]
+    fn report_variable_rejects_names_over_the_decoded_bound() {
+        use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+
+        let mut terminal = Terminal::new(80, 24);
+        let encoded = BASE64.encode("v".repeat(MAX_REPORT_VARIABLE_NAME_BYTES + 1));
+        terminal.process(format!("\x1b]1337;ReportVariable={encoded}\x07").as_bytes());
+        assert!(terminal.poll_events().is_empty());
+    }
+
+    #[test]
+    fn annotations_emit_bounded_ranges_for_visible_hidden_and_legacy_forms() {
+        let mut terminal = Terminal::new(12, 4);
+        terminal.process(b"prefix ");
+        terminal.process(b"\x1b]1337;AddAnnotation=4|Visible note\x07word");
+        terminal.process(b"\r\nsecond line");
+        terminal.process(b"\x1b]1337;AddHiddenAnnotation=Hidden note|5|-10|1\x1b\\");
+        terminal.process(b"\x1b]1337;AddNote=3|Legacy\x07");
+
+        let annotations = terminal
+            .poll_events()
+            .into_iter()
+            .filter_map(|event| match event {
+                TerminalEvent::ItermAnnotation {
+                    message,
+                    visible,
+                    start_abs_row,
+                    start_col,
+                    end_abs_row,
+                    end_col,
+                } => Some((
+                    message,
+                    visible,
+                    start_abs_row,
+                    start_col,
+                    end_abs_row,
+                    end_col,
+                )),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            annotations,
+            vec![
+                ("Visible note".to_string(), true, 0, 7, 0, 11),
+                ("Hidden note".to_string(), false, 1, 0, 1, 5),
+                ("Legacy".to_string(), true, 1, 11, 2, 2),
+            ]
+        );
+    }
+
+    #[test]
+    fn annotations_handle_every_byte_split_default_length_and_invalid_bounds() {
+        let sequence = b"\x1b]1337;AddHiddenAnnotation=Default range\x1b\\";
+        for chunk_size in [1, 2, 7, sequence.len()] {
+            let mut terminal = Terminal::new(10, 3);
+            terminal.process(b"abc");
+            for chunk in sequence.chunks(chunk_size) {
+                terminal.process(chunk);
+            }
+            assert!(terminal.poll_events().iter().any(|event| matches!(
+                event,
+                TerminalEvent::ItermAnnotation {
+                    message,
+                    visible: false,
+                    start_abs_row: 0,
+                    start_col: 3,
+                    end_abs_row: 0,
+                    end_col: 9,
+                } if message == "Default range"
+            )));
+        }
+
+        let mut terminal = Terminal::new(10, 3);
+        terminal.process(b"\x1b]1337;AddAnnotation=0|zero\x07");
+        terminal.process(b"\x1b]1337;AddAnnotation=4097|large\x07");
+        terminal.process(b"\x1b]1337;AddAnnotation=message|2|1\x07");
+        terminal.process(b"\x1b]1337;AddAnnotation=message|9|9|2\x07");
+        terminal.process(b"\x1b]1337;AddAnnotation=2|\x07");
+        assert!(!terminal
+            .poll_events()
+            .iter()
+            .any(|event| matches!(event, TerminalEvent::ItermAnnotation { .. })));
+
+        let mut terminal = Terminal::new(10, 2);
+        terminal.process(b"\x1b[?1049hfirst\r\nsecond\r\nthird");
+        terminal.process(b"\x1b]1337;AddHiddenAnnotation=alt|1|0|0\x07");
+        assert!(terminal.poll_events().iter().any(|event| matches!(
+            event,
+            TerminalEvent::ItermAnnotation {
+                message,
+                visible: false,
+                start_abs_row: 0,
+                start_col: 0,
+                end_abs_row: 0,
+                end_col: 1,
+            } if message == "alt"
+        )));
+    }
+
+    #[test]
+    fn clear_scrollback_clears_visible_buffer_history_and_saved_layout_state() {
+        let mut terminal = Terminal::with_scrollback(8, 3, 16);
+        terminal.process(b"old-0\r\nold-1\r\nold-2\r\nold-3\r\nold-4");
+        terminal.process(b"\x1b[2;3r\x1b[?69h\x1b[2;7s\x1b[?6h\x1b7");
+        assert!(terminal.scrollback_len() > 0);
+        assert_eq!(terminal.scroll_region(), (1, 2));
+        assert!(terminal.use_lr_margins);
+        assert!(terminal.origin_mode());
+        let current_line = terminal
+            .active_grid()
+            .row_text(terminal.cursor().row)
+            .trim()
+            .to_string();
+        let _ = terminal.poll_events();
+
+        terminal.process(b"\x1b]1337;ClearScrollback\x1b\\");
+
+        assert_eq!(terminal.scrollback_len(), 0);
+        assert_eq!(terminal.cursor().row, 0);
+        assert_eq!(terminal.scroll_region(), (0, 2));
+        assert!(!terminal.use_lr_margins);
+        assert_eq!(terminal.left_right_margins(), (0, 7));
+        assert!(!terminal.origin_mode());
+        assert_eq!(terminal.active_grid().row_text(0).trim(), current_line);
+        assert!((1..terminal.active_grid().rows()).all(|row| terminal
+            .active_grid()
+            .row_text(row)
+            .trim()
+            .is_empty()));
+        assert!(terminal.poll_events().iter().any(|event| matches!(
+            event,
+            TerminalEvent::ScreenCleared {
+                include_scrollback: true
+            }
+        )));
+
+        // The command is exact. Near-matches must remain bounded no-ops.
+        terminal.process(b"\r\x1b[2Ksentinel\x1b]1337;ClearScrollback=1\x07");
+        assert_eq!(
+            terminal.active_grid().row(0).unwrap()[0].get_grapheme(),
+            "s"
+        );
+    }
+
+    #[test]
+    fn clear_scrollback_accepts_bel_st_and_every_byte_split() {
+        for sequence in [
+            b"\x1b]1337;ClearScrollback\x07".as_slice(),
+            b"\x1b]1337;ClearScrollback\x1b\\".as_slice(),
+        ] {
+            for split in 1..sequence.len() {
+                let mut terminal = Terminal::with_scrollback(8, 2, 8);
+                terminal.process(b"one\r\ntwo\r\nthree");
+                assert!(terminal.scrollback_len() > 0);
+                terminal.process(&sequence[..split]);
+                terminal.process(&sequence[split..]);
+                assert_eq!(terminal.scrollback_len(), 0, "split={split}");
+                assert_eq!(terminal.active_grid().row_text(0).trim(), "three");
+            }
+        }
+    }
+
+    #[test]
+    fn clear_scrollback_preserves_the_wrapped_cursor_line_at_the_top() {
+        let mut terminal = Terminal::with_scrollback(5, 3, 8);
+        terminal.process(b"older\r\n1234567");
+        assert!(terminal.active_grid().is_line_wrapped(1));
+
+        terminal.process(b"\x1b]1337;ClearScrollback\x07");
+
+        assert_eq!(terminal.scrollback_len(), 0);
+        assert_eq!(terminal.active_grid().row_text(0), "12345");
+        assert_eq!(terminal.active_grid().row_text(1).trim(), "67");
+        assert!(terminal.active_grid().is_line_wrapped(0));
+        assert_eq!(terminal.cursor().row, 1);
+        assert_eq!(terminal.cursor().col, 2);
+    }
+
+    #[test]
+    fn clear_scrollback_preserves_hard_broken_rows_from_the_latest_prompt_mark() {
+        let mut terminal = Terminal::with_scrollback(12, 4, 8);
+        terminal.process(b"\x1b]133;A\x07prompt-one\r\nprompt-two\x1b]133;B\x07");
+        assert_eq!(terminal.active_grid().row_text(0).trim(), "prompt-one");
+        assert_eq!(terminal.active_grid().row_text(1).trim(), "prompt-two");
+
+        terminal.process(b"\x1b]1337;ClearScrollback\x1b\\");
+
+        assert_eq!(terminal.active_grid().row_text(0).trim(), "prompt-one");
+        assert_eq!(terminal.active_grid().row_text(1).trim(), "prompt-two");
+        assert_eq!(terminal.cursor().row, 1);
+        assert!(terminal.get_zones().is_empty());
+        assert!(terminal.poll_events().iter().any(|event| matches!(
+            event,
+            TerminalEvent::ZoneScrolledOut {
+                zone_type: ZoneType::Prompt,
+                ..
+            }
+        )));
+    }
+
+    #[test]
+    fn clear_scrollback_from_alternate_screen_clears_primary_history() {
+        let mut terminal = Terminal::with_scrollback(8, 2, 8);
+        terminal.process(b"one\r\ntwo\r\nthree");
+        assert!(terminal.scrollback_len() > 0);
+
+        terminal.process(b"\x1b[?1049halternate\x1b]1337;ClearScrollback\x07");
+        assert!(terminal.is_alt_screen_active());
+        assert_eq!(terminal.scrollback_len(), 0);
+        assert_eq!(
+            format!(
+                "{}{}",
+                terminal.active_grid().row_text(0),
+                terminal.active_grid().row_text(1)
+            )
+            .trim(),
+            "alternate"
+        );
+
+        terminal.process(b"\x1b[?1049l");
+        assert!(!terminal.is_alt_screen_active());
+        assert_eq!(terminal.scrollback_len(), 0);
+    }
+
+    #[test]
+    fn highlight_cursor_line_accepts_documented_values_and_exact_bare_enable() {
+        let mut terminal = Terminal::new(8, 2);
+        assert!(!terminal.use_cursor_guide());
+
+        terminal.process(b"\x1b]1337;HighlightCursorLine=yes\x07");
+        assert!(terminal.use_cursor_guide());
+
+        terminal.process(b"\x1b]1337;HighlightCursorLine=no\x1b\\");
+        assert!(!terminal.use_cursor_guide());
+
+        terminal.process(b"\x1b]1337;HighlightCursorLine\x07");
+        assert!(terminal.use_cursor_guide());
+    }
+
+    #[test]
+    fn highlight_cursor_line_is_split_safe_persistent_and_rejects_near_matches() {
+        let sequence = b"\x1b]1337;HighlightCursorLine=yes\x1b\\";
+        for split in 1..sequence.len() {
+            let mut terminal = Terminal::new(8, 2);
+            terminal.process(&sequence[..split]);
+            terminal.process(&sequence[split..]);
+            assert!(terminal.use_cursor_guide(), "split={split}");
+        }
+
+        let mut terminal = Terminal::new(8, 2);
+        terminal.process(b"\x1b]1337;HighlightCursorLine=yes\x07");
+        terminal.process(b"\x1bc");
+        assert!(terminal.use_cursor_guide());
+
+        for invalid in [
+            b"\x1b]1337;HighlightCursorLine=maybe\x07".as_slice(),
+            b"\x1b]1337;HighlightCursorLines=no\x07".as_slice(),
+            b"\x1b]1337;HighlightCursorLine=yes;extra=1\x07".as_slice(),
+        ] {
+            terminal.process(invalid);
+            assert!(terminal.use_cursor_guide());
+        }
+    }
+
+    #[test]
+    fn cursor_shape_maps_exact_iterm_values_without_overriding_blink() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.process(b"\x1b]1337;CursorShape=1\x07");
+        assert_eq!(
+            terminal.cursor().shape_override(),
+            Some(crate::cursor::CursorShape::Bar)
+        );
+        assert_eq!(terminal.cursor().blink_override(), None);
+
+        terminal.process(b"\x1b]1337;CursorShape=2\x1b\\");
+        assert_eq!(
+            terminal.cursor().shape_override(),
+            Some(crate::cursor::CursorShape::Underline)
+        );
+        terminal.process(b"\x1b]1337;CursorShape=3\x07");
+        terminal.process(b"\x1b]1337;CursorShape=01\x07");
+        assert_eq!(
+            terminal.cursor().shape_override(),
+            Some(crate::cursor::CursorShape::Underline)
+        );
+
+        terminal.process(b"\x1b[4 q\x1b]1337;CursorShape=1\x07");
+        assert_eq!(
+            terminal.cursor().shape_override(),
+            Some(crate::cursor::CursorShape::Bar)
+        );
+        assert_eq!(terminal.cursor().blink_override(), Some(false));
+    }
+
+    #[test]
+    fn cursor_shape_accepts_every_byte_split_and_both_terminators() {
+        for sequence in [
+            b"\x1b]1337;CursorShape=1\x07".as_slice(),
+            b"\x1b]1337;CursorShape=2\x1b\\".as_slice(),
+        ] {
+            for split in 1..sequence.len() {
+                let mut terminal = Terminal::new(80, 24);
+                terminal.process(&sequence[..split]);
+                terminal.process(&sequence[split..]);
+                assert!(
+                    terminal.cursor().shape_override().is_some(),
+                    "split={split}"
+                );
+                assert_eq!(terminal.cursor().blink_override(), None);
+            }
+        }
+    }
+
+    #[test]
+    fn cursor_shape_is_restored_across_alternate_screen_and_ris() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.process(b"\x1b]1337;CursorShape=1\x07");
+        terminal.process(b"\x1b[?1049h\x1b]1337;CursorShape=2\x07");
+        assert_eq!(
+            terminal.cursor().shape_override(),
+            Some(crate::cursor::CursorShape::Underline)
+        );
+
+        terminal.process(b"\x1b[?1049l");
+        assert_eq!(
+            terminal.cursor().shape_override(),
+            Some(crate::cursor::CursorShape::Bar)
+        );
+
+        terminal.process(b"\x1bc");
+        assert_eq!(terminal.cursor().shape_override(), None);
+        assert_eq!(terminal.cursor().blink_override(), None);
+    }
+
+    #[test]
+    fn block_lifecycle_tracks_bounded_primary_screen_ranges_and_fold_state() {
+        let mut terminal = Terminal::with_scrollback(20, 4, 16);
+        terminal.process(b"\x1b]1337;Block=id=build-1;attr=start;type=build\x07");
+        terminal.process(b"first\r\nsecond\r\nthird");
+        terminal.process(b"\x1b]1337;Block=attr=end;render=0;id=build-1\x1b\\");
+
+        let block = terminal.iterm_blocks().back().expect("completed block");
+        assert_eq!(block.id, "build-1");
+        assert_eq!(block.block_type.as_deref(), Some("build"));
+        assert_eq!((block.start_abs_row, block.end_abs_row), (0, 2));
+        assert!(block.complete);
+        assert!(!block.folded);
+
+        terminal.process(b"\x1b]1337;UpdateBlock=action=fold;id=build-1\x07");
+        assert!(terminal.iterm_blocks().back().unwrap().folded);
+        terminal.process(b"\x1b]1337;UpdateBlock=id=build-1;action=unfold\x1b\\");
+        assert!(!terminal.iterm_blocks().back().unwrap().folded);
+    }
+
+    #[test]
+    fn blocks_ignore_unknown_incomplete_single_line_and_alternate_screen_updates() {
+        let mut terminal = Terminal::new(20, 4);
+        terminal.process(b"\x1b]1337;Block=id=single;attr=start\x07");
+        terminal.process(b"\x1b]1337;Block=id=single;attr=end\x07");
+        terminal.process(b"\x1b]1337;UpdateBlock=id=single;action=fold\x07");
+        assert!(!terminal.iterm_blocks().back().unwrap().folded);
+
+        terminal.process(b"\x1b]1337;Block=id=active;attr=start\x07row\r\nnext");
+        terminal.process(b"\x1b]1337;UpdateBlock=id=active;action=fold\x07");
+        terminal.process(b"\x1b]1337;Block=id=missing;attr=end\x07");
+        terminal.process(b"\x1b]1337;UpdateBlock=id=missing;action=fold\x07");
+        assert!(terminal
+            .iterm_blocks()
+            .iter()
+            .find(|block| block.id == "active")
+            .is_some_and(|block| !block.complete && !block.folded));
+
+        let count = terminal.iterm_blocks().len();
+        terminal.process(
+            b"\x1b[?1049h\x1b]1337;Block=id=alt;attr=start\x07x\r\ny\x1b]1337;Block=id=alt;attr=end\x07\x1b[?1049l",
+        );
+        assert_eq!(terminal.iterm_blocks().len(), count);
+    }
+
+    #[test]
+    fn block_sequences_are_split_safe_nested_and_snapshot_restorable() {
+        let sequence = b"\x1b]1337;Block=id=outer;attr=start;type=test\x1b\\";
+        for split in 1..sequence.len() {
+            let mut terminal = Terminal::new(20, 4);
+            terminal.process(&sequence[..split]);
+            terminal.process(&sequence[split..]);
+            assert_eq!(terminal.iterm_blocks().len(), 1, "split={split}");
+        }
+
+        let mut terminal = Terminal::new(20, 5);
+        terminal.process(b"\x1b]1337;Block=id=outer;attr=start\x07outer\r\n");
+        terminal.process(b"\x1b]1337;Block=id=inner;attr=start\x07inner\r\nend");
+        terminal.process(b"\x1b]1337;Block=id=inner;attr=end\x07");
+        terminal.process(b"\x1b]1337;Block=id=outer;attr=end;render=1\x07");
+        terminal.process(b"\x1b]1337;UpdateBlock=id=inner;action=fold\x07");
+        assert_eq!(terminal.iterm_blocks().len(), 2);
+        assert!(terminal.iterm_blocks()[1].folded);
+        assert!(terminal.iterm_blocks()[0].render);
+
+        let snapshot = terminal.capture_snapshot();
+        let mut restored = Terminal::new(20, 5);
+        restored.restore_from_snapshot(snapshot);
+        assert_eq!(restored.iterm_blocks(), terminal.iterm_blocks());
+    }
+
+    #[test]
+    fn rendered_blocks_can_restore_original_grid_presentation() {
+        let mut terminal = Terminal::new(20, 4);
+        terminal.process(b"\x1b]1337;Block=id=document;attr=start;type=json\x07{\"ok\": true}");
+        terminal.process(b"\x1b]1337;Block=id=document;attr=end;render=1\x07");
+        assert!(terminal.iterm_blocks().back().unwrap().render);
+
+        assert!(terminal.set_iterm_block_rendered("document", false));
+        assert!(!terminal.iterm_blocks().back().unwrap().render);
+        assert!(!terminal.set_iterm_block_rendered("document", false));
+        assert!(!terminal.set_iterm_block_rendered("missing", false));
+        assert!(terminal.set_iterm_block_rendered("document", true));
+
+        let snapshot = terminal.capture_snapshot();
+        let mut restored = Terminal::new(20, 4);
+        restored.restore_from_snapshot(snapshot);
+        assert!(restored.iterm_blocks().back().unwrap().render);
+    }
+
+    #[test]
+    fn block_inputs_are_bounded_and_clear_buffer_discards_marks() {
+        let mut terminal = Terminal::new(20, 4);
+        let oversized = "x".repeat(MAX_ITERM_BLOCK_ID_CHARS + 1);
+        terminal.process(format!("\x1b]1337;Block=id={oversized};attr=start\x07").as_bytes());
+        assert!(terminal.iterm_blocks().is_empty());
+
+        terminal.process(b"\x1b]1337;Block=id=kept;attr=start\x07a\r\nb");
+        terminal.process(b"\x1b]1337;Block=id=kept;attr=end\x07");
+        assert_eq!(terminal.iterm_blocks().len(), 1);
+        terminal.process(b"\x1b]1337;ClearScrollback\x07");
+        assert!(terminal.iterm_blocks().is_empty());
+    }
+
+    #[test]
+    fn direct_reflow_invalidates_physical_block_ranges() {
+        let mut terminal = Terminal::new(20, 4);
+        terminal.process(b"\x1b]1337;Block=id=build;attr=start\x07first\r\nsecond");
+        terminal.process(b"\x1b]1337;Block=id=build;attr=end\x07");
+        terminal.process(b"\x1b]1337;UpdateBlock=id=build;action=fold\x07");
+        assert!(terminal.iterm_blocks().back().unwrap().folded);
+
+        terminal.resize(10, 4);
+
+        assert!(terminal.iterm_blocks().is_empty());
+    }
+
+    #[test]
+    fn open_url_emits_only_bounded_supported_requests() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.process(b"\x1b]1337;OpenURL=:aHR0cHM6Ly9leGFtcGxlLnRlc3QvcGhhc2UyOQ==\x07");
+        terminal.process(b"\x1b]1337;OpenURL=:ZmlsZTovLy90bXAvaWFudnMtcGhhc2UyOS50eHQ=\x1b\\");
+
+        let events = terminal.poll_events();
+        assert!(events.iter().any(|event| matches!(
+            event,
+            TerminalEvent::ItermOpenUrlRequested { url }
+                if url == "https://example.test/phase29"
+        )));
+        assert!(events.iter().any(|event| matches!(
+            event,
+            TerminalEvent::ItermOpenUrlRequested { url }
+                if url == "file:///tmp/ianvs-phase29.txt"
+        )));
+
+        use base64::{engine::general_purpose::STANDARD, Engine};
+        let oversized = format!(
+            "https://example.test/{}",
+            "x".repeat(super::MAX_OPEN_URL_BYTES)
+        );
+        for invalid in [
+            "%%%".to_string(),
+            STANDARD.encode("javascript:alert(1)"),
+            STANDARD.encode("https://"),
+            STANDARD.encode(" https://example.test/space"),
+            STANDARD.encode("https://example.test/control\n"),
+            STANDARD.encode("file:///"),
+            STANDARD.encode("file://remote.example/path"),
+            STANDARD.encode(oversized),
+        ] {
+            terminal.process(format!("\x1b]1337;OpenURL=:{invalid}\x07").as_bytes());
+        }
+        assert!(terminal.poll_events().is_empty());
+    }
+
+    #[test]
+    fn request_attention_emits_only_the_four_exact_documented_actions() {
+        let mut terminal = Terminal::new(80, 24);
+        terminal.process(b"\x1b]1337;RequestAttention=yes\x07");
+        terminal.process(b"\x1b]1337;RequestAttention=once\x1b\\");
+        terminal.process(b"\x1b]1337;RequestAttention=fireworks\x07");
+        terminal.process(b"\x1b]1337;RequestAttention=no\x1b\\");
+
+        let actions = terminal
+            .poll_events()
+            .into_iter()
+            .filter_map(|event| match event {
+                TerminalEvent::ItermAttentionRequested { action } => Some(action),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            actions,
+            vec![
+                ItermAttentionAction::Yes,
+                ItermAttentionAction::Once,
+                ItermAttentionAction::Fireworks,
+                ItermAttentionAction::No,
+            ]
+        );
+
+        for invalid in [
+            "",
+            "YES",
+            "yes ",
+            "true",
+            "forever",
+            "firework",
+            "once;extra",
+        ] {
+            terminal.process(format!("\x1b]1337;RequestAttention={invalid}\x07").as_bytes());
+        }
+        terminal.process(b"\x1b]1337;RequestAttention\x07");
+        assert!(terminal.poll_events().is_empty());
+    }
+
+    #[test]
+    fn shell_metadata_sequences_accept_every_byte_split() {
+        type EventMatcher = fn(&TerminalEvent) -> bool;
+        let cases: &[(&[u8], EventMatcher)] = &[
+            (b"\x1b]1337;SetMark\x1b\\", |event| {
+                matches!(
+                    event,
+                    TerminalEvent::ShellIntegrationEvent {
+                        source: ShellIntegrationSource::Osc1337,
+                        event_type,
+                        ..
+                    } if event_type == "mark"
+                )
+            }),
+            (b"\x1b]1337;ShellIntegrationVersion=17;zsh\x1b\\", |event| {
+                matches!(event, TerminalEvent::ShellIntegrationVersion { .. })
+            }),
+            (b"\x1b]1337;ReportCellSize\x1b\\", |event| {
+                matches!(event, TerminalEvent::CellSizeReportRequested)
+            }),
+            (
+                b"\x1b]1337;ReportVariable=c2Vzc2lvbi5yb3dz\x1b\\",
+                |event| {
+                    matches!(
+                        event,
+                        TerminalEvent::ItermReportVariableRequested { name }
+                            if name == "session.rows"
+                    )
+                },
+            ),
+            (
+                b"\x1b]1337;OpenURL=:aHR0cHM6Ly9leGFtcGxlLnRlc3QvcGhhc2UyOQ==\x1b\\",
+                |event| matches!(event, TerminalEvent::ItermOpenUrlRequested { .. }),
+            ),
+            (b"\x1b]1337;RequestAttention=fireworks\x1b\\", |event| {
+                matches!(
+                    event,
+                    TerminalEvent::ItermAttentionRequested {
+                        action: ItermAttentionAction::Fireworks
+                    }
+                )
+            }),
+        ];
+
+        for (sequence, matches_event) in cases {
+            for split in 1..sequence.len() {
+                let mut terminal = Terminal::new(80, 24);
+                terminal.process(&sequence[..split]);
+                terminal.process(&sequence[split..]);
+                assert!(
+                    terminal.poll_events().iter().any(matches_event),
+                    "missing event at byte split {split} for {sequence:?}"
+                );
+            }
+        }
+    }
+}

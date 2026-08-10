@@ -1,0 +1,505 @@
+// Terminal streaming protocol definitions
+// This is the single source of truth for the binary WebSocket protocol.
+
+syntax = "proto3";
+
+package terminal;
+
+// RGB color (0-255 per channel)
+message Color {
+  uint32 r = 1;
+  uint32 g = 2;
+  uint32 b = 3;
+}
+
+// Terminal theme with 16 ANSI colors
+message ThemeInfo {
+  string name = 1;
+  Color background = 2;
+  Color foreground = 3;
+  repeated Color normal = 4;   // 8 colors (indices 0-7)
+  repeated Color bright = 5;   // 8 colors (indices 8-15)
+}
+
+// Event types for subscription
+enum EventType {
+  EVENT_TYPE_UNSPECIFIED = 0;
+  EVENT_TYPE_OUTPUT = 1;
+  EVENT_TYPE_CURSOR = 2;
+  EVENT_TYPE_BELL = 3;
+  EVENT_TYPE_TITLE = 4;
+  EVENT_TYPE_RESIZE = 5;
+  EVENT_TYPE_CWD = 6;
+  EVENT_TYPE_TRIGGER = 7;
+  EVENT_TYPE_ACTION = 8;
+  EVENT_TYPE_MODE = 9;
+  EVENT_TYPE_GRAPHICS = 10;
+  EVENT_TYPE_HYPERLINK = 11;
+  EVENT_TYPE_USER_VAR = 12;
+  EVENT_TYPE_PROGRESS_BAR = 13;
+  EVENT_TYPE_BADGE = 14;
+  EVENT_TYPE_SELECTION = 15;
+  EVENT_TYPE_CLIPBOARD = 16;
+  EVENT_TYPE_SHELL = 17;
+  EVENT_TYPE_SYSTEM_STATS = 18;
+  EVENT_TYPE_ZONE = 19;
+  EVENT_TYPE_ENVIRONMENT = 20;
+  EVENT_TYPE_REMOTE_HOST = 21;
+  EVENT_TYPE_SUB_SHELL = 22;
+  EVENT_TYPE_SNAPSHOT = 23;
+  EVENT_TYPE_FILE_TRANSFER = 24;
+  EVENT_TYPE_UPLOAD_REQUEST = 25;
+  EVENT_TYPE_SCREEN_CLEARED = 26;
+}
+
+// =============================================================================
+// Server -> Client Messages
+// =============================================================================
+
+message ServerMessage {
+  oneof message {
+    Output output = 1;
+    Resize resize = 2;
+    Title title = 3;
+    Connected connected = 4;
+    Refresh refresh = 5;
+    CursorPosition cursor = 6;
+    Bell bell = 7;
+    Error error = 8;
+    Shutdown shutdown = 9;
+    Pong pong = 10;
+    CwdChanged cwd_changed = 11;
+    TriggerMatched trigger_matched = 12;
+    ActionNotify action_notify = 13;
+    ActionMarkLine action_mark_line = 14;
+    ModeChanged mode_changed = 15;
+    GraphicsAdded graphics_added = 16;
+    HyperlinkAdded hyperlink_added = 17;
+    UserVarChanged user_var_changed = 18;
+    ProgressBarChanged progress_bar_changed = 19;
+    BadgeChanged badge_changed = 20;
+    SelectionChanged selection_changed = 21;
+    ClipboardSync clipboard_sync = 22;
+    ShellIntegrationEvent shell_integration_event = 23;
+    SystemStats system_stats = 24;
+    ZoneOpened zone_opened = 25;
+    ZoneClosed zone_closed = 26;
+    ZoneScrolledOut zone_scrolled_out = 27;
+    EnvironmentChanged environment_changed = 28;
+    RemoteHostTransition remote_host_transition = 29;
+    SubShellDetected sub_shell_detected = 30;
+    SemanticSnapshotData semantic_snapshot = 31;
+    FileTransferStarted file_transfer_started = 32;
+    FileTransferProgress file_transfer_progress = 33;
+    FileTransferCompleted file_transfer_completed = 34;
+    FileTransferFailed file_transfer_failed = 35;
+    UploadRequested upload_requested = 36;
+    ScreenCleared screen_cleared = 37;
+  }
+}
+
+// Terminal output data (very high frequency)
+message Output {
+  bytes data = 1;                    // UTF-8 encoded terminal output with ANSI codes
+  optional uint64 timestamp = 2;     // Unix epoch milliseconds
+}
+
+// Terminal resize notification
+message Resize {
+  uint32 cols = 1;
+  uint32 rows = 2;
+}
+
+// Terminal title change
+message Title {
+  string title = 1;
+}
+
+// Initial connection handshake
+message Connected {
+  uint32 cols = 1;
+  uint32 rows = 2;
+  optional bytes initial_screen = 3;  // ANSI styled screen content
+  string session_id = 4;
+  optional ThemeInfo theme = 5;
+  optional string badge = 6;              // Current badge text
+  optional float faint_text_alpha = 7;    // Dim text alpha (0.0-1.0)
+  optional string cwd = 8;               // Current working directory
+  optional uint32 modify_other_keys = 9;  // modifyOtherKeys mode (0-2)
+  optional string client_id = 10;         // Unique client identifier
+  optional bool readonly = 11;            // Whether this connection is read-only
+}
+
+// Full screen refresh response
+message Refresh {
+  uint32 cols = 1;
+  uint32 rows = 2;
+  bytes screen_content = 3;           // ANSI styled screen content
+}
+
+// Cursor position update
+message CursorPosition {
+  uint32 col = 1;
+  uint32 row = 2;
+  bool visible = 3;
+}
+
+// Bell/alert event
+message Bell {}
+
+// CWD change notification (OSC 7)
+message CwdChanged {
+  optional string old_cwd = 1;
+  string new_cwd = 2;
+  optional string hostname = 3;
+  optional string username = 4;
+  optional uint64 timestamp = 5;
+}
+
+// Trigger pattern matched
+message TriggerMatched {
+  uint64 trigger_id = 1;
+  uint32 row = 2;
+  uint32 col = 3;
+  uint32 end_col = 4;
+  string text = 5;
+  repeated string captures = 6;
+  uint64 timestamp = 7;
+}
+
+// Trigger action result: notification
+message ActionNotify {
+  uint64 trigger_id = 1;
+  string title = 2;
+  string message = 3;
+}
+
+// Trigger action result: mark/bookmark a line
+message ActionMarkLine {
+  uint64 trigger_id = 1;
+  uint32 row = 2;
+  optional string label = 3;
+  optional Color color = 4;
+}
+
+// Error notification
+message Error {
+  string message = 1;
+  optional string code = 2;
+}
+
+// Server shutdown notification
+message Shutdown {
+  string reason = 1;
+}
+
+// Keepalive pong response
+message Pong {}
+
+// Terminal mode changed (cursor visibility, mouse tracking, etc.)
+message ModeChanged {
+  string mode = 1;    // Mode name (e.g., "cursor_visible", "mouse_tracking")
+  bool enabled = 2;   // Whether the mode is enabled
+}
+
+// Graphics/image added to terminal (Sixel, iTerm2, Kitty)
+message GraphicsAdded {
+  uint32 row = 1;                   // Row where graphics were added
+  optional string format = 2;       // Graphics format ("sixel", "iterm2", "kitty")
+}
+
+// Hyperlink added (OSC 8)
+message HyperlinkAdded {
+  string url = 1;                   // The URL of the hyperlink
+  uint32 row = 2;                   // Row where the hyperlink appears
+  uint32 col = 3;                   // Column where hyperlink starts
+  optional string id = 4;           // Optional hyperlink ID from OSC 8
+}
+
+// User variable changed (OSC 1337 SetUserVar)
+message UserVarChanged {
+  string name = 1;                  // Variable name
+  string value = 2;                 // New value (base64-decoded)
+  optional string old_value = 3;    // Previous value if it existed
+}
+
+// Named progress bar changed (OSC 934)
+message ProgressBarChanged {
+  string action = 1;                // "set", "remove", or "remove_all"
+  string id = 2;                    // Progress bar identifier
+  optional string state = 3;        // State name (only for "set")
+  optional uint32 percent = 4;      // Progress percentage 0-100 (only for "set")
+  optional string label = 5;        // Descriptive label (only for "set")
+}
+
+// Badge text changed (OSC 1337 SetBadgeFormat)
+message BadgeChanged {
+  optional string badge = 1;            // New badge text (empty if cleared)
+}
+
+// Selection changed
+message SelectionChanged {
+  optional uint32 start_col = 1;
+  optional uint32 start_row = 2;
+  optional uint32 end_col = 3;
+  optional uint32 end_row = 4;
+  optional string text = 5;             // Selected text content
+  string mode = 6;                      // "chars", "line", "block"
+  bool cleared = 7;                     // True if selection was cleared
+}
+
+// Clipboard sync event (OSC 52)
+message ClipboardSync {
+  string operation = 1;                 // "set", "get_response"
+  string content = 2;
+  optional string target = 3;           // "clipboard", "primary", "select"
+}
+
+// Shell integration event (FinalTerm sequences)
+message ShellIntegrationEvent {
+  string event_type = 1;               // "prompt_start", "command_start", "command_executed", "command_finished"
+  optional string command = 2;          // The command text (for command_start)
+  optional int32 exit_code = 3;         // Exit code (for command_finished)
+  optional uint64 timestamp = 4;
+  optional uint64 cursor_line = 5;     // Global cursor line (total_lines_scrolled + cursor_row) at marker time
+  optional string prompt_kind = 6;
+  optional string aid = 7;
+  optional string parent_aid = 8;
+  uint32 implicit_closed_count = 9;
+  optional bool fresh_line = 10;
+}
+
+// CPU statistics
+message CpuStats {
+  double overall_usage_percent = 1;
+  uint32 physical_core_count = 2;
+  repeated double per_core_usage_percent = 3;
+  optional string brand = 4;
+  optional uint64 frequency_mhz = 5;
+}
+
+// Memory statistics
+message MemoryStats {
+  uint64 total_bytes = 1;
+  uint64 used_bytes = 2;
+  uint64 available_bytes = 3;
+  uint64 swap_total_bytes = 4;
+  uint64 swap_used_bytes = 5;
+}
+
+// Individual disk statistics
+message DiskStats {
+  string name = 1;
+  string mount_point = 2;
+  uint64 total_bytes = 3;
+  uint64 available_bytes = 4;
+  string kind = 5;
+  string file_system = 6;
+  bool is_removable = 7;
+}
+
+// Network interface statistics
+message NetworkInterfaceStats {
+  string name = 1;
+  uint64 received_bytes = 2;
+  uint64 transmitted_bytes = 3;
+  uint64 total_received_bytes = 4;
+  uint64 total_transmitted_bytes = 5;
+  uint64 packets_received = 6;
+  uint64 packets_transmitted = 7;
+  uint64 errors_received = 8;
+  uint64 errors_transmitted = 9;
+}
+
+// System load averages
+message LoadAverage {
+  double one_minute = 1;
+  double five_minutes = 2;
+  double fifteen_minutes = 3;
+}
+
+// Combined system resource statistics
+message SystemStats {
+  optional CpuStats cpu = 1;
+  optional MemoryStats memory = 2;
+  repeated DiskStats disks = 3;
+  repeated NetworkInterfaceStats networks = 4;
+  optional LoadAverage load_average = 5;
+  optional string hostname = 6;
+  optional string os_name = 7;
+  optional string os_version = 8;
+  optional string kernel_version = 9;
+  optional uint64 uptime_secs = 10;
+  optional uint64 timestamp = 11;
+}
+
+// Zone opened (prompt, command, or output block started)
+message ZoneOpened {
+  uint64 zone_id = 1;
+  string zone_type = 2;    // "prompt", "command", "output"
+  uint64 abs_row_start = 3; // Global absolute row (total_lines_scrolled + visible_row)
+}
+
+// Zone closed (prompt, command, or output block ended)
+message ZoneClosed {
+  uint64 zone_id = 1;
+  string zone_type = 2;
+  uint64 abs_row_start = 3; // Global absolute row (total_lines_scrolled + visible_row)
+  uint64 abs_row_end = 4;   // Inclusive global absolute row
+  optional int32 exit_code = 5;
+}
+
+// Zone evicted from scrollback
+message ZoneScrolledOut {
+  uint64 zone_id = 1;
+  string zone_type = 2;
+}
+
+// Environment variable changed
+message EnvironmentChanged {
+  string key = 1;
+  string value = 2;
+  optional string old_value = 3;
+}
+
+// Remote host transition detected
+message RemoteHostTransition {
+  string hostname = 1;
+  optional string username = 2;
+  optional string old_hostname = 3;
+  optional string old_username = 4;
+}
+
+// Sub-shell detected
+message SubShellDetected {
+  uint64 depth = 1;
+  optional string shell_type = 2;
+}
+
+// Semantic snapshot of terminal state (JSON-encoded)
+message SemanticSnapshotData {
+  string snapshot_json = 1;
+}
+
+// Request a semantic snapshot
+message SnapshotRequest {
+  string scope = 1;                      // "visible", "recent", "full"
+  optional uint32 max_commands = 2;      // For "recent" scope
+}
+
+// =============================================================================
+// Client -> Server Messages
+// =============================================================================
+
+message ClientMessage {
+  oneof message {
+    Input input = 1;
+    ClientResize resize = 2;
+    Ping ping = 3;
+    RequestRefresh refresh = 4;
+    Subscribe subscribe = 5;
+    MouseInput mouse = 6;
+    FocusChange focus = 7;
+    PasteInput paste = 8;
+    SelectionRequest selection = 9;
+    ClipboardRequest clipboard = 10;
+    SnapshotRequest snapshot_request = 11;
+  }
+}
+
+// Keyboard input from client
+message Input {
+  bytes data = 1;  // UTF-8 encoded input (may include escape sequences)
+}
+
+// Client requests terminal resize
+message ClientResize {
+  uint32 cols = 1;
+  uint32 rows = 2;
+}
+
+// Keepalive ping request
+message Ping {}
+
+// Client requests full screen refresh
+message RequestRefresh {}
+
+// Client subscribes to specific event types
+message Subscribe {
+  repeated EventType events = 1;
+}
+
+// Mouse input from client
+message MouseInput {
+  uint32 col = 1;
+  uint32 row = 2;
+  uint32 button = 3;                   // 0=left, 1=middle, 2=right, 3=release, 4=scroll_up, 5=scroll_down
+  bool shift = 4;
+  bool ctrl = 5;
+  bool alt = 6;
+  string event_type = 7;               // "press", "release", "move", "scroll"
+}
+
+// Focus change from client
+message FocusChange {
+  bool focused = 1;
+}
+
+// Paste input from client
+message PasteInput {
+  string content = 1;
+}
+
+// Selection request from client
+message SelectionRequest {
+  uint32 start_col = 1;
+  uint32 start_row = 2;
+  uint32 end_col = 3;
+  uint32 end_row = 4;
+  string mode = 5;                     // "chars", "line", "block", "word", "clear"
+}
+
+// Clipboard request from client
+message ClipboardRequest {
+  string operation = 1;                // "set", "get"
+  optional string content = 2;         // Content for "set" operations
+  optional string target = 3;          // "clipboard", "primary", "select"
+}
+
+// File transfer started (download or upload)
+message FileTransferStarted {
+  uint64 id = 1;
+  string direction = 2;
+  optional string filename = 3;
+  optional uint64 total_bytes = 4;
+}
+
+// File transfer progress update
+message FileTransferProgress {
+  uint64 id = 1;
+  uint64 bytes_transferred = 2;
+  optional uint64 total_bytes = 3;
+}
+
+// File transfer completed successfully
+message FileTransferCompleted {
+  uint64 id = 1;
+  optional string filename = 2;
+  uint64 size = 3;
+}
+
+// File transfer failed
+message FileTransferFailed {
+  uint64 id = 1;
+  string reason = 2;
+}
+
+// Upload requested by terminal application
+message UploadRequested {
+  string format = 1;
+}
+
+// Screen cleared (ED 2J or ED 3J)
+message ScreenCleared {
+  bool include_scrollback = 1;    // True if scrollback was also cleared (ED 3J)
+}
