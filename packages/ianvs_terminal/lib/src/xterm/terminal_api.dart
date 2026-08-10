@@ -207,6 +207,16 @@ class Terminal implements TerminalDisposable {
   bool get isOpen => _sessionId != null;
   bool get disposed => _disposed;
 
+  /// Runtime backing this terminal.
+  ///
+  /// Embedding widgets use this to wire input, viewport resize, and focus
+  /// without asking a host application to duplicate the session plumbing.
+  TerminalRuntimeController get runtimeController => _runtime;
+
+  /// The effective session configuration after applying [options].
+  TerminalSessionConfig get effectiveSessionConfig =>
+      _options.applyTo(_sessionConfig);
+
   TerminalOptions get options => _options;
   set options(TerminalOptions value) {
     _ensureNotDisposed();

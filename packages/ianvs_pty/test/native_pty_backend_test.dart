@@ -727,6 +727,36 @@ void main() {
     },
   );
 
+  test('native pty library resolves a bundled macOS code asset framework', () {
+    final executableRoot = Directory.systemTemp.createTempSync(
+      'ianvs-pty-framework-resolver-test-',
+    );
+    addTearDown(() {
+      if (executableRoot.existsSync()) {
+        executableRoot.deleteSync(recursive: true);
+      }
+    });
+    final executableDirectory = Directory(
+      '${executableRoot.path}/ACP Client.app/Contents/MacOS',
+    )..createSync(recursive: true);
+    final appContents = '${executableRoot.path}/ACP Client.app/Contents';
+    final frameworkBinary =
+        File('$appContents/Frameworks/ianvs_core.framework/ianvs_core')
+          ..createSync(recursive: true)
+          ..writeAsStringSync('not a real dylib');
+
+    final resolved = resolveNativePtyLibraryPath(
+      environment: const <String, String>{},
+      executableDirectory: executableDirectory,
+      isProduct: true,
+    );
+
+    expect(
+      File(resolved).absolute.uri.normalizePath(),
+      frameworkBinary.absolute.uri.normalizePath(),
+    );
+  });
+
   test('native pty backend rejects invalid session ids before bindings', () {
     final bindings = _RequestRecordingPtyBindings();
     final backend = NativePtyBackend.fromBindings(bindings);

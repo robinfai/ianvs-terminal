@@ -1193,6 +1193,49 @@ class TerminalRuntimeController {
          monotonicNow: monotonicNow,
        );
 
+  /// Creates the bundled native PTY runtime used by desktop embedders.
+  ///
+  /// Third-party applications normally only need to provide their platform
+  /// clipboard bridge. The `ianvs_pty` backend and bundled Rust library remain
+  /// an implementation detail of this package.
+  factory TerminalRuntimeController.native({
+    required Future<void> Function(String text) copyToClipboard,
+    required Future<String> Function() readClipboard,
+    TerminalClipboardTextWriter? writeTextClipboard,
+    Future<bool> Function()? allowClipboardCopy,
+    Future<bool> Function()? allowClipboardPasteRequest,
+    Future<bool> Function(TerminalClipboardAccessRequest request)?
+    allowClipboardCopyWithContext,
+    Future<bool> Function(TerminalClipboardAccessRequest request)?
+    allowClipboardPasteRequestWithContext,
+    TerminalWindowResizeCallback? resizeWindowBy,
+    bool enableSessionPolling = true,
+    bool enableWarmUpRefresh = false,
+    bool emitRuntimeEventGapDiagnostics = true,
+    TerminalFrameWireFormatPreference frameWireFormatPreference =
+        TerminalFrameWireFormatPreference.automatic,
+    TerminalBenchmarkEventSink? benchmarkEventSink,
+  }) {
+    return TerminalRuntimeController(
+      backend: NativePtyBackend.load(
+        emitRuntimeEventGapDiagnostics: emitRuntimeEventGapDiagnostics,
+      ),
+      copyToClipboard: copyToClipboard,
+      readClipboard: readClipboard,
+      writeTextClipboard: writeTextClipboard,
+      allowClipboardCopy: allowClipboardCopy,
+      allowClipboardPasteRequest: allowClipboardPasteRequest,
+      allowClipboardCopyWithContext: allowClipboardCopyWithContext,
+      allowClipboardPasteRequestWithContext:
+          allowClipboardPasteRequestWithContext,
+      resizeWindowBy: resizeWindowBy,
+      enableSessionPolling: enableSessionPolling,
+      enableWarmUpRefresh: enableWarmUpRefresh,
+      frameWireFormatPreference: frameWireFormatPreference,
+      benchmarkEventSink: benchmarkEventSink,
+    );
+  }
+
   TerminalRuntimeController.withClipboardPolicy({
     required PtySessionBackend backend,
     required this.copyToClipboard,

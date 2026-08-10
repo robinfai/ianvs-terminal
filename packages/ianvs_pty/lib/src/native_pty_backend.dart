@@ -2265,6 +2265,7 @@ String resolveNativePtyLibraryPath({
 
   final candidates = <String>[
     '${executableDir.path}/../Frameworks/libianvs_core.dylib',
+    '${executableDir.path}/../Frameworks/ianvs_core.framework/ianvs_core',
     '${executableDir.path}/../Resources/libianvs_core.dylib',
     if (!isProduct) '../native/core/target/debug/libianvs_core.dylib',
     if (!isProduct) '../../native/core/target/debug/libianvs_core.dylib',

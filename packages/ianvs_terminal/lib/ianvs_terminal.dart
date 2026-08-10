@@ -1,6 +1,8 @@
 export 'src/config/terminal_config.dart';
 export 'src/config/terminal_defaults.dart';
 export 'src/config/terminal_session_config_v1.dart';
+export 'src/embed/terminal_bottom_panel.dart';
+export 'src/embed/terminal_session_view.dart';
 export 'src/recording/terminal_live_recorder.dart';
 export 'src/recording/terminal_recording.dart';
 export 'src/recording/terminal_replay_backend.dart';
