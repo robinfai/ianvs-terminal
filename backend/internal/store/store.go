@@ -682,36 +682,37 @@ func (s *Store) mergeOne(
 	if queryErr != nil {
 		return result, queryErr
 	}
+	sameSource := existing.SourceID == sourceID
+	if sameSource && sourceRevision < existing.SourceRevision {
+		result.Status = "skipped"
+		result.Reason = "a newer source revision was already applied"
+		return result, nil
+	}
+	sameSourceAdvance := sameSource && sourceRevision > existing.SourceRevision
 	identical, err := sameResource(existing, key, plain, sensitive, sensitivePresent, incoming.Deleted)
 	if err != nil {
 		return result, err
 	}
-	if identical {
+	if identical && !sameSourceAdvance {
 		result.Status = "skipped"
 		result.Reason = "content is unchanged"
 		return result, nil
 	}
-	enrichSensitive := !incoming.Deleted &&
-		bytes.Equal([]byte(existing.PlainJSON), plain) &&
-		sensitivePresent &&
-		!isJSONNull(sensitive) &&
-		existing.SensitiveCiphertext == ""
-	if existing.SourceID == sourceID && existing.SourceRevision >= sourceRevision && !enrichSensitive {
-		result.Status = "skipped"
-		result.Reason = "source revision was already applied"
+	if sameSource && sourceRevision == existing.SourceRevision {
+		result.Status = "conflict"
+		result.Reason = "the same source revision has different content"
 		return result, nil
 	}
 
-	shouldApply := enrichSensitive || (incoming.Deleted && propagateDeletes)
+	shouldApply := sameSourceAdvance || (incoming.Deleted && propagateDeletes)
 	switch policy {
 	case SourceWins:
 		shouldApply = true
 	case NewerWins:
 		shouldApply = shouldApply || originUpdatedAt.After(existing.OriginUpdatedAt)
 	case PreserveDestination:
-		// A later sensitive export may enrich an earlier plaintext-only import
-		// without changing destination-owned plaintext data. Explicit deletion
-		// propagation is likewise treated as an opt-in decision.
+		// A monotonic update from the resource's current source is safe to apply.
+		// Explicit deletion propagation remains a separate opt-in decision.
 	}
 	if !shouldApply {
 		result.Status = "conflict"

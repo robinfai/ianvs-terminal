@@ -167,7 +167,7 @@ curl -sS -X POST 'https://api.example.com/v1/migrations/merge' \
 
 本地与远程数据密钥可以不同：bundle 在 TLS 通道内传递解密后的敏感 JSON，远程收到后使用目标用户的密钥重新加密。导出与 merge 共用每批最多 100 个资源、编码 JSON 最多 12 MiB 的合同，因此合法导出页不会超过导入上限；每个资源携带 source revision，按页重试仍保持幂等。
 
-默认冲突策略为 `preserve_destination`：新资源创建、相同资源跳过、同 ID 不同内容保留远程并报告 `conflict`。显式迁移工具也可提交 `source_wins` 或 `newer_wins`。删除默认不传播，只有 `propagate_deletes: true` 才应用 tombstone。
+默认冲突策略为 `preserve_destination`：新资源创建；已有资源仅在 `source_id` 与当前来源一致且 `source_revision` 严格递增时原子更新；更低的同源 revision 与内容完全一致的同 revision 重放会跳过，同 revision 但普通或敏感内容不同则报告 `conflict`；其他来源对同一资源的内容变更同样保留目标端并报告 `conflict`。同源高 revision 会一起更新普通字段和显式提供的敏感字段，省略敏感字段仍保留现有密文。显式迁移工具也可提交 `source_wins` 或 `newer_wins`。删除默认不传播，只有 `propagate_deletes: true` 才应用 tombstone。
 
 ## 配置
 

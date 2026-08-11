@@ -370,6 +370,240 @@ func TestListPageStopsBeforeDocumentedResponseByteLimit(t *testing.T) {
 	}
 }
 
+func TestPreserveDestinationAppliesOnlyMonotonicSameSourceUpdates(t *testing.T) {
+	ctx := context.Background()
+	// testStore defaults to SQLite and selects an isolated MySQL database when
+	// IANVS_TEST_DATABASE_DRIVER=mysql, so this entire scenario is the shared
+	// cross-dialect contract exercised by the MySQL workflow.
+	sourceDB, sourceStore := testStore(t)
+	sourceUser, sourceKey := testUser(t, sourceDB, "monotonic-source", "monotonic-source-key-material")
+	destinationDB, destinationStore := testStore(t)
+	destinationUser, destinationKey := testUser(t, destinationDB, "monotonic-destination", "monotonic-destination-key")
+
+	if _, err := sourceStore.Put(ctx, sourceUser, sourceKey, "profile", "shared", store.WriteInput{
+		Data:             json.RawMessage(`{"version":1}`),
+		Sensitive:        json.RawMessage(`{"token":"first"}`),
+		SensitivePresent: true,
+	}); err != nil {
+		t.Fatalf("source Put(initial) error = %v", err)
+	}
+	initial, err := sourceStore.Export(ctx, sourceUser, sourceKey, false, true, 1, "")
+	if err != nil {
+		t.Fatalf("Export(initial) error = %v", err)
+	}
+	initialRequest := store.MergeRequest{
+		SchemaVersion: initial.SchemaVersion,
+		SourceID:      initial.SourceID,
+		Resources:     initial.Resources,
+	}
+	report, err := destinationStore.Merge(ctx, destinationUser, destinationKey, initialRequest)
+	if err != nil {
+		t.Fatalf("Merge(initial) error = %v", err)
+	}
+	if report.Created != 1 {
+		t.Fatalf("Merge(initial) = %#v", report)
+	}
+
+	if _, err := sourceStore.Put(ctx, sourceUser, sourceKey, "profile", "shared", store.WriteInput{
+		Data:             json.RawMessage(`{"version":2}`),
+		Sensitive:        json.RawMessage(`{"token":"second"}`),
+		SensitivePresent: true,
+	}); err != nil {
+		t.Fatalf("source Put(higher revision) error = %v", err)
+	}
+	higher, err := sourceStore.Export(ctx, sourceUser, sourceKey, false, true, 1, "")
+	if err != nil {
+		t.Fatalf("Export(higher revision) error = %v", err)
+	}
+	higherRequest := store.MergeRequest{
+		SchemaVersion: higher.SchemaVersion,
+		SourceID:      higher.SourceID,
+		Resources:     higher.Resources,
+	}
+	report, err = destinationStore.Merge(ctx, destinationUser, destinationKey, higherRequest)
+	if err != nil {
+		t.Fatalf("Merge(higher same source) error = %v", err)
+	}
+	if report.Updated != 1 || report.Conflicts != 0 {
+		t.Fatalf("Merge(higher same source) = %#v", report)
+	}
+	updated, err := destinationStore.Get(ctx, destinationUser, destinationKey, "profile", "shared", true)
+	if err != nil {
+		t.Fatalf("Get(higher same source) error = %v", err)
+	}
+	if string(updated.Data) != `{"version":2}` ||
+		string(updated.Sensitive) != `{"token":"second"}` ||
+		updated.Revision != 2 || updated.SourceRevision != 2 ||
+		updated.SourceID != sourceStore.ServerID() {
+		t.Fatalf("higher same-source resource = %#v", updated)
+	}
+
+	equalPlainMismatch := higher.Resources[0]
+	equalPlainMismatch.Data = json.RawMessage(`{"version":"same-revision-different"}`)
+	report, err = destinationStore.Merge(ctx, destinationUser, destinationKey, store.MergeRequest{
+		SchemaVersion: higher.SchemaVersion,
+		SourceID:      higher.SourceID,
+		Resources:     []store.ResourceView{equalPlainMismatch},
+	})
+	if err != nil {
+		t.Fatalf("Merge(equal revision, different plain data) error = %v", err)
+	}
+	if report.Conflicts != 1 || report.Updated != 0 || len(report.Results) != 1 ||
+		!strings.Contains(report.Results[0].Reason, "same source revision") {
+		t.Fatalf("Merge(equal revision, different plain data) = %#v", report)
+	}
+
+	equalSensitiveMismatch := higher.Resources[0]
+	equalSensitiveMismatch.Sensitive = json.RawMessage(`{"token":"same-revision-different"}`)
+	report, err = destinationStore.Merge(ctx, destinationUser, destinationKey, store.MergeRequest{
+		SchemaVersion: higher.SchemaVersion,
+		SourceID:      higher.SourceID,
+		Resources:     []store.ResourceView{equalSensitiveMismatch},
+	})
+	if err != nil {
+		t.Fatalf("Merge(equal revision, different sensitive data) error = %v", err)
+	}
+	if report.Conflicts != 1 || report.Updated != 0 || len(report.Results) != 1 ||
+		!strings.Contains(report.Results[0].Reason, "same source revision") {
+		t.Fatalf("Merge(equal revision, different sensitive data) = %#v", report)
+	}
+	unchangedAfterEqualConflict, err := destinationStore.Get(ctx, destinationUser, destinationKey, "profile", "shared", true)
+	if err != nil {
+		t.Fatalf("Get(after equal-revision conflicts) error = %v", err)
+	}
+	if string(unchangedAfterEqualConflict.Data) != `{"version":2}` ||
+		string(unchangedAfterEqualConflict.Sensitive) != `{"token":"second"}` ||
+		unchangedAfterEqualConflict.Revision != updated.Revision ||
+		unchangedAfterEqualConflict.SourceRevision != updated.SourceRevision {
+		t.Fatalf("equal-revision conflict changed destination = %#v", unchangedAfterEqualConflict)
+	}
+
+	report, err = destinationStore.Merge(ctx, destinationUser, destinationKey, higherRequest)
+	if err != nil {
+		t.Fatalf("Merge(replay) error = %v", err)
+	}
+	if report.Skipped != 1 || report.Updated != 0 {
+		t.Fatalf("Merge(replay) = %#v", report)
+	}
+	replayed, err := destinationStore.Get(ctx, destinationUser, destinationKey, "profile", "shared", true)
+	if err != nil {
+		t.Fatalf("Get(replay) error = %v", err)
+	}
+	if replayed.Revision != updated.Revision || replayed.SourceRevision != updated.SourceRevision {
+		t.Fatalf("replay advanced revisions: before=%#v after=%#v", updated, replayed)
+	}
+
+	report, err = destinationStore.Merge(ctx, destinationUser, destinationKey, initialRequest)
+	if err != nil {
+		t.Fatalf("Merge(lower source revision) error = %v", err)
+	}
+	if report.Skipped != 1 || report.Updated != 0 {
+		t.Fatalf("Merge(lower source revision) = %#v", report)
+	}
+
+	foreign := higher.Resources[0]
+	foreign.Data = json.RawMessage(`{"version":"foreign"}`)
+	foreign.SourceRevision = higher.Resources[0].SourceRevision + 100
+	report, err = destinationStore.Merge(ctx, destinationUser, destinationKey, store.MergeRequest{
+		SchemaVersion: 1,
+		SourceID:      "foreign-source",
+		Resources:     []store.ResourceView{foreign},
+	})
+	if err != nil {
+		t.Fatalf("Merge(foreign source) error = %v", err)
+	}
+	if report.Conflicts != 1 || report.Updated != 0 {
+		t.Fatalf("Merge(foreign source) = %#v", report)
+	}
+	preserved, err := destinationStore.Get(ctx, destinationUser, destinationKey, "profile", "shared", true)
+	if err != nil {
+		t.Fatalf("Get(after foreign source) error = %v", err)
+	}
+	if string(preserved.Data) != `{"version":2}` || string(preserved.Sensitive) != `{"token":"second"}` {
+		t.Fatalf("foreign source changed destination = %#v", preserved)
+	}
+
+	if _, err := sourceStore.Put(ctx, sourceUser, nil, "profile", "shared", store.WriteInput{
+		Data: json.RawMessage(`{"version":3}`),
+	}); err != nil {
+		t.Fatalf("source Put(higher revision without sensitive data) error = %v", err)
+	}
+	higherWithoutSensitive, err := sourceStore.Export(ctx, sourceUser, nil, false, false, 1, "")
+	if err != nil {
+		t.Fatalf("Export(higher revision without sensitive data) error = %v", err)
+	}
+	report, err = destinationStore.Merge(ctx, destinationUser, nil, store.MergeRequest{
+		SchemaVersion: higherWithoutSensitive.SchemaVersion,
+		SourceID:      higherWithoutSensitive.SourceID,
+		Resources:     higherWithoutSensitive.Resources,
+	})
+	if err != nil {
+		t.Fatalf("Merge(higher revision without sensitive data) error = %v", err)
+	}
+	if report.Updated != 1 || report.Conflicts != 0 {
+		t.Fatalf("Merge(higher revision without sensitive data) = %#v", report)
+	}
+	preservedSensitive, err := destinationStore.Get(ctx, destinationUser, destinationKey, "profile", "shared", true)
+	if err != nil {
+		t.Fatalf("Get(after higher revision without sensitive data) error = %v", err)
+	}
+	if string(preservedSensitive.Data) != `{"version":3}` ||
+		string(preservedSensitive.Sensitive) != `{"token":"second"}` ||
+		preservedSensitive.Revision != 3 || preservedSensitive.SourceRevision != 3 {
+		t.Fatalf("higher revision without sensitive data = %#v", preservedSensitive)
+	}
+
+	if err := sourceStore.Delete(ctx, sourceUser, "profile", "shared", nil); err != nil {
+		t.Fatalf("source Delete() error = %v", err)
+	}
+	deleted, err := sourceStore.Export(ctx, sourceUser, nil, true, false, 1, "")
+	if err != nil {
+		t.Fatalf("Export(deleted) error = %v", err)
+	}
+	deletedRequest := store.MergeRequest{
+		SchemaVersion:    deleted.SchemaVersion,
+		SourceID:         deleted.SourceID,
+		PropagateDeletes: false,
+		Resources:        deleted.Resources,
+	}
+	report, err = destinationStore.Merge(ctx, destinationUser, nil, deletedRequest)
+	if err != nil {
+		t.Fatalf("Merge(deletion disabled) error = %v", err)
+	}
+	if report.Skipped != 1 || report.Deleted != 0 {
+		t.Fatalf("Merge(deletion disabled) = %#v", report)
+	}
+	if _, err := destinationStore.Get(ctx, destinationUser, nil, "profile", "shared", false); err != nil {
+		t.Fatalf("Get(after disabled deletion) error = %v", err)
+	}
+
+	deletedRequest.PropagateDeletes = true
+	report, err = destinationStore.Merge(ctx, destinationUser, nil, deletedRequest)
+	if err != nil {
+		t.Fatalf("Merge(deletion enabled) error = %v", err)
+	}
+	if report.Deleted != 1 {
+		t.Fatalf("Merge(deletion enabled) = %#v", report)
+	}
+	tombstones, err := destinationStore.List(ctx, destinationUser, nil, "profile", true, false, 1, "")
+	if err != nil {
+		t.Fatalf("List(tombstone) error = %v", err)
+	}
+	if len(tombstones.Resources) != 1 || !tombstones.Resources[0].Deleted ||
+		tombstones.Resources[0].HasSensitive || tombstones.Resources[0].Revision != 4 ||
+		tombstones.Resources[0].SourceRevision != 4 {
+		t.Fatalf("tombstone = %#v", tombstones)
+	}
+
+	report, err = destinationStore.Merge(ctx, destinationUser, nil, deletedRequest)
+	if err != nil {
+		t.Fatalf("Merge(deletion replay) error = %v", err)
+	}
+	if report.Skipped != 1 || report.Deleted != 0 {
+		t.Fatalf("Merge(deletion replay) = %#v", report)
+	}
+}
+
 func TestOneWayMergeIsIdempotentAndPreservesDestinationConflicts(t *testing.T) {
 	ctx := context.Background()
 	sourceDB, sourceStore := testStore(t)

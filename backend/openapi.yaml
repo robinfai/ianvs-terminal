@@ -299,6 +299,7 @@ paths:
       tags: [migrations]
       operationId: mergeMigration
       summary: Merge a local bundle into the current remote user.
+      description: Under preserve_destination, a resource advances only when source_id matches the destination resource's current source and source_revision is strictly higher. A lower same-source revision, or an identical replay at the same revision, is skipped; different plain or sensitive content at the same revision is a conflict. A changed foreign-source resource is also a conflict. A higher revision updates explicitly supplied sensitive fields while preserving existing encrypted sensitive data when the field is omitted. Deletions still require propagate_deletes.
       security: [{bearerAuth: []}]
       parameters:
         - $ref: '#/components/parameters/EncryptionKeyHeader'
@@ -487,7 +488,11 @@ components:
               type: string
               default: preserve_destination
               enum: [preserve_destination, source_wins, newer_wins]
-            propagate_deletes: {type: boolean, default: false}
+              description: preserve_destination applies strictly monotonic same-source updates, skips lower revisions and identical same-revision replays, and conflicts on different content at the same revision or changed foreign-source resources. Omitted sensitive content is preserved.
+            propagate_deletes:
+              type: boolean
+              default: false
+              description: Tombstones are applied only when true, including monotonic tombstones from the same source.
     MergeReport:
       type: object
       required: [created, updated, deleted, skipped, conflicts, results]
