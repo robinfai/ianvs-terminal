@@ -8,6 +8,8 @@ enum TerminalRecordingBackendErrorCode {
   alreadyActive,
   notActive,
   capacityExceeded,
+  invalidHandoff,
+  handoffCollision,
   invalidResponse,
   nativeFailure,
 }
@@ -38,6 +40,22 @@ final class TerminalRecordingStartResult {
 
   final int maxEvents;
   final int maxPayloadBytes;
+}
+
+/// Small native-worker handle returned without serializing recording data over
+/// the synchronous Session Request transport.
+final class TerminalRecordingFinalizeJob {
+  const TerminalRecordingFinalizeJob({
+    required this.sessionId,
+    required this.jobId,
+    required this.handoffPath,
+    required this.errorPath,
+  });
+
+  final String sessionId;
+  final String jobId;
+  final String handoffPath;
+  final String errorPath;
 }
 
 /// Controls native raw-session capture without routing PTY bytes through Frames.
@@ -130,6 +148,72 @@ final class TerminalLiveRecorder {
     }
   }
 
+  /// Transfers the active native recording to a background finalize worker.
+  ///
+  /// The returned paths are opaque native-created files inside the private
+  /// [handoffDirectory]. Callers must poll them asynchronously and validate
+  /// that they remain inside that directory before reading either path.
+  TerminalRecordingFinalizeJob prepareStop(
+    String sessionId, {
+    required String handoffDirectory,
+    required String jobId,
+  }) {
+    if (!isRecording(sessionId)) {
+      throw TerminalRecordingBackendException(
+        code: TerminalRecordingBackendErrorCode.notActive,
+        sessionId: sessionId,
+        message: 'No recording is active for this session',
+      );
+    }
+    if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(jobId)) {
+      throw ArgumentError.value(
+        jobId,
+        'jobId',
+        'Must be 32 lowercase hexadecimal characters.',
+      );
+    }
+    var nativeAccepted = false;
+    try {
+      final response = _request(sessionId, <String, Object?>{
+        'kind': 'terminal.recording_stop_prepare',
+        'handoff_directory': handoffDirectory,
+        'job_id': jobId,
+      });
+      _throwResponseError(sessionId, response);
+      nativeAccepted = true;
+      final responseJobId = response['job_id'];
+      final handoffPath = response['handoff_path'];
+      final errorPath = response['error_path'];
+      if (responseJobId != jobId ||
+          handoffPath is! String ||
+          handoffPath.isEmpty ||
+          handoffPath.length > 4096 ||
+          errorPath is! String ||
+          errorPath.isEmpty ||
+          errorPath.length > 4096) {
+        throw TerminalRecordingBackendException(
+          code: TerminalRecordingBackendErrorCode.invalidResponse,
+          sessionId: sessionId,
+          message: 'Native recording finalize response was invalid',
+        );
+      }
+      _activeSessionIds.remove(sessionId);
+      return TerminalRecordingFinalizeJob(
+        sessionId: sessionId,
+        jobId: jobId,
+        handoffPath: handoffPath,
+        errorPath: errorPath,
+      );
+    } on TerminalRecordingBackendException catch (error) {
+      if (nativeAccepted ||
+          error.code == TerminalRecordingBackendErrorCode.notActive ||
+          error.code == TerminalRecordingBackendErrorCode.capacityExceeded) {
+        _activeSessionIds.remove(sessionId);
+      }
+      rethrow;
+    }
+  }
+
   void cancel(String sessionId) {
     if (!isRecording(sessionId)) {
       return;
@@ -181,6 +265,8 @@ final class TerminalLiveRecorder {
       'already_active' => TerminalRecordingBackendErrorCode.alreadyActive,
       'not_active' => TerminalRecordingBackendErrorCode.notActive,
       'capacity_exceeded' => TerminalRecordingBackendErrorCode.capacityExceeded,
+      'invalid_handoff' => TerminalRecordingBackendErrorCode.invalidHandoff,
+      'handoff_collision' => TerminalRecordingBackendErrorCode.handoffCollision,
       _ => TerminalRecordingBackendErrorCode.nativeFailure,
     };
     throw TerminalRecordingBackendException(

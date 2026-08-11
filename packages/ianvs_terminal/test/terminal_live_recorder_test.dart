@@ -108,6 +108,48 @@ void main() {
         ),
       );
     });
+
+    test('prepareStop returns only a bounded native worker handle', () {
+      final backend = _RecordingRequestBackend();
+      final recorder = TerminalLiveRecorder(backend: backend);
+      recorder.start('42', inputPolicy: TerminalRecordingInputPolicy.redact);
+
+      final job = recorder.prepareStop(
+        '42',
+        handoffDirectory: '/private/tmp/ianvs-recording-handoff-v1-test',
+        jobId: '0123456789abcdef0123456789abcdef',
+      );
+
+      expect(job.sessionId, '42');
+      expect(job.jobId, '0123456789abcdef0123456789abcdef');
+      expect(job.handoffPath, endsWith('${job.jobId}.ndjson'));
+      expect(job.errorPath, endsWith('${job.jobId}.ndjson.error.json'));
+      expect(recorder.isRecording('42'), isFalse);
+      expect(backend.requests.last['kind'], 'terminal.recording_stop_prepare');
+      expect(backend.requests.last['job_id'], job.jobId);
+    });
+
+    test('rejected handoff keeps the native recording active for retry', () {
+      final backend = _RecordingRequestBackend()..rejectPrepare = true;
+      final recorder = TerminalLiveRecorder(backend: backend);
+      recorder.start('42', inputPolicy: TerminalRecordingInputPolicy.redact);
+
+      expect(
+        () => recorder.prepareStop(
+          '42',
+          handoffDirectory: '/shared',
+          jobId: '0123456789abcdef0123456789abcdef',
+        ),
+        throwsA(
+          isA<TerminalRecordingBackendException>().having(
+            (error) => error.code,
+            'code',
+            TerminalRecordingBackendErrorCode.invalidHandoff,
+          ),
+        ),
+      );
+      expect(recorder.isRecording('42'), isTrue);
+    });
   });
 }
 
@@ -119,6 +161,7 @@ final class _RecordingRequestBackend
   final List<Map<String, Object?>> v1Requests = <Map<String, Object?>>[];
   final bool supportsV1;
   bool overflowOnStop = false;
+  bool rejectPrepare = false;
 
   @override
   bool get supportsSessionRequestV1 => supportsV1;
@@ -175,6 +218,26 @@ final class _RecordingRequestBackend
         'ok': true,
         'recording_ndjson': _recordingFixture(sessionId),
       }),
+      'terminal.recording_stop_prepare' when rejectPrepare => jsonEncode(
+        const <String, Object?>{
+          'ok': false,
+          'error': <String, Object?>{
+            'code': 'invalid_handoff',
+            'message': 'recording handoff directory is invalid',
+          },
+        },
+      ),
+      'terminal.recording_stop_prepare' => () {
+        final jobId = request['job_id']! as String;
+        final directory = request['handoff_directory']! as String;
+        final path = '$directory/.ianvs-recording-handoff-$jobId.ndjson';
+        return jsonEncode(<String, Object?>{
+          'ok': true,
+          'job_id': jobId,
+          'handoff_path': path,
+          'error_path': '$path.error.json',
+        });
+      }(),
       _ => null,
     };
   }

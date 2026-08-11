@@ -67,6 +67,33 @@ void main() {
     expect(result.toPlatformMessage(), containsPair('failureCount', 1));
   });
 
+  test('settles application work before infrastructure cleanup', () async {
+    final coordinator = AppShutdownCoordinator();
+    final applicationGate = Completer<void>();
+    final timeline = <String>[];
+    coordinator
+      ..registerTask('application', () async {
+        timeline.add('application-start');
+        await applicationGate.future;
+        timeline.add('application-complete');
+      })
+      ..registerTask('infrastructure', () async {
+        timeline.add('infrastructure');
+      }, phase: AppShutdownPhase.infrastructure);
+
+    final shutdown = coordinator.shutdown();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(timeline, <String>['application-start']);
+    applicationGate.complete();
+    await shutdown;
+    expect(timeline, <String>[
+      'application-start',
+      'application-complete',
+      'infrastructure',
+    ]);
+  });
+
   test('returns at the global timeout when a task never settles', () async {
     final coordinator = AppShutdownCoordinator(
       timeout: const Duration(milliseconds: 20),

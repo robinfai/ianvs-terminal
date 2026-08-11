@@ -1,4 +1,5 @@
-import 'dart:ui' show Size;
+import 'dart:typed_data';
+import 'dart:ui' show Color, Size;
 
 import 'package:app/features/shell/instant_replay_store.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,6 +24,32 @@ void main() {
       dirtyRanges: const [TerminalDirtyRange(start: 0, end: 1)],
       scrollbackOffset: 0,
       scrollbackMaxOffset: 0,
+    );
+  }
+
+  TerminalFrameDiff frameWithVisuals({
+    required String text,
+    List<TerminalStyleRun> styleRuns = const <TerminalStyleRun>[],
+    List<TerminalInlineImage> inlineImages = const <TerminalInlineImage>[],
+    List<TerminalHyperlinkRange> hyperlinks = const <TerminalHyperlinkRange>[],
+    List<TerminalSizedTextPlacement> sizedText =
+        const <TerminalSizedTextPlacement>[],
+  }) {
+    return TerminalFrameDiff(
+      rows: <TerminalRow>[
+        TerminalRow(index: 0, text: text, styleRuns: styleRuns),
+      ],
+      cursor: const TerminalCursor(row: 0, col: 0, visible: true),
+      viewportRows: 1,
+      viewportCols: 80,
+      dirtyRanges: const <TerminalDirtyRange>[
+        TerminalDirtyRange(start: 0, end: 1),
+      ],
+      scrollbackOffset: 0,
+      scrollbackMaxOffset: 0,
+      inlineImages: inlineImages,
+      hyperlinks: hyperlinks,
+      sizedText: sizedText,
     );
   }
 
@@ -229,6 +256,292 @@ void main() {
     expect(frames, hasLength(60));
     expect(frames.first.text, 'frame 60');
     expect(frames.last.text, 'frame 1');
+  });
+
+  test('production sampling checkpoints the accumulated latest state', () {
+    var now = DateTime.utc(2026, 7, 24);
+    var materializedFrames = 0;
+    final store = InstantReplayStore(
+      minimumCaptureInterval: const Duration(milliseconds: 100),
+      now: () => now,
+      onFrameMaterialized: () => materializedFrames += 1,
+    );
+
+    store.record('1', frameWithRows(['first']));
+    now = now.add(const Duration(milliseconds: 20));
+    store.record('1', frameWithRows(['second']));
+    now = now.add(const Duration(milliseconds: 100));
+    store.record('1', frameWithRows(['third']));
+
+    expect(store.framesFor('1').map((frame) => frame.text), ['third', 'first']);
+    expect(materializedFrames, 2);
+  });
+
+  test('one millisecond delta burst materializes only its first frame', () {
+    var now = DateTime.utc(2026, 7, 24);
+    var materializedFrames = 0;
+    final store = InstantReplayStore(
+      minimumCaptureInterval: const Duration(milliseconds: 100),
+      now: () => now,
+      onFrameMaterialized: () => materializedFrames += 1,
+    );
+
+    store.record('1', frameWithRows(['initial']));
+    for (var index = 1; index <= 50; index += 1) {
+      now = now.add(const Duration(milliseconds: 1));
+      store.record(
+        '1',
+        frameWithRows(['delta $index'], frameKind: TerminalFrameKind.delta),
+      );
+    }
+
+    expect(materializedFrames, 1);
+    expect(store.framesFor('1'), hasLength(1));
+  });
+
+  test('forced checkpoint exposes latest state inside sampling window', () {
+    var now = DateTime.utc(2026, 7, 24);
+    var materializedFrames = 0;
+    final store = InstantReplayStore(
+      minimumCaptureInterval: const Duration(milliseconds: 100),
+      now: () => now,
+      onFrameMaterialized: () => materializedFrames += 1,
+    );
+
+    store.record('1', frameWithRows(['initial']));
+    now = now.add(const Duration(milliseconds: 1));
+    store.record(
+      '1',
+      frameWithRows(['latest'], frameKind: TerminalFrameKind.delta),
+    );
+    expect(store.framesForReplay('1').last.text, 'initial');
+
+    store.checkpoint('1', frameWithRows(['latest']));
+
+    expect(materializedFrames, 2);
+    expect(store.framesForReplay('1').last.text, 'latest');
+  });
+
+  test('stable fingerprint ignores row delivery order without sorting', () {
+    final store = InstantReplayStore();
+    final first = frameWithRows(['first', 'second']);
+    final reordered = TerminalFrameDiff(
+      frameKind: TerminalFrameKind.snapshot,
+      rows: first.rows.reversed.toList(growable: false),
+      cursor: first.cursor,
+      viewportRows: first.viewportRows,
+      viewportCols: first.viewportCols,
+      dirtyRanges: first.dirtyRanges,
+      scrollbackOffset: first.scrollbackOffset,
+      scrollbackMaxOffset: first.scrollbackMaxOffset,
+    );
+
+    store.record('1', first);
+    store.record('1', reordered);
+
+    expect(store.framesFor('1'), hasLength(1));
+  });
+
+  test('same text with different styles creates a visual checkpoint', () {
+    final store = InstantReplayStore();
+
+    store.record('1', frameWithVisuals(text: 'styled output'));
+    store.record(
+      '1',
+      frameWithVisuals(
+        text: 'styled output',
+        styleRuns: const <TerminalStyleRun>[
+          TerminalStyleRun(
+            start: 0,
+            end: 6,
+            foreground: Color(0xFFFF0000),
+            bold: true,
+          ),
+        ],
+      ),
+    );
+
+    expect(store.framesFor('1'), hasLength(2));
+  });
+
+  test('same text with different inline image bytes is not folded', () {
+    final store = InstantReplayStore();
+
+    store.record(
+      '1',
+      frameWithVisuals(
+        text: 'image',
+        inlineImages: <TerminalInlineImage>[
+          TerminalInlineImage(
+            row: 0,
+            col: 0,
+            widthCells: 1,
+            heightCells: 1,
+            bytes: Uint8List.fromList(<int>[1, 2, 3]),
+          ),
+        ],
+      ),
+    );
+    store.record(
+      '1',
+      frameWithVisuals(
+        text: 'image',
+        inlineImages: <TerminalInlineImage>[
+          TerminalInlineImage(
+            row: 0,
+            col: 0,
+            widthCells: 1,
+            heightCells: 1,
+            bytes: Uint8List.fromList(<int>[1, 2, 4]),
+          ),
+        ],
+      ),
+    );
+
+    expect(store.framesFor('1'), hasLength(2));
+  });
+
+  test('large inline image fingerprint is one identity operation', () {
+    final observedLengths = <int>[];
+    final store = InstantReplayStore(
+      onInlineImageFingerprint: observedLengths.add,
+    );
+    const imageBytes = 4 * 1024 * 1024;
+
+    store.record(
+      '1',
+      frameWithVisuals(
+        text: 'large image',
+        inlineImages: <TerminalInlineImage>[
+          TerminalInlineImage(
+            row: 0,
+            col: 0,
+            widthCells: 1,
+            heightCells: 1,
+            bytes: Uint8List(imageBytes),
+          ),
+        ],
+      ),
+    );
+
+    expect(observedLengths, <int>[imageBytes]);
+  });
+
+  test('global byte budget evicts the oldest session', () {
+    var now = DateTime.utc(2026, 7, 24);
+    final store = InstantReplayStore(byteBudget: 3500, now: () => now);
+
+    store.record('old', frameWithRows([List.filled(200, 'a').join()]));
+    now = now.add(const Duration(seconds: 1));
+    store.record('new', frameWithRows([List.filled(200, 'b').join()]));
+
+    expect(store.estimatedRetainedBytes, lessThanOrEqualTo(3500));
+    expect(store.retainedSessionCount, 1);
+    expect(store.framesFor('old'), isEmpty);
+    expect(store.framesFor('new'), hasLength(1));
+  });
+
+  test(
+    'inline image payload and current state participate in global budget',
+    () {
+      var now = DateTime.utc(2026, 7, 24);
+      const imageBytes = 1024 * 1024;
+      final store = InstantReplayStore(
+        byteBudget: imageBytes * 3 + 2500,
+        now: () => now,
+      );
+
+      store.record('old', frameWithRows(['old session']));
+      now = now.add(const Duration(seconds: 1));
+      store.record(
+        'image',
+        frameWithVisuals(
+          text: 'image session',
+          inlineImages: <TerminalInlineImage>[
+            TerminalInlineImage(
+              row: 0,
+              col: 0,
+              widthCells: 1,
+              heightCells: 1,
+              bytes: Uint8List(imageBytes),
+              altText: 'large inline image',
+            ),
+          ],
+        ),
+      );
+
+      expect(store.estimatedRetainedBytes, lessThanOrEqualTo(store.byteBudget));
+      expect(store.framesFor('old'), isEmpty);
+      expect(store.framesFor('image'), hasLength(1));
+      expect(
+        store.estimatedRetainedBytes,
+        greaterThanOrEqualTo(imageBytes * 3),
+      );
+    },
+  );
+
+  test('variable visual strings contribute to the retained byte estimate', () {
+    final store = InstantReplayStore();
+    store.record('plain', frameWithVisuals(text: 'same'));
+    final plainBytes = store.estimatedRetainedBytes;
+
+    store.clear('plain');
+    final longUri =
+        'https://example.test/${List<String>.filled(200, 'segment-').join()}';
+    final longText = List<String>.filled(200, 'large label ').join();
+    store.record(
+      'rich',
+      frameWithVisuals(
+        text: 'same',
+        hyperlinks: <TerminalHyperlinkRange>[
+          TerminalHyperlinkRange(
+            row: 0,
+            startCol: 0,
+            endCol: 4,
+            uri: longUri,
+            protocolId: 'osc8-id',
+          ),
+        ],
+        sizedText: <TerminalSizedTextPlacement>[
+          TerminalSizedTextPlacement(
+            text: longText,
+            row: 0,
+            col: 0,
+            widthCells: 4,
+            heightCells: 1,
+            sourceRowOffsetCells: 0,
+            visibleHeightCells: 1,
+            scale: 1,
+            subscaleN: 0,
+            subscaleD: 0,
+            verticalAlign: 0,
+            horizontalAlign: 0,
+            naturalWidth: true,
+          ),
+        ],
+      ),
+    );
+
+    expect(store.estimatedRetainedBytes, greaterThan(plainBytes + 10000));
+  });
+
+  test('semantic events retain a time boundary when visuals are unchanged', () {
+    var now = DateTime.utc(2026, 7, 24);
+    final store = InstantReplayStore(now: () => now);
+    final stable = frameWithRows(['stable output']);
+
+    store.record('1', stable);
+    now = now.add(const Duration(milliseconds: 100));
+    store.recordSemantic(
+      '1',
+      kind: TerminalRecordingSemanticKind.commandStarted,
+      command: 'pwd',
+    );
+    now = now.add(const Duration(milliseconds: 100));
+    store.checkpoint('1', stable);
+
+    expect(store.framesForReplay('1'), hasLength(2));
+    expect(store.semanticsForReplay('1'), hasLength(1));
   });
 
   test('retains semantic SSH and remote command events with replay frames', () {

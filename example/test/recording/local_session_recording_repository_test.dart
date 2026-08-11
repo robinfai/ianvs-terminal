@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:app/features/recording/local_session_recording_repository.dart';
@@ -67,6 +69,76 @@ void main() {
             TerminalRecordingEventKind.ptyOutput,
           ],
         );
+      },
+    );
+
+    test('save awaits background encoding before the atomic flush', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-recording-background-encode',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final allowEncode = Completer<void>();
+      final encodeStarted = Completer<void>();
+      final repository = LocalSessionRecordingRepository(
+        directoryResolver: () async => directory,
+        encoder: (recording) async {
+          encodeStarted.complete();
+          await allowEncode.future;
+          return const TerminalRecordingCodec().encode(recording);
+        },
+      );
+      final recording = _recording('background-encode');
+      final destination = await repository.reserve(
+        runtimeSessionId: recording.metadata.sessionId,
+        createdAtUtc: recording.metadata.createdAtUtc,
+      );
+
+      final save = repository.save(destination, recording);
+      await encodeStarted.future;
+
+      expect(await destination.file.exists(), isFalse);
+      allowEncode.complete();
+      await save;
+      expect(await destination.file.exists(), isTrue);
+    });
+
+    test(
+      'default path delegates whole-file save and load to worker seams',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'ianvs terminal-recording-file-worker',
+        );
+        addTearDown(() => directory.delete(recursive: true));
+        var writerCalls = 0;
+        var readerCalls = 0;
+        final repository = LocalSessionRecordingRepository(
+          directoryResolver: () async => directory,
+          fileWriter: (path, recording) async {
+            writerCalls += 1;
+            await File(path).writeAsString(
+              const TerminalRecordingCodec().encode(recording),
+              flush: true,
+            );
+          },
+          fileReader: (path) async {
+            readerCalls += 1;
+            return const TerminalRecordingCodec().decode(
+              await File(path).readAsString(),
+            );
+          },
+        );
+        final recording = _recording('whole-file-worker');
+        final destination = await repository.reserve(
+          runtimeSessionId: recording.metadata.sessionId,
+          createdAtUtc: recording.metadata.createdAtUtc,
+        );
+
+        final path = await repository.save(destination, recording);
+        final loaded = await repository.load(path);
+
+        expect(writerCalls, 1);
+        expect(readerCalls, 1);
+        expect(loaded.metadata.sessionId, recording.metadata.sessionId);
       },
     );
 
@@ -203,7 +275,664 @@ void main() {
         expect(entries.single.sessionId, 'legacy-runtime');
       },
     );
+
+    test('migrates the v1 name index using lightweight metadata reads', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-recording-index-migration',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final root = Directory('${directory.path}/ianvs_recordings');
+      await root.create(recursive: true);
+      final recordingFile = File('${root.path}/legacy.ndjson').absolute;
+      await recordingFile.writeAsString(
+        '${jsonEncode(<String, Object?>{'record_type': 'metadata', 'schema_version': 1, 'session_id': 'legacy-index-session', 'created_at_utc': '2026-07-21T06:00:00.000Z', 'input_policy': 'redact'})}\n'
+        '{invalid-middle-record}\n'
+        '${jsonEncode(<String, Object?>{
+          'record_type': 'event',
+          'schema_version': 1,
+          'session_id': 'legacy-index-session',
+          'sequence': 1,
+          'monotonic_offset_micros': 42,
+          'event_kind': 'pty_output',
+          'payload': <String, Object?>{'bytes_base64': 'QQ=='},
+        })}\n',
+      );
+      final indexFile = File('${root.path}/library-v1.json');
+      await indexFile.writeAsString(
+        jsonEncode(<String, Object?>{
+          'schemaVersion': 1,
+          'names': <String, String>{
+            recordingFile.path: 'Migrated display name',
+          },
+        }),
+      );
+      var fullDecodeCount = 0;
+      final repository = LocalSessionRecordingRepository(
+        directoryResolver: () async => directory,
+        decoder: (source) async {
+          fullDecodeCount += 1;
+          return const TerminalRecordingCodec().decode(source);
+        },
+      );
+
+      final entries = await repository.listRecordings();
+
+      expect(entries, hasLength(1));
+      expect(entries.single.displayName, 'Migrated display name');
+      expect(entries.single.sessionId, 'legacy-index-session');
+      expect(entries.single.duration, const Duration(microseconds: 42));
+      expect(entries.single.isReadable, isTrue);
+      expect(fullDecodeCount, 0);
+      await expectLater(
+        repository.load(recordingFile.path),
+        throwsFormatException,
+      );
+      expect(fullDecodeCount, 1);
+      final migrated = jsonDecode(await indexFile.readAsString()) as Map;
+      expect(migrated['schemaVersion'], 2);
+      expect(migrated['entries'] as Map, contains(recordingFile.path));
+    });
+
+    test('quarantines a corrupt metadata index and rebuilds it', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-recording-index-quarantine',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final repository = LocalSessionRecordingRepository(
+        directoryResolver: () async => directory,
+      );
+      final recording = _recording('quarantine-runtime');
+      final destination = await repository.reserve(
+        runtimeSessionId: recording.metadata.sessionId,
+        createdAtUtc: recording.metadata.createdAtUtc,
+      );
+      await repository.save(destination, recording);
+      final root = destination.file.parent;
+      final indexFile = File('${root.path}/library-v1.json');
+      await indexFile.writeAsString('{not-json');
+
+      final entries = await repository.listRecordings();
+
+      expect(entries.single.sessionId, 'quarantine-runtime');
+      expect(
+        root.listSync().whereType<File>().where(
+          (file) => file.path.contains('library-v1.json.corrupt.'),
+        ),
+        hasLength(1),
+      );
+      final rebuilt = jsonDecode(await indexFile.readAsString()) as Map;
+      expect(rebuilt['schemaVersion'], 2);
+    });
+
+    test(
+      'native handoff finalizes decode merge encode and atomic write off-isolate',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'ianvs terminal-recording-native-finalize',
+        );
+        addTearDown(() => directory.delete(recursive: true));
+        final repository = LocalSessionRecordingRepository(
+          directoryResolver: () async => directory,
+        );
+        final handoffDirectory = await repository
+            .ensureNativeHandoffDirectory();
+        if (!Platform.isWindows) {
+          expect((await handoffDirectory.stat()).mode & 0x1ff, 0x1c0);
+        }
+        const jobId = '0123456789abcdef0123456789abcdef';
+        final handoff = File(
+          '${handoffDirectory.path}/'
+          '.ianvs-recording-handoff-$jobId.ndjson',
+        );
+        await handoff.writeAsString(
+          const TerminalRecordingCodec().encode(_recording('native-worker')),
+          flush: true,
+        );
+        final destination = await repository.reserve(
+          runtimeSessionId: 'native-worker',
+          createdAtUtc: DateTime.utc(2026, 7, 21, 6),
+        );
+        final job = TerminalRecordingFinalizeJob(
+          sessionId: 'native-worker',
+          jobId: jobId,
+          handoffPath: handoff.path,
+          errorPath: '${handoff.path}.error.json',
+        );
+
+        final path = await repository.finalizeNativeRecording(
+          job: job,
+          handoffDirectory: handoffDirectory,
+          destination: destination,
+          semanticEvents: const <TerminalRecordingSemanticEvent>[
+            TerminalRecordingSemanticEvent(
+              monotonicOffset: Duration(microseconds: 5),
+              kind: TerminalRecordingSemanticKind.commandStarted,
+              command: 'pwd',
+            ),
+          ],
+        );
+
+        expect(path, destination.file.absolute.path);
+        expect(await handoff.exists(), isFalse);
+        final finalized = await repository.load(path);
+        expect(
+          finalized.metadata.schemaVersion,
+          terminalRecordingSemanticSchemaVersion,
+        );
+        expect(
+          finalized.events.map((event) => event.kind),
+          contains(TerminalRecordingEventKind.shellSemantic),
+        );
+        expect(
+          finalized.events
+              .firstWhere(
+                (event) =>
+                    event.kind == TerminalRecordingEventKind.shellSemantic,
+              )
+              .semanticCommand,
+          'pwd',
+        );
+      },
+    );
+
+    test('native handoff timeout retains ready-to-recover paths', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-recording-native-timeout',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final repository = LocalSessionRecordingRepository(
+        directoryResolver: () async => directory,
+        finalizeTimeout: const Duration(milliseconds: 2),
+        finalizePollInterval: const Duration(milliseconds: 1),
+      );
+      final handoffDirectory = await repository.ensureNativeHandoffDirectory();
+      const jobId = 'fedcba9876543210fedcba9876543210';
+      final handoffPath =
+          '${handoffDirectory.path}/'
+          '.ianvs-recording-handoff-$jobId.ndjson';
+      final destination = await repository.reserve(
+        runtimeSessionId: 'native-timeout',
+        createdAtUtc: DateTime.utc(2026, 7, 21, 6),
+      );
+      final job = TerminalRecordingFinalizeJob(
+        sessionId: 'native-timeout',
+        jobId: jobId,
+        handoffPath: handoffPath,
+        errorPath: '$handoffPath.error.json',
+      );
+
+      await expectLater(
+        repository.finalizeNativeRecording(
+          job: job,
+          handoffDirectory: handoffDirectory,
+          destination: destination,
+          semanticEvents: const <TerminalRecordingSemanticEvent>[],
+        ),
+        throwsA(
+          isA<LocalSessionRecordingFinalizeException>().having(
+            (error) => error.failure,
+            'failure',
+            LocalSessionRecordingFinalizeFailure.timedOut,
+          ),
+        ),
+      );
+      expect(await handoffDirectory.exists(), isTrue);
+      expect(await destination.file.exists(), isFalse);
+      expect(await File('$handoffPath.manifest.json').exists(), isTrue);
+
+      await File(handoffPath).writeAsString(
+        const TerminalRecordingCodec().encode(_recording('native-timeout')),
+        flush: true,
+      );
+      final path = await repository.finalizeNativeRecording(
+        job: job,
+        handoffDirectory: handoffDirectory,
+        destination: destination,
+        semanticEvents: const <TerminalRecordingSemanticEvent>[],
+      );
+      expect(path, destination.file.path);
+      expect(await File('$handoffPath.manifest.json').exists(), isFalse);
+    });
+
+    test(
+      'native handoff cancellation is bounded and leaves job untouched',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'ianvs terminal-recording-native-cancel',
+        );
+        addTearDown(() => directory.delete(recursive: true));
+        final repository = LocalSessionRecordingRepository(
+          directoryResolver: () async => directory,
+        );
+        final handoffDirectory = await repository
+            .ensureNativeHandoffDirectory();
+        const jobId = '00112233445566778899aabbccddeeff';
+        final handoffPath =
+            '${handoffDirectory.path}/'
+            '.ianvs-recording-handoff-$jobId.ndjson';
+        final cancellation = LocalSessionRecordingFinalizeCancellation()
+          ..cancel();
+        final destination = await repository.reserve(
+          runtimeSessionId: 'native-cancel',
+          createdAtUtc: DateTime.utc(2026, 7, 21, 6),
+        );
+
+        await expectLater(
+          repository.finalizeNativeRecording(
+            job: TerminalRecordingFinalizeJob(
+              sessionId: 'native-cancel',
+              jobId: jobId,
+              handoffPath: handoffPath,
+              errorPath: '$handoffPath.error.json',
+            ),
+            handoffDirectory: handoffDirectory,
+            destination: destination,
+            semanticEvents: const <TerminalRecordingSemanticEvent>[],
+            cancellation: cancellation,
+          ),
+          throwsA(
+            isA<LocalSessionRecordingFinalizeException>().having(
+              (error) => error.failure,
+              'failure',
+              LocalSessionRecordingFinalizeFailure.cancelled,
+            ),
+          ),
+        );
+        expect(await destination.file.exists(), isFalse);
+      },
+    );
+
+    test('a new repository instance recovers a ready manifest job', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-recording-native-restart',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final firstProcess = LocalSessionRecordingRepository(
+        directoryResolver: () async => directory,
+      );
+      final handoffDirectory = await firstProcess
+          .ensureNativeHandoffDirectory();
+      const jobId = '11223344556677889900aabbccddeeff';
+      final handoff = File(
+        '${handoffDirectory.path}/'
+        '.ianvs-recording-handoff-$jobId.ndjson',
+      );
+      await handoff.writeAsString(
+        const TerminalRecordingCodec().encode(_recording('restart-worker')),
+        flush: true,
+      );
+      final destination = await firstProcess.reserve(
+        runtimeSessionId: 'restart-worker',
+        createdAtUtc: DateTime.utc(2026, 7, 21, 6),
+      );
+      final job = TerminalRecordingFinalizeJob(
+        sessionId: 'restart-worker',
+        jobId: jobId,
+        handoffPath: handoff.path,
+        errorPath: '${handoff.path}.error.json',
+      );
+      await firstProcess.registerNativeRecordingJob(
+        job: job,
+        handoffDirectory: handoffDirectory,
+        destination: destination,
+        semanticEvents: const <TerminalRecordingSemanticEvent>[
+          TerminalRecordingSemanticEvent(
+            monotonicOffset: Duration(microseconds: 5),
+            kind: TerminalRecordingSemanticKind.commandStarted,
+            command: 'recover-me',
+          ),
+        ],
+        displayName: 'Recovered recording',
+      );
+      final secondProcess = LocalSessionRecordingRepository(
+        directoryResolver: () async => directory,
+      );
+
+      final recovery = await secondProcess.recoverNativeRecordings();
+
+      expect(recovery.failures, isEmpty);
+      expect(recovery.pendingJobIds, isEmpty);
+      expect(recovery.recoveredPaths, <String>[destination.file.path]);
+      expect(await handoff.exists(), isFalse);
+      expect(await File('${handoff.path}.manifest.json').exists(), isFalse);
+      final recovered = await secondProcess.load(destination.file.path);
+      expect(
+        recovered.events
+            .where(
+              (event) => event.kind == TerminalRecordingEventKind.shellSemantic,
+            )
+            .single
+            .semanticCommand,
+        'recover-me',
+      );
+      final entries = await secondProcess.listRecordings();
+      expect(entries.single.displayName, 'Recovered recording');
+    });
+
+    test(
+      'intent manifest exists before native prepare and a stale intent writes nothing',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'ianvs terminal-recording-native-intent',
+        );
+        addTearDown(() => directory.delete(recursive: true));
+        final owner = LocalSessionRecordingRepository(
+          directoryResolver: () async => directory,
+        );
+        final handoffDirectory = await owner.ensureNativeHandoffDirectory();
+        final destination = await owner.reserve(
+          runtimeSessionId: 'intent-only',
+          createdAtUtc: DateTime.utc(2026, 7, 21, 6),
+        );
+        final job = await owner.reserveNativeRecordingJob(
+          sessionId: 'intent-only',
+          handoffDirectory: handoffDirectory,
+          destination: destination,
+          semanticEvents: const <TerminalRecordingSemanticEvent>[],
+        );
+
+        expect(await File('${job.handoffPath}.manifest.json').exists(), isTrue);
+        expect(await File(job.handoffPath).exists(), isFalse);
+        final cancellation = LocalSessionRecordingFinalizeCancellation()
+          ..cancel();
+        await expectLater(
+          owner.finalizeNativeRecording(
+            job: job,
+            handoffDirectory: handoffDirectory,
+            destination: destination,
+            semanticEvents: const <TerminalRecordingSemanticEvent>[],
+            cancellation: cancellation,
+          ),
+          throwsA(
+            isA<LocalSessionRecordingFinalizeException>().having(
+              (error) => error.failure,
+              'failure',
+              LocalSessionRecordingFinalizeFailure.cancelled,
+            ),
+          ),
+        );
+
+        final recovery = await LocalSessionRecordingRepository(
+          directoryResolver: () async => directory,
+        ).recoverNativeRecordings();
+
+        expect(recovery.recoveredPaths, isEmpty);
+        expect(recovery.pendingJobIds, contains(job.jobId));
+        expect(await destination.file.exists(), isFalse);
+      },
+    );
+
+    test(
+      'ready handoff after prepare crash retains its destination mapping',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'ianvs terminal-recording-native-prepare-crash',
+        );
+        addTearDown(() => directory.delete(recursive: true));
+        final owner = LocalSessionRecordingRepository(
+          directoryResolver: () async => directory,
+        );
+        final handoffDirectory = await owner.ensureNativeHandoffDirectory();
+        final destination = await owner.reserve(
+          runtimeSessionId: 'prepare-crash',
+          createdAtUtc: DateTime.utc(2026, 7, 21, 6),
+        );
+        final job = await owner.reserveNativeRecordingJob(
+          sessionId: 'prepare-crash',
+          handoffDirectory: handoffDirectory,
+          destination: destination,
+          semanticEvents: const <TerminalRecordingSemanticEvent>[
+            TerminalRecordingSemanticEvent(
+              monotonicOffset: Duration(microseconds: 5),
+              kind: TerminalRecordingSemanticKind.commandStarted,
+              command: 'recover-after-crash',
+            ),
+          ],
+        );
+        await File(job.handoffPath).writeAsString(
+          const TerminalRecordingCodec().encode(_recording('prepare-crash')),
+          flush: true,
+        );
+        final cancellation = LocalSessionRecordingFinalizeCancellation()
+          ..cancel();
+        await expectLater(
+          owner.finalizeNativeRecording(
+            job: job,
+            handoffDirectory: handoffDirectory,
+            destination: destination,
+            semanticEvents: const <TerminalRecordingSemanticEvent>[],
+            cancellation: cancellation,
+          ),
+          throwsA(isA<LocalSessionRecordingFinalizeException>()),
+        );
+
+        final recoveryRepository = LocalSessionRecordingRepository(
+          directoryResolver: () async => directory,
+        );
+        final recovery = await recoveryRepository.recoverNativeRecordings();
+
+        expect(recovery.failures, isEmpty);
+        expect(recovery.recoveredPaths, <String>[destination.file.path]);
+        final recording = await recoveryRepository.load(destination.file.path);
+        expect(
+          recording.events
+              .where(
+                (event) =>
+                    event.kind == TerminalRecordingEventKind.shellSemantic,
+              )
+              .single
+              .semanticCommand,
+          'recover-after-crash',
+        );
+      },
+    );
+
+    test(
+      'live cross-process claim prevents recovery from harvesting the same job',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'ianvs terminal-recording-native-process-claim',
+        );
+        addTearDown(() => directory.delete(recursive: true));
+        final owner = LocalSessionRecordingRepository(
+          directoryResolver: () async => directory,
+        );
+        final handoffDirectory = await owner.ensureNativeHandoffDirectory();
+        final destination = await owner.reserve(
+          runtimeSessionId: 'process-claim',
+          createdAtUtc: DateTime.utc(2026, 7, 21, 6),
+        );
+        final job = await owner.reserveNativeRecordingJob(
+          sessionId: 'process-claim',
+          handoffDirectory: handoffDirectory,
+          destination: destination,
+          semanticEvents: const <TerminalRecordingSemanticEvent>[],
+        );
+        await File(job.handoffPath).writeAsString(
+          const TerminalRecordingCodec().encode(_recording('process-claim')),
+          flush: true,
+        );
+        final cancellation = LocalSessionRecordingFinalizeCancellation()
+          ..cancel();
+        await expectLater(
+          owner.finalizeNativeRecording(
+            job: job,
+            handoffDirectory: handoffDirectory,
+            destination: destination,
+            semanticEvents: const <TerminalRecordingSemanticEvent>[],
+            cancellation: cancellation,
+          ),
+          throwsA(isA<LocalSessionRecordingFinalizeException>()),
+        );
+        final claim = File('${job.handoffPath}.claim');
+        await claim.writeAsString('stable-claim', flush: true);
+        final helper = File(
+          '${Directory.current.path}/example/test/recording/support/'
+          'recording_handoff_lock_holder.dart',
+        );
+        final process = await Process.start(
+          _standaloneDartExecutable(),
+          <String>[helper.path, claim.path],
+          environment: const <String, String>{'DART_VM_OPTIONS': ''},
+        );
+        addTearDown(process.kill);
+        final locked = await process.stdout
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())
+            .where((line) => line == 'locked')
+            .first
+            .timeout(const Duration(seconds: 5));
+        expect(locked, 'locked');
+
+        final recoveryRepository = LocalSessionRecordingRepository(
+          directoryResolver: () async => directory,
+        );
+        final whileClaimed = await recoveryRepository
+            .recoverNativeRecordings();
+
+        expect(whileClaimed.recoveredPaths, isEmpty);
+        expect(whileClaimed.pendingJobIds, contains(job.jobId));
+        expect(await destination.file.exists(), isFalse);
+        expect(await claim.readAsString(), 'stable-claim');
+
+        process.stdin.writeln('release');
+        await process.stdin.flush();
+        await process.stdin.close();
+        expect(await process.exitCode, 0);
+        final afterRelease = await recoveryRepository
+            .recoverNativeRecordings();
+
+        expect(afterRelease.failures, isEmpty);
+        expect(afterRelease.recoveredPaths, <String>[destination.file.path]);
+        expect(await claim.readAsString(), 'stable-claim');
+        final ownerRetry = await owner.finalizeNativeRecording(
+          job: job,
+          handoffDirectory: handoffDirectory,
+          destination: destination,
+          semanticEvents: const <TerminalRecordingSemanticEvent>[],
+        );
+        expect(ownerRetry, destination.file.path);
+        expect(await File('${job.handoffPath}.manifest.json').exists(), isFalse);
+        expect(await claim.readAsString(), 'stable-claim');
+      },
+    );
+
+    test(
+      'another repository create never deletes an empty live directory',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'ianvs terminal-recording-native-create-race',
+        );
+        addTearDown(() => directory.delete(recursive: true));
+        final firstProcess = LocalSessionRecordingRepository(
+          directoryResolver: () async => directory,
+        );
+        final secondProcess = LocalSessionRecordingRepository(
+          directoryResolver: () async => directory,
+        );
+        final firstHandoff = await firstProcess.ensureNativeHandoffDirectory();
+
+        final secondHandoff = await secondProcess
+            .ensureNativeHandoffDirectory();
+
+        expect(await firstHandoff.exists(), isTrue);
+        expect(await secondHandoff.exists(), isTrue);
+        expect(secondHandoff.path, isNot(firstHandoff.path));
+        await _completeInterleavedHandoff(
+          firstProcess,
+          firstHandoff,
+          sessionId: 'create-race',
+          jobId: '22334455667788990011aabbccddeeff',
+        );
+      },
+    );
+
+    test(
+      'startup recovery never deletes an empty live foreign directory',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'ianvs terminal-recording-native-recovery-race',
+        );
+        addTearDown(() => directory.delete(recursive: true));
+        final firstProcess = LocalSessionRecordingRepository(
+          directoryResolver: () async => directory,
+        );
+        final recoveryProcess = LocalSessionRecordingRepository(
+          directoryResolver: () async => directory,
+        );
+        final firstHandoff = await firstProcess.ensureNativeHandoffDirectory();
+
+        final recovery = await recoveryProcess.recoverNativeRecordings();
+
+        expect(recovery.recoveredPaths, isEmpty);
+        expect(await firstHandoff.exists(), isTrue);
+        await _completeInterleavedHandoff(
+          firstProcess,
+          firstHandoff,
+          sessionId: 'recovery-race',
+          jobId: '33445566778899001122aabbccddeeff',
+        );
+      },
+    );
   });
+}
+
+String _standaloneDartExecutable() {
+  var directory = File(Platform.resolvedExecutable).parent;
+  for (var depth = 0; depth < 8; depth += 1) {
+    final candidate = File(
+      '${directory.path}${Platform.pathSeparator}dart-sdk'
+      '${Platform.pathSeparator}bin${Platform.pathSeparator}dart',
+    );
+    if (candidate.existsSync()) {
+      return candidate.path;
+    }
+    final parent = directory.parent;
+    if (parent.path == directory.path) {
+      break;
+    }
+    directory = parent;
+  }
+  return Platform.resolvedExecutable;
+}
+
+Future<void> _completeInterleavedHandoff(
+  LocalSessionRecordingRepository repository,
+  Directory handoffDirectory, {
+  required String sessionId,
+  required String jobId,
+}) async {
+  final handoff = File(
+    '${handoffDirectory.path}/'
+    '.ianvs-recording-handoff-$jobId.ndjson',
+  );
+  await handoff.writeAsString(
+    const TerminalRecordingCodec().encode(_recording(sessionId)),
+    flush: true,
+  );
+  final destination = await repository.reserve(
+    runtimeSessionId: sessionId,
+    createdAtUtc: DateTime.utc(2026, 7, 21, 6),
+  );
+  final job = TerminalRecordingFinalizeJob(
+    sessionId: sessionId,
+    jobId: jobId,
+    handoffPath: handoff.path,
+    errorPath: '${handoff.path}.error.json',
+  );
+  await repository.registerNativeRecordingJob(
+    job: job,
+    handoffDirectory: handoffDirectory,
+    destination: destination,
+    semanticEvents: const <TerminalRecordingSemanticEvent>[],
+  );
+  await repository.finalizeNativeRecording(
+    job: job,
+    handoffDirectory: handoffDirectory,
+    destination: destination,
+    semanticEvents: const <TerminalRecordingSemanticEvent>[],
+  );
+  expect(await destination.file.exists(), isTrue);
 }
 
 TerminalRecording _recording(String sessionId) {

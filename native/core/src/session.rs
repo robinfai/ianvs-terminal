@@ -8834,6 +8834,48 @@ pub fn request_session_json(
                 Err(error) => recording_error_response(error),
             }
         }
+        "terminal.recording_stop_prepare" => {
+            let Some(handoff_directory) = request
+                .get("handoff_directory")
+                .and_then(serde_json::Value::as_str)
+                .filter(|value| !value.is_empty() && value.len() <= 4096 && !value.contains('\0'))
+            else {
+                return invalid_recording_request(
+                    "handoff_directory must be a bounded absolute path",
+                );
+            };
+            let requested_job_id = match request.get("job_id") {
+                Some(serde_json::Value::String(value))
+                    if value.len() == 32
+                        && value
+                            .bytes()
+                            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)) =>
+                {
+                    Some(value.as_str())
+                }
+                Some(_) => {
+                    return invalid_recording_request(
+                        "job_id must be 32 lowercase hexadecimal characters",
+                    );
+                }
+                None => None,
+            };
+            let session = STORE.get(session_id)?;
+            session.observe_child_exit()?;
+            match session
+                .recording
+                .lock()
+                .prepare_finalize(std::path::Path::new(handoff_directory), requested_job_id)
+            {
+                Ok(job) => request_json_response(serde_json::json!({
+                    "ok": true,
+                    "job_id": job.job_id,
+                    "handoff_path": job.handoff_path,
+                    "error_path": job.error_path,
+                })),
+                Err(error) => recording_error_response(error),
+            }
+        }
         "terminal.recording_cancel" => {
             let session = STORE.get(session_id)?;
             match session.recording.lock().cancel() {

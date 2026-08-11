@@ -317,7 +317,9 @@ final pasteHistoryRepositoryProvider = Provider<PasteHistoryRepository>((ref) {
 });
 
 final instantReplayStoreProvider = Provider<InstantReplayStore>((ref) {
-  return InstantReplayStore();
+  return InstantReplayStore(
+    minimumCaptureInterval: const Duration(milliseconds: 100),
+  );
 });
 
 final passwordManagerStoreProvider = Provider<PasswordManagerStore>((ref) {

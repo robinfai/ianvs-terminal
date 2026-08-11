@@ -80,7 +80,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(runtimeCloseCount, 1);
+    expect(runtimeCloseCount, 0);
     expect(extraTaskCount, 1);
     expect(response.isCompleted, isFalse);
 
@@ -88,6 +88,7 @@ void main() {
     await tester.pump();
     final message = (await response.future)! as Map<Object?, Object?>;
 
+    expect(runtimeCloseCount, 1);
     expect(message['completed'], isTrue);
     expect(message['totalTaskCount'], 2);
     expect(message['settledTaskCount'], 2);

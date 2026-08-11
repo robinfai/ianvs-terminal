@@ -38,6 +38,7 @@ class _DataApiLifecycleBoundaryState extends State<DataApiLifecycleBoundary> {
     widget.shutdownCoordinator.registerTask(
       _dataApiShutdownTaskName,
       _closeRuntime,
+      phase: AppShutdownPhase.infrastructure,
     );
     widget.shutdownChannel.setMethodCallHandler(_handleShutdownMethodCall);
     _listener = AppLifecycleListener(

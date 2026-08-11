@@ -4,11 +4,13 @@ import 'dart:io';
 
 import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/config/local_terminal_config_repository.dart';
+import 'package:app/features/layout/local_terminal_layout_models.dart';
 import 'package:app/features/layout/local_terminal_layout_repository.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/recording/local_session_recording_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_state.dart';
+import 'package:app/platform/app_shutdown_coordinator.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
@@ -31,8 +33,13 @@ class _RecordingConfigRepository extends LocalTerminalConfigRepository {
 }
 
 class _RecordingPtyBackend extends FakePtyBackend {
-  final List<String> timeline = <String>[];
+  _RecordingPtyBackend({List<String>? timeline, this.maxEvents = 4096})
+    : timeline = timeline ?? <String>[];
+
+  final List<String> timeline;
+  final int maxEvents;
   final Map<String, String> _inputPolicies = <String, String>{};
+  bool observedManifestBeforePrepare = false;
 
   @override
   String? requestSessionJson(String sessionId, String requestJson) {
@@ -44,7 +51,7 @@ class _RecordingPtyBackend extends FakePtyBackend {
         _inputPolicies[sessionId] = request['input_policy']! as String;
         return jsonEncode(<String, Object?>{
           'ok': true,
-          'max_events': 4096,
+          'max_events': maxEvents,
           'max_payload_bytes': 8 * 1024 * 1024,
         });
       case 'terminal.recording_stop':
@@ -55,6 +62,27 @@ class _RecordingPtyBackend extends FakePtyBackend {
             sessionId,
             inputPolicy: _inputPolicies[sessionId] ?? 'redact',
           ),
+        });
+      case 'terminal.recording_stop_prepare':
+        timeline.add('stop:$sessionId');
+        final jobId = request['job_id']! as String;
+        final directory = request['handoff_directory']! as String;
+        final handoffPath = '$directory/.ianvs-recording-handoff-$jobId.ndjson';
+        observedManifestBeforePrepare = File(
+          '$handoffPath.manifest.json',
+        ).existsSync();
+        File(handoffPath).writeAsStringSync(
+          _recordingFixture(
+            sessionId,
+            inputPolicy: _inputPolicies[sessionId] ?? 'redact',
+          ),
+          flush: true,
+        );
+        return jsonEncode(<String, Object?>{
+          'ok': true,
+          'job_id': jobId,
+          'handoff_path': handoffPath,
+          'error_path': '$handoffPath.error.json',
         });
       case 'terminal.recording_cancel':
         timeline.add('cancel:$sessionId');
@@ -88,6 +116,29 @@ class _FailingOnceRecordingRepository extends LocalSessionRecordingRepository {
     }
     return super.save(destination, recording, displayName: displayName);
   }
+
+  @override
+  Future<String> finalizeNativeRecording({
+    required terminal.TerminalRecordingFinalizeJob job,
+    required Directory handoffDirectory,
+    required LocalSessionRecordingDestination destination,
+    required List<terminal.TerminalRecordingSemanticEvent> semanticEvents,
+    String? displayName,
+    LocalSessionRecordingFinalizeCancellation? cancellation,
+  }) async {
+    if (failNextSave) {
+      failNextSave = false;
+      throw const FileSystemException('recording disk unavailable');
+    }
+    return super.finalizeNativeRecording(
+      job: job,
+      handoffDirectory: handoffDirectory,
+      destination: destination,
+      semanticEvents: semanticEvents,
+      displayName: displayName,
+      cancellation: cancellation,
+    );
+  }
 }
 
 class _FailSecondRecordingRepository extends LocalSessionRecordingRepository {
@@ -106,6 +157,29 @@ class _FailSecondRecordingRepository extends LocalSessionRecordingRepository {
       throw const FileSystemException('second recording disk unavailable');
     }
     return super.save(destination, recording, displayName: displayName);
+  }
+
+  @override
+  Future<String> finalizeNativeRecording({
+    required terminal.TerminalRecordingFinalizeJob job,
+    required Directory handoffDirectory,
+    required LocalSessionRecordingDestination destination,
+    required List<terminal.TerminalRecordingSemanticEvent> semanticEvents,
+    String? displayName,
+    LocalSessionRecordingFinalizeCancellation? cancellation,
+  }) async {
+    saveAttempts += 1;
+    if (saveAttempts == 2) {
+      throw const FileSystemException('second recording disk unavailable');
+    }
+    return super.finalizeNativeRecording(
+      job: job,
+      handoffDirectory: handoffDirectory,
+      destination: destination,
+      semanticEvents: semanticEvents,
+      displayName: displayName,
+      cancellation: cancellation,
+    );
   }
 }
 
@@ -127,6 +201,92 @@ class _BlockingRecordingRepository extends LocalSessionRecordingRepository {
     await allowSave.future;
     return super.save(destination, recording, displayName: displayName);
   }
+
+  @override
+  Future<String> finalizeNativeRecording({
+    required terminal.TerminalRecordingFinalizeJob job,
+    required Directory handoffDirectory,
+    required LocalSessionRecordingDestination destination,
+    required List<terminal.TerminalRecordingSemanticEvent> semanticEvents,
+    String? displayName,
+    LocalSessionRecordingFinalizeCancellation? cancellation,
+  }) async {
+    if (!saveStarted.isCompleted) {
+      saveStarted.complete();
+    }
+    await allowSave.future;
+    return super.finalizeNativeRecording(
+      job: job,
+      handoffDirectory: handoffDirectory,
+      destination: destination,
+      semanticEvents: semanticEvents,
+      displayName: displayName,
+      cancellation: cancellation,
+    );
+  }
+}
+
+class _OrderedRecordingRepository extends LocalSessionRecordingRepository {
+  _OrderedRecordingRepository({
+    required this.timeline,
+    required super.directoryResolver,
+  });
+
+  final List<String> timeline;
+
+  @override
+  Future<String> save(
+    LocalSessionRecordingDestination destination,
+    terminal.TerminalRecording recording, {
+    String? displayName,
+  }) async {
+    timeline.add('recording-save-start');
+    final path = await super.save(
+      destination,
+      recording,
+      displayName: displayName,
+    );
+    timeline.add('recording-save-complete');
+    return path;
+  }
+
+  @override
+  Future<String> finalizeNativeRecording({
+    required terminal.TerminalRecordingFinalizeJob job,
+    required Directory handoffDirectory,
+    required LocalSessionRecordingDestination destination,
+    required List<terminal.TerminalRecordingSemanticEvent> semanticEvents,
+    String? displayName,
+    LocalSessionRecordingFinalizeCancellation? cancellation,
+  }) async {
+    timeline.add('recording-save-start');
+    final path = await super.finalizeNativeRecording(
+      job: job,
+      handoffDirectory: handoffDirectory,
+      destination: destination,
+      semanticEvents: semanticEvents,
+      displayName: displayName,
+      cancellation: cancellation,
+    );
+    timeline.add('recording-save-complete');
+    return path;
+  }
+}
+
+class _OrderedLayoutRepository extends LocalTerminalLayoutRepository {
+  _OrderedLayoutRepository({
+    required this.timeline,
+    required super.directoryResolver,
+  });
+
+  final List<String> timeline;
+
+  @override
+  Future<void> save(TerminalLayout layout) async {
+    timeline.add('layout-save-start');
+    await super.save(layout);
+    timeline.add('layout-save-complete');
+  }
 }
 
 class _RecordingHarness {
@@ -146,14 +306,21 @@ class _RecordingHarness {
 Future<_RecordingHarness> _createHarness({
   LocalSessionRecordingRepository Function(Directory directory)?
   recordingRepositoryBuilder,
+  LocalTerminalLayoutRepository Function(Directory directory)?
+  layoutRepositoryBuilder,
+  List<String>? timeline,
+  int recordingMaxEvents = 4096,
 }) async {
   final directory = await Directory.systemTemp.createTemp(
     'ianvs terminal-session-recording',
   );
-  final backend = _RecordingPtyBackend();
-  final layoutRepository = LocalTerminalLayoutRepository(
-    directoryResolver: () async => directory,
+  final backend = _RecordingPtyBackend(
+    timeline: timeline,
+    maxEvents: recordingMaxEvents,
   );
+  final layoutRepository =
+      layoutRepositoryBuilder?.call(directory) ??
+      LocalTerminalLayoutRepository(directoryResolver: () async => directory);
   final recordingRepository =
       recordingRepositoryBuilder?.call(directory) ??
       LocalSessionRecordingRepository(directoryResolver: () async => directory);
@@ -237,6 +404,7 @@ void main() {
         'start:$sessionId',
         'stop:$sessionId',
       ]);
+      expect(harness.backend.observedManifestBeforePrepare, isTrue);
     },
   );
 
@@ -358,6 +526,84 @@ void main() {
       expect(semantics[1].semanticCommand, 'ls -la');
       expect(semantics[1].semanticRemote, isTrue);
       expect(semantics[3].semanticCommand, 'ssh prod-server');
+    },
+  );
+
+  test(
+    'semantic flood stays bounded and preserves the latest command pair',
+    () async {
+      final harness = await _createHarness(recordingMaxEvents: 4);
+      final controller = harness.container.read(
+        sessionControllerProvider.notifier,
+      );
+      final sessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      await controller.startSessionRecording(sessionId);
+
+      for (var index = 0; index < 20; index += 1) {
+        harness.backend.enqueueEvent(
+          sessionId,
+          PtyEvent(
+            kind: 'shell_hook',
+            sessionId: sessionId,
+            payload: <String, Object?>{
+              'hook': index.isEven ? 'precmd.pwd' : 'precmd',
+              'pwd': '/tmp/flood-$index',
+            },
+          ),
+        );
+      }
+      harness.backend
+        ..enqueueEvent(
+          sessionId,
+          PtyEvent(
+            kind: 'shell_command',
+            sessionId: sessionId,
+            payload: const <String, Object?>{
+              'eventType': 'command_start',
+              'command': 'echo bounded',
+            },
+          ),
+        )
+        ..enqueueEvent(
+          sessionId,
+          PtyEvent(
+            kind: 'shell_command',
+            sessionId: sessionId,
+            payload: const <String, Object?>{
+              'eventType': 'command_finished',
+              'command': 'echo bounded',
+              'exitCode': 0,
+            },
+          ),
+        );
+      harness.container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(sessionId);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      final path = await controller.stopSessionRecording(sessionId);
+      final recording = await harness.recordingRepository.load(path!);
+      final semantics = recording.events
+          .where(
+            (event) =>
+                event.kind == terminal.TerminalRecordingEventKind.shellSemantic,
+          )
+          .toList(growable: false);
+
+      expect(semantics.length, lessThanOrEqualTo(4));
+      expect(
+        semantics.map((event) => event.semanticKind),
+        containsAll(<terminal.TerminalRecordingSemanticKind>[
+          terminal.TerminalRecordingSemanticKind.commandStarted,
+          terminal.TerminalRecordingSemanticKind.commandFinished,
+        ]),
+      );
+      expect(
+        harness.container.read(sessionControllerProvider).lastError,
+        contains('dropping'),
+      );
     },
   );
 
@@ -495,7 +741,7 @@ void main() {
       expect(state.tabs.single.effectivePanes, hasLength(2));
       expect(state.recordingSessionIds, contains(firstSessionId));
       expect(state.recordingPendingSaveSessionIds, contains(secondSessionId));
-      expect(state.lastError, contains('Recording save failed'));
+      expect(state.lastError, contains('Recording finalize failed'));
       expect(harness.backend.closedSessionIds, isEmpty);
       expect(
         harness.backend.timeline.where(
@@ -576,8 +822,98 @@ void main() {
     expect(_recordingFiles(harness.directory), hasLength(1));
   });
 
-  test('controller disposal best-effort saves active recording', () async {
-    final harness = await _createHarness();
+  test(
+    'shutdown coordinator finalizes active recording before disposal',
+    () async {
+      final harness = await _createHarness();
+      final controller = harness.container.read(
+        sessionControllerProvider.notifier,
+      );
+      final sessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      await controller.startSessionRecording(sessionId);
+
+      await harness.container.read(appShutdownCoordinatorProvider).shutdown();
+      harness.container.dispose();
+
+      expect(harness.backend.timeline, contains('stop:$sessionId'));
+      expect(_recordingFiles(harness.directory), hasLength(1));
+    },
+  );
+
+  test(
+    'session shutdown orders recording, layout flush, then runtime close',
+    () async {
+      final timeline = <String>[];
+      final harness = await _createHarness(
+        timeline: timeline,
+        recordingRepositoryBuilder: (directory) => _OrderedRecordingRepository(
+          timeline: timeline,
+          directoryResolver: () async => directory,
+        ),
+        layoutRepositoryBuilder: (directory) => _OrderedLayoutRepository(
+          timeline: timeline,
+          directoryResolver: () async => directory,
+        ),
+      );
+      final controller = harness.container.read(
+        sessionControllerProvider.notifier,
+      );
+      await controller.flushLayoutPersistence();
+      final sessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      await controller.startSessionRecording(sessionId);
+      timeline.clear();
+
+      final result = await harness.container
+          .read(appShutdownCoordinatorProvider)
+          .shutdown();
+
+      expect(result.timedOut, isFalse);
+      expect(result.failures, isEmpty);
+      expect(controller.isShuttingDown, isTrue);
+      expect(await controller.openTerminalAtFolder('/ignored'), isFalse);
+      expect(
+        timeline,
+        containsAll(<String>[
+          'stop:$sessionId',
+          'recording-save-complete',
+          'layout-save-complete',
+          'close:$sessionId',
+        ]),
+      );
+      expect(
+        timeline.indexOf('stop:$sessionId'),
+        lessThan(timeline.indexOf('recording-save-complete')),
+      );
+      expect(
+        timeline.indexOf('recording-save-complete'),
+        lessThan(timeline.indexOf('layout-save-start')),
+      );
+      expect(
+        timeline.indexOf('layout-save-complete'),
+        lessThan(timeline.indexOf('close:$sessionId')),
+      );
+      expect(_recordingFiles(harness.directory), hasLength(1));
+      expect(
+        File(
+          '${harness.directory.path}/ianvs_terminal_layout.json',
+        ).existsSync(),
+        isTrue,
+      );
+    },
+  );
+
+  test('shutdown finalization never encodes in the disposal stack', () async {
+    late _BlockingRecordingRepository blockingRepository;
+    final harness = await _createHarness(
+      recordingRepositoryBuilder: (directory) =>
+          blockingRepository = _BlockingRecordingRepository(
+            directoryResolver: () async => directory,
+          ),
+    );
     final controller = harness.container.read(
       sessionControllerProvider.notifier,
     );
@@ -585,10 +921,18 @@ void main() {
         .read(sessionControllerProvider)
         .activeSessionId!;
     await controller.startSessionRecording(sessionId);
+    final shutdown = harness.container
+        .read(appShutdownCoordinatorProvider)
+        .shutdown();
 
     harness.container.dispose();
 
-    expect(harness.backend.timeline, contains('stop:$sessionId'));
+    expect(blockingRepository.saveStarted.isCompleted, isFalse);
+    await blockingRepository.saveStarted.future;
+    expect(_recordingFiles(harness.directory), isEmpty);
+
+    blockingRepository.allowSave.complete();
+    await shutdown;
     expect(_recordingFiles(harness.directory), hasLength(1));
   });
 }
@@ -597,7 +941,11 @@ List<File> _recordingFiles(Directory directory) {
   return directory
       .listSync(recursive: true)
       .whereType<File>()
-      .where((file) => file.path.endsWith('.ndjson'))
+      .where(
+        (file) =>
+            file.path.endsWith('.ndjson') &&
+            !file.path.contains('.ianvs-recording-handoff-v1-'),
+      )
       .toList(growable: false);
 }
 
