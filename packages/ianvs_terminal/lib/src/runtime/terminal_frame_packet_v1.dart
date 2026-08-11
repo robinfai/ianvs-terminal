@@ -1,8 +1,7 @@
 import 'dart:typed_data';
 
+import '../terminal/terminal_frame_decode_ports.dart';
 import '../terminal/terminal_models.dart';
-import '../transport/terminal_protobuf_frame_codec.dart';
-import '../transport/terminal_protobuf_frame_packet_codec.dart';
 
 const int terminalFramePacketV1SchemaVersion = 1;
 const String terminalFramePacketV1Contract = 'ianvs-terminal-frame-packet-v1';
@@ -38,12 +37,12 @@ final class TerminalFramePacketV1 {
 
 final class TerminalFramePacketV1Decoder {
   const TerminalFramePacketV1Decoder({
-    this.frameCodec = const TerminalProtobufFrameCodec(),
-    this.packetCodec = const TerminalProtobufFramePacketCodec(),
+    required this.frameCodec,
+    required this.packetCodec,
   });
 
-  final TerminalProtobufFrameCodec frameCodec;
-  final TerminalProtobufFramePacketCodec packetCodec;
+  final TerminalBinaryFrameCodecPort frameCodec;
+  final TerminalFramePacketDecodePort packetCodec;
 
   TerminalFramePacketV1 decode(
     Uint8List bytes, {
@@ -69,7 +68,7 @@ final class TerminalFramePacketV1Decoder {
       );
     }
 
-    final TerminalProtobufFramePacketEnvelope packet;
+    final TerminalFramePacketEnvelope packet;
     try {
       packet = packetCodec.decode(bytes);
     } on Object catch (error) {

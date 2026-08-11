@@ -4,10 +4,10 @@ import 'package:fixnum/fixnum.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
 import 'package:ianvs_terminal/src/proto/frame_diff.pb.dart' as frame_pb;
-import 'package:ianvs_terminal/src/runtime/terminal_frame_decoder.dart';
 import 'package:ianvs_terminal/src/runtime/terminal_frame_packet_v1.dart';
 import 'package:ianvs_terminal/src/runtime/terminal_frame_transport_coordinator.dart';
 
+import 'support/terminal_frame_test_decoders.dart';
 import 'support/terminal_frame_wire_fixture.dart';
 
 void main() {
@@ -18,7 +18,7 @@ void main() {
         final frame = _snapshotFrame();
         final bytes = _packetBytes(sessionId: '7', sequence: 0, frame: frame);
 
-        final packet = const TerminalFramePacketV1Decoder().decode(
+        final packet = terminalFramePacketTestDecoder().decode(
           bytes,
           expectedSessionId: '7',
           afterSequence: null,
@@ -31,7 +31,7 @@ void main() {
         expect(
           terminalFrameProjection(packet.frame),
           terminalFrameProjection(
-            const TerminalFrameDecoder()
+            terminalFrameTestDecoder()
                 .decodeProtobuf(Uint8List.fromList(frame.writeToBuffer()))!
                 .frame,
           ),
@@ -40,7 +40,7 @@ void main() {
     );
 
     test('accepts proto3 omission of the initial zero sequence', () {
-      final packet = const TerminalFramePacketV1Decoder().decode(
+      final packet = terminalFramePacketTestDecoder().decode(
         _packetBytes(
           sessionId: '7',
           sequence: 0,
@@ -58,7 +58,7 @@ void main() {
     test('rejects cross-session data and a gapped Delta', () {
       final delta = completeTerminalFrameWireFixture().protobuf.deepCopy()
         ..frameKind = frame_pb.TerminalFrameKind.TERMINAL_FRAME_KIND_DELTA;
-      const decoder = TerminalFramePacketV1Decoder();
+      final decoder = terminalFramePacketTestDecoder();
 
       expect(
         () => decoder.decode(
@@ -91,7 +91,7 @@ void main() {
     });
 
     test('accepts a forward Snapshot as an explicit resynchronization', () {
-      final packet = const TerminalFramePacketV1Decoder().decode(
+      final packet = terminalFramePacketTestDecoder().decode(
         _packetBytes(sessionId: '7', sequence: 4, frame: _snapshotFrame()),
         expectedSessionId: '7',
         afterSequence: 1,
@@ -117,7 +117,6 @@ void main() {
         final errors = <Object>[];
         final coordinator = TerminalFrameTransportCoordinator(
           backend: backend,
-          decoder: const TerminalFrameDecoder(),
           preference: TerminalFrameWireFormatPreference.automatic,
           onRequestError: (_, _, error, _) => errors.add(error),
         );
@@ -142,7 +141,6 @@ void main() {
       final backend = _PacketBackend();
       final coordinator = TerminalFrameTransportCoordinator(
         backend: backend,
-        decoder: const TerminalFrameDecoder(),
         preference: TerminalFrameWireFormatPreference.json,
       );
 

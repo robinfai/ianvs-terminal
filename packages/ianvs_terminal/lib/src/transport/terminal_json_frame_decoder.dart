@@ -1,10 +1,12 @@
 import 'dart:convert';
 
+import '../terminal/terminal_frame_decode_ports.dart';
 import '../terminal/terminal_models.dart';
 
-final class TerminalJsonFrameDecoder {
+final class TerminalJsonFrameDecoder implements TerminalJsonFrameDecodePort {
   const TerminalJsonFrameDecoder();
 
+  @override
   TerminalFrameDiff? decode(String rawFrame) {
     try {
       final decoded = jsonDecode(rawFrame);

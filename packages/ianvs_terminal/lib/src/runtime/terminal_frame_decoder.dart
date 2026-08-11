@@ -1,9 +1,8 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import '../terminal/terminal_frame_decode_ports.dart';
 import '../terminal/terminal_models.dart';
-import '../transport/terminal_json_frame_decoder.dart';
-import '../transport/terminal_protobuf_frame_decoder.dart';
 
 final class TerminalDecodedFrame {
   const TerminalDecodedFrame({required this.frame, required this.metrics});
@@ -30,14 +29,14 @@ final class TerminalFrameDecodeMetrics {
 
 final class TerminalFrameDecoder {
   const TerminalFrameDecoder({
+    required this.jsonDecoder,
+    required this.protobufDecoder,
     this.collectMetrics = false,
-    this.jsonDecoder = const TerminalJsonFrameDecoder(),
-    this.protobufDecoder = const TerminalProtobufFrameDecoder(),
   });
 
   final bool collectMetrics;
-  final TerminalJsonFrameDecoder jsonDecoder;
-  final TerminalProtobufFrameDecoder protobufDecoder;
+  final TerminalJsonFrameDecodePort jsonDecoder;
+  final TerminalBinaryFrameDecodePort protobufDecoder;
 
   TerminalDecodedFrame? decode(String rawFrame) => decodeJson(rawFrame);
 

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'dart:ui';
 
 import '../config/terminal_config.dart';
+import '../contracts/terminal_frame_normalization_policy.dart';
 import '../contracts/terminal_frame_validation_limits.dart';
 import '../contracts/terminal_wire_compatibility.dart';
 
@@ -59,7 +60,6 @@ enum TerminalPointerShape {
 
 const int _maxInlineImageEncodedLength =
     ((TerminalFrameValidationLimits.maxInlineImageDecodedBytes + 2) ~/ 3) * 4;
-const int _maxTerminalFontFamilyBytes = 256;
 
 class TerminalStyleRun {
   const TerminalStyleRun({
@@ -180,8 +180,10 @@ class TerminalFrameModes {
       mimePaste: _boolFromJson(json['mime_paste'], fallback: false),
       focusTracking: _boolFromJson(json['focus_tracking'], fallback: false),
       charProtected: _boolFromJson(json['char_protected'], fallback: false),
-      mouseMode: _terminalMouseModeFromJson(json['mouse_mode']),
-      mouseEncoding: _terminalMouseEncodingFromJson(json['mouse_encoding']),
+      mouseMode: TerminalFrameNormalizationPolicy.mouseMode(json['mouse_mode']),
+      mouseEncoding: TerminalFrameNormalizationPolicy.mouseEncoding(
+        json['mouse_encoding'],
+      ),
       kittyKeyboardFlags: _nonNegativeIntFromJson(json['kitty_keyboard_flags']),
       synchronizedOutput: _boolFromJson(
         json['synchronized_output'],
@@ -248,6 +250,26 @@ class TerminalRow {
       ),
       sourceRow: sourceRow ?? sourceEndRow,
       sourceEndRow: sourceEndRow ?? sourceRow,
+    );
+  }
+
+  TerminalRow boundedToViewportColumns(int viewportCols) {
+    return TerminalFrameNormalizationPolicy.rowBoundedToViewportColumns(
+      row: this,
+      text: text,
+      viewportCols: viewportCols,
+      columnsOf: TerminalTextCells.fromText,
+      withText: (row, text, {required preserveStyleRuns}) => TerminalRow(
+        index: row.index,
+        text: text,
+        wrapped: row.wrapped,
+        modifiedAt: row.modifiedAt,
+        styleRuns: preserveStyleRuns
+            ? row.styleRuns
+            : const <TerminalStyleRun>[],
+        sourceRow: row.sourceRow,
+        sourceEndRow: row.sourceEndRow,
+      ),
     );
   }
 }
@@ -459,19 +481,10 @@ class TerminalCursor {
       visible: visible,
       highlightLine:
           json['highlight_line'] is bool && json['highlight_line']! as bool,
-      shape: _terminalCursorShapeFromWire(json['shape']),
+      shape: TerminalCursorShape.fromWire(json['shape']),
       blink: json['blink'] is bool ? json['blink']! as bool : null,
     );
   }
-}
-
-TerminalCursorShape? _terminalCursorShapeFromWire(Object? value) {
-  return switch (value) {
-    'block' => TerminalCursorShape.block,
-    'underline' => TerminalCursorShape.underline,
-    'beam' => TerminalCursorShape.beam,
-    _ => null,
-  };
 }
 
 class TerminalSelection {
@@ -925,25 +938,25 @@ class TerminalGraphicPlacement {
         assetKey == null ||
         protocol == null ||
         row == null ||
-        row < 0 ||
         col == null ||
-        col < 0 ||
         widthPx == null ||
-        widthPx <= 0 ||
         heightPx == null ||
-        heightPx <= 0 ||
         widthCells == null ||
-        widthCells <= 0 ||
         heightCells == null ||
-        heightCells <= 0 ||
-        sourceXOffsetPx >= widthPx ||
-        (visibleWidthPx != null &&
-            (visibleWidthPx <= 0 ||
-                visibleWidthPx > widthPx - sourceXOffsetPx)) ||
-        sourceYOffsetPx >= heightPx ||
-        (visibleHeightPx != null &&
-            (visibleHeightPx <= 0 ||
-                visibleHeightPx > heightPx - sourceYOffsetPx))) {
+        !TerminalFrameNormalizationPolicy.isGraphicPlacementValid(
+          row: row,
+          col: col,
+          widthPx: widthPx,
+          heightPx: heightPx,
+          widthCells: widthCells,
+          heightCells: heightCells,
+          sourceXOffsetPx: sourceXOffsetPx,
+          visibleWidthPx: visibleWidthPx ?? widthPx - sourceXOffsetPx,
+          sourceYOffsetPx: sourceYOffsetPx,
+          visibleHeightPx: visibleHeightPx ?? heightPx - sourceYOffsetPx,
+          assetId: assetKey.id,
+          assetVersion: assetKey.version,
+        )) {
       return null;
     }
     return TerminalGraphicPlacement(
@@ -1320,7 +1333,9 @@ class TerminalFrameDiff {
           : TerminalFrameModes.fromJson(modesJson),
       windowTitle: _stringFromJson(json['window_title']),
       windowIconName: _stringFromJson(json['window_icon_name']),
-      fontFamily: _terminalFontFamilyFromWire(json['font_family']),
+      fontFamily: TerminalFrameNormalizationPolicy.fontFamily(
+        json['font_family'],
+      ),
       hyperlinks: _hyperlinksFromJson(json['hyperlinks'], viewportRows),
       sizedText: _sizedTextFromJson(
         json['sized_text'],
@@ -1352,105 +1367,43 @@ List<TerminalRow> _rowsFromJson(
   int viewportRows,
   int viewportCols,
 ) {
-  if (viewportRows <= 0 || value is! List) {
+  if (value is! List) {
     return const <TerminalRow>[];
+  }
+  return TerminalFrameNormalizationPolicy.normalizedRows(
+    values: value,
+    viewportRows: viewportRows,
+    viewportCols: viewportCols,
+    rawIndexOf: (entry) {
+      return entry is Map ? _intOrNullFromJson(entry['index']) : null;
+    },
+    decode: (entry) {
+      final json = _jsonMapFromJson(entry);
+      return json == null ? null : TerminalRow.tryFromJson(json);
+    },
+    indexOf: (row) => row.index,
+    boundToColumns: (row, viewportCols) =>
+        row.boundedToViewportColumns(viewportCols),
+  );
+}
+
+List<TerminalDirtyRange> _dirtyRangesFromJson(Object? value, int viewportRows) {
+  if (value is! List) {
+    return const <TerminalDirtyRange>[];
   }
   final maxEntries = TerminalFrameValidationLimits.maxViewportBoundedEntries(
     viewportRows,
   );
   final scanLimit = TerminalFrameValidationLimits.maxEntriesToScan(maxEntries);
-  final rowsByIndex = <int, TerminalRow>{};
-  var entriesScanned = 0;
-  for (final entry in value) {
-    if (entriesScanned >= scanLimit) {
-      break;
-    }
-    entriesScanned += 1;
+  final decoded = <TerminalDirtyRange>[];
+  for (final entry in value.take(scanLimit)) {
     final json = _jsonMapFromJson(entry);
-    if (json == null) {
-      continue;
+    final range = json == null ? null : TerminalDirtyRange.tryFromJson(json);
+    if (range != null) {
+      decoded.add(range);
     }
-    final row = TerminalRow.tryFromJson(json);
-    if (row == null || row.index < 0 || row.index >= viewportRows) {
-      continue;
-    }
-    final replacesExisting = rowsByIndex.containsKey(row.index);
-    if (!replacesExisting && rowsByIndex.length >= maxEntries) {
-      continue;
-    }
-    rowsByIndex[row.index] = _rowBoundedToViewportCols(row, viewportCols);
   }
-  final sortedIndexes = rowsByIndex.keys.toList(growable: false)..sort();
-  return [for (final index in sortedIndexes) rowsByIndex[index]!];
-}
-
-TerminalRow _rowBoundedToViewportCols(TerminalRow row, int viewportCols) {
-  if (viewportCols <= 0) {
-    return TerminalRow(
-      index: row.index,
-      text: '',
-      wrapped: row.wrapped,
-      modifiedAt: row.modifiedAt,
-      sourceRow: row.sourceRow,
-      sourceEndRow: row.sourceEndRow,
-    );
-  }
-
-  final cells = TerminalTextCells.fromText(row.text);
-  if (cells.cellCount <= viewportCols) {
-    return row;
-  }
-
-  return TerminalRow(
-    index: row.index,
-    text: _sliceTextToCompleteColumns(cells, viewportCols),
-    wrapped: row.wrapped,
-    modifiedAt: row.modifiedAt,
-    styleRuns: row.styleRuns,
-    sourceRow: row.sourceRow,
-    sourceEndRow: row.sourceEndRow,
-  );
-}
-
-String _sliceTextToCompleteColumns(TerminalTextCells cells, int endColumn) {
-  final clampedEnd = cells.clampColumn(endColumn);
-  if (clampedEnd <= 0) {
-    return '';
-  }
-
-  var lastIndex = clampedEnd - 1;
-  while (lastIndex > 0 && cells.cells[lastIndex].isContinuation) {
-    lastIndex -= 1;
-  }
-  final lastCell = cells.cells[lastIndex];
-  if (lastCell.column + lastCell.columnSpan > clampedEnd) {
-    return cells.sliceColumns(0, lastCell.column);
-  }
-  return cells.sliceColumns(0, clampedEnd);
-}
-
-List<TerminalDirtyRange> _dirtyRangesFromJson(Object? value, int viewportRows) {
-  return _normalizeDirtyRanges(
-    _jsonListFromJson(
-      value,
-      (json) {
-        final range = TerminalDirtyRange.tryFromJson(json);
-        if (range == null) {
-          return null;
-        }
-        final start = range.start.clamp(0, viewportRows);
-        final end = range.end.clamp(start, viewportRows);
-        if (start >= end) {
-          return null;
-        }
-        return TerminalDirtyRange(start: start, end: end);
-      },
-      maxEntries: TerminalFrameValidationLimits.maxViewportBoundedEntries(
-        viewportRows,
-      ),
-    ),
-    viewportRows,
-  );
+  return _normalizeDirtyRanges(decoded, viewportRows);
 }
 
 List<TerminalHyperlinkRange> _hyperlinksFromJson(
@@ -1578,45 +1531,16 @@ List<TerminalInlineButton> _inlineButtonsFromJson(
 }
 
 List<TerminalDirtyRange> _normalizeDirtyRanges(
-  List<TerminalDirtyRange> ranges,
+  Iterable<TerminalDirtyRange> ranges,
   int viewportRows,
 ) {
-  if (viewportRows <= 0 || ranges.isEmpty) {
-    return const <TerminalDirtyRange>[];
-  }
-
-  final normalized = <TerminalDirtyRange>[];
-  for (final range in ranges) {
-    final start = range.start.clamp(0, viewportRows);
-    final end = range.end.clamp(start, viewportRows);
-    if (start < end) {
-      normalized.add(TerminalDirtyRange(start: start, end: end));
-    }
-  }
-  if (normalized.length < 2) {
-    return normalized;
-  }
-
-  normalized.sort((left, right) {
-    final byStart = left.start.compareTo(right.start);
-    return byStart == 0 ? left.end.compareTo(right.end) : byStart;
-  });
-  final merged = <TerminalDirtyRange>[];
-  var currentStart = normalized.first.start;
-  var currentEnd = normalized.first.end;
-  for (final range in normalized.skip(1)) {
-    if (range.start <= currentEnd) {
-      if (range.end > currentEnd) {
-        currentEnd = range.end;
-      }
-      continue;
-    }
-    merged.add(TerminalDirtyRange(start: currentStart, end: currentEnd));
-    currentStart = range.start;
-    currentEnd = range.end;
-  }
-  merged.add(TerminalDirtyRange(start: currentStart, end: currentEnd));
-  return merged;
+  return TerminalFrameNormalizationPolicy.normalizeDirtyRanges(
+    ranges: ranges,
+    viewportRows: viewportRows,
+    startOf: (range) => range.start,
+    endOf: (range) => range.end,
+    create: (start, end) => TerminalDirtyRange(start: start, end: end),
+  );
 }
 
 List<T> _jsonListFromJson<T>(
@@ -1895,7 +1819,7 @@ class TerminalTextCell {
   final bool isContinuation;
 }
 
-class TerminalTextCells {
+class TerminalTextCells implements TerminalTextColumnView {
   TerminalTextCells._({
     required this.text,
     required List<TerminalTextCell> cells,
@@ -1936,9 +1860,20 @@ class TerminalTextCells {
   final String text;
   final List<TerminalTextCell> cells;
 
+  @override
   int get cellCount => cells.length;
 
+  @override
   int clampColumn(int value) => value.clamp(0, cellCount);
+
+  @override
+  bool isContinuationAt(int index) => cells[index].isContinuation;
+
+  @override
+  int columnAt(int index) => cells[index].column;
+
+  @override
+  int columnSpanAt(int index) => cells[index].columnSpan;
 
   int columnForCodeUnit(int value) {
     final clamped = value.clamp(0, text.length);
@@ -1958,6 +1893,7 @@ class TerminalTextCells {
     return cells[clamped].codeUnitStart;
   }
 
+  @override
   String sliceColumns(int start, int end) {
     final clampedStart = clampColumn(start);
     final clampedEnd = end.clamp(clampedStart, cellCount);
@@ -2010,13 +1946,13 @@ int? _optionalNonNegativeIntFromJson(Object? value) {
 }
 
 int _nativeDimensionFromJson(Object? value) {
-  return _nonNegativeIntFromJson(
-    value,
-  ).clamp(0, TerminalFrameValidationLimits.maxNativeDimension);
+  return TerminalFrameNormalizationPolicy.clampNativeDimension(
+    _nonNegativeIntFromJson(value),
+  );
 }
 
 int _clampedNativeDimension(int value) {
-  return value.clamp(0, TerminalFrameValidationLimits.maxNativeDimension);
+  return TerminalFrameNormalizationPolicy.clampNativeDimension(value);
 }
 
 int _nonNegativeFrameScalar(int value) {
@@ -2024,7 +1960,7 @@ int _nonNegativeFrameScalar(int value) {
 }
 
 int? _optionalNonNegativeFrameScalar(int? value) {
-  return value == null || value < 0 ? null : value;
+  return TerminalFrameNormalizationPolicy.optionalNonNegativeScalar(value);
 }
 
 int? _intOrNullFromJson(Object? value) {
@@ -2058,44 +1994,9 @@ String? _stringFromJson(Object? value) {
   return null;
 }
 
-String? _terminalFontFamilyFromWire(Object? value) {
-  final family = _stringFromJson(value)?.trim();
-  if (family == null ||
-      family.isEmpty ||
-      utf8.encode(family).length > _maxTerminalFontFamilyBytes ||
-      family.runes.any(
-        (rune) => rune <= 0x1f || (rune >= 0x7f && rune <= 0x9f),
-      )) {
-    return null;
-  }
-  return family;
-}
-
 String? _nonEmptyTrimmedStringFromJson(Object? value) {
   final text = _stringFromJson(value)?.trim();
   return text == null || text.isEmpty ? null : text;
-}
-
-String _terminalMouseModeFromJson(Object? value) {
-  final normalized = value is String ? value.trim().toLowerCase() : null;
-  return switch (normalized) {
-    'x10' => 'x10',
-    'normal' => 'normal',
-    'button_event' => 'button_event',
-    'any_event' => 'any_event',
-    _ => 'off',
-  };
-}
-
-String _terminalMouseEncodingFromJson(Object? value) {
-  final normalized = value is String ? value.trim().toLowerCase() : null;
-  return switch (normalized) {
-    'sgr' => 'sgr',
-    'sgr_pixels' || 'sgr-pixels' || 'sgrpixels' => 'sgr_pixels',
-    'urxvt' => 'urxvt',
-    'utf8' => 'utf8',
-    _ => 'default',
-  };
 }
 
 DateTime? _dateTimeFromJson(Object? value) {
@@ -2738,51 +2639,24 @@ List<TerminalGraphicPlacement> _normalizeGraphics({
   required int viewportRows,
   required int viewportCols,
 }) {
-  final normalized = <TerminalGraphicPlacement>[];
-  for (final graphic in graphics) {
-    if (graphic == null ||
-        _graphicInvalid(graphic, viewportRows, viewportCols)) {
-      continue;
-    }
-    normalized.add(graphic);
-  }
-  normalized.sort((left, right) {
-    final byZ = left.zIndex.compareTo(right.zIndex);
-    if (byZ != 0) {
-      return byZ;
-    }
-    final byRow = left.row.compareTo(right.row);
-    if (byRow != 0) {
-      return byRow;
-    }
-    return left.col.compareTo(right.col);
-  });
-  return List<TerminalGraphicPlacement>.unmodifiable(normalized);
-}
-
-bool _graphicInvalid(
-  TerminalGraphicPlacement graphic,
-  int viewportRows,
-  int viewportCols,
-) {
-  return graphic.row < 0 ||
-      graphic.row >= viewportRows ||
-      graphic.col < 0 ||
-      graphic.col >= viewportCols ||
-      graphic.widthPx <= 0 ||
-      graphic.heightPx <= 0 ||
-      graphic.widthCells <= 0 ||
-      graphic.heightCells <= 0 ||
-      graphic.sourceXOffsetPx < 0 ||
-      graphic.sourceXOffsetPx >= graphic.widthPx ||
-      graphic.visibleWidthPx <= 0 ||
-      graphic.visibleWidthPx > graphic.widthPx - graphic.sourceXOffsetPx ||
-      graphic.sourceYOffsetPx < 0 ||
-      graphic.sourceYOffsetPx >= graphic.heightPx ||
-      graphic.visibleHeightPx <= 0 ||
-      graphic.visibleHeightPx > graphic.heightPx - graphic.sourceYOffsetPx ||
-      graphic.assetKey.id <= 0 ||
-      graphic.assetKey.version <= 0;
+  return TerminalFrameNormalizationPolicy.normalizeGraphics(
+    graphics: graphics,
+    viewportRows: viewportRows,
+    viewportCols: viewportCols,
+    rowOf: (graphic) => graphic.row,
+    colOf: (graphic) => graphic.col,
+    widthPxOf: (graphic) => graphic.widthPx,
+    heightPxOf: (graphic) => graphic.heightPx,
+    widthCellsOf: (graphic) => graphic.widthCells,
+    heightCellsOf: (graphic) => graphic.heightCells,
+    sourceXOffsetPxOf: (graphic) => graphic.sourceXOffsetPx,
+    visibleWidthPxOf: (graphic) => graphic.visibleWidthPx,
+    sourceYOffsetPxOf: (graphic) => graphic.sourceYOffsetPx,
+    visibleHeightPxOf: (graphic) => graphic.visibleHeightPx,
+    assetIdOf: (graphic) => graphic.assetKey.id,
+    assetVersionOf: (graphic) => graphic.assetKey.version,
+    zIndexOf: (graphic) => graphic.zIndex,
+  );
 }
 
 int _terminalDisplayWidthForGrapheme(String grapheme) {

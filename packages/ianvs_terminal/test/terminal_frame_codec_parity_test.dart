@@ -5,10 +5,11 @@ import 'package:fixnum/fixnum.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
+import 'package:ianvs_terminal/src/contracts/terminal_frame_normalization_policy.dart';
 import 'package:ianvs_terminal/src/contracts/terminal_frame_validation_limits.dart';
 import 'package:ianvs_terminal/src/proto/frame_diff.pb.dart' as frame_pb;
-import 'package:ianvs_terminal/src/runtime/terminal_frame_decoder.dart';
 
+import 'support/terminal_frame_test_decoders.dart';
 import 'support/terminal_frame_wire_fixture.dart';
 
 void main() {
@@ -653,7 +654,7 @@ void main() {
 
     test('public codecs and decoder facade have equal projections', () {
       final fixture = completeTerminalFrameWireFixture();
-      const decoder = TerminalFrameDecoder();
+      final decoder = terminalFrameTestDecoder();
 
       expect(
         terminalFrameProjection(TerminalFrameDiff.fromJson(fixture.json)),
@@ -719,6 +720,43 @@ void main() {
         terminalFrameProjection(protobufFrame),
         terminalFrameProjection(jsonFrame),
       );
+    });
+
+    test('out-of-range protobuf rows skip decode and style mapping', () {
+      var decodeCalls = 0;
+      var styleMapperCalls = 0;
+      final rows = TerminalFrameNormalizationPolicy.normalizedRows(
+        values: <frame_pb.TerminalRow>[
+          frame_pb.TerminalRow(
+            index: 99,
+            text: 'outside',
+            styleRuns: <frame_pb.TerminalStyleRun>[
+              frame_pb.TerminalStyleRun(start: 0, end: 1),
+            ],
+          ),
+          frame_pb.TerminalRow(
+            index: 0,
+            text: 'inside',
+            styleRuns: <frame_pb.TerminalStyleRun>[
+              frame_pb.TerminalStyleRun(start: 0, end: 1),
+            ],
+          ),
+        ],
+        viewportRows: 1,
+        viewportCols: 80,
+        rawIndexOf: (row) => row.index,
+        decode: (row) {
+          decodeCalls += 1;
+          styleMapperCalls += row.styleRuns.length;
+          return TerminalRow(index: row.index, text: row.text);
+        },
+        indexOf: (row) => row.index,
+        boundToColumns: (row, viewportCols) => row,
+      );
+
+      expect(rows.single.text, 'inside');
+      expect(decodeCalls, 1);
+      expect(styleMapperCalls, 1);
     });
 
     test(

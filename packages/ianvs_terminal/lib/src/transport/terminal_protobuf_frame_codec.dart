@@ -3,20 +3,22 @@ import 'dart:typed_data';
 import 'dart:ui';
 
 import '../config/terminal_config.dart';
+import '../contracts/terminal_frame_normalization_policy.dart';
 import '../contracts/terminal_frame_validation_limits.dart';
 import '../contracts/terminal_wire_compatibility.dart';
 import '../proto/frame_diff.pb.dart' as frame_pb;
+import '../terminal/terminal_frame_decode_ports.dart';
 import '../terminal/terminal_models.dart';
 
 const int _maxInlineImageEncodedLength =
     ((TerminalFrameValidationLimits.maxInlineImageDecodedBytes + 2) ~/ 3) * 4;
-const int _maxTerminalFontFamilyBytes = 256;
 
 /// Transport adapter that decodes generated protobuf data into pure terminal
 /// domain models.
-final class TerminalProtobufFrameCodec {
+final class TerminalProtobufFrameCodec implements TerminalBinaryFrameCodecPort {
   const TerminalProtobufFrameCodec();
 
+  @override
   TerminalFrameDiff decode(List<int> bytes) {
     final frame_pb.TerminalFrameDiff proto;
     try {
@@ -48,8 +50,12 @@ abstract final class LegacyTerminalFrameDiffProtobuf {
 TerminalFrameDiff _terminalFrameDiffFromProtobuf(
   frame_pb.TerminalFrameDiff proto,
 ) {
-  final viewportRows = _clampedNativeDimension(proto.viewportRows);
-  final viewportCols = _clampedNativeDimension(proto.viewportCols);
+  final viewportRows = TerminalFrameNormalizationPolicy.clampNativeDimension(
+    proto.viewportRows,
+  );
+  final viewportCols = TerminalFrameNormalizationPolicy.clampNativeDimension(
+    proto.viewportCols,
+  );
   final scrollbackMaxOffset = proto.scrollbackMaxOffset;
   final scrollbackOffset = proto.scrollbackOffset.clamp(0, scrollbackMaxOffset);
   return TerminalFrameDiff(
@@ -70,7 +76,9 @@ TerminalFrameDiff _terminalFrameDiffFromProtobuf(
     scrollbackOffset: scrollbackOffset,
     scrollbackMaxOffset: scrollbackMaxOffset,
     globalBottomRow: proto.hasGlobalBottomRow()
-        ? _optionalNonNegativeFrameScalar(proto.globalBottomRow.toInt())
+        ? TerminalFrameNormalizationPolicy.optionalNonNegativeScalar(
+            proto.globalBottomRow.toInt(),
+          )
         : null,
     viewportStartRow: proto.viewportStartRow,
     viewportRowShift: proto.viewportRowShift,
@@ -119,7 +127,7 @@ TerminalFrameDiff _terminalFrameDiffFromProtobuf(
     windowTitle: proto.hasWindowTitle() ? proto.windowTitle : null,
     windowIconName: proto.hasWindowIconName() ? proto.windowIconName : null,
     fontFamily: proto.hasFontFamily()
-        ? _terminalFontFamilyFromWire(proto.fontFamily)
+        ? TerminalFrameNormalizationPolicy.fontFamily(proto.fontFamily)
         : null,
     hyperlinks: _hyperlinksFromProtobuf(proto.hyperlinks, viewportRows),
     sizedText: _sizedTextFromProtobuf(
@@ -165,34 +173,16 @@ List<TerminalRow> _rowsFromProtobuf(
   int viewportRows,
   int viewportCols,
 ) {
-  if (viewportRows <= 0) {
-    return const <TerminalRow>[];
-  }
-  final maxEntries = TerminalFrameValidationLimits.maxViewportBoundedEntries(
-    viewportRows,
+  return TerminalFrameNormalizationPolicy.normalizedRows(
+    values: rows,
+    viewportRows: viewportRows,
+    viewportCols: viewportCols,
+    rawIndexOf: (row) => row.index,
+    decode: _terminalRowFromProtobuf,
+    indexOf: (row) => row.index,
+    boundToColumns: (row, viewportCols) =>
+        row.boundedToViewportColumns(viewportCols),
   );
-  final scanLimit = TerminalFrameValidationLimits.maxEntriesToScan(maxEntries);
-  final rowsByIndex = <int, TerminalRow>{};
-  var entriesScanned = 0;
-  for (final row in rows) {
-    if (entriesScanned >= scanLimit) {
-      break;
-    }
-    entriesScanned += 1;
-    if (row.index >= viewportRows) {
-      continue;
-    }
-    final replacesExisting = rowsByIndex.containsKey(row.index);
-    if (!replacesExisting && rowsByIndex.length >= maxEntries) {
-      continue;
-    }
-    rowsByIndex[row.index] = _rowBoundedToViewportCols(
-      _terminalRowFromProtobuf(row),
-      viewportCols,
-    );
-  }
-  final sortedIndexes = rowsByIndex.keys.toList(growable: false)..sort();
-  return <TerminalRow>[for (final index in sortedIndexes) rowsByIndex[index]!];
 }
 
 TerminalRow _terminalRowFromProtobuf(frame_pb.TerminalRow row) {
@@ -313,7 +303,7 @@ TerminalCursor _terminalCursorFromProtobuf(frame_pb.TerminalCursor cursor) {
     visible: cursor.visible,
     highlightLine: cursor.highlightLine,
     shape: cursor.hasShape()
-        ? _terminalCursorShapeFromWire(cursor.shape)
+        ? TerminalCursorShape.fromWire(cursor.shape)
         : null,
     blink: cursor.hasBlink() ? cursor.blink : null,
   );
@@ -349,8 +339,10 @@ TerminalFrameModes _terminalFrameModesFromProtobuf(
     mimePaste: modes.mimePaste,
     focusTracking: modes.focusTracking,
     charProtected: modes.charProtected,
-    mouseMode: _terminalMouseModeFromJson(modes.mouseMode),
-    mouseEncoding: _terminalMouseEncodingFromJson(modes.mouseEncoding),
+    mouseMode: TerminalFrameNormalizationPolicy.mouseMode(modes.mouseMode),
+    mouseEncoding: TerminalFrameNormalizationPolicy.mouseEncoding(
+      modes.mouseEncoding,
+    ),
     kittyKeyboardFlags: modes.kittyKeyboardFlags,
     synchronizedOutput: modes.synchronizedOutput,
   );
@@ -588,19 +580,7 @@ TerminalGraphicPlacement? _terminalGraphicFromProtobuf(
   final visibleHeightPx = graphic.hasVisibleHeightPx()
       ? graphic.visibleHeightPx
       : heightPx - sourceYOffsetPx;
-  if (assetId <= 0 ||
-      assetVersion <= 0 ||
-      protocol == null ||
-      widthPx <= 0 ||
-      heightPx <= 0 ||
-      widthCells <= 0 ||
-      heightCells <= 0 ||
-      sourceXOffsetPx >= widthPx ||
-      visibleWidthPx <= 0 ||
-      visibleWidthPx > widthPx - sourceXOffsetPx ||
-      sourceYOffsetPx >= heightPx ||
-      visibleHeightPx <= 0 ||
-      visibleHeightPx > heightPx - sourceYOffsetPx) {
+  if (protocol == null) {
     return null;
   }
   return TerminalGraphicPlacement(
@@ -650,24 +630,14 @@ List<TerminalDirtyRange> _dirtyRangesFromProtobuf(
   Iterable<frame_pb.TerminalDirtyRange> ranges,
   int viewportRows,
 ) {
-  if (viewportRows <= 0) {
-    return const <TerminalDirtyRange>[];
-  }
+  final maxEntries = TerminalFrameValidationLimits.maxViewportBoundedEntries(
+    viewportRows,
+  );
+  final scanLimit = TerminalFrameValidationLimits.maxEntriesToScan(maxEntries);
   return _normalizeDirtyRanges(
-    _boundedProtobufItems(
-      ranges,
-      (range) {
-        final start = range.start.clamp(0, viewportRows);
-        final end = range.end.clamp(start, viewportRows);
-        if (start >= end) {
-          return null;
-        }
-        return TerminalDirtyRange(start: start, end: end);
-      },
-      maxEntries: TerminalFrameValidationLimits.maxViewportBoundedEntries(
-        viewportRows,
-      ),
-    ),
+    ranges
+        .take(scanLimit)
+        .map((range) => TerminalDirtyRange(start: range.start, end: range.end)),
     viewportRows,
   );
 }
@@ -699,143 +669,17 @@ List<TOutput> _boundedProtobufItems<TInput, TOutput>(
   return decoded;
 }
 
-TerminalCursorShape? _terminalCursorShapeFromWire(Object? value) {
-  return switch (value) {
-    'block' => TerminalCursorShape.block,
-    'underline' => TerminalCursorShape.underline,
-    'beam' => TerminalCursorShape.beam,
-    _ => null,
-  };
-}
-
-int _clampedNativeDimension(int value) {
-  return value.clamp(0, TerminalFrameValidationLimits.maxNativeDimension);
-}
-
-int? _optionalNonNegativeFrameScalar(int? value) {
-  return value == null || value < 0 ? null : value;
-}
-
-String? _terminalFontFamilyFromWire(Object? value) {
-  final family = value is String ? value.trim() : null;
-  if (family == null ||
-      family.isEmpty ||
-      utf8.encode(family).length > _maxTerminalFontFamilyBytes ||
-      family.runes.any(
-        (rune) => rune <= 0x1f || (rune >= 0x7f && rune <= 0x9f),
-      )) {
-    return null;
-  }
-  return family;
-}
-
-String _terminalMouseModeFromJson(Object? value) {
-  final normalized = value is String ? value.trim().toLowerCase() : null;
-  return switch (normalized) {
-    'x10' => 'x10',
-    'normal' => 'normal',
-    'button_event' => 'button_event',
-    'any_event' => 'any_event',
-    _ => 'off',
-  };
-}
-
-String _terminalMouseEncodingFromJson(Object? value) {
-  final normalized = value is String ? value.trim().toLowerCase() : null;
-  return switch (normalized) {
-    'sgr' => 'sgr',
-    'sgr_pixels' || 'sgr-pixels' || 'sgrpixels' => 'sgr_pixels',
-    'urxvt' => 'urxvt',
-    'utf8' => 'utf8',
-    _ => 'default',
-  };
-}
-
-TerminalRow _rowBoundedToViewportCols(TerminalRow row, int viewportCols) {
-  if (viewportCols <= 0) {
-    return TerminalRow(
-      index: row.index,
-      text: '',
-      wrapped: row.wrapped,
-      modifiedAt: row.modifiedAt,
-      sourceRow: row.sourceRow,
-      sourceEndRow: row.sourceEndRow,
-    );
-  }
-
-  final cells = TerminalTextCells.fromText(row.text);
-  if (cells.cellCount <= viewportCols) {
-    return row;
-  }
-
-  return TerminalRow(
-    index: row.index,
-    text: _sliceTextToCompleteColumns(cells, viewportCols),
-    wrapped: row.wrapped,
-    modifiedAt: row.modifiedAt,
-    styleRuns: row.styleRuns,
-    sourceRow: row.sourceRow,
-    sourceEndRow: row.sourceEndRow,
-  );
-}
-
-String _sliceTextToCompleteColumns(TerminalTextCells cells, int endColumn) {
-  final clampedEnd = cells.clampColumn(endColumn);
-  if (clampedEnd <= 0) {
-    return '';
-  }
-
-  var lastIndex = clampedEnd - 1;
-  while (lastIndex > 0 && cells.cells[lastIndex].isContinuation) {
-    lastIndex -= 1;
-  }
-  final lastCell = cells.cells[lastIndex];
-  if (lastCell.column + lastCell.columnSpan > clampedEnd) {
-    return cells.sliceColumns(0, lastCell.column);
-  }
-  return cells.sliceColumns(0, clampedEnd);
-}
-
 List<TerminalDirtyRange> _normalizeDirtyRanges(
-  List<TerminalDirtyRange> ranges,
+  Iterable<TerminalDirtyRange> ranges,
   int viewportRows,
 ) {
-  if (viewportRows <= 0 || ranges.isEmpty) {
-    return const <TerminalDirtyRange>[];
-  }
-
-  final normalized = <TerminalDirtyRange>[];
-  for (final range in ranges) {
-    final start = range.start.clamp(0, viewportRows);
-    final end = range.end.clamp(start, viewportRows);
-    if (start < end) {
-      normalized.add(TerminalDirtyRange(start: start, end: end));
-    }
-  }
-  if (normalized.length < 2) {
-    return normalized;
-  }
-
-  normalized.sort((left, right) {
-    final byStart = left.start.compareTo(right.start);
-    return byStart == 0 ? left.end.compareTo(right.end) : byStart;
-  });
-  final merged = <TerminalDirtyRange>[];
-  var currentStart = normalized.first.start;
-  var currentEnd = normalized.first.end;
-  for (final range in normalized.skip(1)) {
-    if (range.start <= currentEnd) {
-      if (range.end > currentEnd) {
-        currentEnd = range.end;
-      }
-      continue;
-    }
-    merged.add(TerminalDirtyRange(start: currentStart, end: currentEnd));
-    currentStart = range.start;
-    currentEnd = range.end;
-  }
-  merged.add(TerminalDirtyRange(start: currentStart, end: currentEnd));
-  return merged;
+  return TerminalFrameNormalizationPolicy.normalizeDirtyRanges(
+    ranges: ranges,
+    viewportRows: viewportRows,
+    startOf: (range) => range.start,
+    endOf: (range) => range.end,
+    create: (start, end) => TerminalDirtyRange(start: start, end: end),
+  );
 }
 
 List<TerminalGraphicPlacement> _normalizeGraphics({
@@ -843,49 +687,22 @@ List<TerminalGraphicPlacement> _normalizeGraphics({
   required int viewportRows,
   required int viewportCols,
 }) {
-  final normalized = <TerminalGraphicPlacement>[];
-  for (final graphic in graphics) {
-    if (graphic == null ||
-        _graphicInvalid(graphic, viewportRows, viewportCols)) {
-      continue;
-    }
-    normalized.add(graphic);
-  }
-  normalized.sort((left, right) {
-    final byZ = left.zIndex.compareTo(right.zIndex);
-    if (byZ != 0) {
-      return byZ;
-    }
-    final byRow = left.row.compareTo(right.row);
-    if (byRow != 0) {
-      return byRow;
-    }
-    return left.col.compareTo(right.col);
-  });
-  return List<TerminalGraphicPlacement>.unmodifiable(normalized);
-}
-
-bool _graphicInvalid(
-  TerminalGraphicPlacement graphic,
-  int viewportRows,
-  int viewportCols,
-) {
-  return graphic.row < 0 ||
-      graphic.row >= viewportRows ||
-      graphic.col < 0 ||
-      graphic.col >= viewportCols ||
-      graphic.widthPx <= 0 ||
-      graphic.heightPx <= 0 ||
-      graphic.widthCells <= 0 ||
-      graphic.heightCells <= 0 ||
-      graphic.sourceXOffsetPx < 0 ||
-      graphic.sourceXOffsetPx >= graphic.widthPx ||
-      graphic.visibleWidthPx <= 0 ||
-      graphic.visibleWidthPx > graphic.widthPx - graphic.sourceXOffsetPx ||
-      graphic.sourceYOffsetPx < 0 ||
-      graphic.sourceYOffsetPx >= graphic.heightPx ||
-      graphic.visibleHeightPx <= 0 ||
-      graphic.visibleHeightPx > graphic.heightPx - graphic.sourceYOffsetPx ||
-      graphic.assetKey.id <= 0 ||
-      graphic.assetKey.version <= 0;
+  return TerminalFrameNormalizationPolicy.normalizeGraphics(
+    graphics: graphics,
+    viewportRows: viewportRows,
+    viewportCols: viewportCols,
+    rowOf: (graphic) => graphic.row,
+    colOf: (graphic) => graphic.col,
+    widthPxOf: (graphic) => graphic.widthPx,
+    heightPxOf: (graphic) => graphic.heightPx,
+    widthCellsOf: (graphic) => graphic.widthCells,
+    heightCellsOf: (graphic) => graphic.heightCells,
+    sourceXOffsetPxOf: (graphic) => graphic.sourceXOffsetPx,
+    visibleWidthPxOf: (graphic) => graphic.visibleWidthPx,
+    sourceYOffsetPxOf: (graphic) => graphic.sourceYOffsetPx,
+    visibleHeightPxOf: (graphic) => graphic.visibleHeightPx,
+    assetIdOf: (graphic) => graphic.assetKey.id,
+    assetVersionOf: (graphic) => graphic.assetKey.version,
+    zIndexOf: (graphic) => graphic.zIndex,
+  );
 }

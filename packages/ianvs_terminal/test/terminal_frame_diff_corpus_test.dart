@@ -3,14 +3,14 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
-import 'package:ianvs_terminal/src/runtime/terminal_frame_decoder.dart';
 
+import 'support/terminal_frame_test_decoders.dart';
 import 'support/terminal_frame_wire_fixture.dart';
 
 void main() {
   group('terminal frame diff wire corpus', () {
     test('fixtures match the documented schema and Dart parser', () {
-      const decoder = TerminalFrameDecoder();
+      final decoder = terminalFrameTestDecoder();
       final schema = _jsonObjectFromRepoFile(
         'tools/bench/schemas/terminal_frame_diff.schema.json',
       );

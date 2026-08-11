@@ -12,7 +12,12 @@
 
 ### Architecture
 
-- Frame validation and wire-compatibility policies now live in neutral
-  contracts shared by the domain and transport adapters.
-- Runtime frame and packet decoders obtain domain frames only through
-  protobuf transport codecs.
+- Frame validation, wire compatibility, and frame normalization now live in
+  neutral contracts shared by JSON/domain and protobuf adapters.
+- Runtime frame and packet decoders depend only on decode ports; the frame
+  transport coordinator is the explicit composition boundary for concrete
+  JSON and protobuf adapters.
+- Architecture tests parse Dart directives with the analyzer and enforce
+  validated owner/part relationships plus direct and transitive domain,
+  contract, runtime-decoder, and global internal composition boundaries with
+  dependency-path diagnostics.

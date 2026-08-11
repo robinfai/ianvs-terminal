@@ -8,7 +8,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 import 'package:ianvs_terminal/src/proto/frame_diff.pb.dart' as frame_pb;
-import 'package:ianvs_terminal/src/runtime/terminal_frame_decoder.dart';
 import 'package:ianvs_terminal/src/runtime/terminal_frame_transport_coordinator.dart';
 
 void main() {
@@ -3375,7 +3374,6 @@ void main() {
       final sessionId = backend.createSession('{}');
       final coordinator = TerminalFrameTransportCoordinator(
         backend: backend,
-        decoder: const TerminalFrameDecoder(),
         preference: TerminalFrameWireFormatPreference.json,
       );
 
@@ -3393,21 +3391,18 @@ void main() {
       final supportedSession = supported.createSession('{}');
       final supportedCoordinator = TerminalFrameTransportCoordinator(
         backend: supported,
-        decoder: const TerminalFrameDecoder(),
         preference: TerminalFrameWireFormatPreference.automatic,
       );
       final unsupported = _UnsupportedProtobufFramePtyBackend();
       final unsupportedSession = unsupported.createSession('{}');
       final unsupportedCoordinator = TerminalFrameTransportCoordinator(
         backend: unsupported,
-        decoder: const TerminalFrameDecoder(),
         preference: TerminalFrameWireFormatPreference.automatic,
       );
       final jsonOnly = _FakePtyBackend();
       final jsonOnlySession = jsonOnly.createSession('{}');
       final jsonOnlyCoordinator = TerminalFrameTransportCoordinator(
         backend: jsonOnly,
-        decoder: const TerminalFrameDecoder(),
         preference: TerminalFrameWireFormatPreference.automatic,
       );
 
@@ -3437,7 +3432,6 @@ void main() {
         final sessionId = backend.createSession('{}');
         final coordinator = TerminalFrameTransportCoordinator(
           backend: backend,
-          decoder: const TerminalFrameDecoder(),
           preference: TerminalFrameWireFormatPreference.automatic,
         );
 
@@ -3455,7 +3449,6 @@ void main() {
       backend.enqueueRawProtobufFrame(sessionId, const <int>[0xff]);
       final coordinator = TerminalFrameTransportCoordinator(
         backend: backend,
-        decoder: const TerminalFrameDecoder(),
         preference: TerminalFrameWireFormatPreference.automatic,
       );
 
@@ -3470,7 +3463,6 @@ void main() {
       final errors = <(String, String, Object)>[];
       final coordinator = TerminalFrameTransportCoordinator(
         backend: backend,
-        decoder: const TerminalFrameDecoder(),
         preference: TerminalFrameWireFormatPreference.json,
         onRequestError: (sessionId, operation, error, stackTrace) {
           errors.add((sessionId, operation, error));
@@ -3492,7 +3484,6 @@ void main() {
       final errors = <(String, String, Object)>[];
       final coordinator = TerminalFrameTransportCoordinator(
         backend: backend,
-        decoder: const TerminalFrameDecoder(),
         preference: TerminalFrameWireFormatPreference.automatic,
         onRequestError: (sessionId, operation, error, stackTrace) {
           errors.add((sessionId, operation, error));

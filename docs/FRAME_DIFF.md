@@ -25,11 +25,11 @@ backend JSON / Protobuf
         ↓
 TerminalFrameTransportCoordinator
         ↓
-TerminalFrameDecoder facade
+concrete JSON / Protobuf adapters
         ↓
-JSON domain factory / Protobuf transport codec
+TerminalFrameDecoder + Frame Packet decode ports
         ↓
-neutral validation + wire contracts
+shared neutral normalization + wire contracts
         ↓
 TerminalFrameDiff
         ↓
@@ -41,6 +41,8 @@ render
 默认的 `automatic` 偏好只在 backend 实现 Protobuf capability 且明确报告支持时调用 `takeFrameDiffProtobuf()`；不支持该 capability、或 capability 报告不支持时，走 `takeFrameDiffJson()`。显式 `json` 偏好强制走 JSON，即使 backend 同时支持 Protobuf 也不会读取 Protobuf。已选择并支持 Protobuf 后，`null`、空 payload、读取异常或解码失败都表示本次没有可应用帧，不会再消费 JSON 作为同次回退。
 
 JSON 是保留的兼容路径，不是已删除的旧实现。`TerminalFrameDiff.fromJson()` 仍是 domain factory；Protobuf 则通过公开的 `TerminalProtobufFrameCodec.decode()` transport adapter 映射为 domain model。2.0 迁移期可使用已弃用的 `LegacyTerminalFrameDiffProtobuf.fromProtobufBytes()` facade。generated Protobuf 不再被 terminal、config 或 recording domain 导入。
+
+`TerminalFrameDecoder` 与 Frame Packet validator 只依赖 terminal 层定义的 decode ports，不直接或传递依赖 generated Protobuf。`TerminalFrameTransportCoordinator` 是显式 composition boundary，负责装配 JSON/Protobuf adapter。font family、cursor/mouse wire 值、viewport 尺寸、rows clipping、dirty ranges 与 graphics 的归一化规则位于 neutral contracts，由 JSON/domain 与 Protobuf 两条路径共用；架构测试通过 analyzer AST 解析 import、export、part 和 conditional directives，并验证传递依赖路径。
 
 两种 wire format 还有一处有意保留的省略语义：graphics 的 `preserveAspectRatio` 在 JSON 字段省略时归一为 `true`，在 Protobuf 字段省略时遵循标量默认值 `false`。语料与 parity tests 将这条兼容边界作为显式 seam 覆盖。
 

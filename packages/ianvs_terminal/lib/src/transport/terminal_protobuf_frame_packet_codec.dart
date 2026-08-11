@@ -1,59 +1,14 @@
 import 'dart:typed_data';
 
 import '../proto/frame_diff.pb.dart' as frame_pb;
+import '../terminal/terminal_frame_decode_ports.dart';
 
-/// Transport-only projection of the generated Frame Packet protobuf envelope.
-///
-/// Runtime contract validation consumes this neutral value and obtains the
-/// nested domain frame through `TerminalProtobufFrameCodec`.
-final class TerminalProtobufFramePacketEnvelope {
-  const TerminalProtobufFramePacketEnvelope({
-    required this.hasSchemaVersion,
-    required this.schemaVersion,
-    required this.hasContract,
-    required this.contract,
-    required this.hasMessageClass,
-    required this.messageClass,
-    required this.hasMessageName,
-    required this.messageName,
-    required this.hasSessionId,
-    required this.sessionId,
-    required this.sequence,
-    required this.sequenceIsNegative,
-    required this.hasTimestampMicros,
-    required this.timestampMicros,
-    required this.hasFrameSchemaVersion,
-    required this.frameSchemaVersion,
-    required this.hasFrame,
-    required this.nestedFrameSchemaVersion,
-    required this.nestedFrameBytes,
-  });
-
-  final bool hasSchemaVersion;
-  final int schemaVersion;
-  final bool hasContract;
-  final String contract;
-  final bool hasMessageClass;
-  final String messageClass;
-  final bool hasMessageName;
-  final String messageName;
-  final bool hasSessionId;
-  final String sessionId;
-  final int sequence;
-  final bool sequenceIsNegative;
-  final bool hasTimestampMicros;
-  final int timestampMicros;
-  final bool hasFrameSchemaVersion;
-  final String frameSchemaVersion;
-  final bool hasFrame;
-  final String? nestedFrameSchemaVersion;
-  final Uint8List? nestedFrameBytes;
-}
-
-final class TerminalProtobufFramePacketCodec {
+final class TerminalProtobufFramePacketCodec
+    implements TerminalFramePacketDecodePort {
   const TerminalProtobufFramePacketCodec();
 
-  TerminalProtobufFramePacketEnvelope decode(Uint8List bytes) {
+  @override
+  TerminalFramePacketEnvelope decode(Uint8List bytes) {
     final frame_pb.TerminalFramePacketV1 packet;
     try {
       packet = frame_pb.TerminalFramePacketV1.fromBuffer(bytes);
@@ -61,7 +16,7 @@ final class TerminalProtobufFramePacketCodec {
       throw const FormatException('Invalid Frame Packet v1 protobuf payload');
     }
     final hasFrame = packet.hasFrame();
-    return TerminalProtobufFramePacketEnvelope(
+    return TerminalFramePacketEnvelope(
       hasSchemaVersion: packet.hasSchemaVersion(),
       schemaVersion: packet.schemaVersion,
       hasContract: packet.hasContract(),

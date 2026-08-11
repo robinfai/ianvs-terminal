@@ -4,13 +4,14 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/src/runtime/terminal_frame_decoder.dart';
 
+import 'support/terminal_frame_test_decoders.dart';
 import 'support/terminal_frame_wire_fixture.dart';
 
 void main() {
   group(TerminalFrameDecoder, () {
     test('decode remains an exact JSON compatibility alias', () {
       final fixture = completeTerminalFrameWireFixture();
-      const decoder = TerminalFrameDecoder();
+      final decoder = terminalFrameTestDecoder();
 
       final legacy = decoder.decode(fixture.jsonString);
       final explicit = decoder.decodeJson(fixture.jsonString);
@@ -25,7 +26,7 @@ void main() {
 
     test('decodeJson and decodeProtobuf project a complete valid frame', () {
       final fixture = completeTerminalFrameWireFixture();
-      const decoder = TerminalFrameDecoder();
+      final decoder = terminalFrameTestDecoder();
 
       final json = decoder.decodeJson(fixture.jsonString);
       final protobuf = decoder.decodeProtobuf(fixture.protobufBytes);
@@ -39,7 +40,7 @@ void main() {
     });
 
     test('returns null for malformed JSON and a JSON array', () {
-      const decoder = TerminalFrameDecoder(collectMetrics: true);
+      final decoder = terminalFrameTestDecoder(collectMetrics: true);
 
       expect(decoder.decodeJson('{'), isNull);
       expect(
@@ -49,7 +50,7 @@ void main() {
     });
 
     test('returns null for malformed protobuf', () {
-      const decoder = TerminalFrameDecoder(collectMetrics: true);
+      final decoder = terminalFrameTestDecoder(collectMetrics: true);
 
       expect(
         decoder.decodeProtobuf(Uint8List.fromList(const <int>[0xff])),
@@ -59,7 +60,7 @@ void main() {
 
     test('JSON metrics use UTF-8 bytes and only JSON decode time', () {
       final fixture = completeTerminalFrameWireFixture();
-      const decoder = TerminalFrameDecoder(collectMetrics: true);
+      final decoder = terminalFrameTestDecoder(collectMetrics: true);
 
       final decoded = decoder.decodeJson(fixture.jsonString);
 
@@ -78,7 +79,7 @@ void main() {
       'protobuf metrics use payload bytes and only protobuf decode time',
       () {
         final fixture = completeTerminalFrameWireFixture();
-        const decoder = TerminalFrameDecoder(collectMetrics: true);
+        final decoder = terminalFrameTestDecoder(collectMetrics: true);
 
         final decoded = decoder.decodeProtobuf(fixture.protobufBytes);
 
@@ -93,7 +94,7 @@ void main() {
 
     test('metrics are null for both formats when collection is disabled', () {
       final fixture = completeTerminalFrameWireFixture();
-      const decoder = TerminalFrameDecoder();
+      final decoder = terminalFrameTestDecoder();
 
       expect(decoder.decodeJson(fixture.jsonString)!.metrics, isNull);
       expect(decoder.decodeProtobuf(fixture.protobufBytes)!.metrics, isNull);

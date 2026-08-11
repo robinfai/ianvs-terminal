@@ -1,3 +1,4 @@
+import '../contracts/terminal_frame_normalization_policy.dart';
 import 'terminal_defaults.dart';
 
 const int maxTerminalLaunchArgs = 128;
@@ -7,7 +8,20 @@ const int _directConfigEntryScanMultiplier = 4;
 
 enum TerminalEmulation { xterm256, vt220 }
 
-enum TerminalCursorShape { block, underline, beam }
+enum TerminalCursorShape {
+  block,
+  underline,
+  beam;
+
+  static TerminalCursorShape? fromWire(Object? value) {
+    return switch (TerminalFrameNormalizationPolicy.cursorShape(value)) {
+      TerminalWireCursorShape.block => TerminalCursorShape.block,
+      TerminalWireCursorShape.underline => TerminalCursorShape.underline,
+      TerminalWireCursorShape.beam => TerminalCursorShape.beam,
+      null => null,
+    };
+  }
+}
 
 enum TerminalConnectionType { local, ssh }
 

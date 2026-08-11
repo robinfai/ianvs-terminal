@@ -2,6 +2,10 @@ import 'dart:typed_data';
 
 import 'package:ianvs_pty/ianvs_pty.dart';
 
+import '../transport/terminal_json_frame_decoder.dart';
+import '../transport/terminal_protobuf_frame_codec.dart';
+import '../transport/terminal_protobuf_frame_decoder.dart';
+import '../transport/terminal_protobuf_frame_packet_codec.dart';
 import 'terminal_backend_request_error.dart';
 import 'terminal_frame_decoder.dart';
 import 'terminal_frame_packet_v1.dart';
@@ -11,14 +15,25 @@ enum TerminalFrameWireFormatPreference { automatic, json }
 final class TerminalFrameTransportCoordinator {
   TerminalFrameTransportCoordinator({
     required PtySessionBackend backend,
-    required TerminalFrameDecoder decoder,
     required TerminalFrameWireFormatPreference preference,
-    TerminalFramePacketV1Decoder packetDecoder =
-        const TerminalFramePacketV1Decoder(),
+    bool collectMetrics = false,
+    TerminalFrameDecoder? decoder,
+    TerminalFramePacketV1Decoder? packetDecoder,
     TerminalBackendRequestErrorHandler? onRequestError,
   }) : _backend = backend,
-       _decoder = decoder,
-       _packetDecoder = packetDecoder,
+       _decoder =
+           decoder ??
+           TerminalFrameDecoder(
+             collectMetrics: collectMetrics,
+             jsonDecoder: const TerminalJsonFrameDecoder(),
+             protobufDecoder: const TerminalProtobufFrameDecoder(),
+           ),
+       _packetDecoder =
+           packetDecoder ??
+           const TerminalFramePacketV1Decoder(
+             frameCodec: TerminalProtobufFrameCodec(),
+             packetCodec: TerminalProtobufFramePacketCodec(),
+           ),
        _preference = preference,
        _onRequestError = onRequestError;
 

@@ -1263,13 +1263,10 @@ class TerminalRuntimeController implements TerminalInputSink {
       loadGraphicAsset: loadGraphicAsset,
       diagnosticEventSink: benchmarkEventSink,
     );
-    _frameDecoder = TerminalFrameDecoder(
-      collectMetrics: benchmarkEventSink != null,
-    );
     _frameTransportCoordinator = TerminalFrameTransportCoordinator(
       backend: backend,
-      decoder: _frameDecoder,
       preference: frameWireFormatPreference,
+      collectMetrics: benchmarkEventSink != null,
       onRequestError: _emitBackendRequestError,
     );
   }
@@ -1283,7 +1280,6 @@ class TerminalRuntimeController implements TerminalInputSink {
   late final TerminalJsonRequestClient _jsonRequestClient;
   final TerminalEventRouter _eventRouter = const TerminalEventRouter();
   late final TerminalSessionRegistry _sessions;
-  late final TerminalFrameDecoder _frameDecoder;
   late final TerminalFrameTransportCoordinator _frameTransportCoordinator;
   final Future<void> Function(String text) copyToClipboard;
   final TerminalClipboardTextWriter writeTextClipboard;
