@@ -1053,11 +1053,9 @@ class LocalSessionRecordingRepository {
     TerminalRecordingFinalizeJob job,
   ) {
     return LocalSessionRecordingFinalizeException(
-      failure:
-          LocalSessionRecordingFinalizeFailure.claimedByAnotherProcess,
+      failure: LocalSessionRecordingFinalizeFailure.claimedByAnotherProcess,
       jobId: job.jobId,
-      message:
-          'Recording finalize is already claimed by another live process.',
+      message: 'Recording finalize is already claimed by another live process.',
     );
   }
 

@@ -787,8 +787,7 @@ void main() {
         final recoveryRepository = LocalSessionRecordingRepository(
           directoryResolver: () async => directory,
         );
-        final whileClaimed = await recoveryRepository
-            .recoverNativeRecordings();
+        final whileClaimed = await recoveryRepository.recoverNativeRecordings();
 
         expect(whileClaimed.recoveredPaths, isEmpty);
         expect(whileClaimed.pendingJobIds, contains(job.jobId));
@@ -799,8 +798,7 @@ void main() {
         await process.stdin.flush();
         await process.stdin.close();
         expect(await process.exitCode, 0);
-        final afterRelease = await recoveryRepository
-            .recoverNativeRecordings();
+        final afterRelease = await recoveryRepository.recoverNativeRecordings();
 
         expect(afterRelease.failures, isEmpty);
         expect(afterRelease.recoveredPaths, <String>[destination.file.path]);
@@ -812,7 +810,10 @@ void main() {
           semanticEvents: const <TerminalRecordingSemanticEvent>[],
         );
         expect(ownerRetry, destination.file.path);
-        expect(await File('${job.handoffPath}.manifest.json').exists(), isFalse);
+        expect(
+          await File('${job.handoffPath}.manifest.json').exists(),
+          isFalse,
+        );
         expect(await claim.readAsString(), 'stable-claim');
       },
     );
