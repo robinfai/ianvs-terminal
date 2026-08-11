@@ -1,8 +1,7 @@
-use super::{TerminalState, retained_row_for_abs_row, selection_text_for_terminal};
-use crate::model::{TerminalEmulation, TerminalSelectionRequest};
+use crate::model::TerminalEmulation;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use par_term_emu_core_rust::terminal::{
-    Terminal, TerminalEvent as ParserTerminalEvent, TransferDirection, TransferStatus,
+    TerminalEvent as ParserTerminalEvent, TransferDirection, TransferStatus,
 };
 use std::collections::BTreeMap;
 
@@ -16,6 +15,57 @@ pub(super) const OSC5522_MAX_APPLICATION_NAME_BYTES: usize = 256;
 pub(super) const ITERM_CLIPBOARD_MAX_BYTES: usize = 4 * 1024 * 1024;
 pub(super) const ITERM_FILE_DOWNLOAD_MAX_BYTES: usize = 16 * 1024 * 1024;
 pub(super) const ITERM_FILE_DOWNLOAD_MAX_PENDING: usize = 8;
+
+pub(super) struct ProtocolCompletedTransfer {
+    pub(super) direction: TransferDirection,
+    pub(super) status: TransferStatus,
+    pub(super) filename: String,
+    pub(super) data: Vec<u8>,
+}
+
+/// Minimal transfer controls shared by live mapping and replay suppression.
+pub(super) trait ProtocolTransferControl {
+    fn take_completed_protocol_transfer(&mut self, id: u64) -> Option<ProtocolCompletedTransfer>;
+    fn cancel_protocol_upload(&mut self);
+}
+
+/// Event-drain capability used only while suppressing replayed host effects.
+pub(super) trait ProtocolEventControl: ProtocolTransferControl {
+    fn poll_protocol_events(&mut self) -> Vec<ParserTerminalEvent>;
+}
+
+/// Host capabilities used to turn parser events into product callbacks.
+///
+/// The protocol mapper deliberately cannot reach the session aggregate or the
+/// terminal emulator directly. Session orchestration owns those objects and
+/// exposes only the bounded queries and mutations required by this module.
+pub(super) trait ProtocolHostContext: ProtocolTransferControl {
+    fn resolve_report_variable(&self, name: &str) -> Option<String>;
+    fn resolve_annotation_selection(
+        &self,
+        start_abs_row: usize,
+        start_col: usize,
+        end_abs_row: usize,
+        end_col: usize,
+    ) -> Option<(usize, usize, String)>;
+    fn retain_protocol_download(
+        &mut self,
+        filename: String,
+        data: Vec<u8>,
+    ) -> Result<(u64, String, usize), String>;
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum ProtocolCallbackPolicy {
+    Disabled,
+    Enabled { suppress_shell_zones: bool },
+}
+
+#[derive(Default)]
+pub(super) struct ProtocolCallbackBatch {
+    pub(super) callbacks: Vec<CallbackEvent>,
+    pub(super) cleared_scrollback: bool,
+}
 
 #[derive(Clone, Debug)]
 pub(super) enum CallbackEvent {
@@ -772,13 +822,13 @@ pub(super) fn callback_event_from_parser_event(
     event: ParserTerminalEvent,
     suppress_shell_zones: bool,
 ) -> Option<CallbackEvent> {
-    callback_event_from_parser_event_with_terminal(event, suppress_shell_zones, None)
+    callback_event_from_parser_event_with_host(event, suppress_shell_zones, None)
 }
 
-pub(super) fn callback_event_from_parser_event_with_terminal(
+pub(super) fn callback_event_from_parser_event_with_host(
     event: ParserTerminalEvent,
     suppress_shell_zones: bool,
-    terminal: Option<&Terminal>,
+    host: Option<&dyn ProtocolHostContext>,
 ) -> Option<CallbackEvent> {
     match event {
         ParserTerminalEvent::BellRang(_) => Some(CallbackEvent::Bell),
@@ -879,8 +929,7 @@ pub(super) fn callback_event_from_parser_event_with_terminal(
             Some(CallbackEvent::ClearCapturedOutput)
         }
         ParserTerminalEvent::ItermReportVariableRequested { name } => {
-            let value =
-                terminal.and_then(|terminal| resolved_iterm_report_variable(terminal, &name));
+            let value = host.and_then(|host| host.resolve_report_variable(&name));
             Some(CallbackEvent::ReportVariableRequest {
                 payload: serde_json::json!({
                     "source": "iterm1337",
@@ -915,32 +964,22 @@ pub(super) fn callback_event_from_parser_event_with_terminal(
             end_abs_row,
             end_col,
         } => {
-            let retained_range = terminal.and_then(|terminal| {
-                let start_row = retained_row_for_abs_row(terminal, start_abs_row)?;
-                let end_row = retained_row_for_abs_row(terminal, end_abs_row)?;
-                Some((start_row, end_row))
+            let selection = host.and_then(|host| {
+                host.resolve_annotation_selection(start_abs_row, start_col, end_abs_row, end_col)
             });
-            let selected_text = terminal
-                .zip(retained_range)
-                .map(|(terminal, (start_row, end_row))| {
-                    selection_text_for_terminal(
-                        terminal,
-                        TerminalSelectionRequest {
-                            start_row,
-                            start_col,
-                            end_row,
-                            end_col,
-                            block: false,
-                        },
-                    )
-                })
+            let retained_range = selection
+                .as_ref()
+                .map(|(start_row, end_row, _)| (*start_row, *end_row));
+            let selected_text = selection
+                .as_ref()
+                .map(|(_, _, selected_text)| selected_text.as_str())
                 .unwrap_or_default();
             Some(CallbackEvent::SessionAnnotation {
                 payload: serde_json::json!({
                     "source": "iterm1337",
                     "message": sanitize_protocol_text(&message, 1024),
                     "visible": visible,
-                    "selectedText": sanitize_annotation_selected_text(&selected_text, 4096),
+                    "selectedText": sanitize_annotation_selected_text(selected_text, 4096),
                     "startAbsRow": start_abs_row,
                     "startCol": start_col,
                     "endAbsRow": end_abs_row,
@@ -1114,12 +1153,26 @@ pub(super) fn callback_event_from_parser_event_with_terminal(
 }
 
 pub(super) fn callback_events_from_parser_events(
-    state: &mut TerminalState,
+    host: &mut dyn ProtocolHostContext,
     parser_events: Vec<ParserTerminalEvent>,
-    suppress_shell_zones: bool,
-) -> Vec<CallbackEvent> {
-    let mut callbacks = Vec::new();
+    policy: ProtocolCallbackPolicy,
+) -> ProtocolCallbackBatch {
+    let mut batch = ProtocolCallbackBatch::default();
     for event in parser_events {
+        if matches!(
+            &event,
+            ParserTerminalEvent::ScreenCleared {
+                include_scrollback: true
+            }
+        ) {
+            batch.cleared_scrollback = true;
+        }
+        let ProtocolCallbackPolicy::Enabled {
+            suppress_shell_zones,
+        } = policy
+        else {
+            continue;
+        };
         match event {
             ParserTerminalEvent::FileTransferStarted { .. }
             | ParserTerminalEvent::FileTransferProgress { .. } => {
@@ -1128,9 +1181,9 @@ pub(super) fn callback_events_from_parser_events(
                 // event surface; the product acts only on a complete file.
             }
             ParserTerminalEvent::FileTransferCompleted { id, filename, size } => {
-                let retained = state.terminal.take_completed_transfer(id);
+                let retained = host.take_completed_protocol_transfer(id);
                 let Some(transfer) = retained else {
-                    callbacks.push(file_download_failed_callback(
+                    batch.callbacks.push(file_download_failed_callback(
                         Some(id),
                         "completed download data is unavailable",
                     ));
@@ -1140,16 +1193,16 @@ pub(super) fn callback_events_from_parser_events(
                     || transfer.status != TransferStatus::Completed
                     || transfer.data.len() != size
                 {
-                    callbacks.push(file_download_failed_callback(
+                    batch.callbacks.push(file_download_failed_callback(
                         Some(id),
                         "completed download metadata did not match retained data",
                     ));
                     continue;
                 }
                 let filename = filename.unwrap_or(transfer.filename);
-                match state.retain_file_download(filename, transfer.data) {
+                match host.retain_protocol_download(filename, transfer.data) {
                     Ok((download_id, filename, retained_size)) => {
-                        callbacks.push(CallbackEvent::FileDownload {
+                        batch.callbacks.push(CallbackEvent::FileDownload {
                             payload: serde_json::json!({
                                 "source": "iterm1337",
                                 "transferId": download_id.to_string(),
@@ -1158,21 +1211,25 @@ pub(super) fn callback_events_from_parser_events(
                             }),
                         });
                     }
-                    Err(reason) => callbacks.push(file_download_failed_callback(Some(id), &reason)),
+                    Err(reason) => batch
+                        .callbacks
+                        .push(file_download_failed_callback(Some(id), &reason)),
                 }
             }
             ParserTerminalEvent::FileTransferFailed { id, reason } => {
                 // Failed transfers are never recoverable host data. Taking the
                 // terminal record here promptly releases any retained bytes.
-                let _ = state.terminal.take_completed_transfer(id);
-                callbacks.push(file_download_failed_callback(Some(id), &reason));
+                let _ = host.take_completed_protocol_transfer(id);
+                batch
+                    .callbacks
+                    .push(file_download_failed_callback(Some(id), &reason));
             }
             ParserTerminalEvent::UploadRequested { format } => {
                 // RequestUpload would disclose user-selected local data to the
                 // PTY. This phase intentionally denies it and closes the remote
                 // protocol request instead of leaving the caller blocked.
-                state.terminal.cancel_upload();
-                callbacks.push(CallbackEvent::FileUploadDenied {
+                host.cancel_protocol_upload();
+                batch.callbacks.push(CallbackEvent::FileUploadDenied {
                     payload: serde_json::json!({
                         "source": "iterm1337",
                         "format": sanitize_protocol_text(&format, 32),
@@ -1181,17 +1238,17 @@ pub(super) fn callback_events_from_parser_events(
                 });
             }
             event => {
-                if let Some(callback) = callback_event_from_parser_event_with_terminal(
+                if let Some(callback) = callback_event_from_parser_event_with_host(
                     event,
                     suppress_shell_zones,
-                    Some(&state.terminal),
+                    Some(host),
                 ) {
-                    callbacks.push(callback);
+                    batch.callbacks.push(callback);
                 }
             }
         }
     }
-    callbacks
+    batch
 }
 
 fn file_download_failed_callback(parser_transfer_id: Option<u64>, reason: &str) -> CallbackEvent {
@@ -1204,14 +1261,14 @@ fn file_download_failed_callback(parser_transfer_id: Option<u64>, reason: &str) 
     }
 }
 
-pub(super) fn discard_replayed_parser_host_events(terminal: &mut Terminal) {
-    for event in terminal.poll_events() {
+pub(super) fn discard_replayed_parser_host_events(control: &mut dyn ProtocolEventControl) {
+    for event in control.poll_protocol_events() {
         match event {
             ParserTerminalEvent::FileTransferCompleted { id, .. }
             | ParserTerminalEvent::FileTransferFailed { id, .. } => {
-                let _ = terminal.take_completed_transfer(id);
+                let _ = control.take_completed_protocol_transfer(id);
             }
-            ParserTerminalEvent::UploadRequested { .. } => terminal.cancel_upload(),
+            ParserTerminalEvent::UploadRequested { .. } => control.cancel_protocol_upload(),
             _ => {}
         }
     }
@@ -1233,28 +1290,6 @@ fn validated_terminal_open_url(value: &str) -> Option<String> {
         _ => false,
     };
     allowed.then(|| value.to_string())
-}
-
-fn resolved_iterm_report_variable(terminal: &Terminal, name: &str) -> Option<String> {
-    let variables = terminal.session_variables();
-    match name {
-        "session.name" => variables
-            .session_name
-            .clone()
-            .or_else(|| (!terminal.title().is_empty()).then(|| terminal.title().to_string())),
-        "session.columns" => Some(terminal.size().0.to_string()),
-        "session.rows" => Some(terminal.size().1.to_string()),
-        "session.hostname" => variables.hostname.clone(),
-        "session.username" => variables.username.clone(),
-        "session.path" => variables
-            .path
-            .clone()
-            .or_else(|| terminal.current_directory().map(str::to_string)),
-        _ => name
-            .strip_prefix("user.")
-            .and_then(|user_name| terminal.get_user_var(user_name))
-            .map(str::to_string),
-    }
 }
 
 pub(super) fn validated_iterm_attention_action(value: &str) -> Option<&'static str> {
@@ -1603,6 +1638,58 @@ fn hex_nibble(byte: u8) -> Option<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct NoopProtocolHost;
+
+    impl ProtocolTransferControl for NoopProtocolHost {
+        fn take_completed_protocol_transfer(
+            &mut self,
+            _id: u64,
+        ) -> Option<ProtocolCompletedTransfer> {
+            None
+        }
+
+        fn cancel_protocol_upload(&mut self) {}
+    }
+
+    impl ProtocolHostContext for NoopProtocolHost {
+        fn resolve_report_variable(&self, _name: &str) -> Option<String> {
+            None
+        }
+
+        fn resolve_annotation_selection(
+            &self,
+            _start_abs_row: usize,
+            _start_col: usize,
+            _end_abs_row: usize,
+            _end_col: usize,
+        ) -> Option<(usize, usize, String)> {
+            None
+        }
+
+        fn retain_protocol_download(
+            &mut self,
+            _filename: String,
+            _data: Vec<u8>,
+        ) -> Result<(u64, String, usize), String> {
+            Err("disabled host must not retain downloads".to_string())
+        }
+    }
+
+    #[test]
+    fn disabled_callback_policy_still_reports_scrollback_clear_without_host_events() {
+        let mut host = NoopProtocolHost;
+        let batch = callback_events_from_parser_events(
+            &mut host,
+            vec![ParserTerminalEvent::ScreenCleared {
+                include_scrollback: true,
+            }],
+            ProtocolCallbackPolicy::Disabled,
+        );
+
+        assert!(batch.cleared_scrollback);
+        assert!(batch.callbacks.is_empty());
+    }
 
     #[test]
     fn split_csi_dcs_and_osc_callbacks_preserve_wire_order() {

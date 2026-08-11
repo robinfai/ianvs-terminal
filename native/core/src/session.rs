@@ -28,12 +28,13 @@ use par_term_emu_core_rust::graphics::PLACEHOLDER_CHAR;
 use par_term_emu_core_rust::graphics::{ImageDimension, TerminalGraphic};
 use par_term_emu_core_rust::grid::Grid;
 use par_term_emu_core_rust::mouse::{MouseEncoding, MouseMode};
-#[cfg(test)]
-use par_term_emu_core_rust::terminal::ItermAttentionAction;
 use par_term_emu_core_rust::terminal::terminal_snapshot::TerminalSnapshot;
+#[cfg(test)]
 use par_term_emu_core_rust::terminal::{
-    ItermButtonKind, OscCapability, Terminal, TerminalEvent as ParserTerminalEvent,
-    TerminalProcessDebugStats, snapshot::ExportFormat,
+    ItermAttentionAction, TerminalEvent as ParserTerminalEvent,
+};
+use par_term_emu_core_rust::terminal::{
+    ItermButtonKind, OscCapability, Terminal, TerminalProcessDebugStats, snapshot::ExportFormat,
 };
 use par_term_emu_core_rust::{WidthConfig, str_width};
 use parking_lot::{Mutex, MutexGuard};
@@ -53,6 +54,7 @@ mod event_queue;
 mod frame;
 mod frame_signal;
 mod protocol_callbacks;
+mod protocol_host;
 mod pty_reader;
 mod recording;
 
@@ -74,16 +76,16 @@ use frame::{
 use frame_signal::{DeferredFrameGrace, PendingFrameSignal, should_defer_with_grace};
 use protocol_callbacks::{
     CallbackEvent, HostProtocolState, ITERM_FILE_DOWNLOAD_MAX_BYTES,
-    ITERM_FILE_DOWNLOAD_MAX_PENDING, callback_events_from_parser_events,
-    discard_replayed_parser_host_events, input_sets_alt_screen, sanitize_file_download_name,
-    sanitize_protocol_text,
+    ITERM_FILE_DOWNLOAD_MAX_PENDING, ProtocolCallbackPolicy, discard_replayed_parser_host_events,
+    input_sets_alt_screen, sanitize_file_download_name, sanitize_protocol_text,
 };
 #[cfg(test)]
 use protocol_callbacks::{
     ITERM_CLIPBOARD_MAX_BYTES, OSC5522_MAX_CHUNK_BYTES, callback_event_from_parser_event,
-    callback_event_from_parser_event_with_terminal, shell_context_payload_from_current_dir,
-    validated_iterm_attention_action,
+    callback_event_from_parser_event_with_host, callback_events_from_parser_events,
+    shell_context_payload_from_current_dir, validated_iterm_attention_action,
 };
+use protocol_host::drain_protocol_callback_batch;
 use pty_reader::{read_error_is_trusted_eof, wait_until_readable};
 use recording::{RecordingError, RecordingInputPolicy, SessionRecording};
 
@@ -1285,25 +1287,21 @@ impl TerminalSession {
                 callback_events = host_protocol.observe(filtered, self.emulation);
                 host_protocol_micros = host_started_at.elapsed().as_micros() as u64;
             });
-            let parser_events = state.terminal.poll_events();
-            let cleared_scrollback = parser_events.iter().any(|event| {
-                matches!(
-                    event,
-                    ParserTerminalEvent::ScreenCleared {
-                        include_scrollback: true
-                    }
-                )
-            });
             let notifications = state.terminal.take_notifications();
-            if self.emulation == TerminalEmulation::Xterm256 {
+            let callback_policy = if self.emulation == TerminalEmulation::Xterm256 {
                 let suppress_shell_zones = was_alt_screen_active
                     || input_enters_alt_screen
                     || state.terminal.is_alt_screen_active();
-                callback_events.extend(callback_events_from_parser_events(
-                    &mut state,
-                    parser_events,
+                ProtocolCallbackPolicy::Enabled {
                     suppress_shell_zones,
-                ));
+                }
+            } else {
+                ProtocolCallbackPolicy::Disabled
+            };
+            let parser_batch = drain_protocol_callback_batch(&mut state, callback_policy);
+            let cleared_scrollback = parser_batch.cleared_scrollback;
+            callback_events.extend(parser_batch.callbacks);
+            if self.emulation == TerminalEmulation::Xterm256 {
                 callback_events.extend(notifications.into_iter().map(|notification| {
                     CallbackEvent::SessionNotification {
                         source: notification.source.to_string(),
@@ -7768,7 +7766,14 @@ mod tests {
         let parser_events = terminal.poll_events();
         let mut state = terminal_state_for_file_download_test(terminal);
 
-        let callbacks = callback_events_from_parser_events(&mut state, parser_events, false);
+        let callbacks = callback_events_from_parser_events(
+            &mut state,
+            parser_events,
+            ProtocolCallbackPolicy::Enabled {
+                suppress_shell_zones: false,
+            },
+        )
+        .callbacks;
 
         let [CallbackEvent::FileDownload { payload }] = callbacks.as_slice() else {
             panic!("expected one completed download callback: {callbacks:?}");
@@ -7796,14 +7801,15 @@ mod tests {
         terminal.session_variables_mut().set_username("alice");
         terminal.session_variables_mut().set_path("/work/project");
         terminal.set_user_var("gitBranch".to_string(), "feature/report".to_string());
+        let state = terminal_state_for_file_download_test(terminal);
 
         let resolve = |name: &str| {
-            let callback = callback_event_from_parser_event_with_terminal(
+            let callback = callback_event_from_parser_event_with_host(
                 ParserTerminalEvent::ItermReportVariableRequested {
                     name: name.to_string(),
                 },
                 false,
-                Some(&terminal),
+                Some(&state),
             )
             .expect("expected report-variable callback");
             let CallbackEvent::ReportVariableRequest { payload } = callback else {
@@ -7930,7 +7936,14 @@ mod tests {
         let parser_events = terminal.poll_events();
         let mut state = terminal_state_for_file_download_test(terminal);
 
-        let callbacks = callback_events_from_parser_events(&mut state, parser_events, false);
+        let callbacks = callback_events_from_parser_events(
+            &mut state,
+            parser_events,
+            ProtocolCallbackPolicy::Enabled {
+                suppress_shell_zones: false,
+            },
+        )
+        .callbacks;
 
         assert!(callbacks.iter().any(|event| matches!(
             event,
@@ -7948,7 +7961,14 @@ mod tests {
         let parser_events = terminal.poll_events();
         let mut state = terminal_state_for_file_download_test(terminal);
 
-        let callbacks = callback_events_from_parser_events(&mut state, parser_events, false);
+        let callbacks = callback_events_from_parser_events(
+            &mut state,
+            parser_events,
+            ProtocolCallbackPolicy::Enabled {
+                suppress_shell_zones: false,
+            },
+        )
+        .callbacks;
 
         assert!(matches!(
             callbacks.as_slice(),
@@ -12625,11 +12645,12 @@ mod tests {
         terminal.process(
             b"prefix \x1b]1337;AddAnnotation=4|Visible note\x07word\r\n\x1b]1337;AddHiddenAnnotation=Hidden|5|0|1\x1b\\value",
         );
-        let annotations = terminal
-            .poll_events()
+        let parser_events = terminal.poll_events();
+        let state = terminal_state_for_file_download_test(terminal);
+        let annotations = parser_events
             .into_iter()
             .filter_map(|event| {
-                callback_event_from_parser_event_with_terminal(event, false, Some(&terminal))
+                callback_event_from_parser_event_with_host(event, false, Some(&state))
             })
             .filter_map(|event| match event {
                 CallbackEvent::SessionAnnotation { payload } => Some(payload),
