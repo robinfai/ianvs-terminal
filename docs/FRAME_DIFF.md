@@ -27,7 +27,9 @@ TerminalFrameTransportCoordinator
         ↓
 TerminalFrameDecoder facade
         ↓
-compatibility factory + shared normalization
+JSON domain factory / Protobuf transport codec
+        ↓
+neutral validation + wire contracts
         ↓
 TerminalFrameDiff
         ↓
@@ -38,7 +40,7 @@ render
 
 默认的 `automatic` 偏好只在 backend 实现 Protobuf capability 且明确报告支持时调用 `takeFrameDiffProtobuf()`；不支持该 capability、或 capability 报告不支持时，走 `takeFrameDiffJson()`。显式 `json` 偏好强制走 JSON，即使 backend 同时支持 Protobuf 也不会读取 Protobuf。已选择并支持 Protobuf 后，`null`、空 payload、读取异常或解码失败都表示本次没有可应用帧，不会再消费 JSON 作为同次回退。
 
-JSON 是保留的兼容路径，不是已删除的旧实现。`TerminalFrameDiff.fromJson()` 与 `TerminalFrameDiff.fromProtobufBytes()` 仍是 public compatibility factories；两种格式经 decoder facade 进入兼容工厂和共享归一化规则。也因此 models 仍保留 Protobuf import seam，当前结构不能描述为 model 与 Protobuf 完全解耦。
+JSON 是保留的兼容路径，不是已删除的旧实现。`TerminalFrameDiff.fromJson()` 仍是 domain factory；Protobuf 则通过公开的 `TerminalProtobufFrameCodec.decode()` transport adapter 映射为 domain model。2.0 迁移期可使用已弃用的 `LegacyTerminalFrameDiffProtobuf.fromProtobufBytes()` facade。generated Protobuf 不再被 terminal、config 或 recording domain 导入。
 
 两种 wire format 还有一处有意保留的省略语义：graphics 的 `preserveAspectRatio` 在 JSON 字段省略时归一为 `true`，在 Protobuf 字段省略时遵循标量默认值 `false`。语料与 parity tests 将这条兼容边界作为显式 seam 覆盖。
 

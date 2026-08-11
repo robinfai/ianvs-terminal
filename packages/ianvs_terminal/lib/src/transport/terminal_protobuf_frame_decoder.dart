@@ -1,13 +1,18 @@
 import 'dart:typed_data';
 
 import '../terminal/terminal_models.dart';
+import 'terminal_protobuf_frame_codec.dart';
 
 final class TerminalProtobufFrameDecoder {
-  const TerminalProtobufFrameDecoder();
+  const TerminalProtobufFrameDecoder({
+    this.codec = const TerminalProtobufFrameCodec(),
+  });
+
+  final TerminalProtobufFrameCodec codec;
 
   TerminalFrameDiff? decode(Uint8List rawFrame) {
     try {
-      return TerminalFrameDiff.fromProtobufBytes(rawFrame);
+      return codec.decode(rawFrame);
     } on Object {
       return null;
     }

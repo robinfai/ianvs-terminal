@@ -111,7 +111,14 @@ void main() {
 
     test('public terminal surface retains compatibility entry points', () {
       final fromJson = TerminalFrameDiff.fromJson(const <String, Object?>{});
-      final fromProtobuf = TerminalFrameDiff.fromProtobufBytes(const <int>[]);
+      final fromProtobuf = const TerminalProtobufFrameCodec().decode(
+        const <int>[],
+      );
+      // The deprecated facade is deliberately exercised for the 2.x migration.
+      // ignore: deprecated_member_use_from_same_package
+      final legacyProtobuf = LegacyTerminalFrameDiffProtobuf.fromProtobufBytes(
+        const <int>[],
+      );
       const preference = TerminalFrameWireFormatPreference.automatic;
       const viewport = TerminalViewportState.empty;
       const renderIntent = TerminalRenderIntent.none;
@@ -119,6 +126,10 @@ void main() {
 
       expect(fromJson.frameSchemaVersion, 'terminal-frame-diff-v1');
       expect(fromProtobuf.frameSchemaVersion, 'terminal-frame-diff-v1');
+      expect(
+        legacyProtobuf.frameSchemaVersion,
+        fromProtobuf.frameSchemaVersion,
+      );
       expect(preference, TerminalFrameWireFormatPreference.automatic);
       expect(viewport.frame, same(TerminalFrameDiff.empty));
       expect(renderIntent, same(TerminalRenderIntent.none));

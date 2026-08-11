@@ -1,4 +1,5 @@
 name: ianvs_terminal
+version: 2.0.0
 publish_to: none
 
 environment:

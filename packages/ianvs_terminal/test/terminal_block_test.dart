@@ -91,7 +91,9 @@ void main() {
       ],
     );
 
-    final frame = TerminalFrameDiff.fromProtobufBytes(payload.writeToBuffer());
+    final frame = const TerminalProtobufFrameCodec().decode(
+      payload.writeToBuffer(),
+    );
 
     expect(
       (frame.rows.single.sourceRow, frame.rows.single.sourceEndRow),

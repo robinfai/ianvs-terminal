@@ -95,7 +95,7 @@ void _warmUp(List<_FrameWireFixture> fixtures) {
       TerminalFrameDiff.fromJson(
         (jsonDecode(fixture.jsonPayload) as Map).cast<String, Object?>(),
       );
-      TerminalFrameDiff.fromProtobufBytes(fixture.protobufPayload);
+      const TerminalProtobufFrameCodec().decode(fixture.protobufPayload);
     }
   }
 }
@@ -477,7 +477,7 @@ _DecodeMeasurements _measureProtobufDecode(List<_FrameWireFixture> fixtures) {
   for (var iteration = 0; iteration < _iterations; iteration += 1) {
     final watch = Stopwatch()..start();
     for (final fixture in fixtures) {
-      final frame = TerminalFrameDiff.fromProtobufBytes(
+      final frame = const TerminalProtobufFrameCodec().decode(
         fixture.protobufPayload,
       );
       if (iteration == 0) {

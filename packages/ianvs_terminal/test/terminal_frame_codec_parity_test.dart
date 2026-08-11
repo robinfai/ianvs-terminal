@@ -5,9 +5,9 @@ import 'package:fixnum/fixnum.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
+import 'package:ianvs_terminal/src/contracts/terminal_frame_validation_limits.dart';
 import 'package:ianvs_terminal/src/proto/frame_diff.pb.dart' as frame_pb;
 import 'package:ianvs_terminal/src/runtime/terminal_frame_decoder.dart';
-import 'package:ianvs_terminal/src/transport/terminal_frame_validation_limits.dart';
 
 import 'support/terminal_frame_wire_fixture.dart';
 
@@ -16,7 +16,7 @@ void main() {
     test('complete payloads have equal recursive projections and hashes', () {
       final fixture = completeTerminalFrameWireFixture();
       final jsonFrame = TerminalFrameDiff.fromJson(fixture.json);
-      final protobufFrame = TerminalFrameDiff.fromProtobufBytes(
+      final protobufFrame = const TerminalProtobufFrameCodec().decode(
         fixture.protobufBytes,
       );
 
@@ -40,13 +40,13 @@ void main() {
         ..._jsonFrame(),
         'global_bottom_row': -1,
       });
-      final legacyProtobuf = TerminalFrameDiff.fromProtobufBytes(
+      final legacyProtobuf = const TerminalProtobufFrameCodec().decode(
         frame_pb.TerminalFrameDiff(
           viewportRows: 1,
           viewportCols: 1,
         ).writeToBuffer(),
       );
-      final zeroProtobuf = TerminalFrameDiff.fromProtobufBytes(
+      final zeroProtobuf = const TerminalProtobufFrameCodec().decode(
         frame_pb.TerminalFrameDiff(
           viewportRows: 1,
           viewportCols: 1,
@@ -66,7 +66,7 @@ void main() {
         ..._jsonFrame(),
         'font_family': '  Courier Prime  ',
       });
-      final protobufFrame = TerminalFrameDiff.fromProtobufBytes(
+      final protobufFrame = const TerminalProtobufFrameCodec().decode(
         frame_pb.TerminalFrameDiff(
           viewportRows: 1,
           viewportCols: 1,
@@ -74,7 +74,7 @@ void main() {
         ).writeToBuffer(),
       );
       final legacyJson = TerminalFrameDiff.fromJson(_jsonFrame());
-      final legacyProtobuf = TerminalFrameDiff.fromProtobufBytes(
+      final legacyProtobuf = const TerminalProtobufFrameCodec().decode(
         frame_pb.TerminalFrameDiff(
           viewportRows: 1,
           viewportCols: 1,
@@ -85,7 +85,7 @@ void main() {
         ..._jsonFrame(),
         'font_family': oversized,
       });
-      final invalidProtobuf = TerminalFrameDiff.fromProtobufBytes(
+      final invalidProtobuf = const TerminalProtobufFrameCodec().decode(
         frame_pb.TerminalFrameDiff(
           viewportRows: 1,
           viewportCols: 1,
@@ -115,14 +115,14 @@ void main() {
             'blink': false,
           },
         });
-        final legacyProtobuf = TerminalFrameDiff.fromProtobufBytes(
+        final legacyProtobuf = const TerminalProtobufFrameCodec().decode(
           frame_pb.TerminalFrameDiff(
             viewportRows: 1,
             viewportCols: 1,
             cursor: frame_pb.TerminalCursor(visible: true),
           ).writeToBuffer(),
         );
-        final dynamicProtobuf = TerminalFrameDiff.fromProtobufBytes(
+        final dynamicProtobuf = const TerminalProtobufFrameCodec().decode(
           frame_pb.TerminalFrameDiff(
             viewportRows: 1,
             viewportCols: 1,
@@ -156,7 +156,7 @@ void main() {
         },
         'cursor_guide_color': '#2A80D7',
       });
-      final protobufFrame = TerminalFrameDiff.fromProtobufBytes(
+      final protobufFrame = const TerminalProtobufFrameCodec().decode(
         frame_pb.TerminalFrameDiff(
           viewportRows: 1,
           viewportCols: 1,
@@ -171,7 +171,7 @@ void main() {
       expect(protobufFrame.cursorGuideColor, const Color(0xFF2A80D7));
 
       final legacyJson = TerminalFrameDiff.fromJson(_jsonFrame());
-      final legacyProtobuf = TerminalFrameDiff.fromProtobufBytes(
+      final legacyProtobuf = const TerminalProtobufFrameCodec().decode(
         frame_pb.TerminalFrameDiff(
           viewportRows: 1,
           viewportCols: 1,
@@ -197,7 +197,7 @@ void main() {
           ],
         ),
       );
-      final protobufFrame = TerminalFrameDiff.fromProtobufBytes(
+      final protobufFrame = const TerminalProtobufFrameCodec().decode(
         frame_pb.TerminalFrameDiff(
           viewportRows: 1,
           viewportCols: 80,
@@ -242,7 +242,7 @@ void main() {
         ..setField(1, Int64(placementId))
         ..setField(2, Int64(renderId))
         ..assetKey = protobufAssetKey;
-      final protobufFrame = TerminalFrameDiff.fromProtobufBytes(
+      final protobufFrame = const TerminalProtobufFrameCodec().decode(
         frame_pb.TerminalFrameDiff(
           viewportRows: 1,
           viewportCols: 80,
@@ -261,7 +261,7 @@ void main() {
       final jsonFrame = TerminalFrameDiff.fromJson(
         _jsonFrame(viewportRows: 70000, viewportCols: 90000),
       );
-      final protobufFrame = TerminalFrameDiff.fromProtobufBytes(
+      final protobufFrame = const TerminalProtobufFrameCodec().decode(
         frame_pb.TerminalFrameDiff(
           viewportRows: 70000,
           viewportCols: 90000,
@@ -295,7 +295,7 @@ void main() {
         final jsonFrame = TerminalFrameDiff.fromJson(
           _jsonFrame(rows: jsonRows, viewportRows: 3, viewportCols: 3),
         );
-        final protobufFrame = TerminalFrameDiff.fromProtobufBytes(
+        final protobufFrame = const TerminalProtobufFrameCodec().decode(
           frame_pb.TerminalFrameDiff(
             rows: protobufRows,
             viewportRows: 3,
@@ -333,7 +333,7 @@ void main() {
       final jsonFrame = TerminalFrameDiff.fromJson(
         _jsonFrame(rows: jsonRows, viewportRows: viewportRows),
       );
-      final protobufFrame = TerminalFrameDiff.fromProtobufBytes(
+      final protobufFrame = const TerminalProtobufFrameCodec().decode(
         frame_pb.TerminalFrameDiff(
           rows: protobufRows,
           viewportRows: viewportRows,
@@ -367,7 +367,7 @@ void main() {
           ],
         ),
       );
-      final protobufFrame = TerminalFrameDiff.fromProtobufBytes(
+      final protobufFrame = const TerminalProtobufFrameCodec().decode(
         frame_pb.TerminalFrameDiff(
           rows: <frame_pb.TerminalRow>[
             frame_pb.TerminalRow(index: 0, text: 'x', styleRuns: protobufRuns),
@@ -417,7 +417,7 @@ void main() {
       final jsonFrame = TerminalFrameDiff.fromJson(
         _jsonFrame(hyperlinks: jsonLinks),
       );
-      final protobufFrame = TerminalFrameDiff.fromProtobufBytes(
+      final protobufFrame = const TerminalProtobufFrameCodec().decode(
         frame_pb.TerminalFrameDiff(
           viewportRows: 1,
           viewportCols: 80,
@@ -467,7 +467,7 @@ void main() {
       final jsonFrame = TerminalFrameDiff.fromJson(
         _jsonFrame(inlineImages: jsonImages),
       );
-      final protobufFrame = TerminalFrameDiff.fromProtobufBytes(
+      final protobufFrame = const TerminalProtobufFrameCodec().decode(
         frame_pb.TerminalFrameDiff(
           viewportRows: 1,
           viewportCols: 80,
@@ -504,7 +504,7 @@ void main() {
           ],
         ),
       );
-      final protobufFrame = TerminalFrameDiff.fromProtobufBytes(
+      final protobufFrame = const TerminalProtobufFrameCodec().decode(
         frame_pb.TerminalFrameDiff(
           viewportRows: 5,
           viewportCols: 80,
@@ -552,7 +552,7 @@ void main() {
           0x10,
           0x63,
         ]);
-        final protobufFrame = TerminalFrameDiff.fromProtobufBytes(
+        final protobufFrame = const TerminalProtobufFrameCodec().decode(
           protobufWithUnknownKind,
         );
 
@@ -575,7 +575,7 @@ void main() {
             preserveAspectRatio: preserveAspectRatio,
           );
           final jsonFrame = TerminalFrameDiff.fromJson(fixture.json);
-          final protobufFrame = TerminalFrameDiff.fromProtobufBytes(
+          final protobufFrame = const TerminalProtobufFrameCodec().decode(
             fixture.protobufBytes,
           );
 
@@ -600,7 +600,7 @@ void main() {
         final jsonFrame = TerminalFrameDiff.fromJson(
           _jsonFrame(graphics: <Object?>[jsonGraphic]),
         );
-        final protobufFrame = TerminalFrameDiff.fromProtobufBytes(
+        final protobufFrame = const TerminalProtobufFrameCodec().decode(
           frame_pb.TerminalFrameDiff(
             viewportRows: 1,
             viewportCols: 80,
@@ -624,10 +624,10 @@ void main() {
 
       expect(
         terminalFrameProjection(
-          TerminalFrameDiff.fromProtobufBytes(bytesWithUnknownField),
+          const TerminalProtobufFrameCodec().decode(bytesWithUnknownField),
         ),
         terminalFrameProjection(
-          TerminalFrameDiff.fromProtobufBytes(fixture.protobufBytes),
+          const TerminalProtobufFrameCodec().decode(fixture.protobufBytes),
         ),
       );
     });
@@ -640,7 +640,7 @@ void main() {
         ..frameSchemaVersion = ' terminal-frame-diff-v9 ';
 
       final jsonFrame = TerminalFrameDiff.fromJson(json);
-      final protobufFrame = TerminalFrameDiff.fromProtobufBytes(
+      final protobufFrame = const TerminalProtobufFrameCodec().decode(
         protobuf.writeToBuffer(),
       );
 
@@ -651,7 +651,7 @@ void main() {
       );
     });
 
-    test('public factories and decoder facade have equal projections', () {
+    test('public codecs and decoder facade have equal projections', () {
       final fixture = completeTerminalFrameWireFixture();
       const decoder = TerminalFrameDecoder();
 
@@ -661,7 +661,7 @@ void main() {
       );
       expect(
         terminalFrameProjection(
-          TerminalFrameDiff.fromProtobufBytes(fixture.protobufBytes),
+          const TerminalProtobufFrameCodec().decode(fixture.protobufBytes),
         ),
         terminalFrameProjection(
           decoder.decodeProtobuf(fixture.protobufBytes)!.frame,
@@ -670,9 +670,9 @@ void main() {
     });
 
     test(
-      'empty protobuf public factory returns a normalized default frame',
+      'empty protobuf transport codec returns a normalized default frame',
       () {
-        final frame = TerminalFrameDiff.fromProtobufBytes(const <int>[]);
+        final frame = const TerminalProtobufFrameCodec().decode(const <int>[]);
 
         expect(frame.frameSchemaVersion, 'terminal-frame-diff-v1');
         expect(frame.frameKind, TerminalFrameKind.snapshot);
@@ -703,7 +703,7 @@ void main() {
       final jsonFrame = TerminalFrameDiff.fromJson(
         _jsonFrame(rows: jsonRows, viewportRows: viewportRows),
       );
-      final protobufFrame = TerminalFrameDiff.fromProtobufBytes(
+      final protobufFrame = const TerminalProtobufFrameCodec().decode(
         frame_pb.TerminalFrameDiff(
           rows: protobufRows,
           viewportRows: viewportRows,
@@ -748,7 +748,7 @@ void main() {
             ],
           ),
         );
-        final protobufFrame = TerminalFrameDiff.fromProtobufBytes(
+        final protobufFrame = const TerminalProtobufFrameCodec().decode(
           frame_pb.TerminalFrameDiff(
             rows: <frame_pb.TerminalRow>[
               frame_pb.TerminalRow(
@@ -822,7 +822,7 @@ void main() {
         final jsonFrame = TerminalFrameDiff.fromJson(
           _jsonFrame(hyperlinks: jsonLinks),
         );
-        final protobufFrame = TerminalFrameDiff.fromProtobufBytes(
+        final protobufFrame = const TerminalProtobufFrameCodec().decode(
           frame_pb.TerminalFrameDiff(
             viewportRows: 1,
             viewportCols: 80,
@@ -885,7 +885,7 @@ void main() {
         final jsonFrame = TerminalFrameDiff.fromJson(
           _jsonFrame(inlineImages: jsonImages),
         );
-        final protobufFrame = TerminalFrameDiff.fromProtobufBytes(
+        final protobufFrame = const TerminalProtobufFrameCodec().decode(
           frame_pb.TerminalFrameDiff(
             viewportRows: 1,
             viewportCols: 80,
@@ -930,7 +930,7 @@ void main() {
         final jsonFrame = TerminalFrameDiff.fromJson(
           _jsonFrame(viewportRows: viewportRows, dirtyRanges: jsonRanges),
         );
-        final protobufFrame = TerminalFrameDiff.fromProtobufBytes(
+        final protobufFrame = const TerminalProtobufFrameCodec().decode(
           frame_pb.TerminalFrameDiff(
             viewportRows: viewportRows,
             viewportCols: 80,
@@ -966,7 +966,7 @@ void main() {
       final jsonFrame = TerminalFrameDiff.fromJson(
         _jsonFrame(rows: jsonRows, viewportRows: viewportRows),
       );
-      final protobufFrame = TerminalFrameDiff.fromProtobufBytes(
+      final protobufFrame = const TerminalProtobufFrameCodec().decode(
         frame_pb.TerminalFrameDiff(
           rows: protobufRows,
           viewportRows: viewportRows,
@@ -1000,7 +1000,7 @@ void main() {
       final jsonFrame = TerminalFrameDiff.fromJson(
         _jsonFrame(viewportRows: viewportRows, dirtyRanges: jsonRanges),
       );
-      final protobufFrame = TerminalFrameDiff.fromProtobufBytes(
+      final protobufFrame = const TerminalProtobufFrameCodec().decode(
         frame_pb.TerminalFrameDiff(
           viewportRows: viewportRows,
           viewportCols: 80,
@@ -1057,7 +1057,7 @@ void main() {
       final jsonFrame = TerminalFrameDiff.fromJson(
         _jsonFrame(hyperlinks: jsonLinks),
       );
-      final protobufFrame = TerminalFrameDiff.fromProtobufBytes(
+      final protobufFrame = const TerminalProtobufFrameCodec().decode(
         frame_pb.TerminalFrameDiff(
           viewportRows: 1,
           viewportCols: 80,
@@ -1114,7 +1114,7 @@ void main() {
         final jsonFrame = TerminalFrameDiff.fromJson(
           _jsonFrame(inlineImages: jsonImages),
         );
-        final protobufFrame = TerminalFrameDiff.fromProtobufBytes(
+        final protobufFrame = const TerminalProtobufFrameCodec().decode(
           frame_pb.TerminalFrameDiff(
             viewportRows: 1,
             viewportCols: 80,

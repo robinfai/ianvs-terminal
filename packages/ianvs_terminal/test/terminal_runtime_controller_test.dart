@@ -966,7 +966,9 @@ void main() {
       ],
     );
 
-    final frame = TerminalFrameDiff.fromProtobufBytes(payload.writeToBuffer());
+    final frame = const TerminalProtobufFrameCodec().decode(
+      payload.writeToBuffer(),
+    );
     expect(frame.sizedText, isEmpty);
   });
 
@@ -1510,7 +1512,9 @@ void main() {
       ],
     );
 
-    final frame = TerminalFrameDiff.fromProtobufBytes(payload.writeToBuffer());
+    final frame = const TerminalProtobufFrameCodec().decode(
+      payload.writeToBuffer(),
+    );
 
     expect(frame.frameSchemaVersion, 'terminal-frame-diff-v2');
     expect(frame.frameKind, TerminalFrameKind.delta);
