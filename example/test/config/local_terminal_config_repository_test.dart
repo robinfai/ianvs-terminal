@@ -56,6 +56,43 @@ void main() {
       expect(persisted, isNot(contains('workspace')));
     });
 
+    test('serializes concurrent partial document updates', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-config-concurrent-updates',
+      );
+      final repository = LocalTerminalConfigRepository(
+        directoryResolver: () async => directory,
+      );
+      await repository.save(const LocalTerminalConfigDocument());
+
+      await Future.wait(<Future<LocalTerminalConfigDocument>>[
+        repository.update(
+          (current) => current.copyWith(defaultProfileId: 'local-dev'),
+        ),
+        repository.update(
+          (current) => current.copyWith(
+            notifications: LocalTerminalNotificationsConfig(
+              enabled: current.notifications.enabled,
+              commandFinished: current.notifications.commandFinished,
+              bell: false,
+              activity: current.notifications.activity,
+            ),
+          ),
+        ),
+        repository.update(
+          (current) => current.copyWith(
+            layout: const LocalTerminalLayoutConfig(restoreLayout: false),
+          ),
+        ),
+      ]);
+
+      final loaded = await repository.load();
+      expect(loaded, isNotNull);
+      expect(loaded!.defaultProfileId, 'local-dev');
+      expect(loaded.notifications.bell, isFalse);
+      expect(loaded.layout.restoreLayout, isFalse);
+    });
+
     test('rewrites the legacy workspace setting as layout config', () async {
       final directory = await Directory.systemTemp.createTemp(
         'ianvs terminal-config-workspace-migration',

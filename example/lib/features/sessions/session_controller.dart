@@ -4205,12 +4205,13 @@ class SessionController extends Notifier<SessionState> {
 
   Future<void> setRestoreLayout(bool restoreLayout) async {
     final repository = ref.read(localTerminalConfigRepositoryProvider);
-    final latestConfig = await repository.load() ?? _localConfigDocument;
-    _localConfigDocument = latestConfig.copyWith(
-      layout: LocalTerminalLayoutConfig(restoreLayout: restoreLayout),
+    _localConfigDocument = await repository.update(
+      (latestConfig) => latestConfig.copyWith(
+        layout: LocalTerminalLayoutConfig(restoreLayout: restoreLayout),
+      ),
+      fallback: _localConfigDocument,
     );
     _configBootstrapSource = LocalTerminalConfigBootstrapSource.localConfig;
-    await repository.save(_localConfigDocument);
     _preferencesLoadedFromDisk = true;
 
     _layoutPersistenceTimer?.cancel();
@@ -4226,21 +4227,23 @@ class SessionController extends Notifier<SessionState> {
     LocalTerminalKeybindingsConfig keybindings,
   ) async {
     final repository = ref.read(localTerminalConfigRepositoryProvider);
-    final latestConfig = await repository.load() ?? _localConfigDocument;
-    _localConfigDocument = latestConfig.copyWith(keybindings: keybindings);
+    _localConfigDocument = await repository.update(
+      (latestConfig) => latestConfig.copyWith(keybindings: keybindings),
+      fallback: _localConfigDocument,
+    );
     _configBootstrapSource = LocalTerminalConfigBootstrapSource.localConfig;
-    await repository.save(_localConfigDocument);
     _preferencesLoadedFromDisk = true;
   }
 
   Future<void> setOsc52Policy(LocalTerminalOsc52Policy policy) async {
     final repository = ref.read(localTerminalConfigRepositoryProvider);
-    final latestConfig = await repository.load() ?? _localConfigDocument;
-    _localConfigDocument = latestConfig.copyWith(
-      clipboard: latestConfig.clipboard.copyWith(osc52: policy),
+    _localConfigDocument = await repository.update(
+      (latestConfig) => latestConfig.copyWith(
+        clipboard: latestConfig.clipboard.copyWith(osc52: policy),
+      ),
+      fallback: _localConfigDocument,
     );
     _configBootstrapSource = LocalTerminalConfigBootstrapSource.localConfig;
-    await repository.save(_localConfigDocument);
     _preferencesLoadedFromDisk = true;
   }
 
@@ -4248,12 +4251,13 @@ class SessionController extends Notifier<SessionState> {
     LocalTerminalOpenUrlPolicy policy,
   ) async {
     final repository = ref.read(localTerminalConfigRepositoryProvider);
-    final latestConfig = await repository.load() ?? _localConfigDocument;
-    _localConfigDocument = latestConfig.copyWith(
-      hostActions: latestConfig.hostActions.copyWith(osc1337OpenUrl: policy),
+    _localConfigDocument = await repository.update(
+      (latestConfig) => latestConfig.copyWith(
+        hostActions: latestConfig.hostActions.copyWith(osc1337OpenUrl: policy),
+      ),
+      fallback: _localConfigDocument,
     );
     _configBootstrapSource = LocalTerminalConfigBootstrapSource.localConfig;
-    await repository.save(_localConfigDocument);
     _preferencesLoadedFromDisk = true;
   }
 
@@ -4261,14 +4265,15 @@ class SessionController extends Notifier<SessionState> {
     LocalTerminalRequestAttentionPolicy policy,
   ) async {
     final repository = ref.read(localTerminalConfigRepositoryProvider);
-    final latestConfig = await repository.load() ?? _localConfigDocument;
-    _localConfigDocument = latestConfig.copyWith(
-      hostActions: latestConfig.hostActions.copyWith(
-        osc1337RequestAttention: policy,
+    _localConfigDocument = await repository.update(
+      (latestConfig) => latestConfig.copyWith(
+        hostActions: latestConfig.hostActions.copyWith(
+          osc1337RequestAttention: policy,
+        ),
       ),
+      fallback: _localConfigDocument,
     );
     _configBootstrapSource = LocalTerminalConfigBootstrapSource.localConfig;
-    await repository.save(_localConfigDocument);
     _preferencesLoadedFromDisk = true;
   }
 
@@ -4280,24 +4285,24 @@ class SessionController extends Notifier<SessionState> {
       return;
     }
     final repository = ref.read(localTerminalConfigRepositoryProvider);
-    final latestConfig = await repository.load() ?? _localConfigDocument;
-    final decisions = <String, LocalTerminalReportVariablePolicy>{
-      ...latestConfig.hostActions.osc1337ReportVariables,
-    };
-    decisions.remove(name);
-    if (policy != null) {
-      while (decisions.length >= maxLocalTerminalReportVariableDecisions) {
-        decisions.remove(decisions.keys.first);
+    _localConfigDocument = await repository.update((latestConfig) {
+      final decisions = <String, LocalTerminalReportVariablePolicy>{
+        ...latestConfig.hostActions.osc1337ReportVariables,
+      };
+      decisions.remove(name);
+      if (policy != null) {
+        while (decisions.length >= maxLocalTerminalReportVariableDecisions) {
+          decisions.remove(decisions.keys.first);
+        }
+        decisions[name] = policy;
       }
-      decisions[name] = policy;
-    }
-    _localConfigDocument = latestConfig.copyWith(
-      hostActions: latestConfig.hostActions.copyWith(
-        osc1337ReportVariables: Map.unmodifiable(decisions),
-      ),
-    );
+      return latestConfig.copyWith(
+        hostActions: latestConfig.hostActions.copyWith(
+          osc1337ReportVariables: Map.unmodifiable(decisions),
+        ),
+      );
+    }, fallback: _localConfigDocument);
     _configBootstrapSource = LocalTerminalConfigBootstrapSource.localConfig;
-    await repository.save(_localConfigDocument);
     _preferencesLoadedFromDisk = true;
   }
 
@@ -4314,14 +4319,15 @@ class SessionController extends Notifier<SessionState> {
       }
     }
     final repository = ref.read(localTerminalConfigRepositoryProvider);
-    final latestConfig = await repository.load() ?? _localConfigDocument;
-    _localConfigDocument = latestConfig.copyWith(
-      hostActions: latestConfig.hostActions.copyWith(
-        osc1337ReportVariables: Map.unmodifiable(normalized),
+    _localConfigDocument = await repository.update(
+      (latestConfig) => latestConfig.copyWith(
+        hostActions: latestConfig.hostActions.copyWith(
+          osc1337ReportVariables: Map.unmodifiable(normalized),
+        ),
       ),
+      fallback: _localConfigDocument,
     );
     _configBootstrapSource = LocalTerminalConfigBootstrapSource.localConfig;
-    await repository.save(_localConfigDocument);
     _preferencesLoadedFromDisk = true;
   }
 
@@ -4383,9 +4389,10 @@ class SessionController extends Notifier<SessionState> {
   }) async {
     if (_usesLocalConfigPersistence) {
       final repository = ref.read(localTerminalConfigRepositoryProvider);
-      final latestConfig = await repository.load() ?? _localConfigDocument;
-      _localConfigDocument = localConfigUpdater(latestConfig);
-      await repository.save(_localConfigDocument);
+      _localConfigDocument = await repository.update(
+        localConfigUpdater,
+        fallback: _localConfigDocument,
+      );
     } else {
       await ref.read(appPreferencesRepositoryProvider).save(_appPreferences);
     }

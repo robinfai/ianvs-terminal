@@ -963,54 +963,108 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
             'Exported terminal diagnostics.',
           );
         },
-        toggleCommandFinishedNotify: (_) {
+        toggleCommandFinishedNotify: (_) async {
+          final previous = _commandFinishedNotificationsEnabled;
           _mutateState(() {
             _commandFinishedNotificationsEnabled =
                 !_commandFinishedNotificationsEnabled;
           });
-          unawaited(_saveNotificationPreferences());
-          final messenger = ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar();
-          messenger.showSnackBar(
-            SnackBar(
-              content: Text(
-                'Command-finished notifications ${_commandFinishedNotificationsEnabled ? 'enabled' : 'disabled'} and saved.',
-              ),
-            ),
-          );
-          return const ShellActionBindingResult.completed();
+          try {
+            await _saveNotificationPreferences();
+            if (mounted) {
+              final messenger = ScaffoldMessenger.of(context)
+                ..hideCurrentSnackBar();
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Command-finished notifications ${_commandFinishedNotificationsEnabled ? 'enabled' : 'disabled'} and saved.',
+                  ),
+                ),
+              );
+            }
+            return const ShellActionBindingResult.completed();
+          } on Object catch (error) {
+            _mutateState(() {
+              _commandFinishedNotificationsEnabled = previous;
+            });
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Unable to save notifications: $error')),
+              );
+            }
+            return const ShellActionBindingResult.failed(
+              failureCode: ShellActionBindingFailureCode.platformFailure,
+              message: 'Unable to save command-finished notifications.',
+            );
+          }
         },
-        toggleBellNotify: (_) {
+        toggleBellNotify: (_) async {
+          final previous = _bellNotificationsEnabled;
           _mutateState(() {
             _bellNotificationsEnabled = !_bellNotificationsEnabled;
           });
-          unawaited(_saveNotificationPreferences());
-          final messenger = ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar();
-          messenger.showSnackBar(
-            SnackBar(
-              content: Text(
-                'Bell notifications ${_bellNotificationsEnabled ? 'enabled' : 'disabled'} and saved.',
-              ),
-            ),
-          );
-          return const ShellActionBindingResult.completed();
+          try {
+            await _saveNotificationPreferences();
+            if (mounted) {
+              final messenger = ScaffoldMessenger.of(context)
+                ..hideCurrentSnackBar();
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Bell notifications ${_bellNotificationsEnabled ? 'enabled' : 'disabled'} and saved.',
+                  ),
+                ),
+              );
+            }
+            return const ShellActionBindingResult.completed();
+          } on Object catch (error) {
+            _mutateState(() {
+              _bellNotificationsEnabled = previous;
+            });
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Unable to save notifications: $error')),
+              );
+            }
+            return const ShellActionBindingResult.failed(
+              failureCode: ShellActionBindingFailureCode.platformFailure,
+              message: 'Unable to save bell notifications.',
+            );
+          }
         },
-        toggleActivityMonitor: (_) {
+        toggleActivityMonitor: (_) async {
+          final previous = _activityNotificationsEnabled;
           _mutateState(() {
             _activityNotificationsEnabled = !_activityNotificationsEnabled;
           });
-          unawaited(_saveNotificationPreferences());
-          final messenger = ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar();
-          messenger.showSnackBar(
-            SnackBar(
-              content: Text(
-                'Activity monitor ${_activityNotificationsEnabled ? 'enabled' : 'disabled'} and saved.',
-              ),
-            ),
-          );
-          return const ShellActionBindingResult.completed();
+          try {
+            await _saveNotificationPreferences();
+            if (mounted) {
+              final messenger = ScaffoldMessenger.of(context)
+                ..hideCurrentSnackBar();
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Activity monitor ${_activityNotificationsEnabled ? 'enabled' : 'disabled'} and saved.',
+                  ),
+                ),
+              );
+            }
+            return const ShellActionBindingResult.completed();
+          } on Object catch (error) {
+            _mutateState(() {
+              _activityNotificationsEnabled = previous;
+            });
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Unable to save notifications: $error')),
+              );
+            }
+            return const ShellActionBindingResult.failed(
+              failureCode: ShellActionBindingFailureCode.platformFailure,
+              message: 'Unable to save activity monitor notifications.',
+            );
+          }
         },
       ),
     );

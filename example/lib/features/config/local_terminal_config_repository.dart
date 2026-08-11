@@ -15,6 +15,7 @@ class LocalTerminalConfigRepository {
   }) : _directoryResolver = directoryResolver ?? getApplicationSupportDirectory;
 
   final LocalTerminalConfigDirectoryResolver _directoryResolver;
+  Future<void> _updateQueue = Future<void>.value();
 
   Future<LocalTerminalConfigDocument?> load() async {
     final file = await _configFile();
@@ -45,6 +46,31 @@ class LocalTerminalConfigRepository {
   Future<void> save(LocalTerminalConfigDocument document) async {
     final file = await _configFile();
     await writeStringAtomically(file, document.encode());
+  }
+
+  /// Applies a read-modify-write transaction after all previously scheduled
+  /// updates have completed.
+  ///
+  /// Callers that change only part of the document should use this method
+  /// instead of a separate [load]/[save] pair. Atomic file replacement keeps
+  /// individual writes intact; this queue additionally prevents two feature
+  /// controllers from overwriting each other's newer fields.
+  Future<LocalTerminalConfigDocument> update(
+    LocalTerminalConfigDocument Function(LocalTerminalConfigDocument current)
+    transform, {
+    LocalTerminalConfigDocument fallback = const LocalTerminalConfigDocument(),
+  }) {
+    final operation = _updateQueue.then((_) async {
+      final current = await load() ?? fallback;
+      final next = transform(current);
+      await save(next);
+      return next;
+    });
+    _updateQueue = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return operation;
   }
 
   Future<File> _configFile() async {

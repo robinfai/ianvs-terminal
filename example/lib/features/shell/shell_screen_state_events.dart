@@ -1895,21 +1895,25 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     );
     final localConfig = await _loadLocalNotificationConfigForSave();
     if (localConfig != null) {
-      final nextConfig = localConfig.copyWith(
-        notifications: LocalTerminalNotificationsConfig(
-          enabled:
-              notifications.commandFinished ||
-              notifications.bell ||
-              notifications.activity,
-          commandFinished: notifications.commandFinished,
-          bell: notifications.bell,
-          activity: notifications.activity,
-        ),
-      );
+      final nextConfig = await ref
+          .read(localTerminalConfigRepositoryProvider)
+          .update(
+            (current) => current.copyWith(
+              notifications: LocalTerminalNotificationsConfig(
+                enabled:
+                    notifications.commandFinished ||
+                    notifications.bell ||
+                    notifications.activity,
+                commandFinished: notifications.commandFinished,
+                bell: notifications.bell,
+                activity: notifications.activity,
+              ),
+            ),
+            fallback: localConfig,
+          );
       _notificationConfigSource =
           LocalTerminalConfigBootstrapSource.localConfig;
       _notificationLocalConfig = nextConfig;
-      await ref.read(localTerminalConfigRepositoryProvider).save(nextConfig);
       return;
     }
 
