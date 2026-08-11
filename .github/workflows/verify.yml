@@ -122,6 +122,42 @@ jobs:
             --test runtime_session_request_test \
             "$test_name" -- --exact
 
+  backend-mysql-contract:
+    name: Go API and store contracts (MySQL)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ianvs-ci-root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -pianvs-ci-root"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+
+      - name: Set up Go
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+        with:
+          go-version: "1.23.x"
+          cache-dependency-path: backend/go.sum
+
+      - name: Verify MySQL contracts under the race detector
+        working-directory: backend
+        env:
+          IANVS_TEST_DATABASE_DRIVER: mysql
+          IANVS_TEST_MYSQL_ADMIN_DSN: root:ianvs-ci-root@tcp(127.0.0.1:3306)/?parseTime=true
+        run: |
+          go version
+          go test -race -p 1 ./...
+
   flutter-terminal:
     name: Flutter terminal (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -141,6 +177,12 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
+      - name: Set up Go
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+        with:
+          go-version: "1.23.x"
+          cache-dependency-path: backend/go.sum
+
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master; Rust version pinned below
         with:
@@ -158,10 +200,14 @@ jobs:
           # that dependency; pub/cargo locks still make resolution repeatable.
           cache: false
 
-      - name: Enable macOS desktop
+      - name: Enable Apple build targets
         if: runner.os == 'macOS'
         run: |
-          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+          rustup target add \
+            aarch64-apple-darwin \
+            x86_64-apple-darwin \
+            aarch64-apple-ios-sim \
+            x86_64-apple-ios
           flutter config --enable-macos-desktop
 
       - name: Print tool versions
@@ -176,3 +222,7 @@ jobs:
 
       - name: Run repository verification
         run: ./tools/verify_flutter_terminal.sh
+
+      - name: Verify iOS simulator static linkage and sandbox shell
+        if: runner.os == 'macOS'
+        run: ./tools/verify_ios_simulator.sh

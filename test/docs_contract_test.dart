@@ -234,7 +234,7 @@ void main() {
       ).readAsStringSync();
 
       expect(script, contains("find test -type f -name '*_test.dart'"));
-      expect(script, contains('flutter test "\${EXAMPLE_CI_TEST_TARGETS[@]}"'));
+      expect(script, contains(r'flutter test "${EXAMPLE_CI_TEST_TARGETS[@]}"'));
       expect(
         script,
         contains("! -path 'test/benchmarks/cat_log_benchmark_test.dart'"),

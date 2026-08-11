@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "contract": "ianvs-core-c-abi-v1",
+  "schema_constants": {
+    "FRAME_PACKET_SCHEMA_VERSION": 1,
+    "GRAPHIC_ASSET_PACKET_SCHEMA_VERSION": 1,
+    "HOST_REQUEST_SCHEMA_VERSION": 1,
+    "RUNTIME_CAPABILITIES_SCHEMA_VERSION": 1,
+    "RUNTIME_ENVELOPE_SCHEMA_VERSION": 1,
+    "SESSION_CONFIG_SCHEMA_VERSION": 1,
+    "SESSION_REQUEST_SCHEMA_VERSION": 1
+  },
+  "structs": {
+    "IanvsGraphicAssetMeta": [
+      "uint32_t width;",
+      "uint32_t height;",
+      "uintptr_t rgba_len;",
+      "uint64_t version;"
+    ]
+  },
+  "host_layout": {
+    "pointer_width": 64,
+    "IanvsGraphicAssetMeta": {
+      "size": 24,
+      "alignment": 8,
+      "offsets": {
+        "width": 0,
+        "height": 4,
+        "rgba_len": 8,
+        "version": 16
+      }
+    }
+  },
+  "functions": {
+    "ianvs_bytes_free": "void ianvs_bytes_free(uint8_t *ptr, uintptr_t len);",
+    "ianvs_ping": "int ianvs_ping(void);",
+    "ianvs_replay_session_checkpoint_capture": "uint64_t ianvs_replay_session_checkpoint_capture(uint64_t session_id);",
+    "ianvs_replay_session_checkpoint_restore": "int ianvs_replay_session_checkpoint_restore(uint64_t session_id, uint64_t checkpoint_id);",
+    "ianvs_replay_session_create": "uint64_t ianvs_replay_session_create(const char *profile_json);",
+    "ianvs_replay_session_create_v1": "uint64_t ianvs_replay_session_create_v1(const char *session_config_json);",
+    "ianvs_replay_session_exit": "int ianvs_replay_session_exit(uint64_t session_id, int exit_code, int has_exit_code);",
+    "ianvs_replay_session_output": "int ianvs_replay_session_output(uint64_t session_id, const uint8_t *bytes, uintptr_t len);",
+    "ianvs_runtime_capabilities_json": "char *ianvs_runtime_capabilities_json(void);",
+    "ianvs_session_close": "int ianvs_session_close(uint64_t session_id);",
+    "ianvs_session_create": "uint64_t ianvs_session_create(const char *profile_json);",
+    "ianvs_session_create_v1": "uint64_t ianvs_session_create_v1(const char *session_config_json);",
+    "ianvs_session_file_download_discard": "int ianvs_session_file_download_discard(uint64_t session_id, uint64_t download_id);",
+    "ianvs_session_file_download_take": "intptr_t ianvs_session_file_download_take(uint64_t session_id, uint64_t download_id, uint8_t *dst, uintptr_t len);",
+    "ianvs_session_graphic_asset_meta": "int ianvs_session_graphic_asset_meta(uint64_t session_id, uint64_t asset_id, uint64_t asset_version, struct IanvsGraphicAssetMeta *out_meta);",
+    "ianvs_session_graphic_asset_packet_v1_protobuf": "uint8_t *ianvs_session_graphic_asset_packet_v1_protobuf(uint64_t session_id, uint64_t asset_id, uint64_t asset_version, uintptr_t *out_len);",
+    "ianvs_session_graphic_asset_rgba_copy": "intptr_t ianvs_session_graphic_asset_rgba_copy(uint64_t session_id, uint64_t asset_id, uint64_t asset_version, uint8_t *dst, uintptr_t len);",
+    "ianvs_session_host_response_v1_json": "int ianvs_session_host_response_v1_json(uint64_t session_id, const char *response_json);",
+    "ianvs_session_poll_event_envelopes_json": "char *ianvs_session_poll_event_envelopes_json(uint64_t session_id);",
+    "ianvs_session_poll_events_json": "char *ianvs_session_poll_events_json(uint64_t session_id);",
+    "ianvs_session_refresh_hint": "uint32_t ianvs_session_refresh_hint(uint64_t session_id);",
+    "ianvs_session_request_json": "char *ianvs_session_request_json(uint64_t session_id, const char *request_json);",
+    "ianvs_session_request_v1_json": "char *ianvs_session_request_v1_json(uint64_t session_id, const char *request_json);",
+    "ianvs_session_resize": "int ianvs_session_resize(uint64_t session_id, uint16_t cols, uint16_t rows, uint16_t pixel_width, uint16_t pixel_height);",
+    "ianvs_session_resize_with_cell_size": "int ianvs_session_resize_with_cell_size(uint64_t session_id, uint16_t cols, uint16_t rows, uint16_t pixel_width, uint16_t pixel_height, uint16_t cell_width, uint16_t cell_height);",
+    "ianvs_session_scroll": "int ianvs_session_scroll(uint64_t session_id, int32_t delta_lines);",
+    "ianvs_session_scroll_to": "int ianvs_session_scroll_to(uint64_t session_id, uintptr_t offset);",
+    "ianvs_session_search_json": "char *ianvs_session_search_json(uint64_t session_id, const char *query);",
+    "ianvs_session_selection_text": "char *ianvs_session_selection_text(uint64_t session_id, const char *request_json);",
+    "ianvs_session_take_diagnostic_event_v1_json": "char *ianvs_session_take_diagnostic_event_v1_json(uint64_t session_id, const char *diagnostic_name);",
+    "ianvs_session_take_frame_debug_stats_json": "char *ianvs_session_take_frame_debug_stats_json(uint64_t session_id);",
+    "ianvs_session_take_frame_diff_json": "char *ianvs_session_take_frame_diff_json(uint64_t session_id);",
+    "ianvs_session_take_frame_diff_protobuf": "uint8_t *ianvs_session_take_frame_diff_protobuf(uint64_t session_id, uintptr_t *out_len);",
+    "ianvs_session_take_frame_packet_v1_protobuf": "uint8_t *ianvs_session_take_frame_packet_v1_protobuf(uint64_t session_id, uint64_t after_sequence, uint8_t has_after_sequence, uintptr_t *out_len);",
+    "ianvs_session_take_session_debug_stats_json": "char *ianvs_session_take_session_debug_stats_json(uint64_t session_id);",
+    "ianvs_session_write": "int ianvs_session_write(uint64_t session_id, const uint8_t *bytes, uintptr_t len);",
+    "ianvs_session_write_protocol_reply": "int ianvs_session_write_protocol_reply(uint64_t session_id, const uint8_t *bytes, uintptr_t len);",
+    "ianvs_ssh_import_profiles_json": "char *ianvs_ssh_import_profiles_json(const char *config_path);",
+    "ianvs_string_free": "void ianvs_string_free(char *value);"
+  },
+  "dart_unbound_legacy_exports": [
+    "ianvs_session_search_json",
+    "ianvs_session_selection_text"
+  ]
+}

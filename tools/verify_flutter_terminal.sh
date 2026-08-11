@@ -20,6 +20,7 @@ if ! command -v rustup >/dev/null 2>&1 || \
 fi
 
 "$ROOT_DIR/tools/build_core.sh"
+"$ROOT_DIR/tools/verify_generated_contracts.sh"
 
 python3 "$ROOT_DIR/tools/validate_osc_protocol_corpus.py"
 python3 "$ROOT_DIR/tools/osc_semantic_probe.py" --self-test
@@ -28,7 +29,7 @@ python3 "$ROOT_DIR/tools/osc_semantic_probe.py" --self-test
   cd "$BACKEND_DIR"
   test -z "$(gofmt -l .)"
   go vet ./...
-  go test ./...
+  go test -race ./...
 )
 
 (
@@ -77,6 +78,9 @@ python3 "$ROOT_DIR/tools/osc_semantic_probe.py" --self-test
 (
   cd "$ROOT_DIR"
   dart test test/docs_contract_test.dart
+  dart test \
+    test/apple_build_environment_contract_test.dart \
+    test/openapi_document_test.dart
 )
 
 (
