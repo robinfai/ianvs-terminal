@@ -85,6 +85,30 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     });
     _publishAcceptanceSnapshot(sessionState);
 
+    final dataApiConfigurationRepository = ref.read(
+      dataApiConfigurationRepositoryProvider,
+    );
+    var dataApiConfiguration = const DataApiConfiguration.disabled();
+    if (dataApiConfigurationRepository != null) {
+      try {
+        dataApiConfiguration = await dataApiConfigurationRepository.load();
+      } on Object catch (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Unable to read the data service configuration: $error',
+              ),
+            ),
+          );
+        }
+      }
+    }
+
+    if (!mounted) {
+      return;
+    }
+
     final activeSessionIdBeforeOpen = sessionState.activeSessionId;
     final defaultsRoute = DialogRoute<DefaultsAndAppearanceSelection>(
       context: context,
@@ -104,6 +128,8 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         requestAttentionPolicy: _hostActionsConfig.osc1337RequestAttention,
         reportVariableDecisions: _hostActionsConfig.osc1337ReportVariables,
         keybindings: _keybindingsConfig,
+        dataApiConfiguration: dataApiConfiguration,
+        localDataApiAvailable: defaultTargetPlatform == TargetPlatform.macOS,
       ),
     );
     final selection = await Navigator.of(
@@ -238,6 +264,44 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
             keybindings: selection.keybindings,
           );
         });
+      }
+      if (selection.dataApiConfiguration != dataApiConfiguration) {
+        if (dataApiConfigurationRepository == null) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Data service configuration is unavailable in this build.',
+                ),
+              ),
+            );
+          }
+        } else {
+          try {
+            await dataApiConfigurationRepository.save(
+              selection.dataApiConfiguration,
+            );
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Data service configuration saved. Restart the app to apply it.',
+                  ),
+                ),
+              );
+            }
+          } on Object catch (error) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Unable to save the data service configuration: $error',
+                  ),
+                ),
+              );
+            }
+          }
+        }
       }
       final updatedProfile = selection.updatedProfile;
       if (updatedProfile != null) {

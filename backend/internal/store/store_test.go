@@ -1,0 +1,215 @@
+package store_test
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"gorm.io/gorm"
+
+	"ianvs-terminal/backend/internal/config"
+	"ianvs-terminal/backend/internal/database"
+	"ianvs-terminal/backend/internal/identity"
+	"ianvs-terminal/backend/internal/model"
+	"ianvs-terminal/backend/internal/secure"
+	"ianvs-terminal/backend/internal/store"
+)
+
+func TestResourceEncryptionAndOptimisticRevision(t *testing.T) {
+	ctx := context.Background()
+	db, resourceStore := testStore(t)
+	user, key := testUser(t, db, "alice", "alice-encryption-key-material")
+
+	created, err := resourceStore.Put(ctx, user, key, "profile", "work", store.WriteInput{
+		Data:             json.RawMessage(`{"name":"Work","connection":{"host":"example.com"}}`),
+		Sensitive:        json.RawMessage(`{"connection":{"password":"server-secret"}}`),
+		SensitivePresent: true,
+	})
+	if err != nil {
+		t.Fatalf("Put() error = %v", err)
+	}
+	if created.Revision != 1 || string(created.Sensitive) != `{"connection":{"password":"server-secret"}}` {
+		t.Fatalf("Put() = %#v", created)
+	}
+
+	var persisted model.Resource
+	if err := db.Where("user_id = ? AND kind = ? AND external_id = ?", user.ID, "profile", "work").First(&persisted).Error; err != nil {
+		t.Fatalf("load persisted resource: %v", err)
+	}
+	if strings.Contains(persisted.PlainJSON, "server-secret") || strings.Contains(persisted.SensitiveCiphertext, "server-secret") {
+		t.Fatal("database row contains a plaintext secret")
+	}
+	if persisted.SensitiveFormat != secure.CiphertextFormat {
+		t.Fatalf("SensitiveFormat = %q", persisted.SensitiveFormat)
+	}
+
+	withoutSecret, err := resourceStore.Get(ctx, user, nil, "profile", "work", false)
+	if err != nil {
+		t.Fatalf("Get(without sensitive) error = %v", err)
+	}
+	if withoutSecret.Sensitive != nil || !withoutSecret.HasSensitive {
+		t.Fatalf("Get(without sensitive) = %#v", withoutSecret)
+	}
+	withSecret, err := resourceStore.Get(ctx, user, key, "profile", "work", true)
+	if err != nil {
+		t.Fatalf("Get(with sensitive) error = %v", err)
+	}
+	if string(withSecret.Sensitive) != `{"connection":{"password":"server-secret"}}` {
+		t.Fatalf("Get().Sensitive = %s", withSecret.Sensitive)
+	}
+
+	stale := int64(99)
+	_, err = resourceStore.Put(ctx, user, nil, "profile", "work", store.WriteInput{
+		Data:             json.RawMessage(`{"name":"Changed"}`),
+		ExpectedRevision: &stale,
+	})
+	if !errors.Is(err, store.ErrRevisionConflict) {
+		t.Fatalf("Put(stale revision) error = %v, want ErrRevisionConflict", err)
+	}
+}
+
+func TestOneWayMergeIsIdempotentAndPreservesDestinationConflicts(t *testing.T) {
+	ctx := context.Background()
+	sourceDB, sourceStore := testStore(t)
+	sourceUser, sourceKey := testUser(t, sourceDB, "source", "source-encryption-key-material")
+	destinationDB, destinationStore := testStore(t)
+	destinationUser, destinationKey := testUser(t, destinationDB, "destination", "destination-encryption-key-material")
+
+	_, err := sourceStore.Put(ctx, sourceUser, sourceKey, "profile", "work", store.WriteInput{
+		Data:             json.RawMessage(`{"name":"Local work"}`),
+		Sensitive:        json.RawMessage(`{"password":"local-secret"}`),
+		SensitivePresent: true,
+	})
+	if err != nil {
+		t.Fatalf("source Put() error = %v", err)
+	}
+	bundle, err := sourceStore.Export(ctx, sourceUser, sourceKey, false, true)
+	if err != nil {
+		t.Fatalf("Export() error = %v", err)
+	}
+	request := store.MergeRequest{
+		SchemaVersion: bundle.SchemaVersion,
+		SourceID:      bundle.SourceID,
+		Resources:     bundle.Resources,
+	}
+	report, err := destinationStore.Merge(ctx, destinationUser, destinationKey, request)
+	if err != nil {
+		t.Fatalf("Merge() error = %v", err)
+	}
+	if report.Created != 1 || report.Conflicts != 0 {
+		t.Fatalf("first Merge() = %#v", report)
+	}
+	migrated, err := destinationStore.Get(ctx, destinationUser, destinationKey, "profile", "work", true)
+	if err != nil {
+		t.Fatalf("Get(migrated) error = %v", err)
+	}
+	if string(migrated.Sensitive) != `{"password":"local-secret"}` {
+		t.Fatalf("migrated sensitive data = %s", migrated.Sensitive)
+	}
+
+	report, err = destinationStore.Merge(ctx, destinationUser, destinationKey, request)
+	if err != nil {
+		t.Fatalf("second Merge() error = %v", err)
+	}
+	if report.Skipped != 1 || report.Created != 0 || report.Updated != 0 {
+		t.Fatalf("idempotent Merge() = %#v", report)
+	}
+
+	_, err = destinationStore.Put(ctx, destinationUser, nil, "profile", "work", store.WriteInput{
+		Data: json.RawMessage(`{"name":"Remote edit"}`),
+	})
+	if err != nil {
+		t.Fatalf("destination Put() error = %v", err)
+	}
+	_, err = sourceStore.Put(ctx, sourceUser, nil, "profile", "work", store.WriteInput{
+		Data: json.RawMessage(`{"name":"New local edit"}`),
+	})
+	if err != nil {
+		t.Fatalf("source update error = %v", err)
+	}
+	newBundle, err := sourceStore.Export(ctx, sourceUser, sourceKey, false, true)
+	if err != nil {
+		t.Fatalf("second Export() error = %v", err)
+	}
+	report, err = destinationStore.Merge(ctx, destinationUser, destinationKey, store.MergeRequest{
+		SchemaVersion: newBundle.SchemaVersion,
+		SourceID:      newBundle.SourceID,
+		Resources:     newBundle.Resources,
+	})
+	if err != nil {
+		t.Fatalf("conflicting Merge() error = %v", err)
+	}
+	if report.Conflicts != 1 {
+		t.Fatalf("conflicting Merge() = %#v", report)
+	}
+	preserved, err := destinationStore.Get(ctx, destinationUser, nil, "profile", "work", false)
+	if err != nil {
+		t.Fatalf("Get(preserved) error = %v", err)
+	}
+	if string(preserved.Data) != `{"name":"Remote edit"}` {
+		t.Fatalf("destination data was overwritten: %s", preserved.Data)
+	}
+
+	if err := sourceStore.Delete(ctx, sourceUser, "profile", "work", nil); err != nil {
+		t.Fatalf("source Delete() error = %v", err)
+	}
+	deletedBundle, err := sourceStore.Export(ctx, sourceUser, nil, true, false)
+	if err != nil {
+		t.Fatalf("deleted Export() error = %v", err)
+	}
+	report, err = destinationStore.Merge(ctx, destinationUser, nil, store.MergeRequest{
+		SchemaVersion:    deletedBundle.SchemaVersion,
+		SourceID:         deletedBundle.SourceID,
+		PropagateDeletes: true,
+		Resources:        deletedBundle.Resources,
+	})
+	if err != nil {
+		t.Fatalf("deletion Merge() error = %v", err)
+	}
+	if report.Deleted != 1 {
+		t.Fatalf("deletion Merge() = %#v", report)
+	}
+	if _, err := destinationStore.Get(ctx, destinationUser, nil, "profile", "work", false); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("Get(deleted) error = %v, want ErrNotFound", err)
+	}
+}
+
+func testStore(t *testing.T) (*gorm.DB, *store.Store) {
+	t.Helper()
+	cfg := config.Config{
+		Mode:           config.ModeLocal,
+		DatabaseDriver: "sqlite",
+		DatabaseDSN:    filepath.Join(t.TempDir(), "test.db"),
+		TokenTTL:       time.Hour,
+	}
+	db, err := database.Open(cfg)
+	if err != nil {
+		t.Fatalf("database.Open() error = %v", err)
+	}
+	resourceStore, err := store.New(context.Background(), db)
+	if err != nil {
+		t.Fatalf("store.New() error = %v", err)
+	}
+	return db, resourceStore
+}
+
+func testUser(t *testing.T, db *gorm.DB, username, encryptionKey string) (model.User, []byte) {
+	t.Helper()
+	id, err := identity.UUID()
+	if err != nil {
+		t.Fatalf("identity.UUID() error = %v", err)
+	}
+	user := model.User{ID: id, Username: username}
+	key, err := secure.ConfigureUserKey(&user, encryptionKey)
+	if err != nil {
+		t.Fatalf("secure.ConfigureUserKey() error = %v", err)
+	}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	return user, key
+}

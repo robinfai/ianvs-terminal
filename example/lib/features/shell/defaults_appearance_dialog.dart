@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../data/configuration/data_api_configuration.dart';
 import '../../ui/app_ui.dart';
 import '../config/local_terminal_config_models.dart';
 import '../config/local_terminal_keybinding_resolver.dart';
@@ -20,6 +21,7 @@ class DefaultsAndAppearanceSelection {
     required this.requestAttentionPolicy,
     required this.reportVariableDecisions,
     required this.keybindings,
+    this.dataApiConfiguration = const DataApiConfiguration.disabled(),
     this.updatedProfile,
     this.openProfiles = false,
   });
@@ -33,6 +35,7 @@ class DefaultsAndAppearanceSelection {
   final LocalTerminalRequestAttentionPolicy requestAttentionPolicy;
   final Map<String, LocalTerminalReportVariablePolicy> reportVariableDecisions;
   final LocalTerminalKeybindingsConfig keybindings;
+  final DataApiConfiguration dataApiConfiguration;
   final TerminalProfile? updatedProfile;
   final bool openProfiles;
 }
@@ -51,6 +54,8 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
     required this.requestAttentionPolicy,
     required this.reportVariableDecisions,
     this.keybindings = const LocalTerminalKeybindingsConfig(),
+    this.dataApiConfiguration = const DataApiConfiguration.disabled(),
+    this.localDataApiAvailable = false,
   });
 
   final List<TerminalProfile> profiles;
@@ -64,6 +69,8 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
   final LocalTerminalRequestAttentionPolicy requestAttentionPolicy;
   final Map<String, LocalTerminalReportVariablePolicy> reportVariableDecisions;
   final LocalTerminalKeybindingsConfig keybindings;
+  final DataApiConfiguration dataApiConfiguration;
+  final bool localDataApiAvailable;
 
   @override
   State<DefaultsAndAppearanceDialog> createState() =>
@@ -73,6 +80,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
 class _DefaultsAndAppearanceDialogState
     extends State<DefaultsAndAppearanceDialog> {
   final ScrollController _scrollController = ScrollController();
+  late final TextEditingController _remoteDataApiUrlController;
   late String? _selectedProfileId;
   late String? _selectedTerminalPresetId;
   late TerminalThemeMode _selectedThemeMode;
@@ -84,6 +92,7 @@ class _DefaultsAndAppearanceDialogState
   late Map<String, LocalTerminalReportVariablePolicy>
   _selectedReportVariableDecisions;
   late LocalTerminalKeybindingsConfig _selectedKeybindings;
+  late DataApiDeployment _selectedDataApiDeployment;
   String _terminalPresetFilter = '';
 
   @override
@@ -100,6 +109,10 @@ class _DefaultsAndAppearanceDialogState
       widget.reportVariableDecisions,
     );
     _selectedKeybindings = widget.keybindings;
+    _selectedDataApiDeployment = widget.dataApiConfiguration.deployment;
+    _remoteDataApiUrlController = TextEditingController(
+      text: widget.dataApiConfiguration.remoteBaseUri?.toString() ?? '',
+    )..addListener(_handleRemoteDataApiUrlChanged);
     _selectedTerminalPresetId = _matchingPresetIdFor(
       _effectiveProfileFor(
         configuredProfileId: _selectedProfileId,
@@ -110,8 +123,37 @@ class _DefaultsAndAppearanceDialogState
 
   @override
   void dispose() {
+    _remoteDataApiUrlController
+      ..removeListener(_handleRemoteDataApiUrlChanged)
+      ..dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _handleRemoteDataApiUrlChanged() {
+    setState(() {});
+  }
+
+  DataApiConfiguration? get _selectedDataApiConfiguration {
+    return switch (_selectedDataApiDeployment) {
+      DataApiDeployment.disabled => const DataApiConfiguration.disabled(),
+      DataApiDeployment.local =>
+        widget.localDataApiAvailable
+            ? const DataApiConfiguration.local()
+            : null,
+      DataApiDeployment.remote =>
+        _remoteDataApiUrlController.text.trim().isEmpty
+            ? null
+            : _tryRemoteDataApiConfiguration(_remoteDataApiUrlController.text),
+    };
+  }
+
+  DataApiConfiguration? _tryRemoteDataApiConfiguration(String value) {
+    try {
+      return DataApiConfiguration.remote(value);
+    } on FormatException {
+      return null;
+    }
   }
 
   TerminalProfile? _effectiveProfileFor({
@@ -180,6 +222,7 @@ class _DefaultsAndAppearanceDialogState
   }
 
   bool _hasChanges(TerminalProfile? effectiveProfile) {
+    final selectedDataApiConfiguration = _selectedDataApiConfiguration;
     return _selectedProfileId != widget.configuredDefaultProfileId ||
         _selectedThemeMode != widget.themeMode ||
         _selectedTerminalViewportPadding != widget.terminalViewportPadding ||
@@ -192,6 +235,8 @@ class _DefaultsAndAppearanceDialogState
           widget.reportVariableDecisions,
         ) ||
         _selectedKeybindings != widget.keybindings ||
+        (selectedDataApiConfiguration != null &&
+            selectedDataApiConfiguration != widget.dataApiConfiguration) ||
         _updatedProfileForPreset(effectiveProfile) != null;
   }
 
@@ -214,6 +259,7 @@ class _DefaultsAndAppearanceDialogState
       effectiveProfileId: widget.effectiveDefaultProfileId,
     );
     final hasChanges = _hasChanges(effectiveProfile);
+    final selectedDataApiConfiguration = _selectedDataApiConfiguration;
     final isUsingFallback = _selectedProfileId == null;
     final selectedPreset = _selectedPreset;
     final terminalPresetFilter = _terminalPresetFilter.trim().toLowerCase();
@@ -307,6 +353,9 @@ class _DefaultsAndAppearanceDialogState
                               reportVariableDecisions:
                                   _selectedReportVariableDecisions,
                               keybindings: _selectedKeybindings,
+                              dataApiConfiguration:
+                                  selectedDataApiConfiguration ??
+                                  widget.dataApiConfiguration,
                               updatedProfile: null,
                               openProfiles: true,
                             ),
@@ -802,6 +851,92 @@ class _DefaultsAndAppearanceDialogState
                 ),
                 SizedBox(height: theme.spacing.xxl),
                 const AppSectionHeader(
+                  title: 'Data service',
+                  description:
+                      'Choose whether the app starts a local data service or connects to a remote one.',
+                ),
+                SizedBox(height: theme.spacing.sm),
+                AppPanel(
+                  key: const Key('defaults-data-api-panel'),
+                  tone: AppPanelTone.panel,
+                  padding: EdgeInsets.all(theme.spacing.lg),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      RadioGroup<DataApiDeployment>(
+                        groupValue: _selectedDataApiDeployment,
+                        onChanged: (deployment) {
+                          if (deployment == null) {
+                            return;
+                          }
+                          setState(() {
+                            _selectedDataApiDeployment = deployment;
+                          });
+                        },
+                        child: Column(
+                          children: [
+                            const AppCompactRadioTile<DataApiDeployment>(
+                              tileKey: Key('data-api-disabled'),
+                              value: DataApiDeployment.disabled,
+                              title: Text('Disabled'),
+                              subtitle: Text(
+                                'Keep terminal data in the existing local repositories.',
+                              ),
+                            ),
+                            if (widget.localDataApiAvailable)
+                              const AppCompactRadioTile<DataApiDeployment>(
+                                tileKey: Key('data-api-local'),
+                                value: DataApiDeployment.local,
+                                title: Text('Bundled local service'),
+                                subtitle: Text(
+                                  'Start the bundled service and local SQLite database.',
+                                ),
+                              ),
+                            const AppCompactRadioTile<DataApiDeployment>(
+                              tileKey: Key('data-api-remote'),
+                              value: DataApiDeployment.remote,
+                              title: Text('Remote service'),
+                              subtitle: Text(
+                                'Connect to a configured HTTPS or HTTP API endpoint.',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (_selectedDataApiDeployment ==
+                          DataApiDeployment.remote) ...[
+                        SizedBox(height: theme.spacing.sm),
+                        TextField(
+                          key: const Key('data-api-remote-url'),
+                          controller: _remoteDataApiUrlController,
+                          keyboardType: TextInputType.url,
+                          autocorrect: false,
+                          enableSuggestions: false,
+                          decoration: InputDecoration(
+                            labelText: 'Remote API base URL',
+                            hintText: 'https://api.example.com/',
+                            errorText: selectedDataApiConfiguration == null
+                                ? _remoteDataApiUrlController.text
+                                          .trim()
+                                          .isEmpty
+                                      ? 'Enter the remote API base URL.'
+                                      : 'Use an http(s) URL without credentials, query, or fragment.'
+                                : null,
+                          ),
+                        ),
+                      ],
+                      SizedBox(height: theme.spacing.sm),
+                      Text(
+                        'The selection is stored in the app configuration and takes effect after restart.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: theme.textSubtle,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: theme.spacing.xxl),
+                const AppSectionHeader(
                   title: 'Terminal canvas inset',
                   description:
                       'Adjust the empty space between the shell frame and terminal text.',
@@ -994,6 +1129,7 @@ class _DefaultsAndAppearanceDialogState
                               config: _selectedKeybindings,
                             ),
                           ).isNotEmpty ||
+                          selectedDataApiConfiguration == null ||
                           !hasChanges
                       ? null
                       : () {
@@ -1011,6 +1147,8 @@ class _DefaultsAndAppearanceDialogState
                               reportVariableDecisions:
                                   _selectedReportVariableDecisions,
                               keybindings: _selectedKeybindings,
+                              dataApiConfiguration:
+                                  selectedDataApiConfiguration,
                               updatedProfile: _updatedProfileForPreset(
                                 effectiveProfile,
                               ),

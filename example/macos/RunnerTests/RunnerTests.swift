@@ -12,6 +12,18 @@ private final class CloseTrackingMainFlutterWindow: MainFlutterWindow {
   }
 }
 
+private final class ConfirmedCloseTrackingMainFlutterWindow: MainFlutterWindow {
+  private(set) var terminationRequestCount = 0
+
+  override func shouldCloseWindowAfterConfirmation() -> Bool {
+    return true
+  }
+
+  override func requestApplicationTermination() {
+    terminationRequestCount += 1
+  }
+}
+
 private final class DragTrackingMainFlutterWindow: MainFlutterWindow {
   private(set) var performedDragEvent: NSEvent?
 
@@ -43,6 +55,17 @@ class RunnerTests: XCTestCase {
     XCTAssertTrue(window.delegate === window)
     XCTAssertFalse(window.windowShouldClose(window))
     XCTAssertTrue(window.didRequestCloseConfirmation)
+  }
+
+  func testConfirmedMainWindowCloseKeepsFlutterAliveAndRequestsAppTermination() {
+    let window = ConfirmedCloseTrackingMainFlutterWindow()
+
+    window.installWindowCloseConfirmationDelegate()
+
+    XCTAssertFalse(window.windowShouldClose(window))
+    XCTAssertEqual(window.terminationRequestCount, 1)
+    XCTAssertTrue(AppDelegate.suppressNextTerminateConfirmation)
+    AppDelegate.suppressNextTerminateConfirmation = false
   }
 
   func testTerminalFolderFileMenuIsStandardAndIdempotent() throws {

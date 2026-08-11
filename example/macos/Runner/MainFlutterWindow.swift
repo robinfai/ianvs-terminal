@@ -165,6 +165,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
   static let mainWindowFrameAutosaveName = "IanvsTerminalMainWindow"
 
   private var windowBridgeChannel: FlutterMethodChannel?
+  private var shutdownChannel: FlutterMethodChannel?
   private var hotkeyWindowController: HotkeyWindowController?
   private var trafficLightCenteringWorkItem: DispatchWorkItem?
   private var notificationExpiryWorkItems: [String: DispatchWorkItem] = [:]
@@ -294,15 +295,33 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
   }
 
   func windowShouldClose(_ sender: NSWindow) -> Bool {
-    let shouldClose = shouldCloseWindowAfterConfirmation()
-    if shouldClose {
+    if shouldCloseWindowAfterConfirmation() {
       AppDelegate.suppressNextTerminateConfirmation = true
+      requestApplicationTermination()
     }
-    return shouldClose
+    // Keep the Flutter engine alive while AppDelegate waits for Dart cleanup.
+    // The application termination reply will close the window afterwards.
+    return false
   }
 
   func shouldCloseWindowAfterConfirmation() -> Bool {
     AppDelegate.confirmApplicationTermination()
+  }
+
+  func requestApplicationTermination() {
+    NSApp.terminate(nil)
+  }
+
+  func requestDartShutdown(completion: @escaping () -> Void) {
+    guard let shutdownChannel else {
+      completion()
+      return
+    }
+    shutdownChannel.invokeMethod(
+      "requestShutdown",
+      arguments: nil,
+      result: { _ in completion() }
+    )
   }
 
   @discardableResult
@@ -332,6 +351,10 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     RegisterGeneratedPlugins(registry: flutterViewController)
     windowBridgeChannel = FlutterMethodChannel(
       name: "app/window_bridge",
+      binaryMessenger: flutterViewController.engine.binaryMessenger
+    )
+    shutdownChannel = FlutterMethodChannel(
+      name: "app/shutdown",
       binaryMessenger: flutterViewController.engine.binaryMessenger
     )
     bindNativePasteMenuItems()

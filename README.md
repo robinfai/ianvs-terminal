@@ -6,6 +6,7 @@
 - `packages/ianvs_terminal`：session runtime、viewport、输入/选区/滚动适配
 - `example/`：tab、窗口壳、菜单、profile 编辑和 demo 流程
 - `native/core`：Rust PTY / VT core，当前仍作为 `ianvs_pty` 背后的原生实现
+- `backend/`：Go + GORM 数据 API，本地使用 SQLite、远程可切换 MySQL
 
 `example/` 不再定义终端能力；共享终端能力统一从 package 暴露。app 侧通过 `example/lib/features/terminal/terminal.dart` 和 `example/lib/features/pty/pty.dart` 收口 package 依赖，平台剪贴板桥接留在 `example/lib/platform/clipboard_bridge.dart`。`example` 目录里的 Flutter package 现阶段仍保留 `name: app`，用于稳定既有 `package:app/...` import 面；macOS bundle identity 由 Runner project 的 Ianvs Terminal 元数据单独维护。
 
@@ -20,6 +21,7 @@ make analyze
 make test
 make run
 make install
+make backend-test
 ```
 
 ```bash
@@ -32,6 +34,8 @@ flutter analyze --fatal-infos
 flutter test
 flutter run -d macos
 ```
+
+数据 API 通过应用内的 **Defaults & appearance → Data service** 配置，不读取进程环境变量或 `dart-define`。默认关闭；macOS 可以选择应用包内的本地 Go API，使用应用支持目录下的 SQLite；所有平台都可以配置无用户名、密码、query 和 fragment 的 `http(s)` 远程基础 URL。配置保存在应用支持目录的 `data-api/configuration.json`，重启应用后生效。iOS 不提供本地 sidecar 选项，未配置远程服务时终端仍可正常使用。
 
 ```bash
 cd native/core
@@ -49,6 +53,7 @@ ianvs terminal/
 │   ├── ianvs_pty/
 │   └── ianvs_terminal/
 ├── native/core/
+├── backend/
 ├── docs/
 └── tools/
 ```

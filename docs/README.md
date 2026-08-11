@@ -28,6 +28,7 @@
 
 - [TERMINAL_PRODUCT_SCOPE.md](TERMINAL_PRODUCT_SCOPE.md)：Profile、Session、Terminal Layout、Relaunch Spec、Recording Library 与延期/非目标边界。
 - [ARCHITECTURE.md](ARCHITECTURE.md)：稳定设计、模块职责、公开接口和长期约束。
+- [../backend/README.md](../backend/README.md)：Go/GORM 本地与远程数据 API、加密边界和单向迁移合同。
 - [FRAME_DIFF.md](FRAME_DIFF.md)：terminal frame diff 的原理图、生命周期、Snapshot/Delta 对比和收益说明。
 - [recording/FORMAT_V1.md](recording/FORMAT_V1.md)：Iteration 03 的 Recording Metadata/Event v1 格式、兼容错误和输入隐私边界。
 - [recording/FORMAT_V2.md](recording/FORMAT_V2.md)：Recording v2 checkpoint marker、安全 parser 边界、有界 native materialization 与兼容规则。

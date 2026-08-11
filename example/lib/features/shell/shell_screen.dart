@@ -13,6 +13,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ianvs_pty/ianvs_pty.dart' as pty;
 import 'package:path_provider/path_provider.dart';
 
+import '../../data/configuration/data_api_configuration.dart';
+import '../../data/configuration/data_api_configuration_providers.dart';
 import '../../platform/clipboard_bridge.dart';
 import '../../ui/app_ui.dart';
 import '../config/local_terminal_config_bootstrap.dart';

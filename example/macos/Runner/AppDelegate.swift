@@ -5,18 +5,86 @@ import FlutterMacOS
 class AppDelegate: FlutterAppDelegate {
   static var suppressNextLastWindowTerminate = false
   static var suppressNextTerminateConfirmation = false
+  static let dartShutdownTimeout: TimeInterval = 10
+
+  private var terminationReplyPending = false
+  private var shutdownCompleted = false
+  private var shutdownTimeoutWorkItem: DispatchWorkItem?
 
   override func applicationDidFinishLaunching(_ notification: Notification) {
     scheduleForegroundMainWindow(for: NSApp)
   }
 
   override func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-    if Self.suppressNextTerminateConfirmation {
-      Self.suppressNextTerminateConfirmation = false
-      return .terminateNow
+    if shutdownCompleted {
+      DispatchQueue.main.async {
+        sender.reply(toApplicationShouldTerminate: true)
+      }
+      return .terminateLater
     }
 
-    return Self.confirmApplicationTermination() ? .terminateNow : .terminateCancel
+    if terminationReplyPending {
+      return .terminateLater
+    }
+
+    if Self.suppressNextTerminateConfirmation {
+      Self.suppressNextTerminateConfirmation = false
+    } else if !Self.confirmApplicationTermination() {
+      return .terminateCancel
+    }
+
+    terminationReplyPending = true
+    requestDartShutdownBeforeTermination(sender)
+    return .terminateLater
+  }
+
+  private func requestDartShutdownBeforeTermination(_ sender: NSApplication) {
+    let timeoutWorkItem = DispatchWorkItem { [weak self, weak sender] in
+      guard let self, let sender else {
+        return
+      }
+      self.finishTermination(sender)
+    }
+    shutdownTimeoutWorkItem?.cancel()
+    shutdownTimeoutWorkItem = timeoutWorkItem
+    DispatchQueue.main.asyncAfter(
+      deadline: .now() + Self.dartShutdownTimeout,
+      execute: timeoutWorkItem
+    )
+
+    // Defer the channel call until after applicationShouldTerminate has
+    // returned .terminateLater. This also makes a missing Flutter window safe.
+    DispatchQueue.main.async { [weak self, weak sender] in
+      guard let self, let sender else {
+        return
+      }
+      guard
+        let window = Self.preferredForegroundWindow(from: sender.windows)
+          as? MainFlutterWindow
+      else {
+        self.finishTermination(sender)
+        return
+      }
+      window.requestDartShutdown { [weak self, weak sender] in
+        DispatchQueue.main.async {
+          guard let self, let sender else {
+            return
+          }
+          self.finishTermination(sender)
+        }
+      }
+    }
+  }
+
+  private func finishTermination(_ sender: NSApplication) {
+    guard terminationReplyPending else {
+      return
+    }
+    terminationReplyPending = false
+    shutdownCompleted = true
+    shutdownTimeoutWorkItem?.cancel()
+    shutdownTimeoutWorkItem = nil
+    sender.reply(toApplicationShouldTerminate: true)
   }
 
   static func confirmApplicationTermination() -> Bool {

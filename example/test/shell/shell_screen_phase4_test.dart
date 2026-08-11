@@ -538,10 +538,12 @@ void main() {
         'default-osc1337-report-variable-forget-user.gitBranch',
       ),
     );
+    await tester.ensureVisible(forgetUser);
     await tester.tap(forgetUser);
     await tester.pump();
     expect(find.text('1 remembered · 1 allowed · 0 denied'), findsOneWidget);
     expect(find.text('user.gitBranch'), findsNothing);
+    await tester.ensureVisible(forget);
     await tester.tap(forget);
     await tester.pumpAndSettle();
     expect(find.text('No remembered decisions'), findsOneWidget);

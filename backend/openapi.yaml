@@ -1,0 +1,369 @@
+openapi: 3.1.0
+info:
+  title: Ianvs Data API
+  version: 1.0.0
+  description: >-
+    Database-neutral GORM API for local single-user and remote multi-user
+    profile, session, and configuration persistence.
+servers:
+  - url: http://127.0.0.1:47832
+    description: Local loopback service
+  - url: https://api.example.com
+    description: Remote service behind TLS
+tags:
+  - name: health
+  - name: auth
+  - name: resources
+  - name: migrations
+paths:
+  /healthz:
+    get:
+      tags: [health]
+      operationId: health
+      responses:
+        '200':
+          description: Service and database are available.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, mode, server_id, time]
+                properties:
+                  status: {type: string, const: ok}
+                  mode: {type: string, enum: [local, remote]}
+                  server_id: {type: string}
+                  time: {type: string, format: date-time}
+  /v1/auth/setup:
+    post:
+      tags: [auth]
+      operationId: setupLocalUserKey
+      summary: Configure the client-owned key for the reserved local user.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EncryptionKeyRequest'
+      responses:
+        '201': {description: Local key was configured.}
+        '200': {description: Existing local key was verified.}
+        '401': {$ref: '#/components/responses/InvalidEncryptionKey'}
+  /v1/auth/register:
+    post:
+      tags: [auth]
+      operationId: register
+      summary: Register a remote user and configure their client-owned key.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password, encryption_key]
+              properties:
+                username: {type: string, minLength: 3, maxLength: 64}
+                password: {type: string, minLength: 12, maxLength: 1024}
+                encryption_key: {type: string, minLength: 16}
+      responses:
+        '201':
+          description: User and login session were created.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthSession'}
+        '409': {description: Username already exists.}
+  /v1/auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: {type: string}
+                password: {type: string}
+      responses:
+        '200':
+          description: A new bearer session.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthSession'}
+        '401': {description: Invalid credentials.}
+  /v1/auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      security: [{bearerAuth: []}]
+      responses:
+        '204': {description: Token was revoked.}
+  /v1/me:
+    get:
+      tags: [auth]
+      operationId: getCurrentUser
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Current local or remote user.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user: {$ref: '#/components/schemas/User'}
+  /v1/resources:
+    get:
+      tags: [resources]
+      operationId: listResources
+      security: [{bearerAuth: []}]
+      parameters:
+        - in: query
+          name: kind
+          schema: {type: string}
+        - in: query
+          name: include_deleted
+          schema: {type: boolean, default: false}
+        - in: query
+          name: include_sensitive
+          schema: {type: boolean, default: false}
+        - $ref: '#/components/parameters/EncryptionKeyHeader'
+      responses:
+        '200':
+          description: Resources owned by the current user.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [resources]
+                properties:
+                  resources:
+                    type: array
+                    items: {$ref: '#/components/schemas/Resource'}
+  /v1/resources/{kind}/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Kind'
+      - $ref: '#/components/parameters/ResourceID'
+    get:
+      tags: [resources]
+      operationId: getResource
+      security: [{bearerAuth: []}]
+      parameters:
+        - in: query
+          name: include_sensitive
+          schema: {type: boolean, default: false}
+        - $ref: '#/components/parameters/EncryptionKeyHeader'
+      responses:
+        '200':
+          description: Resource.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Resource'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      tags: [resources]
+      operationId: putResource
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: '#/components/parameters/EncryptionKeyHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ResourceWrite'}
+      responses:
+        '200':
+          description: Created or updated resource.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Resource'}
+        '409': {description: Expected revision did not match.}
+    delete:
+      tags: [resources]
+      operationId: deleteResource
+      security: [{bearerAuth: []}]
+      parameters:
+        - in: query
+          name: expected_revision
+          schema: {type: integer, format: int64, minimum: 1}
+      responses:
+        '204': {description: Tombstone was created.}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Expected revision did not match.}
+  /v1/migrations/export:
+    get:
+      tags: [migrations]
+      operationId: exportMigration
+      summary: Export a one-way migration bundle for the current user.
+      security: [{bearerAuth: []}]
+      parameters:
+        - in: query
+          name: include_deleted
+          schema: {type: boolean, default: false}
+        - in: query
+          name: include_sensitive
+          schema: {type: boolean, default: false}
+        - $ref: '#/components/parameters/EncryptionKeyHeader'
+      responses:
+        '200':
+          description: Bundle accepted directly by the merge endpoint.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MigrationBundle'}
+  /v1/migrations/merge:
+    post:
+      tags: [migrations]
+      operationId: mergeMigration
+      summary: Merge a local bundle into the current remote user.
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: '#/components/parameters/EncryptionKeyHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MigrationMergeRequest'}
+      responses:
+        '200':
+          description: Per-resource merge report.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MergeReport'}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+    dataKey:
+      type: apiKey
+      in: header
+      name: X-Ianvs-Encryption-Key
+  parameters:
+    Kind:
+      in: path
+      name: kind
+      required: true
+      schema: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]*$', maxLength: 64}
+    ResourceID:
+      in: path
+      name: id
+      required: true
+      schema: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]*$', maxLength: 191}
+    EncryptionKeyHeader:
+      in: header
+      name: X-Ianvs-Encryption-Key
+      required: false
+      description: Required only when sensitive JSON is read or written.
+      schema: {type: string, minLength: 16}
+  responses:
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    InvalidEncryptionKey:
+      description: The client-owned key is invalid.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+  schemas:
+    EncryptionKeyRequest:
+      type: object
+      required: [encryption_key]
+      additionalProperties: false
+      properties:
+        encryption_key: {type: string, minLength: 16}
+    User:
+      type: object
+      required: [id, username, key_configured]
+      properties:
+        id: {type: string}
+        username: {type: string}
+        key_configured: {type: boolean}
+    AuthSession:
+      type: object
+      required: [token, expires_at, user]
+      properties:
+        token: {type: string}
+        expires_at: {type: string, format: date-time}
+        user: {$ref: '#/components/schemas/User'}
+    Resource:
+      type: object
+      required: [id, kind, data, has_sensitive, revision, source_id, source_revision, source_updated_at, deleted, created_at, updated_at]
+      properties:
+        id: {type: string}
+        kind: {type: string}
+        data: {}
+        sensitive:
+          description: Present only when explicitly requested with a valid data key.
+        has_sensitive: {type: boolean}
+        revision: {type: integer, format: int64, minimum: 1}
+        source_id: {type: string}
+        source_revision: {type: integer, format: int64, minimum: 1}
+        source_updated_at: {type: string, format: date-time}
+        deleted: {type: boolean}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    ResourceWrite:
+      type: object
+      required: [data]
+      additionalProperties: false
+      properties:
+        data: {}
+        sensitive:
+          description: Replaces encrypted JSON when present; null clears it.
+        clear_sensitive: {type: boolean, default: false}
+        expected_revision: {type: integer, format: int64, minimum: 1}
+    MigrationBundle:
+      type: object
+      required: [schema_version, source_id, exported_at, resources]
+      properties:
+        schema_version: {type: integer, const: 1}
+        source_id: {type: string, maxLength: 64}
+        exported_at: {type: string, format: date-time}
+        resources:
+          type: array
+          maxItems: 2000
+          items: {$ref: '#/components/schemas/Resource'}
+    MigrationMergeRequest:
+      allOf:
+        - $ref: '#/components/schemas/MigrationBundle'
+        - type: object
+          properties:
+            conflict_policy:
+              type: string
+              default: preserve_destination
+              enum: [preserve_destination, source_wins, newer_wins]
+            propagate_deletes: {type: boolean, default: false}
+    MergeReport:
+      type: object
+      required: [created, updated, deleted, skipped, conflicts, results]
+      properties:
+        created: {type: integer, minimum: 0}
+        updated: {type: integer, minimum: 0}
+        deleted: {type: integer, minimum: 0}
+        skipped: {type: integer, minimum: 0}
+        conflicts: {type: integer, minimum: 0}
+        results:
+          type: array
+          items:
+            type: object
+            required: [kind, id, status]
+            properties:
+              kind: {type: string}
+              id: {type: string}
+              status: {type: string, enum: [created, updated, deleted, skipped, conflict]}
+              reason: {type: string}
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: {type: string}
+            message: {type: string}
