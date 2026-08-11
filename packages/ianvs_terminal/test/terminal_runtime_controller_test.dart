@@ -12778,6 +12778,259 @@ void main() {
       );
     },
   );
+
+  testWidgets(
+    'ordered runtime signals preserve legacy payload identity and total order',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final zmodemSessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final exitingSessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/zsh'),
+        ),
+      );
+      await tester.pump();
+      backend
+        ..clearFrame(zmodemSessionId)
+        ..clearFrame(exitingSessionId);
+
+      final signals = <TerminalRuntimeSignal>[];
+      final sessionEvents = <TerminalSessionEvent>[];
+      final zmodemEvents = <TerminalSessionZmodemEvent>[];
+      final deferredFailures =
+          <TerminalSessionZmodemDeferredWriteFailedDiagnostic>[];
+      final signalSubscription = runtime.runtimeSignals.listen(signals.add);
+      final sessionSubscription = runtime.events.listen(sessionEvents.add);
+      final zmodemSubscription = runtime.zmodemEvents.listen(zmodemEvents.add);
+      final deferredSubscription = runtime.zmodemDeferredWriteFailures.listen(
+        deferredFailures.add,
+      );
+      addTearDown(signalSubscription.cancel);
+      addTearDown(sessionSubscription.cancel);
+      addTearDown(zmodemSubscription.cancel);
+      addTearDown(deferredSubscription.cancel);
+
+      backend.enqueueEvent(
+        zmodemSessionId,
+        PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: zmodemSessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '900',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtime.refreshSession(zmodemSessionId);
+      await tester.pump();
+
+      backend.enqueueEvent(
+        exitingSessionId,
+        PtyEvent(
+          kind: 'exit',
+          sessionId: exitingSessionId,
+          payload: const <String, Object?>{'code': 17},
+        ),
+      );
+      runtime.refreshSession(exitingSessionId);
+      await tester.pump();
+
+      backend.enqueueEvent(
+        zmodemSessionId,
+        PtyEvent(
+          kind: 'zmodem_deferred_write_failed',
+          sessionId: zmodemSessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'reason': 'io_error',
+            'queuedChunks': 2,
+            'queuedBytes': 8,
+            'completedChunks': 1,
+            'completedBytes': 4,
+          },
+        ),
+      );
+      runtime.refreshSession(zmodemSessionId);
+      await tester.pump();
+
+      expect(signals, hasLength(3));
+      expect(signals.map((signal) => signal.runtimeType), <Type>[
+        TerminalRuntimeZmodemEventSignal,
+        TerminalRuntimeSessionEventSignal,
+        TerminalRuntimeZmodemDeferredFailureSignal,
+      ]);
+      final firstSequence = signals.first.sequence;
+      expect(signals.map((signal) => signal.sequence), <int>[
+        firstSequence,
+        firstSequence + 1,
+        firstSequence + 2,
+      ]);
+      expect(zmodemEvents, hasLength(1));
+      expect(sessionEvents.whereType<TerminalSessionExitEvent>(), hasLength(1));
+      expect(deferredFailures, hasLength(1));
+      expect(
+        identical(
+          (signals[0] as TerminalRuntimeZmodemEventSignal).payload,
+          zmodemEvents.single,
+        ),
+        isTrue,
+      );
+      expect(
+        identical(
+          (signals[1] as TerminalRuntimeSessionEventSignal).payload,
+          sessionEvents.whereType<TerminalSessionExitEvent>().single,
+        ),
+        isTrue,
+      );
+      expect(
+        identical(
+          (signals[2] as TerminalRuntimeZmodemDeferredFailureSignal).payload,
+          deferredFailures.single,
+        ),
+        isTrue,
+      );
+      expect(signals[0].sessionId, zmodemSessionId);
+      expect(signals[1].sessionId, exitingSessionId);
+      expect(signals[2].sessionId, zmodemSessionId);
+      expect(signals[0].sessionEpoch, signals[2].sessionEpoch);
+      expect(signals[1].sessionEpoch, isNot(signals[0].sessionEpoch));
+      expect(runtime.tryDispose(), isTrue);
+      await tester.pump();
+    },
+  );
+
+  testWidgets(
+    'runtime signals reject stale epochs when a backend session id is reused',
+    (tester) async {
+      final clipboardText = Completer<String>();
+      final backend = _FakePtyBackend()..forcedSessionId = 'reused-signal';
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () => clipboardText.future,
+        allowClipboardPasteRequest: () async => true,
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final signals = <TerminalRuntimeSignal>[];
+      final subscription = runtime.runtimeSignals.listen(signals.add);
+      addTearDown(subscription.cancel);
+
+      final oldSessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+      backend.clearFrame(oldSessionId);
+      signals.clear();
+      backend.enqueueEvent(
+        oldSessionId,
+        PtyEvent(kind: 'bell', sessionId: oldSessionId),
+      );
+      runtime.refreshSession(oldSessionId);
+      await tester.pump();
+      final oldBell = signals
+          .whereType<TerminalRuntimeSessionEventSignal>()
+          .singleWhere((signal) => signal.payload is TerminalSessionBellEvent);
+
+      backend.enqueueEvent(
+        oldSessionId,
+        PtyEvent(
+          kind: 'clipboard_paste_request',
+          sessionId: oldSessionId,
+          payload: const <String, Object?>{'selection': 'c'},
+        ),
+      );
+      runtime.refreshSession(oldSessionId);
+      await tester.pump();
+
+      runtime.closeSession(oldSessionId);
+      final newSessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/zsh'),
+        ),
+      );
+      expect(newSessionId, oldSessionId);
+      await tester.pump();
+      backend.clearFrame(newSessionId);
+      signals.clear();
+      backend.enqueueEvent(
+        newSessionId,
+        PtyEvent(kind: 'bell', sessionId: newSessionId),
+      );
+      runtime.refreshSession(newSessionId);
+      await tester.pump();
+      final newBell = signals
+          .whereType<TerminalRuntimeSessionEventSignal>()
+          .singleWhere((signal) => signal.payload is TerminalSessionBellEvent);
+      final signalCountBeforeStaleContinuation = signals.length;
+
+      clipboardText.complete('must not reach the reused session');
+      await tester.pump();
+
+      expect(newBell.sessionEpoch, greaterThan(oldBell.sessionEpoch));
+      expect(signals, hasLength(signalCountBeforeStaleContinuation));
+      expect(
+        signals.whereType<TerminalRuntimeSessionEventSignal>().where(
+          (signal) => signal.payload is TerminalSessionClipboardEvent,
+        ),
+        isEmpty,
+      );
+      expect(backend.writeCalls, isEmpty);
+    },
+  );
+
+  testWidgets('runtime signal stream closes without post-dispose leakage', (
+    tester,
+  ) async {
+    final backend = _FakePtyBackend();
+    final runtime = TerminalRuntimeController(
+      backend: backend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    await tester.pump();
+    final signals = <TerminalRuntimeSignal>[];
+    final completed = Completer<void>();
+    final subscription = runtime.runtimeSignals.listen(
+      signals.add,
+      onDone: completed.complete,
+    );
+    addTearDown(subscription.cancel);
+
+    expect(runtime.tryDispose(), isTrue);
+    await tester.pump();
+    await expectLater(completed.future, completes);
+    final signalCountAfterDispose = signals.length;
+
+    backend.enqueueEvent(
+      sessionId,
+      PtyEvent(kind: 'bell', sessionId: sessionId),
+    );
+    runtime.refreshSession(sessionId);
+    await tester.pump();
+
+    expect(signals, hasLength(signalCountAfterDispose));
+  });
 }
 
 class _FakePtyBackend

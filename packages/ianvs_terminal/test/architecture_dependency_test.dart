@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:analyzer/dart/analysis/features.dart';
 import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/dart/ast/ast.dart';
+import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -18,6 +19,124 @@ void main() {
 
   test('package directives and part ownership are valid', () {
     expect(graph.validationErrors, isEmpty);
+  });
+
+  group('ordered runtime signal emission gateway', () {
+    test('production controller and all of its parts have exact mutations', () {
+      final owner = graph.absolutePathOf(
+        'src/runtime/terminal_runtime_controller.dart',
+      );
+
+      expect(
+        _runtimeStreamControllerReferenceViolations(
+          graph: graph,
+          owner: owner,
+          controllerClassName: 'TerminalRuntimeController',
+        ),
+        isEmpty,
+      );
+    });
+
+    for (final mutation in <_RuntimeControllerMutationFixture>[
+      const _RuntimeControllerMutationFixture(
+        'direct add outside the gateway',
+        ownerMember: 'void bypass(Object value) { _events.add(value); }',
+      ),
+      const _RuntimeControllerMutationFixture(
+        'sink add',
+        ownerMember: 'void bypass(Object value) { _events.sink.add(value); }',
+      ),
+      const _RuntimeControllerMutationFixture(
+        'addError',
+        ownerMember: 'void bypass(Object error) { _events.addError(error); }',
+      ),
+      const _RuntimeControllerMutationFixture(
+        'addStream',
+        ownerMember:
+            'void bypass(Stream<Object> values) { _events.addStream(values); }',
+      ),
+      const _RuntimeControllerMutationFixture(
+        'cascade add',
+        ownerMember: 'void bypass(Object value) { _events..add(value); }',
+      ),
+      const _RuntimeControllerMutationFixture(
+        'controller alias',
+        ownerMember:
+            'void bypass(Object value) { final alias = _events; alias.add(value); }',
+      ),
+      const _RuntimeControllerMutationFixture(
+        'helper parameter escape',
+        ownerMember:
+            'void bypass() { publishElsewhere(_events); }\n'
+            'void publishElsewhere(StreamController<Object> controller) {}',
+      ),
+      const _RuntimeControllerMutationFixture(
+        'nested closure inside the named gateway',
+        gatewayStatement:
+            'void delayed() { _events.add(event); }\n'
+            'delayed();',
+      ),
+      const _RuntimeControllerMutationFixture(
+        'part mutation',
+        partSource:
+            "part of 'owner.dart';\n"
+            'extension Bypass on FixtureRuntime {\n'
+            '  void bypass(Object value) { _events.add(value); }\n'
+            '}\n',
+      ),
+      const _RuntimeControllerMutationFixture(
+        'part gateway-name impersonation',
+        partSource:
+            "part of 'owner.dart';\n"
+            'extension GatewayImpostor on FixtureRuntime {\n'
+            '  void _emitRuntimeSignal(Object event) { _events.add(event); }\n'
+            '}\n',
+      ),
+    ]) {
+      test('rejects ${mutation.description}', () {
+        final fixture = _runtimeControllerFixture(mutation);
+        addTearDown(() => fixture.directory.deleteSync(recursive: true));
+
+        expect(fixture.graph.validationErrors, isEmpty);
+        expect(
+          _runtimeStreamControllerReferenceViolations(
+            graph: fixture.graph,
+            owner: fixture.owner,
+            controllerClassName: 'FixtureRuntime',
+          ),
+          isNotEmpty,
+        );
+      });
+    }
+
+    test('comments and strings cannot forge controller mutations', () {
+      final fixture = _runtimeControllerFixture(
+        const _RuntimeControllerMutationFixture(
+          'non-code text',
+          ownerMember: """
+String describeSafety() => r'''
+_events.sink.add(payload);
+_runtimeSignals.addError(error);
+_zmodemEvents.addStream(stream);
+_zmodemDeferredWriteFailures..add(payload);
+''';
+// _events.add(payload);
+// final alias = _runtimeSignals;
+""",
+        ),
+      );
+      addTearDown(() => fixture.directory.deleteSync(recursive: true));
+
+      expect(fixture.graph.validationErrors, isEmpty);
+      expect(
+        _runtimeStreamControllerReferenceViolations(
+          graph: fixture.graph,
+          owner: fixture.owner,
+          controllerClassName: 'FixtureRuntime',
+        ),
+        isEmpty,
+      );
+    });
   });
 
   test(
@@ -333,6 +452,264 @@ import '../transport/wire.dart';
       );
     }
   });
+}
+
+const Map<String, _RuntimeControllerReferenceContract>
+_runtimeControllerReferenceContracts =
+    <String, _RuntimeControllerReferenceContract>{
+      '_runtimeSignals': _RuntimeControllerReferenceContract(
+        getterName: 'runtimeSignals',
+        gatewayPayloadName: 'signal',
+      ),
+      '_events': _RuntimeControllerReferenceContract(
+        getterName: 'events',
+        gatewayPayloadName: 'event',
+      ),
+      '_zmodemEvents': _RuntimeControllerReferenceContract(
+        getterName: 'zmodemEvents',
+        gatewayPayloadName: 'event',
+      ),
+      '_zmodemDeferredWriteFailures': _RuntimeControllerReferenceContract(
+        getterName: 'zmodemDeferredWriteFailures',
+        gatewayPayloadName: 'diagnostic',
+      ),
+    };
+
+final class _RuntimeControllerReferenceContract {
+  const _RuntimeControllerReferenceContract({
+    required this.getterName,
+    required this.gatewayPayloadName,
+  });
+
+  final String getterName;
+  final String gatewayPayloadName;
+}
+
+final class _RuntimeControllerMutationFixture {
+  const _RuntimeControllerMutationFixture(
+    this.description, {
+    this.ownerMember = '',
+    this.gatewayStatement = '',
+    this.partSource,
+  });
+
+  final String description;
+  final String ownerMember;
+  final String gatewayStatement;
+  final String? partSource;
+}
+
+List<String> _runtimeStreamControllerReferenceViolations({
+  required DartLibraryDependencyGraph graph,
+  required String owner,
+  required String controllerClassName,
+}) {
+  final ownedUnits = <String>{
+    owner,
+    ...graph
+        .filesWhere((_) => true)
+        .where((candidate) => graph.libraryOwnerOf(candidate) == owner),
+  };
+  final visitor = _RuntimeControllerReferenceVisitor(
+    relativePathOf: graph.relativePathOf,
+    controllerClassName: controllerClassName,
+  );
+  for (final path in ownedUnits) {
+    final result = parseFile(
+      path: path,
+      featureSet: FeatureSet.latestLanguageVersion(),
+      throwIfDiagnostics: false,
+    );
+    visitor.scan(result.unit, path: path);
+  }
+  return visitor.complete();
+}
+
+final class _RuntimeControllerReferenceVisitor
+    extends RecursiveAstVisitor<void> {
+  _RuntimeControllerReferenceVisitor({
+    required this.relativePathOf,
+    required this.controllerClassName,
+  });
+
+  final String Function(String path) relativePathOf;
+  final String controllerClassName;
+  final List<String> _violations = <String>[];
+  final Map<String, Map<String, int>> _allowedReferenceCounts =
+      <String, Map<String, int>>{
+        for (final field in _runtimeControllerReferenceContracts.keys)
+          field: <String, int>{'stream': 0, 'add': 0, 'close': 0},
+      };
+  MethodDeclaration? _enclosingMethod;
+  int _nestedFunctionDepth = 0;
+  String _currentPath = '<unknown>';
+
+  void scan(CompilationUnit unit, {required String path}) {
+    _currentPath = path;
+    unit.accept(this);
+  }
+
+  @override
+  void visitMethodDeclaration(MethodDeclaration node) {
+    final previous = _enclosingMethod;
+    _enclosingMethod = node;
+    super.visitMethodDeclaration(node);
+    _enclosingMethod = previous;
+  }
+
+  @override
+  void visitFunctionExpression(FunctionExpression node) {
+    _nestedFunctionDepth += 1;
+    super.visitFunctionExpression(node);
+    _nestedFunctionDepth -= 1;
+  }
+
+  @override
+  void visitSimpleIdentifier(SimpleIdentifier node) {
+    final fieldName = node.name;
+    final contract = _runtimeControllerReferenceContracts[fieldName];
+    if (contract != null && !_recordAllowedReference(node, contract)) {
+      _violations.add(
+        '${relativePathOf(_currentPath)}:'
+        '${node.offset} has forbidden $fieldName reference: '
+        '${node.parent?.toSource()}',
+      );
+    }
+    super.visitSimpleIdentifier(node);
+  }
+
+  bool _recordAllowedReference(
+    SimpleIdentifier node,
+    _RuntimeControllerReferenceContract contract,
+  ) {
+    final fieldName = node.name;
+    final method = _enclosingMethod;
+    final enclosingClass = method?.thisOrAncestorOfType<ClassDeclaration>();
+    final parent = node.parent;
+    final invocationArgument =
+        parent is MethodInvocation && parent.argumentList.arguments.length == 1
+        ? parent.argumentList.arguments.single
+        : null;
+    if (method != null &&
+        enclosingClass?.namePart.typeName.lexeme == controllerClassName &&
+        _nestedFunctionDepth == 0 &&
+        method.isGetter &&
+        method.name.lexeme == contract.getterName &&
+        parent is PrefixedIdentifier &&
+        identical(parent.prefix, node) &&
+        parent.identifier.name == 'stream') {
+      _allowedReferenceCounts[fieldName]!['stream'] =
+          _allowedReferenceCounts[fieldName]!['stream']! + 1;
+      return true;
+    }
+    if (method != null &&
+        enclosingClass?.namePart.typeName.lexeme == controllerClassName &&
+        _nestedFunctionDepth == 0 &&
+        method.name.lexeme == '_emitRuntimeSignal' &&
+        parent is MethodInvocation &&
+        identical(parent.target, node) &&
+        parent.methodName.name == 'add' &&
+        invocationArgument is SimpleIdentifier &&
+        invocationArgument.name == contract.gatewayPayloadName) {
+      _allowedReferenceCounts[fieldName]!['add'] =
+          _allowedReferenceCounts[fieldName]!['add']! + 1;
+      return true;
+    }
+    if (method != null &&
+        enclosingClass?.namePart.typeName.lexeme == controllerClassName &&
+        _nestedFunctionDepth == 0 &&
+        method.name.lexeme == '_tryCompleteRequestedDispose' &&
+        parent is MethodInvocation &&
+        identical(parent.target, node) &&
+        parent.methodName.name == 'close' &&
+        parent.argumentList.arguments.isEmpty) {
+      _allowedReferenceCounts[fieldName]!['close'] =
+          _allowedReferenceCounts[fieldName]!['close']! + 1;
+      return true;
+    }
+    return false;
+  }
+
+  List<String> complete() {
+    for (final entry in _allowedReferenceCounts.entries) {
+      for (final operation in const <String>['stream', 'add', 'close']) {
+        final count = entry.value[operation]!;
+        if (count != 1) {
+          _violations.add(
+            '${entry.key} must have exactly one allowed $operation reference; '
+            'found $count',
+          );
+        }
+      }
+    }
+    return List<String>.unmodifiable(_violations);
+  }
+}
+
+({Directory directory, DartLibraryDependencyGraph graph, String owner})
+_runtimeControllerFixture(_RuntimeControllerMutationFixture mutation) {
+  final directory = Directory.systemTemp.createTempSync(
+    'ianvs_terminal_runtime_signal_architecture_',
+  );
+  final lib = Directory('${directory.path}/lib')..createSync();
+  final partDirective = mutation.partSource == null
+      ? ''
+      : "part 'runtime_signal_part.dart';";
+  File('${lib.path}/owner.dart').writeAsStringSync('''
+import 'dart:async';
+
+$partDirective
+
+class FixtureRuntime {
+  final StreamController<Object> _runtimeSignals =
+      StreamController<Object>.broadcast();
+  final StreamController<Object> _events =
+      StreamController<Object>.broadcast();
+  final StreamController<Object> _zmodemEvents =
+      StreamController<Object>.broadcast();
+  final StreamController<Object> _zmodemDeferredWriteFailures =
+      StreamController<Object>.broadcast();
+
+  Stream<Object> get runtimeSignals => _runtimeSignals.stream;
+  Stream<Object> get events => _events.stream;
+  Stream<Object> get zmodemEvents => _zmodemEvents.stream;
+  Stream<Object> get zmodemDeferredWriteFailures =>
+      _zmodemDeferredWriteFailures.stream;
+
+  void _emitRuntimeSignal(
+    Object signal,
+    Object event,
+    Object diagnostic,
+  ) {
+    _runtimeSignals.add(signal);
+    _events.add(event);
+    _zmodemEvents.add(event);
+    _zmodemDeferredWriteFailures.add(diagnostic);
+    ${mutation.gatewayStatement}
+  }
+
+  void _tryCompleteRequestedDispose() {
+    unawaited(_runtimeSignals.close());
+    unawaited(_events.close());
+    unawaited(_zmodemEvents.close());
+    unawaited(_zmodemDeferredWriteFailures.close());
+  }
+
+  ${mutation.ownerMember}
+}
+''');
+  if (mutation.partSource case final partSource?) {
+    File('${lib.path}/runtime_signal_part.dart').writeAsStringSync(partSource);
+  }
+  final graph = DartLibraryDependencyGraph.fromDirectory(
+    packageName: 'fixture',
+    libDirectory: lib,
+  );
+  return (
+    directory: directory,
+    graph: graph,
+    owner: graph.absolutePathOf('owner.dart'),
+  );
 }
 
 bool _isUnderAny(String path, List<String> prefixes) {

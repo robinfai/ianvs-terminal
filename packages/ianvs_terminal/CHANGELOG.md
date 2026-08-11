@@ -12,6 +12,10 @@
 
 ### Architecture
 
+- Added the additive `TerminalRuntimeController.runtimeSignals` stream. It
+  wraps the existing session, ZMODEM, and deferred-write-failure payloads with
+  a controller-wide sequence and session epoch while preserving the 2.x event
+  streams unchanged.
 - Frame validation, wire compatibility, and frame normalization now live in
   neutral contracts shared by JSON/domain and protobuf adapters.
 - Runtime frame and packet decoders depend only on decode ports; the frame

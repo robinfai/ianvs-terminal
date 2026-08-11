@@ -10,6 +10,7 @@
 - `TerminalDisplayConfig`
 - `TerminalRuntimeController`
 - `TerminalSessionEvent`
+- `TerminalRuntimeSignal`
 - `TerminalSessionShellHookEvent`
 - `TerminalViewport`
 - `TerminalViewportController`
@@ -37,6 +38,16 @@ Bash integration uses a `DEBUG` trap for `preexec` and wraps `PROMPT_COMMAND`
 for completion hooks. If a user already has a `DEBUG` trap, bash integration
 automatically falls back without installing hooks. Bash may also report only the
 first simple command for complex pipelines or compound commands.
+
+## Ordered runtime signals
+
+`TerminalRuntimeController.runtimeSignals` provides one broadcast stream for
+session events, ZMODEM events, and ZMODEM deferred-write-failure diagnostics.
+Every signal carries a controller-wide monotonic `sequence`, a `sessionEpoch`
+that distinguishes reused native session IDs, and the exact payload instance
+also delivered by the corresponding 2.x compatibility stream. Existing
+consumers of `events`, `zmodemEvents`, and `zmodemDeferredWriteFailures` do not
+need to migrate.
 
 ## 不负责
 

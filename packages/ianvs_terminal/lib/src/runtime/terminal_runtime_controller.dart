@@ -1007,6 +1007,81 @@ final class TerminalSessionZmodemDeferredWriteFailedDiagnostic {
   }
 }
 
+/// One item in the controller-wide ordered runtime event stream.
+///
+/// [TerminalRuntimeController.runtimeSignals] is additive to the existing
+/// event streams. Each signal wraps the exact payload instance published to
+/// its corresponding legacy stream and assigns a sequence that is strictly
+/// increasing across all runtime, ZMODEM, and deferred-write-failure events
+/// emitted by one controller.
+sealed class TerminalRuntimeSignal {
+  const TerminalRuntimeSignal._({
+    required this.sequence,
+    required this.sessionEpoch,
+  }) : assert(sequence > 0, 'sequence must be positive'),
+       assert(sessionEpoch > 0, 'sessionEpoch must be positive');
+
+  /// Controller-wide ordering key, starting at one.
+  final int sequence;
+
+  /// Identity of the concrete session incarnation that emitted this signal.
+  ///
+  /// A backend may reuse a session ID after close. The epoch distinguishes
+  /// events from the old and new incarnations.
+  final int sessionEpoch;
+
+  String get sessionId;
+  Object get payload;
+}
+
+/// Ordered wrapper for the existing [TerminalRuntimeController.events] API.
+final class TerminalRuntimeSessionEventSignal extends TerminalRuntimeSignal {
+  const TerminalRuntimeSessionEventSignal._({
+    required super.sequence,
+    required super.sessionEpoch,
+    required this.payload,
+  }) : super._();
+
+  @override
+  final TerminalSessionEvent payload;
+
+  @override
+  String get sessionId => payload.sessionId;
+}
+
+/// Ordered wrapper for the existing
+/// [TerminalRuntimeController.zmodemEvents] API.
+final class TerminalRuntimeZmodemEventSignal extends TerminalRuntimeSignal {
+  const TerminalRuntimeZmodemEventSignal._({
+    required super.sequence,
+    required super.sessionEpoch,
+    required this.payload,
+  }) : super._();
+
+  @override
+  final TerminalSessionZmodemEvent payload;
+
+  @override
+  String get sessionId => payload.sessionId;
+}
+
+/// Ordered wrapper for the existing
+/// [TerminalRuntimeController.zmodemDeferredWriteFailures] API.
+final class TerminalRuntimeZmodemDeferredFailureSignal
+    extends TerminalRuntimeSignal {
+  const TerminalRuntimeZmodemDeferredFailureSignal._({
+    required super.sequence,
+    required super.sessionEpoch,
+    required this.payload,
+  }) : super._();
+
+  @override
+  final TerminalSessionZmodemDeferredWriteFailedDiagnostic payload;
+
+  @override
+  String get sessionId => payload.sessionId;
+}
+
 /// Reports an observed loss in the native Runtime Event sequence.
 ///
 /// Gap reconciliation and this diagnostic are established before surviving
@@ -1358,6 +1433,8 @@ class TerminalRuntimeController implements TerminalInputSink {
       StreamController<
         TerminalSessionZmodemDeferredWriteFailedDiagnostic
       >.broadcast();
+  final StreamController<TerminalRuntimeSignal> _runtimeSignals =
+      StreamController<TerminalRuntimeSignal>.broadcast();
   final StreamController<TerminalSessionRuntimeEventGapDiagnostic>
   _runtimeEventGaps =
       StreamController<TerminalSessionRuntimeEventGapDiagnostic>.broadcast();
@@ -1380,12 +1457,14 @@ class TerminalRuntimeController implements TerminalInputSink {
   int _wireSessionSeed = 0;
   int _benchmarkFrameId = 0;
   int _sessionEpochSeed = 0;
+  int _runtimeSignalSequence = 0;
   int _reportVariableRequestSeed = 0;
 
   Stream<TerminalSessionEvent> get events => _events.stream;
   Stream<TerminalSessionZmodemEvent> get zmodemEvents => _zmodemEvents.stream;
   Stream<TerminalSessionZmodemDeferredWriteFailedDiagnostic>
   get zmodemDeferredWriteFailures => _zmodemDeferredWriteFailures.stream;
+  Stream<TerminalRuntimeSignal> get runtimeSignals => _runtimeSignals.stream;
   Stream<TerminalSessionRuntimeEventGapDiagnostic> get runtimeEventGaps =>
       _runtimeEventGaps.stream;
   Stream<TerminalSessionInputEvent> get inputEvents => _inputEvents.stream;
@@ -1583,7 +1662,8 @@ class TerminalRuntimeController implements TerminalInputSink {
       if (error is PtyNativeCallException && error.isRetryableClose) {
         return _TerminalSessionCloseOutcome.retryableBusy;
       }
-      _events.add(
+      _emitCurrentRuntimeSignal(
+        sessionId,
         TerminalSessionBackendErrorEvent(
           sessionId,
           operation: 'closeSession',
@@ -1868,7 +1948,8 @@ class TerminalRuntimeController implements TerminalInputSink {
         _DeferredProtocolReplies.new,
       );
       if (!queue.add(copiedBytes)) {
-        _events.add(
+        _emitCurrentRuntimeSignal(
+          sessionId,
           TerminalSessionBackendErrorEvent(
             sessionId,
             operation: 'deferProtocolReply',
@@ -1943,7 +2024,9 @@ class TerminalRuntimeController implements TerminalInputSink {
           }
           _deferredProtocolReplies.remove(sessionId);
           if (_isCurrentSession(sessionId, sessionEpoch)) {
-            _events.add(
+            _emitRuntimeSignal(
+              sessionId,
+              sessionEpoch,
               TerminalSessionBackendErrorEvent(
                 sessionId,
                 operation: 'flushDeferredProtocolReply',
@@ -2740,7 +2823,8 @@ class TerminalRuntimeController implements TerminalInputSink {
       run();
       return true;
     } on Object catch (error, stackTrace) {
-      _events.add(
+      _emitCurrentRuntimeSignal(
+        sessionId,
         TerminalSessionBackendErrorEvent(
           sessionId,
           operation: operation,
@@ -2780,7 +2864,8 @@ class TerminalRuntimeController implements TerminalInputSink {
       if (_activeZmodemTransferIds.containsKey(sessionId)) {
         return false;
       }
-      _events.add(
+      _emitCurrentRuntimeSignal(
+        sessionId,
         TerminalSessionBackendErrorEvent(
           sessionId,
           operation: 'writeInput',
@@ -2807,7 +2892,8 @@ class TerminalRuntimeController implements TerminalInputSink {
     Object error,
     StackTrace stackTrace,
   ) {
-    _events.add(
+    _emitCurrentRuntimeSignal(
+      sessionId,
       TerminalSessionBackendErrorEvent(
         sessionId,
         operation: operation,
@@ -2842,7 +2928,10 @@ class TerminalRuntimeController implements TerminalInputSink {
     _lastFrameAppliedAt[sessionId] = DateTime.now();
     _startPollingCooldown(sessionId);
     _recordFrameApplied(sessionId);
-    _events.add(TerminalSessionFrameEvent(sessionId, frame));
+    _emitCurrentRuntimeSignal(
+      sessionId,
+      TerminalSessionFrameEvent(sessionId, frame),
+    );
     _emitGraphicsDiagnostic(
       sessionId,
       event: 'frame_applied',
@@ -3384,7 +3473,9 @@ class TerminalRuntimeController implements TerminalInputSink {
         _activeZmodemTransferIds[sessionId] != _unknownZmodemTransferId) {
       _activeZmodemTransferIds[sessionId] = _unknownZmodemTransferId;
       _activeZmodemDirections.remove(sessionId);
-      _zmodemEvents.add(
+      _emitRuntimeSignal(
+        sessionId,
+        sessionEpoch,
         TerminalSessionZmodemEvent(
           sessionId,
           rawPayload: const <String, Object?>{
@@ -3479,7 +3570,9 @@ class TerminalRuntimeController implements TerminalInputSink {
     try {
       beforeSessionCloseOnExit?.call(sessionId, exitCode);
     } on Object catch (error, stackTrace) {
-      _events.add(
+      _emitRuntimeSignal(
+        sessionId,
+        sessionEpoch,
         TerminalSessionBackendErrorEvent(
           sessionId,
           operation: 'beforeSessionCloseOnExit',
@@ -3489,7 +3582,9 @@ class TerminalRuntimeController implements TerminalInputSink {
       );
     }
     final finalFrame = _sessions.existingViewportFor(sessionId)?.frame;
-    _events.add(
+    _emitRuntimeSignal(
+      sessionId,
+      sessionEpoch,
       TerminalSessionExitEvent(
         sessionId,
         exitCode: exitCode,
@@ -3825,7 +3920,7 @@ class TerminalRuntimeController implements TerminalInputSink {
       _zmodemAutonomousPollingSessions.add(sessionId);
       _scheduleZmodemPoll(sessionId);
     }
-    _zmodemEvents.add(event);
+    _emitRuntimeSignal(sessionId, sessionEpoch, event);
     if (event.isTerminal) {
       _scheduleRequestedDisposeRetry();
     }
@@ -3845,7 +3940,7 @@ class TerminalRuntimeController implements TerminalInputSink {
           payload,
         );
     if (diagnostic != null) {
-      _zmodemDeferredWriteFailures.add(diagnostic);
+      _emitRuntimeSignal(sessionId, sessionEpoch, diagnostic);
     }
   }
 
@@ -3908,7 +4003,9 @@ class TerminalRuntimeController implements TerminalInputSink {
         );
       }
       if (transferId != null) {
-        _zmodemEvents.add(
+        _emitRuntimeSignal(
+          sessionId,
+          sessionEpoch,
           TerminalSessionZmodemEvent(
             sessionId,
             rawPayload: <String, Object?>{
@@ -3939,7 +4036,9 @@ class TerminalRuntimeController implements TerminalInputSink {
         );
       }
       if (!alreadyUnknown) {
-        _zmodemEvents.add(
+        _emitRuntimeSignal(
+          sessionId,
+          sessionEpoch,
           TerminalSessionZmodemEvent(
             sessionId,
             rawPayload: const <String, Object?>{
@@ -4028,7 +4127,8 @@ class TerminalRuntimeController implements TerminalInputSink {
     final terminalReason = transferId == _unknownZmodemTransferId
         ? 'event_sequence_gap'
         : reason;
-    _zmodemEvents.add(
+    _emitCurrentRuntimeSignal(
+      sessionId,
       TerminalSessionZmodemEvent(
         sessionId,
         rawPayload: <String, Object?>{
@@ -4070,13 +4170,75 @@ class TerminalRuntimeController implements TerminalInputSink {
     );
   }
 
+  void _emitRuntimeSignal(String sessionId, int sessionEpoch, Object payload) {
+    final payloadSessionId = switch (payload) {
+      final TerminalSessionEvent event => event.sessionId,
+      final TerminalSessionZmodemEvent event => event.sessionId,
+      final TerminalSessionZmodemDeferredWriteFailedDiagnostic diagnostic =>
+        diagnostic.sessionId,
+      _ => throw ArgumentError.value(
+        payload,
+        'payload',
+        'unsupported terminal runtime signal payload',
+      ),
+    };
+    if (payloadSessionId != sessionId) {
+      throw ArgumentError.value(
+        payloadSessionId,
+        'payload.sessionId',
+        'does not match emission session $sessionId',
+      );
+    }
+    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+      return;
+    }
+
+    _runtimeSignalSequence += 1;
+    final signal = switch (payload) {
+      final TerminalSessionEvent event => TerminalRuntimeSessionEventSignal._(
+        sequence: _runtimeSignalSequence,
+        sessionEpoch: sessionEpoch,
+        payload: event,
+      ),
+      final TerminalSessionZmodemEvent event =>
+        TerminalRuntimeZmodemEventSignal._(
+          sequence: _runtimeSignalSequence,
+          sessionEpoch: sessionEpoch,
+          payload: event,
+        ),
+      final TerminalSessionZmodemDeferredWriteFailedDiagnostic diagnostic =>
+        TerminalRuntimeZmodemDeferredFailureSignal._(
+          sequence: _runtimeSignalSequence,
+          sessionEpoch: sessionEpoch,
+          payload: diagnostic,
+        ),
+      _ => throw StateError('validated runtime signal payload changed type'),
+    };
+    _runtimeSignals.add(signal);
+    switch (payload) {
+      case final TerminalSessionEvent event:
+        _events.add(event);
+      case final TerminalSessionZmodemEvent event:
+        _zmodemEvents.add(event);
+      case final TerminalSessionZmodemDeferredWriteFailedDiagnostic diagnostic:
+        _zmodemDeferredWriteFailures.add(diagnostic);
+      default:
+        throw StateError('validated runtime signal payload changed type');
+    }
+  }
+
   void _emitEventIfCurrent(
     String sessionId,
     int sessionEpoch,
     TerminalSessionEvent event,
   ) {
-    if (_isCurrentSession(sessionId, sessionEpoch)) {
-      _events.add(event);
+    _emitRuntimeSignal(sessionId, sessionEpoch, event);
+  }
+
+  void _emitCurrentRuntimeSignal(String sessionId, Object payload) {
+    final sessionEpoch = _sessionEpochs[sessionId];
+    if (sessionEpoch != null) {
+      _emitRuntimeSignal(sessionId, sessionEpoch, payload);
     }
   }
 
@@ -5393,6 +5555,7 @@ class TerminalRuntimeController implements TerminalInputSink {
     unawaited(_events.close());
     unawaited(_zmodemEvents.close());
     unawaited(_zmodemDeferredWriteFailures.close());
+    unawaited(_runtimeSignals.close());
     unawaited(_runtimeEventGaps.close());
     unawaited(_inputEvents.close());
     unawaited(_resizeEvents.close());
