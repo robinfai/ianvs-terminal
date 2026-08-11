@@ -98,5 +98,57 @@ void main() {
       );
       expect(result.config.defaultProfileId, 'legacy');
     });
+
+    test(
+      'corrupt local config never reads or writes legacy preferences',
+      () async {
+        final legacyRepository = _RecordingPreferencesRepository();
+
+        await expectLater(
+          LocalTerminalConfigLoader(
+            localConfigRepository: _CorruptLocalConfigRepository(),
+            legacyPreferencesRepository: legacyRepository,
+          ).load(),
+          throwsA(isA<FormatException>()),
+        );
+
+        expect(legacyRepository.loadCount, 0);
+        expect(legacyRepository.saveCount, 0);
+      },
+    );
   });
+}
+
+final class _CorruptLocalConfigRepository extends TerminalConfigRepository {
+  @override
+  Future<LocalTerminalConfigDocument?> load() async {
+    throw const FormatException('corrupt local terminal config');
+  }
+
+  @override
+  Future<void> save(LocalTerminalConfigDocument document) async {}
+
+  @override
+  Future<LocalTerminalConfigDocument> update(
+    LocalTerminalConfigDocument Function(LocalTerminalConfigDocument current)
+    transform, {
+    LocalTerminalConfigDocument fallback = const LocalTerminalConfigDocument(),
+  }) async => transform(fallback);
+}
+
+final class _RecordingPreferencesRepository
+    extends AppPreferencesRepositoryPort {
+  int loadCount = 0;
+  int saveCount = 0;
+
+  @override
+  Future<TerminalAppPreferencesDocument?> load() async {
+    loadCount += 1;
+    return const TerminalAppPreferencesDocument();
+  }
+
+  @override
+  Future<void> save(TerminalAppPreferencesDocument document) async {
+    saveCount += 1;
+  }
 }

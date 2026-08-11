@@ -15,12 +15,16 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../data/configuration/data_api_configuration.dart';
 import '../../data/configuration/data_api_configuration_providers.dart';
+import '../../data/configuration/data_api_configuration_repository.dart';
+import '../../data/services/data_api_runtime.dart';
 import '../../platform/clipboard_bridge.dart';
 import '../../ui/app_ui.dart';
 import '../config/local_terminal_config_bootstrap.dart';
 import '../config/local_terminal_config_models.dart';
 import '../config/local_terminal_config_preferences_adapter.dart';
 import '../config/shortcut_editor.dart';
+import '../persistence/data_api_startup_recovery_presenter.dart';
+import '../persistence/versioned_document.dart';
 import '../policies/local_terminal_paste_decision.dart';
 import '../policies/local_terminal_policy_models.dart';
 import '../preferences/app_preferences_models.dart';
@@ -257,6 +261,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _isCommandMenuOpen = false;
   bool _isDefaultsOpen = false;
   bool _isProfilesOpen = false;
+  bool _dataApiStartupWarningDismissed = false;
+  bool _dataApiStartupRecoveryRunning = false;
+  late final DataApiStartupRecoveryPresenter _dataApiRecoveryPresenter;
   bool _isSearchOpen = false;
   bool _isAutocompleteOpen = false;
   bool _isAutoComposerOpen = false;
@@ -333,6 +340,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   List<String> _autoComposerSuggestions = const [];
   int _activeAutoComposerIndex = 0;
   List<PasteHistoryEntry> _pasteHistoryEntries = const [];
+  VersionedDocument<PasteHistoryDocument?>? _pasteHistoryDocument;
+  Future<VersionedDocument<PasteHistoryDocument?>>? _pasteHistoryLoadFuture;
+  Future<void> _pasteHistoryWriteChain = Future<void>.value();
   _InstantReplayLayoutSession? _instantReplayLayoutSession;
   List<_TerminalAnnotation> _annotations = const [];
   bool _recordingLibraryLoading = false;
@@ -377,6 +387,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   @override
   void initState() {
     super.initState();
+    _dataApiRecoveryPresenter = DataApiStartupRecoveryPresenter(
+      context: () => context,
+      isMounted: () => mounted,
+      isRunning: () => _dataApiStartupRecoveryRunning,
+      setRunning: (running) {
+        setState(() => _dataApiStartupRecoveryRunning = running);
+      },
+    );
     final runtime = ref.read(referenceDemoModeProvider)
         ? null
         : ref.read(terminalRuntimeControllerProvider);
@@ -651,6 +669,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     );
     final referenceDemoMode = ref.watch(referenceDemoModeProvider);
     final animationsEnabled = ref.watch(shellAnimationsEnabledProvider);
+    final dataApiStartupWarning = ref.watch(dataApiStartupWarningProvider);
+    final dataApiStartupRetry = ref.watch(dataApiStartupRetryProvider);
+    final dataApiMigrationResetJournal = ref.watch(
+      dataApiMigrationResetJournalProvider,
+    );
+    final dataApiMigrationKeepRemote = ref.watch(
+      dataApiMigrationKeepRemoteProvider,
+    );
     TerminalTab? activeTab;
     if (activeSessionId != null) {
       for (final tab in sessionState.tabs) {
@@ -1244,6 +1270,17 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   ),
                   onDismiss: sessionController.dismissConfigurationWarnings,
                 ),
+              if (dataApiStartupWarning != null &&
+                  !_dataApiStartupWarningDismissed)
+                _DataApiStartupWarningBanner(
+                  message: dataApiStartupWarning.message,
+                  palette: palette,
+                  onDismiss: () {
+                    setState(() {
+                      _dataApiStartupWarningDismissed = true;
+                    });
+                  },
+                ),
               if (sessionState.isReady && sessionState.lastError != null)
                 _ShellRuntimeErrorBanner(
                   palette: palette,
@@ -1327,10 +1364,39 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                 ? null
                                 : sessionState.lastError,
                             onRetry:
-                                !sessionState.isReady &&
+                                !_dataApiStartupRecoveryRunning &&
+                                    !sessionState.isReady &&
                                     sessionState.lastError != null
-                                ? sessionController.retryBootstrap
+                                ? dataApiStartupRetry == null
+                                      ? sessionController.retryBootstrap
+                                      : () => unawaited(
+                                          _dataApiRecoveryPresenter.retry(
+                                            dataApiStartupRetry,
+                                          ),
+                                        )
                                 : null,
+                            onOpenSettings: () => _openDefaultsAndAppearance(
+                              sessionController,
+                              sessionState,
+                            ),
+                            onKeepRemote:
+                                dataApiMigrationKeepRemote == null ||
+                                    _dataApiStartupRecoveryRunning
+                                ? null
+                                : () => unawaited(
+                                    _dataApiRecoveryPresenter.keepRemote(
+                                      dataApiMigrationKeepRemote,
+                                    ),
+                                  ),
+                            onResetMigrationJournal:
+                                dataApiMigrationResetJournal == null ||
+                                    _dataApiStartupRecoveryRunning
+                                ? null
+                                : () => unawaited(
+                                    _dataApiRecoveryPresenter.resetJournal(
+                                      dataApiMigrationResetJournal,
+                                    ),
+                                  ),
                           )
                         : activeSessionId == null || activeTab == null
                         ? _ShellEmptyState(

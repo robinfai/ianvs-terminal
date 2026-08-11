@@ -1,11 +1,13 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 
 import 'app.dart';
 import 'data/configuration/data_api_configuration_providers.dart';
 import 'data/configuration/data_api_configuration_repository.dart';
 import 'data/services/data_api_lifecycle.dart';
 import 'data/services/data_api_runtime.dart';
+import 'features/profiles/profile_repository.dart';
 import 'features/pty/pty.dart';
 import 'features/sessions/session_controller.dart';
 import 'features/sessions/session_ports.dart';
@@ -13,6 +15,7 @@ import 'features/shell/reference_demo.dart';
 import 'features/shell/shell_acceptance.dart';
 import 'features/shell/shell_screen.dart';
 import 'features/shell/window_bridge.dart';
+import 'persistence_repository_composition.dart';
 import 'platform/app_shutdown_coordinator.dart';
 import 'platform/clipboard_bridge.dart';
 
@@ -24,19 +27,60 @@ Widget buildIanvsTerminalRoot({
   PtySessionBackend? ptySessionBackend,
   ShellAcceptanceProbe? acceptanceProbe,
   DataApiRuntime? dataApiRuntime,
+  bool dataApiPersistenceRequired = false,
+  bool dataApiPersistenceUnavailable = false,
+  DataApiStartupWarning? dataApiStartupWarning,
+  DataApiStartupRetry? dataApiStartupRetry,
+  DataApiMigrationKeepRemote? dataApiMigrationKeepRemote,
+  DataApiMigrationResetJournal? dataApiMigrationResetJournal,
   DataApiConfigurationRepository? dataApiConfigurationRepository,
+  bool dataApiConfigurationRecoveryRequired = false,
+  DirectoryResolver? profileExportDirectoryResolver,
   Map<String, String> sessionEnvironmentOverrides = const <String, String>{},
 }) {
   final shutdownCoordinator = AppShutdownCoordinator();
+  final persistenceRepositories = PersistenceRepositoryComposition.forRuntime(
+    dataApiRuntime,
+    profileExportDirectoryResolver:
+        profileExportDirectoryResolver ?? getApplicationSupportDirectory,
+    dataApiPersistenceRequired: dataApiPersistenceRequired,
+    dataApiPersistenceUnavailable: dataApiPersistenceUnavailable,
+  );
   return ProviderScope(
     overrides: [
       appShutdownCoordinatorProvider.overrideWithValue(shutdownCoordinator),
       sessionPollingEnabledProvider.overrideWithValue(enableSessionPolling),
       dataApiRuntimeProvider.overrideWithValue(dataApiRuntime),
+      dataApiStartupWarningProvider.overrideWithValue(dataApiStartupWarning),
+      dataApiStartupRetryProvider.overrideWithValue(dataApiStartupRetry),
+      dataApiMigrationKeepRemoteProvider.overrideWithValue(
+        dataApiMigrationKeepRemote,
+      ),
+      dataApiMigrationResetJournalProvider.overrideWithValue(
+        dataApiMigrationResetJournal,
+      ),
+      profileRepositoryProvider.overrideWithValue(
+        persistenceRepositories.profiles,
+      ),
+      appPreferencesRepositoryProvider.overrideWithValue(
+        persistenceRepositories.preferences,
+      ),
+      localTerminalConfigRepositoryProvider.overrideWithValue(
+        persistenceRepositories.terminalConfig,
+      ),
+      localTerminalLayoutRepositoryProvider.overrideWithValue(
+        persistenceRepositories.terminalLayout,
+      ),
+      pasteHistoryRepositoryProvider.overrideWithValue(
+        persistenceRepositories.pasteHistory,
+      ),
       if (dataApiConfigurationRepository != null)
         dataApiConfigurationRepositoryProvider.overrideWithValue(
           dataApiConfigurationRepository,
         ),
+      dataApiConfigurationRecoveryRequiredProvider.overrideWithValue(
+        dataApiConfigurationRecoveryRequired,
+      ),
       if (ptySessionBackend != null)
         ptySessionBackendProvider.overrideWithValue(ptySessionBackend),
       driverWarmUpRefreshEnabledProvider.overrideWithValue(
@@ -94,7 +138,15 @@ void runIanvsTerminalApp({
   PtySessionBackend? ptySessionBackend,
   ShellAcceptanceProbe? acceptanceProbe,
   DataApiRuntime? dataApiRuntime,
+  bool dataApiPersistenceRequired = false,
+  bool dataApiPersistenceUnavailable = false,
+  DataApiStartupWarning? dataApiStartupWarning,
+  DataApiStartupRetry? dataApiStartupRetry,
+  DataApiMigrationKeepRemote? dataApiMigrationKeepRemote,
+  DataApiMigrationResetJournal? dataApiMigrationResetJournal,
   DataApiConfigurationRepository? dataApiConfigurationRepository,
+  bool dataApiConfigurationRecoveryRequired = false,
+  DirectoryResolver? profileExportDirectoryResolver,
   Map<String, String> sessionEnvironmentOverrides = const <String, String>{},
 }) {
   runApp(
@@ -105,7 +157,16 @@ void runIanvsTerminalApp({
       ptySessionBackend: ptySessionBackend,
       acceptanceProbe: acceptanceProbe,
       dataApiRuntime: dataApiRuntime,
+      dataApiPersistenceRequired: dataApiPersistenceRequired,
+      dataApiPersistenceUnavailable: dataApiPersistenceUnavailable,
+      dataApiStartupWarning: dataApiStartupWarning,
+      dataApiStartupRetry: dataApiStartupRetry,
+      dataApiMigrationKeepRemote: dataApiMigrationKeepRemote,
+      dataApiMigrationResetJournal: dataApiMigrationResetJournal,
       dataApiConfigurationRepository: dataApiConfigurationRepository,
+      dataApiConfigurationRecoveryRequired:
+          dataApiConfigurationRecoveryRequired,
+      profileExportDirectoryResolver: profileExportDirectoryResolver,
       sessionEnvironmentOverrides: sessionEnvironmentOverrides,
       enableShellAnimations: enableShellAnimations,
     ),

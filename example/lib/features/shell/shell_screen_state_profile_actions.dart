@@ -91,7 +91,11 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     var dataApiConfiguration = const DataApiConfiguration.disabled();
     if (dataApiConfigurationRepository != null) {
       try {
-        dataApiConfiguration = await dataApiConfigurationRepository.load();
+        dataApiConfiguration = switch (dataApiConfigurationRepository) {
+          final DataApiConfigurationRecoveryLoader recoveryLoader =>
+            await recoveryLoader.loadForRecovery(),
+          _ => await dataApiConfigurationRepository.load(),
+        };
       } on Object catch (error) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -104,6 +108,13 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         }
       }
     }
+    final dataApiConfigurationRecoveryRequired =
+        ref.read(dataApiConfigurationRecoveryRequiredProvider) ||
+        switch (dataApiConfigurationRepository) {
+          final DataApiConfigurationRecoveryStatus status =>
+            status.recoveryRequired,
+          _ => false,
+        };
 
     if (!mounted) {
       return;
@@ -129,6 +140,8 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         reportVariableDecisions: _hostActionsConfig.osc1337ReportVariables,
         keybindings: _keybindingsConfig,
         dataApiConfiguration: dataApiConfiguration,
+        dataApiConfigurationRecoveryRequired:
+            dataApiConfigurationRecoveryRequired,
         localDataApiAvailable: defaultTargetPlatform == TargetPlatform.macOS,
       ),
     );
@@ -265,7 +278,9 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
           );
         });
       }
-      if (selection.dataApiConfiguration != dataApiConfiguration) {
+      if (selection.dataApiConfiguration != dataApiConfiguration ||
+          selection.dataApiRemoteLogin != null ||
+          dataApiConfigurationRecoveryRequired) {
         if (dataApiConfigurationRepository == null) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -278,15 +293,49 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
           }
         } else {
           try {
-            await dataApiConfigurationRepository.save(
-              selection.dataApiConfiguration,
-            );
+            final remoteLogin = selection.dataApiRemoteLogin;
+            if (selection.dataApiConfiguration.deployment ==
+                DataApiDeployment.remote) {
+              final DataApiRemoteConfigurationConnector? connector =
+                  switch (dataApiConfigurationRepository) {
+                    final DataApiRemoteConfigurationConnector value => value,
+                    _ => null,
+                  };
+              if (remoteLogin == null || connector == null) {
+                throw StateError(
+                  'Remote authentication is unavailable in this build.',
+                );
+              }
+              await connector.connectAndSaveRemote(remoteLogin);
+            } else {
+              await dataApiConfigurationRepository.save(
+                selection.dataApiConfiguration,
+              );
+            }
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text(
                     'Data service configuration saved. Restart the app to apply it.',
                   ),
+                ),
+              );
+            }
+          } on DataApiRemoteRevocationPendingWarning catch (warning) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  key: const Key('data-api-revocation-pending-warning'),
+                  content: Text(warning.toString()),
+                ),
+              );
+            }
+          } on DataApiSecureSessionMutationException catch (warning) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  key: const Key('data-api-secure-session-warning'),
+                  content: Text(warning.toString()),
                 ),
               );
             }

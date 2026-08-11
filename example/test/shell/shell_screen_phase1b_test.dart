@@ -19,6 +19,7 @@ import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_local_terminal_config_repository.dart';
 import '../support/memory_paste_history_repository.dart';
 import '../support/memory_profile_repository.dart';
+import '../support/no_io_local_session_recording_repository.dart';
 
 Future<void> pumpShellScreen(
   WidgetTester tester, {
@@ -39,6 +40,9 @@ Future<void> pumpShellScreen(
         ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
           MemoryLocalTerminalConfigRepository(null),
+        ),
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          noIoLocalSessionRecordingRepository(),
         ),
         sessionDemoFixtureProvider.overrideWithValue(
           referenceDemoMode ? referenceDemoFixture : null,

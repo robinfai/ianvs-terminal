@@ -87,32 +87,26 @@ void main() {
       expect(preferences.savedDocuments, isEmpty);
     });
 
-    test('uses legacy fallback only when the policy allows it', () async {
-      final defaultProfile = defaultTerminalProfile();
+    test('corrupt config never reads or writes legacy preferences', () async {
       final profiles = _MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultProfile]),
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       );
       final preferences = _MemoryPreferencesRepository(
-        const TerminalAppPreferencesDocument(
-          defaults: TerminalAppDefaults(defaultProfileId: 'default'),
-        ),
+        const TerminalAppPreferencesDocument(),
       );
-      final config = _FailingLocalConfigRepository();
+      final config = _CorruptLocalConfigRepository();
 
-      final preparation = await _service(
-        profiles: profiles,
-        preferences: preferences,
-        config: config,
-        shouldFallbackToLegacyPreferences: (error) =>
-            error is FileSystemException,
-      ).prepare();
-
-      expect(preferences.loadAttempts, 1);
-      expect(preparation.effectiveDefaultProfileId, defaultProfile.id);
-      expect(
-        preparation.configSource,
-        LocalTerminalConfigBootstrapSource.legacyAppPreferences,
+      await expectLater(
+        _service(
+          profiles: profiles,
+          preferences: preferences,
+          config: config,
+        ).prepare(),
+        throwsA(isA<FormatException>()),
       );
+
+      expect(preferences.loadAttempts, 0);
+      expect(preferences.savedDocuments, isEmpty);
     });
   });
 
@@ -195,7 +189,6 @@ SessionBootstrapService _service({
   required _MemoryProfileRepository profiles,
   required _MemoryPreferencesRepository preferences,
   required LocalTerminalConfigRepository config,
-  LocalConfigFallbackPolicy? shouldFallbackToLegacyPreferences,
 }) {
   return SessionBootstrapService(
     profileRepository: profiles,
@@ -205,8 +198,7 @@ SessionBootstrapService _service({
       localConfigRepository: config,
       legacyPreferencesRepository: preferences,
     ),
-    shouldFallbackToLegacyPreferences:
-        shouldFallbackToLegacyPreferences ?? (_) => false,
+    shouldFallbackToLegacyPreferences: (_) => false,
   );
 }
 
@@ -264,5 +256,12 @@ class _FailingLocalConfigRepository extends LocalTerminalConfigRepository {
   @override
   Future<LocalTerminalConfigDocument?> load() async {
     throw const FileSystemException('local config unavailable');
+  }
+}
+
+class _CorruptLocalConfigRepository extends LocalTerminalConfigRepository {
+  @override
+  Future<LocalTerminalConfigDocument?> load() async {
+    throw const FormatException('corrupt local terminal config');
   }
 }

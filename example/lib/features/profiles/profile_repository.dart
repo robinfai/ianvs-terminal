@@ -5,12 +5,37 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../platform/corrupt_file_quarantine.dart';
 import '../../platform/local_json_file.dart';
+import '../persistence/versioned_document.dart';
 import 'profile_models.dart';
 import 'profile_secret_cipher.dart';
 
 typedef DirectoryResolver = Future<Directory> Function();
 
-class ProfileRepository {
+abstract class ProfileRepositoryPort {
+  const ProfileRepositoryPort();
+
+  Future<TerminalProfilesDocument> load();
+
+  Future<void> save(TerminalProfilesDocument document);
+
+  Future<VersionedDocument<TerminalProfilesDocument>> loadVersioned() async {
+    return VersionedDocument<TerminalProfilesDocument>.local(await load());
+  }
+
+  Future<VersionedDocument<TerminalProfilesDocument>> saveVersioned(
+    VersionedDocument<TerminalProfilesDocument> document,
+  ) async {
+    await save(document.value);
+    return document.withRevision(null);
+  }
+
+  Future<File> exportDocument(
+    TerminalProfilesDocument document, {
+    String basename = 'ianvs-profiles',
+  });
+}
+
+class ProfileRepository extends ProfileRepositoryPort {
   ProfileRepository({
     DirectoryResolver? directoryResolver,
     ProfileSecretCipher? secretCipher,
@@ -23,6 +48,7 @@ class ProfileRepository {
       <String, Map<String, Object?>>{};
   bool _opaqueSecretsInitialized = false;
 
+  @override
   Future<TerminalProfilesDocument> load() async {
     final file = await _profilesFile();
     if (!await file.exists()) {
@@ -58,6 +84,7 @@ class ProfileRepository {
     return document;
   }
 
+  @override
   Future<void> save(TerminalProfilesDocument document) async {
     final file = await _profilesFile();
     await _initializeOpaqueSecretsFromExistingFile(file);
@@ -71,6 +98,7 @@ class ProfileRepository {
     );
   }
 
+  @override
   Future<File> exportDocument(
     TerminalProfilesDocument document, {
     String basename = 'ianvs-profiles',

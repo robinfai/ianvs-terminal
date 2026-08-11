@@ -8,21 +8,24 @@ class LocalTerminalConfigLoader {
     required this.legacyPreferencesRepository,
   });
 
-  final LocalTerminalConfigRepository localConfigRepository;
-  final AppPreferencesRepository legacyPreferencesRepository;
+  final TerminalConfigRepository localConfigRepository;
+  final AppPreferencesRepositoryPort legacyPreferencesRepository;
 
   Future<LocalTerminalConfigBootstrapResult> load() async {
-    final localConfig = await localConfigRepository.load();
-    if (localConfig != null) {
+    final localConfig = await localConfigRepository.loadVersioned();
+    if (localConfig.value != null) {
       return LocalTerminalConfigBootstrap.resolve(
-        localConfig: localConfig,
+        localConfig: localConfig.value,
         legacyAppPreferences: null,
+        localConfigRevision: localConfig.revision,
       );
     }
-    final legacyPreferences = await legacyPreferencesRepository.load();
+    final legacyPreferences = await legacyPreferencesRepository.loadVersioned();
     return LocalTerminalConfigBootstrap.resolve(
       localConfig: null,
-      legacyAppPreferences: legacyPreferences,
+      legacyAppPreferences: legacyPreferences.value,
+      localConfigRevision: localConfig.revision,
+      legacyPreferencesRevision: legacyPreferences.revision,
     );
   }
 }

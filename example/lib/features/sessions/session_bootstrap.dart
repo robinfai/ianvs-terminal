@@ -3,6 +3,7 @@ import '../config/local_terminal_config_loader.dart';
 import '../config/local_terminal_config_models.dart';
 import '../config/local_terminal_config_preferences_adapter.dart';
 import '../config/local_terminal_config_repository.dart';
+import '../persistence/versioned_document.dart';
 import '../preferences/app_preferences_models.dart';
 import '../preferences/app_preferences_repository.dart';
 import '../profiles/profile_models.dart';
@@ -19,6 +20,9 @@ class SessionBootstrapPreparation {
     required this.configSource,
     required this.preferencesLoadedFromDisk,
     required this.effectiveDefaultProfileId,
+    required this.profileDocument,
+    required this.appPreferencesDocument,
+    required this.localConfigDocument,
   }) : profiles = List.unmodifiable(profiles),
        configurationWarnings = List.unmodifiable(configurationWarnings);
 
@@ -29,6 +33,10 @@ class SessionBootstrapPreparation {
   final LocalTerminalConfigBootstrapSource configSource;
   final bool preferencesLoadedFromDisk;
   final String? effectiveDefaultProfileId;
+  final VersionedDocument<TerminalProfilesDocument> profileDocument;
+  final VersionedDocument<TerminalAppPreferencesDocument>
+  appPreferencesDocument;
+  final VersionedDocument<LocalTerminalConfigDocument> localConfigDocument;
 }
 
 class SessionBootstrapService {
@@ -40,19 +48,19 @@ class SessionBootstrapService {
     this.shouldFallbackToLegacyPreferences = _neverFallback,
   });
 
-  final ProfileRepository profileRepository;
-  final AppPreferencesRepository appPreferencesRepository;
-  final LocalTerminalConfigRepository localConfigRepository;
+  final ProfileRepositoryPort profileRepository;
+  final AppPreferencesRepositoryPort appPreferencesRepository;
+  final TerminalConfigRepository localConfigRepository;
   final LocalTerminalConfigLoader localConfigLoader;
   final LocalConfigFallbackPolicy shouldFallbackToLegacyPreferences;
 
   Future<SessionBootstrapPreparation> prepare({
     String? explicitDefaultProfileId,
   }) async {
-    final profilesDocument = await profileRepository.load();
-    final profiles = profilesDocument.profiles.isEmpty
+    final loadedProfiles = await profileRepository.loadVersioned();
+    final profiles = loadedProfiles.value.profiles.isEmpty
         ? <TerminalProfile>[defaultTerminalProfile()]
-        : profilesDocument.profiles;
+        : loadedProfiles.value.profiles;
     final configBootstrap = await _loadConfig();
     var localConfig = configBootstrap.config;
     final seededPreferences =
@@ -65,27 +73,50 @@ class SessionBootstrapService {
     var preferencesLoadedFromDisk =
         configBootstrap.source != LocalTerminalConfigBootstrapSource.defaults;
 
+    var localConfigDocument = VersionedDocument<LocalTerminalConfigDocument>(
+      value: localConfig,
+      revision: configBootstrap.localConfigRevision,
+    );
+    var appPreferencesDocument =
+        VersionedDocument<TerminalAppPreferencesDocument>(
+          value: resolution.preferences,
+          revision: configBootstrap.legacyPreferencesRevision,
+        );
     if (resolution.shouldRepairWritePreferences) {
       if (configBootstrap.source ==
           LocalTerminalConfigBootstrapSource.localConfig) {
         localConfig = localConfig.copyWith(
           defaultProfileId: resolution.preferences.defaults.defaultProfileId,
         );
-        await localConfigRepository.save(localConfig);
+        localConfigDocument = await localConfigRepository.saveVersioned(
+          localConfigDocument.withValue(localConfig),
+        );
       } else {
-        await appPreferencesRepository.save(resolution.preferences);
+        appPreferencesDocument = await appPreferencesRepository.saveVersioned(
+          appPreferencesDocument,
+        );
       }
       preferencesLoadedFromDisk = true;
     }
 
     return SessionBootstrapPreparation(
       profiles: profiles,
-      configurationWarnings: profilesDocument.loadWarnings,
+      configurationWarnings: loadedProfiles.value.loadWarnings,
       appPreferences: resolution.preferences,
       localConfig: localConfig,
       configSource: configBootstrap.source,
       preferencesLoadedFromDisk: preferencesLoadedFromDisk,
       effectiveDefaultProfileId: resolution.effectiveDefaultProfileId,
+      profileDocument: loadedProfiles.withValue(
+        TerminalProfilesDocument(
+          schemaVersion: loadedProfiles.value.schemaVersion,
+          profiles: profiles,
+          loadWarnings: loadedProfiles.value.loadWarnings,
+          secretClearIntents: loadedProfiles.value.secretClearIntents,
+        ),
+      ),
+      appPreferencesDocument: appPreferencesDocument,
+      localConfigDocument: localConfigDocument,
     );
   }
 
@@ -96,10 +127,11 @@ class SessionBootstrapService {
       if (!shouldFallbackToLegacyPreferences(error)) {
         rethrow;
       }
-      final legacyPreferences = await appPreferencesRepository.load();
+      final legacyPreferences = await appPreferencesRepository.loadVersioned();
       return LocalTerminalConfigBootstrap.resolve(
         localConfig: null,
-        legacyAppPreferences: legacyPreferences,
+        legacyAppPreferences: legacyPreferences.value,
+        legacyPreferencesRevision: legacyPreferences.revision,
       );
     }
   }

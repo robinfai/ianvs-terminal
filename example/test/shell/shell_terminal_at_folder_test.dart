@@ -13,6 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_profile_repository.dart';
+import '../support/no_io_local_session_recording_repository.dart';
 
 class _MemoryLayoutRepository extends LocalTerminalLayoutRepository {
   TerminalLayout? layout;
@@ -58,6 +59,9 @@ Future<ProviderContainer> _pumpShell(WidgetTester tester) async {
         ),
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _MemoryLayoutRepository(),
+        ),
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          noIoLocalSessionRecordingRepository(),
         ),
       ],
       child: MaterialApp(

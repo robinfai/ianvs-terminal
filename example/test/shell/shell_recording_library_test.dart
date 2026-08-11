@@ -20,6 +20,7 @@ import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_paste_history_repository.dart';
 import '../support/memory_profile_repository.dart';
+import '../support/no_io_local_session_recording_repository.dart';
 
 class _ReplayShellBackend extends FakePtyBackend
     implements PtyReplaySessionBackend, PtyReplayCheckpointBackend {
@@ -115,8 +116,8 @@ class _RecordingLibraryLayoutRepository extends LocalTerminalLayoutRepository {
   }
 }
 
-class _WidgetRecordingLibraryRepository
-    extends LocalSessionRecordingRepository {
+class _WidgetRecordingLibraryRepository extends LocalSessionRecordingRepository
+    with NoIoLocalSessionRecordingRecovery {
   _WidgetRecordingLibraryRepository({
     required this.directory,
     required this.recording,

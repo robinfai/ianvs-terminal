@@ -1,9 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show FileSystemException;
-import 'dart:typed_data';
-import 'dart:ui';
 
+import 'package:app/features/config/local_terminal_config_bootstrap.dart';
 import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/config/local_terminal_config_repository.dart';
 import 'package:app/features/layout/local_terminal_layout_models.dart';
@@ -12,10 +11,12 @@ import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/preferences/app_preferences_repository.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/profiles/profile_repository.dart';
+import 'package:app/features/recording/local_session_recording_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_ports.dart';
 import 'package:app/features/sessions/session_state.dart';
 import 'package:app/features/shell/shell_action_registry.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
@@ -89,10 +90,14 @@ class _TestAppPreferencesRepository extends AppPreferencesRepository {
   _TestAppPreferencesRepository(this._document);
 
   TerminalAppPreferencesDocument? _document;
+  int loadAttempts = 0;
   final List<TerminalAppPreferencesDocument> savedDocuments = [];
 
   @override
-  Future<TerminalAppPreferencesDocument?> load() async => _document;
+  Future<TerminalAppPreferencesDocument?> load() async {
+    loadAttempts += 1;
+    return _document;
+  }
 
   @override
   Future<void> save(TerminalAppPreferencesDocument document) async {
@@ -128,6 +133,34 @@ class _ThrowingLocalTerminalConfigRepository
   Future<void> save(LocalTerminalConfigDocument document) async {}
 }
 
+class _MissingPluginLocalTerminalConfigRepository
+    extends LocalTerminalConfigRepository {
+  @override
+  Future<LocalTerminalConfigDocument?> load() async {
+    throw MissingPluginException('test local path provider');
+  }
+}
+
+class _MissingPluginApiTerminalConfigRepository
+    extends TerminalConfigRepository {
+  @override
+  Future<LocalTerminalConfigDocument?> load() async {
+    throw MissingPluginException('test API adapter');
+  }
+
+  @override
+  Future<void> save(LocalTerminalConfigDocument document) async {}
+
+  @override
+  Future<LocalTerminalConfigDocument> update(
+    LocalTerminalConfigDocument Function(LocalTerminalConfigDocument current)
+    transform, {
+    LocalTerminalConfigDocument fallback = const LocalTerminalConfigDocument(),
+  }) async {
+    throw MissingPluginException('test API adapter');
+  }
+}
+
 class _TestLocalTerminalLayoutRepository extends LocalTerminalLayoutRepository {
   _TestLocalTerminalLayoutRepository(this.document);
 
@@ -145,6 +178,34 @@ class _TestLocalTerminalLayoutRepository extends LocalTerminalLayoutRepository {
   Future<void> save(TerminalLayout workspace) async {
     savedDocuments.add(workspace);
     document = workspace;
+  }
+}
+
+class _CorruptLocalTerminalLayoutRepository
+    extends LocalTerminalLayoutRepository {
+  int saveAttempts = 0;
+
+  @override
+  Future<TerminalLayout?> load() async {
+    throw const FormatException('corrupt terminal layout');
+  }
+
+  @override
+  Future<void> save(TerminalLayout workspace) async {
+    saveAttempts += 1;
+  }
+}
+
+class _EmptyLocalSessionRecordingRepository
+    extends LocalSessionRecordingRepository {
+  @override
+  Future<LocalSessionRecordingRecoveryResult> recoverNativeRecordings() async {
+    return const LocalSessionRecordingRecoveryResult(
+      recoveredPaths: <String>[],
+      pendingJobIds: <String>[],
+      orphanPaths: <String>[],
+      failures: <LocalSessionRecordingRecoveryFailure>[],
+    );
   }
 }
 
@@ -2356,6 +2417,9 @@ void main() {
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
         ),
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          _EmptyLocalSessionRecordingRepository(),
+        ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
@@ -2428,6 +2492,9 @@ void main() {
         ),
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
+        ),
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          _EmptyLocalSessionRecordingRepository(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
@@ -2523,6 +2590,9 @@ void main() {
         ),
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
+        ),
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          _EmptyLocalSessionRecordingRepository(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
@@ -2662,6 +2732,9 @@ void main() {
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             _TestLocalTerminalLayoutRepository(null),
           ),
+          localSessionRecordingRepositoryProvider.overrideWithValue(
+            _EmptyLocalSessionRecordingRepository(),
+          ),
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
       );
@@ -2739,6 +2812,9 @@ void main() {
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             _TestLocalTerminalLayoutRepository(null),
           ),
+          localSessionRecordingRepositoryProvider.overrideWithValue(
+            _EmptyLocalSessionRecordingRepository(),
+          ),
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
       );
@@ -2814,6 +2890,9 @@ void main() {
         ),
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
+        ),
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          _EmptyLocalSessionRecordingRepository(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
@@ -2921,6 +3000,9 @@ void main() {
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
         ),
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          _EmptyLocalSessionRecordingRepository(),
+        ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
@@ -2982,6 +3064,9 @@ void main() {
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             _TestLocalTerminalLayoutRepository(null),
           ),
+          localSessionRecordingRepositoryProvider.overrideWithValue(
+            _EmptyLocalSessionRecordingRepository(),
+          ),
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
       );
@@ -3042,6 +3127,9 @@ void main() {
         ),
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
+        ),
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          _EmptyLocalSessionRecordingRepository(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
@@ -3148,6 +3236,9 @@ void main() {
           ),
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             _TestLocalTerminalLayoutRepository(null),
+          ),
+          localSessionRecordingRepositoryProvider.overrideWithValue(
+            _EmptyLocalSessionRecordingRepository(),
           ),
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
@@ -3340,6 +3431,9 @@ void main() {
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
         ),
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          _EmptyLocalSessionRecordingRepository(),
+        ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
@@ -3432,6 +3526,9 @@ void main() {
         ),
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
+        ),
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          _EmptyLocalSessionRecordingRepository(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
@@ -3627,6 +3724,9 @@ void main() {
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
         ),
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          _EmptyLocalSessionRecordingRepository(),
+        ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
@@ -3782,6 +3882,9 @@ void main() {
           ),
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             _TestLocalTerminalLayoutRepository(null),
+          ),
+          localSessionRecordingRepositoryProvider.overrideWithValue(
+            _EmptyLocalSessionRecordingRepository(),
           ),
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
@@ -4503,6 +4606,54 @@ void main() {
     },
   );
 
+  test(
+    'bootstrap MissingPlugin fallback is restricted to the concrete local adapter',
+    () async {
+      final preferences = _TestAppPreferencesRepository(
+        const TerminalAppPreferencesDocument(),
+      );
+      final profiles = _TestProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultProfile]),
+      );
+      final apiContainer = ProviderContainer(
+        overrides: [
+          profileRepositoryProvider.overrideWithValue(profiles),
+          appPreferencesRepositoryProvider.overrideWithValue(preferences),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _MissingPluginApiTerminalConfigRepository(),
+          ),
+        ],
+      );
+      addTearDown(apiContainer.dispose);
+
+      await expectLater(
+        apiContainer.read(sessionBootstrapServiceProvider).prepare(),
+        throwsA(isA<MissingPluginException>()),
+      );
+      expect(preferences.loadAttempts, 0);
+
+      final localContainer = ProviderContainer(
+        overrides: [
+          profileRepositoryProvider.overrideWithValue(profiles),
+          appPreferencesRepositoryProvider.overrideWithValue(preferences),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _MissingPluginLocalTerminalConfigRepository(),
+          ),
+        ],
+      );
+      addTearDown(localContainer.dispose);
+
+      final preparation = await localContainer
+          .read(sessionBootstrapServiceProvider)
+          .prepare();
+      expect(
+        preparation.configSource,
+        LocalTerminalConfigBootstrapSource.legacyAppPreferences,
+      );
+      expect(preferences.loadAttempts, 1);
+    },
+  );
+
   test('bootstrap publishes ready state with the initial session', () async {
     final coreClient = FakePtyBackend();
     final profileRepository = _TestProfileRepository(
@@ -4715,6 +4866,54 @@ void main() {
       );
       expect(state.lastError, contains('removed-profile'));
       expect(workspaceRepository.savedDocuments, isEmpty);
+    },
+  );
+
+  test(
+    'corrupt terminal layout cannot be overwritten by fallback runtime state',
+    () async {
+      final layoutRepository = _CorruptLocalTerminalLayoutRepository();
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              TerminalProfilesDocument(profiles: [defaultProfile]),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalConfigRepository(
+              const LocalTerminalConfigDocument(
+                layout: LocalTerminalLayoutConfig(restoreLayout: true),
+              ),
+            ),
+          ),
+          localTerminalLayoutRepositoryProvider.overrideWithValue(
+            layoutRepository,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final controller = container.read(sessionControllerProvider.notifier);
+      await _waitForCondition(
+        condition: () => container.read(sessionControllerProvider).isReady,
+        description: 'fallback after corrupt terminal layout',
+      );
+      final state = container.read(sessionControllerProvider);
+
+      expect(state.tabs, hasLength(1));
+      expect(state.lastError, contains('corrupt terminal layout'));
+      controller.splitActiveSession(
+        defaultProfile,
+        TerminalSplitAxis.horizontal,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await controller.flushLayoutPersistence();
+      expect(layoutRepository.saveAttempts, 0);
     },
   );
 

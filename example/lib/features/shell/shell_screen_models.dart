@@ -312,7 +312,9 @@ class _ShellPaneDropTarget {
 
 final shellAnimationsEnabledProvider = Provider<bool>((ref) => true);
 
-final pasteHistoryRepositoryProvider = Provider<PasteHistoryRepository>((ref) {
+final pasteHistoryRepositoryProvider = Provider<PasteHistoryRepositoryPort>((
+  ref,
+) {
   return PasteHistoryRepository();
 });
 

@@ -5,22 +5,43 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../platform/corrupt_file_quarantine.dart';
 import '../../platform/local_json_file.dart';
+import '../persistence/versioned_document.dart';
 import 'local_terminal_layout_models.dart';
 
 typedef LocalTerminalLayoutDirectoryResolver = Future<Directory> Function();
+
+abstract class TerminalLayoutRepository {
+  const TerminalLayoutRepository();
+
+  Future<TerminalLayout?> load();
+
+  Future<void> save(TerminalLayout layout);
+
+  Future<VersionedDocument<TerminalLayout?>> loadVersioned() async {
+    return VersionedDocument<TerminalLayout?>.local(await load());
+  }
+
+  Future<VersionedDocument<TerminalLayout>> saveVersioned(
+    VersionedDocument<TerminalLayout> layout,
+  ) async {
+    await save(layout.value);
+    return layout.withRevision(null);
+  }
+}
 
 /// Persists one local Terminal Layout.
 ///
 /// The former project-keyed Workspace collection remains read-only migration
 /// input. New writes never create project identity, recent-project indexes, or
 /// per-project layout documents.
-class LocalTerminalLayoutRepository {
+class LocalTerminalLayoutRepository extends TerminalLayoutRepository {
   LocalTerminalLayoutRepository({
     LocalTerminalLayoutDirectoryResolver? directoryResolver,
   }) : _directoryResolver = directoryResolver ?? getApplicationSupportDirectory;
 
   final LocalTerminalLayoutDirectoryResolver _directoryResolver;
 
+  @override
   Future<TerminalLayout?> load() async {
     final directory = await _directoryResolver();
     final currentFile = _layoutFile(directory);
@@ -35,6 +56,7 @@ class LocalTerminalLayoutRepository {
     return legacy;
   }
 
+  @override
   Future<void> save(TerminalLayout layout) async {
     final directory = await _directoryResolver();
     await writeStringAtomically(

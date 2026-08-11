@@ -6,10 +6,14 @@ class LocalTerminalConfigBootstrapResult {
   const LocalTerminalConfigBootstrapResult({
     required this.config,
     required this.source,
+    this.localConfigRevision,
+    this.legacyPreferencesRevision,
   });
 
   final LocalTerminalConfigDocument config;
   final LocalTerminalConfigBootstrapSource source;
+  final int? localConfigRevision;
+  final int? legacyPreferencesRevision;
 }
 
 enum LocalTerminalConfigBootstrapSource {
@@ -24,11 +28,14 @@ class LocalTerminalConfigBootstrap {
   static LocalTerminalConfigBootstrapResult resolve({
     required LocalTerminalConfigDocument? localConfig,
     required TerminalAppPreferencesDocument? legacyAppPreferences,
+    int? localConfigRevision,
+    int? legacyPreferencesRevision,
   }) {
     if (localConfig != null) {
       return LocalTerminalConfigBootstrapResult(
         config: localConfig,
         source: LocalTerminalConfigBootstrapSource.localConfig,
+        localConfigRevision: localConfigRevision,
       );
     }
 
@@ -38,14 +45,17 @@ class LocalTerminalConfigBootstrap {
           legacyAppPreferences,
         ),
         source: LocalTerminalConfigBootstrapSource.legacyAppPreferences,
+        legacyPreferencesRevision: legacyPreferencesRevision,
       );
     }
 
-    return const LocalTerminalConfigBootstrapResult(
-      config: LocalTerminalConfigDocument(
+    return LocalTerminalConfigBootstrapResult(
+      config: const LocalTerminalConfigDocument(
         layout: LocalTerminalLayoutConfig(restoreLayout: true),
       ),
       source: LocalTerminalConfigBootstrapSource.defaults,
+      localConfigRevision: localConfigRevision,
+      legacyPreferencesRevision: legacyPreferencesRevision,
     );
   }
 }

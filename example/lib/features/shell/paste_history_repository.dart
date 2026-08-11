@@ -5,9 +5,40 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../platform/corrupt_file_quarantine.dart';
 import '../../platform/local_json_file.dart';
+import '../persistence/versioned_document.dart';
 import '../policies/local_terminal_policy_models.dart';
 
 typedef PasteHistoryDirectoryResolver = Future<Directory> Function();
+
+abstract class PasteHistoryRepositoryPort {
+  const PasteHistoryRepositoryPort();
+
+  Future<PasteHistoryDocument?> load();
+
+  Future<void> save(PasteHistoryDocument document);
+
+  Future<VersionedDocument<PasteHistoryDocument?>> loadVersioned() async {
+    return VersionedDocument<PasteHistoryDocument?>.local(await load());
+  }
+
+  Future<VersionedDocument<PasteHistoryDocument>> saveVersioned(
+    VersionedDocument<PasteHistoryDocument> document,
+  ) async {
+    await save(document.value);
+    return document.withRevision(null);
+  }
+
+  Future<VersionedDocument<PasteHistoryDocument>> clearDiskHistoryVersioned(
+    VersionedDocument<PasteHistoryDocument?> document,
+  ) async {
+    await clearDiskHistory();
+    return const VersionedDocument<PasteHistoryDocument>.local(
+      PasteHistoryDocument(),
+    );
+  }
+
+  Future<void> clearDiskHistory();
+}
 
 const int maxPasteHistoryEntries = defaultLocalTerminalPasteHistoryEntries;
 const int _maxPersistedPasteHistoryEntriesToScan = maxPasteHistoryEntries * 4;
@@ -131,12 +162,13 @@ String? _stringOrNull(Object? value) {
   return value is String ? value : null;
 }
 
-class PasteHistoryRepository {
+class PasteHistoryRepository extends PasteHistoryRepositoryPort {
   PasteHistoryRepository({PasteHistoryDirectoryResolver? directoryResolver})
     : _directoryResolver = directoryResolver ?? getApplicationSupportDirectory;
 
   final PasteHistoryDirectoryResolver _directoryResolver;
 
+  @override
   Future<PasteHistoryDocument?> load() async {
     final file = await _historyFile();
     if (!await file.exists()) {
@@ -156,11 +188,13 @@ class PasteHistoryRepository {
     }
   }
 
+  @override
   Future<void> save(PasteHistoryDocument document) async {
     final file = await _historyFile();
     await writeStringAtomically(file, document.encode());
   }
 
+  @override
   Future<void> clearDiskHistory() async {
     final file = await _historyFile();
     if (await file.exists()) {

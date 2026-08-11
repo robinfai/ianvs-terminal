@@ -17,6 +17,7 @@ import 'package:ianvs_terminal/ianvs_terminal.dart';
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_profile_repository.dart';
+import '../support/no_io_local_session_recording_repository.dart';
 
 class _RecordingShellBackend extends FakePtyBackend {
   @override
@@ -52,14 +53,55 @@ class _RecordingShellConfigRepository extends LocalTerminalConfigRepository {
   Future<void> save(LocalTerminalConfigDocument document) async {}
 }
 
-class _WidgetRecordingRepository extends LocalSessionRecordingRepository {
+class _WidgetRecordingRepository extends LocalSessionRecordingRepository
+    with NoIoLocalSessionRecordingRecovery {
   _WidgetRecordingRepository(this.directory)
     : super(directoryResolver: () async => directory);
 
   final Directory directory;
   int _serial = 0;
   int openedCount = 0;
+  int nativeFinalizeCount = 0;
   TerminalRecording? savedRecording;
+
+  @override
+  Future<Directory> ensureNativeHandoffDirectory() async {
+    return directory;
+  }
+
+  @override
+  Future<TerminalRecordingFinalizeJob> reserveNativeRecordingJob({
+    required String sessionId,
+    required Directory handoffDirectory,
+    required LocalSessionRecordingDestination destination,
+    required List<TerminalRecordingSemanticEvent> semanticEvents,
+    String? displayName,
+  }) async {
+    final path =
+        '${directory.path}/.ianvs-recording-handoff-'
+        '00000000000000000000000000000000.ndjson';
+    return TerminalRecordingFinalizeJob(
+      sessionId: sessionId,
+      jobId: '00000000000000000000000000000000',
+      handoffPath: path,
+      errorPath: '$path.error.json',
+    );
+  }
+
+  @override
+  Future<String> finalizeNativeRecording({
+    required TerminalRecordingFinalizeJob job,
+    required Directory handoffDirectory,
+    required LocalSessionRecordingDestination destination,
+    required List<TerminalRecordingSemanticEvent> semanticEvents,
+    String? displayName,
+    LocalSessionRecordingFinalizeCancellation? cancellation,
+  }) {
+    nativeFinalizeCount += 1;
+    return Future<String>.error(
+      StateError('Legacy recording fallback must not await native finalize.'),
+    );
+  }
 
   @override
   Future<LocalSessionRecordingDestination> reserve({
@@ -255,6 +297,17 @@ void main() {
         container.read(sessionControllerProvider).recordingSessionIds,
         isEmpty,
       );
+      expect(
+        container
+            .read(sessionControllerProvider)
+            .recordingPendingSaveSessionIds,
+        isEmpty,
+      );
+      expect(
+        container.read(sessionControllerProvider).recordingBusySessionIds,
+        isEmpty,
+      );
+      expect(recordingRepository.nativeFinalizeCount, 0);
       expect(find.textContaining('Recording saved ·'), findsOneWidget);
       expect(find.text('Replay'), findsOneWidget);
       expect(find.text(directory.path), findsNothing);

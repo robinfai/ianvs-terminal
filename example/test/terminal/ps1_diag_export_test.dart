@@ -17,6 +17,7 @@ import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_paste_history_repository.dart';
 import '../support/memory_profile_repository.dart';
+import '../support/no_io_local_session_recording_repository.dart';
 
 const String _configuredOutDir = String.fromEnvironment(
   'PS1_DIAG_OUT_DIR',
@@ -421,6 +422,9 @@ Future<_ShellExport> _captureShellExport(
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           MemoryAppPreferencesRepository(null),
+        ),
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          noIoLocalSessionRecordingRepository(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],

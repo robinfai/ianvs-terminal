@@ -15,6 +15,7 @@ import '../config/local_terminal_config_repository.dart';
 import '../layout/local_session_layout_codec.dart';
 import '../layout/local_terminal_layout_models.dart';
 import '../layout/local_terminal_layout_repository.dart';
+import '../persistence/versioned_document.dart';
 import '../preferences/app_preferences_models.dart';
 import '../preferences/app_preferences_repository.dart';
 import '../profiles/profile_models.dart';
@@ -193,18 +194,18 @@ void _writeTerminalTraceEvent(IOSink sink, Map<String, Object?> event) {
   }
 }
 
-final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
+final profileRepositoryProvider = Provider<ProfileRepositoryPort>((ref) {
   return ProfileRepository();
 });
 
-final appPreferencesRepositoryProvider = Provider<AppPreferencesRepository>((
-  ref,
-) {
-  return AppPreferencesRepository();
-});
+final appPreferencesRepositoryProvider = Provider<AppPreferencesRepositoryPort>(
+  (ref) {
+    return AppPreferencesRepository();
+  },
+);
 
 final localTerminalConfigRepositoryProvider =
-    Provider<LocalTerminalConfigRepository>((ref) {
+    Provider<TerminalConfigRepository>((ref) {
       return LocalTerminalConfigRepository();
     });
 
@@ -218,7 +219,7 @@ final localTerminalConfigLoaderProvider = Provider<LocalTerminalConfigLoader>((
 });
 
 final localTerminalLayoutRepositoryProvider =
-    Provider<LocalTerminalLayoutRepository>((ref) {
+    Provider<TerminalLayoutRepository>((ref) {
       return LocalTerminalLayoutRepository();
     });
 
@@ -238,12 +239,17 @@ final terminalLiveRecorderProvider = Provider<TerminalLiveRecorder?>((ref) {
 final sessionBootstrapServiceProvider = Provider<SessionBootstrapService>((
   ref,
 ) {
+  final localConfigRepository = ref.read(localTerminalConfigRepositoryProvider);
   return SessionBootstrapService(
     profileRepository: ref.read(profileRepositoryProvider),
     appPreferencesRepository: ref.read(appPreferencesRepositoryProvider),
-    localConfigRepository: ref.read(localTerminalConfigRepositoryProvider),
+    localConfigRepository: localConfigRepository,
     localConfigLoader: ref.read(localTerminalConfigLoaderProvider),
+    // The Flutter test host has no path_provider plugin. Data/API, protocol,
+    // I/O and schema errors never match this compatibility-only exception and
+    // therefore cannot switch persistence resources.
     shouldFallbackToLegacyPreferences: (error) =>
+        localConfigRepository is LocalTerminalConfigRepository &&
         error is MissingPluginException,
   );
 });
@@ -424,10 +430,20 @@ class SessionController extends Notifier<SessionState> {
   final Map<String, String> _recordingRemoteCommands = <String, String>{};
   Future<void>? _recordingShutdownFuture;
   Future<void>? _sessionShutdownFuture;
-  TerminalAppPreferencesDocument _appPreferences =
-      const TerminalAppPreferencesDocument();
-  LocalTerminalConfigDocument _localConfigDocument =
-      const LocalTerminalConfigDocument();
+  VersionedDocument<TerminalProfilesDocument> _profileDocument =
+      const VersionedDocument<TerminalProfilesDocument>.local(
+        TerminalProfilesDocument(profiles: <TerminalProfile>[]),
+      );
+  VersionedDocument<TerminalAppPreferencesDocument> _appPreferencesDocument =
+      const VersionedDocument<TerminalAppPreferencesDocument>.local(
+        TerminalAppPreferencesDocument(),
+      );
+  VersionedDocument<LocalTerminalConfigDocument> _localConfigVersioned =
+      const VersionedDocument<LocalTerminalConfigDocument>.local(
+        LocalTerminalConfigDocument(),
+      );
+  VersionedDocument<TerminalLayout?> _layoutDocument =
+      const VersionedDocument<TerminalLayout?>.local(null);
   LocalTerminalConfigBootstrapSource _configBootstrapSource =
       LocalTerminalConfigBootstrapSource.defaults;
   bool _preferencesLoadedFromDisk = false;
@@ -436,10 +452,25 @@ class SessionController extends Notifier<SessionState> {
   bool _progressFlushScheduled = false;
   int _progressEventOrder = 0;
   bool _layoutPersistenceEnabled = false;
+  bool _layoutPersistenceBlocked = false;
   Timer? _layoutPersistenceTimer;
   String? _lastLayoutSnapshot;
   Future<void> _layoutSaveChain = Future<void>.value();
   bool _isShuttingDown = false;
+
+  TerminalAppPreferencesDocument get _appPreferences =>
+      _appPreferencesDocument.value;
+
+  set _appPreferences(TerminalAppPreferencesDocument value) {
+    _appPreferencesDocument = _appPreferencesDocument.withValue(value);
+  }
+
+  LocalTerminalConfigDocument get _localConfigDocument =>
+      _localConfigVersioned.value;
+
+  set _localConfigDocument(LocalTerminalConfigDocument value) {
+    _localConfigVersioned = _localConfigVersioned.withValue(value);
+  }
 
   @protected
   String? get bootstrapDefaultProfileIdOverride => null;
@@ -572,6 +603,7 @@ class SessionController extends Notifier<SessionState> {
   }
 
   Future<void> _bootstrap() async {
+    _layoutPersistenceBlocked = false;
     final demoFixture = ref.read(sessionDemoFixtureProvider);
     if (demoFixture != null) {
       for (final tab in demoFixture.tabs) {
@@ -622,10 +654,11 @@ class SessionController extends Notifier<SessionState> {
         .read(sessionBootstrapServiceProvider)
         .prepare(explicitDefaultProfileId: bootstrapDefaultProfileIdOverride);
     final runtimeProfiles = preparation.profiles;
+    _profileDocument = preparation.profileDocument;
     _configBootstrapSource = preparation.configSource;
-    _localConfigDocument = preparation.localConfig;
+    _localConfigVersioned = preparation.localConfigDocument;
     _preferencesLoadedFromDisk = preparation.preferencesLoadedFromDisk;
-    _appPreferences = preparation.appPreferences;
+    _appPreferencesDocument = preparation.appPreferencesDocument;
     if (!ref.mounted) {
       return;
     }
@@ -637,9 +670,10 @@ class SessionController extends Notifier<SessionState> {
         _configBootstrapSource != LocalTerminalConfigBootstrapSource.defaults;
     if (_localConfigDocument.layout.restoreLayout && canHaveSavedLayout) {
       try {
-        final layout = await ref
+        _layoutDocument = await ref
             .read(localTerminalLayoutRepositoryProvider)
-            .load();
+            .loadVersioned();
+        final layout = _layoutDocument.value;
         if (layout != null && !layout.isEmpty) {
           final restored = _restoreTerminalLayout(
             layout,
@@ -648,6 +682,7 @@ class SessionController extends Notifier<SessionState> {
           initialTabs = restored.tabs;
           initialSessionId = restored.activeSessionId;
           if (restored.failures.isNotEmpty) {
+            _layoutPersistenceBlocked = true;
             layoutRestoreError = _layoutRestoreFailureMessage(
               restored.failures,
             );
@@ -655,7 +690,9 @@ class SessionController extends Notifier<SessionState> {
         }
       } on MissingPluginException {
         // Platform persistence is unavailable in unit/widget hosts.
+        _layoutPersistenceBlocked = true;
       } on Object catch (error) {
+        _layoutPersistenceBlocked = true;
         layoutRestoreError =
             'Terminal layout could not be loaded: '
             '${_boundedShellMetadata(error.toString(), 240)}';
@@ -779,7 +816,8 @@ class SessionController extends Notifier<SessionState> {
   }
 
   void _enableLayoutPersistence() {
-    _layoutPersistenceEnabled = _localConfigDocument.layout.restoreLayout;
+    _layoutPersistenceEnabled =
+        _localConfigDocument.layout.restoreLayout && !_layoutPersistenceBlocked;
     if (!_layoutPersistenceEnabled) {
       _lastLayoutSnapshot = null;
       return;
@@ -835,7 +873,9 @@ class SessionController extends Notifier<SessionState> {
   ) async {
     try {
       await previousSave;
-      await repository.save(layout);
+      _layoutDocument = await repository.saveVersioned(
+        _layoutDocument.withValue(layout),
+      );
     } on Object catch (error) {
       if (ref.mounted) {
         final detail = _boundedShellMetadata(error.toString(), 240);
@@ -1606,6 +1646,7 @@ class SessionController extends Notifier<SessionState> {
             TerminalRecordingBackendErrorCode.unsupportedBackend) {
           _pendingRecordingFinalizeJobs.remove(sessionId);
           await repository.abandonNativeRecordingJobReservation(reservedJob);
+          finalizeJob = null;
           legacyRecording = _recordingWithSemanticEvents(
             recorder.stop(sessionId),
             semanticEvents,
@@ -2225,7 +2266,9 @@ class SessionController extends Notifier<SessionState> {
   }) async {
     await pendingLayoutWrites;
     if (finalLayout != null) {
-      await repository.save(finalLayout);
+      _layoutDocument = await repository.saveVersioned(
+        _layoutDocument.withValue(finalLayout),
+      );
     }
   }
 
@@ -4582,14 +4625,16 @@ class SessionController extends Notifier<SessionState> {
         if (existing.id == profile.id) profile else existing,
       if (!state.profiles.any((existing) => existing.id == profile.id)) profile,
     ];
-    await ref
+    _profileDocument = await ref
         .read(profileRepositoryProvider)
-        .save(
-          TerminalProfilesDocument(
-            profiles: nextProfiles,
-            secretClearIntents: <String, Set<ProfileSecretField>>{
-              if (clearSecrets.isNotEmpty) profile.id: clearSecrets,
-            },
+        .saveVersioned(
+          _profileDocument.withValue(
+            TerminalProfilesDocument(
+              profiles: nextProfiles,
+              secretClearIntents: <String, Set<ProfileSecretField>>{
+                if (clearSecrets.isNotEmpty) profile.id: clearSecrets,
+              },
+            ),
           ),
         );
     state = state.copyWith(
@@ -4698,7 +4743,22 @@ class SessionController extends Notifier<SessionState> {
 
     _layoutPersistenceTimer?.cancel();
     _layoutPersistenceTimer = null;
-    _layoutPersistenceEnabled = restoreLayout;
+    if (restoreLayout && !_layoutPersistenceEnabled) {
+      try {
+        _layoutDocument = await ref
+            .read(localTerminalLayoutRepositoryProvider)
+            .loadVersioned();
+        _layoutPersistenceBlocked = false;
+      } on Object catch (error) {
+        _layoutPersistenceBlocked = true;
+        state = state.copyWith(
+          lastError:
+              'Terminal layout could not be enabled: '
+              '${_boundedShellMetadata(error.toString(), 240)}',
+        );
+      }
+    }
+    _layoutPersistenceEnabled = restoreLayout && !_layoutPersistenceBlocked;
     _lastLayoutSnapshot = null;
     if (restoreLayout && state.isReady) {
       await flushLayoutPersistence();
@@ -4817,9 +4877,13 @@ class SessionController extends Notifier<SessionState> {
     final nextProfiles = state.profiles
         .where((profile) => profile.id != profileId)
         .toList();
-    await ref
+    _profileDocument = await ref
         .read(profileRepositoryProvider)
-        .save(TerminalProfilesDocument(profiles: nextProfiles));
+        .saveVersioned(
+          _profileDocument.withValue(
+            TerminalProfilesDocument(profiles: nextProfiles),
+          ),
+        );
     final deletedConfiguredDefault =
         _normalizeProfileId(_appPreferences.defaults.defaultProfileId) ==
         profileId;
@@ -4876,7 +4940,9 @@ class SessionController extends Notifier<SessionState> {
         fallback: _localConfigDocument,
       );
     } else {
-      await ref.read(appPreferencesRepositoryProvider).save(_appPreferences);
+      _appPreferencesDocument = await ref
+          .read(appPreferencesRepositoryProvider)
+          .saveVersioned(_appPreferencesDocument);
     }
     _preferencesLoadedFromDisk = true;
   }

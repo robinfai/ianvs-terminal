@@ -19,14 +19,17 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
   }
 
   Future<void> _loadPasteHistory() async {
-    final document = await ref.read(pasteHistoryRepositoryProvider).load();
+    final document = await _pasteHistorySnapshot(
+      ref.read(pasteHistoryRepositoryProvider),
+    );
     if (!mounted) {
       return;
     }
-    final loadedEntries = document?.entries ?? const <PasteHistoryEntry>[];
+    final loadedEntries =
+        document.value?.entries ?? const <PasteHistoryEntry>[];
     _mutateState(() {
       _pasteHistoryLoaded = true;
-      _pasteHistoryPersistToDisk = document != null;
+      _pasteHistoryPersistToDisk = document.value != null;
       _pasteHistoryEntries = _mergePasteHistoryEntries(
         _pasteHistoryEntries,
         loadedEntries,
@@ -60,9 +63,7 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
     }
 
     if (_pasteHistoryPersistToDisk) {
-      await ref
-          .read(pasteHistoryRepositoryProvider)
-          .save(PasteHistoryDocument(entries: nextEntries));
+      await _writePasteHistory(PasteHistoryDocument(entries: nextEntries));
     }
   }
 
@@ -94,11 +95,11 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
     });
     final repository = ref.read(pasteHistoryRepositoryProvider);
     if (enabled) {
-      await repository.save(
+      await _writePasteHistory(
         PasteHistoryDocument(entries: _pasteHistoryEntries),
       );
     } else {
-      await repository.clearDiskHistory();
+      await _clearPersistedPasteHistory(repository);
     }
   }
 
@@ -108,10 +109,67 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
       _pasteHistoryLoaded = true;
     });
     if (_pasteHistoryPersistToDisk) {
-      await ref
-          .read(pasteHistoryRepositoryProvider)
-          .save(const PasteHistoryDocument());
+      await _clearPersistedPasteHistory(
+        ref.read(pasteHistoryRepositoryProvider),
+      );
     }
+  }
+
+  Future<VersionedDocument<PasteHistoryDocument?>> _pasteHistorySnapshot(
+    PasteHistoryRepositoryPort repository,
+  ) async {
+    final existing = _pasteHistoryDocument;
+    if (existing != null) {
+      return existing;
+    }
+    final pending = _pasteHistoryLoadFuture;
+    if (pending != null) {
+      return pending;
+    }
+    late final Future<VersionedDocument<PasteHistoryDocument?>> tracked;
+    tracked = repository
+        .loadVersioned()
+        .then((loaded) {
+          _pasteHistoryDocument = loaded;
+          return loaded;
+        })
+        .whenComplete(() {
+          if (identical(_pasteHistoryLoadFuture, tracked)) {
+            _pasteHistoryLoadFuture = null;
+          }
+        });
+    _pasteHistoryLoadFuture = tracked;
+    return tracked;
+  }
+
+  Future<void> _writePasteHistory(PasteHistoryDocument document) {
+    final repository = ref.read(pasteHistoryRepositoryProvider);
+    return _enqueuePasteHistoryWrite(() async {
+      final current = await _pasteHistorySnapshot(repository);
+      _pasteHistoryDocument = await repository.saveVersioned(
+        current.withValue(document),
+      );
+    });
+  }
+
+  Future<void> _clearPersistedPasteHistory(
+    PasteHistoryRepositoryPort repository,
+  ) {
+    return _enqueuePasteHistoryWrite(() async {
+      final current = await _pasteHistorySnapshot(repository);
+      _pasteHistoryDocument = await repository.clearDiskHistoryVersioned(
+        current,
+      );
+    });
+  }
+
+  Future<void> _enqueuePasteHistoryWrite(Future<void> Function() operation) {
+    final queued = _pasteHistoryWriteChain.then((_) => operation());
+    _pasteHistoryWriteChain = queued.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return queued;
   }
 
   List<_TerminalAnnotation> _annotationsForSession(String sessionId) {

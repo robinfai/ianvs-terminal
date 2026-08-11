@@ -1845,46 +1845,46 @@ extension _ShellScreenStateEvents on _ShellScreenState {
   }
 
   Future<void> _loadNotificationPreferences() async {
-    final configBootstrap = await _loadNotificationConfig();
-    final preferences = LocalTerminalConfigPreferencesAdapter.toAppPreferences(
-      configBootstrap.config,
-    );
-    if (!mounted) {
-      return;
+    try {
+      final configBootstrap = await _loadNotificationConfig();
+      final preferences =
+          LocalTerminalConfigPreferencesAdapter.toAppPreferences(
+            configBootstrap.config,
+          );
+      if (!mounted) {
+        return;
+      }
+      _mutateState(() {
+        _notificationConfigSource = configBootstrap.source;
+        _notificationLocalConfig = configBootstrap.config;
+        _keybindingsConfig = configBootstrap.config.keybindings;
+        _clipboardConfig = configBootstrap.config.clipboard;
+        _hostActionsConfig = configBootstrap.config.hostActions;
+        _bracketedPastePolicy = configBootstrap.config.paste.bracketedPaste;
+        _pastePolicy = _pastePolicyFromConfig(configBootstrap.config.paste);
+        _pasteHistoryPolicy = _pasteHistoryPolicyFromConfig(
+          configBootstrap.config.paste,
+        );
+        _pasteHistoryEntries = _pasteHistoryEntries
+            .take(_effectivePasteHistoryLimit)
+            .toList();
+        _commandFinishedNotificationsEnabled =
+            preferences.notifications.commandFinished;
+        _bellNotificationsEnabled = preferences.notifications.bell;
+        _activityNotificationsEnabled = preferences.notifications.activity;
+      });
+    } on Object catch (error) {
+      if (mounted) {
+        _showShellSnackBar(
+          'Terminal settings could not be loaded. No legacy preferences were '
+          'used: $error',
+        );
+      }
     }
-    _mutateState(() {
-      _notificationConfigSource = configBootstrap.source;
-      _notificationLocalConfig = configBootstrap.config;
-      _keybindingsConfig = configBootstrap.config.keybindings;
-      _clipboardConfig = configBootstrap.config.clipboard;
-      _hostActionsConfig = configBootstrap.config.hostActions;
-      _bracketedPastePolicy = configBootstrap.config.paste.bracketedPaste;
-      _pastePolicy = _pastePolicyFromConfig(configBootstrap.config.paste);
-      _pasteHistoryPolicy = _pasteHistoryPolicyFromConfig(
-        configBootstrap.config.paste,
-      );
-      _pasteHistoryEntries = _pasteHistoryEntries
-          .take(_effectivePasteHistoryLimit)
-          .toList();
-      _commandFinishedNotificationsEnabled =
-          preferences.notifications.commandFinished;
-      _bellNotificationsEnabled = preferences.notifications.bell;
-      _activityNotificationsEnabled = preferences.notifications.activity;
-    });
   }
 
   Future<LocalTerminalConfigBootstrapResult> _loadNotificationConfig() async {
-    try {
-      return await ref.read(localTerminalConfigLoaderProvider).load();
-    } on Object {
-      final legacyPreferences = await ref
-          .read(appPreferencesRepositoryProvider)
-          .load();
-      return LocalTerminalConfigBootstrap.resolve(
-        localConfig: null,
-        legacyAppPreferences: legacyPreferences,
-      );
-    }
+    return ref.read(localTerminalConfigLoaderProvider).load();
   }
 
   Future<void> _saveNotificationPreferences() async {
@@ -1918,9 +1918,14 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     }
 
     final repository = ref.read(appPreferencesRepositoryProvider);
-    final preferences =
-        await repository.load() ?? const TerminalAppPreferencesDocument();
-    await repository.save(preferences.copyWith(notifications: notifications));
+    final preferences = await repository.loadVersioned();
+    await repository.saveVersioned(
+      preferences.withValue(
+        (preferences.value ?? const TerminalAppPreferencesDocument()).copyWith(
+          notifications: notifications,
+        ),
+      ),
+    );
   }
 
   Future<LocalTerminalConfigDocument?>

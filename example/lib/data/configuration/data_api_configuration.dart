@@ -1,13 +1,29 @@
+import 'dart:io';
+
 enum DataApiDeployment { disabled, local, remote }
+
+bool isSecureDataApiRemoteOrigin(Uri uri) {
+  final parsedAddress = InternetAddress.tryParse(uri.host);
+  final isLoopback =
+      uri.host.toLowerCase() == 'localhost' ||
+      parsedAddress?.isLoopback == true;
+  return uri.scheme == 'https' || (uri.scheme == 'http' && isLoopback);
+}
 
 final class DataApiConfiguration {
   const DataApiConfiguration.disabled()
     : deployment = DataApiDeployment.disabled,
-      remoteBaseUri = null;
+      remoteBaseUri = null,
+      generation = 0,
+      remoteCredentialRef = null,
+      lastTransactionId = null;
 
   const DataApiConfiguration.local()
     : deployment = DataApiDeployment.local,
-      remoteBaseUri = null;
+      remoteBaseUri = null,
+      generation = 0,
+      remoteCredentialRef = null,
+      lastTransactionId = null;
 
   factory DataApiConfiguration.remote(String remoteApiUrl) {
     final configured = remoteApiUrl.trim();
@@ -26,6 +42,13 @@ final class DataApiConfiguration {
         remoteApiUrl,
       );
     }
+    if (!isSecureDataApiRemoteOrigin(uri)) {
+      throw FormatException(
+        'Remote data API authentication requires HTTPS. HTTP is allowed only '
+        'for a loopback development endpoint.',
+        remoteApiUrl,
+      );
+    }
 
     final path = uri.path.isEmpty
         ? '/'
@@ -35,17 +58,41 @@ final class DataApiConfiguration {
     return DataApiConfiguration._(
       deployment: DataApiDeployment.remote,
       remoteBaseUri: uri.replace(path: path),
+      generation: 0,
+      remoteCredentialRef: null,
+      lastTransactionId: null,
     );
   }
 
   factory DataApiConfiguration.fromJson(Map<String, Object?> json) {
-    if (json['version'] != currentVersion) {
+    final version = json['version'];
+    if (version != 1 && version != currentVersion) {
       throw FormatException(
-        'Unsupported data API configuration version: ${json['version']}.',
+        'Unsupported data API configuration version: $version.',
+      );
+    }
+    final generation = version == 1 ? 0 : json['generation'];
+    if (generation is! int || generation < 0) {
+      throw const FormatException(
+        'Data API configuration generation is invalid.',
+      );
+    }
+    final credentialRef = json['remote_credential_ref'];
+    if (credentialRef != null &&
+        (credentialRef is! String ||
+            !RegExp(r'^[A-Za-z0-9_-]{16,128}$').hasMatch(credentialRef))) {
+      throw const FormatException(
+        'Data API remote credential reference is invalid.',
+      );
+    }
+    final transactionId = json['last_transaction_id'];
+    if (transactionId != null && !_isPersistenceId(transactionId)) {
+      throw const FormatException(
+        'Data API configuration transaction identifier is invalid.',
       );
     }
     final deployment = json['deployment'];
-    return switch (deployment) {
+    final configuration = switch (deployment) {
       'disabled' => const DataApiConfiguration.disabled(),
       'local' => const DataApiConfiguration.local(),
       'remote' => switch (json['remote_base_url']) {
@@ -58,17 +105,54 @@ final class DataApiConfiguration {
         'Unsupported data API deployment: $deployment.',
       ),
     };
+    if (configuration.deployment != DataApiDeployment.remote &&
+        credentialRef != null) {
+      throw const FormatException(
+        'Only remote Data API configuration may reference a credential.',
+      );
+    }
+    return configuration.withPersistenceState(
+      generation: generation,
+      remoteCredentialRef: credentialRef as String?,
+      lastTransactionId: transactionId as String?,
+    );
   }
 
   const DataApiConfiguration._({
     required this.deployment,
     required this.remoteBaseUri,
+    required this.generation,
+    required this.remoteCredentialRef,
+    required this.lastTransactionId,
   });
 
-  static const currentVersion = 1;
+  static const currentVersion = 2;
 
   final DataApiDeployment deployment;
   final Uri? remoteBaseUri;
+  final int generation;
+  final String? remoteCredentialRef;
+  final String? lastTransactionId;
+
+  DataApiConfiguration withPersistenceState({
+    required int generation,
+    required String? remoteCredentialRef,
+    required String? lastTransactionId,
+  }) {
+    if (generation < 0 ||
+        (lastTransactionId != null && !_isPersistenceId(lastTransactionId)) ||
+        (deployment != DataApiDeployment.remote &&
+            remoteCredentialRef != null)) {
+      throw ArgumentError('Invalid Data API persistence state.');
+    }
+    return DataApiConfiguration._(
+      deployment: deployment,
+      remoteBaseUri: remoteBaseUri,
+      generation: generation,
+      remoteCredentialRef: remoteCredentialRef,
+      lastTransactionId: lastTransactionId,
+    );
+  }
 
   @override
   bool operator ==(Object other) {
@@ -84,6 +168,14 @@ final class DataApiConfiguration {
   Map<String, Object?> toJson() => <String, Object?>{
     'version': currentVersion,
     'deployment': deployment.name,
+    'generation': generation,
     if (remoteBaseUri != null) 'remote_base_url': remoteBaseUri.toString(),
+    if (remoteCredentialRef != null)
+      'remote_credential_ref': remoteCredentialRef,
+    if (lastTransactionId != null) 'last_transaction_id': lastTransactionId,
   };
+}
+
+bool _isPersistenceId(Object? value) {
+  return value is String && RegExp(r'^[A-Za-z0-9_-]{16,128}$').hasMatch(value);
 }
