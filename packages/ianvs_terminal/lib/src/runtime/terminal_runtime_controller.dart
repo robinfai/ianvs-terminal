@@ -11,6 +11,7 @@ import '../config/terminal_session_config_v1.dart';
 import '../terminal/selection_controller.dart';
 import '../terminal/terminal_graphics_cache.dart';
 import '../terminal/terminal_graphics_diagnostics.dart';
+import '../terminal/terminal_input_sink.dart';
 import '../terminal/terminal_models.dart';
 import '../terminal/terminal_viewport.dart';
 import 'terminal_benchmarking.dart';
@@ -1135,7 +1136,7 @@ final class TerminalSessionInputEvent {
   final Uint8List bytes;
 }
 
-class TerminalRuntimeController {
+class TerminalRuntimeController implements TerminalInputSink {
   static const Duration _pollingFrameInterval = Duration(milliseconds: 33);
   // A pull immediately after writeInput commonly races the asynchronous PTY
   // reader. Probe its cheap dirty hint briefly so local echo can still reach
@@ -1598,6 +1599,7 @@ class TerminalRuntimeController {
     }
   }
 
+  @override
   void sendInput(String sessionId, Uint8List bytes) {
     _sendInput(sessionId, bytes);
   }
