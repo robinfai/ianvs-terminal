@@ -9152,6 +9152,177 @@ void main() {
     },
   );
 
+  testWidgets('shutdown drops a permission continuation and its pending exit', (
+    tester,
+  ) async {
+    final permissionStarted = Completer<void>();
+    final permission = Completer<bool>();
+    var readClipboardCount = 0;
+    var exitHookCount = 0;
+    final backend = _FakePtyBackend()..hostResponseV1Supported = true;
+    final runtime = TerminalRuntimeController(
+      backend: backend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async {
+        readClipboardCount += 1;
+        return 'secret';
+      },
+      allowClipboardPasteRequest: () {
+        if (!permissionStarted.isCompleted) {
+          permissionStarted.complete();
+        }
+        return permission.future;
+      },
+      enableSessionPolling: false,
+      enableWarmUpRefresh: false,
+      beforeSessionCloseOnExit: (_, _) {
+        exitHookCount += 1;
+      },
+    );
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    backend
+      ..enqueueEvent(
+        sessionId,
+        _clipboardPasteHostRequestEvent(sessionId, sequence: 3),
+      )
+      ..enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'exit',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'code': 0},
+        ),
+      );
+
+    runtime.refreshSession(sessionId);
+    await permissionStarted.future;
+    runtime.beginShutdown();
+    permission.complete(true);
+    await tester.pump();
+    await tester.pump();
+
+    expect(readClipboardCount, 0);
+    expect(backend.hostResponses, isEmpty);
+    expect(backend.writeCalls, isEmpty);
+    expect(exitHookCount, 0);
+    expect(backend.closeCalls, isEmpty);
+    expect(runtime.hasSession(sessionId), isTrue);
+    expect(runtime.tryDispose(), isTrue);
+    expect(backend.closeCalls, <String>[sessionId]);
+  });
+
+  testWidgets(
+    'shutdown drops a clipboard-read continuation and its pending exit',
+    (tester) async {
+      final readStarted = Completer<void>();
+      final clipboardText = Completer<String>();
+      var exitHookCount = 0;
+      final backend = _FakePtyBackend()..hostResponseV1Supported = true;
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () {
+          if (!readStarted.isCompleted) {
+            readStarted.complete();
+          }
+          return clipboardText.future;
+        },
+        allowClipboardPasteRequest: () async => true,
+        enableSessionPolling: false,
+        enableWarmUpRefresh: false,
+        beforeSessionCloseOnExit: (_, _) {
+          exitHookCount += 1;
+        },
+      );
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      backend
+        ..enqueueEvent(
+          sessionId,
+          _clipboardPasteHostRequestEvent(sessionId, sequence: 4),
+        )
+        ..enqueueEvent(
+          sessionId,
+          PtyEvent(
+            kind: 'exit',
+            sessionId: sessionId,
+            payload: const <String, Object?>{'code': 0},
+          ),
+        );
+
+      runtime.refreshSession(sessionId);
+      await readStarted.future;
+      runtime.beginShutdown();
+      clipboardText.complete('secret');
+      await tester.pump();
+      await tester.pump();
+
+      expect(backend.hostResponses, isEmpty);
+      expect(backend.writeCalls, isEmpty);
+      expect(exitHookCount, 0);
+      expect(backend.closeCalls, isEmpty);
+      expect(runtime.hasSession(sessionId), isTrue);
+      expect(runtime.tryDispose(), isTrue);
+      expect(backend.closeCalls, <String>[sessionId]);
+    },
+  );
+
+  testWidgets(
+    'saved contextual clipboard resolver rejects before reading after shutdown',
+    (tester) async {
+      final requestCaptured = Completer<void>();
+      late TerminalClipboardAccessRequest savedRequest;
+      var readClipboardCount = 0;
+      final backend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async {
+          readClipboardCount += 1;
+          return 'secret';
+        },
+        allowClipboardPasteRequestWithContext: (request) async {
+          savedRequest = request;
+          requestCaptured.complete();
+          return false;
+        },
+        enableSessionPolling: false,
+        enableWarmUpRefresh: false,
+      );
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_paste_request',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'selection': 'c'},
+        ),
+      );
+
+      runtime.refreshSession(sessionId);
+      await requestCaptured.future;
+      await tester.pump();
+      runtime.beginShutdown();
+
+      await expectLater(savedRequest.resolveText!(), throwsStateError);
+      expect(readClipboardCount, 0);
+      expect(backend.writeCalls, isEmpty);
+      expect(runtime.tryDispose(), isTrue);
+      expect(backend.closeCalls, <String>[sessionId]);
+    },
+  );
+
   testWidgets('terminal runtime returns structured Host Response v1 denial', (
     tester,
   ) async {
@@ -9579,6 +9750,300 @@ void main() {
     expect(runtimeBackend.closeCalls, <String>['1', '2']);
   });
 
+  testWidgets(
+    'beginShutdown freezes timers and events without closing backend sessions',
+    (tester) async {
+      final runtimeBackend = _FakePtyBackend();
+      var clipboardMimeReads = 0;
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        listClipboardMimeTypes: () async {
+          clipboardMimeReads += 1;
+          return const <String>['text/plain'];
+        },
+      );
+      final seenEvents = <TerminalSessionEvent>[];
+      final subscription = runtime.events.listen(seenEvents.add);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '7',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'report_variable_request',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'iterm1337',
+            'name': 'session.name',
+            'value': 'shell',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+      final reportVariableRequest = seenEvents
+          .whereType<TerminalSessionReportVariableRequestEvent>()
+          .single;
+      expect(runtime.activeZmodemTransferIdFor(sessionId), '7');
+      seenEvents.clear();
+      runtimeBackend
+        ..closeCalls.clear()
+        ..writeCalls.clear()
+        ..resizeCalls.clear()
+        ..scrollCalls.clear()
+        ..scrollToCalls.clear()
+        ..graphicAssetRequests.clear()
+        ..jsonRequests.clear()
+        ..fileDownloadTakeRequests.clear()
+        ..fileDownloadDiscardRequests.clear()
+        ..diagnosticEventV1Requests.clear()
+        ..legacyDiagnosticRequests.clear();
+
+      runtime.beginShutdown();
+      runtime.beginShutdown();
+
+      expect(runtime.shutdownHasStarted, isTrue);
+      expect(runtimeBackend.closeCalls, isEmpty);
+      expect(runtime.hasSession(sessionId), isTrue);
+      expect(
+        () => runtime.createSession(
+          const TerminalSessionConfig(
+            launch: TerminalLaunchConfig(program: '/bin/zsh'),
+          ),
+        ),
+        throwsStateError,
+      );
+
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(kind: 'bell', sessionId: sessionId),
+      );
+      runtime.refreshSession(sessionId);
+      runtime.sendInput(sessionId, Uint8List(0));
+      runtime
+        ..setSessionActive(sessionId, active: false)
+        ..setSessionFocused(sessionId, focused: true)
+        ..closeSession(sessionId)
+        ..scrollViewport(sessionId, 1)
+        ..scrollViewportTo(sessionId, 1);
+      expect(runtime.tryCloseSession(sessionId), isFalse);
+      expect(runtime.disposeSession(sessionId), isFalse);
+      expect(
+        runtime.acceptZmodemReceive(
+          TerminalSessionZmodemEvent(
+            sessionId,
+            rawPayload: const <String, Object?>{
+              'source': 'zmodem',
+              'eventKind': 'zmodem_file_offer',
+              'transferId': '7',
+              'direction': 'receive',
+              'filename': 'report.txt',
+              'size': 5,
+            },
+          ),
+          destination: '/tmp/downloads',
+        ),
+        isFalse,
+      );
+      expect(
+        runtime.acceptZmodemSend(
+          TerminalSessionZmodemEvent(
+            sessionId,
+            rawPayload: const <String, Object?>{
+              'source': 'zmodem',
+              'eventKind': 'zmodem_detected',
+              'transferId': '7',
+              'direction': 'send',
+            },
+          ),
+          files: const <String>['/tmp/report.txt'],
+        ),
+        isFalse,
+      );
+      expect(
+        runtime.cancelZmodem(
+          TerminalSessionZmodemEvent(
+            sessionId,
+            rawPayload: const <String, Object?>{
+              'source': 'zmodem',
+              'eventKind': 'zmodem_detected',
+              'transferId': '7',
+              'direction': 'receive',
+            },
+          ),
+        ),
+        isFalse,
+      );
+      final recoveryEvent = TerminalSessionZmodemEvent(
+        sessionId,
+        rawPayload: const <String, Object?>{
+          'source': 'zmodem',
+          'eventKind': 'zmodem_failed',
+          'transferId': '7',
+          'direction': 'receive',
+          'reason': 'publish_failed',
+          'recoverablePartialName': '.report.ianvs-part',
+          'stagingPreserved': true,
+          'recoveryToken': '0123456789abcdef0123456789abcdef',
+        },
+      );
+      expect(
+        runtime.resolveZmodemRecovery(recoveryEvent).status,
+        TerminalZmodemRecoveryResolutionStatus.requestFailed,
+      );
+      expect(
+        runtime.consumeZmodemRecovery(recoveryEvent),
+        TerminalZmodemRecoveryDisposition.requestFailed,
+      );
+      expect(
+        runtime.dismissZmodemRecovery(recoveryEvent),
+        TerminalZmodemRecoveryDisposition.requestFailed,
+      );
+      expect(
+        runtime.respondToOsc1337ReportVariable(
+          reportVariableRequest,
+          value: 'shell',
+        ),
+        isFalse,
+      );
+      expect(await runtime.sendOsc5522PasteEvent(sessionId), isFalse);
+      expect(
+        await runtime.loadGraphicAsset(
+          sessionId,
+          const TerminalGraphicAssetKey(id: 1, version: 1),
+        ),
+        isNull,
+      );
+      final download = TerminalSessionFileDownloadEvent(
+        sessionId,
+        rawPayload: const <String, Object?>{
+          'source': 'iterm1337',
+          'transferId': '8',
+          'filename': 'report.txt',
+          'size': 5,
+        },
+      );
+      expect(runtime.takeFileDownload(download), isNull);
+      expect(runtime.discardFileDownload(download), isFalse);
+      const selection = TerminalSelection(
+        startRow: 0,
+        startCol: 0,
+        endRow: 0,
+        endCol: 1,
+      );
+      expect(runtime.selectionText(sessionId, selection, block: false), '');
+      expect(runtime.searchText(sessionId, 'demo'), isEmpty);
+      expect(runtime.clearScrollback(sessionId), isFalse);
+      expect(
+        runtime.respondSshAuthentication(
+          sessionId,
+          challengeId: 1,
+          responses: const <String>['secret'],
+        ),
+        isFalse,
+      );
+      expect(runtime.clearBuffer(sessionId), isFalse);
+      expect(
+        runtime.dismissOsc99Notification(sessionId, 'notification'),
+        isFalse,
+      );
+      expect(runtime.setBlockFolded(sessionId, 'block', folded: true), isFalse);
+      expect(
+        runtime.setBlockRendered(sessionId, 'block', rendered: true),
+        isFalse,
+      );
+      expect(runtime.activateItermButton(sessionId, 1).activated, isFalse);
+      expect(runtime.exportScrollbackText(sessionId), isNull);
+      expect(runtime.exportSessionDiagnostics(sessionId), isNull);
+      expect(
+        runtime.resizeSession(sessionId, const Size(800, 600), 1),
+        isFalse,
+      );
+      expect(
+        runtime.resizeSessionCells(sessionId, cols: 80, rows: 24),
+        isFalse,
+      );
+
+      expect(seenEvents, isEmpty);
+      expect(clipboardMimeReads, 0);
+      expect(runtimeBackend.writeCalls, isEmpty);
+      expect(runtimeBackend.closeCalls, isEmpty);
+      expect(runtimeBackend.resizeCalls, isEmpty);
+      expect(runtimeBackend.scrollCalls, isEmpty);
+      expect(runtimeBackend.scrollToCalls, isEmpty);
+      expect(runtimeBackend.graphicAssetRequests, isEmpty);
+      expect(runtimeBackend.jsonRequests, isEmpty);
+      expect(runtimeBackend.fileDownloadTakeRequests, isEmpty);
+      expect(runtimeBackend.fileDownloadDiscardRequests, isEmpty);
+      expect(runtimeBackend.diagnosticEventV1Requests, isEmpty);
+      expect(runtimeBackend.legacyDiagnosticRequests, isEmpty);
+
+      runtime.dispose();
+      unawaited(subscription.cancel());
+      expect(runtimeBackend.closeCalls, <String>[sessionId]);
+    },
+  );
+
+  testWidgets(
+    'viewport and graphics accessors require an active product session',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+        enableWarmUpRefresh: false,
+      );
+      expect(runtime.existingViewportFor('missing'), isNull);
+      expect(() => runtime.viewportFor('missing'), throwsStateError);
+      expect(() => runtime.graphicsCacheFor('missing'), throwsStateError);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final viewport = runtime.viewportFor(sessionId);
+      final graphics = runtime.graphicsCacheFor(sessionId);
+      expect(runtime.existingViewportFor(sessionId), same(viewport));
+      expect(runtime.viewportFor(sessionId), same(viewport));
+      expect(runtime.graphicsCacheFor(sessionId), same(graphics));
+
+      runtime.beginShutdown();
+      expect(runtime.existingViewportFor(sessionId), isNull);
+      expect(() => runtime.viewportFor(sessionId), throwsStateError);
+      expect(() => runtime.graphicsCacheFor(sessionId), throwsStateError);
+      expect(runtime.hasSession(sessionId), isTrue);
+
+      expect(runtime.tryDispose(), isTrue);
+      expect(runtime.disposed, isTrue);
+      expect(runtime.hasSession(sessionId), isFalse);
+      expect(runtime.existingViewportFor(sessionId), isNull);
+      expect(() => runtime.viewportFor(sessionId), throwsStateError);
+      expect(() => runtime.graphicsCacheFor(sessionId), throwsStateError);
+    },
+  );
+
   testWidgets('terminal runtime controller continues to handle exit events', (
     tester,
   ) async {
@@ -9641,6 +10106,51 @@ void main() {
     expect(runtimeEventGaps.single.nextSequence, 5);
     expect(runtimeEventGaps.single.stateRefreshRequested, isFalse);
   });
+
+  testWidgets(
+    'beginShutdown cancels product exit-close retries until infra disposal',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+        enableWarmUpRefresh: false,
+      );
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+      backend.retryableCloseSessionIds.add(sessionId);
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'exit',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'code': 0},
+        ),
+      );
+
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+
+      expect(runtime.hasSession(sessionId), isTrue);
+      expect(backend.closeCalls, isEmpty);
+
+      runtime.beginShutdown();
+      backend.retryableCloseSessionIds.remove(sessionId);
+      await tester.pump(const Duration(milliseconds: 60));
+
+      expect(runtime.hasSession(sessionId), isTrue);
+      expect(backend.closeCalls, isEmpty);
+      expect(runtime.tryDispose(), isTrue);
+      expect(runtime.hasSession(sessionId), isFalse);
+      expect(backend.closeCalls, <String>[sessionId]);
+    },
+  );
 
   testWidgets(
     'polling-disabled runtime follows a native pending-exit hint to completion',
@@ -13031,6 +13541,36 @@ void main() {
 
     expect(signals, hasLength(signalCountAfterDispose));
   });
+}
+
+PtyEvent _clipboardPasteHostRequestEvent(
+  String sessionId, {
+  required int sequence,
+}) {
+  final hostRequest = PtyHostRequestV1.fromJson(
+    <String, Object?>{
+      'schema_version': 1,
+      'contract': 'ianvs-host-request-v1',
+      'request_id': 'host:$sessionId:$sequence',
+      'session_id': sessionId,
+      'operation': 'clipboard.read_text',
+      'sequence': sequence,
+      'timestamp_micros': 1200,
+      'payload': <String, Object?>{'selection': 'c'},
+    },
+    expectedSessionId: sessionId,
+    expectedSequence: sequence,
+    expectedTimestampMicros: 1200,
+  );
+  return PtyEvent(
+    kind: 'clipboard_paste_request',
+    sessionId: sessionId,
+    payload: hostRequest.payload,
+    sequence: sequence,
+    timestampMicros: 1200,
+    wireSchemaVersion: 1,
+    hostRequest: hostRequest,
+  );
 }
 
 class _FakePtyBackend

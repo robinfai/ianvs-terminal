@@ -137,26 +137,55 @@ class SessionBootstrapService {
   }
 }
 
+sealed class SessionBootstrapOutcome {
+  const SessionBootstrapOutcome();
+}
+
+final class SessionBootstrapSuccess extends SessionBootstrapOutcome {
+  const SessionBootstrapSuccess({required this.started});
+
+  final bool started;
+}
+
+final class SessionBootstrapFailure extends SessionBootstrapOutcome {
+  const SessionBootstrapFailure({
+    required this.error,
+    required this.stackTrace,
+    required this.reportedToMountedConsumer,
+  });
+
+  final Object error;
+  final StackTrace stackTrace;
+  final bool reportedToMountedConsumer;
+}
+
 class SessionBootstrapRunner {
   bool _isRunning = false;
 
-  Future<void> run({
+  Future<SessionBootstrapOutcome> run({
     required bool Function() isMounted,
     required void Function() onStarted,
     required Future<void> Function() operation,
     required void Function(Object error, StackTrace stackTrace) onFailed,
   }) async {
     if (_isRunning || !isMounted()) {
-      return;
+      return const SessionBootstrapSuccess(started: false);
     }
     _isRunning = true;
     try {
       onStarted();
       await operation();
+      return const SessionBootstrapSuccess(started: true);
     } on Object catch (error, stackTrace) {
-      if (isMounted()) {
+      final reportedToMountedConsumer = isMounted();
+      if (reportedToMountedConsumer) {
         onFailed(error, stackTrace);
       }
+      return SessionBootstrapFailure(
+        error: error,
+        stackTrace: stackTrace,
+        reportedToMountedConsumer: reportedToMountedConsumer,
+      );
     } finally {
       _isRunning = false;
     }

@@ -45,6 +45,7 @@ Future<void> _pumpShellScreen(
   ShellUserAttentionBridge? userAttentionBridge,
   bool? shellAnimationsEnabled,
   ShellClock? clock,
+  ValueListenable<bool>? shellMounted,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -109,7 +110,13 @@ Future<void> _pumpShellScreen(
           splashFactory: NoSplash.splashFactory,
         ),
         themeMode: themeMode,
-        home: const ShellScreen(),
+        home: shellMounted == null
+            ? const ShellScreen()
+            : ValueListenableBuilder<bool>(
+                valueListenable: shellMounted,
+                builder: (context, mounted, _) =>
+                    mounted ? const ShellScreen() : const SizedBox.shrink(),
+              ),
       ),
     ),
   );
@@ -3021,6 +3028,8 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       final fakeBindings = FakePtyBackend();
       fakeBindings.zmodemRecoveryPath = '/chosen/.late-recovery.part';
+      final shellMounted = ValueNotifier<bool>(true);
+      addTearDown(shellMounted.dispose);
       const channel = MethodChannel('app/window_bridge');
       final revealCompleter = Completer<bool>();
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
@@ -3038,7 +3047,11 @@ void main() {
         ),
       );
 
-      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        shellMounted: shellMounted,
+      );
       final container = ProviderScope.containerOf(
         tester.element(find.byType(ShellScreen)),
       );
@@ -3077,7 +3090,10 @@ void main() {
 
       await tester.tap(find.text('Reveal'));
       await tester.pump();
-      await tester.pumpWidget(const SizedBox.shrink());
+      shellMounted.value = false;
+      await tester.pump();
+      expect(find.byType(ShellScreen), findsNothing);
+      expect(runtime.shutdownHasStarted, isFalse);
       revealCompleter.complete(true);
       await tester.pump();
       await tester.pump();

@@ -1,5 +1,6 @@
 import 'package:app/app_bootstrap.dart';
 import 'package:app/driver_command_extensions.dart';
+import 'package:app/features/pty/pty.dart';
 import 'package:app/features/shell/shell_acceptance.dart';
 import 'package:flutter_driver/driver_extension.dart';
 
@@ -10,6 +11,7 @@ void main() {
   );
   runIanvsTerminalApp(
     enableSessionPolling: false,
+    ptySessionBackend: loadDefaultPtySessionBackend(),
     enableDriverWarmUpRefresh: true,
     enableShellAnimations: false,
     sessionEnvironmentOverrides: const {

@@ -459,6 +459,73 @@ void main() {
     },
   );
 
+  testWidgets(
+    'external-runtime facade settles locally after freeze without close retry',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      final runtime = _runtimeFor(backend);
+      final terminal = Terminal(
+        runtime: runtime,
+        sessionConfig: const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final lifecycle = <String>[];
+      terminal
+        ..loadAddon(_RecordingAddon(lifecycle))
+        ..open();
+      final sessionId = terminal.sessionId!;
+
+      runtime.beginShutdown();
+      terminal.dispose();
+
+      expect(terminal.disposed, isTrue);
+      expect(terminal.isOpen, isFalse);
+      expect(lifecycle, <String>['activate:false', 'dispose']);
+      expect(runtime.hasSession(sessionId), isTrue);
+      expect(runtime.disposed, isFalse);
+      expect(backend.closeCalls, isEmpty);
+
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(backend.closeCalls, isEmpty);
+      expect(runtime.tryDispose(), isTrue);
+      expect(runtime.disposed, isTrue);
+      expect(backend.closeCalls, <String>[sessionId]);
+
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(backend.closeCalls, <String>[sessionId]);
+    },
+  );
+
+  testWidgets(
+    'facade-owned frozen runtime starts infra disposal exactly once',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      final runtime = _runtimeFor(backend);
+      final terminal = Terminal(
+        runtime: runtime,
+        sessionConfig: const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+        disposeRuntime: true,
+      )..open();
+      final sessionId = terminal.sessionId!;
+
+      runtime.beginShutdown();
+      terminal.dispose();
+
+      expect(terminal.disposed, isTrue);
+      expect(terminal.isOpen, isFalse);
+      expect(runtime.hasSession(sessionId), isFalse);
+      expect(runtime.disposed, isTrue);
+      expect(backend.closeCalls, <String>[sessionId]);
+
+      await tester.pump(const Duration(milliseconds: 250));
+      terminal.dispose();
+      expect(backend.closeCalls, <String>[sessionId]);
+    },
+  );
+
   test('terminal options normalize resize dimensions', () {
     const oversized = TerminalOptions(
       cols: maxTerminalDimension + 1,

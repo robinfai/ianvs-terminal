@@ -117,7 +117,7 @@ void main() {
       var starts = 0;
       var operations = 0;
 
-      Future<void> run() {
+      Future<SessionBootstrapOutcome> run() {
         return runner.run(
           isMounted: () => true,
           onStarted: () => starts += 1,
@@ -133,14 +133,29 @@ void main() {
 
       final first = run();
       await Future<void>.delayed(Duration.zero);
-      await run();
+      final coalesced = await run();
 
       expect(starts, 1);
       expect(operations, 1);
+      expect(
+        coalesced,
+        isA<SessionBootstrapSuccess>().having(
+          (outcome) => outcome.started,
+          'started',
+          isFalse,
+        ),
+      );
 
       blocker.complete();
-      await first;
-      await run();
+      expect(
+        await first,
+        isA<SessionBootstrapSuccess>().having(
+          (outcome) => outcome.started,
+          'started',
+          isTrue,
+        ),
+      );
+      expect(await run(), isA<SessionBootstrapSuccess>());
 
       expect(starts, 2);
       expect(operations, 2);
@@ -154,7 +169,7 @@ void main() {
         var mounted = true;
         var starts = 0;
 
-        await runner.run(
+        final failed = await runner.run(
           isMounted: () => mounted,
           onStarted: () => starts += 1,
           operation: () async => throw StateError('unavailable'),
@@ -163,15 +178,25 @@ void main() {
 
         expect(starts, 1);
         expect(failures.single, isA<StateError>());
+        expect(
+          failed,
+          isA<SessionBootstrapFailure>()
+              .having((outcome) => outcome.error, 'error', isA<StateError>())
+              .having(
+                (outcome) => outcome.reportedToMountedConsumer,
+                'reportedToMountedConsumer',
+                isTrue,
+              ),
+        );
 
-        await runner.run(
+        final recovered = await runner.run(
           isMounted: () => mounted,
           onStarted: () => starts += 1,
           operation: () async {},
           onFailed: (error, _) => failures.add(error),
         );
         mounted = false;
-        await runner.run(
+        final skipped = await runner.run(
           isMounted: () => mounted,
           onStarted: () => starts += 1,
           operation: () async {},
@@ -180,6 +205,60 @@ void main() {
 
         expect(starts, 2);
         expect(failures, hasLength(1));
+        expect(
+          recovered,
+          isA<SessionBootstrapSuccess>().having(
+            (outcome) => outcome.started,
+            'started',
+            isTrue,
+          ),
+        );
+        expect(
+          skipped,
+          isA<SessionBootstrapSuccess>().having(
+            (outcome) => outcome.started,
+            'started',
+            isFalse,
+          ),
+        );
+      },
+    );
+
+    test(
+      'returns an unreported failure when unmounted during operation',
+      () async {
+        final runner = SessionBootstrapRunner();
+        final operationStarted = Completer<void>();
+        final allowFailure = Completer<void>();
+        var mounted = true;
+        var reports = 0;
+
+        final run = runner.run(
+          isMounted: () => mounted,
+          onStarted: () {},
+          operation: () async {
+            operationStarted.complete();
+            await allowFailure.future;
+            throw StateError('bootstrap failed after unmount');
+          },
+          onFailed: (_, _) => reports += 1,
+        );
+        await operationStarted.future;
+        mounted = false;
+        allowFailure.complete();
+
+        final outcome = await run;
+        expect(
+          outcome,
+          isA<SessionBootstrapFailure>()
+              .having((failure) => failure.error, 'error', isA<StateError>())
+              .having(
+                (failure) => failure.reportedToMountedConsumer,
+                'reportedToMountedConsumer',
+                isFalse,
+              ),
+        );
+        expect(reports, 0);
       },
     );
   });

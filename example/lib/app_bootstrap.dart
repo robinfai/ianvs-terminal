@@ -18,6 +18,7 @@ import 'features/shell/window_bridge.dart';
 import 'persistence_repository_composition.dart';
 import 'platform/app_shutdown_coordinator.dart';
 import 'platform/clipboard_bridge.dart';
+import 'startup/app_startup_models.dart';
 
 Widget buildIanvsTerminalRoot({
   bool enableSessionPolling = true,
@@ -37,21 +38,38 @@ Widget buildIanvsTerminalRoot({
   bool dataApiConfigurationRecoveryRequired = false,
   DirectoryResolver? profileExportDirectoryResolver,
   Map<String, String> sessionEnvironmentOverrides = const <String, String>{},
+  AppRuntimeGraph? runtimeGraph,
+  Key? providerScopeKey,
 }) {
-  final shutdownCoordinator = AppShutdownCoordinator();
-  final persistenceRepositories = PersistenceRepositoryComposition.forRuntime(
-    dataApiRuntime,
-    profileExportDirectoryResolver:
-        profileExportDirectoryResolver ?? getApplicationSupportDirectory,
-    dataApiPersistenceRequired: dataApiPersistenceRequired,
-    dataApiPersistenceUnavailable: dataApiPersistenceUnavailable,
-  );
+  final effectiveDataApiRuntime =
+      runtimeGraph?.dataApiRuntime ?? dataApiRuntime;
+  final effectiveDataApiStartupWarning =
+      runtimeGraph?.dataApiStartupWarning ?? dataApiStartupWarning;
+  final effectiveDataApiConfigurationRepository =
+      runtimeGraph?.dataApiConfigurationRepository ??
+      dataApiConfigurationRepository;
+  final effectivePtySessionBackend =
+      runtimeGraph?.ptySessionBackend ?? ptySessionBackend;
+  final shutdownCoordinator =
+      runtimeGraph?.shutdownCoordinator ?? AppShutdownCoordinator();
+  final persistenceRepositories =
+      runtimeGraph?.persistenceRepositories ??
+      PersistenceRepositoryComposition.forRuntime(
+        effectiveDataApiRuntime,
+        profileExportDirectoryResolver:
+            profileExportDirectoryResolver ?? getApplicationSupportDirectory,
+        dataApiPersistenceRequired: dataApiPersistenceRequired,
+        dataApiPersistenceUnavailable: dataApiPersistenceUnavailable,
+      );
   return ProviderScope(
+    key: providerScopeKey,
     overrides: [
       appShutdownCoordinatorProvider.overrideWithValue(shutdownCoordinator),
       sessionPollingEnabledProvider.overrideWithValue(enableSessionPolling),
-      dataApiRuntimeProvider.overrideWithValue(dataApiRuntime),
-      dataApiStartupWarningProvider.overrideWithValue(dataApiStartupWarning),
+      dataApiRuntimeProvider.overrideWithValue(effectiveDataApiRuntime),
+      dataApiStartupWarningProvider.overrideWithValue(
+        effectiveDataApiStartupWarning,
+      ),
       dataApiStartupRetryProvider.overrideWithValue(dataApiStartupRetry),
       dataApiMigrationKeepRemoteProvider.overrideWithValue(
         dataApiMigrationKeepRemote,
@@ -74,15 +92,19 @@ Widget buildIanvsTerminalRoot({
       pasteHistoryRepositoryProvider.overrideWithValue(
         persistenceRepositories.pasteHistory,
       ),
-      if (dataApiConfigurationRepository != null)
+      if (runtimeGraph != null)
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          runtimeGraph.recordingRepository,
+        ),
+      if (effectiveDataApiConfigurationRepository != null)
         dataApiConfigurationRepositoryProvider.overrideWithValue(
-          dataApiConfigurationRepository,
+          effectiveDataApiConfigurationRepository,
         ),
       dataApiConfigurationRecoveryRequiredProvider.overrideWithValue(
         dataApiConfigurationRecoveryRequired,
       ),
-      if (ptySessionBackend != null)
-        ptySessionBackendProvider.overrideWithValue(ptySessionBackend),
+      if (effectivePtySessionBackend != null)
+        ptySessionBackendProvider.overrideWithValue(effectivePtySessionBackend),
       driverWarmUpRefreshEnabledProvider.overrideWithValue(
         enableDriverWarmUpRefresh,
       ),
@@ -122,11 +144,39 @@ Widget buildIanvsTerminalRoot({
       ),
       shellAnimationsEnabledProvider.overrideWithValue(enableShellAnimations),
     ],
-    child: DataApiLifecycleBoundary(
-      runtime: dataApiRuntime,
-      shutdownCoordinator: shutdownCoordinator,
-      child: const IanvsTerminalApp(),
-    ),
+    child: runtimeGraph == null
+        ? DataApiLifecycleBoundary(
+            runtime: effectiveDataApiRuntime,
+            shutdownCoordinator: shutdownCoordinator,
+            child: const IanvsTerminalApp(),
+          )
+        : const IanvsTerminalApp(),
+  );
+}
+
+/// Builds the application only from a fully prepared startup graph.
+///
+/// The generation key replaces the complete ProviderScope on retry. Runtime
+/// resources remain owned by [AppRuntimeGraph.shutdownCoordinator], so widget
+/// disposal never races a second close against coordinator-managed teardown.
+Widget buildIanvsTerminalRuntimeRoot({
+  required AppRuntimeGraph graph,
+  bool enableSessionPolling = true,
+  bool enableShellAnimations = true,
+  bool enableDriverWarmUpRefresh = false,
+  bool enableReferenceDemoMode = false,
+  ShellAcceptanceProbe? acceptanceProbe,
+  Map<String, String> sessionEnvironmentOverrides = const <String, String>{},
+}) {
+  return buildIanvsTerminalRoot(
+    runtimeGraph: graph,
+    providerScopeKey: ValueKey<int>(graph.generation),
+    enableSessionPolling: enableSessionPolling,
+    enableShellAnimations: enableShellAnimations,
+    enableDriverWarmUpRefresh: enableDriverWarmUpRefresh,
+    enableReferenceDemoMode: enableReferenceDemoMode,
+    acceptanceProbe: acceptanceProbe,
+    sessionEnvironmentOverrides: sessionEnvironmentOverrides,
   );
 }
 

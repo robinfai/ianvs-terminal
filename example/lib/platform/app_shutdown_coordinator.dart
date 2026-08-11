@@ -76,8 +76,14 @@ final class AppShutdownCoordinator {
   final Map<String, _RegisteredAppShutdownTask> _tasks =
       <String, _RegisteredAppShutdownTask>{};
   Future<AppShutdownResult>? _shutdownFuture;
+  Future<AppShutdownResult>? _settlementFuture;
 
-  bool get hasStarted => _shutdownFuture != null;
+  late Stopwatch _stopwatch;
+  late Map<String, _RegisteredAppShutdownTask> _shutdownTasks;
+  final List<AppShutdownFailure> _failures = <AppShutdownFailure>[];
+  var _settledTaskCount = 0;
+
+  bool get hasStarted => _settlementFuture != null;
 
   void registerTask(
     String name,
@@ -111,62 +117,109 @@ final class AppShutdownCoordinator {
     return _tasks.remove(name.trim()) != null;
   }
 
-  Future<AppShutdownResult> shutdown() {
-    return _shutdownFuture ??= _runShutdown();
+  Future<AppShutdownResult> shutdown({bool bounded = true}) {
+    final settlement = _startShutdown();
+    if (!bounded) {
+      return settlement;
+    }
+    return _shutdownFuture ??= _boundedResult(settlement);
   }
 
-  Future<AppShutdownResult> _runShutdown() async {
-    final stopwatch = Stopwatch()..start();
-    final tasks = Map<String, _RegisteredAppShutdownTask>.unmodifiable(_tasks);
-    final failures = <AppShutdownFailure>[];
-    var settledTaskCount = 0;
+  Future<AppShutdownResult> _startShutdown() {
+    final existing = _settlementFuture;
+    if (existing != null) {
+      return existing;
+    }
+    final settlement = Completer<AppShutdownResult>();
+    _settlementFuture = settlement.future;
+    _stopwatch = Stopwatch()..start();
+    _shutdownTasks = Map<String, _RegisteredAppShutdownTask>.unmodifiable(
+      _tasks,
+    );
+    unawaited(
+      _runToSettlement().then(
+        settlement.complete,
+        onError: settlement.completeError,
+      ),
+    );
+    return settlement.future;
+  }
 
-    var timedOut = false;
-    for (final phase in AppShutdownPhase.values) {
-      final phaseTasks = tasks.entries
-          .where((entry) => entry.value.phase == phase)
-          .toList(growable: false);
-      if (phaseTasks.isEmpty) {
-        continue;
+  /// The eventual result after every registered task has actually settled.
+  ///
+  /// Calling this starts shutdown when needed. Unlike [shutdown], this future
+  /// is not shortened by [timeout]; it is used before a replacement runtime is
+  /// allowed to start after a bounded shutdown response timed out.
+  Future<AppShutdownResult> settle() {
+    return shutdown(bounded: false);
+  }
+
+  Future<AppShutdownResult> _runToSettlement() {
+    // Start application tasks synchronously with [shutdown]. Flutter disposes
+    // descendants before their parent State, so deferring this first phase to
+    // an async body would let ProviderScope disposal race recording/layout
+    // capture. Later phases still begin only after the preceding phase settles.
+    var phases = _startPhase(AppShutdownPhase.application);
+    phases = phases.then((_) => _startPhase(AppShutdownPhase.infrastructure));
+    return phases.then((_) {
+      _stopwatch.stop();
+      return AppShutdownResult(
+        timedOut: false,
+        totalTaskCount: _shutdownTasks.length,
+        settledTaskCount: _settledTaskCount,
+        elapsed: _stopwatch.elapsed,
+        failures: List<AppShutdownFailure>.unmodifiable(_failures),
+      );
+    });
+  }
+
+  Future<void> _startPhase(AppShutdownPhase phase) {
+    final phaseTasks = _shutdownTasks.entries.where(
+      (entry) => entry.value.phase == phase,
+    );
+    final phaseFutures = <Future<void>>[];
+    for (final entry in phaseTasks) {
+      Future<void> task;
+      try {
+        // Invoke the callback directly so pre-await capture begins before
+        // shutdown() returns. Normalize synchronous exceptions below.
+        task = entry.value.run();
+      } on Object catch (error, stackTrace) {
+        task = Future<void>.error(error, stackTrace);
       }
-      final remaining = timeout - stopwatch.elapsed;
-      if (remaining <= Duration.zero) {
-        timedOut = true;
-        break;
-      }
-      final phaseFutures = phaseTasks
-          .map((entry) async {
-            try {
-              await Future<void>.sync(entry.value.run);
-            } on Object catch (error, stackTrace) {
-              failures.add(
+      phaseFutures.add(
+        task
+            .catchError((Object error, StackTrace stackTrace) {
+              _failures.add(
                 AppShutdownFailure(
                   taskName: entry.key,
                   error: error,
                   stackTrace: stackTrace,
                 ),
               );
-            } finally {
-              settledTaskCount += 1;
-            }
-          })
-          .toList(growable: false);
-      try {
-        await Future.wait(phaseFutures).timeout(remaining);
-      } on TimeoutException {
-        timedOut = true;
-        break;
-      }
+            })
+            .whenComplete(() {
+              _settledTaskCount += 1;
+            }),
+      );
     }
-    stopwatch.stop();
+    return Future.wait(phaseFutures);
+  }
 
-    return AppShutdownResult(
-      timedOut: timedOut,
-      totalTaskCount: tasks.length,
-      settledTaskCount: settledTaskCount,
-      elapsed: stopwatch.elapsed,
-      failures: List<AppShutdownFailure>.unmodifiable(failures),
-    );
+  Future<AppShutdownResult> _boundedResult(
+    Future<AppShutdownResult> settlement,
+  ) async {
+    try {
+      return await settlement.timeout(timeout);
+    } on TimeoutException {
+      return AppShutdownResult(
+        timedOut: true,
+        totalTaskCount: _shutdownTasks.length,
+        settledTaskCount: _settledTaskCount,
+        elapsed: _stopwatch.elapsed,
+        failures: List<AppShutdownFailure>.unmodifiable(_failures),
+      );
+    }
   }
 }
 

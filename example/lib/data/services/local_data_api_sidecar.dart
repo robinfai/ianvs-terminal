@@ -2,34 +2,21 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'data_api_runtime.dart';
+
 class LocalDataApiSidecar {
   LocalDataApiSidecar._({
-    required Process process,
     required this.baseUri,
-    required StreamSubscription<String> stdoutSubscription,
-    required StreamSubscription<String> stderrSubscription,
-    required Duration shutdownGracePeriod,
-    required Duration shutdownTerminateTimeout,
-    required Duration shutdownKillTimeout,
-  }) : _process = process,
-       _stdoutSubscription = stdoutSubscription,
-       _stderrSubscription = stderrSubscription,
-       _shutdownGracePeriod = shutdownGracePeriod,
-       _shutdownTerminateTimeout = shutdownTerminateTimeout,
-       _shutdownKillTimeout = shutdownKillTimeout;
+    required LocalDataApiSidecarResourceCleanup resourceCleanup,
+  }) : _resourceCleanup = resourceCleanup;
 
   static const _readyPrefix = 'IANVS_API_READY=';
   static const _defaultShutdownGracePeriod = Duration(seconds: 5);
   static const _defaultShutdownTerminateTimeout = Duration(seconds: 3);
   static const _defaultShutdownKillTimeout = Duration(seconds: 2);
 
-  final Process _process;
   final Uri baseUri;
-  final StreamSubscription<String> _stdoutSubscription;
-  final StreamSubscription<String> _stderrSubscription;
-  final Duration _shutdownGracePeriod;
-  final Duration _shutdownTerminateTimeout;
-  final Duration _shutdownKillTimeout;
+  final LocalDataApiSidecarResourceCleanup _resourceCleanup;
   Future<void>? _closeFuture;
 
   static Future<LocalDataApiSidecar> start({
@@ -62,6 +49,12 @@ class LocalDataApiSidecar {
       workingDirectory: binary.parent.path,
       runInShell: false,
     );
+    final processTerminator = LocalDataApiSidecarProcessTerminator(
+      gracePeriod: shutdownGracePeriod,
+      terminateTimeout: shutdownTerminateTimeout,
+      killTimeout: shutdownKillTimeout,
+    );
+    final terminationProcess = _IoLocalDataApiSidecarProcess(process);
 
     final ready = Completer<Uri>();
     var startupPending = true;
@@ -96,6 +89,12 @@ class LocalDataApiSidecar {
           onError: (Object _, StackTrace _) {},
           onDone: stderrDone.complete,
         );
+    final resourceCleanup = LocalDataApiSidecarResourceCleanup(
+      process: terminationProcess,
+      processTerminator: processTerminator,
+      cancelSubscriptions: () =>
+          _cancelSubscriptions(stdoutSubscription, stderrSubscription),
+    );
     unawaited(
       process.exitCode.then((exitCode) async {
         if (startupPending && !ready.isCompleted) {
@@ -115,62 +114,41 @@ class LocalDataApiSidecar {
       final baseUri = await ready.future.timeout(startupTimeout);
       startupPending = false;
       return LocalDataApiSidecar._(
-        process: process,
         baseUri: baseUri,
-        stdoutSubscription: stdoutSubscription,
-        stderrSubscription: stderrSubscription,
-        shutdownGracePeriod: shutdownGracePeriod,
-        shutdownTerminateTimeout: shutdownTerminateTimeout,
-        shutdownKillTimeout: shutdownKillTimeout,
+        resourceCleanup: resourceCleanup,
       );
     } on Object catch (error, stackTrace) {
       startupPending = false;
-      await _terminateProcess(
-        process,
-        gracePeriod: shutdownGracePeriod,
-        terminateTimeout: shutdownTerminateTimeout,
-        killTimeout: shutdownKillTimeout,
-      );
+      final terminationFailure = await resourceCleanup.terminateForStartup();
       try {
         await stderrDone.future.timeout(shutdownKillTimeout);
       } on Object {
         // Preserve bounded startup failure handling even if stderr never closes.
       }
-      await _cancelSubscriptions(stdoutSubscription, stderrSubscription);
-      Error.throwWithStackTrace(
-        LocalDataApiSidecarStartException(
-          cause: error,
-          sanitizedStderrTail: stderrTail.text,
-        ),
-        stackTrace,
+      final startupFailure = LocalDataApiSidecarStartException(
+        cause: error,
+        sanitizedStderrTail: stderrTail.text,
+        terminationFailure: terminationFailure,
       );
+      await resourceCleanup.completeStartupFailure(startupFailure, stackTrace);
     }
   }
 
-  Future<void> close() => _closeFuture ??= _close();
-
-  Future<void> _close() async {
-    try {
-      await _terminateProcess(
-        _process,
-        gracePeriod: _shutdownGracePeriod,
-        terminateTimeout: _shutdownTerminateTimeout,
-        killTimeout: _shutdownKillTimeout,
-      );
-    } finally {
-      await _cancelSubscriptions(_stdoutSubscription, _stderrSubscription);
-    }
-  }
+  Future<void> close() => _closeFuture ??= _resourceCleanup.close();
 }
 
-class LocalDataApiSidecarStartException implements Exception {
+class LocalDataApiSidecarStartException
+    implements DataApiRuntimeTerminationFailureCarrier {
   const LocalDataApiSidecarStartException({
     required this.cause,
     required this.sanitizedStderrTail,
+    this.terminationFailure,
   });
 
   final Object cause;
   final String sanitizedStderrTail;
+  @override
+  final DataApiRuntimeTerminationUnknownFailure? terminationFailure;
 
   @override
   String toString() {
@@ -181,8 +159,306 @@ class LocalDataApiSidecarStartException implements Exception {
         ..writeln('Sanitized stderr tail:')
         ..write(sanitizedStderrTail);
     }
+    if (terminationFailure case final failure?) {
+      message
+        ..writeln()
+        ..write('Process termination could not be confirmed: $failure');
+    }
     return message.toString();
   }
+}
+
+typedef LocalDataApiSidecarSubscriptionCancellation = Future<void> Function();
+
+/// Owns the two independent cleanup resources of a running sidecar.
+///
+/// Process termination is always attempted before stream subscription
+/// cancellation. If both fail, neither error is discarded.
+final class LocalDataApiSidecarResourceCleanup {
+  LocalDataApiSidecarResourceCleanup({
+    required LocalDataApiSidecarProcess process,
+    required LocalDataApiSidecarProcessTerminator processTerminator,
+    required LocalDataApiSidecarSubscriptionCancellation cancelSubscriptions,
+  }) : _process = process,
+       _processTerminator = processTerminator,
+       _cancelSubscriptions = cancelSubscriptions;
+
+  final LocalDataApiSidecarProcess _process;
+  final LocalDataApiSidecarProcessTerminator _processTerminator;
+  final LocalDataApiSidecarSubscriptionCancellation _cancelSubscriptions;
+
+  Future<void> close() async {
+    Object? terminationError;
+    StackTrace? terminationStackTrace;
+    try {
+      await _processTerminator.terminate(_process);
+    } on Object catch (error, stackTrace) {
+      terminationError = error;
+      terminationStackTrace = stackTrace;
+    }
+
+    Object? cancellationError;
+    StackTrace? cancellationStackTrace;
+    try {
+      await _cancelSubscriptions();
+    } on Object catch (error, stackTrace) {
+      cancellationError = error;
+      cancellationStackTrace = stackTrace;
+    }
+
+    if (terminationError != null && cancellationError != null) {
+      Error.throwWithStackTrace(
+        LocalDataApiSidecarCleanupException(
+          primaryError: terminationError,
+          subscriptionCancellationError: cancellationError,
+        ),
+        terminationStackTrace!,
+      );
+    }
+    if (terminationError != null) {
+      Error.throwWithStackTrace(terminationError, terminationStackTrace!);
+    }
+    if (cancellationError != null) {
+      Error.throwWithStackTrace(cancellationError, cancellationStackTrace!);
+    }
+  }
+
+  Future<DataApiRuntimeTerminationUnknownFailure?> terminateForStartup() async {
+    try {
+      await _processTerminator.terminate(_process);
+      return null;
+    } on Object catch (error) {
+      final terminationFailure = dataApiRuntimeTerminationFailureOf(error);
+      if (terminationFailure != null) {
+        return terminationFailure;
+      }
+      rethrow;
+    }
+  }
+
+  Future<Never> completeStartupFailure(
+    LocalDataApiSidecarStartException startupFailure,
+    StackTrace startupStackTrace,
+  ) async {
+    try {
+      await _cancelSubscriptions();
+    } on Object catch (cancellationError) {
+      Error.throwWithStackTrace(
+        LocalDataApiSidecarCleanupException(
+          primaryError: startupFailure,
+          subscriptionCancellationError: cancellationError,
+        ),
+        startupStackTrace,
+      );
+    }
+    Error.throwWithStackTrace(startupFailure, startupStackTrace);
+  }
+}
+
+/// Preserves a primary startup/termination error when subscription cleanup
+/// independently fails.
+final class LocalDataApiSidecarCleanupException
+    implements DataApiRuntimeTerminationFailureCarrier {
+  const LocalDataApiSidecarCleanupException({
+    required this.primaryError,
+    required this.subscriptionCancellationError,
+  });
+
+  final Object primaryError;
+  final Object subscriptionCancellationError;
+
+  @override
+  DataApiRuntimeTerminationUnknownFailure? get terminationFailure {
+    return dataApiRuntimeTerminationFailureOf(primaryError) ??
+        dataApiRuntimeTerminationFailureOf(subscriptionCancellationError);
+  }
+
+  @override
+  String toString() {
+    return 'Local data API cleanup failed ($primaryError), and subscription '
+        'cancellation also failed ($subscriptionCancellationError).';
+  }
+}
+
+/// The process operations required by the sidecar termination protocol.
+///
+/// Keeping this boundary smaller than [Process] makes the escalation policy
+/// independently testable without starting or sleeping on a real process.
+abstract interface class LocalDataApiSidecarProcess {
+  Future<void> closeStdin();
+
+  Future<int> get exitCode;
+
+  bool kill(ProcessSignal signal);
+}
+
+typedef LocalDataApiSidecarExitWait =
+    Future<bool> Function(LocalDataApiSidecarProcess process, Duration timeout);
+
+/// Performs bounded stdin, SIGTERM, and SIGKILL sidecar shutdown escalation.
+final class LocalDataApiSidecarProcessTerminator {
+  LocalDataApiSidecarProcessTerminator({
+    Duration gracePeriod = const Duration(seconds: 5),
+    Duration terminateTimeout = const Duration(seconds: 3),
+    Duration killTimeout = const Duration(seconds: 2),
+    LocalDataApiSidecarExitWait? waitForExit,
+  }) : _gracePeriod = gracePeriod,
+       _terminateTimeout = terminateTimeout,
+       _killTimeout = killTimeout,
+       _waitForExit = waitForExit ?? _waitForSidecarExit;
+
+  final Duration _gracePeriod;
+  final Duration _terminateTimeout;
+  final Duration _killTimeout;
+  final LocalDataApiSidecarExitWait _waitForExit;
+
+  Future<void> terminate(LocalDataApiSidecarProcess process) async {
+    try {
+      await process.closeStdin().timeout(_gracePeriod);
+    } on Object {
+      // Continue with bounded signal escalation.
+    }
+    if (await _wait(
+      process,
+      _gracePeriod,
+      LocalDataApiSidecarTerminationOperation.waitAfterStdinClose,
+    )) {
+      return;
+    }
+    _sendSignal(
+      process,
+      ProcessSignal.sigterm,
+      LocalDataApiSidecarTerminationOperation.sendTerminateSignal,
+    );
+    if (await _wait(
+      process,
+      _terminateTimeout,
+      LocalDataApiSidecarTerminationOperation.waitAfterTerminateSignal,
+    )) {
+      return;
+    }
+
+    final killAccepted = _sendSignal(
+      process,
+      ProcessSignal.sigkill,
+      LocalDataApiSidecarTerminationOperation.sendKillSignal,
+    );
+    final exitObserved = await _wait(
+      process,
+      _killTimeout,
+      LocalDataApiSidecarTerminationOperation.waitAfterKillSignal,
+    );
+    if (!killAccepted || !exitObserved) {
+      throw LocalDataApiSidecarTerminationUnknownException(
+        killAccepted: killAccepted,
+        exitObserved: exitObserved,
+      );
+    }
+  }
+
+  Future<bool> _wait(
+    LocalDataApiSidecarProcess process,
+    Duration timeout,
+    LocalDataApiSidecarTerminationOperation operation,
+  ) async {
+    try {
+      return await _waitForExit(process, timeout);
+    } on DataApiRuntimeTerminationUnknownFailure {
+      rethrow;
+    } on Object catch (error, stackTrace) {
+      Error.throwWithStackTrace(
+        LocalDataApiSidecarTerminationOperationException(
+          operation: operation,
+          cause: error,
+        ),
+        stackTrace,
+      );
+    }
+  }
+
+  bool _sendSignal(
+    LocalDataApiSidecarProcess process,
+    ProcessSignal signal,
+    LocalDataApiSidecarTerminationOperation operation,
+  ) {
+    try {
+      return process.kill(signal);
+    } on DataApiRuntimeTerminationUnknownFailure {
+      rethrow;
+    } on Object catch (error, stackTrace) {
+      Error.throwWithStackTrace(
+        LocalDataApiSidecarTerminationOperationException(
+          operation: operation,
+          cause: error,
+        ),
+        stackTrace,
+      );
+    }
+  }
+}
+
+enum LocalDataApiSidecarTerminationOperation {
+  waitAfterStdinClose,
+  sendTerminateSignal,
+  waitAfterTerminateSignal,
+  sendKillSignal,
+  waitAfterKillSignal,
+}
+
+/// Wraps an I/O or injected-wait failure that prevents the caller from
+/// establishing whether the sidecar exited.
+final class LocalDataApiSidecarTerminationOperationException
+    implements DataApiRuntimeTerminationUnknownFailure {
+  const LocalDataApiSidecarTerminationOperationException({
+    required this.operation,
+    required this.cause,
+  });
+
+  final LocalDataApiSidecarTerminationOperation operation;
+  final Object cause;
+
+  @override
+  String toString() {
+    return 'The local data API process termination state is unknown because '
+        '$operation failed: $cause';
+  }
+}
+
+/// Reports that the final SIGKILL request or subsequent exit confirmation
+/// failed, so the caller must assume the sidecar may still be running.
+final class LocalDataApiSidecarTerminationUnknownException
+    implements DataApiRuntimeTerminationUnknownFailure {
+  const LocalDataApiSidecarTerminationUnknownException({
+    required this.killAccepted,
+    required this.exitObserved,
+  });
+
+  final bool killAccepted;
+  final bool exitObserved;
+
+  @override
+  String toString() {
+    return 'The local data API process termination state is unknown '
+        '(SIGKILL accepted: $killAccepted, exit observed: $exitObserved).';
+  }
+}
+
+final class _IoLocalDataApiSidecarProcess
+    implements LocalDataApiSidecarProcess {
+  const _IoLocalDataApiSidecarProcess(this._process);
+
+  final Process _process;
+
+  @override
+  Future<void> closeStdin() async {
+    await _process.stdin.close();
+  }
+
+  @override
+  Future<int> get exitCode => _process.exitCode;
+
+  @override
+  bool kill(ProcessSignal signal) => _process.kill(signal);
 }
 
 class _SanitizedStderrTail {
@@ -257,29 +533,10 @@ bool _looksLikeSecretName(String name) {
       normalized.contains('encryption_key');
 }
 
-Future<void> _terminateProcess(
-  Process process, {
-  required Duration gracePeriod,
-  required Duration terminateTimeout,
-  required Duration killTimeout,
-}) async {
-  try {
-    await process.stdin.close().timeout(gracePeriod);
-  } on Object {
-    // Continue with bounded signal escalation.
-  }
-  if (await _waitForExit(process, gracePeriod)) {
-    return;
-  }
-  process.kill(ProcessSignal.sigterm);
-  if (await _waitForExit(process, terminateTimeout)) {
-    return;
-  }
-  process.kill(ProcessSignal.sigkill);
-  await _waitForExit(process, killTimeout);
-}
-
-Future<bool> _waitForExit(Process process, Duration timeout) async {
+Future<bool> _waitForSidecarExit(
+  LocalDataApiSidecarProcess process,
+  Duration timeout,
+) async {
   try {
     await process.exitCode.timeout(timeout);
     return true;

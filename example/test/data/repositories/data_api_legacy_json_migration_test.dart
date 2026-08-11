@@ -438,6 +438,25 @@ void main() {
         ),
         isTrue,
       );
+
+      client.failMergeCalls.add(4);
+      await expectLater(
+        migration.run(),
+        throwsA(isA<DataApiRequestException>()),
+      );
+      final quarantineCount = journal.parent
+          .listSync()
+          .whereType<File>()
+          .where((file) => file.path.contains('.json.reset-'))
+          .length;
+      await migration.acknowledgeResetRevisionJournal(error);
+      expect(
+        journal.parent.listSync().whereType<File>().where(
+          (file) => file.path.contains('.json.reset-'),
+        ),
+        hasLength(quarantineCount),
+      );
+
       final report = await migration.run();
       expect(report.alreadyCompleted, isFalse);
       expect(

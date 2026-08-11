@@ -107,6 +107,72 @@ void main() {
     expect(result.totalTaskCount, 1);
     expect(result.settledTaskCount, 0);
     expect(result.toPlatformMessage(), containsPair('completed', false));
+
+    stalledTask.complete();
+    final settled = await coordinator.settle();
+    expect(settled.timedOut, isFalse);
+    expect(settled.settledTaskCount, 1);
+  });
+
+  test(
+    'an unbounded teardown start preserves a later bounded response',
+    () async {
+      final coordinator = AppShutdownCoordinator(
+        timeout: const Duration(milliseconds: 1),
+      );
+      final gate = Completer<void>();
+      var runCount = 0;
+      coordinator.registerTask('application', () async {
+        runCount += 1;
+        await gate.future;
+      });
+
+      final settlement = coordinator.shutdown(bounded: false);
+      expect(coordinator.hasStarted, isTrue);
+      expect(runCount, 1);
+
+      final bounded = await coordinator.shutdown();
+      expect(bounded.timedOut, isTrue);
+      expect(runCount, 1);
+
+      gate.complete();
+      expect((await settlement).timedOut, isFalse);
+      expect((await coordinator.settle()).settledTaskCount, 1);
+    },
+  );
+
+  test('a timed-out task settles once before the next phase starts', () async {
+    final coordinator = AppShutdownCoordinator(
+      timeout: const Duration(milliseconds: 1),
+    );
+    final gate = Completer<void>();
+    final timeline = <String>[];
+    var applicationRunCount = 0;
+    coordinator
+      ..registerTask('application', () async {
+        applicationRunCount += 1;
+        timeline.add('application-start');
+        await gate.future;
+        timeline.add('application-settled');
+      })
+      ..registerTask('infrastructure', () async {
+        timeline.add('infrastructure');
+      }, phase: AppShutdownPhase.infrastructure);
+
+    final bounded = await coordinator.shutdown();
+    expect(bounded.timedOut, isTrue);
+    expect(timeline, <String>['application-start']);
+
+    gate.complete();
+    final settled = await coordinator.settle();
+    expect(settled.timedOut, isFalse);
+    expect(settled.settledTaskCount, 2);
+    expect(applicationRunCount, 1);
+    expect(timeline, <String>[
+      'application-start',
+      'application-settled',
+      'infrastructure',
+    ]);
   });
 
   test('rejects task registration after shutdown starts', () async {
@@ -120,4 +186,26 @@ void main() {
     );
     await shutdown;
   });
+
+  test(
+    'marks shutdown started before invoking synchronous task bodies',
+    () async {
+      final coordinator = AppShutdownCoordinator();
+      late Future<AppShutdownResult> reentrant;
+      coordinator.registerTask('application', () async {
+        expect(coordinator.hasStarted, isTrue);
+        expect(
+          () => coordinator.registerTask('too-late', () async {}),
+          throwsStateError,
+        );
+        reentrant = coordinator.shutdown(bounded: false);
+      });
+
+      final shutdown = coordinator.shutdown(bounded: false);
+      final result = await shutdown;
+
+      expect(identical(shutdown, reentrant), isTrue);
+      expect(result.settledTaskCount, 1);
+    },
+  );
 }

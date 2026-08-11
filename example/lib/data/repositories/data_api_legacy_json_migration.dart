@@ -105,10 +105,12 @@ final class DataApiLegacyJsonMigrationJournalRecoveryRequiredException
   const DataApiLegacyJsonMigrationJournalRecoveryRequiredException({
     required this.path,
     required this.cause,
+    this.recoveryId,
   });
 
   final String path;
   final Object cause;
+  final String? recoveryId;
 
   @override
   String toString() {
@@ -181,8 +183,38 @@ final class DataApiLegacyJsonMigration {
   ) {
     return _withInstallationLock(() async {
       final journalFile = _revisionJournalFile();
-      if (File(error.path).absolute.path != journalFile.absolute.path ||
-          !await journalFile.exists()) {
+      if (File(error.path).absolute.path != journalFile.absolute.path) {
+        throw ArgumentError.value(
+          error,
+          'error',
+          'The recovery error does not match this installation journal.',
+        );
+      }
+      final recoveryId = error.recoveryId;
+      if (recoveryId != null) {
+        final quarantineFile = File('${journalFile.path}.reset-$recoveryId');
+        if (await quarantineFile.exists()) {
+          return;
+        }
+        if (!await journalFile.exists() ||
+            await _sha256FileContents(journalFile) != recoveryId) {
+          throw ArgumentError.value(
+            error,
+            'error',
+            'The recovery error no longer matches this installation journal.',
+          );
+        }
+        try {
+          await journalFile.rename(quarantineFile.path);
+        } on FileSystemException {
+          if (await quarantineFile.exists()) {
+            return;
+          }
+          rethrow;
+        }
+        return;
+      }
+      if (!await journalFile.exists()) {
         throw ArgumentError.value(
           error,
           'error',
@@ -966,9 +998,11 @@ final class _LegacyMigrationRevisionJournal {
         entries: <String, _LegacyMigrationRevisionEntry>{},
       );
     }
+    late final String contents;
     try {
+      contents = await file.readAsString();
       final root = decodeJsonObject(
-        await file.readAsString(),
+        contents,
         documentName: 'Data API migration revision journal',
       );
       final rawEntries = root['resources'];
@@ -1006,6 +1040,7 @@ final class _LegacyMigrationRevisionJournal {
         DataApiLegacyJsonMigrationJournalRecoveryRequiredException(
           path: file.path,
           cause: error,
+          recoveryId: await _sha256String(contents),
         ),
         stackTrace,
       );
@@ -1065,6 +1100,22 @@ String _hex(Hash hash) {
   return hash.bytes
       .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
       .join();
+}
+
+Future<String> _sha256String(String contents) async {
+  final sink = Sha256().toSync().newHashSink();
+  sink.add(utf8.encode(contents));
+  sink.close();
+  return _hex(await sink.hash());
+}
+
+Future<String> _sha256FileContents(File file) async {
+  final sink = Sha256().toSync().newHashSink();
+  await for (final chunk in file.openRead()) {
+    sink.add(chunk);
+  }
+  sink.close();
+  return _hex(await sink.hash());
 }
 
 bool _jsonEquivalent(Object? left, Object? right) {

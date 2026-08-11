@@ -1,13 +1,17 @@
 import 'dart:io';
 
 import 'package:app/app.dart';
+import 'package:app/data/configuration/data_api_configuration.dart';
+import 'package:app/data/configuration/data_api_configuration_repository.dart';
+import 'package:app/data/services/data_api_remote_session_store.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/pty/pty.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_ports.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/terminal/terminal_viewport.dart';
-import 'package:app/main.dart';
+import 'package:app/startup/app_startup_models.dart';
+import 'package:app/startup/production_app_startup.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,12 +21,45 @@ import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_local_terminal_config_repository.dart';
 import '../support/memory_paste_history_repository.dart';
 import '../support/memory_profile_repository.dart';
+import '../support/no_io_local_session_recording_repository.dart';
 
 void main() {
-  test('iOS selects the on-device sandbox shell', () {
-    expect(usesIosSandboxShell(TargetPlatform.iOS), isTrue);
-    expect(usesIosSandboxShell(TargetPlatform.macOS), isFalse);
-    expect(usesIosSandboxShell(TargetPlatform.android), isFalse);
+  test('production iOS startup publishes the sandbox shell backend', () async {
+    final support = Directory.systemTemp.createTempSync('ianvs-ios-startup-');
+    final documents = Directory.systemTemp.createTempSync('ianvs-ios-docs-');
+    addTearDown(() {
+      for (final directory in <Directory>[support, documents]) {
+        if (directory.existsSync()) {
+          directory.deleteSync(recursive: true);
+        }
+      }
+    });
+    final repository = _DisabledConfigurationRepository();
+    final remoteSessionStore = _EmptyRemoteSessionStore();
+    final coordinator = createProductionAppStartupCoordinator(
+      platform: TargetPlatform.iOS,
+      appSupportDirectoryResolver: () async => support,
+      appDocumentsDirectoryResolver: () async => documents,
+      configurationAccessFactory: (paths) async {
+        return AppStartupConfigurationAccess(
+          repository: repository,
+          remoteSessionStore: remoteSessionStore,
+          settings: _DisabledStartupSettings(),
+        );
+      },
+      secureRecovery: (access) async => null,
+      nativePtyLoader: () async => NativePtyBackend.load(),
+    );
+
+    await coordinator.start();
+
+    final graph = (coordinator.state as AppStartupReady).graph;
+    expect(graph.ptySessionBackend, isA<IosSandboxShellBackend>());
+    expect(
+      (graph.ptySessionBackend as IosSandboxShellBackend).rootDirectory.path,
+      Directory('${documents.path}/IanvsShell').absolute.path,
+    );
+    await coordinator.close();
   });
 
   testWidgets(
@@ -65,6 +102,9 @@ void main() {
             ),
             localTerminalConfigRepositoryProvider.overrideWithValue(
               MemoryLocalTerminalConfigRepository(null),
+            ),
+            localSessionRecordingRepositoryProvider.overrideWithValue(
+              noIoLocalSessionRecordingRepository(),
             ),
             sessionPollingEnabledProvider.overrideWithValue(false),
             sessionDemoFixtureProvider.overrideWithValue(null),
@@ -181,4 +221,43 @@ void main() {
       tester.view.resetPhysicalSize();
     },
   );
+}
+
+final class _DisabledConfigurationRepository
+    implements DataApiConfigurationRepository {
+  @override
+  Future<DataApiConfiguration> load() async {
+    return const DataApiConfiguration.disabled();
+  }
+
+  @override
+  Future<void> save(DataApiConfiguration configuration) async {}
+}
+
+final class _EmptyRemoteSessionStore implements DataApiRemoteSessionStore {
+  @override
+  Future<void> clear() async {}
+
+  @override
+  Future<DataApiRemoteSession?> read() async => null;
+
+  @override
+  Future<void> write(DataApiRemoteSession session) async {}
+}
+
+final class _DisabledStartupSettings
+    implements AppStartupDataSettingsCapability {
+  @override
+  bool get localDataApiAvailable => false;
+
+  @override
+  Future<DataApiConfiguration> loadForRecovery() async {
+    return const DataApiConfiguration.disabled();
+  }
+
+  @override
+  Future<void> reconnect(DataApiRemoteLoginRequest request) async {}
+
+  @override
+  Future<void> saveDisabled() async {}
 }

@@ -6,6 +6,33 @@ import '../configuration/data_api_configuration.dart';
 
 typedef DataApiRuntimeClose = Future<void> Function();
 
+/// Marks a close failure where the backing process may still be alive.
+///
+/// Startup coordinators must retain a poisoned lease for this failure instead
+/// of treating the failed close future as proof that the runtime settled.
+abstract interface class DataApiRuntimeTerminationUnknownFailure
+    implements Exception {}
+
+/// Exposes a nested termination status without replacing the operation's
+/// primary error (for example, startup failed and cleanup was unconfirmed).
+abstract interface class DataApiRuntimeTerminationFailureCarrier
+    implements Exception {
+  DataApiRuntimeTerminationUnknownFailure? get terminationFailure;
+}
+
+/// Finds an unconfirmed process-termination failure without coupling callers
+/// to a concrete data service implementation.
+DataApiRuntimeTerminationUnknownFailure? dataApiRuntimeTerminationFailureOf(
+  Object? failure,
+) {
+  return switch (failure) {
+    DataApiRuntimeTerminationUnknownFailure() => failure,
+    DataApiRuntimeTerminationFailureCarrier(:final terminationFailure) =>
+      terminationFailure,
+    _ => null,
+  };
+}
+
 class DataApiRuntime {
   DataApiRuntime.remote({
     required this.baseUri,

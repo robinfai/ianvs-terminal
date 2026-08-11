@@ -766,10 +766,7 @@ void main() {
         );
         final claim = File('${job.handoffPath}.claim');
         await claim.writeAsString('stable-claim', flush: true);
-        final helper = File(
-          '${Directory.current.path}/example/test/recording/support/'
-          'recording_handoff_lock_holder.dart',
-        );
+        final helper = _recordingHandoffLockHolder();
         final process = await Process.start(
           _standaloneDartExecutable(),
           <String>[helper.path, claim.path],
@@ -895,6 +892,40 @@ String _standaloneDartExecutable() {
     directory = parent;
   }
   return Platform.resolvedExecutable;
+}
+
+File _recordingHandoffLockHolder() {
+  final roots = <Directory>[
+    Directory.current,
+    Directory('${Directory.current.path}${Platform.pathSeparator}example'),
+    File.fromUri(Platform.script).parent,
+  ];
+  final visited = <String>{};
+  for (final root in roots) {
+    var directory = root.absolute;
+    for (var depth = 0; depth < 12; depth += 1) {
+      if (visited.add(directory.path)) {
+        final helper = File(
+          '${directory.path}${Platform.pathSeparator}test'
+          '${Platform.pathSeparator}recording${Platform.pathSeparator}support'
+          '${Platform.pathSeparator}recording_handoff_lock_holder.dart',
+        );
+        final packageMarker = File(
+          '${directory.path}${Platform.pathSeparator}lib'
+          '${Platform.pathSeparator}app.dart',
+        );
+        if (helper.existsSync() && packageMarker.existsSync()) {
+          return helper;
+        }
+      }
+      final parent = directory.parent;
+      if (parent.path == directory.path) {
+        break;
+      }
+      directory = parent;
+    }
+  }
+  throw StateError('Could not resolve the example package test support path.');
 }
 
 Future<void> _completeInterleavedHandoff(

@@ -226,6 +226,54 @@ class _BlockingRecordingRepository extends LocalSessionRecordingRepository {
   }
 }
 
+class _BlockingFailingRecordingRepository
+    extends LocalSessionRecordingRepository {
+  _BlockingFailingRecordingRepository({required super.directoryResolver});
+
+  final Completer<void> saveStarted = Completer<void>();
+  final Completer<void> allowFailure = Completer<void>();
+  final Completer<void> releaseObserved = Completer<void>();
+  int releaseCount = 0;
+
+  Future<Never> _failAfterGate() async {
+    if (!saveStarted.isCompleted) {
+      saveStarted.complete();
+    }
+    await allowFailure.future;
+    throw const FileSystemException('recording finalize failed after gate');
+  }
+
+  @override
+  Future<String> save(
+    LocalSessionRecordingDestination destination,
+    terminal.TerminalRecording recording, {
+    String? displayName,
+  }) {
+    return _failAfterGate();
+  }
+
+  @override
+  Future<String> finalizeNativeRecording({
+    required terminal.TerminalRecordingFinalizeJob job,
+    required Directory handoffDirectory,
+    required LocalSessionRecordingDestination destination,
+    required List<terminal.TerminalRecordingSemanticEvent> semanticEvents,
+    String? displayName,
+    LocalSessionRecordingFinalizeCancellation? cancellation,
+  }) {
+    return _failAfterGate();
+  }
+
+  @override
+  void release(LocalSessionRecordingDestination destination) {
+    releaseCount += 1;
+    if (!releaseObserved.isCompleted) {
+      releaseObserved.complete();
+    }
+    super.release(destination);
+  }
+}
+
 class _OrderedRecordingRepository extends LocalSessionRecordingRepository {
   _OrderedRecordingRepository({
     required this.timeline,
@@ -903,6 +951,214 @@ void main() {
         ).existsSync(),
         isTrue,
       );
+    },
+  );
+
+  test(
+    'shutdown crossing recording finalization leaves PTY close to infra',
+    () async {
+      late _BlockingRecordingRepository blockingRepository;
+      final harness = await _createHarness(
+        recordingRepositoryBuilder: (directory) {
+          return blockingRepository = _BlockingRecordingRepository(
+            directoryResolver: () async => directory,
+          );
+        },
+      );
+      final controller = harness.container.read(
+        sessionControllerProvider.notifier,
+      );
+      final sessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      expect(await controller.startSessionRecording(sessionId), isTrue);
+
+      final productClose = controller.closeSession(sessionId);
+      await blockingRepository.saveStarted.future;
+      final shutdown = harness.container
+          .read(appShutdownCoordinatorProvider)
+          .shutdown(bounded: false);
+
+      expect(controller.isShuttingDown, isTrue);
+      expect(harness.backend.closedSessionIds, isEmpty);
+
+      blockingRepository.allowSave.complete();
+      expect(await productClose, isFalse);
+      final result = await shutdown;
+
+      expect(result.failures, isEmpty);
+      expect(harness.backend.closedSessionIds, <String>[sessionId]);
+    },
+  );
+
+  test(
+    'closeTab crossing recording finalization does not resume or rewrite UI',
+    () async {
+      late _BlockingRecordingRepository blockingRepository;
+      final harness = await _createHarness(
+        recordingRepositoryBuilder: (directory) {
+          return blockingRepository = _BlockingRecordingRepository(
+            directoryResolver: () async => directory,
+          );
+        },
+      );
+      final controller = harness.container.read(
+        sessionControllerProvider.notifier,
+      );
+      final state = harness.container.read(sessionControllerProvider);
+      final sessionId = state.activeSessionId!;
+      final tabSessionId = state.tabs.single.sessionId;
+      expect(await controller.startSessionRecording(sessionId), isTrue);
+
+      final productClose = controller.closeTab(tabSessionId);
+      await blockingRepository.saveStarted.future;
+      final shutdown = harness.container
+          .read(appShutdownCoordinatorProvider)
+          .shutdown(bounded: false);
+
+      expect(controller.isShuttingDown, isTrue);
+      expect(harness.backend.closedSessionIds, isEmpty);
+
+      blockingRepository.allowSave.complete();
+      expect(await productClose, isFalse);
+      final result = await shutdown;
+
+      expect(result.failures, isEmpty);
+      expect(harness.backend.closedSessionIds, <String>[sessionId]);
+      expect(
+        harness.backend.timeline.where((event) => event == 'start:$sessionId'),
+        hasLength(1),
+      );
+      expect(
+        harness.container.read(sessionControllerProvider).lastError,
+        isNull,
+      );
+    },
+  );
+
+  test(
+    'stop failure crossing shutdown preserves UI error and single release',
+    () async {
+      late _BlockingFailingRecordingRepository blockingRepository;
+      final harness = await _createHarness(
+        recordingRepositoryBuilder: (directory) {
+          return blockingRepository = _BlockingFailingRecordingRepository(
+            directoryResolver: () async => directory,
+          );
+        },
+      );
+      final controller = harness.container.read(
+        sessionControllerProvider.notifier,
+      );
+      final sessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      expect(await controller.startSessionRecording(sessionId), isTrue);
+
+      final productStop = controller.stopSessionRecording(sessionId);
+      await blockingRepository.saveStarted.future;
+      controller.reportRuntimeError('sentinel before shutdown');
+      final shutdown = harness.container
+          .read(appShutdownCoordinatorProvider)
+          .shutdown(bounded: false);
+      blockingRepository.allowFailure.complete();
+
+      expect(await productStop, isNull);
+      final result = await shutdown;
+
+      expect(result.failures, hasLength(1));
+      expect(
+        harness.container.read(sessionControllerProvider).lastError,
+        'sentinel before shutdown',
+      );
+      expect(blockingRepository.releaseCount, 1);
+      expect(harness.backend.closedSessionIds, <String>[sessionId]);
+    },
+  );
+
+  test(
+    'direct stop after shutdown does not publish busy or clear the UI error',
+    () async {
+      late _BlockingRecordingRepository blockingRepository;
+      final harness = await _createHarness(
+        recordingRepositoryBuilder: (directory) {
+          return blockingRepository = _BlockingRecordingRepository(
+            directoryResolver: () async => directory,
+          );
+        },
+      );
+      final controller = harness.container.read(
+        sessionControllerProvider.notifier,
+      );
+      final sessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      expect(await controller.startSessionRecording(sessionId), isTrue);
+      controller.reportRuntimeError('sentinel before shutdown');
+
+      final shutdown = harness.container
+          .read(appShutdownCoordinatorProvider)
+          .shutdown(bounded: false);
+      final stop = controller.stopSessionRecording(sessionId);
+
+      final stateWhileStopping = harness.container.read(
+        sessionControllerProvider,
+      );
+      expect(stateWhileStopping.lastError, 'sentinel before shutdown');
+      expect(
+        stateWhileStopping.recordingBusySessionIds,
+        isNot(contains(sessionId)),
+      );
+      expect(await stop, isNull);
+
+      await blockingRepository.saveStarted.future;
+      blockingRepository.allowSave.complete();
+      final result = await shutdown;
+      expect(result.failures, isEmpty);
+      expect(
+        harness.container.read(sessionControllerProvider).lastError,
+        'sentinel before shutdown',
+      );
+      expect(harness.backend.closedSessionIds, <String>[sessionId]);
+    },
+  );
+
+  test(
+    'runtime-exit save failure crossing shutdown preserves UI and releases once',
+    () async {
+      late _BlockingFailingRecordingRepository blockingRepository;
+      final harness = await _createHarness(
+        recordingRepositoryBuilder: (directory) {
+          return blockingRepository = _BlockingFailingRecordingRepository(
+            directoryResolver: () async => directory,
+          );
+        },
+      );
+      final controller = harness.container.read(
+        sessionControllerProvider.notifier,
+      );
+      final sessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      expect(await controller.startSessionRecording(sessionId), isTrue);
+
+      controller.finalizeRecordingBeforeRuntimeClose(sessionId);
+      await blockingRepository.saveStarted.future;
+      controller.reportRuntimeError('sentinel before shutdown');
+      final shutdown = harness.container
+          .read(appShutdownCoordinatorProvider)
+          .shutdown(bounded: false);
+      blockingRepository.allowFailure.complete();
+
+      await blockingRepository.releaseObserved.future;
+      final result = await shutdown;
+      expect(result.failures, hasLength(1));
+      expect(
+        harness.container.read(sessionControllerProvider).lastError,
+        'sentinel before shutdown',
+      );
+      expect(blockingRepository.releaseCount, 1);
+      expect(harness.backend.closedSessionIds, <String>[sessionId]);
     },
   );
 

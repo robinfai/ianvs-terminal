@@ -14,8 +14,10 @@ import 'package:app/features/profiles/profile_repository.dart';
 import 'package:app/features/recording/local_session_recording_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_ports.dart';
+import 'package:app/features/sessions/session_shutdown.dart';
 import 'package:app/features/sessions/session_state.dart';
 import 'package:app/features/shell/shell_action_registry.dart';
+import 'package:app/platform/app_shutdown_coordinator.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -64,6 +66,25 @@ class _FailingOnceProfileRepository extends ProfileRepository {
       throw const FileSystemException('profiles unavailable');
     }
     return _document;
+  }
+
+  @override
+  Future<void> save(TerminalProfilesDocument document) async {}
+}
+
+class _BlockingFailingProfileRepository extends ProfileRepository {
+  final Completer<void> loadStarted = Completer<void>();
+  final Completer<void> allowFailure = Completer<void>();
+  int loadAttempts = 0;
+
+  @override
+  Future<TerminalProfilesDocument> load() async {
+    loadAttempts += 1;
+    if (!loadStarted.isCompleted) {
+      loadStarted.complete();
+    }
+    await allowFailure.future;
+    throw const FileSystemException('bootstrap profile load failed');
   }
 
   @override
@@ -206,6 +227,52 @@ class _EmptyLocalSessionRecordingRepository
       orphanPaths: <String>[],
       failures: <LocalSessionRecordingRecoveryFailure>[],
     );
+  }
+}
+
+class _BlockingRecoveryRecordingRepository
+    extends LocalSessionRecordingRepository {
+  final Completer<void> recoveryStarted = Completer<void>();
+  final Completer<void> allowRecovery = Completer<void>();
+  int recoveryAttempts = 0;
+
+  @override
+  Future<LocalSessionRecordingRecoveryResult> recoverNativeRecordings() async {
+    recoveryAttempts += 1;
+    if (!recoveryStarted.isCompleted) {
+      recoveryStarted.complete();
+    }
+    await allowRecovery.future;
+    return const LocalSessionRecordingRecoveryResult(
+      recoveredPaths: <String>[],
+      pendingJobIds: <String>[],
+      orphanPaths: <String>[],
+      failures: <LocalSessionRecordingRecoveryFailure>[],
+    );
+  }
+}
+
+class _BlockingRepairLocalTerminalConfigRepository
+    extends LocalTerminalConfigRepository {
+  final Completer<void> repairStarted = Completer<void>();
+  final Completer<void> allowRepair = Completer<void>();
+  int repairWrites = 0;
+
+  @override
+  Future<LocalTerminalConfigDocument?> load() async {
+    return const LocalTerminalConfigDocument(
+      defaultProfileId: 'missing-profile',
+      layout: LocalTerminalLayoutConfig(restoreLayout: false),
+    );
+  }
+
+  @override
+  Future<void> save(LocalTerminalConfigDocument document) async {
+    repairWrites += 1;
+    if (!repairStarted.isCompleted) {
+      repairStarted.complete();
+    }
+    await allowRepair.future;
   }
 }
 
@@ -429,6 +496,335 @@ void main() {
         condition: () => !runtime.hasSession(sessionId),
       );
       expect(backend.closedSessionIds, contains(sessionId));
+    },
+  );
+
+  test('runtime provider disposal starts ordered shared shutdown', () async {
+    final backend = FakePtyBackend();
+    final applicationGate = Completer<void>();
+    final applicationStarted = Completer<void>();
+    final shutdownCoordinator = AppShutdownCoordinator();
+    shutdownCoordinator.registerTask('recording-layout-gate', () async {
+      applicationStarted.complete();
+      await applicationGate.future;
+    });
+    final container = ProviderContainer(
+      overrides: [
+        appShutdownCoordinatorProvider.overrideWithValue(shutdownCoordinator),
+        ptySessionBackendProvider.overrideWithValue(backend),
+        sessionPollingEnabledProvider.overrideWithValue(false),
+        driverWarmUpRefreshEnabledProvider.overrideWithValue(false),
+      ],
+    );
+    final runtime = container.read(terminalRuntimeControllerProvider);
+    final sessionId = runtime.createSession(
+      const terminal.TerminalSessionConfig(
+        launch: terminal.TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+
+    container.dispose();
+    await applicationStarted.future;
+
+    expect(shutdownCoordinator.hasStarted, isTrue);
+    expect(runtime.hasSession(sessionId), isTrue);
+    expect(backend.closedSessionIds, isEmpty);
+
+    applicationGate.complete();
+    final result = await shutdownCoordinator.settle();
+    expect(result.failures, isEmpty);
+    expect(runtime.hasSession(sessionId), isFalse);
+    expect(backend.closedSessionIds, <String>[sessionId]);
+  });
+
+  test(
+    'session provider disposal starts application before infrastructure',
+    () async {
+      final backend = FakePtyBackend();
+      final applicationGate = Completer<void>();
+      final applicationStarted = Completer<void>();
+      var infrastructureStarted = false;
+      final shutdownCoordinator = AppShutdownCoordinator();
+      shutdownCoordinator
+        ..registerTask('session-first-application-probe', () async {
+          applicationStarted.complete();
+          await applicationGate.future;
+        })
+        ..registerTask(
+          'session-first-infrastructure-probe',
+          () async {
+            infrastructureStarted = true;
+          },
+          phase: AppShutdownPhase.infrastructure,
+        );
+      final container = ProviderContainer(
+        overrides: [
+          appShutdownCoordinatorProvider.overrideWithValue(shutdownCoordinator),
+          ptySessionBackendProvider.overrideWithValue(backend),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              TerminalProfilesDocument(
+                profiles: <TerminalProfile>[defaultTerminalProfile()],
+              ),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalConfigRepository(
+              const LocalTerminalConfigDocument(
+                layout: LocalTerminalLayoutConfig(restoreLayout: false),
+              ),
+            ),
+          ),
+          localTerminalLayoutRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalLayoutRepository(null),
+          ),
+          localSessionRecordingRepositoryProvider.overrideWithValue(
+            _EmptyLocalSessionRecordingRepository(),
+          ),
+          sessionPollingEnabledProvider.overrideWithValue(false),
+        ],
+      );
+      final ready = Completer<void>();
+      final subscription = container.listen<SessionState>(
+        sessionControllerProvider,
+        (previous, next) {
+          if (next.isReady && !ready.isCompleted) {
+            ready.complete();
+          }
+        },
+        fireImmediately: true,
+      );
+      container.read(sessionControllerProvider.notifier);
+      await ready.future;
+      subscription.close();
+
+      // Invalidate only the Session provider so it is deterministically the
+      // first Ready-graph owner disposed; TerminalRuntime remains mounted.
+      container.invalidate(sessionControllerProvider);
+      await applicationStarted.future;
+
+      expect(shutdownCoordinator.hasStarted, isTrue);
+      expect(infrastructureStarted, isFalse);
+
+      applicationGate.complete();
+      final result = await shutdownCoordinator.settle();
+      expect(result.failures, isEmpty);
+      expect(infrastructureStarted, isTrue);
+      container.dispose();
+    },
+  );
+
+  test(
+    'shutdown settles shared recording recovery bootstrap before infra',
+    () async {
+      final backend = FakePtyBackend();
+      final recordingRepository = _BlockingRecoveryRecordingRepository();
+      final shutdownCoordinator = AppShutdownCoordinator();
+      var infrastructureStarted = false;
+      shutdownCoordinator.registerTask(
+        'bootstrap-recovery-infrastructure-probe',
+        () async => infrastructureStarted = true,
+        phase: AppShutdownPhase.infrastructure,
+      );
+      final container = ProviderContainer(
+        overrides: [
+          appShutdownCoordinatorProvider.overrideWithValue(shutdownCoordinator),
+          ptySessionBackendProvider.overrideWithValue(backend),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              TerminalProfilesDocument(
+                profiles: <TerminalProfile>[defaultTerminalProfile()],
+              ),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalConfigRepository(
+              const LocalTerminalConfigDocument(
+                layout: LocalTerminalLayoutConfig(restoreLayout: false),
+              ),
+            ),
+          ),
+          localTerminalLayoutRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalLayoutRepository(null),
+          ),
+          localSessionRecordingRepositoryProvider.overrideWithValue(
+            recordingRepository,
+          ),
+          sessionPollingEnabledProvider.overrideWithValue(false),
+          driverWarmUpRefreshEnabledProvider.overrideWithValue(false),
+        ],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(sessionControllerProvider.notifier);
+      await recordingRepository.recoveryStarted.future;
+
+      var retryCompleted = false;
+      final retry = controller.retryBootstrap().whenComplete(() {
+        retryCompleted = true;
+      });
+      final shutdown = shutdownCoordinator.shutdown(bounded: false);
+
+      expect(controller.isShuttingDown, isTrue);
+      expect(retryCompleted, isFalse);
+      expect(infrastructureStarted, isFalse);
+      expect(controller.hasRuntimeEventSubscriptionForTesting, isFalse);
+      expect(backend.lastCreatedSessionPayload, isNull);
+
+      recordingRepository.allowRecovery.complete();
+      await retry;
+      final result = await shutdown;
+
+      expect(result.failures, isEmpty);
+      expect(infrastructureStarted, isTrue);
+      expect(recordingRepository.recoveryAttempts, 1);
+      expect(controller.hasRuntimeEventSubscriptionForTesting, isFalse);
+      expect(backend.lastCreatedSessionPayload, isNull);
+      final state = container.read(sessionControllerProvider);
+      expect(state.isReady, isFalse);
+      expect(state.tabs, isEmpty);
+      expect(state.lastError, isNull);
+    },
+  );
+
+  test(
+    'shutdown settles an in-flight config repair before infra without publishing',
+    () async {
+      final backend = FakePtyBackend();
+      final configRepository = _BlockingRepairLocalTerminalConfigRepository();
+      final shutdownCoordinator = AppShutdownCoordinator();
+      var infrastructureStarted = false;
+      shutdownCoordinator.registerTask(
+        'bootstrap-config-infrastructure-probe',
+        () async => infrastructureStarted = true,
+        phase: AppShutdownPhase.infrastructure,
+      );
+      final container = ProviderContainer(
+        overrides: [
+          appShutdownCoordinatorProvider.overrideWithValue(shutdownCoordinator),
+          ptySessionBackendProvider.overrideWithValue(backend),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              TerminalProfilesDocument(
+                profiles: <TerminalProfile>[defaultTerminalProfile()],
+              ),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            configRepository,
+          ),
+          localTerminalLayoutRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalLayoutRepository(null),
+          ),
+          localSessionRecordingRepositoryProvider.overrideWithValue(
+            _EmptyLocalSessionRecordingRepository(),
+          ),
+          sessionPollingEnabledProvider.overrideWithValue(false),
+          driverWarmUpRefreshEnabledProvider.overrideWithValue(false),
+        ],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(sessionControllerProvider.notifier);
+      await configRepository.repairStarted.future;
+
+      final shutdown = shutdownCoordinator.shutdown(bounded: false);
+
+      expect(controller.isShuttingDown, isTrue);
+      expect(infrastructureStarted, isFalse);
+      expect(controller.hasRuntimeEventSubscriptionForTesting, isFalse);
+      expect(backend.lastCreatedSessionPayload, isNull);
+
+      configRepository.allowRepair.complete();
+      final result = await shutdown;
+
+      expect(result.failures, isEmpty);
+      expect(infrastructureStarted, isTrue);
+      expect(configRepository.repairWrites, 1);
+      expect(controller.hasRuntimeEventSubscriptionForTesting, isFalse);
+      expect(backend.lastCreatedSessionPayload, isNull);
+      final state = container.read(sessionControllerProvider);
+      expect(state.isReady, isFalse);
+      expect(state.tabs, isEmpty);
+      expect(state.lastError, isNull);
+    },
+  );
+
+  test(
+    'bootstrap failure crossing shutdown is aggregated before infra without UI',
+    () async {
+      final backend = FakePtyBackend();
+      final profileRepository = _BlockingFailingProfileRepository();
+      final shutdownCoordinator = AppShutdownCoordinator();
+      var infrastructureStarted = false;
+      shutdownCoordinator.registerTask(
+        'bootstrap-failure-infrastructure-probe',
+        () async => infrastructureStarted = true,
+        phase: AppShutdownPhase.infrastructure,
+      );
+      final container = ProviderContainer(
+        overrides: [
+          appShutdownCoordinatorProvider.overrideWithValue(shutdownCoordinator),
+          ptySessionBackendProvider.overrideWithValue(backend),
+          profileRepositoryProvider.overrideWithValue(profileRepository),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalConfigRepository(
+              const LocalTerminalConfigDocument(
+                layout: LocalTerminalLayoutConfig(restoreLayout: false),
+              ),
+            ),
+          ),
+          localTerminalLayoutRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalLayoutRepository(null),
+          ),
+          localSessionRecordingRepositoryProvider.overrideWithValue(
+            _EmptyLocalSessionRecordingRepository(),
+          ),
+          sessionPollingEnabledProvider.overrideWithValue(false),
+          driverWarmUpRefreshEnabledProvider.overrideWithValue(false),
+        ],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(sessionControllerProvider.notifier);
+      await profileRepository.loadStarted.future;
+
+      final shutdown = shutdownCoordinator.shutdown(bounded: false);
+
+      expect(controller.isShuttingDown, isTrue);
+      expect(infrastructureStarted, isFalse);
+      expect(container.read(sessionControllerProvider).lastError, isNull);
+
+      profileRepository.allowFailure.complete();
+      final result = await shutdown;
+
+      expect(infrastructureStarted, isTrue);
+      expect(profileRepository.loadAttempts, 1);
+      expect(result.failures, hasLength(1));
+      final shutdownError = result.failures.single.error;
+      expect(shutdownError, isA<SessionShutdownAggregateException>());
+      final aggregate = shutdownError as SessionShutdownAggregateException;
+      expect(aggregate.failures, hasLength(1));
+      expect(
+        aggregate.failures.single.resource,
+        SessionShutdownResource.bootstrap,
+      );
+      expect(aggregate.failures.single.error, isA<FileSystemException>());
+      expect(controller.hasRuntimeEventSubscriptionForTesting, isFalse);
+      expect(backend.lastCreatedSessionPayload, isNull);
+      final state = container.read(sessionControllerProvider);
+      expect(state.isReady, isFalse);
+      expect(state.tabs, isEmpty);
+      expect(state.lastError, isNull);
     },
   );
 

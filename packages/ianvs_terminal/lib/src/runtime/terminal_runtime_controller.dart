@@ -1448,8 +1448,10 @@ class TerminalRuntimeController implements TerminalInputSink {
   final Set<String> _zmodemAutonomousPollingSessions = <String>{};
   final Map<String, Timer> _zmodemPollTimers = <String, Timer>{};
   final Map<String, Timer> _closeBusyPollTimers = <String, Timer>{};
+  final Map<String, Timer> _exitCloseRetryTimers = <String, Timer>{};
   final Map<String, Timer> _nativeHintPollTimers = <String, Timer>{};
   Timer? _pollTimer;
+  bool _shutdownStarted = false;
   bool _disposeRequested = false;
   bool _disposeRetryScheduled = false;
   Timer? _disposeRetryTimer;
@@ -1469,6 +1471,28 @@ class TerminalRuntimeController implements TerminalInputSink {
       _runtimeEventGaps.stream;
   Stream<TerminalSessionInputEvent> get inputEvents => _inputEvents.stream;
   Stream<TerminalSessionResizeEvent> get resizeEvents => _resizeEvents.stream;
+  bool get shutdownHasStarted => _shutdownStarted;
+  bool get disposed => _disposed;
+
+  bool get _productOperationsAllowed => !_shutdownStarted && !_disposed;
+
+  bool _productSessionAvailable(String sessionId) {
+    return _productOperationsAllowed && hasSession(sessionId);
+  }
+
+  bool _productEventWorkAllowed(String sessionId, int sessionEpoch) {
+    return _productOperationsAllowed &&
+        _isCurrentSession(sessionId, sessionEpoch);
+  }
+
+  bool get _runtimeWorkAllowed =>
+      _productOperationsAllowed || _disposeRequested;
+
+  void _requireProductOperationsAllowed() {
+    if (!_productOperationsAllowed) {
+      throw StateError('Terminal runtime shutdown has started.');
+    }
+  }
 
   Duration get _rawMonotonicNow =>
       _readMonotonicNow?.call() ?? _monotonicClock.elapsed;
@@ -1482,11 +1506,37 @@ class TerminalRuntimeController implements TerminalInputSink {
   }
 
   TerminalViewportController viewportFor(String sessionId) {
-    return _sessions.viewportFor(sessionId);
+    if (!_productSessionAvailable(sessionId)) {
+      throw StateError('Terminal session is not available for product access.');
+    }
+    final viewport = _sessions.existingViewportFor(sessionId);
+    if (viewport == null) {
+      throw StateError('Active terminal session has no viewport.');
+    }
+    return viewport;
+  }
+
+  TerminalViewportController? existingViewportFor(String sessionId) {
+    if (!_productSessionAvailable(sessionId)) {
+      return null;
+    }
+    return _sessions.existingViewportFor(sessionId);
   }
 
   TerminalGraphicsCache graphicsCacheFor(String sessionId) {
-    return _sessions.graphicsCacheFor(sessionId);
+    if (!_productSessionAvailable(sessionId)) {
+      throw StateError('Terminal session is not available for product access.');
+    }
+    return _sessions.existingGraphicsCacheFor(sessionId) ??
+        _sessions.graphicsCacheFor(sessionId);
+  }
+
+  TerminalViewportController _runtimeViewportFor(String sessionId) {
+    final viewport = _sessions.existingViewportFor(sessionId);
+    if (viewport == null || !hasSession(sessionId)) {
+      throw StateError('Active terminal session has no viewport.');
+    }
+    return viewport;
   }
 
   bool hasSession(String sessionId) => _sessions.hasSession(sessionId);
@@ -1498,6 +1548,7 @@ class TerminalRuntimeController implements TerminalInputSink {
       _activeZmodemTransferIds[sessionId];
 
   String createSession(TerminalSessionConfig config) {
+    _requireProductOperationsAllowed();
     final resolvedConfig = _resolveColorsForRuntime(config);
     _wireSessionSeed += 1;
     final wireId = 'runtime-$_wireSessionSeed';
@@ -1560,7 +1611,7 @@ class TerminalRuntimeController implements TerminalInputSink {
   }
 
   void setSessionActive(String sessionId, {required bool active}) {
-    if (!hasSession(sessionId)) {
+    if (!_productSessionAvailable(sessionId)) {
       return;
     }
     _framePumpController.reset(
@@ -1572,7 +1623,7 @@ class TerminalRuntimeController implements TerminalInputSink {
   }
 
   void setSessionFocused(String sessionId, {required bool focused}) {
-    if (!hasSession(sessionId)) {
+    if (!_productSessionAvailable(sessionId)) {
       return;
     }
     if (focused) {
@@ -1598,6 +1649,9 @@ class TerminalRuntimeController implements TerminalInputSink {
   }
 
   bool tryCloseSession(String sessionId) {
+    if (!_productOperationsAllowed) {
+      return false;
+    }
     if (!hasSession(sessionId)) {
       return true;
     }
@@ -1629,6 +1683,9 @@ class TerminalRuntimeController implements TerminalInputSink {
   /// failures are reported, then local runtime state is released so a void
   /// disposer cannot leak streams and polling forever.
   bool disposeSession(String sessionId) {
+    if (!_productOperationsAllowed) {
+      return false;
+    }
     if (!hasSession(sessionId)) {
       return true;
     }
@@ -1684,6 +1741,9 @@ class TerminalRuntimeController implements TerminalInputSink {
     TerminalSessionZmodemEvent event, {
     required String destination,
   }) {
+    if (!_productOperationsAllowed) {
+      return false;
+    }
     final transferId = event.transferId;
     if (!_isCurrentZmodemEvent(event) ||
         event.kind != TerminalZmodemEventKind.fileOffer ||
@@ -1707,6 +1767,9 @@ class TerminalRuntimeController implements TerminalInputSink {
     TerminalSessionZmodemEvent event, {
     required List<String> files,
   }) {
+    if (!_productOperationsAllowed) {
+      return false;
+    }
     final transferId = event.transferId;
     if (!_isCurrentZmodemEvent(event) ||
         event.kind != TerminalZmodemEventKind.detected ||
@@ -1730,6 +1793,9 @@ class TerminalRuntimeController implements TerminalInputSink {
   }
 
   bool cancelZmodem(TerminalSessionZmodemEvent event) {
+    if (!_productOperationsAllowed) {
+      return false;
+    }
     final transferId = event.transferId;
     if (!_isCurrentZmodemEvent(event) || transferId == null) {
       return false;
@@ -1769,6 +1835,9 @@ class TerminalRuntimeController implements TerminalInputSink {
   TerminalZmodemRecoveryResolution resolveZmodemRecovery(
     TerminalSessionZmodemEvent event,
   ) {
+    if (!_productOperationsAllowed) {
+      return const TerminalZmodemRecoveryResolution.requestFailed();
+    }
     final recoveryToken = event.recoveryToken;
     if (!event.isValid ||
         event.kind != TerminalZmodemEventKind.failed ||
@@ -1787,6 +1856,9 @@ class TerminalRuntimeController implements TerminalInputSink {
   TerminalZmodemRecoveryDisposition consumeZmodemRecovery(
     TerminalSessionZmodemEvent event,
   ) {
+    if (!_productOperationsAllowed) {
+      return TerminalZmodemRecoveryDisposition.requestFailed;
+    }
     final recoveryToken = event.recoveryToken;
     if (!event.isValid ||
         event.kind != TerminalZmodemEventKind.failed ||
@@ -1805,6 +1877,9 @@ class TerminalRuntimeController implements TerminalInputSink {
   TerminalZmodemRecoveryDisposition dismissZmodemRecovery(
     TerminalSessionZmodemEvent event,
   ) {
+    if (!_productOperationsAllowed) {
+      return TerminalZmodemRecoveryDisposition.requestFailed;
+    }
     final recoveryToken = event.recoveryToken;
     if (!event.isValid ||
         event.kind != TerminalZmodemEventKind.failed ||
@@ -1837,6 +1912,9 @@ class TerminalRuntimeController implements TerminalInputSink {
     String? value,
     bool useNativeResolvedValue = false,
   }) {
+    if (!_productOperationsAllowed) {
+      return false;
+    }
     final pending = _pendingReportVariableRequests[event.requestId];
     if (pending == null ||
         pending.sessionId != event.sessionId ||
@@ -1862,24 +1940,25 @@ class TerminalRuntimeController implements TerminalInputSink {
     String sessionId, {
     String location = 'clipboard',
   }) async {
+    if (!_productOperationsAllowed) {
+      return false;
+    }
     final sessionEpoch = _sessionEpochs[sessionId];
     if (sessionEpoch == null || location != 'clipboard') {
       return false;
     }
-    late final List<String> available;
+    late final List<String> listedMimeTypes;
     try {
-      available =
-          (await listClipboardMimeTypes())
-              .where(_isValidOsc5522Mime)
-              .toSet()
-              .toList()
-            ..sort();
+      listedMimeTypes = await listClipboardMimeTypes();
     } on Object {
       return false;
     }
-    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+    if (!_productOperationsAllowed ||
+        !_isCurrentSession(sessionId, sessionEpoch)) {
       return false;
     }
+    final available =
+        listedMimeTypes.where(_isValidOsc5522Mime).toSet().toList()..sort();
     final mimeTypes = available.take(64).toList(growable: false);
     final password = List<int>.generate(
       32,
@@ -1926,6 +2005,9 @@ class TerminalRuntimeController implements TerminalInputSink {
     bool revealLiveCursor = true,
     bool deferProtocolReplyDuringZmodem = false,
   }) {
+    if (!_productOperationsAllowed) {
+      return false;
+    }
     if (sessionEpoch != null && !_isCurrentSession(sessionId, sessionEpoch)) {
       return false;
     }
@@ -2052,7 +2134,7 @@ class TerminalRuntimeController implements TerminalInputSink {
   }
 
   bool _scrollToLiveCursorIfNeeded(String sessionId) {
-    final frame = viewportFor(sessionId).frame;
+    final frame = _runtimeViewportFor(sessionId).frame;
     if (frame.scrollbackOffset <= 0) {
       return true;
     }
@@ -2064,7 +2146,7 @@ class TerminalRuntimeController implements TerminalInputSink {
   }
 
   void scrollViewport(String sessionId, int deltaLines) {
-    if (!hasSession(sessionId)) {
+    if (!_productSessionAvailable(sessionId)) {
       return;
     }
     if (!_runBackendOperation(
@@ -2083,7 +2165,7 @@ class TerminalRuntimeController implements TerminalInputSink {
   }
 
   void scrollViewportTo(String sessionId, int offset) {
-    if (!hasSession(sessionId)) {
+    if (!_productSessionAvailable(sessionId)) {
       return;
     }
     if (!_runBackendOperation(
@@ -2102,10 +2184,10 @@ class TerminalRuntimeController implements TerminalInputSink {
   }
 
   void refreshSession(String sessionId) {
-    if (!hasSession(sessionId)) {
+    if (!_productSessionAvailable(sessionId)) {
       return;
     }
-    final frame = viewportFor(sessionId).frame;
+    final frame = _runtimeViewportFor(sessionId).frame;
     final scrollbackOffset = frame.scrollbackOffset.clamp(
       0,
       frame.scrollbackMaxOffset,
@@ -2124,7 +2206,7 @@ class TerminalRuntimeController implements TerminalInputSink {
     String sessionId,
     TerminalGraphicAssetKey key,
   ) async {
-    if (!hasSession(sessionId)) {
+    if (!_productSessionAvailable(sessionId)) {
       return null;
     }
     final backend = _backend;
@@ -2162,7 +2244,7 @@ class TerminalRuntimeController implements TerminalInputSink {
   }
 
   Uint8List? takeFileDownload(TerminalSessionFileDownloadEvent event) {
-    if (!hasSession(event.sessionId) || !event.isValid) {
+    if (!_productSessionAvailable(event.sessionId) || !event.isValid) {
       return null;
     }
     final backend = _backend;
@@ -2193,7 +2275,7 @@ class TerminalRuntimeController implements TerminalInputSink {
 
   bool discardFileDownload(TerminalSessionFileDownloadEvent event) {
     final downloadId = event.downloadId;
-    if (!hasSession(event.sessionId) || downloadId == null) {
+    if (!_productSessionAvailable(event.sessionId) || downloadId == null) {
       return false;
     }
     final backend = _backend;
@@ -2224,7 +2306,7 @@ class TerminalRuntimeController implements TerminalInputSink {
     TerminalSelection selection, {
     required bool block,
   }) {
-    if (!hasSession(sessionId)) {
+    if (!_productSessionAvailable(sessionId)) {
       return '';
     }
     final text = _jsonRequestClient.selectionText(
@@ -2243,7 +2325,7 @@ class TerminalRuntimeController implements TerminalInputSink {
     String query, {
     TerminalSearchMode mode = TerminalSearchMode.smartCaseSubstring,
   }) {
-    if (!hasSession(sessionId)) {
+    if (!_productSessionAvailable(sessionId)) {
       return TerminalSearchResult.empty;
     }
     return _jsonRequestClient.searchTextResult(sessionId, query, mode: mode);
@@ -2258,7 +2340,7 @@ class TerminalRuntimeController implements TerminalInputSink {
   }
 
   bool clearScrollback(String sessionId) {
-    if (!hasSession(sessionId)) {
+    if (!_productSessionAvailable(sessionId)) {
       return false;
     }
     // The native core owns scrollback. A successful request clears the Rust
@@ -2273,7 +2355,7 @@ class TerminalRuntimeController implements TerminalInputSink {
     required List<String> responses,
     bool cancel = false,
   }) {
-    if (!hasSession(sessionId) || challengeId <= 0) {
+    if (!_productSessionAvailable(sessionId) || challengeId <= 0) {
       return false;
     }
     return _jsonRequestClient.respondSshAuthentication(
@@ -2287,21 +2369,21 @@ class TerminalRuntimeController implements TerminalInputSink {
   /// Clears visible output and retained history using iTerm2's Command-K
   /// semantics, while preserving the current prompt/editing line.
   bool clearBuffer(String sessionId) {
-    if (!hasSession(sessionId)) {
+    if (!_productSessionAvailable(sessionId)) {
       return false;
     }
     return _jsonRequestClient.clearBuffer(sessionId);
   }
 
   bool dismissOsc99Notification(String sessionId, String identifier) {
-    if (!hasSession(sessionId) || identifier.isEmpty) {
+    if (!_productSessionAvailable(sessionId) || identifier.isEmpty) {
       return false;
     }
     return _jsonRequestClient.dismissOsc99Notification(sessionId, identifier);
   }
 
   bool setBlockFolded(String sessionId, String id, {required bool folded}) {
-    if (!hasSession(sessionId) || id.isEmpty) {
+    if (!_productSessionAvailable(sessionId) || id.isEmpty) {
       return false;
     }
     if (!_jsonRequestClient.setBlockFolded(sessionId, id, folded: folded)) {
@@ -2317,7 +2399,7 @@ class TerminalRuntimeController implements TerminalInputSink {
   }
 
   bool setBlockRendered(String sessionId, String id, {required bool rendered}) {
-    if (!hasSession(sessionId) || id.isEmpty) {
+    if (!_productSessionAvailable(sessionId) || id.isEmpty) {
       return false;
     }
     if (!_jsonRequestClient.setBlockRendered(
@@ -2337,14 +2419,14 @@ class TerminalRuntimeController implements TerminalInputSink {
   }
 
   TerminalInlineButtonActivation activateItermButton(String sessionId, int id) {
-    if (!hasSession(sessionId) || id <= 0) {
+    if (!_productSessionAvailable(sessionId) || id <= 0) {
       return const TerminalInlineButtonActivation.rejected();
     }
     return _jsonRequestClient.activateItermButton(sessionId, id);
   }
 
   String? exportScrollbackText(String sessionId, {int? maxLines}) {
-    if (!hasSession(sessionId)) {
+    if (!_productSessionAvailable(sessionId)) {
       return null;
     }
     return _jsonRequestClient.exportScrollbackText(
@@ -2357,7 +2439,7 @@ class TerminalRuntimeController implements TerminalInputSink {
     String sessionId, {
     TerminalDiagnosticsPolicy policy = const TerminalDiagnosticsPolicy(),
   }) {
-    if (!hasSession(sessionId)) {
+    if (!_productSessionAvailable(sessionId)) {
       return null;
     }
     return _diagnosticsClient.exportSession(sessionId, policy: policy);
@@ -2374,7 +2456,7 @@ class TerminalRuntimeController implements TerminalInputSink {
         mode: block ? SelectionMode.block : SelectionMode.linear,
       );
     try {
-      return controller.textForFrame(viewportFor(sessionId).frame);
+      return controller.textForFrame(_runtimeViewportFor(sessionId).frame);
     } finally {
       controller.dispose();
     }
@@ -2385,7 +2467,7 @@ class TerminalRuntimeController implements TerminalInputSink {
     Size viewportSize,
     double devicePixelRatio,
   ) {
-    if (!hasSession(sessionId)) {
+    if (!_productSessionAvailable(sessionId)) {
       return false;
     }
     final plan = _resizeCoordinator.planViewportResize(
@@ -2442,7 +2524,7 @@ class TerminalRuntimeController implements TerminalInputSink {
     double devicePixelRatio = 1,
     Size? cellSize,
   }) {
-    if (!hasSession(sessionId)) {
+    if (!_productSessionAvailable(sessionId)) {
       return false;
     }
     final plan = _resizeCoordinator.planCellResize(
@@ -2491,11 +2573,14 @@ class TerminalRuntimeController implements TerminalInputSink {
   }
 
   void _startPolling() {
-    if (_pollTimer != null) {
+    if (!_productOperationsAllowed || _pollTimer != null) {
       return;
     }
     var scheduledTick = _monotonicNow + _pollingFrameInterval;
     _pollTimer = Timer.periodic(_pollingFrameInterval, (_) {
+      if (!_productOperationsAllowed) {
+        return;
+      }
       final rawNow = _rawMonotonicNow;
       if (_readMonotonicNow == null) {
         final scheduledNow = rawNow >= scheduledTick ? rawNow : scheduledTick;
@@ -2515,6 +2600,9 @@ class TerminalRuntimeController implements TerminalInputSink {
   }
 
   void _requestPollingRefreshSession(String sessionId) {
+    if (!_productOperationsAllowed) {
+      return;
+    }
     final now = _monotonicNow;
     final decision = _framePumpController.decisionForTick(
       sessionId,
@@ -2564,7 +2652,8 @@ class TerminalRuntimeController implements TerminalInputSink {
     bool immediate = false,
     String requestReason = 'runtime',
   }) {
-    if (!hasSession(sessionId)) {
+    if ((!_productOperationsAllowed && !_disposeRequested) ||
+        !hasSession(sessionId)) {
       return;
     }
     _prepareRefreshTrace(sessionId, requestReason: requestReason);
@@ -2626,6 +2715,9 @@ class TerminalRuntimeController implements TerminalInputSink {
   }
 
   Future<void> _refreshSession(String sessionId, int sessionEpoch) async {
+    if (!_runtimeWorkAllowed) {
+      return;
+    }
     if (enableSessionPolling) {
       await _refreshSessionOnce(sessionId, sessionEpoch);
       return;
@@ -2634,7 +2726,7 @@ class TerminalRuntimeController implements TerminalInputSink {
   }
 
   Future<void> _refreshSessionOnce(String sessionId, int sessionEpoch) async {
-    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+    if (!_runtimeWorkAllowed || !_isCurrentSession(sessionId, sessionEpoch)) {
       return;
     }
 
@@ -2667,7 +2759,7 @@ class TerminalRuntimeController implements TerminalInputSink {
       if (eventProcessing != null) {
         await eventProcessing;
       }
-      if (!_isCurrentSession(sessionId, sessionEpoch)) {
+      if (!_runtimeWorkAllowed || !_isCurrentSession(sessionId, sessionEpoch)) {
         return;
       }
 
@@ -2697,7 +2789,7 @@ class TerminalRuntimeController implements TerminalInputSink {
     String sessionId,
     int sessionEpoch,
   ) async {
-    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+    if (!_runtimeWorkAllowed || !_isCurrentSession(sessionId, sessionEpoch)) {
       return;
     }
 
@@ -2707,7 +2799,9 @@ class TerminalRuntimeController implements TerminalInputSink {
       var runAgain = true;
       final pendingFrames = <TerminalFrameDiff>[];
       var skippedQueuedFrames = 0;
-      while (runAgain && _isCurrentSession(sessionId, sessionEpoch)) {
+      while (runAgain &&
+          _runtimeWorkAllowed &&
+          _isCurrentSession(sessionId, sessionEpoch)) {
         _refreshScheduler.consumeQueuedRefresh(sessionId);
         runAgain = false;
 
@@ -2732,7 +2826,8 @@ class TerminalRuntimeController implements TerminalInputSink {
         if (eventProcessing != null) {
           await eventProcessing;
         }
-        if (!_isCurrentSession(sessionId, sessionEpoch)) {
+        if (!_runtimeWorkAllowed ||
+            !_isCurrentSession(sessionId, sessionEpoch)) {
           return;
         }
 
@@ -2750,7 +2845,7 @@ class TerminalRuntimeController implements TerminalInputSink {
           now: _monotonicNow,
           receivedFrame: frame != null,
           eventCount: events.length,
-          modes: frame?.modes ?? viewportFor(sessionId).frame.modes,
+          modes: frame?.modes ?? _runtimeViewportFor(sessionId).frame.modes,
         );
       }
     } finally {
@@ -2780,7 +2875,7 @@ class TerminalRuntimeController implements TerminalInputSink {
   }
 
   void _runInputRefreshProbe(String sessionId) {
-    if (!hasSession(sessionId)) {
+    if (!_productOperationsAllowed || !hasSession(sessionId)) {
       _inputRefreshProbeAttemptsRemaining.remove(sessionId);
       return;
     }
@@ -2819,6 +2914,9 @@ class TerminalRuntimeController implements TerminalInputSink {
     String operation,
     void Function() run,
   ) {
+    if (!_productOperationsAllowed) {
+      return false;
+    }
     try {
       run();
       return true;
@@ -2837,6 +2935,9 @@ class TerminalRuntimeController implements TerminalInputSink {
   }
 
   bool _runInputBackendOperation(String sessionId, Uint8List bytes) {
+    if (!_productOperationsAllowed) {
+      return false;
+    }
     try {
       _backend.writeInput(sessionId, bytes);
       return true;
@@ -2922,7 +3023,7 @@ class TerminalRuntimeController implements TerminalInputSink {
     final applyWatch = benchmarkEventSink == null
         ? null
         : (Stopwatch()..start());
-    final viewport = viewportFor(sessionId);
+    final viewport = _runtimeViewportFor(sessionId);
     viewport.updateFrame(frame);
     applyWatch?.stop();
     _lastFrameAppliedAt[sessionId] = DateTime.now();
@@ -2957,7 +3058,9 @@ class TerminalRuntimeController implements TerminalInputSink {
   }
 
   void _startPollingCooldown(String sessionId) {
-    if (!enableSessionPolling || !hasSession(sessionId)) {
+    if ((!_productOperationsAllowed && !_disposeRequested) ||
+        !enableSessionPolling ||
+        !hasSession(sessionId)) {
       return;
     }
     _refreshScheduler.startCooldown(sessionId, _pollingFrameInterval, () {
@@ -2982,7 +3085,7 @@ class TerminalRuntimeController implements TerminalInputSink {
       now: now,
       receivedFrame: receivedFrame,
       eventCount: eventCount,
-      modes: viewportFor(sessionId).frame.modes,
+      modes: _runtimeViewportFor(sessionId).frame.modes,
     );
     if (!enableSessionPolling) {
       return;
@@ -3219,11 +3322,11 @@ class TerminalRuntimeController implements TerminalInputSink {
         event: 'frame_skipped_synchronized',
         frame: frame,
         fields: <String, Object?>{
-          'applied_graphics_count': viewportFor(
+          'applied_graphics_count': _runtimeViewportFor(
             sessionId,
           ).frame.graphics.length,
           'applied_graphics_signature': terminalGraphicsSignature(
-            viewportFor(sessionId).frame.graphics,
+            _runtimeViewportFor(sessionId).frame.graphics,
           ),
         },
       );
@@ -3359,6 +3462,9 @@ class TerminalRuntimeController implements TerminalInputSink {
     int sessionEpoch,
     List<PtyEvent> events,
   ) {
+    if (!_runtimeWorkAllowed) {
+      return null;
+    }
     Future<void>? pendingAsyncWork;
     final gapDiagnostics = <PtyRuntimeEventGapDiagnostic>[];
     final hasExitEvent = events.any(
@@ -3503,7 +3609,9 @@ class TerminalRuntimeController implements TerminalInputSink {
           return null;
         }
         return pendingAsyncWork.then((_) {
-          _emitExitIfCurrent(sessionId, sessionEpoch, route.exitCode);
+          if (_productEventWorkAllowed(sessionId, sessionEpoch)) {
+            _emitExitIfCurrent(sessionId, sessionEpoch, route.exitCode);
+          }
         });
       }
       if (route is TerminalRuntimeEventGapRoute) {
@@ -3564,7 +3672,7 @@ class TerminalRuntimeController implements TerminalInputSink {
   }
 
   void _emitExitIfCurrent(String sessionId, int sessionEpoch, int? exitCode) {
-    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+    if (!_productEventWorkAllowed(sessionId, sessionEpoch)) {
       return;
     }
     try {
@@ -3595,7 +3703,8 @@ class TerminalRuntimeController implements TerminalInputSink {
   }
 
   void _closeExitedSessionIfCurrent(String sessionId, int sessionEpoch) {
-    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+    if (!_productOperationsAllowed ||
+        !_isCurrentSession(sessionId, sessionEpoch)) {
       return;
     }
     final closeOutcome = _attemptSessionClose(sessionId);
@@ -3605,7 +3714,12 @@ class TerminalRuntimeController implements TerminalInputSink {
         immediate: true,
         requestReason: 'session_exit_close_retry',
       );
-      Timer(_disposeRetryInterval, () {
+      _exitCloseRetryTimers.remove(sessionId)?.cancel();
+      _exitCloseRetryTimers[sessionId] = Timer(_disposeRetryInterval, () {
+        _exitCloseRetryTimers.remove(sessionId);
+        if (!_productOperationsAllowed) {
+          return;
+        }
         _closeExitedSessionIfCurrent(sessionId, sessionEpoch);
       });
       return;
@@ -3623,7 +3737,7 @@ class TerminalRuntimeController implements TerminalInputSink {
     int sessionEpoch,
     TerminalAsyncEventRoute route,
   ) {
-    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+    if (!_productEventWorkAllowed(sessionId, sessionEpoch)) {
       return Future<void>.value();
     }
     return switch (route.kind) {
@@ -4058,19 +4172,21 @@ class TerminalRuntimeController implements TerminalInputSink {
         requestReason: 'runtime_event_gap',
       );
     }
-    _runtimeEventGaps.add(
-      _runtimeEventGapDiagnostic(
-        sessionId,
-        diagnostic,
-        affectedZmodemTransferId: transferId,
-        zmodemStateCleared:
-            reconciliationResolved &&
-            transferId != null &&
-            !preserveTerminalState,
-        zmodemCancellationAccepted: cancellationAccepted,
-        stateRefreshRequested: requestStateRefresh || nativeDrainPending,
-      ),
-    );
+    if (!_shutdownStarted) {
+      _runtimeEventGaps.add(
+        _runtimeEventGapDiagnostic(
+          sessionId,
+          diagnostic,
+          affectedZmodemTransferId: transferId,
+          zmodemStateCleared:
+              reconciliationResolved &&
+              transferId != null &&
+              !preserveTerminalState,
+          zmodemCancellationAccepted: cancellationAccepted,
+          stateRefreshRequested: requestStateRefresh || nativeDrainPending,
+        ),
+      );
+    }
     if (nativeDrainPending || installUnknownAuthority) {
       _zmodemAutonomousPollingSessions.add(sessionId);
       _scheduleZmodemPoll(sessionId);
@@ -4171,6 +4287,9 @@ class TerminalRuntimeController implements TerminalInputSink {
   }
 
   void _emitRuntimeSignal(String sessionId, int sessionEpoch, Object payload) {
+    if (_shutdownStarted) {
+      return;
+    }
     final payloadSessionId = switch (payload) {
       final TerminalSessionEvent event => event.sessionId,
       final TerminalSessionZmodemEvent event => event.sessionId,
@@ -4248,14 +4367,14 @@ class TerminalRuntimeController implements TerminalInputSink {
     int sessionEpoch,
     Future<void> Function() process,
   ) {
-    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+    if (!_productEventWorkAllowed(sessionId, sessionEpoch)) {
       return Future<void>.value();
     }
     if (pendingAsyncWork == null) {
       return process();
     }
     return pendingAsyncWork.then((_) async {
-      if (!_isCurrentSession(sessionId, sessionEpoch)) {
+      if (!_productEventWorkAllowed(sessionId, sessionEpoch)) {
         return;
       }
       await process();
@@ -4267,7 +4386,7 @@ class TerminalRuntimeController implements TerminalInputSink {
     int sessionEpoch,
     Map<String, Object?>? payload,
   ) async {
-    if (!_isCurrentSession(sessionId, sessionEpoch) || payload == null) {
+    if (!_productEventWorkAllowed(sessionId, sessionEpoch) || payload == null) {
       return;
     }
     final cols = _intFromEventPayload(payload['cols']);
@@ -4301,7 +4420,7 @@ class TerminalRuntimeController implements TerminalInputSink {
     )) {
       return;
     }
-    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+    if (!_productEventWorkAllowed(sessionId, sessionEpoch)) {
       return;
     }
     _resizeCoordinator.commit(sessionId, metric);
@@ -4329,13 +4448,14 @@ class TerminalRuntimeController implements TerminalInputSink {
       widthDelta: plan.widthDelta,
       heightDelta: plan.heightDelta,
     );
-    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+    if (!_productEventWorkAllowed(sessionId, sessionEpoch)) {
       return;
     }
   }
 
   Size _cellSizeFor(String sessionId) {
-    return viewportFor(sessionId).measuredCellSize ?? terminalFallbackCellSize;
+    return _runtimeViewportFor(sessionId).measuredCellSize ??
+        terminalFallbackCellSize;
   }
 
   void _replyOrQueueCellSizeReport(String sessionId, int sessionEpoch) {
@@ -4453,7 +4573,7 @@ class TerminalRuntimeController implements TerminalInputSink {
     int sessionEpoch,
     Map<String, Object?>? payload,
   ) async {
-    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+    if (!_productEventWorkAllowed(sessionId, sessionEpoch)) {
       return;
     }
     final selection = _nonEmptyTrimmedStringFromJsonValue(
@@ -4538,7 +4658,7 @@ class TerminalRuntimeController implements TerminalInputSink {
       protocol: protocol,
     );
     final allowed = await allowClipboardCopy(request);
-    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+    if (!_productEventWorkAllowed(sessionId, sessionEpoch)) {
       return;
     }
     if (!allowed) {
@@ -4562,6 +4682,9 @@ class TerminalRuntimeController implements TerminalInputSink {
     try {
       await writeTextClipboard(decoded, selection ?? 'c');
     } on Object {
+      if (!_productEventWorkAllowed(sessionId, sessionEpoch)) {
+        return;
+      }
       _emitEventIfCurrent(
         sessionId,
         sessionEpoch,
@@ -4579,7 +4702,7 @@ class TerminalRuntimeController implements TerminalInputSink {
       );
       return;
     }
-    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+    if (!_productEventWorkAllowed(sessionId, sessionEpoch)) {
       return;
     }
     _emitEventIfCurrent(
@@ -4642,18 +4765,24 @@ class TerminalRuntimeController implements TerminalInputSink {
     Map<String, Object?>? payload,
     PtyHostRequestV1? hostRequest,
   ) async {
-    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+    if (!_productEventWorkAllowed(sessionId, sessionEpoch)) {
       return;
     }
     final selection =
         _nonEmptyTrimmedStringFromJsonValue(payload?['selection']) ?? 'c';
     String? resolvedClipboardText;
     Future<String> resolveClipboardText() async {
+      if (!_productEventWorkAllowed(sessionId, sessionEpoch)) {
+        throw StateError('Terminal runtime shutdown has started.');
+      }
       final cached = resolvedClipboardText;
       if (cached != null) {
         return cached;
       }
       final clipboardText = await readClipboard();
+      if (!_productEventWorkAllowed(sessionId, sessionEpoch)) {
+        throw StateError('Terminal runtime shutdown has started.');
+      }
       resolvedClipboardText = clipboardText;
       return clipboardText;
     }
@@ -4665,7 +4794,7 @@ class TerminalRuntimeController implements TerminalInputSink {
       resolveText: resolveClipboardText,
     );
     final allowed = await allowClipboardPasteRequest(request);
-    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+    if (!_productEventWorkAllowed(sessionId, sessionEpoch)) {
       return;
     }
     if (!allowed) {
@@ -4687,8 +4816,16 @@ class TerminalRuntimeController implements TerminalInputSink {
       );
       return;
     }
-    final clipboardText = await resolveClipboardText();
-    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+    late final String clipboardText;
+    try {
+      clipboardText = await resolveClipboardText();
+    } on Object {
+      if (!_productEventWorkAllowed(sessionId, sessionEpoch)) {
+        return;
+      }
+      rethrow;
+    }
+    if (!_productEventWorkAllowed(sessionId, sessionEpoch)) {
       return;
     }
     final clipboardBytes = _boundedUtf8Encode(
@@ -4739,7 +4876,7 @@ class TerminalRuntimeController implements TerminalInputSink {
         return;
       }
     }
-    if (!_isCurrentSession(sessionId, sessionEpoch)) {
+    if (!_productEventWorkAllowed(sessionId, sessionEpoch)) {
       return;
     }
     _emitEventIfCurrent(
@@ -4766,7 +4903,10 @@ class TerminalRuntimeController implements TerminalInputSink {
     String? errorMessage,
   }) {
     final backend = _hostResponseBackend;
-    if (request == null || backend == null || !backend.supportsHostResponseV1) {
+    if (!_productSessionAvailable(sessionId) ||
+        request == null ||
+        backend == null ||
+        !backend.supportsHostResponseV1) {
       return null;
     }
     try {
@@ -4807,6 +4947,9 @@ class TerminalRuntimeController implements TerminalInputSink {
     int sessionEpoch,
     Map<String, Object?>? payload,
   ) async {
+    if (!_productEventWorkAllowed(sessionId, sessionEpoch)) {
+      return;
+    }
     final id = _osc5522Id(payload?['id']);
     final location = _stringFromJsonValue(payload?['location']);
     final password = _osc5522Credential(payload?['password'], maxBytes: 256);
@@ -4920,8 +5063,9 @@ class TerminalRuntimeController implements TerminalInputSink {
         authorizationPassword: password,
         applicationName: applicationName,
       ),
+      sessionEpoch,
     );
-    if (!_isCurrentSession(sessionId, sessionEpoch)) return;
+    if (!_productEventWorkAllowed(sessionId, sessionEpoch)) return;
     if (!authorization.allowed) {
       _sendOsc5522Status(
         sessionId,
@@ -4943,6 +5087,7 @@ class TerminalRuntimeController implements TerminalInputSink {
     try {
       await writeMimeClipboard(items);
     } on Object {
+      if (!_productEventWorkAllowed(sessionId, sessionEpoch)) return;
       _sendOsc5522Status(
         sessionId,
         sessionEpoch,
@@ -4960,7 +5105,7 @@ class TerminalRuntimeController implements TerminalInputSink {
       );
       return;
     }
-    if (!_isCurrentSession(sessionId, sessionEpoch)) return;
+    if (!_productEventWorkAllowed(sessionId, sessionEpoch)) return;
     _sendOsc5522Status(
       sessionId,
       sessionEpoch,
@@ -4983,6 +5128,9 @@ class TerminalRuntimeController implements TerminalInputSink {
     int sessionEpoch,
     Map<String, Object?>? payload,
   ) async {
+    if (!_productEventWorkAllowed(sessionId, sessionEpoch)) {
+      return;
+    }
     final id = _osc5522Id(payload?['id']);
     final location = _stringFromJsonValue(payload?['location']);
     final password = _osc5522Credential(payload?['password'], maxBytes: 256);
@@ -5018,14 +5166,11 @@ class TerminalRuntimeController implements TerminalInputSink {
     }
     if (listOnly) {
       try {
+        final listedMimeTypes = await listClipboardMimeTypes();
+        if (!_productEventWorkAllowed(sessionId, sessionEpoch)) return;
         final available =
-            (await listClipboardMimeTypes())
-                .where(_isValidOsc5522Mime)
-                .toSet()
-                .take(64)
-                .toList()
+            listedMimeTypes.where(_isValidOsc5522Mime).toSet().take(64).toList()
               ..sort();
-        if (!_isCurrentSession(sessionId, sessionEpoch)) return;
         _sendOsc5522ReadData(
           sessionId,
           sessionEpoch,
@@ -5038,6 +5183,7 @@ class TerminalRuntimeController implements TerminalInputSink {
           ],
         );
       } on Object {
+        if (!_productEventWorkAllowed(sessionId, sessionEpoch)) return;
         _sendOsc5522Status(
           sessionId,
           sessionEpoch,
@@ -5058,8 +5204,9 @@ class TerminalRuntimeController implements TerminalInputSink {
         authorizationPassword: password,
         applicationName: applicationName,
       ),
+      sessionEpoch,
     );
-    if (!_isCurrentSession(sessionId, sessionEpoch)) return;
+    if (!_productEventWorkAllowed(sessionId, sessionEpoch)) return;
     if (!authorization.allowed) {
       _sendOsc5522Status(
         sessionId,
@@ -5079,7 +5226,9 @@ class TerminalRuntimeController implements TerminalInputSink {
       return;
     }
     try {
-      final items = (await readMimeClipboard(mimeTypes))
+      final readItems = await readMimeClipboard(mimeTypes);
+      if (!_productEventWorkAllowed(sessionId, sessionEpoch)) return;
+      final items = readItems
           .where(
             (item) =>
                 _isValidOsc5522Mime(item.mimeType) &&
@@ -5089,7 +5238,6 @@ class TerminalRuntimeController implements TerminalInputSink {
           )
           .take(64)
           .toList(growable: false);
-      if (!_isCurrentSession(sessionId, sessionEpoch)) return;
       if (items.isEmpty ||
           items.fold<int>(0, (total, item) => total + item.bytes.length) >
               _maxOsc52ClipboardDecodedBytes) {
@@ -5112,6 +5260,7 @@ class TerminalRuntimeController implements TerminalInputSink {
         items.fold<int>(0, (total, item) => total + item.bytes.length),
       );
     } on Object {
+      if (!_productEventWorkAllowed(sessionId, sessionEpoch)) return;
       _sendOsc5522Status(
         sessionId,
         sessionEpoch,
@@ -5127,6 +5276,9 @@ class TerminalRuntimeController implements TerminalInputSink {
     int sessionEpoch,
     Map<String, Object?>? payload,
   ) async {
+    if (!_productEventWorkAllowed(sessionId, sessionEpoch)) {
+      return;
+    }
     final operation = _stringFromJsonValue(payload?['operation']);
     final status = _stringFromJsonValue(payload?['status']);
     if ((operation == 'read' || operation == 'write') &&
@@ -5266,6 +5418,7 @@ class TerminalRuntimeController implements TerminalInputSink {
 
   Future<TerminalClipboardAuthorization> _authorizeOsc5522Access(
     TerminalClipboardAccessRequest request,
+    int sessionEpoch,
   ) async {
     final password = request.authorizationPassword;
     if (password != null &&
@@ -5291,6 +5444,9 @@ class TerminalRuntimeController implements TerminalInputSink {
       return TerminalClipboardAuthorization.allowOnce;
     }
     final authorization = await authorizeMimeClipboardAccess(request);
+    if (!_productEventWorkAllowed(request.sessionId, sessionEpoch)) {
+      return TerminalClipboardAuthorization.denied;
+    }
     if (authorization.allowed &&
         authorization.rememberPassword &&
         cacheKey != null) {
@@ -5389,7 +5545,7 @@ class TerminalRuntimeController implements TerminalInputSink {
   }
 
   void _scheduleWarmUpRefreshes(String sessionId) {
-    if (!enableWarmUpRefresh) {
+    if (!_productOperationsAllowed || !enableWarmUpRefresh) {
       return;
     }
     for (final timer in _warmUpTimers.remove(sessionId) ?? const <Timer>[]) {
@@ -5404,7 +5560,7 @@ class TerminalRuntimeController implements TerminalInputSink {
     for (final delay in delays) {
       timers.add(
         Timer(delay, () {
-          if (!hasSession(sessionId)) {
+          if (!_productOperationsAllowed || !hasSession(sessionId)) {
             return;
           }
           final controller = _sessions.existingViewportFor(sessionId);
@@ -5447,6 +5603,7 @@ class TerminalRuntimeController implements TerminalInputSink {
     _flushingDeferredProtocolReplySessions.remove(sessionId);
     _zmodemPollTimers.remove(sessionId)?.cancel();
     _closeBusyPollTimers.remove(sessionId)?.cancel();
+    _exitCloseRetryTimers.remove(sessionId)?.cancel();
     _nativeHintPollTimers.remove(sessionId)?.cancel();
     _zmodemAutonomousPollingSessions.remove(sessionId);
     _activeZmodemTransferIds.remove(sessionId);
@@ -5484,6 +5641,45 @@ class TerminalRuntimeController implements TerminalInputSink {
         colors: config.display.colors.resolveWith(),
       ),
     );
+  }
+
+  /// Synchronously freezes product-facing runtime activity without releasing
+  /// native sessions.
+  ///
+  /// Application shutdown invokes this before its first await so polling,
+  /// cooldown, warm-up, and protocol retry timers cannot outlive the owning
+  /// ProviderScope. The infrastructure shutdown task remains the sole owner
+  /// that closes backend sessions through [dispose].
+  void beginShutdown() {
+    if (_shutdownStarted || _disposed) {
+      return;
+    }
+    _shutdownStarted = true;
+    _pollTimer?.cancel();
+    _pollTimer = null;
+    _refreshScheduler.dispose();
+    for (final timers in _warmUpTimers.values) {
+      for (final timer in timers) {
+        timer.cancel();
+      }
+    }
+    _warmUpTimers.clear();
+    for (final timer in _zmodemPollTimers.values) {
+      timer.cancel();
+    }
+    _zmodemPollTimers.clear();
+    for (final timer in _closeBusyPollTimers.values) {
+      timer.cancel();
+    }
+    _closeBusyPollTimers.clear();
+    for (final timer in _exitCloseRetryTimers.values) {
+      timer.cancel();
+    }
+    _exitCloseRetryTimers.clear();
+    for (final timer in _nativeHintPollTimers.values) {
+      timer.cancel();
+    }
+    _nativeHintPollTimers.clear();
   }
 
   void dispose() {
@@ -5591,6 +5787,7 @@ class TerminalRuntimeController implements TerminalInputSink {
 
   void _scheduleZmodemPoll(String sessionId) {
     if (enableSessionPolling ||
+        (!_productOperationsAllowed && !_disposeRequested) ||
         _disposed ||
         !hasSession(sessionId) ||
         !_zmodemAutonomousPollingSessions.contains(sessionId) ||
@@ -5600,7 +5797,8 @@ class TerminalRuntimeController implements TerminalInputSink {
     }
     _zmodemPollTimers[sessionId] = Timer(_zmodemDisabledPollingInterval, () {
       _zmodemPollTimers.remove(sessionId);
-      if (_disposed ||
+      if (!_runtimeWorkAllowed ||
+          _disposed ||
           !hasSession(sessionId) ||
           _activeZmodemTransferIds[sessionId] == null) {
         return;
@@ -5614,14 +5812,15 @@ class TerminalRuntimeController implements TerminalInputSink {
   }
 
   void _scheduleCloseBusyPoll(String sessionId) {
-    if (_disposed ||
+    if ((!_productOperationsAllowed && !_disposeRequested) ||
+        _disposed ||
         !hasSession(sessionId) ||
         _closeBusyPollTimers.containsKey(sessionId)) {
       return;
     }
     _closeBusyPollTimers[sessionId] = Timer(_disposeRetryInterval, () {
       _closeBusyPollTimers.remove(sessionId);
-      if (_disposed || !hasSession(sessionId)) {
+      if (!_runtimeWorkAllowed || _disposed || !hasSession(sessionId)) {
         return;
       }
       final closeReady = _jsonRequestClient.sessionCloseReady(sessionId);
@@ -5645,6 +5844,7 @@ class TerminalRuntimeController implements TerminalInputSink {
 
   void _scheduleNativeHintPoll(String sessionId) {
     if (enableSessionPolling ||
+        (!_productOperationsAllowed && !_disposeRequested) ||
         _disposed ||
         !hasSession(sessionId) ||
         _nativeHintPollTimers.containsKey(sessionId)) {
@@ -5658,7 +5858,7 @@ class TerminalRuntimeController implements TerminalInputSink {
     }
     _nativeHintPollTimers[sessionId] = Timer(_disposeRetryInterval, () {
       _nativeHintPollTimers.remove(sessionId);
-      if (_disposed || !hasSession(sessionId)) {
+      if (!_runtimeWorkAllowed || _disposed || !hasSession(sessionId)) {
         return;
       }
       _requestRefreshSession(

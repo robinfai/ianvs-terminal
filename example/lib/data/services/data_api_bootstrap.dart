@@ -221,17 +221,20 @@ class DataApiBootstrap {
 
   Future<DataApiRuntime?> start({
     required Directory appSupportDirectory,
+    DataApiConfiguration? configuration,
   }) async {
-    final repository =
-        _configurationRepository ??
-        FileDataApiConfigurationRepository(
-          appSupportDirectory: appSupportDirectory,
+    final effectiveConfiguration =
+        configuration ??
+        await loadDataApiConfigurationForStartup(
+          _configurationRepository ??
+              FileDataApiConfigurationRepository(
+                appSupportDirectory: appSupportDirectory,
+              ),
         );
-    final configuration = await loadDataApiConfigurationForStartup(repository);
-    if (configuration.deployment == DataApiDeployment.disabled) {
+    if (effectiveConfiguration.deployment == DataApiDeployment.disabled) {
       return null;
     }
-    final remoteBaseUri = configuration.remoteBaseUri;
+    final remoteBaseUri = effectiveConfiguration.remoteBaseUri;
     if (remoteBaseUri != null) {
       late DataApiRemoteSession? session;
       try {
@@ -316,7 +319,8 @@ class DataApiBootstrap {
   }
 }
 
-final class DataApiLocalInitializationCleanupException implements Exception {
+final class DataApiLocalInitializationCleanupException
+    implements DataApiRuntimeTerminationFailureCarrier {
   const DataApiLocalInitializationCleanupException({
     required this.initializationError,
     required this.cleanupError,
@@ -324,6 +328,11 @@ final class DataApiLocalInitializationCleanupException implements Exception {
 
   final Object initializationError;
   final Object cleanupError;
+
+  @override
+  DataApiRuntimeTerminationUnknownFailure? get terminationFailure {
+    return dataApiRuntimeTerminationFailureOf(cleanupError);
+  }
 
   @override
   String toString() {

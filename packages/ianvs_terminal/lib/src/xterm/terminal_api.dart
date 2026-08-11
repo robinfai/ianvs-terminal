@@ -462,6 +462,14 @@ class Terminal implements TerminalDisposable {
     if (!_disposeRequested || _disposed) {
       return;
     }
+    if (_runtime.shutdownHasStarted || _runtime.disposed) {
+      // An externally owned runtime remains with the process-level
+      // infrastructure coordinator. A facade-owned runtime must itself start
+      // that same infrastructure settlement before releasing local streams.
+      _sessionId = null;
+      _completeLocalDispose(disposeOwnedRuntime: _disposeRuntime);
+      return;
+    }
     final sessionId = _sessionId;
     if (sessionId != null && !_runtime.disposeSession(sessionId)) {
       // ZMODEM publication or a terminal result may still own native state.
@@ -472,12 +480,17 @@ class Terminal implements TerminalDisposable {
       return;
     }
     _sessionId = null;
-    if (_disposeRuntime) {
+    _completeLocalDispose(disposeOwnedRuntime: _disposeRuntime);
+  }
+
+  void _completeLocalDispose({required bool disposeOwnedRuntime}) {
+    if (disposeOwnedRuntime) {
       // Runtime disposal records its own pending request and completes it
       // automatically after any other busy session publishes its result.
       _runtime.dispose();
     }
     _disposeRequested = false;
+    _disposeRetryScheduled = false;
     _disposeRetryTimer?.cancel();
     _disposeRetryTimer = null;
     _disposed = true;
@@ -531,7 +544,10 @@ class Terminal implements TerminalDisposable {
 
   TerminalFrameDiff get _currentFrame {
     final sessionId = _sessionId;
-    if (sessionId == null || !_runtime.hasSession(sessionId)) {
+    if (sessionId == null ||
+        _runtime.shutdownHasStarted ||
+        _runtime.disposed ||
+        !_runtime.hasSession(sessionId)) {
       return TerminalFrameDiff.empty;
     }
     return _runtime.viewportFor(sessionId).frame;

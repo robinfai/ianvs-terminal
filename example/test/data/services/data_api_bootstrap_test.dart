@@ -36,6 +36,29 @@ void main() {
     },
   );
 
+  test(
+    'an explicit startup snapshot is not re-read from the repository',
+    () async {
+      final repository = _MemoryConfigurationRepository(
+        const DataApiConfiguration.local(),
+      );
+      final bootstrap = DataApiBootstrap(
+        configurationRepository: repository,
+        isMacOS: false,
+        localRuntimeStarter: (_) =>
+            throw StateError('must not start local API'),
+      );
+
+      final runtime = await bootstrap.start(
+        appSupportDirectory: unusedDirectory,
+        configuration: const DataApiConfiguration.disabled(),
+      );
+
+      expect(runtime, isNull);
+      expect(repository.loadCount, 0);
+    },
+  );
+
   test('remote configuration creates a runtime without a sidecar', () async {
     final bootstrap = DataApiBootstrap(
       configurationRepository: _MemoryConfigurationRepository(
@@ -173,6 +196,16 @@ void main() {
     );
   });
 
+  test('local initialization cleanup exposes a nested termination marker', () {
+    final terminationFailure = _TerminationUnknownFailure();
+    final failure = DataApiLocalInitializationCleanupException(
+      initializationError: StateError('initialization failed'),
+      cleanupError: _TerminationFailureCarrier(terminationFailure),
+    );
+
+    expect(failure.terminationFailure, same(terminationFailure));
+  });
+
   test('local health response that never starts has a deadline', () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     final requestSeen = Completer<void>();
@@ -267,9 +300,13 @@ final class _MemoryConfigurationRepository
   _MemoryConfigurationRepository(this.configuration);
 
   DataApiConfiguration configuration;
+  int loadCount = 0;
 
   @override
-  Future<DataApiConfiguration> load() async => configuration;
+  Future<DataApiConfiguration> load() async {
+    loadCount += 1;
+    return configuration;
+  }
 
   @override
   Future<void> save(DataApiConfiguration configuration) async {
@@ -320,4 +357,15 @@ final class _ThrowingRemoteSessionStore implements DataApiRemoteSessionStore {
 
   @override
   Future<void> write(DataApiRemoteSession session) async {}
+}
+
+final class _TerminationUnknownFailure
+    implements DataApiRuntimeTerminationUnknownFailure {}
+
+final class _TerminationFailureCarrier
+    implements DataApiRuntimeTerminationFailureCarrier {
+  const _TerminationFailureCarrier(this.terminationFailure);
+
+  @override
+  final DataApiRuntimeTerminationUnknownFailure terminationFailure;
 }

@@ -55,10 +55,18 @@ final class PersistenceRepositoryComposition {
         profiles: ProfileRepository(
           directoryResolver: profileExportDirectoryResolver,
         ),
-        preferences: AppPreferencesRepository(),
-        terminalConfig: LocalTerminalConfigRepository(),
-        terminalLayout: LocalTerminalLayoutRepository(),
-        pasteHistory: PasteHistoryRepository(),
+        preferences: AppPreferencesRepository(
+          directoryResolver: profileExportDirectoryResolver,
+        ),
+        terminalConfig: LocalTerminalConfigRepository(
+          directoryResolver: profileExportDirectoryResolver,
+        ),
+        terminalLayout: LocalTerminalLayoutRepository(
+          directoryResolver: profileExportDirectoryResolver,
+        ),
+        pasteHistory: PasteHistoryRepository(
+          directoryResolver: profileExportDirectoryResolver,
+        ),
         usesDataApi: false,
         persistenceUnavailable: false,
       );
