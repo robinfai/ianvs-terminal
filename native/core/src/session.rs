@@ -50,9 +50,13 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 mod event_queue;
 mod frame;
+mod frame_signal;
+mod pty_reader;
 mod recording;
 
-use event_queue::{PendingEventQueue, terminal_event_wire_size};
+use event_queue::PendingEventQueue;
+#[cfg(test)]
+use event_queue::terminal_event_wire_size;
 use frame::{
     CachedFrameMeta, CachedRowState, CollapsedBlockRange, DeltaFrameContext, DisplayProjection,
     FrameBuildContext, GraphicAssetSnapshot, PendingFrameWork, build_delta_frame,
@@ -65,6 +69,8 @@ use frame::{
     PendingScrollRegion, build_graphic_placements, delta_candidate_row_indexes,
     graphic_placement_for_viewport,
 };
+use frame_signal::{DeferredFrameGrace, PendingFrameSignal, should_defer_with_grace};
+use pty_reader::{read_error_is_trusted_eof, wait_until_readable};
 use recording::{RecordingError, RecordingInputPolicy, SessionRecording};
 
 const DEFAULT_ROWS: u16 = 32;
@@ -85,7 +91,6 @@ const ZMODEM_COMPLETION_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const ZMODEM_WIRE_MAX_QUEUED_BYTES: usize = 1024 * 1024;
 const RESOURCE_SAMPLE_INTERVAL: Duration = Duration::from_secs(1);
 const ZMODEM_DEADLINE_POLL_INTERVAL: Duration = Duration::from_millis(50);
-const PTY_READER_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const INLINE_CLEAR_REPAINT_GRACE: Duration = Duration::from_millis(180);
 const RESOURCE_SAMPLER_MAX_FAILURES: u64 = 5;
 
@@ -103,48 +108,6 @@ fn inject_zmodem_writer_thread_spawn_failure() -> bool {
     false
 }
 
-fn pty_read_error_is_trusted_eof(error: &std::io::Error) -> bool {
-    #[cfg(unix)]
-    {
-        // PTY masters conventionally report EIO, rather than Ok(0), after
-        // the slave side closes. Treat that specific transport boundary as
-        // EOF so a receiver that already replied to ZFIN can complete even
-        // when the final OO is swallowed by the PTY teardown.
-        error.raw_os_error() == Some(libc::EIO)
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = error;
-        false
-    }
-}
-
-/// Wait until a Unix PTY master is readable without committing the reader
-/// thread to an unbounded `read`. A timeout after the child-exit flag is
-/// visible is an ordered drain barrier: all bytes written before that exit
-/// have either been routed by the sole reader or are reported readable by the
-/// second poll iteration.
-fn wait_for_pty_readable(poll_handle: Option<&std::fs::File>) -> std::io::Result<bool> {
-    #[cfg(unix)]
-    if let Some(poll_handle) = poll_handle {
-        use std::os::fd::AsRawFd as _;
-        let mut descriptor = libc::pollfd {
-            fd: poll_handle.as_raw_fd(),
-            events: libc::POLLIN,
-            revents: 0,
-        };
-        let timeout_millis =
-            i32::try_from(PTY_READER_POLL_INTERVAL.as_millis()).unwrap_or(i32::MAX);
-        let result = unsafe { libc::poll(&mut descriptor, 1, timeout_millis) };
-        if result < 0 {
-            return Err(std::io::Error::last_os_error());
-        }
-        return Ok(result > 0);
-    }
-
-    let _ = poll_handle;
-    Ok(true)
-}
 const MAX_GRAPHIC_ASSET_SNAPSHOTS: usize = 128;
 const VT220_PRIMARY_DA_RESPONSE: &str = "\x1b[?62;1;2;6;7;8;9c";
 const VT220_SECONDARY_DA_RESPONSE: &str = "\x1b[>1;10;0c";
@@ -321,127 +284,6 @@ enum CallbackEvent {
     },
     SessionReset,
     Bell,
-}
-
-#[derive(Clone, Debug)]
-struct DeferredFrameGrace {
-    damage_generation: u64,
-    started_at: Instant,
-}
-
-struct PendingFrameSignal {
-    dirty: AtomicBool,
-    refresh_hint_dirty: AtomicBool,
-    work: Mutex<PendingFrameWork>,
-}
-
-impl PendingFrameSignal {
-    fn new(initially_dirty: bool) -> Self {
-        Self {
-            dirty: AtomicBool::new(initially_dirty),
-            refresh_hint_dirty: AtomicBool::new(initially_dirty),
-            work: Mutex::new(PendingFrameWork::default()),
-        }
-    }
-
-    fn is_dirty(&self) -> bool {
-        self.dirty.load(Ordering::SeqCst)
-    }
-
-    fn mutate(&self, mutation: impl FnOnce(&mut PendingFrameWork)) {
-        self.mutate_inner(false, mutation);
-    }
-
-    fn mutate_reader(&self, mutation: impl FnOnce(&mut PendingFrameWork)) {
-        self.mutate_inner(true, mutation);
-    }
-
-    fn mutate_inner(&self, sets_refresh_hint: bool, mutation: impl FnOnce(&mut PendingFrameWork)) {
-        let mut work = self.work.lock();
-        mutation(&mut work);
-        self.dirty.store(true, Ordering::SeqCst);
-        if sets_refresh_hint {
-            self.refresh_hint_dirty.store(true, Ordering::SeqCst);
-        }
-    }
-
-    fn take(&self) -> (bool, bool, PendingFrameWork) {
-        let mut work = self.work.lock();
-        let was_dirty = self.dirty.swap(false, Ordering::SeqCst);
-        let refresh_hint_was_dirty = self.refresh_hint_dirty.swap(false, Ordering::SeqCst);
-        (
-            was_dirty,
-            refresh_hint_was_dirty,
-            std::mem::take(&mut *work),
-        )
-    }
-
-    fn restore(&self, deferred_work: PendingFrameWork, restore_refresh_hint: bool) {
-        let mut current_work = self.work.lock();
-        if current_work.is_empty() {
-            *current_work = deferred_work;
-        } else if !deferred_work.is_empty() {
-            let damage_generation = current_work
-                .damage_generation
-                .max(deferred_work.damage_generation)
-                .saturating_add(1);
-            let cursor_before = deferred_work
-                .cursor_before
-                .or_else(|| current_work.cursor_before.take());
-            let cursor_after = current_work
-                .cursor_after
-                .take()
-                .or(deferred_work.cursor_after);
-            let snapshot_fallback_reason = deferred_work
-                .snapshot_fallback_reason
-                .or_else(|| current_work.snapshot_fallback_reason.take())
-                .or_else(|| Some("concurrent_deferred_damage".to_string()));
-            *current_work = PendingFrameWork {
-                full_repaint: true,
-                snapshot_fallback_reason,
-                cursor_before,
-                cursor_after,
-                damage_generation,
-                ..PendingFrameWork::default()
-            };
-        }
-        self.dirty.store(true, Ordering::SeqCst);
-        if restore_refresh_hint {
-            self.refresh_hint_dirty.store(true, Ordering::SeqCst);
-        }
-    }
-
-    fn has_refresh_hint(&self) -> bool {
-        self.refresh_hint_dirty.load(Ordering::SeqCst)
-    }
-
-    fn snapshot(&self) -> PendingFrameWork {
-        self.work.lock().clone()
-    }
-}
-
-fn should_defer_frame_with_grace(
-    deferred_frame: &Mutex<Option<DeferredFrameGrace>>,
-    damage_generation: u64,
-    grace: Duration,
-) -> bool {
-    let mut deferred = deferred_frame.lock();
-    if let Some(frame) = deferred
-        .as_ref()
-        .filter(|frame| frame.damage_generation == damage_generation)
-    {
-        if frame.started_at.elapsed() < grace {
-            return true;
-        }
-        *deferred = None;
-        return false;
-    }
-
-    *deferred = Some(DeferredFrameGrace {
-        damage_generation,
-        started_at: Instant::now(),
-    });
-    true
 }
 
 #[derive(Clone, Debug, serde::Serialize)]
@@ -2580,10 +2422,10 @@ impl TerminalSession {
             let mut reader = reader;
             let mut buf = [0_u8; 4096];
             let trusted_eof = loop {
-                match wait_for_pty_readable(reader_poll_handle.as_ref()) {
+                match wait_until_readable(reader_poll_handle.as_ref()) {
                     Ok(false) => {
                         if reader_session.exited.load(Ordering::Acquire)
-                            && !wait_for_pty_readable(reader_poll_handle.as_ref()).unwrap_or(true)
+                            && !wait_until_readable(reader_poll_handle.as_ref()).unwrap_or(true)
                         {
                             // The second timeout starts after observing child
                             // exit. Since this is the only reader, the kernel
@@ -2613,7 +2455,7 @@ impl TerminalSession {
                         }
                     }
                     Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
-                    Err(error) if pty_read_error_is_trusted_eof(&error) => break true,
+                    Err(error) if read_error_is_trusted_eof(&error) => break true,
                     Err(_) => break false,
                 }
             };
@@ -5685,7 +5527,7 @@ impl TerminalSession {
             return false;
         }
 
-        should_defer_frame_with_grace(
+        should_defer_with_grace(
             &self.deferred_clear_graphics_frame,
             pending_frame_work.damage_generation,
             INLINE_CLEAR_REPAINT_GRACE,
@@ -5708,7 +5550,7 @@ impl TerminalSession {
             return false;
         }
 
-        should_defer_frame_with_grace(
+        should_defer_with_grace(
             &self.deferred_kitty_delete_graphics_frame,
             pending_frame_work.damage_generation,
             INLINE_CLEAR_REPAINT_GRACE,
@@ -9393,10 +9235,10 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn pty_eio_is_treated_as_a_trusted_transport_eof() {
-        assert!(pty_read_error_is_trusted_eof(
+        assert!(read_error_is_trusted_eof(
             &std::io::Error::from_raw_os_error(libc::EIO)
         ));
-        assert!(!pty_read_error_is_trusted_eof(
+        assert!(!read_error_is_trusted_eof(
             &std::io::Error::from_raw_os_error(libc::EBADF)
         ));
     }
