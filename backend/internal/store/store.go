@@ -3,6 +3,9 @@ package store
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,27 +16,38 @@ import (
 
 	"gorm.io/gorm"
 
+	"ianvs-terminal/backend/internal/database"
 	"ianvs-terminal/backend/internal/identity"
 	"ianvs-terminal/backend/internal/model"
 	"ianvs-terminal/backend/internal/secure"
 )
 
 const (
-	serverIDSetting       = "server_id"
-	maxResourceDataBytes  = 4 << 20
-	maxMigrationResources = 2000
+	serverIDSetting          = "server_id"
+	cursorSigningKeySetting  = "cursor_signing_key_v1"
+	maxResourceDataBytes     = 4 << 20
+	DefaultPageLimit         = 100
+	MaximumPageLimit         = 100
+	maxMigrationResources    = MaximumPageLimit
+	MaximumJSONResponseBytes = 12 << 20
+	maximumPageCursorBytes   = 1024
+	responseEnvelopeReserve  = 2048
 )
 
 var (
 	ErrNotFound         = errors.New("resource not found")
 	ErrRevisionConflict = errors.New("resource revision conflict")
 	ErrInvalidResource  = errors.New("invalid resource")
+	ErrInvalidPage      = errors.New("invalid resource page")
+	ErrResponseTooLarge = errors.New("resource response exceeds the documented limit")
 	resourcePartPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]*$`)
+	internalIDPattern   = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 )
 
 type Store struct {
-	db       *gorm.DB
-	serverID string
+	db               *gorm.DB
+	serverID         string
+	cursorSigningKey []byte
 }
 
 type WriteInput struct {
@@ -59,11 +73,27 @@ type ResourceView struct {
 	UpdatedAt       time.Time       `json:"updated_at"`
 }
 
+type ResourcePage struct {
+	Resources  []ResourceView `json:"resources"`
+	NextCursor string         `json:"next_cursor,omitempty"`
+	snapshot   time.Time
+}
+
 type ExportBundle struct {
 	SchemaVersion int            `json:"schema_version"`
 	SourceID      string         `json:"source_id"`
 	ExportedAt    time.Time      `json:"exported_at"`
 	Resources     []ResourceView `json:"resources"`
+	NextCursor    string         `json:"next_cursor,omitempty"`
+}
+
+type pageCursor struct {
+	Kind              string `json:"kind"`
+	ExternalID        string `json:"external_id"`
+	InternalID        string `json:"internal_id"`
+	SnapshotUnixNanos int64  `json:"snapshot_unix_nanos"`
+	FilterKind        string `json:"filter_kind,omitempty"`
+	IncludeDeleted    bool   `json:"include_deleted"`
 }
 
 type ConflictPolicy string
@@ -78,6 +108,7 @@ type MergeRequest struct {
 	SchemaVersion    int            `json:"schema_version"`
 	SourceID         string         `json:"source_id"`
 	ExportedAt       time.Time      `json:"exported_at,omitempty"`
+	NextCursor       string         `json:"next_cursor,omitempty"`
 	ConflictPolicy   ConflictPolicy `json:"conflict_policy"`
 	PropagateDeletes bool           `json:"propagate_deletes"`
 	Resources        []ResourceView `json:"resources"`
@@ -104,7 +135,15 @@ func New(ctx context.Context, db *gorm.DB) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Store{db: db, serverID: serverID}, nil
+	cursorSigningKey, err := ensureCursorSigningKey(ctx, db)
+	if err != nil {
+		return nil, err
+	}
+	return &Store{
+		db:               db,
+		serverID:         serverID,
+		cursorSigningKey: cursorSigningKey,
+	}, nil
 }
 
 func (s *Store) DB() *gorm.DB { return s.db }
@@ -137,6 +176,45 @@ func (s *Store) Put(
 	}
 
 	var saved model.Resource
+	buildNewResource := func(now time.Time) error {
+		id, idErr := identity.UUID()
+		if idErr != nil {
+			return idErr
+		}
+		saved = model.Resource{
+			ID:              id,
+			UserID:          user.ID,
+			Kind:            kind,
+			ExternalID:      externalID,
+			PlainJSON:       string(plain),
+			Revision:        1,
+			SourceID:        s.serverID,
+			SourceRevision:  1,
+			OriginUpdatedAt: now,
+			CreatedAt:       now,
+			UpdatedAt:       now,
+		}
+		if input.SensitivePresent && !isJSONNull(sensitive) {
+			return encryptSensitive(&saved, key, sensitive)
+		}
+		return nil
+	}
+	if input.ExpectedRevision != nil && *input.ExpectedRevision == 0 {
+		now, err := database.CurrentTime(ctx, s.db)
+		if err != nil {
+			return ResourceView{}, fmt.Errorf("read resource creation time: %w", err)
+		}
+		if err := buildNewResource(now); err != nil {
+			return ResourceView{}, fmt.Errorf("save resource: %w", err)
+		}
+		if err := s.db.WithContext(ctx).Create(&saved).Error; err != nil {
+			if errors.Is(err, gorm.ErrDuplicatedKey) {
+				return ResourceView{}, fmt.Errorf("save resource: %w", ErrRevisionConflict)
+			}
+			return ResourceView{}, fmt.Errorf("save resource: %w", err)
+		}
+		return resourceView(saved, key, input.SensitivePresent)
+	}
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var existing model.Resource
 		queryErr := tx.Where(
@@ -145,27 +223,16 @@ func (s *Store) Put(
 			kind,
 			externalID,
 		).First(&existing).Error
-		now := time.Now().UTC()
+		now, timeErr := database.CurrentTime(ctx, tx)
+		if timeErr != nil {
+			return timeErr
+		}
 		if errors.Is(queryErr, gorm.ErrRecordNotFound) {
-			id, idErr := identity.UUID()
-			if idErr != nil {
-				return idErr
+			if input.ExpectedRevision != nil {
+				return ErrRevisionConflict
 			}
-			saved = model.Resource{
-				ID:              id,
-				UserID:          user.ID,
-				Kind:            kind,
-				ExternalID:      externalID,
-				PlainJSON:       string(plain),
-				Revision:        1,
-				SourceID:        s.serverID,
-				SourceRevision:  1,
-				OriginUpdatedAt: now,
-			}
-			if input.SensitivePresent && !isJSONNull(sensitive) {
-				if err := encryptSensitive(&saved, key, sensitive); err != nil {
-					return err
-				}
+			if err := buildNewResource(now); err != nil {
+				return err
 			}
 			return tx.Create(&saved).Error
 		}
@@ -235,33 +302,109 @@ func (s *Store) List(
 	key []byte,
 	kind string,
 	includeDeleted, includeSensitive bool,
-) ([]ResourceView, error) {
+	limit int,
+	cursor string,
+) (ResourcePage, error) {
+	if limit < 1 || limit > MaximumPageLimit {
+		return ResourcePage{}, fmt.Errorf("%w: limit must be between 1 and %d", ErrInvalidPage, MaximumPageLimit)
+	}
+	var pagePosition pageCursor
+	var snapshot time.Time
+	var err error
+	if cursor == "" {
+		snapshot, err = database.CurrentTime(ctx, s.db)
+	} else {
+		pagePosition, snapshot, err = s.decodePageCursor(cursor)
+	}
+	if err != nil {
+		return ResourcePage{}, fmt.Errorf("prepare resource page snapshot: %w", err)
+	}
 	query := s.db.WithContext(ctx).Where("user_id = ?", user.ID)
+	if cursor != "" && (pagePosition.FilterKind != kind || pagePosition.IncludeDeleted != includeDeleted) {
+		return ResourcePage{}, fmt.Errorf("%w: cursor does not match resource filters", ErrInvalidPage)
+	}
 	if kind != "" {
 		if err := validateKind(kind); err != nil {
-			return nil, err
+			return ResourcePage{}, err
 		}
 		query = query.Where("kind = ?", kind)
 	}
 	if !includeDeleted {
 		query = query.Where("deleted = ?", false)
 	}
-	var resources []model.Resource
-	if err := query.Order("kind ASC").Order("external_id ASC").Find(&resources).Error; err != nil {
-		return nil, fmt.Errorf("list resources: %w", err)
+	query = query.Where("created_at <= ?", snapshot)
+	if cursor != "" {
+		query = query.Where(
+			"(kind > ?) OR (kind = ? AND external_id > ?) OR (kind = ? AND external_id = ? AND id > ?)",
+			pagePosition.Kind,
+			pagePosition.Kind,
+			pagePosition.ExternalID,
+			pagePosition.Kind,
+			pagePosition.ExternalID,
+			pagePosition.InternalID,
+		)
 	}
-	views := make([]ResourceView, 0, len(resources))
-	for _, resource := range resources {
+	rows, err := query.Model(&model.Resource{}).
+		Order("kind ASC").
+		Order("external_id ASC").
+		Order("id ASC").
+		Limit(limit + 1).
+		Rows()
+	if err != nil {
+		return ResourcePage{}, fmt.Errorf("list resources: %w", err)
+	}
+	defer rows.Close()
+
+	views := make([]ResourceView, 0, limit)
+	encodedBytes := 0
+	hasMore := false
+	var last model.Resource
+	for rows.Next() {
+		if len(views) == limit {
+			hasMore = true
+			break
+		}
+		var resource model.Resource
+		if err := s.db.ScanRows(rows, &resource); err != nil {
+			return ResourcePage{}, fmt.Errorf("scan resource page: %w", err)
+		}
 		if includeSensitive && resource.SensitiveCiphertext != "" && len(key) == 0 {
-			return nil, secure.ErrKeyRequired
+			return ResourcePage{}, secure.ErrKeyRequired
 		}
 		view, err := resourceView(resource, key, includeSensitive)
 		if err != nil {
-			return nil, err
+			return ResourcePage{}, err
+		}
+		encoded, err := json.Marshal(view)
+		if err != nil {
+			return ResourcePage{}, fmt.Errorf("encode resource page item: %w", err)
+		}
+		separatorBytes := 0
+		if len(views) > 0 {
+			separatorBytes = 1
+		}
+		if encodedBytes+separatorBytes+len(encoded) > MaximumJSONResponseBytes-responseEnvelopeReserve {
+			if len(views) == 0 {
+				return ResourcePage{}, ErrResponseTooLarge
+			}
+			hasMore = true
+			break
 		}
 		views = append(views, view)
+		encodedBytes += separatorBytes + len(encoded)
+		last = resource
 	}
-	return views, nil
+	if err := rows.Err(); err != nil {
+		return ResourcePage{}, fmt.Errorf("iterate resource page: %w", err)
+	}
+	page := ResourcePage{Resources: views, snapshot: snapshot}
+	if hasMore {
+		page.NextCursor, err = s.encodePageCursor(last, snapshot, kind, includeDeleted)
+		if err != nil {
+			return ResourcePage{}, err
+		}
+	}
+	return page, nil
 }
 
 func (s *Store) Delete(
@@ -290,7 +433,10 @@ func (s *Store) Delete(
 		if expectedRevision != nil && resource.Revision != *expectedRevision {
 			return ErrRevisionConflict
 		}
-		now := time.Now().UTC()
+		now, err := database.CurrentTime(ctx, tx)
+		if err != nil {
+			return err
+		}
 		resource.Deleted = true
 		resource.DeletedAt = &now
 		resource.PlainJSON = "{}"
@@ -312,17 +458,82 @@ func (s *Store) Export(
 	user model.User,
 	key []byte,
 	includeDeleted, includeSensitive bool,
+	limit int,
+	cursor string,
 ) (ExportBundle, error) {
-	resources, err := s.List(ctx, user, key, "", includeDeleted, includeSensitive)
+	page, err := s.List(ctx, user, key, "", includeDeleted, includeSensitive, limit, cursor)
 	if err != nil {
 		return ExportBundle{}, err
 	}
 	return ExportBundle{
 		SchemaVersion: 1,
 		SourceID:      s.serverID,
-		ExportedAt:    time.Now().UTC(),
-		Resources:     resources,
+		ExportedAt:    page.snapshot,
+		Resources:     page.Resources,
+		NextCursor:    page.NextCursor,
 	}, nil
+}
+
+func (s *Store) decodePageCursor(encoded string) (pageCursor, time.Time, error) {
+	if len(encoded) > maximumPageCursorBytes {
+		return pageCursor{}, time.Time{}, fmt.Errorf("%w: cursor is too large", ErrInvalidPage)
+	}
+	parts := strings.Split(encoded, ".")
+	if len(parts) != 2 {
+		return pageCursor{}, time.Time{}, fmt.Errorf("%w: cursor is malformed", ErrInvalidPage)
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return pageCursor{}, time.Time{}, fmt.Errorf("%w: cursor is malformed", ErrInvalidPage)
+	}
+	signature, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return pageCursor{}, time.Time{}, fmt.Errorf("%w: cursor is malformed", ErrInvalidPage)
+	}
+	mac := hmac.New(sha256.New, s.cursorSigningKey)
+	_, _ = mac.Write(raw)
+	if !hmac.Equal(signature, mac.Sum(nil)) {
+		return pageCursor{}, time.Time{}, fmt.Errorf("%w: cursor signature is invalid", ErrInvalidPage)
+	}
+	var cursor pageCursor
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&cursor); err != nil {
+		return pageCursor{}, time.Time{}, fmt.Errorf("%w: cursor is malformed", ErrInvalidPage)
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		return pageCursor{}, time.Time{}, fmt.Errorf("%w: cursor is malformed", ErrInvalidPage)
+	}
+	if err := validateResourceKey(cursor.Kind, cursor.ExternalID); err != nil ||
+		!internalIDPattern.MatchString(cursor.InternalID) || cursor.SnapshotUnixNanos <= 0 {
+		return pageCursor{}, time.Time{}, fmt.Errorf("%w: cursor fields are invalid", ErrInvalidPage)
+	}
+	snapshot := time.Unix(0, cursor.SnapshotUnixNanos).UTC()
+	return cursor, snapshot, nil
+}
+
+func (s *Store) encodePageCursor(
+	resource model.Resource,
+	snapshot time.Time,
+	filterKind string,
+	includeDeleted bool,
+) (string, error) {
+	encoded, err := json.Marshal(pageCursor{
+		Kind:              resource.Kind,
+		ExternalID:        resource.ExternalID,
+		InternalID:        resource.ID,
+		SnapshotUnixNanos: snapshot.UnixNano(),
+		FilterKind:        filterKind,
+		IncludeDeleted:    includeDeleted,
+	})
+	if err != nil {
+		return "", fmt.Errorf("encode resource page cursor: %w", err)
+	}
+	mac := hmac.New(sha256.New, s.cursorSigningKey)
+	_, _ = mac.Write(encoded)
+	return base64.RawURLEncoding.EncodeToString(encoded) + "." +
+		base64.RawURLEncoding.EncodeToString(mac.Sum(nil)), nil
 }
 
 func (s *Store) Merge(
@@ -418,7 +629,10 @@ func (s *Store) mergeOne(
 		incoming.Kind,
 		incoming.ID,
 	).First(&existing).Error
-	now := time.Now().UTC()
+	now, err := database.CurrentTime(tx.Statement.Context, tx)
+	if err != nil {
+		return result, err
+	}
 	originUpdatedAt := incoming.SourceUpdatedAt.UTC()
 	if originUpdatedAt.IsZero() {
 		originUpdatedAt = now
@@ -451,6 +665,8 @@ func (s *Store) mergeOne(
 			SourceID:        sourceID,
 			SourceRevision:  sourceRevision,
 			OriginUpdatedAt: originUpdatedAt,
+			CreatedAt:       now,
+			UpdatedAt:       now,
 		}
 		if sensitivePresent && !isJSONNull(sensitive) {
 			if err := encryptSensitive(&created, key, sensitive); err != nil {
@@ -689,4 +905,33 @@ func ensureServerID(ctx context.Context, db *gorm.DB) (string, error) {
 		return "", fmt.Errorf("save server id: %w", err)
 	}
 	return serverID, nil
+}
+
+func ensureCursorSigningKey(ctx context.Context, db *gorm.DB) ([]byte, error) {
+	var setting model.Setting
+	err := db.WithContext(ctx).Where("key = ?", cursorSigningKeySetting).First(&setting).Error
+	if err == nil {
+		if strings.TrimSpace(setting.Value) == "" {
+			return nil, errors.New("stored cursor signing key is empty")
+		}
+		return []byte(setting.Value), nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("load cursor signing key: %w", err)
+	}
+	key, err := identity.Secret(32)
+	if err != nil {
+		return nil, err
+	}
+	setting = model.Setting{Key: cursorSigningKeySetting, Value: key}
+	if err := db.WithContext(ctx).Create(&setting).Error; err != nil {
+		// A concurrent initializer may have inserted the setting first.
+		if loadErr := db.WithContext(ctx).
+			Where("key = ?", cursorSigningKeySetting).
+			First(&setting).Error; loadErr == nil && strings.TrimSpace(setting.Value) != "" {
+			return []byte(setting.Value), nil
+		}
+		return nil, fmt.Errorf("save cursor signing key: %w", err)
+	}
+	return []byte(key), nil
 }

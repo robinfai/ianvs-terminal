@@ -19,7 +19,7 @@
 
 每个密文都绑定 `user + kind + resource id` 作为认证数据，不能被复制到其他用户或资源后继续解密。远程模式默认要求 TLS；如果 TLS 在反向代理终止，需显式设置 `IANVS_TRUST_PROXY_HEADERS=true`，并确保外部请求不能绕过代理直连服务。
 
-数据密钥没有服务端恢复通道：丢失密钥后既有敏感字段无法解密。客户端应把随机密钥备份到受保护的凭据存储；v1 暂不提供在线密钥轮换。
+数据密钥没有服务端恢复通道：丢失密钥后既有敏感字段无法解密。客户端应把 16–1024 字节的随机密钥备份到受保护的凭据存储。密钥合同 v1 只允许首次创建和同密钥验证；重复 setup/register 不能更换密钥，服务也不提供恢复或在线轮换。完整决策与未来 old+new key 全量重加密要求见 [ADR-0004](../docs/DECISIONS/ADR-0004-data-api-key-lifecycle-v1.md)。
 
 ## 本地运行
 
@@ -80,7 +80,8 @@ IANVS_MYSQL_ROOT_PASSWORD='<dev-root-password>' \
 
 该组合为了本机反向代理/测试显式允许 HTTP，不应直接作为公网部署配置。
 
-首次用户注册时同时创建登录密码和独立数据密钥：
+远程注册默认关闭。管理员只应在受控注册窗口显式设置
+`IANVS_ALLOW_REGISTRATION=true`，首次用户注册时同时创建登录密码和独立数据密钥：
 
 ```bash
 curl -X POST https://api.example.com/v1/auth/register \
@@ -95,7 +96,7 @@ curl -X POST https://api.example.com/v1/auth/register \
 所有持久化对象使用稳定的 `kind/id`：
 
 ```text
-GET    /v1/resources?kind=profile
+GET    /v1/resources?kind=profile&limit=100&cursor=<opaque>
 GET    /v1/resources/{kind}/{id}
 PUT    /v1/resources/{kind}/{id}
 DELETE /v1/resources/{kind}/{id}
@@ -117,6 +118,8 @@ DELETE /v1/resources/{kind}/{id}
 ```
 
 `data` 明文保存；`sensitive` 整体加密。省略 `sensitive` 会保留原密文，`clear_sensitive: true` 才会清除它。`expected_revision` 可选，用于阻止并发覆盖。读取默认只返回 `has_sensitive`；显式添加 `?include_sensitive=true` 并提供数据密钥才会解密返回。
+
+列表使用按 `kind / resource id / internal id` 排序的 keyset 分页。`limit` 默认为 100，范围 1–100；响应中的 `next_cursor` 存在时必须继续请求下一页。服务端签名的游标会绑定数据库时钟产生的首屏 UTC 创建时间 cutoff、`kind` 与 `include_deleted`，不能篡改或在翻页中切换这些过滤条件；共享数据库的多个 API 实例即使主机时钟偏斜，也不会把首屏请求后新建的资源纳入该次遍历。单页和单资源 JSON 响应上限为 12 MiB；为了保持该上限，实际条数可能少于 `limit`。
 
 建议的 kind：`profile`、`session`、`config`、`theme`、`layout_template`、`recent_items`、`paste_history`。API 允许增加其他 kind，无需改表。
 
@@ -146,11 +149,11 @@ profiles 会拆成独立资源；已是明文的 `password`、`privateKeyPassphr
 本地和远程暴露相同的 migration contract：
 
 ```text
-GET  /v1/migrations/export?include_sensitive=true
+GET  /v1/migrations/export?include_sensitive=true&limit=100&cursor=<opaque>
 POST /v1/migrations/merge
 ```
 
-可以直接流式传递，避免在磁盘留下含解密敏感字段的临时 bundle：
+每个导出页都可直接提交给 merge，避免在磁盘留下含解密敏感字段的临时 bundle。下面的管道只适用于没有 `next_cursor` 的单页；多页迁移必须逐页读取 cursor，并按页提交：
 
 ```bash
 curl -sS 'http://127.0.0.1:47832/v1/migrations/export?include_sensitive=true' \
@@ -162,7 +165,7 @@ curl -sS -X POST 'https://api.example.com/v1/migrations/merge' \
   --data-binary @-
 ```
 
-本地与远程数据密钥可以不同：bundle 在 TLS 通道内传递解密后的敏感 JSON，远程收到后使用目标用户的密钥重新加密。
+本地与远程数据密钥可以不同：bundle 在 TLS 通道内传递解密后的敏感 JSON，远程收到后使用目标用户的密钥重新加密。导出与 merge 共用每批最多 100 个资源、编码 JSON 最多 12 MiB 的合同，因此合法导出页不会超过导入上限；每个资源携带 source revision，按页重试仍保持幂等。
 
 默认冲突策略为 `preserve_destination`：新资源创建、相同资源跳过、同 ID 不同内容保留远程并报告 `conflict`。显式迁移工具也可提交 `source_wins` 或 `newer_wins`。删除默认不传播，只有 `propagate_deletes: true` 才应用 tombstone。
 
@@ -177,7 +180,7 @@ curl -sS -X POST 'https://api.example.com/v1/migrations/merge' \
 | `IANVS_LOCAL_ACCESS_TOKEN` | 空 | 可选；本地模式所有请求需要的 Bearer token，主应用启动 sidecar 时自动设置 |
 | `IANVS_EXIT_ON_STDIN_CLOSE` | `false` | stdin 关闭时优雅停止服务，供主应用管理 sidecar 生命周期 |
 | `IANVS_AUTH_TOKEN_TTL` | `24h` | 登录 token 有效期 |
-| `IANVS_ALLOW_REGISTRATION` | `true` | 是否开放远程注册 |
+| `IANVS_ALLOW_REGISTRATION` | `false` | 是否开放远程注册；仅在受控注册窗口显式启用 |
 | `IANVS_TRUST_PROXY_HEADERS` | `false` | 是否接受代理提供的 HTTPS 标记 |
 | `IANVS_ALLOW_INSECURE_SENSITIVE_TRANSPORT` | `false` | 仅限受控开发环境 |
 | `IANVS_LEGACY_DATA_DIR` | 空 | legacy import 默认目录 |

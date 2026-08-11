@@ -54,7 +54,7 @@ func FromEnv() (Config, error) {
 	if err != nil || tokenTTL <= 0 {
 		return Config{}, errors.New("IANVS_AUTH_TOKEN_TTL must be a positive duration")
 	}
-	allowRegistration, err := envBool("IANVS_ALLOW_REGISTRATION", true)
+	allowRegistration, err := envBool("IANVS_ALLOW_REGISTRATION", false)
 	if err != nil {
 		return Config{}, err
 	}

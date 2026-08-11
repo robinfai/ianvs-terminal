@@ -258,6 +258,11 @@ Hyper-like `Phase 0` 到 `Phase 4` 连同 defaults 清理已经进入历史阶�
 
 以下阶段保留为长期方向，但不再代表当前执行顺序。
 
+Data API 密钥轮换是独立的长期安全里程碑，当前 v1 明确不支持。进入实现前必须满足
+[ADR-0004](DECISIONS/ADR-0004-data-api-key-lifecycle-v1.md) 的 old+new key 验证、
+全量敏感资源事务性或可恢复重加密、并发写入隔离、失败回滚和版本化 KDF 兼容要求；
+不得通过只替换 verifier 的方式伪装成轮换。
+
 ### Phase 1: macOS Local Shell Stabilization
 
 目标：

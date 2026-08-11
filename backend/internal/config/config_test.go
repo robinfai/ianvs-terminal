@@ -28,3 +28,17 @@ func TestFromEnvRejectsInvalidExitOnStdinClose(t *testing.T) {
 		t.Fatal("FromEnv() error = nil, want invalid boolean error")
 	}
 }
+
+func TestFromEnvKeepsRemoteRegistrationClosedByDefault(t *testing.T) {
+	t.Setenv("IANVS_API_MODE", "remote")
+	t.Setenv("IANVS_DB_DSN", t.TempDir()+"/ianvs.db")
+	t.Setenv("IANVS_ALLOW_REGISTRATION", "")
+
+	cfg, err := FromEnv()
+	if err != nil {
+		t.Fatalf("FromEnv() error = %v", err)
+	}
+	if cfg.AllowRegistration {
+		t.Fatal("AllowRegistration = true, want fail-closed default")
+	}
+}

@@ -13,6 +13,7 @@
 - `ADR-0001-flutter-canvas-first.md`
 - `ADR-0002-json-ffi-first.md`
 - `ADR-0003-terminal-scope-convergence.md`
+- `ADR-0004-data-api-key-lifecycle-v1.md`
 
 每份决策文档至少包含：
 

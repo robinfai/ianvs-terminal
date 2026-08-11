@@ -3,6 +3,7 @@ package secure_test
 import (
 	"bytes"
 	"errors"
+	"strings"
 	"testing"
 
 	"ianvs-terminal/backend/internal/model"
@@ -54,5 +55,21 @@ func TestConfigureUserKeyRejectsShortSecret(t *testing.T) {
 	user := model.User{}
 	if _, err := secure.ConfigureUserKey(&user, "too-short"); !errors.Is(err, secure.ErrWeakKey) {
 		t.Fatalf("ConfigureUserKey() error = %v, want ErrWeakKey", err)
+	}
+}
+
+func TestUserKeyOperationsRejectOversizedSecretsBeforeDerivation(t *testing.T) {
+	t.Parallel()
+
+	oversized := strings.Repeat("x", secure.MaximumUserKeyBytes+1)
+	user := model.User{}
+	if _, err := secure.ConfigureUserKey(&user, oversized); !errors.Is(err, secure.ErrKeyTooLong) {
+		t.Fatalf("ConfigureUserKey(oversized) error = %v, want ErrKeyTooLong", err)
+	}
+	user.KeyDerivation = secure.KeyDerivationFormat
+	user.KeySalt = "not-used"
+	user.KeyVerifier = "not-used"
+	if _, err := secure.VerifyUserKey(user, oversized); !errors.Is(err, secure.ErrKeyTooLong) {
+		t.Fatalf("VerifyUserKey(oversized) error = %v, want ErrKeyTooLong", err)
 	}
 }

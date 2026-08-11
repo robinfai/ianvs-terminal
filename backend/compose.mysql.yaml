@@ -24,6 +24,7 @@ services:
       IANVS_API_ADDR: 0.0.0.0:47832
       IANVS_DB_DRIVER: mysql
       IANVS_DB_DSN: ianvs:${IANVS_MYSQL_PASSWORD}@tcp(mysql:3306)/ianvs?charset=utf8mb4&parseTime=True&loc=UTC
+      IANVS_ALLOW_REGISTRATION: "true"
       IANVS_ALLOW_INSECURE_SENSITIVE_TRANSPORT: "true"
     ports:
       - "127.0.0.1:47832:47832"

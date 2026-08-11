@@ -30,8 +30,8 @@ import (
 )
 
 const (
-	maximumBodySize      = 8 << 20
-	maximumMergeBodySize = 32 << 20
+	maximumBodySize      = store.MaximumJSONResponseBytes
+	maximumMergeBodySize = store.MaximumJSONResponseBytes
 	encryptionKeyHeader  = "X-Ianvs-Encryption-Key"
 	requestIDHeader      = "X-Request-ID"
 	maximumRequestIDSize = 128
@@ -43,11 +43,12 @@ var requestIDFallback atomic.Uint64
 type requestIDContextKey struct{}
 
 type API struct {
-	cfg    config.Config
-	auth   *auth.Service
-	store  *store.Store
-	mux    *http.ServeMux
-	logger *slog.Logger
+	cfg                  config.Config
+	auth                 *auth.Service
+	store                *store.Store
+	mux                  *http.ServeMux
+	logger               *slog.Logger
+	anonymousAuthLimiter *peerRateLimiter
 }
 
 type protectedHandler func(http.ResponseWriter, *http.Request, model.User, string)
@@ -68,11 +69,12 @@ func newWithLogger(
 	logger *slog.Logger,
 ) *API {
 	api := &API{
-		cfg:    cfg,
-		auth:   authService,
-		store:  resourceStore,
-		mux:    http.NewServeMux(),
-		logger: logger,
+		cfg:                  cfg,
+		auth:                 authService,
+		store:                resourceStore,
+		mux:                  http.NewServeMux(),
+		logger:               logger,
+		anonymousAuthLimiter: newAnonymousAuthRateLimiter(),
 	}
 	api.routes()
 	return api
@@ -88,6 +90,7 @@ func (a *API) routes() {
 	a.mux.HandleFunc("POST /v1/auth/register", a.register)
 	a.mux.HandleFunc("POST /v1/auth/login", a.login)
 	a.mux.Handle("POST /v1/auth/logout", a.protected(a.logout))
+	a.mux.Handle("POST /v1/auth/verify-key", a.protected(a.verifyKey))
 	a.mux.Handle("GET /v1/me", a.protected(a.me))
 	a.mux.Handle("GET /v1/resources", a.protected(a.listResources))
 	a.mux.Handle("GET /v1/resources/{kind}/{id}", a.protected(a.getResource))
@@ -95,6 +98,19 @@ func (a *API) routes() {
 	a.mux.Handle("DELETE /v1/resources/{kind}/{id}", a.protected(a.deleteResource))
 	a.mux.Handle("GET /v1/migrations/export", a.protected(a.exportMigration))
 	a.mux.Handle("POST /v1/migrations/merge", a.protected(a.mergeMigration))
+}
+
+func (a *API) verifyKey(w http.ResponseWriter, r *http.Request, user model.User, _ string) {
+	if _, err := a.keyForRequest(r, user, true); err != nil {
+		a.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"verified":               true,
+		"basis":                  "account_key_verifier",
+		"key_contract_version":   secure.KeyContractVersion,
+		"key_rotation_supported": false,
+	})
 }
 
 func (a *API) health(w http.ResponseWriter, r *http.Request) {
@@ -151,6 +167,9 @@ func (a *API) register(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "secure_transport_required", "registration requires HTTPS")
 		return
 	}
+	if !a.allowAnonymousAuthRequest(w, r) {
+		return
+	}
 	var request struct {
 		Username      string `json:"username"`
 		Password      string `json:"password"`
@@ -180,6 +199,9 @@ func (a *API) login(w http.ResponseWriter, r *http.Request) {
 	}
 	if !a.sensitiveTransportAllowed(r) {
 		writeError(w, http.StatusBadRequest, "secure_transport_required", "login requires HTTPS")
+		return
+	}
+	if !a.allowAnonymousAuthRequest(w, r) {
 		return
 	}
 	var request struct {
@@ -228,19 +250,26 @@ func (a *API) listResources(w http.ResponseWriter, r *http.Request, user model.U
 		a.writeServiceError(w, err)
 		return
 	}
-	resources, err := a.store.List(
+	limit, cursor, err := queryPage(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_query", err.Error())
+		return
+	}
+	page, err := a.store.List(
 		r.Context(),
 		user,
 		key,
 		strings.TrimSpace(r.URL.Query().Get("kind")),
 		includeDeleted,
 		includeSensitive,
+		limit,
+		cursor,
 	)
 	if err != nil {
 		a.writeServiceError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"resources": resources})
+	writeBoundedJSON(w, http.StatusOK, page)
 }
 
 func (a *API) getResource(w http.ResponseWriter, r *http.Request, user model.User, _ string) {
@@ -266,7 +295,7 @@ func (a *API) getResource(w http.ResponseWriter, r *http.Request, user model.Use
 		a.writeServiceError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, resource)
+	writeBoundedJSON(w, http.StatusOK, resource)
 }
 
 func (a *API) putResource(w http.ResponseWriter, r *http.Request, user model.User, _ string) {
@@ -283,6 +312,10 @@ func (a *API) putResource(w http.ResponseWriter, r *http.Request, user model.Use
 	sensitivePresent := len(request.Sensitive) > 0
 	if sensitivePresent && request.ClearSensitive {
 		writeError(w, http.StatusBadRequest, "invalid_request", "sensitive and clear_sensitive cannot be used together")
+		return
+	}
+	if request.ExpectedRevision != nil && *request.ExpectedRevision < 0 {
+		writeError(w, http.StatusBadRequest, "invalid_request", "expected_revision must be zero or a positive integer")
 		return
 	}
 	if sensitivePresent && !a.sensitiveTransportAllowed(r) {
@@ -312,7 +345,7 @@ func (a *API) putResource(w http.ResponseWriter, r *http.Request, user model.Use
 		a.writeServiceError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, resource)
+	writeBoundedJSON(w, http.StatusOK, resource)
 }
 
 func (a *API) deleteResource(w http.ResponseWriter, r *http.Request, user model.User, _ string) {
@@ -358,12 +391,25 @@ func (a *API) exportMigration(w http.ResponseWriter, r *http.Request, user model
 		a.writeServiceError(w, err)
 		return
 	}
-	bundle, err := a.store.Export(r.Context(), user, key, includeDeleted, includeSensitive)
+	limit, cursor, err := queryPage(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_query", err.Error())
+		return
+	}
+	bundle, err := a.store.Export(
+		r.Context(),
+		user,
+		key,
+		includeDeleted,
+		includeSensitive,
+		limit,
+		cursor,
+	)
 	if err != nil {
 		a.writeServiceError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, bundle)
+	writeBoundedJSON(w, http.StatusOK, bundle)
 }
 
 func (a *API) mergeMigration(w http.ResponseWriter, r *http.Request, user model.User, _ string) {
@@ -447,21 +493,52 @@ func (a *API) writeServiceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "username_taken", err.Error())
 	case errors.Is(err, auth.ErrInvalidUsername), errors.Is(err, auth.ErrInvalidPassword):
 		writeError(w, http.StatusBadRequest, "invalid_account", err.Error())
+	case errors.Is(err, auth.ErrPasswordHashBusy):
+		w.Header().Set("Retry-After", "1")
+		writeError(w, http.StatusTooManyRequests, "password_hash_busy", "password verification capacity is busy")
 	case errors.Is(err, secure.ErrKeyRequired):
 		writeError(w, http.StatusPreconditionRequired, "encryption_key_required", "configure and provide the user encryption key")
 	case errors.Is(err, secure.ErrInvalidKey):
 		writeError(w, http.StatusUnauthorized, "invalid_encryption_key", "the encryption key is invalid")
 	case errors.Is(err, secure.ErrWeakKey):
 		writeError(w, http.StatusBadRequest, "weak_encryption_key", err.Error())
+	case errors.Is(err, secure.ErrKeyTooLong):
+		writeError(w, http.StatusBadRequest, "encryption_key_too_long", err.Error())
+	case errors.Is(err, secure.ErrKeyDerivationBusy):
+		w.Header().Set("Retry-After", "1")
+		writeError(w, http.StatusTooManyRequests, "key_derivation_busy", "encryption key verification capacity is busy")
 	case errors.Is(err, store.ErrNotFound), errors.Is(err, gorm.ErrRecordNotFound):
 		writeError(w, http.StatusNotFound, "not_found", "resource was not found")
 	case errors.Is(err, store.ErrRevisionConflict):
 		writeError(w, http.StatusConflict, "revision_conflict", "resource revision changed")
 	case errors.Is(err, store.ErrInvalidResource):
 		writeError(w, http.StatusBadRequest, "invalid_resource", err.Error())
+	case errors.Is(err, store.ErrInvalidPage):
+		writeError(w, http.StatusBadRequest, "invalid_cursor", "the pagination cursor is invalid")
+	case errors.Is(err, store.ErrResponseTooLarge):
+		writeError(w, http.StatusUnprocessableEntity, "response_too_large", "a resource exceeds the response size limit")
 	default:
 		writeError(w, http.StatusInternalServerError, "internal_error", "the request could not be completed")
 	}
+}
+
+func (a *API) allowAnonymousAuthRequest(w http.ResponseWriter, r *http.Request) bool {
+	allowed, retryAfter := a.anonymousAuthLimiter.allow(r.RemoteAddr)
+	if allowed {
+		return true
+	}
+	retrySeconds := int64((retryAfter + time.Second - 1) / time.Second)
+	if retrySeconds < 1 {
+		retrySeconds = 1
+	}
+	w.Header().Set("Retry-After", strconv.FormatInt(retrySeconds, 10))
+	writeError(
+		w,
+		http.StatusTooManyRequests,
+		"authentication_rate_limited",
+		"too many authentication attempts from this network peer",
+	)
+	return false
 }
 
 func (a *API) withLocalBoundary(next http.Handler) http.Handler {
@@ -671,6 +748,18 @@ func queryBool(r *http.Request, name string) (bool, error) {
 	return value, nil
 }
 
+func queryPage(r *http.Request) (int, string, error) {
+	limit := store.DefaultPageLimit
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 || parsed > store.MaximumPageLimit {
+			return 0, "", fmt.Errorf("limit must be between 1 and %d", store.MaximumPageLimit)
+		}
+		limit = parsed
+	}
+	return limit, strings.TrimSpace(r.URL.Query().Get("cursor")), nil
+}
+
 func bearerToken(header string) string {
 	parts := strings.Fields(header)
 	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
@@ -692,6 +781,21 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(value)
+}
+
+func writeBoundedJSON(w http.ResponseWriter, status int, value any) {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "the response could not be encoded")
+		return
+	}
+	if len(encoded)+1 > store.MaximumJSONResponseBytes {
+		writeError(w, http.StatusUnprocessableEntity, "response_too_large", "the response exceeds the documented size limit")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	_, _ = w.Write(append(encoded, '\n'))
 }
 
 func writeError(w http.ResponseWriter, status int, code, message string) {

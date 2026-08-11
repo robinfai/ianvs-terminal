@@ -103,6 +103,7 @@
 - [DECISIONS/ADR-0001-hyper-phase0-shell-boundaries.md](DECISIONS/ADR-0001-hyper-phase0-shell-boundaries.md)：Hyper-inspired shell 边界与 terminal protected contracts。
 - [DECISIONS/ADR-0002-terminal-core-fork-rationale.md](DECISIONS/ADR-0002-terminal-core-fork-rationale.md)：保留 vendored terminal core fork 的理由。
 - [DECISIONS/ADR-0003-terminal-scope-convergence.md](DECISIONS/ADR-0003-terminal-scope-convergence.md)：从 Project Workspace 收敛到 Terminal Layout 与最小 Relaunch Spec。
+- [DECISIONS/ADR-0004-data-api-key-lifecycle-v1.md](DECISIONS/ADR-0004-data-api-key-lifecycle-v1.md)：Data API 客户端密钥 v1 的一次创建、不可恢复/轮换、版本化 KDF 与未来安全轮换约束。
 
 重要且长期影响后续边界的选择写 ADR；一次性实现细节留在任务文档。
 
