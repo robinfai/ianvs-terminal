@@ -120,6 +120,18 @@ void main() {
         'EncryptionKeyRequiredError': 'encryption_key_required',
         'EncryptionKeyTooLongError': 'encryption_key_too_long',
         'KeyDerivationBusyError': 'key_derivation_busy',
+        'AuthOperationNotFoundError': 'auth_operation_not_found',
+        'AuthOperationKindMismatchError': 'auth_operation_kind_mismatch',
+        'AuthSessionCapacityError': 'auth_session_capacity',
+        'LocalAccessDeniedError': 'local_access_denied',
+        'LocalOnlyError': 'local_only',
+        'InvalidJSONError': 'invalid_json',
+        'RequestTooLargeError': 'request_too_large',
+        'UnsupportedMediaTypeError': 'unsupported_media_type',
+        'SecureTransportRequiredError': 'secure_transport_required',
+        'InvalidAccountError': 'invalid_account',
+        'NotFoundError': 'not_found',
+        'InternalError': 'internal_error',
       };
       for (final entry in exactErrors.entries) {
         final envelope = schemas[entry.key]! as YamlMap;
@@ -130,6 +142,94 @@ void main() {
           (errorProperties['code']! as YamlMap)['const'],
           entry.value,
           reason: entry.key,
+        );
+      }
+
+      final requiredNotFoundReferences = <String, Set<String>>{
+        '/v1/auth/login/begin': <String>{'#/components/schemas/NotFoundError'},
+        '/v1/auth/login/complete': <String>{
+          '#/components/schemas/AuthOperationNotFoundError',
+          '#/components/schemas/NotFoundError',
+        },
+        '/v1/auth/register/begin': <String>{
+          '#/components/schemas/NotFoundError',
+        },
+        '/v1/auth/register/complete': <String>{
+          '#/components/schemas/AuthOperationNotFoundError',
+          '#/components/schemas/NotFoundError',
+        },
+        '/v1/auth/cancel-operation': <String>{
+          '#/components/schemas/NotFoundError',
+        },
+      };
+      for (final path in requiredNotFoundReferences.keys) {
+        final operation = (paths[path]! as YamlMap)['post']! as YamlMap;
+        final responses = operation['responses']! as YamlMap;
+        expect(
+          responses.keys.map((key) => key.toString()),
+          containsAll(<String>[
+            '400',
+            '401',
+            '403',
+            '404',
+            '413',
+            '415',
+            '429',
+            '500',
+          ]),
+          reason: path,
+        );
+        expect(
+          _references(responses['400']),
+          contains('#/components/schemas/InvalidJSONError'),
+          reason: '$path invalid JSON',
+        );
+        expect(
+          _references(responses['401']),
+          anyOf(
+            contains('#/components/responses/LocalAccessDenied'),
+            contains('#/components/schemas/LocalAccessDeniedError'),
+          ),
+          reason: '$path local access token',
+        );
+        expect(
+          _references(responses['403']),
+          contains('#/components/responses/LocalOnly'),
+          reason: '$path local loopback boundary',
+        );
+        final notFoundReferences = _references(responses['404']);
+        for (final reference in requiredNotFoundReferences[path]!) {
+          expect(
+            notFoundReferences,
+            contains(reference),
+            reason: '$path unavailable/expired response $reference',
+          );
+        }
+        expect(
+          _references(responses['413']),
+          contains('#/components/responses/AuthenticationRequestTooLarge'),
+          reason: '$path request size',
+        );
+        expect(
+          _references(responses['415']),
+          contains('#/components/responses/UnsupportedMediaType'),
+          reason: '$path content type',
+        );
+        final internalFailure = responses['500']! as YamlMap;
+        final content = internalFailure['content']! as YamlMap;
+        final mediaType = content['application/json']! as YamlMap;
+        final schema = mediaType['schema']! as YamlMap;
+        expect(
+          schema[r'$ref'],
+          '#/components/schemas/InternalError',
+          reason: path,
+        );
+        final rateLimit = responses['429']! as YamlMap;
+        final rateLimitHeaders = rateLimit['headers']! as YamlMap;
+        expect(
+          rateLimitHeaders,
+          contains('Retry-After'),
+          reason: '$path rate limit retry contract',
         );
       }
 
@@ -175,6 +275,28 @@ Set<String> _parameterReferences(YamlMap operation) {
       .map((parameter) => parameter[r'$ref'])
       .whereType<String>()
       .toSet();
+}
+
+Set<String> _references(Object? value) {
+  final result = <String>{};
+  void collect(Object? node) {
+    if (node is YamlMap) {
+      final reference = node[r'$ref'];
+      if (reference is String) {
+        result.add(reference);
+      }
+      for (final child in node.values) {
+        collect(child);
+      }
+    } else if (node is YamlList) {
+      for (final child in node) {
+        collect(child);
+      }
+    }
+  }
+
+  collect(value);
+  return result;
 }
 
 YamlMap _expectMap(YamlMap owner, String key) {

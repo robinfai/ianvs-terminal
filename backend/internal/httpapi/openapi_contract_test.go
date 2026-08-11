@@ -17,7 +17,12 @@ import (
 
 type openAPIOperation struct {
 	OperationID string
-	Responses   map[string]struct{}
+	Responses   map[string]openAPIResponse
+}
+
+type openAPIResponse struct {
+	References map[string]struct{}
+	Headers    map[string]struct{}
 }
 
 func TestOpenAPIPathsMatchImplementedHTTPRoutes(t *testing.T) {
@@ -27,8 +32,11 @@ func TestOpenAPIPathsMatchImplementedHTTPRoutes(t *testing.T) {
 	wantOperationIDs := map[string]string{
 		"GET /healthz":                     "health",
 		"POST /v1/auth/setup":              "setupLocalUserKey",
-		"POST /v1/auth/register":           "register",
-		"POST /v1/auth/login":              "login",
+		"POST /v1/auth/register/begin":     "beginRegistration",
+		"POST /v1/auth/register/complete":  "completeRegistration",
+		"POST /v1/auth/login/begin":        "beginLogin",
+		"POST /v1/auth/login/complete":     "completeLogin",
+		"POST /v1/auth/cancel-operation":   "cancelAuthenticationOperation",
 		"POST /v1/auth/logout":             "logout",
 		"POST /v1/auth/verify-key":         "verifyEncryptionKey",
 		"GET /v1/me":                       "getCurrentUser",
@@ -110,6 +118,74 @@ func TestOpenAPIVerifyKeyDocumentsEveryTypedRuntimeOutcome(t *testing.T) {
 	}
 }
 
+func TestOpenAPIAuthenticationCancellationDocumentsEveryRuntimeOutcome(t *testing.T) {
+	operations := readOpenAPIOperations(t)
+	cancelOperation := operations["POST /v1/auth/cancel-operation"]
+	for _, status := range []string{"204", "400", "404", "413", "415", "429", "500"} {
+		if _, exists := cancelOperation.Responses[status]; !exists {
+			t.Errorf("POST /v1/auth/cancel-operation does not document status %s", status)
+		}
+	}
+}
+
+func TestOpenAPITwoStepAuthenticationDocumentsMiddlewareAndDecodeOutcomes(t *testing.T) {
+	operations := readOpenAPIOperations(t)
+	requiredNotFoundReferences := map[string][]string{
+		"POST /v1/auth/login/begin":       {"#/components/schemas/NotFoundError"},
+		"POST /v1/auth/login/complete":    {"#/components/schemas/AuthOperationNotFoundError", "#/components/schemas/NotFoundError"},
+		"POST /v1/auth/register/begin":    {"#/components/schemas/NotFoundError"},
+		"POST /v1/auth/register/complete": {"#/components/schemas/AuthOperationNotFoundError", "#/components/schemas/NotFoundError"},
+		"POST /v1/auth/cancel-operation":  {"#/components/schemas/NotFoundError"},
+	}
+	for _, route := range []string{
+		"POST /v1/auth/login/begin",
+		"POST /v1/auth/login/complete",
+		"POST /v1/auth/register/begin",
+		"POST /v1/auth/register/complete",
+		"POST /v1/auth/cancel-operation",
+	} {
+		operation := operations[route]
+		for _, status := range []string{"400", "401", "403", "404", "413", "415", "429", "500"} {
+			if _, exists := operation.Responses[status]; !exists {
+				t.Errorf("%s does not document status %s", route, status)
+			}
+		}
+		assertOpenAPIResponseReference(t, route, operation.Responses["400"], "#/components/schemas/InvalidJSONError")
+		assertOpenAPIResponseReference(
+			t,
+			route,
+			operation.Responses["401"],
+			"#/components/responses/LocalAccessDenied",
+			"#/components/schemas/LocalAccessDeniedError",
+		)
+		assertOpenAPIResponseReference(t, route, operation.Responses["403"], "#/components/responses/LocalOnly")
+		for _, reference := range requiredNotFoundReferences[route] {
+			assertOpenAPIResponseReference(t, route, operation.Responses["404"], reference)
+		}
+		assertOpenAPIResponseReference(t, route, operation.Responses["413"], "#/components/responses/AuthenticationRequestTooLarge")
+		assertOpenAPIResponseReference(t, route, operation.Responses["415"], "#/components/responses/UnsupportedMediaType")
+		assertOpenAPIResponseReference(t, route, operation.Responses["500"], "#/components/schemas/InternalError")
+		if _, exists := operation.Responses["429"].Headers["Retry-After"]; !exists {
+			t.Errorf("%s 429 does not document Retry-After", route)
+		}
+	}
+}
+
+func assertOpenAPIResponseReference(
+	t *testing.T,
+	route string,
+	response openAPIResponse,
+	want ...string,
+) {
+	t.Helper()
+	for _, reference := range want {
+		if _, exists := response.References[reference]; exists {
+			return
+		}
+	}
+	t.Errorf("%s response references = %v, want one of %v", route, sortedSet(response.References), want)
+}
+
 func readOpenAPIOperations(t *testing.T) map[string]openAPIOperation {
 	t.Helper()
 	path := filepath.Join("..", "..", "openapi.yaml")
@@ -128,6 +204,7 @@ func readOpenAPIOperations(t *testing.T) map[string]openAPIOperation {
 	currentPath := ""
 	currentMethod := ""
 	currentRoute := ""
+	currentStatus := ""
 	scanner := bufio.NewScanner(file)
 	for lineNumber := 1; scanner.Scan(); lineNumber++ {
 		raw := scanner.Text()
@@ -153,6 +230,7 @@ func readOpenAPIOperations(t *testing.T) map[string]openAPIOperation {
 			currentPath = strings.TrimSuffix(trimmed, ":")
 			currentMethod = ""
 			currentRoute = ""
+			currentStatus = ""
 			inResponses = false
 			continue
 		}
@@ -161,8 +239,9 @@ func readOpenAPIOperations(t *testing.T) map[string]openAPIOperation {
 			if _, exists := methods[method]; exists {
 				currentMethod = strings.ToUpper(method)
 				currentRoute = currentMethod + " " + currentPath
-				operations[currentRoute] = openAPIOperation{Responses: map[string]struct{}{}}
+				operations[currentRoute] = openAPIOperation{Responses: map[string]openAPIResponse{}}
 				inResponses = false
+				currentStatus = ""
 			}
 			continue
 		}
@@ -181,17 +260,44 @@ func readOpenAPIOperations(t *testing.T) map[string]openAPIOperation {
 		}
 		if inResponses && indent <= 6 && trimmed != "" {
 			inResponses = false
+			currentStatus = ""
 		}
 		if inResponses && indent == 8 && len(trimmed) >= 6 && trimmed[0] == '\'' && trimmed[4] == '\'' && trimmed[5] == ':' {
+			currentStatus = trimmed[1:4]
 			operation := operations[currentRoute]
-			operation.Responses[trimmed[1:4]] = struct{}{}
+			operation.Responses[currentStatus] = openAPIResponse{
+				References: map[string]struct{}{},
+				Headers:    map[string]struct{}{},
+			}
 			operations[currentRoute] = operation
 		}
+		if !inResponses || currentStatus == "" {
+			continue
+		}
+		operation := operations[currentRoute]
+		response := operation.Responses[currentStatus]
+		for _, match := range regexp.MustCompile(`#/components/(?:responses|schemas)/[A-Za-z0-9]+`).FindAllString(trimmed, -1) {
+			response.References[match] = struct{}{}
+		}
+		if indent == 12 && trimmed == "Retry-After:" {
+			response.Headers["Retry-After"] = struct{}{}
+		}
+		operation.Responses[currentStatus] = response
+		operations[currentRoute] = operation
 	}
 	if err := scanner.Err(); err != nil {
 		t.Fatalf("scan %s: %v", path, err)
 	}
 	return operations
+}
+
+func sortedSet(values map[string]struct{}) []string {
+	result := make([]string, 0, len(values))
+	for value := range values {
+		result = append(result, value)
+	}
+	sort.Strings(result)
+	return result
 }
 
 func sortedRoutePairs(routes map[string]string) []string {

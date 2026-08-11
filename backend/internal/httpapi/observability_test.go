@@ -86,6 +86,32 @@ func TestWithRecoveryLogsServerErrorsWithCorrelationFields(t *testing.T) {
 	}
 }
 
+func TestWithRecoveryNeverLogsAuthenticationOperationCapabilityBody(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+	api := &API{logger: slog.New(slog.NewJSONHandler(&logs, nil))}
+	handler := api.withRecovery(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Pattern = "POST /v1/auth/cancel-operation"
+		writeError(w, http.StatusInternalServerError, "internal_error", "the request could not be completed")
+	}))
+	const capability = "body-only-operation-capability-must-remain-secret"
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/auth/cancel-operation",
+		strings.NewReader(`{"operation_id":"`+capability+`"}`),
+	)
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if strings.Contains(logs.String(), capability) {
+		t.Fatalf("structured log leaked authentication operation capability: %s", logs.String())
+	}
+	record := decodeLogRecord(t, &logs)
+	assertLogField(t, record, "route", "POST /v1/auth/cancel-operation")
+}
+
 func TestWithRecoveryReplacesUnsafeRequestIDWithoutLoggingSuccess(t *testing.T) {
 	t.Parallel()
 

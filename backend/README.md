@@ -84,12 +84,22 @@ IANVS_MYSQL_ROOT_PASSWORD='<dev-root-password>' \
 `IANVS_ALLOW_REGISTRATION=true`，首次用户注册时同时创建登录密码和独立数据密钥：
 
 ```bash
-curl -X POST https://api.example.com/v1/auth/register \
+curl -X POST https://api.example.com/v1/auth/register/begin \
   -H 'Content-Type: application/json' \
   --data '{"username":"alice","password":"<at-least-12-characters>","encryption_key":"<client-owned-key>"}'
 ```
 
-后续登录只返回 Bearer token。访问敏感数据时，客户端还必须通过 `X-Ianvs-Encryption-Key` 提供自己的数据密钥；登录密码不能替代数据密钥。
+begin 响应只创建账号与短期 `prepared` operation，不签发 token。客户端必须先把服务端返回的 `operation_id` 持久写入恢复 journal，再提交：
+
+```text
+POST /v1/auth/register/complete  {"operation_id":"<server-issued-capability>"}
+POST /v1/auth/login/begin        {"username":"alice","password":"..."}
+POST /v1/auth/login/complete     {"operation_id":"<server-issued-capability>"}
+```
+
+只有 complete 才在同一数据库事务中把 operation 从 `prepared` 改为 `issued` 并创建 token。complete 响应丢失时，客户端用 journal 中同一 capability 调用 `POST /v1/auth/cancel-operation`；它会取消已有 operation 并撤销关联 token。未知或重复 cancel 返回 204 且绝不创建数据库 tombstone。服务端签发的 `operation_id` 是 32 字节随机、无填充 base64url 的撤销能力，不得作为请求关联 ID、URL 参数或日志字段。注册 begin 响应丢失可能留下无 token 账号，用户可用相同凭据经 login 流程恢复。
+
+访问敏感数据时，客户端还必须通过 `X-Ianvs-Encryption-Key` 提供自己的数据密钥；登录密码不能替代数据密钥。
 
 ## 资源 API
 

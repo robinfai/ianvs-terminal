@@ -30,11 +30,12 @@ import (
 )
 
 const (
-	maximumBodySize      = store.MaximumJSONResponseBytes
-	maximumMergeBodySize = store.MaximumJSONResponseBytes
-	encryptionKeyHeader  = "X-Ianvs-Encryption-Key"
-	requestIDHeader      = "X-Request-ID"
-	maximumRequestIDSize = 128
+	maximumBodySize               = store.MaximumJSONResponseBytes
+	maximumMergeBodySize          = store.MaximumJSONResponseBytes
+	maximumAuthenticationBodySize = 4 << 10
+	encryptionKeyHeader           = "X-Ianvs-Encryption-Key"
+	requestIDHeader               = "X-Request-ID"
+	maximumRequestIDSize          = 128
 )
 
 var errUnsupportedMediaType = errors.New("content type must be application/json")
@@ -87,8 +88,11 @@ func (a *API) Handler() http.Handler {
 func (a *API) routes() {
 	a.mux.HandleFunc("GET /healthz", a.health)
 	a.mux.HandleFunc("POST /v1/auth/setup", a.setupLocal)
-	a.mux.HandleFunc("POST /v1/auth/register", a.register)
-	a.mux.HandleFunc("POST /v1/auth/login", a.login)
+	a.mux.HandleFunc("POST /v1/auth/register/begin", a.beginRegister)
+	a.mux.HandleFunc("POST /v1/auth/register/complete", a.completeRegister)
+	a.mux.HandleFunc("POST /v1/auth/login/begin", a.beginLogin)
+	a.mux.HandleFunc("POST /v1/auth/login/complete", a.completeLogin)
+	a.mux.HandleFunc("POST /v1/auth/cancel-operation", a.cancelAuthOperation)
 	a.mux.Handle("POST /v1/auth/logout", a.protected(a.logout))
 	a.mux.Handle("POST /v1/auth/verify-key", a.protected(a.verifyKey))
 	a.mux.Handle("GET /v1/me", a.protected(a.me))
@@ -139,7 +143,7 @@ func (a *API) setupLocal(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		EncryptionKey string `json:"encryption_key"`
 	}
-	if err := decodeBody(w, r, maximumBodySize, &request); err != nil {
+	if err := decodeBody(w, r, maximumAuthenticationBodySize, &request); err != nil {
 		writeDecodeError(w, err)
 		return
 	}
@@ -158,7 +162,7 @@ func (a *API) setupLocal(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (a *API) register(w http.ResponseWriter, r *http.Request) {
+func (a *API) beginRegister(w http.ResponseWriter, r *http.Request) {
 	if a.cfg.Mode != config.ModeRemote || !a.cfg.AllowRegistration {
 		writeError(w, http.StatusNotFound, "not_found", "registration is not available")
 		return
@@ -175,11 +179,11 @@ func (a *API) register(w http.ResponseWriter, r *http.Request) {
 		Password      string `json:"password"`
 		EncryptionKey string `json:"encryption_key"`
 	}
-	if err := decodeBody(w, r, maximumBodySize, &request); err != nil {
+	if err := decodeBody(w, r, maximumAuthenticationBodySize, &request); err != nil {
 		writeDecodeError(w, err)
 		return
 	}
-	session, err := a.auth.Register(
+	prepared, err := a.auth.BeginRegister(
 		r.Context(),
 		request.Username,
 		request.Password,
@@ -189,10 +193,37 @@ func (a *API) register(w http.ResponseWriter, r *http.Request) {
 		a.writeServiceError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, session)
+	writeJSON(w, http.StatusCreated, prepared)
 }
 
-func (a *API) login(w http.ResponseWriter, r *http.Request) {
+func (a *API) completeRegister(w http.ResponseWriter, r *http.Request) {
+	if a.cfg.Mode != config.ModeRemote {
+		writeError(w, http.StatusNotFound, "not_found", "registration completion is not available in local mode")
+		return
+	}
+	if !a.sensitiveTransportAllowed(r) {
+		writeError(w, http.StatusBadRequest, "secure_transport_required", "registration requires HTTPS")
+		return
+	}
+	if !a.allowAnonymousAuthRequest(w, r) {
+		return
+	}
+	var request struct {
+		OperationID string `json:"operation_id"`
+	}
+	if err := decodeBody(w, r, maximumAuthenticationBodySize, &request); err != nil {
+		writeDecodeError(w, err)
+		return
+	}
+	session, err := a.auth.CompleteRegister(r.Context(), request.OperationID)
+	if err != nil {
+		a.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, session)
+}
+
+func (a *API) beginLogin(w http.ResponseWriter, r *http.Request) {
 	if a.cfg.Mode != config.ModeRemote {
 		writeError(w, http.StatusNotFound, "not_found", "login is not available in local mode")
 		return
@@ -208,16 +239,69 @@ func (a *API) login(w http.ResponseWriter, r *http.Request) {
 		Username string `json:"username"`
 		Password string `json:"password"`
 	}
-	if err := decodeBody(w, r, maximumBodySize, &request); err != nil {
+	if err := decodeBody(w, r, maximumAuthenticationBodySize, &request); err != nil {
 		writeDecodeError(w, err)
 		return
 	}
-	session, err := a.auth.Login(r.Context(), request.Username, request.Password)
+	prepared, err := a.auth.BeginLogin(r.Context(), request.Username, request.Password)
+	if err != nil {
+		a.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, prepared)
+}
+
+func (a *API) completeLogin(w http.ResponseWriter, r *http.Request) {
+	if a.cfg.Mode != config.ModeRemote {
+		writeError(w, http.StatusNotFound, "not_found", "login is not available in local mode")
+		return
+	}
+	if !a.sensitiveTransportAllowed(r) {
+		writeError(w, http.StatusBadRequest, "secure_transport_required", "login requires HTTPS")
+		return
+	}
+	if !a.allowAnonymousAuthRequest(w, r) {
+		return
+	}
+	var request struct {
+		OperationID string `json:"operation_id"`
+	}
+	if err := decodeBody(w, r, maximumAuthenticationBodySize, &request); err != nil {
+		writeDecodeError(w, err)
+		return
+	}
+	session, err := a.auth.CompleteLogin(r.Context(), request.OperationID)
 	if err != nil {
 		a.writeServiceError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, session)
+}
+
+func (a *API) cancelAuthOperation(w http.ResponseWriter, r *http.Request) {
+	if a.cfg.Mode != config.ModeRemote {
+		writeError(w, http.StatusNotFound, "not_found", "authentication operation cancellation is not available in local mode")
+		return
+	}
+	if !a.sensitiveTransportAllowed(r) {
+		writeError(w, http.StatusBadRequest, "secure_transport_required", "authentication operation cancellation requires HTTPS")
+		return
+	}
+	if !a.allowAnonymousAuthRequest(w, r) {
+		return
+	}
+	var request struct {
+		OperationID string `json:"operation_id"`
+	}
+	if err := decodeBody(w, r, maximumAuthenticationBodySize, &request); err != nil {
+		writeDecodeError(w, err)
+		return
+	}
+	if err := a.auth.CancelOperation(r.Context(), request.OperationID); err != nil {
+		a.writeServiceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (a *API) logout(w http.ResponseWriter, r *http.Request, _ model.User, rawToken string) {
@@ -493,6 +577,19 @@ func (a *API) writeServiceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "username_taken", err.Error())
 	case errors.Is(err, auth.ErrInvalidUsername), errors.Is(err, auth.ErrInvalidPassword):
 		writeError(w, http.StatusBadRequest, "invalid_account", err.Error())
+	case errors.Is(err, auth.ErrInvalidOperationID):
+		writeError(w, http.StatusBadRequest, "invalid_operation_id", err.Error())
+	case errors.Is(err, auth.ErrOperationNotFound):
+		writeError(w, http.StatusNotFound, "auth_operation_not_found", "authentication operation was not found")
+	case errors.Is(err, auth.ErrOperationKind):
+		writeError(w, http.StatusConflict, "auth_operation_kind_mismatch", "authentication operation kind does not match the completion endpoint")
+	case errors.Is(err, auth.ErrOperationCanceled):
+		writeError(w, http.StatusConflict, "auth_operation_canceled", "authentication operation was canceled")
+	case errors.Is(err, auth.ErrOperationReused):
+		writeError(w, http.StatusConflict, "auth_operation_reused", "authentication operation was already used")
+	case errors.Is(err, auth.ErrSessionCapacity):
+		w.Header().Set("Retry-After", "1")
+		writeError(w, http.StatusTooManyRequests, "auth_session_capacity", "the user has too many active authentication operations")
 	case errors.Is(err, auth.ErrPasswordHashBusy):
 		w.Header().Set("Retry-After", "1")
 		writeError(w, http.StatusTooManyRequests, "password_hash_busy", "password verification capacity is busy")

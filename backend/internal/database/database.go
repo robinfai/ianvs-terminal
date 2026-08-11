@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -24,11 +26,11 @@ import (
 
 // CurrentSchemaVersion is the latest durable database schema understood by
 // this backend binary.
-const CurrentSchemaVersion uint = 1
+const CurrentSchemaVersion uint = 2
 
 const (
 	mysqlMigrationLockTimeout = 15 * time.Second
-	sqliteBusyTimeout         = 2 * time.Second
+	sqliteBusyTimeout         = 5 * time.Second
 	sqliteMigrationAttempts   = 4
 )
 
@@ -48,13 +50,34 @@ var schemaMigrations = []struct {
 		apply: func(db *gorm.DB) error {
 			return db.AutoMigrate(
 				&model.User{},
-				&model.AuthToken{},
+				&authTokenV1{},
 				&model.Resource{},
 				&model.Setting{},
 			)
 		},
 	},
+	{
+		version: 2,
+		apply: func(db *gorm.DB) error {
+			return db.AutoMigrate(
+				&model.AuthToken{},
+				&model.AuthOperation{},
+			)
+		},
+	},
 }
+
+// authTokenV1 freezes the version-1 table shape so rebuilding an unversioned
+// database still applies each durable migration in order.
+type authTokenV1 struct {
+	ID        string    `gorm:"primaryKey;size:36"`
+	UserID    string    `gorm:"index;size:36;not null"`
+	TokenHash string    `gorm:"uniqueIndex;size:64;not null"`
+	ExpiresAt time.Time `gorm:"index;not null"`
+	CreatedAt time.Time `gorm:"not null"`
+}
+
+func (authTokenV1) TableName() string { return "auth_tokens" }
 
 func Open(cfg config.Config) (*gorm.DB, error) {
 	var dialector gorm.Dialector
@@ -63,7 +86,11 @@ func Open(cfg config.Config) (*gorm.DB, error) {
 		if err := prepareSQLiteParent(cfg.DatabaseDSN); err != nil {
 			return nil, err
 		}
-		dialector = sqlite.Open(cfg.DatabaseDSN)
+		runtimeDSN, err := sqliteRuntimeDSN(cfg.DatabaseDSN)
+		if err != nil {
+			return nil, err
+		}
+		dialector = sqlite.Open(runtimeDSN)
 	case "mysql":
 		dialector = mysql.Open(cfg.DatabaseDSN)
 	default:
@@ -100,6 +127,21 @@ func Open(cfg config.Config) (*gorm.DB, error) {
 		configurePool(sqlDB, cfg.DatabaseDriver)
 	}
 	return db, nil
+}
+
+func sqliteRuntimeDSN(dsn string) (string, error) {
+	parts := strings.SplitN(dsn, "?", 2)
+	query := url.Values{}
+	if len(parts) == 2 {
+		var err error
+		query, err = url.ParseQuery(parts[1])
+		if err != nil {
+			return "", fmt.Errorf("parse SQLite DSN options: %w", err)
+		}
+	}
+	query.Set("_busy_timeout", strconv.FormatInt(sqliteBusyTimeout.Milliseconds(), 10))
+	query.Set("_txlock", "immediate")
+	return parts[0] + "?" + query.Encode(), nil
 }
 
 // CurrentTime returns one UTC instant owned by the database rather than the

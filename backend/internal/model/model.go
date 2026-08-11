@@ -20,14 +20,31 @@ func (User) TableName() string { return "users" }
 // AuthToken stores only a digest of the bearer token returned to a remote
 // client. Tokens are intentionally independent from the user's encryption key.
 type AuthToken struct {
-	ID        string    `gorm:"primaryKey;size:36"`
-	UserID    string    `gorm:"index;size:36;not null"`
-	TokenHash string    `gorm:"uniqueIndex;size:64;not null"`
-	ExpiresAt time.Time `gorm:"index;not null"`
-	CreatedAt time.Time `gorm:"not null"`
+	ID            string    `gorm:"primaryKey;size:36"`
+	UserID        string    `gorm:"index;size:36;not null"`
+	TokenHash     string    `gorm:"uniqueIndex;size:64;not null"`
+	OperationHash *string   `gorm:"uniqueIndex;size:64"`
+	ExpiresAt     time.Time `gorm:"index;not null"`
+	CreatedAt     time.Time `gorm:"not null"`
 }
 
 func (AuthToken) TableName() string { return "auth_tokens" }
+
+// AuthOperation stores the digest of a server-issued cancellation capability.
+// It never stores the raw operation ID, bearer token, password, or encryption
+// key. A client must durably record a prepared capability before completing
+// the operation that atomically creates its token.
+type AuthOperation struct {
+	OperationHash string    `gorm:"primaryKey;size:64"`
+	Kind          string    `gorm:"size:16;not null"`
+	State         string    `gorm:"size:16;not null"`
+	UserID        string    `gorm:"index;size:36"`
+	ExpiresAt     time.Time `gorm:"index;not null"`
+	CreatedAt     time.Time `gorm:"not null"`
+	UpdatedAt     time.Time `gorm:"not null"`
+}
+
+func (AuthOperation) TableName() string { return "auth_operations" }
 
 // Resource is the database-neutral persistence unit shared by profiles,
 // terminal relaunch sessions, and named configuration documents. JSON is kept

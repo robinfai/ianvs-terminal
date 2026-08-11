@@ -46,6 +46,7 @@ paths:
     post:
       tags: [auth]
       operationId: setupLocalUserKey
+      x-ianvs-json-request-limit-bytes: 4096
       summary: Configure the client-owned key for the reserved local user.
       description: Key contract v1 permits first creation and same-key verification only. Supplying a different key never rotates or re-encrypts existing data.
       requestBody:
@@ -67,12 +68,15 @@ paths:
                   - $ref: '#/components/schemas/WeakEncryptionKeyError'
                   - $ref: '#/components/schemas/EncryptionKeyTooLongError'
         '429': {$ref: '#/components/responses/KeyDerivationBusy'}
-  /v1/auth/register:
+        '413': {description: Authentication request exceeds 4096 bytes.}
+        '415': {description: Request Content-Type is not application/json.}
+  /v1/auth/register/begin:
     post:
       tags: [auth]
-      operationId: register
-      summary: Register a remote user and configure their client-owned key.
-      description: Registration is disabled by default. When enabled, key contract v1 creates one immutable client-owned key and exposes no rotation or recovery endpoint.
+      operationId: beginRegistration
+      x-ianvs-json-request-limit-bytes: 4096
+      summary: Create a remote account and a prepared registration operation without issuing a token.
+      description: Registration is disabled by default. A successful response creates the account and a short-lived prepared operation, but never a bearer token. The client must durably record operation_id before calling the completion endpoint. Losing this response may leave a tokenless account recoverable through the login flow.
       requestBody:
         required: true
         content:
@@ -80,19 +84,40 @@ paths:
             schema:
               type: object
               required: [username, password, encryption_key]
+              additionalProperties: false
               properties:
                 username: {type: string, minLength: 3, maxLength: 64}
                 password: {type: string, description: Must encode to 12-72 UTF-8 bytes., x-ianvs-min-utf8-bytes: 12, x-ianvs-max-utf8-bytes: 72}
                 encryption_key: {type: string, description: Must encode to 16-1024 UTF-8 bytes., x-ianvs-min-utf8-bytes: 16, x-ianvs-max-utf8-bytes: 1024}
       responses:
         '201':
-          description: User and login session were created.
+          description: Account and prepared registration operation were created; no token exists.
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/AuthSession'}
+              schema: {$ref: '#/components/schemas/PreparedAuthOperation'}
+        '400':
+          description: Account, JSON, encryption-key, or secure-transport validation failed.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/InvalidJSONError'
+                  - $ref: '#/components/schemas/SecureTransportRequiredError'
+                  - $ref: '#/components/schemas/InvalidAccountError'
+                  - $ref: '#/components/schemas/WeakEncryptionKeyError'
+                  - $ref: '#/components/schemas/EncryptionKeyTooLongError'
+        '401': {$ref: '#/components/responses/LocalAccessDenied'}
+        '403': {$ref: '#/components/responses/LocalOnly'}
+        '404':
+          description: Registration is disabled or unavailable in local mode.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NotFoundError'}
         '409': {description: Username already exists.}
+        '413': {$ref: '#/components/responses/AuthenticationRequestTooLarge'}
+        '415': {$ref: '#/components/responses/UnsupportedMediaType'}
         '429':
-          description: Per-peer authentication rate or global password/key derivation capacity was exhausted.
+          description: Per-peer authentication, password hashing, or key derivation capacity was exhausted.
           headers:
             Retry-After:
               schema: {type: integer, minimum: 1}
@@ -103,10 +128,77 @@ paths:
                   - $ref: '#/components/schemas/AuthenticationRateLimitedError'
                   - $ref: '#/components/schemas/PasswordHashBusyError'
                   - $ref: '#/components/schemas/KeyDerivationBusyError'
-  /v1/auth/login:
+        '500':
+          description: The operation could not be prepared because of an internal failure.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InternalError'}
+  /v1/auth/register/complete:
     post:
       tags: [auth]
-      operationId: login
+      operationId: completeRegistration
+      x-ianvs-json-request-limit-bytes: 4096
+      summary: Atomically complete a durably recorded prepared registration operation and issue its token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AuthOperationRequest'}
+      responses:
+        '200':
+          description: The prepared registration operation was atomically issued.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthSession'}
+        '400':
+          description: operation_id, JSON, or secure-transport validation failed.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/InvalidOperationIDError'
+                  - $ref: '#/components/schemas/InvalidJSONError'
+                  - $ref: '#/components/schemas/SecureTransportRequiredError'
+        '401': {$ref: '#/components/responses/LocalAccessDenied'}
+        '403': {$ref: '#/components/responses/LocalOnly'}
+        '404':
+          description: Registration is unavailable or the operation is unknown or expired.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/AuthOperationNotFoundError'
+                  - $ref: '#/components/schemas/NotFoundError'
+        '409':
+          description: The operation was canceled, reused, or belongs to the login flow.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/AuthOperationCanceledError'
+                  - $ref: '#/components/schemas/AuthOperationReusedError'
+                  - $ref: '#/components/schemas/AuthOperationKindMismatchError'
+        '413': {$ref: '#/components/responses/AuthenticationRequestTooLarge'}
+        '415': {$ref: '#/components/responses/UnsupportedMediaType'}
+        '429':
+          description: Per-peer authentication rate was exhausted.
+          headers:
+            Retry-After:
+              schema: {type: integer, minimum: 1}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthenticationRateLimitedError'}
+        '500':
+          description: The operation could not be completed because of an internal failure.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InternalError'}
+  /v1/auth/login/begin:
+    post:
+      tags: [auth]
+      operationId: beginLogin
+      x-ianvs-json-request-limit-bytes: 4096
+      summary: Verify credentials and create a prepared login operation without issuing a token.
       requestBody:
         required: true
         content:
@@ -114,22 +206,42 @@ paths:
             schema:
               type: object
               required: [username, password]
+              additionalProperties: false
               properties:
                 username: {type: string}
                 password: {type: string, description: Must encode to 12-72 UTF-8 bytes., x-ianvs-min-utf8-bytes: 12, x-ianvs-max-utf8-bytes: 72}
       responses:
         '200':
-          description: A new bearer session.
+          description: Credentials were verified and a prepared operation was created; no token exists.
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/AuthSession'}
+              schema: {$ref: '#/components/schemas/PreparedAuthOperation'}
+        '400':
+          description: JSON or secure-transport validation failed.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/InvalidJSONError'
+                  - $ref: '#/components/schemas/SecureTransportRequiredError'
         '401':
-          description: Invalid credentials.
+          description: Credentials are invalid, or local sidecar access was denied before the remote-only handler.
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/InvalidCredentialsError'}
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/InvalidCredentialsError'
+                  - $ref: '#/components/schemas/LocalAccessDeniedError'
+        '403': {$ref: '#/components/responses/LocalOnly'}
+        '404':
+          description: Login is unavailable in local mode.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NotFoundError'}
+        '413': {$ref: '#/components/responses/AuthenticationRequestTooLarge'}
+        '415': {$ref: '#/components/responses/UnsupportedMediaType'}
         '429':
-          description: Per-peer authentication rate or global password verification capacity was exhausted.
+          description: Per-peer authentication, password hashing, or per-user active-session capacity was exhausted.
           headers:
             Retry-After:
               schema: {type: integer, minimum: 1}
@@ -139,6 +251,117 @@ paths:
                 oneOf:
                   - $ref: '#/components/schemas/AuthenticationRateLimitedError'
                   - $ref: '#/components/schemas/PasswordHashBusyError'
+                  - $ref: '#/components/schemas/AuthSessionCapacityError'
+        '500':
+          description: The operation could not be prepared because of an internal failure.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InternalError'}
+  /v1/auth/login/complete:
+    post:
+      tags: [auth]
+      operationId: completeLogin
+      x-ianvs-json-request-limit-bytes: 4096
+      summary: Atomically complete a durably recorded prepared login operation and issue its token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AuthOperationRequest'}
+      responses:
+        '200':
+          description: The prepared login operation was atomically issued.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthSession'}
+        '400':
+          description: operation_id, JSON, or secure-transport validation failed.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/InvalidOperationIDError'
+                  - $ref: '#/components/schemas/InvalidJSONError'
+                  - $ref: '#/components/schemas/SecureTransportRequiredError'
+        '401': {$ref: '#/components/responses/LocalAccessDenied'}
+        '403': {$ref: '#/components/responses/LocalOnly'}
+        '404':
+          description: Login is unavailable or the operation is unknown or expired.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/AuthOperationNotFoundError'
+                  - $ref: '#/components/schemas/NotFoundError'
+        '409':
+          description: The operation was canceled, reused, or belongs to registration.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/AuthOperationCanceledError'
+                  - $ref: '#/components/schemas/AuthOperationReusedError'
+                  - $ref: '#/components/schemas/AuthOperationKindMismatchError'
+        '413': {$ref: '#/components/responses/AuthenticationRequestTooLarge'}
+        '415': {$ref: '#/components/responses/UnsupportedMediaType'}
+        '429':
+          description: Per-peer authentication rate was exhausted.
+          headers:
+            Retry-After:
+              schema: {type: integer, minimum: 1}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthenticationRateLimitedError'}
+        '500':
+          description: The operation could not be completed because of an internal failure.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InternalError'}
+  /v1/auth/cancel-operation:
+    post:
+      tags: [auth]
+      operationId: cancelAuthenticationOperation
+      x-ianvs-json-request-limit-bytes: 4096
+      summary: Idempotently cancel a server-prepared authentication operation.
+      description: The body-only operation_id is a server-issued 256-bit secret cancellation capability. Cancellation changes an existing prepared or issued operation to canceled and revokes its token. Unknown and repeated cancellations are intentionally indistinguishable and return 204; unknown values never create database rows.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AuthOperationRequest'}
+      responses:
+        '204': {description: An existing operation is canceled, or the capability was already canceled, unknown, or expired. Unknown capabilities are not persisted.}
+        '400':
+          description: operation_id, JSON, or secure-transport validation failed.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/InvalidOperationIDError'
+                  - $ref: '#/components/schemas/InvalidJSONError'
+                  - $ref: '#/components/schemas/SecureTransportRequiredError'
+        '401': {$ref: '#/components/responses/LocalAccessDenied'}
+        '403': {$ref: '#/components/responses/LocalOnly'}
+        '404':
+          description: Operation cancellation is unavailable in local mode.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NotFoundError'}
+        '429':
+          description: Per-peer authentication rate was exhausted.
+          headers:
+            Retry-After:
+              schema: {type: integer, minimum: 1}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthenticationRateLimitedError'}
+        '413': {$ref: '#/components/responses/AuthenticationRequestTooLarge'}
+        '415': {$ref: '#/components/responses/UnsupportedMediaType'}
+        '500':
+          description: The operation could not be canceled because of an internal failure.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InternalError'}
   /v1/auth/verify-key:
     post:
       tags: [auth]
@@ -358,12 +581,22 @@ components:
       description: The local sidecar access token is missing or invalid.
       content:
         application/json:
-          schema: {$ref: '#/components/schemas/ErrorResponse'}
+          schema: {$ref: '#/components/schemas/LocalAccessDeniedError'}
     LocalOnly:
       description: Local mode rejected a request that did not originate on loopback.
       content:
         application/json:
-          schema: {$ref: '#/components/schemas/ErrorResponse'}
+          schema: {$ref: '#/components/schemas/LocalOnlyError'}
+    AuthenticationRequestTooLarge:
+      description: Authentication request exceeds 4096 bytes.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/RequestTooLargeError'}
+    UnsupportedMediaType:
+      description: Request Content-Type is not application/json.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/UnsupportedMediaTypeError'}
     DatabaseUnavailable:
       description: The health probe could not query the database.
       content:
@@ -404,6 +637,26 @@ components:
       additionalProperties: false
       properties:
         encryption_key: {type: string, description: Must encode to 16-1024 UTF-8 bytes., x-ianvs-min-utf8-bytes: 16, x-ianvs-max-utf8-bytes: 1024}
+    AuthOperationID:
+      type: string
+      minLength: 43
+      maxLength: 43
+      pattern: '^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$'
+      description: Unpadded base64url encoding of 32 cryptographically random server-generated bytes. This is a cancellation capability and must not be reused as a correlation ID.
+    AuthOperationRequest:
+      type: object
+      required: [operation_id]
+      additionalProperties: false
+      properties:
+        operation_id: {$ref: '#/components/schemas/AuthOperationID'}
+    PreparedAuthOperation:
+      type: object
+      required: [operation_id, expires_at, kind]
+      additionalProperties: false
+      properties:
+        operation_id: {$ref: '#/components/schemas/AuthOperationID'}
+        expires_at: {type: string, format: date-time}
+        kind: {type: string, enum: [login, register]}
     User:
       type: object
       required: [id, username, key_configured, key_contract_version, key_rotation_supported]
@@ -548,6 +801,102 @@ components:
           properties:
             code: {type: string, const: invalid_credentials}
             message: {type: string}
+    NotFoundError:
+      type: object
+      required: [error]
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          additionalProperties: false
+          properties:
+            code: {type: string, const: not_found}
+            message: {type: string}
+    LocalAccessDeniedError:
+      type: object
+      required: [error]
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          additionalProperties: false
+          properties:
+            code: {type: string, const: local_access_denied}
+            message: {type: string}
+    LocalOnlyError:
+      type: object
+      required: [error]
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          additionalProperties: false
+          properties:
+            code: {type: string, const: local_only}
+            message: {type: string}
+    InvalidJSONError:
+      type: object
+      required: [error]
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          additionalProperties: false
+          properties:
+            code: {type: string, const: invalid_json}
+            message: {type: string}
+    RequestTooLargeError:
+      type: object
+      required: [error]
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          additionalProperties: false
+          properties:
+            code: {type: string, const: request_too_large}
+            message: {type: string}
+    UnsupportedMediaTypeError:
+      type: object
+      required: [error]
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          additionalProperties: false
+          properties:
+            code: {type: string, const: unsupported_media_type}
+            message: {type: string}
+    SecureTransportRequiredError:
+      type: object
+      required: [error]
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          additionalProperties: false
+          properties:
+            code: {type: string, const: secure_transport_required}
+            message: {type: string}
+    InvalidAccountError:
+      type: object
+      required: [error]
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          additionalProperties: false
+          properties:
+            code: {type: string, const: invalid_account}
+            message: {type: string}
     InvalidEncryptionKeyError:
       type: object
       required: [error]
@@ -631,4 +980,88 @@ components:
           additionalProperties: false
           properties:
             code: {type: string, const: authentication_rate_limited}
+            message: {type: string}
+    InvalidOperationIDError:
+      type: object
+      required: [error]
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          additionalProperties: false
+          properties:
+            code: {type: string, const: invalid_operation_id}
+            message: {type: string}
+    AuthOperationCanceledError:
+      type: object
+      required: [error]
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          additionalProperties: false
+          properties:
+            code: {type: string, const: auth_operation_canceled}
+            message: {type: string}
+    AuthOperationReusedError:
+      type: object
+      required: [error]
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          additionalProperties: false
+          properties:
+            code: {type: string, const: auth_operation_reused}
+            message: {type: string}
+    AuthOperationNotFoundError:
+      type: object
+      required: [error]
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          additionalProperties: false
+          properties:
+            code: {type: string, const: auth_operation_not_found}
+            message: {type: string}
+    AuthOperationKindMismatchError:
+      type: object
+      required: [error]
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          additionalProperties: false
+          properties:
+            code: {type: string, const: auth_operation_kind_mismatch}
+            message: {type: string}
+    AuthSessionCapacityError:
+      type: object
+      required: [error]
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          additionalProperties: false
+          properties:
+            code: {type: string, const: auth_session_capacity}
+            message: {type: string}
+    InternalError:
+      type: object
+      required: [error]
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          additionalProperties: false
+          properties:
+            code: {type: string, const: internal_error}
             message: {type: string}

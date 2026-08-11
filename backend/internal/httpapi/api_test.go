@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -18,6 +19,7 @@ import (
 	"ianvs-terminal/backend/internal/contracttest"
 	"ianvs-terminal/backend/internal/database"
 	"ianvs-terminal/backend/internal/httpapi"
+	"ianvs-terminal/backend/internal/identity"
 	"ianvs-terminal/backend/internal/model"
 	"ianvs-terminal/backend/internal/secure"
 	"ianvs-terminal/backend/internal/store"
@@ -95,7 +97,7 @@ func TestEncryptionKeyEndpointsRejectOversizedSecrets(t *testing.T) {
 	assertTypedError(t, setup, http.StatusBadRequest, "encryption_key_too_long")
 
 	_, _, remoteHandler := testAPI(t, config.ModeRemote)
-	registration := request(t, remoteHandler, http.MethodPost, "/v1/auth/register", map[string]any{
+	registration := request(t, remoteHandler, http.MethodPost, "/v1/auth/register/begin", map[string]any{
 		"username":       "bounded-key-user",
 		"password":       "bounded-password-value",
 		"encryption_key": oversized,
@@ -205,24 +207,14 @@ func TestRemoteLoginAndLogoutLifecycle(t *testing.T) {
 	_, _, handler := testAPI(t, config.ModeRemote)
 	register(t, handler, "login-user", "login-password-long", "login-encryption-key-material")
 
-	wrongPassword := request(t, handler, http.MethodPost, "/v1/auth/login", map[string]any{
+	wrongPassword := request(t, handler, http.MethodPost, "/v1/auth/login/begin", map[string]any{
 		"username": "login-user",
 		"password": "wrong-password-long",
 	}, nil)
 	if wrongPassword.Code != http.StatusUnauthorized {
 		t.Fatalf("wrong password status = %d, body = %s", wrongPassword.Code, wrongPassword.Body.String())
 	}
-	loginResponse := request(t, handler, http.MethodPost, "/v1/auth/login", map[string]any{
-		"username": "login-user",
-		"password": "login-password-long",
-	}, nil)
-	if loginResponse.Code != http.StatusOK {
-		t.Fatalf("login status = %d, body = %s", loginResponse.Code, loginResponse.Body.String())
-	}
-	var login registrationSession
-	if err := json.Unmarshal(loginResponse.Body.Bytes(), &login); err != nil {
-		t.Fatalf("decode login: %v", err)
-	}
+	login := login(t, handler, "login-user", "login-password-long")
 	logoutResponse := request(t, handler, http.MethodPost, "/v1/auth/logout", nil, map[string]string{
 		"Authorization": "Bearer " + login.Token,
 	})
@@ -248,6 +240,247 @@ func TestRemoteLoginAndLogoutLifecycle(t *testing.T) {
 	}
 }
 
+func TestAuthenticationOperationCancellationHTTPContract(t *testing.T) {
+	_, db, handler := testAPI(t, config.ModeRemote)
+	register(t, handler, "cancel-user", "cancel-password-long", "cancel-encryption-key-material")
+	beginResponse := request(t, handler, http.MethodPost, "/v1/auth/login/begin", map[string]any{
+		"username": "cancel-user",
+		"password": "cancel-password-long",
+	}, nil)
+	if beginResponse.Code != http.StatusOK {
+		t.Fatalf("begin login status = %d, body = %s", beginResponse.Code, beginResponse.Body.String())
+	}
+	var prepared preparedOperationResponse
+	if err := json.Unmarshal(beginResponse.Body.Bytes(), &prepared); err != nil {
+		t.Fatalf("decode prepared login: %v", err)
+	}
+	completeBody := map[string]any{"operation_id": prepared.OperationID}
+	loginResponse := request(t, handler, http.MethodPost, "/v1/auth/login/complete", completeBody, nil)
+	if loginResponse.Code != http.StatusOK {
+		t.Fatalf("login status = %d, body = %s", loginResponse.Code, loginResponse.Body.String())
+	}
+	var login registrationSession
+	if err := json.Unmarshal(loginResponse.Body.Bytes(), &login); err != nil {
+		t.Fatalf("decode login: %v", err)
+	}
+	reusedBeforeCancellation := request(t, handler, http.MethodPost, "/v1/auth/login/complete", completeBody, nil)
+	assertTypedError(t, reusedBeforeCancellation, http.StatusConflict, "auth_operation_reused")
+
+	for attempt := 0; attempt < 2; attempt++ {
+		canceled := request(t, handler, http.MethodPost, "/v1/auth/cancel-operation", map[string]any{
+			"operation_id": prepared.OperationID,
+		}, nil)
+		if canceled.Code != http.StatusNoContent {
+			t.Fatalf("cancel attempt %d status = %d, body = %s", attempt+1, canceled.Code, canceled.Body.String())
+		}
+	}
+	revoked := request(t, handler, http.MethodGet, "/v1/me", nil, map[string]string{
+		"Authorization": "Bearer " + login.Token,
+	})
+	if revoked.Code != http.StatusUnauthorized {
+		t.Fatalf("canceled operation token status = %d, body = %s", revoked.Code, revoked.Body.String())
+	}
+
+	reused := request(t, handler, http.MethodPost, "/v1/auth/login/complete", completeBody, nil)
+	assertTypedError(t, reused, http.StatusConflict, "auth_operation_canceled")
+	invalid := request(t, handler, http.MethodPost, "/v1/auth/cancel-operation", map[string]any{
+		"operation_id": "not-a-cancellation-capability",
+	}, nil)
+	assertTypedError(t, invalid, http.StatusBadRequest, "invalid_operation_id")
+
+	unknownOperation := newOperationID(t)
+	var beforeUnknown int64
+	if err := db.Model(&model.AuthOperation{}).Count(&beforeUnknown).Error; err != nil {
+		t.Fatalf("count operations before unknown cancellation: %v", err)
+	}
+	unknown := request(t, handler, http.MethodPost, "/v1/auth/cancel-operation", map[string]any{
+		"operation_id": unknownOperation,
+	}, nil)
+	if unknown.Code != http.StatusNoContent {
+		t.Fatalf("unknown cancel status = %d, body = %s", unknown.Code, unknown.Body.String())
+	}
+	var afterUnknown int64
+	if err := db.Model(&model.AuthOperation{}).Count(&afterUnknown).Error; err != nil {
+		t.Fatalf("count operations after unknown cancellation: %v", err)
+	}
+	if afterUnknown != beforeUnknown {
+		t.Fatalf("unknown cancellation changed operation rows from %d to %d", beforeUnknown, afterUnknown)
+	}
+}
+
+func TestAuthenticationOperationCancellationIsBodyBoundedAndPeerRateLimited(t *testing.T) {
+	_, _, handler := testAPI(t, config.ModeRemote)
+	oversized := requestFromPeer(
+		t,
+		handler,
+		http.MethodPost,
+		"/v1/auth/cancel-operation",
+		map[string]any{
+			"operation_id": newOperationID(t),
+			"padding":      strings.Repeat("x", 4<<10),
+		},
+		"192.0.2.60:41000",
+		nil,
+	)
+	assertTypedError(t, oversized, http.StatusRequestEntityTooLarge, "request_too_large")
+
+	for attempt := 1; attempt < 10; attempt++ {
+		response := requestFromPeer(
+			t,
+			handler,
+			http.MethodPost,
+			"/v1/auth/cancel-operation",
+			map[string]any{"operation_id": newOperationID(t)},
+			"192.0.2.60:42000",
+			nil,
+		)
+		if response.Code != http.StatusNoContent {
+			t.Fatalf("cancel attempt %d status = %d, body = %s", attempt+1, response.Code, response.Body.String())
+		}
+	}
+	limited := requestFromPeer(
+		t,
+		handler,
+		http.MethodPost,
+		"/v1/auth/cancel-operation",
+		map[string]any{"operation_id": newOperationID(t)},
+		"192.0.2.60:43000",
+		nil,
+	)
+	assertRateLimited(t, limited)
+
+	otherPeer := requestFromPeer(
+		t,
+		handler,
+		http.MethodPost,
+		"/v1/auth/cancel-operation",
+		map[string]any{"operation_id": newOperationID(t)},
+		"192.0.2.61:41000",
+		nil,
+	)
+	if otherPeer.Code != http.StatusNoContent {
+		t.Fatalf("different peer cancel status = %d, body = %s", otherPeer.Code, otherPeer.Body.String())
+	}
+}
+
+func TestTwoStepAuthenticationMiddlewareAndDecodeErrorMatrix(t *testing.T) {
+	paths := []string{
+		"/v1/auth/login/begin",
+		"/v1/auth/login/complete",
+		"/v1/auth/register/begin",
+		"/v1/auth/register/complete",
+		"/v1/auth/cancel-operation",
+	}
+
+	localConfig, _, _ := testAPI(t, config.ModeLocal)
+	localConfig.LocalAccessToken = "local-boundary-contract-token"
+	localHandler := testAPIHandler(t, localConfig)
+	for index, path := range paths {
+		denied := requestFromPeer(
+			t,
+			localHandler,
+			http.MethodPost,
+			path,
+			map[string]any{},
+			"127.0.0.1:"+strconv.Itoa(45000+index),
+			nil,
+		)
+		assertTypedError(t, denied, http.StatusUnauthorized, "local_access_denied")
+
+		nonLoopback := requestFromPeer(
+			t,
+			localHandler,
+			http.MethodPost,
+			path,
+			map[string]any{},
+			"192.0.2.80:"+strconv.Itoa(45000+index),
+			map[string]string{"Authorization": "Bearer local-boundary-contract-token"},
+		)
+		assertTypedError(t, nonLoopback, http.StatusForbidden, "local_only")
+	}
+
+	_, _, remoteHandler := testAPI(t, config.ModeRemote)
+	sendRaw := func(path, body, contentType, remoteAddress string) *httptest.ResponseRecorder {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+		req.RemoteAddr = remoteAddress
+		if contentType != "" {
+			req.Header.Set("Content-Type", contentType)
+		}
+		response := httptest.NewRecorder()
+		remoteHandler.ServeHTTP(response, req)
+		return response
+	}
+	for index, path := range paths {
+		peerPrefix := "192.0.2." + strconv.Itoa(100+index)
+		invalidJSON := sendRaw(path, "{", "application/json", peerPrefix+":46001")
+		assertTypedError(t, invalidJSON, http.StatusBadRequest, "invalid_json")
+
+		tooLarge := sendRaw(
+			path,
+			strings.Repeat(" ", (4<<10)+1)+"{}",
+			"application/json",
+			peerPrefix+":46002",
+		)
+		assertTypedError(t, tooLarge, http.StatusRequestEntityTooLarge, "request_too_large")
+
+		unsupported := sendRaw(path, "{}", "text/plain", peerPrefix+":46003")
+		assertTypedError(t, unsupported, http.StatusUnsupportedMediaType, "unsupported_media_type")
+	}
+}
+
+func TestAuthenticationOperationDatabaseFailuresUseUnifiedInternalErrorContract(t *testing.T) {
+	testCases := []struct {
+		name string
+		path string
+		body map[string]any
+	}{
+		{
+			name: "begin login",
+			path: "/v1/auth/login/begin",
+			body: map[string]any{"username": "database-failure", "password": "database-failure-password"},
+		},
+		{
+			name: "complete login",
+			path: "/v1/auth/login/complete",
+			body: map[string]any{"operation_id": newOperationID(t)},
+		},
+		{
+			name: "begin registration",
+			path: "/v1/auth/register/begin",
+			body: map[string]any{
+				"username":       "database-failure-register",
+				"password":       "database-failure-password",
+				"encryption_key": "database-failure-encryption-key",
+			},
+		},
+		{
+			name: "complete registration",
+			path: "/v1/auth/register/complete",
+			body: map[string]any{"operation_id": newOperationID(t)},
+		},
+		{
+			name: "cancel",
+			path: "/v1/auth/cancel-operation",
+			body: map[string]any{"operation_id": newOperationID(t)},
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			_, db, handler := testAPI(t, config.ModeRemote)
+			sqlDB, err := db.DB()
+			if err != nil {
+				t.Fatalf("database pool: %v", err)
+			}
+			if err := sqlDB.Close(); err != nil {
+				t.Fatalf("close database for fault injection: %v", err)
+			}
+			response := request(t, handler, http.MethodPost, testCase.path, testCase.body, nil)
+			assertTypedError(t, response, http.StatusInternalServerError, "internal_error")
+		})
+	}
+}
+
 func TestRemoteLoginRateLimitUsesSocketPeerAndIgnoresForwardedFor(t *testing.T) {
 	_, _, handler := testAPI(t, config.ModeRemote)
 	for attempt := 0; attempt < 10; attempt++ {
@@ -255,7 +488,7 @@ func TestRemoteLoginRateLimitUsesSocketPeerAndIgnoresForwardedFor(t *testing.T) 
 			t,
 			handler,
 			http.MethodPost,
-			"/v1/auth/login",
+			"/v1/auth/login/begin",
 			map[string]any{"username": "missing-user", "password": "redacted-password"},
 			"192.0.2.40:41000",
 			map[string]string{"X-Forwarded-For": "198.51.100." + strconv.Itoa(attempt+1)},
@@ -268,7 +501,7 @@ func TestRemoteLoginRateLimitUsesSocketPeerAndIgnoresForwardedFor(t *testing.T) 
 		t,
 		handler,
 		http.MethodPost,
-		"/v1/auth/login",
+		"/v1/auth/login/begin",
 		map[string]any{"username": "missing-user", "password": "redacted-password"},
 		"192.0.2.40:42000",
 		map[string]string{"X-Forwarded-For": "203.0.113.200"},
@@ -279,7 +512,7 @@ func TestRemoteLoginRateLimitUsesSocketPeerAndIgnoresForwardedFor(t *testing.T) 
 		t,
 		handler,
 		http.MethodPost,
-		"/v1/auth/login",
+		"/v1/auth/login/begin",
 		map[string]any{"username": "missing-user", "password": "redacted-password"},
 		"192.0.2.41:41000",
 		nil,
@@ -296,7 +529,7 @@ func TestRemoteRegistrationRateLimitRunsBeforeRequestDecoding(t *testing.T) {
 			t,
 			handler,
 			http.MethodPost,
-			"/v1/auth/register",
+			"/v1/auth/register/begin",
 			nil,
 			"192.0.2.50:41000",
 			nil,
@@ -309,7 +542,7 @@ func TestRemoteRegistrationRateLimitRunsBeforeRequestDecoding(t *testing.T) {
 		t,
 		handler,
 		http.MethodPost,
-		"/v1/auth/register",
+		"/v1/auth/register/begin",
 		nil,
 		"192.0.2.50:42000",
 		nil,
@@ -462,15 +695,34 @@ type registrationSession struct {
 	Token string `json:"token"`
 }
 
+type preparedOperationResponse struct {
+	OperationID string    `json:"operation_id"`
+	ExpiresAt   time.Time `json:"expires_at"`
+	Kind        string    `json:"kind"`
+}
+
 func register(t *testing.T, handler http.Handler, username, password, encryptionKey string) registrationSession {
 	t.Helper()
-	response := request(t, handler, http.MethodPost, "/v1/auth/register", map[string]any{
+	response := request(t, handler, http.MethodPost, "/v1/auth/register/begin", map[string]any{
 		"username":       username,
 		"password":       password,
 		"encryption_key": encryptionKey,
 	}, nil)
 	if response.Code != http.StatusCreated {
-		t.Fatalf("register %s status = %d, body = %s", username, response.Code, response.Body.String())
+		t.Fatalf("begin register %s status = %d, body = %s", username, response.Code, response.Body.String())
+	}
+	var prepared preparedOperationResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &prepared); err != nil {
+		t.Fatalf("decode prepared registration: %v", err)
+	}
+	if prepared.OperationID == "" || prepared.Kind != "register" {
+		t.Fatalf("prepared registration response = %+v", prepared)
+	}
+	response = request(t, handler, http.MethodPost, "/v1/auth/register/complete", map[string]any{
+		"operation_id": prepared.OperationID,
+	}, nil)
+	if response.Code != http.StatusOK {
+		t.Fatalf("complete register %s status = %d, body = %s", username, response.Code, response.Body.String())
 	}
 	var session registrationSession
 	if err := json.Unmarshal(response.Body.Bytes(), &session); err != nil {
@@ -480,6 +732,47 @@ func register(t *testing.T, handler http.Handler, username, password, encryption
 		t.Fatal("registration did not return a token")
 	}
 	return session
+}
+
+func login(t *testing.T, handler http.Handler, username, password string) registrationSession {
+	t.Helper()
+	response := request(t, handler, http.MethodPost, "/v1/auth/login/begin", map[string]any{
+		"username": username,
+		"password": password,
+	}, nil)
+	if response.Code != http.StatusOK {
+		t.Fatalf("begin login %s status = %d, body = %s", username, response.Code, response.Body.String())
+	}
+	var prepared preparedOperationResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &prepared); err != nil {
+		t.Fatalf("decode prepared login: %v", err)
+	}
+	if prepared.OperationID == "" || prepared.Kind != "login" {
+		t.Fatalf("prepared login response = %+v", prepared)
+	}
+	response = request(t, handler, http.MethodPost, "/v1/auth/login/complete", map[string]any{
+		"operation_id": prepared.OperationID,
+	}, nil)
+	if response.Code != http.StatusOK {
+		t.Fatalf("complete login %s status = %d, body = %s", username, response.Code, response.Body.String())
+	}
+	var session registrationSession
+	if err := json.Unmarshal(response.Body.Bytes(), &session); err != nil {
+		t.Fatalf("decode login: %v", err)
+	}
+	if session.Token == "" {
+		t.Fatal("login did not return a token")
+	}
+	return session
+}
+
+func newOperationID(t *testing.T) string {
+	t.Helper()
+	operationID, err := identity.Secret(32)
+	if err != nil {
+		t.Fatalf("generate authentication operation ID: %v", err)
+	}
+	return operationID
 }
 
 func putForUser(t *testing.T, handler http.Handler, token, key, name, secret string) {
