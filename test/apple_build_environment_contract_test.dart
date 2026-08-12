@@ -34,4 +34,21 @@ void main() {
       );
     }
   });
+
+  test('iOS Rust build separates host and target Apple SDK roots', () {
+    final source = File('tools/build_core_ios.sh').readAsStringSync();
+
+    expect(source, contains('IOS_SDKROOT="\${SDKROOT:-'));
+    expect(
+      source,
+      contains('MACOS_SDKROOT="\$(xcrun --sdk macosx --show-sdk-path)"'),
+    );
+    expect(source, contains('RUSTFLAGS_ENV_NAME="CARGO_TARGET_'));
+    expect(source, contains('link-arg=\$IOS_SDKROOT'));
+    expect(source, contains('export SDKROOT="\$MACOS_SDKROOT"'));
+    expect(
+      source.indexOf('export SDKROOT="\$MACOS_SDKROOT"'),
+      lessThan(source.indexOf('cargo "\${CARGO_ARGS[@]}"')),
+    );
+  });
 }

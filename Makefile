@@ -20,6 +20,7 @@ INSTALLED_APP := $(INSTALL_DIR)/$(APP_NAME).app
 
 .PHONY: \
 	help bootstrap format format-check analyze test test-profiles verify \
+	acceptance-cross-platform-sync \
 	terminal-core-sync terminal-core-check \
 	run run-macos build build-macos sign-macos install install-macos \
 	build-install-macos clean \
@@ -37,6 +38,7 @@ help: ## Show the available commands.
 		'  test                Run workspace unit and widget tests' \
 		'  test-profiles       Run only the Profile Editor test suite' \
 		'  verify              Run the repository verification script' \
+		'  acceptance-cross-platform-sync  Verify macOS ↔ iOS remote sync' \
 		'  terminal-core-sync   Regenerate the standalone published package' \
 		'  terminal-core-check  Reject standalone package source drift' \
 		'  backend-format       Format Go data API sources' \
@@ -89,6 +91,9 @@ test-profiles: ## Run only the Profile Editor tests.
 
 verify: ## Run the repository's complete verification entrypoint.
 	"$(ROOT_DIR)/tools/verify_flutter_terminal.sh"
+
+acceptance-cross-platform-sync: ## Verify macOS and iOS remote Data API sync.
+	"$(ROOT_DIR)/tools/verify_remote_data_api_cross_platform.sh"
 
 backend-format: ## Format Go data API sources.
 	cd "$(BACKEND_DIR)" && gofmt -w .

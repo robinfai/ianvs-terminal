@@ -33,6 +33,21 @@ case "${PLATFORM_NAME:-}" in
     ;;
 esac
 
+# Xcode exports the iOS SDKROOT to every build phase. Cargo also compiles host
+# build scripts for aarch64-apple-darwin; letting those host links inherit the
+# simulator/device SDK makes clang unable to resolve macOS libSystem. Give host
+# tools the macOS SDK and pin the actual Rust target back to Xcode's iOS SDK
+# through target-specific rustflags.
+IOS_SDKROOT="${SDKROOT:-$(xcrun --sdk "$PLATFORM_NAME" --show-sdk-path)}"
+MACOS_SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+RUSTFLAGS_ENV_NAME="CARGO_TARGET_$(
+  tr '[:lower:]-' '[:upper:]_' <<<"$RUST_TARGET"
+)_RUSTFLAGS"
+TARGET_RUSTFLAGS="${!RUSTFLAGS_ENV_NAME:-}"
+TARGET_RUSTFLAGS="${TARGET_RUSTFLAGS:+$TARGET_RUSTFLAGS }-C link-arg=-isysroot -C link-arg=$IOS_SDKROOT"
+export "$RUSTFLAGS_ENV_NAME=$TARGET_RUSTFLAGS"
+export SDKROOT="$MACOS_SDKROOT"
+
 PROFILE_DIR=debug
 CARGO_ARGS=(build --locked --manifest-path "$CORE_MANIFEST" --target "$RUST_TARGET")
 if [[ "${CONFIGURATION:-Debug}" != "Debug" ]]; then
