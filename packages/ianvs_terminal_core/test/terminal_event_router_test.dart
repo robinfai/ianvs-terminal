@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ianvs_terminal_core/ianvs_terminal_core.dart';
+import 'package:ianvs_terminal_core/src/pty/ianvs_pty.dart';
 import 'package:ianvs_terminal_core/src/runtime/terminal_event_router.dart';
 
 void main() {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -5,7 +6,7 @@ import 'package:flutter/material.dart';
 import '../config/terminal_config.dart';
 import '../runtime/terminal_runtime_controller.dart';
 import '../terminal/terminal_viewport_colors.dart';
-import '../xterm/terminal_api.dart';
+import 'terminal_session_handle.dart';
 import 'terminal_session_view.dart';
 
 typedef TerminalPanelTabFactory =
@@ -24,14 +25,12 @@ class TerminalPanelTabDefinition {
     required this.title,
     required this.sessionConfig,
     this.id,
-    this.options = const TerminalOptions(),
     this.followTerminalTitle = true,
   });
 
   final String? id;
   final String title;
   final TerminalSessionConfig sessionConfig;
-  final TerminalOptions options;
   final bool followTerminalTitle;
 }
 
@@ -60,29 +59,34 @@ TerminalPanelTabDefinition defaultLocalTerminalPanelTab(int index) {
 class TerminalPanelTab {
   TerminalPanelTab._({
     required this.id,
-    required this.terminal,
+    required this.session,
     required this.definition,
   }) : _title = definition.title;
 
   final String id;
-  final Terminal terminal;
+  final TerminalSessionHandle session;
   final TerminalPanelTabDefinition definition;
   String _title;
   bool _exited = false;
   int? _exitCode;
-  TerminalDisposable? _titleListener;
-  TerminalDisposable? _exitListener;
+  StreamSubscription<TerminalRuntimeSignal>? _runtimeSubscription;
 
   String get title => _title;
   bool get exited => _exited;
   int? get exitCode => _exitCode;
+
+  void _dispose() {
+    unawaited(_runtimeSubscription?.cancel());
+    _runtimeSubscription = null;
+    session.dispose();
+  }
 }
 
 /// Owns terminal tabs and their native sessions.
 ///
-/// Closing a tab disposes its [Terminal]. Disposing the controller closes every
-/// remaining tab, so placing this controller in a host session's state ties all
-/// embedded PTYs to that host session's lifecycle.
+/// Closing a tab disposes its [TerminalSessionHandle]. Disposing the controller
+/// closes every remaining tab, so placing this controller in a host session's
+/// state ties all embedded PTYs to that host session's lifecycle.
 class TerminalPanelController extends ChangeNotifier {
   TerminalPanelController({
     required this.runtime,
@@ -119,41 +123,45 @@ class TerminalPanelController extends ChangeNotifier {
     if (_tabs.any((tab) => tab.id == id)) {
       throw StateError('A terminal tab with id "$id" already exists.');
     }
-    final terminal = Terminal(
+    final session = TerminalSessionHandle(
       runtime: runtime,
       sessionConfig: resolved.sessionConfig,
-      options: resolved.options,
     );
     final tab = TerminalPanelTab._(
       id: id,
-      terminal: terminal,
+      session: session,
       definition: resolved,
     );
-    tab._titleListener = terminal.onTitleChange((title) {
-      if (_disposed || !resolved.followTerminalTitle) {
-        return;
-      }
-      final normalized = title.trim();
-      if (normalized.isEmpty || normalized == tab._title) {
-        return;
-      }
-      tab._title = normalized;
-      notifyListeners();
-    });
-    tab._exitListener = terminal.onExit((event) {
-      if (_disposed) {
-        return;
-      }
-      tab._exited = true;
-      tab._exitCode = event.exitCode;
-      notifyListeners();
-    });
     try {
-      terminal.open();
+      session.open();
+      tab._runtimeSubscription = session.runtimeSignals.listen((signal) {
+        if (_disposed || signal is! TerminalRuntimeSessionEventSignal) {
+          return;
+        }
+        switch (signal.payload) {
+          case TerminalSessionFrameEvent(:final frame):
+            if (!resolved.followTerminalTitle) {
+              return;
+            }
+            final normalized = frame.windowTitle?.trim();
+            if (normalized == null ||
+                normalized.isEmpty ||
+                normalized == tab._title) {
+              return;
+            }
+            tab._title = normalized;
+            notifyListeners();
+          case TerminalSessionExitEvent(:final exitCode):
+            tab._exited = true;
+            tab._exitCode = exitCode;
+            notifyListeners();
+          default:
+            break;
+        }
+      });
     } on Object {
-      tab._titleListener?.dispose();
-      tab._exitListener?.dispose();
-      terminal.dispose();
+      unawaited(tab._runtimeSubscription?.cancel());
+      session.dispose();
       rethrow;
     }
     _tabs.add(tab);
@@ -232,7 +240,7 @@ class TerminalPanelController extends ChangeNotifier {
 
   void _syncSessionActivity() {
     for (final tab in _tabs) {
-      final sessionId = tab.terminal.sessionId;
+      final sessionId = tab.session.sessionId;
       if (sessionId == null) {
         continue;
       }
@@ -244,9 +252,7 @@ class TerminalPanelController extends ChangeNotifier {
   }
 
   void _disposeTab(TerminalPanelTab tab) {
-    tab._titleListener?.dispose();
-    tab._exitListener?.dispose();
-    tab.terminal.dispose();
+    tab._dispose();
   }
 
   void _ensureActive() {
@@ -261,14 +267,17 @@ class TerminalPanelController extends ChangeNotifier {
       return;
     }
     _disposed = true;
+    if (disposeRuntime) {
+      // Freeze product calls before releasing the tab-level capabilities so
+      // the runtime's infrastructure settlement is the only PTY close owner.
+      runtime.beginShutdown();
+      runtime.dispose();
+    }
     for (final tab in _tabs.toList(growable: false)) {
       _disposeTab(tab);
     }
     _tabs.clear();
     _activeTabId = null;
-    if (disposeRuntime) {
-      runtime.dispose();
-    }
     super.dispose();
   }
 }
@@ -478,7 +487,7 @@ class _TerminalPanelBody extends StatelessWidget {
                             key: ValueKey(tab.id),
                             builder: (context) {
                               final terminalView = TerminalSessionView(
-                                terminal: tab.terminal,
+                                session: tab.session,
                                 contentPadding: style.viewportPadding,
                                 colors: style.viewportColors,
                                 useFrameDefaultColors:

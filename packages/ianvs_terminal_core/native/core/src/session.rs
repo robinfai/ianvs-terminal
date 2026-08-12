@@ -1,9 +1,5 @@
 use crate::frame_diff_proto;
 use crate::graphic_asset_proto;
-use crate::host_request::{
-    HOST_REQUEST_EVENT_NAME, HostResponseError, HostResponseV1, PendingHostRequestV1,
-    host_request_v1_from_event, pending_host_request, resolve_host_response,
-};
 #[cfg(test)]
 use crate::model::TerminalProfileConnection;
 use crate::model::{
@@ -23,6 +19,7 @@ use crate::zmodem::{
     RECEIVE_COMMIT_CANCELLED, RECEIVE_COMMIT_IDLE, RECEIVE_COMMIT_PUBLISHING,
     RECEIVE_COMMIT_RESULT_READY, ZmodemDirection, ZmodemEffects, ZmodemError, ZmodemManager,
 };
+#[cfg(test)]
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use par_term_emu_core_rust::cell::{Cell, CellFlags};
 use par_term_emu_core_rust::color::Color;
@@ -31,17 +28,18 @@ use par_term_emu_core_rust::graphics::PLACEHOLDER_CHAR;
 use par_term_emu_core_rust::graphics::{ImageDimension, TerminalGraphic};
 use par_term_emu_core_rust::grid::Grid;
 use par_term_emu_core_rust::mouse::{MouseEncoding, MouseMode};
-#[cfg(test)]
-use par_term_emu_core_rust::terminal::ItermAttentionAction;
 use par_term_emu_core_rust::terminal::terminal_snapshot::TerminalSnapshot;
+#[cfg(test)]
 use par_term_emu_core_rust::terminal::{
-    ItermButtonKind, OscCapability, Terminal, TerminalEvent as ParserTerminalEvent,
-    TerminalProcessDebugStats, TransferDirection, TransferStatus, snapshot::ExportFormat,
+    ItermAttentionAction, TerminalEvent as ParserTerminalEvent,
+};
+use par_term_emu_core_rust::terminal::{
+    ItermButtonKind, OscCapability, Terminal, TerminalProcessDebugStats, snapshot::ExportFormat,
 };
 use par_term_emu_core_rust::{WidthConfig, str_width};
 use parking_lot::{Mutex, MutexGuard};
 use regex::RegexBuilder;
-use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::collections::{HashMap, VecDeque};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::{Read, Write};
 use std::sync::{
@@ -52,9 +50,17 @@ use std::sync::{
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+mod event_queue;
 mod frame;
+mod frame_signal;
+mod protocol_callbacks;
+mod protocol_host;
+mod pty_reader;
 mod recording;
 
+use event_queue::PendingEventQueue;
+#[cfg(test)]
+use event_queue::terminal_event_wire_size;
 use frame::{
     CachedFrameMeta, CachedRowState, CollapsedBlockRange, DeltaFrameContext, DisplayProjection,
     FrameBuildContext, GraphicAssetSnapshot, PendingFrameWork, build_delta_frame,
@@ -67,7 +73,21 @@ use frame::{
     PendingScrollRegion, build_graphic_placements, delta_candidate_row_indexes,
     graphic_placement_for_viewport,
 };
-use recording::{RecordingError, RecordingInputPolicy, SessionRecording};
+use frame_signal::{DeferredFrameGrace, PendingFrameSignal, should_defer_with_grace};
+use protocol_callbacks::{
+    CallbackEvent, HostProtocolState, ITERM_FILE_DOWNLOAD_MAX_BYTES,
+    ITERM_FILE_DOWNLOAD_MAX_PENDING, ProtocolCallbackPolicy, discard_replayed_parser_host_events,
+    input_sets_alt_screen, sanitize_file_download_name, sanitize_protocol_text,
+};
+#[cfg(test)]
+use protocol_callbacks::{
+    ITERM_CLIPBOARD_MAX_BYTES, OSC5522_MAX_CHUNK_BYTES, callback_event_from_parser_event,
+    callback_event_from_parser_event_with_host, callback_events_from_parser_events,
+    shell_context_payload_from_current_dir, validated_iterm_attention_action,
+};
+use protocol_host::drain_protocol_callback_batch;
+use pty_reader::{read_error_is_trusted_eof, wait_until_readable};
+use recording::{RecordingError, RecordingFinalizeStatus, RecordingInputPolicy, SessionRecording};
 
 const DEFAULT_ROWS: u16 = 32;
 const DEFAULT_COLS: u16 = 120;
@@ -87,7 +107,6 @@ const ZMODEM_COMPLETION_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const ZMODEM_WIRE_MAX_QUEUED_BYTES: usize = 1024 * 1024;
 const RESOURCE_SAMPLE_INTERVAL: Duration = Duration::from_secs(1);
 const ZMODEM_DEADLINE_POLL_INTERVAL: Duration = Duration::from_millis(50);
-const PTY_READER_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const INLINE_CLEAR_REPAINT_GRACE: Duration = Duration::from_millis(180);
 const RESOURCE_SAMPLER_MAX_FAILURES: u64 = 5;
 
@@ -105,61 +124,9 @@ fn inject_zmodem_writer_thread_spawn_failure() -> bool {
     false
 }
 
-fn pty_read_error_is_trusted_eof(error: &std::io::Error) -> bool {
-    #[cfg(unix)]
-    {
-        // PTY masters conventionally report EIO, rather than Ok(0), after
-        // the slave side closes. Treat that specific transport boundary as
-        // EOF so a receiver that already replied to ZFIN can complete even
-        // when the final OO is swallowed by the PTY teardown.
-        error.raw_os_error() == Some(libc::EIO)
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = error;
-        false
-    }
-}
-
-/// Wait until a Unix PTY master is readable without committing the reader
-/// thread to an unbounded `read`. A timeout after the child-exit flag is
-/// visible is an ordered drain barrier: all bytes written before that exit
-/// have either been routed by the sole reader or are reported readable by the
-/// second poll iteration.
-fn wait_for_pty_readable(poll_handle: Option<&std::fs::File>) -> std::io::Result<bool> {
-    #[cfg(unix)]
-    if let Some(poll_handle) = poll_handle {
-        use std::os::fd::AsRawFd as _;
-        let mut descriptor = libc::pollfd {
-            fd: poll_handle.as_raw_fd(),
-            events: libc::POLLIN,
-            revents: 0,
-        };
-        let timeout_millis =
-            i32::try_from(PTY_READER_POLL_INTERVAL.as_millis()).unwrap_or(i32::MAX);
-        let result = unsafe { libc::poll(&mut descriptor, 1, timeout_millis) };
-        if result < 0 {
-            return Err(std::io::Error::last_os_error());
-        }
-        return Ok(result > 0);
-    }
-
-    let _ = poll_handle;
-    Ok(true)
-}
 const MAX_GRAPHIC_ASSET_SNAPSHOTS: usize = 128;
 const VT220_PRIMARY_DA_RESPONSE: &str = "\x1b[?62;1;2;6;7;8;9c";
 const VT220_SECONDARY_DA_RESPONSE: &str = "\x1b[>1;10;0c";
-const OSC5522_MAX_TOTAL_BYTES: usize = 4 * 1024 * 1024;
-const OSC5522_MAX_CHUNK_BYTES: usize = 4096;
-const OSC5522_MAX_MIME_TYPES: usize = 64;
-const OSC5522_MAX_MIME_BYTES: usize = 255;
-const OSC5522_MAX_ID_BYTES: usize = 128;
-const OSC5522_MAX_PASSWORD_BYTES: usize = 256;
-const OSC5522_MAX_APPLICATION_NAME_BYTES: usize = 256;
-const ITERM_CLIPBOARD_MAX_BYTES: usize = 4 * 1024 * 1024;
-const ITERM_FILE_DOWNLOAD_MAX_BYTES: usize = 16 * 1024 * 1024;
-const ITERM_FILE_DOWNLOAD_MAX_PENDING: usize = 8;
 const MAX_REPLAY_CHECKPOINTS: usize = 64;
 const MAX_REPLAY_CHECKPOINT_BYTES: usize = 32 * 1024 * 1024;
 
@@ -229,557 +196,6 @@ static STORE: LazyLock<SessionStore> = LazyLock::new(SessionStore::default);
 pub const REFRESH_HINT_FRAME_DIRTY: u32 = 1 << 0;
 pub const REFRESH_HINT_EVENT_PENDING: u32 = 1 << 1;
 pub const REFRESH_HINT_EXIT_PENDING: u32 = 1 << 2;
-
-#[derive(Clone, Debug)]
-enum CallbackEvent {
-    Resize {
-        rows: u16,
-        cols: u16,
-    },
-    ClipboardCopy {
-        selection: String,
-        data: String,
-    },
-    ClipboardPasteRequest {
-        selection: String,
-    },
-    ItermClipboardCopy {
-        selection: String,
-        data: Option<String>,
-        streaming: bool,
-    },
-    ClipboardMimeWrite {
-        payload: serde_json::Value,
-    },
-    ClipboardMimeReadRequest {
-        payload: serde_json::Value,
-    },
-    ClipboardMimeError {
-        payload: serde_json::Value,
-    },
-    ShellHook {
-        payload: serde_json::Value,
-    },
-    ShellContext {
-        payload: serde_json::Value,
-    },
-    ShellCommand {
-        payload: serde_json::Value,
-    },
-    ShellUserVar {
-        name: String,
-        value: String,
-    },
-    CellSizeReportRequest,
-    ClearCapturedOutput,
-    ReportVariableRequest {
-        payload: serde_json::Value,
-    },
-    OpenUrlRequest {
-        payload: serde_json::Value,
-    },
-    AttentionRequest {
-        payload: serde_json::Value,
-    },
-    SessionAnnotation {
-        payload: serde_json::Value,
-    },
-    SessionNotification {
-        source: String,
-        action: String,
-        identifier: Option<String>,
-        title: String,
-        message: String,
-        application_name: Option<String>,
-        notification_types: Vec<String>,
-        expires_after_ms: Option<u32>,
-        report_activation: bool,
-        report_close: bool,
-        buttons: Vec<String>,
-    },
-    SessionProgress {
-        payload: serde_json::Value,
-    },
-    SessionBadge {
-        text: Option<String>,
-    },
-    SessionTabStatus {
-        payload: serde_json::Value,
-    },
-    TerminalContext {
-        payload: serde_json::Value,
-    },
-    DragDropCommand {
-        payload: serde_json::Value,
-    },
-    FileDownload {
-        payload: serde_json::Value,
-    },
-    FileDownloadFailed {
-        payload: serde_json::Value,
-    },
-    FileUploadDenied {
-        payload: serde_json::Value,
-    },
-    SessionReset,
-    Bell,
-}
-
-#[derive(Clone, Copy, Debug)]
-struct PendingEventLimits {
-    max_count: usize,
-    max_bytes: usize,
-}
-
-impl Default for PendingEventLimits {
-    fn default() -> Self {
-        Self {
-            max_count: MAX_PENDING_SESSION_EVENTS,
-            max_bytes: MAX_PENDING_SESSION_EVENT_BYTES,
-        }
-    }
-}
-
-#[derive(Debug)]
-struct QueuedTerminalEvent {
-    event: TerminalEvent,
-    wire_bytes: usize,
-    sequence: u64,
-    timestamp_micros: u64,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-struct PendingEventPushResult {
-    emit_overflow_diagnostic: bool,
-}
-
-#[derive(Debug, Default)]
-struct PendingEventQueue {
-    entries: VecDeque<QueuedTerminalEvent>,
-    pending_host_requests: VecDeque<PendingHostRequestV1>,
-    aggregate_bytes: usize,
-    dropped_count: u64,
-    dropped_since_last_drain: u64,
-    next_sequence: u64,
-    overflow_diagnostic_emitted: bool,
-    limits: PendingEventLimits,
-}
-
-impl PendingEventQueue {
-    fn with_initial(event: TerminalEvent) -> Self {
-        let mut queue = Self::default();
-        let _ = queue.push(event);
-        queue
-    }
-
-    fn has_pending_zmodem_terminal_result(&self) -> bool {
-        self.entries.iter().any(|entry| {
-            matches!(
-                entry.event.kind.as_str(),
-                "zmodem_completed" | "zmodem_failed" | "zmodem_cancelled"
-            )
-        })
-    }
-
-    #[cfg(test)]
-    fn with_limits(max_count: usize, max_bytes: usize) -> Self {
-        Self {
-            limits: PendingEventLimits {
-                max_count,
-                max_bytes,
-            },
-            ..Self::default()
-        }
-    }
-
-    fn push(&mut self, event: TerminalEvent) -> PendingEventPushResult {
-        let timestamp_micros = unix_timestamp_micros();
-        let wire_bytes = terminal_event_wire_size(&event);
-        if self.limits.max_count == 0
-            || self.limits.max_bytes == 0
-            || wire_bytes > self.limits.max_bytes
-        {
-            // Sequences describe every attempted event, including events that
-            // cannot enter the bounded queue. This lets consumers observe the
-            // loss as a sequence gap alongside `dropped_count`.
-            self.next_sequence = self.next_sequence.saturating_add(1);
-            return self.record_drop();
-        }
-
-        if let Some(transfer_id) = zmodem_progress_transfer_id(&event)
-            && let Some(entry) = self.entries.back_mut()
-            && zmodem_progress_transfer_id(&entry.event) == Some(transfer_id)
-        {
-            self.aggregate_bytes = self
-                .aggregate_bytes
-                .saturating_sub(entry.wire_bytes)
-                .saturating_add(wire_bytes);
-            entry.event = event;
-            entry.wire_bytes = wire_bytes;
-            entry.timestamp_micros = timestamp_micros;
-            return self.enforce_limits();
-        }
-
-        let sequence = self.next_sequence;
-        self.next_sequence = self.next_sequence.saturating_add(1);
-
-        self.aggregate_bytes = self.aggregate_bytes.saturating_add(wire_bytes);
-        self.entries.push_back(QueuedTerminalEvent {
-            event,
-            wire_bytes,
-            sequence,
-            timestamp_micros,
-        });
-
-        self.enforce_limits()
-    }
-
-    fn enforce_limits(&mut self) -> PendingEventPushResult {
-        let mut result = PendingEventPushResult::default();
-        while self.entries.len() > self.limits.max_count
-            || self.aggregate_bytes > self.limits.max_bytes
-        {
-            let Some(index) = self.eviction_index() else {
-                break;
-            };
-            if let Some(removed) = self.entries.remove(index) {
-                self.aggregate_bytes = self.aggregate_bytes.saturating_sub(removed.wire_bytes);
-                let dropped = self.record_drop();
-                result.emit_overflow_diagnostic |= dropped.emit_overflow_diagnostic;
-            } else {
-                break;
-            }
-        }
-        result
-    }
-
-    fn eviction_index(&self) -> Option<usize> {
-        self.entries
-            .iter()
-            .position(|entry| {
-                !pending_event_is_protected(&entry.event.kind)
-                    && pending_event_is_coalescible(&entry.event.kind)
-            })
-            .or_else(|| {
-                self.entries.iter().position(|entry| {
-                    !pending_event_is_protected(&entry.event.kind)
-                        && !pending_event_is_critical(&entry.event.kind)
-                })
-            })
-            // A critical-only flood cannot be both lossless and hard-bounded.
-            // Prefer retaining `exit`; otherwise discard the oldest clipboard
-            // request only after every non-critical event is gone.
-            .or_else(|| {
-                self.entries.iter().position(|entry| {
-                    !pending_event_is_protected(&entry.event.kind) && entry.event.kind != "exit"
-                })
-            })
-            .or_else(|| {
-                self.entries
-                    .iter()
-                    .position(|entry| !pending_event_is_protected(&entry.event.kind))
-            })
-            // Keep the newly appended event when possible, but never let a
-            // protected-event flood defeat the queue's hard count/byte caps.
-            .or_else(|| (self.entries.len() > 1).then_some(0))
-    }
-
-    fn record_drop(&mut self) -> PendingEventPushResult {
-        self.dropped_count = self.dropped_count.saturating_add(1);
-        self.dropped_since_last_drain = self.dropped_since_last_drain.saturating_add(1);
-        let emit_overflow_diagnostic = !self.overflow_diagnostic_emitted;
-        self.overflow_diagnostic_emitted = true;
-        PendingEventPushResult {
-            emit_overflow_diagnostic,
-        }
-    }
-
-    fn drain(&mut self) -> Vec<TerminalEvent> {
-        self.aggregate_bytes = 0;
-        self.dropped_since_last_drain = 0;
-        self.entries.drain(..).map(|entry| entry.event).collect()
-    }
-
-    fn drain_event_batch(&mut self, session_id: u64) -> Option<RuntimeEventBatchV1> {
-        if self.entries.is_empty() && self.dropped_since_last_drain == 0 {
-            return None;
-        }
-
-        self.aggregate_bytes = 0;
-        let dropped_count = std::mem::take(&mut self.dropped_since_last_drain);
-        let entries = self.entries.drain(..).collect::<Vec<_>>();
-        let messages = entries
-            .into_iter()
-            .map(|entry| {
-                let request = host_request_v1_from_event(
-                    session_id,
-                    entry.sequence,
-                    entry.timestamp_micros,
-                    &entry.event.kind,
-                    entry.event.payload.clone(),
-                );
-                if let Some(request) = request
-                    && let Some(pending) = pending_host_request(&request)
-                    && let Ok(payload) = serde_json::to_value(request)
-                {
-                    self.pending_host_requests.push_back(pending);
-                    while self.pending_host_requests.len() > MAX_PENDING_HOST_REQUESTS {
-                        self.pending_host_requests.pop_front();
-                    }
-                    return RuntimeEnvelopeV1::event(
-                        session_id,
-                        entry.sequence,
-                        entry.timestamp_micros,
-                        HOST_REQUEST_EVENT_NAME.to_string(),
-                        Some(payload),
-                    );
-                }
-                RuntimeEnvelopeV1::event(
-                    session_id,
-                    entry.sequence,
-                    entry.timestamp_micros,
-                    entry.event.kind,
-                    entry.event.payload,
-                )
-            })
-            .collect();
-        Some(RuntimeEventBatchV1::new(
-            session_id,
-            self.next_sequence,
-            dropped_count,
-            messages,
-        ))
-    }
-
-    fn resolve_host_response(
-        &mut self,
-        session_id: u64,
-        raw: &str,
-    ) -> Result<Option<Vec<u8>>, HostResponseError> {
-        let response = HostResponseV1::decode_json(raw, session_id)?;
-        let index = self
-            .pending_host_requests
-            .iter()
-            .position(|pending| pending.request_id == response.request_id)
-            .ok_or(HostResponseError::CorrelationMismatch)?;
-        let bytes = resolve_host_response(&response, &self.pending_host_requests[index])?;
-        self.pending_host_requests.remove(index);
-        Ok(bytes)
-    }
-
-    fn len(&self) -> usize {
-        self.entries.len()
-    }
-}
-
-fn pending_event_is_coalescible(kind: &str) -> bool {
-    matches!(
-        kind,
-        "bell"
-            | "resize"
-            | "shell_context"
-            | "session_progress"
-            | "session_badge"
-            | "zmodem_progress"
-    )
-}
-
-fn pending_event_is_critical(kind: &str) -> bool {
-    matches!(
-        kind,
-        "exit"
-            | "ssh_auth_prompt"
-            | "clipboard_copy"
-            | "clipboard_paste_request"
-            | "clipboard_mime_write"
-            | "clipboard_mime_read_request"
-            | "clipboard_mime_error"
-            | "session_reset"
-            | "zmodem_completed"
-            | "zmodem_failed"
-            | "zmodem_cancelled"
-            | ZMODEM_DEFERRED_WRITE_FAILED_KIND
-    )
-}
-
-fn pending_event_is_protected(kind: &str) -> bool {
-    matches!(
-        kind,
-        "zmodem_detected"
-            | "zmodem_file_offer"
-            | "zmodem_started"
-            | "zmodem_file_completed"
-            | "zmodem_file_skipped"
-            | "zmodem_completed"
-            | "zmodem_failed"
-            | "zmodem_cancelled"
-            | ZMODEM_DEFERRED_WRITE_FAILED_KIND
-    )
-}
-
-fn zmodem_progress_transfer_id(event: &TerminalEvent) -> Option<&str> {
-    (event.kind == "zmodem_progress")
-        .then(|| event.payload.as_ref()?.get("transferId")?.as_str())?
-}
-
-fn terminal_event_wire_size(event: &TerminalEvent) -> usize {
-    // Fixed JSON object keys/punctuation plus the largest u64 session id.
-    64usize
-        .saturating_add(json_string_wire_size(&event.kind))
-        .saturating_add(event.payload.as_ref().map_or(4, json_value_wire_size))
-}
-
-fn json_value_wire_size(value: &serde_json::Value) -> usize {
-    match value {
-        serde_json::Value::Null => 4,
-        serde_json::Value::Bool(true) => 4,
-        serde_json::Value::Bool(false) => 5,
-        serde_json::Value::Number(number) => number.to_string().len(),
-        serde_json::Value::String(value) => json_string_wire_size(value),
-        serde_json::Value::Array(values) => values.iter().fold(2usize, |size, value| {
-            size.saturating_add(json_value_wire_size(value))
-                .saturating_add(1)
-        }),
-        serde_json::Value::Object(values) => values.iter().fold(2usize, |size, (key, value)| {
-            size.saturating_add(json_string_wire_size(key))
-                .saturating_add(1)
-                .saturating_add(json_value_wire_size(value))
-                .saturating_add(1)
-        }),
-    }
-}
-
-fn json_string_wire_size(value: &str) -> usize {
-    value.chars().fold(2usize, |size, character| {
-        let encoded = match character {
-            '"' | '\\' | '\u{0008}' | '\u{000c}' | '\n' | '\r' | '\t' => 2,
-            character if character <= '\u{001f}' => 6,
-            character => character.len_utf8(),
-        };
-        size.saturating_add(encoded)
-    })
-}
-
-#[derive(Clone, Debug)]
-struct DeferredFrameGrace {
-    damage_generation: u64,
-    started_at: Instant,
-}
-
-struct PendingFrameSignal {
-    dirty: AtomicBool,
-    refresh_hint_dirty: AtomicBool,
-    work: Mutex<PendingFrameWork>,
-}
-
-impl PendingFrameSignal {
-    fn new(initially_dirty: bool) -> Self {
-        Self {
-            dirty: AtomicBool::new(initially_dirty),
-            refresh_hint_dirty: AtomicBool::new(initially_dirty),
-            work: Mutex::new(PendingFrameWork::default()),
-        }
-    }
-
-    fn is_dirty(&self) -> bool {
-        self.dirty.load(Ordering::SeqCst)
-    }
-
-    fn mutate(&self, mutation: impl FnOnce(&mut PendingFrameWork)) {
-        self.mutate_inner(false, mutation);
-    }
-
-    fn mutate_reader(&self, mutation: impl FnOnce(&mut PendingFrameWork)) {
-        self.mutate_inner(true, mutation);
-    }
-
-    fn mutate_inner(&self, sets_refresh_hint: bool, mutation: impl FnOnce(&mut PendingFrameWork)) {
-        let mut work = self.work.lock();
-        mutation(&mut work);
-        self.dirty.store(true, Ordering::SeqCst);
-        if sets_refresh_hint {
-            self.refresh_hint_dirty.store(true, Ordering::SeqCst);
-        }
-    }
-
-    fn take(&self) -> (bool, bool, PendingFrameWork) {
-        let mut work = self.work.lock();
-        let was_dirty = self.dirty.swap(false, Ordering::SeqCst);
-        let refresh_hint_was_dirty = self.refresh_hint_dirty.swap(false, Ordering::SeqCst);
-        (
-            was_dirty,
-            refresh_hint_was_dirty,
-            std::mem::take(&mut *work),
-        )
-    }
-
-    fn restore(&self, deferred_work: PendingFrameWork, restore_refresh_hint: bool) {
-        let mut current_work = self.work.lock();
-        if current_work.is_empty() {
-            *current_work = deferred_work;
-        } else if !deferred_work.is_empty() {
-            let damage_generation = current_work
-                .damage_generation
-                .max(deferred_work.damage_generation)
-                .saturating_add(1);
-            let cursor_before = deferred_work
-                .cursor_before
-                .or_else(|| current_work.cursor_before.take());
-            let cursor_after = current_work
-                .cursor_after
-                .take()
-                .or(deferred_work.cursor_after);
-            let snapshot_fallback_reason = deferred_work
-                .snapshot_fallback_reason
-                .or_else(|| current_work.snapshot_fallback_reason.take())
-                .or_else(|| Some("concurrent_deferred_damage".to_string()));
-            *current_work = PendingFrameWork {
-                full_repaint: true,
-                snapshot_fallback_reason,
-                cursor_before,
-                cursor_after,
-                damage_generation,
-                ..PendingFrameWork::default()
-            };
-        }
-        self.dirty.store(true, Ordering::SeqCst);
-        if restore_refresh_hint {
-            self.refresh_hint_dirty.store(true, Ordering::SeqCst);
-        }
-    }
-
-    fn has_refresh_hint(&self) -> bool {
-        self.refresh_hint_dirty.load(Ordering::SeqCst)
-    }
-
-    fn snapshot(&self) -> PendingFrameWork {
-        self.work.lock().clone()
-    }
-}
-
-fn should_defer_frame_with_grace(
-    deferred_frame: &Mutex<Option<DeferredFrameGrace>>,
-    damage_generation: u64,
-    grace: Duration,
-) -> bool {
-    let mut deferred = deferred_frame.lock();
-    if let Some(frame) = deferred
-        .as_ref()
-        .filter(|frame| frame.damage_generation == damage_generation)
-    {
-        if frame.started_at.elapsed() < grace {
-            return true;
-        }
-        *deferred = None;
-        return false;
-    }
-
-    *deferred = Some(DeferredFrameGrace {
-        damage_generation,
-        started_at: Instant::now(),
-    });
-    true
-}
 
 #[derive(Clone, Debug, serde::Serialize)]
 struct FrameDebugStats {
@@ -1180,657 +596,6 @@ impl TerminalState {
     }
 }
 
-#[derive(Clone, Debug)]
-struct Osc5522WriteState {
-    location: String,
-    id: Option<String>,
-    password: Option<String>,
-    application_name: Option<String>,
-    data_by_mime: BTreeMap<String, Vec<u8>>,
-    aliases_by_mime: BTreeMap<String, Vec<String>>,
-    last_mime: Option<String>,
-    total_bytes: usize,
-    failed: bool,
-}
-
-#[derive(Clone, Debug)]
-struct ItermClipboardCaptureState {
-    selection: String,
-    data: Vec<u8>,
-    overflowed: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum ItermClipboardBoundary {
-    None,
-    Start(String),
-    End,
-}
-
-#[derive(Clone, Default)]
-struct HostProtocolState {
-    buffer: Vec<u8>,
-    application_keypad: bool,
-    osc5522_write: Option<Osc5522WriteState>,
-    iterm_clipboard_capture: Option<ItermClipboardCaptureState>,
-}
-
-fn iterm_clipboard_boundary(payload: &[u8]) -> ItermClipboardBoundary {
-    let Some(command) = payload.strip_prefix(b"1337;") else {
-        return ItermClipboardBoundary::None;
-    };
-    if command == b"EndCopy" {
-        return ItermClipboardBoundary::End;
-    }
-    let name = if command == b"CopyToClipboard" {
-        ""
-    } else if let Some(name) = command.strip_prefix(b"CopyToClipboard=") {
-        if name.len() > 32
-            || name
-                .iter()
-                .any(|byte| !byte.is_ascii() || byte.is_ascii_control())
-        {
-            return ItermClipboardBoundary::None;
-        }
-        let Ok(name) = std::str::from_utf8(name) else {
-            return ItermClipboardBoundary::None;
-        };
-        name
-    } else {
-        return ItermClipboardBoundary::None;
-    };
-
-    let selection = match name {
-        "find" => "find",
-        "font" => "font",
-        // iTerm2 routes the documented empty/rule value and unknown bounded
-        // names to the general pasteboard. `general`, `clipboard`, and the
-        // historical source spelling `ruler` are accepted aliases.
-        _ => "c",
-    };
-    ItermClipboardBoundary::Start(selection.to_string())
-}
-
-impl HostProtocolState {
-    fn observe(&mut self, bytes: &[u8], emulation: TerminalEmulation) -> Vec<CallbackEvent> {
-        if self.buffer.is_empty()
-            && self.iterm_clipboard_capture.is_none()
-            && !bytes.contains(&0x1b)
-        {
-            return Vec::new();
-        }
-
-        self.buffer.extend_from_slice(bytes);
-        let mut events = Vec::new();
-        let mut index = 0usize;
-        let mut capture_segment_start = self.iterm_clipboard_capture.as_ref().map(|_| 0usize);
-
-        while index < self.buffer.len() {
-            if self.buffer[index] != 0x1b {
-                index += 1;
-                continue;
-            }
-
-            if let Some(start) = capture_segment_start.take() {
-                self.append_iterm_clipboard_range(start, index);
-            }
-
-            if index + 1 >= self.buffer.len() {
-                break;
-            }
-
-            let sequence_start = index;
-            match self.buffer[index + 1] {
-                b'=' => {
-                    self.application_keypad = true;
-                    index += 2;
-                    self.append_iterm_clipboard_range(sequence_start, index);
-                }
-                b'>' => {
-                    self.application_keypad = false;
-                    index += 2;
-                    self.append_iterm_clipboard_range(sequence_start, index);
-                }
-                b'c' => {
-                    self.application_keypad = false;
-                    self.osc5522_write = None;
-                    self.iterm_clipboard_capture = None;
-                    index += 2;
-                }
-                b']' => match self.consume_osc(index, emulation, &mut events) {
-                    Some((next, boundary)) => {
-                        match boundary {
-                            ItermClipboardBoundary::None => {
-                                self.append_iterm_clipboard_range(sequence_start, next);
-                            }
-                            ItermClipboardBoundary::Start(selection) => {
-                                self.iterm_clipboard_capture = Some(ItermClipboardCaptureState {
-                                    selection,
-                                    data: Vec::new(),
-                                    overflowed: false,
-                                });
-                            }
-                            ItermClipboardBoundary::End => {
-                                self.finish_iterm_clipboard_capture(&mut events);
-                            }
-                        }
-                        index = next;
-                    }
-                    None => break,
-                },
-                b'P' => match self.consume_dcs(index, emulation, &mut events) {
-                    Some(next) => {
-                        index = next;
-                        self.append_iterm_clipboard_range(sequence_start, index);
-                    }
-                    None => break,
-                },
-                b'[' => match self.consume_csi(index, emulation, &mut events) {
-                    Some(next) => {
-                        index = next;
-                        self.append_iterm_clipboard_range(sequence_start, index);
-                    }
-                    None => break,
-                },
-                _ => {
-                    index += 2;
-                    self.append_iterm_clipboard_range(sequence_start, index);
-                }
-            }
-            capture_segment_start = self.iterm_clipboard_capture.as_ref().map(|_| index);
-        }
-
-        if let Some(start) = capture_segment_start {
-            self.append_iterm_clipboard_range(start, index);
-        }
-
-        if index > 0 {
-            self.buffer.drain(..index);
-        } else if self.buffer.len() > 4096 {
-            let keep = 4096usize.min(self.buffer.len());
-            self.buffer.drain(..self.buffer.len() - keep);
-        }
-
-        events
-    }
-
-    fn append_iterm_clipboard_range(&mut self, start: usize, end: usize) {
-        if start >= end {
-            return;
-        }
-        let Some(capture) = self.iterm_clipboard_capture.as_mut() else {
-            return;
-        };
-        if capture.overflowed {
-            return;
-        }
-        let bytes = &self.buffer[start..end];
-        let Some(new_len) = capture.data.len().checked_add(bytes.len()) else {
-            capture.data.clear();
-            capture.overflowed = true;
-            return;
-        };
-        if new_len > ITERM_CLIPBOARD_MAX_BYTES {
-            capture.data.clear();
-            capture.overflowed = true;
-            return;
-        }
-        capture.data.extend_from_slice(bytes);
-    }
-
-    fn finish_iterm_clipboard_capture(&mut self, events: &mut Vec<CallbackEvent>) {
-        let Some(capture) = self.iterm_clipboard_capture.take() else {
-            return;
-        };
-        events.push(CallbackEvent::ItermClipboardCopy {
-            selection: capture.selection,
-            data: (!capture.overflowed).then(|| BASE64_STANDARD.encode(capture.data)),
-            streaming: true,
-        });
-    }
-
-    fn consume_osc(
-        &mut self,
-        start: usize,
-        emulation: TerminalEmulation,
-        events: &mut Vec<CallbackEvent>,
-    ) -> Option<(usize, ItermClipboardBoundary)> {
-        let mut cursor = start + 2;
-        let mut terminator_len = 0usize;
-        let mut terminator_start = 0usize;
-
-        while cursor < self.buffer.len() {
-            match self.buffer[cursor] {
-                0x07 => {
-                    terminator_start = cursor;
-                    terminator_len = 1;
-                    break;
-                }
-                0x1b if cursor + 1 < self.buffer.len() && self.buffer[cursor + 1] == b'\\' => {
-                    terminator_start = cursor;
-                    terminator_len = 2;
-                    break;
-                }
-                _ => {
-                    cursor += 1;
-                }
-            }
-        }
-
-        if terminator_len == 0 {
-            return None;
-        }
-
-        let payload = self.buffer[start + 2..terminator_start].to_vec();
-        let boundary = if emulation == TerminalEmulation::Xterm256 {
-            iterm_clipboard_boundary(&payload)
-        } else {
-            ItermClipboardBoundary::None
-        };
-        if emulation == TerminalEmulation::Xterm256 {
-            self.handle_osc_payload(&payload, events);
-        }
-
-        Some((terminator_start + terminator_len, boundary))
-    }
-
-    fn consume_dcs(
-        &mut self,
-        start: usize,
-        emulation: TerminalEmulation,
-        events: &mut Vec<CallbackEvent>,
-    ) -> Option<usize> {
-        let mut cursor = start + 2;
-        let mut terminator_start = 0usize;
-
-        while cursor < self.buffer.len() {
-            if self.buffer[cursor] == 0x1b
-                && cursor + 1 < self.buffer.len()
-                && self.buffer[cursor + 1] == b'\\'
-            {
-                terminator_start = cursor;
-                break;
-            }
-            cursor += 1;
-        }
-
-        if terminator_start == 0 {
-            return None;
-        }
-
-        if emulation == TerminalEmulation::Xterm256 {
-            let payload = self.buffer[start + 2..terminator_start].to_vec();
-            self.handle_dcs_payload(&payload, events);
-        }
-
-        Some(terminator_start + 2)
-    }
-
-    fn handle_dcs_payload(&self, payload: &[u8], events: &mut Vec<CallbackEvent>) {
-        let mut parts = payload.splitn(2, |byte| *byte == b';');
-        let command = parts.next().unwrap_or_default();
-        let encoded = parts.next().unwrap_or_default();
-
-        if command != b"hook" || encoded.is_empty() || encoded.len() % 2 != 0 {
-            return;
-        }
-
-        let mut json_bytes = Vec::with_capacity(encoded.len() / 2);
-        for chunk in encoded.chunks_exact(2) {
-            let Some(high) = hex_nibble(chunk[0]) else {
-                return;
-            };
-            let Some(low) = hex_nibble(chunk[1]) else {
-                return;
-            };
-            json_bytes.push((high << 4) | low);
-        }
-
-        let Ok(json) = String::from_utf8(json_bytes) else {
-            return;
-        };
-        let Ok(value) = serde_json::from_str::<serde_json::Value>(&json) else {
-            return;
-        };
-        if value.is_object() {
-            events.push(CallbackEvent::ShellHook { payload: value });
-        }
-    }
-
-    fn handle_osc_payload(&mut self, payload: &[u8], events: &mut Vec<CallbackEvent>) {
-        let mut parts = payload.splitn(2, |byte| *byte == b';');
-        let command = parts.next().unwrap_or_default();
-        let remainder = parts.next().unwrap_or_default();
-
-        match command {
-            b"52" => {
-                let mut args = remainder.splitn(2, |byte| *byte == b';');
-                let selection =
-                    String::from_utf8_lossy(args.next().unwrap_or_default()).into_owned();
-                let data = args
-                    .next()
-                    .map(|value| String::from_utf8_lossy(value).into_owned());
-                let selection = if selection.is_empty() {
-                    "c".to_string()
-                } else {
-                    selection
-                };
-
-                if let Some(data) = data {
-                    if data == "?" {
-                        events.push(CallbackEvent::ClipboardPasteRequest { selection });
-                    } else {
-                        events.push(CallbackEvent::ClipboardCopy { selection, data });
-                    }
-                }
-            }
-            b"5522" => self.handle_osc5522(remainder, events),
-            b"9" => {
-                if let Some(payload) = primary_progress_payload_from_osc9(remainder) {
-                    events.push(CallbackEvent::SessionProgress { payload });
-                }
-            }
-            b"1337" => {
-                if let Some(encoded) = remainder.strip_prefix(b"Copy=:") {
-                    events.push(CallbackEvent::ItermClipboardCopy {
-                        selection: "c".to_string(),
-                        data: std::str::from_utf8(encoded).ok().map(str::to_string),
-                        streaming: false,
-                    });
-                } else if let Ok(data) = std::str::from_utf8(remainder)
-                    && let Some(payload) = shell_context_payload_from_current_dir(data)
-                {
-                    events.push(CallbackEvent::ShellContext { payload });
-                }
-            }
-            _ => {}
-        }
-    }
-
-    fn handle_osc5522(&mut self, remainder: &[u8], events: &mut Vec<CallbackEvent>) {
-        let mut fields = remainder.splitn(2, |byte| *byte == b';');
-        let metadata = fields.next().unwrap_or_default();
-        let payload = fields.next().unwrap_or_default();
-        let Ok(metadata) = std::str::from_utf8(metadata) else {
-            self.fail_osc5522_write("EINVAL", None, events);
-            return;
-        };
-        let Some(metadata) = parse_osc5522_metadata(metadata) else {
-            self.fail_osc5522_write("EINVAL", None, events);
-            return;
-        };
-        let request_type = metadata.get("type").map(String::as_str).unwrap_or_default();
-        let id = metadata
-            .get("id")
-            .and_then(|value| sanitized_osc5522_id(value));
-        match request_type {
-            "write" => {
-                if !payload.is_empty() {
-                    events.push(osc5522_error_event("write", "EINVAL", id));
-                    self.osc5522_write = None;
-                    return;
-                }
-                let Some(location) = osc5522_location(&metadata) else {
-                    events.push(osc5522_error_event("write", "EINVAL", id));
-                    self.osc5522_write = None;
-                    return;
-                };
-                let Some((password, application_name)) = osc5522_credentials(&metadata) else {
-                    events.push(osc5522_error_event("write", "EINVAL", id));
-                    self.osc5522_write = None;
-                    return;
-                };
-                self.osc5522_write = Some(Osc5522WriteState {
-                    location,
-                    id,
-                    password,
-                    application_name,
-                    data_by_mime: BTreeMap::new(),
-                    aliases_by_mime: BTreeMap::new(),
-                    last_mime: None,
-                    total_bytes: 0,
-                    failed: false,
-                });
-            }
-            "wdata" => self.handle_osc5522_wdata(&metadata, payload, events),
-            "walias" => self.handle_osc5522_walias(&metadata, payload, events),
-            "read" => self.handle_osc5522_read(&metadata, payload, id, events),
-            _ => self.fail_osc5522_write("EINVAL", id, events),
-        }
-    }
-
-    fn handle_osc5522_wdata(
-        &mut self,
-        metadata: &BTreeMap<String, String>,
-        payload: &[u8],
-        events: &mut Vec<CallbackEvent>,
-    ) {
-        let Some(state) = self.osc5522_write.as_mut() else {
-            events.push(osc5522_error_event("write", "EINVAL", None));
-            return;
-        };
-        if state.failed {
-            return;
-        }
-        let Some(encoded_mime) = metadata.get("mime") else {
-            if !payload.is_empty() || state.data_by_mime.is_empty() {
-                self.fail_osc5522_write("EINVAL", None, events);
-                return;
-            }
-            let state = self.osc5522_write.take().expect("write state exists");
-            let items = state
-                .data_by_mime
-                .into_iter()
-                .map(|(mime, data)| {
-                    serde_json::json!({
-                        "mime": mime,
-                        "data": BASE64_STANDARD.encode(data),
-                        "aliases": state.aliases_by_mime.get(&mime).cloned().unwrap_or_default(),
-                    })
-                })
-                .collect::<Vec<_>>();
-            events.push(CallbackEvent::ClipboardMimeWrite {
-                payload: serde_json::json!({
-                    "protocol": "osc5522",
-                    "location": state.location,
-                    "id": state.id,
-                    "password": state.password,
-                    "applicationName": state.application_name,
-                    "items": items,
-                }),
-            });
-            return;
-        };
-        let Some(mime) = decode_osc5522_mime(encoded_mime) else {
-            self.fail_osc5522_write("EINVAL", None, events);
-            return;
-        };
-        let Ok(chunk) = BASE64_STANDARD.decode(payload) else {
-            self.fail_osc5522_write("EINVAL", None, events);
-            return;
-        };
-        if chunk.len() > OSC5522_MAX_CHUNK_BYTES
-            || state.total_bytes.saturating_add(chunk.len()) > OSC5522_MAX_TOTAL_BYTES
-            || (!state.data_by_mime.contains_key(&mime)
-                && state.data_by_mime.len() >= OSC5522_MAX_MIME_TYPES)
-            || (state.last_mime.as_deref() != Some(&mime) && state.data_by_mime.contains_key(&mime))
-        {
-            self.fail_osc5522_write("EINVAL", None, events);
-            return;
-        }
-        state.total_bytes += chunk.len();
-        state.last_mime = Some(mime.clone());
-        state.data_by_mime.entry(mime).or_default().extend(chunk);
-    }
-
-    fn handle_osc5522_walias(
-        &mut self,
-        metadata: &BTreeMap<String, String>,
-        payload: &[u8],
-        events: &mut Vec<CallbackEvent>,
-    ) {
-        let Some(state) = self.osc5522_write.as_mut() else {
-            events.push(osc5522_error_event("write", "EINVAL", None));
-            return;
-        };
-        if state.failed {
-            return;
-        }
-        let Some(target) = metadata
-            .get("mime")
-            .and_then(|value| decode_osc5522_mime(value))
-        else {
-            self.fail_osc5522_write("EINVAL", None, events);
-            return;
-        };
-        let Ok(decoded) = BASE64_STANDARD.decode(payload) else {
-            self.fail_osc5522_write("EINVAL", None, events);
-            return;
-        };
-        let Ok(decoded) = std::str::from_utf8(&decoded) else {
-            self.fail_osc5522_write("EINVAL", None, events);
-            return;
-        };
-        let aliases = decoded
-            .split_ascii_whitespace()
-            .map(str::to_string)
-            .collect::<Vec<_>>();
-        if aliases.is_empty()
-            || aliases.len() > 16
-            || !state.data_by_mime.contains_key(&target)
-            || aliases.iter().any(|alias| !is_valid_osc5522_mime(alias))
-        {
-            self.fail_osc5522_write("EINVAL", None, events);
-            return;
-        }
-        state.aliases_by_mime.insert(target, aliases);
-    }
-
-    fn handle_osc5522_read(
-        &mut self,
-        metadata: &BTreeMap<String, String>,
-        payload: &[u8],
-        id: Option<String>,
-        events: &mut Vec<CallbackEvent>,
-    ) {
-        let Some(location) = osc5522_location(metadata) else {
-            events.push(osc5522_error_event("read", "EINVAL", id));
-            return;
-        };
-        let Some((password, application_name)) = osc5522_credentials(metadata) else {
-            events.push(osc5522_error_event("read", "EINVAL", id));
-            return;
-        };
-        let (mime_types, list_only) = if let Some(encoded_mime) = metadata.get("mime") {
-            if !payload.is_empty() {
-                events.push(osc5522_error_event("read", "EINVAL", id));
-                return;
-            }
-            let Some(mime) = decode_osc5522_mime(encoded_mime) else {
-                events.push(osc5522_error_event("read", "EINVAL", id));
-                return;
-            };
-            (vec![mime], false)
-        } else {
-            let Ok(decoded) = BASE64_STANDARD.decode(payload) else {
-                events.push(osc5522_error_event("read", "EINVAL", id));
-                return;
-            };
-            let Ok(decoded) = std::str::from_utf8(&decoded) else {
-                events.push(osc5522_error_event("read", "EINVAL", id));
-                return;
-            };
-            (
-                decoded
-                    .split_ascii_whitespace()
-                    .map(str::to_string)
-                    .collect::<Vec<_>>(),
-                decoded == ".",
-            )
-        };
-        if mime_types.is_empty()
-            || mime_types.len() > OSC5522_MAX_MIME_TYPES
-            || mime_types
-                .iter()
-                .any(|mime| mime != "." && !is_valid_osc5522_mime_pattern(mime))
-            || (mime_types.contains(&".".to_string()) && mime_types.len() != 1)
-        {
-            events.push(osc5522_error_event("read", "EINVAL", id));
-            return;
-        }
-        events.push(CallbackEvent::ClipboardMimeReadRequest {
-            payload: serde_json::json!({
-                "protocol": "osc5522",
-                "location": location,
-                "id": id,
-                "password": password,
-                "applicationName": application_name,
-                "mimeTypes": mime_types,
-                "listOnly": list_only,
-            }),
-        });
-    }
-
-    fn fail_osc5522_write(
-        &mut self,
-        status: &str,
-        id: Option<String>,
-        events: &mut Vec<CallbackEvent>,
-    ) {
-        if let Some(state) = self.osc5522_write.as_mut() {
-            if state.failed {
-                return;
-            }
-            state.failed = true;
-            events.push(osc5522_error_event(
-                "write",
-                status,
-                state.id.clone().or(id),
-            ));
-        } else {
-            events.push(osc5522_error_event("write", status, id));
-        }
-    }
-
-    fn consume_csi(
-        &mut self,
-        start: usize,
-        emulation: TerminalEmulation,
-        events: &mut Vec<CallbackEvent>,
-    ) -> Option<usize> {
-        let mut cursor = start + 2;
-        while cursor < self.buffer.len() {
-            let byte = self.buffer[cursor];
-            if (0x40..=0x7e).contains(&byte) {
-                if emulation == TerminalEmulation::Xterm256 && byte == b't' {
-                    let payload = self.buffer[start + 2..cursor].to_vec();
-                    self.handle_csi_window(&payload, events);
-                }
-                return Some(cursor + 1);
-            }
-            cursor += 1;
-        }
-        None
-    }
-
-    fn handle_csi_window(&mut self, payload: &[u8], events: &mut Vec<CallbackEvent>) {
-        let body = String::from_utf8_lossy(payload);
-        let mut parts = body.split(';');
-        let Some(kind) = parts.next() else {
-            return;
-        };
-        if kind != "8" {
-            return;
-        }
-
-        let rows = parts.next().and_then(|value| value.parse::<u16>().ok());
-        let cols = parts.next().and_then(|value| value.parse::<u16>().ok());
-        if let (Some(rows), Some(cols)) = (rows, cols) {
-            events.push(CallbackEvent::Resize { rows, cols });
-        }
-    }
-}
-
 #[derive(Clone)]
 struct ReplayCheckpoint {
     id: u64,
@@ -1894,701 +659,6 @@ impl ReplayCheckpointStore {
             .find(|entry| entry.id == checkpoint_id)
             .cloned()
     }
-}
-
-#[cfg(test)]
-fn callback_event_from_parser_event(
-    event: ParserTerminalEvent,
-    suppress_shell_zones: bool,
-) -> Option<CallbackEvent> {
-    callback_event_from_parser_event_with_terminal(event, suppress_shell_zones, None)
-}
-
-fn callback_event_from_parser_event_with_terminal(
-    event: ParserTerminalEvent,
-    suppress_shell_zones: bool,
-    terminal: Option<&Terminal>,
-) -> Option<CallbackEvent> {
-    match event {
-        ParserTerminalEvent::BellRang(_) => Some(CallbackEvent::Bell),
-        ParserTerminalEvent::CwdChanged(change) => {
-            let source = if change.source
-                == par_term_emu_core_rust::terminal::CwdChangeSource::Osc1337
-                && change.old_cwd.as_deref() == Some(change.new_cwd.as_str())
-            {
-                // OSC 1337 RemoteHost updates identity while retaining cwd.
-                // Keep the established product source without emitting the
-                // supplemental EnvironmentChanged/RemoteHostTransition events
-                // as duplicate shell_context callbacks.
-                "osc1337_remote_host"
-            } else {
-                change.source.as_str()
-            };
-            let mut payload = serde_json::Map::new();
-            payload.insert(
-                "source".to_string(),
-                serde_json::Value::String(source.to_string()),
-            );
-            payload.insert(
-                "cwd".to_string(),
-                serde_json::Value::String(sanitize_protocol_text(&change.new_cwd, 1024)),
-            );
-            payload.insert(
-                "hostname".to_string(),
-                sanitize_protocol_text_option(change.hostname.as_deref(), 255)
-                    .map_or(serde_json::Value::Null, serde_json::Value::String),
-            );
-            payload.insert(
-                "username".to_string(),
-                sanitize_protocol_text_option(change.username.as_deref(), 255)
-                    .map_or(serde_json::Value::Null, serde_json::Value::String),
-            );
-            payload.insert(
-                "timestamp".to_string(),
-                serde_json::Value::from(change.timestamp),
-            );
-            Some(CallbackEvent::ShellContext {
-                payload: serde_json::Value::Object(payload),
-            })
-        }
-        ParserTerminalEvent::ShellIntegrationEvent {
-            source,
-            event_type,
-            command,
-            exit_code,
-            timestamp,
-            cursor_line,
-            prompt_kind,
-            aid,
-            parent_aid,
-            implicit_closed_count,
-            fresh_line,
-        } => {
-            if suppress_shell_zones {
-                return None;
-            }
-            Some(CallbackEvent::ShellCommand {
-                payload: serde_json::json!({
-                    "source": source.as_str(),
-                    "eventType": sanitize_protocol_text(&event_type, 80),
-                    "command": command
-                        .as_deref()
-                        .and_then(|value| sanitize_protocol_text_option(Some(value), 512)),
-                    "exitCode": exit_code,
-                    "timestamp": timestamp,
-                    "cursorLine": cursor_line,
-                    "promptKind": prompt_kind
-                        .as_deref()
-                        .and_then(|value| sanitize_protocol_text_option(Some(value), 32)),
-                    "aid": aid
-                        .as_deref()
-                        .and_then(|value| sanitize_protocol_text_option(Some(value), 256)),
-                    "parentAid": parent_aid
-                        .as_deref()
-                        .and_then(|value| sanitize_protocol_text_option(Some(value), 256)),
-                    "implicitClosedCount": implicit_closed_count,
-                    "freshLine": fresh_line,
-                }),
-            })
-        }
-        ParserTerminalEvent::ShellIntegrationVersion { version, shell } => {
-            Some(CallbackEvent::ShellCommand {
-                payload: serde_json::json!({
-                    "source": "osc1337",
-                    "eventType": "integration_version",
-                    "version": sanitize_protocol_text(&version, 32),
-                    "shell": shell
-                        .as_deref()
-                        .and_then(|value| sanitize_protocol_text_option(Some(value), 32)),
-                }),
-            })
-        }
-        ParserTerminalEvent::CellSizeReportRequested => Some(CallbackEvent::CellSizeReportRequest),
-        ParserTerminalEvent::ItermClearCapturedOutputRequested => {
-            Some(CallbackEvent::ClearCapturedOutput)
-        }
-        ParserTerminalEvent::ItermReportVariableRequested { name } => {
-            let value =
-                terminal.and_then(|terminal| resolved_iterm_report_variable(terminal, &name));
-            Some(CallbackEvent::ReportVariableRequest {
-                payload: serde_json::json!({
-                    "source": "iterm1337",
-                    "name": name,
-                    "value": value,
-                }),
-            })
-        }
-        ParserTerminalEvent::ItermOpenUrlRequested { url } => {
-            let url = validated_terminal_open_url(&url)?;
-            Some(CallbackEvent::OpenUrlRequest {
-                payload: serde_json::json!({
-                    "source": "iterm1337",
-                    "url": url,
-                }),
-            })
-        }
-        ParserTerminalEvent::ItermAttentionRequested { action } => {
-            let action = validated_iterm_attention_action(action.as_str())?;
-            Some(CallbackEvent::AttentionRequest {
-                payload: serde_json::json!({
-                    "source": "iterm1337",
-                    "action": action,
-                }),
-            })
-        }
-        ParserTerminalEvent::ItermAnnotation {
-            message,
-            visible,
-            start_abs_row,
-            start_col,
-            end_abs_row,
-            end_col,
-        } => {
-            let retained_range = terminal.and_then(|terminal| {
-                let start_row = retained_row_for_abs_row(terminal, start_abs_row)?;
-                let end_row = retained_row_for_abs_row(terminal, end_abs_row)?;
-                Some((start_row, end_row))
-            });
-            let selected_text = terminal
-                .zip(retained_range)
-                .map(|(terminal, (start_row, end_row))| {
-                    selection_text_for_terminal(
-                        terminal,
-                        TerminalSelectionRequest {
-                            start_row,
-                            start_col,
-                            end_row,
-                            end_col,
-                            block: false,
-                        },
-                    )
-                })
-                .unwrap_or_default();
-            Some(CallbackEvent::SessionAnnotation {
-                payload: serde_json::json!({
-                    "source": "iterm1337",
-                    "message": sanitize_protocol_text(&message, 1024),
-                    "visible": visible,
-                    "selectedText": sanitize_annotation_selected_text(&selected_text, 4096),
-                    "startAbsRow": start_abs_row,
-                    "startCol": start_col,
-                    "endAbsRow": end_abs_row,
-                    "endCol": end_col,
-                    "startRow": retained_range.map(|value| value.0),
-                    "endRow": retained_range.map(|value| value.1),
-                }),
-            })
-        }
-        ParserTerminalEvent::ZoneOpened {
-            zone_id,
-            zone_type,
-            abs_row_start,
-        } => {
-            if suppress_shell_zones {
-                return None;
-            }
-            Some(CallbackEvent::ShellCommand {
-                payload: serde_json::json!({
-                    "source": "osc133",
-                    "eventType": "zone_opened",
-                    "zoneId": zone_id,
-                    "zoneType": zone_type.to_string(),
-                    "absRowStart": abs_row_start,
-                }),
-            })
-        }
-        ParserTerminalEvent::ZoneClosed {
-            zone_id,
-            zone_type,
-            abs_row_start,
-            abs_row_end,
-            exit_code,
-        } => {
-            if suppress_shell_zones {
-                return None;
-            }
-            Some(CallbackEvent::ShellCommand {
-                payload: serde_json::json!({
-                    "source": "osc133",
-                    "eventType": "zone_closed",
-                    "zoneId": zone_id,
-                    "zoneType": zone_type.to_string(),
-                    "absRowStart": abs_row_start,
-                    "absRowEnd": abs_row_end,
-                    "exitCode": exit_code,
-                }),
-            })
-        }
-        ParserTerminalEvent::ZoneScrolledOut { zone_id, zone_type } => {
-            if suppress_shell_zones {
-                return None;
-            }
-            Some(CallbackEvent::ShellCommand {
-                payload: serde_json::json!({
-                    "source": "osc133",
-                    "eventType": "zone_scrolled_out",
-                    "zoneId": zone_id,
-                    "zoneType": zone_type.to_string(),
-                }),
-            })
-        }
-        // These detailed library events accompany one authoritative
-        // CwdChanged event. The native product bridge emits only that complete
-        // context so profile switching/UI work runs once per protocol input.
-        ParserTerminalEvent::EnvironmentChanged { .. }
-        | ParserTerminalEvent::RemoteHostTransition { .. } => None,
-        ParserTerminalEvent::UserVarChanged { name, value, .. } => {
-            Some(CallbackEvent::ShellUserVar {
-                name: sanitize_protocol_text(&name, 80),
-                value: sanitize_protocol_text(&value, 512),
-            })
-        }
-        ParserTerminalEvent::ProgressBarChanged {
-            action,
-            id,
-            state,
-            percent,
-            label,
-        } => {
-            let action = match action {
-                par_term_emu_core_rust::terminal::ProgressBarAction::Set => "set",
-                par_term_emu_core_rust::terminal::ProgressBarAction::Remove => "remove",
-                par_term_emu_core_rust::terminal::ProgressBarAction::RemoveAll => "remove_all",
-            };
-            Some(CallbackEvent::SessionProgress {
-                payload: serde_json::json!({
-                    "source": "ianvs_osc934",
-                    "named": true,
-                    "action": action,
-                    // The parser already validates the 128-byte identity. It
-                    // must remain exact because Dart uses it as the lifecycle
-                    // key; display truncation belongs only in the UI.
-                    "id": id,
-                    "state": state.map(|value| value.description()),
-                    "percent": percent,
-                    "label": label
-                        .as_deref()
-                        .and_then(|value| sanitize_protocol_text_option(Some(value), 160)),
-                }),
-            })
-        }
-        ParserTerminalEvent::BadgeChanged(text) => Some(CallbackEvent::SessionBadge {
-            text: text.and_then(|value| sanitize_protocol_text_option(Some(&value), 80)),
-        }),
-        ParserTerminalEvent::TabStatusChanged(update) => Some(CallbackEvent::SessionTabStatus {
-            payload: serde_json::json!({
-                "source": "osc21337",
-                "indicatorPresent": update.indicator_present,
-                "indicator": update.indicator,
-                "statusPresent": update.status_present,
-                "status": update.status
-                    .as_deref()
-                    .and_then(|value| sanitize_protocol_text_option(Some(value), 256)),
-                "statusColorPresent": update.status_color_present,
-                "statusColor": update.status_color,
-            }),
-        }),
-        ParserTerminalEvent::TerminalContextChanged(event) => {
-            let event = *event;
-            let end_metadata = event.end_metadata.as_ref();
-            Some(CallbackEvent::TerminalContext {
-                payload: serde_json::json!({
-                    "source": "osc3008",
-                    "action": event.action.as_str(),
-                    "id": event.id,
-                    "depth": event.depth,
-                    "active": event.active,
-                    "type": event.metadata.context_type.map(|value| value.as_str()),
-                    "user": event.metadata.user,
-                    "hostname": event.metadata.hostname,
-                    "machineId": event.metadata.machine_id,
-                    "bootId": event.metadata.boot_id,
-                    "pid": event.metadata.pid,
-                    "pidfdId": event.metadata.pidfd_id,
-                    "commandName": event.metadata.command_name,
-                    "cwd": event.metadata.cwd,
-                    "commandLine": event.metadata.command_line,
-                    "vm": event.metadata.vm,
-                    "container": event.metadata.container,
-                    "targetUser": event.metadata.target_user,
-                    "targetHost": event.metadata.target_host,
-                    "contextSessionId": event.metadata.session_id,
-                    "exit": end_metadata.and_then(|value| value.exit.map(|exit| exit.as_str())),
-                    "status": end_metadata.and_then(|value| value.status),
-                    "signal": end_metadata.and_then(|value| value.signal.as_deref()),
-                    "implicitClosedCount": event.implicit_closed_count,
-                }),
-            })
-        }
-        ParserTerminalEvent::DragDropCommand(command) => {
-            let command = *command;
-            Some(CallbackEvent::DragDropCommand {
-                payload: serde_json::json!({
-                    "source": "osc72",
-                    "action": command.action.wire_name(),
-                    "more": command.more,
-                    "identifier": command.identifier,
-                    "operation": command.operation,
-                    "x": command.x,
-                    "y": command.y,
-                    "pixelX": command.pixel_x,
-                    "pixelY": command.pixel_y,
-                    "payload": String::from_utf8(command.payload).ok(),
-                }),
-            })
-        }
-        ParserTerminalEvent::TerminalReset => Some(CallbackEvent::SessionReset),
-        _ => None,
-    }
-}
-
-fn callback_events_from_parser_events(
-    state: &mut TerminalState,
-    parser_events: Vec<ParserTerminalEvent>,
-    suppress_shell_zones: bool,
-) -> Vec<CallbackEvent> {
-    let mut callbacks = Vec::new();
-    for event in parser_events {
-        match event {
-            ParserTerminalEvent::FileTransferStarted { .. }
-            | ParserTerminalEvent::FileTransferProgress { .. } => {
-                // Progress can arrive once per multipart chunk. Keep it in the
-                // bounded parser state instead of exposing a floodable host
-                // event surface; the product acts only on a complete file.
-            }
-            ParserTerminalEvent::FileTransferCompleted { id, filename, size } => {
-                let retained = state.terminal.take_completed_transfer(id);
-                let Some(transfer) = retained else {
-                    callbacks.push(file_download_failed_callback(
-                        Some(id),
-                        "completed download data is unavailable",
-                    ));
-                    continue;
-                };
-                if transfer.direction != TransferDirection::Download
-                    || transfer.status != TransferStatus::Completed
-                    || transfer.data.len() != size
-                {
-                    callbacks.push(file_download_failed_callback(
-                        Some(id),
-                        "completed download metadata did not match retained data",
-                    ));
-                    continue;
-                }
-                let filename = filename.unwrap_or(transfer.filename);
-                match state.retain_file_download(filename, transfer.data) {
-                    Ok((download_id, filename, retained_size)) => {
-                        callbacks.push(CallbackEvent::FileDownload {
-                            payload: serde_json::json!({
-                                "source": "iterm1337",
-                                "transferId": download_id.to_string(),
-                                "filename": filename,
-                                "size": retained_size,
-                            }),
-                        });
-                    }
-                    Err(reason) => callbacks.push(file_download_failed_callback(Some(id), &reason)),
-                }
-            }
-            ParserTerminalEvent::FileTransferFailed { id, reason } => {
-                // Failed transfers are never recoverable host data. Taking the
-                // terminal record here promptly releases any retained bytes.
-                let _ = state.terminal.take_completed_transfer(id);
-                callbacks.push(file_download_failed_callback(Some(id), &reason));
-            }
-            ParserTerminalEvent::UploadRequested { format } => {
-                // RequestUpload would disclose user-selected local data to the
-                // PTY. This phase intentionally denies it and closes the remote
-                // protocol request instead of leaving the caller blocked.
-                state.terminal.cancel_upload();
-                callbacks.push(CallbackEvent::FileUploadDenied {
-                    payload: serde_json::json!({
-                        "source": "iterm1337",
-                        "format": sanitize_protocol_text(&format, 32),
-                        "reason": "upload is disabled",
-                    }),
-                });
-            }
-            event => {
-                if let Some(callback) = callback_event_from_parser_event_with_terminal(
-                    event,
-                    suppress_shell_zones,
-                    Some(&state.terminal),
-                ) {
-                    callbacks.push(callback);
-                }
-            }
-        }
-    }
-    callbacks
-}
-
-fn file_download_failed_callback(parser_transfer_id: Option<u64>, reason: &str) -> CallbackEvent {
-    CallbackEvent::FileDownloadFailed {
-        payload: serde_json::json!({
-            "source": "iterm1337",
-            "parserTransferId": parser_transfer_id.map(|id| id.to_string()),
-            "reason": sanitize_protocol_text(reason, 240),
-        }),
-    }
-}
-
-fn discard_replayed_parser_host_events(terminal: &mut Terminal) {
-    for event in terminal.poll_events() {
-        match event {
-            ParserTerminalEvent::FileTransferCompleted { id, .. }
-            | ParserTerminalEvent::FileTransferFailed { id, .. } => {
-                let _ = terminal.take_completed_transfer(id);
-            }
-            ParserTerminalEvent::UploadRequested { .. } => terminal.cancel_upload(),
-            _ => {}
-        }
-    }
-}
-
-fn validated_terminal_open_url(value: &str) -> Option<String> {
-    const MAX_OPEN_URL_BYTES: usize = 4096;
-    if value.is_empty()
-        || value.len() > MAX_OPEN_URL_BYTES
-        || value.trim() != value
-        || value.chars().any(char::is_control)
-    {
-        return None;
-    }
-    let parsed = url::Url::parse(value).ok()?;
-    let allowed = match parsed.scheme() {
-        "http" | "https" => parsed.host_str().is_some_and(|host| !host.is_empty()),
-        "file" => parsed.host_str().is_none() && !parsed.path().is_empty() && parsed.path() != "/",
-        _ => false,
-    };
-    allowed.then(|| value.to_string())
-}
-
-fn resolved_iterm_report_variable(terminal: &Terminal, name: &str) -> Option<String> {
-    let variables = terminal.session_variables();
-    match name {
-        "session.name" => variables
-            .session_name
-            .clone()
-            .or_else(|| (!terminal.title().is_empty()).then(|| terminal.title().to_string())),
-        "session.columns" => Some(terminal.size().0.to_string()),
-        "session.rows" => Some(terminal.size().1.to_string()),
-        "session.hostname" => variables.hostname.clone(),
-        "session.username" => variables.username.clone(),
-        "session.path" => variables
-            .path
-            .clone()
-            .or_else(|| terminal.current_directory().map(str::to_string)),
-        _ => name
-            .strip_prefix("user.")
-            .and_then(|user_name| terminal.get_user_var(user_name))
-            .map(str::to_string),
-    }
-}
-
-fn validated_iterm_attention_action(value: &str) -> Option<&'static str> {
-    match value {
-        "yes" => Some("yes"),
-        "once" => Some("once"),
-        "no" => Some("no"),
-        "fireworks" => Some("fireworks"),
-        _ => None,
-    }
-}
-
-fn input_sets_alt_screen(input: &[u8]) -> bool {
-    let mut index = 0;
-    while index + 3 < input.len() {
-        if input[index] != 0x1b || input[index + 1] != b'[' || input[index + 2] != b'?' {
-            index += 1;
-            continue;
-        }
-        let params_start = index + 3;
-        let mut cursor = params_start;
-        while cursor < input.len() && (input[cursor].is_ascii_digit() || input[cursor] == b';') {
-            cursor += 1;
-        }
-        if cursor >= input.len() {
-            return false;
-        }
-        if input[cursor] == b'h' {
-            let params = &input[params_start..cursor];
-            if params
-                .split(|byte| *byte == b';')
-                .any(|param| matches!(param, b"47" | b"1047" | b"1049"))
-            {
-                return true;
-            }
-        }
-        index = cursor + 1;
-    }
-    false
-}
-
-fn primary_progress_payload_from_osc9(remainder: &[u8]) -> Option<serde_json::Value> {
-    let mut parts = remainder.split(|byte| *byte == b';');
-    if parts.next()? != b"4" {
-        return None;
-    }
-    let state = std::str::from_utf8(parts.next()?).ok()?.trim();
-    let state = match state {
-        "0" => "hidden",
-        "1" => "normal",
-        "2" => "error",
-        "3" => "indeterminate",
-        "4" => "warning",
-        _ => return None,
-    };
-    let percent = parts
-        .next()
-        .and_then(|part| std::str::from_utf8(part).ok())
-        .and_then(|value| value.trim().parse::<u8>().ok())
-        .map(|value| value.min(100));
-    let mut payload = serde_json::Map::from_iter([
-        (
-            "source".to_string(),
-            serde_json::Value::String("osc9;4".to_string()),
-        ),
-        ("named".to_string(), serde_json::Value::Bool(false)),
-        (
-            "action".to_string(),
-            serde_json::Value::String(if state == "hidden" { "clear" } else { "set" }.to_string()),
-        ),
-        (
-            "state".to_string(),
-            serde_json::Value::String(state.to_string()),
-        ),
-    ]);
-    if let Some(percent) = percent {
-        payload.insert("percent".to_string(), serde_json::json!(percent));
-    }
-    Some(serde_json::Value::Object(payload))
-}
-
-fn shell_context_payload_from_current_dir(data: &str) -> Option<serde_json::Value> {
-    let raw = data.strip_prefix("CurrentDir=")?;
-    let raw = raw.trim();
-    if raw.is_empty() {
-        return None;
-    }
-    let (cwd, hostname, username) = if raw.starts_with("file://") {
-        parse_file_url_context(raw)?
-    } else if raw.starts_with('/') {
-        (percent_decode_strict(raw)?, None, None)
-    } else {
-        return None;
-    };
-    if !cwd.starts_with('/') || cwd.chars().any(char::is_control) {
-        return None;
-    }
-    let mut payload = serde_json::Map::new();
-    payload.insert(
-        "source".to_string(),
-        serde_json::Value::String("osc1337_current_dir".to_string()),
-    );
-    payload.insert(
-        "cwd".to_string(),
-        serde_json::Value::String(sanitize_protocol_text(&cwd, 1024)),
-    );
-    if let Some(hostname) =
-        hostname.and_then(|value| sanitize_protocol_text_option(Some(&value), 255))
-    {
-        payload.insert("hostname".to_string(), serde_json::Value::String(hostname));
-    }
-    if let Some(username) =
-        username.and_then(|value| sanitize_protocol_text_option(Some(&value), 255))
-    {
-        payload.insert("username".to_string(), serde_json::Value::String(username));
-    }
-    Some(serde_json::Value::Object(payload))
-}
-
-fn parse_file_url_context(raw: &str) -> Option<(String, Option<String>, Option<String>)> {
-    let mut remainder = raw.strip_prefix("file://")?;
-    if let Some(index) = remainder.find(['?', '#']) {
-        remainder = &remainder[..index];
-    }
-    if remainder.starts_with('/') {
-        return Some((percent_decode_strict(remainder)?, None, None));
-    }
-    let slash = remainder.find('/')?;
-    let authority = &remainder[..slash];
-    let path = percent_decode_strict(&remainder[slash..])?;
-    let (username, host_part) = match authority.rsplit_once('@') {
-        Some((username, host)) => (Some(percent_decode_strict(username)?), host),
-        None => (None, authority),
-    };
-    let host = host_part.split(':').next().unwrap_or_default();
-    let hostname = if host.is_empty()
-        || host.eq_ignore_ascii_case("localhost")
-        || host == "127.0.0.1"
-        || host == "::1"
-    {
-        None
-    } else {
-        Some(percent_decode_strict(host)?)
-    };
-    let username = username.and_then(|value| if value.is_empty() { None } else { Some(value) });
-    Some((path, hostname, username))
-}
-
-fn percent_decode_strict(value: &str) -> Option<String> {
-    let bytes = value.as_bytes();
-    let mut decoded = Vec::with_capacity(bytes.len());
-    let mut index = 0usize;
-    while index < bytes.len() {
-        if bytes[index] == b'%' {
-            let high = bytes.get(index + 1).copied().and_then(hex_nibble)?;
-            let low = bytes.get(index + 2).copied().and_then(hex_nibble)?;
-            decoded.push((high << 4) | low);
-            index += 3;
-            continue;
-        }
-        decoded.push(bytes[index]);
-        index += 1;
-    }
-    let decoded = String::from_utf8(decoded).ok()?;
-    (!decoded.chars().any(char::is_control)).then_some(decoded)
-}
-
-fn sanitize_protocol_text(value: &str, max_chars: usize) -> String {
-    value
-        .chars()
-        .filter(|ch| !ch.is_control())
-        .take(max_chars)
-        .collect::<String>()
-        .trim()
-        .to_string()
-}
-
-fn sanitize_file_download_name(value: &str) -> String {
-    let basename = value
-        .rsplit(['/', '\\'])
-        .next()
-        .unwrap_or_default()
-        .chars()
-        .filter(|character| !character.is_control())
-        .take(160)
-        .collect::<String>();
-    let basename = basename.trim();
-    if basename.is_empty() || basename == "." || basename == ".." {
-        "Unnamed file".to_string()
-    } else {
-        basename.to_string()
-    }
-}
-
-fn sanitize_annotation_selected_text(value: &str, max_chars: usize) -> String {
-    value
-        .chars()
-        .filter(|character| *character == '\n' || !character.is_control())
-        .take(max_chars)
-        .collect()
-}
-
-fn sanitize_protocol_text_option(value: Option<&str>, max_chars: usize) -> Option<String> {
-    let value = sanitize_protocol_text(value?, max_chars);
-    if value.is_empty() { None } else { Some(value) }
 }
 
 pub struct TerminalSession {
@@ -2917,10 +987,10 @@ impl TerminalSession {
             let mut reader = reader;
             let mut buf = [0_u8; 4096];
             let trusted_eof = loop {
-                match wait_for_pty_readable(reader_poll_handle.as_ref()) {
+                match wait_until_readable(reader_poll_handle.as_ref()) {
                     Ok(false) => {
                         if reader_session.exited.load(Ordering::Acquire)
-                            && !wait_for_pty_readable(reader_poll_handle.as_ref()).unwrap_or(true)
+                            && !wait_until_readable(reader_poll_handle.as_ref()).unwrap_or(true)
                         {
                             // The second timeout starts after observing child
                             // exit. Since this is the only reader, the kernel
@@ -2950,7 +1020,7 @@ impl TerminalSession {
                         }
                     }
                     Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
-                    Err(error) if pty_read_error_is_trusted_eof(&error) => break true,
+                    Err(error) if read_error_is_trusted_eof(&error) => break true,
                     Err(_) => break false,
                 }
             };
@@ -3217,25 +1287,21 @@ impl TerminalSession {
                 callback_events = host_protocol.observe(filtered, self.emulation);
                 host_protocol_micros = host_started_at.elapsed().as_micros() as u64;
             });
-            let parser_events = state.terminal.poll_events();
-            let cleared_scrollback = parser_events.iter().any(|event| {
-                matches!(
-                    event,
-                    ParserTerminalEvent::ScreenCleared {
-                        include_scrollback: true
-                    }
-                )
-            });
             let notifications = state.terminal.take_notifications();
-            if self.emulation == TerminalEmulation::Xterm256 {
+            let callback_policy = if self.emulation == TerminalEmulation::Xterm256 {
                 let suppress_shell_zones = was_alt_screen_active
                     || input_enters_alt_screen
                     || state.terminal.is_alt_screen_active();
-                callback_events.extend(callback_events_from_parser_events(
-                    &mut state,
-                    parser_events,
+                ProtocolCallbackPolicy::Enabled {
                     suppress_shell_zones,
-                ));
+                }
+            } else {
+                ProtocolCallbackPolicy::Disabled
+            };
+            let parser_batch = drain_protocol_callback_batch(&mut state, callback_policy);
+            let cleared_scrollback = parser_batch.cleared_scrollback;
+            callback_events.extend(parser_batch.callbacks);
+            if self.emulation == TerminalEmulation::Xterm256 {
                 callback_events.extend(notifications.into_iter().map(|notification| {
                     CallbackEvent::SessionNotification {
                         source: notification.source.to_string(),
@@ -6022,7 +4088,7 @@ impl TerminalSession {
             return false;
         }
 
-        should_defer_frame_with_grace(
+        should_defer_with_grace(
             &self.deferred_clear_graphics_frame,
             pending_frame_work.damage_generation,
             INLINE_CLEAR_REPAINT_GRACE,
@@ -6045,7 +4111,7 @@ impl TerminalSession {
             return false;
         }
 
-        should_defer_frame_with_grace(
+        should_defer_with_grace(
             &self.deferred_kitty_delete_graphics_frame,
             pending_frame_work.damage_generation,
             INLINE_CLEAR_REPAINT_GRACE,
@@ -6795,144 +4861,6 @@ fn terminal_cursor_snapshot(
             par_term_emu_core_rust::cursor::CursorShape::Bar => TerminalCursorShape::Beam,
         }),
         blink: cursor.blink_override(),
-    }
-}
-
-fn parse_osc5522_metadata(value: &str) -> Option<BTreeMap<String, String>> {
-    let mut metadata = BTreeMap::new();
-    for field in value.split(':') {
-        let (key, value) = field.split_once('=')?;
-        if key.is_empty()
-            || key.len() > 16
-            || !key
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
-            || value.len() > 1024
-        {
-            return None;
-        }
-        metadata
-            .entry(key.to_string())
-            .or_insert_with(|| value.to_string());
-        if metadata.len() > 16 {
-            return None;
-        }
-    }
-    Some(metadata)
-}
-
-fn osc5522_location(metadata: &BTreeMap<String, String>) -> Option<String> {
-    match metadata
-        .get("loc")
-        .map(String::as_str)
-        .unwrap_or("clipboard")
-    {
-        "clipboard" => Some("clipboard".to_string()),
-        "primary" => Some("primary".to_string()),
-        _ => None,
-    }
-}
-
-fn sanitized_osc5522_id(value: &str) -> Option<String> {
-    let sanitized = value
-        .bytes()
-        .filter(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'+' | b'.'))
-        .take(OSC5522_MAX_ID_BYTES)
-        .map(char::from)
-        .collect::<String>();
-    (!sanitized.is_empty()).then_some(sanitized)
-}
-
-fn osc5522_credentials(
-    metadata: &BTreeMap<String, String>,
-) -> Option<(Option<String>, Option<String>)> {
-    let password = decode_osc5522_utf8_metadata(
-        metadata.get("pw").map(String::as_str),
-        OSC5522_MAX_PASSWORD_BYTES,
-        false,
-    )?;
-    let application_name = decode_osc5522_utf8_metadata(
-        metadata.get("name").map(String::as_str),
-        OSC5522_MAX_APPLICATION_NAME_BYTES,
-        true,
-    )?;
-    Some((password, application_name))
-}
-
-fn decode_osc5522_utf8_metadata(
-    encoded: Option<&str>,
-    max_bytes: usize,
-    reject_controls: bool,
-) -> Option<Option<String>> {
-    let Some(encoded) = encoded else {
-        return Some(None);
-    };
-    let decoded = BASE64_STANDARD.decode(encoded).ok()?;
-    if decoded.is_empty() || decoded.len() > max_bytes {
-        return None;
-    }
-    let value = String::from_utf8(decoded).ok()?;
-    if reject_controls
-        && value
-            .chars()
-            .any(|character| character.is_control() || character == '\u{7f}')
-    {
-        return None;
-    }
-    Some(Some(value))
-}
-
-fn decode_osc5522_mime(encoded: &str) -> Option<String> {
-    let decoded = BASE64_STANDARD.decode(encoded).ok()?;
-    let mime = String::from_utf8(decoded).ok()?;
-    is_valid_osc5522_mime(&mime).then_some(mime)
-}
-
-fn is_valid_osc5522_mime(value: &str) -> bool {
-    value.len() <= OSC5522_MAX_MIME_BYTES
-        && value.split_once('/').is_some_and(|(major, minor)| {
-            !major.is_empty()
-                && !minor.is_empty()
-                && major.bytes().all(is_osc5522_mime_byte)
-                && minor.bytes().all(is_osc5522_mime_byte)
-        })
-}
-
-fn is_valid_osc5522_mime_pattern(value: &str) -> bool {
-    is_valid_osc5522_mime(value)
-        || value.split_once('/').is_some_and(|(major, minor)| {
-            !major.is_empty()
-                && !minor.is_empty()
-                && (major == "*" || major.bytes().all(is_osc5522_mime_byte))
-                && (minor == "*" || minor.bytes().all(is_osc5522_mime_byte))
-        })
-}
-
-fn is_osc5522_mime_byte(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric()
-        || matches!(
-            byte,
-            b'!' | b'#' | b'$' | b'&' | b'^' | b'_' | b'.' | b'+' | b'-'
-        )
-}
-
-fn osc5522_error_event(operation: &str, status: &str, id: Option<String>) -> CallbackEvent {
-    CallbackEvent::ClipboardMimeError {
-        payload: serde_json::json!({
-            "protocol": "osc5522",
-            "operation": operation,
-            "status": status,
-            "id": id,
-        }),
-    }
-}
-
-fn hex_nibble(byte: u8) -> Option<u8> {
-    match byte {
-        b'0'..=b'9' => Some(byte - b'0'),
-        b'a'..=b'f' => Some(byte - b'a' + 10),
-        b'A'..=b'F' => Some(byte - b'A' + 10),
-        _ => None,
     }
 }
 
@@ -9211,17 +7139,16 @@ fn invalid_recording_request(message: &'static str) -> Result<Option<String>, Se
     })
 }
 
-pub fn request_session_json(
+pub fn request_session(
     session_id: u64,
-    request_json: &str,
+    operation: &str,
+    request: &serde_json::Value,
 ) -> Result<Option<String>, SessionError> {
-    let request: serde_json::Value = serde_json::from_str(request_json)
-        .map_err(|error| SessionError::Serialize(error.to_string()))?;
-    let Some(kind) = request.get("kind").and_then(serde_json::Value::as_str) else {
+    if !request.is_object() {
         return Ok(None);
-    };
+    }
 
-    match kind {
+    match operation {
         "ssh.auth_response" => {
             let challenge_id = request
                 .get("challengeId")
@@ -9329,6 +7256,82 @@ pub fn request_session_json(
                 Err(error) => recording_error_response(error),
             }
         }
+        "terminal.recording_stop_prepare" => {
+            let Some(handoff_directory) = request
+                .get("handoff_directory")
+                .and_then(serde_json::Value::as_str)
+                .filter(|value| !value.is_empty() && value.len() <= 4096 && !value.contains('\0'))
+            else {
+                return invalid_recording_request(
+                    "handoff_directory must be a bounded absolute path",
+                );
+            };
+            let requested_job_id = match request.get("job_id") {
+                Some(serde_json::Value::String(value))
+                    if value.len() == 32
+                        && value
+                            .bytes()
+                            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)) =>
+                {
+                    Some(value.as_str())
+                }
+                Some(_) => {
+                    return invalid_recording_request(
+                        "job_id must be 32 lowercase hexadecimal characters",
+                    );
+                }
+                None => None,
+            };
+            let session = STORE.get(session_id)?;
+            session.observe_child_exit()?;
+            match session
+                .recording
+                .lock()
+                .prepare_finalize(std::path::Path::new(handoff_directory), requested_job_id)
+            {
+                Ok(job) => request_json_response(serde_json::json!({
+                    "ok": true,
+                    "job_id": job.job_id,
+                    "handoff_path": job.handoff_path,
+                    "error_path": job.error_path,
+                })),
+                Err(error) => recording_error_response(error),
+            }
+        }
+        "terminal.recording_finalize_status" => {
+            let Some(job_id) = request
+                .get("job_id")
+                .and_then(serde_json::Value::as_str)
+                .filter(|job_id| recording::valid_recording_finalize_job_id(job_id))
+            else {
+                return invalid_recording_request(
+                    "job_id must be 32 lowercase hexadecimal characters",
+                );
+            };
+            let Some(consume_terminal) = request
+                .get("consume_terminal")
+                .and_then(serde_json::Value::as_bool)
+            else {
+                return invalid_recording_request("consume_terminal must be a boolean");
+            };
+            let status = recording::recording_finalize_status(job_id, consume_terminal);
+            let mut response = serde_json::json!({
+                "ok": true,
+                "state": match status {
+                    RecordingFinalizeStatus::Running => "running",
+                    RecordingFinalizeStatus::Ready => "ready",
+                    RecordingFinalizeStatus::Failed(_) => "failed",
+                    RecordingFinalizeStatus::Unknown => "unknown",
+                },
+            });
+            if let RecordingFinalizeStatus::Failed(error) = status {
+                response["error"] = serde_json::json!({
+                    "code": error.code,
+                    "message": error.message,
+                });
+            }
+            request_json_response(response)
+        }
         "terminal.recording_cancel" => {
             let session = STORE.get(session_id)?;
             match session.recording.lock().cancel() {
@@ -9416,7 +7419,7 @@ pub fn request_session_json(
                 .map_err(|error| SessionError::Serialize(error.to_string()))
         }
         "terminal.export_scrollback" => {
-            let max_lines = scrollback_export_max_lines_from_request(&request);
+            let max_lines = scrollback_export_max_lines_from_request(request);
             export_scrollback_session(session_id, max_lines).map(Some)
         }
         "terminal.export_diagnostics" => {
@@ -9449,7 +7452,7 @@ pub fn request_session_json(
             .map(Some)
         }
         "terminal.zmodem.accept_receive" => {
-            let Some(transfer_id) = zmodem_transfer_id_from_request(&request) else {
+            let Some(transfer_id) = zmodem_transfer_id_from_request(request) else {
                 return Ok(None);
             };
             let Some(destination) = request
@@ -9465,7 +7468,7 @@ pub fn request_session_json(
             request_json_response(serde_json::json!({ "accepted": true }))
         }
         "terminal.zmodem.accept_send" => {
-            let Some(transfer_id) = zmodem_transfer_id_from_request(&request) else {
+            let Some(transfer_id) = zmodem_transfer_id_from_request(request) else {
                 return Ok(None);
             };
             let Some(files) = request
@@ -9545,7 +7548,7 @@ pub fn request_session_json(
             }))
         }
         "terminal.zmodem.cancel" => {
-            let Some(transfer_id) = zmodem_transfer_id_from_request(&request) else {
+            let Some(transfer_id) = zmodem_transfer_id_from_request(request) else {
                 return Ok(None);
             };
             STORE.get(session_id)?.cancel_zmodem(transfer_id)?;
@@ -9730,10 +7733,10 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn pty_eio_is_treated_as_a_trusted_transport_eof() {
-        assert!(pty_read_error_is_trusted_eof(
+        assert!(read_error_is_trusted_eof(
             &std::io::Error::from_raw_os_error(libc::EIO)
         ));
-        assert!(!pty_read_error_is_trusted_eof(
+        assert!(!read_error_is_trusted_eof(
             &std::io::Error::from_raw_os_error(libc::EBADF)
         ));
     }
@@ -9796,7 +7799,14 @@ mod tests {
         let parser_events = terminal.poll_events();
         let mut state = terminal_state_for_file_download_test(terminal);
 
-        let callbacks = callback_events_from_parser_events(&mut state, parser_events, false);
+        let callbacks = callback_events_from_parser_events(
+            &mut state,
+            parser_events,
+            ProtocolCallbackPolicy::Enabled {
+                suppress_shell_zones: false,
+            },
+        )
+        .callbacks;
 
         let [CallbackEvent::FileDownload { payload }] = callbacks.as_slice() else {
             panic!("expected one completed download callback: {callbacks:?}");
@@ -9824,14 +7834,15 @@ mod tests {
         terminal.session_variables_mut().set_username("alice");
         terminal.session_variables_mut().set_path("/work/project");
         terminal.set_user_var("gitBranch".to_string(), "feature/report".to_string());
+        let state = terminal_state_for_file_download_test(terminal);
 
         let resolve = |name: &str| {
-            let callback = callback_event_from_parser_event_with_terminal(
+            let callback = callback_event_from_parser_event_with_host(
                 ParserTerminalEvent::ItermReportVariableRequested {
                     name: name.to_string(),
                 },
                 false,
-                Some(&terminal),
+                Some(&state),
             )
             .expect("expected report-variable callback");
             let CallbackEvent::ReportVariableRequest { payload } = callback else {
@@ -9958,7 +7969,14 @@ mod tests {
         let parser_events = terminal.poll_events();
         let mut state = terminal_state_for_file_download_test(terminal);
 
-        let callbacks = callback_events_from_parser_events(&mut state, parser_events, false);
+        let callbacks = callback_events_from_parser_events(
+            &mut state,
+            parser_events,
+            ProtocolCallbackPolicy::Enabled {
+                suppress_shell_zones: false,
+            },
+        )
+        .callbacks;
 
         assert!(callbacks.iter().any(|event| matches!(
             event,
@@ -9976,7 +7994,14 @@ mod tests {
         let parser_events = terminal.poll_events();
         let mut state = terminal_state_for_file_download_test(terminal);
 
-        let callbacks = callback_events_from_parser_events(&mut state, parser_events, false);
+        let callbacks = callback_events_from_parser_events(
+            &mut state,
+            parser_events,
+            ProtocolCallbackPolicy::Enabled {
+                suppress_shell_zones: false,
+            },
+        )
+        .callbacks;
 
         assert!(matches!(
             callbacks.as_slice(),
@@ -10375,7 +8400,7 @@ mod tests {
     }
 
     #[test]
-    fn legacy_event_drain_keeps_clipboard_request_shape_and_registers_no_v1_request() {
+    fn raw_event_drain_is_isolated_from_current_host_request_registration() {
         let mut queue = PendingEventQueue::default();
         let _ = queue.push(pending_test_event(
             "clipboard_paste_request",
@@ -14653,11 +12678,12 @@ mod tests {
         terminal.process(
             b"prefix \x1b]1337;AddAnnotation=4|Visible note\x07word\r\n\x1b]1337;AddHiddenAnnotation=Hidden|5|0|1\x1b\\value",
         );
-        let annotations = terminal
-            .poll_events()
+        let parser_events = terminal.poll_events();
+        let state = terminal_state_for_file_download_test(terminal);
+        let annotations = parser_events
             .into_iter()
             .filter_map(|event| {
-                callback_event_from_parser_event_with_terminal(event, false, Some(&terminal))
+                callback_event_from_parser_event_with_host(event, false, Some(&state))
             })
             .filter_map(|event| match event {
                 CallbackEvent::SessionAnnotation { payload } => Some(payload),

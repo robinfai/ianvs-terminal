@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../config/terminal_config.dart';
-import '../runtime/terminal_runtime_controller.dart';
+import 'terminal_input_sink.dart';
 import 'terminal_models.dart';
 
 class TerminalInputController {
@@ -22,7 +22,7 @@ class TerminalInputController {
        readFrame = readFrame ?? _readEmptyFrame;
 
   final String sessionId;
-  final TerminalRuntimeController runtime;
+  final TerminalInputSink runtime;
   final TerminalFrameDiff Function() readFrame;
   final TerminalEmulation emulation;
   final String Function() readSelection;

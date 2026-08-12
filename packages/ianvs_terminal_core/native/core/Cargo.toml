@@ -38,6 +38,7 @@ zmodem2 = { path = "../vendor/zmodem2", version = "=0.7.2" }
 
 [dev-dependencies]
 cbindgen = "0.29.2"
+syn = { version = "2", features = ["full", "visit"] }
 
 [build-dependencies.prost-build]
 version = "0.14.3"

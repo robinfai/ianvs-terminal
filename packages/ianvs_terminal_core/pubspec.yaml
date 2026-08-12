@@ -29,6 +29,7 @@ dependencies:
   protobuf: ^6.0.0
 
 dev_dependencies:
+  analyzer: ^10.0.1
   flutter_test:
     sdk: flutter
   test: ^1.26.0

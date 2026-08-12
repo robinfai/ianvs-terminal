@@ -103,7 +103,7 @@ void main() {
         'native/core/tests/fixtures/osc/osc_protocol_corpus_v1.json',
       );
       final dart = _repoJson(
-        'packages/ianvs_terminal/test/fixtures/osc/'
+        'packages/ianvs_terminal_core/test/fixtures/osc/'
         'osc_protocol_corpus_v1.json',
       );
 

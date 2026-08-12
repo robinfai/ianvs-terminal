@@ -1,10 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal_core/ianvs_terminal_core.dart';
 import 'package:ianvs_terminal_core/src/proto/frame_diff.pb.dart' as frame_pb;
+import 'package:ianvs_terminal_core/src/transport/terminal_protobuf_frame_codec.dart';
+
+import 'support/terminal_frame_from_json.dart';
 
 void main() {
   test('OSC 1337 block JSON frames preserve reversible source mappings', () {
-    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+    final frame = terminalFrameFromJson(const <String, Object?>{
       'rows': <Object?>[
         <String, Object?>{
           'index': 0,
@@ -62,6 +65,8 @@ void main() {
 
   test('OSC 1337 block protobuf frames preserve source ranges', () {
     final payload = frame_pb.TerminalFrameDiff(
+      frameSchemaVersion: TerminalFrameDiff.currentFrameSchemaVersion,
+      frameKind: frame_pb.TerminalFrameKind.TERMINAL_FRAME_KIND_SNAPSHOT,
       rows: <frame_pb.TerminalRow>[
         frame_pb.TerminalRow(
           index: 0,
@@ -91,7 +96,9 @@ void main() {
       ],
     );
 
-    final frame = TerminalFrameDiff.fromProtobufBytes(payload.writeToBuffer());
+    final frame = const TerminalProtobufFrameCodec().decode(
+      payload.writeToBuffer(),
+    );
 
     expect(
       (frame.rows.single.sourceRow, frame.rows.single.sourceEndRow),

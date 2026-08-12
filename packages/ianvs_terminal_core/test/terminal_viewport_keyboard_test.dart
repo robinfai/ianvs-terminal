@@ -94,9 +94,6 @@ class _NoopPtyBackend implements PtySessionBackend {
   void closeSession(String sessionId) {}
 
   @override
-  String createSession(String sessionConfigJson) => '1';
-
-  @override
   int ping() => 42;
 
   @override
@@ -118,9 +115,6 @@ class _NoopPtyBackend implements PtySessionBackend {
 
   @override
   void scrollViewportTo(String sessionId, int offset) {}
-
-  @override
-  String? takeFrameDiffJson(String sessionId) => null;
 
   @override
   void writeInput(String sessionId, List<int> bytes) {}

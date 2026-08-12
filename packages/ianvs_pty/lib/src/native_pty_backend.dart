@@ -49,63 +49,6 @@ const int _maxFileDownloadBytes = 16 * 1024 * 1024;
 final _sessionIdDigits = RegExp(r'^[0-9]+$');
 final BigInt _maxUint64 = BigInt.parse('18446744073709551615');
 
-_FileDownloadTakeDart? _lookupOptionalFileDownloadTake(
-  ffi.DynamicLibrary library,
-) {
-  try {
-    return library.lookupFunction<
-      ffi.IntPtr Function(
-        ffi.Uint64,
-        ffi.Uint64,
-        ffi.Pointer<ffi.Uint8>,
-        ffi.Size,
-      ),
-      _FileDownloadTakeDart
-    >('ianvs_session_file_download_take');
-  } on ArgumentError {
-    return null;
-  }
-}
-
-_FileDownloadDiscardDart? _lookupOptionalFileDownloadDiscard(
-  ffi.DynamicLibrary library,
-) {
-  try {
-    return library.lookupFunction<
-      ffi.Int32 Function(ffi.Uint64, ffi.Uint64),
-      _FileDownloadDiscardDart
-    >('ianvs_session_file_download_discard');
-  } on ArgumentError {
-    return null;
-  }
-}
-
-_ReplayCheckpointCaptureDart? _lookupOptionalReplayCheckpointCapture(
-  ffi.DynamicLibrary library,
-) {
-  try {
-    return library.lookupFunction<
-      ffi.Uint64 Function(ffi.Uint64),
-      _ReplayCheckpointCaptureDart
-    >('ianvs_replay_session_checkpoint_capture');
-  } on ArgumentError {
-    return null;
-  }
-}
-
-_ReplayCheckpointRestoreDart? _lookupOptionalReplayCheckpointRestore(
-  ffi.DynamicLibrary library,
-) {
-  try {
-    return library.lookupFunction<
-      ffi.Int32 Function(ffi.Uint64, ffi.Uint64),
-      _ReplayCheckpointRestoreDart
-    >('ianvs_replay_session_checkpoint_restore');
-  } on ArgumentError {
-    return null;
-  }
-}
-
 class PtyGraphicAsset {
   const PtyGraphicAsset({
     required this.assetId,
@@ -404,12 +347,16 @@ class NativePtyBindings
             ffi.Int32 Function(ffi.Uint64, ffi.Int32, ffi.Int32),
             _ReplayExitDart
           >('ianvs_replay_session_exit'),
-      _replayCheckpointCapture = _lookupOptionalReplayCheckpointCapture(
-        library,
-      ),
-      _replayCheckpointRestore = _lookupOptionalReplayCheckpointRestore(
-        library,
-      ),
+      _replayCheckpointCapture = library
+          .lookupFunction<
+            ffi.Uint64 Function(ffi.Uint64),
+            _ReplayCheckpointCaptureDart
+          >('ianvs_replay_session_checkpoint_capture'),
+      _replayCheckpointRestore = library
+          .lookupFunction<
+            ffi.Int32 Function(ffi.Uint64, ffi.Uint64),
+            _ReplayCheckpointRestoreDart
+          >('ianvs_replay_session_checkpoint_restore'),
       _closeSession = library
           .lookupFunction<ffi.Int32 Function(ffi.Uint64), _CloseSessionDart>(
             'ianvs_session_close',
@@ -489,8 +436,21 @@ class NativePtyBindings
             ffi.Pointer<Utf8> Function(ffi.Uint64),
             _StringReturningDart
           >('ianvs_session_poll_event_envelopes_json'),
-      _fileDownloadTake = _lookupOptionalFileDownloadTake(library),
-      _fileDownloadDiscard = _lookupOptionalFileDownloadDiscard(library),
+      _fileDownloadTake = library
+          .lookupFunction<
+            ffi.IntPtr Function(
+              ffi.Uint64,
+              ffi.Uint64,
+              ffi.Pointer<ffi.Uint8>,
+              ffi.Size,
+            ),
+            _FileDownloadTakeDart
+          >('ianvs_session_file_download_take'),
+      _fileDownloadDiscard = library
+          .lookupFunction<
+            ffi.Int32 Function(ffi.Uint64, ffi.Uint64),
+            _FileDownloadDiscardDart
+          >('ianvs_session_file_download_discard'),
       _stringFree = library
           .lookupFunction<
             ffi.Void Function(ffi.Pointer<Utf8>),
@@ -508,8 +468,8 @@ class NativePtyBindings
   final _CreateSessionDart _replaySessionCreateV1;
   final _WriteSessionDart _replaySessionOutput;
   final _ReplayExitDart _replaySessionExit;
-  final _ReplayCheckpointCaptureDart? _replayCheckpointCapture;
-  final _ReplayCheckpointRestoreDart? _replayCheckpointRestore;
+  final _ReplayCheckpointCaptureDart _replayCheckpointCapture;
+  final _ReplayCheckpointRestoreDart _replayCheckpointRestore;
   final _CloseSessionDart _closeSession;
   final _RefreshHintDart _refreshHint;
   final _ResizeSessionWithCellSizeDart _resizeSessionWithCellSize;
@@ -523,8 +483,8 @@ class NativePtyBindings
   final _FramePacketV1Dart _takeFramePacketV1Protobuf;
   final _GraphicAssetPacketV1Dart _graphicAssetPacketV1Protobuf;
   final _StringReturningDart _pollEventEnvelopesJson;
-  final _FileDownloadTakeDart? _fileDownloadTake;
-  final _FileDownloadDiscardDart? _fileDownloadDiscard;
+  final _FileDownloadTakeDart _fileDownloadTake;
+  final _FileDownloadDiscardDart _fileDownloadDiscard;
   final _FreeStringDart _stringFree;
   final _FreeBytesDart _bytesFree;
 
@@ -532,8 +492,7 @@ class NativePtyBindings
   bool get supportsRefreshHints => true;
 
   @override
-  bool get supportsReplayCheckpoints =>
-      _replayCheckpointCapture != null && _replayCheckpointRestore != null;
+  bool get supportsReplayCheckpoints => true;
 
   @override
   bool get supportsHostResponseV1 => true;
@@ -609,12 +568,12 @@ class NativePtyBindings
 
   @override
   int replaySessionCheckpointCapture(int sessionId) {
-    return _replayCheckpointCapture?.call(sessionId) ?? 0;
+    return _replayCheckpointCapture(sessionId);
   }
 
   @override
   bool replaySessionCheckpointRestore(int sessionId, int checkpointId) {
-    return _replayCheckpointRestore?.call(sessionId, checkpointId) == 0;
+    return _replayCheckpointRestore(sessionId, checkpointId) == 0;
   }
 
   @override
@@ -805,16 +764,19 @@ class NativePtyBindings
     int downloadId,
     int expectedSize,
   ) {
-    final binding = _fileDownloadTake;
-    if (binding == null ||
-        downloadId <= 0 ||
+    if (downloadId <= 0 ||
         expectedSize < 0 ||
         expectedSize > _maxFileDownloadBytes) {
       return null;
     }
     final pointer = malloc<ffi.Uint8>(expectedSize == 0 ? 1 : expectedSize);
     try {
-      final copied = binding(sessionId, downloadId, pointer, expectedSize);
+      final copied = _fileDownloadTake(
+        sessionId,
+        downloadId,
+        pointer,
+        expectedSize,
+      );
       if (copied != expectedSize) {
         return null;
       }
@@ -826,10 +788,8 @@ class NativePtyBindings
 
   @override
   bool sessionDiscardFileDownload(int sessionId, int downloadId) {
-    final binding = _fileDownloadDiscard;
-    return binding != null &&
-        downloadId > 0 &&
-        binding(sessionId, downloadId) == 0;
+    return downloadId > 0 &&
+        _fileDownloadDiscard(sessionId, downloadId) == 0;
   }
 }
 

@@ -1,7 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ianvs_terminal_core/ianvs_terminal_core.dart';
+import 'package:ianvs_terminal_core/src/pty/ianvs_pty.dart';
+import 'package:ianvs_terminal_core/src/runtime/terminal_diagnostics.dart';
 
 void main() {
   group('TerminalDiagnosticsClient', () {
@@ -29,7 +30,7 @@ void main() {
       );
       final client = TerminalDiagnosticsClient(backend);
 
-      final export = client.exportSession('session-a');
+      final export = client.exportSession('7');
 
       expect(export, isNotNull);
       expect(export!.conclusion, 'insufficient-evidence');
@@ -48,18 +49,17 @@ void main() {
       });
     });
 
-    test('prefers the correlated Session Request v1 envelope', () {
+    test('uses the correlated Session Request v1 envelope', () {
       final backend = _JsonRequestBackend(
         jsonEncode(<String, Object?>{
           'manifest': <String, Object?>{'schema_version': 1},
           'summary': <String, Object?>{'conclusion': 'ok'},
         }),
-        supportsV1: true,
       );
       final client = TerminalDiagnosticsClient(backend);
 
       expect(client.exportSession('7')!.conclusion, 'ok');
-      expect(backend.requests, isEmpty);
+      expect(backend.requests, hasLength(1));
       expect(backend.v1Requests, hasLength(1));
       expect(
         backend.v1Requests.single['operation'],
@@ -72,15 +72,15 @@ void main() {
       final backend = _JsonRequestBackend('{');
       final client = TerminalDiagnosticsClient(backend);
 
-      expect(client.exportSession('session-a'), isNull);
+      expect(client.exportSession('7'), isNull);
 
       backend
         ..response = ''
         ..requests.clear();
-      expect(client.exportSession('session-a'), isNull);
+      expect(client.exportSession('7'), isNull);
 
       backend.response = null;
-      expect(client.exportSession('session-a'), isNull);
+      expect(client.exportSession('7'), isNull);
     });
 
     test('reports backend request errors and returns null', () {
@@ -94,12 +94,12 @@ void main() {
         },
       );
 
-      expect(client.exportSession('session-a'), isNull);
+      expect(client.exportSession('7'), isNull);
 
       expect(errors.map((error) => error.operation), <String>[
         'terminal.export_diagnostics',
       ]);
-      expect(errors.single.sessionId, 'session-a');
+      expect(errors.single.sessionId, '7');
       expect(
         errors.single.error.toString(),
         contains('diagnostics request failed'),
@@ -109,34 +109,33 @@ void main() {
   });
 }
 
-final class _JsonRequestBackend
-    implements PtySessionJsonRequestBackend, PtySessionRequestV1Backend {
-  _JsonRequestBackend(this.response, {this.supportsV1 = false});
+final class _JsonRequestBackend implements PtySessionRequestV1Backend {
+  _JsonRequestBackend(this.response);
 
   String? response;
   Object? requestError;
-  final bool supportsV1;
   final List<Map<String, Object?>> requests = <Map<String, Object?>>[];
   final List<Map<String, Object?>> v1Requests = <Map<String, Object?>>[];
-
-  @override
-  bool get supportsSessionRequestV1 => supportsV1;
 
   @override
   String? requestSessionV1Json(String sessionId, String requestV1Json) {
     final request = (jsonDecode(requestV1Json) as Map).cast<String, Object?>();
     v1Requests.add(request);
+    requests.add(<String, Object?>{
+      'kind': request['operation'],
+      ...(request['payload']! as Map).cast<String, Object?>(),
+    });
     final error = requestError;
     if (error != null) {
       // The fake must preserve the exact configured transport failure object.
       // ignore: only_throw_errors
       throw error;
     }
-    final legacyResponse = response;
-    if (legacyResponse == null || legacyResponse.isEmpty) {
-      return legacyResponse;
+    final configuredPayload = response;
+    if (configuredPayload == null || configuredPayload.isEmpty) {
+      return configuredPayload;
     }
-    final payload = jsonDecode(legacyResponse);
+    final payload = jsonDecode(configuredPayload);
     return jsonEncode(<String, Object?>{
       'schema_version': 1,
       'contract': 'ianvs-session-response-v1',
@@ -147,18 +146,6 @@ final class _JsonRequestBackend
       'timestamp_micros': 1234,
       'payload': payload,
     });
-  }
-
-  @override
-  String? requestSessionJson(String sessionId, String requestJson) {
-    requests.add((jsonDecode(requestJson) as Map).cast<String, Object?>());
-    final error = requestError;
-    if (error != null) {
-      // The fake must preserve the exact configured transport failure object.
-      // ignore: only_throw_errors
-      throw error;
-    }
-    return response;
   }
 }
 

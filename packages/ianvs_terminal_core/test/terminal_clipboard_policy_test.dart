@@ -27,21 +27,19 @@ void main() {
       expect(await adapter.allowPasteRequest(pasteRequest), isFalse);
     });
 
-    test('uses legacy callbacks when contextual policies are absent', () async {
+    test('uses explicit contextual policies', () async {
       final adapter = TerminalClipboardPolicyAdapter(
-        allowClipboardCopy: () async => true,
-        allowClipboardPasteRequest: () async => true,
+        allowClipboardCopyWithContext: (_) async => true,
+        allowClipboardPasteRequestWithContext: (_) async => true,
       );
 
       expect(await adapter.allowCopy(copyRequest), isTrue);
       expect(await adapter.allowPasteRequest(pasteRequest), isTrue);
     });
 
-    test('prefers contextual callbacks over legacy callbacks', () async {
+    test('passes the exact access request to contextual policies', () async {
       final seenOperations = <TerminalClipboardOperation>[];
       final adapter = TerminalClipboardPolicyAdapter(
-        allowClipboardCopy: () async => false,
-        allowClipboardPasteRequest: () async => false,
         allowClipboardCopyWithContext: (request) async {
           seenOperations.add(request.operation);
           return true;

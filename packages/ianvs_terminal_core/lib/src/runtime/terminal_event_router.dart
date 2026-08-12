@@ -1,4 +1,4 @@
-import '../pty/ianvs_pty.dart';
+import 'package:ianvs_terminal_core/src/pty/ianvs_pty.dart';
 
 enum TerminalAsyncEventKind {
   resize,

@@ -71,4 +71,117 @@ void main() {
       configuration.path,
     ]);
   });
+
+  test('repository verify reaches clean actual native ABI comparison', () {
+    final repository = Directory.current.absolute;
+    final makefile = File('${repository.path}/Makefile').readAsStringSync();
+    final repositoryVerifier = File(
+      '${repository.path}/tools/verify_flutter_terminal.sh',
+    ).readAsStringSync();
+    final generatedVerifier = File(
+      '${repository.path}/tools/verify_generated_contracts.sh',
+    ).readAsStringSync();
+    final binaryVerifier = File(
+      '${repository.path}/tools/verify_native_binary_contract.sh',
+    ).readAsStringSync();
+
+    expect(
+      _nativeAbiVerificationViolations(
+        makefile: makefile,
+        repositoryVerifier: repositoryVerifier,
+        generatedVerifier: generatedVerifier,
+        binaryVerifier: binaryVerifier,
+      ),
+      isEmpty,
+    );
+
+    for (final mutation
+        in <
+          ({
+            String makefile,
+            String repositoryVerifier,
+            String generatedVerifier,
+            String binaryVerifier,
+          })
+        >[
+          (
+            makefile: makefile.replaceFirst(
+              'tools/verify_flutter_terminal.sh',
+              'tools/verify_flutter_terminal_compat.sh',
+            ),
+            repositoryVerifier: repositoryVerifier,
+            generatedVerifier: generatedVerifier,
+            binaryVerifier: binaryVerifier,
+          ),
+          (
+            makefile: makefile,
+            repositoryVerifier: repositoryVerifier.replaceFirst(
+              'tools/verify_generated_contracts.sh',
+              'tools/verify_generated_contracts_compat.sh',
+            ),
+            generatedVerifier: generatedVerifier,
+            binaryVerifier: binaryVerifier,
+          ),
+          (
+            makefile: makefile,
+            repositoryVerifier: repositoryVerifier,
+            generatedVerifier: generatedVerifier.replaceFirst(
+              'tools/verify_native_binary_contract.sh',
+              'tools/verify_native_binary_contract_compat.sh',
+            ),
+            binaryVerifier: binaryVerifier,
+          ),
+          (
+            makefile: makefile,
+            repositoryVerifier: repositoryVerifier,
+            generatedVerifier: generatedVerifier,
+            binaryVerifier: binaryVerifier.replaceFirst(
+              r'--library "$library"',
+              r'--header "$library"',
+            ),
+          ),
+        ]) {
+      expect(
+        _nativeAbiVerificationViolations(
+          makefile: mutation.makefile,
+          repositoryVerifier: mutation.repositoryVerifier,
+          generatedVerifier: mutation.generatedVerifier,
+          binaryVerifier: mutation.binaryVerifier,
+        ),
+        isNotEmpty,
+      );
+    }
+  });
+}
+
+List<String> _nativeAbiVerificationViolations({
+  required String makefile,
+  required String repositoryVerifier,
+  required String generatedVerifier,
+  required String binaryVerifier,
+}) {
+  final violations = <String>[];
+  for (final contract in <({String source, String required})>[
+    (source: makefile, required: 'tools/verify_flutter_terminal.sh'),
+    (
+      source: repositoryVerifier,
+      required: 'tools/verify_generated_contracts.sh',
+    ),
+    (
+      source: generatedVerifier,
+      required: 'tools/verify_native_binary_contract.sh',
+    ),
+    (source: binaryVerifier, required: 'native/core'),
+    (
+      source: binaryVerifier,
+      required: 'packages/ianvs_terminal_core/native/core',
+    ),
+    (source: binaryVerifier, required: r'CARGO_TARGET_DIR="$target_dir"'),
+    (source: binaryVerifier, required: r'--library "$library"'),
+  ]) {
+    if (!contract.source.contains(contract.required)) {
+      violations.add('missing native ABI gate: ${contract.required}');
+    }
+  }
+  return violations;
 }

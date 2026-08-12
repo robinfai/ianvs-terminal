@@ -6,6 +6,9 @@ import 'package:fixnum/fixnum.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal_core/ianvs_terminal_core.dart';
 import 'package:ianvs_terminal_core/src/proto/frame_diff.pb.dart' as frame_pb;
+import 'package:ianvs_terminal_core/src/transport/terminal_protobuf_frame_codec.dart';
+
+import '../support/terminal_frame_from_json.dart';
 
 const String _configuredOutPath = String.fromEnvironment(
   'FRAME_DIFF_TRANSPORT_BENCH_OUT',
@@ -92,10 +95,10 @@ void main() {
 void _warmUp(List<_FrameWireFixture> fixtures) {
   for (var repeat = 0; repeat < 8; repeat += 1) {
     for (final fixture in fixtures) {
-      TerminalFrameDiff.fromJson(
+      terminalFrameFromJson(
         (jsonDecode(fixture.jsonPayload) as Map).cast<String, Object?>(),
       );
-      TerminalFrameDiff.fromProtobufBytes(fixture.protobufPayload);
+      const TerminalProtobufFrameCodec().decode(fixture.protobufPayload);
     }
   }
 }
@@ -458,7 +461,7 @@ _DecodeMeasurements _measureJsonDecode(List<_FrameWireFixture> fixtures) {
   for (var iteration = 0; iteration < _iterations; iteration += 1) {
     final watch = Stopwatch()..start();
     for (final fixture in fixtures) {
-      final frame = TerminalFrameDiff.fromJson(
+      final frame = terminalFrameFromJson(
         (jsonDecode(fixture.jsonPayload) as Map).cast<String, Object?>(),
       );
       if (iteration == 0) {
@@ -477,7 +480,7 @@ _DecodeMeasurements _measureProtobufDecode(List<_FrameWireFixture> fixtures) {
   for (var iteration = 0; iteration < _iterations; iteration += 1) {
     final watch = Stopwatch()..start();
     for (final fixture in fixtures) {
-      final frame = TerminalFrameDiff.fromProtobufBytes(
+      final frame = const TerminalProtobufFrameCodec().decode(
         fixture.protobufPayload,
       );
       if (iteration == 0) {

@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:code_assets/code_assets.dart';
 import 'package:hooks/hooks.dart';
 
+import 'native_dependencies.dart';
+
 const _assetName = 'libianvs_core.dylib';
 
 void main(List<String> args) async {
@@ -83,7 +85,7 @@ void main(List<String> args) async {
       );
     }
 
-    for (final dependency in _nativeDependencies(nativeRoot)) {
+    for (final dependency in nativeBuildDependencies(nativeRoot)) {
       output.dependencies.add(dependency.uri);
     }
     output.assets.code.add(
@@ -118,25 +120,4 @@ Map<String, String> _rustToolchainEnvironment(Map<String, String> environment) {
     break;
   }
   return resolved;
-}
-
-Iterable<File> _nativeDependencies(Uri nativeRoot) sync* {
-  final root = Directory.fromUri(nativeRoot);
-  for (final entity in root.listSync(recursive: true, followLinks: false)) {
-    if (entity is! File) {
-      continue;
-    }
-    final path = entity.path;
-    if (path.contains(
-      '${Platform.pathSeparator}target${Platform.pathSeparator}',
-    )) {
-      continue;
-    }
-    if (path.endsWith('.rs') ||
-        path.endsWith('.proto') ||
-        path.endsWith('Cargo.toml') ||
-        path.endsWith('Cargo.lock')) {
-      yield entity;
-    }
-  }
 }

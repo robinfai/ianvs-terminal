@@ -1,34 +1,41 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../runtime/terminal_runtime_controller.dart';
 import '../terminal/selection_controller.dart';
 import '../terminal/terminal_input_controller.dart';
 import '../terminal/terminal_viewport.dart';
 import '../terminal/terminal_viewport_colors.dart';
-import '../xterm/terminal_api.dart';
+import 'terminal_session_handle.dart';
 
 /// Lets a host wrap or replace the fully wired default viewport.
 ///
 /// The supplied [viewport] already handles keyboard input, selection,
 /// scrolling, focus reporting, graphics, and resize synchronization.
 typedef TerminalSessionViewportBuilder =
-    Widget Function(BuildContext context, Terminal terminal, Widget viewport);
+    Widget Function(
+      BuildContext context,
+      TerminalSessionHandle session,
+      Widget viewport,
+    );
 
 typedef TerminalSessionErrorBuilder =
     Widget Function(BuildContext context, Object error, StackTrace stackTrace);
 
 typedef TerminalSessionExitBuilder =
-    Widget Function(BuildContext context, TerminalExitEvent event);
+    Widget Function(BuildContext context, TerminalSessionExitEvent event);
 
-/// A Flutter surface for an already configured [Terminal].
+/// A Flutter surface for an already configured [TerminalSessionHandle].
 ///
-/// The widget opens the terminal when needed and wires the low-level viewport
-/// to its runtime. Set [disposeTerminal] when this widget owns the terminal;
+/// The widget opens the session when needed and wires the low-level viewport
+/// to its runtime. Set [disposeSession] when this widget owns the session;
 /// tab containers normally keep ownership in their controller instead.
 class TerminalSessionView extends StatefulWidget {
   const TerminalSessionView({
     super.key,
-    required this.terminal,
-    this.disposeTerminal = false,
+    required this.session,
+    this.disposeSession = false,
     this.autofocus = false,
     this.contentPadding = EdgeInsets.zero,
     this.colors,
@@ -46,8 +53,8 @@ class TerminalSessionView extends StatefulWidget {
     this.onHostKeyEvent,
   });
 
-  final Terminal terminal;
-  final bool disposeTerminal;
+  final TerminalSessionHandle session;
+  final bool disposeSession;
   final bool autofocus;
   final EdgeInsets contentPadding;
   final TerminalViewportColors? colors;
@@ -55,8 +62,8 @@ class TerminalSessionView extends StatefulWidget {
   final TerminalSessionViewportBuilder? viewportBuilder;
   final TerminalSessionErrorBuilder? errorBuilder;
   final TerminalSessionExitBuilder? exitBuilder;
-  final ValueChanged<Terminal>? onReady;
-  final ValueChanged<TerminalExitEvent>? onExit;
+  final ValueChanged<TerminalSessionHandle>? onReady;
+  final ValueChanged<TerminalSessionExitEvent>? onExit;
   final void Function(Object error, StackTrace stackTrace)? onError;
   final ValueChanged<String>? onOpenLink;
   final ValueChanged<TerminalLinkTarget>? onOpenLinkTarget;
@@ -73,8 +80,8 @@ class _TerminalSessionViewState extends State<TerminalSessionView> {
   final FocusNode _focusNode = FocusNode(debugLabel: 'embedded-terminal');
   TerminalViewportController? _viewportController;
   TerminalInputController? _inputController;
-  TerminalDisposable? _exitListener;
-  TerminalExitEvent? _exitEvent;
+  StreamSubscription<TerminalRuntimeSignal>? _runtimeSubscription;
+  TerminalSessionExitEvent? _exitEvent;
   Object? _openError;
   StackTrace? _openStackTrace;
   Size? _scheduledViewportSize;
@@ -91,8 +98,8 @@ class _TerminalSessionViewState extends State<TerminalSessionView> {
   @override
   void didUpdateWidget(covariant TerminalSessionView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!identical(oldWidget.terminal, widget.terminal)) {
-      _detachTerminal(oldWidget.terminal, dispose: oldWidget.disposeTerminal);
+    if (!identical(oldWidget.session, widget.session)) {
+      _detachSession(oldWidget.session, dispose: oldWidget.disposeSession);
       _attachTerminal();
     }
     if (!oldWidget.autofocus && widget.autofocus) {
@@ -105,24 +112,26 @@ class _TerminalSessionViewState extends State<TerminalSessionView> {
     _openError = null;
     _openStackTrace = null;
     try {
-      if (!widget.terminal.isOpen) {
-        widget.terminal.open();
+      if (!widget.session.isOpen) {
+        widget.session.open();
       }
-      final sessionId = widget.terminal.sessionId!;
-      final runtime = widget.terminal.runtimeController;
-      final viewport = widget.terminal.viewportController;
+      final sessionId = widget.session.sessionId!;
+      final runtime = widget.session.runtime;
+      final viewport = widget.session.viewportController;
       _viewportController = viewport;
       _inputController = TerminalInputController(
         sessionId: sessionId,
         runtime: runtime,
         readFrame: () => viewport.frame,
-        emulation: widget.terminal.effectiveSessionConfig.emulation,
+        emulation: widget.session.sessionConfig.emulation,
         readSelection: () => _selectionController.textForFrame(viewport.frame),
         copySelection: runtime.copyToClipboard,
         readClipboard: runtime.readClipboard,
       );
-      _exitListener = widget.terminal.onExit(_handleExit);
-      widget.onReady?.call(widget.terminal);
+      _runtimeSubscription = widget.session.runtimeSignals.listen(
+        _handleRuntimeSignal,
+      );
+      widget.onReady?.call(widget.session);
       if (widget.autofocus) {
         _scheduleAutofocus();
       }
@@ -133,20 +142,28 @@ class _TerminalSessionViewState extends State<TerminalSessionView> {
     }
   }
 
-  void _detachTerminal(Terminal terminal, {required bool dispose}) {
-    _exitListener?.dispose();
-    _exitListener = null;
+  void _detachSession(TerminalSessionHandle session, {required bool dispose}) {
+    unawaited(_runtimeSubscription?.cancel());
+    _runtimeSubscription = null;
     _viewportController = null;
     _inputController = null;
     _scheduledViewportSize = null;
     _scheduledDevicePixelRatio = null;
     _resizeScheduled = false;
     if (dispose) {
-      terminal.dispose();
+      session.dispose();
     }
   }
 
-  void _handleExit(TerminalExitEvent event) {
+  void _handleRuntimeSignal(TerminalRuntimeSignal signal) {
+    if (signal case TerminalRuntimeSessionEventSignal(
+      payload: final TerminalSessionExitEvent event,
+    )) {
+      _handleExit(event);
+    }
+  }
+
+  void _handleExit(TerminalSessionExitEvent event) {
     if (!mounted) {
       return;
     }
@@ -157,14 +174,11 @@ class _TerminalSessionViewState extends State<TerminalSessionView> {
   }
 
   void _handleFocusChanged() {
-    final sessionId = widget.terminal.sessionId;
+    final sessionId = widget.session.sessionId;
     if (sessionId == null) {
       return;
     }
-    widget.terminal.runtimeController.setSessionFocused(
-      sessionId,
-      focused: _focusNode.hasFocus,
-    );
+    widget.session.setFocused(focused: _focusNode.hasFocus);
   }
 
   void _scheduleAutofocus() {
@@ -203,11 +217,11 @@ class _TerminalSessionViewState extends State<TerminalSessionView> {
       }
       final size = _scheduledViewportSize;
       final ratio = _scheduledDevicePixelRatio;
-      final sessionId = widget.terminal.sessionId;
+      final sessionId = widget.session.sessionId;
       if (size == null || ratio == null || sessionId == null) {
         return;
       }
-      widget.terminal.runtimeController.resizeSession(sessionId, size, ratio);
+      widget.session.resize(size, ratio);
     });
   }
 
@@ -264,7 +278,7 @@ class _TerminalSessionViewState extends State<TerminalSessionView> {
     if (viewportController == null || inputController == null) {
       return const SizedBox.shrink();
     }
-    final config = widget.terminal.effectiveSessionConfig;
+    final config = widget.session.sessionConfig;
     final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -282,26 +296,26 @@ class _TerminalSessionViewState extends State<TerminalSessionView> {
           cursor: config.display.cursor,
           copyOnSelect: config.interaction.copyOnSelect,
           optionDragMode: config.interaction.optionDragMode,
-          graphicsCache: widget.terminal.runtimeController.graphicsCacheFor(
-            widget.terminal.sessionId!,
+          graphicsCache: widget.session.runtime.graphicsCacheFor(
+            widget.session.sessionId!,
           ),
-          graphicsDiagnosticSessionId: widget.terminal.sessionId,
+          graphicsDiagnosticSessionId: widget.session.sessionId,
           onHostKeyEvent: widget.onHostKeyEvent,
           onMeasuredCellSizeChanged: (_) {
             _scheduleResize(viewportSize, devicePixelRatio, force: true);
           },
-          onScrollLines: widget.terminal.scrollLines,
-          onScrollToOffset: widget.terminal.scrollToLine,
+          onScrollLines: widget.session.scrollLines,
+          onScrollToOffset: widget.session.scrollToLine,
           onToggleBlock: (block) {
             _selectionController.clear();
-            widget.terminal.setBlockFolded(block.id, folded: !block.folded);
+            widget.session.setBlockFolded(block.id, folded: !block.folded);
           },
           onDismissBlockRender: (block) {
             _selectionController.clear();
-            widget.terminal.setBlockRendered(block.id, rendered: false);
+            widget.session.setBlockRendered(block.id, rendered: false);
           },
           onActivateInlineButton: (button) {
-            widget.terminal.activateItermButton(button.id);
+            widget.session.activateItermButton(button.id);
           },
           onOpenLink: widget.onOpenLink,
           onOpenLinkTarget: widget.onOpenLinkTarget,
@@ -310,7 +324,7 @@ class _TerminalSessionViewState extends State<TerminalSessionView> {
         );
         return widget.viewportBuilder?.call(
               context,
-              widget.terminal,
+              widget.session,
               viewport,
             ) ??
             viewport;
@@ -321,7 +335,7 @@ class _TerminalSessionViewState extends State<TerminalSessionView> {
   @override
   void dispose() {
     _focusNode.removeListener(_handleFocusChanged);
-    _detachTerminal(widget.terminal, dispose: widget.disposeTerminal);
+    _detachSession(widget.session, dispose: widget.disposeSession);
     _selectionController.dispose();
     _focusNode.dispose();
     super.dispose();

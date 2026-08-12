@@ -17,6 +17,7 @@ packages/*/build/
 !.codex/prompts/
 !.codex/prompts/**
 native/core/target/
+packages/ianvs_terminal_core/native/core/target/
 native/vendor/**/target/
 native/vendor/**/.cargo-ok
 native/vendor/**/.cargo_vcs_info.json

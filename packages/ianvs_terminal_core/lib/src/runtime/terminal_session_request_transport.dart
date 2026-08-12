@@ -1,97 +1,57 @@
-import 'dart:convert';
-
-import '../pty/ianvs_pty.dart';
+import 'package:ianvs_terminal_core/src/pty/ianvs_pty.dart';
 
 int _sessionRequestSeed = 0;
 
-/// Internal compatibility transport for synchronous Dart-to-native session
+/// Current Session Request v1 transport for synchronous Dart-to-native
 /// commands. Operation-specific clients continue to own their payload models.
 final class TerminalSessionRequestTransport {
-  TerminalSessionRequestTransport(PtySessionJsonRequestBackend? backend)
-    : _legacyBackend = backend,
-      _versionedBackend = backend is PtySessionRequestV1Backend
-          ? backend! as PtySessionRequestV1Backend
-          : null;
+  TerminalSessionRequestTransport(PtySessionRequestV1Backend? backend)
+    : _backend = backend;
 
-  final PtySessionJsonRequestBackend? _legacyBackend;
-  final PtySessionRequestV1Backend? _versionedBackend;
+  final PtySessionRequestV1Backend? _backend;
 
-  bool get isSupported => _legacyBackend != null;
+  bool get isSupported => _backend != null;
 
   Map<String, Object?>? requestObject(
     String sessionId,
-    Map<String, Object?> legacyRequest,
+    String operation,
+    Map<String, Object?> payload,
   ) {
-    final operation = legacyRequest['kind'];
-    if (operation is! String || operation.isEmpty) {
+    if (operation.isEmpty) {
       throw ArgumentError.value(
         operation,
-        'legacyRequest.kind',
+        'operation',
         'must be a non-empty operation string',
       );
     }
-    final versionedBackend = _versionedBackend;
-    if (versionedBackend != null && versionedBackend.supportsSessionRequestV1) {
-      final requestId = 'dart-${++_sessionRequestSeed}';
-      final payload = Map<String, Object?>.of(legacyRequest)..remove('kind');
-      final request = PtySessionRequestV1(
-        requestId: requestId,
-        sessionId: sessionId,
-        operation: operation,
-        payload: payload,
-      );
-      final raw = versionedBackend.requestSessionV1Json(
-        sessionId,
-        request.toJsonString(),
-      );
-      if (raw == null || raw.isEmpty) {
-        throw const PtySessionRequestContractException(
-          code: 'missing_response',
-          path: r'$',
-          message: 'v1 backend returned no response',
-        );
-      }
-      final response = PtySessionResponseV1.fromJsonString(
-        raw,
-        expectedRequestId: requestId,
-        expectedSessionId: sessionId,
-        expectedOperation: operation,
-      );
-      if (response.ok) {
-        return response.payload;
-      }
-      return <String, Object?>{'ok': false, 'error': response.error!.toJson()};
-    }
-    final legacyBackend = _legacyBackend;
-    if (legacyBackend == null) {
+    final backend = _backend;
+    if (backend == null) {
       return null;
     }
-    final raw = legacyBackend.requestSessionJson(
-      sessionId,
-      jsonEncode(legacyRequest),
+    final requestId = 'dart-${++_sessionRequestSeed}';
+    final request = PtySessionRequestV1(
+      requestId: requestId,
+      sessionId: sessionId,
+      operation: operation,
+      payload: payload,
     );
-    return _tryDecodeJsonObject(raw);
-  }
-}
-
-Map<String, Object?>? _tryDecodeJsonObject(String? raw) {
-  if (raw == null || raw.isEmpty) {
-    return null;
-  }
-  try {
-    final decoded = jsonDecode(raw);
-    if (decoded is! Map) {
-      return null;
+    final raw = backend.requestSessionV1Json(sessionId, request.toJsonString());
+    if (raw == null || raw.isEmpty) {
+      throw const PtySessionRequestContractException(
+        code: 'missing_response',
+        path: r'$',
+        message: 'v1 backend returned no response',
+      );
     }
-    final json = <String, Object?>{};
-    for (final entry in decoded.entries) {
-      final key = entry.key;
-      if (key is String) {
-        json[key] = entry.value;
-      }
+    final response = PtySessionResponseV1.fromJsonString(
+      raw,
+      expectedRequestId: requestId,
+      expectedSessionId: sessionId,
+      expectedOperation: operation,
+    );
+    if (response.ok) {
+      return response.payload;
     }
-    return json;
-  } on Object {
-    return null;
+    return <String, Object?>{'ok': false, 'error': response.error!.toJson()};
   }
 }

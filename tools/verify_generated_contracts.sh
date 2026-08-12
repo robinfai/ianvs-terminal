@@ -13,6 +13,7 @@ trap cleanup EXIT
 "$ROOT_DIR/tools/gen_bindings.sh" "$TEMP_DIR/ianvs_core.h"
 diff -u "$CORE_DIR/ianvs_core.h" "$TEMP_DIR/ianvs_core.h"
 "$ROOT_DIR/tools/verify_native_contract.py"
+"$ROOT_DIR/tools/verify_native_binary_contract.sh"
 
 # Hermetic semantic verification covers the checked-in descriptor plus Rust
 # and Dart generated files without relying on a mutable system protoc install.

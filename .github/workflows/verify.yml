@@ -220,6 +220,9 @@ jobs:
       - name: Resolve workspace dependencies
         run: flutter pub get
 
+      - name: Verify standalone pub archive
+        run: dart run tools/verify_terminal_core_publish.dart
+
       - name: Run repository verification
         run: ./tools/verify_flutter_terminal.sh
 

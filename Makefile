@@ -5,6 +5,7 @@ ROOT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 EXAMPLE_DIR := $(ROOT_DIR)/example
 PTY_PACKAGE_DIR := $(ROOT_DIR)/packages/ianvs_pty
 TERMINAL_PACKAGE_DIR := $(ROOT_DIR)/packages/ianvs_terminal
+TERMINAL_CORE_PACKAGE_DIR := $(ROOT_DIR)/packages/ianvs_terminal_core
 BACKEND_DIR := $(ROOT_DIR)/backend
 
 FLUTTER ?= flutter
@@ -19,6 +20,7 @@ INSTALLED_APP := $(INSTALL_DIR)/$(APP_NAME).app
 
 .PHONY: \
 	help bootstrap format format-check analyze test test-profiles verify \
+	terminal-core-sync terminal-core-check \
 	run run-macos build build-macos sign-macos install install-macos \
 	build-install-macos clean \
 	backend-format backend-test backend-run backend-generate-key
@@ -35,6 +37,8 @@ help: ## Show the available commands.
 		'  test                Run workspace unit and widget tests' \
 		'  test-profiles       Run only the Profile Editor test suite' \
 		'  verify              Run the repository verification script' \
+		'  terminal-core-sync   Regenerate the standalone published package' \
+		'  terminal-core-check  Reject standalone package source drift' \
 		'  backend-format       Format Go data API sources' \
 		'  backend-test         Run Go data API tests' \
 		'  backend-run          Run the local Go data API (requires BACKEND_CONFIG)' \
@@ -64,13 +68,21 @@ format-check: ## Check Dart formatting without changing files.
 analyze: ## Analyze all Dart and Flutter packages with fatal infos.
 	cd "$(PTY_PACKAGE_DIR)" && $(DART) analyze --fatal-infos
 	cd "$(TERMINAL_PACKAGE_DIR)" && $(FLUTTER) analyze --fatal-infos
+	cd "$(TERMINAL_CORE_PACKAGE_DIR)" && $(FLUTTER) analyze --fatal-infos
 	cd "$(EXAMPLE_DIR)" && $(FLUTTER) analyze --fatal-infos
 
 test: ## Run workspace unit and widget tests.
 	cd "$(ROOT_DIR)" && $(DART) test
 	cd "$(PTY_PACKAGE_DIR)" && $(DART) test
 	cd "$(TERMINAL_PACKAGE_DIR)" && $(FLUTTER) test
+	cd "$(TERMINAL_CORE_PACKAGE_DIR)" && $(FLUTTER) test
 	cd "$(EXAMPLE_DIR)" && $(FLUTTER) test
+
+terminal-core-sync: ## Regenerate the standalone pub.dev package mirror.
+	cd "$(ROOT_DIR)" && $(DART) run tools/sync_terminal_core.dart
+
+terminal-core-check: ## Verify the standalone package matches canonical sources.
+	cd "$(ROOT_DIR)" && $(DART) run tools/sync_terminal_core.dart --check
 
 test-profiles: ## Run only the Profile Editor tests.
 	cd "$(EXAMPLE_DIR)" && $(FLUTTER) test test/profiles

@@ -52,12 +52,6 @@ fn diagnostic_event_v1_crosses_ffi_with_identity_sequence_and_timestamp() {
 
     assert!(take_diagnostic(session_id, "unknown_stats").is_none());
 
-    let legacy = ianvs_core::ffi::ianvs_session_take_session_debug_stats_json(session_id);
-    assert!(
-        !legacy.is_null(),
-        "legacy diagnostic FFI must remain available"
-    );
-    unsafe { ianvs_core::ffi::ianvs_string_free(legacy) };
     session::close_session(session_id).unwrap();
 }
 
@@ -70,9 +64,8 @@ fn frame_diagnostic_v1_preserves_take_semantics() {
     });
     let session_id = session::create_replay_session(&profile.to_string()).unwrap();
 
-    let frame = ianvs_core::ffi::ianvs_session_take_frame_diff_json(session_id);
-    assert!(!frame.is_null());
-    unsafe { ianvs_core::ffi::ianvs_string_free(frame) };
+    let frame = session::take_frame_packet_v1_protobuf(session_id, None).unwrap();
+    assert!(frame.is_some());
 
     let diagnostic = take_diagnostic(session_id, "frame_stats").unwrap();
     assert_eq!(diagnostic.message_name, "frame_stats");

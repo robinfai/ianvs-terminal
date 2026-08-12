@@ -4,17 +4,17 @@
 
 - `packages/ianvs_pty`：PTY 会话传输和 FFI 包装
 - `packages/ianvs_terminal`：session runtime、viewport、输入/选区/滚动适配和可选的 Flutter 嵌入组件
+- `packages/ianvs_terminal_core`：面向第三方应用发布的 standalone current-only package
 - `example/`：tab、窗口壳、菜单、profile 编辑和 demo 流程
 - `native/core`：Rust PTY / VT core，当前仍作为 `ianvs_pty` 背后的原生实现
 - `backend/`：Go + GORM 数据 API，本地使用 SQLite、远程可切换 MySQL
 
 `example/` 不再定义终端能力；共享终端能力统一从 package 暴露。app 侧通过 `example/lib/features/terminal/terminal.dart` 和 `example/lib/features/pty/pty.dart` 收口 package 依赖，平台剪贴板桥接留在 `example/lib/platform/clipboard_bridge.dart`。`example` 目录里的 Flutter package 现阶段仍保留 `name: app`，用于稳定既有 `package:app/...` import 面；macOS bundle identity 由 Runner project 的 Ianvs Terminal 元数据单独维护。
 
-第三方 Flutter 应用应使用完整 Git 仓库中的
-`packages/ianvs_terminal`。macOS 原生库由 `ianvs_pty` 的 build hook 自动编译并随
-应用打包，不需要在宿主 Xcode 工程里复制 Ianvs Terminal 的自定义构建脚本。具体
-依赖和生命周期示例见
-[packages/ianvs_terminal/README.md](packages/ianvs_terminal/README.md)。
+第三方 Flutter 应用应依赖可发布的 `ianvs_terminal_core`。macOS 原生库由 package 的
+CodeAsset build hook 自动编译并随应用打包；宿主 Xcode 工程不得再复制 Rust 构建或 dylib
+拷贝 phase。具体依赖、`TerminalSessionHandle.runtimeSignals` 和嵌入生命周期示例见
+[packages/ianvs_terminal_core/README.md](packages/ianvs_terminal_core/README.md)。
 
 ## 快速开始
 
@@ -57,7 +57,8 @@ ianvs terminal/
 ├── example/
 ├── packages/
 │   ├── ianvs_pty/
-│   └── ianvs_terminal/
+│   ├── ianvs_terminal/
+│   └── ianvs_terminal_core/
 ├── native/core/
 ├── backend/
 ├── docs/

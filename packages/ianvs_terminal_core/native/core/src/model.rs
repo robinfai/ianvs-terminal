@@ -188,8 +188,9 @@ impl Default for TerminalSshJumpProfile {
     }
 }
 
-/// Product-neutral connection settings. Local remains the fail-closed default
-/// for old SessionConfig producers that do not send this additive field.
+/// Product-neutral connection settings. These defaults are internal model
+/// conveniences only; SessionConfig v1 validates its complete exact wire shape
+/// before deserializing this model.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TerminalProfileConnection {
     #[serde(rename = "type", default)]

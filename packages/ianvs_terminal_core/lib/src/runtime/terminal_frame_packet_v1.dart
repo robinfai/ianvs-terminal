@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import '../proto/frame_diff.pb.dart' as frame_pb;
+import '../terminal/terminal_frame_decode_ports.dart';
 import '../terminal/terminal_models.dart';
 
 const int terminalFramePacketV1SchemaVersion = 1;
@@ -36,7 +36,13 @@ final class TerminalFramePacketV1 {
 }
 
 final class TerminalFramePacketV1Decoder {
-  const TerminalFramePacketV1Decoder();
+  const TerminalFramePacketV1Decoder({
+    required this.frameCodec,
+    required this.packetCodec,
+  });
+
+  final TerminalBinaryFrameCodecPort frameCodec;
+  final TerminalFramePacketDecodePort packetCodec;
 
   TerminalFramePacketV1 decode(
     Uint8List bytes, {
@@ -62,9 +68,9 @@ final class TerminalFramePacketV1Decoder {
       );
     }
 
-    final frame_pb.TerminalFramePacketV1 packet;
+    final TerminalFramePacketEnvelope packet;
     try {
-      packet = frame_pb.TerminalFramePacketV1.fromBuffer(bytes);
+      packet = packetCodec.decode(bytes);
     } on Object catch (error) {
       throw TerminalFramePacketContractException(
         'frame_packet_protobuf_invalid',
@@ -72,33 +78,33 @@ final class TerminalFramePacketV1Decoder {
       );
     }
 
-    if (!packet.hasSchemaVersion() ||
+    if (!packet.hasSchemaVersion ||
         packet.schemaVersion != terminalFramePacketV1SchemaVersion) {
       throw TerminalFramePacketContractException(
         'frame_packet_schema_unsupported',
         'Unsupported Frame Packet schema version ${packet.schemaVersion}',
       );
     }
-    if (!packet.hasContract() ||
+    if (!packet.hasContract ||
         packet.contract != terminalFramePacketV1Contract) {
       throw const TerminalFramePacketContractException(
         'frame_packet_contract_mismatch',
         'Frame Packet contract identifier does not match v1',
       );
     }
-    if (!packet.hasMessageClass() || packet.messageClass != 'frame') {
+    if (!packet.hasMessageClass || packet.messageClass != 'frame') {
       throw const TerminalFramePacketContractException(
         'frame_packet_message_class_mismatch',
         'Frame Packet message_class must be frame',
       );
     }
-    if (!packet.hasMessageName() || packet.messageName != 'frame_diff') {
+    if (!packet.hasMessageName || packet.messageName != 'frame_diff') {
       throw const TerminalFramePacketContractException(
         'frame_packet_message_name_mismatch',
         'Frame Packet message_name must be frame_diff',
       );
     }
-    if (!packet.hasSessionId() || !_isValidSessionId(packet.sessionId)) {
+    if (!packet.hasSessionId || !_isValidSessionId(packet.sessionId)) {
       throw const TerminalFramePacketContractException(
         'frame_packet_session_invalid',
         'Frame Packet session identity must be a positive decimal uint64',
@@ -111,19 +117,19 @@ final class TerminalFramePacketV1Decoder {
             '$expectedSessionId',
       );
     }
-    if (packet.sequence.isNegative) {
+    if (packet.sequenceIsNegative) {
       throw const TerminalFramePacketContractException(
         'frame_packet_sequence_invalid',
         'Frame Packet sequence must be a uint64',
       );
     }
-    if (!packet.hasTimestampMicros() || packet.timestampMicros <= 0) {
+    if (!packet.hasTimestampMicros || packet.timestampMicros <= 0) {
       throw const TerminalFramePacketContractException(
         'frame_packet_timestamp_invalid',
         'Frame Packet timestamp_micros must be positive',
       );
     }
-    if (!packet.hasFrameSchemaVersion() ||
+    if (!packet.hasFrameSchemaVersion ||
         packet.frameSchemaVersion !=
             TerminalFrameDiff.currentFrameSchemaVersion) {
       throw const TerminalFramePacketContractException(
@@ -131,19 +137,19 @@ final class TerminalFramePacketV1Decoder {
         'Frame Packet frame schema is unsupported',
       );
     }
-    if (!packet.hasFrame() ||
-        !packet.frame.hasFrameSchemaVersion() ||
-        packet.frame.frameSchemaVersion != packet.frameSchemaVersion) {
+    if (!packet.hasFrame ||
+        packet.nestedFrameSchemaVersion == null ||
+        packet.nestedFrameSchemaVersion != packet.frameSchemaVersion) {
       throw const TerminalFramePacketContractException(
         'frame_packet_frame_invalid',
         'Frame Packet must contain a matching versioned terminal frame',
       );
     }
 
-    final int sequence = packet.sequence.toInt();
+    final sequence = packet.sequence;
     final TerminalFrameDiff frame;
     try {
-      frame = TerminalFrameDiff.fromProtobufBytes(packet.frame.writeToBuffer());
+      frame = frameCodec.decode(packet.nestedFrameBytes!);
     } on Object catch (error) {
       throw TerminalFramePacketContractException(
         'frame_packet_frame_invalid',
@@ -177,7 +183,7 @@ final class TerminalFramePacketV1Decoder {
     return TerminalFramePacketV1(
       sessionId: packet.sessionId,
       sequence: sequence,
-      timestampMicros: packet.timestampMicros.toInt(),
+      timestampMicros: packet.timestampMicros,
       frameSchemaVersion: packet.frameSchemaVersion,
       frame: frame,
     );

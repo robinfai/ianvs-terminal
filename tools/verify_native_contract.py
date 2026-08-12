@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 
@@ -13,6 +15,51 @@ REPOSITORY = Path(__file__).resolve().parent.parent
 HEADER = REPOSITORY / "native/core/ianvs_core.h"
 MANIFEST = REPOSITORY / "native/core/ianvs_core_abi_v1.json"
 DART_LIBRARY = REPOSITORY / "packages/ianvs_pty/lib"
+
+
+def binary_ianvs_exports(library: Path) -> set[str]:
+    if not library.is_file():
+        raise SystemExit(f"native library does not exist: {library}")
+    nm = shutil.which("llvm-nm") or shutil.which("nm")
+    if nm is None:
+        raise SystemExit("neither llvm-nm nor nm is available")
+    if library.suffix == ".dylib":
+        command = [nm, "-gU", str(library)]
+    else:
+        command = [nm, "-D", "--defined-only", str(library)]
+    result = subprocess.run(command, check=False, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise SystemExit(
+            f"failed to inspect native exports with {' '.join(command)}:\n"
+            f"{result.stdout}{result.stderr}"
+        )
+    exports: set[str] = set()
+    for line in result.stdout.splitlines():
+        fields = line.split()
+        if not fields:
+            continue
+        symbol = fields[-1]
+        if symbol.startswith("_ianvs_"):
+            symbol = symbol[1:]
+        if re.fullmatch(r"ianvs_[a-z0-9_]+", symbol):
+            exports.add(symbol)
+    return exports
+
+
+def verify_binary_exports(library: Path, manifest: dict[str, object]) -> None:
+    functions = manifest.get("functions")
+    if not isinstance(functions, dict):
+        raise ValueError("ABI manifest functions must be an object")
+    expected = set(functions)
+    actual = binary_ianvs_exports(library)
+    if actual != expected:
+        raise SystemExit(
+            f"native dylib export mismatch for {library}: "
+            f"missing={sorted(expected - actual)}, "
+            f"unexpected={sorted(actual - expected)}"
+        )
+
+
 def normalized_declarations(header: str) -> dict[str, str]:
     without_comments = re.sub(r"/\*.*?\*/", "", header, flags=re.DOTALL)
     declarations: dict[str, str] = {}
@@ -271,16 +318,48 @@ def verify(manifest: dict[str, object]) -> None:
 
 
 def main() -> None:
+    global HEADER, MANIFEST, DART_LIBRARY
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--write",
         action="store_true",
         help="rewrite the reviewed ABI manifest from the checked-in C header",
     )
+    parser.add_argument(
+        "--header",
+        type=Path,
+        default=HEADER,
+        help="C header to verify",
+    )
+    parser.add_argument(
+        "--manifest",
+        type=Path,
+        default=MANIFEST,
+        help="ABI manifest to verify",
+    )
+    parser.add_argument(
+        "--dart-library",
+        type=Path,
+        default=DART_LIBRARY,
+        help="Dart FFI library tree to verify",
+    )
+    parser.add_argument(
+        "--library",
+        type=Path,
+        action="append",
+        default=[],
+        help="clean-built native library whose ianvs_* exports must exactly match",
+    )
     arguments = parser.parse_args()
+    HEADER = arguments.header.resolve()
+    MANIFEST = arguments.manifest.resolve()
+    DART_LIBRARY = arguments.dart_library.resolve()
     if arguments.write:
         MANIFEST.write_text(json.dumps(generated_manifest(), indent=2) + "\n")
-    verify(json.loads(MANIFEST.read_text()))
+    manifest = json.loads(MANIFEST.read_text())
+    verify(manifest)
+    for library in arguments.library:
+        verify_binary_exports(library.resolve(), manifest)
 
 
 if __name__ == "__main__":

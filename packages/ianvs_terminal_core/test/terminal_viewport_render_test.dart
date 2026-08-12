@@ -4021,7 +4021,7 @@ String _renderTerminalViewportSource() {
   final candidates = <File>[
     File('lib/src/terminal/render_terminal_viewport.dart'),
     File(
-      'packages/ianvs_terminal/lib/src/terminal/render_terminal_viewport.dart',
+      'packages/ianvs_terminal_core/lib/src/terminal/render_terminal_viewport.dart',
     ),
   ];
   return candidates
@@ -4032,9 +4032,6 @@ String _renderTerminalViewportSource() {
 class _NoopPtyBackend implements PtySessionBackend {
   @override
   void closeSession(String sessionId) {}
-
-  @override
-  String createSession(String sessionConfigJson) => '1';
 
   @override
   int ping() => 42;
@@ -4058,9 +4055,6 @@ class _NoopPtyBackend implements PtySessionBackend {
 
   @override
   void scrollViewportTo(String sessionId, int offset) {}
-
-  @override
-  String? takeFrameDiffJson(String sessionId) => null;
 
   @override
   void writeInput(String sessionId, List<int> bytes) {}

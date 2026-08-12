@@ -6,6 +6,32 @@ import 'package:ianvs_pty/ianvs_pty.dart';
 import 'package:test/test.dart';
 
 void main() {
+  test('manifest-required NativePtyBindings symbols are fail-fast', () {
+    final source = <File>[
+      File('${Directory.current.path}/lib/src/native_pty_backend.dart'),
+      File('${Directory.current.path}/lib/src/pty/native_pty_backend.dart'),
+    ].singleWhere((file) => file.existsSync()).readAsStringSync();
+    expect(_requiredNativeBindingViolations(source), isEmpty);
+
+    for (final mutation in <String>[
+      '$source\n_lookupOptionalFileDownloadTake(library);',
+      source.replaceFirst(
+        'final _ReplayCheckpointCaptureDart _replayCheckpointCapture;',
+        'final _ReplayCheckpointCaptureDart? _replayCheckpointCapture;',
+      ),
+      source.replaceFirst(
+        'bool get supportsReplayCheckpoints => true;',
+        'bool get supportsReplayCheckpoints => false;',
+      ),
+      source.replaceFirst(
+        "'ianvs_session_file_download_take'",
+        "'ianvs_session_file_download_take_compat'",
+      ),
+    ]) {
+      expect(_requiredNativeBindingViolations(mutation), isNotEmpty);
+    }
+  });
+
   test('backend exposes only the current required runtime wire paths', () {
     final bindings = _CurrentPtyBindings();
     final backend = NativePtyBackend.fromBindings(bindings);
@@ -169,6 +195,38 @@ void main() {
       throwsArgumentError,
     );
   });
+}
+
+List<String> _requiredNativeBindingViolations(String source) {
+  final violations = <String>[];
+  for (final forbidden in <String>[
+    '_lookupOptionalReplayCheckpointCapture',
+    '_lookupOptionalReplayCheckpointRestore',
+    '_lookupOptionalFileDownloadTake',
+    '_lookupOptionalFileDownloadDiscard',
+    'final _ReplayCheckpointCaptureDart? _replayCheckpointCapture;',
+    'final _ReplayCheckpointRestoreDart? _replayCheckpointRestore;',
+    'final _FileDownloadTakeDart? _fileDownloadTake;',
+    'final _FileDownloadDiscardDart? _fileDownloadDiscard;',
+  ]) {
+    if (source.contains(forbidden)) {
+      violations.add('optional required binding: $forbidden');
+    }
+  }
+  for (final required in <String>[
+    "'ianvs_replay_session_checkpoint_capture'",
+    "'ianvs_replay_session_checkpoint_restore'",
+    "'ianvs_session_file_download_take'",
+    "'ianvs_session_file_download_discard'",
+    'bool get supportsReplayCheckpoints => true;',
+    'abstract interface class PtyReplayCheckpointBindings',
+    'abstract interface class PtyFileDownloadBindings',
+  ]) {
+    if (!source.contains(required)) {
+      violations.add('missing required binding: $required');
+    }
+  }
+  return violations;
 }
 
 final class _CurrentPtyBindings implements PtyBindings, PtyReplayBindings {

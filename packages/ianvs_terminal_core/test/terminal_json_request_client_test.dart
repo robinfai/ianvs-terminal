@@ -1,8 +1,10 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ianvs_terminal_core/ianvs_terminal_core.dart';
+import 'package:ianvs_terminal_core/src/pty/ianvs_pty.dart';
 import 'package:ianvs_terminal_core/src/runtime/terminal_json_request_client.dart';
+import 'package:ianvs_terminal_core/src/runtime/terminal_zmodem_recovery.dart';
+import 'package:ianvs_terminal_core/src/terminal/terminal_models.dart';
 
 Matcher hasStatus(TerminalZmodemRecoveryResolutionStatus status) =>
     isA<TerminalZmodemRecoveryResolution>().having(
@@ -19,7 +21,7 @@ void main() {
 
       expect(
         client.respondSshAuthentication(
-          'session-a',
+          '7',
           challengeId: 7,
           responses: const <String>['password', '654321'],
         ),
@@ -33,8 +35,8 @@ void main() {
       });
     });
 
-    test('prefers correlated v1 and preserves the exact legacy fallback', () {
-      final versioned = _VersionedJsonRequestBackend(supportsV1: true);
+    test('uses the exact correlated Session Request v1 envelope', () {
+      final versioned = _JsonRequestBackend('{"text":"versioned"}');
       final versionedClient = TerminalJsonRequestClient(versioned);
 
       final versionedText = versionedClient.selectionText(
@@ -45,7 +47,6 @@ void main() {
 
       expect(versionedText, 'versioned');
       expect(versioned.v1Requests, hasLength(1));
-      expect(versioned.legacyRequests, isEmpty);
       final v1 = versioned.v1Requests.single;
       expect(v1['schema_version'], 1);
       expect(v1['contract'], 'ianvs-session-request-v1');
@@ -61,33 +62,6 @@ void main() {
         },
         'block': false,
       });
-
-      final fallback = _VersionedJsonRequestBackend(supportsV1: false);
-      final fallbackClient = TerminalJsonRequestClient(fallback);
-      expect(
-        fallbackClient.selectionText(
-          'session-a',
-          const TerminalSelection(
-            startRow: 0,
-            startCol: 0,
-            endRow: 0,
-            endCol: 2,
-          ),
-          block: true,
-        ),
-        'legacy',
-      );
-      expect(fallback.v1Requests, isEmpty);
-      expect(fallback.legacyRequests.single, <String, Object?>{
-        'kind': 'terminal.selection_text',
-        'selection': <String, Object?>{
-          'start_row': 0,
-          'start_col': 0,
-          'end_row': 0,
-          'end_col': 2,
-        },
-        'block': true,
-      });
     });
 
     test('requests backend selection text and decodes the response', () {
@@ -95,7 +69,7 @@ void main() {
       final client = TerminalJsonRequestClient(backend);
 
       final text = client.selectionText(
-        'session-a',
+        '7',
         const TerminalSelection(startRow: 1, startCol: 2, endRow: 3, endCol: 4),
         block: true,
       );
@@ -119,7 +93,7 @@ void main() {
 
       expect(
         client.selectionText(
-          'session-a',
+          '7',
           const TerminalSelection(
             startRow: 0,
             startCol: 0,
@@ -136,7 +110,7 @@ void main() {
         ..requests.clear();
       expect(
         client.selectionText(
-          'session-a',
+          '7',
           const TerminalSelection(
             startRow: 0,
             startCol: 0,
@@ -169,7 +143,7 @@ void main() {
       final client = TerminalJsonRequestClient(backend);
 
       final result = client.searchTextResult(
-        'session-a',
+        '7',
         'hit',
         mode: TerminalSearchMode.caseSensitiveRegex,
       );
@@ -201,7 +175,7 @@ void main() {
       );
       final client = TerminalJsonRequestClient(backend);
 
-      final result = client.searchTextResult('session-a', 'x');
+      final result = client.searchTextResult('7', 'x');
 
       expect(result.matches, hasLength(1000));
       expect(result.matches.first.text, 'x0');
@@ -214,18 +188,12 @@ void main() {
         final backend = _JsonRequestBackend('{"cleared":true}');
         final client = TerminalJsonRequestClient(backend);
 
-        expect(client.clearScrollback('session-a'), isTrue);
-        expect(client.clearBuffer('session-a'), isTrue);
+        expect(client.clearScrollback('7'), isTrue);
+        expect(client.clearBuffer('7'), isTrue);
         backend.response = '{"dismissed":true}';
-        expect(
-          client.dismissOsc99Notification('session-a', 'deploy-1'),
-          isTrue,
-        );
+        expect(client.dismissOsc99Notification('7', 'deploy-1'), isTrue);
         backend.response = r'{"content":"alpha\nbeta"}';
-        final exported = client.exportScrollbackText(
-          'session-a',
-          maxLines: 500000,
-        );
+        final exported = client.exportScrollbackText('7', maxLines: 500000);
 
         expect(exported, 'alpha\nbeta');
         expect(backend.requests, <Map<String, Object?>>[
@@ -246,11 +214,11 @@ void main() {
     test('returns empty values without a JSON request backend', () {
       final client = TerminalJsonRequestClient(null);
 
-      expect(client.searchTextResult('session-a', 'hit').matches, isEmpty);
-      expect(client.clearScrollback('session-a'), isFalse);
-      expect(client.clearBuffer('session-a'), isFalse);
-      expect(client.dismissOsc99Notification('session-a', 'deploy-1'), isFalse);
-      expect(client.exportScrollbackText('session-a'), isNull);
+      expect(client.searchTextResult('7', 'hit').matches, isEmpty);
+      expect(client.clearScrollback('7'), isFalse);
+      expect(client.clearBuffer('7'), isFalse);
+      expect(client.dismissOsc99Notification('7', 'deploy-1'), isFalse);
+      expect(client.exportScrollbackText('7'), isNull);
     });
 
     test('sends metadata-only ZMODEM authorization commands', () {
@@ -259,7 +227,7 @@ void main() {
 
       expect(
         client.acceptZmodemReceive(
-          'session-a',
+          '7',
           transferId: '7',
           destination: '/tmp/downloads',
         ),
@@ -267,22 +235,22 @@ void main() {
       );
       expect(
         client.acceptZmodemSend(
-          'session-a',
+          '7',
           transferId: '8',
           files: const <String>['/tmp/a.txt', '/tmp/b.bin'],
         ),
         isTrue,
       );
       backend.response = '{"cancelled":true}';
-      expect(client.cancelZmodem('session-a', transferId: '9'), isTrue);
+      expect(client.cancelZmodem('7', transferId: '9'), isTrue);
       backend.response = '{"reconciled":true,"outcome":"cancelled"}';
       expect(
-        client.cancelActiveZmodem('session-a'),
+        client.cancelActiveZmodem('7'),
         TerminalZmodemCancelActiveOutcome.cancelled,
       );
       backend.response = '{"available":true,"path":"/tmp/.report.ianvs-part"}';
       final recovery = client.resolveZmodemRecovery(
-        'session-a',
+        '7',
         recoveryToken: '0123456789abcdef0123456789ABCDEF',
       );
       expect(recovery.status, TerminalZmodemRecoveryResolutionStatus.available);
@@ -290,7 +258,7 @@ void main() {
       backend.response = '{"consumed":true}';
       expect(
         client.consumeZmodemRecovery(
-          'session-a',
+          '7',
           recoveryToken: '0123456789abcdef0123456789ABCDEF',
         ),
         TerminalZmodemRecoveryDisposition.success,
@@ -298,7 +266,7 @@ void main() {
       backend.response = '{"dismissed":false}';
       expect(
         client.dismissZmodemRecovery(
-          'session-a',
+          '7',
           recoveryToken: '0123456789abcdef0123456789ABCDEF',
         ),
         TerminalZmodemRecoveryDisposition.unavailable,
@@ -339,16 +307,16 @@ void main() {
       final client = TerminalJsonRequestClient(backend);
 
       expect(
-        client.cancelActiveZmodem('session-a'),
+        client.cancelActiveZmodem('7'),
         TerminalZmodemCancelActiveOutcome.draining,
       );
       backend.response = '{"reconciled":true,"outcome":"idle"}';
       expect(
-        client.cancelActiveZmodem('session-a'),
+        client.cancelActiveZmodem('7'),
         TerminalZmodemCancelActiveOutcome.idle,
       );
       backend.response = '{"reconciled":true}';
-      expect(client.cancelActiveZmodem('session-a'), isNull);
+      expect(client.cancelActiveZmodem('7'), isNull);
     });
 
     test('fails closed for invalid ZMODEM recovery tokens and paths', () {
@@ -358,18 +326,18 @@ void main() {
       final client = TerminalJsonRequestClient(backend);
 
       expect(
-        client.resolveZmodemRecovery('session-a', recoveryToken: 'not-a-token'),
+        client.resolveZmodemRecovery('7', recoveryToken: 'not-a-token'),
         hasStatus(TerminalZmodemRecoveryResolutionStatus.requestFailed),
       );
       expect(
-        client.consumeZmodemRecovery('session-a', recoveryToken: 'not-a-token'),
+        client.consumeZmodemRecovery('7', recoveryToken: 'not-a-token'),
         TerminalZmodemRecoveryDisposition.requestFailed,
       );
       expect(backend.requests, isEmpty);
 
       expect(
         client.resolveZmodemRecovery(
-          'session-a',
+          '7',
           recoveryToken: '0123456789abcdef0123456789abcdef',
         ),
         hasStatus(TerminalZmodemRecoveryResolutionStatus.requestFailed),
@@ -377,7 +345,7 @@ void main() {
       backend.response = r'{"available":true,"path":"/tmp/bad\u0000path"}';
       expect(
         client.resolveZmodemRecovery(
-          'session-a',
+          '7',
           recoveryToken: '0123456789abcdef0123456789abcdef',
         ),
         hasStatus(TerminalZmodemRecoveryResolutionStatus.requestFailed),
@@ -385,7 +353,7 @@ void main() {
       backend.response = null;
       expect(
         client.resolveZmodemRecovery(
-          'session-a',
+          '7',
           recoveryToken: '0123456789abcdef0123456789abcdef',
         ),
         hasStatus(TerminalZmodemRecoveryResolutionStatus.requestFailed),
@@ -393,7 +361,7 @@ void main() {
       backend.response = '{"available":false}';
       expect(
         client.resolveZmodemRecovery(
-          'session-a',
+          '7',
           recoveryToken: '0123456789abcdef0123456789abcdef',
         ),
         hasStatus(TerminalZmodemRecoveryResolutionStatus.unavailable),
@@ -412,20 +380,17 @@ void main() {
       );
 
       final selectionText = client.selectionText(
-        'session-a',
+        '7',
         const TerminalSelection(startRow: 0, startCol: 0, endRow: 0, endCol: 2),
         block: false,
       );
-      final searchResult = client.searchTextResult('session-a', 'hit');
-      final clearResult = client.clearScrollback('session-a');
-      final clearBufferResult = client.clearBuffer('session-a');
-      final dismissResult = client.dismissOsc99Notification(
-        'session-a',
-        'deploy-1',
-      );
-      final exportText = client.exportScrollbackText('session-a');
+      final searchResult = client.searchTextResult('7', 'hit');
+      final clearResult = client.clearScrollback('7');
+      final clearBufferResult = client.clearBuffer('7');
+      final dismissResult = client.dismissOsc99Notification('7', 'deploy-1');
+      final exportText = client.exportScrollbackText('7');
       final recoveryPath = client.resolveZmodemRecovery(
-        'session-a',
+        '7',
         recoveryToken: '0123456789abcdef0123456789abcdef',
       );
 
@@ -448,7 +413,7 @@ void main() {
         'terminal.export_scrollback',
         'terminal.zmodem.resolve_recovery',
       ]);
-      expect(errors.every((error) => error.sessionId == 'session-a'), isTrue);
+      expect(errors.every((error) => error.sessionId == '7'), isTrue);
       expect(
         errors.every(
           (error) => error.error.toString().contains('json request failed'),
@@ -463,41 +428,38 @@ void main() {
   });
 }
 
-final class _JsonRequestBackend implements PtySessionJsonRequestBackend {
+final class _JsonRequestBackend implements PtySessionRequestV1Backend {
   _JsonRequestBackend(this.response);
 
   String? response;
   Object? requestError;
   final List<Map<String, Object?>> requests = <Map<String, Object?>>[];
+  final List<Map<String, Object?>> v1Requests = <Map<String, Object?>>[];
 
   @override
-  String? requestSessionJson(String sessionId, String requestJson) {
-    requests.add((jsonDecode(requestJson) as Map).cast<String, Object?>());
+  String? requestSessionV1Json(String sessionId, String requestJson) {
+    final request = (jsonDecode(requestJson) as Map).cast<String, Object?>();
+    v1Requests.add(request);
+    requests.add(<String, Object?>{
+      'kind': request['operation'],
+      ...(request['payload']! as Map).cast<String, Object?>(),
+    });
     final error = requestError;
     if (error != null) {
       // The fake must preserve the exact configured transport failure object.
       // ignore: only_throw_errors
       throw error;
     }
-    return response;
-  }
-}
-
-final class _VersionedJsonRequestBackend
-    implements PtySessionJsonRequestBackend, PtySessionRequestV1Backend {
-  _VersionedJsonRequestBackend({required this.supportsV1});
-
-  final bool supportsV1;
-  final List<Map<String, Object?>> v1Requests = <Map<String, Object?>>[];
-  final List<Map<String, Object?>> legacyRequests = <Map<String, Object?>>[];
-
-  @override
-  bool get supportsSessionRequestV1 => supportsV1;
-
-  @override
-  String? requestSessionV1Json(String sessionId, String requestV1Json) {
-    final request = (jsonDecode(requestV1Json) as Map).cast<String, Object?>();
-    v1Requests.add(request);
+    final configured = response;
+    if (configured == null || configured.isEmpty) {
+      return configured;
+    }
+    final Object? payload;
+    try {
+      payload = jsonDecode(configured);
+    } on FormatException {
+      return configured;
+    }
     return jsonEncode(<String, Object?>{
       'schema_version': 1,
       'contract': 'ianvs-session-response-v1',
@@ -506,16 +468,8 @@ final class _VersionedJsonRequestBackend
       'operation': request['operation'],
       'ok': true,
       'timestamp_micros': 1234,
-      'payload': <String, Object?>{'text': 'versioned'},
+      'payload': payload,
     });
-  }
-
-  @override
-  String? requestSessionJson(String sessionId, String requestJson) {
-    legacyRequests.add(
-      (jsonDecode(requestJson) as Map).cast<String, Object?>(),
-    );
-    return '{"text":"legacy"}';
   }
 }
 

@@ -61,9 +61,9 @@ TerminalPanelToggleButton(controller: terminals);
 TerminalBottomPanel(
   controller: terminals,
   style: const TerminalBottomPanelStyle(
-    panelBackgroundColor: Color(0xff171b1a),
-    tabBarBackgroundColor: Color(0xfff1f3f1),
-    activeTabIndicatorColor: Color(0xff0b7e75),
+    backgroundColor: Color(0xff171b1a),
+    headerColor: Color(0xfff1f3f1),
+    activeTabColor: Color(0xff0b7e75),
   ),
 );
 ```
@@ -73,12 +73,16 @@ provide `viewportBuilder`, `sessionBuilder`, or a `TerminalBottomPanelStyle`.
 
 ## Public surface
 
-- `TerminalRuntimeController` and native PTY contracts
+- `TerminalRuntimeController`, `TerminalSessionHandle`, and native PTY contracts
 - `TerminalSessionConfig` and launch/display configuration
 - `TerminalViewport` and `TerminalViewportColors`
 - `TerminalSessionView`
 - `TerminalPanelController`, `TerminalBottomPanel`, and toggle button
 - recording, replay, diagnostics, and shell-hook events
+
+`TerminalSessionHandle.runtimeSignals` is the ordered per-session event API.
+The package does not expose predecessor xterm-style split callbacks or JSON
+frame/request fallbacks.
 
 The host application remains responsible for windows, navigation, product
 sessions, permissions, and platform clipboard integration.

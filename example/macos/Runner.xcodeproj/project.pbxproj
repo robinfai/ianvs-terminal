@@ -206,7 +206,6 @@
 				33CC110E2044A8840003C045 /* Bundle Framework */,
 				3399D490228B24CF009A79C7 /* ShellScript */,
 				B2C3D4E5F60718293A4B5C6D /* Bundle Data API */,
-				A1B2C3D4E5F60718293A4B5C /* Bundle Rust Core */,
 			);
 			buildRules = (
 			);
@@ -351,25 +350,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "\"$FLUTTER_ROOT\"/packages/flutter_tools/bin/macos_assemble.sh && touch Flutter/ephemeral/tripwire";
-		};
-		A1B2C3D4E5F60718293A4B5C /* Bundle Rust Core */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-			);
-			name = "Bundle Rust Core";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "set -e\nROOT_DIR=\"$PROJECT_DIR/../..\"\nif [ \"$CONFIGURATION\" = \"Release\" ]; then\n  PROFILE=release \"$ROOT_DIR/tools/build_core.sh\"\n  CORE_LIB=\"$ROOT_DIR/native/core/target/release/libianvs_core.dylib\"\nelse\n  PROFILE=debug \"$ROOT_DIR/tools/build_core.sh\"\n  CORE_LIB=\"$ROOT_DIR/native/core/target/debug/libianvs_core.dylib\"\nfi\nDEST_DIR=\"$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Frameworks\"\nmkdir -p \"$DEST_DIR\"\ncp \"$CORE_LIB\" \"$DEST_DIR/libianvs_core.dylib\"\nSIGN_IDENTITY=\"$EXPANDED_CODE_SIGN_IDENTITY\"\nif [ -z \"$SIGN_IDENTITY\" ]; then\n  SIGN_IDENTITY=-\nfi\ncodesign --force --sign \"$SIGN_IDENTITY\" \"$DEST_DIR/libianvs_core.dylib\"\n# Xcode still has unsigned Debug-only nested code at this phase and signs the\n# whole Debug bundle afterwards. The explicit outer re-sign is only needed for\n# incremental Release builds, where this always-out-of-date phase changes the\n# already sealed Rust library.\nif [ \"$CONFIGURATION\" = \"Release\" ] && [ \"$CODE_SIGNING_ALLOWED\" != \"NO\" ]; then\n  APP_PATH=\"$TARGET_BUILD_DIR/$FULL_PRODUCT_NAME\"\n  if [ -n \"$CODE_SIGN_ENTITLEMENTS\" ] && [ -f \"$PROJECT_DIR/$CODE_SIGN_ENTITLEMENTS\" ]; then\n    codesign --force --options runtime --sign \"$SIGN_IDENTITY\" --entitlements \"$PROJECT_DIR/$CODE_SIGN_ENTITLEMENTS\" \"$APP_PATH\"\n  else\n    codesign --force --options runtime --sign \"$SIGN_IDENTITY\" \"$APP_PATH\"\n  fi\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

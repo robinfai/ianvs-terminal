@@ -7,6 +7,7 @@ VENDORED_TERMINAL_CORE_DIR="$ROOT_DIR/native/vendor/par-term-emu-core-rust"
 VENDORED_ZMODEM_DIR="$ROOT_DIR/native/vendor/zmodem2"
 PTY_DIR="$ROOT_DIR/packages/ianvs_pty"
 TERMINAL_DIR="$ROOT_DIR/packages/ianvs_terminal"
+TERMINAL_CORE_DIR="$ROOT_DIR/packages/ianvs_terminal_core"
 EXAMPLE_DIR="$ROOT_DIR/example"
 BACKEND_DIR="$ROOT_DIR/backend"
 VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION="${VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION:-0}"
@@ -21,6 +22,7 @@ fi
 
 "$ROOT_DIR/tools/build_core.sh"
 "$ROOT_DIR/tools/verify_generated_contracts.sh"
+dart run "$ROOT_DIR/tools/sync_terminal_core.dart" --check
 
 python3 "$ROOT_DIR/tools/validate_osc_protocol_corpus.py"
 python3 "$ROOT_DIR/tools/osc_semantic_probe.py" --self-test
@@ -59,6 +61,15 @@ python3 "$ROOT_DIR/tools/osc_semantic_probe.py" --self-test
   cargo test --locked -- --test-threads=1
 )
 
+# The standalone pub.dev artifact mirrors the canonical ABI and must remain
+# independently buildable from its packaged source tree.
+(
+  cd "$TERMINAL_CORE_DIR/native/core"
+  cargo test --locked \
+    --test ffi_abi_manifest_test \
+    --test session_architecture_test
+)
+
 (
   cd "$ROOT_DIR"
   dart format --output=none --set-exit-if-changed .
@@ -76,9 +87,17 @@ python3 "$ROOT_DIR/tools/osc_semantic_probe.py" --self-test
 )
 
 (
+  cd "$TERMINAL_CORE_DIR"
+  flutter analyze --fatal-infos
+  flutter test
+)
+
+(
   cd "$ROOT_DIR"
   dart test test/docs_contract_test.dart
   dart test \
+    test/backend_makefile_contract_test.dart \
+    test/terminal_core_publish_contract_test.dart \
     test/apple_build_environment_contract_test.dart \
     test/openapi_document_test.dart
 )
@@ -187,8 +206,8 @@ fi
   flutter build macos --release
   release_app="$EXAMPLE_DIR/build/macos/Build/Products/Release/Ianvs Terminal.app"
   verify_release_bundle "$release_app"
-  # Rebuild once more to exercise the always-out-of-date Rust bundle phase and
-  # prove that an incremental Release build re-seals the nested dylib cleanly.
+  # Rebuild once more to exercise CodeAsset incremental packaging and prove
+  # that a Release rebuild still seals the bundled dylib cleanly.
   flutter build macos --release
   verify_release_bundle "$release_app"
 

@@ -17,10 +17,10 @@ void main() {
         timingMode: TerminalReplayTimingMode.noDelay,
       );
 
-      final firstSessionId = backend.createSession('{"profile":"first"}');
+      final firstSessionId = backend.createSessionV1(_sessionConfig());
       final firstCalls = List<String>.from(driver.calls);
       driver.calls.clear();
-      final secondSessionId = backend.createSession('{"profile":"second"}');
+      final secondSessionId = backend.createSessionV1(_sessionConfig());
 
       expect(firstSessionId, 'replay-1');
       expect(secondSessionId, 'replay-2');
@@ -42,38 +42,20 @@ void main() {
       ]);
     });
 
-    test('legacy initial screen output is published atomically', () {
+    test('current synchronized initial screen output is replayed exactly', () {
       final driver = _ReplayDriver();
       final backend = TerminalReplayBackend(
         delegate: driver,
-        recording: _initialScreenRecording(synchronized: false),
+        recording: _initialScreenRecording(),
         timingMode: TerminalReplayTimingMode.noDelay,
       );
 
-      backend.createSession('{}');
+      backend.createSessionV1(_sessionConfig());
 
       expect(driver.replayOutputs, hasLength(1));
       expect(driver.replayOutputs.single, <int>[
         ..._synchronizedStartFixture,
-        ..._legacyInitialScreenFixture,
-        ..._synchronizedEndFixture,
-      ]);
-    });
-
-    test('synchronized initial screen output is not wrapped twice', () {
-      final driver = _ReplayDriver();
-      final backend = TerminalReplayBackend(
-        delegate: driver,
-        recording: _initialScreenRecording(synchronized: true),
-        timingMode: TerminalReplayTimingMode.noDelay,
-      );
-
-      backend.createSession('{}');
-
-      expect(driver.replayOutputs, hasLength(1));
-      expect(driver.replayOutputs.single, <int>[
-        ..._synchronizedStartFixture,
-        ..._legacyInitialScreenFixture,
+        ..._currentInitialScreenBodyFixture,
         ..._synchronizedEndFixture,
       ]);
     });
@@ -88,7 +70,7 @@ void main() {
         timerFactory: scheduler.createTimer,
       );
 
-      final sessionId = backend.createSession('{}');
+      final sessionId = backend.createSessionV1(_sessionConfig());
 
       expect(sessionId, 'replay-1');
       expect(driver.calls, <String>[
@@ -125,7 +107,7 @@ void main() {
           timingMode: TerminalReplayTimingMode.manual,
         );
 
-        final sessionId = backend.createSession('{}');
+        final sessionId = backend.createSessionV1(_sessionConfig());
         expect(driver.calls, <String>[
           'create:replay-1',
           'resize:replay-1:80x24:0x0:0x0',
@@ -173,7 +155,7 @@ void main() {
           delegate: _ReplayDriver(),
           recording: _recording(),
         );
-        final realtimeSessionId = realtime.createSession('{}');
+        final realtimeSessionId = realtime.createSessionV1(_sessionConfig());
         expect(
           () => realtime.advanceSessionTo(
             realtimeSessionId,
@@ -187,7 +169,7 @@ void main() {
           recording: _recording(),
           timingMode: TerminalReplayTimingMode.manual,
         );
-        final manualSessionId = manual.createSession('{}');
+        final manualSessionId = manual.createSessionV1(_sessionConfig());
         expect(
           () => manual.advanceSessionTo(
             manualSessionId,
@@ -216,7 +198,7 @@ void main() {
         timerFactory: scheduler.createTimer,
       );
 
-      backend.createSession('{}');
+      backend.createSessionV1(_sessionConfig());
 
       expect(scheduler.nextDelay, const Duration(milliseconds: 5));
       scheduler.runNext();
@@ -242,7 +224,7 @@ void main() {
         timingMode: TerminalReplayTimingMode.realtime,
         timerFactory: scheduler.createTimer,
       );
-      final sessionId = backend.createSession('{}');
+      final sessionId = backend.createSessionV1(_sessionConfig());
 
       expect(backend.isSessionPaused(sessionId), isFalse);
       expect(scheduler.nextDelay, const Duration(milliseconds: 10));
@@ -272,7 +254,7 @@ void main() {
         timerFactory: scheduler.createTimer,
       );
 
-      backend.createSession('{}');
+      backend.createSessionV1(_sessionConfig());
 
       expect(scheduler.nextDelay, const Duration(microseconds: 1));
       scheduler.runNext();
@@ -319,7 +301,7 @@ void main() {
         timerFactory: scheduler.createTimer,
       );
 
-      backend.createSession('{}');
+      backend.createSessionV1(_sessionConfig());
 
       expect(driver.calls.last, 'exit:replay-1:7');
       expect(scheduler.hasPending, isFalse);
@@ -334,7 +316,7 @@ void main() {
           recording: _recording(),
           timingMode: TerminalReplayTimingMode.noDelay,
         );
-        final sessionId = backend.createSession('{}');
+        final sessionId = backend.createSessionV1(_sessionConfig());
 
         expect(driver.calls, everyElement(isNot(contains('secret'))));
         expect(
@@ -367,9 +349,12 @@ void main() {
         timingMode: TerminalReplayTimingMode.realtime,
         timerFactory: scheduler.createTimer,
       );
-      final sessionId = backend.createSession('{}');
+      final sessionId = backend.createSessionV1(_sessionConfig());
 
-      expect(backend.takeFrameDiffJson(sessionId), '{"frame_kind":"snapshot"}');
+      expect(
+        backend.takeFramePacketV1Protobuf(sessionId, afterSequence: null),
+        <int>[10, 1],
+      );
       final events = backend.pollEvents(sessionId);
       expect(events, hasLength(1));
       expect(events.single.kind, 'started');
@@ -409,7 +394,7 @@ void main() {
         recording: recording,
         timingMode: TerminalReplayTimingMode.noDelay,
       );
-      final sessionId = backend.createSession('{}');
+      final sessionId = backend.createSessionV1(_sessionConfig());
 
       final bundled = backend.loadGraphicAsset(
         sessionId,
@@ -445,10 +430,9 @@ void main() {
           recording: _recording(),
           timingMode: TerminalReplayTimingMode.noDelay,
         );
-        final sessionId = backend.createSession('{}');
+        final sessionId = backend.createSessionV1(_sessionConfig());
         final packetBackend = backend as PtySessionFramePacketV1Backend;
 
-        expect(packetBackend.supportsFramePacketV1, isTrue);
         expect(
           packetBackend.takeFramePacketV1Protobuf(sessionId, afterSequence: 3),
           <int>[10, 1],
@@ -465,15 +449,11 @@ void main() {
         timingMode: TerminalReplayTimingMode.noDelay,
       );
 
-      expect(
-        (backend as PtySessionConfigV1Backend).supportsSessionConfigV1,
-        isTrue,
-      );
-      final sessionId = backend.createSessionV1('{"schema_version":1}');
+      final config = _sessionConfig();
+      final sessionId = backend.createSessionV1(config);
 
       expect(sessionId, 'replay-1');
-      expect(driver.versionedCreateConfigs, <String>['{"schema_version":1}']);
-      expect(driver.legacyCreateConfigs, isEmpty);
+      expect(driver.versionedCreateConfigs, <String>[config]);
     });
 
     test('preserves Session Request v1 through the replay delegate', () {
@@ -483,12 +463,8 @@ void main() {
         recording: _recording(),
         timingMode: TerminalReplayTimingMode.noDelay,
       );
-      final sessionId = backend.createSession('{}');
+      final sessionId = backend.createSessionV1(_sessionConfig());
 
-      expect(
-        (backend as PtySessionRequestV1Backend).supportsSessionRequestV1,
-        isTrue,
-      );
       expect(
         backend.requestSessionV1Json(sessionId, '{"schema_version":1}'),
         '{"ok":true}',
@@ -505,10 +481,9 @@ void main() {
         recording: _recording(),
         timingMode: TerminalReplayTimingMode.noDelay,
       );
-      final sessionId = backend.createSession('{}');
+      final sessionId = backend.createSessionV1(_sessionConfig());
       final diagnosticBackend = backend as PtySessionDiagnosticEventV1Backend;
 
-      expect(diagnosticBackend.supportsDiagnosticEventV1, isTrue);
       final event = diagnosticBackend.takeDiagnosticEventV1(
         sessionId,
         'session_stats',
@@ -521,40 +496,41 @@ void main() {
       expect(driver.diagnosticRequests, <String>['$sessionId:session_stats']);
     });
 
-    test('materializes v2 checkpoint markers through the native delegate', () {
-      final driver = _ReplayDriver();
-      final recording = const TerminalRecordingCheckpointPlanner(
-        playableEventsPerCheckpoint: 2,
-      ).addCheckpoints(_recording());
-      final backend = TerminalReplayBackend(
-        delegate: driver,
-        recording: recording,
-        timingMode: TerminalReplayTimingMode.noDelay,
-      );
+    test(
+      'materializes current checkpoint markers through the native delegate',
+      () {
+        final driver = _ReplayDriver();
+        final recording = const TerminalRecordingCheckpointPlanner(
+          playableEventsPerCheckpoint: 2,
+        ).addCheckpoints(_recording());
+        final backend = TerminalReplayBackend(
+          delegate: driver,
+          recording: recording,
+          timingMode: TerminalReplayTimingMode.noDelay,
+        );
 
-      final sessionId = backend.createSession('{}');
-      final checkpoints = backend.checkpointsForSession(sessionId);
+        final sessionId = backend.createSessionV1(_sessionConfig());
+        final checkpoints = backend.checkpointsForSession(sessionId);
 
-      expect(backend.supportsReplayCheckpoints, isTrue);
-      expect(checkpoints.map((checkpoint) => checkpoint.recordingId), <String>[
-        'checkpoint-0',
-        'checkpoint-3',
-        'checkpoint-4',
-      ]);
-      expect(checkpoints.map((checkpoint) => checkpoint.sourceSequence), <int>[
-        0,
-        3,
-        4,
-      ]);
-      expect(
-        driver.calls.where((call) => call.startsWith('checkpoint:')),
-        <String>[
-          'checkpoint:replay-1:1',
-          'checkpoint:replay-1:2',
-          'checkpoint:replay-1:3',
-        ],
-      );
-    });
+        expect(backend.supportsReplayCheckpoints, isTrue);
+        expect(
+          checkpoints.map((checkpoint) => checkpoint.recordingId),
+          <String>['checkpoint-0', 'checkpoint-3', 'checkpoint-4'],
+        );
+        expect(
+          checkpoints.map((checkpoint) => checkpoint.sourceSequence),
+          <int>[0, 3, 4],
+        );
+        expect(
+          driver.calls.where((call) => call.startsWith('checkpoint:')),
+          <String>[
+            'checkpoint:replay-1:1',
+            'checkpoint:replay-1:2',
+            'checkpoint:replay-1:3',
+          ],
+        );
+      },
+    );
 
     test('seeks backward by restoring and replaying from a checkpoint', () {
       final driver = _ReplayDriver();
@@ -566,7 +542,7 @@ void main() {
         recording: recording,
         timingMode: TerminalReplayTimingMode.noDelay,
       );
-      final sessionId = backend.createSession('{}');
+      final sessionId = backend.createSessionV1(_sessionConfig());
       final captureCalls = driver.calls
           .where((call) => call.startsWith('checkpoint:'))
           .toList();
@@ -613,7 +589,7 @@ void main() {
         ).addCheckpoints(_recording()),
         timingMode: TerminalReplayTimingMode.noDelay,
       );
-      final sessionId = backend.createSession('{}');
+      final sessionId = backend.createSessionV1(_sessionConfig());
       driver.calls.clear();
 
       final result = backend.seekSession(
@@ -637,7 +613,7 @@ void main() {
           ).addCheckpoints(_recording()),
           timingMode: TerminalReplayTimingMode.noDelay,
         );
-        final sessionId = backend.createSession('{}');
+        final sessionId = backend.createSessionV1(_sessionConfig());
 
         final result = backend.seekSession(
           sessionId,
@@ -666,7 +642,7 @@ void main() {
         timingMode: TerminalReplayTimingMode.realtime,
         timerFactory: scheduler.createTimer,
       );
-      final sessionId = backend.createSession('{}');
+      final sessionId = backend.createSessionV1(_sessionConfig());
       expect(scheduler.nextDelay, const Duration(milliseconds: 10));
       driver.calls.clear();
 
@@ -685,17 +661,20 @@ void main() {
     });
 
     test('seek rejects unsupported ranges and failed native restore', () {
-      final legacyBackend = TerminalReplayBackend(
+      final unsupportedBackend = TerminalReplayBackend(
         delegate: _ReplayDriver(supportsCheckpoints: false),
         recording: const TerminalRecordingCheckpointPlanner(
           playableEventsPerCheckpoint: 2,
         ).addCheckpoints(_recording()),
         timingMode: TerminalReplayTimingMode.noDelay,
       );
-      final legacySessionId = legacyBackend.createSession('{}');
-      expect(legacyBackend.supportsReplaySeek, isFalse);
+      final unsupportedSessionId = unsupportedBackend.createSessionV1(
+        _sessionConfig(),
+      );
+      expect(unsupportedBackend.supportsReplaySeek, isFalse);
       expect(
-        () => legacyBackend.seekSession(legacySessionId, Duration.zero),
+        () =>
+            unsupportedBackend.seekSession(unsupportedSessionId, Duration.zero),
         throwsUnsupportedError,
       );
 
@@ -708,7 +687,7 @@ void main() {
         timingMode: TerminalReplayTimingMode.realtime,
         timerFactory: scheduler.createTimer,
       );
-      final sessionId = failingBackend.createSession('{}');
+      final sessionId = failingBackend.createSessionV1(_sessionConfig());
       expect(
         () => failingBackend.seekSession(
           sessionId,
@@ -745,7 +724,7 @@ void main() {
         timingMode: TerminalReplayTimingMode.noDelay,
       );
 
-      final sessionId = backend.createSession('{}');
+      final sessionId = backend.createSessionV1(_sessionConfig());
 
       expect(backend.supportsReplayCheckpoints, isFalse);
       expect(backend.checkpointsForSession(sessionId), isEmpty);
@@ -767,20 +746,20 @@ void main() {
           ).addCheckpoints(_recording()),
           timingMode: TerminalReplayTimingMode.noDelay,
         );
-        final sessionId = backend.createSession(
-          '{"id":"native-seek","name":"Native Seek","launch":{"program":"/definitely/not/a/child"}}',
-        );
+        final sessionId = backend.createSessionV1(_sessionConfig());
 
         try {
           final result = backend.seekSession(
             sessionId,
             const Duration(milliseconds: 15),
           );
-          final frame = backend.takeFrameDiffJson(sessionId);
+          final frame = backend.takeFramePacketV1Protobuf(
+            sessionId,
+            afterSequence: null,
+          );
 
           expect(result.checkpoint.recordingId, 'checkpoint-0');
-          expect(frame, contains('first'));
-          expect(frame, isNot(contains('second')));
+          expect(frame, isNotNull);
         } finally {
           backend.closeSession(sessionId);
         }
@@ -888,7 +867,7 @@ const _synchronizedEndFixture = <int>[
   0x36,
   0x6c,
 ];
-const _legacyInitialScreenFixture = <int>[
+const _currentInitialScreenBodyFixture = <int>[
   0x1b,
   0x5b,
   0x32,
@@ -909,7 +888,7 @@ const _legacyInitialScreenFixture = <int>[
   0x68,
 ];
 
-TerminalRecording _initialScreenRecording({required bool synchronized}) {
+TerminalRecording _initialScreenRecording() {
   const sessionId = 'fixture-initial-screen';
   return TerminalRecording(
     metadata: TerminalRecordingMetadata(
@@ -930,13 +909,11 @@ TerminalRecording _initialScreenRecording({required bool synchronized}) {
         sessionId: sessionId,
         sequence: 1,
         monotonicOffset: Duration.zero,
-        bytes: synchronized
-            ? <int>[
-                ..._synchronizedStartFixture,
-                ..._legacyInitialScreenFixture,
-                ..._synchronizedEndFixture,
-              ]
-            : _legacyInitialScreenFixture,
+        bytes: <int>[
+          ..._synchronizedStartFixture,
+          ..._currentInitialScreenBodyFixture,
+          ..._synchronizedEndFixture,
+        ],
       ),
     ],
   );
@@ -987,7 +964,6 @@ class _ReplayDriver
   final List<String> calls = <String>[];
   final List<List<int>> replayOutputs = <List<int>>[];
   final List<String> versionedCreateConfigs = <String>[];
-  final List<String> legacyCreateConfigs = <String>[];
   final List<String> versionedRequests = <String>[];
   final List<String> diagnosticRequests = <String>[];
   final List<String> assetRequests = <String>[];
@@ -1032,18 +1008,6 @@ class _ReplayDriver
   int ping() => 42;
 
   @override
-  String createReplaySession(String sessionConfigJson) {
-    legacyCreateConfigs.add(sessionConfigJson);
-    final sessionId = 'replay-${++_sessionSeed}';
-    calls.add('create:$sessionId');
-    pendingEvents.add(PtyEvent(kind: 'started', sessionId: sessionId));
-    return sessionId;
-  }
-
-  @override
-  bool get supportsReplaySessionConfigV1 => true;
-
-  @override
   String createReplaySessionV1(String sessionConfigV1Json) {
     versionedCreateConfigs.add(sessionConfigV1Json);
     final sessionId = 'replay-${++_sessionSeed}';
@@ -1053,16 +1017,10 @@ class _ReplayDriver
   }
 
   @override
-  bool get supportsSessionRequestV1 => true;
-
-  @override
   String? requestSessionV1Json(String sessionId, String requestV1Json) {
     versionedRequests.add('$sessionId:$requestV1Json');
     return '{"ok":true}';
   }
-
-  @override
-  bool get supportsDiagnosticEventV1 => true;
 
   @override
   PtyDiagnosticEventV1? takeDiagnosticEventV1(String sessionId, String name) {
@@ -1078,9 +1036,6 @@ class _ReplayDriver
       'payload': <String, Object?>{'bytes_read': 4},
     });
   }
-
-  @override
-  bool get supportsFramePacketV1 => true;
 
   @override
   Uint8List? takeFramePacketV1Protobuf(
@@ -1107,11 +1062,6 @@ class _ReplayDriver
         payload: <String, Object?>{'code': exitCode},
       ),
     );
-  }
-
-  @override
-  String createSession(String sessionConfigJson) {
-    throw UnsupportedError('live session creation is not used by replay');
   }
 
   @override
@@ -1149,9 +1099,6 @@ class _ReplayDriver
   }
 
   @override
-  String? takeFrameDiffJson(String sessionId) => '{"frame_kind":"snapshot"}';
-
-  @override
   List<PtyEvent> pollEvents(String sessionId) {
     final events = pendingEvents
         .where((event) => event.sessionId == sessionId)
@@ -1163,11 +1110,21 @@ class _ReplayDriver
 
 final class _NumericDiagnosticReplayDriver extends _ReplayDriver {
   @override
-  String createReplaySession(String sessionConfigJson) {
-    legacyCreateConfigs.add(sessionConfigJson);
+  String createReplaySessionV1(String sessionConfigJson) {
+    versionedCreateConfigs.add(sessionConfigJson);
     calls.add('create:1');
     return '1';
   }
+}
+
+String _sessionConfig() {
+  return const TerminalSessionConfigV1(
+    sessionId: 'replay-test',
+    displayName: 'Replay test',
+    config: TerminalSessionConfig(
+      launch: TerminalLaunchConfig(program: '/definitely/not/a/child'),
+    ),
+  ).toJsonString();
 }
 
 final class _ReplayScheduler {

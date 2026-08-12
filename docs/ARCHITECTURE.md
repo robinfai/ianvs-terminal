@@ -13,6 +13,10 @@
   - 负责 `TerminalSessionConfig`、`TerminalLaunchConfig`、`TerminalDisplayConfig`
   - 负责 `TerminalRuntimeController`、`TerminalSessionEvent`
   - 负责 viewport、输入编码、选区、滚动和焦点相关适配
+- `packages/ianvs_terminal_core`
+  - 是面向第三方 Flutter 应用发布的 standalone package
+  - terminal、PTY 和 native 实现由 canonical 源确定性生成，不维护第二套协议或 ABI
+  - 手写范围只包含嵌入组件、公开 barrel、发布元数据和 build hook
 - `example/`
   - 负责 tab、窗口壳、菜单、profile 编辑、defaults、demo fixture
   - 负责用 demo 侧元数据包住 `TerminalSessionConfig`
@@ -56,23 +60,27 @@
 - `TerminalViewport`
 - `TerminalViewportController`
 
-这里不暴露 `Profile` 这个 app 词汇。session create 主路径使用有版本、带上限的
-SessionConfig v1；旧 Profile-shaped wire 只保留在 package 内部的兼容回退中，供新
-Dart/旧 native 和旧 Dart/新 native 的升级窗口使用，不把这个兼容债务抛给上层。
-通用 session command 则由 `ianvs_terminal` 内部的单一兼容 transport 优先发送有关联
-identity 的 Session Request/Response v1；旧 `{kind, ...payload}` 对象只在 capability
-缺失时原样回退。operation-specific client 仍拥有各自 payload 和返回语义。
+这里不暴露 `Profile` 这个 app 词汇。session create 只接受有版本、带上限且字段和值
+均严格校验的 SessionConfig v1；缺字段、未知字段、错误大小写和未来 schema 全部拒绝。
+通用 session command 只发送有关联 identity 的 Session Request/Response v1，不回退到
+旧 `{kind, ...payload}` JSON。operation-specific client 仍拥有各自 payload 和返回语义。
 native-to-product 的 Host Request/Response v1 只承载确实需要关联响应的 child 请求；
 当前首个 operation 是 OSC 52 `clipboard.read_text`。URL、attention、notification 和
 asset transfer 继续保持单向事件或专用通道，不因名字里带 request 就自动归入双向合同。
-Frame/Session 运行指标优先使用 Runtime Envelope v1 的 Diagnostic Event 专用形态；旧
-debug-stat FFI 只作为双栈兼容面。`terminal.export_diagnostics` 的隐私证据包是独立合同，
+Frame/Session 运行指标只使用 Runtime Envelope v1 的 Diagnostic Event 专用形态。
+`terminal.export_diagnostics` 的隐私证据包是独立合同，
 不因运行指标迁移而改变。高频 Frame 主路径优先使用带 session identity、sequence 和
 timestamp 的 Protobuf Frame Packet v1；只有成功解码和接受的序号才会被确认，确认漂移由
-native Snapshot 重同步。旧 Frame Protobuf/JSON 符号继续作为升级兼容面，Frame payload 和
-资产传输合同不随外层 packet 改动。decoded RGBA 资产传输优先使用原子 Graphic Asset
-Packet v1；Dart 校验 session/asset/version、尺寸和 100 MiB 上限，旧 meta/copy symbols 只在
-新 packet symbol 缺失时回退。
+native Snapshot 重同步。旧 Frame Protobuf/JSON 符号不属于当前 ABI。decoded RGBA 资产
+传输只使用原子 Graphic Asset Packet v1；Dart 校验 session/asset/version、尺寸和
+100 MiB 上限，不回退到旧 meta/copy symbols。
+
+### `ianvs_terminal_core`
+
+第三方应用只依赖可发布的 `ianvs_terminal_core`。它公开 current terminal runtime、
+`TerminalSessionHandle.runtimeSignals`、viewport 和嵌入面板，并通过 CodeAsset hook 打包与
+root manifest 完全一致的 `libianvs_core`。仓库内的同步门禁保证 standalone 镜像与
+`ianvs_terminal`、`ianvs_pty`、`native/core` 的 canonical 源一致。
 
 ### `example/` 本地边界入口
 
@@ -128,17 +136,13 @@ Project Workspace identity，不切换现有 tab/PTY，也不维护 Recent Works
 
 ## 当前约束
 
-- `native/core` 仍接受旧 Profile-shaped create wire 和旧 session request wire，但两者都只是
-  显式兼容面；产品主路径分别使用 SessionConfig v1 和 Session Request/Response v1。
-- Host Request/Response v1 当前只迁移 OSC 52 文本剪贴板读取；旧 Dart/new native 仍走
-  `clipboard_paste_request`，new Dart/old native 仍走直接 PTY response，不删除旧 wire。
-- Diagnostic Event v1 当前只迁移 `frame_stats` / `session_stats`；旧 Dart/new native 和
-  new Dart/old native 仍可使用两个 legacy debug-stat symbols，诊断导出包保持独立。
-- Terminal Frame Packet v1 只包装现有 `terminal-frame-diff-v1`；旧 Protobuf/JSON Frame
-  symbols、graphic RGBA 和 file-download bytes 均不删除或迁入 packet。
-- Graphic Asset Packet v1 只迁移 decoded RGBA 读取；旧 meta/copy symbols 保留，且 null 或
-  malformed packet 不在同一次调用中静默降级。file-download 和 Recording wire 不变。
+- `native/core` 只接受 current SessionConfig v1、Session Request/Response v1、Runtime
+  Envelope v1、Frame Packet v1 和 Graphic Asset Packet v1；不存在 predecessor 降级链。
+- Host Request/Response v1 承载需要关联响应的 child 请求；事件和命令不通过旧 JSON
+  facade 旁路。
+- 实际构建的动态库导出必须与 `ianvs_core_abi_v1.json` 中的 `ianvs_*` 函数精确一致；
+  workspace native 与 standalone package native 都执行同一门禁。
 - `example/` 目录里的 Flutter package 现阶段仍保留 `name: app`，这是为了稳定既有 `package:app/...` import 面；macOS bundle identity 由 Runner project 单独维护。
-- 本次边界调整不处理 pub.dev 发布、插件系统和跨平台扩展。
+- `ianvs_terminal_core` 是 pub.dev 发布入口；workspace packages 仍是 canonical 开发源。
 - SSH 是延期扩展；若后续实现，只扩展 Profile/Session，不恢复 Project Workspace。
 - completion/wiring 诊断面板只在 debug build 的 Toolbelt 中出现；用户诊断导出保持独立。

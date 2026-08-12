@@ -4,8 +4,6 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 
 const int terminalRecordingSchemaVersion = 1;
-const int terminalRecordingCheckpointSchemaVersion = 2;
-const int terminalRecordingSemanticSchemaVersion = 3;
 const int terminalRecordingGraphicAssetMaxCount = 128;
 const int terminalRecordingGraphicAssetMaxBytes = 32 * 1024 * 1024;
 
@@ -71,11 +69,11 @@ final class TerminalRecordingFormatException implements FormatException {
 
 final class TerminalRecordingMetadata {
   TerminalRecordingMetadata({
-    this.schemaVersion = terminalRecordingSchemaVersion,
     required this.sessionId,
     required DateTime createdAtUtc,
     required this.inputPolicy,
-  }) : createdAtUtc = createdAtUtc.toUtc();
+  }) : schemaVersion = terminalRecordingSchemaVersion,
+       createdAtUtc = createdAtUtc.toUtc();
 
   final int schemaVersion;
   final String sessionId;
@@ -85,16 +83,15 @@ final class TerminalRecordingMetadata {
 
 final class TerminalRecordingEvent {
   TerminalRecordingEvent._({
-    this.schemaVersion = terminalRecordingSchemaVersion,
     required this.sessionId,
     required this.sequence,
     required this.monotonicOffset,
     required this.kind,
     required Map<String, Object?> payload,
-  }) : payload = Map<String, Object?>.unmodifiable(payload);
+  }) : schemaVersion = terminalRecordingSchemaVersion,
+       payload = Map<String, Object?>.unmodifiable(payload);
 
   factory TerminalRecordingEvent.sessionStarted({
-    int schemaVersion = terminalRecordingSchemaVersion,
     required String sessionId,
     required int sequence,
     required Duration monotonicOffset,
@@ -103,7 +100,6 @@ final class TerminalRecordingEvent {
     required int rows,
   }) {
     return TerminalRecordingEvent._(
-      schemaVersion: schemaVersion,
       sessionId: sessionId,
       sequence: sequence,
       monotonicOffset: monotonicOffset,
@@ -117,14 +113,12 @@ final class TerminalRecordingEvent {
   }
 
   factory TerminalRecordingEvent.ptyOutput({
-    int schemaVersion = terminalRecordingSchemaVersion,
     required String sessionId,
     required int sequence,
     required Duration monotonicOffset,
     required List<int> bytes,
   }) {
     return TerminalRecordingEvent._(
-      schemaVersion: schemaVersion,
       sessionId: sessionId,
       sequence: sequence,
       monotonicOffset: monotonicOffset,
@@ -134,14 +128,12 @@ final class TerminalRecordingEvent {
   }
 
   factory TerminalRecordingEvent.userInput({
-    int schemaVersion = terminalRecordingSchemaVersion,
     required String sessionId,
     required int sequence,
     required Duration monotonicOffset,
     required List<int> bytes,
   }) {
     return TerminalRecordingEvent._(
-      schemaVersion: schemaVersion,
       sessionId: sessionId,
       sequence: sequence,
       monotonicOffset: monotonicOffset,
@@ -151,14 +143,12 @@ final class TerminalRecordingEvent {
   }
 
   factory TerminalRecordingEvent.redactedUserInput({
-    int schemaVersion = terminalRecordingSchemaVersion,
     required String sessionId,
     required int sequence,
     required Duration monotonicOffset,
     required int byteLength,
   }) {
     return TerminalRecordingEvent._(
-      schemaVersion: schemaVersion,
       sessionId: sessionId,
       sequence: sequence,
       monotonicOffset: monotonicOffset,
@@ -168,7 +158,6 @@ final class TerminalRecordingEvent {
   }
 
   factory TerminalRecordingEvent.resize({
-    int schemaVersion = terminalRecordingSchemaVersion,
     required String sessionId,
     required int sequence,
     required Duration monotonicOffset,
@@ -180,7 +169,6 @@ final class TerminalRecordingEvent {
     int cellHeight = 0,
   }) {
     return TerminalRecordingEvent._(
-      schemaVersion: schemaVersion,
       sessionId: sessionId,
       sequence: sequence,
       monotonicOffset: monotonicOffset,
@@ -197,14 +185,12 @@ final class TerminalRecordingEvent {
   }
 
   factory TerminalRecordingEvent.sessionExited({
-    int schemaVersion = terminalRecordingSchemaVersion,
     required String sessionId,
     required int sequence,
     required Duration monotonicOffset,
     int? exitCode,
   }) {
     return TerminalRecordingEvent._(
-      schemaVersion: schemaVersion,
       sessionId: sessionId,
       sequence: sequence,
       monotonicOffset: monotonicOffset,
@@ -214,7 +200,6 @@ final class TerminalRecordingEvent {
   }
 
   factory TerminalRecordingEvent.checkpoint({
-    int schemaVersion = terminalRecordingCheckpointSchemaVersion,
     required String sessionId,
     required int sequence,
     required Duration monotonicOffset,
@@ -222,7 +207,6 @@ final class TerminalRecordingEvent {
     required int sourceSequence,
   }) {
     return TerminalRecordingEvent._(
-      schemaVersion: schemaVersion,
       sessionId: sessionId,
       sequence: sequence,
       monotonicOffset: monotonicOffset,
@@ -235,7 +219,6 @@ final class TerminalRecordingEvent {
   }
 
   factory TerminalRecordingEvent.shellSemantic({
-    int schemaVersion = terminalRecordingSemanticSchemaVersion,
     required String sessionId,
     required int sequence,
     required Duration monotonicOffset,
@@ -247,7 +230,6 @@ final class TerminalRecordingEvent {
     bool remote = false,
   }) {
     return TerminalRecordingEvent._(
-      schemaVersion: schemaVersion,
       sessionId: sessionId,
       sequence: sequence,
       monotonicOffset: monotonicOffset,
@@ -455,7 +437,6 @@ final class TerminalRecordingSemanticMerger {
       }
       events.add(
         TerminalRecordingEvent._(
-          schemaVersion: terminalRecordingSemanticSchemaVersion,
           sessionId: recording.metadata.sessionId,
           sequence: events.length,
           monotonicOffset: candidate.offset,
@@ -466,7 +447,6 @@ final class TerminalRecordingSemanticMerger {
     }
     return TerminalRecording(
       metadata: TerminalRecordingMetadata(
-        schemaVersion: terminalRecordingSemanticSchemaVersion,
         sessionId: recording.metadata.sessionId,
         createdAtUtc: recording.metadata.createdAtUtc,
         inputPolicy: recording.metadata.inputPolicy,
@@ -503,9 +483,8 @@ Duration _clampRecordingOffset(Duration value, Duration max) {
   return value;
 }
 
-/// Upgrades a validated recording to at least v2 and attaches a bounded,
-/// content-addressed set of decoded RGBA graphic assets while preserving
-/// newer schema features such as shell semantics.
+/// Attaches a bounded, content-addressed set of decoded RGBA graphic assets
+/// while preserving every current-schema event, including shell semantics.
 final class TerminalRecordingGraphicAssetBundler {
   const TerminalRecordingGraphicAssetBundler();
 
@@ -546,14 +525,8 @@ final class TerminalRecordingGraphicAssetBundler {
     for (final asset in graphicAssets) {
       addAsset(asset);
     }
-    final targetSchemaVersion =
-        validated.metadata.schemaVersion <
-            terminalRecordingCheckpointSchemaVersion
-        ? terminalRecordingCheckpointSchemaVersion
-        : validated.metadata.schemaVersion;
     final bundled = TerminalRecording(
       metadata: TerminalRecordingMetadata(
-        schemaVersion: targetSchemaVersion,
         sessionId: validated.metadata.sessionId,
         createdAtUtc: validated.metadata.createdAtUtc,
         inputPolicy: validated.metadata.inputPolicy,
@@ -562,7 +535,6 @@ final class TerminalRecordingGraphicAssetBundler {
       events: <TerminalRecordingEvent>[
         for (final event in validated.events)
           TerminalRecordingEvent._(
-            schemaVersion: targetSchemaVersion,
             sessionId: event.sessionId,
             sequence: event.sequence,
             monotonicOffset: event.monotonicOffset,
@@ -746,14 +718,6 @@ List<Map<String, Object?>> _canonicalGraphicAssetRecords(
   if (assets.isEmpty) {
     return const <Map<String, Object?>>[];
   }
-  if (recording.metadata.schemaVersion <
-      terminalRecordingCheckpointSchemaVersion) {
-    throw const TerminalRecordingFormatException(
-      code: TerminalRecordingFormatErrorCode.unsupportedSchemaVersion,
-      message: 'Graphic asset bundles require recording schema v2',
-      lineNumber: 1,
-    );
-  }
   final blobs = <String, _TerminalRecordingGraphicAssetBlob>{};
   final identities = <(int, int)>{};
   var totalBytes = 0;
@@ -934,11 +898,10 @@ void _validateGraphicAssetRecordSchema(
   required int lineNumber,
 }) {
   final schemaVersion = _schemaVersion(json, lineNumber: lineNumber);
-  if (schemaVersion != metadata.schemaVersion ||
-      schemaVersion < terminalRecordingCheckpointSchemaVersion) {
+  if (schemaVersion != metadata.schemaVersion) {
     throw TerminalRecordingFormatException(
       code: TerminalRecordingFormatErrorCode.unsupportedSchemaVersion,
-      message: 'Graphic asset records require matching recording schema v2',
+      message: 'Graphic asset records require the current recording schema',
       lineNumber: lineNumber,
     );
   }
@@ -1064,7 +1027,7 @@ TerminalRecordingMetadata _decodeMetadata(
       lineNumber: lineNumber,
     );
   }
-  final schemaVersion = _schemaVersion(json, lineNumber: lineNumber);
+  _schemaVersion(json, lineNumber: lineNumber);
   final sessionId = _requiredSessionId(json, lineNumber: lineNumber);
   final createdAtValue = json['created_at_utc'];
   final createdAtUtc = createdAtValue is String
@@ -1090,7 +1053,6 @@ TerminalRecordingMetadata _decodeMetadata(
     );
   }
   return TerminalRecordingMetadata(
-    schemaVersion: schemaVersion,
     sessionId: sessionId,
     createdAtUtc: createdAtUtc,
     inputPolicy: inputPolicy,
@@ -1126,10 +1088,7 @@ TerminalRecordingEvent _decodeEvent(
       lineNumber: lineNumber,
     );
   }
-  final kind = _eventKindFromName(
-    json['event_kind'],
-    schemaVersion: schemaVersion,
-  );
+  final kind = _eventKindFromName(json['event_kind']);
   if (kind == null) {
     throw TerminalRecordingFormatException(
       code: TerminalRecordingFormatErrorCode.unsupportedEventKind,
@@ -1147,7 +1106,6 @@ TerminalRecordingEvent _decodeEvent(
     );
   }
   return TerminalRecordingEvent._(
-    schemaVersion: schemaVersion,
     sessionId: sessionId,
     sequence: sequence,
     monotonicOffset: Duration(microseconds: offsetMicros),
@@ -1287,8 +1245,7 @@ void _validatePayload(
     case TerminalRecordingEventKind.checkpoint:
       final checkpointId = payload['checkpoint_id'];
       final sourceSequence = payload['source_sequence'];
-      if (event.schemaVersion < terminalRecordingCheckpointSchemaVersion ||
-          checkpointId is! String ||
+      if (checkpointId is! String ||
           checkpointId.trim().isEmpty ||
           utf8.encode(checkpointId).length > 128 ||
           sourceSequence is! int ||
@@ -1301,8 +1258,7 @@ void _validatePayload(
       }
     case TerminalRecordingEventKind.shellSemantic:
       final semanticKind = _semanticKindFromName(payload['semantic_kind']);
-      if (event.schemaVersion < terminalRecordingSemanticSchemaVersion ||
-          semanticKind == null ||
+      if (semanticKind == null ||
           !_isOptionalBoundedString(payload['command'], 512) ||
           !_isOptionalBoundedString(payload['cwd'], 1024) ||
           !_isOptionalBoundedString(payload['hostname'], 255) ||
@@ -1467,30 +1423,21 @@ String _eventKindName(TerminalRecordingEventKind kind) {
   };
 }
 
-TerminalRecordingEventKind? _eventKindFromName(
-  Object? value, {
-  required int schemaVersion,
-}) {
+TerminalRecordingEventKind? _eventKindFromName(Object? value) {
   return switch (value) {
     'session_started' => TerminalRecordingEventKind.sessionStarted,
     'pty_output' => TerminalRecordingEventKind.ptyOutput,
     'user_input' => TerminalRecordingEventKind.userInput,
     'resize' => TerminalRecordingEventKind.resize,
     'session_exited' => TerminalRecordingEventKind.sessionExited,
-    'checkpoint'
-        when schemaVersion >= terminalRecordingCheckpointSchemaVersion =>
-      TerminalRecordingEventKind.checkpoint,
-    'shell_semantic'
-        when schemaVersion >= terminalRecordingSemanticSchemaVersion =>
-      TerminalRecordingEventKind.shellSemantic,
+    'checkpoint' => TerminalRecordingEventKind.checkpoint,
+    'shell_semantic' => TerminalRecordingEventKind.shellSemantic,
     _ => null,
   };
 }
 
 bool _isSupportedSchemaVersion(int version) {
-  return version == terminalRecordingSchemaVersion ||
-      version == terminalRecordingCheckpointSchemaVersion ||
-      version == terminalRecordingSemanticSchemaVersion;
+  return version == terminalRecordingSchemaVersion;
 }
 
 String _semanticKindName(TerminalRecordingSemanticKind kind) {
@@ -1527,9 +1474,9 @@ bool _isOptionalBoundedString(Object? value, int maxBytes) {
           utf8.encode(value).length <= maxBytes);
 }
 
-/// Deterministically upgrades a validated Recording v1/v2 stream with
-/// persisted checkpoint markers. Native replay materializes each marker into
-/// a complete terminal snapshot when that point in the stream is reached.
+/// Deterministically plans persisted checkpoint markers for a validated
+/// current-schema recording. Native replay materializes each marker into a
+/// complete terminal snapshot when that point in the stream is reached.
 final class TerminalRecordingCheckpointPlanner {
   const TerminalRecordingCheckpointPlanner({
     this.playableEventsPerCheckpoint = 256,
@@ -1608,11 +1555,6 @@ final class TerminalRecordingCheckpointPlanner {
       );
     }
 
-    final targetSchemaVersion =
-        validated.metadata.schemaVersion <
-            terminalRecordingCheckpointSchemaVersion
-        ? terminalRecordingCheckpointSchemaVersion
-        : validated.metadata.schemaVersion;
     final plannedEvents = <TerminalRecordingEvent>[];
     final checkpointSourceSet = checkpointSources.toSet();
     for (
@@ -1623,7 +1565,6 @@ final class TerminalRecordingCheckpointPlanner {
       final event = sourceEvents[sourceSequence];
       plannedEvents.add(
         TerminalRecordingEvent._(
-          schemaVersion: targetSchemaVersion,
           sessionId: event.sessionId,
           sequence: plannedEvents.length,
           monotonicOffset: event.monotonicOffset,
@@ -1634,7 +1575,6 @@ final class TerminalRecordingCheckpointPlanner {
       if (checkpointSourceSet.contains(sourceSequence)) {
         plannedEvents.add(
           TerminalRecordingEvent.checkpoint(
-            schemaVersion: targetSchemaVersion,
             sessionId: event.sessionId,
             sequence: plannedEvents.length,
             monotonicOffset: event.monotonicOffset,
@@ -1647,7 +1587,6 @@ final class TerminalRecordingCheckpointPlanner {
 
     return TerminalRecording(
       metadata: TerminalRecordingMetadata(
-        schemaVersion: targetSchemaVersion,
         sessionId: validated.metadata.sessionId,
         createdAtUtc: validated.metadata.createdAtUtc,
         inputPolicy: validated.metadata.inputPolicy,

@@ -6,7 +6,7 @@ import 'package:ianvs_terminal_core/ianvs_terminal_core.dart';
 void main() {
   group('TerminalRecordingCheckpointPlanner', () {
     test(
-      'upgrades v1 and inserts deterministic initial periodic and final checkpoints',
+      'plans deterministic checkpoints without changing the current schema',
       () {
         const planner = TerminalRecordingCheckpointPlanner(
           playableEventsPerCheckpoint: 2,
@@ -14,14 +14,14 @@ void main() {
 
         final upgraded = planner.addCheckpoints(_recording());
 
-        expect(upgraded.metadata.schemaVersion, 2);
+        expect(upgraded.metadata.schemaVersion, terminalRecordingSchemaVersion);
         expect(
           upgraded.events.map((event) => event.sequence),
           List<int>.generate(upgraded.events.length, (index) => index),
         );
         expect(
           upgraded.events.map((event) => event.schemaVersion).toSet(),
-          <int>{2},
+          <int>{terminalRecordingSchemaVersion},
         );
         final checkpoints = upgraded.events
             .where(

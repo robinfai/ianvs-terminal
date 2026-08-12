@@ -7,8 +7,11 @@ import 'package:fixnum/fixnum.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal_core/ianvs_terminal_core.dart';
 import 'package:ianvs_terminal_core/src/proto/frame_diff.pb.dart' as frame_pb;
-import 'package:ianvs_terminal_core/src/runtime/terminal_frame_decoder.dart';
 import 'package:ianvs_terminal_core/src/runtime/terminal_frame_transport_coordinator.dart';
+import 'package:ianvs_terminal_core/src/transport/terminal_protobuf_frame_codec.dart';
+
+import 'support/terminal_frame_from_json.dart';
+import 'support/terminal_runtime_signal_streams.dart';
 
 void main() {
   test(
@@ -392,7 +395,7 @@ void main() {
     'terminal viewport controller rejects external graphics mutation without revision drift',
     () {
       const assetKey = TerminalGraphicAssetKey(id: 7, version: 1);
-      final snapshot = TerminalFrameDiff.fromJson(const <String, Object?>{
+      final snapshot = terminalFrameFromJson(const <String, Object?>{
         'rows': [
           {'index': 0, 'text': 'image', 'style_runs': <Object?>[]},
         ],
@@ -428,13 +431,7 @@ void main() {
       expect(controller.graphicsAssetRevision, 1);
       expect(controller.graphicsAssetKeys, {assetKey});
 
-      Object? parsedMutationError;
       Object? publishedMutationError;
-      try {
-        snapshot.graphics.clear();
-      } on Object catch (error) {
-        parsedMutationError = error;
-      }
       try {
         controller.frame.graphics.clear();
       } on Object catch (error) {
@@ -457,7 +454,6 @@ void main() {
       expect(controller.graphicsRevision, 2);
       expect(controller.graphicsAssetRevision, 2);
       expect(controller.graphicsAssetKeys, isEmpty);
-      expect(parsedMutationError, isA<UnsupportedError>());
       expect(publishedMutationError, isA<UnsupportedError>());
       expect(controller.frame.graphics.clear, throwsUnsupportedError);
     },
@@ -816,7 +812,7 @@ void main() {
 
   test('terminal frames parse row timestamp metadata', () {
     final modifiedAt = DateTime.parse('2026-05-13T08:09:10Z');
-    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+    final frame = terminalFrameFromJson(const <String, Object?>{
       'rows': [
         {
           'index': 0,
@@ -839,7 +835,7 @@ void main() {
   });
 
   test('terminal frames ignore invalid numeric row timestamps', () {
-    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+    final frame = terminalFrameFromJson(const <String, Object?>{
       'rows': [
         {'index': 0, 'text': 'non-finite', 'modified_at': double.infinity},
         {'index': 1, 'text': 'too-large', 'modified_at': 1e100},
@@ -859,7 +855,7 @@ void main() {
 
   test('terminal pointer shapes decode only canonical wire names', () {
     for (final shape in TerminalPointerShape.values) {
-      final frame = TerminalFrameDiff.fromJson(<String, Object?>{
+      final frame = terminalFrameFromJson(<String, Object?>{
         'rows': const <Object?>[],
         'cursor': const <String, Object?>{'row': 0, 'col': 0, 'visible': false},
         'viewport_rows': 1,
@@ -872,7 +868,7 @@ void main() {
       expect(frame.pointerShape, shape);
     }
 
-    final invalid = TerminalFrameDiff.fromJson(const <String, Object?>{
+    final invalid = terminalFrameFromJson(const <String, Object?>{
       'rows': <Object?>[],
       'cursor': <String, Object?>{'row': 0, 'col': 0, 'visible': false},
       'viewport_rows': 1,
@@ -887,7 +883,7 @@ void main() {
 
   test('terminal sized text validates bounds and fractional metadata', () {
     final oversizedUtf8 = List<String>.filled(1025, '😀').join();
-    final frame = TerminalFrameDiff.fromJson(<String, Object?>{
+    final frame = terminalFrameFromJson(<String, Object?>{
       'rows': <Object?>[],
       'cursor': <String, Object?>{'row': 0, 'col': 0, 'visible': false},
       'viewport_rows': 4,
@@ -948,6 +944,8 @@ void main() {
 
   test('terminal sized text protobuf enforces the 4 KiB UTF-8 limit', () {
     final payload = frame_pb.TerminalFrameDiff(
+      frameSchemaVersion: TerminalFrameDiff.currentFrameSchemaVersion,
+      frameKind: frame_pb.TerminalFrameKind.TERMINAL_FRAME_KIND_SNAPSHOT,
       cursor: frame_pb.TerminalCursor(row: 0, col: 0, visible: false),
       viewportRows: 4,
       viewportCols: 20,
@@ -965,12 +963,14 @@ void main() {
       ],
     );
 
-    final frame = TerminalFrameDiff.fromProtobufBytes(payload.writeToBuffer());
+    final frame = const TerminalProtobufFrameCodec().decode(
+      payload.writeToBuffer(),
+    );
     expect(frame.sizedText, isEmpty);
   });
 
   test('terminal style runs normalize color strings', () {
-    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+    final frame = terminalFrameFromJson(const <String, Object?>{
       'rows': [
         {
           'index': 0,
@@ -1005,7 +1005,7 @@ void main() {
 
     final run = frame.rows.single.styleRuns.first;
     expect(run.foreground, const Color(0xFF112233));
-    expect(run.background, const Color(0x80445566));
+    expect(run.background, const Color(0xFF445566));
     expect(run.underlineColor, const Color(0xFFABCDEF));
     expect(frame.cursorColor, const Color(0xFF123456));
     expect(frame.selectionBackground, const Color(0xFF234567));
@@ -1017,7 +1017,7 @@ void main() {
   });
 
   test('terminal rows cap style run batches', () {
-    final frame = TerminalFrameDiff.fromJson(<String, Object?>{
+    final frame = terminalFrameFromJson(<String, Object?>{
       'rows': [
         {
           'index': 0,
@@ -1044,7 +1044,7 @@ void main() {
   });
 
   test('terminal frames bound viewport row and dirty range batches', () {
-    final frame = TerminalFrameDiff.fromJson(<String, Object?>{
+    final frame = terminalFrameFromJson(<String, Object?>{
       'rows': [
         for (var index = 0; index < 80; index += 1)
           {'index': index, 'text': 'row-$index'},
@@ -1072,7 +1072,7 @@ void main() {
   });
 
   test('terminal frames clamp row text to viewport columns', () {
-    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+    final frame = terminalFrameFromJson(const <String, Object?>{
       'rows': [
         {
           'index': 0,
@@ -1098,7 +1098,7 @@ void main() {
   });
 
   test('terminal frames omit partial wide glyphs when clamping rows', () {
-    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+    final frame = terminalFrameFromJson(const <String, Object?>{
       'rows': [
         {'index': 0, 'text': '你a'},
         {'index': 1, 'text': 'a你b'},
@@ -1118,7 +1118,7 @@ void main() {
   });
 
   test('terminal frames cap hyperlink batches', () {
-    final frame = TerminalFrameDiff.fromJson(<String, Object?>{
+    final frame = terminalFrameFromJson(<String, Object?>{
       'rows': const [],
       'cursor': const {'row': 0, 'col': 0, 'visible': true},
       'viewport_rows': 5000,
@@ -1144,7 +1144,7 @@ void main() {
 
   test('terminal frames skip malformed collection entries', () {
     final imageBytes = utf8.encode('fake-png');
-    final frame = TerminalFrameDiff.fromJson(<String, Object?>{
+    final frame = terminalFrameFromJson(<String, Object?>{
       'frame_kind': 'delta',
       'rows': const [
         'bad-row',
@@ -1268,7 +1268,7 @@ void main() {
     () {
       final imageBytes = Uint8List.fromList(<int>[1, 2, 3]);
       final encodedImage = base64.encode(imageBytes);
-      final frame = TerminalFrameDiff.fromJson(<String, Object?>{
+      final frame = terminalFrameFromJson(<String, Object?>{
         'rows': [
           for (var index = 0; index < 70; index += 1) 'bad-row-$index',
           {
@@ -1323,7 +1323,7 @@ void main() {
   );
 
   test('terminal frames default malformed scalar fields', () {
-    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+    final frame = terminalFrameFromJson(const <String, Object?>{
       'frame_kind': 7,
       'rows': [],
       'cursor': {'row': 'bad', 'col': 2, 'visible': true},
@@ -1365,35 +1365,10 @@ void main() {
     expect(frame.windowIconName, isNull);
   });
 
-  test('terminal frames parse explicit frame schema versions', () {
-    final explicit = TerminalFrameDiff.fromJson(const <String, Object?>{
-      'frame_schema_version': ' terminal-frame-diff-v2 ',
-      'rows': [],
-      'cursor': {'row': 0, 'col': 0, 'visible': true},
-      'viewport_rows': 1,
-      'viewport_cols': 80,
-      'dirty_ranges': [],
-      'scrollback_offset': 0,
-      'scrollback_max_offset': 0,
-    });
-    final legacy = TerminalFrameDiff.fromJson(const <String, Object?>{
-      'rows': [],
-      'cursor': {'row': 0, 'col': 0, 'visible': true},
-      'viewport_rows': 1,
-      'viewport_cols': 80,
-      'dirty_ranges': [],
-      'scrollback_offset': 0,
-      'scrollback_max_offset': 0,
-    });
-
-    expect(explicit.frameSchemaVersion, 'terminal-frame-diff-v2');
-    expect(legacy.frameSchemaVersion, 'terminal-frame-diff-v1');
-  });
-
   test('terminal frames parse protobuf payloads', () {
     final imageBytes = utf8.encode('fake-png');
     final payload = frame_pb.TerminalFrameDiff(
-      frameSchemaVersion: 'terminal-frame-diff-v2',
+      frameSchemaVersion: TerminalFrameDiff.currentFrameSchemaVersion,
       frameKind: frame_pb.TerminalFrameKind.TERMINAL_FRAME_KIND_DELTA,
       rows: [
         frame_pb.TerminalRow(
@@ -1509,9 +1484,11 @@ void main() {
       ],
     );
 
-    final frame = TerminalFrameDiff.fromProtobufBytes(payload.writeToBuffer());
+    final frame = const TerminalProtobufFrameCodec().decode(
+      payload.writeToBuffer(),
+    );
 
-    expect(frame.frameSchemaVersion, 'terminal-frame-diff-v2');
+    expect(frame.frameSchemaVersion, 'terminal-frame-diff-v1');
     expect(frame.frameKind, TerminalFrameKind.delta);
     expect(frame.rows.single.index, 1);
     expect(frame.rows.single.text, 'styled');
@@ -1681,8 +1658,8 @@ void main() {
     },
   );
 
-  test('terminal frames normalize frame kind tokens', () {
-    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+  test('terminal frame kind accepts only the canonical current token', () {
+    final frame = terminalFrameFromJson(const <String, Object?>{
       'frame_kind': ' Delta ',
       'rows': [],
       'cursor': {'row': 0, 'col': 0, 'visible': true},
@@ -1693,11 +1670,11 @@ void main() {
       'scrollback_max_offset': 0,
     });
 
-    expect(frame.frameKind, TerminalFrameKind.delta);
+    expect(frame.frameKind, TerminalFrameKind.snapshot);
   });
 
   test('terminal frames reject negative cursor and selection coordinates', () {
-    final invalid = TerminalFrameDiff.fromJson(const <String, Object?>{
+    final invalid = terminalFrameFromJson(const <String, Object?>{
       'rows': [],
       'cursor': {'row': -1, 'col': 2, 'visible': true},
       'selection': {
@@ -1712,23 +1689,16 @@ void main() {
       'scrollback_offset': 0,
       'scrollback_max_offset': 0,
     });
-    final reversedSelection = TerminalFrameDiff.fromJson(
-      const <String, Object?>{
-        'rows': [],
-        'cursor': {'row': 0, 'col': 0, 'visible': true},
-        'selection': {
-          'start_row': 1,
-          'start_col': 4,
-          'end_row': 0,
-          'end_col': 1,
-        },
-        'viewport_rows': 2,
-        'viewport_cols': 80,
-        'dirty_ranges': [],
-        'scrollback_offset': 0,
-        'scrollback_max_offset': 0,
-      },
-    );
+    final reversedSelection = terminalFrameFromJson(const <String, Object?>{
+      'rows': [],
+      'cursor': {'row': 0, 'col': 0, 'visible': true},
+      'selection': {'start_row': 1, 'start_col': 4, 'end_row': 0, 'end_col': 1},
+      'viewport_rows': 2,
+      'viewport_cols': 80,
+      'dirty_ranges': [],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+    });
 
     expect(invalid.cursor.row, 0);
     expect(invalid.cursor.col, 0);
@@ -1747,7 +1717,7 @@ void main() {
   });
 
   test('terminal frames reject fractional coordinate fields', () {
-    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+    final frame = terminalFrameFromJson(const <String, Object?>{
       'rows': [
         {'index': 0.5, 'text': 'fractional'},
         {'index': 0, 'text': 'ok'},
@@ -1782,7 +1752,7 @@ void main() {
   });
 
   test('terminal frames clamp scalar bounds from native payloads', () {
-    final negative = TerminalFrameDiff.fromJson(const <String, Object?>{
+    final negative = terminalFrameFromJson(const <String, Object?>{
       'rows': [],
       'cursor': {'row': 0, 'col': 0, 'visible': true},
       'viewport_rows': -2,
@@ -1793,7 +1763,7 @@ void main() {
       'viewport_start_row': -9,
       'viewport_row_shift': -1,
     });
-    final overflow = TerminalFrameDiff.fromJson(const <String, Object?>{
+    final overflow = terminalFrameFromJson(const <String, Object?>{
       'rows': [],
       'cursor': {'row': 0, 'col': 0, 'visible': true},
       'viewport_rows': 24,
@@ -1803,7 +1773,7 @@ void main() {
       'scrollback_max_offset': 10,
       'viewport_start_row': 3,
     });
-    final oversized = TerminalFrameDiff.fromJson(const <String, Object?>{
+    final oversized = terminalFrameFromJson(const <String, Object?>{
       'rows': [],
       'cursor': {'row': 0, 'col': 0, 'visible': true},
       'viewport_rows': 70000,
@@ -1905,7 +1875,7 @@ void main() {
   });
 
   test('terminal frames default fractional scalar fields', () {
-    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+    final frame = terminalFrameFromJson(const <String, Object?>{
       'rows': [],
       'cursor': {'row': 0, 'col': 0, 'visible': true},
       'viewport_rows': 2.5,
@@ -1926,7 +1896,7 @@ void main() {
   });
 
   test('terminal frames clamp dirty ranges to the viewport', () {
-    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+    final frame = terminalFrameFromJson(const <String, Object?>{
       'rows': [],
       'cursor': {'row': 0, 'col': 0, 'visible': true},
       'viewport_rows': 3,
@@ -1939,7 +1909,7 @@ void main() {
       'scrollback_offset': 0,
       'scrollback_max_offset': 0,
     });
-    final emptyViewport = TerminalFrameDiff.fromJson(const <String, Object?>{
+    final emptyViewport = terminalFrameFromJson(const <String, Object?>{
       'rows': [],
       'cursor': {'row': 0, 'col': 0, 'visible': true},
       'viewport_rows': 0,
@@ -1962,7 +1932,7 @@ void main() {
 
   test('terminal frames parse inline image payloads', () {
     final imageBytes = utf8.encode('fake-png');
-    final frame = TerminalFrameDiff.fromJson(<String, Object?>{
+    final frame = terminalFrameFromJson(<String, Object?>{
       'rows': const [
         {'index': 0, 'text': 'image', 'style_runs': <Object?>[]},
       ],
@@ -2003,7 +1973,7 @@ void main() {
 
   test('terminal frames drop inline images that start past the right edge', () {
     final imageBytes = utf8.encode('fake-png');
-    final frame = TerminalFrameDiff.fromJson(<String, Object?>{
+    final frame = terminalFrameFromJson(<String, Object?>{
       'rows': const [
         {'index': 0, 'text': 'image', 'style_runs': <Object?>[]},
       ],
@@ -2031,7 +2001,7 @@ void main() {
 
   test('terminal frames clamp inline image overlays to viewport bounds', () {
     final imageBytes = utf8.encode('fake-png');
-    final frame = TerminalFrameDiff.fromJson(<String, Object?>{
+    final frame = terminalFrameFromJson(<String, Object?>{
       'rows': const [
         {'index': 0, 'text': 'image', 'style_runs': <Object?>[]},
       ],
@@ -2077,7 +2047,7 @@ void main() {
   });
 
   test('terminal frames parse graphics placement payloads', () {
-    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+    final frame = terminalFrameFromJson(const <String, Object?>{
       'rows': [
         {'index': 0, 'text': 'image', 'style_runs': <Object?>[]},
       ],
@@ -2137,7 +2107,7 @@ void main() {
   });
 
   test('terminal frames preserve multi-protocol graphics placements', () {
-    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+    final frame = terminalFrameFromJson(const <String, Object?>{
       'rows': [
         {'index': 0, 'text': 'graphics', 'style_runs': <Object?>[]},
         {'index': 1, 'text': 'below', 'style_runs': <Object?>[]},
@@ -2208,8 +2178,8 @@ void main() {
     ]);
   });
 
-  test('terminal frames keep legacy graphics payloads readable', () {
-    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+  test('terminal frames default optional graphics fields', () {
+    final frame = terminalFrameFromJson(const <String, Object?>{
       'rows': [
         {'index': 0, 'text': 'image', 'style_runs': <Object?>[]},
       ],
@@ -2247,7 +2217,7 @@ void main() {
   });
 
   test('terminal frames drop graphics that start past the right edge', () {
-    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+    final frame = terminalFrameFromJson(const <String, Object?>{
       'rows': [
         {'index': 0, 'text': 'image', 'style_runs': <Object?>[]},
       ],
@@ -2279,7 +2249,7 @@ void main() {
   });
 
   test('terminal frames drop graphics with invalid horizontal clip', () {
-    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+    final frame = terminalFrameFromJson(const <String, Object?>{
       'rows': [
         {'index': 0, 'text': 'image', 'style_runs': <Object?>[]},
       ],
@@ -2791,7 +2761,7 @@ void main() {
     );
 
     final backendErrors = <TerminalSessionBackendErrorEvent>[];
-    final backendErrorSubscription = runtime.events
+    final backendErrorSubscription = terminalSessionEvents(runtime)
         .where((event) => event is TerminalSessionBackendErrorEvent)
         .cast<TerminalSessionBackendErrorEvent>()
         .listen(backendErrors.add);
@@ -2870,7 +2840,7 @@ void main() {
 
   test('terminal frames ignore malformed inline image payloads', () {
     const encodedImage = 'ZmFrZS1wbmc=';
-    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+    final frame = terminalFrameFromJson(const <String, Object?>{
       'rows': [
         {'index': 0, 'text': 'image', 'style_runs': <Object?>[]},
       ],
@@ -2936,7 +2906,7 @@ void main() {
     'terminal frames ignore oversized inline image payloads before decoding',
     () {
       final oversizedPayload = 'A' * (6 * 1024 * 1024);
-      final frame = TerminalFrameDiff.fromJson(<String, Object?>{
+      final frame = terminalFrameFromJson(<String, Object?>{
         'rows': const [
           {'index': 0, 'text': 'image', 'style_runs': <Object?>[]},
         ],
@@ -2966,7 +2936,7 @@ void main() {
   test('terminal frames cap inline image batches', () {
     final imageBytes = Uint8List.fromList(<int>[1, 2, 3]);
     final encodedImage = base64.encode(imageBytes);
-    final frame = TerminalFrameDiff.fromJson(<String, Object?>{
+    final frame = terminalFrameFromJson(<String, Object?>{
       'rows': const [
         {'index': 0, 'text': 'image', 'style_runs': <Object?>[]},
       ],
@@ -3178,24 +3148,22 @@ void main() {
       expect(sessionId, '1');
       expect(runtime.viewportFor(sessionId).frame.rows.first.text, 'demo');
       expect(runtimeBackend.lastCreateSessionJson, isNotNull);
-      expect(runtimeBackend.lastCreateSessionPayload!['id'], 'runtime-1');
-      expect(runtimeBackend.lastCreateSessionPayload!['name'], 'sh');
       expect(
-        runtimeBackend.lastCreateSessionPayload!['launch'],
-        <String, Object?>{
-          'program': '/bin/sh',
-          'args': const <String>[],
-          'env': const <String, String>{},
-          'cwd': null,
-        },
+        runtimeBackend.lastCreateSessionPayload!['session_id'],
+        'runtime-1',
       );
-      expect(
-        runtimeBackend.lastCreateSessionPayload!['shellIntegration'],
-        <String, Object?>{'enabled': true},
-      );
-      final appearance =
-          runtimeBackend.lastCreateSessionPayload!['appearance']!
+      expect(runtimeBackend.lastCreateSessionPayload!['display_name'], 'sh');
+      final config =
+          runtimeBackend.lastCreateSessionPayload!['config']!
               as Map<String, Object?>;
+      expect(config['launch'], <String, Object?>{
+        'program': '/bin/sh',
+        'args': const <String>[],
+        'env': const <String, String>{},
+        'cwd': null,
+      });
+      expect(config['shellIntegration'], <String, Object?>{'enabled': true});
+      final appearance = config['appearance']! as Map<String, Object?>;
       final colors = appearance['colors']! as Map<String, Object?>;
       final special = colors['special']! as Map<String, Object?>;
       expect(special['background'], '#000000');
@@ -3227,24 +3195,20 @@ void main() {
       runtime.viewportFor(sessionId).frame.rows.first.text,
       'protobuf demo',
     );
-    expect(runtimeBackend.takeFrameDiffProtobufCalls, 1);
-    expect(runtimeBackend.takeFrameDiffCalls, 0);
+    expect(runtimeBackend.takeFramePacketCalls, 1);
   });
 
-  testWidgets('terminal runtime can force JSON frame transport', (
+  testWidgets('terminal runtime skips malformed current frame packets', (
     tester,
   ) async {
     final runtimeBackend = _ProtobufFramePtyBackend(
-      initialFrame: _singleRowProtobuf('protobuf demo'),
+      initialFrame: _singleRowProtobuf('demo'),
     );
-    final events = <Map<String, Object?>>[];
     final runtime = TerminalRuntimeController(
       backend: runtimeBackend,
       copyToClipboard: (_) async {},
       readClipboard: () async => '',
       enableSessionPolling: false,
-      frameWireFormatPreference: TerminalFrameWireFormatPreference.json,
-      benchmarkEventSink: events.add,
     );
     addTearDown(runtime.dispose);
 
@@ -3254,254 +3218,68 @@ void main() {
       ),
     );
     await tester.pump();
+    expect(runtime.viewportFor(sessionId).frame.rows.first.text, 'demo');
+    runtimeBackend.takeFramePacketCalls = 0;
+
+    runtimeBackend
+      ..enqueueRawFramePacket(sessionId, const <int>[0xff])
+      ..setFrame(sessionId, _singleRowSnapshot('should not apply'));
+    runtime.refreshSession(sessionId);
+    await tester.pump();
 
     expect(runtime.viewportFor(sessionId).frame.rows.first.text, 'demo');
-    expect(runtimeBackend.takeFrameDiffProtobufCalls, 0);
-    expect(runtimeBackend.takeFrameDiffCalls, 1);
-    final benchmarkEvent = events.singleWhere(
-      (event) =>
-          event['schema_version'] == 'ianvs-bench-dart-runtime-v1' &&
-          event['wire_format'] == 'json',
-    );
-    expect(benchmarkEvent['raw_frame_bytes'], greaterThan(0));
-    expect(benchmarkEvent['json_decode_micros'], isA<int>());
-    expect(benchmarkEvent['protobuf_decode_micros'], 0);
+    expect(runtimeBackend.takeFramePacketCalls, 1);
   });
 
-  testWidgets(
-    'terminal runtime falls back to JSON when protobuf backend is unavailable',
-    (tester) async {
-      final runtimeBackend = _FakePtyBackend();
-      final runtime = TerminalRuntimeController(
-        backend: runtimeBackend,
-        copyToClipboard: (_) async {},
-        readClipboard: () async => '',
-        enableSessionPolling: false,
-      );
-      addTearDown(runtime.dispose);
-
-      final sessionId = runtime.createSession(
-        const TerminalSessionConfig(
-          launch: TerminalLaunchConfig(program: '/bin/sh'),
-        ),
-      );
-      await tester.pump();
-
-      expect(runtime.viewportFor(sessionId).frame.rows.first.text, 'demo');
-      expect(runtimeBackend.takeFrameDiffCalls, 1);
-
-      runtimeBackend.setFrame(sessionId, _singleRowSnapshot('json fallback'));
-      runtime.refreshSession(sessionId);
-      await tester.pump();
-
-      expect(
-        runtime.viewportFor(sessionId).frame.rows.first.text,
-        'json fallback',
-      );
-      expect(runtimeBackend.takeFrameDiffCalls, 2);
-    },
-  );
-
-  testWidgets(
-    'terminal runtime does not JSON fallback while protobuf frame stream is idle',
-    (tester) async {
-      final runtimeBackend = _ProtobufFramePtyBackend();
-      final runtime = TerminalRuntimeController(
-        backend: runtimeBackend,
-        copyToClipboard: (_) async {},
-        readClipboard: () async => '',
-        enableSessionPolling: false,
-      );
-      addTearDown(runtime.dispose);
-
-      runtime.createSession(
-        const TerminalSessionConfig(
-          launch: TerminalLaunchConfig(program: '/bin/sh'),
-        ),
-      );
-      await tester.pump();
-
-      expect(runtimeBackend.takeFrameDiffProtobufCalls, 1);
-      expect(runtimeBackend.takeFrameDiffCalls, 0);
-    },
-  );
-
-  testWidgets(
-    'terminal runtime skips malformed protobuf frames without reading JSON',
-    (tester) async {
-      final runtimeBackend = _ProtobufFramePtyBackend(
-        initialFrame: _singleRowProtobuf('demo'),
-      );
-      final runtime = TerminalRuntimeController(
-        backend: runtimeBackend,
-        copyToClipboard: (_) async {},
-        readClipboard: () async => '',
-        enableSessionPolling: false,
-      );
-      addTearDown(runtime.dispose);
-
-      final sessionId = runtime.createSession(
-        const TerminalSessionConfig(
-          launch: TerminalLaunchConfig(program: '/bin/sh'),
-        ),
-      );
-      await tester.pump();
-      expect(runtime.viewportFor(sessionId).frame.rows.first.text, 'demo');
-      runtimeBackend.takeFrameDiffProtobufCalls = 0;
-      runtimeBackend.takeFrameDiffCalls = 0;
-
-      runtimeBackend
-        ..enqueueRawProtobufFrame(sessionId, const <int>[0xff])
-        ..setFrame(sessionId, _singleRowSnapshot('should not apply'));
-      runtime.refreshSession(sessionId);
-      await tester.pump();
-
-      expect(runtime.viewportFor(sessionId).frame.rows.first.text, 'demo');
-      expect(runtimeBackend.takeFrameDiffProtobufCalls, 1);
-      expect(runtimeBackend.takeFrameDiffCalls, 0);
-    },
-  );
-
   group(TerminalFrameTransportCoordinator, () {
-    test('forced JSON never reads an implemented protobuf backend', () {
+    test('requires and reads only current Frame Packet v1', () {
       final backend = _ProtobufFramePtyBackend(
-        initialFrame: _singleRowProtobuf('protobuf ignored'),
+        initialFrame: _singleRowProtobuf('packet selected'),
       );
-      final sessionId = backend.createSession('{}');
-      final coordinator = TerminalFrameTransportCoordinator(
-        backend: backend,
-        decoder: const TerminalFrameDecoder(),
-        preference: TerminalFrameWireFormatPreference.json,
-      );
+      final sessionId = backend.createSessionV1(_runtimeConfig());
+      final coordinator = TerminalFrameTransportCoordinator(backend: backend);
 
       final decoded = coordinator.take(sessionId);
 
-      expect(decoded!.frame.rows.single.text, 'demo');
-      expect(backend.takeFrameDiffCalls, 1);
-      expect(backend.takeFrameDiffProtobufCalls, 0);
+      expect(decoded!.frame.rows.single.text, 'packet selected');
+      expect(backend.takeFramePacketCalls, 1);
     });
 
-    test('automatic uses protobuf only when implemented and supported', () {
-      final supported = _ProtobufFramePtyBackend(
-        initialFrame: _singleRowProtobuf('protobuf selected'),
-      );
-      final supportedSession = supported.createSession('{}');
-      final supportedCoordinator = TerminalFrameTransportCoordinator(
-        backend: supported,
-        decoder: const TerminalFrameDecoder(),
-        preference: TerminalFrameWireFormatPreference.automatic,
-      );
-      final unsupported = _UnsupportedProtobufFramePtyBackend();
-      final unsupportedSession = unsupported.createSession('{}');
-      final unsupportedCoordinator = TerminalFrameTransportCoordinator(
-        backend: unsupported,
-        decoder: const TerminalFrameDecoder(),
-        preference: TerminalFrameWireFormatPreference.automatic,
-      );
-      final jsonOnly = _FakePtyBackend();
-      final jsonOnlySession = jsonOnly.createSession('{}');
-      final jsonOnlyCoordinator = TerminalFrameTransportCoordinator(
-        backend: jsonOnly,
-        decoder: const TerminalFrameDecoder(),
-        preference: TerminalFrameWireFormatPreference.automatic,
-      );
-
-      expect(
-        supportedCoordinator.take(supportedSession)!.frame.rows.single.text,
-        'protobuf selected',
-      );
-      expect(supported.takeFrameDiffProtobufCalls, 1);
-      expect(supported.takeFrameDiffCalls, 0);
-      expect(
-        unsupportedCoordinator.take(unsupportedSession)!.frame.rows.single.text,
-        'demo',
-      );
-      expect(unsupported.takeFrameDiffProtobufCalls, 0);
-      expect(unsupported.takeFrameDiffCalls, 1);
-      expect(
-        jsonOnlyCoordinator.take(jsonOnlySession)!.frame.rows.single.text,
-        'demo',
-      );
-      expect(jsonOnly.takeFrameDiffCalls, 1);
+    test('backend without Frame Packet v1 is rejected', () {
+      final backend = _NoFramePacketPtyBackend();
+      final coordinator = TerminalFrameTransportCoordinator(backend: backend);
+      expect(() => coordinator.take('1'), throwsUnsupportedError);
     });
 
-    test(
-      'supported protobuf null and empty payloads are idle without JSON',
-      () {
-        final backend = _ProtobufFramePtyBackend();
-        final sessionId = backend.createSession('{}');
-        final coordinator = TerminalFrameTransportCoordinator(
-          backend: backend,
-          decoder: const TerminalFrameDecoder(),
-          preference: TerminalFrameWireFormatPreference.automatic,
-        );
-
-        expect(coordinator.take(sessionId), isNull);
-        backend.enqueueRawProtobufFrame(sessionId, const <int>[]);
-        expect(coordinator.take(sessionId), isNull);
-        expect(backend.takeFrameDiffProtobufCalls, 2);
-        expect(backend.takeFrameDiffCalls, 0);
-      },
-    );
-
-    test('malformed protobuf is dropped without consuming JSON', () {
+    test('null and empty packets are idle', () {
       final backend = _ProtobufFramePtyBackend();
-      final sessionId = backend.createSession('{}');
-      backend.enqueueRawProtobufFrame(sessionId, const <int>[0xff]);
-      final coordinator = TerminalFrameTransportCoordinator(
-        backend: backend,
-        decoder: const TerminalFrameDecoder(),
-        preference: TerminalFrameWireFormatPreference.automatic,
-      );
+      final sessionId = backend.createSessionV1(_runtimeConfig());
+      backend.clearFrame(sessionId);
+      final coordinator = TerminalFrameTransportCoordinator(backend: backend);
 
       expect(coordinator.take(sessionId), isNull);
-      expect(backend.takeFrameDiffProtobufCalls, 1);
-      expect(backend.takeFrameDiffCalls, 0);
+      backend.enqueueRawFramePacket(sessionId, const <int>[]);
+      expect(coordinator.take(sessionId), isNull);
+      expect(backend.takeFramePacketCalls, 2);
     });
 
-    test('JSON backend exceptions report the exact existing operation', () {
-      final backend = _ThrowingJsonFramePtyBackend();
-      final sessionId = backend.createSession('{}');
+    test('packet exceptions report the current operation', () {
+      final backend = _ProtobufFramePtyBackend();
+      final sessionId = backend.createSessionV1(_runtimeConfig());
+      backend.throwFramePacket = true;
       final errors = <(String, String, Object)>[];
       final coordinator = TerminalFrameTransportCoordinator(
         backend: backend,
-        decoder: const TerminalFrameDecoder(),
-        preference: TerminalFrameWireFormatPreference.json,
         onRequestError: (sessionId, operation, error, stackTrace) {
           errors.add((sessionId, operation, error));
         },
       );
 
       expect(coordinator.take(sessionId), isNull);
-      expect(backend.takeFrameDiffJsonAttempts, 1);
-      expect(backend.takeFrameDiffJsonSessions, <String>[sessionId]);
       expect(errors, hasLength(1));
       expect(errors.single.$1, sessionId);
-      expect(errors.single.$2, 'takeFrameDiffJson');
+      expect(errors.single.$2, 'takeFramePacketV1Protobuf');
       expect(errors.single.$3, isA<StateError>());
-    });
-
-    test('protobuf backend exceptions report the exact existing operation', () {
-      final backend = _ThrowingProtobufFramePtyBackend();
-      final sessionId = backend.createSession('{}');
-      final errors = <(String, String, Object)>[];
-      final coordinator = TerminalFrameTransportCoordinator(
-        backend: backend,
-        decoder: const TerminalFrameDecoder(),
-        preference: TerminalFrameWireFormatPreference.automatic,
-        onRequestError: (sessionId, operation, error, stackTrace) {
-          errors.add((sessionId, operation, error));
-        },
-      );
-
-      expect(coordinator.take(sessionId), isNull);
-      expect(backend.takeFrameDiffProtobufAttempts, 1);
-      expect(backend.takeFrameDiffProtobufSessions, <String>[sessionId]);
-      expect(errors, hasLength(1));
-      expect(errors.single.$1, sessionId);
-      expect(errors.single.$2, 'takeFrameDiffProtobuf');
-      expect(errors.single.$3, isA<StateError>());
-      expect(backend.takeFrameDiffCalls, 0);
     });
   });
 
@@ -3523,7 +3301,7 @@ void main() {
         ),
       );
 
-      expect(runtimeBackend.takeFrameDiffCalls, 1);
+      expect(runtimeBackend.takeFramePacketCalls, 1);
       expect(runtimeBackend.pollEventsCalls, 1);
 
       runtime.sendInput(sessionId, Uint8List.fromList(const [0x41]));
@@ -3531,7 +3309,7 @@ void main() {
       runtime.scrollViewportTo(sessionId, 2);
       await tester.pump();
 
-      expect(runtimeBackend.takeFrameDiffCalls, 2);
+      expect(runtimeBackend.takeFramePacketCalls, 2);
       expect(runtimeBackend.pollEventsCalls, 2);
     },
   );
@@ -3592,17 +3370,17 @@ void main() {
           ),
         );
         final viewport = runtime.viewportFor(sessionId);
-        expect(runtimeBackend.takeFrameDiffCalls, 1);
+        expect(runtimeBackend.takeFramePacketCalls, 1);
         expect(viewport.frame.rows.first.text, 'demo');
 
         runtimeBackend.clearFrame(sessionId);
         await tester.pump(const Duration(milliseconds: 34));
-        expect(runtimeBackend.takeFrameDiffCalls, 2);
+        expect(runtimeBackend.takeFramePacketCalls, 2);
 
         runtimeBackend.setFrame(sessionId, _singleRowSnapshot('after idle'));
         runtime.sendInput(sessionId, Uint8List.fromList(const [0x41]));
 
-        expect(runtimeBackend.takeFrameDiffCalls, 3);
+        expect(runtimeBackend.takeFramePacketCalls, 3);
         expect(viewport.frame.rows.first.text, 'after idle');
       } finally {
         runtime.dispose();
@@ -3638,7 +3416,7 @@ void main() {
         runtime.sendInput(sessionId, Uint8List.fromList(const [0x42]));
         runtime.scrollViewport(sessionId, 1);
 
-        expect(runtimeBackend.takeFrameDiffCalls, 1);
+        expect(runtimeBackend.takeFramePacketCalls, 1);
         expect(viewport.frame.rows.first.text, 'demo');
         final requestedEvents = diagnosticEvents.where(
           (event) =>
@@ -3658,10 +3436,10 @@ void main() {
         expect(requestedEvents.single['request_reason'], 'input');
 
         await tester.pump(const Duration(milliseconds: 3));
-        expect(runtimeBackend.takeFrameDiffCalls, 1);
+        expect(runtimeBackend.takeFramePacketCalls, 1);
 
         await tester.pump(const Duration(milliseconds: 1));
-        expect(runtimeBackend.takeFrameDiffCalls, 2);
+        expect(runtimeBackend.takeFramePacketCalls, 2);
         expect(viewport.frame.rows.first.text, 'coalesced');
         expect(
           diagnosticEvents
@@ -3713,13 +3491,13 @@ void main() {
         runtime.sendInput(sessionId, Uint8List.fromList(const [0x41]));
         await tester.pump(const Duration(milliseconds: 4));
 
-        expect(runtimeBackend.takeFrameDiffCalls, 1);
+        expect(runtimeBackend.takeFramePacketCalls, 1);
         expect(viewport.frame.rows.first.text, 'demo');
 
         runtimeBackend.hintFlags = PtyRefreshHintFlags.frameDirty;
         await tester.pump(const Duration(milliseconds: 4));
 
-        expect(runtimeBackend.takeFrameDiffCalls, 2);
+        expect(runtimeBackend.takeFramePacketCalls, 2);
         expect(viewport.frame.rows.first.text, 'low latency echo');
         expect(runtimeBackend.refreshHintCalls, 2);
         expect(
@@ -3799,7 +3577,7 @@ void main() {
         expect(
           <Object?>[
             uncaughtSinkError,
-            runtimeBackend.takeFrameDiffCalls,
+            runtimeBackend.takeFramePacketCalls,
             runtime.viewportFor(sessionId).frame.rows.first.text,
             refreshIds.length,
             refreshEvents.map((event) => event['event']).toList(),
@@ -3829,7 +3607,7 @@ void main() {
     (tester) async {
       final oldResize = Completer<void>();
       final newResize = Completer<void>();
-      final runtimeBackend = _FakePtyBackend()..forcedSessionId = 'reused';
+      final runtimeBackend = _FakePtyBackend()..forcedSessionId = '7';
       final diagnosticEvents = <Map<String, Object?>>[];
       var resizeRequestCount = 0;
       final runtime = TerminalRuntimeController(
@@ -3915,7 +3693,7 @@ void main() {
         )['refresh_id'];
         expect(
           <Object?>[
-            runtimeBackend.takeFrameDiffCalls,
+            runtimeBackend.takeFramePacketCalls,
             runtime.viewportFor(newSessionId).frame.rows.first.text,
             eventsBeforeNewRefreshCompletes.any(
               (event) => event['event'] == 'frame_applied',
@@ -3958,7 +3736,7 @@ void main() {
     'terminal runtime ignores stale async event chains before a reused id exit',
     (tester) async {
       final oldResize = Completer<void>();
-      final runtimeBackend = _FakePtyBackend()..forcedSessionId = 'reused';
+      final runtimeBackend = _FakePtyBackend()..forcedSessionId = '7';
       final exitEvents = <TerminalSessionExitEvent>[];
       var resizeRequestCount = 0;
       final runtime = TerminalRuntimeController(
@@ -3971,7 +3749,7 @@ void main() {
         },
         enableSessionPolling: false,
       );
-      final subscription = runtime.events
+      final subscription = terminalSessionEvents(runtime)
           .where((event) => event is TerminalSessionExitEvent)
           .cast<TerminalSessionExitEvent>()
           .listen(exitEvents.add);
@@ -4038,16 +3816,16 @@ void main() {
     'terminal runtime ignores stale clipboard paste continuations after id reuse',
     (tester) async {
       final clipboardText = Completer<String>();
-      final runtimeBackend = _FakePtyBackend()..forcedSessionId = 'reused';
+      final runtimeBackend = _FakePtyBackend()..forcedSessionId = '7';
       final clipboardEvents = <TerminalSessionClipboardEvent>[];
       final runtime = TerminalRuntimeController(
         backend: runtimeBackend,
         copyToClipboard: (_) async {},
         readClipboard: () => clipboardText.future,
-        allowClipboardPasteRequest: () async => true,
+        allowClipboardPasteRequestWithContext: (_) async => true,
         enableSessionPolling: false,
       );
-      final subscription = runtime.events
+      final subscription = terminalSessionEvents(runtime)
           .where((event) => event is TerminalSessionClipboardEvent)
           .cast<TerminalSessionClipboardEvent>()
           .listen(clipboardEvents.add);
@@ -4108,7 +3886,7 @@ void main() {
   testWidgets(
     'terminal runtime preserves new deferred refresh deduplication after id reuse',
     (tester) async {
-      final runtimeBackend = _FakePtyBackend()..forcedSessionId = 'reused';
+      final runtimeBackend = _FakePtyBackend()..forcedSessionId = '7';
       final runtime = TerminalRuntimeController(
         backend: runtimeBackend,
         copyToClipboard: (_) async {},
@@ -4137,7 +3915,7 @@ void main() {
 
         await tester.pump();
 
-        expect(runtimeBackend.takeFrameDiffCalls, 3);
+        expect(runtimeBackend.takeFramePacketCalls, 3);
       } finally {
         runtime.dispose();
       }
@@ -4169,26 +3947,26 @@ void main() {
       final viewport = runtime.viewportFor(sessionId);
       runtimeBackend.clearFrame(sessionId);
       monotonicNow = const Duration(milliseconds: 500);
-      final callsBeforeIdle = runtimeBackend.takeFrameDiffCalls;
+      final callsBeforeIdle = runtimeBackend.takeFramePacketCalls;
 
       await pumpTick();
-      expect(runtimeBackend.takeFrameDiffCalls, callsBeforeIdle + 1);
+      expect(runtimeBackend.takeFramePacketCalls, callsBeforeIdle + 1);
       expect(runtimeBackend.pollEventsCalls, callsBeforeIdle + 1);
 
       await pumpTick();
-      expect(runtimeBackend.takeFrameDiffCalls, callsBeforeIdle + 2);
+      expect(runtimeBackend.takeFramePacketCalls, callsBeforeIdle + 2);
       expect(runtimeBackend.pollEventsCalls, callsBeforeIdle + 2);
 
       await pumpTick();
       await pumpTick();
       await pumpTick();
-      expect(runtimeBackend.takeFrameDiffCalls, callsBeforeIdle + 2);
+      expect(runtimeBackend.takeFramePacketCalls, callsBeforeIdle + 2);
       expect(runtimeBackend.pollEventsCalls, callsBeforeIdle + 2);
 
       runtimeBackend.setFrame(sessionId, _singleRowSnapshot('wake'));
       runtime.sendInput(sessionId, Uint8List.fromList(const [0x41]));
 
-      expect(runtimeBackend.takeFrameDiffCalls, callsBeforeIdle + 3);
+      expect(runtimeBackend.takeFramePacketCalls, callsBeforeIdle + 3);
       expect(runtimeBackend.pollEventsCalls, callsBeforeIdle + 3);
       expect(viewport.frame.rows.first.text, 'wake');
     } finally {
@@ -4221,17 +3999,17 @@ void main() {
         final viewport = runtime.viewportFor(sessionId);
         runtimeBackend.clearFrame(sessionId);
         monotonicNow = const Duration(milliseconds: 500);
-        final callsBeforeIdle = runtimeBackend.takeFrameDiffCalls;
+        final callsBeforeIdle = runtimeBackend.takeFramePacketCalls;
 
         await pumpTick();
-        expect(runtimeBackend.takeFrameDiffCalls, callsBeforeIdle + 1);
+        expect(runtimeBackend.takeFramePacketCalls, callsBeforeIdle + 1);
         expect(
           runtime.refreshPolicySnapshotFor(sessionId).pumpMetrics.currentDelay,
           const Duration(milliseconds: 33),
         );
 
         await pumpTick();
-        expect(runtimeBackend.takeFrameDiffCalls, callsBeforeIdle + 2);
+        expect(runtimeBackend.takeFramePacketCalls, callsBeforeIdle + 2);
         expect(
           runtime.refreshPolicySnapshotFor(sessionId).pumpMetrics.currentDelay,
           const Duration(milliseconds: 132),
@@ -4249,7 +4027,7 @@ void main() {
         ) {
           await pumpTick();
         }
-        expect(runtimeBackend.takeFrameDiffCalls, callsBeforeIdle + 3);
+        expect(runtimeBackend.takeFramePacketCalls, callsBeforeIdle + 3);
 
         for (
           var tick = 0;
@@ -4263,12 +4041,12 @@ void main() {
         ) {
           await pumpTick();
         }
-        expect(runtimeBackend.takeFrameDiffCalls, callsBeforeIdle + 4);
+        expect(runtimeBackend.takeFramePacketCalls, callsBeforeIdle + 4);
 
         runtimeBackend.setFrame(sessionId, _singleRowSnapshot('wake'));
         runtime.sendInput(sessionId, Uint8List.fromList(const [0x41]));
 
-        expect(runtimeBackend.takeFrameDiffCalls, callsBeforeIdle + 5);
+        expect(runtimeBackend.takeFramePacketCalls, callsBeforeIdle + 5);
         expect(viewport.frame.rows.first.text, 'wake');
       } finally {
         runtime.dispose();
@@ -4562,14 +4340,14 @@ void main() {
           runtimeBackend.clearFrame(sessionId);
         }
         diagnostics.clear();
-        final callsBefore = runtimeBackend.takeFrameDiffCalls;
+        final callsBefore = runtimeBackend.takeFramePacketCalls;
 
         for (var tick = 0; tick < 8; tick += 1) {
           await pumpTick();
         }
 
         expect(
-          runtimeBackend.takeFrameDiffCalls - callsBefore,
+          runtimeBackend.takeFramePacketCalls - callsBefore,
           8,
           reason: '${scenario.key} must full-poll on every 33ms tick',
         );
@@ -4620,14 +4398,14 @@ void main() {
       TerminalRefreshClass.streaming,
     );
     diagnostics.clear();
-    final callsBefore = runtimeBackend.takeFrameDiffCalls;
+    final callsBefore = runtimeBackend.takeFramePacketCalls;
 
     for (var tick = 0; tick < 6; tick += 1) {
       monotonicNow += const Duration(milliseconds: 33);
       await tester.pump(const Duration(milliseconds: 33));
     }
 
-    expect(runtimeBackend.takeFrameDiffCalls - callsBefore, 6);
+    expect(runtimeBackend.takeFramePacketCalls - callsBefore, 6);
     final results = diagnostics
         .where((event) => event['event'] == 'refresh_result')
         .toList(growable: false);
@@ -4673,7 +4451,7 @@ void main() {
           const Duration(milliseconds: 132)) {
         await pump(const Duration(milliseconds: 33));
       }
-      final callsBeforeHint = runtimeBackend.takeFrameDiffCalls;
+      final callsBeforeHint = runtimeBackend.takeFramePacketCalls;
       final fullPollBeforeHint =
           diagnostics
                   .where(
@@ -4691,13 +4469,13 @@ void main() {
         ..hintFlags = 1;
       for (
         var tick = 0;
-        tick < 2 && runtimeBackend.takeFrameDiffCalls == callsBeforeHint;
+        tick < 2 && runtimeBackend.takeFramePacketCalls == callsBeforeHint;
         tick += 1
       ) {
         await pump(const Duration(milliseconds: 33));
       }
 
-      expect(runtimeBackend.takeFrameDiffCalls, callsBeforeHint + 1);
+      expect(runtimeBackend.takeFramePacketCalls, callsBeforeHint + 1);
       expect(runtime.viewportFor(sessionId).frame.rows.first.text, 'hint wake');
       final refreshEvents = diagnostics
           .where(
@@ -4756,7 +4534,7 @@ void main() {
             const Duration(milliseconds: 132)) {
           await tester.pump(const Duration(milliseconds: 33));
         }
-        final callsBeforeFallback = runtimeBackend.takeFrameDiffCalls;
+        final callsBeforeFallback = runtimeBackend.takeFramePacketCalls;
         diagnostics.clear();
 
         runtimeBackend
@@ -4764,12 +4542,13 @@ void main() {
           ..hintFlags = flags;
         for (
           var tick = 0;
-          tick < 5 && runtimeBackend.takeFrameDiffCalls == callsBeforeFallback;
+          tick < 5 &&
+              runtimeBackend.takeFramePacketCalls == callsBeforeFallback;
           tick += 1
         ) {
           await tester.pump(const Duration(milliseconds: 33));
         }
-        expect(runtimeBackend.takeFrameDiffCalls, callsBeforeFallback + 1);
+        expect(runtimeBackend.takeFramePacketCalls, callsBeforeFallback + 1);
         expect(
           runtime.viewportFor(sessionId).frame.rows.first.text,
           'deadline fallback',
@@ -4820,7 +4599,7 @@ void main() {
         runtime.refreshPolicySnapshotFor(sessionId).refreshClass,
         TerminalRefreshClass.idle,
       );
-      final callsBeforeFallback = runtimeBackend.takeFrameDiffCalls;
+      final callsBeforeFallback = runtimeBackend.takeFramePacketCalls;
       diagnostics.clear();
       runtimeBackend.setFrame(
         sessionId,
@@ -4829,13 +4608,13 @@ void main() {
 
       for (
         var tick = 0;
-        tick < 13 && runtimeBackend.takeFrameDiffCalls == callsBeforeFallback;
+        tick < 13 && runtimeBackend.takeFramePacketCalls == callsBeforeFallback;
         tick += 1
       ) {
         await tester.pump(const Duration(milliseconds: 33));
       }
 
-      expect(runtimeBackend.takeFrameDiffCalls, callsBeforeFallback + 1);
+      expect(runtimeBackend.takeFramePacketCalls, callsBeforeFallback + 1);
       expect(
         diagnostics.any((event) => event['request_reason'] == 'idle_deadline'),
         isTrue,
@@ -4854,7 +4633,7 @@ void main() {
         readClipboard: () async => '',
       );
       final errors = <TerminalSessionBackendErrorEvent>[];
-      final subscription = runtime.events
+      final subscription = terminalSessionEvents(runtime)
           .where((event) => event is TerminalSessionBackendErrorEvent)
           .cast<TerminalSessionBackendErrorEvent>()
           .listen(errors.add);
@@ -4907,7 +4686,7 @@ void main() {
         readClipboard: () async => '',
       );
       final errors = <TerminalSessionBackendErrorEvent>[];
-      final subscription = runtime.events
+      final subscription = terminalSessionEvents(runtime)
           .where((event) => event is TerminalSessionBackendErrorEvent)
           .cast<TerminalSessionBackendErrorEvent>()
           .listen(errors.add);
@@ -4974,18 +4753,14 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 34));
       await tester.pump(const Duration(milliseconds: 34));
-      final protobufCallsBeforeHint = runtimeBackend.takeFrameDiffProtobufCalls;
+      final protobufCallsBeforeHint = runtimeBackend.takeFramePacketCalls;
       runtimeBackend
         ..enqueueProtobufFrame(sessionId, _singleRowProtobuf('protobuf hint'))
         ..hintFlags = 1;
 
       await tester.pump(const Duration(milliseconds: 34));
 
-      expect(
-        runtimeBackend.takeFrameDiffProtobufCalls,
-        protobufCallsBeforeHint + 1,
-      );
-      expect(runtimeBackend.takeFrameDiffCalls, 0);
+      expect(runtimeBackend.takeFramePacketCalls, protobufCallsBeforeHint + 1);
       expect(
         runtime.viewportFor(sessionId).frame.rows.first.text,
         'protobuf hint',
@@ -5316,13 +5091,13 @@ void main() {
         );
         final viewport = runtime.viewportFor(sessionId);
         final frameEvents = <TerminalSessionFrameEvent>[];
-        final subscription = runtime.events
+        final subscription = terminalSessionEvents(runtime)
             .where((event) => event is TerminalSessionFrameEvent)
             .cast<TerminalSessionFrameEvent>()
             .listen(frameEvents.add);
         addTearDown(subscription.cancel);
 
-        expect(runtimeBackend.takeFrameDiffCalls, 1);
+        expect(runtimeBackend.takeFramePacketCalls, 1);
         expect(viewport.frame.rows.first.text, 'demo');
 
         runtimeBackend
@@ -5332,7 +5107,7 @@ void main() {
 
         await tester.pump(const Duration(milliseconds: 34));
 
-        final hiddenFramePolls = runtimeBackend.takeFrameDiffCalls;
+        final hiddenFramePolls = runtimeBackend.takeFramePacketCalls;
         expect(hiddenFramePolls, greaterThanOrEqualTo(2));
         expect(viewport.frame.rows.first.text, 'demo');
         expect(frameEvents, isEmpty);
@@ -5342,7 +5117,7 @@ void main() {
         await tester.pump();
 
         expect(
-          runtimeBackend.takeFrameDiffCalls,
+          runtimeBackend.takeFramePacketCalls,
           greaterThan(hiddenFramePolls),
         );
         expect(viewport.frame.rows.first.text, 'sync final');
@@ -5371,7 +5146,7 @@ void main() {
         );
         final viewport = runtime.viewportFor(sessionId);
         final frameEvents = <TerminalSessionFrameEvent>[];
-        final subscription = runtime.events
+        final subscription = terminalSessionEvents(runtime)
             .where((event) => event is TerminalSessionFrameEvent)
             .cast<TerminalSessionFrameEvent>()
             .listen(frameEvents.add);
@@ -5484,20 +5259,20 @@ void main() {
         runtime.sendInput(sessionId, Uint8List(0));
         await tester.pump(const Duration(milliseconds: 34));
 
-        expect(runtimeBackend.takeFrameDiffCalls, 2);
+        expect(runtimeBackend.takeFramePacketCalls, 2);
         expect(viewport.frame.rows.first.text, 'blocked');
 
         runtimeBackend.setFrame(sessionId, _singleRowSnapshot('after async'));
         runtime.sendInput(sessionId, Uint8List(0));
         await tester.pump(const Duration(milliseconds: 30));
 
-        expect(runtimeBackend.takeFrameDiffCalls, 2);
+        expect(runtimeBackend.takeFramePacketCalls, 2);
 
         copyCompleter.complete();
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 4));
 
-        expect(runtimeBackend.takeFrameDiffCalls, 3);
+        expect(runtimeBackend.takeFramePacketCalls, 3);
         expect(viewport.frame.rows.first.text, 'after async');
       } finally {
         if (!copyCompleter.isCompleted) {
@@ -5529,12 +5304,12 @@ void main() {
         );
         runtime.sendInput(sessionId, Uint8List.fromList(const [0x41]));
 
-        expect(runtimeBackend.takeFrameDiffCalls, 1);
+        expect(runtimeBackend.takeFramePacketCalls, 1);
 
         runtime.closeSession(sessionId);
         await tester.pump(const Duration(milliseconds: 40));
 
-        expect(runtimeBackend.takeFrameDiffCalls, 1);
+        expect(runtimeBackend.takeFramePacketCalls, 1);
       } finally {
         runtime.dispose();
       }
@@ -5604,7 +5379,7 @@ void main() {
     runtimeBackend.scrollToCalls.clear();
     runtimeBackend.resizeCalls.clear();
     runtimeBackend.jsonRequests.clear();
-    runtimeBackend.takeFrameDiffCalls = 0;
+    runtimeBackend.takeFramePacketCalls = 0;
     runtimeBackend.pollEventsCalls = 0;
 
     runtime.closeSession(sessionId);
@@ -5642,7 +5417,7 @@ void main() {
     expect(runtimeBackend.scrollToCalls, isEmpty);
     expect(runtimeBackend.resizeCalls, isEmpty);
     expect(runtimeBackend.jsonRequests, isEmpty);
-    expect(runtimeBackend.takeFrameDiffCalls, 0);
+    expect(runtimeBackend.takeFramePacketCalls, 0);
     expect(runtimeBackend.pollEventsCalls, 0);
     expect(inputEvents, isEmpty);
     expect(resizeEvents, isEmpty);
@@ -5670,7 +5445,7 @@ void main() {
       final backendErrors = <TerminalSessionBackendErrorEvent>[];
       final inputEvents = <TerminalSessionInputEvent>[];
       final resizeEvents = <TerminalSessionResizeEvent>[];
-      final backendErrorSubscription = runtime.events
+      final backendErrorSubscription = terminalSessionEvents(runtime)
           .where((event) => event is TerminalSessionBackendErrorEvent)
           .cast<TerminalSessionBackendErrorEvent>()
           .listen(backendErrors.add);
@@ -5734,7 +5509,7 @@ void main() {
       await tester.pump();
 
       final backendErrors = <TerminalSessionBackendErrorEvent>[];
-      final backendErrorSubscription = runtime.events
+      final backendErrorSubscription = terminalSessionEvents(runtime)
           .where((event) => event is TerminalSessionBackendErrorEvent)
           .cast<TerminalSessionBackendErrorEvent>()
           .listen(backendErrors.add);
@@ -5904,13 +5679,13 @@ void main() {
       await tester.pump();
 
       final backendErrors = <TerminalSessionBackendErrorEvent>[];
-      final backendErrorSubscription = runtime.events
+      final backendErrorSubscription = terminalSessionEvents(runtime)
           .where((event) => event is TerminalSessionBackendErrorEvent)
           .cast<TerminalSessionBackendErrorEvent>()
           .listen(backendErrors.add);
       addTearDown(backendErrorSubscription.cancel);
 
-      runtimeBackend.failingOperations.add('requestSessionJson');
+      runtimeBackend.failingOperations.add('requestSessionV1Json');
 
       final selectionText = runtime.selectionText(
         sessionId,
@@ -5952,7 +5727,7 @@ void main() {
       expect(
         backendErrors.every(
           (event) =>
-              event.error.toString().contains('requestSessionJson failed'),
+              event.error.toString().contains('requestSessionV1Json failed'),
         ),
         isTrue,
       );
@@ -5981,14 +5756,14 @@ void main() {
       await tester.pump();
 
       final backendErrors = <TerminalSessionBackendErrorEvent>[];
-      final backendErrorSubscription = runtime.events
+      final backendErrorSubscription = terminalSessionEvents(runtime)
           .where((event) => event is TerminalSessionBackendErrorEvent)
           .cast<TerminalSessionBackendErrorEvent>()
           .listen(backendErrors.add);
       addTearDown(backendErrorSubscription.cancel);
 
       runtimeBackend.failingOperations.addAll(<String>{
-        'takeFrameDiffJson',
+        'takeFramePacketV1Protobuf',
         'pollEvents',
       });
 
@@ -5996,7 +5771,7 @@ void main() {
       await tester.pump();
 
       expect(backendErrors.map((event) => event.operation), <String>[
-        'takeFrameDiffJson',
+        'takeFramePacketV1Protobuf',
         'pollEvents',
       ]);
       expect(
@@ -6030,7 +5805,7 @@ void main() {
     await tester.pump();
 
     final shellHooks = <TerminalSessionShellHookEvent>[];
-    final subscription = runtime.events
+    final subscription = terminalSessionEvents(runtime)
         .where((event) => event is TerminalSessionShellHookEvent)
         .cast<TerminalSessionShellHookEvent>()
         .listen(shellHooks.add);
@@ -6139,7 +5914,7 @@ void main() {
     await tester.pump();
 
     final bells = <TerminalSessionBellEvent>[];
-    final subscription = runtime.events
+    final subscription = terminalSessionEvents(runtime)
         .where((event) => event is TerminalSessionBellEvent)
         .cast<TerminalSessionBellEvent>()
         .listen(bells.add);
@@ -6176,7 +5951,7 @@ void main() {
       await tester.pump();
 
       final shellHooks = <TerminalSessionShellHookEvent>[];
-      final subscription = runtime.events
+      final subscription = terminalSessionEvents(runtime)
           .where((event) => event is TerminalSessionShellHookEvent)
           .cast<TerminalSessionShellHookEvent>()
           .listen(shellHooks.add);
@@ -6224,7 +5999,7 @@ void main() {
       await tester.pump();
 
       final events = <TerminalSessionEvent>[];
-      final subscription = runtime.events.listen(events.add);
+      final subscription = terminalSessionEvents(runtime).listen(events.add);
       addTearDown(subscription.cancel);
 
       runtimeBackend.enqueueEvent(
@@ -6514,7 +6289,7 @@ void main() {
       );
       await tester.pump();
       final events = <TerminalSessionEvent>[];
-      final subscription = runtime.events.listen(events.add);
+      final subscription = terminalSessionEvents(runtime).listen(events.add);
       addTearDown(subscription.cancel);
       backend.fileDownloads[(sessionId, 7)] = Uint8List.fromList(const <int>[
         104,
@@ -6635,7 +6410,7 @@ void main() {
     );
     await tester.pump();
     final events = <TerminalSessionEvent>[];
-    final subscription = runtime.events.listen(events.add);
+    final subscription = terminalSessionEvents(runtime).listen(events.add);
     addTearDown(subscription.cancel);
     backend.enqueueEvent(
       sessionId,
@@ -6706,7 +6481,7 @@ void main() {
       );
       await tester.pump();
       final events = <TerminalSessionEvent>[];
-      final subscription = runtime.events.listen(events.add);
+      final subscription = terminalSessionEvents(runtime).listen(events.add);
       addTearDown(subscription.cancel);
       runtime
           .viewportFor(sessionId)
@@ -6826,7 +6601,7 @@ void main() {
       );
       await tester.pump();
       final events = <TerminalSessionEvent>[];
-      final subscription = runtime.events.listen(events.add);
+      final subscription = terminalSessionEvents(runtime).listen(events.add);
       addTearDown(subscription.cancel);
 
       backend.enqueueEvent(
@@ -6924,7 +6699,7 @@ void main() {
     );
     await tester.pump();
     final events = <TerminalSessionEvent>[];
-    final subscription = runtime.events.listen(events.add);
+    final subscription = terminalSessionEvents(runtime).listen(events.add);
     addTearDown(subscription.cancel);
     backend.enqueueEvent(
       sessionId,
@@ -6972,7 +6747,7 @@ void main() {
     );
     await tester.pump();
     final events = <TerminalSessionEvent>[];
-    final subscription = runtime.events.listen(events.add);
+    final subscription = terminalSessionEvents(runtime).listen(events.add);
     addTearDown(subscription.cancel);
     backend.enqueueEvent(
       sessionId,
@@ -7047,7 +6822,7 @@ void main() {
       runtimeBackend.writeCalls.clear();
 
       final requests = <TerminalSessionCellSizeReportRequestEvent>[];
-      final subscription = runtime.events
+      final subscription = terminalSessionEvents(runtime)
           .where((event) => event is TerminalSessionCellSizeReportRequestEvent)
           .cast<TerminalSessionCellSizeReportRequestEvent>()
           .listen(requests.add);
@@ -7106,7 +6881,7 @@ void main() {
       await tester.pump();
 
       final events = <TerminalSessionEvent>[];
-      final subscription = runtime.events.listen(events.add);
+      final subscription = terminalSessionEvents(runtime).listen(events.add);
       addTearDown(subscription.cancel);
 
       runtimeBackend.enqueueEvent(
@@ -7242,7 +7017,7 @@ void main() {
     );
     await tester.pump();
     runtimeBackend.jsonRequests.clear();
-    final readsBeforeToggle = runtimeBackend.takeFrameDiffCalls;
+    final readsBeforeToggle = runtimeBackend.takeFramePacketCalls;
 
     expect(runtime.setBlockFolded(sessionId, 'build-1', folded: false), isTrue);
     expect(runtimeBackend.jsonRequests.single, <String, Object?>{
@@ -7251,10 +7026,10 @@ void main() {
       'folded': false,
     });
     await tester.pump();
-    expect(runtimeBackend.takeFrameDiffCalls, greaterThan(readsBeforeToggle));
+    expect(runtimeBackend.takeFramePacketCalls, greaterThan(readsBeforeToggle));
 
     runtimeBackend.jsonRequests.clear();
-    final readsBeforeRestore = runtimeBackend.takeFrameDiffCalls;
+    final readsBeforeRestore = runtimeBackend.takeFramePacketCalls;
     expect(
       runtime.setBlockRendered(sessionId, 'build-1', rendered: false),
       isTrue,
@@ -7265,15 +7040,18 @@ void main() {
       'rendered': false,
     });
     await tester.pump();
-    expect(runtimeBackend.takeFrameDiffCalls, greaterThan(readsBeforeRestore));
+    expect(
+      runtimeBackend.takeFramePacketCalls,
+      greaterThan(readsBeforeRestore),
+    );
 
     runtimeBackend
       ..setBlockFoldedResponse = false
       ..jsonRequests.clear();
-    final readsBeforeRejectedToggle = runtimeBackend.takeFrameDiffCalls;
+    final readsBeforeRejectedToggle = runtimeBackend.takeFramePacketCalls;
     expect(runtime.setBlockFolded(sessionId, 'missing', folded: true), isFalse);
     await tester.pump();
-    expect(runtimeBackend.takeFrameDiffCalls, readsBeforeRejectedToggle);
+    expect(runtimeBackend.takeFramePacketCalls, readsBeforeRejectedToggle);
     expect(runtimeBackend.jsonRequests.single['id'], 'missing');
 
     runtimeBackend.jsonRequests.clear();
@@ -7476,7 +7254,7 @@ void main() {
       runtime
           .viewportFor(sessionId)
           .applySnapshot(
-            TerminalFrameDiff.fromJson(
+            terminalFrameFromJson(
               _singleRowSnapshot('$technologist$nerdIcon${combining}X'),
             ),
           );
@@ -8118,7 +7896,7 @@ void main() {
       expect(runtime.viewportFor(sessionId).frame.rows.first.text, 'fresh');
       await tester.pump();
 
-      expect(runtimeBackend.takeFrameDiffCalls, 2);
+      expect(runtimeBackend.takeFramePacketCalls, 2);
       expect(runtime.viewportFor(sessionId).frame.rows.first.text, 'fresh');
     },
   );
@@ -8342,7 +8120,7 @@ void main() {
         backend: runtimeBackend,
         copyToClipboard: (_) => copyCompleter.future,
         readClipboard: () async => '',
-        allowClipboardCopy: () async => true,
+        allowClipboardCopyWithContext: (_) async => true,
         enableSessionPolling: false,
       );
       addTearDown(runtime.dispose);
@@ -8377,7 +8155,7 @@ void main() {
       await tester.pump();
 
       expect(
-        runtimeBackend.takeFrameDiffCalls,
+        runtimeBackend.takeFramePacketCalls,
         2,
         reason:
             'second refresh should queue instead of re-entering immediately',
@@ -8387,7 +8165,7 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(runtimeBackend.takeFrameDiffCalls, 3);
+      expect(runtimeBackend.takeFramePacketCalls, 3);
     },
   );
 
@@ -8400,7 +8178,7 @@ void main() {
         backend: runtimeBackend,
         copyToClipboard: (_) => copyCompleter.future,
         readClipboard: () async => '',
-        allowClipboardCopy: () async => true,
+        allowClipboardCopyWithContext: (_) async => true,
         enableSessionPolling: false,
       );
       addTearDown(runtime.dispose);
@@ -8529,7 +8307,7 @@ void main() {
         backend: runtimeBackend,
         copyToClipboard: (_) => copyCompleter.future,
         readClipboard: () async => '',
-        allowClipboardCopy: () async => true,
+        allowClipboardCopyWithContext: (_) async => true,
         enableSessionPolling: false,
       );
       addTearDown(runtime.dispose);
@@ -8579,7 +8357,7 @@ void main() {
         backend: runtimeBackend,
         copyToClipboard: (_) async {},
         readClipboard: () => readClipboardCompleter.future,
-        allowClipboardPasteRequest: () async => true,
+        allowClipboardPasteRequestWithContext: (_) async => true,
         enableSessionPolling: false,
       );
       addTearDown(runtime.dispose);
@@ -8635,7 +8413,7 @@ void main() {
       );
       addTearDown(runtime.dispose);
       final timeline = <String>[];
-      final eventSubscription = runtime.events.listen((event) {
+      final eventSubscription = terminalSessionEvents(runtime).listen((event) {
         if (event is TerminalSessionFrameEvent) {
           timeline.add(
             'frame:${event.frame.viewportCols}x'
@@ -8713,7 +8491,7 @@ void main() {
           copiedTexts.add(text);
         },
         readClipboard: () async => '',
-        allowClipboardCopy: () async => true,
+        allowClipboardCopyWithContext: (_) async => true,
         enableSessionPolling: false,
       );
       addTearDown(runtime.dispose);
@@ -8789,7 +8567,9 @@ void main() {
         enableSessionPolling: false,
       );
       addTearDown(runtime.dispose);
-      final subscription = runtime.events.listen(seenEvents.add);
+      final subscription = terminalSessionEvents(
+        runtime,
+      ).listen(seenEvents.add);
       addTearDown(subscription.cancel);
 
       final sessionId = runtime.createSession(
@@ -8847,7 +8627,7 @@ void main() {
       enableSessionPolling: false,
     );
     addTearDown(runtime.dispose);
-    final subscription = runtime.events.listen(seenEvents.add);
+    final subscription = terminalSessionEvents(runtime).listen(seenEvents.add);
     addTearDown(subscription.cancel);
 
     final sessionId = runtime.createSession(
@@ -8949,7 +8729,9 @@ void main() {
         enableSessionPolling: false,
       );
       addTearDown(runtime.dispose);
-      final subscription = runtime.events.listen(seenEvents.add);
+      final subscription = terminalSessionEvents(
+        runtime,
+      ).listen(seenEvents.add);
       addTearDown(subscription.cancel);
 
       final sessionId = runtime.createSession(
@@ -9014,7 +8796,7 @@ void main() {
       enableSessionPolling: false,
     );
     addTearDown(runtime.dispose);
-    final subscription = runtime.events.listen(seenEvents.add);
+    final subscription = terminalSessionEvents(runtime).listen(seenEvents.add);
     addTearDown(subscription.cancel);
 
     final sessionId = runtime.createSession(
@@ -9057,11 +8839,11 @@ void main() {
         readClipboardCount += 1;
         return 'blocked paste';
       },
-      allowClipboardPasteRequest: () async => false,
+      allowClipboardPasteRequestWithContext: (_) async => false,
       enableSessionPolling: false,
     );
     addTearDown(runtime.dispose);
-    final subscription = runtime.events.listen(seenEvents.add);
+    final subscription = terminalSessionEvents(runtime).listen(seenEvents.add);
     addTearDown(subscription.cancel);
 
     final sessionId = runtime.createSession(
@@ -9099,7 +8881,7 @@ void main() {
         backend: runtimeBackend,
         copyToClipboard: (_) async {},
         readClipboard: () async => 'host response',
-        allowClipboardPasteRequest: () async => true,
+        allowClipboardPasteRequestWithContext: (_) async => true,
         enableSessionPolling: false,
       );
       addTearDown(runtime.dispose);
@@ -9156,6 +8938,179 @@ void main() {
     },
   );
 
+  testWidgets('shutdown drops a permission continuation and its pending exit', (
+    tester,
+  ) async {
+    final permissionStarted = Completer<void>();
+    final permission = Completer<bool>();
+    var readClipboardCount = 0;
+    var exitHookCount = 0;
+    final backend = _FakePtyBackend()..hostResponseV1Supported = true;
+    final runtime = TerminalRuntimeController(
+      backend: backend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async {
+        readClipboardCount += 1;
+        return 'secret';
+      },
+      allowClipboardPasteRequestWithContext: (_) {
+        if (!permissionStarted.isCompleted) {
+          permissionStarted.complete();
+        }
+        return permission.future;
+      },
+      enableSessionPolling: false,
+      enableWarmUpRefresh: false,
+      beforeSessionCloseOnExitSignal: (_) {
+        exitHookCount += 1;
+        return const TerminalSessionPreCloseOutcome.allowClose();
+      },
+    );
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    backend
+      ..enqueueEvent(
+        sessionId,
+        _clipboardPasteHostRequestEvent(sessionId, sequence: 3),
+      )
+      ..enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'exit',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'code': 0},
+        ),
+      );
+
+    runtime.refreshSession(sessionId);
+    await permissionStarted.future;
+    runtime.beginShutdown();
+    permission.complete(true);
+    await tester.pump();
+    await tester.pump();
+
+    expect(readClipboardCount, 0);
+    expect(backend.hostResponses, isEmpty);
+    expect(backend.writeCalls, isEmpty);
+    expect(exitHookCount, 0);
+    expect(backend.closeCalls, isEmpty);
+    expect(runtime.hasSession(sessionId), isTrue);
+    expect(runtime.tryDispose(), isTrue);
+    expect(backend.closeCalls, <String>[sessionId]);
+  });
+
+  testWidgets(
+    'shutdown drops a clipboard-read continuation and its pending exit',
+    (tester) async {
+      final readStarted = Completer<void>();
+      final clipboardText = Completer<String>();
+      var exitHookCount = 0;
+      final backend = _FakePtyBackend()..hostResponseV1Supported = true;
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () {
+          if (!readStarted.isCompleted) {
+            readStarted.complete();
+          }
+          return clipboardText.future;
+        },
+        allowClipboardPasteRequestWithContext: (_) async => true,
+        enableSessionPolling: false,
+        enableWarmUpRefresh: false,
+        beforeSessionCloseOnExitSignal: (_) {
+          exitHookCount += 1;
+          return const TerminalSessionPreCloseOutcome.allowClose();
+        },
+      );
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      backend
+        ..enqueueEvent(
+          sessionId,
+          _clipboardPasteHostRequestEvent(sessionId, sequence: 4),
+        )
+        ..enqueueEvent(
+          sessionId,
+          PtyEvent(
+            kind: 'exit',
+            sessionId: sessionId,
+            payload: const <String, Object?>{'code': 0},
+          ),
+        );
+
+      runtime.refreshSession(sessionId);
+      await readStarted.future;
+      runtime.beginShutdown();
+      clipboardText.complete('secret');
+      await tester.pump();
+      await tester.pump();
+
+      expect(backend.hostResponses, isEmpty);
+      expect(backend.writeCalls, isEmpty);
+      expect(exitHookCount, 0);
+      expect(backend.closeCalls, isEmpty);
+      expect(runtime.hasSession(sessionId), isTrue);
+      expect(runtime.tryDispose(), isTrue);
+      expect(backend.closeCalls, <String>[sessionId]);
+    },
+  );
+
+  testWidgets(
+    'saved contextual clipboard resolver rejects before reading after shutdown',
+    (tester) async {
+      final requestCaptured = Completer<void>();
+      late TerminalClipboardAccessRequest savedRequest;
+      var readClipboardCount = 0;
+      final backend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async {
+          readClipboardCount += 1;
+          return 'secret';
+        },
+        allowClipboardPasteRequestWithContext: (request) async {
+          savedRequest = request;
+          requestCaptured.complete();
+          return false;
+        },
+        enableSessionPolling: false,
+        enableWarmUpRefresh: false,
+      );
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_paste_request',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'selection': 'c'},
+        ),
+      );
+
+      runtime.refreshSession(sessionId);
+      await requestCaptured.future;
+      await tester.pump();
+      runtime.beginShutdown();
+
+      await expectLater(savedRequest.resolveText!(), throwsStateError);
+      expect(readClipboardCount, 0);
+      expect(backend.writeCalls, isEmpty);
+      expect(runtime.tryDispose(), isTrue);
+      expect(backend.closeCalls, <String>[sessionId]);
+    },
+  );
+
   testWidgets('terminal runtime returns structured Host Response v1 denial', (
     tester,
   ) async {
@@ -9168,7 +9123,7 @@ void main() {
         readClipboardCount += 1;
         return 'secret';
       },
-      allowClipboardPasteRequest: () async => false,
+      allowClipboardPasteRequestWithContext: (_) async => false,
       enableSessionPolling: false,
     );
     addTearDown(runtime.dispose);
@@ -9233,11 +9188,13 @@ void main() {
           readClipboardCount += 1;
           return ''.padRight(4 * 1024 * 1024 + 1, 'a');
         },
-        allowClipboardPasteRequest: () async => true,
+        allowClipboardPasteRequestWithContext: (_) async => true,
         enableSessionPolling: false,
       );
       addTearDown(runtime.dispose);
-      final subscription = runtime.events.listen(seenEvents.add);
+      final subscription = terminalSessionEvents(
+        runtime,
+      ).listen(seenEvents.add);
       addTearDown(subscription.cancel);
 
       final sessionId = runtime.createSession(
@@ -9280,12 +9237,14 @@ void main() {
           copiedTexts.add(text);
         },
         readClipboard: () async => 'paste me',
-        allowClipboardCopy: () async => true,
-        allowClipboardPasteRequest: () async => true,
+        allowClipboardCopyWithContext: (_) async => true,
+        allowClipboardPasteRequestWithContext: (_) async => true,
         enableSessionPolling: false,
       );
       addTearDown(runtime.dispose);
-      final subscription = runtime.events.listen(seenEvents.add);
+      final subscription = terminalSessionEvents(
+        runtime,
+      ).listen(seenEvents.add);
       addTearDown(subscription.cancel);
 
       final sessionId = runtime.createSession(
@@ -9406,7 +9365,7 @@ void main() {
       enableSessionPolling: false,
     );
     addTearDown(runtime.dispose);
-    final subscription = runtime.events.listen(seenEvents.add);
+    final subscription = terminalSessionEvents(runtime).listen(seenEvents.add);
     addTearDown(subscription.cancel);
 
     final firstSessionId = runtime.createSession(
@@ -9465,7 +9424,9 @@ void main() {
         enableSessionPolling: false,
       );
       addTearDown(runtime.dispose);
-      final subscription = runtime.events.listen(seenEvents.add);
+      final subscription = terminalSessionEvents(
+        runtime,
+      ).listen(seenEvents.add);
       addTearDown(subscription.cancel);
 
       final deploySessionId = runtime.createSession(
@@ -9583,25 +9544,322 @@ void main() {
     expect(runtimeBackend.closeCalls, <String>['1', '2']);
   });
 
+  testWidgets(
+    'beginShutdown freezes timers and events without closing backend sessions',
+    (tester) async {
+      final runtimeBackend = _FakePtyBackend();
+      var clipboardMimeReads = 0;
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        listClipboardMimeTypes: () async {
+          clipboardMimeReads += 1;
+          return const <String>['text/plain'];
+        },
+      );
+      final seenEvents = <TerminalSessionEvent>[];
+      final subscription = terminalSessionEvents(
+        runtime,
+      ).listen(seenEvents.add);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '7',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'report_variable_request',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'iterm1337',
+            'name': 'session.name',
+            'value': 'shell',
+          },
+        ),
+      );
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+      await tester.pump();
+      final reportVariableRequest = seenEvents
+          .whereType<TerminalSessionReportVariableRequestEvent>()
+          .single;
+      expect(runtime.activeZmodemTransferIdFor(sessionId), '7');
+      seenEvents.clear();
+      runtimeBackend
+        ..closeCalls.clear()
+        ..writeCalls.clear()
+        ..resizeCalls.clear()
+        ..scrollCalls.clear()
+        ..scrollToCalls.clear()
+        ..graphicAssetRequests.clear()
+        ..jsonRequests.clear()
+        ..fileDownloadTakeRequests.clear()
+        ..fileDownloadDiscardRequests.clear()
+        ..diagnosticEventV1Requests.clear();
+
+      runtime.beginShutdown();
+      runtime.beginShutdown();
+
+      expect(runtime.shutdownHasStarted, isTrue);
+      expect(runtimeBackend.closeCalls, isEmpty);
+      expect(runtime.hasSession(sessionId), isTrue);
+      expect(
+        () => runtime.createSession(
+          const TerminalSessionConfig(
+            launch: TerminalLaunchConfig(program: '/bin/zsh'),
+          ),
+        ),
+        throwsStateError,
+      );
+
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(kind: 'bell', sessionId: sessionId),
+      );
+      runtime.refreshSession(sessionId);
+      runtime.sendInput(sessionId, Uint8List(0));
+      runtime
+        ..setSessionActive(sessionId, active: false)
+        ..setSessionFocused(sessionId, focused: true)
+        ..closeSession(sessionId)
+        ..scrollViewport(sessionId, 1)
+        ..scrollViewportTo(sessionId, 1);
+      expect(runtime.tryCloseSession(sessionId), isFalse);
+      expect(runtime.disposeSession(sessionId), isFalse);
+      expect(
+        runtime.acceptZmodemReceive(
+          TerminalSessionZmodemEvent(
+            sessionId,
+            rawPayload: const <String, Object?>{
+              'source': 'zmodem',
+              'eventKind': 'zmodem_file_offer',
+              'transferId': '7',
+              'direction': 'receive',
+              'filename': 'report.txt',
+              'size': 5,
+            },
+          ),
+          destination: '/tmp/downloads',
+        ),
+        isFalse,
+      );
+      expect(
+        runtime.acceptZmodemSend(
+          TerminalSessionZmodemEvent(
+            sessionId,
+            rawPayload: const <String, Object?>{
+              'source': 'zmodem',
+              'eventKind': 'zmodem_detected',
+              'transferId': '7',
+              'direction': 'send',
+            },
+          ),
+          files: const <String>['/tmp/report.txt'],
+        ),
+        isFalse,
+      );
+      expect(
+        runtime.cancelZmodem(
+          TerminalSessionZmodemEvent(
+            sessionId,
+            rawPayload: const <String, Object?>{
+              'source': 'zmodem',
+              'eventKind': 'zmodem_detected',
+              'transferId': '7',
+              'direction': 'receive',
+            },
+          ),
+        ),
+        isFalse,
+      );
+      final recoveryEvent = TerminalSessionZmodemEvent(
+        sessionId,
+        rawPayload: const <String, Object?>{
+          'source': 'zmodem',
+          'eventKind': 'zmodem_failed',
+          'transferId': '7',
+          'direction': 'receive',
+          'reason': 'publish_failed',
+          'recoverablePartialName': '.report.ianvs-part',
+          'stagingPreserved': true,
+          'recoveryToken': '0123456789abcdef0123456789abcdef',
+        },
+      );
+      expect(
+        runtime.resolveZmodemRecovery(recoveryEvent).status,
+        TerminalZmodemRecoveryResolutionStatus.requestFailed,
+      );
+      expect(
+        runtime.consumeZmodemRecovery(recoveryEvent),
+        TerminalZmodemRecoveryDisposition.requestFailed,
+      );
+      expect(
+        runtime.dismissZmodemRecovery(recoveryEvent),
+        TerminalZmodemRecoveryDisposition.requestFailed,
+      );
+      expect(
+        runtime.respondToOsc1337ReportVariable(
+          reportVariableRequest,
+          value: 'shell',
+        ),
+        isFalse,
+      );
+      expect(await runtime.sendOsc5522PasteEvent(sessionId), isFalse);
+      expect(
+        await runtime.loadGraphicAsset(
+          sessionId,
+          const TerminalGraphicAssetKey(id: 1, version: 1),
+        ),
+        isNull,
+      );
+      final download = TerminalSessionFileDownloadEvent(
+        sessionId,
+        rawPayload: const <String, Object?>{
+          'source': 'iterm1337',
+          'transferId': '8',
+          'filename': 'report.txt',
+          'size': 5,
+        },
+      );
+      expect(runtime.takeFileDownload(download), isNull);
+      expect(runtime.discardFileDownload(download), isFalse);
+      const selection = TerminalSelection(
+        startRow: 0,
+        startCol: 0,
+        endRow: 0,
+        endCol: 1,
+      );
+      expect(runtime.selectionText(sessionId, selection, block: false), '');
+      expect(runtime.searchText(sessionId, 'demo'), isEmpty);
+      expect(runtime.clearScrollback(sessionId), isFalse);
+      expect(
+        runtime.respondSshAuthentication(
+          sessionId,
+          challengeId: 1,
+          responses: const <String>['secret'],
+        ),
+        isFalse,
+      );
+      expect(runtime.clearBuffer(sessionId), isFalse);
+      expect(
+        runtime.dismissOsc99Notification(sessionId, 'notification'),
+        isFalse,
+      );
+      expect(runtime.setBlockFolded(sessionId, 'block', folded: true), isFalse);
+      expect(
+        runtime.setBlockRendered(sessionId, 'block', rendered: true),
+        isFalse,
+      );
+      expect(runtime.activateItermButton(sessionId, 1).activated, isFalse);
+      expect(runtime.exportScrollbackText(sessionId), isNull);
+      expect(runtime.exportSessionDiagnostics(sessionId), isNull);
+      expect(
+        runtime.resizeSession(sessionId, const Size(800, 600), 1),
+        isFalse,
+      );
+      expect(
+        runtime.resizeSessionCells(sessionId, cols: 80, rows: 24),
+        isFalse,
+      );
+
+      expect(seenEvents, isEmpty);
+      expect(clipboardMimeReads, 0);
+      expect(runtimeBackend.writeCalls, isEmpty);
+      expect(runtimeBackend.closeCalls, isEmpty);
+      expect(runtimeBackend.resizeCalls, isEmpty);
+      expect(runtimeBackend.scrollCalls, isEmpty);
+      expect(runtimeBackend.scrollToCalls, isEmpty);
+      expect(runtimeBackend.graphicAssetRequests, isEmpty);
+      expect(runtimeBackend.jsonRequests, isEmpty);
+      expect(runtimeBackend.fileDownloadTakeRequests, isEmpty);
+      expect(runtimeBackend.fileDownloadDiscardRequests, isEmpty);
+      expect(runtimeBackend.diagnosticEventV1Requests, isEmpty);
+
+      runtime.dispose();
+      unawaited(subscription.cancel());
+      expect(runtimeBackend.closeCalls, <String>[sessionId]);
+    },
+  );
+
+  testWidgets(
+    'viewport and graphics accessors require an active product session',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+        enableWarmUpRefresh: false,
+      );
+      expect(runtime.existingViewportFor('missing'), isNull);
+      expect(() => runtime.viewportFor('missing'), throwsStateError);
+      expect(() => runtime.graphicsCacheFor('missing'), throwsStateError);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final viewport = runtime.viewportFor(sessionId);
+      final graphics = runtime.graphicsCacheFor(sessionId);
+      expect(runtime.existingViewportFor(sessionId), same(viewport));
+      expect(runtime.viewportFor(sessionId), same(viewport));
+      expect(runtime.graphicsCacheFor(sessionId), same(graphics));
+
+      runtime.beginShutdown();
+      expect(runtime.existingViewportFor(sessionId), isNull);
+      expect(() => runtime.viewportFor(sessionId), throwsStateError);
+      expect(() => runtime.graphicsCacheFor(sessionId), throwsStateError);
+      expect(runtime.hasSession(sessionId), isTrue);
+
+      expect(runtime.tryDispose(), isTrue);
+      expect(runtime.disposed, isTrue);
+      expect(runtime.hasSession(sessionId), isFalse);
+      expect(runtime.existingViewportFor(sessionId), isNull);
+      expect(() => runtime.viewportFor(sessionId), throwsStateError);
+      expect(() => runtime.graphicsCacheFor(sessionId), throwsStateError);
+    },
+  );
+
   testWidgets('terminal runtime controller continues to handle exit events', (
     tester,
   ) async {
     final runtimeBackend = _FakePtyBackend();
-    var exitHookRanBeforeNativeClose = false;
+    var typedExitHookRanBeforeNativeClose = false;
+    TerminalSessionPreCloseSignal? typedPreCloseSignal;
     final runtime = TerminalRuntimeController(
       backend: runtimeBackend,
       copyToClipboard: (_) async {},
       readClipboard: () async => '',
       enableSessionPolling: false,
-      beforeSessionCloseOnExit: (_, _) {
-        exitHookRanBeforeNativeClose = runtimeBackend.closeCalls.isEmpty;
+      beforeSessionCloseOnExitSignal: (signal) {
+        typedPreCloseSignal = signal;
+        typedExitHookRanBeforeNativeClose = runtimeBackend.closeCalls.isEmpty;
+        return const TerminalSessionPreCloseOutcome.allowClose();
       },
     );
     addTearDown(runtime.dispose);
 
     final seenEvents = <TerminalSessionEvent>[];
     final runtimeEventGaps = <TerminalSessionRuntimeEventGapDiagnostic>[];
-    final subscription = runtime.events.listen(seenEvents.add);
+    final subscription = terminalSessionEvents(runtime).listen(seenEvents.add);
     final runtimeEventGapSubscription = runtime.runtimeEventGaps.listen(
       runtimeEventGaps.add,
     );
@@ -9636,7 +9894,10 @@ void main() {
     await tester.pump();
 
     expect(runtime.hasSession(sessionId), isFalse);
-    expect(exitHookRanBeforeNativeClose, isTrue);
+    expect(typedExitHookRanBeforeNativeClose, isTrue);
+    expect(typedPreCloseSignal?.sessionId, sessionId);
+    expect(typedPreCloseSignal?.sessionEpoch, isPositive);
+    expect(typedPreCloseSignal?.exitCode, 7);
     expect(runtimeBackend.closeCalls, <String>[sessionId]);
     expect(seenEvents.whereType<TerminalSessionExitEvent>().single.exitCode, 7);
     expect(runtimeEventGaps, hasLength(1));
@@ -9645,6 +9906,147 @@ void main() {
     expect(runtimeEventGaps.single.nextSequence, 5);
     expect(runtimeEventGaps.single.stateRefreshRequested, isFalse);
   });
+
+  testWidgets('pre-close retries once before allowing native exit close', (
+    tester,
+  ) async {
+    final backend = _FakePtyBackend();
+    var attempts = 0;
+    final runtime = TerminalRuntimeController(
+      backend: backend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+      beforeSessionCloseOnExitSignal: (_) {
+        attempts += 1;
+        if (attempts == 1) {
+          return TerminalSessionPreCloseOutcome.retryableFailure(
+            error: StateError('transient pre-close failure'),
+            stackTrace: StackTrace.current,
+          );
+        }
+        return const TerminalSessionPreCloseOutcome.allowClose();
+      },
+    );
+    addTearDown(runtime.dispose);
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    backend.enqueueEvent(
+      sessionId,
+      PtyEvent(
+        kind: 'exit',
+        sessionId: sessionId,
+        payload: const <String, Object?>{'code': 4},
+      ),
+    );
+
+    runtime.refreshSession(sessionId);
+    await tester.pump();
+
+    expect(attempts, 2);
+    expect(runtime.hasSession(sessionId), isFalse);
+    expect(backend.closeCalls, <String>[sessionId]);
+  });
+
+  testWidgets(
+    'persistent pre-close failure retains session and reports error',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      var attempts = 0;
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+        beforeSessionCloseOnExitSignal: (_) {
+          attempts += 1;
+          return TerminalSessionPreCloseOutcome.retryableFailure(
+            error: StateError('persistent pre-close failure'),
+            stackTrace: StackTrace.current,
+          );
+        },
+      );
+      addTearDown(runtime.dispose);
+      final errors = <TerminalSessionBackendErrorEvent>[];
+      final subscription = terminalSessionEvents(runtime).listen((event) {
+        if (event is TerminalSessionBackendErrorEvent) {
+          errors.add(event);
+        }
+      });
+      addTearDown(subscription.cancel);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'exit',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'code': 5},
+        ),
+      );
+
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+
+      expect(attempts, 2);
+      expect(runtime.hasSession(sessionId), isTrue);
+      expect(backend.closeCalls, isEmpty);
+      expect(errors, hasLength(1));
+      expect(errors.single.operation, 'beforeSessionCloseOnExitSignal');
+      expect(errors.single.error, isA<StateError>());
+    },
+  );
+
+  testWidgets(
+    'beginShutdown cancels product exit-close retries until infra disposal',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+        enableWarmUpRefresh: false,
+      );
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+      backend.retryableCloseSessionIds.add(sessionId);
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'exit',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'code': 0},
+        ),
+      );
+
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+
+      expect(runtime.hasSession(sessionId), isTrue);
+      expect(backend.closeCalls, isEmpty);
+
+      runtime.beginShutdown();
+      backend.retryableCloseSessionIds.remove(sessionId);
+      await tester.pump(const Duration(milliseconds: 60));
+
+      expect(runtime.hasSession(sessionId), isTrue);
+      expect(backend.closeCalls, isEmpty);
+      expect(runtime.tryDispose(), isTrue);
+      expect(runtime.hasSession(sessionId), isFalse);
+      expect(backend.closeCalls, <String>[sessionId]);
+    },
+  );
 
   testWidgets(
     'polling-disabled runtime follows a native pending-exit hint to completion',
@@ -9771,7 +10173,9 @@ void main() {
       addTearDown(runtime.dispose);
 
       final seenEvents = <TerminalSessionEvent>[];
-      final subscription = runtime.events.listen(seenEvents.add);
+      final subscription = terminalSessionEvents(
+        runtime,
+      ).listen(seenEvents.add);
       addTearDown(subscription.cancel);
 
       final sessionId = runtime.createSession(
@@ -9832,8 +10236,8 @@ void main() {
           copiedText = text;
         },
         readClipboard: () async => 'paste me',
-        allowClipboardCopy: () async => true,
-        allowClipboardPasteRequest: () async => true,
+        allowClipboardCopyWithContext: (_) async => true,
+        allowClipboardPasteRequestWithContext: (_) async => true,
         resizeWindowBy: ({required widthDelta, required heightDelta}) async {
           resizeWidthDelta = widthDelta;
           resizeHeightDelta = heightDelta;
@@ -9978,7 +10382,7 @@ void main() {
     },
   );
 
-  test('terminal runtime emits protobuf benchmark decode stats', () async {
+  test('terminal runtime emits Frame Packet benchmark decode stats', () async {
     final runtimeBackend = _ProtobufFramePtyBackend();
     final benchmarkEvents = <Map<String, Object?>>[];
     final runtime = TerminalRuntimeController(
@@ -10008,49 +10412,10 @@ void main() {
     final event = benchmarkEvents.singleWhere(
       (event) => event['schema_version'] == 'ianvs-bench-dart-runtime-v1',
     );
-    expect(event['wire_format'], 'protobuf');
+    expect(event['wire_format'], 'frame-packet.protobuf.v1');
     expect(event['raw_frame_bytes'], greaterThan(0));
     expect(event['json_decode_micros'], 0);
     expect(event['protobuf_decode_micros'], isA<int>());
-  });
-
-  test('terminal runtime emits native frame benchmark stats', () async {
-    final runtimeBackend =
-        _ProtobufFramePtyBackend(
-            initialFrame: _singleRowProtobuf('native stats'),
-          )
-          ..frameDiagnosticsRawResponse = jsonEncode(<String, Object?>{
-            'rows_scanned': 40,
-            'rows_emitted': 8,
-            'frame_build_micros': 321,
-            'json_encode_micros': 0,
-            'protobuf_encode_micros': 17,
-          });
-    final benchmarkEvents = <Map<String, Object?>>[];
-    final runtime = TerminalRuntimeController(
-      backend: runtimeBackend,
-      copyToClipboard: (_) async {},
-      readClipboard: () async => '',
-      enableSessionPolling: false,
-      benchmarkEventSink: benchmarkEvents.add,
-    );
-    addTearDown(runtime.dispose);
-
-    runtime.createSession(
-      const TerminalSessionConfig(
-        launch: TerminalLaunchConfig(program: '/bin/sh'),
-      ),
-    );
-    await Future<void>.delayed(Duration.zero);
-
-    final event = benchmarkEvents.singleWhere(
-      (event) => event['schema_version'] == 'ianvs-bench-dart-runtime-v1',
-    );
-    expect(event['native_frame_build_micros'], 321);
-    expect(event['native_json_encode_micros'], 0);
-    expect(event['native_protobuf_encode_micros'], 17);
-    expect(event['native_rows_scanned'], 40);
-    expect(event['native_rows_emitted'], 8);
   });
 
   test('terminal runtime prefers Diagnostic Event v1 frame stats', () async {
@@ -10065,11 +10430,7 @@ void main() {
             'frame_build_micros': 654,
             'json_encode_micros': 0,
             'protobuf_encode_micros': 21,
-          }
-          ..frameDiagnosticsRawResponse = jsonEncode(<String, Object?>{
-            'rows_scanned': 1,
-            'frame_build_micros': 1,
-          });
+          };
     final benchmarkEvents = <Map<String, Object?>>[];
     final runtime = TerminalRuntimeController(
       backend: runtimeBackend,
@@ -10097,7 +10458,6 @@ void main() {
     expect(runtimeBackend.diagnosticEventV1Requests, <(String, String)>[
       ('1', 'frame_stats'),
     ]);
-    expect(runtimeBackend.legacyDiagnosticRequests, isEmpty);
   });
 
   testWidgets(
@@ -10120,7 +10480,7 @@ void main() {
           launch: TerminalLaunchConfig(program: '/bin/sh'),
         ),
       );
-      final subscription = runtime.events
+      final subscription = terminalSessionEvents(runtime)
           .where((event) => event is TerminalSessionClipboardEvent)
           .cast<TerminalSessionClipboardEvent>()
           .listen(events.add);
@@ -10649,11 +11009,16 @@ void main() {
       final deferredWriteFailures =
           <TerminalSessionZmodemDeferredWriteFailedDiagnostic>[];
       final runtimeEventGaps = <TerminalSessionRuntimeEventGapDiagnostic>[];
-      final sessionSubscription = runtime.events.listen(sessionEvents.add);
-      final zmodemSubscription = runtime.zmodemEvents.listen(zmodemEvents.add);
-      final deferredWriteFailureSubscription = runtime
-          .zmodemDeferredWriteFailures
-          .listen(deferredWriteFailures.add);
+      final sessionSubscription = terminalSessionEvents(
+        runtime,
+      ).listen(sessionEvents.add);
+      final zmodemSubscription = terminalZmodemEvents(
+        runtime,
+      ).listen(zmodemEvents.add);
+      final deferredWriteFailureSubscription =
+          terminalZmodemDeferredWriteFailures(
+            runtime,
+          ).listen(deferredWriteFailures.add);
       final runtimeEventGapSubscription = runtime.runtimeEventGaps.listen(
         runtimeEventGaps.add,
       );
@@ -11058,7 +11423,9 @@ void main() {
         ),
       );
       final zmodemEvents = <TerminalSessionZmodemEvent>[];
-      final subscription = runtime.zmodemEvents.listen(zmodemEvents.add);
+      final subscription = terminalZmodemEvents(
+        runtime,
+      ).listen(zmodemEvents.add);
       addTearDown(subscription.cancel);
 
       backend.enqueueEvent(
@@ -11118,7 +11485,9 @@ void main() {
         ),
       );
       final sessionEvents = <TerminalSessionEvent>[];
-      final subscription = runtime.events.listen(sessionEvents.add);
+      final subscription = terminalSessionEvents(
+        runtime,
+      ).listen(sessionEvents.add);
       addTearDown(subscription.cancel);
       backend.enqueueEvent(
         sessionId,
@@ -11167,7 +11536,7 @@ void main() {
       backend: backend,
       copyToClipboard: (_) async {},
       readClipboard: () => clipboard.future,
-      allowClipboardPasteRequest: () async => true,
+      allowClipboardPasteRequestWithContext: (_) async => true,
       enableSessionPolling: false,
     );
     addTearDown(runtime.dispose);
@@ -11239,7 +11608,7 @@ void main() {
         backend: backend,
         copyToClipboard: (_) async {},
         readClipboard: () => clipboard.future,
-        allowClipboardPasteRequest: () async => true,
+        allowClipboardPasteRequestWithContext: (_) async => true,
         enableSessionPolling: false,
       );
       addTearDown(runtime.dispose);
@@ -11338,7 +11707,7 @@ void main() {
         backend: backend,
         copyToClipboard: (_) async {},
         readClipboard: () async => 'reply preserved across raced detection',
-        allowClipboardPasteRequest: () async => true,
+        allowClipboardPasteRequestWithContext: (_) async => true,
         enableSessionPolling: false,
       );
       addTearDown(runtime.dispose);
@@ -11426,7 +11795,7 @@ void main() {
         backend: backend,
         copyToClipboard: (_) async {},
         readClipboard: () async => 'authoritative native ordering',
-        allowClipboardPasteRequest: () async => true,
+        allowClipboardPasteRequestWithContext: (_) async => true,
         enableSessionPolling: false,
       );
       addTearDown(runtime.dispose);
@@ -11476,7 +11845,7 @@ void main() {
       ),
     );
     final events = <TerminalSessionZmodemEvent>[];
-    final subscription = runtime.zmodemEvents.listen(events.add);
+    final subscription = terminalZmodemEvents(runtime).listen(events.add);
     addTearDown(subscription.cancel);
     backend.enqueueEvent(
       sessionId,
@@ -11525,7 +11894,9 @@ void main() {
       await tester.pump();
       final zmodemEvents = <TerminalSessionZmodemEvent>[];
       final runtimeEventGaps = <TerminalSessionRuntimeEventGapDiagnostic>[];
-      final zmodemSubscription = runtime.zmodemEvents.listen(zmodemEvents.add);
+      final zmodemSubscription = terminalZmodemEvents(
+        runtime,
+      ).listen(zmodemEvents.add);
       final runtimeEventGapSubscription = runtime.runtimeEventGaps.listen(
         runtimeEventGaps.add,
       );
@@ -11641,7 +12012,7 @@ void main() {
       );
       await tester.pump();
       final events = <TerminalSessionZmodemEvent>[];
-      final subscription = runtime.zmodemEvents.listen(events.add);
+      final subscription = terminalZmodemEvents(runtime).listen(events.add);
       addTearDown(subscription.cancel);
       backend.writeCalls.clear();
 
@@ -11718,7 +12089,7 @@ void main() {
       );
       await tester.pump();
       final events = <TerminalSessionZmodemEvent>[];
-      final subscription = runtime.zmodemEvents.listen(events.add);
+      final subscription = terminalZmodemEvents(runtime).listen(events.add);
       addTearDown(subscription.cancel);
 
       backend.enqueueEvent(
@@ -11817,7 +12188,7 @@ void main() {
       );
       await tester.pump();
       final events = <TerminalSessionZmodemEvent>[];
-      final subscription = runtime.zmodemEvents.listen(events.add);
+      final subscription = terminalZmodemEvents(runtime).listen(events.add);
       addTearDown(subscription.cancel);
 
       backend.enqueueEvent(
@@ -11932,7 +12303,7 @@ void main() {
       );
       await tester.pump();
       final events = <TerminalSessionZmodemEvent>[];
-      final subscription = runtime.zmodemEvents.listen(events.add);
+      final subscription = terminalZmodemEvents(runtime).listen(events.add);
       addTearDown(subscription.cancel);
       backend.writeCalls.clear();
 
@@ -12026,7 +12397,7 @@ void main() {
       );
       await tester.pump();
       final events = <TerminalSessionZmodemEvent>[];
-      final subscription = runtime.zmodemEvents.listen(events.add);
+      final subscription = terminalZmodemEvents(runtime).listen(events.add);
       addTearDown(subscription.cancel);
       backend.writeCalls.clear();
 
@@ -12104,7 +12475,9 @@ void main() {
     await tester.pump();
     final zmodemEvents = <TerminalSessionZmodemEvent>[];
     final runtimeEventGaps = <TerminalSessionRuntimeEventGapDiagnostic>[];
-    final zmodemSubscription = runtime.zmodemEvents.listen(zmodemEvents.add);
+    final zmodemSubscription = terminalZmodemEvents(
+      runtime,
+    ).listen(zmodemEvents.add);
     final gapSubscription = runtime.runtimeEventGaps.listen(
       runtimeEventGaps.add,
     );
@@ -12169,7 +12542,9 @@ void main() {
       );
       await tester.pump();
       final zmodemEvents = <TerminalSessionZmodemEvent>[];
-      final subscription = runtime.zmodemEvents.listen(zmodemEvents.add);
+      final subscription = terminalZmodemEvents(
+        runtime,
+      ).listen(zmodemEvents.add);
       addTearDown(subscription.cancel);
       backend.writeCalls.clear();
 
@@ -12213,7 +12588,9 @@ void main() {
       await tester.pump();
       final zmodemEvents = <TerminalSessionZmodemEvent>[];
       final runtimeEventGaps = <TerminalSessionRuntimeEventGapDiagnostic>[];
-      final zmodemSubscription = runtime.zmodemEvents.listen(zmodemEvents.add);
+      final zmodemSubscription = terminalZmodemEvents(
+        runtime,
+      ).listen(zmodemEvents.add);
       final gapSubscription = runtime.runtimeEventGaps.listen(
         runtimeEventGaps.add,
       );
@@ -12295,7 +12672,9 @@ void main() {
       );
       await tester.pump();
       final zmodemEvents = <TerminalSessionZmodemEvent>[];
-      final subscription = runtime.zmodemEvents.listen(zmodemEvents.add);
+      final subscription = terminalZmodemEvents(
+        runtime,
+      ).listen(zmodemEvents.add);
       addTearDown(subscription.cancel);
       backend.writeCalls.clear();
       backend.jsonRequests.clear();
@@ -12372,7 +12751,9 @@ void main() {
       );
       await tester.pump();
       final zmodemEvents = <TerminalSessionZmodemEvent>[];
-      final subscription = runtime.zmodemEvents.listen(zmodemEvents.add);
+      final subscription = terminalZmodemEvents(
+        runtime,
+      ).listen(zmodemEvents.add);
       addTearDown(subscription.cancel);
       backend.writeCalls.clear();
 
@@ -12439,7 +12820,9 @@ void main() {
       );
       await tester.pump();
       final zmodemEvents = <TerminalSessionZmodemEvent>[];
-      final subscription = runtime.zmodemEvents.listen(zmodemEvents.add);
+      final subscription = terminalZmodemEvents(
+        runtime,
+      ).listen(zmodemEvents.add);
       addTearDown(subscription.cancel);
       backend.writeCalls.clear();
       backend.jsonRequests.clear();
@@ -12486,7 +12869,9 @@ void main() {
       );
       await tester.pump();
       final zmodemEvents = <TerminalSessionZmodemEvent>[];
-      final subscription = runtime.zmodemEvents.listen(zmodemEvents.add);
+      final subscription = terminalZmodemEvents(
+        runtime,
+      ).listen(zmodemEvents.add);
       addTearDown(subscription.cancel);
       backend.writeCalls.clear();
 
@@ -12604,7 +12989,9 @@ void main() {
         ),
       );
       final zmodemEvents = <TerminalSessionZmodemEvent>[];
-      final subscription = runtime.zmodemEvents.listen(zmodemEvents.add);
+      final subscription = terminalZmodemEvents(
+        runtime,
+      ).listen(zmodemEvents.add);
       addTearDown(subscription.cancel);
 
       backend.enqueueEvent(
@@ -12672,7 +13059,7 @@ void main() {
         ),
       );
       final events = <TerminalSessionZmodemEvent>[];
-      final subscription = runtime.zmodemEvents.listen(events.add);
+      final subscription = terminalZmodemEvents(runtime).listen(events.add);
       addTearDown(subscription.cancel);
       backend.enqueueEvent(
         sessionId,
@@ -12732,7 +13119,9 @@ void main() {
       );
       await tester.pump();
       final zmodemEvents = <TerminalSessionZmodemEvent>[];
-      final subscription = runtime.zmodemEvents.listen(zmodemEvents.add);
+      final subscription = terminalZmodemEvents(
+        runtime,
+      ).listen(zmodemEvents.add);
       addTearDown(subscription.cancel);
 
       backend.enqueueEvent(
@@ -12782,15 +13171,303 @@ void main() {
       );
     },
   );
+
+  testWidgets(
+    'ordered runtime signals preserve typed payload identity and total order',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final zmodemSessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final exitingSessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/zsh'),
+        ),
+      );
+      await tester.pump();
+      backend
+        ..clearFrame(zmodemSessionId)
+        ..clearFrame(exitingSessionId);
+
+      final signals = <TerminalRuntimeSignal>[];
+      final sessionEvents = <TerminalSessionEvent>[];
+      final zmodemEvents = <TerminalSessionZmodemEvent>[];
+      final deferredFailures =
+          <TerminalSessionZmodemDeferredWriteFailedDiagnostic>[];
+      final signalSubscription = runtime.runtimeSignals.listen(signals.add);
+      final sessionSubscription = terminalSessionEvents(
+        runtime,
+      ).listen(sessionEvents.add);
+      final zmodemSubscription = terminalZmodemEvents(
+        runtime,
+      ).listen(zmodemEvents.add);
+      final deferredSubscription = terminalZmodemDeferredWriteFailures(
+        runtime,
+      ).listen(deferredFailures.add);
+      addTearDown(signalSubscription.cancel);
+      addTearDown(sessionSubscription.cancel);
+      addTearDown(zmodemSubscription.cancel);
+      addTearDown(deferredSubscription.cancel);
+
+      backend.enqueueEvent(
+        zmodemSessionId,
+        PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: zmodemSessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '900',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtime.refreshSession(zmodemSessionId);
+      await tester.pump();
+
+      backend.enqueueEvent(
+        exitingSessionId,
+        PtyEvent(
+          kind: 'exit',
+          sessionId: exitingSessionId,
+          payload: const <String, Object?>{'code': 17},
+        ),
+      );
+      runtime.refreshSession(exitingSessionId);
+      await tester.pump();
+
+      backend.enqueueEvent(
+        zmodemSessionId,
+        PtyEvent(
+          kind: 'zmodem_deferred_write_failed',
+          sessionId: zmodemSessionId,
+          payload: const <String, Object?>{
+            'source': 'zmodem',
+            'reason': 'io_error',
+            'queuedChunks': 2,
+            'queuedBytes': 8,
+            'completedChunks': 1,
+            'completedBytes': 4,
+          },
+        ),
+      );
+      runtime.refreshSession(zmodemSessionId);
+      await tester.pump();
+
+      expect(signals, hasLength(3));
+      expect(signals.map((signal) => signal.runtimeType), <Type>[
+        TerminalRuntimeZmodemEventSignal,
+        TerminalRuntimeSessionEventSignal,
+        TerminalRuntimeZmodemDeferredFailureSignal,
+      ]);
+      final firstSequence = signals.first.sequence;
+      expect(signals.map((signal) => signal.sequence), <int>[
+        firstSequence,
+        firstSequence + 1,
+        firstSequence + 2,
+      ]);
+      expect(zmodemEvents, hasLength(1));
+      expect(sessionEvents.whereType<TerminalSessionExitEvent>(), hasLength(1));
+      expect(deferredFailures, hasLength(1));
+      expect(
+        identical(
+          (signals[0] as TerminalRuntimeZmodemEventSignal).payload,
+          zmodemEvents.single,
+        ),
+        isTrue,
+      );
+      expect(
+        identical(
+          (signals[1] as TerminalRuntimeSessionEventSignal).payload,
+          sessionEvents.whereType<TerminalSessionExitEvent>().single,
+        ),
+        isTrue,
+      );
+      expect(
+        identical(
+          (signals[2] as TerminalRuntimeZmodemDeferredFailureSignal).payload,
+          deferredFailures.single,
+        ),
+        isTrue,
+      );
+      expect(signals[0].sessionId, zmodemSessionId);
+      expect(signals[1].sessionId, exitingSessionId);
+      expect(signals[2].sessionId, zmodemSessionId);
+      expect(signals[0].sessionEpoch, signals[2].sessionEpoch);
+      expect(signals[1].sessionEpoch, isNot(signals[0].sessionEpoch));
+      expect(runtime.tryDispose(), isTrue);
+      await tester.pump();
+    },
+  );
+
+  testWidgets(
+    'runtime signals reject stale epochs when a backend session id is reused',
+    (tester) async {
+      final clipboardText = Completer<String>();
+      final backend = _FakePtyBackend()..forcedSessionId = 'reused-signal';
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () => clipboardText.future,
+        allowClipboardPasteRequestWithContext: (_) async => true,
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final signals = <TerminalRuntimeSignal>[];
+      final subscription = runtime.runtimeSignals.listen(signals.add);
+      addTearDown(subscription.cancel);
+
+      final oldSessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+      backend.clearFrame(oldSessionId);
+      signals.clear();
+      backend.enqueueEvent(
+        oldSessionId,
+        PtyEvent(kind: 'bell', sessionId: oldSessionId),
+      );
+      runtime.refreshSession(oldSessionId);
+      await tester.pump();
+      final oldBell = signals
+          .whereType<TerminalRuntimeSessionEventSignal>()
+          .singleWhere((signal) => signal.payload is TerminalSessionBellEvent);
+
+      backend.enqueueEvent(
+        oldSessionId,
+        PtyEvent(
+          kind: 'clipboard_paste_request',
+          sessionId: oldSessionId,
+          payload: const <String, Object?>{'selection': 'c'},
+        ),
+      );
+      runtime.refreshSession(oldSessionId);
+      await tester.pump();
+
+      runtime.closeSession(oldSessionId);
+      final newSessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/zsh'),
+        ),
+      );
+      expect(newSessionId, oldSessionId);
+      await tester.pump();
+      backend.clearFrame(newSessionId);
+      signals.clear();
+      backend.enqueueEvent(
+        newSessionId,
+        PtyEvent(kind: 'bell', sessionId: newSessionId),
+      );
+      runtime.refreshSession(newSessionId);
+      await tester.pump();
+      final newBell = signals
+          .whereType<TerminalRuntimeSessionEventSignal>()
+          .singleWhere((signal) => signal.payload is TerminalSessionBellEvent);
+      final signalCountBeforeStaleContinuation = signals.length;
+
+      clipboardText.complete('must not reach the reused session');
+      await tester.pump();
+
+      expect(newBell.sessionEpoch, greaterThan(oldBell.sessionEpoch));
+      expect(signals, hasLength(signalCountBeforeStaleContinuation));
+      expect(
+        signals.whereType<TerminalRuntimeSessionEventSignal>().where(
+          (signal) => signal.payload is TerminalSessionClipboardEvent,
+        ),
+        isEmpty,
+      );
+      expect(backend.writeCalls, isEmpty);
+    },
+  );
+
+  testWidgets('runtime signal stream closes without post-dispose leakage', (
+    tester,
+  ) async {
+    final backend = _FakePtyBackend();
+    final runtime = TerminalRuntimeController(
+      backend: backend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    await tester.pump();
+    final signals = <TerminalRuntimeSignal>[];
+    final completed = Completer<void>();
+    final subscription = runtime.runtimeSignals.listen(
+      signals.add,
+      onDone: completed.complete,
+    );
+    addTearDown(subscription.cancel);
+
+    expect(runtime.tryDispose(), isTrue);
+    await tester.pump();
+    await expectLater(completed.future, completes);
+    final signalCountAfterDispose = signals.length;
+
+    backend.enqueueEvent(
+      sessionId,
+      PtyEvent(kind: 'bell', sessionId: sessionId),
+    );
+    runtime.refreshSession(sessionId);
+    await tester.pump();
+
+    expect(signals, hasLength(signalCountAfterDispose));
+  });
+}
+
+PtyEvent _clipboardPasteHostRequestEvent(
+  String sessionId, {
+  required int sequence,
+}) {
+  final hostRequest = PtyHostRequestV1.fromJson(
+    <String, Object?>{
+      'schema_version': 1,
+      'contract': 'ianvs-host-request-v1',
+      'request_id': 'host:$sessionId:$sequence',
+      'session_id': sessionId,
+      'operation': 'clipboard.read_text',
+      'sequence': sequence,
+      'timestamp_micros': 1200,
+      'payload': <String, Object?>{'selection': 'c'},
+    },
+    expectedSessionId: sessionId,
+    expectedSequence: sequence,
+    expectedTimestampMicros: 1200,
+  );
+  return PtyEvent(
+    kind: 'clipboard_paste_request',
+    sessionId: sessionId,
+    payload: hostRequest.payload,
+    sequence: sequence,
+    timestampMicros: 1200,
+    wireSchemaVersion: 1,
+    hostRequest: hostRequest,
+  );
 }
 
 class _FakePtyBackend
     implements
         PtySessionBackend,
-        PtySessionJsonRequestBackend,
+        PtySessionConfigV1Backend,
+        PtySessionRequestV1Backend,
+        PtySessionFramePacketV1Backend,
         PtySessionGraphicAssetBackend,
         PtySessionFileDownloadBackend,
-        PtySessionDiagnosticsBackend,
         PtySessionDiagnosticEventV1Backend,
         PtyHostResponseV1Backend,
         PtyRuntimeCapabilityBackend {
@@ -12806,7 +13483,8 @@ class _FakePtyBackend
   );
 
   String? lastCreateSessionJson;
-  int takeFrameDiffCalls = 0;
+  int takeFramePacketCalls = 0;
+  bool throwFramePacket = false;
   int pollEventsCalls = 0;
   final List<String> closeCalls = <String>[];
   final List<Uint8List> writeCalls = <Uint8List>[];
@@ -12846,7 +13524,6 @@ class _FakePtyBackend
   Map<String, Object?>? frameDiagnosticV1Payload;
   Map<String, Object?>? sessionDiagnosticV1Payload;
   final List<(String, String)> diagnosticEventV1Requests = <(String, String)>[];
-  final List<(String, String)> legacyDiagnosticRequests = <(String, String)>[];
   String? forcedSessionId;
   bool returnNullJsonRequests = false;
   bool cancelZmodemResponse = true;
@@ -12862,6 +13539,9 @@ class _FakePtyBackend
   final Map<String, List<Map<String, Object?>>> _queuedFrames =
       <String, List<Map<String, Object?>>>{};
   final Map<String, List<String>> _queuedRawFrames = <String, List<String>>{};
+  final Map<String, List<Uint8List?>> _queuedFramePackets =
+      <String, List<Uint8List?>>{};
+  final Map<String, int> _framePacketSequences = <String, int>{};
   final Map<String, List<PtyEvent>> _queuedEvents = <String, List<PtyEvent>>{};
   int _nextSessionId = 0;
 
@@ -12899,7 +13579,7 @@ class _FakePtyBackend
   int ping() => 1;
 
   @override
-  String createSession(String sessionConfigJson) {
+  String createSessionV1(String sessionConfigJson) {
     lastCreateSessionJson = sessionConfigJson;
     final sessionId = forcedSessionId ?? (++_nextSessionId).toString();
     _frames[sessionId] = <String, Object?>{
@@ -12935,6 +13615,8 @@ class _FakePtyBackend
     _frames.remove(sessionId);
     _queuedFrames.remove(sessionId);
     _queuedRawFrames.remove(sessionId);
+    _queuedFramePackets.remove(sessionId);
+    _framePacketSequences.remove(sessionId);
     _queuedEvents.remove(sessionId);
   }
 
@@ -12984,14 +13666,19 @@ class _FakePtyBackend
   }
 
   @override
-  String? requestSessionJson(String sessionId, String requestJson) {
-    final request = (jsonDecode(requestJson) as Map).cast<String, Object?>();
+  String? requestSessionV1Json(String sessionId, String requestJson) {
+    final envelope = (jsonDecode(requestJson) as Map).cast<String, Object?>();
+    final operation = envelope['operation']! as String;
+    final request = <String, Object?>{
+      'kind': operation,
+      ...(envelope['payload']! as Map).cast<String, Object?>(),
+    };
     jsonRequests.add(request);
-    _throwIfFailing('requestSessionJson');
+    _throwIfFailing('requestSessionV1Json');
     if (returnNullJsonRequests) {
       return null;
     }
-    return switch (request['kind']) {
+    final payload = switch (request['kind']) {
       'terminal.search_text' =>
         searchRawResponse ??
             jsonEncode(<String, Object?>{
@@ -13051,22 +13738,66 @@ class _FakePtyBackend
       }),
       _ => null,
     };
+    if (payload == null) {
+      return null;
+    }
+    return jsonEncode(<String, Object?>{
+      'schema_version': 1,
+      'contract': 'ianvs-session-response-v1',
+      'request_id': envelope['request_id'],
+      'session_id': sessionId,
+      'operation': operation,
+      'ok': true,
+      'timestamp_micros': 1,
+      'payload': jsonDecode(payload),
+      'error': null,
+    });
   }
 
   @override
-  String? takeFrameDiffJson(String sessionId) {
-    _throwIfFailing('takeFrameDiffJson');
-    takeFrameDiffCalls += 1;
+  Uint8List? takeFramePacketV1Protobuf(
+    String sessionId, {
+    required int? afterSequence,
+  }) {
+    if (throwFramePacket) {
+      throw StateError('takeFramePacketV1Protobuf failed');
+    }
+    _throwIfFailing('takeFramePacketV1Protobuf');
+    takeFramePacketCalls += 1;
+    final queuedPackets = _queuedFramePackets[sessionId];
+    if (queuedPackets != null && queuedPackets.isNotEmpty) {
+      return queuedPackets.removeAt(0);
+    }
+    final frame = _nextFrameFixture(sessionId);
+    if (frame == null) {
+      return null;
+    }
+    final sequence = (_framePacketSequences[sessionId] ?? -1) + 1;
+    _framePacketSequences[sessionId] = sequence;
+    return terminalFramePacketBytes(
+      sessionId: sessionId,
+      sequence: sequence,
+      frame: terminalFrameFromJson(frame),
+    );
+  }
+
+  Map<String, Object?>? _nextFrameFixture(String sessionId) {
     final queuedRawFrames = _queuedRawFrames[sessionId];
     if (queuedRawFrames != null && queuedRawFrames.isNotEmpty) {
-      return queuedRawFrames.removeAt(0);
+      final decoded = jsonDecode(queuedRawFrames.removeAt(0));
+      return decoded is Map ? decoded.cast<String, Object?>() : null;
     }
     final queuedFrames = _queuedFrames[sessionId];
     if (queuedFrames != null && queuedFrames.isNotEmpty) {
-      return jsonEncode(queuedFrames.removeAt(0));
+      return queuedFrames.removeAt(0);
     }
-    final frame = _frames[sessionId];
-    return frame == null ? null : jsonEncode(frame);
+    return _frames[sessionId];
+  }
+
+  void enqueueRawFramePacket(String sessionId, List<int>? bytes) {
+    _queuedFramePackets
+        .putIfAbsent(sessionId, () => <Uint8List?>[])
+        .add(bytes == null ? null : Uint8List.fromList(bytes));
   }
 
   @override
@@ -13107,18 +13838,6 @@ class _FakePtyBackend
   }
 
   @override
-  String? takeDiagnosticsJson(String sessionId, String kind) {
-    legacyDiagnosticRequests.add((sessionId, kind));
-    return switch (kind) {
-      'frame' => frameDiagnosticsRawResponse,
-      'session' => sessionDiagnosticsRawResponse,
-      _ => null,
-    };
-  }
-
-  @override
-  bool get supportsDiagnosticEventV1 => diagnosticEventV1Supported;
-
   @override
   PtyDiagnosticEventV1? takeDiagnosticEventV1(String sessionId, String name) {
     if (!diagnosticEventV1Supported) {
@@ -13178,22 +13897,14 @@ class _ProtocolReplyFakePtyBackend extends _FakePtyBackend
   }
 }
 
-class _ProtobufFramePtyBackend extends _FakePtyBackend
-    implements PtySessionProtobufFrameBackend {
+class _ProtobufFramePtyBackend extends _FakePtyBackend {
   _ProtobufFramePtyBackend({frame_pb.TerminalFrameDiff? initialFrame})
     : _initialFrame = initialFrame;
 
   final frame_pb.TerminalFrameDiff? _initialFrame;
-  int takeFrameDiffProtobufCalls = 0;
-  final Map<String, List<Uint8List?>> _queuedProtobufFrames =
-      <String, List<Uint8List?>>{};
-
   @override
-  bool get supportsProtobufFrameDiffs => true;
-
-  @override
-  String createSession(String sessionConfigJson) {
-    final sessionId = super.createSession(sessionConfigJson);
+  String createSessionV1(String sessionConfigJson) {
+    final sessionId = super.createSessionV1(sessionConfigJson);
     final initialFrame = _initialFrame;
     if (initialFrame != null) {
       enqueueProtobufFrame(sessionId, initialFrame);
@@ -13205,55 +13916,20 @@ class _ProtobufFramePtyBackend extends _FakePtyBackend
     String sessionId,
     frame_pb.TerminalFrameDiff frame,
   ) {
-    _queuedProtobufFrames
-        .putIfAbsent(sessionId, () => <Uint8List?>[])
-        .add(Uint8List.fromList(frame.writeToBuffer()));
-  }
-
-  void enqueueRawProtobufFrame(String sessionId, List<int>? bytes) {
-    _queuedProtobufFrames
-        .putIfAbsent(sessionId, () => <Uint8List?>[])
-        .add(bytes == null ? null : Uint8List.fromList(bytes));
-  }
-
-  @override
-  Uint8List? takeFrameDiffProtobuf(String sessionId) {
-    takeFrameDiffProtobufCalls += 1;
-    final queuedFrames = _queuedProtobufFrames[sessionId];
-    if (queuedFrames != null && queuedFrames.isNotEmpty) {
-      return queuedFrames.removeAt(0);
-    }
-    return null;
-  }
-}
-
-class _UnsupportedProtobufFramePtyBackend extends _ProtobufFramePtyBackend {
-  @override
-  bool get supportsProtobufFrameDiffs => false;
-}
-
-class _ThrowingJsonFramePtyBackend extends _FakePtyBackend {
-  int takeFrameDiffJsonAttempts = 0;
-  final List<String> takeFrameDiffJsonSessions = <String>[];
-
-  @override
-  String? takeFrameDiffJson(String sessionId) {
-    takeFrameDiffJsonAttempts += 1;
-    takeFrameDiffJsonSessions.add(sessionId);
-    throw StateError('takeFrameDiffJson failed');
-  }
-}
-
-class _ThrowingProtobufFramePtyBackend extends _ProtobufFramePtyBackend {
-  int takeFrameDiffProtobufAttempts = 0;
-  final List<String> takeFrameDiffProtobufSessions = <String>[];
-
-  @override
-  Uint8List? takeFrameDiffProtobuf(String sessionId) {
-    takeFrameDiffProtobufAttempts += 1;
-    takeFrameDiffProtobufSessions.add(sessionId);
-    takeFrameDiffProtobufCalls += 1;
-    throw StateError('takeFrameDiffProtobuf failed');
+    final sequence = (_framePacketSequences[sessionId] ?? -1) + 1;
+    _framePacketSequences[sessionId] = sequence;
+    final packet = frame_pb.TerminalFramePacketV1(
+      schemaVersion: 1,
+      contract: 'ianvs-terminal-frame-packet-v1',
+      messageClass: 'frame',
+      messageName: 'frame_diff',
+      sessionId: sessionId,
+      sequence: Int64(sequence),
+      timestampMicros: Int64(sequence + 1),
+      frameSchemaVersion: TerminalFrameDiff.currentFrameSchemaVersion,
+      frame: frame,
+    );
+    enqueueRawFramePacket(sessionId, packet.writeToBuffer());
   }
 }
 
@@ -13281,8 +13957,14 @@ class _RefreshHintPtyBackend extends _FakePtyBackend
   }
 
   @override
-  String? takeFrameDiffJson(String sessionId) {
-    final frame = super.takeFrameDiffJson(sessionId);
+  Uint8List? takeFramePacketV1Protobuf(
+    String sessionId, {
+    required int? afterSequence,
+  }) {
+    final frame = super.takeFramePacketV1Protobuf(
+      sessionId,
+      afterSequence: afterSequence,
+    );
     hintFlags &= ~1;
     if (hintFlagsBySession.containsKey(sessionId)) {
       hintFlagsBySession[sessionId] = hintFlagsBySession[sessionId]! & ~1;
@@ -13308,14 +13990,24 @@ class _RefreshHintProtobufPtyBackend extends _ProtobufFramePtyBackend
   }
 
   @override
-  Uint8List? takeFrameDiffProtobuf(String sessionId) {
-    final frame = super.takeFrameDiffProtobuf(sessionId);
+  Uint8List? takeFramePacketV1Protobuf(
+    String sessionId, {
+    required int? afterSequence,
+  }) {
+    final frame = super.takeFramePacketV1Protobuf(
+      sessionId,
+      afterSequence: afterSequence,
+    );
     hintFlags &= ~1;
     return frame;
   }
 }
 
-class _FrameOnlyPtyBackend implements PtySessionBackend {
+class _FrameOnlyPtyBackend
+    implements
+        PtySessionBackend,
+        PtySessionConfigV1Backend,
+        PtySessionFramePacketV1Backend {
   final Map<String, Map<String, Object?>> _frames =
       <String, Map<String, Object?>>{};
   int _nextSessionId = 0;
@@ -13324,7 +14016,7 @@ class _FrameOnlyPtyBackend implements PtySessionBackend {
   int ping() => 1;
 
   @override
-  String createSession(String sessionConfigJson) {
+  String createSessionV1(String sessionConfigJson) {
     final sessionId = (++_nextSessionId).toString();
     _frames[sessionId] = _singleRowSnapshot('demo');
     return sessionId;
@@ -13356,10 +14048,50 @@ class _FrameOnlyPtyBackend implements PtySessionBackend {
   void scrollViewportTo(String sessionId, int offset) {}
 
   @override
-  String? takeFrameDiffJson(String sessionId) {
+  Uint8List? takeFramePacketV1Protobuf(
+    String sessionId, {
+    required int? afterSequence,
+  }) {
     final frame = _frames[sessionId];
-    return frame == null ? null : jsonEncode(frame);
+    return frame == null
+        ? null
+        : terminalFramePacketBytes(
+            sessionId: sessionId,
+            sequence: (afterSequence ?? -1) + 1,
+            frame: terminalFrameFromJson(frame),
+          );
   }
+
+  @override
+  List<PtyEvent> pollEvents(String sessionId) => const <PtyEvent>[];
+}
+
+class _NoFramePacketPtyBackend implements PtySessionBackend {
+  @override
+  int ping() => 1;
+
+  @override
+  void closeSession(String sessionId) {}
+
+  @override
+  void resizeSession(
+    String sessionId, {
+    required int cols,
+    required int rows,
+    required int pixelWidth,
+    required int pixelHeight,
+    int cellWidth = 0,
+    int cellHeight = 0,
+  }) {}
+
+  @override
+  void writeInput(String sessionId, List<int> bytes) {}
+
+  @override
+  void scrollViewport(String sessionId, int deltaLines) {}
+
+  @override
+  void scrollViewportTo(String sessionId, int offset) {}
 
   @override
   List<PtyEvent> pollEvents(String sessionId) => const <PtyEvent>[];
@@ -13367,8 +14099,8 @@ class _FrameOnlyPtyBackend implements PtySessionBackend {
 
 class _StartedEventPtyBackend extends _FakePtyBackend {
   @override
-  String createSession(String sessionConfigJson) {
-    final sessionId = super.createSession(sessionConfigJson);
+  String createSessionV1(String sessionConfigJson) {
+    final sessionId = super.createSessionV1(sessionConfigJson);
     enqueueEvent(sessionId, PtyEvent(kind: 'started', sessionId: sessionId));
     return sessionId;
   }
@@ -13431,6 +14163,7 @@ frame_pb.TerminalFrameDiff _singleRowProtobuf(
   int viewportCols = 80,
 }) {
   return frame_pb.TerminalFrameDiff(
+    frameSchemaVersion: TerminalFrameDiff.currentFrameSchemaVersion,
     frameKind: frame_pb.TerminalFrameKind.TERMINAL_FRAME_KIND_SNAPSHOT,
     rows: [frame_pb.TerminalRow(index: 0, text: text)],
     cursor: frame_pb.TerminalCursor(row: 0, col: 0, visible: true),
@@ -13440,4 +14173,14 @@ frame_pb.TerminalFrameDiff _singleRowProtobuf(
     scrollbackOffset: 0,
     scrollbackMaxOffset: 0,
   );
+}
+
+String _runtimeConfig() {
+  return const TerminalSessionConfigV1(
+    sessionId: 'runtime-test',
+    displayName: 'Runtime test',
+    config: TerminalSessionConfig(
+      launch: TerminalLaunchConfig(program: '/bin/sh'),
+    ),
+  ).toJsonString();
 }

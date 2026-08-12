@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:yaml/yaml.dart';
 
 void main() {
   test('macOS project metadata tracks the Ianvs Terminal app identity', () {
@@ -93,32 +94,129 @@ void main() {
     },
   );
 
-  test(
-    'macOS release build keeps core dylib signing and hardening explicit',
-    () {
-      final exampleRoot = _exampleRoot();
-      final projectText = File(
-        '${exampleRoot.path}/macos/Runner.xcodeproj/project.pbxproj',
-      ).readAsStringSync();
-      final runnerRelease = RegExp(
-        r'33CC10FD2044A3C60003C045 /\* Release \*/ = \{(.*?)\n\s*\};',
-        dotAll: true,
-      ).firstMatch(projectText)?.group(1);
+  test('macOS native core has one CodeAsset packaging owner', () {
+    final exampleRoot = _exampleRoot();
+    final repositoryRoot = exampleRoot.parent;
+    final projectText = File(
+      '${exampleRoot.path}/macos/Runner.xcodeproj/project.pbxproj',
+    ).readAsStringSync();
+    final hookText = File(
+      '${repositoryRoot.path}/packages/ianvs_pty/hook/build.dart',
+    ).readAsStringSync();
+    final examplePubspec = File(
+      '${exampleRoot.path}/pubspec.yaml',
+    ).readAsStringSync();
+    final dependencyClosure = _localDependencyClosure(
+      File('${exampleRoot.path}/pubspec.yaml'),
+    );
+    final verifierText = File(
+      '${repositoryRoot.path}/tools/verify_flutter_terminal.sh',
+    ).readAsStringSync();
+    final runnerRelease = RegExp(
+      r'33CC10FD2044A3C60003C045 /\* Release \*/ = \{(.*?)\n\s*\};',
+      dotAll: true,
+    ).firstMatch(projectText)?.group(1);
 
-      expect(runnerRelease, isNotNull);
+    expect(runnerRelease, isNotNull);
+    expect(
+      runnerRelease,
+      contains('CODE_SIGN_ENTITLEMENTS = Runner/Release.entitlements;'),
+    );
+    expect(runnerRelease, contains('CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;'));
+    expect(runnerRelease, contains('ENABLE_HARDENED_RUNTIME = YES;'));
+    expect(
+      _nativeCorePackagingViolations(
+        project: projectText,
+        hook: hookText,
+        bundleVerifier: verifierText,
+        exampleDependencyClosure: dependencyClosure,
+      ),
+      isEmpty,
+    );
+
+    for (final mutation in <_NativeCorePackagingFixture>[
+      _NativeCorePackagingFixture(
+        label: 'custom Xcode phase',
+        project: '$projectText\nname = "Bundle Rust Core";',
+        hook: hookText,
+        bundleVerifier: verifierText,
+      ),
+      _NativeCorePackagingFixture(
+        label: 'direct Xcode build script',
+        project: '$projectText\ntools/build_core.sh',
+        hook: hookText,
+        bundleVerifier: verifierText,
+      ),
+      _NativeCorePackagingFixture(
+        label: 'missing CodeAsset registration',
+        project: projectText,
+        hook: hookText.replaceFirst('CodeAsset(', 'Object('),
+        bundleVerifier: verifierText,
+      ),
+      _NativeCorePackagingFixture(
+        label: 'renamed bundled dylib',
+        project: projectText,
+        hook: hookText.replaceAll(
+          'libianvs_core.dylib',
+          'libianvs_core_compat.dylib',
+        ),
+        bundleVerifier: verifierText,
+      ),
+      _NativeCorePackagingFixture(
+        label: 'missing bundle output assertion',
+        project: projectText,
+        hook: hookText,
+        bundleVerifier: verifierText.replaceFirst(
+          r'release_core="$release_app/Contents/Frameworks/libianvs_core.dylib"',
+          '',
+        ),
+      ),
+    ]) {
       expect(
-        runnerRelease,
-        contains('CODE_SIGN_ENTITLEMENTS = Runner/Release.entitlements;'),
+        _nativeCorePackagingViolations(
+          project: mutation.project,
+          hook: mutation.hook,
+          bundleVerifier: mutation.bundleVerifier,
+          exampleDependencyClosure: dependencyClosure,
+        ),
+        isNotEmpty,
+        reason: mutation.label,
       );
+    }
+
+    for (final duplicateHookDependency in <String>[
+      examplePubspec.replaceFirst(
+        'dependencies:\n',
+        'dependencies:\n'
+            '  ianvs_terminal_core:\n'
+            '    path: ../packages/ianvs_terminal_core\n',
+      ),
+      examplePubspec.replaceFirst(
+        'dependencies:\n',
+        'dependencies:\n  ianvs_terminal_core: ^0.1.0\n',
+      ),
+      examplePubspec.replaceFirst(
+        'dependencies:\n',
+        'dependencies:\n'
+            '  ianvs_terminal_core: '
+            '{path: ../packages/ianvs_terminal_core}\n',
+      ),
+    ]) {
       expect(
-        runnerRelease,
-        contains('CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;'),
+        _nativeCorePackagingViolations(
+          project: projectText,
+          hook: hookText,
+          bundleVerifier: verifierText,
+          exampleDependencyClosure: _localDependencyClosure(
+            File('${exampleRoot.path}/pubspec.yaml'),
+            rootSource: duplicateHookDependency,
+          ),
+        ),
+        isNotEmpty,
+        reason: 'two packages must not register the same bundled dylib',
       );
-      expect(runnerRelease, contains('ENABLE_HARDENED_RUNTIME = YES;'));
-      expect(projectText, contains('libianvs_core.dylib'));
-      expect(projectText, contains('codesign --force --sign'));
-    },
-  );
+    }
+  });
 
   test('macOS native test gate does not inherit credential variables', () {
     final repositoryRoot = _exampleRoot().parent;
@@ -323,6 +421,127 @@ void main() {
       expect(failedVerify.result.exitCode, isNonZero);
     },
   );
+}
+
+List<String> _nativeCorePackagingViolations({
+  required String project,
+  required String hook,
+  required String bundleVerifier,
+  required Set<String> exampleDependencyClosure,
+}) {
+  final violations = <String>[];
+  for (final forbidden in <String>[
+    'Bundle Rust Core',
+    'tools/build_core.sh',
+    'libianvs_core.dylib',
+  ]) {
+    if (project.contains(forbidden)) {
+      violations.add('Runner project contains $forbidden');
+    }
+  }
+  if (!hook.contains("const _assetName = 'libianvs_core.dylib';")) {
+    violations.add('ianvs_pty hook has the wrong native asset name');
+  }
+  if (RegExp(r'\bCodeAsset\(').allMatches(hook).length != 1) {
+    violations.add('ianvs_pty hook must register exactly one CodeAsset');
+  }
+  if (!hook.contains('linkMode: DynamicLoadingBundled()')) {
+    violations.add('ianvs_pty hook must bundle the dynamic native asset');
+  }
+  if (!bundleVerifier.contains(
+    r'release_core="$release_app/Contents/Frameworks/libianvs_core.dylib"',
+  )) {
+    violations.add('release bundle verification does not require the core');
+  }
+  if (!bundleVerifier.contains(r'lipo "$release_core" -verify_arch')) {
+    violations.add('release bundle verification does not inspect core slices');
+  }
+  if (!exampleDependencyClosure.contains('ianvs_pty')) {
+    violations.add('example dependency closure omits the CodeAsset owner');
+  }
+  if (exampleDependencyClosure.contains('ianvs_terminal_core')) {
+    violations.add('example dependency closure has two native core hooks');
+  }
+  return violations;
+}
+
+Set<String> _localDependencyClosure(File rootPubspec, {String? rootSource}) {
+  final repositoryRoot = _exampleRoot().parent;
+  final workspace =
+      loadYaml(File('${repositoryRoot.path}/pubspec.yaml').readAsStringSync())
+          as YamlMap;
+  final workspacePackages = <String, File>{};
+  for (final member in (workspace['workspace'] as YamlList?) ?? const []) {
+    final pubspec = File(
+      '${repositoryRoot.path}/$member/pubspec.yaml',
+    ).absolute;
+    final document = loadYaml(pubspec.readAsStringSync()) as YamlMap;
+    workspacePackages[document['name'] as String] = pubspec;
+  }
+
+  final pending = <File>[rootPubspec.absolute];
+  final visited = <String>{};
+  final packageNames = <String>{};
+  while (pending.isNotEmpty) {
+    final pubspec = pending.removeLast();
+    if (!visited.add(pubspec.path)) {
+      continue;
+    }
+    final source =
+        pubspec.path == rootPubspec.absolute.path && rootSource != null
+        ? rootSource
+        : pubspec.readAsStringSync();
+    final document = loadYaml(source) as YamlMap;
+    final name = document['name'];
+    if (name is String) {
+      packageNames.add(name);
+    }
+    for (final sectionName in const <String>[
+      'dependencies',
+      'dev_dependencies',
+      'dependency_overrides',
+    ]) {
+      final section = document[sectionName];
+      if (section is! YamlMap) {
+        continue;
+      }
+      for (final entry in section.entries) {
+        final dependencyName = entry.key;
+        if (dependencyName is! String) {
+          continue;
+        }
+        final specification = entry.value;
+        final path = specification is YamlMap ? specification['path'] : null;
+        if (path is String) {
+          pending.add(
+            File.fromUri(
+              pubspec.parent.uri.resolve('$path/pubspec.yaml'),
+            ).absolute,
+          );
+          continue;
+        }
+        final workspacePubspec = workspacePackages[dependencyName];
+        if (workspacePubspec != null) {
+          pending.add(workspacePubspec);
+        }
+      }
+    }
+  }
+  return packageNames;
+}
+
+final class _NativeCorePackagingFixture {
+  const _NativeCorePackagingFixture({
+    required this.label,
+    required this.project,
+    required this.hook,
+    required this.bundleVerifier,
+  });
+
+  final String label;
+  final String project;
+  final String hook;
+  final String bundleVerifier;
 }
 
 final class _SignerFixtureResult {

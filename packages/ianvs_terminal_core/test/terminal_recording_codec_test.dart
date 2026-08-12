@@ -9,8 +9,8 @@ void main() {
   group('TerminalRecordingCodec', () {
     const codec = TerminalRecordingCodec();
 
-    test('decodes and canonically re-encodes the v1 fixture', () {
-      final source = _fixture('basic_v1.ndjson').readAsStringSync();
+    test('decodes and canonically re-encodes the current fixture', () {
+      final source = _fixture('basic_current.ndjson').readAsStringSync();
 
       final recording = codec.decode(source);
 
@@ -98,7 +98,7 @@ void main() {
     });
 
     test('ignores additive unknown fields', () {
-      final lines = _fixture('basic_v1.ndjson')
+      final lines = _fixture('basic_current.ndjson')
           .readAsLinesSync()
           .map((line) => jsonDecode(line) as Map<String, Object?>)
           .toList(growable: false);
@@ -139,22 +139,21 @@ void main() {
       expect(codec.decode(encoded).events.single.redactedByteLength, 12);
     });
 
-    test('decodes and canonically re-encodes the v2 checkpoint fixture', () {
-      final source = _fixture('checkpoint_v2.ndjson').readAsStringSync();
+    test('decodes and canonically re-encodes current checkpoints', () {
+      final source = _fixture('checkpoint_current.ndjson').readAsStringSync();
 
       final recording = codec.decode(source);
 
-      expect(recording.metadata.schemaVersion, 2);
+      expect(recording.metadata.schemaVersion, terminalRecordingSchemaVersion);
       expect(recording.events[2].kind, TerminalRecordingEventKind.checkpoint);
       expect(recording.events[2].checkpointId, 'checkpoint-1');
       expect(recording.events[2].checkpointSourceSequence, 1);
       expect(codec.encode(recording), source);
     });
 
-    test('v2 graphic assets are content-addressed and deduplicated', () {
+    test('current graphic assets are content-addressed and deduplicated', () {
       final recording = TerminalRecording(
         metadata: TerminalRecordingMetadata(
-          schemaVersion: terminalRecordingCheckpointSchemaVersion,
           sessionId: 'graphics-session',
           createdAtUtc: DateTime.utc(2026, 7, 21),
           inputPolicy: TerminalRecordingInputPolicy.redact,
@@ -177,7 +176,6 @@ void main() {
         ],
         events: <TerminalRecordingEvent>[
           TerminalRecordingEvent.sessionStarted(
-            schemaVersion: terminalRecordingCheckpointSchemaVersion,
             sessionId: 'graphics-session',
             sequence: 0,
             monotonicOffset: Duration.zero,
@@ -191,7 +189,7 @@ void main() {
       final encoded = codec.encode(recording);
       final decoded = codec.decode(encoded);
 
-      expect(encoded, _fixture('graphics_v2.ndjson').readAsStringSync());
+      expect(encoded, _fixture('graphics_current.ndjson').readAsStringSync());
       expect(
         RegExp('"record_type":"graphic_asset_blob"').allMatches(encoded),
         hasLength(1),
@@ -211,8 +209,8 @@ void main() {
       expect(codec.encode(decoded), encoded);
     });
 
-    test('graphic asset bundler upgrades v1 without changing events', () {
-      final source = _fixture('basic_v1.ndjson').readAsStringSync();
+    test('graphic asset bundler preserves the current schema and events', () {
+      final source = _fixture('basic_current.ndjson').readAsStringSync();
       final original = codec.decode(source);
 
       final bundled = const TerminalRecordingGraphicAssetBundler().bundle(
@@ -228,10 +226,7 @@ void main() {
         ],
       );
 
-      expect(
-        bundled.metadata.schemaVersion,
-        terminalRecordingCheckpointSchemaVersion,
-      );
+      expect(bundled.metadata.schemaVersion, terminalRecordingSchemaVersion);
       expect(
         bundled.events.map((event) => event.kind),
         original.events.map((event) => event.kind),
@@ -242,7 +237,7 @@ void main() {
           isA<TerminalRecordingEvent>().having(
             (event) => event.schemaVersion,
             'schemaVersion',
-            terminalRecordingCheckpointSchemaVersion,
+            terminalRecordingSchemaVersion,
           ),
         ),
       );
@@ -257,8 +252,8 @@ void main() {
       );
     });
 
-    test('v1 stays byte-stable and cannot directly contain graphic assets', () {
-      final source = _fixture('basic_v1.ndjson').readAsStringSync();
+    test('current recordings stay byte-stable and can contain assets', () {
+      final source = _fixture('basic_current.ndjson').readAsStringSync();
       final original = codec.decode(source);
       final sourceRgba = <int>[1, 2, 3, 255];
       final asset = TerminalRecordingGraphicAsset(
@@ -272,29 +267,23 @@ void main() {
       sourceRgba[0] = 9;
       expect(codec.encode(original), source);
       expect(asset.rgba, <int>[1, 2, 3, 255]);
-      expect(
-        () => codec.encode(
+      final withAsset = codec.decode(
+        codec.encode(
           TerminalRecording(
             metadata: original.metadata,
             graphicAssets: <TerminalRecordingGraphicAsset>[asset],
             events: original.events,
           ),
         ),
-        throwsA(
-          isA<TerminalRecordingFormatException>().having(
-            (error) => error.code,
-            'code',
-            TerminalRecordingFormatErrorCode.unsupportedSchemaVersion,
-          ),
-        ),
       );
+      expect(withAsset.graphicAssets, hasLength(1));
 
       expect(() => asset.rgba[0] = 9, throwsUnsupportedError);
     });
 
     test('rejects corrupted and missing graphic asset blobs', () {
       final recording = const TerminalRecordingGraphicAssetBundler().bundle(
-        codec.decode(_fixture('basic_v1.ndjson').readAsStringSync()),
+        codec.decode(_fixture('basic_current.ndjson').readAsStringSync()),
         graphicAssets: <TerminalRecordingGraphicAsset>[
           TerminalRecordingGraphicAsset(
             assetId: 7,
@@ -344,7 +333,7 @@ void main() {
 
     test('rejects graphic asset identity count and RGBA size drift', () {
       final original = codec.decode(
-        _fixture('basic_v1.ndjson').readAsStringSync(),
+        _fixture('basic_current.ndjson').readAsStringSync(),
       );
       expect(
         () => const TerminalRecordingGraphicAssetBundler().bundle(
@@ -396,13 +385,13 @@ void main() {
       );
     });
 
-    test('rejects checkpoint events under recording schema v1', () {
-      final lines = _fixture('basic_v1.ndjson').readAsLinesSync();
+    test('accepts checkpoint events in the only current schema', () {
+      final lines = _fixture('basic_current.ndjson').readAsLinesSync();
       final event = jsonDecode(lines[2]) as Map<String, Object?>;
       event['event_kind'] = 'checkpoint';
       event['payload'] = <String, Object?>{
-        'checkpoint_id': 'invalid-v1',
-        'source_sequence': 1,
+        'checkpoint_id': 'checkpoint-current',
+        'source_sequence': 0,
       };
       final source = <String>[
         lines.first,
@@ -410,21 +399,13 @@ void main() {
         jsonEncode(event),
       ].join('\n');
 
-      expect(
-        () => codec.decode(source),
-        throwsA(
-          isA<TerminalRecordingFormatException>().having(
-            (error) => error.code,
-            'code',
-            TerminalRecordingFormatErrorCode.unsupportedEventKind,
-          ),
-        ),
-      );
+      final decoded = codec.decode(source);
+      expect(decoded.events.last.kind, TerminalRecordingEventKind.checkpoint);
     });
 
     test('reports unsupported versions with a structured error', () {
       const source =
-          '{"record_type":"metadata","schema_version":4,'
+          '{"record_type":"metadata","schema_version":2,'
           '"session_id":"s","created_at_utc":"2026-07-21T00:00:00.000Z",'
           '"input_policy":"redact"}\n';
 
@@ -444,7 +425,7 @@ void main() {
 
     test('merges and round trips shell semantics including nested SSH', () {
       final source = codec.decode(
-        _fixture('basic_v1.ndjson').readAsStringSync(),
+        _fixture('basic_current.ndjson').readAsStringSync(),
       );
       final enriched = const TerminalRecordingSemanticMerger()
           .merge(source, <TerminalRecordingSemanticEvent>[
@@ -484,10 +465,7 @@ void main() {
           )
           .toList(growable: false);
 
-      expect(
-        decoded.metadata.schemaVersion,
-        terminalRecordingSemanticSchemaVersion,
-      );
+      expect(decoded.metadata.schemaVersion, terminalRecordingSchemaVersion);
       expect(
         decoded.events.map((event) => event.sequence),
         List<int>.generate(decoded.events.length, (index) => index),
@@ -521,7 +499,7 @@ void main() {
       final bundledDecoded = codec.decode(codec.encode(bundled));
       expect(
         bundledDecoded.metadata.schemaVersion,
-        terminalRecordingSemanticSchemaVersion,
+        terminalRecordingSchemaVersion,
       );
       expect(bundledDecoded.graphicAssets, hasLength(1));
       expect(
@@ -534,7 +512,7 @@ void main() {
 
     test('reports truncated JSON with a structured error', () {
       final source =
-          '${_fixture('basic_v1.ndjson').readAsLinesSync().first}\n'
+          '${_fixture('basic_current.ndjson').readAsLinesSync().first}\n'
           '{"record_type":"event"';
 
       expect(
@@ -552,7 +530,7 @@ void main() {
     });
 
     test('rejects missing sequence entries and decreasing timestamps', () {
-      final lines = _fixture('basic_v1.ndjson').readAsLinesSync();
+      final lines = _fixture('basic_current.ndjson').readAsLinesSync();
       final missingSequence = jsonDecode(lines[3]) as Map<String, Object?>;
       missingSequence['sequence'] = 9;
       final missingSequenceSource = <String>[
@@ -601,7 +579,7 @@ File _fixture(String name) {
     Directory.current.parent.parent,
   ]) {
     final file = File(
-      '${root.path}/packages/ianvs_terminal/test/fixtures/recording/$name',
+      '${root.path}/packages/ianvs_terminal_core/test/fixtures/recording/$name',
     );
     if (file.existsSync()) {
       return file;
